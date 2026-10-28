@@ -1,0 +1,42 @@
+# T02 — agents_up.sh launch path: live probe, `--pane-cmd`, suppression, `--session-id`, exit 3, running check
+Appetite: 120
+
+## Scope
+Implements, in `scripts/sysadmin/agents_up.sh` only: spec § The delta D1's `--pane-cmd` mode (`docs/superpowers/specs/2026-10-28-dynamic-builders-design.md:89-94`); D3's suppression on EVERY pane and the first prompt (`:134-152`); D2's `--session-id` launch for a spawner-bound session with no transcript (`:122-126`) as corrected by W-14219e6f point 13; D4's exit 3 for "no builder to launch" (`:168-171`; § Contract deltas `:268-270`); D9's running check (`:256-258`, W-699dc679); § The delta, Folded residue (`:260-261`, W-034461b4 first half). Updates the pinned tests per W-14219e6f point 4 (the `run`-line pins) and the two exit-2 pins that become exit 3.
+
+**Step 1 — the BLOCKING live probe (spec § Open/blocking unknowns, `:421-424` and `:433-435`), before any code.** The executor, from this ticket's worktree: `git worktree add <run scratch>/probe-wt HEAD`; mint `u=$(python3 -c 'import uuid; print(uuid.uuid4())')`; on a scratch tmux server `tmux -L dynprobe new-session -d -x 200 -y 50 -c <run scratch>/probe-wt "env CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1 claude -n probe-1 --session-id $u --settings '{\"skillOverrides\":{\"auto-mode-setup\":\"off\"},\"spinnerTipsEnabled\":false}' 'Reply with the single word READY and stop.'"`; after 60 s `tmux -L dynprobe capture-pane -p -t probe-1 > <run scratch>/probe-pane.txt`; assert `ls "$CLAUDE_CONFIG_DIR/projects/$(printf %s '<run scratch>/probe-wt' | sed 's/[^A-Za-z0-9]/-/g')/$u.jsonl"` exists and `grep -c 'Teach auto mode' <run scratch>/probe-pane.txt` prints 0. If the dialog shows, re-run once with `"autoMode":{"environment":["Fabrik builder pane"]}` added to the same `--settings` JSON (the spec's named fallback, `:433-435`) and use whichever JSON passed in `cmd_of`. Then `tmux -L dynprobe kill-server` and `git worktree remove <run scratch>/probe-wt`. Both JSONs failing → `BLOCKED: combined launch line — searched: spec § Open/blocking unknowns, the probe pane capture — missing: a --settings form that suppresses the dialog`, before any other step. Record the transcript path and the pane capture in the ticket's commit body.
+
+**The code, after a green probe:**
+1. **Resolver output gains a 4th field.** The `agent <name> <sid> <folder>` line (`scripts/sysadmin/agents_up.sh:323-324`) becomes `agent <name> <sid> <folder> <new>`, `<new>` = `1` when the chosen sid's LAST binding row in scope carries `"spawned": true` (T01's row) AND `active_at(name, sid)` (`scripts/sysadmin/agents_up.sh:252-260`, which already walks the root plus every candidate worktree's project folder) is `None` — so a transcript under ANY candidate folder means `--resume` (W-14219e6f point 13: a session moved between worktrees is never given `--session-id` on an id in use); else `0`. Both `read -r name sid folder` loops (`:514`, `:595`) read the 4th field.
+2. **`cmd_of` (`:455-505`)** gains a 4th argument `new`. Every pane's env gains `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1` and every claude call gains `--settings '<the probed JSON>'` (one constant). `new=1` runs `claude -n <name> --session-id <sid> --settings … "<first prompt>"`; `new=0` keeps `--resume <sid>` and the wake prompt (`:491`). The first prompt, one line: arm the self-watch (`bash <hub>/scripts/sysadmin/selfwatch_arm.sh <sid>` in the background), re-bind (`python3 <hub>/scripts/whoami_agent.py --as <name> --force`), read the charter the SessionStart hook printed (or `docs/reference/agents/builder.md`), run `python3 scripts/work.py next` and claim the item it names, and "every question goes to your coordinator by SendMessage — never to the operator". `<hub>` is `$(dirname "$SELF")/../..` resolved once — no new `/opt/fabrik` literal.
+3. **`--pane-cmd <repo> <name> <sid> --new`** — a read-only mode beside `--print` (argument loop `:77-89`): runs the same resolver, then prints exactly one line, `cmd_of <name> <sid> <status> 1`'s output, for the resolved `(name, sid)`; a name/sid pair the resolver did not print exits 2 ("<name> <sid> is not resolved in <repo>"). A resolver refusal refuses `--pane-cmd` with the same message and code (spec D1, `:93-94`).
+4. **Exit 3.** The resolver heredoc exits 3 (not via `sys.exit(<str>)`, which is rc 1) on "names no builder" (`:160-161`) and "has no builder with its own worktree" (`:321-322`); the `|| exit 2` at `:328` becomes a case on the captured rc: 3 → exit 3, any other non-zero → exit 2. "No registry and no git scope" (`:148-149`) stays exit 2 (an environment refusal, not an empty repo).
+5. **Emptied grid (Folded residue).** After the launch loop (`:595-621`), `first` still `1` and `raced` `0` → "every builder's worktree went away between resolve and launch — nothing launched", exit 2, and no `select-pane` on a session that does not exist (`:623`).
+6. **Running check (D9).** `RUNNING` (`:337`) becomes `ps -ww -C claude -o pid=,args=`; `status_of` (`:441-449`) gains the name and returns `running` when a line matches `--resume <sid>` as today OR its args carry `-n <name>` as whole words AND `readlink "$PROC_ROOT/<pid>/cwd"` (`PROC_ROOT`, `:373`, the existing seam) is the pane's folder or under it.
+
+DO-NOT: touch window placement or `new-session`/`split-window` targets (T03); add `add`/`remove` dispatch (T06, T09); change `--print`'s `pane`/`cap`/`session`/`slice` lines (`agents_bat.py::_has_grid` reads `pane ` lines, `scripts/sysadmin/agents_bat.py:224`).
+
+Depends: T01
+Parallel: ⛓️
+Complexity: complex
+Gate: /opt/fabrik/scripts/capped_run.sh -- /opt/fabrik/.venv/bin/python -m pytest tests/test_agents_up.py tests/test_agents_bat.py -q
+Docs: none in this ticket (T09 documents the verbs in docs/reference/repo-coordinator-rollout.md, the doc agents_up.sh's AFTER-EDIT header names); the header comment block of agents_up.sh (`scripts/sysadmin/agents_up.sh:17-37`) is updated for exit 3, the suppression and `--pane-cmd`
+
+## Touches
+- scripts/sysadmin/agents_up.sh — PRIMARY PATH
+- tests/test_agents_up.py — new tests below, plus the pinned-test edits of W-14219e6f point 4: the `run`-line pins at `tests/test_agents_up.py:192`, `:224`, `:258-262` (the env allow-list set gains `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY`), `:965-982` — re-expected for `--settings` and the new env var; the exit pins `tests/test_agents_up.py:1199-1204` and the `no-builders` case at `:332`/`:344` — re-expected to rc 3
+
+## Behavior Contract
+- **Given** a registered builder with a transcript, **When** `agents_up.sh --print <R>` runs, **Then** its `run` line resumes with `--settings` carrying `skillOverrides.auto-mode-setup=off` and `spinnerTipsEnabled=false`, and its env carries `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1` (scripts/sysadmin/agents_up.sh:494; spec § The delta D3)
+- **Given** a resolved builder, **When** `agents_up.sh --pane-cmd <R> <name> <sid> --new` runs, **Then** stdout is exactly one command equal to the `--print` run line's shape with `--session-id <sid>` and the first prompt, and an unresolved name or sid exits 2 (scripts/sysadmin/agents_up.sh:511-523; spec § The delta D1)
+- **Given** a spawner-bound builder whose sid has no transcript under the root or any candidate worktree, **When** `--print` runs, **Then** its run line uses `--session-id` and the first prompt, and with the transcript under another candidate worktree it uses `--resume` (scripts/sysadmin/agents_up.sh:252-260; spec § The delta D2; W-14219e6f point 13)
+- **Given** a registry naming only a coordinator, or bindings with no builder worktree, **When** the launcher runs, **Then** it exits 3, while a malformed registry row or an unreadable ledger still exits 2 (scripts/sysadmin/agents_up.sh:160-161; spec § Contract deltas)
+- **Given** every resolved worktree removed between resolve and launch, **When** the grid starts, **Then** nothing launches and it exits 2 with the emptied-grid message (scripts/sysadmin/agents_up.sh:595-623; spec § The delta, Folded residue)
+- **Given** a claude process with `-n dev1` whose cwd is dev1's worktree and no `--resume` in its argv, **When** `--print` runs, **Then** dev1's status is `running`, and the same name with a cwd elsewhere is not (scripts/sysadmin/agents_up.sh:441-449; spec § The delta D9)
+
+## Context Files
+- .windsurf/rules/core/45-testing-strategy.md
+- scripts/sysadmin/agents_up.sh
+- tests/test_agents_up.py
+- scripts/whoami_agent.py
+- docs/superpowers/specs/2026-10-28-dynamic-builders-design.md

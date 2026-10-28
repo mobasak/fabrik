@@ -1,0 +1,499 @@
+# Plan — dynamic disposable builder agents (W-b9ad80ae)
+
+Status: DRAFT
+
+**Owner:** infra-3
+
+Spec: `docs/superpowers/specs/2026-10-28-dynamic-builders-design.md` (Status: CONVERGED; approved D-1306; review receipt `docs/development/reviews/2026-10-28-dynamic-builders-spec-review.md`). Work items: W-b9ad80ae (P0, the build), W-14219e6f (the spec review's plan-time residue, points 1 and 3-13 — every one is a named behaviour below), W-1961cc42 (closed by T03's commit). Rulings: D-1301, D-1128, D-1092, D-1108, D-1132, D-1306.
+
+## What we already agreed
+
+- Goal and the two verbs — spec § Goal (`docs/superpowers/specs/2026-10-28-dynamic-builders-design.md:42-46`), § The delta D1 (`:84-94`).
+- Ordered, serialised, idempotent `add` — spec § The delta D2 (`:96-132`).
+- The pane: new session, first prompt, suppression on every pane, trust refusal — spec § The delta D3 (`:134-152`).
+- Named windows of four, grouped sessions, cold start, exit 3 — spec § The delta D4 (`:154-178`).
+- The generated, live tabbed launcher, box-wide lock, Deck distro resolver — spec § The delta D5 (`:180-204`).
+- Sizing rule and the 2 GB memory floor, refusal record — spec § The delta D6 (`:206-215`).
+- `remove` never loses work — spec § The delta D7 (`:217-237`).
+- Charters by role fallback, generic `builder.md` — spec § The delta D8 (`:239-248`); the charter reading of D-1301 point 1 — spec § Decisions taken (`:310-313`), approved by D-1306.
+- Registry as a cache, reality wins, the running check — spec § The delta D9 (`:250-258`); folded residue W-034461b4 — `:260-261`.
+- CLI contract deltas and the three outputs that change on purpose — spec § Contract deltas (`:263-274`).
+- Rejected: background sessions, agent-deck, agent teams, claude-squad/ccmanager, registry-free, symlink charter, bash spawning, one tab per repo, `send-keys` — spec § Rejected alternatives (`:335-353`); the two-worktree tiebreak not built — D-1306.
+- DONE condition: the live proof — spec § Validation (`:301-304`).
+- Spec approval row exists — verified: `docs/DECISIONS.md:1297` is D-1306 naming this spec path, so no approval row is minted here.
+- Corrections this plan applies to the spec text (W-14219e6f, RECORDED residue of spec-review pass 5): point 7 — headroom re-measured after the cold start and before the launch (T08); point 8 — a re-created first window becomes `<S>`'s current window (T03 relaunch half, T08 spawn half).
+
+## Intake Inventory
+
+The conversation this run was invoked on is the orchestrator's brief (infra-3, 2026-10-28) plus the work item it names.
+
+| I# | Item (anchored) | Disposition | Where |
+|---|---|---|---|
+| I1 | "WRITE the plan for the CONVERGED spec" | IN | this set |
+| I2 | "cite the spec … never re-narrate it" | IN | every ticket's Scope and Behavior Contract cite `spec § …` / `<spec>:<line>` |
+| I3 | W-14219e6f point 1 "mint first or defer the branch to steps 4-5" | IN | T08 (deferred to after the mint) |
+| I4 | point 2 "DONE in the panel revision" | OUT-OF-SCOPE | already done (spec `:169-171`, `:269-270`); T02 carries the test edit it names |
+| I5 | point 3 "_repoint_registry … take the same lock" | IN | T07 |
+| I6 | point 4 "launcher tests pin run lines and =<repo>:agents targets" | IN | T02 (run lines, exit pins), T03 (`:agents` targets) |
+| I7 | point 5 "run folders in two checkouts" | IN | T09 |
+| I8 | point 6 / "W-1961cc42 must be named in the commit message" | IN | T03 |
+| I9 | point 7 "re-measure the 2 GB headroom AFTER the cold start" | IN | T08 |
+| I10 | point 8 "a re-created first window must become <S>'s current window" | IN | T03, T08 |
+| I11 | point 9 "ls-remote … a network call — … read the configured base first" | IN | T06 |
+| I12 | point 10 "enforce 'spawner-only' … not only mark the row" | IN | T01 |
+| I13 | point 11 "say whether overflow windows start at agents-2" | IN | T03 (decided: yes) |
+| I14 | point 12 "a MemoryHigh of 'max' has no number" | IN | T06 (decided: measure against MemoryMax; both `max` refuses) |
+| I15 | point 13 "check every candidate folder before choosing --session-id" | IN | T02 |
+| I16 | "fleet must be told the path of docs/reference/agents/builder.md" | IN | T04 step 5 (orchestrator) |
+| I17 | "Choose monolith vs plan set per the command's own sizing rule" | IN | § Evidence, shape decision |
+| I18 | "The live proof … is the DONE condition" | IN | T10 |
+| I19 | "tests run under capped_run.sh"; final gate `final_gate.py --json` | IN | every ticket's Gate; T10 |
+| I20 | "Heavy surface … full /fabrik-review at phase boundaries" | IN | § Execution Discipline |
+
+Intake: 20 items — 19 IN, 1 OUT-OF-SCOPE (I4, already done), 0 ASK.
+
+## Ticket Board
+
+| Ticket | Title | Depends | Parallel | State | Commit |
+|---|---|---|---|---|---|
+| T01 | whoami spawner-only binding | — | ⚡ | ⬜ | |
+| T04 | Charters by role + builder.md | — | ⚡ | ⬜ | |
+| T02 | agents_up.sh launch path | T01 | ⛓️ | ⬜ | |
+| T03 | agents_up.sh placement + --window | T02 | ⛓️ | ⬜ | |
+| T05 | agents_bat.py --tabbed | T03 | ⛓️ | ⬜ | |
+| T06 | agents_spawn.py add part 1 | T01, T03 | ⛓️ | ⬜ | |
+| T07 | rotate_session registry lock | T06 | ⚡ | ⬜ | |
+| T08 | agents_spawn.py add part 2 | T02, T05, T06 | ⛓️ | ⬜ | |
+| T09 | agents_spawn.py remove + docs | T08 | ⛓️ | ⬜ | |
+| T10 | Integration: live proof + receipt | T04, T07, T09 | ⛓️ | ⬜ | |
+
+## Merge Order
+
+1. T01
+2. T04
+3. T02
+4. T03
+5. T05
+6. T06
+7. T07
+8. T08
+9. T09
+10. T10
+
+Every path two tickets share is ordered by a Depends edge (`scripts/sysadmin/agents_up.sh`: T02 → T03 → T06 → T08 → T09; `tests/test_agents_up.py`: T02 → T03; `scripts/sysadmin/agents_spawn.py` and `tests/test_agents_spawn.py`: T06 → T08 → T09), so no `Serialized:` row is needed.
+
+## Interfaces
+
+| # | Producer → consumer | Interface (exact) | Seam test (owned by the consumer) |
+|---|---|---|---|
+| IF1 | T01 → T02, T06 | `whoami_agent.py --spawned <name> --session-id <uuid> --repo <dir> --lock-fd <n>`; exit 0 written · 1 live holder · 2 refused; the row `{session_id, name, toplevel, spawned: true, pid: null, pid_start: null, at, force: false, unlocked}` | T02: `tests/test_agents_up.py` writes the row through the real CLI holding a lock fd and asserts `--print`'s run line uses `--session-id`; T06: `tests/test_agents_spawn.py` asserts the binding step's row |
+| IF2 | T02 → T08 | `agents_up.sh --pane-cmd <repo> <name> <sid> --new` → one command line on stdout, exit 0; 2 unresolved/refused; `agents_up.sh --detach <repo>` exit 3 = no builder to launch | T08: the placed pane's command equals `--pane-cmd`'s output; the no-builder cold start reads exit 3 |
+| IF3 | T03 → T05, T08 | window names `agents`, `agents-<k>` (k ≥ 2); grouped session `<S>-<k>` with `agents-<k>` current; `agents_up.sh --window <k> <repo>` | T05: a tab line's argv is accepted by the real `agents_up.sh --window` parse under a fake tmux; T08: relaunch six then `add` a seventh lands in `agents-2` as its third pane |
+| IF4 | T05 → T08, T09 | `agents_bat.py --tabbed` (no `--desktop` → the folder in `~/.config/fabrik/agents-desktop`); exit 0 written/current · 2 refused; lock `~/.config/fabrik/agents-desktop.lock` | T08: the regenerated `.bat` lists the new window's tab |
+| IF5 | T06 → T07, T08, T09 | `agents_spawn.lock_path(root) -> Path` (`<git common dir>/fabrik-agents.lock`); `agents_spawn.agents_lock(root)` context manager; `resolve_base(root) -> str`; `headroom_bytes() -> int` (raises on unmeasurable); refusal row in `~/.claude/state/agents-spawn.jsonl` | T07: both resolve one lock file and a held lock delays the re-point; T08: headroom re-measured twice; T09: `<base>` from `resolve_base` |
+| IF6 | T04 → fleet's rollout (W-cf005f94) | `docs/reference/agents/builder.md`, first line `# Agent charter — builder` | T04's own marker test; the path mailed to fleet on landing |
+
+Wired consumers (no stored-and-never-read output): `--spawned` ← `agents_spawn.py` (T06); `--pane-cmd`/exit 3 ← `agents_spawn.py` (T08); `--window` ← the generated `.bat` (T05); `--tabbed` ← `add`/`remove` (T08, T09); `agents_spawn.py` ← `agents_up.sh add|remove` (T06, T09); `builder.md` ← `agent_role.py`'s fallback (T04); the refusal jsonl ← spec § Lifecycle's growth trigger (read by the coordinator, documented by T09).
+
+## Behavior Contract
+
+- **Given** the caller holds `<common dir>/fabrik-agents.lock` and passes its descriptor, **When** `whoami_agent.py --spawned b-1 --session-id <fresh uuid> --repo <R> --lock-fd <n>` runs, **Then** it exits 0 and the store's last row is `{session_id: <uuid>, name: b-1, toplevel: <R's common dir>, spawned: true, pid: null, pid_start: null}` (scripts/whoami_agent.py:411-420; spec § The delta D2)
+- **Given** that row and a linked worktree `<R>/.claude/worktrees/b-1` in a repo with no registry, **When** `agents_up.sh --print <R>` runs, **Then** it prints a `pane b-1 <uuid> …` line (scripts/sysadmin/agents_up.sh:192-200; spec § Validation "the session-id binding form writes the row the resolver reads")
+- **Given** no descriptor, a descriptor to another file, or a lock path nobody holds, **When** `--spawned` runs, **Then** it exits 2 naming the failed condition and writes no row (W-14219e6f point 10)
+- **Given** the session id already appears in any store row, **When** `--spawned` runs with it, **Then** it exits 2 naming the id and writes no row (scripts/whoami_agent.py:360-368)
+- **Given** a LIVE pid-bearing row binding b-1 in the same scope, **When** `--spawned b-1` runs, **Then** it exits 1 with the live-holder refusal (scripts/whoami_agent.py:403-409)
+- **Given** the spawned row, **When** the builder's own session runs `whoami_agent.py --as b-1 --force`, **Then** its new row carries its own pid and `resolve_agent_name()` in that session returns b-1 (spec § The delta D3, the first-turn re-bind)
+- **Given** `--spawned` combined with `--as` or `--who`, **When** parsed, **Then** argparse refuses with a usage error, exit 2 (scripts/whoami_agent.py:470-476)
+- **Given** `CLAUDE_AGENT=infra-4` and only a marked `infra.md`, **When** the hook runs, **Then** it prints `infra.md`'s body under the `## AGENT ROLE: infra-4` header (.claude/hooks/agent_role.py:124-157; spec § The delta D8)
+- **Given** `CLAUDE_AGENT=builder-w1a2b` and the marked `builder.md`, **When** the hook runs, **Then** it prints `builder.md`'s body (spec § The delta D8)
+- **Given** both a marked `infra-2.md` and a marked `infra.md`, **When** the hook runs for `infra-2`, **Then** it prints `infra-2.md`, never `infra.md` (spec § The delta D8)
+- **Given** `fabrik-lib-coordinator` with a marked `fabrik-lib.md` and no own charter, **When** the hook runs, **Then** it prints nothing (.claude/hooks/agent_role.py:127-128; spec § The delta D8)
+- **Given** a ledger declaring merge owner `lead` and a marked `lead.md`, **When** the hook runs for `lead-2`, **Then** it prints nothing, and with the resolver failing it also prints nothing (scripts/sysadmin/agents_up.sh:202-210)
+- **Given** a symlinked `<role>.md` resolving outside the repo, **When** the hook falls back to it, **Then** it prints nothing (.claude/hooks/agent_role.py:129-135)
+- **Given** a name with no `-` and no own charter, **When** the hook runs, **Then** it prints nothing (spec § The delta D8)
+- **Given** the new `docs/reference/agents/builder.md`, **When** its first line is read, **Then** `_has_charter_marker` accepts it (.claude/hooks/agent_role.py:45-49)
+- **Given** a registered builder with a transcript, **When** `agents_up.sh --print <R>` runs, **Then** its `run` line resumes with `--settings` carrying `skillOverrides.auto-mode-setup=off` and `spinnerTipsEnabled=false`, and its env carries `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1` (scripts/sysadmin/agents_up.sh:494; spec § The delta D3)
+- **Given** a resolved builder, **When** `agents_up.sh --pane-cmd <R> <name> <sid> --new` runs, **Then** stdout is exactly one command equal to the `--print` run line's shape with `--session-id <sid>` and the first prompt, and an unresolved name or sid exits 2 (scripts/sysadmin/agents_up.sh:511-523; spec § The delta D1)
+- **Given** a spawner-bound builder whose sid has no transcript under the root or any candidate worktree, **When** `--print` runs, **Then** its run line uses `--session-id` and the first prompt, and with the transcript under another candidate worktree it uses `--resume` (scripts/sysadmin/agents_up.sh:252-260; spec § The delta D2; W-14219e6f point 13)
+- **Given** a registry naming only a coordinator, or bindings with no builder worktree, **When** the launcher runs, **Then** it exits 3, while a malformed registry row or an unreadable ledger still exits 2 (scripts/sysadmin/agents_up.sh:160-161; spec § Contract deltas)
+- **Given** every resolved worktree removed between resolve and launch, **When** the grid starts, **Then** nothing launches and it exits 2 with the emptied-grid message (scripts/sysadmin/agents_up.sh:595-623; spec § The delta, Folded residue)
+- **Given** a claude process with `-n dev1` whose cwd is dev1's worktree and no `--resume` in its argv, **When** `--print` runs, **Then** dev1's status is `running`, and the same name with a cwd elsewhere is not (scripts/sysadmin/agents_up.sh:441-449; spec § The delta D9)
+- **Given** six registered builders and no tmux session, **When** the grid launches, **Then** window `agents` holds four panes, window `agents-2` holds two, the grouped session `<S>-2` exists with `agents-2` as its current window, and `<S>`'s current window is `agents` (scripts/sysadmin/agents_up.sh:595-623; spec § The delta D4; spec § Validation, the 10-22 regression)
+- **Given** four or fewer builders, **When** the grid launches, **Then** the fake tmux log shows one window `agents`, no `new-window` and no grouped session (scripts/sysadmin/agents_up.sh:603-620)
+- **Given** a nine-builder relaunch, **When** the grid launches, **Then** every pane carries `@agent <its name>` set against its own window and every window is laid out even-horizontal (scripts/sysadmin/agents_up.sh:619-620)
+- **Given** a grid up with a window `agents-2` and no session `<S>-2`, **When** `agents_up.sh --window 2 <R>` runs, **Then** it creates `<S>-2`, selects `agents-2` in it, and attaches `=<S>-2` (spec § The delta D5)
+- **Given** a grid up without a window `agents-3`, **When** `agents_up.sh --window 3 <R>` runs, **Then** it says so, attaches `=<S>`, and creates no `<S>-3` (spec § The delta D5)
+- **Given** no grid and `FABRIK_AGENTS_WINDOW_WAIT_S=2`, **When** `agents_up.sh --window 2 <R>` runs, **Then** it polls has-session and exits 2 saying the grid did not come up (spec § The delta D5)
+- **Given** `--window 1`, `--window x` or `--window` with no number, **When** parsed, **Then** usage exit 2 (scripts/sysadmin/agents_up.sh:86-89)
+- **Given** two repos with grids, one whose tmux session has windows `agents` and `agents-2`, **When** `agents_bat.py --tabbed --desktop D` runs, **Then** `D/All Agents (tabbed).bat` has three tabs in one `wt.exe -M -w fabrik-agents` line — two running `agents_up.sh /opt/<repo>` and one running `agents_up.sh --window 2 /opt/<repo>` (spec § The delta D5)
+- **Given** a repo `--print` accepts whose tmux session is not up, **When** `--tabbed` runs, **Then** that repo still gets its first tab (scripts/sysadmin/agents_bat.py:208-224; spec § The delta D5)
+- **Given** `WSL_DISTRO_NAME` unset and `/usr/bin/wslpath` present, **When** `--tabbed` runs, **Then** every `wsl.exe --distribution` names the distro `wslpath -w /` names (scripts/sysadmin/fabrik_deck.py:892-921; spec § The delta D5)
+- **Given** an existing `All Agents (tabbed).bat` without the marker, **When** `--tabbed --desktop D` runs, **Then** it is left untouched with exit 2, and with `--replace "All Agents (tabbed).bat"` it is rewritten carrying the marker (scripts/sysadmin/agents_bat.py:227-244)
+- **Given** one earlier run with `--desktop D`, **When** `--tabbed` runs with no `--desktop`, **Then** it writes `D/All Agents (tabbed).bat` (spec § The delta D5)
+- **Given** two `--tabbed --desktop D` processes started together, **When** both finish, **Then** `D` holds one whole current file and no temp file (spec § The delta D5)
+- **Given** the rename fails, **When** `_write` runs in either mode, **Then** the error reaches the caller and no temp file stays in the folder (tests/test_agents_bat.py:273-296)
+- **Given** a trusted, capped repo with headroom, **When** `agents_up.sh add <R> b-1 --item W-x` runs, **Then** under the repo's agents lock it creates `.claude/worktrees/b-1` on `worktree-b-1` from the base tip, writes the spawned binding, writes the registry row only where a registry exists, and makes b-1 the owner of W-x, in that order (spec § The delta D2)
+- **Given** two `add` runs for one repo started together, **When** both finish, **Then** the second waited on the lock and no worktree, binding or registry row exists twice (spec § The delta D2)
+- **Given** a bad name, a coordinator or merge-owner name, a live-bound name, an untrusted root, an uncapped start without the override, or under 2 GB headroom, **When** `add` runs, **Then** it exits 2 naming the reason, leaves no worktree or branch, and appends one line to `agents-spawn.jsonl` (spec § The delta D2 step 1; spec § The delta D6)
+- **Given** `memory.high` reading `max`, **When** headroom is measured, **Then** it is measured against `memory.max`, and with both `max` or a value unreadable `add` refuses (spec § The delta D6; W-14219e6f point 12)
+- **Given** a leftover branch `worktree-b-1`, **When** `add` runs, **Then** a merged one is re-created and an unmerged one refuses naming it (spec § The delta D2 step 2)
+- **Given** `base_branch` in `.fabrik/work/config.json` and no reachable remote, **When** `add` runs, **Then** it uses the configured base with no network call, and with no config and no remote it refuses naming the config key (scripts/merge_request.py:301-307; W-14219e6f point 9)
+- **Given** a repo with no registry, **When** `add` runs, **Then** no `.fabrik/session-agents.json` is created and the binding alone records the builder (scripts/sysadmin/agents_up.sh:199-200)
+- **Given** an `add` that stopped at the item step, **When** it is re-run, **Then** the worktree and binding are not created twice and the run completes the item step (spec § The delta D2)
+- **Given** a process holding the repo's agents lock while it adds a registry row, **When** a rotation re-points another row of the same registry, **Then** the rotation waits for the lock and the file afterwards holds both changes (scripts/sysadmin/rotate_session.py:300-313; W-14219e6f point 3)
+- **Given** the agents lock held for longer than the bound, **When** the rotation re-points, **Then** the outcome is `refused:agents lock busy` and the registry is byte-identical (scripts/sysadmin/rotate_session.py:290-319)
+- **Given** `agents_spawn.lock_path(<repo>)`, **When** rotate_session resolves the lock for the same repo, **Then** both name the same file (seam test; spec § The delta D2)
+- **Given** no tmux session and two registered builders, **When** `add <R> b-3` runs, **Then** `agents_up.sh --detach <R>` brings both back before b-3 is recorded, headroom is measured again after it and before b-3's launch, and b-3 is then placed (spec § The delta D4 cold start; W-14219e6f point 7)
+- **Given** no tmux session and no builder, **When** `add <R> b-1` runs, **Then** the first `--detach` exits 3 and starts nothing, and after the binding is written the second `--detach` makes the grid with b-1 as its first pane launched with `--session-id` (W-14219e6f point 1)
+- **Given** window `agents` holding four panes, **When** `add` places a fifth builder, **Then** it opens `agents-2` in the background, creates `<S>-2` with `agents-2` current, and `<S>`'s current window is unchanged (spec § The delta D4; spec § Validation)
+- **Given** the window `agents` gone and `agents-2` live, **When** `add` places a builder, **Then** it re-creates `agents` and makes it `<S>`'s current window (W-14219e6f point 8)
+- **Given** placement, **When** the pane starts, **Then** its command is byte-identical to `agents_up.sh --pane-cmd`'s output, the window is even-horizontal, and the pane carries `@agent <name>` (scripts/sysadmin/agents_up.sh:455-505; spec § The delta D1)
+- **Given** a NEW window opened, **When** `add` finishes, **Then** the fake `wt.exe` received `-w fabrik-agents new-tab … tmux attach -t =<S>-2`, and with `wt.exe` absent `add` says so and still exits 0 (spec § The delta D5)
+- **Given** a remembered desktop, **When** `add` finishes, **Then** `All Agents (tabbed).bat` there lists the new window's tab, and with no remembered desktop `add` says so and exits 0 (spec § The delta D5)
+- **Given** a live pane tagged `@agent b-1` running b-1's bound id and no worktree record step left to do, **When** `add <R> b-1` runs again, **Then** no second pane is created (spec § The delta D2)
+- **Given** a run record `running` under the session id the identity store binds to the name after a re-bind, **When** `remove` runs, **Then** it exits 2 naming that record (spec § The delta D7)
+- **Given** a dirty worktree, a detached HEAD, or a git call that fails, **When** `remove` runs, **Then** it exits 2 naming each, and the worktree is still there (spec § The delta D7)
+- **Given** commits beyond the base on a never-pushed branch, **When** `remove` runs, **Then** it refuses, and after the branch is pushed it retires; a branch with no commits beyond the base and no upstream retires (spec § The delta D7; spec § Validation)
+- **Given** a `.tmp/runs/x/` folder that a seed under `seeds/` names, written by another session, **When** `remove` runs, **Then** it refuses naming the seed, and an unknown ignored file also refuses while `.venv` and `__pycache__` do not (spec § The delta D7; W-14219e6f point 5)
+- **Given** every check passing and the name the last pane of window `agents-2`, **When** `remove` runs, **Then** the pane is gone, `<S>-2` is killed, the worktree is removed without `--force`, a merged branch is deleted, the registry row is dropped, the launchers regenerated, and the transcript file is untouched (spec § The delta D4; spec § The delta D7)
+- **Given** a tmux read that errors or returns nothing while the grid is up, **When** `remove` runs, **Then** it refuses and removes nothing (spec § The delta D9)
+- **Given** a run folder of the name's session in another checkout, **When** `remove` succeeds, **Then** stdout lists it as kept and it still exists (W-14219e6f point 5)
+- **Given** the merged build in the hub's main checkout, **When** the coordinator runs `agents_up.sh add /opt/fabrik builder-proof1 --item <id>`, **Then** the builder binds, claims the item and shows in the open tabbed window with no key typed and no dialog (spec § Validation, live proof)
+- **Given** four builders in window `agents`, **When** a fifth is added, **Then** window `agents-2`, session `fabrik-2` and a second tab exist (spec § Validation, live proof)
+- **Given** an unpushed commit on builder-proof1's branch, **When** `remove` runs, **Then** it refuses, and after the push it retires the builder, regenerating the `.bat` each time (spec § Validation, live proof)
+- **Given** builder-proof1 retired, **When** session-recall searches its name, **Then** its transcript is found (spec § Validation, live proof)
+
+## Global Constraints
+
+- Box-local hub tooling only: no deployed service, no `shape:` flag, no port (spec § Shape/infra implications, `:393-395`).
+- No new dependency and no edit of `pyproject.toml`/`uv.lock`; never `uv sync`/`uv run`/`pip install` from a worktree (the `.venv` is the shared symlink).
+- Every test run: `/opt/fabrik/scripts/capped_run.sh -- /opt/fabrik/.venv/bin/python -m pytest …` (D-935); never bare.
+- Logs: stdout/stderr only, never a logfile; `~/.claude/state/agents-spawn.jsonl` is a state record beside `rotations.jsonl` (spec D6), not an app log (12-Factor XI).
+- No daemonizing, no PID files (VIII); config is granular env vars (`FABRIK_AGENTS_UNCAPPED`, `FABRIK_AGENTS_WINDOW_WAIT_S`, `FABRIK_AGENTS_CGROUP_DIR`, `FABRIK_WT_EXE`), no grouped env sets, no secrets (III); every binary shelled out to (`tmux`, `git`, `systemd-run`, `systemctl`, `flock` semantics via `fcntl`, `wslpath`, `wt.exe`) is probed, never assumed (II).
+- No migrations, no sticky sessions, no backing-service swap, no hot-patching: not applicable to box tooling (XII, VI, X, V) and none is introduced.
+- Names `[a-z0-9][a-z0-9-]{0,31}`; session ids lowercase UUIDs (`scripts/sysadmin/agents_up.sh:120-121`); tmux targets exact (`=<S>`, `=<S>:` for options, `scripts/sysadmin/agents_up.sh:542-544`).
+- Never `git worktree remove --force`, never `git branch -D`, never `tmux send-keys` for a prompt (D-1123 note, spec D3).
+- Fleet-synced surfaces in this set: `.claude/hooks/agent_role.py`, `scripts/whoami_agent.py` (governance-sync trigger regex, `.pre-commit-config.yaml:164`); a worktree commit distributes nothing — they ship when the hub merges the set.
+
+## Context Ledger
+
+| Source | What binds | Grounded ref |
+|---|---|---|
+| `.windsurf/rules/core/10-python.md` (FLOOR) | `uv` only, no new deps; no logfile | `.windsurf/rules/core/10-python.md:22`, `:302` |
+| `.windsurf/rules/core/45-testing-strategy.md` (MATCHED) | one test per behaviour, watched-fail-first, five legitimate spellings for a guard | `.windsurf/rules/core/45-testing-strategy.md:20`, `:22`, `:200` |
+| `.windsurf/rules/core/40-documentation.md` (MATCHED) | fenced code, no skipped heading levels (builder.md, rollout doc) | `.windsurf/rules/core/40-documentation.md:242`, `:244` |
+| `.windsurf/rules/core/62-using-subagents.md` (MATCHED) | seat briefs carry no tool lists; review partition rules | `.windsurf/rules/core/62-using-subagents.md:16` |
+| `.windsurf/rules/ai/00-ai-model-selection.md` (MATCHED via builder.md) | a pane names no model id (the panes pass no `--model`) | `.windsurf/rules/ai/00-ai-model-selection.md:25` |
+| `fabrik-lib` | none — spec § fabrik-lib verdict: build (hub tooling), not a candidate | `docs/superpowers/specs/2026-10-28-dynamic-builders-design.md:387-391` |
+| `agents-fabrik.md` infra invariants | not touched (no compose, no network, no port) | spec § Shape/infra implications `:393-395` |
+| `specs/services/<id>.yaml` `shape:` | none (no deployed service) | spec `:395` |
+| `docs/data-contract.md` / `docs/ui-design.md` | none exist for hub tooling | spec § Contract deltas `:265` |
+| The slice ceiling | `fabrik-agents.slice` MemoryHigh/MemoryMax derived by agents_up.sh | `scripts/sysadmin/agents_up.sh:368-412` |
+| The identity store | the only writer is `whoami_agent.py`'s locked writer | `scripts/whoami_agent.py:328-351` |
+
+## Constraints Digest
+
+| Quote | Source |
+|---|---|
+| is the mandated Python package manager. Never use raw | `.windsurf/rules/core/10-python.md:22` |
+| The app never decides where logs are stored or routed | `.windsurf/rules/core/10-python.md:302` |
+| ensure every behavior has a test that would fail if that behavior regressed | `.windsurf/rules/core/45-testing-strategy.md:20` |
+| a non-trivial behavior's test proves something only if it has been SEEN RED | `.windsurf/rules/core/45-testing-strategy.md:22` |
+| Write the guard's subject five LEGITIMATE ways | `.windsurf/rules/core/45-testing-strategy.md:200` |
+| No skipped heading levels | `.windsurf/rules/core/40-documentation.md:242` |
+| Fenced code blocks only — never indented code (AI treats it inconsistently) | `.windsurf/rules/core/40-documentation.md:244` |
+| Never restate tool lists in a command brief — the access lives in the agent-type file. | `.windsurf/rules/core/62-using-subagents.md:16` |
+| Always the latest Claude models — select by ALIAS, never by an old ID. | `.windsurf/rules/ai/00-ai-model-selection.md:25` |
+
+Selections against the digest: no dependency is added (row 1); the helper and the launcher report on stdout/stderr, the refusal record is a state file (row 2); every Behavior Contract row is a test written red first, and every refusal guard (T01's lock check, T06's preflight, T09's checks) is tested with five legitimate inputs of its class (rows 3-5); `builder.md` and the rollout doc keep heading levels and fenced code (rows 6-7); review-seat briefs follow row 8; the pane command passes no `--model` (row 9). Everything else `unconstrained`.
+
+## Execution Discipline (binding on /fabrik-execute-plan)
+
+- **Review floor** — every ticket, on the coder's return, runs `/fabrik-review` on its changed surface to a coverage-adjudicated exit BEFORE its merge; no ticket merges on a first-pass green. The surface is heavy (a fleet-synced hook, a governance-sync script, concurrency locks), so it is always the full `/fabrik-review`, never the scoped one.
+- **Dispatch policy** — native Claude subagents for every fan-out (the OpenRouter pool is OFF, D-181): each coding ticket goes to a native worktree coder (`Complexity: native` → `claude -p opus` for T01, T04, T06, T07, T08, T09 — identity, a synced hook and the locks are design-heavy concurrency work; `complex` → a native Sonnet coder for T02, T03, T05); the per-ticket review's finders are Sonnet + Haiku per file slice with the orchestrator executing every refutation (D-344); the orchestrator (Opus or Fable) decides and merges.
+- **Parallelism + merge** — T01 and T04 fan out concurrently at the start (disjoint trees); T07 runs in parallel with T08 once T06 is merged (disjoint files); everything else is a Depends chain through `agents_up.sh` and `agents_spawn.py`. Results merge onto the plan branch `infra-3-dynamic-builders` in Merge Order, where the orchestrator dedupes findings across tickets; the whole set reaches master as ONE merge request (`merge_request.py request`) after T10.
+- **Orchestrator acts outside any ticket:** after T03 merges, `python3 scripts/work.py done W-1961cc42 --evidence "<T03's sha>"`; after T04 merges, mail fleet the `builder.md` path (T04 step 5); at the end, `python3 scripts/work.py done W-14219e6f --evidence "<the set's merge sha>"`.
+
+## File Scope (owned paths)
+
+- scripts/whoami_agent.py
+- tests/test_whoami_agent.py
+- docs/workstation/agent-identity.md
+- scripts/sysadmin/agents_up.sh
+- tests/test_agents_up.py
+- .claude/hooks/agent_role.py
+- tests/test_agent_role_hook.py
+- tests/test_hub_write_root.py
+- docs/reference/agents/builder.md
+- docs/workstation/hooks-index.md
+- scripts/sysadmin/agents_bat.py
+- tests/test_agents_bat.py
+- scripts/sysadmin/agents_spawn.py
+- tests/test_agents_spawn.py
+- scripts/sysadmin/rotate_session.py
+- tests/test_rotate_session.py
+- docs/workstation/session-history-retention.md
+- docs/reference/repo-coordinator-rollout.md
+- docs/reference/operator-agent-requirements.md
+- docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md
+
+Read but not written (named untouched, with the reason): `scripts/sysadmin/fabrik_deck.py` (T05 loads `_default_distro` by path), `scripts/merge_request.py` (T06 mirrors its base order), `scripts/work.py` (T06 calls `assign`), `scripts/decisions.py` (T04 and the grid read `--merge-owner`), `scripts/sysadmin/hibernate.py` (groups sessions by cwd, `scripts/sysadmin/hibernate.py:118-154`, so grouped tmux sessions never reach it — D-1132's concern needs no edit), `scripts/sysadmin/archive_transcripts.py` (already archives a removed worktree's transcript, `:101`).
+
+## Coverage Checklist
+
+| Class | Source | Verdict |
+|---|---|---|
+| uv only, no new dependency | core/10-python.md (FLOOR) | pending — /fabrik-plan-review |
+| no logfile; state records only | core/10-python.md (FLOOR) | pending — /fabrik-plan-review |
+| 12-Factor axes II, III, VIII, XI (the ones box tooling can break) | 12-FACTOR (FLOOR) | pending — /fabrik-plan-review |
+| one test per behaviour, watched-fail-first, five legitimate spellings | core/45-testing-strategy.md | pending — /fabrik-plan-review |
+| docs: heading levels, fenced code, link-or-decoration | core/40-documentation.md | pending — /fabrik-plan-review |
+| seat briefs and review partition | core/62-using-subagents.md | pending — /fabrik-plan-review |
+| model aliases (no pinned id in a pane) | ai/00-ai-model-selection.md | pending — /fabrik-plan-review |
+| fail-open (a tmux/git/cgroup read that errors read as "nothing there") | standing recurrence class | pending — /fabrik-plan-review |
+| cost/quota accounting (spawn at GREEN only; memory floor) | standing recurrence class | pending — /fabrik-plan-review |
+| boundary/sentinel (window numbering, exit codes 2 vs 3, `max` limits, UUID shape) | standing recurrence class | pending — /fabrik-plan-review |
+| behavior-without-a-test | standing recurrence class | pending — /fabrik-plan-review |
+
+```text
+# REVIEW RUBRIC — inject into EVERY finder prompt (generated by review_rubric.py)
+# Honesty (L1): this arms the review — it raises compliance probability, it does not guarantee it.
+
+## FLOOR — always injected, regardless of glob (spec L3; TOOLING surface)
+
+### core/10-python.md
+**`uv`** is the mandated Python package manager. Never use raw `pip`, `pip install`, `poetry`, or `pipenv`.
+- Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unless the ticket authorises it.
+- its own reviewed commit, never as a side effect of unrelated work.
+- The one RULE: use SQLAlchemy async consistently — never mix `async def` with sync `.query().all()` (the Banned table row; the full session pattern is `25-data-postgres.md`'s).
+- The canonical `engine`, `async_session`, and `get_db` are defined in `src/database.py` — owned by `25-data-postgres.md`. Import from there, never redefine:
+**Config convention:** apps read a complete `DATABASE_URL` (`postgresql+asyncpg://user:pass@host:port/db`) and `REDIS_URL` from env. Discrete `DB_HOST`/`DB_PORT`/`DB_NAME`/`DB_USER`/`DB_PASSWORD` for the app to assemble are **banned**. The env supplies the complete URL — `localhost` in WSL, `postgres-main` on VPS — so the host concern is an env-layer responsibility, never code logic. See `30-ops.md` compose template for how discrete vars are interpolated into `DATABASE_URL` at the compose level.
+- volume** (`30-ops.md` § Volumes), never in `.tmp` and never in `/tmp`.
+**GlitchTip discipline:** unhandled exceptions (FastAPI 500s) are auto-captured by GlitchTip with full stacktraces. In the `except Exception` branch, log a **short event name + correlation_id** — never `logger.exception()` (that duplicates the traceback in Loki AND GlitchTip). See `55-observability.md` § Error Reporting for the full rule.
+**Note:** Use the scaffolded logger: `from {package}.logger import get_logger` (see `55-observability.md` § Pre-Scaffolded Logging). Do not use `structlog.get_logger()` directly or `logging.getLogger(__name__)`.
+- **Never a bare `asyncio.create_task()`** — an unreferenced task is silently garbage-collected and its exceptions vanish. Hold the reference and await it, or use `asyncio.TaskGroup`.
+- **`datetime.now(UTC)`, never `datetime.utcnow()`** — deprecated and naive; naive datetimes are a real cross-service defect class.
+- Type the package, never `.`: the root walks the hub-synced `scripts/`, where mypy finds the same file under two module names and stops on every fresh project. file-worker types `mypy --explicit-package-bases worker`; a `server/` backend (saas-skeleton, static-site, office-extension, chrome-extension, mobile-app) runs `mypy src` from `server/` (D-605).
+- Ruff's selected rule-sets MUST include `ASYNC` (blocking IO in async code — machine-enforces this pack's hardest-to-review rule), `B` (bugbear) and `S` (bandit) alongside the defaults; configured in `pyproject.toml`, emitted by the scaffolder.
+- Production services run via `uvicorn` CLI in the Dockerfile, not `uvicorn.run()` in code. Base image is always the pinned Debian `-slim` variant on `linux/amd64` (the variant is pinned fleet-wide in `30-ops.md` § Container Base Images — change it THERE, never per-repo). Never use Alpine — musllinux wheels exist now (PEP 656) but coverage is still partial, source builds are dramatically slower, and musl's allocator/stack defaults degrade CPython; the trade never pays on this fleet.
+- `uvicorn.run()` is for local development only. Never ship it in production code.
+- a fleet scaling decision (more containers), never a per-app flag.
+**BANNED: grouped/named env config sets.** 12F is explicit — *"env vars are granular controls, each fully orthogonal to other env vars"* — so a `config/production.yml`, a `settings.production` group, or a `config/{dev,staging,prod}.yaml` tree is a violation. Env vars are granular and set **per deploy**, never batched into a named "environment".
+**BANNED:** `logging.FileHandler`, `logging.handlers.RotatingFileHandler`, `TimedRotatingFileHandler`, `loguru` file sinks, any `*.log` file write, any in-app log rotation/retention/cleanup. The app never decides where logs are stored or routed — Docker → Promtail → Loki does. Full rule: `55-observability.md` § Logs.
+**Factor XII — Admin processes. NEVER migrate from app startup.**
+**BANNED: `alembic upgrade head` in FastAPI's `lifespan`, in an `@app.on_event("startup")`, or as an import side-effect.** With more than one replica (or a restart storm) two containers run `upgrade head` **concurrently** → they race the Alembic version table → duplicate DDL → **wedged deploy**. Migrations are a **one-off admin process against the deployed release**: `docker compose run --rm <svc> alembic upgrade head` (`<svc>` is a service that declares `.env.owner` (a `migrate` service), never the app service — the owner DSN is not in the app service's environment after the owner split (D-754), and `run` replaces the service's `command`, so a hand-off written there is bypassed) (see `30-ops.md` § Release & Admin Processes).
+| `alembic upgrade head` in `lifespan` / startup hook | One-off admin process against the deployed release: `docker compose run --rm <svc> alembic upgrade head`, `<svc>` a service that declares `.env.owner` (a `migrate` service), never the app service (D-754) (concurrent replicas race the version table) |
+
+### 12-FACTOR (all twelve axes)
+- I codebase: shared code → fabrik-lib, never two apps in one repo
+- II deps: every shelled-out binary installed + pinned in the Dockerfile
+- III config: granular env vars; no secrets in code; no grouped env sets
+- IV backing services: swappable by DSN/config change only
+- V build/release/run: releases immutable; never hot-patch a container
+- VI processes: stateless; session state → redis-main; no sticky sessions
+- VII port binding: bind in-container; Traefik routes; no host ports:
+- VIII concurrency: scale out; never daemonize or write PID files
+- IX disposability: SIGTERM returns in-flight jobs to the queue; jobs idempotent
+- X dev/prod parity: same backing services everywhere; no SQLite-for-Postgres
+- XI logs: unbuffered stdout only; the app never writes/rotates a logfile
+- XII admin: migrations/one-offs run against the deployed release, never startup
+
+## MATCHED — packs whose globs hit the changed paths
+
+### ai/00-ai-model-selection.md  (hit: docs/reference/agents/builder.md)
+**Always the latest Claude models — select by ALIAS, never by an old ID.** Claude Code's aliases resolve to the newest model of each family and move with every release, so code that says `--model opus` never goes stale:
+- A pinned ID in code or config is a stale model waiting to happen: when reproducibility genuinely matters, take the ID from the table above (its values are machine-owned in `.windsurf/rules/versions.yaml`) and record why the pin beats the alias. Fable is never an account default — it is always selected explicitly. `best` resolves to Fable where it is available, else Opus. **Where a category pack (`10`–`90`) or a sibling pack still names a Claude model by version, or routes an LLM step to a metered gateway only, THIS section wins** — select Claude by alias; those packs are corrected on their own turns.
+**Vendor access:** `docs/reference/kilo/AI_VENDOR_ACCESS.md` is the single source of truth for which vendors the operator can call today. Rows with Status ✅ or ⚠️ are accessible (⚠️ = accessible but low balance — pick a ✅ peer if one is on the Pareto frontier).
+- Operational stack (sysadmin, watchdog, bootstrap) uses **Claude Code CLI w/ subscription OAuth** — never `ANTHROPIC_API_KEY`. No fabrik code path reads or sets that key (the `fabrik ai generate` utilities were removed 2026-06-16) except the hub's `scripts/api_credit.py`, which sets it only for its own dollar-capped `--bare` child from D-1196's three prepaid API credit keys; a project that needs a metered LLM goes through OpenRouter. Per-LLM-call cost caps apply to paid APIs via `core/cost-budget.md`; they must not be placed on the operational diagnose loop.
+- model label only; for per-model `modelUsage`, read `DispatchResult.model_usage` from `dispatch()`) with an **opt-in OpenRouter HTTP fallback** (`LLM_ALLOW_METERED_FALLBACK`, off by default; never after a CLI call that already billed); env-driven `LLMConfig`; **INJECT** your vendored `cost-budget` via the `budget_check`/`budget_record` hooks; `complete()`/`complete_json()` return empty instead of raising when a CALL fails (building the config from the environment can still raise `ValueError` on a malformed numeric var). The module bakes in NO model: an unset `CLAUDE_CLI_MODEL` (or `LLM_DEFAULT_MODEL` when the HTTP leg runs) raises `ModelNotConfigured` at the point of use unless the call names one (a missing binary or a refusing `budget_check` raises first). ⚠️ `complete(model=…)` sets the OpenRouter model only; choose the `claude -p` rung per call with `complete(prompt, claude_model="sonnet")` — or `dispatch(ClaudeCall(prompt, model="sonnet"))`, which RAISES (`DispatchError`, or `ValueError` for an invalid `ClaudeCall`) and has no OpenRouter leg, so catch both yourself. `CLAUDE_CLI_EFFORT` defaults to empty (each model's designed effort) — set it deliberately before judging that a rung measurably fell short.
+- `claude -p` MUST declare **`shape.uses_claude_cli: true`** (+ `claude_cli_home`) so the deployer mounts the host's **rotated** `~/.claude` read-only into the container — auth follows the fleet account rotation;
+**never** bake a static `CLAUDE_CODE_OAUTH_TOKEN` (it pins one account and dies at its weekly quota). Then select the rung — always by alias, so each rung is the latest model of its family:
+- enough (task fails its quality gate / errors — a measured escalation, never a vibes one).
+- be metered-isolated from the subscription). ⚠️ `complete()`/`complete_json()` take this leg ONLY with `LLM_ALLOW_METERED_FALLBACK=1`, and then when the `claude -p` leg failed to produce text — binary missing, auth failure, timeout, error, quota, or YOUR `budget_check` refusing `claude-cli` — never after a CLI call that succeeded empty (already billed); `budget_check` fails OPEN if it raises, so deny by returning `False`; `dispatch()` and the session/agentic calls never fall back, and `complete_structured()` only through a `fallback=` you inject. The key is `KILO_API_KEY` before `OPENROUTER_API_KEY`, and `KILO_API_URL` overrides the endpoint — wherever the fleet's keys sit in the environment (the hub's, per D-182) they win. So when you opt in, unset both `KILO_*` vars, set the project's OWN `OPENROUTER_API_KEY`, guard the leg with `budget_check`, and alert on the dispatcher's no-content fallback; leave the opt-in off when the call must never go metered. Set `LLM_DEFAULT_MODEL` to the bake-off … (wrapped further — read the pack)
+**tested evidence, never assumption**: consult the selection MDs / `suggest_model.py`, or run a scored bake-off — lowest cost that meets the required capability; record the result in the project's decision ledger.
+- above; never `ANTHROPIC_API_KEY`, never a vendor SDK — `core/57-external-data-sourcing.md` hard constraint). Every rung wraps in the `58-resilience` contract, and any unattended paid-LLM loop still carries watchdog + cost-budget. This ladder governs **in-code single-call/worker dispatch**; gradeable parallel fan-out (review finders, graders, doc reconcilers) runs NATIVE while the pool is OFF (D-181) per `core/62-using-subagents.md`.
+- 5. **No rationale needed:** the model returns probabilities, never a reason.
+- Wire the lane only through fabrik-lib's `decision-gate` module, never a hand-rolled client. The module is vendorable (`/opt/fabrik-lib/decision-gate/`, its README is the contract); a project copies it in with the change that wires its first consumer, never ahead of one, and that consumer stays off until criterion 6 is met. Inside the lane, deterministic rules decide first and the model decides only what they leave open; every question carries an explicit `insufficient` option, because the model never abstains on its own; the threshold is calibrated per decision on the project's own labelled data, scored on a held-out split; everything under the threshold falls back to the ladder above; and a pilot runs in shadow mode first and is armed only when its wrong-allow rate is no worse than the mechanism it … (wrapped further — read the pack)
+
+### core/40-documentation.md  (hit: docs/reference/agents/builder.md)
+- > **⚠️ `docs/OPERATIONS.md` + `docs/DEPLOYMENT.md` are FLEET-AI INTERFACES, not just docs (D-065).**
+- **Tier-1 (author → verify → converge; the author leg is NATIVE while the pool is OFF, D-181 — `scripts/doc_reconcile.py`'s pool author cannot dispatch):** for each **mechanically-detectable** doc whose Doc-Sync trigger fired (`docs/QUICKSTART.md` · `docs/CONFIGURATION.md` · `docs/data-contract.md` · `docs/SERVICES.md` · `docs/OPERATIONS.md` — the reliable-signal subset), `scripts/doc_reconcile.py` dispatches a cheap OpenRouter-pool author (`libs.subagents`, `pick_models("docs")`) to emit a **minimal structured patch**, **verifies it before applying** (a symbol cross-check catches invented endpoints; the orchestrator injects a higher-assurance native-Claude verify), and loops to a zero-edit round. Runs per phase in `/fabrik-execute-plan`; never blocks (fail-safe). The other docs (CHANGELOG, INDEX, FEATURES, RESILIENCE, PORTS, the READMEs, `db/schema.sql`, …) have no reliable mechanical content-signal → they rely on the touch-on-change backstop below + your own edit (force-update, not force-correct).
+- The SSOT is the type-aware registry (`scripts/enforcement/_doc_registry.py::PROJECT_DOCS`) — this table is its project-facing rendering, kept in step, never a second truth. `/fabrik-plan-after-chat` (the plan set's spine + tickets — the ticket-format authority) injects these rows per ticket as its `Docs:` line.
+| `Agent-Role` | `primary` · `orchestrator` · `subagent` · `review-fix` · `ci-fix` | every AI commit (`ci-fix` ONLY when one of the hub's two unattended writers made the commit — the CI-fix dispatcher's `claude -p` run in THIS repo after a GitHub Actions failure, or the hub's own rules-version cron; any other session never writes it) |
+| `Agent-Name` | the name the operator gave your window — your `CLAUDE.md` § Agent Provenance Trailers owns the rule (in a project: write it by hand; never invent one) | every AI commit |
+- Standalone work (not plan execution) → `Agent-Role: primary`. Trailers go below a blank line, above `Co-Authored-By`. ⚠️ The trailer block must be its OWN paragraph with NO blank line inside it: git parses only the LAST paragraph, and only if it is all-trailers. A blank line before `Co-Authored-By:` demotes everything above it to prose; so does a prose line glued to the top of the block. Measured 2026-08-15: 200 of the last 200 hub commits carried `Agent-Role:` and only 10 parsed, because the old example here shipped the blank line.
+- **⚠️ Link it or it is decoration.** *Measured:* requests for files that do NOT exist came ~zero from AI bots — agents never go looking. It follows (inference, not measurement) that a file only gets read when something points at it: reference it from the docs index or README.
+- ⚠️ **In the hub (`/opt/fabrik`) `llms.txt` is GENERATED** (`scripts/generate_capability_index.py`, refreshed daily) — never hand-edit it there; change the generator. A project has no such generator; an `llms.txt` it ships, hand-written or built by its own code, is its own.
+- either way. Cheap and reversible — never at the expense of `OPERATIONS.md`/`DEPLOYMENT.md`, which are the load-bearing agent interfaces (D-065).
+- **No skipped heading levels** — `##` to `###`, never `##` to `####`
+- **Fenced code blocks only** — never indented code (AI treats it inconsistently)
+
+### core/45-testing-strategy.md  (hit: tests/test_agents_spawn.py)
+- **Behavior Contract**: every ticket enumerates its distinct **user-observable behaviors / acceptance criteria** and tests **each one** — one high-value integration/E2E test per behavior, risk-ordered, TDD for the risky ones. Skip trivia (getters / framework glue / config): **lean-but-complete, NOT 100%-line-coverage dogma**. Do not chase line coverage — ensure every behavior has a test that would fail if that behavior regressed. (Cheap pool subagents can author the per-behavior tests — the suggest→curate→author→fix workflow in `62-using-subagents.md` § Dispatch policy + `~/.claude/commands/fabrik-review.md`.)
+- **No cosmetic assertions**: never assert against CSS classes, Tailwind utility strings, pixel measurements, or snapshot hashes. Assert application state and user-visible outcomes only.
+- **Watched-fail-first** (for tests this change adds or modifies; trivia stays skipped per the Behavior Contract): a non-trivial behavior's test proves something only if it has been SEEN RED — either write it first and watch it fail, or (after the fact) neuter the fix/feature, prove the test goes red, then RESTORE and re-run to green. The neutered state is never staged, committed, or left in the tree. A green test never seen red is unverified — a suite can pass with its guard deleted.
+- **Run tests**: `uv run pytest tests/` (never bare `pytest` — Fabrik uses `uv`) — **when the project has a `pyproject.toml`/`uv.lock`**. A subagent seat runs no package-manager verb and runs `.venv/bin/python -m pytest` instead (`10-python.md` § Package Manager). A `requirements.txt`-only project (no manifest) runs `.venv/bin/python -m pytest tests/` — the manifest clause chooses the RUNNER, it never disarms the mandate to run the suite (web-ecommerce-factory 01M1QEY5, 2026-09-05: the clause read as "does not apply here"). ⚠️ **Gate this on the manifest, because this line is FLOOR-injected into finder prompts and a vendored fabrik-lib MODULE has neither by design**: the module recipe ships `requirements.txt` (`fabrik-lib/README.md` § Creating a Reference Implementation), so `uv run` cannot … (wrapped further — read the pack)
+- **Zero-mock database policy**: never mock SQLAlchemy, SQLModel, or database sessions. All backend tests execute against a real PostgreSQL instance.
+- **`ASGITransport` never runs lifespan** — anything the app initializes at startup (scaffolded apps are lifespan-based) silently does not exist in tests; wrap with `asgi-lifespan`'s `LifespanManager` when a test needs startup state.
+- Use `structlog` in test helpers if logging is needed — never `print()`. See `55-observability.md`.
+- **Never stub a server action from Playwright** — the server is the E2E boundary; stubbing belongs in the unit lane where the action is a plain function.
+- Run Playwright against the PRODUCTION build (`next build && next start`), never the dev server.
+- All locators must be **semantic**: `page.getByRole('button', { name: /submit/i })`. Never use CSS selectors or XPath.
+- Launch Playwright's **bundled Chromium** (`channel: 'chromium'`) — stable Chrome/Edge removed the `--load-extension` / `--disable-extensions-except` side-load flags (Chrome 137/139), so those args only work under bundled Chromium, never installed stable Chrome.
+- Run `@axe-core/playwright` with **`bypassCSP: true`** (the non-relaxable extension CSP otherwise makes axe throw on `chrome-extension://` pages); keep `@axe-core/playwright` a **dev-dependency only** (MPL-2.0 — never bundled into the shipped artifact). Gate bundle size with `size-limit` **per surface** (popup / side-panel / content-script). Full loop: `chrome-ext/70-chrome-ext.md` § Testing & UI Verification.
+- Keep the generated types committed and re-generate on schema changes (`uv run python -c "import json; from <package>.main import app; print(json.dumps(app.openapi()))" > openapi.json` — the scaffold emits `src/<package>/main.py`, never a flat `src/main.py`, so `src.main` imports nothing).
+**BANNED in tests:**
+| A GUARD proven only by the ONE spelling of the defect you already fixed | Write the guard's subject five LEGITIMATE ways — five a DIFFERENT author would plausibly write, not five typos of yours — and count how many it still catches; one of five means it is keyed on your fix, not on the class — and one of five is the FLOOR of the failure, never its definition: four of five is a partial class and is reported as four of five. This is IN ADDITION to red-on-revert below, not a rival bar: that one proves the guard fires at all, this one proves it fires on the class. ⚠️ Cheapest ways to satisfy it WITHOUT the outcome (`CLAUDE.md` § UNIVERSAL governance markers, the entry whose anchor is **you get the behavior you measure** — search the ANCHOR, not the rule name: the project-facing contract lists that section by anchor alone and carries the name `cobra-effect` nowhere): (i) write five near-identical spellings and count 5/5; (ii) ship at 2/5 and REPORT it, needing no fabrication at all, in the hope that a reported count reads as a passed one — it does not: under 5/5 is a finding; (iii) claim the exercise and record nothing, since the five are never committed. So the bar is TWO things and needs both: **the five go IN the test file as executable CASES**, never a comment — a comment cannot go RED, so nothing can falsify it, and that is the objection, not that it records nothing — **and anything under 5/5 is a finding, not a pass**. ⚠️ Two paths this row does NOT close, stated rather than pretended away: you can shrink the SUBJECT until five legitimate spellings all land inside what the guard already catches (nothing is fabricated; the claim narrowed, not the guard), and an honest 4/5 — real information, 80% of the class — costs the author something to report, so the cheapest response to it is silence. Report the count you got either way — a 4/5 with the miss NAMED is a finding someone can act on, and a 5/5 nobody can execute is not a pass at all. Measured 4× in one day across 2 repos (01M1S4D78KRM0ZSYDNGTHS9HYQ), and once more the day this row landed: a contract-parity grader that read the LIVE file instead of the tree under test stayed green under the exact drift it existed to catch |
+| A test THIS change adds/modifies that was never seen red (no fail-first, no red-on-revert proof) | Watch it fail first, or neuter the change → prove red → restore → re-run green |
+- [ ] Destructive DB tests pass the throwaway guard before connecting — `require_throwaway(TEST_DATABASE_URL)` where the scaffold emitted `tests/conftest.py`; where it did not (an unscaffolded repo has no such helper), this anchored predicate, verbatim: `dbname = urlparse(url).path.lstrip('/'); assert dbname.lower().endswith(('_test', 'throwaway', 'scratch')), dbname` — never point them at a dev/shared DB.
+
+### core/62-using-subagents.md  (hit: docs/reference/agents/builder.md)
+- GOAL: One place that says which subagent runtime to use, what tools it gets, what NEVER goes to a subagent, and how tool access is a single-source change. AGENT USAGE: When a command dispatches subagents, pick the runtime + the tool scope from here. Design authority: docs/superpowers/specs/archived/2026-07-07-subagent-tool-parity-design.md (Claude Code side). The paused pool's contract: docs/reference/subagent-pool-contract.md. -->
+- > **⚠️ STATUS — the OpenRouter pool, Kilo subagents and `ai-consult` are PAUSED** (operator: D-181 2026-09-07, mechanism D-182, re-confirmed 2026-09-22 — D-343). Their credentials stay provisioned, so a `fanout()` / `consult()` would still dispatch and SPEND: this pack and `scripts/enforcement/check_subagent_flywheel.py` (`_POOL_POLICY_ON = False`, fleet-synced; `FABRIK_POOL_POLICY=on` is its test seam and re-arms the gate — never set it in a run) are the control, and intel monitors `fabrik_analytics.subagent_runs` for any dispatch while the pause holds. **Every fan-out runs native Claude Task subagents.** This pack's pool-era contract is FROZEN verbatim in `docs/reference/subagent-pool-contract.md`; re-enabling is an operator ruling first, then a restore from that file — never a quiet uncomment.
+**Never restate tool lists in a command brief — the access lives in the agent-type file.** Compose a subagent's brief per `docs/reference/MD/ai-prompt-templates.md` — a distilled system prompt (Part A) that enforces the agentic patterns (Part B: termination contract, evidence-before-assertion, path:line grounding, untrusted-input). Distil, don't dump the whole rulebook into the brief.
+**The paused runtime — fabrik-lib `subagents` (OpenRouter models in a sandboxed worktree) — is not Claude, has no browser, and is not to be called.** Its `pick_models` still returns a dispatchable roster and `fanout` still spends; the only lever that refuses is this text (D-182). Do not "turn it off" by emptying `docs/reference/kilo/TASK_SUBAGENT_SELECTION.md` — `pick_models` falls through an empty section to the unrestricted vendored `_TABLE`.
+| rendered-UI design review (`/design-review`) | `design-review` | an explicit allow-list — playwright browser tools + Read/Edit/Write/Bash + WebFetch/WebSearch (web AND edit in one type: never hand it sensitive context); `model: sonnet` |
+- **Two cheap finders per slice — one Sonnet and one Haiku, each over the whole slice, candidates UNIONED, never voted — and NO Opus finder** (pilot D-344, 2026-09-22, superseding D-207's Opus-on-the-risky mix for the partitioned loops; the units-sized floor below is unchanged; `/fabrik-execute-plan`'s per-round Opus finder floor is its own rule and still stands, D-813). The risky units — concurrency and locks, record and file formats, fleet-synced paths (`scripts/enforcement/`, `scripts/command_run.py`, the hooks, `templates/governance/`), auth, schema, migrations, secrets — are the slice's NAMED hunt priority in its brief. Opus and Fable earn their price EXECUTING and adjudicating, in the orchestrator.
+- **At most ONE EXTRA Haiku class seat** across the whole surface — for a judgement-shaped inventory class the close-out hygiene script cannot express, and only when the brief NAMES it; the scriptable classes (stale phrases, table and fence shape, dead symbols, `{{` residue) are the script's from round 1's start, never a seat.
+- **The orchestrator** — Opus or Fable, whichever the quota allows, and whichever newer model replaces them (D-334, D-456) — partitions, dispatches, adjudicates and EXECUTES every refutation and every confirmed reproduction. The orchestrating context is never a finder; the one reading seat Fable takes is a DISPATCHED Fable seat as the ROUND-ONE authoritative reader of a command's final validation (the last full-surface pass a command names — a plan's Finish review), substituting for the Opus seat there and then re-verifying its own slice in the closing pass like any round-one seat (constraint 5 below).
+- **Round 1 is the ONLY full pass. Every later pass is the round-one seats re-verifying their OWN slices' claim ledgers (D-335, superseding D-229's delta sizing):** the surface of a later pass is the fix diff plus one hop of callers and callees (the hop bounds the EXTENT; what a later pass may COUNT is the fragments' bounded-hop rule — `term-edit`/`term-coverage`, D-230, which D-335 keeps; grep the changed symbols, or `find_referencing_symbols` where the language server is up), plus the tests that import a changed module, plus any sibling commit that landed on the surface since; a unit whose ledger holds no open claim is not re-dispatched, and the round-1 count is the ceiling. The class ledger PERSISTS across rounds: a later pass sweeps the classes its diff touches and CITES the rest as standing-clean from the last full pass, and the receipt says which — a round is never a re-scope, and there is no round CAP (D-330, superseding D-321) — the terminal is every slice verified inside the run's DECLARED budget (`command_run.py start --budget`, `round --slices A:12/12` records it), and a slice whose claims still fail after its THIRD pass, or a pass that would overrun the declared budget, is HANDED OFF with those claims named per `term-coverage.md` — never capped, never looped.
+- **The closing pass is those same seats re-executing every claim of their slice ledgers and confirming zero code or doc defects present** — never the orchestrating context's own re-read (§ Role separation; a dispatched Fable seat is a seat), never the hygiene script alone.
+- **Quiet is zero CONFIRMED code or doc defects (D-206), never zero raised:** a candidate becomes CONFIRMED only when the orchestrator REPRODUCES it (probe, failing test, or a mutation on a pinned copy), and REFUTED only when it EXECUTES the refutation and the receipt row cites that command and its output; a candidate neither reproduced nor refuted is `RECORDED — unexecuted (<why>)`, one reproduced and kept on purpose is `RECORDED — by design (<owning row>, round N)`, and RECORDED and REFUTED rows never reopen the loop. The Pass Ledger row states the counters in that order — `found: F, new: N, confirmed: C, fixed: X, unexecuted: U` — and the loop closes on `confirmed: 0, fixed: 0` with `unexecuted: 0` or none; a round that FIXED something is never the closing row.
+**UNITS-SIZED — every OTHER command** (`/fabrik-review-scoped`, the grounding and adjudication commands — the researcher floors — and the sweep and audit reviews): per INDEPENDENT unit of the surface — failure class · file · screen · doc · pack · journey · fact · behaviour — a Sonnet breadth seat plus a Haiku mechanical seat, all dispatched in a SINGLE message so they run in parallel, plus the Opus authoritative seat(s): a 3-unit surface with a mechanical angle is 7 seats (4 with `--mechanical 0`), never a token 1–2 (the executable number is (1) below). The CAP is independence OF THE SURFACE, not of the reader — partition so no unit's ground truth is another's; a unit you cannot brief distinctly is not a seat. ⚠️ **NEVER solo, never two — the FLOOR is three seats for every command that is NOT a partitioned review loop (D-208), and the floor binds ROUND 1 only: every later pass is the round-one seat that owns each open claim, re-verifying it (D-335).** Under a partition the floor stands DOWN — satisfied by construction, since every non-empty slice kind already keeps its own seat and the third angle there is the orchestrator's EXECUTION of every candidate rather than a third reader (D-218). Where it applies, a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles over it. Deliberate DUPLICATE briefs over one small surface are a different technique (`/fabrik-review-scoped` § floor): they buy sampling variance, not coverage, and are budgeted as ONE unit.
+- ⚠️ **Dispatch economics — five constraints, ONE executable number (D-189).** A partitioned loop sizes with `--slices` as above, however small the partition. A units-sized surface runs `--units <N> [--heavy] [--risky <R>] [--mechanical <M>]` before any fan-out wider than the floor and dispatches the `SEATS:` it prints — `min(units × angles + the Opus seat(s), CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS, box_cap, quota_cap)`, never below 3 unless a hard cap binds or the fleet HOLD stands at its `walled` tier; a later pass is sized by its open claims (D-335); a floor-sized units fan-out at ROUND 1 (1 unit = 3 seats = the floor) needs no script — stamp its three seats with `dispatch --seats 3`.
+- 1. **Maximum (D-191)**: the BOX is the ceiling and the units are the PARTITION. Every unit gets one seat per ANGLE — a Sonnet breadth seat and a Haiku mechanical seat — plus the Opus authoritative seat(s), one per risky unit and at least one (a risky unit therefore carries THREE angles: authoritative, breadth, mechanical — cost 8); `dispatch_headroom.py` computes that as the WANTED count and trims it to what the box, the CLI cap and the quota allow for maximum unit COVERAGE — Haiku first, then the extra Opus seats, then Sonnet, never the last Opus seat. **The mechanical angle is grep-shaped and therefore GLOBAL:** `--mechanical <M>` is the number of grep-able classes the surface HAS (inventory · naming · format · links/anchors · counts); when the budget trims below one Haiku seat per unit, each remaining Haiku seat sweeps ONE class across every unit; and a grounding or adjudication surface has no mechanical angle at all (`--mechanical 0`) — a Haiku seat briefed on a judgement returns a claim you must refute, which is spend without recall. Dispatch ALL of what it prints, in ONE message, each seat a distinct unit × angle brief — and when the COST line says TRIMMED, dispatch the trimmed mix, never the per-unit sentence.
+- 2. **Box, no OOMs**: a native seat runs inside its parent `claude` process, so its memory is its TOOL subprocesses — and a "read-only" finder still runs pytest through Bash, so the box bound applies to EVERY seat: 2 GB planned per `--heavy` seat (pytest/build/render), 1 GB per read-only seat, against `MemAvailable` (the commit headroom too, only where the kernel enforces it) and a CPU share per seat — 0.3 of a core read-only, the measured p90 of a seat's tool time, 1 core heavy (D-511) — MINUS the seats sibling sessions DISPATCHED in the last 25 minutes, charged in GB and cores at the read-only cost rather than as whole seats of the caller's kind (`command_run.py dispatch --seats <n>`, stamped BEFORE the seats go out and accumulated within the round — a `round --seats` written at the round's close reserves nothing while the seats run; the caller's OWN record is never subtracted). Siblings RESERVE, they never starve: a session always gets the floor the box physically has room for, and the floor never overrides a hard cap — a box with room for two seats gets two, with the reason. Memory alone decides that floor: CPU contention slows every process, memory exhaustion kills one, so a CPU-saturated box still hosts the floor and prints why.
+- 3. **Fastest**: every seat in ONE message (parallel), never one message apart; keep working while they run. Width is paid for (Anthropic measured multi-agent runs at ~15× the tokens of a chat, ~4× per agent): seats bill their OWN transcripts (`<sid>/subagents/agent-*.jsonl`, a Workflow seat under `workflows/wf_<id>/` — the parent's result line is one turn of it), so a wide round multiplies a run's tokens; `command_run.py` sums those transcripts into the ledger's `tok_seat_*` columns at every `round` — that is where the cost is read, never by opening a transcript. Wall-clock tracks ROUNDS, not seats — blocking on a single seat is how one round becomes many minutes of nothing.
+- 5. **The right model per ROLE** — and the MECHANISM is the one-token per-dispatch override, `Agent(subagent_type=…, model="opus"|"sonnet"|"haiku"|"fable")`. Resolution order, first match wins (code.claude.com/docs/en/sub-agents): the per-dispatch token → the type file's `model:` (`fabrik-reviewer` is `sonnet`; `fabrik-researcher`/`fabrik-gui` are `inherit`) → the `CLAUDE_CODE_SUBAGENT_MODEL` env var (a DEFAULT for seats assigned no model — unset on this box) → the parent's model; so a role stated without the token IS the type's default, authoritative pass included. ⚠️ `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` (ANY value, `0` included — the binary tests the string) discards every type file's `model` and the token: seats then run on `CLAUDE_CODE_SUBAGENT_MODEL`, or — when that is unset, as here — on the PARENT's model, so every Haiku and Sonnet seat silently bills at the orchestrator's 5×/10× with no error and no line in the cost print. Never set it in any fleet settings. A per-dispatch token also sticks when the seat is later resumed by message. The four names, one job each: **Fable** = orchestrator/adjudicator and, dispatched as a round-one seat, the final validation's authoritative reader (substitutes for, never adds to, the Opus seat there; never a routine finder, never a coder) — ⚠️ **Fable is METERED usage credits, not a subscription window** (the quota probe cannot see it): check availability before a run that needs it, and a Fable seat that refuses falls back to Opus BY NAME with the fallback recorded, never silently · **Opus** = the authoritative pass — under a partition that is the orchestrator's own execution of every candidate (D-344, no Opus finder; `/fabrik-execute-plan`'s per-round Opus finder floor is its own rule and still stands, D-813); ≥1 authoritative seat in a units-sized round — and design-heavy never-delegate coding · **Sonnet** = breadth, one seat per independent unit, and the default coder · **Haiku** = the mechanical seat — one per unit under units-sizing, at most one across a partition (grep-able classes, format, inventory), never codes. GUI stays `fabrik-gui`. Model is chosen by the seat's JOB, never by what is idle. **Price multipliers (operator ruling D-190): haiku 1× · sonnet 2× · opus 5× · fable 10×** — "affordable" is a NUMBER, `cost = Σ seats × multiplier` in haiku-units, and `dispatch_headroom.py` prints it (`--mix opus=1,sonnet=5` → 15). An Opus breadth seat costs 2.5× a Sonnet one — whether it buys more recall is UNMEASURED (the D-186 tripwire ledger, with `--seats` recorded, is where that answer will come from), and until it is measured the default is the cheaper seat; a Fable adjudicator costs 10 and is one seat per run, never per unit, printed beside the seat total, never inside it. The number is RELATIVE and dimensionless — it assumes equal tokens per seat, and the orchestrator's own reading (at its own multiplier, growing with every seat's report) is NOT counted: the quota band guards the seats, and nothing yet guards the orchestrator's own reading. ⚠️ The quota band of (4) is a SEAT band by design and cost stays advisory until `round --seats` rows let the band be re-cut in cost — three Opus seats (15) cost more than six Sonnet (12), and the band cannot see that yet.
+**And record what you dispatched** — `python3 scripts/command_run.py round --seats <n> --findings <n> --confirmed <n> --own-fix <n> --slices <A:done/total,…> …` — because the D-186 tripwire is evaluated with seats unknown on every row that omits it. The ledger's token columns include the SEATS' own usage (`tok_seat_*`, summed from each seat's own transcript under `<sid>/subagents/` — synchronous and background seats alike), so the tripwire has a cost leg: findings per 100K seat-tokens per run, falling while seats rise, is the manufactured-seat signal. ⚠️ **The payoff claim is a HYPOTHESIS under test, not a measured result:** more findings in round 1 predicts MORE rounds and more wall-clock, and `check_ticket_breadth.py` carries a measured `rounds ≈ 1.0 × risk-class score` model — so a wider round may converge slower, not faster. TRIPWIRE (re-based at D-191 — the 20 rows count from 2026-09-08, and the variable that changed last is per-unit-per-ANGLE sizing, not per-unit): if `/fabrik-review`'s median rounds rises above 4 over those 20 ledger rows, seat inflation is inflating convergence and the rule reverts to a per-round class budget. ⚠️ **The unit count is what the SURFACE HAS — the rule scales itself and is not a quota to spend:** a one-file diff in a small synced project yields one or two units, not eight, and only the AUTHORITATIVE seat is Opus (breadth is Sonnet, the mechanical seat Haiku) — so the spend is bounded by the UNIT count (one unit = 3 seats = 8 haiku-units), never by how idle that project's box looks; native seats bill one shared subscription across ~46 repos, so more units means more seats, and a padded unit list means a wasted account.
+- **Three documented limits bound a round** (`code.claude.com/docs/en/env-vars`, `/docs/en/sub-agents`; re-check the numbers on those two pages, not here; the installed binary confirms the refusal string and the tool-use default — `command grep -aoE 'Concurrent subagent limit reached.{0,120}|MAX_TOOL_USE_CONCURRENCY\?\?[0-9]+' "$(readlink -f "$(which claude)")"` — while the subagent cap's default sits behind a minified symbol): `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` (default 20, per SESSION — three hub sessions each get their own) — ⚠️ past it a seat is **REFUSED, not queued** (`Concurrent subagent limit reached … Do not retry`; a refused seat is a FAILED seat and its absence is never a clean round; spawning succeeds again when the running count drops); `CLAUDE_CODE_MAX_TOOL_USE_CONCURRENCY` (default 10 — read-only tools AND subagents that EXECUTE in parallel, so a 20-seat dispatch runs 10-wide); `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH` (default 3 in the binary, and a remote feature flag can move it — a seat may spawn seats; ours must not: omit `Agent` from the type's `tools` list or add it to `disallowedTools` — the documented control — and brief a type without a `tools` allow-list as a leaf, since it inherits `Agent`). `dispatch_headroom.py` trims to the concurrency cap as a HARD cap it never exceeds; below it the binding constraint on width is the box and the subscription QUOTA, not concurrency — check headroom, not the cap. (The per-session total cap `CLAUDE_CODE_MAX_SUBAGENTS_PER_SESSION` was removed and is a no-op.)
+- **A seat has its own context and its own compaction** (the main conversation's rules and `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` apply to it), so a brief is the whole of what it knows: pin the surface (a copy under the scratchpad plus a per-file md5), name the question and never the expected answer, and forbid writes anywhere under `~` and reads of any home path the brief does not name by file (name each `~/.claude*` file the seat must read, to be read through Bash under `timeout 120`, its size taken first with `stat -L -c %s`, in ranges of at most 64 KiB when larger). **A seat a later pass must RESUME is dispatched `run_in_background: true` and its `agentId` (from the spawn result) recorded in the round row** — that id is what `SendMessage` continues with its context intact; a synchronous seat has no resumable id, and a resume is also refused for an oversized transcript or a worktree outside the session's isolation fences; a new `Agent` call starts fresh and is not that seat. When a resume is refused, the successor is a FRESH seat on the SAME model over the SAME slice (`term-coverage.md`), briefed with that slice's claim ledger and the previous seat's REFUTED list verbatim — never a fresh whole-artifact reader.
+- **Never `TaskOutput` a running seat, never `tail` its `.output`, never read its transcript** — the result arrives as a notification; `<sid>/subagents/agent-*.jsonl` is for the token ledger, not for reading.
+- The loop-closing round's **FINDER pass** runs in a context that did **not author the artifact** — the round-one seats re-verifying their own slices (D-335). A post-compaction session is still the author's session, and an author's own quiet round never closes a review loop: the context that shaped the artifact is the one least able to see its gaps (an author re-reads intentions, not text). **One sanctioned exception — the solo self-convergence loop:** a command whose loop dispatches NO seat that reads the artifact for defects — no finder, grounder, auditor or reconciler — anywhere; a seat that DRAFTS a section of it is none of those (an author self-convergence pass, e.g. `/fabrik-ui-design`'s own convergence, whose per-screen seats draft the contract) closes with its own full fresh read — independence there is deferred to the PAIRED review command that follows it (`/fabrik-ui-design-review`), never silently skipped. **Adjudication — decide/refute/merge — stays with the orchestrator** (CLAUDE.md § Subagent fan-out: "the decide/refute/merge you own"); this rule governs who HUNTS last, never who adjudicates. The loop fragments' fresh/independent-round language defers to THIS definition of independent.
+- Auth/identity/session/crypto · schema/migrations · secrets/`.env`/keys · security controls (RLS, rate-limits, `final_gate`) · deploy/infra. These stay with the primary (human-supervised) agent — the ticket Complexity tier `check_plan_tickets.py` names `never-route`, and the coder `dispatch_headroom.py`'s tier text names the never-route coder; a seat may READ and REPORT on them (the Opus authoritative slice), never edit them. **Never web/MCP-enable a seat carrying sensitive context** — the model's output exfiltrates via a scraped URL; `fabrik-reviewer` gets the repo and no web by construction of its type file; `fabrik-researcher` gets the web AND `Read`/`Grep`/`Glob` on the tree (no Bash, no edits) — it can read any tracked file, so never brief it onto a path carrying secrets; `design-review` carries web and edit both, so it never receives sensitive context.
+- The canonical MCP server list is a hub-owned standard-format file — `/opt/fabrik/mcp.json` (`{"mcpServers": {name: {type, command, args, env}}}`, keys via `${ENV}` expansion, never inline).
+**Since the 2026-08-30 MCP split, MAIN-AGENT servers are per-repo:** each repo's `.mcp.json` (project scope — gitignored, because postgres-pro's env carries the repo's resolved `DATABASE_URL`) is EMITTED by the hub's `scripts/sysadmin/emit_mcp_project_config.py` from the roster-ruled sets in `docs/workstation/mcp-roster.md`; the user-level rosters carry only the universal 6. Never hand-edit an emitted `.mcp.json` — change the roster/ledger ruling, then re-run the emitter.
+- Adding a tool touches exactly: the roster ruling + emitter table (main agents, per repo) → `mcpServers` in the relevant agent type under `commands/_agents/` (then re-render) → `/opt/fabrik/mcp.json` — never a command brief.
+- When a project fixes a real bug in a **vendored `fabrik-lib` module** (e.g. `libs/subagents/`, `libs/health_probe/`), it MUST append the fix — symptom + fix + date — to `/opt/fabrik-lib/<module>/UPSTREAM_FEEDBACK.md`. That file is the **one write allowed back into `/opt/fabrik-lib`** (cross-repo HARD STOP otherwise); the module author reads + resolves it, so the fix isn't silently lost on the next re-vendor. Fixing a vendored module without the entry breaks the loop. The hub itself never edits `libs/subagents/` (D-137) — a wanted change is a mail to fabrik-lib.
+# promote-to-check_* tail elided (the full mandates are above; the tail lists their backtick literals)
+```
+
+## Evidence
+
+Primary paths, one per ticket, each read this run: T01 `scripts/whoami_agent.py:328-462`; T02 `scripts/sysadmin/agents_up.sh:441-505`; T03 `scripts/sysadmin/agents_up.sh:588-624`; T04 `.claude/hooks/agent_role.py:124-157`; T05 `scripts/sysadmin/agents_bat.py:208-253`; T06 `scripts/sysadmin/agents_spawn.py` (new; its base order mirrors `scripts/merge_request.py:301-307`); T07 `scripts/sysadmin/rotate_session.py:252-320`; T08 `scripts/sysadmin/agents_spawn.py` (new; its pane command is `scripts/sysadmin/agents_up.sh:455-505`'s); T09 `scripts/sysadmin/agents_spawn.py` (new; ignored-file rule against `scripts/command_run.py:1522-1532`); T10 `docs/superpowers/specs/2026-10-28-dynamic-builders-design.md:301-304`.
+
+**Shape decision.** Spec § Cost estimates ≈ 600-700 code lines over 5 code files (`docs/superpowers/specs/2026-10-28-dynamic-builders-design.md:276-282`) — over the `Profile: small` bound (≤ ~400 lines AND ≤ 5 files), so no profile; the work decomposes into more than 3 pieces, so the plan SET shape. READ sets per ticket (the `wc -c` block below; packs dropped as the gate drops them), against `READ_BUDGET_BYTES` 262144: T01 108500 · T02 195746 · T03 172922 · T04 238509 · T05 162376 · T06 195746 + its new files · T07 191016 + agents_spawn.py · T08 93245 + agents_spawn.py and its test · T09 125344 + agents_spawn.py and its test · T10 (Integration, exempt) — sums of the figures printed below (estimates for the new files, which do not exist yet).
+
+Run census (this run's captured output, `ev.py` in the seat scratch):
+
+```text
+$ ls docs/development/plans/ | grep -c 2026-10-28
+0
+
+$ ls scripts/sysadmin/agents_spawn.py tests/test_agents_spawn.py docs/reference/agents/builder.md
+ls: cannot access 'scripts/sysadmin/agents_spawn.py': No such file or directory
+ls: cannot access 'tests/test_agents_spawn.py': No such file or directory
+ls: cannot access 'docs/reference/agents/builder.md': No such file or directory
+
+$ python3 scripts/fabrik_synced_manifest.py --list | grep -nE 'agent_role|whoami_agent|agents_up|agents_bat|rotate_session|agents_spawn'
+1:.claude/hooks/agent_role.py
+218:scripts/whoami_agent.py
+
+$ systemctl --user show -p ControlGroup -p MemoryHigh -p MemoryMax fabrik-agents.slice
+ControlGroup=/user.slice/user-1000.slice/user@1000.service/fabrik.slice/fabrik-agents.slice
+MemoryHigh=37580963840
+MemoryMax=39728447488
+
+$ cat /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/fabrik.slice/fabrik-agents.slice/memory.high
+37580963840
+
+$ grep -E '^inactive_file ' /sys/fs/cgroup/user.slice/user-1000.slice/user@1000.service/fabrik.slice/fabrik-agents.slice/memory.stat
+inactive_file 1586016256
+
+$ tmux -V; git --version; command -v flock wslpath systemd-run; command -v wt.exe || echo 'wt.exe: not on PATH'
+tmux 3.4
+git version 2.43.0
+/usr/bin/flock
+/usr/bin/wslpath
+/usr/bin/systemd-run
+wt.exe: not on PATH
+
+$ ls /mnt/c/Users/*/AppData/Local/Microsoft/WindowsApps/wt.exe
+/mnt/c/Users/user/AppData/Local/Microsoft/WindowsApps/wt.exe
+
+$ git check-ignore -v --no-index .fabrik/session-agents.json
+.gitignore:129:/.fabrik/session-agents.json	.fabrik/session-agents.json
+
+$ grep -n base_branch .fabrik/work/config.json
+2:  "base_branch": "master",
+
+$ grep -rn --include=*.py --include=*.sh -e ':agents' -e '#{@agent}' scripts .claude/hooks | grep -v '^scripts/sysadmin/agents_up.sh' | cut -c1-120
+scripts/sysadmin/rotate_session.py:471:    ls = _tmux("list-panes", "-a", "-F", "#{pane_id}\t#{session_name}\t#{@agent}\
+
+$ grep -n 'names no builder\|nothing to launch' tests/test_agents_up.py
+332:        "no-builders": (json.dumps({COORD: "fabrik-lib-coordinator"}), "names no builder"),
+1200:    """Bindings but no worktree: nothing to launch, exit 2 — the main checkout is never a builder's pane."""
+
+$ wc -c scripts/sysadmin/agents_up.sh tests/test_agents_up.py scripts/whoami_agent.py tests/test_whoami_agent.py .claude/hooks/agent_role.py tests/test_agent_role_hook.py docs/workstation/hooks-index.md scripts/sysadmin/agents_bat.py tests/test_agents_bat.py scripts/sysadmin/fabrik_deck.py scripts/sysadmin/rotate_session.py tests/test_rotate_session.py docs/reference/repo-coordinator-rollout.md docs/reference/operator-agent-requirements.md docs/workstation/agent-identity.md docs/reference/agents/infra.md docs/reference/agents/coordinator.md docs/superpowers/specs/2026-10-28-dynamic-builders-design.md
+ 37297 scripts/sysadmin/agents_up.sh
+ 91076 tests/test_agents_up.py
+ 22824 scripts/whoami_agent.py
+ 33669 tests/test_whoami_agent.py
+  8501 .claude/hooks/agent_role.py
+ 34113 tests/test_agent_role_hook.py
+ 97560 docs/workstation/hooks-index.md
+ 11399 scripts/sysadmin/agents_bat.py
+ 16720 tests/test_agents_bat.py
+ 52411 scripts/sysadmin/fabrik_deck.py
+ 66818 scripts/sysadmin/rotate_session.py
+ 79649 tests/test_rotate_session.py
+ 33919 docs/reference/repo-coordinator-rollout.md
+  9579 docs/reference/operator-agent-requirements.md
+  7458 docs/workstation/agent-identity.md
+  7371 docs/reference/agents/infra.md
+  9902 docs/reference/agents/coordinator.md
+ 44549 docs/superpowers/specs/2026-10-28-dynamic-builders-design.md
+664815 total
+```
+
+Suite baseline over the touched test files:
+
+```text
+$ /opt/fabrik/scripts/capped_run.sh -- /opt/fabrik/.venv/bin/python -m pytest --collect-only -q tests/test_agents_up.py tests/test_agents_bat.py tests/test_agent_role_hook.py tests/test_whoami_agent.py tests/test_rotate_session.py | tail -1
+244 tests collected in 1.18s
+```
+
+Rules census:
+
+```text
+$ python3 scripts/select_rules.py --project-root . --changed <the ten owned code/doc paths>
+Packs matching 8 changed path(s) (5):
+  • ai/00-ai-model-selection.md
+  • core/10-python.md
+  • core/40-documentation.md
+  • core/45-testing-strategy.md
+  • core/62-using-subagents.md
+```
+
+The hand-written tabbed launcher T05 replaces was read this run at `/mnt/c/Users/user/OneDrive - Tojlo Solutions LLC/Desktop/terminal agents/All Agents (tabbed).bat` (its first line `@echo off`, its last line one `start "" wt.exe -M -w new new-tab … ; new-tab … attach -t fabrik-2 ; …`) — the format T05 generates, with `-w fabrik-agents` in place of `-w new`.
+
+External facts: inherited from the spec's § External dependencies (`docs/superpowers/specs/2026-10-28-dynamic-builders-design.md:370-385`, all fetched 2026-10-28, re-verified by the spec review's fact slices); none re-researched — the spec is today's.
+
+## Self-audit
+
+Grounding passes run by this author seat: every cited `path:line` opened this run (agents_up.sh whole; agents_bat.py whole; agent_role.py whole; whoami_agent.py `:1-100`, `:140-200`, `:300-493`; rotate_session.py `:290-320`, `:460-485`, `:1180-1200`; merge_request.py `:20-60`, `:255-315`; fabrik_deck.py `:885-922`; command_run.py `:1520-1535`; decisions.py `:640-700`; the pinned test lines; the hand-written `.bat`). Findings that changed the plan versus the spec's text: (1) a second exit-2 pin becomes exit 3 — the `no-builders` registry case at `tests/test_agents_up.py:332`/`:344` — beside the spec's named `:1199-1204` (T02); (2) `rotate_session.py`'s AFTER-EDIT doc `docs/workstation/session-history-retention.md:177` describes the re-point and so owes the lock clause (T07); (3) the role fallback's merge-owner read adds a `subprocess.run` beside a `/opt/fabrik` literal in a hook, which the write-root census grades (`tests/test_hub_write_root.py:478`) — T04 adds its allowlist row; (4) `wt.exe` is not on the shell's PATH here but sits at the WindowsApps glob (T08 resolves it); (5) the hub's `.fabrik/session-agents.json` is gitignored (`.gitignore:129`), so the registry write touches no tracked file; (6) the hub config already carries `base_branch: master`, so point 9's config-first read makes the hub's `add` network-free.
+
+Not run by this seat: the command's Phase 1 three-seat grounder fan-out (the dispatch stamp and seats belong to the orchestrator that dispatched this author seat); `/fabrik-plan-review`'s round 1 is where independent grounders first read this set.
+
+(a) Coverage — each agreed item → its ticket: D1 → T02 (`--pane-cmd`), T06 (dispatch, helper); D2 → T01 (binding), T02 (`--session-id`), T06 (steps 1, 2, 4, 5, lock, idempotency), T08 (steps 3, 6, 7); D3 → T02 (suppression, first prompt), T06 (trust); D4 → T02 (exit 3), T03 (relaunch, factored start), T08 (spawn placement, cold start), T09 (remove's re-layout); D5 → T03 (`--window`), T05 (generator), T08 (live tab); D6 → T06 (floor, record), T09 (sizing rule documented); D7 → T09; D8 → T04; D9 → T02 (running check), T08 (live read), T09 (guard); Folded residue → T02; Contract deltas → T01, T02, T03, T04, T05; live proof → T10. W-14219e6f: p1 T08 · p3 T07 · p4 T02, T03 · p5 T09 · p6 T03 · p7 T08 · p8 T03, T08 · p9 T06 · p10 T01 · p11 T03 · p12 T06 · p13 T02 (p2 done). No gap found.
+
+(b) Cross-ticket signatures: IF1's flag spelling `--spawned … --session-id … --repo … --lock-fd` is used identically in T01 (producer), T02 and T06; IF2's `--pane-cmd <repo> <name> <sid> --new` identical in T02 and T08; IF3's `agents-<k>`/`<S>-<k>`/`--window <k>` identical in T03, T05, T08, T09; IF5's `lock_path`/`agents_lock`/`resolve_base`/`headroom_bytes` identical in T06, T07, T08, T09. Not yet a fixed point: the emit gate and `/fabrik-plan-review` have not run on this DRAFT.
+
+## Residual unknowns
+
+Resolved (by the spec, this run's reads, or a decision recorded here): trust inheritance in a worktree; `--session-id` semantics; grouped-session behaviour; the overflow numbering (`agents-2`, T03); MemoryHigh `max` (T06); offline base (T06); spawner-only enforcement (T01); the no-builder cold start order (T08).
+
+Still open, each with its resolution step (none is a question for the operator before execution):
+- The combined launch line in an interactive pane and whether `skillOverrides` alone silences the dialog (spec `:421-424`, `:433-435`) — T02 step 1's live probe, BLOCKING before any T02 code; its fallback JSON is named there.
+- Whether `wt.exe -w fabrik-agents new-tab` from WSL appends to the open window (spec `:425-428`) — T10 step 3; on failure the `.bat` still shows the window at the next click and the step budget records a fourth operator step.
+- Whether the safety classifier lets a coordinator run `agents_up.sh add` (spec `:429-432`) — T10 step 6; a refusal is boarded as one exact allow rule (gate: credentials/permissions).
