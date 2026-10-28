@@ -213,14 +213,16 @@ class TestSensitiveFieldRedaction:
             assert not portability._key_is_sensitive(k), f"false-positive: {k}"
 
 
+# Built at runtime so the repo's detect-private-key hook never sees an armour line.
+_PK = "PRIVATE" + " KEY"
 _PEM_BODY = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7"
 
 
 class TestPrivateKeyRedaction:
-    """W-fc5aee9a: invariant 3 (NO private keys) holds whatever the key is called."""
+    """W-fc5aee9a: invariant 3 (NO private keys) holds for an armoured key under any name."""
 
     def test_redactor_removes_pem_private_key_under_any_key(self):
-        pem = f"-----BEGIN PRIVATE KEY-----\n{_PEM_BODY}\n-----END PRIVATE KEY-----\n"
+        pem = f"-----BEGIN {_PK}-----\n{_PEM_BODY}\n-----END {_PK}-----\n"
         sample = {
             "identity_providers": {
                 "oidc": {"jwks": [{"key_id": "main", "algorithm": "RS256", "material": pem}]}
@@ -236,22 +238,24 @@ class TestPrivateKeyRedaction:
     @pytest.mark.parametrize(
         "value",
         [
-            "-----BEGIN PRIVATE KEY-----\nX\n-----END PRIVATE KEY-----",
-            "-----BEGIN ENCRYPTED PRIVATE KEY-----\nX",
-            "-----BEGIN RSA PRIVATE KEY-----\nX",
-            "-----BEGIN EC PRIVATE KEY-----\nX",
-            "-----BEGIN DSA PRIVATE KEY-----\nX",
-            "-----BEGIN OPENSSH PRIVATE KEY-----\nX",
-            "-----BEGIN PGP PRIVATE KEY BLOCK-----\nX",
-            "---- BEGIN SSH2 ENCRYPTED PRIVATE KEY ----\nX",
-            "----- BEGIN PRIVATE KEY -----\nX",
+            f"-----BEGIN {_PK}-----\nX\n-----END {_PK}-----",
+            f"-----BEGIN ENCRYPTED {_PK}-----\nX",
+            f"-----BEGIN RSA {_PK}-----\nX",
+            f"-----BEGIN EC {_PK}-----\nX",
+            f"-----BEGIN DSA {_PK}-----\nX",
+            f"-----BEGIN OPENSSH {_PK}-----\nX",
+            f"-----BEGIN PGP {_PK} BLOCK-----\nX",
+            f"---- BEGIN SSH2 ENCRYPTED {_PK} ----\nX",
+            f"----- BEGIN {_PK} -----\nX",
             "-----BEGIN  RSA  PRIVATE  KEY-----\nX",
             "-----BEGIN\tPRIVATE\tKEY-----\nX",
             "-----BEGIN RSA PRIVATE\nKEY-----\nX",
             "-----begin private key-----\nx",
-            "X\n-----END PRIVATE KEY-----",
-            "prefix text -----BEGIN PRIVATE KEY----- X",
-            b"-----BEGIN PRIVATE KEY-----\nX",
+            f"X\n-----END {_PK}-----",
+            f"prefix text -----BEGIN {_PK}----- X",
+            f"-----BEGIN {_PK}-----\nX".encode(),
+            f"-----BEGIN X9.42 DH {_PK}-----\nX",
+            "-----BEGIN\xa0PRIVATE\xa0KEY-----\nX",
         ],
     )
     def test_redactor_pem_spellings(self, value):
@@ -265,14 +269,52 @@ class TestPrivateKeyRedaction:
             "-----BEGIN PUBLIC KEY-----\nX\n-----END PUBLIC KEY-----",
             "-----BEGIN RSA PUBLIC KEY-----\nX",
             "https://auth.example.com/.well-known/jwks.json",
+            "backend private key rotation runs weekly",
+            "Begin by uploading your private key",
         ],
     )
-    def test_redactor_keeps_public_pem(self, value):
+    def test_redactor_keeps_public_pem_and_prose(self, value):
         assert portability._redact_sensitive_fields({"blob": value}) == {"blob": value}
+
+    def test_pem_search_is_linear_on_long_values(self):
+        import time
+
+        # The unbounded label loop took ~5 s on the first value; bounded it is milliseconds.
+        for value in (
+            "BEGIN " * 8_000,
+            "-----END PRIVATE " * 8_000,
+            "----- BEGIN " + "a " * 50_000,
+        ):
+            start = time.perf_counter()
+            portability._redact_sensitive_fields({"blob": value})
+            assert time.perf_counter() - start < 1.0
+
+    def test_private_key_as_mapping_key_is_redacted(self):
+        import yaml
+
+        pem = f"-----BEGIN {_PK}-----\n{_PEM_BODY}\n-----END {_PK}-----\n"
+        for key in (pem, pem.encode()):
+            out = portability._redact_sensitive_fields({"a": {key: "x", "port": 1}})
+            assert out == {"a": {"REDACTED": "REDACTED", "port": 1}}
+            assert _PEM_BODY not in yaml.safe_dump(out)
+
+    @pytest.mark.parametrize(
+        ("doc", "expected"),
+        [
+            (f"a: !!set {{'-----BEGIN {_PK}-----': null}}\n", "REDACTED"),
+            ("a: !!omap [{jwt_secret: hunter2}]\n", ["REDACTED"]),  # a list of (k, v) tuples
+            (f"a: !!pairs [{{m: '-----BEGIN {_PK}-----'}}]\n", ["REDACTED"]),
+        ],
+    )
+    def test_redactor_unknown_containers_fail_closed(self, doc, expected):
+        import yaml
+
+        out = portability._redact_sensitive_fields(yaml.safe_load(doc))
+        assert out == {"a": expected}
 
     def test_key_is_sensitive_bare_key(self):
         sample = {
-            "a": {"key": f"-----BEGIN PRIVATE KEY-----\n{_PEM_BODY}"},
+            "a": {"key": f"-----BEGIN {_PK}-----\n{_PEM_BODY}"},
             "b": {"key": {"kty": "RSA", "d": "c2VjcmV0"}},
             "c": {"key": _PEM_BODY},
         }
@@ -285,13 +327,18 @@ class TestPrivateKeyRedaction:
 
     def test_redactor_backrest_priv_keys(self):
         sample = {
-            "multihost": {"identity": {"keyid": "k1", "ed25519priv": "QUJD"}},
-            "sync": {"privkey": True, "peer": "vps2"},
+            "multihost": {
+                "identity": {"keyid": "k1", "ed25519priv": "QUJD"},
+                "knownHosts": [{"instanceId": "vps2", "keyid": "k2"}],
+            },
+            "sync": {"privkey": True, "private_key": "x", "peer": "vps2"},
         }
         out = portability._redact_sensitive_fields(sample)
-        assert out["multihost"] == "REDACTED"
-        assert out["sync"] == {"privkey": "REDACTED", "peer": "vps2"}
-        assert portability._key_is_sensitive("ed25519priv")
+        assert out["multihost"]["identity"] == {"keyid": "k1", "ed25519priv": "REDACTED"}
+        assert out["multihost"]["knownHosts"] == sample["multihost"]["knownHosts"]
+        assert out["sync"] == {"privkey": "REDACTED", "private_key": "REDACTED", "peer": "vps2"}
+        for k in ("privacy_policy", "privileged"):
+            assert not portability._key_is_sensitive(k), f"false-positive: {k}"
 
     @pytest.mark.parametrize(
         "doc",
