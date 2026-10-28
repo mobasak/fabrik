@@ -1354,6 +1354,9 @@ def test_a_complete_run_replaces_a_split_files_node_keys(tmp_path, monkeypatch):
     rec.write_text(json.dumps({"tests/h.py": 9, "tests/h.py::old": 5, "tests/h.py::a": 1}))
     mts._save_durations(rec, {"tests/h.py": 3, "tests/h.py::a": 2}, complete=True)
     assert json.loads(rec.read_text()) == {"tests/h.py": 3, "tests/h.py::a": 2}
+    # a complete leg that ran the file whole keeps none of its old node keys (review pass 2)
+    mts._save_durations(rec, {"tests/h.py": 4}, complete=True)
+    assert json.loads(rec.read_text()) == {"tests/h.py": 4}
     # an incomplete run never drops a node key: it may not have reached that test
     rec.write_text(json.dumps({"tests/h.py::old": 5, "tests/h.py::a": 1}))
     mts._save_durations(rec, {"tests/h.py::a": 2}, complete=False)
@@ -1410,6 +1413,13 @@ def test_node_ids_that_differ_between_two_collections_keep_the_file_whole(capsys
     assert (
         "t.py kept whole (its node ids differ between two collections)" in capsys.readouterr().out
     )
+    # a second collection that fails is said as such, never as differing ids (review pass 2)
+    calls = iter([["t.py::a", "t.py::b"], None])
+    units, _uw, split = mts._split_heavy(
+        ["t.py", "u.py"], {"t.py": 100, "u.py": 0.1}, 2, lambda f: next(calls)
+    )
+    assert "t.py" in units and split == {}, (units, split)
+    assert "t.py kept whole (its second collection failed)" in capsys.readouterr().out
 
 
 def test_a_leg_runs_each_shards_nodes_in_the_files_order(tmp_path, monkeypatch, capsys):

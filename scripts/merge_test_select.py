@@ -313,9 +313,10 @@ def _save_durations(path: Path, measured: dict[str, float], *, complete: bool) -
     saving at once lose one update (last writer wins), never tear the file."""
     old = _load_durations(path)
     if complete:
-        # a complete run measured every node of each split file it recorded nodes for: the old node
-        # keys of those files go (renamed or removed tests never pile up); a file's own key is not one
-        renewed = {k.split("::")[0] for k in measured if "::" in k}
+        # a complete run measured every file it ran, and every node of each it split: the old node keys
+        # of every measured file go (renamed or removed tests never pile up, and a file this leg ran
+        # whole keeps none); a file's own key is not one
+        renewed = {k.split("::")[0] for k in measured}
         old = {k: v for k, v in old.items() if not ("::" in k and k.split("::")[0] in renewed)}
     merged = (
         {**old, **measured}
@@ -430,8 +431,12 @@ def _split_heavy(
         why = ""
         if ids is None or len(ids) < 2:
             why = "it did not collect" if ids is None else f"{len(ids)} node id(s)"
-        elif collect(f) != ids:
-            why = "its node ids differ between two collections"
+        else:
+            again = collect(f)
+            if again is None:
+                why = "its second collection failed"
+            elif again != ids:
+                why = "its node ids differ between two collections"
         if why or ids is None:
             print(f"merge-tests: {f} kept whole ({why})")
             units.append(f)
