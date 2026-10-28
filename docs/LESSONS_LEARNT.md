@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A stub guard keyed on a marker accepts whatever else carries the marker (2026-10-28, W-bda24c48)
+
+**What happened:** to stop 11 tests paying a 169 s LOSS pass, a spy replaced it and accepted only "check()'s temp render", identified by the `_agents` subdirectory only the render holds. Review round 1 found the source tree `commands/` holds `_agents` too, so a check() handing the pass its own sources stayed green. It also found that a neutral rename of the temp dir false-redded every test. The next two identity rules each failed once more: "the last render" false-redded a check() rendering twice, and "any render this test made" accepted an earlier call's deleted temp dir.
+
+**Lesson:** identify the object a guard accepts by recording its producer (wrap the function that creates it, scoped to the call under test), never by a property you believe only it has. Then mutate the caller with every other value of the right type, including its siblings, its sources and its own earlier output.
+
 ## A delegated installer's exit code says nothing about what it wrote (2026-10-28, W-d6726a65)
 
 **What happened:** the setup script's archive step runs `install_session_archive_timer.sh` instead of copying its units. Both design critics executed it on stub `systemctl`: with `daemon-reload` failing it exits 1 after writing all three units and prints nothing, so undo lines built from "what this script wrote" would have missed every unit. The same pass found `systemctl --user cat` shows the DISK unit while the loaded one (`show -p OnFailure`) was empty on this box.
