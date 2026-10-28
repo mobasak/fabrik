@@ -3,7 +3,7 @@
 **Command:** /fabrik-spec-review
 **Spec:** `docs/superpowers/specs/2026-10-28-dynamic-builders-design.md`
 **Reviewer:** infra-3 (orchestrator; seats via the Agent tool — shape: agent-tool, D-961: the hub never calls Workflow)
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 
 ## Pass Ledger
 
@@ -13,6 +13,15 @@
 | Pass 2 | opus×1 + sonnet×1 + opus×1 researcher + sonnet×1 researcher (round-1 owners) · delta over the pass-1 fix diff + one hop · shape: agent-tool | found: 9, new: 9, confirmed: 7, fixed: 7, unexecuted: 0, edits: 7 | method: re-derivation — the round-1 seats re-derived their own slices over pins/pass-1-fix.diff; both fact slices CONFIRMED every changed quote (no defect); 7 own-fix defects (own-fix: round 1) in D1/D2/D4/D5/D7/Cost, 1 refuted, 1 recorded | 44daeced… → e94d9a33… |
 | Pass 3 | opus×1 (round-1 owner of the rules slice; the other three slices held no open claim and are restated at their pass-2 values) · delta over pins/pass-2-fix.diff + one hop · shape: agent-tool | found: 5, new: 5, confirmed: 5, fixed: 5, unexecuted: 0, edits: 5 | method: re-derivation — rules slice over the pass-2 fix diff; 5 own-fix defects (own-fix: round 2); class rewrite — D2, D4, D7 (rounds 2, 3): the three paragraphs rewritten whole in one batch, the `.tmp/runs` move DELETED in favour of a refusal | e94d9a33… → f7c7fdc5… |
 | Pass 4 | opus×1 (round-1 owner of the rules slice; the other three slices restated at their last values) · the scope-growth stop's fixed set only (P3-N1..N5) · shape: agent-tool | found: 2, new: 2, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — closing round over the stop's fixed set: all 5 fixes verified, 8 of 8 rewrite citations re-derived at the pin; the 2 new observations are own-fix residue raised after the stop fired, RECORDED — measured onto W-14219e6f; standing clean since earlier passes: intake, personas, facts, vendor, approach, constraints, completeness | f7c7fdc5… → f7c7fdc5… ✓ |
+| Pass 5 | opus×1 (round-1 owner of the rules slice; the panel's changes all sit in its sections; other slices restated) · the ONE delta round over the approval panel's revision · shape: agent-tool | found: 7, new: 7, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — every panel row checked PRESENT/WRONG against its concern and counter-case, 11 of 11 new citations re-derived at the pin; 12 rows PRESENT-OK; 2 rows WRONG (PO2, PF2/PF3) and 5 record-only items are own-fix residue of the revision raised after the scope-growth stop fired, RECORDED — measured onto W-14219e6f points 7-13 (term-edit § scope-growth stop: post-stop residue does not hold the flip) | c6d3ae64… → c6d3ae64… ✓ → **CONVERGED** |
+
+## Findings (pass 5)
+
+| id | finding | verdict |
+|---|---|---|
+| P5-PO2 | the preflight headroom check runs before the cold start, so a reboot's empty slice passes it | RECORDED — measured (post-stop own-fix residue; W-14219e6f point 7) |
+| P5-PF2 | a re-created first window becomes no session's current window, so tab 1 shows the overflow window | RECORDED — measured (post-stop own-fix residue; W-14219e6f point 8) |
+| P5-r1..r5 | ls-remote is a network call; spawner-only not enforced; overflow numbering start; MemoryHigh `max`; no-transcript under another folder | RECORDED — measured (W-14219e6f points 9-13) |
 
 ## Findings (pass 4)
 

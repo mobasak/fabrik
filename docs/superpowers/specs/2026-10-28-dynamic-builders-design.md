@@ -1,6 +1,6 @@
 # Dynamic disposable builder agents — design
 
-Status: DRAFT
+Status: CONVERGED
 Profile: delta
 
 Work item: W-b9ad80ae (P0). Rulings: D-1301 (operator, 2026-10-28), D-1128 (spawn/retire), D-1092 (no fixed
