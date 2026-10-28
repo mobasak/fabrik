@@ -140,6 +140,27 @@ def test_install_without_the_function_keeps_the_legacy_block() -> None:
         assert _can(s, f"has_table_privilege('{ROLE}', 'customers', 'SELECT')")
 
 
+def test_a_changed_function_signature_fails_the_step_without_the_legacy_grant() -> None:
+    """W-d8505af5: fabrik-lib adds a parameter, so the exact signature no longer resolves.
+
+    The legacy block keys on that signature being absent; without a guard it would
+    DROP+CREATE the policies (stripping ``other_reader``) and grant table-level SELECT.
+    """
+    schema = _schema()
+    with scratch_pg() as s:
+        _database(s, schema, with_fn=False)
+        _in_db(
+            s,
+            "CREATE FUNCTION payments_grant_ingest(r pg_catalog.regrole, extra text DEFAULT '') "
+            "RETURNS void LANGUAGE sql AS $$ SELECT $$;",
+        )
+        with pytest.raises(RuntimeError, match="the signature the hub calls"):
+            _apply(s)
+        assert _policy_roles(s, "customers") == "other_reader"
+        assert not _can(s, f"has_table_privilege('{ROLE}', 'customers', 'SELECT')")
+        assert not _can(s, f"has_table_privilege('{ROLE}', 'webhook_events', 'INSERT')")
+
+
 def test_upgrade_from_a_legacy_grant_narrows_the_role() -> None:
     """A DB granted by the legacy block, then migrated: the next apply revokes the table grant."""
     schema = _schema()
