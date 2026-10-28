@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T19:43:03.766178Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-b05aae88",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M61GF9Y5PVWVNJY7E7B2E5DJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "branch: w-a77742db-lane-rebind-refresh"
+}
