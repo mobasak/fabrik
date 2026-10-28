@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — agents_up.sh spawned launch path: `--pane-cmd`, `--session-id` starts, prompt suppression (2026-10-28)
+`agents_up.sh --pane-cmd <repo> <name> <sid> [--new] [--coordinator <n>] [--item <W-id>]` prints the one pane command a spawner places (W-b9ad80ae, plan T02); it is its own mode, decides every refusal before it writes the slice ceiling, and refuses an uncapped start unless `FABRIK_AGENTS_UNCAPPED=1`. A spawner-bound session with no transcript in any project folder launches with `--session-id` and a first prompt naming its coordinator and item; every claude call carries `--settings` suppressing the auto-mode tip and spinner tips, and every pane `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1`. "Nothing to launch" exits 3. A pane reads `running` when any live claude runs its session id, or runs by its name in its folder. The resolver emits only UUID-shaped session ids, and a malformed `FABRIK_SPAWN_*` refuses only a launch that would build that builder's first prompt.
+
 ### Added — agent_role.py role-charter fallback + generic builder charter (2026-10-28)
 When `docs/reference/agents/<name>.md` is absent (a dangling symlink counts as present), a `<role>-<suffix>` session gets `<role>.md` under its own name (W-b9ad80ae, plan T04). Never for a coordinator name or a coordinator role (`coordinator-2`), a name missing either half, or the merge owner's role, which is read through the hub's `decisions.py --merge-owner` and fails closed. The new `docs/reference/agents/builder.md` is the generic builder charter and names no merger.
 

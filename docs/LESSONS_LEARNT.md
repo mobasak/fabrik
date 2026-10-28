@@ -1,6 +1,11 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A live claude probe on tmux 3.4 needs `=name:` targets and a 150 s wait (2026-10-28, W-b9ad80ae T02)
+
+**What happened:** T02's blocking probe launched one claude on a private tmux server to prove the `--settings` suppression. It took four launches: `capture-pane -t =probe-1` fails on tmux 3.4 ("can't find pane"), and a 60 s wait found no transcript, because a fresh worktree's first turn spends about 57 s in SessionStart hooks.
+**Lesson:** target tmux panes as `=<session>:`, never a bare `=<session>`; a probe that waits for a new session's transcript waits 150 s, not 60. The wave's review then found that a validation moved "before the first side effect" also has to stay off paths that make no side effect at all: decide where a refusal belongs by which paths build the thing it guards.
+
 ## A check that reads list POSITION is satisfied by reordering the list (2026-10-27, W-0b900e92)
 
 **What happened:** the /fabrik-task close compared a receipt's range tip with the LAST `--commit`. A reporter whose receipt and ledger commits honestly came after the reviewed tip was refused, and passed by moving the tip to the end of the list. The same reorder passed an unreviewed code commit listed before the tip.
