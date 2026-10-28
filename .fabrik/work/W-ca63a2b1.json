@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T13:06:48.685263Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-ca63a2b1",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1302",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decode stdin strictly first and warn on any UnicodeDecodeError; add a grader with a directory as <name>.delivered (write rc 0); fix D-1302's survivor wording by a superseding note; red-first each",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "Rotation handoff hook residue (W-835894a6 review, D-1302): the U+FFFD warning is silent when stdin holds a real U+FFFD AND a stray byte (hooks-index says 'said so on stderr'); no test for the writer's best-effort mark unlink (reachable: a directory as <name>.delivered); D-1302's survivor list omits that mutant; the unnamed list reads only the first 64 KiB"
+}

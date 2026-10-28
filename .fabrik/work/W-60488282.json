@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T13:03:25.376566Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-60488282",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5JXEQQ5EMR29QDP8DFVAGWR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra-3",
+  "priority": 2,
+  "status": "done",
+  "title": "agents_bat.py defaults the distro to $WSL_DISTRO_NAME, unset in systemd/tmux/code-server shells — the Deck fix (D-1137) reads it from wslpath -w /"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T13:32:49.598546Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-01e1ce2e",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "skip a non-dict payload with the same warning as an unreadable file; flip the xfail in tests/test_cov_portability.py",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "portability._collect_state calls payload.pop('coolify_uuid', None) on any valid JSON (src/fabrik/portability.py:221), so a state file holding a list raises TypeError (list.pop takes an int) and aborts export instead of being skipped"
+}
