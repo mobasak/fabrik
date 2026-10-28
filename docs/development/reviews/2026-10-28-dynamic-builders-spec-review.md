@@ -10,6 +10,22 @@
 | Pass | seats · axes re-checked (intake · personas · facts · vendor · approach · completeness · constraints) | counters | method | spec md5 (start → end) |
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (rule sections) + sonnet×1 (other sections) + opus×1 researcher (high-risk facts) + sonnet×1 researcher (other facts) · all axes · shape: agent-tool | found: 36, new: 36, confirmed: 33, fixed: 33, unexecuted: 0, edits: 33 | method: citation — full pass over the section partition; every candidate executed by the orchestrator (5 git/tmux probes in a throwaway repo and scratch tmux server, the Deck resolver read, commit and D-row existence checked); 1 refuted, 1 recorded, 1 duplicate | b67e58b1… → 44daeced… |
+| Pass 2 | opus×1 + sonnet×1 + opus×1 researcher + sonnet×1 researcher (round-1 owners) · delta over the pass-1 fix diff + one hop · shape: agent-tool | found: 9, new: 9, confirmed: 7, fixed: 7, unexecuted: 0, edits: 7 | method: re-derivation — the round-1 seats re-derived their own slices over pins/pass-1-fix.diff; both fact slices CONFIRMED every changed quote (no defect); 7 own-fix defects (own-fix: round 1) in D1/D2/D4/D5/D7/Cost, 1 refuted, 1 recorded | 44daeced… → e94d9a33… |
+
+## Findings (pass 2)
+
+| id | seat | finding | verdict | fix |
+|---|---|---|---|---|
+| P2-O1 | opus rule | bindings-only `add` writes no record the resolver reads, so `--pane-cmd` prints no pane (agents_up.sh:199-200) | CONFIRMED (own-fix: round 1) | D2: the binding is written through whoami's writer for the minted id in every repo |
+| P2-O2 | opus rule | the ignored-file refusal refuses every live builder (infra-2 holds 7 `.tmp/runs` folders) | CONFIRMED (own-fix: round 1; `ls` → 7) | D7: dependency/cache trees let go, `.tmp/runs` moved to the main checkout, other ignored files named |
+| P2-O3 | opus rule | a cold `add` launches only the new builder and the relaunch then leaves the grid as it is (agents_up.sh:590) | CONFIRMED (own-fix: round 1) | D4: whole grid started detached first, before the new builder is recorded |
+| P2-O4 | opus rule | `<repo>/.fabrik/agents.lock` is untracked in the coordinator's checkout | CONFIRMED (own-fix: round 1; `.gitignore` lists no such path) | D2: lock in the git common dir |
+| P2-O5 | opus rule | "HEAD is on `worktree-<name>`" refuses every existing builder | CONFIRMED (own-fix: round 1) | D7: any branch, detached refuses |
+| P2-O6 | opus rule | a bindings-only pane that dies before its first turn leaves no record | CONFIRMED (own-fix: round 1) | same fix as P2-O1 |
+| P2-O7 | opus rule | D1 "grows only the dispatch lines" and Cost ≈ 60 contradict D4/D5; `--window` has no timeout or missing-window rule | CONFIRMED (own-fix: round 1) | D1, Cost, D5 |
+| P2-S1 | sonnet | I20 SHAs unverifiable | REFUTED (`git cat-file -t` → commit ×4) | — |
+| P2-S2 | sonnet | I22 destination is a future commit | RECORDED — measured (a forward destination tied to a named event; the plan carries the step — destination: /fabrik-plan-after-chat) | — |
+| P2-rec | opus rule | rotate_session's registry write sits outside the new lock; launcher tests pin `run` lines | RECORDED — one hop out (destination: the plan — rotate takes the same lock; tests updated with the change) | Contract deltas names the tests |
 
 ## Findings (pass 1)
 

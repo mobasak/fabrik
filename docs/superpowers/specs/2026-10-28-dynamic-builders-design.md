@@ -83,7 +83,9 @@ Invariants and touchpoints; the step sequence is the plan's.
 
 **D1 — Two verbs, one helper.** `agents_up.sh add <repo> <name> [--role <role>] [--item <W-id>]` and
 `agents_up.sh remove <repo> <name>` dispatch, like `rotate-session` (agents_up.sh:72-75), to a NEW Python helper
-`scripts/sysadmin/agents_spawn.py` — the 637-line bash script grows only the dispatch lines (judge panel condition).
+`scripts/sysadmin/agents_spawn.py` holding the spawn/retire logic (judge panel condition: not more bash); the
+637-line script grows only what must stay in it — the dispatch lines, `--pane-cmd`, `--window`, the factored grid
+start, placement on relaunch (D4) and the suppression in `cmd_of` (D3).
 The pane command is built by the SAME function the grid uses (`cmd_of`, agents_up.sh:455-505, whose output
 `--print` emits as a `run <name> <command>` line, agents_up.sh:511-523): the helper calls `agents_up.sh --pane-cmd
 <repo> <name> <sid> --new` (a new read-only mode beside `--print`) and launches what it prints, so the env allow-list,
@@ -92,17 +94,23 @@ its session flag (`--session-id` vs `--resume`) and its prompt. `--pane-cmd` run
 malformed registry row that refuses the grid (agents_up.sh:151-161) refuses `add` too, with the same message.
 
 **D2 — `add` is serialised, ordered and idempotent.** Every `add` and `remove` for one repo holds one exclusive
-lock (`flock` on `<repo>/.fabrik/agents.lock`), so two coordinators — or one twice — never interleave a registry
-write, a placement or a grouped-session name. Under the lock: validate the name (`[a-z0-9][a-z0-9-]{0,31}`, not a
+lock (`flock` on `<git common dir>/fabrik-agents.lock` — inside the repo's `.git`, so it never shows as an untracked
+file in the coordinator's checkout and is shared by every worktree), so two coordinators — or one twice — never
+interleave a registry write, a placement or a grouped-session name. Under the lock: validate the name (`[a-z0-9][a-z0-9-]{0,31}`, not a
 coordinator name, not the merge owner — the grid's rules, agents_up.sh:128-129, 202-210) → the worktree
 `<repo>/.claude/worktrees/<name>` on branch `worktree-<name>` from the main branch tip (the `-w` convention Claude
 Code itself uses, worktrees doc); a leftover `worktree-<name>` branch is re-created only when it is merged into main,
 and otherwise refuses, naming the branch (`git worktree add -b` refuses an existing branch — executed: `fatal: a
-branch named 'worktree-x' already exists`, rc 255) → mint a lowercase UUID → record it: in a repo that HAS a
-registry, the row `{uuid: name}` in `<repo>/.fabrik/session-agents.json` (atomic replace under the lock); in a repo
-with NONE, no file is created — the resolver reads only registry names once the file exists (agents_up.sh:199-200),
-so creating it would drop every bindings-only builder of the 10 such repos from the next relaunch; there the pane's
-own first-turn re-bind (D3) is the record → place and launch the pane (D3, D4) → assign the item (`work.py assign
+branch named 'worktree-x' already exists`, rc 255) → mint a lowercase UUID → record it in BOTH places the
+resolver reads: the identity-store binding of that UUID to the name in this repo's scope, written through
+`whoami_agent.py`'s own locked writer (`bind`/`_bind_locked`, scripts/whoami_agent.py:328-351, gaining a form that
+takes the session id as an argument instead of reading the caller's — the one writer of that store, never a second);
+and, in a repo that HAS a registry, the row `{uuid: name}` in `<repo>/.fabrik/session-agents.json` (atomic replace
+under the lock). A repo with NO registry gets no file — the resolver reads only registry names once the file exists
+(agents_up.sh:199-200), so creating it would drop every bindings-only builder of the 10 such repos from the next
+relaunch; the binding alone is the record there, so the resolver sees the new builder at once and a pane that dies
+before its first turn is still resumed by the next relaunch. The builder's own first-turn re-bind (D3) then writes
+the same binding again → place and launch the pane (D3, D4) → assign the item (`work.py assign
 <W-id> --owner <name>` when `--item` is given) → regenerate the launchers (D5). Re-running `add` for a name whose
 worktree, row or pane already exists completes the missing steps and never creates a second of any — a live pane
 with no row is adopted by its `@agent` tag and the `--session-id`/`--resume` in its claude process's argv; a step
@@ -135,10 +143,13 @@ window: agents`, rc 1), and every grid command targets windows by name (agents_u
 the lowest window with fewer than four, else opens the next window and the grouped session `<S>-<n>` (`new-session -d
 -t <S> -s <S>-<n>`, its current window set to that window), then `select-layout even-horizontal` and `set -p @agent
 <name>`. With no session `<S>` at all (no tmux server after a reboot, or a repo whose grid never started), `add`
-builds it the way a new grid is built — the slice ceiling re-asserted first (`slice_ceiling`, agents_up.sh:529-540;
-without it the slice has no MemoryHigh and D6's floor reads nothing) and `@agents_up_root` recorded
-(agents_up.sh:612-613) — its builder the first pane; that shared start is factored out of the grid path, never
-copied. The relaunch path (agents_up.sh:595-621) uses the
+first starts the WHOLE grid detached (`agents_up.sh --detach <repo>`, which re-asserts the slice ceiling —
+`slice_ceiling`, agents_up.sh:529-540, without which the slice has no MemoryHigh and D6's floor reads nothing — and
+records `@agents_up_root`, agents_up.sh:612-613), so every registered builder comes back — this start runs BEFORE D2 records the new builder, so the grid never tries
+to `--resume` a session that does not exist yet — and only then records and places the new one; a cold start that launched just the new builder would leave every other builder down, since a later
+relaunch finds the grid up and leaves it as it is (agents_up.sh:590). A repo whose grid start refuses because it has
+no builder yet ("nothing to launch") gets the same start with the new builder as its first pane — the grid's start
+code is factored out for that, never copied. The relaunch path (agents_up.sh:595-621) uses the
 same placement instead of window `agents` alone, so a relaunch can never fold six panes into one window again. `remove` kills the
 pane, re-lays the window, and kills an emptied non-zero window and its grouped session. Measured on a scratch tmux 3.4
 server this session: grouped sessions share windows, a window added in one appears in all, killing one member keeps
@@ -147,9 +158,11 @@ the windows, `kill-pane` gives the space to the rest.
 **D5 — The tabbed launcher is generated, and live.** `agents_bat.py --tabbed` writes "All Agents (tabbed).bat" with
 one tab per (repo, window): every repo whose grid `agents_up.sh --print` accepts gets its first tab, `agents_up.sh
 <repo>` (attach-or-launch, unchanged — so a repo whose grid is down still gets a tab and its grid starts there), and
-each further window `n` its live grid has gets a tab running `agents_up.sh --window <n> <repo>`, which waits for the
-grid (tab 1 may still be building it after a reboot) and attaches the grouped session `<S>-<n>`, creating it when
-missing, instead of failing on a session that does not exist yet. The hand-written file carries no marker and the
+each further window `n` its live grid has gets a tab running `agents_up.sh --window <n> <repo>`, which waits up to
+120 s for the grid (tab 1 may still be building it after a reboot) and attaches the grouped session `<S>-<n>`,
+creating it when missing, instead of failing on a session that does not exist yet; when the grid is up but has no
+window `n` (a relaunch with fewer builders than the `.bat` knew), the tab says so and attaches window `agents`, never
+creating `<S>-<n>` for a window that is not there. The hand-written file carries no marker and the
 generator refuses it without `--replace` (agents_bat.py:227-244), so the first generation is run once with
 `--replace "All Agents (tabbed).bat"`; from then on the marker lets `add`/`remove` rewrite it. The desktop folder is remembered
 in `~/.config/fabrik/agents-desktop` (written by the first `--desktop` run, read by `add`/`remove`), so the verbs
@@ -176,12 +189,15 @@ whose queue is empty is retired at that boundary, not kept warm.
 **D7 — `remove` never loses work, and every doubt refuses.** Refuse (exit 2, the reason named) unless ALL hold:
 no run record `running` under ANY session id the name owns — the registry's AND every id the identity store binds to
 the name in this repo's scope (after a `/clear` and re-bind the live id is the binding's) — at
-`~/.claude/state/command-runs/<sid>.json`; the worktree is clean (`git status --porcelain` empty); it holds no
-IGNORED file outside the regenerable caches (`__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`) —
-`git worktree remove` deletes ignored files without asking and `--porcelain` never lists them (executed: a
-`.tmp/runs/x/f` under an ignored `.tmp/` was gone after a plain `git worktree remove`, rc 0), and a run's scratch
-and pins live in the checkout's ignored `.tmp/runs/`; HEAD is on the branch `worktree-<name>` (a detached HEAD
-refuses: its commits sit on no branch); and that branch is pushed (`git rev-list @{u}..HEAD` succeeds and prints
+`~/.claude/state/command-runs/<sid>.json`; the worktree is clean (`git status --porcelain` empty); its IGNORED files
+are accounted for — `git worktree remove` deletes ignored files without asking and `--porcelain` never lists them
+(executed: a `.tmp/runs/x/f` under an ignored `.tmp/` was gone after a plain `git worktree remove`, rc 0): the
+regenerable dependency and cache trees (`.venv`, `node_modules`, `__pycache__`, `.pytest_cache`, `.mypy_cache`,
+`.ruff_cache`) are let go; the worktree's `.tmp/runs/` run folders — a run's scratch, pins and resume artifacts,
+keyed by session id so they never collide — are MOVED into the main checkout's `.tmp/runs/` first (infra-2's tree
+holds 7 today); any other ignored file (a `.env` copy, a stray `.tmp` file) refuses, each named, for the coordinator
+to delete or keep by hand; HEAD is on a branch (a detached HEAD refuses: its commits sit on no branch — any branch
+name, so builders made before this spec, on branches like `infra-3-dynamic-builders`, are retired the same way); and that branch is pushed (`git rev-list @{u}..HEAD` succeeds and prints
 nothing) or has no commits beyond main. A git command that FAILS reads as a refusal, never as "nothing there"
 (executed: `rev-list @{u}..HEAD` on a detached HEAD exits 128). Then:
 kill the pane (D4), `git worktree remove <path>` (never `--force` — git itself refuses an unclean tree, git-worktree
@@ -213,15 +229,18 @@ nothing is never read as "every builder gone" (the reconcile pattern's mass-dele
 
 No data contract or UI contract (hub tooling, no `docs/data-contract.md` / `docs/ui-design.md`). CLI contract
 changes: `agents_up.sh` gains `add`, `remove`, `--pane-cmd`, `--window`; `agents_bat.py` gains `--tabbed`;
-`agent_role.py` gains the role fallback. Two existing outputs change on purpose: every `run <name> <command>` line of
-`--print` (and every launched pane) gains the suppression flag and env var (D3), and a grid of more than four builders
-is laid out over named windows instead of one (D4). `agents_bat.py::_has_grid` reads only the `pane ` lines
-(agents_bat.py:224), so neither change reaches it; every other existing invocation keeps its output.
+`agent_role.py` gains the role fallback; `whoami_agent.py` gains a binding form that takes the session id as an
+argument (D2). Two existing outputs change on purpose: every `run <name> <command>` line of `--print` (and every
+launched pane) gains the suppression flag and env var (D3), and a grid of more than four builders is laid out over
+named windows instead of one (D4). `agents_bat.py::_has_grid` reads only the `pane ` lines (agents_bat.py:224), so
+neither change reaches it; the launcher's own tests that pin `run` lines and `:agents` targets are updated with the
+change; every other existing invocation keeps its output.
 
 ## Cost
 
-No spend: no new service, dependency or paid API. Build estimate ≈ 450–550 code lines over 5 code files
-(`agents_spawn.py` new ≈ 300, `agents_up.sh` ≈ 60, `agents_bat.py` ≈ 90, `agent_role.py` ≈ 25, the builder charter),
+No spend: no new service, dependency or paid API. Build estimate ≈ 600–700 code lines over 5 code files
+(`agents_spawn.py` new ≈ 300, `agents_up.sh` ≈ 150, `agents_bat.py` ≈ 90, `agent_role.py` ≈ 25, `whoami_agent.py`
+≈ 25; plus the builder charter, a doc),
 tests excluded — over the D-169 small bound, so the full chain runs. Run cost per builder is unchanged (the same
 capped interactive session the grid already runs).
 
@@ -233,7 +252,10 @@ capped interactive session the grid already runs).
   detached HEAD, unpushed, a failing git call, a running record under the bound session id — the empty-tmux guard); `tests/test_agents_up.py`
   (`--pane-cmd` equals the `run` line; a relaunch of six builders yields windows of four and two plus the
   grouped session — the regression the hub hit on 10-22); `tests/test_agents_bat.py` (`--tabbed` one tab per
-  (repo, window), distro from `wslpath`); `tests/test_agent_role_hook.py` (role fallback, containment kept, a coordinator name never falls back).
+  (repo, window), distro from `wslpath`); `tests/test_agent_role_hook.py` (role fallback, containment kept, a coordinator name never falls back);
+  `tests/test_whoami_agent.py` (the session-id binding form writes the row the resolver reads); a cold `add` with
+  registered builders brings them all back; `remove` moves `.tmp/runs` into the main checkout and refuses on an
+  unknown ignored file.
 - Live proof (DONE condition, D-1301): in one repo, `add` spawns a builder that binds, claims its item and appears in
   the open tabbed window with no key typed and no prompt shown; a fifth builder opens a second window and tab;
   `remove` refuses on an unpushed branch, then retires it after the push; the `.bat` regenerated each time; the
