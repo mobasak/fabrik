@@ -105,10 +105,12 @@ ALTER DATABASE glitchtip OWNER TO glitchtip;
 -- One object per transaction (each ALTER … OWNER locks its table, indexes and TOAST until COMMIT; GlitchTip's log
 -- partitions overflow max_locks_per_transaction in one transaction), a busy table fails within lock_timeout instead
 -- of queueing GlitchTip's queries behind an ACCESS EXCLUSIVE request, and what glitchtip already owns is skipped, so a
--- re-run locks only the leftovers. Run WITHOUT -1/--single-transaction: COMMIT inside DO then fails.
+-- re-run locks only the leftovers. The DO block must not run inside an open transaction (no BEGIN around it): a
+-- COMMIT inside DO then fails with "invalid transaction termination".
 SET lock_timeout = '5s';
 ALTER SCHEMA public OWNER TO glitchtip;
 DO $$ DECLARE r record; BEGIN
+  -- tables, partitions, foreign tables, views, matviews, and every sequence a column does not own
   FOR r IN SELECT format('ALTER %s IF EXISTS %I.%I OWNER TO glitchtip',
              CASE c.relkind WHEN 'S' THEN 'SEQUENCE' WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED VIEW'
                             WHEN 'f' THEN 'FOREIGN TABLE' ELSE 'TABLE' END, n.nspname, c.relname) AS q
@@ -121,17 +123,20 @@ DO $$ DECLARE r record; BEGIN
                          AND d.refclassid = 'pg_class'::regclass AND d.deptype IN ('a','i')))
            ORDER BY c.oid
   LOOP EXECUTE r.q; COMMIT; END LOOP;
+  -- composite types (ALTER TYPE has no IF EXISTS)
   FOR r IN SELECT format('ALTER TYPE %I.%I OWNER TO glitchtip', n.nspname, c.relname) AS q
            FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
            WHERE n.nspname = 'public' AND c.relkind = 'c' AND c.relowner <> 'glitchtip'::regrole
              AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid AND d.deptype = 'e')
            ORDER BY c.oid
   LOOP EXECUTE r.q; COMMIT; END LOOP;
+  -- functions and procedures, extension members excluded
   FOR r IN SELECT format('ALTER ROUTINE %s OWNER TO glitchtip', p.oid::regprocedure) AS q
            FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proowner <> 'glitchtip'::regrole
              AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
            ORDER BY p.oid
   LOOP EXECUTE r.q; COMMIT; END LOOP;
+  -- enums, domains, ranges, multiranges
   FOR r IN SELECT format('ALTER %s %s OWNER TO glitchtip', CASE t.typtype WHEN 'd' THEN 'DOMAIN' ELSE 'TYPE' END,
                          t.oid::regtype) AS q
            FROM pg_type t WHERE t.typnamespace = 'public'::regnamespace AND t.typtype IN ('e','d','r','m')
@@ -145,13 +150,12 @@ END $$;
 The re-own commits after every object (the operator's 2026-10-28 run of the script overflowed
 `max_locks_per_transaction` re-owning GlitchTip's log partitions in one transaction), waits at most 5 s for a busy
 table, and skips what `glitchtip` already owns, so a run stopped by a lock timeout is finished by running it again
-(`tests/test_vps1_pg_scoped_logins.py` runs it on a local PostgreSQL 16 cluster with a 100-slot lock table). Never
-add `-1`/`--single-transaction`: a COMMIT inside the DO block then fails.
+(`tests/test_vps1_pg_scoped_logins.py` runs it on a local PostgreSQL 16 cluster with a 100-slot lock table, over
+300 partitions, a composite type, an enum, a domain, a range and a function). Never wrap it in BEGIN: a COMMIT
+inside the DO block then fails.
 
-The block, before composite types and the `classid` filters were added, was executed on a scratch PostgreSQL 16
-cluster holding a serial, an identity column, a partitioned table, a view, a function, an enum, a domain and a range
-type. Afterwards every public object was owned by `glitchtip` (the range's multirange with it), and `ALTER TABLE` on
-the partitioned parent succeeded as `glitchtip`. Identity and serial sequences follow their table. Extension members
+Afterwards every public object is owned by `glitchtip` (a range's multirange with it), and `ALTER TABLE` on the
+partitioned parent succeeds as `glitchtip`. Identity and serial sequences follow their table. Extension members
 (`pg_trgm`, `citext`) stay with their extension, and the checks below exclude them.
 
 Then set the two passwords at the prompt, in `sudo docker exec -it postgres-main psql -U postgres`:
@@ -222,7 +226,8 @@ operator confirms they hold it. Once no rollback is wanted, `rm ~/pg-verifier` o
 |---|---|
 | step 4 | `sudo docker cp ~/pg-verifier postgres-main:/tmp/pg-verifier`, then in `sudo docker exec -it postgres-main psql -U postgres`: `\set v \`cat /tmp/pg-verifier\`` and `ALTER ROLE postgres PASSWORD :'v';` (PostgreSQL stores a pre-hashed value as is). Assert `select rolpassword = :'v' from pg_authid where rolname='postgres'` returns `t`; `sudo docker exec postgres-main rm /tmp/pg-verifier` and `rm ~/pg-verifier`; then restore each step-5 file from its backup |
 | step 3, services | restore each live compose and `.env` from its backup and `docker compose up -d`; revert the mirror commit in the hub, or the next sync re-applies it |
-| step 3, ownership | kept on purpose: a superuser still reaches every object, and the scoped roles do no harm. To drop them, first run the step-3 ownership block with every `OWNER TO glitchtip` changed to `OWNER TO postgres` and every `<> 'glitchtip'::regrole` skip filter changed to `<> 'postgres'::regrole` (the database name `glitchtip` stays), or `DROP ROLE` fails with "owns objects" |
+| step 3, ownership | kept on purpose: a superuser still reaches every object, and the scoped roles do no harm. To drop them, first run the step-3 ownership block with every `OWNER TO glitchtip` changed to `OWNER TO postgres` and every `<> 'glitchtip'::regrole` skip filter changed to `<> 'postgres'::regrole` (the database name `glitchtip` stays), or `DROP ROLE` fails with "owns objects"; and revoke each CONNECT grant
+step 3 made (`REVOKE CONNECT ON DATABASE <db> FROM postgres_exporter`), or it fails with "privileges for database" |
 
 ## Before and after the rotation
 

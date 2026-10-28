@@ -5,6 +5,8 @@ from __future__ import annotations
 import base64
 import importlib.util
 import os
+import select
+import shutil
 import stat
 import subprocess
 from pathlib import Path
@@ -311,18 +313,50 @@ def test_step3c_strands_nothing_in_the_hub_root_when_the_replace_fails(monkeypat
     assert (hub / ".env").read_text() == "A=1\n"
 
 
-# Step 3a's re-own run against a real PostgreSQL 16 (vps1 runs 16.11): a throwaway cluster whose lock table is far too
-# small for one transaction over GlitchTip's log partitions — the operator's 2026-10-28 run died there ("out of shared
-# memory", W-80983d8c). max_locks_per_transaction=10 × max_connections=10 holds ~100 locks; 300 partitions with an index
-# each need ~900 in one transaction.
+# Step 3a's re-own run against a real PostgreSQL 16 (the operator's 2026-10-28 run read server 16.11 on vps1): a
+# throwaway cluster whose lock table is far too small for one transaction over GlitchTip's log partitions — that run
+# died there ("out of shared memory", W-80983d8c). max_locks_per_transaction=10 × max_connections=10 holds ~100 locks;
+# re-owning 300 partitions in one transaction needs ~1200 (each partition locks its table, index, TOAST table and TOAST
+# index). The fixture also holds one object of every other kind the re-own walks.
 PG_BIN = Path("/usr/lib/postgresql/16/bin")
 PARTITIONS = 300
+EXTRA_DDL = """
+CREATE TYPE pair AS (a int, b int);
+CREATE TYPE mood AS ENUM ('ok', 'bad');
+CREATE DOMAIN posint AS int CHECK (VALUE > 0);
+CREATE TYPE span AS RANGE (subtype = int);
+CREATE FUNCTION add1(i int) RETURNS int LANGUAGE sql AS 'SELECT i + 1';
+CREATE VIEW recent AS SELECT * FROM logs;
+"""
+
+
+def _first_line(proc: subprocess.Popen[str], seconds: float = 30) -> str:
+    """The holder's first output line, or "" when it says nothing within the deadline (never a hang)."""
+    ready, _, _ = select.select([proc.stdout], [], [], seconds)
+    return proc.stdout.readline().strip() if ready else ""
+
+
+def _end_holder(proc: subprocess.Popen[str]) -> None:
+    """Roll the holder back and reap it on every path; a holder that already died must not mask the real failure."""
+    try:
+        proc.stdin.write("ROLLBACK;\n")
+        proc.stdin.close()
+    except OSError:
+        pass
+    try:
+        proc.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=30)
+    proc.stdout.close()
 
 
 @pytest.fixture
 def small_lock_cluster(tmp_path):
-    if not (PG_BIN / "initdb").exists():
-        pytest.skip("PostgreSQL 16 server binaries are not installed")
+    if not (PG_BIN / "initdb").exists() or shutil.which("psql") is None:
+        pytest.skip("PostgreSQL 16 server binaries or psql are not installed")
+    if os.geteuid() == 0:
+        pytest.skip("initdb refuses to run as root")
     data = tmp_path / "data"
     # an abstract socket (PostgreSQL >= 14, Linux): a socket FILE under a long pytest basetemp passes sun_path's
     # 107-byte limit and the server refuses to start
@@ -331,6 +365,7 @@ def small_lock_cluster(tmp_path):
         [PG_BIN / "initdb", "-U", "postgres", "-A", "trust", "-D", data],
         check=True,
         capture_output=True,
+        timeout=120,
     )
     opts = (
         f"-c listen_addresses='' -c unix_socket_directories={sock} "
@@ -340,6 +375,7 @@ def small_lock_cluster(tmp_path):
         [PG_BIN / "pg_ctl", "-D", data, "-o", opts, "-w", "-l", tmp_path / "log", "start"],
         check=True,
         capture_output=True,
+        timeout=120,
     )
     base = ["psql", "-X", "-q", "-h", sock, "-U", "postgres", "-v", "ON_ERROR_STOP=1", "-tA", "-d"]
 
@@ -359,16 +395,18 @@ def small_lock_cluster(tmp_path):
                 f"FOR VALUES FROM ('2000-01-01'::date + {i}) TO ('2000-01-01'::date + {i + 1});"
             )
             ddl.append(f"CREATE INDEX ON logs_p{i} (ts);")
-        made = psql("glitchtip", "\n".join(ddl))
+        made = psql("glitchtip", "\n".join(ddl) + EXTRA_DDL)
         assert made.returncode == 0, made.stderr
         yield psql, [*base, "glitchtip"]
     finally:
         subprocess.run(
-            [PG_BIN / "pg_ctl", "-D", data, "-m", "immediate", "stop"], capture_output=True
+            [PG_BIN / "pg_ctl", "-D", data, "-m", "immediate", "stop"],
+            capture_output=True,
+            timeout=120,
         )
 
 
-def test_step3a_reowns_every_partition_when_one_transaction_could_not_hold_their_locks(
+def test_step3a_reowns_every_object_when_one_transaction_could_not_hold_their_locks(
     small_lock_cluster,
 ):
     psql, _ = small_lock_cluster
@@ -387,37 +425,33 @@ def test_step3a_stops_on_a_busy_table_instead_of_queueing_glitchtip_and_a_rerun_
     try:
         holder.stdin.write("BEGIN;\nSELECT count(*) FROM logs_p150;\n")
         holder.stdin.flush()
-        assert holder.stdout.readline().strip() == "0"  # the lock is held from here on
-        run = psql("postgres", m.OWNERSHIP_SQL, timeout=60)
+        assert _first_line(holder) == "0"  # the lock is held from here on
+        run = psql("postgres", m.OWNERSHIP_SQL, timeout=30)  # lock_timeout is 5 s; 30 s is a hang
         assert run.returncode != 0 and "lock timeout" in run.stderr, run.stderr
         left = int(psql("glitchtip", m.OWNERSHIP_CHECK).stdout.split()[0])
         assert 0 < left < 2 * PARTITIONS + 2  # some objects were re-owned and committed, not all
     finally:
-        holder.stdin.write("ROLLBACK;\n")
-        holder.stdin.close()
-        holder.wait(timeout=30)
+        _end_holder(holder)
     rerun = psql("postgres", m.OWNERSHIP_SQL)
     assert rerun.returncode == 0, rerun.stderr
     assert psql("glitchtip", m.OWNERSHIP_CHECK).stdout.split() == ["0", "0", "0"]
 
 
-def test_step3a_rerun_on_an_owned_schema_locks_nothing(small_lock_cluster):
+def test_step3a_rerun_on_an_owned_schema_skips_a_busy_parent(small_lock_cluster):
     """A re-run skips what glitchtip already owns, so a busy table that is already done (here the partitioned
-    parent every GlitchTip query goes through) costs no lock wait and no failure."""
+    parent every GlitchTip query goes through) is never asked for a lock: the run does not time out."""
     psql, holder_argv = small_lock_cluster
     assert psql("postgres", m.OWNERSHIP_SQL).returncode == 0
     holder = subprocess.Popen(holder_argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
     try:
         holder.stdin.write("BEGIN;\nLOCK TABLE ONLY logs IN ACCESS SHARE MODE;\nSELECT 1;\n")
         holder.stdin.flush()
-        assert holder.stdout.readline().strip() == "1"  # the parent is held from here on
-        rerun = psql("postgres", m.OWNERSHIP_SQL, timeout=60)
+        assert _first_line(holder) == "1"  # the parent is held from here on
+        rerun = psql("postgres", m.OWNERSHIP_SQL, timeout=30)
         assert rerun.returncode == 0, rerun.stderr
         assert psql("glitchtip", m.OWNERSHIP_CHECK).stdout.split() == ["0", "0", "0"]
     finally:
-        holder.stdin.write("ROLLBACK;\n")
-        holder.stdin.close()
-        holder.wait(timeout=30)
+        _end_holder(holder)
 
 
 def test_the_runbook_quotes_the_scripts_reown_block_word_for_word():

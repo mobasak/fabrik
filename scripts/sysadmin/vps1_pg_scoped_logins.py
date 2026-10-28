@@ -146,8 +146,8 @@ def remote(cmd: str, stdin: str | None = None, timeout: int = 300) -> str:
     return r.stdout.strip()
 
 
-def sql(text: str, db: str = "postgres") -> str:
-    return remote(f"{PSQL} -d {shlex.quote(db)}", stdin=text)
+def sql(text: str, db: str = "postgres", timeout: int = 300) -> str:
+    return remote(f"{PSQL} -d {shlex.quote(db)}", stdin=text, timeout=timeout)
 
 
 def verifier(password: str, iterations: int, salt: bytes | None = None) -> str:
@@ -356,10 +356,12 @@ ALTER DATABASE glitchtip OWNER TO glitchtip;
 -- One object per transaction (each ALTER … OWNER locks its table, indexes and TOAST until COMMIT; GlitchTip's log
 -- partitions overflow max_locks_per_transaction in one transaction), a busy table fails within lock_timeout instead
 -- of queueing GlitchTip's queries behind an ACCESS EXCLUSIVE request, and what glitchtip already owns is skipped, so a
--- re-run locks only the leftovers. Run WITHOUT -1/--single-transaction: COMMIT inside DO then fails.
+-- re-run locks only the leftovers. The DO block must not run inside an open transaction (no BEGIN around it): a
+-- COMMIT inside DO then fails with "invalid transaction termination".
 SET lock_timeout = '5s';
 ALTER SCHEMA public OWNER TO glitchtip;
 DO $$ DECLARE r record; BEGIN
+  -- tables, partitions, foreign tables, views, matviews, and every sequence a column does not own
   FOR r IN SELECT format('ALTER %s IF EXISTS %I.%I OWNER TO glitchtip',
              CASE c.relkind WHEN 'S' THEN 'SEQUENCE' WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED VIEW'
                             WHEN 'f' THEN 'FOREIGN TABLE' ELSE 'TABLE' END, n.nspname, c.relname) AS q
@@ -372,17 +374,20 @@ DO $$ DECLARE r record; BEGIN
                          AND d.refclassid = 'pg_class'::regclass AND d.deptype IN ('a','i')))
            ORDER BY c.oid
   LOOP EXECUTE r.q; COMMIT; END LOOP;
+  -- composite types (ALTER TYPE has no IF EXISTS)
   FOR r IN SELECT format('ALTER TYPE %I.%I OWNER TO glitchtip', n.nspname, c.relname) AS q
            FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
            WHERE n.nspname = 'public' AND c.relkind = 'c' AND c.relowner <> 'glitchtip'::regrole
              AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid AND d.deptype = 'e')
            ORDER BY c.oid
   LOOP EXECUTE r.q; COMMIT; END LOOP;
+  -- functions and procedures, extension members excluded
   FOR r IN SELECT format('ALTER ROUTINE %s OWNER TO glitchtip', p.oid::regprocedure) AS q
            FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proowner <> 'glitchtip'::regrole
              AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
            ORDER BY p.oid
   LOOP EXECUTE r.q; COMMIT; END LOOP;
+  -- enums, domains, ranges, multiranges
   FOR r IN SELECT format('ALTER %s %s OWNER TO glitchtip', CASE t.typtype WHEN 'd' THEN 'DOMAIN' ELSE 'TYPE' END,
                          t.oid::regtype) AS q
            FROM pg_type t WHERE t.typnamespace = 'public'::regnamespace AND t.typtype IN ('e','d','r','m')
@@ -392,6 +397,9 @@ DO $$ DECLARE r record; BEGIN
   LOOP EXECUTE r.q; COMMIT; END LOOP;
 END $$;
 """
+
+# seconds ssh waits for step 3a's re-own; a kill here leaves psql committing on vps1, and a re-run then finishes
+REOWN_TIMEOUT = 1800
 
 OWNERSHIP_CHECK = r"""
 select count(*) from pg_class c where relnamespace='public'::regnamespace and relowner <> 'glitchtip'::regrole
@@ -409,7 +417,8 @@ def step3a_roles() -> None:
         "Runs the runbook's step-3 SQL on stdin (CONNECT granted on every database PUBLIC lacks it on), then "
         "asserts the three ownership counts are 0.",
     )
-    sql(OWNERSHIP_SQL)
+    # one object per transaction, each may wait up to lock_timeout (5 s): bound the whole step well past 300 s
+    sql(OWNERSHIP_SQL, timeout=REOWN_TIMEOUT)
     counts = sql(OWNERSHIP_CHECK, db="glitchtip").split()
     print(f"  ownership counts (class, routine, type): {counts}")
     if counts != ["0", "0", "0"]:
