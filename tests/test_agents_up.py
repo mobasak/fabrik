@@ -12,9 +12,9 @@ import pty
 import re
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
-from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 # AGENTS_UP_UNDER_TEST: the red-on-revert proof points the suite at the pre-change script (a copy, never the tracked one)
