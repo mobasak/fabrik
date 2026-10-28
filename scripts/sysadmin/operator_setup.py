@@ -21,7 +21,10 @@ runs this once; the coordinators do everything after it. Five steps:
     python3 /opt/fabrik/scripts/sysadmin/operator_setup.py --apply   # back up, write, verify, print the undo lines
 
 The whole PLAN (every file's before and after bytes) is built and checked before anything is written; any
-refusal writes nothing. The hooks step runs the installer's own `run([])` against a scratch mirror of HOME
+refusal writes nothing. A file edited after planning is re-read before the backups and again right before its
+own replace, and the run stops there; a save landing in the instant between that re-read and `os.replace` is
+the one accepted residue (W-88173de4) — no portable compare-and-swap on a path exists, and a RENAME_EXCHANGE
+swap-and-compare still leaves a window. The hooks step runs the installer's own `run([])` against a scratch mirror of HOME
 and takes its bytes, so there is no second copy of the installer's repair logic and the dry-run diff IS
 what `--apply` writes. `--apply` refuses (exit 2) unless this file sits in the hub MAIN checkout's
 `scripts/sysadmin/` and that checkout is on master — the wrapper it installs runs in every chat tab. The
@@ -66,6 +69,7 @@ ARCHIVE_INSTALLER = "install_session_archive_timer.sh"
 ARCHIVE_UNITS = ("session-archive-alert.service", "session-archive.service", "session-archive.timer")
 ARCHIVE_ALERT = "session-archive-alert.service"
 ARCHIVE_TIMER = "session-archive.timer"
+TIMER_WORDS = ("enabled", "enabled-runtime", "disabled", "not-found")  # `is-enabled` words with a measured undo
 NO_MANAGER = "cannot reach the user systemd manager"
 SSH_TARGET = "git@github.com"  # git's own identity: a `Match user git` resolves differently for a bare host
 SSH_WANT = ("15", "4")  # (ServerAliveInterval, ServerAliveCountMax) the block writes
@@ -287,6 +291,15 @@ def plan_archive(home: Path) -> tuple[list[Change], str | None, dict[str, bytes]
     loaded = _systemctl("show", "-p", "OnFailure", "--value", "session-archive.service", word=False)
     enabled = _systemctl("is-enabled", ARCHIVE_TIMER, word=True)
     active = _systemctl("is-active", ARCHIVE_TIMER, word=True)
+    # `enabled` is the ONLY in-place word. Measured on systemd 255 (W-88173de4): enabled-runtime is a /run link that
+    # dies at reboot, so the installer's persistent enable is wanted, and the undo's plain `disable` removes only that
+    # persistent link — within the same boot the timer reads enabled-runtime again; disabled and not-found are
+    # restored the same way. Any other word is refused: an operator alias to this unit reads `indirect` and that
+    # `disable` deletes the alias, and the rest (masked, linked, a lower search dir's link) have no measured undo.
+    # A symlink AT this unit path was already refused by `_read` above.
+    if enabled not in TIMER_WORDS:
+        raise PlanError(f"{ARCHIVE_TIMER} reads `{enabled}` — refused: the undo's `disable` could not restore it; "
+                        "change it by hand")
     why = [f"{len(changes)} unit(s) differ"] if changes else []
     if ARCHIVE_ALERT not in loaded.split():  # `--value` lists every OnFailure= unit, a drop-in's included
         why.append(f"loaded OnFailure={loaded or '(empty)'}")
@@ -493,7 +506,7 @@ def _run_archive_installer(p: Plan, done: list[Change]) -> int:
 
 def apply(home: Path, p: Plan) -> int:
     changes = p.changes
-    for c in changes:  # a file edited since it was planned is never overwritten
+    for c in changes:  # a file edited since it was planned is not overwritten (bar the re-check→replace instant, see the docstring)
         if _changed(c):
             print(f"operator_setup: {c.path} changed since it was planned — nothing written; run again", file=sys.stderr)
             return 1

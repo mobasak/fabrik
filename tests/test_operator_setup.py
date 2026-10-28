@@ -37,8 +37,10 @@ UNIT_DIR = ".config/systemd/user"
 # value. A flag file in the state dir makes `daemon-reload` fail (`fail-daemon-reload`), cuts the bus (`nobus`), fails
 # `show` alone (`show-error`), adds a second OnFailure= unit (`extra-onfailure`), makes `enable` a silent no-op
 # (`enable-noop`), makes `enable` overwrite the file named in `edit-during` (an editor saving mid-run), makes
-# `systemd-analyze verify` speak (`verify-noise`, the installer then refuses before any write) or turns linger off
-# (`linger-off`).
+# `systemd-analyze verify` speak (`verify-noise`, the installer then refuses before any write), turns linger off
+# (`linger-off`), makes `is-enabled` read `enabled-runtime` while `enabled` is absent (`runtime-enabled`, a /run link:
+# `disable` never clears it — systemd 255's semantic, measured for W-88173de4) or print the word written in
+# `is-enabled-word`.
 STUBS = {
     "systemctl": r"""#!/usr/bin/env bash
 s="${STUB_STATE:?}"
@@ -48,7 +50,10 @@ if [ -e "$s/nobus" ]; then echo "Failed to connect to bus: No medium found" >&2;
 cfg="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 case "$1" in
   is-enabled) if [ ! -e "$cfg/$2" ]; then echo not-found; exit 4; fi
-              if [ -e "$s/enabled" ]; then echo enabled; else echo disabled; exit 1; fi ;;
+              if [ -e "$s/is-enabled-word" ]; then cat "$s/is-enabled-word"; exit 0; fi
+              if [ -e "$s/enabled" ]; then echo enabled
+              elif [ -e "$s/runtime-enabled" ]; then echo enabled-runtime
+              else echo disabled; exit 1; fi ;;
   is-active) if [ -e "$s/active" ]; then echo active; else echo inactive; exit 3; fi ;;
   show) if [ -e "$s/show-error" ]; then echo "Failed to get properties: Access denied" >&2; exit 1; fi
         if [ -e "$s/loaded" ]; then v=$(sed -n 's/^OnFailure=//p' "$s/loaded" | tail -n 1); else v=; fi
@@ -368,6 +373,62 @@ def test_apply_installs_the_wrapper_and_the_archive_timer(tmp_path):
     h = _home(tmp_path / "dotdot")
     r = _run(h, hub, XDG_CONFIG_HOME=f"{h}/../home/.config")
     assert r.returncode == 1 and "Nothing was written" in r.stderr, r.stdout + r.stderr
+
+
+def _archive_in_place(home: Path) -> None:
+    """Every archive unit current at 0644 and the loaded service carrying OnFailure=, so the timer's enable word is
+    the ONLY reason the planner can give for running the installer."""
+    for u in UNITS:
+        shutil.copy(SYSADMIN / "systemd" / u, home / UNIT_DIR / u)
+        (home / UNIT_DIR / u).chmod(0o644)
+    shutil.copy(SYSADMIN / "systemd" / "session-archive.service", home.parent / "stub-state" / "loaded")
+
+
+def test_a_runtime_enabled_timer_is_made_persistent_and_its_undo_disables_only_that(tmp_path):
+    # W-88173de4: an `enabled-runtime` timer (a /run link, gone at reboot) is not in place, so the installer runs
+    # and the undo is exactly `disable` — no `stop`, the timer was active. On systemd 255 (measured) that `disable`
+    # removes only the persistent link, so within the same boot the timer reads enabled-runtime again
+    home, hub = _home(tmp_path), _hub(tmp_path)
+    _archive_in_place(home)
+    state = home.parent / "stub-state"
+    (state / "enabled").unlink()
+    (state / "runtime-enabled").touch()
+    r = _run(home, hub)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "== archive: installer run (timer enabled-runtime)" in r.stdout, r.stdout
+    r = _run(home, hub, "--apply")
+    assert r.returncode == 0, r.stdout + r.stderr
+    undo = [ln for ln in _restore(r.stdout) if ln.startswith("systemctl ")]
+    assert undo[0] == "systemctl --user disable session-archive.timer", r.stdout
+    assert undo == ["systemctl --user disable session-archive.timer", "systemctl --user daemon-reload"], r.stdout
+    # this half pins the probed systemd row through the stub's model of it, not the script
+    env = _env(home)
+    for ln in undo:
+        subprocess.run(["bash", "-c", ln], env=env, check=True)
+    word = subprocess.run(["systemctl", "--user", "is-enabled", "session-archive.timer"], env=env,
+                          capture_output=True, text=True).stdout.strip()
+    assert word == "enabled-runtime", word
+
+
+@pytest.mark.parametrize("case", ["indirect", "masked", "symlink"])
+def test_a_timer_word_whose_undo_cannot_restore_it_is_refused_at_planning(tmp_path, case):
+    # an operator alias to our unit reads `indirect` and the undo's `disable` deletes that alias (measured,
+    # W-88173de4); every word outside the four measured ones is refused, and a symlink AT the unit path (the
+    # linked/alias/masked shape made in ~/.config) never reaches systemctl at all
+    home, hub = _home(tmp_path), _hub(tmp_path)
+    if case == "symlink":
+        timer = home / UNIT_DIR / "session-archive.timer"
+        real = tmp_path / "elsewhere.timer"
+        shutil.move(timer, real)
+        timer.symlink_to(real)
+    else:
+        (home.parent / "stub-state" / "is-enabled-word").write_text(case + "\n")
+    before = _digest(home)
+    r = _run(home, hub, "--apply")
+    said = "is a symlink" if case == "symlink" else f"session-archive.timer reads `{case}` — refused"
+    assert r.returncode == 1 and said in r.stderr, r.stdout + r.stderr
+    assert _digest(home) == before, "something was written"
+    assert not _manager_writes(home), _calls(home)
 
 
 def test_settings_key_set_and_unparseable_file_refused(tmp_path, monkeypatch):
