@@ -1605,3 +1605,113 @@ def test_the_move_line_tells_the_mover_to_check_the_worktreeinclude_set(tmp_path
     assert rc == 0
     move = [ln for ln in out.splitlines() if "EnterWorktree" in ln]
     assert len(move) == 1 and "`.worktreeinclude` lists" in move[0], out
+
+
+# --- W-835894a6: the rotation handoff file (operator 2026-10-28: "stop hand-pasting") ----------
+# The outgoing session writes `<git common dir>/fabrik-handoff/<name>.md`; on startup or /clear the
+# hook prints it after ORIENT for the session named <name>. Plain stdout is capped at 10,000 chars
+# MEASURED WHOLE (code.claude.com/docs/en/hooks), so the handoff is cut to fit beside ORIENT.
+_HANDOFF_TEXT = "W-1234abcd in flight on branch x; next: merge the queue, then rotate infra.\n"
+
+
+def _repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "opt" / "proj"
+    repo.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q", str(repo)], check=True, capture_output=True)
+    return repo
+
+
+def _write_handoff(repo: Path, home: Path, name: str, text: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(HOOK), "--handoff-write", name],
+        input=text,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        cwd=repo,
+        env={"HOME": str(home), "PATH": "/usr/bin:/bin", "KAIZEN_EVENTS_DIR": str(home / "k")},
+    )
+
+
+def _handoff_path(repo: Path, name: str) -> Path:
+    return repo / ".git" / "fabrik-handoff" / f"{name}.md"
+
+
+def _start(repo: Path, home: Path, source: str | None, agent: str | None = "coordinator") -> str:
+    payload = {"session_id": "s-new", "cwd": str(repo)}
+    if source is not None:
+        payload["source"] = source
+    env = {"CLAUDE_AGENT": agent} if agent else {}
+    rc, out = _run(repo, home, json.dumps(payload), env)
+    assert rc == 0
+    return out
+
+
+def test_a_cleared_session_prints_its_agents_handoff(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    assert _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT).returncode == 0
+    out = _start(repo, tmp_path, "clear")
+    assert "## HANDOFF" in out and _HANDOFF_TEXT.strip() in out
+    assert out.index("## ORIENT") < out.index("## HANDOFF")  # ORIENT first, untouched
+    assert _HANDOFF_TEXT.strip() not in _start(repo, tmp_path, "clear", agent="infra")
+
+
+def test_handoff_write_then_read_round_trip(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    res = _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT)
+    path = _handoff_path(repo, "coordinator")
+    assert res.returncode == 0 and str(path) in res.stdout
+    assert path.stat().st_mode & 0o777 == 0o600
+    out = _start(repo, tmp_path, "startup")
+    assert "written" in out and "ago" in out and _HANDOFF_TEXT.strip() in out
+
+
+@pytest.mark.parametrize("source", ["compact", "resume", "fork"])
+def test_no_handoff_on_compact_resume_or_without_a_file(tmp_path: Path, source: str) -> None:
+    repo = _repo(tmp_path)
+    assert "HANDOFF" not in _start(repo, tmp_path, "clear")  # no file: nothing new
+    _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT)
+    assert "HANDOFF" not in _start(repo, tmp_path, source)
+    assert _HANDOFF_TEXT.strip() in _start(repo, tmp_path, None)  # an absent source is a startup
+
+
+def test_an_oversized_handoff_is_cut_under_the_cap(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    big = "".join(f"line {i:05d} of the handoff\n" for i in range(2000))  # ~52k chars
+    _write_handoff(repo, tmp_path, "coordinator", big)
+    out = _start(repo, tmp_path, "clear")
+    assert len(out) <= 9500, len(out)
+    assert "line 00000 of the handoff" in out
+    assert str(_handoff_path(repo, "coordinator")) in out  # names the whole file
+
+
+def test_a_stale_handoff_prints_only_a_pointer(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT)
+    path = _handoff_path(repo, "coordinator")
+    old = path.stat().st_mtime - 25 * 3600
+    os.utime(path, (old, old))
+    out = _start(repo, tmp_path, "clear")
+    assert _HANDOFF_TEXT.strip() not in out
+    assert str(path) in out and "stale" in out.lower()
+
+
+def test_an_unnamed_session_lists_waiting_handoffs(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT)
+    out = _start(repo, tmp_path, "clear", agent=None)
+    assert _HANDOFF_TEXT.strip() not in out
+    assert "coordinator" in out and str(_handoff_path(repo, "coordinator")) in out
+
+
+def test_handoff_write_refuses_bad_input(tmp_path: Path) -> None:
+    repo = _repo(tmp_path)
+    assert _write_handoff(repo, tmp_path, "Not A Name", _HANDOFF_TEXT).returncode != 0
+    assert _write_handoff(repo, tmp_path, "coordinator", "  \n").returncode != 0
+    target = _handoff_path(repo, "coordinator")
+    target.parent.mkdir(parents=True)
+    (tmp_path / "elsewhere.md").write_text("theirs\n", encoding="utf-8")
+    target.symlink_to(tmp_path / "elsewhere.md")
+    assert _write_handoff(repo, tmp_path, "coordinator", _HANDOFF_TEXT).returncode != 0
+    assert (tmp_path / "elsewhere.md").read_text(encoding="utf-8") == "theirs\n"
+    assert "theirs" not in _start(repo, tmp_path, "clear")  # a symlink is never printed
