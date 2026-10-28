@@ -74,7 +74,8 @@ def test_the_coordinator_charter_is_rendered(project: Path) -> None:
     charter = (project / "docs" / "reference" / "agents" / "coordinator.md").read_text()
     assert charter.startswith("# Agent charter")  # agent_role.py ignores any other first line
     assert "coord-probe" in charter
-    assert "[Project Name]" not in charter
+    assert "[Project Name]" not in charter and "[Project Dir]" not in charter
+    assert f"`{project}`" in charter  # the real checkout path, never a hard-coded /opt
     assert "whoami_agent.py --as coordinator" in charter
 
 
@@ -101,15 +102,50 @@ def _bare_repo(tmp_path: Path, *, ledger: bool = True) -> Path:
     return repo
 
 
+_STUBS = {
+    "exit2": "import sys\nsys.exit(2)\n",
+    "empty": (
+        "import json, sys, pathlib\n"
+        "repo = pathlib.Path(sys.argv[sys.argv.index('--repo') + 1])\n"
+        "d = repo / '.fabrik' / 'work'\n"
+        "d.mkdir(parents=True)\n"
+        "(d / 'config.json').write_text(json.dumps({'base_branch': 'x', 'distributor': ''}))\n"
+    ),
+    "list": (
+        "import sys, pathlib\n"
+        "repo = pathlib.Path(sys.argv[sys.argv.index('--repo') + 1])\n"
+        "d = repo / '.fabrik' / 'work'\n"
+        "d.mkdir(parents=True)\n"
+        "(d / 'config.json').write_text('[]')\n"
+    ),
+    "badjson": (
+        "import sys, pathlib\n"
+        "repo = pathlib.Path(sys.argv[sys.argv.index('--repo') + 1])\n"
+        "d = repo / '.fabrik' / 'work'\n"
+        "d.mkdir(parents=True)\n"
+        "(d / 'config.json').write_text('{')\n"
+    ),
+}
+
+
+def _untouched(repo: Path, ledger_before: str) -> None:
+    """All or nothing: a failure leaves no MERGE OWNER row, no charter and no store behind."""
+    assert (repo / "docs" / "DECISIONS.md").read_text() == ledger_before
+    assert not (repo / "docs" / "reference" / "agents" / "coordinator.md").exists()
+    assert not (repo / ".fabrik" / "work").exists()
+
+
 @pytest.mark.parametrize(
     ("work_py", "reason"),
     [
         ("missing", "the hub's scripts/work.py was not found"),  # no script at all
         ("exit2", "work.py init exited 2"),  # init refuses
         ("empty", "work.py init recorded distributor ''"),  # rc 0, no distributor
+        ("list", "work.py init recorded distributor []"),  # rc 0, config not an object
+        ("badjson", "Expecting property name"),  # rc 0, config not JSON
     ],
 )
-def test_an_init_failure_warns_and_does_not_raise(
+def test_an_init_failure_warns_and_writes_nothing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -117,24 +153,58 @@ def test_an_init_failure_warns_and_does_not_raise(
     reason: str,
 ) -> None:
     repo = _bare_repo(tmp_path)
+    before = (repo / "docs" / "DECISIONS.md").read_text()
     stub = tmp_path / "stub_work.py"
-    if work_py == "exit2":
-        stub.write_text("import sys\nsys.exit(2)\n")
-    elif work_py == "empty":
-        stub.write_text(
-            "import json, sys, pathlib\n"
-            "repo = pathlib.Path(sys.argv[sys.argv.index('--repo') + 1])\n"
-            "d = repo / '.fabrik' / 'work'\n"
-            "d.mkdir(parents=True)\n"
-            "(d / 'config.json').write_text(json.dumps({'base_branch': 'x', 'distributor': ''}))\n"
-        )
+    if work_py in _STUBS:
+        stub.write_text(_STUBS[work_py])
     monkeypatch.setattr(scaffold, "_work_py", lambda: stub if work_py != "missing" else None)
     scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
     out = capsys.readouterr().out
     assert f"WARNING: coordinator model not emitted: {reason}" in out  # the cause, not any warning
-    if work_py != "missing":
-        cfg = repo / ".fabrik" / "work" / "config.json"
-        assert not cfg.exists() or "coordinator_mode" not in cfg.read_text()  # keys never added
+    assert "Coordinator: open it as" not in out  # no launch line after a failure
+    _untouched(repo, before)
+
+
+def test_a_timed_out_init_warns_and_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _bare_repo(tmp_path)
+    before = (repo / "docs" / "DECISIONS.md").read_text()
+    real_run = subprocess.run
+
+    def timeout(args, **kw):  # type: ignore[no-untyped-def]
+        if "init" in args:
+            raise subprocess.TimeoutExpired(args, 60)
+        return real_run(args, **kw)
+
+    monkeypatch.setattr(scaffold.subprocess, "run", timeout)
+    scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
+    assert "WARNING: coordinator model not emitted: Command" in capsys.readouterr().out
+    _untouched(repo, before)
+
+
+def test_a_missing_template_warns_and_writes_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _bare_repo(tmp_path)
+    before = (repo / "docs" / "DECISIONS.md").read_text()
+    monkeypatch.setattr(scaffold, "_COORDINATOR_CHARTER", Path("docs") / "agents" / "NOPE.md")
+    scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
+    assert "WARNING: coordinator model not emitted: templates/scaffold/docs/agents/NOPE.md" in (
+        capsys.readouterr().out
+    )
+    _untouched(repo, before)
+
+
+def test_a_ledger_without_one_d000_row_warns_and_writes_nothing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = _bare_repo(tmp_path)
+    ledger = repo / "docs" / "DECISIONS.md"
+    ledger.write_text("# Decisions\n")
+    scaffold._emit_coordinator_model(repo, "bare", "2026-10-28")
+    assert "exactly one D-000 row" in capsys.readouterr().out
+    _untouched(repo, "# Decisions\n")
 
 
 def test_a_missing_ledger_warns_and_does_not_raise(
@@ -146,3 +216,4 @@ def test_a_missing_ledger_warns_and_does_not_raise(
         capsys.readouterr().out
     )
     assert not (repo / ".fabrik").exists()
+    assert not (repo / "docs" / "reference").exists()

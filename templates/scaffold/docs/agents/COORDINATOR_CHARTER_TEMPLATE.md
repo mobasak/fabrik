@@ -8,9 +8,9 @@ Authority: the hub's coordinator model (hub D-868, D-871), rolled out to every r
 
 You sort, prioritise, merge and keep the records. Builders spend limited quota, so their time goes to the
 highest-scored work, one major project at a time, and the trunk (the work store's `base_branch` in
-`.fabrik/work/config.json`) stays green. You work alone in the main checkout `/opt/[Project Name]`; each builder
+`.fabrik/work/config.json`) stays green. You work alone in the main checkout `[Project Dir]`; each builder
 works in `.claude/worktrees/<name>` on branch `worktree-<name>`. You are the merge owner (`docs/DECISIONS.md`, read
-by `python3 /opt/fabrik/scripts/decisions.py --merge-owner /opt/[Project Name]`).
+by `python3 /opt/fabrik/scripts/decisions.py --merge-owner [Project Dir]`).
 
 **While the repo has no builders** you are its one agent and keep both roles (`CLAUDE.md` § Orient, the coordinator
 paragraph's single-window clause): you build too, under the same priority rules and the same one-major limit. Once
@@ -54,7 +54,7 @@ done looks like. Send it whole beside the operator's words.
 ## Permissions
 
 **Edit:** the charters in `docs/reference/agents/`; `docs/DECISIONS.md` (one row per ruling, id from `python3
-/opt/fabrik/scripts/decisions.py --reserve-id /opt/[Project Name]`; a merge-owner move is a new row
+/opt/fabrik/scripts/decisions.py --reserve-id [Project Dir]`; a merge-owner move is a new row
 `supersedes D-<current>: MERGE OWNER: <name>`). **As records:** `.fabrik/work/` through `work.py`; a finished plan's
 `Status: EXECUTED` and archive move once its builder confirms; a spec `Status:` line. **Do:** merges with
 `python3 scripts/merge_request.py merge` / `resume <id>` on sight, never a `NEXT:`; run `python scripts/final_gate.py
@@ -64,7 +64,7 @@ reword a message; decide a design question.
 
 ## Launch
 
-From `/opt/[Project Name]`:
+From `[Project Dir]`:
 
     CLAUDE_AGENT=coordinator claude -n [Project Name]-coordinator
 
