@@ -606,22 +606,40 @@ def _gate_at(monkeypatch, d, s, a):
     reads. The rule-ledger LOSS pass and the size measure read the temp render, the sources and tracked
     repo files and take minutes on the full corpus (W-bda24c48: 11 such tests held ~1,950 s); their
     own tests grade them and check()'s wiring of them (tests/test_command_rules.py,
-    tests/test_command_measure.py). Here they are spies that return their empty results and accept only
-    check()'s own temp render (the one tree holding `_agents`), so a regression that hands them an
-    installed tree, the sources or the repo still goes red."""
+    tests/test_command_measure.py). Here they are spies that return their empty results and judge all
+    three arguments both passes share: ``render_dir`` must BE the destination of the last render (the one
+    check() makes just before them; ``ac.render`` is wrapped to record it) and never an installed tree,
+    ``root`` the repo, ``src_dir`` the sources — so a regression that hands them an installed tree, the
+    sources, ``commands/`` or the repo in any of the three still goes red (review round 1: a marker
+    directory let ``commands/`` through). A check() that stops calling them is graded where the wiring
+    lives, the two files above."""
+    renders: list[Path] = []
+    real_render = ac.render
+
+    def _render(dest, *args, **kwargs):
+        renders.append(Path(dest).resolve())
+        return real_render(dest, *args, **kwargs)
 
     def _not_installed(empty):
-        def spy(render_dir, *args, **kwargs):
-            assert not any(
-                Path(render_dir).resolve().is_relative_to(t.resolve()) for t in (d, s, a)
-            ), f"a ledger or measure pass was handed the installed tree {render_dir}"
-            assert (Path(render_dir) / "_agents").is_dir(), (
+        def spy(render_dir, root, src_dir, *rest, **kwargs):
+            rd = Path(render_dir).resolve()
+            assert not any(rd.is_relative_to(t.resolve()) for t in (d, s, a)), (
+                f"a ledger or measure pass was handed the installed tree {render_dir}"
+            )
+            assert renders and rd == renders[-1], (
                 f"a ledger or measure pass was handed {render_dir}, not check()'s temp render"
+            )
+            assert Path(root).resolve() == ac.ROOT.parent.resolve(), (
+                f"root was {root}, not the repo"
+            )
+            assert Path(src_dir).resolve() == ac.SRC.resolve(), (
+                f"src_dir was {src_dir}, not the sources"
             )
             return empty
 
         return spy
 
+    monkeypatch.setattr(ac, "render", _render)
     monkeypatch.setattr(ac.command_rules, "losses", _not_installed([]))
     monkeypatch.setattr(ac.command_measure, "findings", _not_installed(([], [])))
     monkeypatch.setattr(ac, "OUT", d)
