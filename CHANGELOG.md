@@ -21,6 +21,11 @@ stated beside it: a rebuild after a failed CAS gets what is left of the budget (
 `merge --queue` forks a leg only in its first 1080 s. `tests/test_merge_request_pretest.py::test_the_hub_declares_its_own_longer_leg` pins it
 (W-418c9d9f, D-1310; follow-up W-3ba57940 cuts the slow shard).
 
+### Added — Lean command program close-out: T46 receipt, board ticked, operator report (2026-10-28)
+- `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-review.md`: the plan's T46 integration receipt. All 40 commands pass the rule check (0 LOSS over 63 ledgers, 5,425 entries); rendered words 596,988 → 579,853 (97.1%). Every file closed under the D-1254 floor ruling, so the 50% goal was missed (D-1259). On the spec's full measure (render + reads), 10 commands grew through docs outside `commands/`. L1 and the standing ledger gate are live; L2 (the `remove:` field, W-a9b5e763) has not landed.
+- The plan's Ticket Board: this change ticks T01d–T46, 51 ✅ (each but T46 naming its master commit) and T05a–c 🔴 (never started before the KILL).
+- `docs/development/reviews/2026-10-28-lean-program-final-report.md`: the operator's before/after report (W-ee67bd9f).
+
 ### Added — Coordinator wait guard: a merge owner's long foreground Bash wait is refused (2026-10-27)
 
 `.claude/hooks/seat_guard.py` now enforces D-1296 for the lead of the session bound as its repo's merge owner. A foreground Bash call is denied when its tool timeout exceeds 120 s, or when it runs a `sleep` inside a while/until/for/select loop under a timeout over 60 s. The deny tells the coordinator to re-run with `run_in_background: true` and end the turn, not block on the output. Identity comes from `quota_stop.py`, loaded by file path; every identity doubt allows. Measured first: the hub coordinator held 736 minutes of foreground waits in one day, and a plain "any sleep" rule was rejected (19 fires on coordinator sessions in 3 days, none long). W-e57d2481.
