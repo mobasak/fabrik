@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T17:38:26.552758Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-567caa82",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M61D7V3213CSA6Q7PFGXJZ2P",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "branch: fleet-coordinator-scaffold"
+}
