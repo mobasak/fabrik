@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_seat_guard.py, tests/test_shared_venv_guard.py, docs/workstation/hooks-index.md, .claude/settings.json
+# AFTER-EDIT: tests/test_seat_guard.py, tests/test_shared_venv_guard.py, tests/test_coordinator_wait_guard.py, docs/workstation/hooks-index.md, .claude/settings.json
 """PreToolUse (Bash) seat guard — refuse a review seat's pattern kills and its git writes outside
 scratch, and ANY session's sync or install into the venv a linked worktree shares (W-46d148b0).
 
@@ -47,6 +47,29 @@ For a seat only (the payload's ``agent_id`` + ``agent_type``, documented hook in
 The lead (no ``agent_id``) and every other agent type pass the kill and git checks; EVERY session,
 seats included, gets the shared-venv check (its own comment block, above ``_child``).
 
+Coordinator wait guard (W-e57d2481, D-1296 — "no coordinator, in any repo, blocks its turn on a long
+wait": the operator cannot reach a session while its foreground call runs). For the LEAD (no
+``agent_id``) of the session bound as its repo's merge owner, a foreground call (``run_in_background``
+not true) is denied when its tool timeout — ``tool_input.timeout``, else ``BASH_DEFAULT_TIMEOUT_MS``,
+else 120000 — exceeds ``WAIT_LONG_MS``, or exceeds ``WAIT_LOOP_MS`` while the scan saw a ``sleep``
+inside a while/until/for/select loop. Loops are counted from the leading keyword run of each simple
+command (``{ while``, ``then while``, ``do for`` open; ``done`` closes, clamped at 0, never raising).
+Identity is quota_stop.py's, loaded beside this hook by file path (the store binding for this sid vs
+``decisions.py --merge-owner``, coordinator_mode not required), and only a candidate call pays it:
+the resolver is capped at 2 s inside this hook's 5 s budget, and every identity doubt ALLOWS.
+Measured before the rule (3 days, 1619 coordinator foreground calls): a timeout over 120 s fired 457
+times, 242 of them truly long; "any sleep" fired 19 times with none long, so a sleep outside a loop
+is allowed. A detached ``nohup … &`` sleep loop is denied too, deliberately: run_in_background is its
+tool. Stated limits: a sleep inside ``$(…)`` or a function body called in a loop counts at depth 0,
+and a quoted ``<<WORD`` hides the lines after it from the scan (a tokenizer defect, filed apart).
+⚠️ COBRA (D-253): the cheapest ways past it are (a) a chain of foreground calls each ≤ 120 s, or a busy
+loop with no ``sleep`` — each call still returns within 120 s, so the next prompt reaches the session;
+(b) unbinding, or binding another name — a recorded same-user act (``force: true``); (c) a wait inside
+a script the Bash string does not show; (d) backgrounding, then blocking on the output with
+TaskOutput or Monitor, and (e) a foreground Agent whose job is the wait — neither is a Bash call. The
+deny text forbids (d) by name; the tripwire for all of them is the daily wall time of coordinator
+sessions' tool calls over 60 s, read in infra's kaizen pass.
+
 ⚠️ COBRA (D-253): the cheapest bypass is indirection the Bash string does not show — a variable
 holding the verb (``$G commit``), a script file, a subprocess. Stated, not hidden: the counter is
 the brief half and the review loop's leak check (D-653); a reference-transaction hook keyed on a
@@ -55,13 +78,16 @@ seat marker is the candidate if scripted writes recur.
 
 from __future__ import annotations
 
+import importlib.util
 import json
+import math
 import os
 import re
 import shlex
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 SEAT_TYPES = frozenset({"fabrik-reviewer"})
 _OPS = frozenset({";", "&&", "||", "|", "&", "(", ")", "\n", ";;", "|&"})
@@ -1052,6 +1078,127 @@ def _venv_reason(words: list[str], ctx: dict, depth: int = 0) -> str:
     return _judge(act, target, ctx, "", _editables(pip_args, ctx))
 
 
+# ── the coordinator wait guard (module docstring, W-e57d2481, D-1296) ─────────────────────────────
+WAIT_TAG = "coordinator wait guard"
+WAIT_LONG_MS = 120_000  # D-1296's "long wait": the Bash tool's own default ceiling
+WAIT_LOOP_MS = 60_000  # a sleep loop may hold the turn for at most a minute
+_DEFAULT_TIMEOUT_MS = 120_000  # the Bash tool's default when tool_input carries no timeout
+_LOOP_OPEN = frozenset({"while", "until", "for", "select"})
+_LOOP_LEAD = _KEYWORDS | _LOOP_OPEN
+# the untokenisable fallback: a loop word, then its `do`, then a sleep
+_LOOP_SLEEP_RE = re.compile(r"\b(?:while|until|for|select)\b.*\bdo\b.*\bsleep\b", re.S)
+
+
+def _track_loops(raw: list[str], ctx: dict) -> None:
+    """Open/close loops from the LEADING keyword run of one raw simple command (`{ while`,
+    `then while`, `do for`, `done`); the depth is clamped at 0 so a stray `done` never raises."""
+    wait = ctx.get("wait")
+    if wait is None:
+        return
+    i = 0
+    while i < len(raw):
+        tok = raw[i]
+        if tok == "function":  # `function NAME { while …` — the name is no keyword
+            i += 2
+            continue
+        if tok not in _LOOP_LEAD:
+            break
+        if tok in _LOOP_OPEN:
+            wait["depth"] += 1
+        elif tok == "done":
+            wait["depth"] = max(0, wait["depth"] - 1)
+        i += 1
+
+
+_MS_TEXT = re.compile(r"[0-9]+")  # ASCII digits only: str.isdigit() takes "²", which int() refuses
+_MS_CAP = 1e15  # any larger value is still "over every cap"; caps an int too big for a float
+
+
+def _ms(value: object) -> float | None:
+    """A positive millisecond count from a number or a plain digit string, else None. Never raises:
+    a bool, NaN, inf, zero, a negative or a non-ASCII digit is no value at all; a number or digit
+    string past `_MS_CAP` reads as the cap, so a long string and a big int agree (both over it)."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return float(min(value, int(_MS_CAP))) if value > 0 else None
+    if isinstance(value, float):
+        return min(value, _MS_CAP) if math.isfinite(value) and value > 0 else None
+    if isinstance(value, str) and _MS_TEXT.fullmatch(value.strip()):
+        # never int() a long string: Python refuses more than 4300 digits
+        digits = value.strip().lstrip("0")
+        if not digits:
+            return None
+        return _MS_CAP if len(digits) > 15 else min(float(digits), _MS_CAP)
+    return None
+
+
+def _timeout_ms(tool_input: dict) -> float:
+    """The call's effective timeout: its own value, else BASH_DEFAULT_TIMEOUT_MS, else 120000."""
+    return (
+        _ms(tool_input.get("timeout"))
+        or _ms(os.environ.get("BASH_DEFAULT_TIMEOUT_MS", ""))
+        or float(_DEFAULT_TIMEOUT_MS)
+    )
+
+
+def _coordinator(payload: dict) -> str:
+    """This session's bound name when it is its repo's merge owner, else "" — quota_stop.py's own
+    identity helpers, loaded beside this hook by file path (never copied); every doubt is ""."""
+    try:
+        sid = payload.get("session_id")
+        if not isinstance(sid, str) or not sid:
+            return ""
+        spec = importlib.util.spec_from_file_location(
+            "_seat_guard_quota_stop", Path(__file__).resolve().parent / "quota_stop.py"
+        )
+        if spec is None or spec.loader is None:
+            return ""
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        cwd = payload.get("cwd")
+        project = mod._lane_project_dir(cwd if isinstance(cwd, str) else None)
+        if not project:
+            return ""
+        common = mod._git_common(Path(project))
+        if common is None or common.name != ".git":
+            return ""
+        name = str(mod._bound_name(sid, common) or "")
+        owner = str(mod._merge_owner(common.parent) or "").strip()
+        return name if name and owner and owner.casefold() == name.casefold() else ""
+    except Exception:  # an identity doubt never denies
+        return ""
+
+
+def _wait_reason(payload: dict, wait: dict) -> str:
+    """The deny reason for a coordinator's long foreground wait, or ""."""
+    if payload.get("agent_id"):
+        return ""
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict) or tool_input.get("run_in_background") is True:
+        return ""
+    ms = _timeout_ms(tool_input)
+    # exact: `:g` printed 120000.5 ms as "120 s, over 120 s"; a capped value says it was capped
+    secs = ("over " if ms >= _MS_CAP else "") + f"{ms / 1000:.15g} s"
+    if ms > WAIT_LONG_MS:
+        rule = f"its timeout is {secs}, over {WAIT_LONG_MS // 1000} s"
+    elif ms > WAIT_LOOP_MS and wait.get("sleep_in_loop"):
+        rule = f"it sleeps in a loop under a {secs} timeout, over {WAIT_LOOP_MS // 1000} s"
+    else:
+        return ""
+    name = _coordinator(payload)
+    if not name:
+        return ""
+    return (
+        f"{WAIT_TAG} (D-1296): this session is {name}, this repo's merge owner, and this foreground "
+        f"call can hold the turn for {secs} ({rule}) — the operator cannot reach you while it runs. "
+        "Re-run it with run_in_background: true (a short bounded poll may instead set an explicit "
+        f"timeout of at most {WAIT_LOOP_MS} ms, a plain call at most {WAIT_LONG_MS} ms), then end "
+        "the turn — do not block on its output with TaskOutput, Monitor or an Agent; the completion "
+        "notification wakes you."
+    )
+
+
 def _child(ctx: dict) -> dict:
     """``ctx`` for a child shell: it inherits this command's assignments and exports; its own
     `export` never leaks back (a fresh dict)."""
@@ -1066,6 +1213,8 @@ def _scan(command: str, ctx: dict, depth: int, seat: bool = True) -> str:
         inner, command = _extract_substitutions(command)
         cmds = _simple_commands(_split_punct(_tokens(command)))
     except _UnparseableError:
+        if ctx.get("wait") is not None and _LOOP_SLEEP_RE.search(raw_command):
+            ctx["wait"]["sleep_in_loop"] = True
         if not seat:
             return ""  # the venv check fails open
         writes = "|".join(
@@ -1091,10 +1240,13 @@ def _scan(command: str, ctx: dict, depth: int, seat: bool = True) -> str:
                 ctx["cwd"], ctx["dirs"], ctx["exported"] = scopes.pop()
             continue
         ctx["targets"], ctx["git_dir"], ctx["work_tree"], ctx["assign"] = [], False, False, {}
+        _track_loops(raw, ctx)
         words = _strip(raw, ctx)
         if not words:
             continue
         head = os.path.basename(words[0])
+        if head == "sleep" and ctx.get("wait") and ctx["wait"]["depth"] > 0:
+            ctx["wait"]["sleep_in_loop"] = True
         if head in ("cd", "pushd"):
             if head == "pushd":
                 ctx.setdefault("dirs", []).append(ctx["cwd"])
@@ -1147,7 +1299,7 @@ def decide(payload: dict) -> str:
     seat = bool(payload.get("agent_id")) and payload.get("agent_type") in SEAT_TYPES
     command = (payload.get("tool_input") or {}).get("command") or ""
     sd = payload.get("scratchpad_dir")
-    ctx = {
+    ctx: dict = {
         "cwd": str(payload.get("cwd") or os.getcwd()),
         "targets": [],
         "dirs": [],
@@ -1158,13 +1310,15 @@ def decide(payload: dict) -> str:
         "home_cwd": str(payload.get("cwd") or os.getcwd()),
         "sid": str(payload.get("session_id") or ""),
         "scratchpad": os.path.realpath(sd) if isinstance(sd, str) and sd else "",
+        # shared by reference with every child ctx (`bash -c`, substitutions): one loop count
+        "wait": {"depth": 0, "sleep_in_loop": False},
     }
     reason = _scan(command, ctx, 0, seat)
     if reason.startswith(VENV_TAG):
         return reason
     if reason:
         return f"seat guard (review seats run in the lead's shared tree): {reason}. {_SAFE}."
-    return ""
+    return _wait_reason(payload, ctx["wait"])
 
 
 _DOTENV_OFF = "export PYTHON_DOTENV_DISABLED=1"

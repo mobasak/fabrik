@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T12:54:57.562005Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-5f4b0972",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 1,
+  "score_reason": "operator requirement docs/reference/operator-agent-requirements.md §2 for all repos; blocks the handoff in 40 repos",
+  "status": "open",
+  "tags": [
+    "fold-w-b9ad80ae"
+  ],
+  "title": "claude_tab_router.py offers a coordinator role in only 4 of 44 /opt repos (infra-2 measured 2026-10-28 with 'claude_tab_router.py entries --json'): offer each repo's merge owner / coordinator as a role everywhere, so the W-835894a6 handoff reaches every repo's coordinator tab (operator: 'for all repos')"
+}

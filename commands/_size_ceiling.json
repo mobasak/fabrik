@@ -62,7 +62,7 @@
     },
     "total": 90623
    },
-   "render": 23275
+   "render": 23256
   },
   "fabrik-catchup": {
    "agents": [
@@ -412,7 +412,7 @@
     },
     "total": 29867
    },
-   "render": 12444
+   "render": 12402
   },
   "fabrik-deploy-plan-review": {
    "agents": [
@@ -469,7 +469,7 @@
     },
     "total": 76048
    },
-   "render": 21256
+   "render": 21063
   },
   "fabrik-deploy-verify": {
    "agents": [
@@ -696,7 +696,7 @@
     },
     "total": 69615
    },
-   "render": 24031
+   "render": 23699
   },
   "fabrik-epics-review": {
    "agents": [
@@ -763,7 +763,7 @@
     },
     "total": 96546
    },
-   "render": 28905
+   "render": 28584
   },
   "fabrik-execute-plan": {
    "agents": [
@@ -1013,7 +1013,7 @@
     },
     "total": 86581
    },
-   "render": 25238
+   "render": 24910
   },
   "fabrik-generate-tests": {
    "agents": [
@@ -1283,7 +1283,7 @@
     },
     "total": 46213
    },
-   "render": 24805
+   "render": 24678
   },
   "fabrik-reverse-engineer": {
    "agents": [
@@ -1312,7 +1312,7 @@
     },
     "total": 33717
    },
-   "render": 8310
+   "render": 8244
   },
   "fabrik-review": {
    "agents": [
@@ -1382,7 +1382,7 @@
     },
     "total": 62177
    },
-   "render": 41614
+   "render": 41171
   },
   "fabrik-review-scoped": {
    "agents": [
@@ -1597,7 +1597,7 @@
     },
     "total": 59546
    },
-   "render": 24232
+   "render": 24131
   },
   "fabrik-spec": {
    "agents": [
@@ -1821,7 +1821,7 @@
     },
     "total": 126286
    },
-   "render": 21060
+   "render": 20846
   },
   "fabrik-ui-design-review": {
    "agents": [
@@ -1891,7 +1891,7 @@
     },
     "total": 128808
    },
-   "render": 25675
+   "render": 25469
   },
   "fabrik-upstream": {
    "agents": [
@@ -1927,7 +1927,7 @@
     },
     "total": 33508
    },
-   "render": 15603
+   "render": 15095
   },
   "fabrik-user-test": {
    "agents": [
@@ -1977,7 +1977,7 @@
     },
     "total": 48471
    },
-   "render": 26986
+   "render": 26428
   },
   "fabrik-vision": {
    "agents": [
@@ -2115,7 +2115,7 @@
     },
     "total": 89890
    },
-   "render": 22561
+   "render": 22415
   },
   "hibernate": {
    "agents": [],

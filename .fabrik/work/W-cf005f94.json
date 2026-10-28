@@ -17,7 +17,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
-  "score_reason": "operator ask, fleet-wide (every repo): a major; waits on the fabrik-lib pilot",
+  "score_reason": "operator 2026-10-28 requirements doc: every mechanism for all repos",
   "status": "open",
   "tags": [
     "operator-ask",

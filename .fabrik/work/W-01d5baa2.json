@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T13:32:48.889372Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-01d5baa2",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "quote(key, safe='/') in both the canonical path and the returned URL; flip the xfail in tests/test_cov_drivers_r2.py",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "r2 presigned URLs put the object key in the path unencoded (src/fabrik/drivers/r2.py:197,248), so a key with spaces or reserved characters yields a URL whose signature does not match"
+}

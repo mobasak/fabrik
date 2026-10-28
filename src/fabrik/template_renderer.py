@@ -44,9 +44,8 @@ class TemplateRenderer:
         self.templates_dir = Path(templates_dir) if templates_dir else fabrik_root / "templates"
         self.output_dir = Path(output_dir) if output_dir else fabrik_root / "apps"
 
-        # Ensure directories exist
-        self.templates_dir.mkdir(parents=True, exist_ok=True)
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        # No mkdir here: constructing a renderer must not write into the tree (W-7c497bab).
+        # render() creates output_dir when it writes; templates_dir is only ever read.
 
         # Set up Jinja2 environment. No template here emits HTML (compose YAML, Dockerfiles, JS,
         # JSON, nginx conf, markdown), so nothing is HTML-escaped: the old

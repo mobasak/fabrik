@@ -4,9 +4,58 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — an API-key session is not sized against the plan quota (2026-10-28)
+
+`dispatch_headroom.py` printed SEATS 0 at the fleet wall, and held the floor in the drain band, for a session running on an Anthropic API key, whose seats draw the key, not the plan. It now calls the posture hook's own D-1243 predicate and skips every plan-quota cap when it answers True; a battery stamp, a second credential, a predicate that fails, or a hold with no stamp where the hook looks keep the caps (D-1303, W-3e924ccb).
+
+### Added — Coordinator wait guard: a merge owner's long foreground Bash wait is refused (2026-10-27)
+
+`.claude/hooks/seat_guard.py` now enforces D-1296 for the lead of the session bound as its repo's merge owner. A foreground Bash call is denied when its tool timeout exceeds 120 s, or when it runs a `sleep` inside a while/until/for/select loop under a timeout over 60 s. The deny tells the coordinator to re-run with `run_in_background: true` and end the turn, not block on the output. Identity comes from `quota_stop.py`, loaded by file path; every identity doubt allows. Measured first: the hub coordinator held 736 minutes of foreground waits in one day, and a plain "any sleep" rule was rejected (19 fires on coordinator sessions in 3 days, none long). W-e57d2481.
+
+### Fixed — cloud_dispatch --pick never sends a run to an account at its weekly wall (2026-10-27)
+
+`scripts/cloud_dispatch.py`'s `--pick` (and every `drain` fire) now takes only an account the rotation tick's own status picture calls `eligible` or `active`, with a fresh finite weekly reading, under its own weekly cap and session trip, and under a weekly ceiling: the new `--max-weekly <pct>` (default the picture's drain band, 85). The coolest account wins in both modes; a refusal names each account skipped and why. Before, the 2026-10-27 drain sent 3 of 6 runs to an account at 100% (all refused at $0). W-87078932, D-1300.
+
+### Fixed — five cloud-drain fixes graded: .env key grammar, image_command quoting, renderer no-mkdir, library-name shadowing, parity ownership test (2026-10-27)
+
+A `.env` key outside `[A-Za-z_][A-Za-z0-9_.-]*` is refused before any write, and the refusal never prints the key itself. A docker-image `command` is one double-quoted YAML scalar; a NUL in it is a deploy error, and the apply validator refuses a non-string value. Building a `TemplateRenderer` no longer creates directories. A project named after a library a scaffolded project pins (fastapi, httpx, boto3, packaging and the rest) is refused, and a test keeps that list in step with `scaffold.py` and the template requirement files. `verify_prod_parity`'s ownership refusal has a test. Decision D-1299; review `docs/development/reviews/2026-10-27-drain-grade-review.md`.
+
+### Fixed — headless-spawner discovery sees call, tuple and shell argv shapes, never prose (2026-10-27)
+
+`tests/test_hooks_headless_guard.py::_files_that_build_a_claude_p_argv` walked only list literals, so a
+`claude -p` spawner written as a tuple, as a process call's positional args, or as a shell string escaped
+the real-tree guard (W-d45c790c). One argv rule now covers lists, tuples and the args of a process-running
+call: an element names claude and `-p` comes after it, so `timeout 60 claude -p` and
+`os.spawnlp(mode, "claude", …)` count. `_runs_a_process` covers the `subprocess`/`os`/`pty`/`asyncio`
+spawners. An ambiguous name (`run`, `call`, `system`, the `exec`/`spawn` family) counts only on a name bound
+to its module, an alias included, or bare when imported from it. A shell string matching `claude -p` (a
+literal, an f-string's literal parts, or the left side of `+`/`%`) counts as a process call's arg or as the
+element after a shell flag (`-c`, `-lc`). Everywhere else it is prose: docstrings, messages, help tables,
+`asyncio.run`, a method or local function named `run`. The skip list now reads the path relative to the root, so a checkout
+under a directory named `tests` no longer scans nothing. The real-tree test also asserts that every known
+spawner is still found. The cloud draft of this fix (c94564cc3) matched every string constant and so parked
+that test under `xfail(strict=True)`, which would also have hidden any new spawner. This change lands
+neither, and the test passes on the real tree with no new declarations. Graders: 18 planted shapes, 16
+prose cases and one planted spawn per process-call name (18); 37 matcher mutants are each killed. Also rewords the delegated-spawner docstring
+(W-423b9f14).
+
+### Fixed — secret files never leak their bytes on a decode error; six cloud-drain coverage suites graded (2026-10-27)
+
+`_load_secrets` now names a non-UTF-8 project `.env` by path and byte offset only, and a `from_file` secret that is not valid UTF-8 is logged the same way instead of quoting its bytes. Both files are read as UTF-8 whatever the locale. New hermetic coverage tests: `fabrik.portability`, `drivers.r2`, `drivers.cloudflare`, `orchestrator.gpu_state`, `orchestrator.gpu_checkpoint` and `compose_linter`. The review hardened them: an AWS-published SigV4 known answer for R2, the production Cloudflare base URL and auth header, no dependence on `PYTHON_DOTENV_DISABLED`, and every strict xfail pinned to its exception. The bugs they pin are open items (W-d52233ba, W-a95da418, W-6f5ea7ae, W-4667fab7, W-01d5baa2, W-0c377ac0, W-01e1ce2e), and so are the review's out-of-diff findings (W-fc5aee9a, a P1 security item, plus W-d484c3e2, W-0d2a7aab, W-5763d5f8, W-3b5893f8, W-33c62ed0, W-5021b4e4, W-2525d5aa). Review `docs/development/reviews/2026-10-27-drain-grade-2-review.md`.
+
 ### Changed — /fabrik-task: worktree capture form, commit before a long review (2026-10-27)
 
 Phase 5 step 5 now gives the plain calls a linked worktree runs in place of the chained capture line, which the isolation guard refuses. Those calls fail closed on a failed commit and on none or two exact-subject matches. Phase 4 (v2) says a review that will outlive the turn is dispatched only after the build is committed, because seats out at a turn end meet the Stop hook's uncommitted-work block. Answers 7 feedback rows (W-d4b9229c).
+
+### Fixed — the API write lane settles and names every job on a stop signal (2026-10-27)
+
+`scripts/api_write.py` now handles SIGTERM, SIGHUP and SIGINT (D-1295, W-d077095a). A stopped session sends SIGTERM
+to the task's process group and SIGKILL ~1.4 s later; the runner used to die on the default action while its
+own-session `claude` children ran on unsettled. Now every running child's group is killed, the run settles
+`interrupted` (settleable from the console at once), nothing partial is pushed, a queued job reports `not started`, a
+child that finished first still pushes, lines are line-buffered so a log file keeps them, and the runner exits
+128 + signum. Graded by real group-signal tests and one grader per guard, each shown red by its own mutant
+(the review receipt lists them).
 
 ### Fixed — command texts follow the worktree-own scratch root (2026-10-27)
 
@@ -77,6 +126,15 @@ intel's plan-3 lock, on the coordinator's ruling.
   defect — the version registry, an undecodable template file, a missing include partial, a template syntax or
   undefined-attribute error — still surfaces as its own exception with its traceback. Grader:
   `TestDeployTemplateRenderRefusal` in `tests/orchestrator/test_deployer_ssh.py` (D-1289, W-c9dcd641).
+
+### Fixed — package ssh/scp calls outside the driver no longer crash on a non-UTF-8 answer (2026-10-27)
+
+- `fabrik audit`'s ssh probe, the DR drill's ssh/scp helpers (`src/fabrik/orchestrator/vultr_drill.py`) and the
+  preflight's direct-path advisory decode remote output as the ssh driver does (UTF-8 with `surrogateescape`, exit
+  code first — D-1286), so a stray byte no longer raises `UnicodeDecodeError`, reports a successful audit probe as
+  failed, or fails a spoke drill whose bootstrap passed. The audit refuses an answer that is not valid UTF-8 by
+  name; the drill's `RC=` reader takes ASCII digits only. Grader: `tests/test_ssh_decode_outside_driver.py`
+  (D-1298, W-7ac62afc).
 
 ### Fixed — a VPS answer that is not valid UTF-8 no longer crashes a redeploy (2026-10-27)
 

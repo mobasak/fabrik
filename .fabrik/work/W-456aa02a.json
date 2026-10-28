@@ -15,9 +15,12 @@
   },
   "next": "option A: launch 'infra' from infra-uncapped (map or launch-by-path), retire the stale tree after reading its 30 unmerged commits; plus a prompt-hook guard that warns when CLAUDE_PROJECT_DIR's toplevel differs from the cwd's; check the other panes; full /fabrik-review (synced hook path)",
   "note": "",
-  "owner": "infra",
+  "owner": "infra-3",
   "priority": 1,
   "score_reason": "a window silently runs 5-day-old hooks: every enforcement fix since 10-22 is off for it; one launcher mapping plus a one-line guard",
   "status": "open",
+  "tags": [
+    "fold-w-b9ad80ae"
+  ],
   "title": "infra pane runs hooks from a stale worktree: agents_up.sh launches 'infra' in .claude/worktrees/infra (agents_up.sh:287; branch worktree-infra 1,602 commits behind master) while infra works in infra-uncapped, so CLAUDE_PROJECT_DIR keeps the stale tree and every hook/settings fix since 10-22 is invisible to that window (W-2fb8b1a1 refuted by this)"
 }
