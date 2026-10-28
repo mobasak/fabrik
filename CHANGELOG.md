@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — Rotation handoff file printed by the SessionStart hook (2026-10-28)
+
+- `.claude/hooks/session_orient.py --handoff-write <name>` stores a session's handoff (stdin) at `<git common dir>/fabrik-handoff/<name>.md`; on startup or `/clear` the hook prints it after ORIENT to the session `CLAUDE_AGENT` names, within the whole-stdout cap, with STALE and ALREADY DELIVERED labels, never headless. Inert until a handoff is written (W-835894a6, D-1302).
+
 ### Changed — /fabrik-task: worktree capture form, commit before a long review (2026-10-27)
 
 Phase 5 step 5 now gives the plain calls a linked worktree runs in place of the chained capture line, which the isolation guard refuses. Those calls fail closed on a failed commit and on none or two exact-subject matches. Phase 4 (v2) says a review that will outlive the turn is dispatched only after the build is committed, because seats out at a turn end meet the Stop hook's uncommitted-work block. Answers 7 feedback rows (W-d4b9229c).
