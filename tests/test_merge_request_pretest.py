@@ -312,6 +312,14 @@ def test_the_declared_leg_grammar(world, script, expected):
     assert world.mod._declared_leg(script) == expected
 
 
+def test_the_hub_declares_its_own_longer_leg(world):
+    # W-418c9d9f, D-1310: the hub leg outgrew TEST_TIMEOUT_S (exit 124 on the base copy, 2026-10-28; one file,
+    # tests/test_assemble_dispatch_step.py, cannot be split across shards — the duration record read 1,466 s
+    # and later 1,248 s that day, since every leg rewrites it)
+    script = (Path(__file__).resolve().parents[1] / ".fabrik" / "merge-tests").read_text(encoding="utf-8")
+    assert world.mod._declared_leg(script) == 2700
+
+
 def _limits(world, monkeypatch) -> list[int]:
     seen: list[int] = []
     real = world.mod._capped
