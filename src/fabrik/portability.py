@@ -73,9 +73,9 @@ _COOLIFY_UUID_RE = re.compile(r"^[a-z0-9]{24}$")
 # name (or path) matches one of these patterns has its value replaced with
 # the literal string ``"REDACTED"`` before the file enters the bundle.
 # Conservative bias: false-positive redactions are operator-recoverable
-# (re-populate on target); false-negative leaks are not. The one value-level
-# exception is :data:`_PEM_PRIVATE_RE` (invariant 3: an armoured private key
-# under any name).
+# (re-populate on target); false-negative leaks are not. The value-level
+# exceptions are :data:`_URL_USERINFO_RE` (URL userinfo under any name) and
+# :data:`_PEM_PRIVATE_RE` (invariant 3: an armoured private key under any name).
 _SENSITIVE_KEY_PATTERNS = (
     re.compile(r"password", re.IGNORECASE),
     re.compile(r"secret", re.IGNORECASE),
@@ -89,7 +89,8 @@ _SENSITIVE_KEY_PATTERNS = (
     re.compile(r"[_-]key$|(?-i:[a-z0-9]Key)$", re.IGNORECASE),
     re.compile(r"api[_-]?url$", re.IGNORECASE),  # Alertmanager slack_api_url, slack api_url
     re.compile(r"headers?$", re.IGNORECASE),  # remote_write/read headers, proxy_connect_header
-    re.compile(r"authoriz", re.IGNORECASE),  # Authorization, Proxy-Authorization
+    # Authorization block/header, Proxy-Authorization; Authelia authorization_policy is kept.
+    re.compile(r"^(?:proxy[_-])?authorization$", re.IGNORECASE),
     re.compile(r"^endpoint[_-]?params$", re.IGNORECASE),  # Prometheus oauth2.endpoint_params
     re.compile(r"shoutrrr[_-]?url$", re.IGNORECASE),  # Backrest hooks[].actionShoutrrr
     re.compile(r"^command$", re.IGNORECASE),  # Backrest hooks[].actionCommand (a shell line)
@@ -141,15 +142,16 @@ def _redact_sensitive_fields(obj: Any) -> Any:
     Redaction happens at the KEY level — we don't heuristically detect
     "this string looks like a secret" on values, which avoids false
     positives on URLs, paths, etc. — with two value-level exceptions. The
-    userinfo of a URL in a str value (:data:`_URL_USERINFO_RE`) becomes
-    ``REDACTED`` with the scheme and host kept. And a
+    userinfo of a URL in a str value or mapping key (:data:`_URL_USERINFO_RE`)
+    becomes ``REDACTED`` with the scheme and host kept. And a
     str/bytes value or mapping key carrying a private-key armour line
     (:data:`_PEM_PRIVATE_RE`) is redacted (such a key, str or bytes, becomes
     the str ``"REDACTED"`` too), because invariant 3 promises no private
     keys and an armour line is never a URL or path. A key-text test cannot
     see a key with no armour line (a bare base64 body, a JWK, a PuTTY file)
     under a name no pattern matches. Any other mapping key that is not a
-    string (YAML ints, bools, nulls, ``!!binary``) cannot spell a sensitive
+    string (YAML ints, bools, nulls, ``!!binary``, or a :class:`_PlainScalar`
+    such a type would have resolved to) cannot spell a sensitive
     name, so its value is redacted (fail closed) and the key kept with its
     type. Any container
     other than a dict or list (YAML ``!!set``, ``!!omap``, ``!!pairs``) is
@@ -160,7 +162,7 @@ def _redact_sensitive_fields(obj: Any) -> Any:
         for k, v in obj.items():
             if _is_private_key_text(k):
                 out["REDACTED"] = "REDACTED"
-            elif not isinstance(k, str):
+            elif not isinstance(k, str) or getattr(k, "yaml_typed", False):
                 logger.warning(
                     "portability: redacting the value under a non-string %s mapping key",
                     type(k).__name__,
@@ -169,15 +171,22 @@ def _redact_sensitive_fields(obj: Any) -> Any:
             elif _key_is_sensitive(k):
                 out[k] = "REDACTED"
             else:
-                out[k] = _redact_sensitive_fields(v)
+                out[_redact_url_userinfo(k)] = _redact_sensitive_fields(v)
         return out
     if isinstance(obj, list):
         return [_redact_sensitive_fields(item) for item in obj]
     if isinstance(obj, (tuple, set, frozenset)) or _is_private_key_text(obj):
         return "REDACTED"
     if isinstance(obj, str):
-        return _URL_USERINFO_RE.sub("://REDACTED@", obj)
+        return _redact_url_userinfo(obj)
     return obj
+
+
+def _redact_url_userinfo(text: str) -> str:
+    """``scheme://REDACTED@host`` for every URL userinfo in ``text``; ``text``
+    itself (a :class:`_PlainScalar` stays one) when there is none."""
+    redacted = _URL_USERINFO_RE.sub("://REDACTED@", text)
+    return text if redacted == text else redacted
 
 
 # Keys ``_strip_uuids`` always strips from state-file payloads (legacy UUIDs + sensitive refs).
@@ -317,71 +326,86 @@ def _ssh_cat(remote_path: str) -> str | None:
         return None
 
 
-_YAML_TYPED_TAGS = frozenset(
-    {"tag:yaml.org,2002:bool", "tag:yaml.org,2002:int", "tag:yaml.org,2002:float"}
-)
+_YAML_STR_TAG = "tag:yaml.org,2002:str"
 
 
-class _Yaml12Loader(yaml.SafeLoader):
-    """SafeLoader with YAML 1.2-core bool/int/float resolution.
+class _PlainScalar(str):
+    """A plain (unquoted, untagged) YAML scalar, kept as its source text.
 
-    PyYAML resolves YAML 1.1 forms that Alertmanager's and Prometheus's Go
-    parsers do not: ``17:00`` (base 60) loads as 1020, ``on`` as True, ``010``
-    as 8, ``1_000`` as 1000. Those stay strings here, so the bundled copy
-    (re-emitted by :class:`_BlockDumper`, which quotes them) keeps what the
-    operator wrote. Ints with a leading zero and floats without a ``.`` or an
-    exponent are left out on purpose: SafeConstructor would read them as octal
-    or base 60.
+    ``yaml_typed`` is True when PyYAML would have resolved the text to a
+    non-str type (an int, bool, null, timestamp …), so the redactor still
+    treats such a mapping key as a non-string key.
     """
 
+    yaml_typed: bool = False
 
-_Yaml12Loader.yaml_implicit_resolvers = {
-    first: [(tag, rx) for tag, rx in resolvers if tag not in _YAML_TYPED_TAGS]
-    for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
-}
-_Yaml12Loader.add_implicit_resolver(
-    "tag:yaml.org,2002:bool",
-    re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$"),
-    list("tTfF"),
-)
-_Yaml12Loader.add_implicit_resolver(
-    "tag:yaml.org,2002:int",
-    re.compile(r"^(?:[-+]?(?:0|[1-9][0-9]*)|0x[0-9a-fA-F]+)$"),
-    list("-+0123456789"),
-)
-_Yaml12Loader.add_implicit_resolver(
-    "tag:yaml.org,2002:float",
-    re.compile(
-        r"^(?:[-+]?(?:\.[0-9]+|[0-9]+\.[0-9]*|[0-9]+(?:\.[0-9]*)?[eE][-+]?[0-9]+)"
-        r"|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$"
-    ),
-    list("-+0123456789."),
-)
+
+class _VerbatimLoader(yaml.SafeLoader):
+    """SafeLoader that keeps every plain scalar as written and refuses aliases.
+
+    Typed resolution would rewrite what the operator wrote: PyYAML reads
+    ``17:00`` as 1020, ``on`` as True, ``010`` as 8 and ``1.10`` as 1.1, and
+    re-emitting those (quoted, or in normal form) changes what the Go parser
+    restoring the copy decodes. A plain scalar whose tag is the implicit one
+    becomes a :class:`_PlainScalar` holding its exact text, which
+    :class:`_BlockDumper` writes back plain. An explicitly tagged scalar
+    (``!!str 123``, ``!!binary``) is constructed as SafeLoader does, and an
+    unknown tag still raises. An alias, merge keys included, is refused: the
+    redactor matches key names, so ``other: *pw`` would copy a secret out from
+    under its sensitive key (fail closed — the file is omitted).
+    """
+
+    def compose_node(self, parent: Any, index: Any) -> Any:
+        if self.check_event(yaml.AliasEvent):
+            raise yaml.composer.ComposerError(
+                None, None, "YAML aliases are refused", self.peek_event().start_mark
+            )
+        return super().compose_node(parent, index)
+
+    def construct_object(self, node: Any, deep: bool = False) -> Any:
+        if (
+            isinstance(node, yaml.ScalarNode)
+            and node.style is None
+            and node.tag == self.resolve(yaml.ScalarNode, node.value, (True, False))
+        ):
+            scalar = _PlainScalar(node.value)
+            scalar.yaml_typed = node.tag != _YAML_STR_TAG
+            return scalar
+        return super().construct_object(node, deep=deep)
 
 
 class _BlockDumper(yaml.SafeDumper):
-    """SafeDumper that keeps a multi-line str in ``|`` block style (Alertmanager templates)."""
+    """SafeDumper that writes a :class:`_PlainScalar` back plain and a
+    multi-line str in ``|`` block style (Alertmanager templates)."""
+
+    def represent_plain(self, data: _PlainScalar) -> yaml.ScalarNode:
+        # The tag this text resolves to when plain, so the emitter leaves it unquoted.
+        tag = self.resolve(yaml.ScalarNode, str(data), (True, False))
+        return self.represent_scalar(tag, str(data))
 
     def represent_str(self, data: str) -> yaml.ScalarNode:
         style = "|" if "\n" in data else None
-        return self.represent_scalar("tag:yaml.org,2002:str", data, style=style)
+        return self.represent_scalar(_YAML_STR_TAG, data, style=style)
 
 
+_BlockDumper.add_representer(_PlainScalar, _BlockDumper.represent_plain)
 _BlockDumper.add_representer(str, _BlockDumper.represent_str)
 
 
 def _redact_config_text(rel: str, raw: str) -> str | None:
     """Parse a pulled config, redact it via :func:`_redact_sensitive_fields`,
     re-emit it. ``None`` (the file is omitted, with a warning) when it is not
-    a ``.json``/``.yml`` file, does not parse, or its top level is not a
-    mapping or a list — fail closed, never the raw text. Comments are dropped:
-    the bundled copy is a structural restore reference, not a byte copy.
+    a ``.json``/``.yml`` file, does not parse (a YAML alias included), or its
+    top level is not a mapping or a list — fail closed, never the raw text.
+    YAML plain scalars come back as written (:class:`_VerbatimLoader`);
+    comments are dropped, so the bundled copy is a structural restore
+    reference, not a byte copy.
     """
     try:
         if rel.endswith(".json"):
             parsed = json.loads(raw)
         elif rel.endswith(".yml"):
-            parsed = yaml.load(raw, Loader=_Yaml12Loader)  # noqa: S506 — a SafeLoader subclass
+            parsed = yaml.load(raw, Loader=_VerbatimLoader)  # noqa: S506 — a SafeLoader subclass
             if parsed is None:
                 parsed = {}
         else:
@@ -440,8 +464,9 @@ def _collect_authelia() -> dict[str, str]:
 
     **Plaintext-secret redaction (T4-03 convergence pass).** The on-disk
     configuration.yml carries inline ``jwt_secret``, ``session.secret``,
-    and ``storage.encryption_key`` values. We parse the YAML, redact every
-    key whose name matches :data:`_SENSITIVE_KEY_PATTERNS`, then re-emit.
+    and ``storage.encryption_key`` values. :func:`_redact_config_text` parses
+    the YAML, redacts every key whose name matches
+    :data:`_SENSITIVE_KEY_PATTERNS`, then re-emits it (omitted when it cannot).
     The structural fields (access_control rules, providers, redirects) are
     preserved so the bundle stays restore-useful.
     """
@@ -466,21 +491,8 @@ def _collect_authelia() -> dict[str, str]:
         )
     if not raw:
         return {}
-
-    try:
-        import yaml
-
-        parsed = yaml.safe_load(raw) or {}
-        redacted = _redact_sensitive_fields(parsed)
-        out = yaml.safe_dump(redacted, sort_keys=False, default_flow_style=False)
-    except Exception as exc:  # noqa: BLE001 — fail closed: don't ship raw YAML
-        logger.warning(
-            "portability: authelia YAML parse/redact failed (%s); omitting from bundle to "
-            "avoid plaintext-secret leak",
-            exc,
-        )
-        return {}
-    return {"authelia/configuration.yml": out}
+    out = _redact_config_text("authelia/configuration.yml", raw)
+    return {} if out is None else {"authelia/configuration.yml": out}
 
 
 def _collect_backrest() -> dict[str, str]:
@@ -492,25 +504,15 @@ def _collect_backrest() -> dict[str, str]:
     **Plaintext-secret redaction (T4-03 convergence pass).** The on-disk
     config.json carries ``repos[].password`` (restic encryption password),
     ``repos[].env`` (S3/B2 access keys), and ``auth.users`` (web-UI auth).
-    We parse the JSON, redact via :func:`_redact_sensitive_fields`, then
-    re-emit. Repo URIs, plan schedules, prune policies, etc. are kept so
+    :func:`_redact_config_text` parses the JSON, redacts it, then re-emits it
+    (omitted when it cannot). Repo URIs, plan schedules, prune policies, etc. are kept so
     the bundle is restore-useful.
     """
     raw = _ssh_cat("/opt/backrest/config/config.json")
     if not raw:
         return {}
-    try:
-        parsed = json.loads(raw)
-        redacted = _redact_sensitive_fields(parsed)
-        out = json.dumps(redacted, indent=2, sort_keys=True)
-    except Exception as exc:  # noqa: BLE001 — fail closed
-        logger.warning(
-            "portability: backrest JSON parse/redact failed (%s); omitting from bundle to "
-            "avoid plaintext-secret leak",
-            exc,
-        )
-        return {}
-    return {"backrest/config.json": out}
+    out = _redact_config_text("backrest/config.json", raw)
+    return {} if out is None else {"backrest/config.json": out}
 
 
 def _build_readme(source_vps: str, timestamp: str, sections: Iterable[str]) -> str:

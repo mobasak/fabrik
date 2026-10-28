@@ -554,23 +554,65 @@ class TestMonitoringRedaction:
     def test_yaml_roundtrip_keeps_scalars(self, monkeypatch):
         import yaml
 
+        # Every plain scalar comes back as written, so the Go parser that reads
+        # the restored copy sees the operator's bytes whatever type it decodes to.
         raw = (
             "times:\n- start_time: 17:00\n  end_time: 24:00\n"
-            "flag: on\nmode: 010\nempty: ''\nquoted: '123'\nport: 9091\nratio: 1.5\nb: true\n"
+            "send_resolved: yes\nflag: on\nmode: 010\nhex: 0x1F\nunder: 1_000\n"
+            "version: 1.10\nratio: .50\ne: 6.02e23\nneg: -0\nbig: 1e400\n"
+            "t: 2026-04-18T10:00:00Z\nempty:\nnul: null\ntilde: ~\nb: true\nport: 9091\n"
+            "qempty: ''\nquoted: '123'\ndq: 'on'\n"
             "message: |\n  line one\n  line two\n"
         )
         out = self._remote(monkeypatch, {"prometheus.yml": raw})["monitoring/prometheus.yml"]
-        back = yaml.safe_load(out)
-        assert back["times"] == [{"start_time": "17:00", "end_time": "24:00"}]
-        assert back["flag"] == "on"
-        assert back["mode"] == "010"
-        assert back["empty"] == ""
-        assert back["quoted"] == "123"
-        assert back["port"] == 9091
-        assert back["ratio"] == 1.5
-        assert back["b"] is True
-        assert "message: |" in out
-        assert back["message"] == "line one\nline two\n"
+        assert out == raw
+        # An explicit tag keeps its meaning: a !!str stays a quoted string.
+        out = self._remote(monkeypatch, {"prometheus.yml": "a: !!str 123\n"})
+        assert yaml.safe_load(out["monitoring/prometheus.yml"]) == {"a": "123"}
+        # Empty or comment-only files ship as an empty mapping.
+        out = self._remote(monkeypatch, {"prometheus.yml": "# only a comment\n"})
+        assert out["monitoring/prometheus.yml"] == "{}\n"
+        # The module's loader never changes PyYAML's global SafeLoader.
+        assert yaml.safe_load("a: on\nb: 17:00\n") == {"a": True, "b": 1020}
+
+    @pytest.mark.parametrize(
+        "doc",
+        [
+            "global:\n  smtp_auth_password: &pw hunter2\nother: *pw\n",
+            "auth: &a {user: u, pass: hunter2}\nx:\n  <<: *a\n",
+        ],
+    )
+    def test_yaml_aliases_are_refused(self, monkeypatch, caplog, doc):
+        with caplog.at_level("WARNING", logger="fabrik.portability"):
+            out = self._remote(monkeypatch, {"prometheus.yml": doc})
+            authelia = portability._collect_authelia()
+        assert out == {}
+        assert authelia == {}
+        assert "alias" in caplog.text
+
+    def test_authelia_and_backrest_omit_a_bare_scalar(self, monkeypatch):
+        monkeypatch.setattr(portability, "_ssh_cat", lambda path: "authelia-jwt-hunter2\n")
+        assert portability._collect_authelia() == {}
+        monkeypatch.setattr(portability, "_ssh_cat", lambda path: '"password=hunter2"')
+        assert portability._collect_backrest() == {}
+
+    def test_url_userinfo_in_a_mapping_key_is_redacted(self):
+        out = portability._redact_sensitive_fields({"https://u:pw@h.example": 1})
+        assert out == {"https://REDACTED@h.example": 1}
+
+    def test_authorization_policy_is_kept(self):
+        sample = {
+            "authorization": {"type": "Bearer", "credentials": "x"},
+            "Proxy-Authorization": ["y"],
+            "identity_providers": {
+                "oidc": {"clients": [{"client_id": "c", "authorization_policy": "two_factor"}]}
+            },
+        }
+        out = portability._redact_sensitive_fields(sample)
+        assert out["authorization"] == "REDACTED"
+        assert out["Proxy-Authorization"] == "REDACTED"
+        client = out["identity_providers"]["oidc"]["clients"][0]
+        assert client["authorization_policy"] == "two_factor"
 
     def test_key_patterns_for_monitoring_secrets(self):
         for k in (
