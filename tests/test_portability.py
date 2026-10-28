@@ -384,6 +384,216 @@ class TestCollectAuthelia:
         assert "9091" in out["authelia/configuration.yml"]
 
 
+_AM_YML = """global:
+  resolve_timeout: 5m
+  smtp_auth_password: LEAK_AM1
+  slack_api_url: https://hooks.slack.com/services/T0/B0/LEAK_AM2
+time_intervals:
+- name: offhours
+  time_intervals:
+  - times:
+    - start_time: 17:00
+      end_time: 24:00
+receivers:
+- name: pd
+  pagerduty_configs:
+  - routing_key: LEAK_AM3
+    service_key: LEAK_AM4
+- name: po
+  pushover_configs:
+  - user_key: LEAK_AM5
+    token: LEAK_AM6
+- name: mail
+  email_configs:
+  - to: ops@example.com
+    headers:
+      X-Auth: LEAK_AM7
+"""
+
+_PROM_YML = """global:
+  scrape_interval: 15s
+remote_write:
+- url: https://user:LEAK_P1@remote.example/api/v1/write
+  headers:
+    Authorization: Bearer LEAK_P2
+remote_read:
+- url: https://remote.example/read
+  headers:
+    X-Scope-Token: LEAK_P3
+scrape_configs:
+- job_name: node
+  basic_auth:
+    username: u
+    password: LEAK_P4
+  proxy_connect_header:
+    Proxy-Authorization: [LEAK_P5]
+  oauth2:
+    client_id: c
+    endpoint_params:
+      client_assertion: LEAK_P6
+  static_configs:
+  - targets: ['node-exporter:9100']
+"""
+
+
+class TestMonitoringRedaction:
+    """W-64cf1856: the VPS monitoring configs and Backrest hooks ship redacted (invariant 1)."""
+
+    @staticmethod
+    def _remote(monkeypatch, files):
+        def fake_cat(path):
+            for name, text in files.items():
+                if path.endswith(name):
+                    return text
+            return None
+
+        monkeypatch.setattr(portability, "_ssh_cat", fake_cat)
+        return portability._collect_monitoring_remote()
+
+    def test_monitoring_files_redact_planted_secrets(self, monkeypatch):
+        import yaml
+
+        out = self._remote(monkeypatch, {"alertmanager.yml": _AM_YML, "prometheus.yml": _PROM_YML})
+        blob = "\n".join(out.values())
+        leaked = [m for m in ("LEAK_AM", "LEAK_P") if m in blob]
+        assert leaked == [], blob
+        am = yaml.safe_load(out["monitoring/alertmanager.yml"])
+        prom = yaml.safe_load(out["monitoring/prometheus.yml"])
+        # Structure survives for the operator's restore reference.
+        assert am["global"]["resolve_timeout"] == "5m"
+        assert am["receivers"][2]["email_configs"][0]["to"] == "ops@example.com"
+        assert prom["remote_write"][0]["url"] == "https://REDACTED@remote.example/api/v1/write"
+        assert prom["remote_read"][0]["url"] == "https://remote.example/read"
+        assert prom["scrape_configs"][0]["basic_auth"]["username"] == "u"
+        assert prom["scrape_configs"][0]["static_configs"][0]["targets"] == ["node-exporter:9100"]
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            "a: [unclosed\npassword: leak\n",
+            "a: 1\n---\nb: 2\n",
+            "hunter2\n",
+            "42\n",
+            "a: !custom x\n",
+        ],
+    )
+    def test_unparseable_or_scalar_monitoring_file_is_omitted(self, monkeypatch, caplog, bad):
+        files = {
+            "prometheus.yml": bad,
+            "alertmanager.yml": "global:\n  resolve_timeout: 5m\n",
+            "allocations.json": '"password=hunter2"',
+            "assignments.json": "{nope",
+        }
+        with caplog.at_level("WARNING", logger="fabrik.portability"):
+            out = self._remote(monkeypatch, files)
+        assert set(out) == {"monitoring/alertmanager.yml"}
+        assert "omitting" in caplog.text
+        assert "hunter2" not in "".join(out.values())
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            ("https://u:pw@h.example/x", "https://REDACTED@h.example/x"),
+            ("telegram://tok@telegram?chats=1", "telegram://REDACTED@telegram?chats=1"),
+            ("https://u:p@ss@h.example/w", "https://REDACTED@h.example/w"),
+            ("redis://:pw@redis-main:6379/0", "redis://REDACTED@redis-main:6379/0"),
+            (
+                "a https://u:1@x/ and smtp://v:2@y:587",
+                "a https://REDACTED@x/ and smtp://REDACTED@y:587",
+            ),
+            ("https://h.example/path@x", "https://h.example/path@x"),
+            ("https://h.example?q=a@b", "https://h.example?q=a@b"),
+            ("ops@example.com", "ops@example.com"),
+        ],
+    )
+    def test_url_userinfo_redacted_any_key(self, value, expected):
+        out = portability._redact_sensitive_fields({"anything": value, "list": [value]})
+        assert out == {"anything": expected, "list": [expected]}
+
+    def test_backrest_hook_credentials_redacted(self, monkeypatch):
+        config = {
+            "repos": [{"id": "r", "uri": "s3:https://ak:LEAK_B1@b2.example/bucket"}],
+            "plans": [
+                {
+                    "id": "p",
+                    "hooks": [
+                        {
+                            "actionShoutrrr": {
+                                "shoutrrrUrl": "smtp://user:LEAK_B2@mail.example:587/?to=a@b.c",
+                                "template": "{{ .Summary }}",
+                            }
+                        },
+                        {"actionCommand": {"command": "curl -u u:LEAK_B3 https://x"}},
+                        {"actionGotify": {"baseUrl": "https://u:LEAK_B4@gotify.example"}},
+                    ],
+                }
+            ],
+        }
+        monkeypatch.setattr(portability, "_ssh_cat", lambda path: json.dumps(config))
+        out = portability._collect_backrest()["backrest/config.json"]
+        assert "LEAK_B" not in out
+        parsed = json.loads(out)
+        assert parsed["repos"][0]["uri"] == "s3:https://REDACTED@b2.example/bucket"
+        shoutrrr = parsed["plans"][0]["hooks"][0]["actionShoutrrr"]
+        assert shoutrrr == {"shoutrrrUrl": "REDACTED", "template": "{{ .Summary }}"}
+        assert parsed["plans"][0]["hooks"][1]["actionCommand"] == {"command": "REDACTED"}
+
+    def test_userinfo_search_is_linear(self):
+        import time
+
+        for value in (
+            "://" + "a" * 400_000,
+            "://a" * 100_000,
+            "x@" * 200_000,
+            "://" + "@" * 400_000,
+        ):
+            start = time.perf_counter()
+            portability._redact_sensitive_fields({"blob": value})
+            assert time.perf_counter() - start < 1.0
+
+    def test_yaml_roundtrip_keeps_scalars(self, monkeypatch):
+        import yaml
+
+        raw = (
+            "times:\n- start_time: 17:00\n  end_time: 24:00\n"
+            "flag: on\nmode: 010\nempty: ''\nquoted: '123'\nport: 9091\nratio: 1.5\nb: true\n"
+            "message: |\n  line one\n  line two\n"
+        )
+        out = self._remote(monkeypatch, {"prometheus.yml": raw})["monitoring/prometheus.yml"]
+        back = yaml.safe_load(out)
+        assert back["times"] == [{"start_time": "17:00", "end_time": "24:00"}]
+        assert back["flag"] == "on"
+        assert back["mode"] == "010"
+        assert back["empty"] == ""
+        assert back["quoted"] == "123"
+        assert back["port"] == 9091
+        assert back["ratio"] == 1.5
+        assert back["b"] is True
+        assert "message: |" in out
+        assert back["message"] == "line one\nline two\n"
+
+    def test_key_patterns_for_monitoring_secrets(self):
+        for k in (
+            "routing_key",
+            "service_key",
+            "user_key",
+            "secret_key",
+            "userKey",
+            "slack_api_url",
+            "api_url",
+            "headers",
+            "proxy_connect_header",
+            "Authorization",
+            "Proxy-Authorization",
+            "endpoint_params",
+            "shoutrrrUrl",
+            "command",
+        ):
+            assert portability._key_is_sensitive(k), f"missed sensitive key: {k}"
+        for k in ("monkey", "hotkey", "keyring", "key_id", "template", "commander", "url", "to"):
+            assert not portability._key_is_sensitive(k), f"false-positive: {k}"
+
+
 class TestSecretsRedaction:
     def test_only_key_names_emitted_never_values(self, tmp_path):
         env = tmp_path / ".env"

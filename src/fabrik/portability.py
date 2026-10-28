@@ -13,11 +13,11 @@ Bundle layout (per pack §28 lines 47–69):
     ├── specs/services/*.yaml           # all service specs (verbatim)
     ├── state/*.json                    # .fabrik/state/<id>.json (legacy coolify_uuid stripped)
     ├── secrets-redacted.json           # .env key NAMES only (never values)
-    ├── monitoring/
+    ├── monitoring/                     # VPS files parsed + redacted (_redact_config_text)
     │   ├── gatus/                      # SSH-pulled /opt/monitoring/configs/gatus/
     │   ├── prometheus.yml              # /opt/monitoring/configs/prometheus/prometheus.yml
     │   ├── alertmanager.yml            # /opt/monitoring/configs/alertmanager/alertmanager.yml
-    │   ├── grafana-dashboards/         # local mirror configs/grafana/dashboards/
+    │   ├── grafana-dashboards/         # local mirror configs/grafana/dashboards/ (tracked, verbatim)
     │   ├── redis-assignments.json      # /opt/monitoring/configs/redis/assignments.json
     │   └── postgres-allocations.json   # /opt/monitoring/configs/postgres/allocations.json (T4-01)
     ├── authelia/
@@ -55,6 +55,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from fabrik.config import FABRIK_ROOT
 
 logger = logging.getLogger(__name__)
@@ -82,6 +84,15 @@ _SENSITIVE_KEY_PATTERNS = (
     re.compile(r"priv(?:ate)?[_-]?key", re.IGNORECASE),  # private_key, privatekey, privkey
     re.compile(r"priv$", re.IGNORECASE),  # Backrest multihost.identity.ed25519priv
     re.compile(r"^key$", re.IGNORECASE),  # Authelia identity_providers.oidc.jwks[].key
+    # Alertmanager routing_key/service_key/user_key, sigv4 secret_key, camelCase *Key;
+    # anchored so monkey/keyring/key_id stay non-sensitive.
+    re.compile(r"[_-]key$|(?-i:[a-z0-9]Key)$", re.IGNORECASE),
+    re.compile(r"api[_-]?url$", re.IGNORECASE),  # Alertmanager slack_api_url, slack api_url
+    re.compile(r"headers?$", re.IGNORECASE),  # remote_write/read headers, proxy_connect_header
+    re.compile(r"authoriz", re.IGNORECASE),  # Authorization, Proxy-Authorization
+    re.compile(r"^endpoint[_-]?params$", re.IGNORECASE),  # Prometheus oauth2.endpoint_params
+    re.compile(r"shoutrrr[_-]?url$", re.IGNORECASE),  # Backrest hooks[].actionShoutrrr
+    re.compile(r"^command$", re.IGNORECASE),  # Backrest hooks[].actionCommand (a shell line)
     re.compile(r"encryption[_-]?key", re.IGNORECASE),
     re.compile(r"jwt[_-]?secret", re.IGNORECASE),
     re.compile(r"session[_-]?secret", re.IGNORECASE),
@@ -103,6 +114,13 @@ _PEM_PRIVATE_RE = re.compile(
     r"-{4}\s*(?:BEGIN|END)\s+(?:[^\s-]+\s+){0,4}PRIVATE\s+KEY", re.IGNORECASE
 )
 
+# URL userinfo (``scheme://user:pass@host``, ``telegram://token@host``) in any
+# str value: the greedy run ends at the LAST ``@`` before the path, so a raw
+# ``@`` in a password is covered. ``/`` is outside the run, so no run spans a
+# second ``://`` and the search stays linear. A password holding a raw ``/``,
+# ``?``, ``#`` or whitespace (RFC 3986 requires them percent-encoded) is kept.
+_URL_USERINFO_RE = re.compile(r"://[^/\s?#]*@")
+
 
 def _key_is_sensitive(key: str) -> bool:
     """Match a key name against the conservative sensitive-pattern list."""
@@ -122,7 +140,9 @@ def _redact_sensitive_fields(obj: Any) -> Any:
 
     Redaction happens at the KEY level — we don't heuristically detect
     "this string looks like a secret" on values, which avoids false
-    positives on URLs, paths, etc. — with ONE value-level exception: a
+    positives on URLs, paths, etc. — with two value-level exceptions. The
+    userinfo of a URL in a str value (:data:`_URL_USERINFO_RE`) becomes
+    ``REDACTED`` with the scheme and host kept. And a
     str/bytes value or mapping key carrying a private-key armour line
     (:data:`_PEM_PRIVATE_RE`) is redacted (such a key, str or bytes, becomes
     the str ``"REDACTED"`` too), because invariant 3 promises no private
@@ -155,6 +175,8 @@ def _redact_sensitive_fields(obj: Any) -> Any:
         return [_redact_sensitive_fields(item) for item in obj]
     if isinstance(obj, (tuple, set, frozenset)) or _is_private_key_text(obj):
         return "REDACTED"
+    if isinstance(obj, str):
+        return _URL_USERINFO_RE.sub("://REDACTED@", obj)
     return obj
 
 
@@ -295,9 +317,101 @@ def _ssh_cat(remote_path: str) -> str | None:
         return None
 
 
+_YAML_TYPED_TAGS = frozenset(
+    {"tag:yaml.org,2002:bool", "tag:yaml.org,2002:int", "tag:yaml.org,2002:float"}
+)
+
+
+class _Yaml12Loader(yaml.SafeLoader):
+    """SafeLoader with YAML 1.2-core bool/int/float resolution.
+
+    PyYAML resolves YAML 1.1 forms that Alertmanager's and Prometheus's Go
+    parsers do not: ``17:00`` (base 60) loads as 1020, ``on`` as True, ``010``
+    as 8, ``1_000`` as 1000. Those stay strings here, so the bundled copy
+    (re-emitted by :class:`_BlockDumper`, which quotes them) keeps what the
+    operator wrote. Ints with a leading zero and floats without a ``.`` or an
+    exponent are left out on purpose: SafeConstructor would read them as octal
+    or base 60.
+    """
+
+
+_Yaml12Loader.yaml_implicit_resolvers = {
+    first: [(tag, rx) for tag, rx in resolvers if tag not in _YAML_TYPED_TAGS]
+    for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
+_Yaml12Loader.add_implicit_resolver(
+    "tag:yaml.org,2002:bool",
+    re.compile(r"^(?:true|True|TRUE|false|False|FALSE)$"),
+    list("tTfF"),
+)
+_Yaml12Loader.add_implicit_resolver(
+    "tag:yaml.org,2002:int",
+    re.compile(r"^(?:[-+]?(?:0|[1-9][0-9]*)|0x[0-9a-fA-F]+)$"),
+    list("-+0123456789"),
+)
+_Yaml12Loader.add_implicit_resolver(
+    "tag:yaml.org,2002:float",
+    re.compile(
+        r"^(?:[-+]?(?:\.[0-9]+|[0-9]+\.[0-9]*|[0-9]+(?:\.[0-9]*)?[eE][-+]?[0-9]+)"
+        r"|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$"
+    ),
+    list("-+0123456789."),
+)
+
+
+class _BlockDumper(yaml.SafeDumper):
+    """SafeDumper that keeps a multi-line str in ``|`` block style (Alertmanager templates)."""
+
+    def represent_str(self, data: str) -> yaml.ScalarNode:
+        style = "|" if "\n" in data else None
+        return self.represent_scalar("tag:yaml.org,2002:str", data, style=style)
+
+
+_BlockDumper.add_representer(str, _BlockDumper.represent_str)
+
+
+def _redact_config_text(rel: str, raw: str) -> str | None:
+    """Parse a pulled config, redact it via :func:`_redact_sensitive_fields`,
+    re-emit it. ``None`` (the file is omitted, with a warning) when it is not
+    a ``.json``/``.yml`` file, does not parse, or its top level is not a
+    mapping or a list — fail closed, never the raw text. Comments are dropped:
+    the bundled copy is a structural restore reference, not a byte copy.
+    """
+    try:
+        if rel.endswith(".json"):
+            parsed = json.loads(raw)
+        elif rel.endswith(".yml"):
+            parsed = yaml.load(raw, Loader=_Yaml12Loader)  # noqa: S506 — a SafeLoader subclass
+            if parsed is None:
+                parsed = {}
+        else:
+            raise ValueError("no parser for this file type")
+        if not isinstance(parsed, (dict, list)):
+            raise ValueError(f"top level is a {type(parsed).__name__}, not a mapping or list")
+        redacted = _redact_sensitive_fields(parsed)
+        if rel.endswith(".json"):
+            return json.dumps(redacted, indent=2, sort_keys=True)
+        return yaml.dump(
+            redacted,
+            Dumper=_BlockDumper,
+            sort_keys=False,
+            default_flow_style=False,
+            allow_unicode=True,
+        )
+    except Exception as exc:  # noqa: BLE001 — fail closed: don't ship raw config
+        logger.warning(
+            "portability: %s parse/redact failed (%s); omitting from bundle to avoid "
+            "plaintext-secret leak",
+            rel,
+            exc,
+        )
+        return None
+
+
 def _collect_monitoring_remote() -> dict[str, str]:
     """Pull VPS-side monitoring configs via ssh. Paths match the existing
-    inventory (T4-01 added postgres-allocations.json)."""
+    inventory (T4-01 added postgres-allocations.json). Each file is parsed and
+    redacted by :func:`_redact_config_text`; one that cannot be is omitted."""
     paths = {
         "monitoring/prometheus.yml": "/opt/monitoring/configs/prometheus/prometheus.yml",
         "monitoring/alertmanager.yml": "/opt/monitoring/configs/alertmanager/alertmanager.yml",
@@ -307,8 +421,11 @@ def _collect_monitoring_remote() -> dict[str, str]:
     out: dict[str, str] = {}
     for rel, remote in paths.items():
         content = _ssh_cat(remote)
-        if content is not None:
-            out[rel] = content
+        if content is None:
+            continue
+        redacted = _redact_config_text(rel, content)
+        if redacted is not None:
+            out[rel] = redacted
     return out
 
 

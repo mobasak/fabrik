@@ -948,10 +948,10 @@ fabrik-export-vps1-YYYY-MM-DD.tar.gz
 ├── secrets-redacted.json          # .env KEY NAMES (never values)
 ├── specs/services/*.yaml          # every service spec
 ├── state/*.json                   # T2-01 state files, coolify_uuid stripped
-├── monitoring/{prometheus,alertmanager,redis-assignments,postgres-allocations}*
+├── monitoring/{prometheus,alertmanager,redis-assignments,postgres-allocations}*  # SSH-pulled, secrets redacted
 ├── monitoring/grafana-dashboards/  # repo-local mirrors
 ├── authelia/configuration.yml      # SSH-pulled from /opt/authelia/config (best-effort, secrets redacted)
-└── backrest/config.json            # SSH-pulled (best-effort)
+└── backrest/config.json            # SSH-pulled (best-effort, secrets redacted)
 ```
 
 Since the Coolify retirement (plan 2026-10-14-plan-1-coolify-verb-retirement, T06) the bundle carries no `coolify/` tree. A bundle exported before then still opens: `fabrik import` counts its `coolify/*` file members as `ignored legacy members (coolify/*): <n>` and restores none of them.
@@ -959,6 +959,7 @@ Since the Coolify retirement (plan 2026-10-14-plan-1-coolify-verb-retirement, T0
 ### Security Invariants (test-enforced)
 
 1. **No plaintext secret values.** `_redact_env_keys` reads only up to the first `=` of each `.env` line. The test byte-scans the entire gzip stream for known values and asserts zero hits.
+   The SSH-pulled configs (monitoring, Authelia, Backrest) are parsed and every field under a secret-shaped key name (password, token, secret, `*_key`, headers, Authorization, webhook and API URLs, Backrest hook commands and shoutrrr URLs) becomes `REDACTED`, as does the userinfo of any URL (`scheme://REDACTED@host`); a file that does not parse into a mapping or list is left out. The bundled copies are a structural restore reference, not byte copies: comments are dropped, and monitoring YAML keeps YAML 1.2 scalars as written (`17:00`, `on`).
 2. **No legacy deploy UUIDs in state.** `_collect_state` pops `coolify_uuid` from every state file and `_strip_uuids` recurses the rest (the UUID-named keys and bare 24-alphanumeric string values), so a target cannot inherit the source host's old deploy identifiers.
 
 ### Why Import Is Shipped Untested
