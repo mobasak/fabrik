@@ -210,7 +210,9 @@ def test_a_non_list_event_value_is_refused_never_rewritten(tmp_path, monkeypatch
         assert iuh.run(["--check"]) == 1
         assert "MALFORMED" in capsys.readouterr().out
         assert iuh.run([]) == 1, "an install that cannot repair a file says so"
-        assert "MALFORMED" in capsys.readouterr().out, "install names it too (and clears the buffer)"
+        assert "MALFORMED" in capsys.readouterr().out, (
+            "install names it too (and clears the buffer)"
+        )
         assert f.read_text() == before, f"{bad!r} rewritten"
     assert iuh.run(["--check"]) == 1, "the refused file is still drift"
     ob = home / ".claude-fleet" / "ob" / "settings.json"
