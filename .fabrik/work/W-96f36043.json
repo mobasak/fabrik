@@ -3,7 +3,7 @@
   "created": "2026-10-24T22:27:52.390677Z",
   "creator": "coordinator",
   "effort": "high",
-  "evidence": "",
+  "evidence": "3b97eebb030cb5b8274cd93a5dfb71f4219e1c6b",
   "id": "W-96f36043",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "kaizen",
   "priority": 0,
   "score_reason": "P0: the operator's most urgent task, every run pays for the bloat; HIGH effort: a spec and a rewrite of ~30 commands over several sessions",
-  "status": "open",
+  "status": "done",
   "tags": [
     "waits-t01d-v6"
   ],
