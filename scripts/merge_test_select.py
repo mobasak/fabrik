@@ -312,6 +312,11 @@ def _save_durations(path: Path, measured: dict[str, float], *, complete: bool) -
     with no record yet takes that partial sum until a complete run replaces it. Two legs
     saving at once lose one update (last writer wins), never tear the file."""
     old = _load_durations(path)
+    if complete:
+        # a complete run measured every node of each split file it recorded nodes for: the old node
+        # keys of those files go (renamed or removed tests never pile up); a file's own key is not one
+        renewed = {k.split("::")[0] for k in measured if "::" in k}
+        old = {k: v for k, v in old.items() if not ("::" in k and k.split("::")[0] in renewed)}
     merged = (
         {**old, **measured}
         if complete
@@ -360,9 +365,11 @@ def balance(files: list[str], shards: int, weights: dict[str, float]) -> list[li
 
 def _collect(path: str) -> list[str] | None:
     """The node ids pytest collects from ``path`` in this tree, in run order (the runner's interpreter and
-    environment), or None when it will not collect: a non-zero exit, a timeout. The ids are the lines up
-    to the first blank one that start with ``<path>::`` — a parametrized id may hold spaces, which is
-    fine: every id reaches pytest as its own argv element, never through a shell."""
+    environment), or None when it will not collect: a non-zero exit, a timeout, a launch failure. The ids
+    are the lines up to the first blank one that start with ``<path>::``, each once — a parametrized id
+    may hold spaces, which is fine: every id reaches pytest as its own argv element, never through a
+    shell. Output that is not UTF-8 is decoded with replacement, never raised (a conftest may write raw
+    bytes to fd 1)."""
     try:
         r = subprocess.run(
             [
@@ -377,29 +384,33 @@ def _collect(path: str) -> list[str] | None:
             ],
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=COLLECT_TIMEOUT_S,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except (OSError, ValueError, subprocess.SubprocessError):
         return None
     if r.returncode != 0:
         return None
-    ids = []
+    ids: dict[str, None] = {}
     for line in r.stdout.splitlines():
         if not line.strip():
             break
         if line.startswith(path + "::"):
-            ids.append(line)
-    return ids
+            ids[line] = None
+    return list(ids)
 
 
 def _split_heavy(
     files: list[str], weights: dict[str, float], shards: int, collect=_collect
 ) -> tuple[list, dict, dict[str, list[tuple[str, ...]]]]:
     """``files`` as balance units: a file heavier than its selection's per-shard share (and than
-    SPLIT_MIN_S) becomes up to ``shards`` CONTIGUOUS groups of its node ids, near-equal by count, each a
-    tuple unit weighing the file's seconds over the group count; every other file stays a string unit.
-    Returns (units, unit weights, {split file: its groups}). A heavy file that collects fewer than two
-    ids stays whole and says so (W-231f4695: one 1,462 s file set the wall of every hub merge leg).
+    SPLIT_MIN_S) becomes node units — one per node id, weighed by its recorded seconds, once a leg
+    has recorded any of the file's nodes; else up to ``shards`` CONTIGUOUS groups near-equal by count,
+    each weighing the file's seconds over the group count — and every other file stays a string unit.
+    Returns (units, unit weights, {split file: its units in collection order}). A heavy file that
+    collects fewer than two ids, or ids that differ between two collections (a parametrize id built
+    from a clock or a random value would be "not found" in its shard: pytest exit 4, no verdict),
+    stays whole and says so (W-231f4695: one 1,462 s file set the wall of every hub merge leg).
 
     Cobra (D-253): the cheap way to look faster is to split a file whose tests depend on each other —
     each group then fails alone. Counter: the base runs the same groups, so such a red reads
@@ -416,25 +427,30 @@ def _split_heavy(
             uw[f] = run[f]
             continue
         ids = collect(f)
-        if not ids or len(ids) < 2:
-            why = "it did not collect" if ids is None else f"{len(ids or [])} node id(s)"
+        why = ""
+        if ids is None or len(ids) < 2:
+            why = "it did not collect" if ids is None else f"{len(ids)} node id(s)"
+        elif collect(f) != ids:
+            why = "its node ids differ between two collections"
+        if why or ids is None:
             print(f"merge-tests: {f} kept whole ({why})")
             units.append(f)
             uw[f] = run[f]
             continue
         known = {i: weights[i] for i in ids if i in weights}
         if known:
-            # the file's cost sits in a few of its tests (measured 2026-10-28: five of eight
-            # equal-count groups of the hub's heaviest file ran in 3-7 s, one in 340 s), so once a
-            # leg has recorded its nodes each is its own unit, weighed by its seconds (an unrecorded
-            # one at the median of the recorded), and balance spreads the slow ones
-            default = statistics.median(known.values())
-            groups = [(i,) for i in ids]
+            # the file's cost sits in a few of its tests (measured 2026-10-28: 11 of the 89 nodes of the
+            # hub's heaviest file held 1,950 of its 1,976 s), so once a leg has recorded its nodes each
+            # is its own unit, weighed by its seconds, and balance spreads the slow ones; an unrecorded
+            # node takes an equal part of what the recorded ones leave of the file's seconds
+            rest = [i for i in ids if i not in known]
+            spare = max(0.0, run[f] - sum(known.values())) / max(1, len(rest))
+            groups: list[tuple[str, ...]] = [(i,) for i in ids]
             split[f] = groups
             print(f"merge-tests: split {f} into {len(ids)} node(s) by their recorded seconds")
             for g in groups:
                 units.append(g)
-                uw[g] = known.get(g[0], default)
+                uw[g] = known.get(g[0], spare)
             continue
         n = min(shards, len(ids))
         groups = [tuple(ids[len(ids) * k // n : len(ids) * (k + 1) // n]) for k in range(n)]
@@ -457,43 +473,51 @@ def _argv(group: list, rank: dict[str, int] | None = None) -> list[str]:
 
 def _owns(members: list[str], nid: str) -> bool:
     """Whether a shard run over ``members`` (files and node ids) produced the report ``nid``: a member
-    file owns every id in it, a member node id owns itself. A split file's module-level error (id = the
-    file) is owned by no shard: `_collect` already imported the file, so it can only come from a
-    nondeterministic import — the stray check then refuses with no verdict, fail-closed."""
-    return any(m in (nid.split("::")[0], nid) for m in members)
+    file owns every id in it, a member node id owns itself, and a node member owns its file's
+    module-level error (that report's id is the file: an import that fails only in that shard's
+    process, which `_collect` cannot rule out) — the confirm then re-runs that file whole."""
+    return any(m in (nid.split("::")[0], nid) or m.split("::")[0] == nid for m in members)
 
 
-def _reruns(reds, split: set[str]) -> list[str]:
+def _reruns(reds, split: set[str], rank: dict[str, int] | None = None) -> list[str]:
     """What re-runs ``reds`` alone: a split file's red by its node id (re-running the whole file costs
-    the minutes the split saved), any other red's whole file (the alone confirm's established shape)."""
+    the minutes the split saved; its module-level error by the file), any other red's whole file (the
+    alone confirm's established shape); a split file's ids in its collection order (``rank``)."""
     out = set()
     for key in reds:
         nid = key[0]
         f = nid.split("::")[0]
         out.add(nid if f in split and nid != f else f)
-    return sorted(out)
+    rank = rank or {}
+    return sorted(out, key=lambda x: (x.split("::")[0], rank.get(x, -1), x))
 
 
 def _on_base(units: list[str], split: dict) -> list[str]:
     """``units`` (files and node ids) that the checked-out base can run: a file only when it exists,
     and a split file's node id only when the base collects it — passed one the base lacks, pytest
     exits 4 ("not found") and the whole leg would read as no verdict, where today's whole-file base run
-    simply finds the red absent and calls it NEW (Opus critique, W-231f4695). On a base that will not
-    collect the file at all, no node id of it is run, so its reds are NEW — as a whole-file run there
-    would find them, its only report being the file's own collection error."""
-    ids: dict[str, set[str]] = {}
+    simply finds the red absent and calls it NEW (Opus critique, W-231f4695). A split file whose
+    collection fails on the base (a timeout under load, a crash) runs whole there instead, as before
+    the split: dropping its ids would read a pre-existing red as NEW and refuse a merge for a red it
+    did not cause (review pass 1)."""
+    ids: dict[str, set[str] | None] = {}
     out: list[str] = []
     for u in units:
         f = u.split("::")[0]
         if not Path(f).is_file():
             continue
+        pick = u
         if u != f and f in split:
             if f not in ids:
-                ids[f] = set(_collect(f) or ())
-            if u not in ids[f]:
+                got = _collect(f)
+                ids[f] = None if got is None else set(got)
+            have = ids[f]
+            if have is None:
+                pick = f
+            elif u not in have:
                 continue
-        if u not in out:
-            out.append(u)
+        if pick not in out:
+            out.append(pick)
     return out
 
 
@@ -586,6 +610,8 @@ class _Runner:
             try:
                 lines = dur.read_text(encoding="utf-8", errors="replace").splitlines()
             except OSError:
+                # a shard that wrote nothing still has its place on the `shards measured` line
+                self.totals.append(0.0)
                 continue
             for line in lines:
                 try:
@@ -715,7 +741,7 @@ def differential(
     if compare:
         _checkout(merge)
     rc, alone, tail = runner.run(
-        _reruns(first, set(split))
+        _reruns(first, set(split), rank)
     )  # `tail`: the MERGE's, printed with its reds
     if rc not in RAN:
         raise LegError(f"the serial confirm exited {rc}:\n{tail}")
@@ -745,7 +771,9 @@ def differential(
     err: BaseException | None = None
     try:
         _checkout(base)
-        alone_files = _on_base(_reruns((k for k in confirmed if k in alone), set(split)), split)
+        alone_files = _on_base(
+            _reruns((k for k in confirmed if k in alone), set(split), rank), split
+        )
         on_base: dict = {}
         if alone_files:
             rc, on_base, base_tail = runner.run(alone_files)
