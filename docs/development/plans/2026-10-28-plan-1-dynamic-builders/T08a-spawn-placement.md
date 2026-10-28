@@ -26,10 +26,10 @@ Docs: none (T09 documents the finished verbs)
 
 ## Behavior Contract
 - **Given** `list-panes` failing, or answering nothing while `has-session` succeeds, **When** `place_pane` runs, **Then** it refuses and creates nothing (spec § The delta D9; plan-review pass 1, C4)
-- **Given** window `agents` holding four panes, **When** a fifth builder is placed, **Then** `agents-2` is opened in the background, `<S>+2` is created in `<S>`'s group with `agents-2` current, and `<S>`'s current window is unchanged (spec § The delta D4; W-14219e6f point 11)
+- **Given** window `agents` holding four panes, **When** a fifth builder is placed, **Then** `agents-2` is opened in the background, `<S>+2` is created and groups `<S>` (whose own group was still empty) with `agents-2` current, and `<S>`'s current window is unchanged (spec § The delta D4; W-14219e6f point 11; plan-review pass 3)
 - **Given** no window `agents` and a FULL `agents-2`, **When** a builder is placed, **Then** `agents` is re-created and becomes `<S>`'s current window (W-14219e6f point 8; plan-review pass 1, C2)
 - **Given** no window `agents` and `agents-2` with three panes, **When** a builder is placed, **Then** it joins `agents-2` and no `agents` window is created (plan-review pass 1, C2, B12)
-- **Given** a stale `<S>+2` grouped with an old killed base and a `<S>+3` already in `<S>`'s group, **When** windows `agents-2` and `agents-3` are opened, **Then** `<S>+2` is killed and re-created in `<S>`'s group and `<S>+3` is reused (plan-review pass 2, class rewrite)
+- **Given** a stale `<S>+2` grouped with an old killed base, a `<S>+3` already in `<S>`'s group, and a `<S>+4` with an EMPTY group, **When** windows `agents-2`, `agents-3` and `agents-4` are opened, **Then** `<S>+2` and `<S>+4` are killed and re-created in `<S>`'s group and `<S>+3` is reused (plan-review pass 2, class rewrite; plan-review pass 3)
 - **Given** another repo's base session named `<S>-2`, **When** a fifth builder is placed, **Then** `<S>+2` is created and `<S>-2` is untouched (scripts/sysadmin/agents_up.sh:332-334; plan-review pass 2, class rewrite)
 - **Given** a pane tagged `@agent b-1` whose claude grandchild runs `--resume <b-1's id>`, **When** b-1 is placed, **Then** it is adopted and no pane is added (spec § The delta D2; plan-review pass 1, C1)
 - **Given** a pane tagged `@agent b-1` with no claude descendant, or one running another id, **When** b-1 is placed, **Then** it refuses naming the remedy or both ids (plan-review pass 1, C1, C4)

@@ -9,8 +9,8 @@ Invariants and touchpoints:
 2. **One lock path rule.** Load `agents_spawn.py` from `rotate_session.py`'s own directory by file path (`importlib.util.spec_from_file_location`, the `.claude/hooks/agent_role.py:96-106` pattern) and call its `lock_path(repo)` (T06), the repo derived from the registry path as `path.parents[1]` (`<repo>/.fabrik/session-agents.json`).
 3. **Never an exception (A5).** A missing `agents_spawn.py`, an import error, or a `lock_path` failure (git failing) returns `"refused:agents lock unavailable"` and writes nothing — the function's contract is "every failure is a returned state, never an exception" (`:253-256`).
 4. **Bounded wait (A14).** `fcntl.flock(LOCK_EX | LOCK_NB)` retried every 0.2 s for up to `_wait_s(30)` seconds (`:219-224`, so `ROTATE_WAIT_S` shortens it in tests — note the suite's fixture already sets `ROTATE_WAIT_S=3`, `tests/test_rotate_session.py:164`, which shortens this wait too); never obtained → `"refused:agents lock busy"`, nothing written.
-6. **Precedence (plan-review pass 2, record-only).** The lock comes first, so a registry that is missing AND a git failure resolving the lock returns `refused:agents lock unavailable`, not `absent`.
-5. The comment at `:305` is replaced by one naming the lock and its other holders (`agents_spawn.py add|remove`).
+5. **Precedence (plan-review pass 2, record-only).** The lock comes first, so a registry that is missing AND a git failure resolving the lock returns `refused:agents lock unavailable`, not `absent`.
+6. The comment at `:305` is replaced by one naming the lock and its other holders (`agents_spawn.py add|remove`).
 
 DO-NOT: change the outcome strings callers already read (`repointed`, `current`, `no-entry`, `absent`, the existing `refused:` reasons, `:257-319`), the rotation flow around the call (`:1188-1194`), or `resolve()` (`:467-482`, which filters the base session and so reads grouped windows once).
 
