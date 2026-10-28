@@ -353,30 +353,44 @@ SELECT format('GRANT CONNECT ON DATABASE %I TO postgres_exporter', datname)
   FROM pg_database WHERE NOT datistemplate AND NOT has_database_privilege('public', oid, 'CONNECT') \gexec
 ALTER DATABASE glitchtip OWNER TO glitchtip;
 \c glitchtip
-BEGIN;
+-- One object per transaction (each ALTER … OWNER locks its table, indexes and TOAST until COMMIT; GlitchTip's log
+-- partitions overflow max_locks_per_transaction in one transaction), a busy table fails within lock_timeout instead
+-- of queueing GlitchTip's queries behind an ACCESS EXCLUSIVE request, and what glitchtip already owns is skipped, so a
+-- re-run locks only the leftovers. Run WITHOUT -1/--single-transaction: COMMIT inside DO then fails.
+SET lock_timeout = '5s';
 ALTER SCHEMA public OWNER TO glitchtip;
 DO $$ DECLARE r record; BEGIN
-  FOR r IN SELECT format('ALTER %s %I.%I OWNER TO glitchtip',
+  FOR r IN SELECT format('ALTER %s IF EXISTS %I.%I OWNER TO glitchtip',
              CASE c.relkind WHEN 'S' THEN 'SEQUENCE' WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED VIEW'
-                            WHEN 'f' THEN 'FOREIGN TABLE' WHEN 'c' THEN 'TYPE' ELSE 'TABLE' END, n.nspname, c.relname) AS q
+                            WHEN 'f' THEN 'FOREIGN TABLE' ELSE 'TABLE' END, n.nspname, c.relname) AS q
            FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-           WHERE n.nspname = 'public' AND c.relkind IN ('r','p','S','v','m','f','c')
+           WHERE n.nspname = 'public' AND c.relkind IN ('r','p','S','v','m','f')
+             AND c.relowner <> 'glitchtip'::regrole
              AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid AND d.deptype = 'e')
              AND NOT (c.relkind = 'S' AND EXISTS (SELECT 1 FROM pg_depend d
                        WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid
                          AND d.refclassid = 'pg_class'::regclass AND d.deptype IN ('a','i')))
-  LOOP EXECUTE r.q; END LOOP;
+           ORDER BY c.oid
+  LOOP EXECUTE r.q; COMMIT; END LOOP;
+  FOR r IN SELECT format('ALTER TYPE %I.%I OWNER TO glitchtip', n.nspname, c.relname) AS q
+           FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+           WHERE n.nspname = 'public' AND c.relkind = 'c' AND c.relowner <> 'glitchtip'::regrole
+             AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid AND d.deptype = 'e')
+           ORDER BY c.oid
+  LOOP EXECUTE r.q; COMMIT; END LOOP;
   FOR r IN SELECT format('ALTER ROUTINE %s OWNER TO glitchtip', p.oid::regprocedure) AS q
-           FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace
+           FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proowner <> 'glitchtip'::regrole
              AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_proc'::regclass AND d.objid = p.oid AND d.deptype = 'e')
-  LOOP EXECUTE r.q; END LOOP;
+           ORDER BY p.oid
+  LOOP EXECUTE r.q; COMMIT; END LOOP;
   FOR r IN SELECT format('ALTER %s %s OWNER TO glitchtip', CASE t.typtype WHEN 'd' THEN 'DOMAIN' ELSE 'TYPE' END,
                          t.oid::regtype) AS q
            FROM pg_type t WHERE t.typnamespace = 'public'::regnamespace AND t.typtype IN ('e','d','r','m')
+             AND t.typowner <> 'glitchtip'::regrole
              AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.classid = 'pg_type'::regclass AND d.objid = t.oid AND d.deptype = 'e')
-  LOOP EXECUTE r.q; END LOOP;
+           ORDER BY t.oid
+  LOOP EXECUTE r.q; COMMIT; END LOOP;
 END $$;
-COMMIT;
 """
 
 OWNERSHIP_CHECK = r"""

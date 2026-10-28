@@ -309,3 +309,119 @@ def test_step3c_strands_nothing_in_the_hub_root_when_the_replace_fails(monkeypat
         m.step3c_record_hub(pws)
     assert sorted(p.name for p in hub.iterdir()) == [".env", "backups"]
     assert (hub / ".env").read_text() == "A=1\n"
+
+
+# Step 3a's re-own run against a real PostgreSQL 16 (vps1 runs 16.11): a throwaway cluster whose lock table is far too
+# small for one transaction over GlitchTip's log partitions — the operator's 2026-10-28 run died there ("out of shared
+# memory", W-80983d8c). max_locks_per_transaction=10 × max_connections=10 holds ~100 locks; 300 partitions with an index
+# each need ~900 in one transaction.
+PG_BIN = Path("/usr/lib/postgresql/16/bin")
+PARTITIONS = 300
+
+
+@pytest.fixture
+def small_lock_cluster(tmp_path):
+    if not (PG_BIN / "initdb").exists():
+        pytest.skip("PostgreSQL 16 server binaries are not installed")
+    data = tmp_path / "data"
+    # an abstract socket (PostgreSQL >= 14, Linux): a socket FILE under a long pytest basetemp passes sun_path's
+    # 107-byte limit and the server refuses to start
+    sock = f"@pgtest-{os.getpid()}-{abs(hash(str(tmp_path)))}"
+    subprocess.run(
+        [PG_BIN / "initdb", "-U", "postgres", "-A", "trust", "-D", data],
+        check=True,
+        capture_output=True,
+    )
+    opts = (
+        f"-c listen_addresses='' -c unix_socket_directories={sock} "
+        "-c max_locks_per_transaction=10 -c max_connections=10"
+    )
+    subprocess.run(
+        [PG_BIN / "pg_ctl", "-D", data, "-o", opts, "-w", "-l", tmp_path / "log", "start"],
+        check=True,
+        capture_output=True,
+    )
+    base = ["psql", "-X", "-q", "-h", sock, "-U", "postgres", "-v", "ON_ERROR_STOP=1", "-tA", "-d"]
+
+    def psql(db: str, text: str, timeout: float = 120) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [*base, db], input=text, capture_output=True, text=True, timeout=timeout
+        )
+
+    try:
+        assert psql("postgres", "CREATE DATABASE glitchtip;").returncode == 0
+        ddl = [
+            "CREATE TABLE logs (id bigserial, ts date NOT NULL, msg text) PARTITION BY RANGE (ts);"
+        ]
+        for i in range(PARTITIONS):
+            ddl.append(
+                f"CREATE TABLE logs_p{i} PARTITION OF logs "
+                f"FOR VALUES FROM ('2000-01-01'::date + {i}) TO ('2000-01-01'::date + {i + 1});"
+            )
+            ddl.append(f"CREATE INDEX ON logs_p{i} (ts);")
+        made = psql("glitchtip", "\n".join(ddl))
+        assert made.returncode == 0, made.stderr
+        yield psql, [*base, "glitchtip"]
+    finally:
+        subprocess.run(
+            [PG_BIN / "pg_ctl", "-D", data, "-m", "immediate", "stop"], capture_output=True
+        )
+
+
+def test_step3a_reowns_every_partition_when_one_transaction_could_not_hold_their_locks(
+    small_lock_cluster,
+):
+    psql, _ = small_lock_cluster
+    run = psql("postgres", m.OWNERSHIP_SQL)
+    assert run.returncode == 0, run.stderr
+    assert psql("glitchtip", m.OWNERSHIP_CHECK).stdout.split() == ["0", "0", "0"]
+
+
+def test_step3a_stops_on_a_busy_table_instead_of_queueing_glitchtip_and_a_rerun_finishes(
+    small_lock_cluster,
+):
+    """A table GlitchTip holds open makes the re-own fail within lock_timeout (never a hang that queues every
+    GlitchTip query behind an ACCESS EXCLUSIVE request); what it re-owned before stays, and a re-run finishes."""
+    psql, holder_argv = small_lock_cluster
+    holder = subprocess.Popen(holder_argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    try:
+        holder.stdin.write("BEGIN;\nSELECT count(*) FROM logs_p150;\n")
+        holder.stdin.flush()
+        assert holder.stdout.readline().strip() == "0"  # the lock is held from here on
+        run = psql("postgres", m.OWNERSHIP_SQL, timeout=60)
+        assert run.returncode != 0 and "lock timeout" in run.stderr, run.stderr
+        left = int(psql("glitchtip", m.OWNERSHIP_CHECK).stdout.split()[0])
+        assert 0 < left < 2 * PARTITIONS + 2  # some objects were re-owned and committed, not all
+    finally:
+        holder.stdin.write("ROLLBACK;\n")
+        holder.stdin.close()
+        holder.wait(timeout=30)
+    rerun = psql("postgres", m.OWNERSHIP_SQL)
+    assert rerun.returncode == 0, rerun.stderr
+    assert psql("glitchtip", m.OWNERSHIP_CHECK).stdout.split() == ["0", "0", "0"]
+
+
+def test_step3a_rerun_on_an_owned_schema_locks_nothing(small_lock_cluster):
+    """A re-run skips what glitchtip already owns, so a busy table that is already done (here the partitioned
+    parent every GlitchTip query goes through) costs no lock wait and no failure."""
+    psql, holder_argv = small_lock_cluster
+    assert psql("postgres", m.OWNERSHIP_SQL).returncode == 0
+    holder = subprocess.Popen(holder_argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    try:
+        holder.stdin.write("BEGIN;\nLOCK TABLE ONLY logs IN ACCESS SHARE MODE;\nSELECT 1;\n")
+        holder.stdin.flush()
+        assert holder.stdout.readline().strip() == "1"  # the parent is held from here on
+        rerun = psql("postgres", m.OWNERSHIP_SQL, timeout=60)
+        assert rerun.returncode == 0, rerun.stderr
+        assert psql("glitchtip", m.OWNERSHIP_CHECK).stdout.split() == ["0", "0", "0"]
+    finally:
+        holder.stdin.write("ROLLBACK;\n")
+        holder.stdin.close()
+        holder.wait(timeout=30)
+
+
+def test_the_runbook_quotes_the_scripts_reown_block_word_for_word():
+    """An operator running step 3 by hand from the runbook gets the same lock-safe re-own as the script."""
+    runbook = (ROOT / "docs" / "reference" / "vps1-postgres-admin-rotation-runbook.md").read_text()
+    block = m.OWNERSHIP_SQL[m.OWNERSHIP_SQL.index("\\c glitchtip\n") :]
+    assert block in runbook
