@@ -3,7 +3,7 @@
   "created": "2026-10-23T05:56:49.494419Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "ee810e71f8109c68fa35146546e055b7ae959e5e",
   "id": "W-a77742db",
   "impact": "high",
   "kind": "task",
@@ -17,8 +17,9 @@
   "note": "",
   "owner": "infra-2",
   "priority": 1,
+  "resolved_by": "W-cff56c52",
   "score_reason": "every rotation that lands inside a quota lane leaves the builder nameless until the lift; one allow-list line plus its grader",
-  "status": "open",
+  "status": "done",
   "tags": [
     "after-w-835894a6",
     "queued"

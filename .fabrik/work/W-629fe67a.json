@@ -3,7 +3,7 @@
   "created": "2026-10-15T20:43:42.949873Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "97e06d4d8181990aed3741ee235c8eb9ddb9e08e",
   "id": "W-629fe67a",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra-2",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — operator asked 2026-10-15 for coordinator charter loading",
-  "status": "open",
+  "status": "done",
   "tags": [
     "after-w-835894a6"
   ],
