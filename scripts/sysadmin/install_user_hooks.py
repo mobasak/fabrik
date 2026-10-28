@@ -171,21 +171,25 @@ def run(argv: list[str] | None = None) -> int:
         "(a warn_only row that exits non-zero still FAILS the gate, closing review R1)",
     )
     args = ap.parse_args(argv)
-    bad = 0
+    bad = by_hand = 0
     for path in _targets():
         try:
             d = json.loads(path.read_text(encoding="utf-8") or "{}") if path.exists() else {}
-            if not isinstance(d, dict):
-                d = {}
         except (OSError, ValueError):
             print(f"install_user_hooks: cannot read {path}", file=sys.stderr)
             bad += 1
             continue
-        malformed = _malformed(d)
+        if not isinstance(d, dict):
+            # a settings file that is not a JSON object was replaced by `{}` plus the hooks,
+            # losing whatever the user wrote — refused like any shape below (mail 01M5HK0CH6)
+            malformed = [("(file)", f"top level is a {type(d).__name__}, not an object")]
+        else:
+            malformed = _malformed(d)
         if malformed:
             for ev, why in malformed:
                 print(f"MALFORMED {path}: {ev} ({why}) — fix it by hand; not rewritten")
             bad += 1
+            by_hand += 1
             continue
         stale = _stale(d)
         if not stale:
@@ -232,10 +236,14 @@ def run(argv: list[str] | None = None) -> int:
     if args.check:
         print(
             "user-level hooks: "
-            + ("present in every account dir" if not bad else f"{bad} file(s) missing entries")
+            + ("present in every account dir" if not bad else f"{bad} file(s) not installed")
+            + (f", {by_hand} of them MALFORMED — fix by hand, install refuses them" if by_hand else "")
         )
     if bad and args.check and args.warn:
-        print("WARN: user-level hook registrations drifted on this box — run install_user_hooks.py")
+        fixes = ["run install_user_hooks.py"] if bad > by_hand else []
+        if by_hand:
+            fixes.append("fix the MALFORMED file(s) by hand")
+        print(f"WARN: user-level hook registrations drifted on this box — {' and '.join(fixes)}")
         return 0
     return 1 if bad else 0
 

@@ -229,6 +229,30 @@ def test_an_entry_whose_hooks_value_is_not_a_list_is_refused(tmp_path, monkeypat
     assert iuh.run([]) == 1 and f.read_text() == before
 
 
+def test_a_settings_file_that_is_not_an_object_is_refused(tmp_path, monkeypatch, capsys):
+    """Same class at the top: a non-object settings file was replaced by `{}` plus the hooks."""
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    f = home / ".claude" / "settings.json"
+    f.write_text(json.dumps(["keep", "me"]))
+    before = f.read_text()
+    assert iuh.run([]) == 1 and f.read_text() == before
+    assert "MALFORMED" in capsys.readouterr().out
+
+
+def test_the_gate_mode_names_a_malformed_file_as_a_hand_fix(tmp_path, monkeypatch, capsys):
+    """Review round 1: the summary called a MALFORMED file "missing entries" and the WARN told
+    the gate reader to run the installer, which refuses it."""
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    assert iuh.run([]) == 0
+    (home / ".claude" / "settings.json").write_text(json.dumps({"hooks": {"Stop": 0}}))
+    assert iuh.run(["--check", "--warn"]) == 0
+    out = capsys.readouterr().out
+    assert "1 file(s) not installed, 1 of them MALFORMED" in out, out
+    assert "drifted on this box — fix the MALFORMED file(s) by hand" in out, out
+
+
 def test_a_stale_duplicate_before_the_canonical_entry_is_still_caught(tmp_path, monkeypatch):
     """E4: `_stale` judged only the LAST entry carrying the script; a dead path registered
     before the canonical one kept firing on every prompt while --check said present."""
