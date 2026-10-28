@@ -71,9 +71,39 @@ if [ -e "$STUB_STATE/linger-off" ]; then echo Linger=no; else echo Linger=yes; f
 printf 'systemd-analyze %s\n' "$*" >> "${STUB_STATE:?}/calls.log"
 if [ -e "$STUB_STATE/verify-noise" ]; then echo "session-archive.service:3: Unknown key name 'Bogus'"; fi
 """,
+    # the ssh step grades with ssh's own resolver; the conftest's fleet shim refuses every ssh, so this stub (first
+    # on PATH) passes ONLY `-G` — resolve the config and print it, never connect — to the real binary and refuses
+    # the rest as the shim does. COBRA (D-253): widening this to any other mode would reopen the fleet; the test
+    # configs carry no `Match exec` and no CanonicalizeHostname, so `-G` touches neither a command nor DNS.
+    "ssh": r"""#!/usr/bin/env bash
+printf 'ssh %s\n' "$*" >> "${STUB_STATE:?}/calls.log"
+[ "$1" = "-G" ] || { echo "stub ssh: only -G passes" >&2; exit 255; }
+exec /usr/bin/ssh "$@"
+""",
 }
 KEY = "claudeCode.claudeProcessWrapper"
 API_ALLOW = ["Bash(python3 scripts/api_write.py run *)"]
+SSH_CONFIG = ".ssh/config"
+GH = "git@github.com"
+
+# the ssh step grades with the real `ssh -G -F <copy>` (it never connects), reached through the `ssh` stub below
+pytestmark = pytest.mark.skipif(not Path("/usr/bin/ssh").exists(), reason="the ssh step grades with the real ssh -G")
+
+_RESOLVE = """import subprocess, sys
+r = subprocess.run(["ssh", "-G", "-F", sys.argv[1], sys.argv[2]], capture_output=True, text=True,
+                   stdin=subprocess.DEVNULL, timeout=30, check=True)
+v = dict(line.split(" ", 1) for line in r.stdout.splitlines() if " " in line)
+print(v.get("serveraliveinterval"), v.get("serveralivecountmax"))
+"""
+
+
+def _resolved(cfg: Path, home: Path, host: str = GH) -> tuple[str, str]:
+    """(ServerAliveInterval, ServerAliveCountMax) ssh resolves for `host` from `cfg` alone — run in a child Python
+    through the `ssh` stub, as the script runs it (this process's fleet guard refuses any ssh it starts)."""
+    r = subprocess.run([sys.executable, "-c", _RESOLVE, str(cfg), host], env=_env(home), capture_output=True,
+                       text=True, timeout=60, check=True)
+    interval, count = r.stdout.split()
+    return interval, count
 
 
 def _hub(tmp_path: Path, name: str = "sysadmin", head: str = "ref: refs/heads/master\n") -> Path:
@@ -120,7 +150,8 @@ def _home(tmp_path: Path) -> Path:
     for name, body in STUBS.items():
         (stubs / name).write_text(body)
         (stubs / name).chmod(0o755)
-    for d in (home, home / ".claude", home / ".claude-fleet", acct):
+    (home / ".ssh").mkdir()  # present and empty: the ssh step creates the config
+    for d in (home, home / ".claude", home / ".claude-fleet", acct, home / ".ssh"):
         d.chmod(0o700)
     return home
 
@@ -130,6 +161,7 @@ def _env(home: Path) -> dict[str, str]:
     env["HOME"] = str(home)
     env["STUB_STATE"] = str(home.parent / "stub-state")
     env["PATH"] = f"{home.parent / 'stub-bin'}{os.pathsep}{env.get('PATH', '')}"
+    env["OPERATOR_SETUP_SSH_HOME"] = "1"  # the scratch HOME is not the passwd home ssh reads
     return env
 
 
@@ -181,6 +213,7 @@ def test_dry_run_writes_nothing_and_lists_every_change(tmp_path):
         ".vscode-server/data/Machine/settings.json",
         f"{UNIT_DIR}/session-archive-alert.service",
         f"{UNIT_DIR}/session-archive.service",
+        SSH_CONFIG,
     ):
         assert f"+++ {rel}" in out, f"no diff printed for {rel}"
     assert f"+++ {UNIT_DIR}/session-archive.timer" not in out, "an unchanged unit was planned"
@@ -212,7 +245,7 @@ def test_apply_backs_up_every_changed_file_first(tmp_path):
     assert (home / created).is_file() and not (dirs[0] / created).exists()
     restore = [ln for ln in r.stdout.splitlines() if ln.startswith(("cp -p ", "rm ", "systemctl "))]
     files = [ln for ln in restore if not ln.startswith("systemctl ")]
-    assert len(files) == len(existed) + 2, r.stdout  # + the Machine settings and the alert unit, both created
+    assert len(files) == len(existed) + 3, r.stdout  # + the Machine settings, the alert unit and the ssh config, all created
     assert restore[-1] == "systemctl --user daemon-reload", r.stdout
     env = _env(home)  # the systemctl lines run against the stubs
     for ln in restore:
@@ -286,6 +319,7 @@ def test_apply_installs_the_wrapper_and_the_archive_timer(tmp_path):
     for rel, data in untouched.items():
         assert (h / rel).read_bytes() == data, f"{rel} was written after a failed installer"
     assert not (h / ".vscode-server/data/Machine/settings.json").exists(), "step 3 created a file after a failed installer"
+    assert not (h / SSH_CONFIG).exists(), "the ssh step wrote after a failed installer"
     named = sorted(ln.split("/")[-1].strip("'\"") for ln in r.stdout.splitlines() if ln.startswith(("cp -p ", "rm ")))
     assert named == ["session-archive-alert.service", "session-archive.service", "session-archive.timer"], r.stdout
     # the installer refuses before writing anything (its verify speaks): no file joins the undo lines
@@ -379,6 +413,9 @@ def test_settings_key_set_and_unparseable_file_refused(tmp_path, monkeypatch):
     mod = importlib.util.module_from_spec(spec)
     monkeypatch.setitem(sys.modules, "operator_setup", mod)  # @dataclass resolves its module by name
     spec.loader.exec_module(mod)
+    # in-process, this test's fleet guard refuses every ssh the planner starts; the ssh step has its own
+    # subprocess tests below, so these interleavings of the other steps run without it
+    monkeypatch.setattr(mod, "plan_ssh", lambda home: [])
     monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)  # the subprocess env strips it; so must this one
     for k, v in _env(h3).items():
         monkeypatch.setenv(k, v)
@@ -488,3 +525,90 @@ def test_second_apply_is_a_no_op(tmp_path):
     (state / "extra-onfailure").touch()
     r = _run(home, hub)
     assert r.returncode == 0 and "Nothing to do" in r.stdout, r.stdout
+
+
+SECTIONS = b"Host vps\n    HostName 10.0.0.1\n    ServerAliveInterval 30\n\nHost github.com\n    HostName github.com\n"
+
+
+def test_ssh_keepalive_planned_applied_and_verified(tmp_path):
+    # the operator's shape: sections only, a github.com block with no keepalive; ssh resolves 0/3 before
+    home, hub = _home(tmp_path), _hub(tmp_path)
+    cfg = home / SSH_CONFIG
+    cfg.write_bytes(SECTIONS)
+    cfg.chmod(0o600)
+    assert _resolved(cfg, home) == ("0", "3")
+    r = _run(home, hub, "--apply")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "VERIFY FAILED" not in r.stderr
+    assert _resolved(cfg, home) == ("15", "4"), cfg.read_text()
+    text = cfg.read_bytes()
+    assert text.startswith(b"# operator_setup (W-030ac2fe)") and text.endswith(SECTIONS), text  # before the first section
+    assert cfg.stat().st_mode & 0o777 == 0o600
+    assert any(ln.startswith("cp -p ") and ln.endswith(SSH_CONFIG) for ln in _restore(r.stdout)), r.stdout  # backup restore
+    assert _resolved(cfg, home, "vps")[0] == "30", "another host's keepalive changed"
+    again = _run(home, hub)
+    assert ".ssh/config" not in again.stdout and "Nothing to do" in again.stdout, again.stdout  # in place: a no-op
+    # verify() reads the live file: back to no keepalive, it names the ssh step (child Python: the guard here refuses ssh)
+    cfg.write_bytes(SECTIONS)
+    probe = ("import importlib.util, sys; from pathlib import Path\n"
+             "s = importlib.util.spec_from_file_location('operator_setup', sys.argv[1]); m = importlib.util.module_from_spec(s)\n"
+             "sys.modules['operator_setup'] = m; s.loader.exec_module(m)\n"
+             "print([b.split(':')[0] for b in m.verify(Path(sys.argv[2]))])\n")
+    v = subprocess.run([sys.executable, "-c", probe, str(hub / "scripts/sysadmin/operator_setup.py"), str(home)],
+                       env=_env(home), capture_output=True, text=True, timeout=60)
+    assert v.stdout.strip() == "['ssh']", v.stdout + v.stderr
+    # no ~/.ssh at all: created 0700, the config 0600, and the undo line removes the created config
+    h2 = _home(tmp_path / "no-ssh-dir")
+    shutil.rmtree(h2 / ".ssh")
+    r = _run(h2, hub, "--apply")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (h2 / ".ssh").stat().st_mode & 0o777 == 0o700
+    assert (h2 / SSH_CONFIG).stat().st_mode & 0o777 == 0o600
+    assert _resolved(h2 / SSH_CONFIG, h2) == ("15", "4")
+    assert f'rm -f "$HOME"/{SSH_CONFIG}' in r.stdout, r.stdout
+    # a CRLF file gets a CRLF block, and ssh still resolves it
+    h3 = _home(tmp_path / "crlf")
+    crlf = h3 / SSH_CONFIG
+    crlf.write_bytes(b"Host *\r\n    ServerAliveInterval 30\r\n")
+    crlf.chmod(0o600)
+    r = _run(h3, hub, "--apply")
+    assert r.returncode == 0, r.stdout + r.stderr
+    data = crlf.read_bytes()
+    assert b"\n" not in data.replace(b"\r\n", b""), data  # no bare LF line ending
+    assert _resolved(crlf, h3) == ("15", "4")
+
+
+def test_ssh_keepalive_refusals_write_nothing(tmp_path):
+    hub = _hub(tmp_path)
+    inc = tmp_path / "included.conf"
+    inc.write_text("Host *\n    ServerAliveInterval 30\n")
+    inc.chmod(0o600)
+    git_only = tmp_path / "git-user.conf"  # applies to git's own identity only: a bare-host grade would read 15/4
+    git_only.write_text("Match user git\n    ServerAliveInterval 30\n")
+    git_only.chmod(0o600)
+    cases = {
+        "match-user-git": (f"Include {git_only}\n\nHost vps\n    HostName x\n".encode(), 0o600,
+                           "ServerAliveInterval 30/ServerAliveCountMax 4 for git@github.com"),
+        # a value read before any section: no insert can precede it without re-scoping it
+        "global": (b"ServerAliveInterval 60\n\nHost github.com\n    User git\n", 0o600, "from a line read before the inserted block"),
+        "include": (f"Include {inc}\n\nHost vps\n    HostName x\n".encode(), 0o600, "from a line read before the inserted block"),
+        # ssh refuses a group-writable config outright (`-F` skips that check): never "in place", never written
+        "writable": (b"Host github.com\n    ServerAliveInterval 15\n    ServerAliveCountMax 4\n", 0o664, "chmod 600"),
+    }
+    for label, (body, mode, said) in cases.items():
+        h = _home(tmp_path / label)
+        cfg = h / SSH_CONFIG
+        cfg.write_bytes(body)
+        cfg.chmod(mode)
+        before = _digest(h)
+        r = _run(h, hub, "--apply")
+        assert r.returncode == 1 and said in r.stderr and "Nothing was written" in r.stderr, (label, r.stdout + r.stderr)
+        assert "Traceback" not in r.stderr, (label, r.stderr)
+        assert _digest(h) == before, f"{label}: something was written"
+        assert not _manager_writes(h), (label, _calls(h))
+    # $HOME is not the passwd home ssh reads, and no override: refused
+    h = _home(tmp_path / "home-mismatch")
+    before = _digest(h)
+    r = _run(h, hub, OPERATOR_SETUP_SSH_HOME="")
+    assert r.returncode == 1 and "passwd home" in r.stderr, r.stdout + r.stderr
+    assert _digest(h) == before

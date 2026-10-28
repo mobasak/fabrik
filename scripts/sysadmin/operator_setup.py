@@ -3,7 +3,7 @@
 """The operator's ONE-TIME setup (W-d6726a65, docs/reference/operator-agent-requirements.md 1.1).
 
 Claude Code's safety check refuses agents the settings-file and home-dir writes below, so the operator
-runs this once; the coordinators do everything after it. Four steps:
+runs this once; the coordinators do everything after it. Five steps:
 
   hooks   — the user-level hook entries in every account dir (`install_user_hooks.py`'s own output)
   wrapper — the stage-2 `claude-agent-wrapper.sh` copied to ~/.claude/bin (mode 0755)
@@ -11,6 +11,9 @@ runs this once; the coordinators do everything after it. Four steps:
   archive — the nightly chat backup's systemd user units (W-36687f76): diffed and backed up here, then
             installed by `install_session_archive_timer.sh` itself, which runs FIRST so a systemd
             refusal leaves the other steps unwritten
+  ssh     — a keepalive for git pushes (W-030ac2fe): a `Host github.com` block setting ServerAliveInterval 15
+            and ServerAliveCountMax 4, put before the first section of ~/.ssh/config because ssh takes the
+            first value it reads; planned and verified by what `ssh -G` itself resolves for git@github.com
 
     python3 /opt/fabrik/scripts/sysadmin/operator_setup.py           # dry run: a diff of every change, writes nothing
     python3 /opt/fabrik/scripts/sysadmin/operator_setup.py --apply   # back up, write, verify, print the undo lines
@@ -62,6 +65,16 @@ ARCHIVE_UNITS = ("session-archive-alert.service", "session-archive.service", "se
 ARCHIVE_ALERT = "session-archive-alert.service"
 ARCHIVE_TIMER = "session-archive.timer"
 NO_MANAGER = "cannot reach the user systemd manager"
+SSH_TARGET = "git@github.com"  # git's own identity: a `Match user git` resolves differently for a bare host
+SSH_WANT = ("15", "4")  # (ServerAliveInterval, ServerAliveCountMax)
+SSH_BLOCK = (
+    "# operator_setup (W-030ac2fe): git push keepalive — ssh takes the first value, keep this above other Host blocks",
+    "Host github.com",
+    "    ServerAliveInterval 15",
+    "    ServerAliveCountMax 4",
+    "",
+)
+SSH_SECTION = re.compile(rb"^[ \t]*(host|match)([ \t=]|$)", re.I | re.M)  # bytes: the file is never decoded
 
 
 class PlanError(Exception):
@@ -293,9 +306,66 @@ def plan_archive(home: Path) -> tuple[list[Change], str | None, dict[str, bytes]
     return changes, ", ".join(why), sources, (enabled == "enabled", active == "active")
 
 
+def _ssh_resolves(data: bytes) -> tuple[str | None, str | None]:
+    """(ServerAliveInterval, ServerAliveCountMax) ssh itself resolves for git@github.com from `data`, graded on a
+    0600 copy in a private temp dir: `-F` on the live path exits 255 when the file is absent. `-G` never connects,
+    but it runs the config's `Match exec` commands and may do DNS, as every push does; 30 s bounds a hang. Its
+    stderr is no error signal (it says "Pseudo-terminal will not be allocated" whenever stdin is not a tty)."""
+    with tempfile.TemporaryDirectory(prefix="operator-setup-ssh-") as tmp:
+        cfg = Path(tmp) / "config"
+        cfg.write_bytes(data)
+        cfg.chmod(0o600)
+        try:
+            r = subprocess.run(["ssh", "-G", "-F", str(cfg), SSH_TARGET], capture_output=True, text=True,
+                               errors="replace", stdin=subprocess.DEVNULL, timeout=30)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise PlanError(f"cannot grade ~/.ssh/config with `ssh -G` ({exc})") from None
+    if r.returncode:
+        said = (r.stderr.strip() or "no answer").splitlines()[-1]
+        raise PlanError(f"`ssh -G` refuses ~/.ssh/config ({said}) — fix it by hand")
+    vals = dict(line.split(" ", 1) for line in r.stdout.splitlines() if " " in line)
+    return vals.get("serveraliveinterval"), vals.get("serveralivecountmax")
+
+
+def plan_ssh(home: Path) -> list[Change]:
+    if os.environ.get("OPERATOR_SETUP_SSH_HOME"):
+        print("SSH HOME OVERRIDE in effect: ~/.ssh/config is planned under $HOME", file=sys.stderr)
+    else:  # ssh reads ~ from passwd, never $HOME: a config written elsewhere is never read
+        pw = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve()
+        if home.resolve() != pw:
+            raise PlanError(f"HOME ({home}) is not the passwd home ssh reads ({pw}) — run it with your own HOME")
+    path = home / ".ssh" / "config"
+    rel = _rel(home, path)
+    data, mode = _read(path)
+    if data is not None:  # ssh's own owner/permission check, which `-F` skips: a config ssh refuses is never "in place"
+        if path.lstat().st_uid not in (0, os.getuid()) or mode & 0o022:
+            raise PlanError(f"{path} is writable by others or not yours (mode {mode:o}) — ssh refuses such a config; "
+                            "chmod 600 it and run again")
+    current = data or b""
+    if _ssh_resolves(current) == SSH_WANT:
+        return []
+    nl = b"\r\n" if b"\r\n" in current else b"\n"
+    block = nl.join(line.encode("utf-8") for line in SSH_BLOCK) + nl
+    section = SSH_SECTION.search(current)
+    if section:  # before the first section, so its values are the first ssh reads for github.com
+        after = current[: section.start()] + block + current[section.start():]
+    elif current.strip():
+        after = current.rstrip(b"\r\n") + nl + nl + block
+    else:
+        after = current + block
+    got = _ssh_resolves(after)
+    if got != SSH_WANT:
+        raise PlanError(
+            f"ssh resolves ServerAliveInterval {got[0]}/ServerAliveCountMax {got[1]} for {SSH_TARGET} from a line read "
+            "before the inserted block — a global setting or an Include above the first Host/Match line; move it below "
+            "or set 15/4 there by hand, or push with GIT_SSH_COMMAND='ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=4'"
+        )
+    return [Change("ssh", path, rel, data, mode, after, mode if mode is not None else 0o600)]
+
+
 def plan(home: Path) -> Plan:
     archive, why, sources, was = plan_archive(home)
-    return Plan(plan_hooks(home) + plan_wrapper(home) + plan_vscode(home) + archive, why, sources, was)
+    return Plan(plan_hooks(home) + plan_wrapper(home) + plan_vscode(home) + archive + plan_ssh(home), why, sources, was)
 
 
 def _show(changes: list[Change]) -> None:
@@ -340,7 +410,7 @@ def _mkdir_private(path: Path, root: Path) -> None:
 
 
 def _write_atomic(c: Change) -> None:
-    c.path.parent.mkdir(parents=True, exist_ok=True)
+    _mkdir_private(c.path.parent, Path(c.path.anchor))  # a missing ~/.ssh (or any parent) is made 0700, never at the umask
     fd, tmp = tempfile.mkstemp(dir=c.path.parent, prefix=f".{c.path.name}.operator-setup-")
     try:
         with os.fdopen(fd, "wb") as fh:
@@ -470,7 +540,7 @@ def verify(home: Path) -> list[str]:
         bad.append("hooks: install_user_hooks.py --check failed:\n" + out.getvalue())
     wrapper = home / ".claude" / "bin" / "claude-agent-wrapper.sh"
     for step, check in (("wrapper", lambda: _verify_wrapper(wrapper)), ("vscode", lambda: _verify_vscode(home)),
-                        ("archive", lambda: _verify_archive(home))):
+                        ("archive", lambda: _verify_archive(home)), ("ssh", lambda: _verify_ssh(home))):
         try:
             why = check()
         except PlanError as exc:
@@ -494,6 +564,10 @@ def _verify_vscode(home: Path) -> str | None:
 def _verify_archive(home: Path) -> str | None:
     _changes, why, _sources, _was = plan_archive(home)
     return f"not in place ({why})" if why else None
+
+
+def _verify_ssh(home: Path) -> str | None:
+    return "ssh does not resolve ServerAliveInterval 15/ServerAliveCountMax 4 for git@github.com" if plan_ssh(home) else None
 
 
 def run(argv: list[str] | None = None) -> int:
