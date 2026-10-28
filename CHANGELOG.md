@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — agents_up.sh windows of four, `<S>+<k>` overflow sessions and `--window <n>` (2026-10-28)
+Builders fill tmux windows four placed panes at a time (`agents`, `agents-2`, …), each targeted by window id; every overflow window is shown in its own `<S>+<k>` session grouped with the base, so each Windows Terminal tab attaches its own (W-b9ad80ae, plan T03). `agents_up.sh --window <n> <repo>` waits while a live builder (`@agents_up_building` = `<pid>:<start time>`) is still building, then attaches `<S>+<n>`. A launch that loses the race kills nothing; a session left grouped under the base's name by an older grid is named with the `kill-session` that frees it and no overflow session joins it (a live grid's own viewers are not stale). Closes W-1961cc42 — the non-TTY detach that landed in 208dccd76.
+
 ### Added — agents_up.sh spawned launch path: `--pane-cmd`, `--session-id` starts, prompt suppression (2026-10-28)
 `agents_up.sh --pane-cmd <repo> <name> <sid> [--new] [--coordinator <n>] [--item <W-id>]` prints the one pane command a spawner places (W-b9ad80ae, plan T02); it is its own mode, decides every refusal before it writes the slice ceiling, and refuses an uncapped start unless `FABRIK_AGENTS_UNCAPPED=1`. A spawner-bound session with no transcript in any project folder launches with `--session-id` and a first prompt naming its coordinator and item; every claude call carries `--settings` suppressing the auto-mode tip and spinner tips, and every pane `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1`. "Nothing to launch" exits 3. A pane reads `running` when any live claude runs its session id, or runs by its name in its folder. The resolver emits only UUID-shaped session ids, and a malformed `FABRIK_SPAWN_*` refuses only a launch that would build that builder's first prompt.
 

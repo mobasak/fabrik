@@ -12,6 +12,7 @@ import pty
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -139,7 +140,9 @@ def _copies(root: Path, root_only: bool) -> list[Path]:
     ]
 
 
-def _run(*args: str, home: Path, tty: bool = False, **env: str) -> subprocess.CompletedProcess[str]:
+def _run(
+    *args: str, home: Path, tty: bool = False, timeout: int = 30, **env: str
+) -> subprocess.CompletedProcess[str]:
     """Run the launcher. `tty=True` gives it a pty for stdin and stdout (an interactive caller, so it may attach);
     otherwise stdin and stdout are pipes, as in a coordinator's Bash tool, a cron job or a hook."""
     full = {
@@ -150,7 +153,7 @@ def _run(*args: str, home: Path, tty: bool = False, **env: str) -> subprocess.Co
     }
     if not tty:
         return subprocess.run(
-            ["bash", str(UP), *args], capture_output=True, text=True, timeout=30, env=full
+            ["bash", str(UP), *args], capture_output=True, text=True, timeout=timeout, env=full
         )
     master, slave = pty.openpty()
     try:
@@ -160,7 +163,7 @@ def _run(*args: str, home: Path, tty: bool = False, **env: str) -> subprocess.Co
             stdout=slave,
             stderr=subprocess.PIPE,
             text=True,
-            timeout=30,
+            timeout=timeout,
             env=full,
         )
     finally:
@@ -424,6 +427,8 @@ def test_the_session_name_is_the_repo_basename(tmp_path: Path) -> None:
 
 FAKE_TMUX = """#!/bin/sh
 echo "$*" >> "$HOME/tmux.log"
+# ids as a real server hands them out under -P: window @n, pane %n, from one counter
+next() { n=$(cat "$HOME/tmux-seq" 2>/dev/null || echo 0); n=$((n+1)); echo $n > "$HOME/tmux-seq"; echo $n; }
 # tmux 3.4 (W-1961cc42): an option command given the bare exact target `=name` answers "no such session" while
 # `=name:` works — the fake fails the same way, so a regression to the bare form is red here, not only on the box
 case "$1" in
@@ -448,6 +453,10 @@ case "$1" in
     # tmux-newfail: another launch created the session first; tmux-deadfail: tmux itself failed, no session exists
     if [ -f "$HOME/tmux-newfail" ]; then : > "$HOME/tmux-has"; exit 1; fi
     [ -f "$HOME/tmux-deadfail" ] && exit 1
+    n=$(next); case "$*" in *" -P "*) echo "@$n %$n" ;; esac
+    exit 0 ;;
+  new-window)
+    n=$(next); case "$*" in *" -P "*) echo "@$n %$n" ;; esac
     exit 0 ;;
   set-option)
     # tmux-setfail: the root cannot be recorded
@@ -456,6 +465,7 @@ case "$1" in
   split-window)
     # tmux-splitfail: no room for another pane
     [ -f "$HOME/tmux-splitfail" ] && exit 1
+    n=$(next); case "$*" in *" -P "*) echo "%$n" ;; esac
     exit 0 ;;
   list-panes)
     # tmux-panes: one '<pane id> <@agent tag>' line per pane of an existing grid (a hand-built grid's panes)
@@ -500,8 +510,8 @@ def test_a_new_grid_records_its_repo_and_attaches(tmp_path: Path) -> None:
     assert log[0] == "has-session -t =fabrik-lib", log
     assert any(ln.startswith("new-session -d -s fabrik-lib -n agents -c ") for ln in log), log
     assert f"set-option -t =fabrik-lib: @agents_up_root {repo}" in log, log
-    assert sum(ln.startswith("split-window -t =fabrik-lib:agents ") for ln in log) == 1, log
-    assert "select-pane -t =fabrik-lib:agents.0" in log, log  # a fresh grid opens on its first pane
+    assert sum(ln.startswith("split-window -t @1 ") for ln in log) == 1, log  # the window by id, never by name
+    assert "select-pane -t %1" in log, log  # a fresh grid opens on its first pane
     assert log[-1] == "attach -t =fabrik-lib", log
     # a root that cannot be recorded is said, because every later launch would refuse the grid
     failed = _tmux_home(tmp_path / "setfail", repo, has=False, owner=None)
@@ -628,7 +638,7 @@ def test_the_launch_path_reports_what_it_could_not_do(tmp_path: Path) -> None:
     out = _run(str(repo), home=split)
     assert out.returncode == 0 and "no room for dev2's pane" in out.stderr, out.stderr
     labels = [ln for ln in _log(split) if ln.startswith("set -p ")]
-    assert labels == ["set -p -t =fabrik-lib:agents @agent dev1"], _log(split)
+    assert labels == ["set -p -t %1 @agent dev1"], _log(split)
 
     bare = _home(tmp_path / "bare", transcripts=((repo, DEV1),))
     tmux = bare / ".local" / "bin" / "tmux"
@@ -733,7 +743,7 @@ def test_the_launch_starts_each_pane_in_its_folder(tmp_path: Path) -> None:
     assert any(ln.startswith(f"new-session -d -s fabrik-lib -n agents -c {wt1} ") for ln in log), (
         log
     )
-    assert any(ln.startswith(f"split-window -t =fabrik-lib:agents -c {wt2} ") for ln in log), log
+    assert any(ln.startswith(f"split-window -t @1 -c {wt2} ") for ln in log), log
     wt2_proj = (
         home / ".claude-fleet" / "active" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(wt2))
     )
@@ -1773,7 +1783,7 @@ def test_a_pane_starts_where_its_session_lives(tmp_path: Path) -> None:
     out = _run(str(repo), home=home)
     assert out.returncode == 0, out.stderr
     log = _log(home)
-    assert any(ln.startswith(f"split-window -t =fabrik-lib:agents -c {uncapped} ") for ln in log), (
+    assert any(ln.startswith(f"split-window -t @1 -c {uncapped} ") for ln in log), (
         log
     )
 
@@ -2435,3 +2445,511 @@ def test_a_stale_spawn_variable_never_stops_an_attach_to_an_up_grid(tmp_path: Pa
         )
         assert out.returncode == 0 and "grid is already up" in out.stderr, (var, out.stderr)
     assert not any(ln.startswith(("new-session", "split-window")) for ln in _log(home)), _log(home)
+
+
+# --- W-b9ad80ae T03: windows of four, the grouped overflow sessions, --window <n> ---------------------------------------
+# These run on a SCRATCH `tmux -L <unique>` server (never the default socket) and assert the server's STATE — windows,
+# panes, sessions, groups — never a call log. XDG_RUNTIME_DIR=/nonexistent keeps every run off the real user manager;
+# the fake systemctl/systemd-run on the launcher's PATH answer instead.
+
+SIX = [f"{c * 8}-{c * 4}-4{c * 3}-8{c * 3}-{c * 12}" for c in "abcdef"]
+NOBUS = {"XDG_RUNTIME_DIR": "/nonexistent"}
+
+
+def _flag_of(pid: int) -> str:
+    """The `@agents_up_building` value of a live builder: `<pid>:<start time>` (field 22 of /proc/<pid>/stat)."""
+    stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+    return f"{pid}:{stat.rsplit(') ', 1)[1].split()[19]}"
+
+
+class _Scratch:
+    """A scratch tmux server behind a wrapper on the launcher's PATH. `fail_splits` are the 1-based ordinals of the
+    `split-window` calls the wrapper refuses (a real server cannot be made to run out of room on demand)."""
+
+    def __init__(
+        self,
+        tmp_path: Path,
+        request: pytest.FixtureRequest,
+        builders: int,
+        fail_splits: tuple[int, ...] = (),
+        steal_focus: bool = False,
+        garble_ids: bool = False,
+    ) -> None:
+        self.real = shutil.which("tmux") or ""
+        assert self.real, "tmux is the launcher's own dependency"
+        self.server = f"t03-{os.getpid()}-{abs(hash(str(tmp_path))) % 10**8}"
+        self.repo = _repo(tmp_path, {SIX[i]: f"dev{i + 1}" for i in range(builders)})
+        self.S = self.repo.name
+        self.home = _home(tmp_path, transcripts=tuple((self.repo, SIX[i]) for i in range(builders)))
+        wrapper = self.home / ".local" / "bin" / "tmux"
+        real = f"{self.real} -L {self.server}"
+        script = (
+            "#!/bin/sh\n"
+            # a switch-client needs a client a scratch server does not have: log the target, never run it
+            'if [ "$1" = switch-client ]; then echo "$*" >> "$HOME/switch.log"; exit 0; fi\n'
+            # lose-race: the FIRST has-session says "no grid" (a launch that decided to build, then lost the race)
+            'if [ "$1" = has-session ] && [ -f "$HOME/lose-race" ] && [ ! -f "$HOME/lost-once" ]; then\n'
+            '  : > "$HOME/lost-once"; exit 1\n'
+            "fi\n"
+            # concurrent: on the first has-session of <name>+2 a second --window run creates it, grouped with <name>
+            'if [ "$1" = has-session ] && [ -f "$HOME/concurrent" ] && [ ! -f "$HOME/concurrent-done" ]; then\n'
+            '  b=$(cat "$HOME/concurrent")\n'
+            '  case "$*" in *"=$b+2") : > "$HOME/concurrent-done"\n'
+            f'    {real} new-session -d -t "=$b" -s "$b+2"\n'
+            f'    {real} display-message -p -t "=$b+2:" "#{{session_id}}" > "$HOME/concurrent-id" ;;\n'
+            "  esac\n"
+            "fi\n"
+            'if [ "$1" = split-window ]; then\n'
+            '  n=$(cat "$HOME/split-count" 2>/dev/null || echo 0); n=$((n+1)); echo $n > "$HOME/split-count"\n'
+            f"  for f in {' '.join(map(str, fail_splits))}; do [ \"$n\" = \"$f\" ] && exit 1; done\n"
+            "fi\n"
+        )
+        if steal_focus:  # every new-window selects itself in the base session, as a session left on the last window would be
+            script += (
+                'if [ "$1" = new-window ]; then\n'
+                f'  out=$({real} "$@") || exit 1\n'
+                '  echo "$out"\n'
+                f'  {real} select-window -t "${{out%% *}}" >/dev/null\n'
+                "  exit 0\n"
+                "fi\n"
+            )
+        if garble_ids:  # tmux creates the session but the launcher is handed no ids: the build dies after new-session
+            script += (
+                'if [ "$1" = new-session ]; then\n'
+                f'  {real} "$@" >/dev/null || exit 1\n'
+                '  echo "garbage"\n'
+                "  exit 0\n"
+                "fi\n"
+            )
+        wrapper.write_text(script + f'exec {real} "$@"\n', encoding="utf-8")
+        wrapper.chmod(0o755)
+        claude = self.home / ".local" / "bin" / "claude"
+        claude.write_text("#!/bin/sh\nsleep 120\n", encoding="utf-8")
+        claude.chmod(0o755)
+        request.addfinalizer(self.close)
+
+    def close(self) -> None:
+        killed = self.tmux("kill-server")
+        # kill-server leaves the socket file behind; ours alone (named after this test's server) is removed, and only
+        # once the server is really gone (a live server with no socket could never be reached again)
+        sock = Path(os.environ.get("TMUX_TMPDIR", "/tmp")) / f"tmux-{os.getuid()}" / self.server
+        if killed.returncode == 0 or self.tmux("list-sessions").returncode != 0:  # never while a server still answers
+            sock.unlink(missing_ok=True)
+
+    def tmux(self, *a: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run([self.real, "-L", self.server, *a], capture_output=True, text=True, timeout=20)
+
+    def up(self, *args: str, timeout: int = 30, **env: str) -> subprocess.CompletedProcess[str]:
+        return _run(*args, str(self.repo), home=self.home, timeout=timeout, **{**NOBUS, **env})
+
+    def lines(self, *a: str) -> list[str]:
+        return self.tmux(*a).stdout.splitlines()
+
+    def windows(self) -> list[str]:
+        return self.lines("list-windows", "-t", f"={self.S}", "-F", "#{window_name} #{window_panes}")
+
+    def sessions(self) -> list[str]:
+        return sorted(self.lines("list-sessions", "-F", "#{session_name}"))
+
+    def one(self, session: str, fmt: str) -> str:
+        return self.tmux("display-message", "-p", "-t", f"={session}:", fmt).stdout.strip()
+
+    def tags(self) -> list[str]:
+        return sorted(self.lines("list-panes", "-s", "-t", f"={self.S}", "-F", "#{window_name} #{@agent}"))
+
+
+def test_six_builders_fill_agents_with_four_and_agents_2_with_two_in_a_grouped_session(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    sc = _Scratch(tmp_path, request, 6)
+    out = sc.up()
+    assert out.returncode == 0, out.stderr
+    assert sc.windows() == ["agents 4", "agents-2 2"], sc.windows()
+    assert sc.sessions() == [sc.S, f"{sc.S}+2"], sc.sessions()
+    group = sc.one(sc.S, "#{session_group}")
+    assert group and sc.one(f"{sc.S}+2", "#{session_group}") == group
+    assert sc.one(f"{sc.S}+2", "#{window_name}") == "agents-2"  # the overflow session opens on its own window
+    assert sc.one(sc.S, "#{window_name}") == "agents"  # and tab 1's current window is `agents`
+    assert sc.tags() == sorted(
+        [f"agents dev{i}" for i in (1, 2, 3, 4)] + [f"agents-2 dev{i}" for i in (5, 6)]
+    ), sc.tags()
+    assert sc.one(sc.S, "#{@agents_up_building}") == "", "the building flag is cleared once the grid is built"
+    assert sc.one(sc.S, "#{@agents_up_root}") == str(sc.repo)
+
+
+def test_four_builders_or_fewer_make_one_window_and_no_overflow_session(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    for n in (1, 4):
+        sc = _Scratch(tmp_path / f"n{n}", request, n)
+        out = sc.up()
+        assert out.returncode == 0, (n, out.stderr)
+        assert sc.windows() == [f"agents {n}"], (n, sc.windows())
+        assert sc.sessions() == [sc.S], (n, sc.sessions())
+
+
+def test_a_failed_split_is_said_and_the_next_builder_takes_the_slot(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    sc = _Scratch(tmp_path, request, 6, fail_splits=(1,))  # dev2's split-window
+    out = sc.up()
+    assert out.returncode == 0, out.stderr
+    assert "no room for dev2's pane — open it by hand: " in out.stderr and "claude -n dev2" in out.stderr, out.stderr
+    assert sc.windows() == ["agents 4", "agents-2 1"], sc.windows()
+    assert sc.tags() == sorted(
+        [f"agents dev{i}" for i in (1, 3, 4, 5)] + ["agents-2 dev6"]
+    ), sc.tags()
+    assert sc.sessions() == [sc.S, f"{sc.S}+2"], sc.sessions()
+
+
+def test_a_relaunch_kills_stale_overflow_sessions_and_never_another_repos_base(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    sc = _Scratch(tmp_path, request, 6)
+    for args in (
+        ("new-session", "-d", "-s", sc.S, "sleep 300"),
+        ("new-session", "-d", "-t", f"={sc.S}", "-s", f"{sc.S}+2"),
+        ("new-session", "-d", "-t", f"={sc.S}", "-s", f"{sc.S}+3"),
+        ("new-session", "-d", "-s", f"{sc.S}-2", "sleep 300"),  # another repo's base session
+    ):
+        assert sc.tmux(*args).returncode == 0, args
+    old_plus2 = sc.tmux("display-message", "-p", "-t", f"={sc.S}+2:", "#{session_id}").stdout.strip()
+    other = sc.tmux("display-message", "-p", "-t", f"={sc.S}-2:", "#{session_id}").stdout.strip()
+    assert sc.tmux("kill-session", "-t", f"={sc.S}").returncode == 0  # the old base dies; its members survive
+    out = sc.up()
+    assert out.returncode == 0, out.stderr
+    assert sc.sessions() == sorted([sc.S, f"{sc.S}+2", f"{sc.S}-2"]), sc.sessions()  # +3 is gone
+    new_plus2 = sc.tmux("display-message", "-p", "-t", f"={sc.S}+2:", "#{session_id}").stdout.strip()
+    assert new_plus2 and new_plus2 != old_plus2  # re-created in the new group, not the old one reused
+    assert sc.one(f"{sc.S}+2", "#{window_name}") == "agents-2"
+    assert sc.tmux("display-message", "-p", "-t", f"={sc.S}-2:", "#{session_id}").stdout.strip() == other
+
+
+def test_a_window_name_is_matched_exactly_never_loosely(tmp_path: Path, request: pytest.FixtureRequest) -> None:
+    """B12: with only `agents-22` in the grid, `--window 2` finds no `agents-2` (tmux's own name target would pick
+    `agents-22` by prefix) and so creates no `<S>+2`."""
+    sc = _Scratch(tmp_path, request, 2)
+    assert sc.tmux("new-session", "-d", "-s", sc.S, "-n", "agents-22", "sleep 300").returncode == 0
+    assert sc.tmux("set-option", "-t", f"={sc.S}:", "@agents_up_root", str(sc.repo)).returncode == 0
+    # the premise: tmux alone, asked for `agents-2`, answers with the OTHER window
+    loose = sc.tmux("display-message", "-p", "-t", f"={sc.S}:agents-2", "#{window_name}")
+    assert loose.stdout.strip() == "agents-22", loose
+    out = sc.up("--window", "2")
+    assert out.returncode == 0 and "has no window agents-2 now" in out.stderr, out.stderr
+    assert sc.sessions() == [sc.S], sc.sessions()
+
+
+def test_window_n_attaches_the_overflow_session_at_once_whatever_the_building_flag_says(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    sc = _Scratch(tmp_path, request, 6)
+    assert sc.up().returncode == 0
+    dead = subprocess.Popen(["true"])
+    dead.wait()
+    # F4: a dead PID, `0` (`kill -0 0` succeeds), a live PID with the wrong start time (a recycled PID) and a bare PID all
+    # read "not building"; F15: the attach comes at once, never after the (large) wait budget
+    for label, flag in (
+        ("no flag", None),
+        ("dead pid", f"{dead.pid}:1"),
+        ("zero", "0"),
+        ("zero pair", "0:1"),
+        ("recycled pid", f"{os.getpid()}:1"),
+        ("bare pid", str(os.getpid())),
+    ):
+        sc.tmux("kill-session", "-t", f"={sc.S}+2")
+        if flag is not None:
+            assert sc.tmux("set-option", "-t", f"={sc.S}:", "@agents_up_building", flag).returncode == 0
+        began = time.monotonic()
+        # the run's own timeout (60) sits well above the budget (30): a run that waits exits 2 and fails HERE, not by a timeout
+        out = sc.up("--window", "2", timeout=60, FABRIK_AGENTS_WINDOW_WAIT_S="30")
+        assert out.returncode == 0, (label, out.stderr)
+        assert time.monotonic() - began < 10, label
+        assert "not ready" not in out.stderr, (label, out.stderr)
+        assert f"tmux attach -t ={sc.S}+2" in out.stderr, (label, out.stderr)  # non-TTY: left detached, said so
+        group = sc.one(sc.S, "#{session_group}")
+        assert group and sc.one(f"{sc.S}+2", "#{session_group}") == group, label
+        assert sc.one(f"{sc.S}+2", "#{window_name}") == "agents-2", label
+    # a grid another folder's launcher owns is never attached
+    assert sc.tmux("set-option", "-t", f"={sc.S}:", "@agents_up_root", "/opt/elsewhere/x").returncode == 0
+    out = sc.up("--window", "2")
+    assert out.returncode == 2 and "belongs to /opt/elsewhere/x" in out.stderr, out.stderr
+
+
+def test_window_n_without_that_window_shows_the_current_one_and_creates_nothing(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    sc = _Scratch(tmp_path, request, 6)
+    assert sc.up().returncode == 0
+    out = sc.up("--window", "3")
+    assert out.returncode == 0, out.stderr
+    assert "has no window agents-3 now — showing its current window" in out.stderr, out.stderr
+    assert f"tmux attach -t ={sc.S})" in out.stderr, out.stderr
+    assert sc.sessions() == [sc.S, f"{sc.S}+2"], sc.sessions()  # no `<S>+3`
+
+
+def test_window_n_waits_for_a_live_builder_then_gives_up_and_rejects_n_below_2(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    sc = _Scratch(tmp_path, request, 2)
+    absent = sc.up("--window", "2", FABRIK_AGENTS_WINDOW_WAIT_S="2")
+    assert absent.returncode == 2 and f"the {sc.S} grid was not ready within 2 s" in absent.stderr, absent.stderr
+    assert sc.tmux("new-session", "-d", "-s", sc.S, "sleep 300").returncode == 0
+    assert sc.tmux("set-option", "-t", f"={sc.S}:", "@agents_up_building", _flag_of(os.getpid())).returncode == 0
+    building = sc.up("--window", "2", FABRIK_AGENTS_WINDOW_WAIT_S="2")
+    assert building.returncode == 2 and "was not ready within 2 s" in building.stderr, building.stderr
+    for bad in ("1", "0", "x", ""):
+        out = sc.up("--window", bad)
+        assert out.returncode == 2 and "usage" in out.stderr, (bad, out.stderr)
+    assert _run("--window", home=sc.home, **NOBUS).returncode == 2
+    mixed = sc.up("--window", "2", "--print")
+    assert mixed.returncode == 2 and "its own mode" in mixed.stderr, mixed.stderr
+
+
+def test_the_building_flag_is_set_with_the_session_and_cleared_after_the_last_pane(tmp_path: Path) -> None:
+    """Fake tmux: the flag rides the SAME `new-session` invocation (chained with `;`), before the root is recorded, and is
+    unset before the attach."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    out = _run(str(repo), home=home, tty=True, **NOBUS)
+    assert out.returncode == 0, out.stderr
+    log = _log(home)
+    text = (home / "tmux.log").read_text(encoding="utf-8")  # a pane command spans lines: search the whole text
+    chained = text.index(" ; set-option -t =fabrik-lib: @agents_up_building ")
+    assert text.index("new-session -d -s fabrik-lib") < chained < text.index("@agents_up_root"), text
+    unset = log.index("set-option -t =fabrik-lib: -u @agents_up_building")
+    assert log.index(f"set-option -t =fabrik-lib: @agents_up_root {repo}") < unset < len(log) - 1, log
+    assert log[-1] == "attach -t =fabrik-lib", log
+
+
+# --- T03 review pass 1 ----------------------------------------------------------------------------------------------
+
+
+def test_a_launch_that_loses_the_race_kills_nothing_of_the_winners(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    """F1: the loser decided to build (its has-session said no), then its new-session failed on the winner's session. Its
+    stale-overflow cleanup must not have run: the winner's `<S>+2` is the same session afterwards."""
+    sc = _Scratch(tmp_path, request, 6)
+    assert sc.up().returncode == 0
+    winners = sc.one(f"{sc.S}+2", "#{session_id}")
+    (sc.home / "lose-race").write_text("", encoding="utf-8")
+    out = sc.up()
+    assert out.returncode == 0, out.stderr
+    assert (sc.home / "lost-once").exists(), "the loser must have taken the build path"
+    assert sc.sessions() == [sc.S, f"{sc.S}+2"], sc.sessions()
+    assert sc.one(f"{sc.S}+2", "#{session_id}") == winners
+    assert sc.one(sc.S, "#{@agents_up_building}") == ""  # and the loser cleared nothing it did not set, set nothing
+
+
+def test_a_session_still_grouped_under_the_base_name_is_said_and_no_overflow_is_made(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    """F2: D-1132's hand-made `<S>-2`, grouped with a killed `<S>`, keeps the group name `<S>` alive, and a new
+    `new-session -t =<S>` would JOIN it. It is never killed (it may be another repo's), the launch says so naming it, and
+    no overflow session is made; a later `--window 2` refuses rather than attach a session showing the old windows."""
+    sc = _Scratch(tmp_path, request, 6)
+    for args in (
+        ("new-session", "-d", "-s", sc.S, "-n", "oldwin", "sleep 300"),
+        ("new-session", "-d", "-t", f"={sc.S}", "-s", f"{sc.S}-2"),
+        ("kill-session", "-t", f"={sc.S}"),
+    ):
+        assert sc.tmux(*args).returncode == 0, args
+    stale = sc.one(f"{sc.S}-2", "#{session_id}")
+    out = sc.up()
+    assert out.returncode == 0, out.stderr
+    assert f"the tmux session {sc.S}-2 is still grouped under the name {sc.S}" in out.stderr, out.stderr
+    assert f"tmux kill-session -t ={sc.S}-2" in out.stderr, out.stderr
+    assert sc.sessions() == sorted([sc.S, f"{sc.S}-2"]), sc.sessions()  # no `<S>+2`, and `<S>-2` untouched
+    assert sc.one(f"{sc.S}-2", "#{session_id}") == stale
+    assert sc.windows() == ["agents 4", "agents-2 2"], sc.windows()
+    # G1: `--window 2` must not join the stale group (it would drag the base into it and lose the grid's windows)
+    again = sc.up("--window", "2")
+    assert again.returncode == 2 and f"free the group with: tmux kill-session -t ={sc.S}-2" in again.stderr, again.stderr
+    assert sc.windows() == ["agents 4", "agents-2 2"], sc.windows()
+    assert sc.one(sc.S, "#{session_group}") == ""
+    assert sc.sessions() == sorted([sc.S, f"{sc.S}-2"]), sc.sessions()  # no `<S>+2`
+    assert sc.tmux("new-window", "-d", "-t", f"={sc.S}-2:").returncode == 0  # a change on the stale side
+    assert sc.windows() == ["agents 4", "agents-2 2"], sc.windows()
+
+
+def test_a_stale_member_whose_name_holds_the_separator_is_still_found(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    """G2: tmux allows `|` and `~` in a session name; the member's name is everything before the LAST `|~|`."""
+    sc = _Scratch(tmp_path, request, 6)
+    odd = "x|~|y"
+    for args in (
+        ("new-session", "-d", "-s", sc.S, "-n", "oldwin", "sleep 300"),
+        ("new-session", "-d", "-t", f"={sc.S}", "-s", odd),
+        ("kill-session", "-t", f"={sc.S}"),
+    ):
+        assert sc.tmux(*args).returncode == 0, args
+    out = sc.up()
+    assert out.returncode == 0, out.stderr
+    assert f"the tmux session {odd} is still grouped under the name {sc.S}" in out.stderr, out.stderr
+    assert sc.sessions() == sorted([sc.S, odd]), sc.sessions()
+
+
+def test_a_concurrent_window_run_keeps_the_session_the_other_run_just_created(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    """F3: between this run's first look and its `<S>+2` check another `--window 2` run created `<S>+2` and grouped `<S>`.
+    The group is read AFTER the session's, so the fresh session is kept (not killed under the other run)."""
+    sc = _Scratch(tmp_path, request, 2)
+    for args in (
+        ("new-session", "-d", "-s", sc.S, "-n", "agents", "sleep 300"),
+        ("new-window", "-d", "-t", f"={sc.S}:", "-n", "agents-2", "sleep 300"),
+        ("set-option", "-t", f"={sc.S}:", "@agents_up_root", str(sc.repo)),
+    ):
+        assert sc.tmux(*args).returncode == 0, args
+    (sc.home / "concurrent").write_text(sc.S, encoding="utf-8")
+    out = sc.up("--window", "2")
+    assert out.returncode == 0, out.stderr
+    assert (sc.home / "concurrent-done").exists()
+    theirs = (sc.home / "concurrent-id").read_text(encoding="utf-8").strip()
+    assert sc.one(f"{sc.S}+2", "#{session_id}") == theirs
+    assert sc.one(f"{sc.S}+2", "#{window_name}") == "agents-2"
+
+
+def test_an_existing_overflow_session_is_reused_only_when_grouped_with_the_base(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    """F10: invariant 4's reuse rule. A `<S>+2` grouped with `<S>` is kept; an ungrouped one, and one grouped with a
+    different base, are replaced and end in `<S>`'s group."""
+    sc = _Scratch(tmp_path, request, 6)
+    assert sc.up().returncode == 0
+    group = sc.one(sc.S, "#{session_group}")
+    kept = sc.one(f"{sc.S}+2", "#{session_id}")
+    assert sc.up("--window", "2").returncode == 0
+    assert sc.one(f"{sc.S}+2", "#{session_id}") == kept
+    for label, make in (
+        ("ungrouped", ("new-session", "-d", "-s", f"{sc.S}+2", "sleep 300")),
+        ("other group", None),
+    ):
+        assert sc.tmux("kill-session", "-t", f"={sc.S}+2").returncode == 0
+        if make:
+            assert sc.tmux(*make).returncode == 0, label
+        else:
+            assert sc.tmux("new-session", "-d", "-s", "elsewhere", "sleep 300").returncode == 0
+            assert sc.tmux("new-session", "-d", "-t", "=elsewhere", "-s", f"{sc.S}+2").returncode == 0
+        before = sc.one(f"{sc.S}+2", "#{session_id}")
+        assert sc.up("--window", "2").returncode == 0, label
+        assert sc.one(f"{sc.S}+2", "#{session_id}") != before, label
+        assert sc.one(f"{sc.S}+2", "#{session_group}") == group, label
+        assert sc.one(f"{sc.S}+2", "#{window_name}") == "agents-2", label
+
+
+def test_a_window_renamed_with_a_suffix_is_not_the_window(tmp_path: Path, request: pytest.FixtureRequest) -> None:
+    """F5: `agents-2 old` is not `agents-2` (a whitespace split would have taken it)."""
+    sc = _Scratch(tmp_path, request, 2)
+    assert sc.tmux("new-session", "-d", "-s", sc.S, "-n", "agents-2 old", "sleep 300").returncode == 0
+    assert sc.tmux("set-option", "-t", f"={sc.S}:", "@agents_up_root", str(sc.repo)).returncode == 0
+    out = sc.up("--window", "2")
+    assert out.returncode == 0 and "has no window agents-2 now" in out.stderr, out.stderr
+    assert sc.sessions() == [sc.S], sc.sessions()
+
+
+def test_a_server_whose_only_window_is_agents_2_has_no_window_agents(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    """F14 / row 5: tmux itself answers a lookup of `agents` with `agents-2`; the script's own find_window (extracted from
+    the script and run against the scratch server) finds none for `agents` and the id for `agents-2`."""
+    sc = _Scratch(tmp_path, request, 2)
+    assert sc.tmux("new-session", "-d", "-s", sc.S, "-n", "agents-2", "sleep 300").returncode == 0
+    loose = sc.tmux("display-message", "-p", "-t", f"={sc.S}:agents", "#{window_name}")
+    assert loose.stdout.strip() == "agents-2", loose
+    func = re.search(r"^find_window\(\) \{.*?^\}", UP.read_text(encoding="utf-8"), re.S | re.M)
+    assert func, "find_window is the script's window lookup"
+
+    def lookup(name: str) -> str:
+        env = {"PATH": f"{sc.home}/.local/bin:/usr/bin:/bin", "HOME": str(sc.home)}
+        done = subprocess.run(
+            ["bash", "-c", f'S="$1"; {func.group(0)}\nfind_window "$2"', "x", sc.S, name],
+            capture_output=True,
+            text=True,
+            timeout=20,
+            env=env,
+        )
+        return done.stdout.strip()
+
+    assert lookup("agents") == ""
+    assert re.fullmatch(r"@\d+", lookup("agents-2")), lookup("agents-2")
+
+
+def test_the_final_select_leaves_the_base_session_on_agents(tmp_path: Path, request: pytest.FixtureRequest) -> None:
+    """F8: every window this launch creates steals the base session's focus (as a tmux left on the last window would be);
+    the launch must hand tab 1 back to `agents`."""
+    sc = _Scratch(tmp_path, request, 6, steal_focus=True)
+    out = sc.up()
+    assert out.returncode == 0, out.stderr
+    assert sc.windows() == ["agents 4", "agents-2 2"], sc.windows()
+    assert sc.one(sc.S, "#{window_name}") == "agents"
+    assert sc.one(f"{sc.S}+2", "#{window_name}") == "agents-2"
+
+
+def test_a_build_that_dies_after_the_session_clears_the_building_flag(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    """F9: tmux made the session but handed back no ids, so the launch exits 1 mid-build; the EXIT trap clears the flag."""
+    sc = _Scratch(tmp_path, request, 2, garble_ids=True)
+    out = sc.up()
+    assert out.returncode == 1 and "tmux gave no window and pane id" in out.stderr, out.stderr
+    assert sc.sessions() == [sc.S], sc.sessions()
+    assert sc.one(sc.S, "#{@agents_up_building}") == ""
+
+
+def test_the_attach_tail_follows_the_session_window_n_chose(tmp_path: Path, request: pytest.FixtureRequest) -> None:
+    """F11: from inside tmux, `--window 2` switches the client to `=<S>+2`, not `=<S>`; `--window 02` is 2."""
+    sc = _Scratch(tmp_path, request, 6)
+    assert sc.up().returncode == 0
+    out = sc.up("--window", "02", TMUX="/tmp/none,1,0")
+    assert out.returncode == 0, out.stderr
+    assert (sc.home / "switch.log").read_text(encoding="utf-8").splitlines() == [f"switch-client -t ={sc.S}+2"]
+
+
+def test_window_arguments_are_checked_and_never_touch_spawn_or_slice_checks(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    """F6, F12: only an integer 2 or more, once; its own mode. And `--window` builds no pane, so a malformed spawn
+    variable (or a refused slice) stops nothing."""
+    sc = _Scratch(tmp_path, request, 6)
+    for bad in (["2x"], ["-3"], [], ["2", "--window", "3"], ["2", "--detach"], ["2", "--pane-cmd"], ["--detach"]):
+        out = sc.up("--window", *bad)
+        assert out.returncode == 2, (bad, out.stdout, out.stderr)
+        assert sc.tmux("list-sessions").returncode != 0, bad  # nothing was started
+    assert sc.up().returncode == 0
+    out = sc.up("--window", "2", FABRIK_SPAWN_NAME="dev1", FABRIK_SPAWN_ITEM="nope")
+    assert out.returncode == 0 and f"tmux attach -t ={sc.S}+2" in out.stderr, out.stderr
+
+
+def test_the_building_flag_clears_after_the_last_pane_of_every_window(tmp_path: Path) -> None:
+    """F13: with six builders the unset comes after the last `split-window` and `new-window`, never after the root."""
+    repo = _repo(tmp_path, {SIX[i]: f"dev{i + 1}" for i in range(6)})
+    home = _home(tmp_path, transcripts=tuple((repo, s) for s in SIX))
+    tmux = home / ".local" / "bin" / "tmux"
+    tmux.write_text(FAKE_TMUX, encoding="utf-8")
+    tmux.chmod(0o755)
+    out = _run(str(repo), home=home, tty=True, **NOBUS)
+    assert out.returncode == 0, out.stderr
+    text = (home / "tmux.log").read_text(encoding="utf-8")
+    last_pane = max(text.rfind("\nsplit-window "), text.rfind("\nnew-window "))
+    assert last_pane > 0 and text.count("\nnew-window ") == 1 and text.count("\nsplit-window ") == 4, text.count("\n")
+    first_unset = text.find("set-option -t =fabrik-lib: -u @agents_up_building")  # the FIRST unset, not the last
+    assert first_unset > last_pane
+
+
+def test_a_live_grids_viewer_session_is_not_stale_and_does_not_block_window_n(
+    tmp_path: Path, request: pytest.FixtureRequest
+) -> None:
+    """H1: a session grouped with a healthy grid (an operator's viewer) is live; `--window 2` builds `<S>+2` beside it."""
+    sc = _Scratch(tmp_path, request, 6)
+    assert sc.up().returncode == 0
+    assert sc.tmux("new-session", "-d", "-t", f"={sc.S}", "-s", "viewer").returncode == 0
+    viewer = sc.one("viewer", "#{session_id}")
+    assert sc.tmux("kill-session", "-t", f"={sc.S}+2").returncode == 0
+    out = sc.up("--window", "2")
+    assert sc.one("viewer", "#{session_id}") == viewer
+    group = sc.one(sc.S, "#{session_group}")
+    assert group and sc.one(f"{sc.S}+2", "#{session_group}") == group, out.stderr
+    assert sc.one(f"{sc.S}+2", "#{window_name}") == "agents-2"
+    assert out.returncode == 0, out.stderr
