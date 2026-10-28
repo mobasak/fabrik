@@ -151,8 +151,8 @@ The re-own commits after every object (the operator's 2026-10-28 run of the scri
 `max_locks_per_transaction` re-owning GlitchTip's log partitions in one transaction), waits at most 5 s for a busy
 table, and skips what `glitchtip` already owns, so a run stopped by a lock timeout is finished by running it again
 (`tests/test_vps1_pg_scoped_logins.py` runs it on a local PostgreSQL 16 cluster with a 100-slot lock table, over
-300 partitions, a composite type, an enum, a domain, a range and a function). Never wrap it in BEGIN: a COMMIT
-inside the DO block then fails.
+300 partitions, a composite type, an enum, a domain, a range and a function). Never open a transaction after
+`\c glitchtip` (a BEGIN there, or `-1` in a session already connected to it): a COMMIT inside the DO block then fails.
 
 Afterwards every public object is owned by `glitchtip` (a range's multirange with it), and `ALTER TABLE` on the
 partitioned parent succeeds as `glitchtip`. Identity and serial sequences follow their table. Extension members
