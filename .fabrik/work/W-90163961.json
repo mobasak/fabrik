@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T22:01:06.114084Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-90163961",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: a stale metric cell for at most a week, nobody blocked; one function",
+  "status": "open",
+  "title": "kaizen_collect_v2.py _merge_cells (:2058) treats the collector's own first Filed-cell write as hand-written, so that cell freezes for the rest of the ISO week (week 43 kept '98 filed / 248 none' from 10-22 to 10-25). Tag collector-written values; only untagged text wins (kaizen finding C1, MR 01M628EHH3)"
+}
