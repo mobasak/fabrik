@@ -947,7 +947,7 @@ def _handoff_write(name: str) -> int:
     # bytes, decoded with replacement: a C locale or a stray byte must refuse nothing and crash nothing
     data = sys.stdin.buffer.read()
     text = data.decode("utf-8", errors="replace")
-    if "�" in text and "�".encode("utf-8") not in data:
+    if "�" in text and "�".encode() not in data:
         print("handoff: stdin was not valid UTF-8 — the bad bytes are stored as U+FFFD", file=sys.stderr)
     if not text.strip():
         print("handoff: empty text — nothing written", file=sys.stderr)
