@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra-2",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Quota lane hold traps a coordinator rotated by /clear: the rebind exception refuses the new session id"
 }
