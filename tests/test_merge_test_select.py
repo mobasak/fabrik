@@ -1202,3 +1202,106 @@ def test_the_duration_record_ignores_the_records_override(tmp_path, monkeypatch,
     assert rc == 0, out
     assert _durations_record(repo).is_file(), out
     assert not list(private.glob("*durations*")), list(private.iterdir())
+
+
+# --- W-231f4695 / W-3ba57940: a heavy file runs as node groups across the shards ---------------
+# Measured 2026-10-28: tests/test_assemble_dispatch_step.py (1,462 s, a tree grader) set the wall of
+# 20 of master's last 20 merge legs, because balance() places files whole.
+
+
+def _heavy_repo(tmp_path: Path, heavy: str, weights: dict[str, float]) -> Path:
+    repo = _repo(
+        tmp_path,
+        {
+            "library_x.py": "VALUE = 1\n",
+            "tests/test_heavy.py": heavy,
+            "tests/test_light.py": "import library_x\n\ndef test_light():\n    pass\n",
+        },
+    )
+    rec = _durations_record(repo)
+    rec.parent.mkdir(parents=True)
+    rec.write_text(json.dumps(weights), encoding="utf-8")
+    return repo
+
+
+def _pid_heavy(log: Path, n: int = 4, body: str = "pass") -> str:
+    """``n`` tests that each append their process id to ``log``, then run ``body``."""
+    tests = "".join(
+        f"\ndef test_{c}():\n    open({str(log)!r}, 'a').write(f'{{os.getpid()}}\\n')\n    {body}\n"
+        for c in "abcdefgh"[:n]
+    )
+    return "import os, library_x\n" + tests
+
+
+_HEAVY = {"tests/test_heavy.py": 100, "tests/test_light.py": 0.1}
+
+
+def test_a_heavy_file_runs_as_node_groups_across_shards(tmp_path, monkeypatch, capsys):
+    log = tmp_path / "pids.log"
+    repo = _heavy_repo(tmp_path, _pid_heavy(log), _HEAVY)
+    _merge(repo, {"library_x.py": "VALUE = 1  # touched\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out
+    assert "merge-tests: split tests/test_heavy.py into 2 node group(s)" in out, out
+    pids = log.read_text().split()
+    assert len(pids) == 4 and len(set(pids)) == 2, pids  # every test ran once, in two processes
+
+
+def test_a_light_file_is_never_split():
+    def collect(f):
+        raise AssertionError(f"collected {f}")  # a file within its share is never collected
+
+    files = ["tests/test_a.py", "tests/test_b.py"]
+    units, _weights, split = mts._split_heavy(files, dict.fromkeys(files, 1.0), 2, collect)
+    assert units == files and split == {}, (units, split)
+
+
+@pytest.mark.parametrize(
+    "ids",
+    [
+        None,
+        [],
+        ["tests/test_heavy.py::test_a"],
+        ["tests/test_heavy.py::test_a[x y]", "tests/test_heavy.py::test_b"],
+    ],
+)
+def test_a_file_that_will_not_collect_cleanly_stays_whole(ids):
+    units, _weights, split = mts._split_heavy(
+        ["tests/test_heavy.py", "tests/test_light.py"], dict(_HEAVY), 2, lambda f: ids
+    )
+    assert "tests/test_heavy.py" in units and split == {}, (units, split)
+
+
+def test_a_new_red_inside_a_split_file_is_refused(tmp_path, monkeypatch, capsys):
+    log = tmp_path / "pids.log"
+    heavy = _pid_heavy(log) + "\ndef test_value():\n    assert library_x.VALUE == 1\n"
+    repo = _heavy_repo(tmp_path, heavy, _HEAVY)
+    _merge(repo, {"library_x.py": "VALUE = 2\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 1, out
+    assert "split tests/test_heavy.py into 2 node group(s)" in out, out
+    assert "merge-tests: NEW red — tests/test_heavy.py::test_value (call)" in out, out
+    assert "red outside the selected files" not in out, out
+
+
+def test_a_pre_existing_red_inside_a_split_file_is_not_refused(tmp_path, monkeypatch, capsys):
+    log = tmp_path / "pids.log"
+    heavy = _pid_heavy(log) + "\ndef test_broken():\n    assert False, 'master is red here'\n"
+    repo = _heavy_repo(tmp_path, heavy, _HEAVY)
+    _merge(repo, {"library_x.py": "VALUE = 1  # touched\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out
+    assert "split tests/test_heavy.py into 2 node group(s)" in out, out
+    assert "pre-existing on the base — tests/test_heavy.py::test_broken (call)" in out, out
+
+
+def test_a_split_files_duration_is_the_sum_of_its_groups(tmp_path, monkeypatch, capsys):
+    log = tmp_path / "pids.log"
+    repo = _heavy_repo(tmp_path, _pid_heavy(log, body="__import__('time').sleep(0.2)"), _HEAVY)
+    _merge(repo, {"library_x.py": "VALUE = 1  # touched\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out
+    assert "split tests/test_heavy.py into 2 node group(s)" in out, out
+    rec = json.loads(_durations_record(repo).read_text(encoding="utf-8"))
+    # four 0.2 s tests in two groups: the first group alone would record ~0.4
+    assert rec["tests/test_heavy.py"] >= 0.75, rec
