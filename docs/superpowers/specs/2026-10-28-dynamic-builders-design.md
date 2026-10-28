@@ -29,7 +29,8 @@ count), D-1108 (tabbed attach view), D-1132 (four panes per tab). Requirements: 
 **The primary's loop, counted (the step budget = 3 operator steps, 0 operator answers):**
 1. Double-click "All Agents (tabbed).bat" → one window, one tab per live grid window, every builder visible.
 2. Watch. (A builder spawned or retired since the click: its pane appears/disappears in the open tab; a NEW tab
-   opens by itself in the same window when a spawn opens a new tmux window.)
+   opens by itself in the same window when a spawn opens a new tmux window — unproven until the live proof, § Open/blocking
+   unknowns; failing it, this step is a second click.)
 3. Close the window when done (agents keep running).
 Steps the coordinator owns, never the operator: spawn (1 verb), item hand-off (in the verb), answering a builder's
 question (SendMessage), retire (1 verb).
@@ -74,7 +75,7 @@ spawn and relaunch, the `.bat` is regenerated from live state, and the launch pa
 | Charter injection | `.claude/hooks/agent_role.py:1-18` | prints `docs/reference/agents/<name>.md` when its first line is `# Agent charter` |
 | Rotation verb | `scripts/sysadmin/agents_up.sh:72-75` | `rotate-session` dispatches to `rotate_session.py` before the grid arguments |
 | Rotation stand-down | `.claude/hooks/final_gate_stop.py:2607-2622` | new-work rungs stand down at a rotation boundary (W-0fae19b7) |
-| Transcript archive | `scripts/sysadmin/archive_transcripts.py:250-254` | globs every project folder, so a removed worktree's transcript is still archived |
+| Transcript archive | `scripts/sysadmin/archive_transcripts.py:101`, `scripts/sysadmin/archive_transcripts.py:250-254` | `MAIN_GLOBS` (`*/*.jsonl`) over every project folder, so a removed worktree's transcript is still archived |
 
 ## The delta
 
@@ -83,46 +84,74 @@ Invariants and touchpoints; the step sequence is the plan's.
 **D1 — Two verbs, one helper.** `agents_up.sh add <repo> <name> [--role <role>] [--item <W-id>]` and
 `agents_up.sh remove <repo> <name>` dispatch, like `rotate-session` (agents_up.sh:72-75), to a NEW Python helper
 `scripts/sysadmin/agents_spawn.py` — the 637-line bash script grows only the dispatch lines (judge panel condition).
-The pane command is built by the SAME code path the grid uses (`agents_up.sh --print` emits a `run <name> <command>`
-line, agents_up.sh:511-523), so a spawned pane and a relaunched pane can never differ: the helper calls
-`agents_up.sh --pane-cmd <repo> <name> <sid> --new` (a new read-only mode beside `--print`) and launches what it prints.
+The pane command is built by the SAME function the grid uses (`cmd_of`, agents_up.sh:455-505, whose output
+`--print` emits as a `run <name> <command>` line, agents_up.sh:511-523): the helper calls `agents_up.sh --pane-cmd
+<repo> <name> <sid> --new` (a new read-only mode beside `--print`) and launches what it prints, so the env allow-list,
+the scope, the caps and the suppression (D3) are one code path; a spawned pane differs from a relaunched one only in
+its session flag (`--session-id` vs `--resume`) and its prompt. `--pane-cmd` runs the repo's resolver, so a
+malformed registry row that refuses the grid (agents_up.sh:151-161) refuses `add` too, with the same message.
 
-**D2 — `add` is ordered and idempotent.** Validate the name (`[a-z0-9][a-z0-9-]{0,31}`, not a coordinator name, not
-the merge owner — the grid's rules, agents_up.sh:128-129, 202-210) → `git worktree add -b worktree-<name>
-<repo>/.claude/worktrees/<name> <main branch tip>` (the `-w` convention Claude Code itself uses, worktrees doc) →
-mint a lowercase UUID → write `{uuid: name}` to `<repo>/.fabrik/session-agents.json` (atomic replace) → place and
-launch the pane (D3) → assign the item (`work.py assign <W-id> --owner <name>` when `--item` is given) → regenerate
-the launchers (D5). Re-running `add` for a name whose worktree, row or pane already exists completes the missing
-steps and never creates a second of any; a step that fails leaves the earlier ones in place and says which step to
-re-run.
+**D2 — `add` is serialised, ordered and idempotent.** Every `add` and `remove` for one repo holds one exclusive
+lock (`flock` on `<repo>/.fabrik/agents.lock`), so two coordinators — or one twice — never interleave a registry
+write, a placement or a grouped-session name. Under the lock: validate the name (`[a-z0-9][a-z0-9-]{0,31}`, not a
+coordinator name, not the merge owner — the grid's rules, agents_up.sh:128-129, 202-210) → the worktree
+`<repo>/.claude/worktrees/<name>` on branch `worktree-<name>` from the main branch tip (the `-w` convention Claude
+Code itself uses, worktrees doc); a leftover `worktree-<name>` branch is re-created only when it is merged into main,
+and otherwise refuses, naming the branch (`git worktree add -b` refuses an existing branch — executed: `fatal: a
+branch named 'worktree-x' already exists`, rc 255) → mint a lowercase UUID → record it: in a repo that HAS a
+registry, the row `{uuid: name}` in `<repo>/.fabrik/session-agents.json` (atomic replace under the lock); in a repo
+with NONE, no file is created — the resolver reads only registry names once the file exists (agents_up.sh:199-200),
+so creating it would drop every bindings-only builder of the 10 such repos from the next relaunch; there the pane's
+own first-turn re-bind (D3) is the record → place and launch the pane (D3, D4) → assign the item (`work.py assign
+<W-id> --owner <name>` when `--item` is given) → regenerate the launchers (D5). Re-running `add` for a name whose
+worktree, row or pane already exists completes the missing steps and never creates a second of any — a live pane
+with no row is adopted by its `@agent` tag and the `--session-id`/`--resume` in its claude process's argv; a step
+that fails leaves the earlier ones in place and says which step to re-run.
 
 **D3 — The pane: new session, first prompt, no questions.** The pane runs `claude -n <name> --session-id <uuid>
 --settings '<suppression json>' "<first prompt>"` inside the existing scope and env allow-list. `--session-id` is
-documented ("Use a specific session ID for the conversation (must be a valid UUID)", cli-reference) and is
-create-only ("`--session-id` is only for creating _new_ sessions with a specified ID", issue #5524), so a minted
-UUID is new by construction. The suppression JSON: `{"skillOverrides":{"auto-mode-setup":"off"},
-"spinnerTipsEnabled":false,"feedbackSurveyRate":0}` (auto-mode-config, settings-reference; both keys present in the
-2.1.312 binary — `grep -ao` this session); the env gains `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1`. The first prompt,
+documented ("Use a specific session ID for the conversation (must be a valid UUID)", cli-reference); that it only
+CREATES is a user's reading, not the docs' ("I believe `--session-id` is only for creating _new_ sessions with a
+specified ID", issue #5524, beside the issue's "Session ID … is already in use" error), so the spec relies only on a
+freshly minted random UUID never having been used, and the first build step's live probe (§ Open/blocking unknowns)
+proves the launch. The suppression rides EVERY pane — spawned and relaunched — in `cmd_of`, so a relaunched builder
+never meets the dialog either: `--settings '{"skillOverrides":{"auto-mode-setup":"off"},"spinnerTipsEnabled":false}'`
+(auto-mode-config, settings; both keys present in the 2.1.312 binary — `grep -ao` this session) and the env
+`CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1` (env-vars). The auto-mode docs place `skillOverrides` in
+`~/.claude/settings.json`; `--settings` "can set any key your user settings file can set" (settings), so the
+session-scoped form is an inference the live probe confirms. The first prompt,
 as a positional argument ("`claude "query"` | Start interactive session with initial prompt", cli-reference) — never
 typed with `send-keys`, which the classifier refuses for coordinators (D-1123 note): arm the self-watch, re-bind with
 `whoami_agent.py --as <name> --force`, read the charter and `work.py next`, claim the item, and "every question goes to
-your coordinator by SendMessage — never to the operator". Relaunch keeps `--resume <uuid>` (agents_up.sh:494), which is
-unchanged. Trust: a worktree under a trusted repo root needs no trust entry (measured: six live hub builders run in
+your coordinator by SendMessage — never to the operator". Relaunch keeps `--resume <uuid>` (agents_up.sh:494) and
+its wake prompt, and gains the suppression above. Trust: a worktree under a trusted repo root needs no trust entry (measured: six live hub builders run in
 worktrees with none, `/opt/fabrik` is the trusted entry); a repo whose root is untrusted is refused by `add` with the
 one-line remedy, never left on a dialog.
 
 **D4 — Placement owns the four-pane rule (D-1132), at spawn AND at relaunch.** A repo's tmux session `<S>` holds
-windows of at most four panes; `add` puts the pane in the lowest window with fewer than four, else opens the next
-window and the grouped session `<S>-<n>` (`new-session -d -t <S> -s <S>-<n>`, its current window set to that window),
-then `select-layout even-horizontal` and `set -p @agent <name>`. The relaunch path (agents_up.sh:595-621) uses the
-same placement instead of window 0, so a relaunch can never fold six panes into one window again. `remove` kills the
+windows of at most four panes, each window NAMED uniquely — the first keeps `agents` (agents_up.sh:335), the n-th is
+`agents-<n>` — because a target by a name two windows share fails (executed on a scratch tmux 3.4 server: `can't find
+window: agents`, rc 1), and every grid command targets windows by name (agents_up.sh:615-623). `add` puts the pane in
+the lowest window with fewer than four, else opens the next window and the grouped session `<S>-<n>` (`new-session -d
+-t <S> -s <S>-<n>`, its current window set to that window), then `select-layout even-horizontal` and `set -p @agent
+<name>`. With no session `<S>` at all (no tmux server after a reboot, or a repo whose grid never started), `add`
+builds it the way a new grid is built — the slice ceiling re-asserted first (`slice_ceiling`, agents_up.sh:529-540;
+without it the slice has no MemoryHigh and D6's floor reads nothing) and `@agents_up_root` recorded
+(agents_up.sh:612-613) — its builder the first pane; that shared start is factored out of the grid path, never
+copied. The relaunch path (agents_up.sh:595-621) uses the
+same placement instead of window `agents` alone, so a relaunch can never fold six panes into one window again. `remove` kills the
 pane, re-lays the window, and kills an emptied non-zero window and its grouped session. Measured on a scratch tmux 3.4
 server this session: grouped sessions share windows, a window added in one appears in all, killing one member keeps
 the windows, `kill-pane` gives the space to the rest.
 
-**D5 — The tabbed launcher is generated, and live.** `agents_bat.py --tabbed` writes "All Agents (tabbed).bat" from
-the LIVE grids of every accepted repo: one `new-tab` per (repo, window) — the first tab of a repo runs `agents_up.sh
-<repo>` (attach-or-launch, unchanged), each further tab `tmux attach -t =<S>-<n>`. The desktop folder is remembered
+**D5 — The tabbed launcher is generated, and live.** `agents_bat.py --tabbed` writes "All Agents (tabbed).bat" with
+one tab per (repo, window): every repo whose grid `agents_up.sh --print` accepts gets its first tab, `agents_up.sh
+<repo>` (attach-or-launch, unchanged — so a repo whose grid is down still gets a tab and its grid starts there), and
+each further window `n` its live grid has gets a tab running `agents_up.sh --window <n> <repo>`, which waits for the
+grid (tab 1 may still be building it after a reboot) and attaches the grouped session `<S>-<n>`, creating it when
+missing, instead of failing on a session that does not exist yet. The hand-written file carries no marker and the
+generator refuses it without `--replace` (agents_bat.py:227-244), so the first generation is run once with
+`--replace "All Agents (tabbed).bat"`; from then on the marker lets `add`/`remove` rewrite it. The desktop folder is remembered
 in `~/.config/fabrik/agents-desktop` (written by the first `--desktop` run, read by `add`/`remove`), so the verbs
 regenerate it with no argument. Windows Terminal cannot reconcile tabs ("no command removes or lists tabs" — the
 command-line-arguments page lists none), so the `.bat` is the source of truth at every click, and when `add` opens a
@@ -130,19 +159,31 @@ new window it also appends a tab to the open launcher window: the `.bat` names i
 `add` runs `wt.exe -w fabrik-agents new-tab … tmux attach -t =<S>-<n>` ("If no window exists with the given
 `window-id`, then a new window will be created" — so with no window open this opens one, which the operator wanted
 anyway). A retired builder's pane disappears from its tab by itself; an emptied tab shows the closed attach until the
-next click. The distro comes from `wslpath -w /` (`\\wsl.localhost\<distro>\`), shared with the Deck's resolver
-(mail 01M5JXEQQ5), never `$WSL_DISTRO_NAME`.
+next click. The distro default follows the Deck's resolver (`fabrik_deck.py::_default_distro`,
+scripts/sysadmin/fabrik_deck.py:892-901): a non-blank `$WSL_DISTRO_NAME`, else `wslpath -w /`
+(`\\wsl.localhost\<distro>\`), which needs no environment — so a run from tmux, systemd or code-server, where the
+variable is unset, still names this distro (mail 01M5JXEQQ5); one shared function, not two copies.
 
 **D6 — Sizing is the coordinator's rule, the box is the ceiling.** A coordinator spawns when ready items it would
-assign outnumber idle builders AND the quota band is GREEN (`QUOTA:` line, `claude_rotate.py --status`); it spawns
-nothing at AMBER or RED (the bands' own contract, `CLAUDE.md` § Pointers). `add` refuses (exit 2, said) when the
-`fabrik-agents.slice` has less than 2 GB headroom under its MemoryHigh (one Claude session is 1.3–3.6 GB,
-requirements 3.12) — the hard floor; the count itself is never fixed (D-1092). A builder whose item closed and
+assign outnumber idle builders AND the quota band is GREEN with no LANE (`QUOTA:` line, `claude_rotate.py --status`); it spawns
+nothing at AMBER, RED or the urgent-90 LANE, where a new builder would park at once (the bands' own contract,
+`CLAUDE.md` § Pointers). `add` refuses (exit 2, said) when the `fabrik-agents.slice` has less than 2 GB headroom
+under its MemoryHigh (one Claude session is 1.3–3.6 GB, requirements 3.12) — the hard floor; the count itself is
+never fixed (D-1092). Each refusal is one JSON line in `~/.claude/state/agents-spawn.jsonl` (a state record beside
+`rotations.jsonl`, never an app logfile), which the Lifecycle growth trigger reads. A builder whose item closed and
 whose queue is empty is retired at that boundary, not kept warm.
 
-**D7 — `remove` never loses work.** Refuse (exit 2, the reason named) unless: no run record `running` for the
-builder's session (`~/.claude/state/command-runs/<sid>.json`), the worktree is clean (`git status --porcelain`
-empty), and its branch is pushed (`git rev-list @{u}..HEAD` empty, or the branch has no commits beyond main). Then:
+**D7 — `remove` never loses work, and every doubt refuses.** Refuse (exit 2, the reason named) unless ALL hold:
+no run record `running` under ANY session id the name owns — the registry's AND every id the identity store binds to
+the name in this repo's scope (after a `/clear` and re-bind the live id is the binding's) — at
+`~/.claude/state/command-runs/<sid>.json`; the worktree is clean (`git status --porcelain` empty); it holds no
+IGNORED file outside the regenerable caches (`__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`) —
+`git worktree remove` deletes ignored files without asking and `--porcelain` never lists them (executed: a
+`.tmp/runs/x/f` under an ignored `.tmp/` was gone after a plain `git worktree remove`, rc 0), and a run's scratch
+and pins live in the checkout's ignored `.tmp/runs/`; HEAD is on the branch `worktree-<name>` (a detached HEAD
+refuses: its commits sit on no branch); and that branch is pushed (`git rev-list @{u}..HEAD` succeeds and prints
+nothing) or has no commits beyond main. A git command that FAILS reads as a refusal, never as "nothing there"
+(executed: `rev-list @{u}..HEAD` on a detached HEAD exits 128). Then:
 kill the pane (D4), `git worktree remove <path>` (never `--force` — git itself refuses an unclean tree, git-worktree
 doc), `git branch -d` only when merged, drop the registry row, regenerate the launchers. The charter and the
 transcript stay; the transcript reaches B2 through the nightly archive (archive_transcripts.py:250-254) and stays
@@ -151,12 +192,15 @@ searchable in session-recall (D-736, D-1182).
 **D8 — Charters by role, no commit per builder.** `agent_role.py` (fleet-synced) falls back from
 `docs/reference/agents/<name>.md` to `docs/reference/agents/<role>.md`, where `<role>` is the name with its last
 `-<suffix>` removed (`infra-4` → `infra.md`, `builder-w1a2b` → `builder.md`), only when `<name>.md` is absent, same
-marker check, same realpath containment. A new hub template `docs/reference/agents/builder.md` (first line
+marker check, same realpath containment — and NEVER for a coordinator name (`coordinator` or one ending in
+`-coordinator`, the grid's own rule, agents_up.sh:128-129): `fabrik-lib-coordinator` would otherwise strip to
+`fabrik-lib` and could receive a builder charter. A name with no `-` has no role and no fallback. A new hub template `docs/reference/agents/builder.md` (first line
 `# Agent charter — builder`) is the generic builder charter; fleet copies it into each repo in its rollout pass
 (agreed by message today). Names follow `<role>-<suffix>`; `add --role` defaults to `builder`.
 
-**D9 — The registry is a cache; reality wins.** `.fabrik/session-agents.json` stays the registry (fleet emits none of
-it — agreed today). The live set is derived from `tmux list-panes -a -F '#{session_name} #{window_index} #{@agent}'`
+**D9 — The registry is a cache; reality wins.** `.fabrik/session-agents.json` stays the registry where a repo has
+one (fleet emits none of it — agreed today), and a repo without one keeps reading its whoami bindings (D2). The live
+set is derived from `tmux list-panes -a -F '#{session_name} #{window_index} #{@agent}'`
 plus `git worktree list --porcelain`; the row only supplies the session id. A tmux read that errors or returns
 nothing is never read as "every builder gone" (the reconcile pattern's mass-deletion guard). The running check
 (W-699dc679) matches a live claude process by `-n <name>` in its argv AND its cwd under the builder's worktree
@@ -168,8 +212,11 @@ nothing is never read as "every builder gone" (the reconcile pattern's mass-dele
 ## Contract deltas
 
 No data contract or UI contract (hub tooling, no `docs/data-contract.md` / `docs/ui-design.md`). CLI contract
-changes: `agents_up.sh` gains `add`, `remove`, `--pane-cmd`; `agents_bat.py` gains `--tabbed`; `agent_role.py`
-gains the role fallback. Every existing invocation keeps its output.
+changes: `agents_up.sh` gains `add`, `remove`, `--pane-cmd`, `--window`; `agents_bat.py` gains `--tabbed`;
+`agent_role.py` gains the role fallback. Two existing outputs change on purpose: every `run <name> <command>` line of
+`--print` (and every launched pane) gains the suppression flag and env var (D3), and a grid of more than four builders
+is laid out over named windows instead of one (D4). `agents_bat.py::_has_grid` reads only the `pane ` lines
+(agents_bat.py:224), so neither change reaches it; every other existing invocation keeps its output.
 
 ## Cost
 
@@ -180,11 +227,13 @@ capped interactive session the grid already runs).
 
 ## Validation
 
-- Unit: `tests/test_agents_spawn.py` (ordered/idempotent add, placement into windows of four, remove refusals —
-  dirty, unpushed, running record — the registry write, the empty-tmux guard); `tests/test_agents_up.py`
+- Unit: `tests/test_agents_spawn.py` (ordered/idempotent add, two concurrent adds under the lock, a leftover
+  unmerged branch refused, no registry file created in a bindings-only repo, a cold start building the session with
+  its ceiling and root, placement into named windows of four, remove refusals — dirty, ignored `.tmp/runs` file,
+  detached HEAD, unpushed, a failing git call, a running record under the bound session id — the empty-tmux guard); `tests/test_agents_up.py`
   (`--pane-cmd` equals the `run` line; a relaunch of six builders yields windows of four and two plus the
   grouped session — the regression the hub hit on 10-22); `tests/test_agents_bat.py` (`--tabbed` one tab per
-  (repo, window), distro from `wslpath`); `tests/test_agent_role_hook.py` (role fallback, containment kept).
+  (repo, window), distro from `wslpath`); `tests/test_agent_role_hook.py` (role fallback, containment kept, a coordinator name never falls back).
 - Live proof (DONE condition, D-1301): in one repo, `add` spawns a builder that binds, claims its item and appears in
   the open tabbed window with no key typed and no prompt shown; a fifth builder opens a second window and tab;
   `remove` refuses on an unpushed branch, then retires it after the push; the `.bat` regenerated each time; the
@@ -194,7 +243,12 @@ capped interactive session the grid already runs).
 
 - Launcher verbs over background sessions and agent-deck (§ Chosen approach; judge panel).
 - Registry kept as a cache; ownership split with fleet (fleet: coordinator side; infra: builder side).
-- Charters by role fallback, not a symlink commit per builder.
+- Charters by role fallback, not a symlink commit per builder. D-1301 point (1) says "with a generated charter"; a
+  file generated per builder must be committed before the builder's worktree is cut or the worktree lacks it (the
+  hook reads the worktree's own `docs/reference/agents/`), so one role charter per repo serves every builder of that
+  role instead — a reading of the ruling the approval gate confirms.
+- `.claude/hooks/session_orient.py`, listed in D-1301's row, belongs to W-835894a6 (infra-2: the coordinator handoff
+  and `CLAUDE_AGENT=coordinator`); this spec does not touch it.
 
 ## Chosen approach
 
@@ -202,9 +256,10 @@ capped interactive session the grid already runs).
 everything already proven on this box — the `fabrik-agents.slice` memory and task caps (agents_up.sh:496-501), resume
 by session id across reboots, the SessionStart charter hook, the nightly archive — and adds only the missing verbs.
 The field's pattern matches it: worktree per agent plus one tmux pane per agent plus a registry the UI reads
-(claude-squad, uzi, agent-deck READMEs), with what those tools lack added here — a removal guard (claude-squad removes
-with `git worktree remove -f` and `git branch -D`, discarding unpushed work) and reconciliation against live state
-("Reality wins reconciliation: `mu agent list` queries tmux, prunes ghosts, adopts orphans", mu VISION.md).
+(claude-squad, uzi, agent-deck READMEs), with what those tools lack added here — a removal guard (claude-squad's `Cleanup()`
+runs `git worktree remove -f` and then `git branch -D` on a branch it created, discarding unpushed work —
+`session/git/worktree_ops.go`) and reconciliation against live state (mu VISION.md, principle "Reality wins
+reconciliation": "`mu agent list` queries tmux, prunes ghosts, adopts orphans.").
 
 Judge panel (3 Sonnet seats, briefed without a recommendation, approaches in alphabetical order; angles: neutral,
 failure-and-recovery, cost-and-consume-first): **3 of 3 ranked Launcher verbs first**, the only approach with no failed
@@ -241,7 +296,7 @@ Validation). Both other approaches failed "incompatible with Fabrik infra" on ev
 - **Growth:** the count follows ready work (D6). Triggers measured, not guessed: the slice's MemoryHigh headroom
   (refuse below 2 GB), the fleet quota band, and the four-pane window rule (a fifth builder opens window 2). At more
   than 3 windows per repo, or when the hub's slice refuses spawns on most days, the next step is a per-repo cap in
-  `.fabrik/work/config.json` — measured from the refusal events `add` logs.
+  `.fabrik/work/config.json` — measured from the refusal rows in `~/.claude/state/agents-spawn.jsonl` (D6).
 - **Degradation:** a failed step names the step to re-run (D2); a tmux read failure never retires anyone (D9); a pane
   that dies keeps its worktree and session, and the next relaunch resumes it; `wt.exe` missing or failing leaves the
   `.bat` correct and says so.
@@ -255,15 +310,15 @@ All fetched 2026-10-28.
 | Dependency | Fact relied on | Source |
 |---|---|---|
 | Claude Code CLI 2.1.312 | `--session-id <uuid>` exists; `-n`, `--settings`, positional prompt | https://code.claude.com/docs/en/cli-reference ; local `claude --help` |
-| Claude Code `--session-id` | create-only; "already in use" on an existing id | https://github.com/anthropics/claude-code/issues/5524 |
-| Claude Code settings | `skillOverrides` `auto-mode-setup: off`; `spinnerTipsEnabled`; `--settings` overrides user settings per session | https://code.claude.com/docs/en/auto-mode-config ; https://code.claude.com/docs/en/settings |
+| Claude Code `--session-id` | "already in use" error on an existing id; a user's reading that it only creates (not the docs') | https://github.com/anthropics/claude-code/issues/5524 |
+| Claude Code settings | `skillOverrides` `auto-mode-setup: off`; `spinnerTipsEnabled`; `--settings` overrides user settings per session | https://code.claude.com/docs/en/auto-mode-config ; https://code.claude.com/docs/en/settings ; https://code.claude.com/docs/en/settings-reference |
 | Claude Code env | `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY` | https://code.claude.com/docs/en/env-vars |
 | Claude Code trust | trust dialog interactive only; `projects[<path>].hasTrustDialogAccepted` in `~/.claude.json` | https://code.claude.com/docs/en/permissions |
 | Claude Code background / teams / worktrees | rejected alternatives' limits | https://code.claude.com/docs/en/agent-view ; https://code.claude.com/docs/en/agent-teams ; https://code.claude.com/docs/en/worktrees |
 | tmux 3.4 | grouped sessions share windows | https://man7.org/linux/man-pages/man1/tmux.1.html ; scratch-server probe this session |
 | git worktree | `remove` refuses unclean trees; `add -b` | https://git-scm.com/docs/git-worktree |
 | Windows Terminal | `-w <name> new-tab` appends to an existing named window; no tab removal | https://learn.microsoft.com/en-us/windows/terminal/command-line-arguments |
-| Field practice | worktree + tmux per agent; reconcile against reality | https://github.com/smtg-ai/claude-squad ; https://github.com/martintrojer/mu/blob/main/docs/VISION.md |
+| Field practice | worktree + tmux per agent; claude-squad's force-removal; reconcile against reality | https://github.com/smtg-ai/claude-squad ; https://raw.githubusercontent.com/smtg-ai/claude-squad/main/session/git/worktree_ops.go ; https://github.com/martintrojer/mu/blob/main/docs/VISION.md |
 
 ## fabrik-lib verdict
 
@@ -284,8 +339,6 @@ None: no deployed service, no `shape:` flags, no port. Box-local only (WSL user 
 - `CHANGELOG.md`, `docs/DECISIONS.md` (the approach decision), `INDEX.md` rows for `agents_spawn.py`, the test file and
   `docs/reference/agents/builder.md`.
 
-## Constraints
-
 ## Constraints Digest
 
 | Quote | Source |
@@ -305,6 +358,14 @@ Alpine, Traefik) do not bind box-local tooling.
   interactive pane:** each flag is documented, the combination is not. Resolution: the plan's first build step runs
   it once in a scratch worktree of the hub and records the transcript name and the absence of a dialog; a failure
   there is a BLOCKED finding before any other step.
+- **Open — whether `wt.exe -w fabrik-agents new-tab` from WSL appends a tab to the open window** (the persona loop's
+  step 2 relies on it; each flag is documented, the call from a WSL agent shell is not). Resolution: the live proof;
+  on failure the regenerated `.bat` still shows the new window at the next click, and step 2 becomes "click again" —
+  a fourth operator step the spec then records against the budget.
+- **Open — whether Claude Code's safety classifier lets a coordinator run `agents_up.sh add`** (it refused
+  "Unauthorized Persistence" launches and `tmux send-keys` before; requirement 1.2). Resolution: the live proof; a
+  refusal becomes the one exact allow rule handed to the operator as requirement 1.1's one-time step, boarded by the
+  coordinator.
 - **Open — whether `skillOverrides` silences the dialog without the `autoMode.environment` alternative.**
   Resolution: same live probe; the fallback is a non-empty `autoMode.environment` in the same `--settings` JSON
   (auto-mode-config: the dialog shows "you still have no `autoMode.environment` entries").
@@ -331,18 +392,20 @@ Alpine, Traefik) do not bind box-local tooling.
 | I16 | 3.12 automatic sizing | IN (CHANGED) | D6: a rule the coordinator applies, with a hard memory floor in `add`; no autonomous spawner (the coordinator decides, per D-1301 "you … create") |
 | I17 | 3.13 resume point in the item's seed, not memory | OUT-OF-SCOPE | the run seed machinery already does this (`command_run.py handoff/blocked` seeds); the builder charter template states it — builder.md, D8 |
 | I18 | 3.14 settings pre-set so prompts never appear | IN | D3 |
-| I19 | 3.15 status line per tab | OUT-OF-SCOPE | new item filed for it after this spec (P3, infra) — named in the plan's residue list |
-| I20 | W-89474fc1 slice 2 (hibernate builder leg) | OUT-OF-SCOPE | stays on plan W-6e656dac ticket T04 (its own next field names it) |
-| I21 | W-e841ac37 launchers attach to the grid; generate the tabbed .bat | IN | attach already built (agents_up.sh:545-573); generation D5 |
-| I22 | W-1961cc42 non-TTY shell | OUT-OF-SCOPE (already built) | agents_up.sh:542-547, 626-635 cite it; item to be closed with that evidence |
-| I23 | W-456aa02a pane runs a stale tree's hooks | OUT-OF-SCOPE (already built) | merged 281b08c35 (D-1284); item to be closed |
-| I24 | W-84ad2ff1 worker named after its directory | OUT-OF-SCOPE (already built) | merged d746cd815 (D-1168); item to be closed |
-| I25 | W-1783a9fe permission prompt after /clear | OUT-OF-SCOPE (already built) | merged 2918e9435 (D-1173); the UI-prompt half is I6 |
+| I19 | 3.15 status line per tab | OUT-OF-SCOPE | W-ed781e7a (P3 backlog, filed 2026-10-28, links this spec) |
+| I20 | W-89474fc1 "all bat files and their rulesets must be fixed" | OUT-OF-SCOPE (slice 1 built; slice 2 elsewhere) | slice 1 shipped in caa34297b, af769e975, f77b97572 (receipt d0c1ebea9); slice 2 (hibernate builder leg) stays on plan W-6e656dac ticket T04, as the item's own next field names |
+| I21 | W-e841ac37 launchers attach to the grid; generate the tabbed .bat | IN | attach already built (agents_up.sh:548-590); generation D5 |
+| I22 | W-1961cc42 non-TTY shell | OUT-OF-SCOPE (already built) | agents_up.sh:542-547, agents_up.sh:626-635 cite it (landed in 208dccd76, whose message does not name it); the build commit that factors the grid start (D4) names W-1961cc42 and closes it |
+| I23 | W-456aa02a pane runs a stale tree's hooks | OUT-OF-SCOPE (already built) | 7b97d1a5e (D-1284), merged 281b08c35; item closed 2026-10-28 on this spec's branch |
+| I24 | W-84ad2ff1 worker named after its directory | OUT-OF-SCOPE (already built) | b7aadd811 (D-1168), merged d746cd815; item closed 2026-10-28 on this spec's branch |
+| I25 | W-1783a9fe permission prompt after /clear | OUT-OF-SCOPE (already built) | 6c72a264b (D-1173), merged 2918e9435; item closed 2026-10-28 on this spec's branch; the UI-prompt half is I6 |
 | I26 | W-699dc679 running check misses a /cleared pane | IN | D9 |
-| I27 | W-034461b4 emptied grid; two-worktree tiebreak | IN (first half); OUT (tiebreak) | D-folded residue; tiebreak measured 0 of 6 (its own note) — closed by design |
+| I27 | W-034461b4 emptied grid; two-worktree tiebreak | IN (first half); OUT-OF-SCOPE (tiebreak) | first half: § The delta, Folded residue; tiebreak: measured 0 of 6 hub builders (the item's own note) — the decision not to build it is recorded in this spec's approval D-row, and the item closes with the build |
 | I28 | mail 01M5JXEQQ5 distro default | IN | D5 (`wslpath -w /`) |
 | I29 | mail 01M59KTHSY fabrik-lib pane ids | OUT-OF-SCOPE (already served) | the registry + bindings already launch fabrik-lib's three builders (live `tmux list-panes`); FYI acked |
 | I30 | mails 01M5MST4C9, 01M5X97Y0T Stop hook after ROTATE-DUE | OUT-OF-SCOPE (already built) | W-0fae19b7 (52ca1e9aa); acked done |
 | I31 | mail 01M5HHZGKT ROTATE wording | OUT-OF-SCOPE (already built) | 122a7c5a9; acked done |
+| I32 | 1.1 "i will do what needed ones, then coordinators will take of interacting with tmux, agents etc" | IN | D3 needs no settings-file edit (suppression rides `--settings` per session); the one possible one-time operator step is the allow rule in § Open/blocking unknowns (classifier) |
+| I33 | 1.2 "as being coordinator you should handle these without me" | IN | D1-D7: the coordinator runs both verbs; a classifier refusal is boarded by the coordinator as one exact allow rule (§ Open/blocking unknowns) |
 
-Intake: 31 items — 19 IN (two CHANGED), 12 OUT-OF-SCOPE (each named above), 0 ASK.
+Intake: 33 items — 22 IN (I15 and I16 CHANGED), 10 OUT-OF-SCOPE, 1 split IN/OUT-OF-SCOPE (I27), each named above; 0 ASK.

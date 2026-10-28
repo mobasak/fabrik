@@ -3,7 +3,7 @@
   "created": "2026-10-27T06:11:56.473371Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "7b97d1a5e9cb21b77021249b0ec522ad1941190c",
   "id": "W-456aa02a",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "infra-3",
   "priority": 1,
   "score_reason": "a window silently runs 5-day-old hooks: every enforcement fix since 10-22 is off for it; one launcher mapping plus a one-line guard",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fold-w-b9ad80ae"
   ],
