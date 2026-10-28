@@ -626,6 +626,8 @@ class TestMonitoringRedaction:
         docs = (
             "x: &a 1\ncreds: {password: LOGLEAK1, copy: *a}\n",
             'password: "LOGLEAK2\nx: [\n',
+            "a: !LOGLEAK3_tag x\n",  # PyYAML's problem text quotes the tag
+            "a: !!python/name:LOGLEAK4 x\n",
         )
         with caplog.at_level("WARNING", logger="fabrik.portability"):
             for doc in docs:

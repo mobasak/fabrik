@@ -365,8 +365,7 @@ class _VerbatimLoader(yaml.SafeLoader):
 
     def compose_node(self, parent: Any, index: Any) -> Any:
         if self.check_event(yaml.AliasEvent):
-            # No mark: PyYAML prints a mark with a snippet of the source line.
-            raise yaml.composer.ComposerError(None, None, "YAML aliases are refused", None)
+            raise _ConfigShapeError("YAML aliases are refused")
         return super().compose_node(parent, index)
 
     def construct_mapping(self, node: Any, deep: bool = False) -> Any:
@@ -447,13 +446,15 @@ def _redact_config_text(rel: str, raw: str) -> str | None:
 
 def _config_error_text(exc: Exception) -> str:
     """Describe a config parse/redact failure WITHOUT quoting the config: a
-    PyYAML mark prints a snippet of the source line, and other exceptions may
-    carry the data they choked on, so only fixed problem texts and a line
-    number are kept."""
+    PyYAML mark prints a snippet of the source line, its problem text can
+    quote a tag or a character from the source, and other exceptions may carry
+    the data they choked on. So a YAML error is its type and line, a JSON
+    error its fixed message and line, this module's own refusal its message,
+    and anything else its type name."""
     if isinstance(exc, yaml.MarkedYAMLError):
         mark = exc.problem_mark
         where = f" at line {mark.line + 1}" if mark is not None else ""
-        return f"{type(exc).__name__}: {exc.problem}{where}"
+        return f"{type(exc).__name__}{where}"
     if isinstance(exc, json.JSONDecodeError):
         return f"JSONDecodeError: {exc.msg} at line {exc.lineno}"
     if isinstance(exc, _ConfigShapeError):
