@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T13:48:20.475464Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-14219e6f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-28-dynamic-builders-design.md"
+  },
+  "next": "carry each point into /fabrik-plan-after-chat docs/superpowers/specs/2026-10-28-dynamic-builders-design.md as a named step",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "fold-w-b9ad80ae"
+  ],
+  "title": "W-b9ad80ae plan-time residue from the dynamic-builders spec review (scope-growth stop at pass 3): (1) D4's no-builder branch builds the first pane in add step 3 but the UUID is minted in step 4 — mint first or defer the branch to steps 4-5; (2) Contract deltas must list the new 'no builder to launch' exit code; tests/test_agents_up.py:1198-1204 pins returncode 2; (3) rotate_session._repoint_registry (rotate_session.py:305-311) writes the registry outside the new agents lock — take the same lock; (4) launcher tests pin run lines and =<repo>:agents targets (test_agents_up.py:192, 224, 258, 484, 612, 717, 965-982) — update with the change; (5) a session moved between worktrees can leave run folders in two checkouts; (6) the build commit that factors the grid start names W-1961cc42 and closes it"
+}

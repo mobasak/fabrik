@@ -12,6 +12,14 @@
 | Pass 1 | opus×1 (rule sections) + sonnet×1 (other sections) + opus×1 researcher (high-risk facts) + sonnet×1 researcher (other facts) · all axes · shape: agent-tool | found: 36, new: 36, confirmed: 33, fixed: 33, unexecuted: 0, edits: 33 | method: citation — full pass over the section partition; every candidate executed by the orchestrator (5 git/tmux probes in a throwaway repo and scratch tmux server, the Deck resolver read, commit and D-row existence checked); 1 refuted, 1 recorded, 1 duplicate | b67e58b1… → 44daeced… |
 | Pass 2 | opus×1 + sonnet×1 + opus×1 researcher + sonnet×1 researcher (round-1 owners) · delta over the pass-1 fix diff + one hop · shape: agent-tool | found: 9, new: 9, confirmed: 7, fixed: 7, unexecuted: 0, edits: 7 | method: re-derivation — the round-1 seats re-derived their own slices over pins/pass-1-fix.diff; both fact slices CONFIRMED every changed quote (no defect); 7 own-fix defects (own-fix: round 1) in D1/D2/D4/D5/D7/Cost, 1 refuted, 1 recorded | 44daeced… → e94d9a33… |
 | Pass 3 | opus×1 (round-1 owner of the rules slice; the other three slices held no open claim and are restated at their pass-2 values) · delta over pins/pass-2-fix.diff + one hop · shape: agent-tool | found: 5, new: 5, confirmed: 5, fixed: 5, unexecuted: 0, edits: 5 | method: re-derivation — rules slice over the pass-2 fix diff; 5 own-fix defects (own-fix: round 2); class rewrite — D2, D4, D7 (rounds 2, 3): the three paragraphs rewritten whole in one batch, the `.tmp/runs` move DELETED in favour of a refusal | e94d9a33… → f7c7fdc5… |
+| Pass 4 | opus×1 (round-1 owner of the rules slice; the other three slices restated at their last values) · the scope-growth stop's fixed set only (P3-N1..N5) · shape: agent-tool | found: 2, new: 2, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — closing round over the stop's fixed set: all 5 fixes verified, 8 of 8 rewrite citations re-derived at the pin; the 2 new observations are own-fix residue raised after the stop fired, RECORDED — measured onto W-14219e6f; standing clean since earlier passes: intake, personas, facts, vendor, approach, constraints, completeness | f7c7fdc5… → f7c7fdc5… ✓ |
+
+## Findings (pass 4)
+
+| id | seat | finding | verdict |
+|---|---|---|---|
+| P4-1 | opus rule | Contract deltas omits the new "no builder" exit code; tests/test_agents_up.py:1198-1204 pins rc 2 | RECORDED — measured (own-fix residue after the scope-growth stop; destination W-14219e6f point 2) |
+| P4-2 | opus rule | D4's no-builder branch needs the UUID minted in D2 step 4 | RECORDED — measured (own-fix residue after the scope-growth stop; destination W-14219e6f point 1) |
 
 ## Ask ↔ spec comparison (recomputed against the pass-3 text)
 
