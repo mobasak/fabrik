@@ -991,6 +991,44 @@ def _handoff_write(name: str) -> int:
     return 0
 
 
+def _refresh_binding(layout: tuple[str, str, str], raw_sid: object) -> None:
+    """Re-record a bound session under the claude process it now runs in (W-a77742db): a session
+    resumed into a new process kept its name by session id but no row named the process, so the
+    quota lane's /clear re-bind, keyed on the process (D-1209), held it. Calls the repo's own
+    `scripts/whoami_agent.py::refresh` — loaded BY FILE PATH, as `agent_role.py` loads it, so a
+    project module named like a stdlib one cannot shadow its imports — with the payload's id in
+    `CLAUDE_CODE_SESSION_ID` (restored after) and this hook's git common dir as the scope, so no
+    second git runs in the 10 s budget. Silent and fail-open: a repo without the script, an older
+    copy without `refresh`, or any error does nothing."""
+    top, _gdir, common = layout
+    if not (isinstance(raw_sid, str) and 0 < len(raw_sid) <= 128 and top and common):
+        return
+    path = os.path.join(top, "scripts", "whoami_agent.py")
+    if not os.path.isfile(path):
+        return
+    had = "CLAUDE_CODE_SESSION_ID" in os.environ
+    old = os.environ.get("CLAUDE_CODE_SESSION_ID", "")
+    try:
+        import importlib.util  # noqa: PLC0415 — only on this path
+
+        spec = importlib.util.spec_from_file_location("_fabrik_whoami_refresh", path)
+        if spec is None or spec.loader is None:
+            return
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        refresh = getattr(mod, "refresh", None)
+        if callable(refresh):
+            os.environ["CLAUDE_CODE_SESSION_ID"] = raw_sid
+            refresh(top=common)
+    except (Exception, SystemExit):  # a project copy that exits must not end the hook (review r1, C-sonnet-1)
+        pass
+    finally:
+        if had:
+            os.environ["CLAUDE_CODE_SESSION_ID"] = old
+        else:
+            os.environ.pop("CLAUDE_CODE_SESSION_ID", None)
+
+
 def main() -> int:
     try:
         sys.stdout.reconfigure(errors="replace")  # C-locale must degrade, not swallow
@@ -1135,6 +1173,8 @@ def main() -> int:
         except Exception:
             handoff = ""
     print(orient + handoff.rstrip("\n"))
+    sys.stdout.flush()  # ORIENT is delivered before anything below can stall
+    _refresh_binding(layout, data.get("session_id"))
 
     # Kaizen M1 — LAST, deliberately. This hook IS the session's birth certificate, but
     # the ORIENT block above is its actual product: emitting first put the whole block

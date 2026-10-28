@@ -139,8 +139,9 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   before the field) reads as `walled`, so the migration and every unreadable case fail CLOSED.
   The synced PreToolUse hook `quota_stop.py` turns the `walled` tier
   into a GRACEFUL STOP that reaches every session mid-turn: work tools are held with one
-  instruction (commit + push, close the run record, end the turn); reads, git, the record
-  tools, `Monitor` and `TaskStop` stay open. At `urgent-90` it runs the LANE (W-18f559d9,
+  instruction (commit + push, close the run record, end the turn); reads, the git checkpoint and
+  read verbs (never `git grep`; through `git -C /opt/<repo>`, the read verbs only), the record tools,
+  `Monitor` and `TaskStop` stay open. At `urgent-90` it runs the LANE (W-18f559d9,
   D-1113): the bound merge owner of a `coordinator_mode` repo and the bound owner of an open P0
   item CONTINUE with a CHECKPOINT nudge — killing their in-flight seats would be the premature
   stop D-299 forbids — and every other session is PARKED with the wall's allow-list plus the
@@ -149,8 +150,13 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   become exempt again (W-cff56c52) — the rotation's re-bind `python3
   /opt/fabrik/scripts/whoami_agent.py --as <name> --force` (`--force` optional, before or
   after `--as <name>`; that absolute path only) for ONE name only: the one this
-  window's claude process (pid + start tick, D-748) held LAST in this repo, written this boot,
-  not re-taken by another window since, with no live foreign holder, from a cwd in this repo.
+  window's claude process (pid + start tick, D-748) held LAST in this repo, not re-taken by
+  another window since, with no live foreign holder, from a cwd in this repo. A session resumed
+  into a new claude process gets that row at SessionStart from `whoami_agent.py`'s `refresh()`
+  (W-a77742db) — it writes nothing, among other cases, when the store lock was busy at that
+  start, the name was re-taken, or the session is live in another process (the whole list is
+  `refresh()`'s docstring), and the next SessionStart tries again; there is no boot-time test, because WSL2's btime moves forward with each host
+  sleep and came to refuse a live window's own row.
   Any other name stays held until the lift — an earlier name of this window, and a name whose
   last row is another window's, even a dead one),
   so the last

@@ -792,10 +792,13 @@ def test_reason_names_the_wall_block_and_the_resume_verb():
     # `_reason`'s own validator admits 80 chars: a 7-char `abc-123` read 966 while an 80-char sid
     # read 1039 (review code-S2); a real 36-char UUID sits between. Every admitted sid must fit.
     uuid_sid = "1970a0ff-baa3-401b-ba52-fb0c5de43261"
-    for sid in (uuid_sid, "a" * 80):
-        with_sid = hook.decide("Edit", None, stamp_exists=True, tick_age_s=10.0, sid=sid)[1]
-        assert f"selfwatch_arm.sh {sid}" in with_sid
-        assert len(with_sid) < 1000, (len(sid), len(with_sid))
+    # every built-in held tool, the longest name included (W-a77742db review r1, B-haiku-1: the pin
+    # read Edit alone while NotebookEdit crossed 1,000)
+    for tool in ("Edit", "Write", "MultiEdit", "NotebookEdit", "Agent", "Workflow"):
+        for sid in (uuid_sid, "a" * 80):
+            with_sid = hook.decide(tool, None, stamp_exists=True, tick_age_s=10.0, sid=sid)[1]
+            assert f"selfwatch_arm.sh {sid}" in with_sid
+            assert len(with_sid) < 1000, (tool, len(sid), len(with_sid))
 
 
 def test_the_hold_text_refuses_a_malformed_sid():
@@ -1723,9 +1726,11 @@ def test_a_rebind_to_a_name_this_window_did_not_hold_last_is_held(
 
 def test_same_window_name_fails_closed(lane, tmp_path, monkeypatch):
     """Behaviour 3: every doubt is "" (held) — no claude ancestor, rows without pid or start,
-    a bool pid, a row from before this boot, an unreadable boot time, another scope; corrupt
-    lines are skipped and digit strings count (whoami's `_as_int`). And the rows whoami's own
-    `bind` writes are the ones the hook reads (the writer/reader agreement)."""
+    a bool pid, another scope; corrupt lines are skipped and digit strings count (whoami's
+    `_as_int`). A boot time is NOT a doubt (W-a77742db): WSL2's btime moves forward with each
+    host sleep, so a row written before the drifted btime — or a /proc with no btime at all —
+    still names its live window by pid + start tick. And the rows whoami's own `bind` writes
+    are the ones the hook reads (the writer/reader agreement)."""
     monkeypatch.delenv("CLAUDE_PID", raising=False)
     proc = _fake_proc(tmp_path / "proc", btime=1000)
 
@@ -1736,7 +1741,6 @@ def test_same_window_name_fails_closed(lane, tmp_path, monkeypatch):
     lane.bind("a", "infra-1")  # no pid at all
     lane.bind("b", "infra-2", pid=_CLAUDE_PID)  # no start
     lane.bind("c", "infra-3", pid=True, pid_start=_CLAUDE_START)
-    lane.bind("d", "infra-4", pid=_CLAUDE_PID, pid_start=_CLAUDE_START, at=999)  # pre-boot
     lane.bind("e", "infra-6", toplevel="/elsewhere/.git", pid=_CLAUDE_PID, pid_start=_CLAUDE_START)
     assert name() == ""
     with lane.store.open("a") as fh:
@@ -1749,8 +1753,10 @@ def test_same_window_name_fails_closed(lane, tmp_path, monkeypatch):
     assert name(_fake_proc(tmp_path / "p5", start=1)) == ""
     lane.bind("h", "infra-12", pid=_CLAUDE_PID, pid_start=1)
     assert name(_fake_proc(tmp_path / "p6", start=1)) == "infra-12"
-    assert name(_fake_proc(tmp_path / "p3", btime=None)) == ""
+    assert name(_fake_proc(tmp_path / "p3", btime=None, start=1)) == "infra-12"  # no btime: no doubt
     assert name(tmp_path / "missing") == ""
+    lane.bind("d", "infra-4", pid=_CLAUDE_PID, pid_start=1, at=999)  # before the drifted btime
+    assert name(_fake_proc(tmp_path / "p9", btime=1000, start=1)) == "infra-4"
 
     # a hand-edited int name is read as its string, and the walk stops at `claude`, not the shell
     lane.bind("i", 5, pid=_CLAUDE_PID, pid_start=_CLAUDE_START)
@@ -1998,3 +2004,93 @@ def test_an_allowed_call_prints_no_exemption_note(tmp_path):
         extra_env={"ANTHROPIC_API_KEY": "sk-ant-api03-x"},
     )
     assert r.stdout.strip() == "" and r.stderr == ""
+
+
+# ── W-a77742db: a window resumed into a new claude process re-binds after /clear ───────────────
+def test_a_window_resumed_into_a_new_process_rebinds_after_clear(
+    lane, tmp_path, monkeypatch, capsys
+):
+    """Behaviour 5 (mail 01M5X0TW6A, the hub coordinator 2026-10-26): the session was bound under
+    an EARLIER claude process and resumed into this one, then /cleared. Without a row under this
+    process the lane holds the re-bind (the incident, replayed); once whoami's `refresh()` — what
+    SessionStart runs on the resume — has re-recorded the session under this process, the real
+    lane `main()` lets the /clear successor re-bind its name, even with the host's btime drifted
+    past the refresh row (the design's Behaviour 6: WSL2's btime moves forward with each sleep)."""
+    monkeypatch.delenv("CLAUDE_PID", raising=False)
+    monkeypatch.setenv("QUOTA_STOP_PROC_ROOT", str(_fake_proc(tmp_path / "proc")))
+    lane.bind("old-sid", "coordinator", pid=9000, pid_start=5)  # the process before the resume
+    rebind = _REBIND.format("coordinator")
+    assert '"deny"' in _main_out(lane, monkeypatch, capsys, rebind)  # the incident
+    spec = importlib.util.spec_from_file_location("whoami_refresh_lane", _WHOAMI_PY)
+    who = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(who)
+    monkeypatch.setattr(who, "_session_pid", lambda: _CLAUDE_PID)
+    monkeypatch.setattr(who, "_pid_start", lambda pid: _CLAUDE_START if pid == _CLAUDE_PID else None)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "old-sid")
+    monkeypatch.chdir(lane.wt)  # whoami scopes by the git common dir of its cwd
+    assert who.refresh() == "coordinator"  # SessionStart on the resume
+    assert _main_out(lane, monkeypatch, capsys, rebind) == ""  # the /clear successor (new-sid)
+    drifted = int(time.time()) + 86_400  # a day of host sleep pushed btime past every row
+    monkeypatch.setenv("QUOTA_STOP_PROC_ROOT", str(_fake_proc(tmp_path / "p2", btime=drifted)))
+    assert _main_out(lane, monkeypatch, capsys, rebind) == ""
+    assert '"deny"' in _main_out(lane, monkeypatch, capsys, _REBIND.format("infra-3"))
+
+
+def test_the_hold_texts_promise_only_the_git_verbs_that_pass(lane):
+    """Behaviour 7 (mail 01M5X0TW6A): the texts said "Reads, git, …" stay allowed while only the
+    checkpoint and read verbs pass, so `git -C /opt/fabrik grep` was refused under a text that
+    promised it. Every git verb the lane and wall texts name passes both tiers in a plain shape,
+    every Bash read they name passes, only the read verbs pass through `git -C`, and `git grep`
+    stays held (the Grep tool already reads any path; `-O<pager>` runs a program)."""
+    import re as _re
+
+    lane.bind("sm", "infra")
+
+    def reason() -> str:
+        r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "sm"})
+        return json.loads(r.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+
+    lane_msg = reason()
+    lane.stamp("0", "walled")
+    wall_msg = reason()
+    assert lane_msg != wall_msg  # both tiers were read
+    sample = {
+        "add -- <paths>": "git add -- a.py",
+        "commit -m <msg> -- <paths>": "git commit -m 'x' -- a.py",
+        "push": "git push",
+        "fetch": "git fetch",
+        "status": "git status",
+        "diff": "git diff",
+        "log": "git log -1",
+        "show": "git show HEAD",
+        "rev-parse": "git rev-parse HEAD",
+        "reset HEAD -- <paths>": "git reset -q HEAD -- a.py",
+    }
+    read_verbs = ("status", "diff", "log", "show", "rev-parse")
+    # the wall's one message is pinned under 1,000 chars, so it carries the short true form
+    assert "Reads, git," not in wall_msg and "Reads, git checkpoints," in wall_msg, wall_msg
+    for msg in (lane_msg, hook.__doc__ or ""):
+        assert "Reads, git," not in msg and "git checkpointing" not in msg, msg
+        verbs = _re.search(r"git checkpoint and read verbs with their plain flags \(([^;)]*)", msg)
+        reads = _re.search(r"and Bash ([a-z, ]+) and stat\)", msg)
+        assert verbs and reads, msg
+        named = [v.strip() for v in verbs.group(1).replace(" and ", ", ").split(",") if v.strip()]
+        assert sorted(named) == sorted(sample), named
+        for verb in named:
+            assert hook._bash_allowed(sample[verb]), verb
+            assert _at_lane(sample[verb]) == "allow", verb
+        for tool in [t.strip() for t in reads.group(1).split(",")] + ["stat"]:
+            assert hook._bash_allowed(f"{tool} a.txt"), tool
+        assert "through git -C /opt/<repo>, the read verbs only" in msg, msg
+    for verb in read_verbs:
+        assert hook._bash_allowed(sample[verb].replace("git ", "git -C /opt/fabrik ", 1)), verb
+        # review r1 (B-haiku-3): only an /opt repo relocates
+        assert not hook._bash_allowed(sample[verb].replace("git ", "git -C /tmp/x ", 1)), verb
+    for verb in ("add -- <paths>", "commit -m <msg> -- <paths>", "push", "fetch"):
+        assert not hook._bash_allowed(sample[verb].replace("git ", "git -C /opt/fabrik ", 1)), verb
+    for cmd in ("git grep x", "git -C /opt/fabrik grep x", "git grep -Ols x"):
+        assert not hook._bash_allowed(cmd), cmd
+        assert _at_lane(cmd) == "deny", cmd
+    # review r1 (B-sonnet-2): the shapes the texts no longer promise stay held
+    for cmd in ("git add .", "git commit -m 'x'", "git commit -- a.py"):  # + review r2 (B-sonnet-2)
+        assert not hook._bash_allowed(cmd), cmd

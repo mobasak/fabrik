@@ -7,6 +7,11 @@
 
 **Lesson:** when a step delegates writes to another program, rebuild the undo set by re-reading every target after it returns, whatever its exit code, and verify the state the consumer reads (the loaded unit), not the file you can see.
 
+## A guard keyed on "written this boot" expires on WSL, and a fix closed as "already done" may not be (2026-10-28, W-a77742db)
+
+**What happened:** the quota lane's /clear re-bind (D-1209) demanded an identity row written under this claude process "this boot" (`at >= btime`). On WSL2 `btime` is now minus uptime, and uptime stops while the host sleeps, so btime moved 69,421 s forward in a day and the clause came to refuse a live window's own row. Earlier the same day the item had been closed as "resolved by D-1209" from a passing test; the routed mail showed the refusal happening after D-1209 was live. And one mutant "survived" because its `-k` selected a neighbouring test, not the grader that held the guard.
+**Lesson:** never anchor a liveness or freshness check on `/proc/stat` btime (or anything derived from uptime) on WSL; key on what identifies the thing itself (pid + start tick). Before closing an item as already fixed, replay its REPORTED incident on the current code; a green test of the fix's own case is not that replay. A survivor counts as a test gap only once its `-k` names the test that actually contains the assertion.
+
 ## A check that reads list POSITION is satisfied by reordering the list (2026-10-27, W-0b900e92)
 
 **What happened:** the /fabrik-task close compared a receipt's range tip with the LAST `--commit`. A reporter whose receipt and ledger commits honestly came after the reviewed tip was refused, and passed by moving the tip to the end of the list. The same reorder passed an unreviewed code commit listed before the tip.
