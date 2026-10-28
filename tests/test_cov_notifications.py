@@ -83,7 +83,17 @@ def test_post_warns_on_server_error(monkeypatch, caplog):
     monkeypatch.setattr(httpx, "post", lambda *a, **k: httpx.Response(500))
     with caplog.at_level(logging.WARNING, logger="fabrik.notifications"):
         assert _post("http://h/x", {}) is None
-    assert any(r.levelno == logging.WARNING for r in caplog.records)
+    assert any(
+        r.name == "fabrik.notifications" and r.levelno == logging.WARNING for r in caplog.records
+    )
+
+
+def test_post_does_not_warn_on_success(monkeypatch, caplog):
+    # The control for test_post_warns_on_server_error: a fix that warns on every response must fail here.
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: httpx.Response(200))
+    with caplog.at_level(logging.WARNING, logger="fabrik.notifications"):
+        assert _post("http://h/x", {}) is None
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
 
 # ---- notify_deploy ----
