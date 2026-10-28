@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T13:03:23.466535Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-808af529",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M59KTHSYEYA9W7PQZ2DE4W69",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 2,
+  "status": "open",
+  "title": "D-1031 item 18: fabrik-lib session ids for the agents-up launcher; all three builders now in worktrees"
+}
