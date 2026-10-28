@@ -143,7 +143,7 @@ def _tokens(command: str) -> list[str]:
         raise _UnparseableError(str(exc)) from exc
 
 
-_HEREDOC = re.compile(r"<<-?[ \t]*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+_HEREDOC = re.compile(r"<<(-?)[ \t]*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
 _OP_ORDER = (
     "&&",
     "||",
@@ -169,17 +169,31 @@ _OP_ORDER = (
 SUBST = "__SUBST__"
 
 
+def _word_at(command: str, i: int, word: str) -> bool:
+    """`word` stands alone at i — a shell keyword, not part of `showcase` or `esacs`."""
+    j = i + len(word)
+    return (
+        command.startswith(word, i)
+        and (i == 0 or command[i - 1] in " \t\n;&|(")
+        and (j == len(command) or command[j] in " \t\n;&|)")
+    )
+
+
 def _strip_heredocs(command: str) -> str:
     """Drop heredoc BODIES (data written to a file), keeping the line that opens them.
 
     Only a `<<WORD` the shell reads as one opens a body: in shell code — top level or inside
-    `$(…)`, quoting reset there as bash resets it — never inside `'…'`, `"…"`, `$'…'`, a
-    comment, a backtick, `${…}` or an arithmetic `((…))`, and never a `<<<` here-string or an
-    escaped `<`. Anything else that looks like a marker hides no line (W-223704c1); a marker
-    this walk does not recognise leaves its body IN the scan, the safe direction."""
+    `$(…)`, quoting reset there as bash resets it, a `case` pattern's `)` not closing it —
+    never inside `'…'`, `"…"`, `$'…'`, a comment, a backtick, `${…}` or an arithmetic `((…))`
+    or `$[…]`, never a `<<<` here-string or an escaped `<`, and only when WORD ends at a word
+    boundary (`<<E-OF` is not cut to `E`). Anything else that looks like a marker hides no line
+    (W-223704c1), and a body ends only on bash's terminator — the exact line, leading tabs
+    stripped for `<<-` alone. A marker this walk does not recognise leaves its body IN the scan,
+    the safe direction. Stated limit: a body is data even where bash runs it as code — an unquoted
+    body's `$(…)`, or a heredoc fed to a shell (`bash <<EOF`) — W-b0aab70a."""
     out: list[str] = []
-    pending: list[str] = []
-    stack: list[list] = [["sh", 0]]  # [context, open count]; "sh" is shell code
+    pending: list[tuple[str, bool]] = []  # (delimiter, `<<-` strips leading tabs)
+    stack: list[list] = [["sh", 0, 0]]  # [context, open count(, open cases)]; "sh" is code
     i, n = 0, len(command)
     while i < n:
         ctx = stack[-1]
@@ -194,12 +208,12 @@ def _strip_heredocs(command: str) -> str:
         elif ctx[0] == "`":
             if c == "`":
                 stack.pop()
-        elif ctx[0] == "((":
-            ctx[1] += {"(": 1, ")": -1}.get(c, 0)
+        elif ctx[0] in ("((", "$["):
+            ctx[1] += {ctx[0][-1]: 1, ")" if ctx[0] == "((" else "]": -1}.get(c, 0)
             if not ctx[1]:
                 stack.pop()
         elif command.startswith("$(", i) and not command.startswith("$((", i):
-            stack.append(["sh", 0])
+            stack.append(["sh", 0, 0])
             out.append("$(")
             i += 2
             continue
@@ -239,12 +253,21 @@ def _strip_heredocs(command: str) -> str:
             out.append(command[i:k])
             i = k
             continue
+        elif command.startswith("$[", i):
+            stack.append(["$[", 1])
+            out.append("$[")
+            i += 2
+            continue
+        elif _word_at(command, i, "case"):
+            ctx[2] += 1
+        elif _word_at(command, i, "esac") and ctx[2]:
+            ctx[2] -= 1
         elif c == "(":
             ctx[1] += 1
         elif c == ")":
             if ctx[1]:
                 ctx[1] -= 1
-            elif len(stack) > 1:
+            elif not ctx[2] and len(stack) > 1:  # in an open `case`, `)` ends a pattern
                 stack.pop()
         elif command.startswith("<<<", i):
             out.append("<<<")
@@ -252,8 +275,8 @@ def _strip_heredocs(command: str) -> str:
             continue
         elif command.startswith("<<", i):
             m = _HEREDOC.match(command, i)
-            if m:
-                pending.append(m.group(2))
+            if m and (m.end() == n or command[m.end()] in " \t\n;&|()<>"):
+                pending.append((m.group(3), m.group(1) == "-"))
                 out.append(m.group(0))
                 i = m.end()
                 continue
@@ -263,7 +286,9 @@ def _strip_heredocs(command: str) -> str:
             while pending and i < n:
                 j = command.find("\n", i)
                 end = n if j == -1 else j
-                if command[i:end].strip("\t ") == pending[0]:
+                word, dash = pending[0]
+                line = command[i:end]
+                if (line.lstrip("\t") if dash else line) == word:  # bash's exact match
                     pending.pop(0)
                 i = end + 1
             continue

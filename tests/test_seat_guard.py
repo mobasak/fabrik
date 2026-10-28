@@ -310,6 +310,32 @@ def test_real_heredoc_spellings_still_hold_data() -> None:
         assert not _denied(_run(cmd)), cmd
 
 
+def test_review_round_one_markers_hide_nothing() -> None:
+    """W-223704c1 review round 1: a `case` pattern's `)` closed the enclosing `$(…)`, `$[…]`
+    arithmetic read as a heredoc, and a delimiter was cut to its identifier prefix (`<<E-OF`
+    ended at a line `E`) — each hid the next command from the scan."""
+    for cmd in (
+        'echo "$(case $x in a) echo "<<EOF";; esac)"\ngit reset --hard',
+        "echo $[1<<n]\ngit reset --hard",
+        f"cat > {SCRATCH}/n <<E-OF\nx\nE-OF\ngit reset --hard",
+        f"cat > {SCRATCH}/n <<EOF-\nx\nEOF-\ngit reset --hard",
+        f"cat > {SCRATCH}/n <<-EOF\n\tbody\n\tEOF\ngit reset --hard",
+    ):
+        assert _denied(_run(cmd)), cmd
+
+
+def test_a_line_that_only_looks_like_the_terminator_keeps_the_body_data() -> None:
+    """W-223704c1 review round 1: the terminator was compared after strip(), so an indented or
+    space-trailed `EOF` ended the body early and the body's own lines were scanned as commands."""
+    for cmd in (
+        f"cat > {SCRATCH}/n <<EOF\n  EOF\ngit reset --hard\nEOF",
+        f"cat > {SCRATCH}/n <<EOF\nEOF \ngit reset --hard\nEOF",
+        f"cat > {SCRATCH}/n <<EOF\n\tEOF\ngit reset --hard\nEOF",
+        f"cat > {SCRATCH}/n <<-EOF\n  EOF\ngit reset --hard\nEOF",
+    ):
+        assert not _denied(_run(cmd)), cmd
+
+
 def test_explicit_git_dir_and_work_tree_in_scratch_pass() -> None:
     cmd = f"git --git-dir={SCRATCH}/r/.git --work-tree={SCRATCH}/r reset --hard"
     assert not _denied(_run(cmd))  # cwd /opt/fabrik is irrelevant when both are given
