@@ -8014,3 +8014,9 @@ document.
   hook children during a real Stop (no strace on this box) and compare `CLAUDE_PROJECT_DIR` with the cwd. Since
   W-456aa02a the user-level `selfwatch_check.py` says so on every prompt.
 - **Where it lives.** `scripts/sysadmin/selfwatch_check.py::_project_dir_order`, `scripts/sysadmin/agents_up.sh` (D-1284).
+
+## A probe of a cwd-keyed writer runs FROM the throwaway repo, or it writes the real one (2026-10-28)
+
+**What happened:** testing W-835894a6's `--handoff-write`, a live probe meant for a throwaway repo was run as a plain Bash call from the infra-2 worktree. The writer resolves its target from the cwd's git common dir, so it wrote the REAL hub file `/opt/fabrik/.git/fabrik-handoff/coordinator.md` — the path the coordinator's next `/clear` would print — with probe text. It was removed within a minute and the folder verified empty.
+**Why:** a tool keyed on its cwd has no separate "target" argument to aim; the Bash tool's cwd is the session's checkout, not the probe's folder named in the command.
+**How to apply:** run every probe of a cwd-keyed writer through a launcher that sets `cwd=` to the throwaway repo and ASSERTS the printed path sits under it before anything else runs (the live probe did this on its second try); list the real target folder before and after.
