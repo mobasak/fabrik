@@ -111,6 +111,7 @@ SP_COORD="${FABRIK_SPAWN_COORDINATOR:-}"
 SP_ITEM="${FABRIK_SPAWN_ITEM:-}"
 pane_new=0
 if [ "$panecmd" = 1 ]; then
+  [ "$print" = 0 ] && [ "$detach" = 0 ] || bad_arg "--pane-cmd is its own mode: it takes neither --print nor --detach"
   usage="usage: agents_up.sh --pane-cmd <repo> <name> <sid> [--new] [--coordinator <name>] [--item <W-id>]"
   [ $# -ge 3 ] || bad_arg "$usage"
   pane_repo="$1" SP_NAME="$2" pane_sid="$3"
@@ -515,7 +516,7 @@ newer_unbound() {  # $1 = name, $2 = session id, $3 = the folder its pane starts
   base="$(basename -- "$newest" .jsonl)"
   [ "$base" = "$2" ] && return 0
   printf '%s\n' "$KNOWN" | /usr/bin/grep -qxF -- "$base" && return 0
-  echo "agents_up: $1: a newer session $base is in $proj — if it is $1's, run there: python3 /opt/fabrik/scripts/whoami_agent.py --as $1 --force" >&2
+  echo "agents_up: $1: a newer session $base is in $proj — if it is $1's, run there: python3 \"$HUB/scripts/whoami_agent.py\" --as $1 --force" >&2
 }
 
 # a claude process started by NAME (`-n <name>`, no --resume: a spawned pane's --session-id launch) in the pane's folder
@@ -630,6 +631,10 @@ cap_of() {  # $1 = name
   if [ "$CAPPED" = 1 ]; then echo "cap $1 $TASKS_MAX"; else echo "cap $1 uncapped"; fi
 }
 
+# every refusal a launch can raise is decided BEFORE its first output line or side effect: the FABRIK_SPAWN_* values are
+# checked once over the whole resolved set (only the new=1 row FABRIK_SPAWN_NAME names carries them)
+while read -r name sid folder new; do spawn_vars_ok "$name" "$new"; done <<< "$AGENTS"
+
 if [ "$print" = 1 ]; then
   echo "session $S"
   [ "$CAPPED" = 1 ] && echo "slice $SLICE MemoryHigh=$SLICE_HIGH MemoryMax=$SLICE_MAX"
@@ -640,7 +645,6 @@ if [ "$print" = 1 ]; then
     newer_unbound "$name" "$sid" "$dir"
     echo "pane $name $sid $dir $st"
     cap_of "$name"
-    spawn_vars_ok "$name" "$new"
     echo "run $name $(cmd_of "$name" "$sid" "$st" "$new")"
   done <<< "$AGENTS"
   exit 0
@@ -666,9 +670,8 @@ slice_ceiling() {
 # spawner launches differs from a relaunched one only in its session flag and prompt. --new asserts the resolver's own
 # <new> (a spawner-bound session with no transcript anywhere); nothing prints on a refusal.
 if [ "$panecmd" = 1 ]; then
-  # the same cap rules as the grid: no user manager refuses unless FABRIK_AGENTS_UNCAPPED=1, else the slice ceiling is asserted
-  slice_ceiling
   found=0
+  pane_line=""
   while read -r name sid folder new; do
     [ "$name" = "$SP_NAME" ] && [ "$sid" = "$pane_sid" ] || continue
     found=1
@@ -681,9 +684,12 @@ if [ "$panecmd" = 1 ]; then
     dir="$(dir_of "$folder")"
     [ -n "$dir" ] || exit 2
     st="$(status_of "$sid" "$dir" "$name")"
-    cmd_of "$name" "$sid" "$st" "$new"
+    pane_line="$(cmd_of "$name" "$sid" "$st" "$new")"
   done <<< "$AGENTS"
   [ "$found" = 1 ] || bad_arg "$SP_NAME with session $pane_sid is not a builder the resolver gives $ROOT"
+  # the same cap rules as the grid, last: a refused request never writes the slice property
+  slice_ceiling
+  printf '%s\n' "$pane_line"
   exit 0
 fi
 
@@ -746,7 +752,6 @@ else
     st="$(status_of "$sid" "$dir" "$name")"
     newer_unbound "$name" "$sid" "$dir"
     [ "$st" = no-transcript ] && [ "$new" != 1 ] && echo "agents_up: $name: no transcript for session $sid under $(proj_of "$dir") — the pane will try anyway" >&2
-    spawn_vars_ok "$name" "$new"
     cmd="$(cmd_of "$name" "$sid" "$st" "$new")"
     if [ "$first" = 1 ]; then
       if ! tmux new-session -d -s "$S" -n "$W" -c "$dir" -x 240 -y 60 "$cmd"; then

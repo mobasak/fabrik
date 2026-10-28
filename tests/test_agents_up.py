@@ -2359,3 +2359,64 @@ def test_a_padded_pid_in_ps_output_still_reads_running(tmp_path: Path) -> None:
     (home / "proc" / "4002" / "cwd").symlink_to(_wt(repo, "infra-2"))
     out = _run("--print", str(repo), home=home)
     assert _panes(out.stdout) == [f"pane infra-2 {DEV2} {_wt(repo, 'infra-2')} running"], out.stdout
+
+
+# --- W-b9ad80ae T02 review pass 2: every refusal is decided before the first side effect or output line ---------------
+
+
+def _mixed_repo(tmp: Path) -> tuple[Path, Path]:
+    """b2 resumes (an ordinary binding), b3 is a NEW spawner-bound builder that sorts AFTER it."""
+    repo, _, scope = _spawn_repo(tmp)
+    rows = [
+        _bind(B2, "b2", scope, NOW),
+        {**_bind(B3, "b3", scope, NOW), "pid": None, "force": False, "spawned": True},
+    ]
+    return repo, _store(tmp, rows, "mixed.jsonl")
+
+
+def test_a_malformed_spawn_variable_refuses_before_a_grid_is_started(tmp_path: Path) -> None:
+    """N1: with FABRIK_SPAWN_NAME naming a new builder that sorts after a resumed one and a malformed ITEM or COORDINATOR,
+    `--detach` makes no tmux call at all (a partial grid would be left "already up" and the new builder never launched),
+    and `--print` prints no `session`/`pane`/`cap` line. A stale variable naming no new builder stops nothing."""
+    repo, store = _mixed_repo(tmp_path)
+    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    for var, value in (("FABRIK_SPAWN_ITEM", "nope"), ("FABRIK_SPAWN_COORDINATOR", "x y")):
+        env = {"FABRIK_SPAWN_NAME": "b3", var: value, "AGENT_IDENTITY_FILE": str(store)}
+        out = _run("--detach", str(repo), home=home, **env)
+        assert out.returncode == 2 and var in out.stderr, (var, out.stderr)
+        log = home / "tmux.log"
+        assert not log.exists() or log.read_text(encoding="utf-8") == "", (var, _log(home))
+        assert not (home / "systemctl.log").exists() or "set-property" not in (home / "systemctl.log").read_text(
+            encoding="utf-8"
+        ), var
+        bad = _run("--print", str(repo), home=home, **env)
+        assert bad.returncode == 2 and bad.stdout == "" and "pane " not in bad.stdout, (var, bad.stdout, bad.stderr)
+    # the name is b2 (resumed): nothing to validate, the grid starts
+    ok = _run("--detach", str(repo), home=home, FABRIK_SPAWN_NAME="b2", FABRIK_SPAWN_ITEM="nope", AGENT_IDENTITY_FILE=str(store))
+    assert ok.returncode == 0, ok.stderr
+
+
+def test_a_refused_pane_cmd_never_writes_the_slice_property(tmp_path: Path) -> None:
+    """O1: the found / --new / dir_of checks run BEFORE the cap rules, so a refused request leaves the user manager
+    untouched; an accepted one asserts the ceiling (after the checks)."""
+    repo, store, _ = _spawn_repo(tmp_path)
+    home = _home(tmp_path)
+    env = {"AGENT_IDENTITY_FILE": str(store)}
+    for args in (("b9", B2, "--new"), ("b2", DEV1), ("b2", B2, "--new", "--item", "nope")):
+        bad = _run("--pane-cmd", str(repo), *args, home=home, **env)
+        assert bad.returncode == 2 and bad.stdout == "", (args, bad.stderr)
+    log = home / "systemctl.log"
+    assert not log.exists() or "set-property" not in log.read_text(encoding="utf-8"), log.read_text(encoding="utf-8")
+    assert _run("--pane-cmd", str(repo), "b2", B2, "--new", home=home, **env).returncode == 0
+    assert "set-property" in log.read_text(encoding="utf-8")
+
+
+def test_pane_cmd_is_its_own_mode(tmp_path: Path) -> None:
+    """O2: `--pane-cmd` beside `--print` or `--detach` is a usage error (exit 2, nothing printed) — it never prints the
+    whole grid, and `--detach` never lets it skip the uncapped refusal."""
+    repo, store, _ = _spawn_repo(tmp_path)
+    home = _home(tmp_path)
+    for flag in ("--print", "--detach"):
+        out = _run(flag, "--pane-cmd", str(repo), "b2", B2, "--new", home=home, AGENT_IDENTITY_FILE=str(store))
+        assert out.returncode == 2 and out.stdout == "", (flag, out.stdout)
+        assert "its own mode" in out.stderr, (flag, out.stderr)
