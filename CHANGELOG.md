@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — The hub declares a 3000 s merge-test leg (2026-10-28)
+
+The hub's merge-test leg ran past `merge_request.py`'s 1800 s default even on the base copy (exit 124),
+so every merge that selected the full suite was refused. `.fabrik/merge-tests` now carries
+`# merge-test-timeout: 3000` (read from the base only, clamped to the 3600 s budget), with its costs
+stated beside it: a rebuild after a failed CAS gets 600 s, and `merge --queue` forks a leg only in its
+first 780 s. `tests/test_merge_request_pretest.py::test_the_hub_declares_its_own_longer_leg` pins it
+(W-418c9d9f, D-1310; follow-up W-3ba57940 cuts the slow shard).
+
 ### Added — Coordinator wait guard: a merge owner's long foreground Bash wait is refused (2026-10-27)
 
 `.claude/hooks/seat_guard.py` now enforces D-1296 for the lead of the session bound as its repo's merge owner. A foreground Bash call is denied when its tool timeout exceeds 120 s, or when it runs a `sleep` inside a while/until/for/select loop under a timeout over 60 s. The deny tells the coordinator to re-run with `run_in_background: true` and end the turn, not block on the output. Identity comes from `quota_stop.py`, loaded by file path; every identity doubt allows. Measured first: the hub coordinator held 736 minutes of foreground waits in one day, and a plain "any sleep" rule was rejected (19 fires on coordinator sessions in 3 days, none long). W-e57d2481.
