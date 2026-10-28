@@ -3,7 +3,7 @@
   "created": "2026-10-28T13:15:26.340335Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "fe97e86f648bcb481118f5f4f0a594f98e605008",
   "id": "W-d6726a65",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra-2",
   "priority": 1,
   "score_reason": "operator 1.1: one-time steps done by the operator once, then coordinators handle the rest",
-  "status": "open",
+  "status": "done",
   "tags": [
     "next-infra-2"
   ],
