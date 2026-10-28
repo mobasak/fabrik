@@ -1872,3 +1872,49 @@ def test_an_empty_or_future_dated_handoff(tmp_path: Path) -> None:
     near = time.time() - 23 * 3600
     os.utime(path, (near, near))
     assert _HANDOFF_TEXT.strip() in _start(repo, tmp_path, "clear").splitlines()  # 23 h: current
+
+
+# ── W-a77742db: SessionStart re-records a resumed session under its claude process ─────────────
+_REFRESH_STUB = '''
+import json, os
+def refresh(top=None):
+    print("REFRESH-RAN")
+    with open(os.environ["STUB_OUT"], "a") as fh:
+        fh.write(json.dumps({"sid": os.environ.get("CLAUDE_CODE_SESSION_ID"), "top": top}) + "\\n")
+    return "agent-2"
+'''
+
+
+def test_session_start_re_records_a_resumed_session_under_its_process(tmp_path: Path) -> None:
+    """Behaviour 4: on SessionStart the hook calls the repo's own `whoami_agent.py::refresh` once,
+    AFTER printing ORIENT, with the payload's session id in the env and its own git common dir as
+    the scope; with no session id, no script, an older script without `refresh`, or a `refresh`
+    that raises, it calls nothing (or nothing harmful) and ORIENT still prints — fail-open."""
+    repo = _git_repo(tmp_path / "opt" / "resumed", None)
+    stub = repo / "scripts" / "whoami_agent.py"
+    stub.write_text(_REFRESH_STUB, encoding="utf-8")
+    out_file = tmp_path / "calls.jsonl"
+    env = {"STUB_OUT": str(out_file)}
+
+    def calls() -> list[dict]:
+        if not out_file.exists():
+            return []
+        return [json.loads(x) for x in out_file.read_text(encoding="utf-8").splitlines()]
+
+    payload = {"cwd": str(repo), "session_id": "sess-resumed", "source": "resume"}
+    rc, out = _run(repo, tmp_path, json.dumps(payload), env)
+    assert rc == 0
+    assert calls() == [{"sid": "sess-resumed", "top": os.path.realpath(_common_dir(repo))}]
+    assert "ORIENT" in out and out.index("ORIENT") < out.index("REFRESH-RAN"), out
+    out_file.unlink()
+    rc, out = _run(repo, tmp_path, json.dumps({"cwd": str(repo)}), env)  # no session id
+    assert rc == 0 and "ORIENT" in out and calls() == []
+    stub.write_text("def other():\n    pass\n", encoding="utf-8")  # an older copy
+    rc, out = _run(repo, tmp_path, json.dumps(payload), env)
+    assert rc == 0 and "ORIENT" in out and calls() == []
+    stub.write_text("def refresh(top=None):\n    raise RuntimeError('boom')\n", encoding="utf-8")
+    rc, out = _run(repo, tmp_path, json.dumps(payload), env)
+    assert rc == 0 and "ORIENT" in out
+    stub.unlink()  # a repo without the script
+    rc, out = _run(repo, tmp_path, json.dumps(payload), env)
+    assert rc == 0 and "ORIENT" in out and calls() == []

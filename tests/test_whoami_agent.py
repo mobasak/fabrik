@@ -807,3 +807,119 @@ def test_the_trim_never_resurrects_a_renamed_session_or_aborts_on_a_bad_row(stor
     assert owner.get("s1") != "alice", kept  # never resurrected: s1's last row named bob
     assert "s2" in owner, kept  # bob's newest binding survives
     assert "s-mine-old" not in owner, kept  # superseded by this bind's own row
+
+
+# ── W-a77742db: a session resumed into a new claude process is re-recorded under it ────────────
+def _bound_elsewhere(m, sid="sid-alpha", name="agent-2", pid=9_999_999, start=1, top=None):
+    """A row for `sid` written under ANOTHER claude process (a dead pid by default) — the shape
+    every session resumed into a new process carries (measured 2026-10-28: 10 of 15 bound live
+    windows)."""
+    row = json.loads(_holder(m, pid, start, sid=sid, name=name))
+    if top is not None:
+        row["toplevel"] = top
+    row["at"] = 100
+    return json.dumps(row)
+
+
+def test_refresh_records_a_resumed_session_under_its_new_process(store, monkeypatch):
+    """Behaviour 1: the one case refresh writes — this session's last in-scope row names a valid
+    name, still the newest row of that name, under a dead process — appends ONE row with the same
+    session, name and scope under THIS process, marked as a refresh, never forced; a passed
+    `top` is the scope (the SessionStart hook passes its own, so no second git runs)."""
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    store.write_text(_bound_elsewhere(m) + "\n", encoding="utf-8")
+    assert m.refresh() == "agent-2"
+    rows = m._rows(store)
+    assert len(rows) == 2
+    new = rows[-1]
+    assert (new["session_id"], new["name"], new["toplevel"]) == ("sid-alpha", "agent-2", m._toplevel())
+    assert (new["pid"], new["pid_start"]) == (pid, start)
+    assert new["refresh"] is True and new["force"] is False and new["unlocked"] is False
+    assert m.resolve_agent_name() == "agent-2"
+    store.write_text(_bound_elsewhere(m, top="/given/.git") + "\n", encoding="utf-8")
+    monkeypatch.setattr(m, "_toplevel", lambda: pytest.fail("a passed scope runs no git"))
+    assert m.refresh(top="/given/.git") == "agent-2"
+    assert m._rows(store)[-1]["toplevel"] == "/given/.git"
+
+
+def test_refresh_writes_nothing_outside_its_one_case(store, monkeypatch):
+    """Behaviour 2: every guard of the design's input table writes nothing — and a second call
+    after a refresh writes nothing (idempotent per process)."""
+    import fcntl
+
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    other = os.getppid()  # a LIVE process that is not this window
+
+    def unchanged(text: str, **kw: object) -> bool:
+        store.write_text(text, encoding="utf-8")
+        before = store.read_bytes()
+        got = m.refresh(**kw)
+        return got == "" and store.read_bytes() == before
+
+    assert unchanged("")  # no binding for this session
+    assert unchanged(_bound_elsewhere(m, sid="sid-other") + "\n")  # another session's row only
+    assert unchanged(_bound_elsewhere(m, name="Bad Name") + "\n")  # invalid name
+    assert unchanged(_bound_elsewhere(m, top="/elsewhere/.git") + "\n")  # only in another scope
+    assert unchanged(_bound_elsewhere(m, top="") + "\n")  # an unknown scope is never ours
+    assert unchanged(_bound_elsewhere(m) + "\n", top="")  # nor an unknown current scope
+    assert unchanged(_holder(m, pid, start, sid="sid-alpha") + "\n")  # already under this process
+    # the sid is live in ANOTHER process (`claude --resume <sid>` in a second terminal)
+    assert unchanged(_bound_elsewhere(m, pid=other, start=m._pid_start(other)) + "\n")
+    lock = os.open(str(store) + ".lock", os.O_CREAT | os.O_RDWR, 0o600)
+    fcntl.flock(lock, fcntl.LOCK_EX)  # a writer holds the store: one try, then nothing
+    t0 = time.monotonic()
+    assert unchanged(_bound_elsewhere(m) + "\n")
+    assert time.monotonic() - t0 < 1.0, "a busy store must not hold SessionStart"
+    fcntl.flock(lock, fcntl.LOCK_UN)
+    os.close(lock)
+    monkeypatch.setenv("CLAUDE_PID", "31337")  # a nested claude: the walk reached the outer one
+    assert unchanged(_bound_elsewhere(m) + "\n")
+    monkeypatch.delenv("CLAUDE_PID")
+    monkeypatch.setattr(m, "_session_pid", lambda: None)  # no claude ancestor
+    assert unchanged(_bound_elsewhere(m) + "\n")
+    _own_process(m, monkeypatch)
+    real_start = m._pid_start
+    monkeypatch.setattr(m, "_pid_start", lambda _pid: None)  # start tick unreadable
+    assert unchanged(_bound_elsewhere(m) + "\n")
+    monkeypatch.setattr(m, "_pid_start", real_start)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "")
+    assert unchanged(_bound_elsewhere(m) + "\n")  # no session id
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sid-alpha")
+    store.write_text(_bound_elsewhere(m) + "\n", encoding="utf-8")
+    assert m.refresh() == "agent-2"  # the positive control under the same patches
+    once = store.read_bytes()
+    assert m.refresh() == "" and store.read_bytes() == once  # idempotent
+
+
+def test_refresh_never_takes_back_a_name_re_taken_since(store, monkeypatch):
+    """Behaviour 3: once another session bound the name after this one, a refresh would make this
+    window the name's newest live holder again — a silent take-back; it writes nothing. And the
+    last row is chosen PER SCOPE: a sid holding the name here and elsewhere refreshes here."""
+    m = _mod()
+    _own_process(m, monkeypatch)
+    store.write_text(
+        _bound_elsewhere(m) + "\n" + _bound_elsewhere(m, sid="sid-new", pid=9_999_998) + "\n",
+        encoding="utf-8",
+    )
+    before = store.read_bytes()
+    assert m.refresh() == "" and store.read_bytes() == before
+    # this session re-bound the name after the other one took it: its own again, refreshed
+    store.write_text(
+        _bound_elsewhere(m, name="agent-3")
+        + "\n"
+        + _bound_elsewhere(m, sid="sid-new", name="agent-3", pid=9_999_998)
+        + "\n"
+        + _bound_elsewhere(m, name="agent-2")
+        + "\n",
+        encoding="utf-8",
+    )
+    assert m.refresh() == "agent-2"
+    # the session's LAST row overall sits in another repo; its last row HERE still refreshes
+    store.write_text(
+        _bound_elsewhere(m) + "\n" + _bound_elsewhere(m, top="/elsewhere/.git") + "\n",
+        encoding="utf-8",
+    )
+    assert m.refresh() == "agent-2"
+    assert m._rows(store)[-1]["toplevel"] == m._toplevel()
