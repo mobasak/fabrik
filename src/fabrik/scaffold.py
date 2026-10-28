@@ -8970,6 +8970,112 @@ def _configure_git_repo(project_dir: Path) -> None:
             return  # no git, no repo, unwritable — never fail a scaffold over config
 
 
+COORDINATOR_NAME = "coordinator"  # always fits NAME_RULE [a-z0-9-]{1,32}; "<name>-coordinator" does not past 20 chars
+_COORDINATOR_CHARTER = Path("docs") / "agents" / "COORDINATOR_CHARTER_TEMPLATE.md"
+
+
+def _hub_file(rel: str) -> Path | None:
+    """A hub asset by repo-relative path: FABRIK_ROOT first, then the module-relative root (the
+    `_load_doc_registry` fallback, so a test that mocks FABRIK_ROOT still finds the real file)."""
+    for base in (FABRIK_ROOT, Path(__file__).resolve().parents[2]):
+        if (base / rel).is_file():
+            return base / rel
+    return None
+
+
+def _work_py() -> Path | None:
+    return _hub_file("scripts/work.py")
+
+
+def _emit_coordinator_model(project_dir: Path, name: str, today: str) -> None:
+    """Make a new repo coordinator-ready (W-a02d1c86; operator 2026-10-28: "i want these mechanism for all
+    repos not only fabrik."): a MERGE OWNER row naming COORDINATOR_NAME above D-000, the work store made by the
+    hub's real `work.py init --distributor`, its coordinator keys (the rollout runbook's phase 1 step 1), and
+    the coordinator charter. Builders are the hub spawn verb's (W-b9ad80ae), never emitted here.
+
+    Fail direction: a failure never breaks the scaffold — it prints a WARNING and the repo is left as a
+    pre-coordinator scaffold (an outage, never a wrong answer). The distributor is passed explicitly because
+    work.py derives it from a hub-absolute decisions.py and writes "" at rc 0 off-hub. COBRA (D-253): the
+    cheapest way to pass the grader is to write the config without the store's .gitignore or without init's
+    base_branch rule; the grader checks both and byte-compares the config to work.py's own writer."""
+
+    def warn(why: str) -> None:
+        print(f"WARNING: coordinator model not emitted: {why}")
+
+    ledger = project_dir / "docs" / "DECISIONS.md"
+    if not ledger.is_file():
+        warn("docs/DECISIONS.md was not seeded, so no MERGE OWNER row")
+        return
+    text = ledger.read_text()
+    row = (
+        f"| D-001 | {today} | fabrik scaffold | MERGE OWNER: {COORDINATOR_NAME} — the coordinator works alone in "
+        f"the main checkout and keeps both roles while the repo has no builders; builders, spawned later, work "
+        f"in `.claude/worktrees/<name>`. Work store born with `coordinator_mode`, `queue_floor` 1, `autonomy` "
+        f"and no feedback owner. Reversible: a new row moves the merge owner. | the operator's 2026-10-28 order "
+        f'"i want these mechanism for all repos not only fabrik." (hub docs/reference/operator-agent-requirements.md) '
+        f"| `docs/reference/agents/{COORDINATOR_NAME}.md`; `.fabrik/work/config.json` |\n"
+    )
+    if "| D-000 |" not in text:
+        warn("docs/DECISIONS.md has no D-000 row to seed above")
+        return
+    ledger.write_text(text.replace("| D-000 |", row + "| D-000 |", 1))
+
+    work_py = _work_py()
+    if work_py is None:
+        warn("the hub's scripts/work.py was not found")
+    else:
+        try:
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(work_py),
+                    "--repo",
+                    str(project_dir),
+                    "init",
+                    "--distributor",
+                    COORDINATOR_NAME,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            proc = None
+            warn(f"work.py init did not run ({exc})")
+        cfg_path = project_dir / ".fabrik" / "work" / "config.json"
+        if proc is not None and proc.returncode != 0:
+            warn(
+                f"work.py init exited {proc.returncode}: {(proc.stderr or proc.stdout).strip()[-300:]}"
+            )
+        elif proc is not None:
+            try:
+                cfg = json.loads(cfg_path.read_text())
+            except (OSError, ValueError) as exc:
+                warn(f"cannot read {cfg_path.relative_to(project_dir)} ({exc})")
+            else:
+                if cfg.get("distributor") != COORDINATOR_NAME:
+                    warn(f"work.py init recorded distributor {cfg.get('distributor')!r}")
+                else:
+                    cfg.update(
+                        coordinator_mode=True, queue_floor=1, autonomy=True, feedback_owner=None
+                    )
+                    # work.py's own _dump shape, so its next write is no churn
+                    cfg_path.write_text(
+                        json.dumps(cfg, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+                    )
+
+    template = _hub_file(str(Path("templates") / "scaffold" / _COORDINATOR_CHARTER))
+    if template is None:
+        warn(f"templates/scaffold/{_COORDINATOR_CHARTER} was not found")
+        return
+    charter = project_dir / "docs" / "reference" / "agents" / f"{COORDINATOR_NAME}.md"
+    charter.parent.mkdir(parents=True, exist_ok=True)
+    charter.write_text(template.read_text().replace("[Project Name]", name))
+    print(
+        f"Coordinator: open it as `CLAUDE_AGENT={COORDINATOR_NAME} claude -n {name}-coordinator` in {project_dir}"
+    )
+
+
 def _ensure_dockerignore(project_dir: Path) -> Path | None:
     """Every project that emits a Dockerfile gets a ``.dockerignore`` at the BUILD CONTEXT root.
 
@@ -9134,6 +9240,9 @@ def _create_project(
     # Every Dockerfile-bearing project carries a .dockerignore at the build context root —
     # emitted here, once, so a new scaffold type cannot forget it (see _ensure_dockerignore).
     _ensure_dockerignore(project_dir)
+
+    # Born coordinator-ready: merge-owner row, work store, coordinator charter — in the initial commit.
+    _emit_coordinator_model(project_dir, name, today)
 
     # Final commit after all files (shared + type-specific) are in place so the
     # initial snapshot is complete and clean.
