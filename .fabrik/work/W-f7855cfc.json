@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T16:38:21.822036Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-f7855cfc",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fix each with a red-first test: (site.get(\"domain\") or \"\").lower(); wrap both subprocess.run calls into ModalError; delete the dead electron branch or decide whether desktop-app should scan electron/",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "Three production defects found by the batch-5 coverage review (one hop out, not fixed there): (1) seo.SEOClient.get_site_by_domain raises AttributeError on a site whose domain is null (src/fabrik/drivers/seo.py:102 site.get(\"domain\", \"\").lower()); (2) modal_provider list_endpoints / destroy_endpoint let subprocess.TimeoutExpired and FileNotFoundError (no modal binary) escape raw instead of ModalError (src/fabrik/drivers/modal_provider.py:366, :592); (3) deploy_validator _check_health_endpoint has an unreachable _ELECTRON_TYPES branch, because desktop-app is also in _NO_HTTP_HEALTH_TYPES and returns first (src/fabrik/deploy_validator.py:193 vs :203)"
+}
