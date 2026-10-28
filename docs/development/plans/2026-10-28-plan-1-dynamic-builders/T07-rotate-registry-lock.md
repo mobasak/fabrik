@@ -1,20 +1,23 @@
 # T07 — rotate_session.py re-points the registry under the agents lock
-Appetite: 45
+Appetite: 60
 
 ## Scope
-W-14219e6f point 3: `rotate_session._repoint_registry` (`scripts/sysadmin/rotate_session.py:252-320`) reads, rewrites and `os.replace`s `.fabrik/session-agents.json` (`:300-313`) outside any lock, so a rotation landing inside an `add` or `remove` (which hold the repo's agents lock across their registry write — spec § The delta D2, `docs/superpowers/specs/2026-10-28-dynamic-builders-design.md:96-99`) can lose one of the two writes; its own comment concedes the window (`:305`). Fix the class at its root: `_repoint_registry` takes the SAME lock for its whole read-modify-write.
+W-14219e6f point 3, with plan-review pass 1, A4, A5, A14: `rotate_session._repoint_registry` (`scripts/sysadmin/rotate_session.py:252-320`) lstat's, reads, rewrites and `os.replace`s `.fabrik/session-agents.json` outside any lock, so a rotation landing inside an `add` or `remove` (which hold the repo's agents lock across their registry write — spec § The delta D2, `docs/superpowers/specs/2026-10-28-dynamic-builders-design.md:96-99`) can lose one of the two writes; its own comment concedes the window (`:305`). Fix at the root: the whole function runs under the SAME lock.
 
-1. Load `agents_spawn.py` from `rotate_session.py`'s own directory by file path (`importlib.util.spec_from_file_location`, the pattern `.claude/hooks/agent_role.py:96-106` uses) and call its `lock_path(repo)` (T06), so the lock path rule exists once.
-2. Take `fcntl.flock(LOCK_EX | LOCK_NB)` on that path, retrying every 0.2 s for up to 30 s; never obtained → return `"refused:agents lock busy"` (the function's existing `refused:<why>` outcome family, `:292`, `:304`, `:312`) and write nothing. Held from before the re-read of the registry until after `os.replace` (`:300-313`), released in `finally`.
-3. The comment at `:305` is replaced by one naming the lock and who else holds it (`agents_spawn.py add|remove`).
+Invariants and touchpoints:
+1. **Lock before the first read (A4).** The lock is taken before the `os.lstat` at `:258` and the first `read_bytes` at `:277`, and released in `finally` after `os.replace` (`:313`) — the whole read-modify-write, not only the re-read.
+2. **One lock path rule.** Load `agents_spawn.py` from `rotate_session.py`'s own directory by file path (`importlib.util.spec_from_file_location`, the `.claude/hooks/agent_role.py:96-106` pattern) and call its `lock_path(repo)` (T06), the repo derived from the registry path as `path.parents[1]` (`<repo>/.fabrik/session-agents.json`).
+3. **Never an exception (A5).** A missing `agents_spawn.py`, an import error, or a `lock_path` failure (git failing) returns `"refused:agents lock unavailable"` and writes nothing — the function's contract is "every failure is a returned state, never an exception" (`:253-256`).
+4. **Bounded wait (A14).** `fcntl.flock(LOCK_EX | LOCK_NB)` retried every 0.2 s for up to `_wait_s(30)` seconds (`:219-224`, so `ROTATE_WAIT_S` shortens it in tests); never obtained → `"refused:agents lock busy"`, nothing written.
+5. The comment at `:305` is replaced by one naming the lock and its other holders (`agents_spawn.py add|remove`).
 
-DO-NOT: change the outcome strings callers already read (`repointed`, `current`, `no-entry`, the existing `refused:` reasons, `:290-319`), the rotation flow around the call (`:1188-1194`), or `resolve()`'s pane lookup (`:467-482`, which already filters the base session and so reads grouped windows once).
+DO-NOT: change the outcome strings callers already read (`repointed`, `current`, `no-entry`, `absent`, the existing `refused:` reasons, `:257-319`), the rotation flow around the call (`:1188-1194`), or `resolve()` (`:467-482`, which filters the base session and so reads grouped windows once).
 
 Depends: T06
 Parallel: ⚡
 Complexity: native
 Gate: /opt/fabrik/scripts/capped_run.sh -- /opt/fabrik/.venv/bin/python -m pytest tests/test_rotate_session.py tests/test_agents_spawn.py -q
-Docs: docs/workstation/session-history-retention.md — the sentence that describes the re-point (`docs/workstation/session-history-retention.md:177`) gains "under the repo's agents lock (`refused:agents lock busy` after 30 s)"; it is the one doc among rotate_session.py's AFTER-EDIT targets (`scripts/sysadmin/rotate_session.py:2`) that describes the re-point (hooks-index.md's fabrik-rotate row does not, and is T04's file)
+Docs: docs/workstation/session-history-retention.md — the sentence describing the re-point (`docs/workstation/session-history-retention.md:177`) gains "under the repo's agents lock (`refused:agents lock busy` after 30 s)"; it is the one doc among rotate_session.py's AFTER-EDIT targets (`scripts/sysadmin/rotate_session.py:2`) that describes the re-point
 
 ## Touches
 - scripts/sysadmin/rotate_session.py — PRIMARY PATH
@@ -23,8 +26,10 @@ Docs: docs/workstation/session-history-retention.md — the sentence that descri
 
 ## Behavior Contract
 - **Given** a process holding the repo's agents lock while it adds a registry row, **When** a rotation re-points another row of the same registry, **Then** the rotation waits for the lock and the file afterwards holds both changes (scripts/sysadmin/rotate_session.py:300-313; W-14219e6f point 3)
-- **Given** the agents lock held for longer than the bound, **When** the rotation re-points, **Then** the outcome is `refused:agents lock busy` and the registry is byte-identical (scripts/sysadmin/rotate_session.py:290-319)
-- **Given** `agents_spawn.lock_path(<repo>)`, **When** rotate_session resolves the lock for the same repo, **Then** both name the same file (seam test; spec § The delta D2)
+- **Given** a competing writer that takes the lock and rewrites the registry after the rotation's first read would have happened, **When** both finish, **Then** both changes hold, because the rotation's lock precedes its first lstat and read (scripts/sysadmin/rotate_session.py:258-277; plan-review pass 1, A4)
+- **Given** the agents lock held past the bound with `ROTATE_WAIT_S=1`, **When** the rotation re-points, **Then** the outcome is `refused:agents lock busy` and the registry is byte-identical (scripts/sysadmin/rotate_session.py:219-224; plan-review pass 1, A14)
+- **Given** `agents_spawn.py` missing from the script directory, or `lock_path` raising, **When** the rotation re-points, **Then** the outcome is `refused:agents lock unavailable`, no exception escapes, and the registry is byte-identical (scripts/sysadmin/rotate_session.py:253-256; plan-review pass 1, A5)
+- **Given** `agents_spawn.lock_path(<repo>)`, **When** rotate_session resolves the lock from `<repo>/.fabrik/session-agents.json`, **Then** both name the same file (seam test; spec § The delta D2)
 
 ## Context Files
 - .windsurf/rules/core/45-testing-strategy.md
