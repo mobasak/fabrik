@@ -405,8 +405,9 @@ def test_a_runtime_enabled_timer_is_made_persistent_and_its_undo_disables_only_t
     env = _env(home)
     for ln in undo:
         subprocess.run(["bash", "-c", ln], env=env, check=True)
-    word = subprocess.run(["systemctl", "--user", "is-enabled", "session-archive.timer"], env=env,
-                          capture_output=True, text=True).stdout.strip()
+    word = subprocess.run(
+        ["systemctl", "--user", "is-enabled", "session-archive.timer"], env=env, capture_output=True, text=True
+    ).stdout.strip()
     assert word == "enabled-runtime", word
 
 

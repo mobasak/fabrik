@@ -69,7 +69,7 @@ ARCHIVE_INSTALLER = "install_session_archive_timer.sh"
 ARCHIVE_UNITS = ("session-archive-alert.service", "session-archive.service", "session-archive.timer")
 ARCHIVE_ALERT = "session-archive-alert.service"
 ARCHIVE_TIMER = "session-archive.timer"
-TIMER_WORDS = ("enabled", "enabled-runtime", "disabled", "not-found")  # `is-enabled` words with a measured undo
+TIMER_WORDS = ("enabled", "enabled-runtime", "disabled", "not-found")  # is-enabled words, measured undo
 NO_MANAGER = "cannot reach the user systemd manager"
 SSH_TARGET = "git@github.com"  # git's own identity: a `Match user git` resolves differently for a bare host
 SSH_WANT = ("15", "4")  # (ServerAliveInterval, ServerAliveCountMax) the block writes
@@ -506,7 +506,8 @@ def _run_archive_installer(p: Plan, done: list[Change]) -> int:
 
 def apply(home: Path, p: Plan) -> int:
     changes = p.changes
-    for c in changes:  # a file edited since it was planned is not overwritten (bar the re-check→replace instant, see the docstring)
+    # a file edited since it was planned is not overwritten (bar the re-check→replace instant, see the docstring)
+    for c in changes:
         if _changed(c):
             print(f"operator_setup: {c.path} changed since it was planned — nothing written; run again", file=sys.stderr)
             return 1
