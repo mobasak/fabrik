@@ -1,6 +1,24 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A check that reads list POSITION is satisfied by reordering the list (2026-10-27, W-0b900e92)
+
+**What happened:** the /fabrik-task close compared a receipt's range tip with the LAST `--commit`. A reporter whose receipt and ledger commits honestly came after the reviewed tip was refused, and passed by moving the tip to the end of the list. The same reorder passed an unreviewed code commit listed before the tip.
+**Lesson:** when a check means "covers everything after X", read the order from the data that has one (git ancestry, timestamps), never from the order the caller typed. A workaround a reporter had to use ("I re-ordered the list") is the cobra path itself; replay it against the check before fixing the false refusal, or the fix keeps the hole.
+
+## A child in its own session is safe from your timeout and invisible to your stopper (2026-10-27)
+
+- **What happened:** `api_write.py` started each paid `claude` child with `start_new_session=True` so a timeout
+  could kill the child's whole tree. The same choice took the children out of the reach of every stop signal sent
+  to the runner's group. Claude Code stops a background task with SIGTERM to that group, then SIGKILL about 1.4 s
+  later. The runner died on the default action, and six paid children ran on with no settle row and no log line
+  (W-d077095a). A test that passed with SIGKILL arriving after the runner exited still lost every line in
+  production, because a file sink is block-buffered.
+- **Rule:** a supervisor that puts children in their own session owns their death. Handle every catchable stop
+  signal, kill the registered groups, and finish everything that keeps money honest (ledger rows, flushed lines)
+  inside the grace the sender gives. Measure that grace, then grade it with a real signal sent to the GROUP, a
+  file sink and a SIGKILL at the end of the grace.
+
 ## A parser built to match a consumer is probed on every character class it branches on (2026-10-27)
 
 - **What happened:** W-2ae286e2 measured docker compose's `.env` grammar in real containers before the
@@ -37,6 +55,19 @@
   lock the watchdog takes, and the watchdog re-reads that mark after it gets the lock. Flush buffered stdout (bounded)
   before `os._exit`, bound the interval above as well as below, and grade the handshake by firing the real watchdog with
   the arguments the code gave the Timer after the work returned.
+
+## A cache added for cost is keyed on the STATE it reads, never on the name that points at it (2026-10-27, W-69322546)
+
+- **What happened:** review round 1 of the Merged-From vouch fix cached the target's trailer map on `(repo, target)`
+  to stop a full-history `git log` per unmerged branch. Round 2 found that `scratch_sweep.py` classifies and then
+  RE-CHECKS at removal in the same process, so a target rewound past a squash between the two still answered from
+  the plan-time map — the re-check existed to catch exactly that change. The same round found that skipping every
+  merge commit on the branch side, to stop a merged-back branch reading unmerged, also skipped a merge that brought
+  in another branch's never-merged work.
+- **Rule:** before caching a read, grep for every caller that reads it twice in one process and ask what the second
+  read is FOR; key the cache on the resolved state (here the target's commit), so a moved ref is a cache miss. And a
+  filter added to drop one harmless shape (a merge of the target) is written as the test for that shape (every extra
+  parent already in the target), never as "drop the whole kind".
 
 ## Hardening one stat call against EACCES means sweeping every stat on the same path (2026-10-27)
 

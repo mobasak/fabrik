@@ -8,9 +8,23 @@ All notable changes to this project will be documented in this file.
 
 Phase 5 step 5 now gives the plain calls a linked worktree runs in place of the chained capture line, which the isolation guard refuses. Those calls fail closed on a failed commit and on none or two exact-subject matches. Phase 4 (v2) says a review that will outlive the turn is dispatched only after the build is committed, because seats out at a turn end meet the Stop hook's uncommitted-work block. Answers 7 feedback rows (W-d4b9229c).
 
+### Fixed — the API write lane settles and names every job on a stop signal (2026-10-27)
+
+`scripts/api_write.py` now handles SIGTERM, SIGHUP and SIGINT (D-1295, W-d077095a). A stopped session sends SIGTERM
+to the task's process group and SIGKILL ~1.4 s later; the runner used to die on the default action while its
+own-session `claude` children ran on unsettled. Now every running child's group is killed, the run settles
+`interrupted` (settleable from the console at once), nothing partial is pushed, a queued job reports `not started`, a
+child that finished first still pushes, lines are line-buffered so a log file keeps them, and the runner exits
+128 + signum. Graded by real group-signal tests and one grader per guard, each shown red by its own mutant
+(the review receipt lists them).
+
 ### Fixed — command texts follow the worktree-own scratch root (2026-10-27)
 
 `/fabrik-task` now says a run's `SCRATCH:` folder sits under the session's own checkout and does not survive a worktree's removal. The subagents fragment drops the worktree lead's `cp` workaround, which D-1268 made unnecessary, and gains a "fix, THEN pin and dispatch the re-verifying seats" rule, because `round` reads a round as fresh once its newest stamp postdates the last confirming round (D-1288, infra mail 01M5X8W0M1).
+
+### Fixed — the /fabrik-task close accepts the receipt and ledger commits made after the reviewed tip, and no longer passes an unreviewed commit by list order (2026-10-27)
+
+`command_run.py done --command fabrik-task --review` refused a full-review receipt whenever the receipt and ledger commits (made after the reviewed code tip) were listed in the order made, and passed when the tip was listed last — which also let an unreviewed code commit through when listed before the tip (site-provisioner mail 01M4F5HTPS, W-0b900e92). `task_lane.check_review_receipt` check (d) now reads git: the range tip must be one of the listed commits, and every listed commit after it in ancestry may touch only receipts and ledgers (the close's exclusion set narrowed to `.md`/`.json`, contract and migration paths excluded); the working-tree form anchors on the listed commit containing every other.
 
 ### Fixed — the scaffold-helper emitter test no longer copies the box's live API keys (2026-10-27)
 
@@ -21,6 +35,17 @@ at a tmp root whose emitter is a shim. The shim loads the real emitter and aims 
 test's files, then adds `--defs`. It refuses any argv but `--repo <repo>`, so a helper that dropped `--repo`
 fails instead of sweeping the live `/opt`. A new assertion checks that exa's key is the test's own.
 W-2c2f1025; a one-test hunk under intel's plan-3 lock, on the coordinator's ruling.
+
+### Fixed — a Merged-From trailer no longer vouches for a reused branch name's later work (2026-10-27)
+
+`scripts/scratch_sweep.py` read any `Merged-From: <branch>` trailer on the main checkout's branch as proof the branch
+was merged, for ever. Branch names are reused — hand merges carried `Merged-From: worktree-fleet` and
+`worktree-intel`, and two agent branches gained a wip snapshot after their squash — so four live branches with 20,
+47, 1 and 1 unmerged commits read merged, and a clean worktree on one would classify `wt-removable`. Now a merge
+commit's trailer is never read (its parents decide), and a squash's trailer vouches only when no commit of the
+branch is newer than the squash; the refusal row names the newer commits. The trailer log is read once per target
+commit per run. Live census after the fix: the 54 truly squash-merged branches still read merged, the 4 stale ones
+unmerged (W-69322546, D-1290). The rule and its edges: `docs/workstation/cleanup-automation.md`.
 
 ### Fixed — a builder's pane starts where its session lives, and a window on another tree's hooks is told (2026-10-27)
 
@@ -62,6 +87,15 @@ intel's plan-3 lock, on the coordinator's ruling.
   defect — the version registry, an undecodable template file, a missing include partial, a template syntax or
   undefined-attribute error — still surfaces as its own exception with its traceback. Grader:
   `TestDeployTemplateRenderRefusal` in `tests/orchestrator/test_deployer_ssh.py` (D-1289, W-c9dcd641).
+
+### Fixed — package ssh/scp calls outside the driver no longer crash on a non-UTF-8 answer (2026-10-27)
+
+- `fabrik audit`'s ssh probe, the DR drill's ssh/scp helpers (`src/fabrik/orchestrator/vultr_drill.py`) and the
+  preflight's direct-path advisory decode remote output as the ssh driver does (UTF-8 with `surrogateescape`, exit
+  code first — D-1286), so a stray byte no longer raises `UnicodeDecodeError`, reports a successful audit probe as
+  failed, or fails a spoke drill whose bootstrap passed. The audit refuses an answer that is not valid UTF-8 by
+  name; the drill's `RC=` reader takes ASCII digits only. Grader: `tests/test_ssh_decode_outside_driver.py`
+  (D-1298, W-7ac62afc).
 
 ### Fixed — a VPS answer that is not valid UTF-8 no longer crashes a redeploy (2026-10-27)
 

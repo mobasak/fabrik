@@ -15,9 +15,12 @@
   },
   "next": "read final_gate.py's lean tier banner; one-line text change plus a grader",
   "note": "",
-  "owner": "infra",
+  "owner": "infra-2",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — lean gate banner so green not misread; kaizen mail",
   "status": "open",
+  "tags": [
+    "queued"
+  ],
   "title": "final_gate.py --lean output says plainly it skips mypy, so a merge request is never sent on a lean-only green (1791309119) — kaizen mail 01M4PHYRB6"
 }

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-26T10:49:35.805785Z",
   "creator": "infra-3",
+  "effort": "low",
   "evidence": "",
   "id": "W-87078932",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "make --pick and drain prefer the account with the most weekly headroom and refuse one whose live seven_day reading is at its wall (server status rejected, or 100%), naming it; test both against a fixture status JSON; supersede the --pick ordering in the doc",
   "note": "",
-  "owner": "",
+  "owner": "infra-3",
   "priority": 1,
+  "score_reason": "cloud --pick sent 3 paid runs to a weekly-walled account (refused at $0, re-fired); ranks dispatch count before weekly headroom; one sort key",
   "status": "open",
   "tags": [
     "cloud-dispatch"

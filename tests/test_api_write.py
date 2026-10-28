@@ -6,8 +6,10 @@ nothing here reaches a provider or GitHub."""
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -42,10 +44,12 @@ with open(os.environ["FAKE_LOG"], "a", encoding="utf-8") as f:
 if "stream-json" in sys.argv:
     sys.stdout.write(open(os.environ["FAKE_PREFLIGHT"], encoding="utf-8").read())
     sys.exit(1)
-if "FAKE_GRANDCHILD" in os.environ:  # a process the child starts: a timeout must kill it too
+if "FAKE_GRANDCHILD" in os.environ and "FAST" not in prompt:  # a process the child starts: a kill reaches it too
     subprocess.Popen([sys.executable, "-c", "import sys, time; time.sleep(4); open(sys.argv[1], 'w').write('x')",
                       os.environ["FAKE_GRANDCHILD"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-time.sleep(float(os.environ.get("FAKE_SLEEP", "0")))
+    if "FAKE_READY" in os.environ:  # the grandchild is running: a signal now must reach it
+        open(os.environ["FAKE_READY"], "w").close()
+time.sleep(0 if "FAST" in prompt else float(os.environ.get("FAKE_SLEEP", "0")))
 action = os.environ.get("FAKE_ACTION", "edit")
 if action != "none":
     open("made.txt", "w").write(os.environ.get("FAKE_CONTENT", "work\\n"))
@@ -529,3 +533,342 @@ def test_the_default_run_root_is_the_users_cache_not_claude_state(box: dict) -> 
 def test_a_malformed_slug_refuses_before_anything(box: dict, bad: str) -> None:
     p = _run(box, "--key", "can", "--slug", bad, "--task-file", str(_brief(box, "ok")))
     assert p.returncode == 2 and _rows(box) == [] and _calls(box) == []
+
+
+def _module():
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import api_write
+
+    return api_write
+
+
+@pytest.mark.parametrize("sig", [signal.SIGTERM, signal.SIGHUP, signal.SIGINT])
+def test_a_group_signal_kills_settles_and_names_every_job(box: dict, sig: signal.Signals) -> None:
+    """W-d077095a, Behaviours 1-3. A stopped Claude Code background task gets SIGTERM to its whole process group and
+    SIGKILL about 1.4 s later (2.1.311, measured); a closed terminal sends SIGHUP and Ctrl-C SIGINT. The children sit
+    in their own sessions, so the signal never reaches them: the runner must kill them, settle the started run as
+    interrupted, start nothing queued, push nothing, remove the run directory and name every job — in a FILE sink
+    (block-buffered unless the runner says otherwise), where the line of a job that finished earlier is already
+    written while the runner still runs, so a SIGKILL cannot take it. f1 finishes at once (FAST), s1 sleeps, s2
+    waits in the queue."""
+    marker = box["tmp"] / "grandchild-alive"
+    ready = box["tmp"] / "grandchild-started"
+    box["env"].update(FAKE_SLEEP="30", FAKE_GRANDCHILD=str(marker), FAKE_READY=str(ready))
+    fast = _brief(box, "f1")
+    fast.write_text(fast.read_text(encoding="utf-8") + " FAST", encoding="utf-8")
+    batch = box["tmp"] / "batch.json"
+    batch.write_text(
+        json.dumps(
+            [{"slug": "f1", "task_file": str(fast)}]
+            + [{"slug": s, "task_file": str(_brief(box, s))} for s in ("s1", "s2")]
+        ),
+        encoding="utf-8",
+    )
+    sink = box["tmp"] / "runner.log"
+    with open(sink, "w", encoding="utf-8") as fh:
+        p = subprocess.Popen(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "run",
+                "--model",
+                "haiku",
+                "--out-dir",
+                str(box["out"]),
+                "--key",
+                "can",
+                "--batch",
+                str(batch),
+                "--jobs",
+                "1",
+            ],
+            env=box["env"],
+            stdout=fh,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+    try:
+        deadline = time.monotonic() + 60
+        while not ready.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert ready.exists(), "s1's child never launched its grandchild"
+        deadline = (
+            time.monotonic() + 10
+        )  # f1's line is printed as its job returns, beside s1's start
+        while (
+            "api_write: f1 " not in sink.read_text(encoding="utf-8") and time.monotonic() < deadline
+        ):
+            time.sleep(0.05)
+        early = sink.read_text(encoding="utf-8")
+        assert "api_write: f1 " in early, f"f1's line is still in the runner's buffer: {early!r}"
+        os.killpg(p.pid, sig)  # the harness signals the whole group, never one pid
+        try:
+            rc = p.wait(timeout=1.4)
+        except subprocess.TimeoutExpired:
+            rc = None
+    finally:
+        try:
+            os.killpg(
+                p.pid, signal.SIGKILL
+            )  # the harness's follow-up: whatever is still in the group dies
+        except ProcessLookupError:
+            pass
+        p.wait(timeout=10)
+    log = sink.read_text(encoding="utf-8")
+    assert rc == 128 + sig, f"rc {rc} (None = still running when the SIGKILL came); log:\n{log}"
+    rows = _rows(box)
+    starts = [r for r in rows if r["kind"] == "start"]
+    settles = [r for r in rows if r["kind"] == "settle"]
+    assert len(starts) == 2 and len(settles) == 2, rows
+    s1 = next(s for s in settles if s["run"] == starts[1]["run"])
+    assert s1["subtype"] == "interrupted" and s1["source"] == "run"
+    assert _origin(box, "refs/heads/claude/f1")  # finished before the signal: pushed as normal
+    assert f"api_write: s1 run {starts[1]['run']}" in log and f"interrupted by {sig.name}" in log, (
+        log
+    )
+    assert "s2: not started: runner interrupted" in log, log
+    assert not _origin(box, "refs/heads/claude/s1") and not _origin(box, "refs/heads/claude/s2")
+    assert not any((box["state"] / "api-write").iterdir())
+    note = (box["out"] / "s1.md").read_text(encoding="utf-8")
+    assert f"interrupted by {sig.name}" in note and starts[1]["run"] in note
+    assert len(_runs(box)) == 2  # the queued job's child never ran
+    time.sleep(5)  # past the grandchild's 4 s: a survivor of the kill would have written its marker
+    assert not marker.exists()
+
+
+@pytest.fixture()
+def stopped():
+    """The module's stop state, reset around an in-process test so it never leaks into another."""
+    aw = _module()
+    aw._reset_stop()
+    yield aw
+    aw._reset_stop()
+
+
+def test_a_child_started_after_the_signal_is_killed_at_once(stopped) -> None:
+    """Behaviour 4: a child the worker starts after the handler's snapshot is killed at its registration."""
+    stopped._on_signal(signal.SIGTERM, None)
+    t = time.monotonic()
+    rc, _out, _err, killed = stopped.run_child(
+        [sys.executable, "-c", "import time; time.sleep(30)"], "", Path.cwd(), dict(os.environ), 60
+    )
+    assert killed and rc == -signal.SIGKILL and time.monotonic() - t < 5
+
+
+def test_the_handler_survives_a_reaped_child(stopped) -> None:
+    """Behaviour 5: a child reaped but not yet dropped from the registry has no group left; killpg raises
+    ProcessLookupError, which must not escape the handler (it would abort the runner with no job line)."""
+    gone = subprocess.Popen([sys.executable, "-c", "pass"], start_new_session=True)
+    gone.wait()
+    gone.returncode = None  # what the registry holds in the window between the reap and the drop
+    live = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True
+    )
+    stopped._LIVE.update({gone.pid: gone, live.pid: live})
+    try:
+        stopped._on_signal(signal.SIGTERM, None)
+        assert live.wait(timeout=5) == -signal.SIGKILL
+    finally:
+        stopped._LIVE.clear()
+        if live.poll() is None:
+            live.kill()
+
+
+def test_a_child_done_before_the_signal_still_pushes(box: dict, stopped, monkeypatch) -> None:
+    """Behaviour 6: a child that exited on its own just before the signal is paid-for, finished work — it settles
+    with its cost, commits and pushes; only a child the HANDLER killed is interrupted."""
+    for k, v in box["env"].items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.delenv("GIT_DIR")
+    monkeypatch.setattr(stopped.ac, "preflight", lambda *a, **k: None)
+    done = json.dumps(
+        {
+            "type": "result",
+            "subtype": "success",
+            "is_error": False,
+            "result": "SUBJECT: finished before the signal",
+            "total_cost_usd": 0.5,
+            "num_turns": 2,
+        }
+    )
+
+    def finished_then_signalled(argv, prompt, cwd, env, timeout):
+        (cwd / "made.txt").write_text("work\n", encoding="utf-8")
+        stopped._on_signal(
+            signal.SIGTERM, None
+        )  # the signal lands after the child exited on its own
+        return 0, done, "", False
+
+    monkeypatch.setattr(stopped, "run_child", finished_then_signalled)
+    a = argparse.Namespace(
+        model="haiku",
+        force_new=False,
+        pick=False,
+        key="can",
+        budget=5.0,
+        timeout=60,
+        max_turns=5,
+        out_dir=str(box["out"]),
+    )
+    job = {"slug": "d1", "prompt": "make it", "base": "master", "gates": []}
+    keys = stopped.ac.read_keys(stopped.ac.env_file())
+    r = stopped.one(job, a, keys, box["main"], str(box["origin"]))
+    assert r["pushed"] and r.get("error") is None, r
+    assert _origin(box, "refs/heads/claude/d1") == r["pushed"]
+    settle = [x for x in _rows(box) if x["kind"] == "settle"]
+    assert settle and settle[0]["cost"] == 0.5 and settle[0]["subtype"] == "success"
+
+
+def _zombie(pid: int) -> bool:
+    try:
+        return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] == "Z"
+    except OSError:
+        return False
+
+
+def test_a_child_that_exited_before_the_kill_is_not_counted_killed(stopped, monkeypatch) -> None:
+    """Review pass 1 (A-S1): the handler marks every registered child it signals, and a child that had already exited
+    (not yet reaped) is marked too — its work is finished and paid for, so the real run_child must not report it
+    killed. The stop is made to land exactly in that window: after the child is a zombie, before communicate reaps."""
+    real = subprocess.Popen.communicate
+
+    def stop_lands_after_the_exit(self, *args, **kwargs):
+        deadline = time.monotonic() + 10
+        while not _zombie(self.pid) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert _zombie(self.pid), "the child never exited"
+        stopped._on_signal(signal.SIGTERM, None)
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess.Popen, "communicate", stop_lands_after_the_exit)
+    rc, _out, _err, killed = stopped.run_child(
+        [sys.executable, "-c", "pass"], "", Path.cwd(), dict(os.environ), 60
+    )
+    assert rc == 0 and killed is False
+
+
+@pytest.mark.parametrize("where", ["clone", "preflight"])
+def test_a_stop_during_the_set_up_refuses_before_any_spend(
+    box: dict, stopped, monkeypatch, where: str
+) -> None:
+    """Review pass 1 (B-S2): a stop landing while a job clones or runs its pre-flight must leave no start row and
+    report not started. Two guards carry it, each graded alone: the stop check before `reserve` (the clone case: the
+    set-up succeeds) and the refusal-under-stop mapping (the pre-flight case: its child dies with the group, so the
+    pre-flight refuses)."""
+    for k, v in box["env"].items():
+        monkeypatch.setenv(k, v)
+    monkeypatch.delenv("GIT_DIR")
+    real_clone = stopped.make_clone
+
+    def clone_then_stop(*args, **kwargs):
+        out = real_clone(*args, **kwargs)
+        if where == "clone":
+            stopped._on_signal(signal.SIGTERM, None)
+        return out
+
+    def preflight(*args, **kwargs):
+        if where == "preflight":
+            stopped._on_signal(signal.SIGTERM, None)
+            raise stopped.ac.RefusalError(2, "pre-flight refused: its child died (rc -15)")
+
+    monkeypatch.setattr(stopped, "make_clone", clone_then_stop)
+    monkeypatch.setattr(stopped.ac, "preflight", preflight)
+    a = argparse.Namespace(
+        model="haiku",
+        force_new=False,
+        pick=False,
+        key="can",
+        budget=5.0,
+        timeout=60,
+        max_turns=5,
+        out_dir=str(box["out"]),
+    )
+    job = {"slug": "u1", "prompt": "make it", "base": "master", "gates": []}
+    keys = stopped.ac.read_keys(stopped.ac.env_file())
+    with pytest.raises(stopped.ac.RefusalError, match="not started: runner interrupted"):
+        stopped.one(job, a, keys, box["main"], str(box["origin"]))
+    assert _rows(box) == [] and _runs(box) == []
+
+
+def test_git_runs_in_its_own_session(stopped, tmp_path: Path, monkeypatch) -> None:
+    """Review pass 1 (B-S3): the runner's git runs in its own session, so the harness's signal to the runner's group
+    never cuts a push of finished work midway. Observed through `git()` itself with a git on PATH that records its
+    session id."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    seen = tmp_path / "sid"
+    fake = bin_dir / "git"
+    fake.write_text(
+        f"#!{sys.executable}\nimport os\nopen({str(seen)!r}, 'w').write(str(os.getsid(0)))\n",
+        encoding="utf-8",
+    )
+    fake.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    stopped.git("version")
+    assert int(seen.read_text()) != os.getsid(0)
+
+
+def test_a_failed_wait_never_leaves_a_paid_child_running(stopped, monkeypatch) -> None:
+    """Review pass 1 (A-S6): when communicate raises anything but a timeout, the child is dropped from the registry —
+    a stop could no longer reach it, and it would spend on — so run_child kills its group before re-raising."""
+    started: list[subprocess.Popen] = []
+
+    def broken(self, *args, **kwargs):
+        started.append(self)
+        raise RuntimeError("the wait failed")
+
+    monkeypatch.setattr(subprocess.Popen, "communicate", broken)
+    with pytest.raises(RuntimeError):
+        stopped.run_child(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+            "",
+            Path.cwd(),
+            dict(os.environ),
+            60,
+        )
+    # reaped by run_child itself (closing pass, NEW-2): no wait here, a zombie would leave returncode None
+    assert started[0].returncode == -signal.SIGKILL
+
+
+def test_a_hung_up_terminal_still_removes_the_runs_set_aside(box: dict) -> None:
+    """Review pass 1 (A-S5): after SIGHUP the terminal is gone and a print raises; the run directories set aside on
+    the stop are removed all the same (here the runner's stdout is a pipe nobody reads any more)."""
+    box["env"].update(FAKE_SLEEP="30")
+    p = subprocess.Popen(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "run",
+            "--model",
+            "haiku",
+            "--out-dir",
+            str(box["out"]),
+            "--key",
+            "can",
+            "--slug",
+            "h1",
+            "--task-file",
+            str(_brief(box, "h1")),
+        ],
+        env=box["env"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    try:
+        p.stdout.close()  # the reader is gone: the runner's next print raises BrokenPipeError
+        deadline = time.monotonic() + 60
+        while not _runs(box) and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert _runs(box), "the child never started"
+        os.killpg(p.pid, signal.SIGHUP)
+        p.wait(timeout=10)
+    finally:
+        try:
+            os.killpg(p.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        p.wait(timeout=10)
+    settles = [r for r in _rows(box) if r["kind"] == "settle"]
+    assert settles and settles[0]["subtype"] == "interrupted"
+    assert not any((box["state"] / "api-write").iterdir())

@@ -19,5 +19,10 @@
   "priority": 0,
   "score_reason": "HIGH: operator ask with a fixed 2026-11-04 deadline; LOW effort: cloud_dispatch.py exists (D-857/D-860), only sarp's routine and dispatching remain",
   "status": "open",
+  "tags": [
+    "waits-2026-10-28",
+    "waits-cloud-batch-1",
+    "waits-cloud-batch-4"
+  ],
   "title": "Spend the five $250 Claude cloud credits (ob, ozgurbasak, can, mob, sarp) before they expire 2026-11-04 — operator 2026-10-24: 'now 5 claude's cloud 250$ credits and 3 claude api credits must be utilized before they expired.' Register sarp's fabrik-cloud-worker routine; run independent queued items through scripts/cloud_dispatch.py, credit guard on"
 }

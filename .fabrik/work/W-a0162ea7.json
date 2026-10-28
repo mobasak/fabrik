@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T11:54:18.225908Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-a0162ea7",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1295",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "after communicate() returns rc 0, killpg the child's session group (ESRCH swallowed) before committing; grade with the fake claude's grandchild on a clean run",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "api_write.py: processes a child leaves behind after a CLEAN exit (a gate's background process in the child's own session) are never killed — run_child kills the group only on timeout or a stop (seen while grading D-1295)"
+}
