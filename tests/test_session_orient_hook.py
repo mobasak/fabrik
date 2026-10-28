@@ -1694,15 +1694,17 @@ def test_no_handoff_on_compact_resume_or_without_a_file(tmp_path: Path, source: 
     assert _HANDOFF_TEXT.strip() in _start(repo, tmp_path, None).splitlines()  # absent = startup
 
 
-@pytest.mark.parametrize("unit", ["ascii", "astral"])
+@pytest.mark.parametrize("unit", ["ascii", "astral", "astral-fits-by-chars"])
 def test_an_oversized_handoff_is_cut_under_the_cap(tmp_path: Path, unit: str) -> None:
     repo = _repo(tmp_path)
     char = "x" if unit == "ascii" else "\U0001f600"  # 4 UTF-8 bytes, 2 UTF-16 units
     big = "".join(f"line {i:05d} {char * 20}\n" for i in range(2000))
+    if unit == "astral-fits-by-chars":  # ~1,500 chars (fits beside ORIENT) but ~6,000 bytes
+        big = "line 00000 " + char * 1500 + "\n"
     _write_handoff(repo, tmp_path, "coordinator", big)
     out = _start(repo, tmp_path, "clear")
     assert len(out.encode("utf-8")) <= 9500, len(out.encode("utf-8"))
-    assert f"line 00000 {char * 20}" in out.splitlines()
+    assert any(ln.startswith(f"line 00000 {char * 20}") for ln in out.splitlines())
     path = _handoff_path(repo, "coordinator")
     assert out.splitlines()[-1] == f"… cut to fit the hook output cap — the whole text is `{path}`"
 
