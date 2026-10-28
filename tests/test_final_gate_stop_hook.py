@@ -1606,7 +1606,10 @@ def _run_stop_with_seats(
     run_dir.mkdir(parents=True, exist_ok=True)
     (run_dir / f"{sid}.json").write_text(json.dumps(rec))
     tp = tmp_path / f"{sid}.jsonl"
-    tp.write_text("".join(json.dumps(x) + "\n" for x in lines))
+    # raw UTF-8, as the CLI writes it: an escaped U+2028 would hide the splitlines() break
+    tp.write_text(
+        "".join(json.dumps(x, ensure_ascii=False) + "\n" for x in lines), encoding="utf-8"
+    )
     ctr = Path(hook.tempfile.gettempdir()) / f"fabrik-gate-stop-{sid}.attempts"
     ctr.unlink(missing_ok=True)
     env = {**os.environ, "FAKE_FAILS": "", "COMMAND_RUN_DIR": str(run_dir)}
@@ -1716,20 +1719,24 @@ def test_an_id_bearing_notice_closes_a_launch_whose_id_was_unreadable(
     fake_project: Path, tmp_path: Path
 ) -> None:
     aid = "a1b2c3d4e5f60718"
-    lines = [_launch_line(aid), _run_notice(aid, "toolu_launch")]  # launch line carries no tool_use_id
+    lines = [
+        _launch_line(aid),
+        _run_notice(aid, "toolu_launch"),
+    ]  # launch line carries no tool_use_id
     out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_noid", _stamped(), lines)
     assert _blocks_on_run_record(out), out
 
 
 def test_a_task_id_quoted_in_a_result_closes_nothing(fake_project: Path, tmp_path: Path) -> None:
-    # a1's notice quotes b1's id in its <result>; only the header names the run it closes
+    # a1's notice quotes b2's id AND a status in its <result>, which the old whole-text pattern
+    # read as b2's own notice; only the header names the run a notice closes
     quoting = {
         "type": "queue-operation",
         "operation": "enqueue",
         "content": "<task-notification>\n<task-id>a1b2c3d4e5f60718</task-id>\n"
         "<tool-use-id>toolu_one</tool-use-id>\n<status>completed</status>\n"
-        "<summary>done</summary>\n<result>seat b1 still runs: <task-id>b2c3d4e5f6071829</task-id>"
-        "</result>\n</task-notification>",
+        "<summary>done</summary>\n<result>b2 notice was: <task-id>b2c3d4e5f6071829</task-id>"
+        "<status>completed</status></result>\n</task-notification>",
     }
     lines = [
         _run_line("a1b2c3d4e5f60718", "toolu_one"),
@@ -1738,6 +1745,93 @@ def test_a_task_id_quoted_in_a_result_closes_nothing(fake_project: Path, tmp_pat
     ]
     out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_quote", _stamped(), lines)
     assert not _blocks_on_run_record(out), out
+
+
+def test_a_resume_with_no_readable_id_survives_the_earlier_runs_late_notices(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    # 12 resume lines in 7 days carried no tool_result block (census 2026-10-28); the earlier
+    # run's notice, delivered twice, closes only the earlier run
+    aid = "a1b2c3d4e5f60718"
+    lines = [
+        _run_line(aid, "toolu_launch", age_s=300),
+        _resume_line(aid),
+        _run_notice(aid, "toolu_launch"),
+        _run_notice(aid, "toolu_launch"),
+    ]
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_noid_resume", _stamped(), lines)
+    assert not _blocks_on_run_record(out), out
+
+
+def test_a_launch_older_than_the_window_still_names_its_late_notice(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    # the launch line is past the 25-minute line bound, so its run is not counted — but its id is
+    # still known, so its late notice must not close the fresh resumed run
+    aid = "a1b2c3d4e5f60718"
+    lines = [
+        _run_line(aid, "toolu_launch", age_s=40 * 60),
+        _run_line(aid, "toolu_resume", resume=True),
+        _run_notice(aid, "toolu_launch"),
+    ]
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_old_launch", _stamped(), lines)
+    assert not _blocks_on_run_record(out), out
+
+
+def test_a_task_id_repeated_in_one_header_is_still_one_agent(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    aid = "a1b2c3d4e5f60718"
+    late = _run_notice(aid, "toolu_launch")
+    late["content"] = late["content"].replace(
+        "</task-id>\n", f"</task-id>\n<task-id>{aid}</task-id>\n", 1
+    )
+    lines = [
+        _run_line(aid, "toolu_launch", age_s=300),
+        _run_line(aid, "toolu_resume", resume=True),
+        late,
+    ]
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_dup_id", _stamped(), lines)
+    assert not _blocks_on_run_record(out), out
+
+
+def test_a_notice_whose_tool_use_id_names_no_launch_closes_the_agent(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    aid = "a1b2c3d4e5f60718"
+    lines = [_run_line(aid, "toolu_launch"), _run_notice(aid, "toolu_unseen")]
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_mismatch", _stamped(), lines)
+    assert _blocks_on_run_record(out), out
+
+
+def test_a_launch_line_with_two_tool_results_is_closed_by_its_notice(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    # which block is the line's own cannot be told, so the run is keyed on no id: a resume line
+    # whose FIRST block carries the earlier run's id is not that run, and the earlier run's late
+    # notice leaves the resumed run in flight
+    aid = "a1b2c3d4e5f60718"
+    resume = _run_line(aid, "toolu_launch", resume=True)
+    resume["message"]["content"].append(
+        {"type": "tool_result", "tool_use_id": "toolu_resume", "content": "x"}
+    )
+    lines = [_run_line(aid, "toolu_launch", age_s=300), resume, _run_notice(aid, "toolu_launch")]
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_two_blocks", _stamped(), lines)
+    assert not _blocks_on_run_record(out), out
+
+
+def test_a_notice_carrying_a_line_separator_is_still_read(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    # U+2028 rides unescaped inside a JSON string (4 notice lines in 7 days); splitlines() cut it
+    aid = "a1b2c3d4e5f60718"
+    notice = _run_notice(aid, "toolu_launch")
+    notice["content"] = notice["content"].replace(
+        "</status>", "</status>\n<summary>a b</summary>", 1
+    )
+    lines = [_run_line(aid, "toolu_launch"), notice]
+    out = _run_stop_with_seats(fake_project, tmp_path, "s_seat_u2028", _stamped(), lines)
+    assert _blocks_on_run_record(out), out
 
 
 @pytest.mark.parametrize(

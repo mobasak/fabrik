@@ -452,6 +452,34 @@ def test_seats_running_keys_a_resumed_run_on_its_tool_use_id(world):
     t.write_text("".join(json.dumps(r) + "\n" for r in (run("a1", "t1"), run("b1", "t3"), end)))
     assert rs.seats_running(t) == set()
 
+    def write(*rs_):
+        t.write_text(
+            "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rs_), encoding="utf-8"
+        )
+
+    # review round 1: a resume line with no readable id survives the earlier run's notice, twice
+    noid = {"type": "user", "message": {"content": [{"type": "text", "text": "x"}]}}
+    noid["toolUseResult"] = {"resumedAgentId": "a1"}
+    write(run("a1", "t1"), noid, late, late)
+    assert rs.seats_running(t) == {"a1"}
+    # an id naming no launch closes the agent; a line with two tool_results is keyed on no id
+    write(
+        run("a1", "t1"),
+        note("<task-id>a1</task-id><tool-use-id>t9</tool-use-id><status>completed</status>"),
+    )
+    assert rs.seats_running(t) == set()
+    two = run("a1", "t0")
+    two["message"]["content"].append({"type": "tool_result", "tool_use_id": "t1", "content": "x"})
+    write(two, late)
+    assert rs.seats_running(t) == set()
+    # a status quoted in a1's result is not b1's notice
+    quoting = note(
+        "<task-id>a1</task-id><tool-use-id>t1</tool-use-id><status>completed</status><summary>s</summary>"
+        "<result><task-id>b1</task-id><status>completed</status></result>"
+    )
+    write(run("a1", "t1"), run("b1", "t3"), quoting)
+    assert rs.seats_running(t) == {"b1"}
+
 
 def test_seat_reader_parity_and_agents_up_dispatch(world, tmp_path):
     t = world["transcript"]

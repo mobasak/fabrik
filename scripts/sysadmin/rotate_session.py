@@ -583,6 +583,7 @@ def seats_running(path: Path) -> set[str]:
     """Background Agent / review-workflow seats launched in the tail with no task-notification closing them. Mirrors the
     Stop hook's forms (final_gate_stop._seats_in_flight) without its stamp precondition; an unreadable tail raises."""
     running: set[tuple[str, str | None]] = set()
+    seen: set[tuple[str, str | None]] = set()
     for obj in _tail_rows(path, SEAT_TAIL):
         kind, text = obj.get("type"), None
         if kind == "user":
@@ -595,19 +596,23 @@ def seats_running(path: Path) -> set[str]:
                     )
                 aid = aid or tur.get("resumedAgentId")
                 if isinstance(aid, str) and aid:
-                    # W-16617da0: a run is (agent id, this line's tool_use_id) — a resumed seat is a new run
+                    # W-16617da0: a run is (agent id, this line's tool_use_id), so a resumed seat is a new run. The id is
+                    # read only from a line holding exactly one tool_result block, and every readable id is remembered
+                    # whatever its age, so a late notice for an earlier run is known as that run's.
                     msg = obj.get("message")
                     blocks = msg.get("content") if isinstance(msg, dict) else None
-                    tu_id = None
-                    if isinstance(blocks, list):
-                        for b in blocks:
-                            if isinstance(b, dict) and b.get("type") == "tool_result":
-                                tu_id = (
-                                    b.get("tool_use_id")
-                                    if isinstance(b.get("tool_use_id"), str)
-                                    else None
-                                )
-                                break
+                    tus = (
+                        [
+                            b.get("tool_use_id")
+                            for b in blocks
+                            if isinstance(b, dict) and b.get("type") == "tool_result"
+                        ]
+                        if isinstance(blocks, list)
+                        else []
+                    )
+                    tu_id = tus[0] if len(tus) == 1 and isinstance(tus[0], str) and tus[0] else None
+                    if tu_id:
+                        seen.add((aid, tu_id))
                     running.add((aid, tu_id))
             origin = obj.get("origin")
             content = (
@@ -633,21 +638,23 @@ def seats_running(path: Path) -> set[str]:
             ):
                 text = att.get("prompt") if isinstance(att.get("prompt"), str) else None
         if text:
-            # W-16617da0: each notice block is read from its HEADER only (before <summary>/<result>), so
-            # a seat's quoted result never names an id. One id with a <tool-use-id> closes that run (and a
-            # run whose launch id was unreadable); any other block — the session-end form names several
-            # ids and no tool-use id — closes every run of each id it names.
+            # W-16617da0: each notice block is read from its HEADER only (before <summary>/<result>), so a tag
+            # quoted in a seat's summary or result names no run. A block naming one agent and a <tool-use-id>
+            # closes that open run; a re-delivery for a run already seen closes nothing; an id naming no launch
+            # seen closes every run of the agent. Any other block (the session-end form names several ids and
+            # no tool-use id) closes every run of each id it names.
             for block in _NOTIFY.findall(text) or [text]:
                 head = re.split(r"<summary>|<result>", block, maxsplit=1)[0]
                 st = re.search(r"<status>([^<\s]+)</status>", head)
                 if not st or st.group(1) in ("running", "in_progress"):
                     continue
-                ids = re.findall(r"<task-id>([^<\s]+)</task-id>", head)
+                ids = set(re.findall(r"<task-id>([^<\s]+)</task-id>", head))
                 tu = re.search(r"<tool-use-id>([^<\s]+)</tool-use-id>", head)
                 for aid in ids:
-                    if tu and len(ids) == 1:
-                        running -= {(aid, tu.group(1)), (aid, None)}
-                    else:
+                    run = (aid, tu.group(1)) if tu and len(ids) == 1 else None
+                    if run in running:
+                        running.discard(run)
+                    elif run not in seen:
                         running = {r for r in running if r[0] != aid}
     return {r[0] for r in running}
 

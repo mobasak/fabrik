@@ -8653,6 +8653,7 @@ def test_seats_in_flight_matches_the_stop_hook(tmp_path: Path) -> None:
             "prompt": "<task-notification><task-id>a1</task-id><status>completed</status></task-notification>",
         },
     }
+
     def run(agent: str, tu: str, resume: bool = False) -> dict:  # W-16617da0: a run is (agent, tu)
         line = _launch(agent)
         if resume:
@@ -8667,11 +8668,23 @@ def test_seats_in_flight_matches_the_stop_hook(tmp_path: Path) -> None:
             "content": f"<task-notification>{body}</task-notification>",
         }
 
+    resumed_a1 = {**_launch("x"), "toolUseResult": {"resumedAgentId": "a1"}}  # no readable id
     late = note("<task-id>a1</task-id><tool-use-id>t1</tool-use-id><status>completed</status>")
     own = note("<task-id>a1</task-id><tool-use-id>t2</tool-use-id><status>completed</status>")
     two = note("<task-id>a1</task-id><task-id>b1</task-id><status>stopped</status>")
+    unseen = note("<task-id>a1</task-id><tool-use-id>t9</tool-use-id><status>completed</status>")
+    quoting = note(
+        "<task-id>a1</task-id><tool-use-id>t1</tool-use-id><status>completed</status>"
+        "<summary>s</summary><result><task-id>b1</task-id><status>completed</status></result>"
+    )
+    two_blocks = run("a1", "t0")
+    two_blocks["message"]["content"].append({"type": "tool_result", "tool_use_id": "t1"})
     cases = {
         "late-earlier-run": ([run("a1", "t1"), run("a1", "t2", True), late], live),
+        "unreadable-resume": ([run("a1", "t1"), resumed_a1, late, late], live),
+        "unseen-tool-use-id": ([run("a1", "t1"), unseen], live),
+        "two-tool-results": ([two_blocks, late], live),
+        "quoted-result": ([run("a1", "t1"), run("b1", "t3"), quoting], live),
         "resumed-own-notice": ([run("a1", "t1"), run("a1", "t2", True), late, own], live),
         "two-agents-one-notice": ([run("a1", "t1"), run("b1", "t3"), two], live),
         "launch-only": ([_launch("a1")], live),
@@ -8695,6 +8708,8 @@ def test_seats_in_flight_matches_the_stop_hook(tmp_path: Path) -> None:
         seen.add(theirs)
         expected = {"late-earlier-run": True, "resumed-own-notice": False}
         expected["two-agents-one-notice"] = False
+        expected.update({"unreadable-resume": True, "unseen-tool-use-id": False})
+        expected.update({"two-tool-results": False, "quoted-result": True})
         if name in expected:
             assert mine is expected[name], (name, mine)
     assert seen == {True, False}, seen  # the matrix exercises both verdicts
