@@ -19,5 +19,9 @@
   "priority": 1,
   "score_reason": "HIGH: a silent failure of the only chat backup is a data-loss risk; effort low: one systemd unit or an exit-code mail, one test",
   "status": "open",
+  "tags": [
+    "queued",
+    "waits-operator-setup"
+  ],
   "title": "session-archive.service has no OnFailure= alert and runs its pruner and rotation steps with the '-' prefix (~/.config/systemd/user/session-archive.service:18,26,31), so a failed or partial nightly chat backup is silent: nobody learns until local disk fills or a restore finds a gap (coordinator babysit of the 2026-10-24 run, operator ask)"
 }
