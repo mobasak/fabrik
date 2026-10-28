@@ -61,8 +61,9 @@ def _kind(argv: list[str], base: Path) -> str:
 
 @pytest.fixture
 def spawned(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> list[str]:
-    """Every command scaffold code spawns, by kind; faked, never run. The coordinator init's fake writes the
-    store config work.py would, so the emitter's success branch runs under this grader too."""
+    """Every command scaffold code spawns, by kind; faked, never run. The coordinator init's fake writes a
+    store config holding only the distributor (work.py's also holds base_branch, which the emitter does not
+    read), so the emitter's success branch runs under this grader too."""
     seen: list[str] = []
 
     def fake_run(cmd, *_a, **_kw):
