@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — operator_setup.py writes a keepalive for git pushes to github.com (2026-10-28)
+
+A fifth step puts a comment-marked `Host github.com` block (`ServerAliveInterval 15`, `ServerAliveCountMax 4`) before the first section of `~/.ssh/config`, so a push on a dead SSH connection is dropped within a minute instead of hanging. It plans and verifies by what `ssh -G` itself resolves for `git@github.com`, keeps a keepalive that is already as tight, and refuses at planning what it cannot write or override, before any other step is written (D-1314, W-030ac2fe; `docs/workstation/operator-setup.md`).
+
 ### Added — Operator one-time setup script: hooks, tab wrapper, editor key and archive timer in one reviewed run (2026-10-28)
 
 `scripts/sysadmin/operator_setup.py` (W-d6726a65, D-1311) collects the settings steps Claude Code's safety check refuses agents into one script the operator runs once: a dry run diffs every change; `--apply` backs each file up, runs the session-archive installer first, writes the rest atomically, verifies (the archive from the loaded unit), and prints undo lines. `docs/workstation/operator-setup.md`.
