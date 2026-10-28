@@ -37,8 +37,12 @@ UNIT_DIR = ".config/systemd/user"
 # value. A flag file in the state dir makes `daemon-reload` fail (`fail-daemon-reload`), cuts the bus (`nobus`), fails
 # `show` alone (`show-error`), adds a second OnFailure= unit (`extra-onfailure`), makes `enable` a silent no-op
 # (`enable-noop`), makes `enable` overwrite the file named in `edit-during` (an editor saving mid-run), makes
-# `systemd-analyze verify` speak (`verify-noise`, the installer then refuses before any write) or turns linger off
-# (`linger-off`).
+# `systemd-analyze verify` speak (`verify-noise`, the installer then refuses before any write), turns linger off
+# (`linger-off`) or makes `is-enabled` read `enabled-runtime` while the persistent link is absent (`runtime-enabled`,
+# a /run link that plain `disable` never clears — systemd 255, measured for W-88173de4). The persistent enable is
+# the real `timers.target.wants/session-archive.timer` link in the unit dir, as systemd keeps it: `enable` makes it
+# (rewriting a link there that points elsewhere), `disable` removes it AND any alias symlink to the unit (both measured
+# on systemd 255), `is-enabled` reads `enabled` while it exists.
 STUBS = {
     "systemctl": r"""#!/usr/bin/env bash
 s="${STUB_STATE:?}"
@@ -46,9 +50,12 @@ printf 'systemctl %s\n' "$*" >> "$s/calls.log"
 if [ -e "$s/nobus" ]; then echo "Failed to connect to bus: No medium found" >&2; exit 1; fi
 [ "$1" = "--user" ] && shift
 cfg="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+wants="$cfg/timers.target.wants/session-archive.timer"
 case "$1" in
   is-enabled) if [ ! -e "$cfg/$2" ]; then echo not-found; exit 4; fi
-              if [ -e "$s/enabled" ]; then echo enabled; else echo disabled; exit 1; fi ;;
+              if [ -L "$wants" ]; then echo enabled
+              elif [ -e "$s/runtime-enabled" ]; then echo enabled-runtime
+              else echo disabled; exit 1; fi ;;
   is-active) if [ -e "$s/active" ]; then echo active; else echo inactive; exit 3; fi ;;
   show) if [ -e "$s/show-error" ]; then echo "Failed to get properties: Access denied" >&2; exit 1; fi
         if [ -e "$s/loaded" ]; then v=$(sed -n 's/^OnFailure=//p' "$s/loaded" | tail -n 1); else v=; fi
@@ -56,8 +63,8 @@ case "$1" in
         echo "$v" ;;
   daemon-reload) [ -e "$s/fail-daemon-reload" ] && exit 1; cp "$cfg/session-archive.service" "$s/loaded" ;;
   enable) [ -e "$s/edit-during" ] && printf '{"edited": true}\n' > "$(cat "$s/edit-during")"
-          [ -e "$s/enable-noop" ] || touch "$s/enabled" "$s/active" ;;
-  disable) rm -f "$s/enabled" ;;
+          [ -e "$s/enable-noop" ] || { mkdir -p "${wants%/*}"; ln -sfn ../session-archive.timer "$wants"; touch "$s/active"; } ;;
+  disable) rm -f "$wants"; find "$cfg" -maxdepth 1 -lname session-archive.timer -delete ;;
   stop) rm -f "$s/active" ;;
   list-timers) : ;;
   *) echo "stub systemctl: unexpected $*" >&2; exit 1 ;;
@@ -117,6 +124,13 @@ def _hub(tmp_path: Path, name: str = "sysadmin", head: str = "ref: refs/heads/ma
     return hub
 
 
+LINK_UNDO = 'rm -f "$HOME"/.config/systemd/user/timers.target.wants/session-archive.timer'
+
+
+def _wants(home: Path) -> Path:
+    return home / UNIT_DIR / "timers.target.wants" / "session-archive.timer"
+
+
 def _home(tmp_path: Path) -> Path:
     home = tmp_path / "home"
     (home / ".claude" / "bin").mkdir(parents=True)
@@ -141,10 +155,11 @@ def _home(tmp_path: Path) -> Path:
     shutil.copy(SYSADMIN / "systemd" / "session-archive.timer", home / UNIT_DIR / "session-archive.timer")
     for u in ("session-archive.service", "session-archive.timer"):
         (home / UNIT_DIR / u).chmod(0o644)
+    _wants(home).parent.mkdir()
+    _wants(home).symlink_to("../session-archive.timer")  # the timer's persistent enable
     state, stubs = tmp_path / "stub-state", tmp_path / "stub-bin"
     state.mkdir()
     stubs.mkdir()
-    (state / "enabled").touch()
     (state / "active").touch()
     (state / "loaded").write_text("[Service]\n")
     for name, body in STUBS.items():
@@ -175,7 +190,7 @@ def _manager_writes(home: Path) -> list[str]:
 
 
 def _restore(out: str) -> list[str]:
-    return [ln for ln in out.splitlines() if ln.startswith(("cp -p ", "rm ", "systemctl "))]
+    return [ln for ln in out.splitlines() if ln.startswith(("cp -p ", "rm ", "ln -sfn ", "systemctl "))]
 
 
 def _run(home: Path, hub: Path, *args: str, script: Path | None = None, **extra: str) -> subprocess.CompletedProcess:
@@ -329,27 +344,28 @@ def test_apply_installs_the_wrapper_and_the_archive_timer(tmp_path):
     assert r.returncode == 1, r.stdout + r.stderr
     assert not [ln for ln in _restore(r.stdout) if not ln.startswith("systemctl ")], r.stdout
     # the installer exits 0 but the timer never got enabled: the run's verify reads the manager and fails it;
-    # the undo lines disable the timer BEFORE the unit files go, since a removed unit cannot be disabled
+    # the undo lines remove the link `enable` would have added (a no-op here) BEFORE the unit files go
     h = _home(tmp_path / "enable-noop")
-    (h.parent / "stub-state" / "enabled").unlink()
+    _wants(h).unlink()
     (h.parent / "stub-state" / "enable-noop").touch()
     r = _run(h, hub, "--apply")
     assert r.returncode == 1 and "VERIFY FAILED — archive" in r.stderr, r.stdout + r.stderr
     undo = _restore(r.stdout)
-    assert undo[0] == "systemctl --user disable session-archive.timer", r.stdout
+    assert undo[0] == LINK_UNDO, r.stdout
     assert "systemctl --user stop session-archive.timer" not in undo, "a timer that was active is stopped by the undo"
     assert undo[-1] == "systemctl --user daemon-reload", r.stdout
-    # a fresh box (no unit installed, the timer not-found): installed whole; the undo disables and stops it first
+    # a fresh box (no unit installed, the timer not-found): installed whole; the undo stops it and removes its link
     h = _home(tmp_path / "fresh")
     for u in ("session-archive.service", "session-archive.timer"):
         (h / UNIT_DIR / u).unlink()
-    for f in ("enabled", "active"):
-        (h.parent / "stub-state" / f).unlink()
+    _wants(h).unlink()
+    (h.parent / "stub-state" / "active").unlink()
     r = _run(h, hub, "--apply")
     assert r.returncode == 0, r.stdout + r.stderr
     assert all((h / UNIT_DIR / u).read_bytes() == (SYSADMIN / "systemd" / u).read_bytes() for u in UNITS)
     undo = _restore(r.stdout)
-    assert undo[:2] == ["systemctl --user disable session-archive.timer", "systemctl --user stop session-archive.timer"], r.stdout
+    assert undo[:2] == ["systemctl --user stop session-archive.timer", LINK_UNDO], r.stdout
+    assert not [ln for ln in undo if "disable" in ln], r.stdout
     # an editor saving its settings while the installer runs: never overwritten, the run stops
     h = _home(tmp_path / "edit-during")
     cs = h / ".local/share/code-server/User/settings.json"
@@ -368,6 +384,120 @@ def test_apply_installs_the_wrapper_and_the_archive_timer(tmp_path):
     h = _home(tmp_path / "dotdot")
     r = _run(h, hub, XDG_CONFIG_HOME=f"{h}/../home/.config")
     assert r.returncode == 1 and "Nothing was written" in r.stderr, r.stdout + r.stderr
+
+
+def _archive_in_place(home: Path) -> None:
+    """Every archive unit current at 0644 and the loaded service carrying OnFailure=, so the timer's enable word is
+    the ONLY reason the planner can give for running the installer."""
+    for u in UNITS:
+        shutil.copy(SYSADMIN / "systemd" / u, home / UNIT_DIR / u)
+        (home / UNIT_DIR / u).chmod(0o644)
+    shutil.copy(SYSADMIN / "systemd" / "session-archive.service", home.parent / "stub-state" / "loaded")
+
+
+def _timer_undo(out: str) -> list[str]:
+    return [ln for ln in _restore(out) if "session-archive" in ln or ln.startswith("systemctl ")]
+
+
+def _run_undo(home: Path, undo: list[str], **extra: str) -> None:
+    env = _env(home)
+    env.update(extra)
+    for ln in undo:
+        subprocess.run(["bash", "-c", ln], env=env, check=True)
+
+
+@pytest.mark.parametrize("case", ["runtime", "alias", "link present", "foreign link"])
+def test_the_undo_puts_the_timer_link_back_as_it_was(tmp_path, case):
+    # W-88173de4, measured on systemd 255: `systemctl disable` also deletes an operator's alias to the unit (an alias
+    # plus a runtime enable reads `enabled-runtime`), and `enable` REWRITES a `.wants` link that points elsewhere. So
+    # the undo never runs `disable`: it removes the link `enable` added, puts a rewritten link's old target back, and
+    # leaves a link that already pointed at the unit alone (the live box, or an enable the operator made)
+    home, hub = _home(tmp_path), _hub(tmp_path)
+    state = home.parent / "stub-state"
+    alias = home / UNIT_DIR / "session-archive-alias.timer"
+    if case in ("link present", "foreign link"):  # the units differ: the installer runs
+        if case == "foreign link":
+            _wants(home).unlink()
+            _wants(home).symlink_to("../elsewhere.timer")  # dangling, as an operator's stale link can be
+        r = _run(home, hub, "--apply")
+        assert r.returncode == 0 and "installer exit 0" in r.stdout, r.stdout + r.stderr
+        undo = _timer_undo(r.stdout)
+        assert not [ln for ln in undo if "disable" in ln], r.stdout
+        if case == "link present":
+            assert not [ln for ln in undo if "timers.target.wants" in ln], r.stdout
+            return
+        assert os.readlink(_wants(home)) == "../session-archive.timer", "the stub's enable did not rewrite the link"
+        assert undo[0] == "ln -sfn ../elsewhere.timer " + LINK_UNDO.removeprefix("rm -f "), r.stdout
+        _run_undo(home, undo)
+        assert os.readlink(_wants(home)) == "../elsewhere.timer", "the undo did not put the old link back"
+        return
+    _archive_in_place(home)
+    _wants(home).unlink()
+    (state / "runtime-enabled").touch()  # enabled-runtime: a /run link, gone at reboot, so not in place
+    if case == "alias":
+        alias.symlink_to("session-archive.timer")
+    r = _run(home, hub)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "== archive: installer run (timer enabled-runtime)" in r.stdout, r.stdout
+    r = _run(home, hub, "--apply")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _wants(home).is_symlink(), "the installer's enable left no persistent link"
+    undo = _timer_undo(r.stdout)
+    assert undo == [LINK_UNDO, "systemctl --user daemon-reload"], r.stdout  # no stop: the timer was active
+    _run_undo(home, undo)
+    assert not os.path.lexists(_wants(home)), "the undo left the installer's link"
+    # the stub's `disable` deletes the alias as systemd 255 does, so this fails if the undo ever runs `disable`
+    assert case != "alias" or alias.is_symlink(), "the undo deleted the operator's alias"
+
+
+def test_a_unit_dir_outside_home_is_planned_and_undone_by_absolute_path(tmp_path):
+    # XDG_CONFIG_HOME outside HOME: an archive in place is still "Nothing to do"; a disabled timer plans the installer
+    # and its undo names the link by its absolute path, never refusing the run
+    home, hub = _home(tmp_path), _hub(tmp_path)
+    xdg = tmp_path / "xdg"
+    units = xdg / "systemd" / "user"
+    units.mkdir(parents=True)
+    for u in UNITS:
+        shutil.copy(SYSADMIN / "systemd" / u, units / u)
+        (units / u).chmod(0o644)
+    shutil.copy(SYSADMIN / "systemd" / "session-archive.service", home.parent / "stub-state" / "loaded")
+    link = units / "timers.target.wants" / "session-archive.timer"
+    link.parent.mkdir()
+    link.symlink_to("../session-archive.timer")
+    for args in ((), ("--apply",)):  # the other steps still plan; the archive is in place
+        r = _run(home, hub, *args, XDG_CONFIG_HOME=str(xdg))
+        assert r.returncode == 0 and "installer" not in r.stdout.replace("archive: ", ""), r.stdout + r.stderr
+    link.unlink()
+    r = _run(home, hub, "--apply", XDG_CONFIG_HOME=str(xdg))
+    assert r.returncode == 0 and "installer exit 0" in r.stdout, r.stdout + r.stderr
+    undo = _timer_undo(r.stdout)
+    assert undo == [f"rm -f {link}", "systemctl --user daemon-reload"], r.stdout
+    _run_undo(home, undo, XDG_CONFIG_HOME=str(xdg))
+    assert not os.path.lexists(link)
+
+
+def test_a_non_symlink_at_the_timer_link_path_is_refused(tmp_path):
+    home, hub = _home(tmp_path), _hub(tmp_path)
+    _wants(home).unlink()
+    _wants(home).write_text("not a link\n")
+    before = _digest(home)
+    r = _run(home, hub, "--apply")
+    assert r.returncode == 1 and "is not a symlink — refused" in r.stderr, r.stdout + r.stderr
+    assert _digest(home) == before, "something was written"
+
+
+def test_a_symlinked_timer_unit_is_refused_before_any_systemctl_call(tmp_path):
+    # a symlink AT the unit path (a link, alias or mask made in ~/.config): an atomic write would turn it into a file
+    home, hub = _home(tmp_path), _hub(tmp_path)
+    timer = home / UNIT_DIR / "session-archive.timer"
+    real = tmp_path / "elsewhere.timer"
+    shutil.move(timer, real)
+    timer.symlink_to(real)
+    before = _digest(home)
+    r = _run(home, hub, "--apply")
+    assert r.returncode == 1 and "is a symlink" in r.stderr, r.stdout + r.stderr
+    assert _digest(home) == before, "something was written"
+    assert not [c for c in _calls(home) if c.startswith("systemctl ")], _calls(home)
 
 
 def test_settings_key_set_and_unparseable_file_refused(tmp_path, monkeypatch):
@@ -514,12 +644,15 @@ def test_second_apply_is_a_no_op(tmp_path):
     ):
         if breaks == "loaded":
             (state / "loaded").write_text("[Service]\n")
+        elif breaks == "enabled":
+            _wants(home).unlink()
         else:
             (state / breaks).unlink()
         r = _run(home, hub)
         assert r.returncode == 0 and "== archive: installer run (" in r.stdout and why in r.stdout, (breaks, r.stdout)
         (state / "loaded").write_bytes(loaded)
-        (state / "enabled").touch()
+        if not _wants(home).is_symlink():
+            _wants(home).symlink_to("../session-archive.timer")
         (state / "active").touch()
     # a second OnFailure= unit (a drop-in) beside the alert one still reads as in place
     (state / "extra-onfailure").touch()

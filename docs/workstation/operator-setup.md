@@ -41,8 +41,12 @@ is not your passwd home (ssh reads `~` from passwd, never `$HOME`; `OPERATOR_SET
 so on stderr — it exists for the tests' scratch HOME, and an operator who sets it gets a config ssh never reads), and a looser setting the block cannot override: a global `ServerAliveInterval` or an `Include`
 above the first section wins over anything after it, so the step prints the value ssh resolves; move that line below the
 first section, or tighten it there. A host alias that reaches github.com under another `Host` name is not covered. A
-file edited after planning is never overwritten: it is re-read before the backups
-and again right before its own write, and the run stops there. Once `--apply` has made its backup dir, a later stop —
+file edited after planning is not overwritten: it is re-read before the backups
+and again right before its own write, and the run stops there. Two exceptions are accepted (W-88173de4), since no
+portable compare-and-swap on a path exists: a save landing between that last re-read and the replace (the new
+file's write and fsync included), and a save to one of the three archive units before the installer's own `install`
+lands — a unit that differed at planning is re-read only before the backups, and one that did not is never re-read or
+backed up. Once `--apply` has made its backup dir, a later stop —
 the archive installer failing, a backup that does not read back, or that re-read — leaves the backups and whatever was already written, and prints the
 undo lines for exactly that.
 
@@ -54,9 +58,12 @@ mid-edit.
 
 `--apply` copies every file it changes into `~/.local/state/fabrik/operator-setup-<timestamp>/` (mode 0700) first and
 prints one undo line per file — `cp -p <backup> "$HOME"/<path>` for a file that existed, `rm -f "$HOME"/<path>` for one
-it created. When the archive installer ran, the lines open with `systemctl --user disable session-archive.timer` and
-`systemctl --user stop session-archive.timer` for whichever of the two the timer was not before (a unit cannot be
-disabled once its file is gone), and end with `systemctl --user daemon-reload`. The archive installer runs FIRST, so
+it created. When the archive installer ran, the lines open with `systemctl --user stop session-archive.timer` when the timer was
+not active before, then put the timer's persistent link (`timers.target.wants/session-archive.timer` in the unit dir —
+`~/.config/systemd/user` unless `XDG_CONFIG_HOME` is set) back as it was: `rm -f` when the installer's `enable` added
+it, `ln -sfn <old target>` when `enable` rewrote a link that pointed elsewhere, nothing when it already pointed at the
+unit (never `systemctl --user disable`, which would also delete an alias you made to the unit; W-88173de4); a
+non-symlink at that path is refused at planning. They end with `systemctl --user daemon-reload`. The archive installer runs FIRST, so
 when it fails the other steps are unwritten and the undo lines name the units it changed. Any parent directory a step
 has to create (`~/.ssh`, `~/.claude/bin`) is made 0700 and left in place, empty, by the undo. The tab router's fast rollback stays
 `"CLAUDE_TAB_ROUTER": "off"` in `claudeCode.environmentVariables`.

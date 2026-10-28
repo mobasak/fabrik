@@ -21,7 +21,13 @@ runs this once; the coordinators do everything after it. Five steps:
     python3 /opt/fabrik/scripts/sysadmin/operator_setup.py --apply   # back up, write, verify, print the undo lines
 
 The whole PLAN (every file's before and after bytes) is built and checked before anything is written; any
-refusal writes nothing. The hooks step runs the installer's own `run([])` against a scratch mirror of HOME
+refusal writes nothing. A file edited after planning is re-read before the backups and again right before its
+own write, and the run stops there. Accepted residue (W-88173de4), since no portable compare-and-swap on a path
+exists and a RENAME_EXCHANGE swap-and-compare still leaves a window: a save landing between that last re-read
+and `os.replace` (the temp file's write and fsync included) is overwritten; and a save to an archive unit before
+the installer's own `install` lands is overwritten too — a unit that differed at planning is re-read only before
+the backups, and one that did not is never re-read or backed up.
+The hooks step runs the installer's own `run([])` against a scratch mirror of HOME
 and takes its bytes, so there is no second copy of the installer's repair logic and the dry-run diff IS
 what `--apply` writes. `--apply` refuses (exit 2) unless this file sits in the hub MAIN checkout's
 `scripts/sysadmin/` and that checkout is on master — the wrapper it installs runs in every chat tab. The
@@ -99,7 +105,9 @@ class Plan:
     changes: list[Change]
     archive_run: str | None = None  # why the archive installer must run; None when the archive is in place
     archive_sources: dict[str, bytes] | None = None
-    timer_was: tuple[bool, bool] = (True, True)  # the timer (enabled, active) when planned
+    # the undo's two timer halves: the line that puts the persistent `.wants` link back as it was (`_link_undo`; None
+    # when `enable` leaves it as it is), and whether the timer was active when planned
+    timer_was: tuple[str | None, bool] = (None, True)
 
 
 def _home() -> Path:
@@ -274,8 +282,8 @@ def _unit_dir(home: Path) -> Path:
     return base / "systemd" / "user"
 
 
-def plan_archive(home: Path) -> tuple[list[Change], str | None, dict[str, bytes], tuple[bool, bool]]:
-    """(unit Changes, why the installer must run or None, the source bytes planned, the timer (enabled, active))."""
+def plan_archive(home: Path) -> tuple[list[Change], str | None, dict[str, bytes], tuple[str | None, bool]]:
+    """(unit Changes, why the installer must run or None, the source bytes planned, `Plan.timer_was`)."""
     dest = _unit_dir(home)
     sources = {name: (HERE / "systemd" / name).read_bytes() for name in ARCHIVE_UNITS}
     changes = []
@@ -292,10 +300,11 @@ def plan_archive(home: Path) -> tuple[list[Change], str | None, dict[str, bytes]
         why.append(f"loaded OnFailure={loaded or '(empty)'}")
     if enabled != "enabled":
         why.append(f"timer {enabled}")
-    if active != "active":
+    if active != "active":  # `enabled` is the only in-place word: enabled-runtime is a /run link gone at reboot
         why.append(f"timer {active}")
     if not why:
-        return [], None, sources, (True, True)
+        return [], None, sources, (None, True)
+    link_undo = _link_undo(home, dest)
     user = pwd.getpwuid(os.getuid()).pw_name  # the installer's `id -un`
     try:
         r = subprocess.run(["loginctl", "show-user", user, "-p", "Linger"], capture_output=True, text=True, timeout=30)
@@ -305,7 +314,28 @@ def plan_archive(home: Path) -> tuple[list[Change], str | None, dict[str, bytes]
         said = r.stdout.strip() or r.stderr.strip() or "no answer"
         raise PlanError(f"linger is off for {user} ({said}); the archive timer needs it — run once: "
                         f"loginctl enable-linger {user}")
-    return changes, ", ".join(why), sources, (enabled == "enabled", active == "active")
+    return changes, ", ".join(why), sources, (link_undo, active == "active")
+
+
+def _link_undo(home: Path, dest: Path) -> str | None:
+    """The undo line that puts back the persistent `.wants` link as it was before the installer's `enable`, or None
+    when `enable` leaves it as it is. Never `systemctl disable`: measured on systemd 255 (W-88173de4), `disable` also
+    deletes an operator's alias to the unit (alias + enabled-runtime reads `enabled-runtime`), while restoring that one
+    link restores indirect, static, enabled-runtime, disabled and a /run mask alike — and `enable` REWRITES a link at
+    that path that points elsewhere, so its old target is kept. A non-symlink at the path is refused."""
+    link = dest / "timers.target.wants" / ARCHIVE_TIMER
+    try:
+        target = _rel(home, link)
+        target = '"$HOME"/' + shlex.quote(target)
+    except PlanError:  # a unit dir outside HOME (XDG_CONFIG_HOME): the undo names the absolute path
+        target = shlex.quote(str(link))
+    if not os.path.lexists(link):
+        return f"rm -f {target}"
+    if not link.is_symlink():
+        raise PlanError(f"{link} is not a symlink — refused; change it by hand")
+    if os.path.realpath(link) == os.path.realpath(dest / ARCHIVE_TIMER):
+        return None
+    return f"ln -sfn {shlex.quote(os.readlink(link))} {target}"
 
 
 def _ssh_resolves(data: bytes) -> tuple[str | None, str | None]:
@@ -450,13 +480,15 @@ def _write_atomic(c: Change) -> None:
         raise
 
 
-def _restore_lines(backup: Path | None, done: list[Change], ran: bool, timer_was: tuple[bool, bool]) -> list[str]:
+def _restore_lines(
+    backup: Path | None, done: list[Change], ran: bool, timer_was: tuple[str | None, bool]
+) -> list[str]:
     lines = []
-    if ran:  # FIRST: a timer cannot be disabled once its unit file is gone; each half undoes only what it changed
-        if not timer_was[0]:
-            lines.append(f"systemctl --user disable {ARCHIVE_TIMER}")
+    if ran:  # FIRST, while the unit is still loaded; each half undoes only what the installer changed
         if not timer_was[1]:
             lines.append(f"systemctl --user stop {ARCHIVE_TIMER}")
+        if timer_was[0]:  # the `.wants` link as it was — never `disable`, which also deletes an operator's alias
+            lines.append(timer_was[0])
     for c in done:
         target = '"$HOME"/' + shlex.quote(c.rel)
         if c.before is None:
@@ -493,7 +525,8 @@ def _run_archive_installer(p: Plan, done: list[Change]) -> int:
 
 def apply(home: Path, p: Plan) -> int:
     changes = p.changes
-    for c in changes:  # a file edited since it was planned is never overwritten
+    # a file edited since it was planned is not overwritten (bar the residue the docstring names)
+    for c in changes:
         if _changed(c):
             print(f"operator_setup: {c.path} changed since it was planned — nothing written; run again", file=sys.stderr)
             return 1

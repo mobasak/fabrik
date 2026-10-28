@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T21:00:44.027264Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-b3192e98",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add -- to the ln -sfn line with a red-first test case (target '-x.timer'), reword the two sentences, scoped review",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "next-infra-2"
+  ],
+  "title": "operator_setup.py W-88173de4 review residue (recorded after the scope-growth stop): (1) _link_undo's ln -sfn line needs '--' — a .wants link whose old target begins with '-' prints an undo ln reads as an option (rc 1, link not restored; Opus pass 3, executed); (2) tests/test_operator_setup.py comment over the alias assertion says it fails if the undo runs disable, but the undo equality above fires first; (3) docstring/doc 'a unit that differed is re-read only before the backups' — _run_archive_installer reads it again for the done list (re-checked as a guard only before the backups)"
+}
