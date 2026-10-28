@@ -94,27 +94,28 @@ its session flag (`--session-id` vs `--resume`) and its prompt. `--pane-cmd` run
 malformed registry row that refuses the grid (agents_up.sh:151-161) refuses `add` too, with the same message.
 
 **D2 — `add` is serialised, ordered and idempotent.** Every `add` and `remove` for one repo holds one exclusive
-lock (`flock` on `<git common dir>/fabrik-agents.lock` — inside the repo's `.git`, so it never shows as an untracked
-file in the coordinator's checkout and is shared by every worktree), so two coordinators — or one twice — never
-interleave a registry write, a placement or a grouped-session name. Under the lock: validate the name (`[a-z0-9][a-z0-9-]{0,31}`, not a
-coordinator name, not the merge owner — the grid's rules, agents_up.sh:128-129, 202-210) → the worktree
-`<repo>/.claude/worktrees/<name>` on branch `worktree-<name>` from the main branch tip (the `-w` convention Claude
-Code itself uses, worktrees doc); a leftover `worktree-<name>` branch is re-created only when it is merged into main,
-and otherwise refuses, naming the branch (`git worktree add -b` refuses an existing branch — executed: `fatal: a
-branch named 'worktree-x' already exists`, rc 255) → mint a lowercase UUID → record it in BOTH places the
-resolver reads: the identity-store binding of that UUID to the name in this repo's scope, written through
-`whoami_agent.py`'s own locked writer (`bind`/`_bind_locked`, scripts/whoami_agent.py:328-351, gaining a form that
-takes the session id as an argument instead of reading the caller's — the one writer of that store, never a second);
-and, in a repo that HAS a registry, the row `{uuid: name}` in `<repo>/.fabrik/session-agents.json` (atomic replace
-under the lock). A repo with NO registry gets no file — the resolver reads only registry names once the file exists
-(agents_up.sh:199-200), so creating it would drop every bindings-only builder of the 10 such repos from the next
-relaunch; the binding alone is the record there, so the resolver sees the new builder at once and a pane that dies
-before its first turn is still resumed by the next relaunch. The builder's own first-turn re-bind (D3) then writes
-the same binding again → place and launch the pane (D3, D4) → assign the item (`work.py assign
-<W-id> --owner <name>` when `--item` is given) → regenerate the launchers (D5). Re-running `add` for a name whose
-worktree, row or pane already exists completes the missing steps and never creates a second of any — a live pane
-with no row is adopted by its `@agent` tag and the `--session-id`/`--resume` in its claude process's argv; a step
-that fails leaves the earlier ones in place and says which step to re-run.
+lock (`flock` on `<git common dir>/fabrik-agents.lock` — inside the repo's `.git`, never an untracked file in the
+coordinator's checkout, shared by every worktree), so two coordinators — or one twice — never interleave a registry
+write, a placement or a grouped-session name. Under the lock, in this order: (1) validate the name
+(`[a-z0-9][a-z0-9-]{0,31}`, not a coordinator name, not the merge owner — the grid's rules, agents_up.sh:128-129,
+202-210); (2) the worktree `<repo>/.claude/worktrees/<name>` on branch `worktree-<name>` from the main branch tip (the
+`-w` convention Claude Code itself uses, worktrees doc) — a leftover `worktree-<name>` branch is re-created only when
+merged into main and otherwise refuses, naming it (`git worktree add -b` refuses an existing branch — executed:
+`fatal: a branch named 'worktree-x' already exists`, rc 255); (3) the cold start of D4 when the repo has no session
+yet; (4) mint a lowercase UUID and record it where the resolver reads it — the identity-store binding of that UUID to
+the name in this repo's scope, written by `whoami_agent.py`'s own locked writer (`bind`/`_bind_locked`,
+scripts/whoami_agent.py:328-351) through a form that takes the session id as an argument and writes `pid` and
+`pid_start` as null, because the writer otherwise stamps the CALLER's process (scripts/whoami_agent.py:411-420) and
+the coordinator's own window would then resolve to the builder's name; plus, in a repo that HAS a registry, the row
+`{uuid: name}` in `<repo>/.fabrik/session-agents.json` (atomic replace). A repo with NO registry gets no file — the
+resolver reads only registry names once the file exists (agents_up.sh:199-200), which would drop every bindings-only
+builder of the 10 such repos — so there the binding is the record: the resolver sees the new builder at once, and a
+pane that dies before its first turn is resumed by the next relaunch. The builder's first-turn re-bind (D3) later
+writes its own row with its own pid; (5) place and launch the pane (D3, D4); (6) assign the item (`work.py assign
+<W-id> --owner <name>` when `--item` is given); (7) regenerate the launchers (D5). Re-running `add` for a name whose
+worktree, record or pane already exists completes the missing steps and never creates a second of any — a live pane
+with no record is adopted by its `@agent` tag and the `--session-id`/`--resume` in its claude process's argv; a step
+that fails leaves the earlier ones in place and names the step to re-run.
 
 **D3 — The pane: new session, first prompt, no questions.** The pane runs `claude -n <name> --session-id <uuid>
 --settings '<suppression json>' "<first prompt>"` inside the existing scope and env allow-list. `--session-id` is
@@ -142,18 +143,20 @@ windows of at most four panes, each window NAMED uniquely — the first keeps `a
 window: agents`, rc 1), and every grid command targets windows by name (agents_up.sh:615-623). `add` puts the pane in
 the lowest window with fewer than four, else opens the next window and the grouped session `<S>-<n>` (`new-session -d
 -t <S> -s <S>-<n>`, its current window set to that window), then `select-layout even-horizontal` and `set -p @agent
-<name>`. With no session `<S>` at all (no tmux server after a reboot, or a repo whose grid never started), `add`
-first starts the WHOLE grid detached (`agents_up.sh --detach <repo>`, which re-asserts the slice ceiling —
-`slice_ceiling`, agents_up.sh:529-540, without which the slice has no MemoryHigh and D6's floor reads nothing — and
-records `@agents_up_root`, agents_up.sh:612-613), so every registered builder comes back — this start runs BEFORE D2 records the new builder, so the grid never tries
-to `--resume` a session that does not exist yet — and only then records and places the new one; a cold start that launched just the new builder would leave every other builder down, since a later
-relaunch finds the grid up and leaves it as it is (agents_up.sh:590). A repo whose grid start refuses because it has
-no builder yet ("nothing to launch") gets the same start with the new builder as its first pane — the grid's start
-code is factored out for that, never copied. The relaunch path (agents_up.sh:595-621) uses the
-same placement instead of window `agents` alone, so a relaunch can never fold six panes into one window again. `remove` kills the
-pane, re-lays the window, and kills an emptied non-zero window and its grouped session. Measured on a scratch tmux 3.4
-server this session: grouped sessions share windows, a window added in one appears in all, killing one member keeps
-the windows, `kill-pane` gives the space to the rest.
+<name>`. The relaunch path (agents_up.sh:595-621) uses the same placement instead of window `agents` alone, so a
+relaunch can never fold six panes into one window again. **Cold start** (D2 step 3 — no session `<S>`: no tmux server
+after a reboot, or a grid that never started): `add` starts the WHOLE grid first through the grid's own start
+(`agents_up.sh --detach <repo>`), before it records the new builder, so every registered builder comes back and the
+grid never tries to `--resume` a session that does not exist yet; launching only the new builder would leave the rest
+down, since a later relaunch finds the grid up and leaves it as it is (agents_up.sh:590). That start gains a distinct
+exit code for "no builder to launch" (today every refusal is exit 2 — agents_up.sh:107, :328, :539 — and a refused
+ceiling must never read as an empty repo), on which `add` makes the grid with the new builder as its first pane
+through the same factored start code. `add` refuses (exit 2) whenever the start runs UNCAPPED — no user manager, so
+`slice_ceiling` returns without setting a ceiling on `--detach` (agents_up.sh:529-533) and D6's floor would read
+nothing — unless `FABRIK_AGENTS_UNCAPPED=1`, the override the interactive path already honours (agents_up.sh:533).
+`remove` kills the pane, re-lays the window, and kills an emptied non-first window and its grouped session. Measured on
+a scratch tmux 3.4 server this session: grouped sessions share windows, a window added in one appears in all, killing
+one member keeps the windows, `kill-pane` gives the space to the rest.
 
 **D5 — The tabbed launcher is generated, and live.** `agents_bat.py --tabbed` writes "All Agents (tabbed).bat" with
 one tab per (repo, window): every repo whose grid `agents_up.sh --print` accepts gets its first tab, `agents_up.sh
@@ -189,17 +192,18 @@ whose queue is empty is retired at that boundary, not kept warm.
 **D7 — `remove` never loses work, and every doubt refuses.** Refuse (exit 2, the reason named) unless ALL hold:
 no run record `running` under ANY session id the name owns — the registry's AND every id the identity store binds to
 the name in this repo's scope (after a `/clear` and re-bind the live id is the binding's) — at
-`~/.claude/state/command-runs/<sid>.json`; the worktree is clean (`git status --porcelain` empty); its IGNORED files
-are accounted for — `git worktree remove` deletes ignored files without asking and `--porcelain` never lists them
-(executed: a `.tmp/runs/x/f` under an ignored `.tmp/` was gone after a plain `git worktree remove`, rc 0): the
-regenerable dependency and cache trees (`.venv`, `node_modules`, `__pycache__`, `.pytest_cache`, `.mypy_cache`,
-`.ruff_cache`) are let go; the worktree's `.tmp/runs/` run folders — a run's scratch, pins and resume artifacts,
-keyed by session id so they never collide — are MOVED into the main checkout's `.tmp/runs/` first (infra-2's tree
-holds 7 today); any other ignored file (a `.env` copy, a stray `.tmp` file) refuses, each named, for the coordinator
-to delete or keep by hand; HEAD is on a branch (a detached HEAD refuses: its commits sit on no branch — any branch
-name, so builders made before this spec, on branches like `infra-3-dynamic-builders`, are retired the same way); and that branch is pushed (`git rev-list @{u}..HEAD` succeeds and prints
-nothing) or has no commits beyond main. A git command that FAILS reads as a refusal, never as "nothing there"
-(executed: `rev-list @{u}..HEAD` on a detached HEAD exits 128). Then:
+`~/.claude/state/command-runs/<sid>.json`; the worktree is clean (`git status --porcelain` empty); HEAD is on a branch
+(a detached HEAD refuses: its commits sit on no branch — any branch name, so builders made before this spec, on
+branches like `infra-3-dynamic-builders`, are retired the same way) and that branch is pushed (`git rev-list
+@{u}..HEAD` succeeds and prints nothing) or has no commits beyond main; and no IGNORED file would be lost. `git
+worktree remove` deletes ignored files without asking and `--porcelain` never lists them (executed: a `.tmp/runs/x/f`
+under an ignored `.tmp/` was gone after a plain `git worktree remove`, rc 0), so: the regenerable dependency and cache
+trees (`.venv`, `node_modules`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`) are let go; a
+`.tmp/runs/` folder refuses while a resume seed under `~/.claude/state/command-runs/seeds/` names a scratch path
+inside it (the seed holds that ABSOLUTE path, so moving the folder would orphan the resume), and is otherwise let go
+(`command_run.py` itself prunes `.tmp/runs/` after 14 days, scripts/command_run.py:1527-1531 — nothing else sweeps it);
+any other ignored file refuses, each named, for the coordinator to delete or keep by hand. A git command that FAILS
+reads as a refusal, never as "nothing there" (executed: `rev-list @{u}..HEAD` on a detached HEAD exits 128). Then:
 kill the pane (D4), `git worktree remove <path>` (never `--force` — git itself refuses an unclean tree, git-worktree
 doc), `git branch -d` only when merged, drop the registry row, regenerate the launchers. The charter and the
 transcript stay; the transcript reaches B2 through the nightly archive (archive_transcripts.py:250-254) and stays
@@ -254,8 +258,9 @@ capped interactive session the grid already runs).
   grouped session — the regression the hub hit on 10-22); `tests/test_agents_bat.py` (`--tabbed` one tab per
   (repo, window), distro from `wslpath`); `tests/test_agent_role_hook.py` (role fallback, containment kept, a coordinator name never falls back);
   `tests/test_whoami_agent.py` (the session-id binding form writes the row the resolver reads); a cold `add` with
-  registered builders brings them all back; `remove` moves `.tmp/runs` into the main checkout and refuses on an
-  unknown ignored file.
+  registered builders brings them all back; `remove` refuses on a `.tmp/runs` folder a seed names and on an
+  unknown ignored file; an uncapped cold start refuses; "no builder to launch" is told apart from a refused ceiling
+  by its exit code; the spawner's binding row carries no pid.
 - Live proof (DONE condition, D-1301): in one repo, `add` spawns a builder that binds, claims its item and appears in
   the open tabbed window with no key typed and no prompt shown; a fifth builder opens a second window and tab;
   `remove` refuses on an unpushed branch, then retires it after the push; the `.bat` regenerated each time; the

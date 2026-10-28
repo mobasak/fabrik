@@ -11,6 +11,19 @@
 |-----:|---|---|---|---|
 | Pass 1 | opus×1 (rule sections) + sonnet×1 (other sections) + opus×1 researcher (high-risk facts) + sonnet×1 researcher (other facts) · all axes · shape: agent-tool | found: 36, new: 36, confirmed: 33, fixed: 33, unexecuted: 0, edits: 33 | method: citation — full pass over the section partition; every candidate executed by the orchestrator (5 git/tmux probes in a throwaway repo and scratch tmux server, the Deck resolver read, commit and D-row existence checked); 1 refuted, 1 recorded, 1 duplicate | b67e58b1… → 44daeced… |
 | Pass 2 | opus×1 + sonnet×1 + opus×1 researcher + sonnet×1 researcher (round-1 owners) · delta over the pass-1 fix diff + one hop · shape: agent-tool | found: 9, new: 9, confirmed: 7, fixed: 7, unexecuted: 0, edits: 7 | method: re-derivation — the round-1 seats re-derived their own slices over pins/pass-1-fix.diff; both fact slices CONFIRMED every changed quote (no defect); 7 own-fix defects (own-fix: round 1) in D1/D2/D4/D5/D7/Cost, 1 refuted, 1 recorded | 44daeced… → e94d9a33… |
+| Pass 3 | opus×1 (round-1 owner of the rules slice; the other three slices held no open claim and are restated at their pass-2 values) · delta over pins/pass-2-fix.diff + one hop · shape: agent-tool | found: 5, new: 5, confirmed: 5, fixed: 5, unexecuted: 0, edits: 5 | method: re-derivation — rules slice over the pass-2 fix diff; 5 own-fix defects (own-fix: round 2); class rewrite — D2, D4, D7 (rounds 2, 3): the three paragraphs rewritten whole in one batch, the `.tmp/runs` move DELETED in favour of a refusal | e94d9a33… → f7c7fdc5… |
+
+## Findings (pass 3)
+
+| id | seat | finding | verdict | fix |
+|---|---|---|---|---|
+| P3-N1 | opus rule | the spawner's binding row carries the coordinator's pid (whoami_agent.py:411-420), so the coordinator window resolves to the builder's name and a re-`add` hits "held by a LIVE session" | CONFIRMED (own-fix: round 2; row construction read) | D2 step 4: `pid`/`pid_start` null |
+| P3-N2 | opus rule | a moved `.tmp/runs` folder is never found by its seed (absolute `scratch` path; command_run.py:1700-1710) | CONFIRMED (own-fix: round 2; a live seed holds `"scratch": "/opt/fabrik/.claude/worktrees/infra-3/.tmp/runs/…"`) | D7: move deleted; a folder a seed names refuses |
+| P3-N3 | opus rule | the `--detach` cold start can run uncapped (agents_up.sh:529-533) | CONFIRMED (own-fix: round 2) | D4: `add` refuses uncapped unless `FABRIK_AGENTS_UNCAPPED=1` |
+| P3-N4 | opus rule | exit 2 cannot tell "no builder" from a refused ceiling | CONFIRMED (own-fix: round 2; agents_up.sh:107, :328, :539 all exit 2) | D4: a distinct exit code |
+| P3-N5 | opus rule | D2's step order contradicted D4's cold-start order | CONFIRMED (own-fix: round 2) | D2 numbered steps, cold start is step 3 |
+| P3-rec | opus rule | a session's run folder can sit in two checkouts after a move between worktrees | RECORDED — one hop out (destination: the plan) | — |
+| P3-self | orchestrator | the rewrite first named `scratch_sweep.py` as the judge of `.tmp/runs`; it never prunes `.tmp` (command_run.py:1527) | CONFIRMED during the rewrite's own probe, fixed before the pin | D7 cites command_run.py:1527-1531 |
 
 ## Findings (pass 2)
 
