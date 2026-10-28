@@ -41,7 +41,9 @@ mid-edit.
 
 `--apply` copies every file it changes into `~/.local/state/fabrik/operator-setup-<timestamp>/` (mode 0700) first and
 prints one undo line per file — `cp -p <backup> "$HOME"/<path>` for a file that existed, `rm -f "$HOME"/<path>` for one
-it created. After restoring an archive unit, run `systemctl --user daemon-reload`. The tab router's fast rollback stays
+it created — and, when the archive installer ran, `systemctl --user daemon-reload` last (preceded by
+`systemctl --user disable --now session-archive.timer` when the timer was not enabled before). The archive installer
+runs FIRST, so when it fails nothing else has been written and its undo lines name the units it changed. The tab router's fast rollback stays
 `"CLAUDE_TAB_ROUTER": "off"` in `claudeCode.environmentVariables`.
 
 ## Not in it
