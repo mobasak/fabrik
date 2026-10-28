@@ -22,9 +22,15 @@ def calls(monkeypatch):
 
     def fake_post(url, **kw):
         rec.append((url, kw))
+        return _response(200)
 
     monkeypatch.setattr(httpx, "post", fake_post)
     return rec
+
+
+def _response(status: int) -> httpx.Response:
+    # A real response carries its request; without one, raise_for_status() itself raises.
+    return httpx.Response(status, request=httpx.Request("POST", "http://h/x"))
 
 
 # ---- _post ----
@@ -80,7 +86,7 @@ def test_post_debug_logs_event(calls, caplog):
     reason="notifications.py:24 never checks the status: a 5xx from the webhook is a silent failure",
 )
 def test_post_warns_on_server_error(monkeypatch, caplog):
-    monkeypatch.setattr(httpx, "post", lambda *a, **k: httpx.Response(500))
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: _response(500))
     with caplog.at_level(logging.WARNING, logger="fabrik.notifications"):
         assert _post("http://h/x", {}) is None
     assert any(
@@ -90,7 +96,7 @@ def test_post_warns_on_server_error(monkeypatch, caplog):
 
 def test_post_does_not_warn_on_success(monkeypatch, caplog):
     # The control for test_post_warns_on_server_error: a fix that warns on every response must fail here.
-    monkeypatch.setattr(httpx, "post", lambda *a, **k: httpx.Response(200))
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: _response(200))
     with caplog.at_level(logging.WARNING, logger="fabrik.notifications"):
         assert _post("http://h/x", {}) is None
     assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
