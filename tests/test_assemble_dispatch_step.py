@@ -607,11 +607,13 @@ def _gate_at(monkeypatch, d, s, a):
     repo files and take minutes on the full corpus (W-bda24c48: 11 such tests held ~1,950 s); their
     own tests grade them and check()'s wiring of them (tests/test_command_rules.py,
     tests/test_command_measure.py). Here they are spies that return their empty results and judge all
-    three arguments both passes share: ``render_dir`` must BE the destination of the last render (the one
-    check() makes just before them; ``ac.render`` is wrapped to record it) and never an installed tree,
+    three arguments both passes share: ``render_dir`` must BE a render destination (``ac.render`` is
+    wrapped to record each; check() makes its temp render before them) and never an installed tree,
     ``root`` the repo, ``src_dir`` the sources — so a regression that hands them an installed tree, the
     sources, ``commands/`` or the repo in any of the three still goes red (review round 1: a marker
-    directory let ``commands/`` through). A check() that stops calling them is graded where the wiring
+    directory let ``commands/`` through; round 2: "the LAST render" false-redded a check() rendering
+    twice). The passes' other arguments (``rules``, ``path``) are not judged. A check() that stops
+    calling them is graded where the wiring
     lives, the two files above."""
     renders: list[Path] = []
     real_render = ac.render
@@ -626,7 +628,7 @@ def _gate_at(monkeypatch, d, s, a):
             assert not any(rd.is_relative_to(t.resolve()) for t in (d, s, a)), (
                 f"a ledger or measure pass was handed the installed tree {render_dir}"
             )
-            assert renders and rd == renders[-1], (
+            assert rd in renders, (
                 f"a ledger or measure pass was handed {render_dir}, not check()'s temp render"
             )
             assert Path(root).resolve() == ac.ROOT.parent.resolve(), (
