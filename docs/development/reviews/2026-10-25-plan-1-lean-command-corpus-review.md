@@ -2,21 +2,33 @@
 
 Plan: `docs/development/plans/2026-10-25-plan-1-lean-command-corpus/2026-10-25-plan-1-lean-command-corpus.md` · Work item: W-96f36043 (the P0 lean program, D-1216) · Measured on master `c812b5cbf` (2026-10-28), after the batch 3 merge `ceadce76c` and its ceiling ratchet `381c3e177`.
 
-**One line:** all 40 commands keep every rule (0 LOSS over 63 rule ledgers, 5,425 entries); rendered words 596,988 → 579,853, 97.1% of baseline. **The 50% size goal was missed**: no command and no shared file reached it, and every one closed on a recorded floor (D-1254). D-1259 recorded why: once every rule the independent audit flags is restored, rewriting a command lands at 49.8–100% of its own text (median ~91%), so the 50% headline was retired for per-file floors. D-1293 then had the remaining units finish with every rule kept, leaving the rules themselves for a later program.
+**One line:** all 40 commands pass the rule check (0 LOSS over 63 rule ledgers, 5,425 entries); rendered words 596,988 → 579,853, 97.1% of baseline. **The 50% size goal was missed**: no command and no shared file reached it, and every one closed under the floor ruling D-1254. D-1259 recorded why: once every rule the audit flags is restored, rewriting a command lands at 49.8–100% of its own text (median ~91%), so the 50% headline was retired for per-file floors. D-1293 then had the remaining units finish with every rule kept, leaving the rules themselves for a later program.
 
 ## What this receipt is, and is not
 
-- It is T46's close-out: the per-file ratio table, the full measure, the whole-plan doc checks, the seam test, the gate and convergence runs, and the L1/L2 check.
-- It is **not** a D7 whole-plan adversarial validation. No cross-ticket finder round ran over the cumulative diff. Each unit was instead closed by its own receipt, with an independent audit pair and 0 LOSS under master's loader (D-1254). The spine's `Status:` therefore stays `IN-PROGRESS`. The coordinator decides the closing status (CLAUDE.md, coordinator job 7), with T05a–c not run.
+- It is T46's close-out: the per-file ratio table, the size measures, the whole-plan doc checks, the seam test, the gate and convergence runs, and the L1/L2 check.
+- It is **not** a D7 whole-plan adversarial validation. No cross-ticket finder round ran over the cumulative diff. Each unit was closed by its own receipt instead, on D-1254's terms: "0 LOSS under master's canonical loader + a self-audit pass with all-zero COUNTS + a per-file floor table whenever own text stays over 50%". The spine's `Status:` therefore stays `IN-PROGRESS`. The coordinator decides the closing status (CLAUDE.md, coordinator job 7), given T05a–c not run and the T46 gaps below.
+
+### T46's own contract, item by item
+
+| Behavior Contract item | Met? |
+|---|---|
+| 1. Each file at or under 50% or naming its floor D-row | **Met as a citation.** Every row names D-1254, but 13 of the 49 unit receipts record no per-file floor table (Step 1). |
+| 2. No command's full measure has grown | **NOT met.** On the spec's measure (render + reads), 10 commands grew, all through reads in docs outside `commands/` (Step 2). |
+| 3. `final_gate.py --check --json` and `check_convergence.py` succeed, with output embedded | **Met** (§ Gates). |
+| 4. `remove:` rows flowing, with their `none` share | **NOT met.** L2 has not landed, and 0 rows carry the field (Step 4). |
+| Step 3: `/fabrik-docs-review` over the range | **Not run** (Step 3). |
 
 ## Ticket Board outcome
 
-- 54 rows ticked in this commit, so with T01a–c all 57 are dispositioned: 54 ✅, each naming the master commit that brought its unit to 0 LOSS, and 3 🔴.
-- 🔴 T05a, T05b, T05c: the subagents-core, grounding, intake and test-loop fragments. They had not started when D-1259's KILL ruled that "no NEW rewrite unit starts", so their ten fragments carry no ledger: `chat-intake`, `delegated-reads`, `grounding-artifact`, `grounding-code`, `grounding-rules`, `injection`, `questionbar`, `repo-identity`, `subagents-core`, `test-generation-loop`. Their text is unchanged by this program, so nothing was lost there and nothing was cut.
+- This commit changes 54 board rows (T01d–T46): 51 ✅ and 3 🔴. With T01a–c, which an earlier commit already ticked, the board now holds 57 rows: 54 ✅ and 3 🔴, and none ⬜.
+- 50 of the 54 ✅ rows name the master commit that brought their unit to 0 LOSS. T01a–c read "this commit", as they were written in the T01 pilot's own commits. T46 names `1677dd6f7` plus its review-fix commit.
+- T46 is ✅ only in the sense that its work landed here. Two of its contract items are unmet, as the table above shows.
+- 🔴 T05a, T05b, T05c: the subagents-core, grounding, intake and test-loop fragments. They had not started when D-1259's KILL ruled that "no NEW rewrite unit starts", so their ten fragments carry no ledger: `chat-intake`, `delegated-reads`, `grounding-artifact`, `grounding-code`, `grounding-rules`, `injection`, `questionbar`, `repo-identity`, `subagents-core`, `test-generation-loop`. No lean unit edited them, so nothing was cut there.
 
 ## Step 1 — ratio table (own text, unit start commit vs master)
 
-Method, per the ticket: for each ledger, the baseline is the parent of the commit that added the ledger. Command sources are counted through `command_rules.own_text`, and shared files are counted whole. Every row is over 50%, so every row names the floor ruling D-1254 (`python3 scripts/decisions.py D-1254` finds it). The per-file floor arithmetic sits in each unit's own receipt (`docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T*-receipt.md`). For the command sources, the baselines here equal the spine's own census (`fabrik-review` 12700, `fabrik-task` 4425, `fabrik-execute-plan` 17726, …).
+Method, per the ticket: for each ledger, the baseline is the parent of the commit that added the ledger to master. Command sources are counted through `command_rules.own_text`, and shared files are counted whole. Every row is over 50%, so every row names the floor ruling D-1254 (`python3 scripts/decisions.py D-1254` finds it). Floor arithmetic, where it exists, sits in each unit's receipt (`docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T*-receipt.md`). **13 of those 49 receipts record no per-file floor table** (a case-insensitive grep for "no per-file floor" or "no floor table" matches 13). Examples are T08:198 ("so no floor table"), T12, T21, T24 and T26 ("retired (D-1257), so no floor table"), and T11, T29 and T33 in similar words. Several of them give hand-estimated figures. A unit receipt measured at its own base can differ from this table: T08's receipt records an own-text baseline of 4263 for `/fabrik-task`, where this table's start commit gives 4425.
 
 | File | Ledger | Baseline own words | Master own words | Ratio | Ledger entries | Lines moved (rule) / narrative / duplicate | Floor |
 |---|---|---:|---:|---:|---:|---|---|
@@ -85,55 +97,59 @@ Method, per the ticket: for each ledger, the baseline is the parent of the commi
 | `commands/_sources/hibernate.md` | `commands/_rules/hibernate.yaml` | 880 | 861 | 97.8% | 26 | 14 / 1 / 0 | D-1254 |
 | **total (63 files)** | | **226025** | **217451** | **96.2%** | | | |
 
-## Step 2 — full measure (rendered words and the ceiling measure)
+## Step 2 — size measures (rendered words, L1's own measure, the spec's full measure)
 
-Rendered words were measured by rendering each tree with its own renderer: tag `lean-baseline-2026-10-25` (`7ed30f4bc`) and master `c812b5cbf`. The full measure is `command_measure.measure_all` on master, set against the `baseline_own` that `commands/_size_ceiling.json` published. **No command's full measure grew** (the range is 93.7% to 98.2% of its baseline).
+Rendered words were measured by rendering each tree with its own renderer: tag `lean-baseline-2026-10-25` (`7ed30f4bc`) and master `c812b5cbf`. The other two columns come from `command_measure.measure_all` on master:
+- The **own measure** is what L1's ceiling gates: `own` = render + seats + the files under `commands/` that the render names. It is compared against `baseline_own` in `commands/_size_ceiling.json`.
+- The **full measure** is the spec's `measure(cmd) = render + reads`, computed as `own + reads_total` against `baseline_own` plus the ceiling file's frozen baseline `reads.total`.
 
-| Command | Rendered words, baseline | Rendered words, master | Ratio | Full measure (own + seats + own reads), ceiling baseline → master |
-|---|---:|---:|---:|---|
-| /design-review | 14942 | 14663 | 98.1% | 23194 → 22578 (97.3%) |
-| /fabrik-catchup | 7326 | 7115 | 97.1% | 10542 → 10063 (95.5%) |
-| /fabrik-command-improve | 10536 | 10270 | 97.5% | 22453 → 21701 (96.7%) |
-| /fabrik-conformance-review | 17515 | 16878 | 96.4% | 24448 → 23520 (96.2%) |
-| /fabrik-data-contract | 17266 | 16970 | 98.3% | 24199 → 23612 (97.6%) |
-| /fabrik-decommission | 7369 | 7107 | 96.4% | 10585 → 10055 (95.0%) |
-| /fabrik-deploy | 9415 | 9114 | 96.8% | 12631 → 12062 (95.5%) |
-| /fabrik-deploy-checklist | 18612 | 18092 | 97.2% | 25545 → 24734 (96.8%) |
-| /fabrik-deploy-plan | 9302 | 9092 | 97.7% | 12518 → 12040 (96.2%) |
-| /fabrik-deploy-plan-review | 14249 | 13807 | 96.9% | 21182 → 20449 (96.5%) |
-| /fabrik-deploy-verify | 9806 | 9443 | 96.3% | 15351 → 14673 (95.6%) |
-| /fabrik-doc-converge | 16097 | 15823 | 98.3% | 23030 → 22465 (97.5%) |
-| /fabrik-docs-review | 16363 | 16104 | 98.4% | 30204 → 29328 (97.1%) |
-| /fabrik-epics | 16864 | 16366 | 97.0% | 23797 → 23008 (96.7%) |
-| /fabrik-epics-review | 21681 | 21109 | 97.4% | 28614 → 27751 (97.0%) |
-| /fabrik-execute-plan | 21366 | 20898 | 97.8% | 40554 → 39412 (97.2%) |
-| /fabrik-features | 16317 | 15907 | 97.5% | 23250 → 22549 (97.0%) |
-| /fabrik-flows | 16621 | 16228 | 97.6% | 23554 → 22870 (97.1%) |
-| /fabrik-flows-review | 18140 | 17542 | 96.7% | 25073 → 24184 (96.5%) |
-| /fabrik-generate-tests | 7097 | 6934 | 97.7% | 14030 → 13576 (96.8%) |
-| /fabrik-plan-after-chat | 21575 | 21340 | 98.9% | 28508 → 27982 (98.2%) |
-| /fabrik-plan-review | 23211 | 22729 | 97.9% | 37052 → 35953 (97.0%) |
-| /fabrik-release | 6736 | 6373 | 94.6% | 9952 → 9321 (93.7%) |
-| /fabrik-repo-review | 17835 | 17317 | 97.1% | 24768 → 23959 (96.7%) |
-| /fabrik-reverse-engineer | 5638 | 5410 | 96.0% | 8230 → 8003 (97.2%) |
-| /fabrik-review | 27571 | 26747 | 97.0% | 41412 → 39971 (96.5%) |
-| /fabrik-review-scoped | 9551 | 9257 | 96.9% | 34855 → 33640 (96.5%) |
-| /fabrik-rivals | 12612 | 12135 | 96.2% | 19545 → 18777 (96.1%) |
-| /fabrik-rules-review | 16324 | 16029 | 98.2% | 23257 → 22671 (97.5%) |
-| /fabrik-service-test | 17484 | 16786 | 96.0% | 24417 → 23428 (95.9%) |
-| /fabrik-spec | 19105 | 18516 | 96.9% | 38097 → 37157 (97.5%) |
-| /fabrik-spec-review | 20672 | 20085 | 97.2% | 34513 → 33309 (96.5%) |
-| /fabrik-task | 8714 | 8294 | 95.2% | 11306 → 10887 (96.3%) |
-| /fabrik-ui-design | 14053 | 13596 | 96.7% | 20986 → 20238 (96.4%) |
-| /fabrik-ui-design-review | 18565 | 18085 | 97.4% | 25498 → 24727 (97.0%) |
-| /fabrik-upstream | 8670 | 8013 | 92.4% | 15603 → 14655 (93.9%) |
-| /fabrik-user-test | 18885 | 17743 | 94.0% | 27137 → 25658 (94.5%) |
-| /fabrik-vision | 22541 | 22158 | 98.3% | 32333 → 31431 (97.2%) |
-| /fabrik-workflow-review | 15521 | 15120 | 97.4% | 22454 → 21762 (96.9%) |
-| /hibernate | 4841 | 4658 | 96.2% | 4841 → 4658 (96.2%) |
-| **all 40** | **596988** | **579853** | **97.1%** | **919518 → 888817 (96.7%)** |
+**No command's own measure grew** (93.7% to 98.2% of baseline). **Ten commands' full measure grew** (/fabrik-catchup +165, /fabrik-decommission +52, /fabrik-deploy +13, /fabrik-deploy-plan +104, /fabrik-doc-converge +82, /fabrik-generate-tests +128, /fabrik-plan-after-chat +121, /fabrik-reverse-engineer +793, /fabrik-task +377, /hibernate +399), so Behavior Contract item 2 is NOT met. Every one of those increases comes from reads: docs outside `commands/` that other work edited during the program, listed in the `read grew` lines below (`command-run-protocol.md` alone grew 582 words and is read by all 40). No lean unit edited those docs, and the ticket's DO-NOT puts them outside this plan, so the growth is reported here and not sent back to any unit. L1 does not gate reads (`command_measure.py` reports a read's growth and never fails on it).
 
-`python3 commands/assemble_commands.py --check` → rc 0. Its non-DRIFT lines are below; every other line reads `DIFFERS from what this tree renders`, the worktree-never-renders case the Gate line allows. The nine `read grew` lines are docs outside `commands/`, edited by other work during the program. The measure reports them without failing (the read side of the ceiling), and the ticket's DO-NOT puts them outside this plan's reach. RECORDED, not a unit defect.
+| Command | Rendered words, baseline → master | Own measure, L1's quantity (render + seats + files under `commands/` it names) | Full measure, the spec's (own + reads) |
+|---|---|---|---|
+| /design-review | 14942 → 14663 (98.1%) | 23194 → 22578 (97.3%) | 113817 → 113783 (100.0%) |
+| /fabrik-catchup | 7326 → 7115 (97.1%) | 10542 → 10063 (95.5%) | 74147 → 74312 (100.2%) **grew +165** |
+| /fabrik-command-improve | 10536 → 10270 (97.5%) | 22453 → 21701 (96.7%) | 77285 → 77115 (99.8%) |
+| /fabrik-conformance-review | 17515 → 16878 (96.4%) | 24448 → 23520 (96.2%) | 69619 → 69001 (99.1%) |
+| /fabrik-data-contract | 17266 → 16970 (98.3%) | 24199 → 23612 (97.6%) | 110900 → 110895 (100.0%) |
+| /fabrik-decommission | 7369 → 7107 (96.4%) | 10585 → 10055 (95.0%) | 41566 → 41618 (100.1%) **grew +52** |
+| /fabrik-deploy | 9415 → 9114 (96.8%) | 12631 → 12062 (95.5%) | 42498 → 42511 (100.0%) **grew +13** |
+| /fabrik-deploy-checklist | 18612 → 18092 (97.2%) | 25545 → 24734 (96.8%) | 124743 → 124514 (99.8%) |
+| /fabrik-deploy-plan | 9302 → 9092 (97.7%) | 12518 → 12040 (96.2%) | 42385 → 42489 (100.2%) **grew +104** |
+| /fabrik-deploy-plan-review | 14249 → 13807 (96.9%) | 21182 → 20449 (96.5%) | 97230 → 97079 (99.8%) |
+| /fabrik-deploy-verify | 9806 → 9443 (96.3%) | 15351 → 14673 (95.6%) | 57438 → 57342 (99.8%) |
+| /fabrik-doc-converge | 16097 → 15823 (98.3%) | 23030 → 22465 (97.5%) | 134010 → 134092 (100.1%) **grew +82** |
+| /fabrik-docs-review | 16363 → 16104 (98.4%) | 30204 → 29328 (97.1%) | 117138 → 116844 (99.7%) |
+| /fabrik-epics | 16864 → 16366 (97.0%) | 23797 → 23008 (96.7%) | 93412 → 93205 (99.8%) |
+| /fabrik-epics-review | 21681 → 21109 (97.4%) | 28614 → 27751 (97.0%) | 125160 → 124879 (99.8%) |
+| /fabrik-execute-plan | 21366 → 20898 (97.8%) | 40554 → 39412 (97.2%) | 121252 → 121241 (100.0%) |
+| /fabrik-features | 16317 → 15907 (97.5%) | 23250 → 22549 (97.0%) | 129129 → 129010 (99.9%) |
+| /fabrik-flows | 16621 → 16228 (97.6%) | 23554 → 22870 (97.1%) | 109717 → 109615 (99.9%) |
+| /fabrik-flows-review | 18140 → 17542 (96.7%) | 25073 → 24184 (96.5%) | 111654 → 111347 (99.7%) |
+| /fabrik-generate-tests | 7097 → 6934 (97.7%) | 14030 → 13576 (96.8%) | 57707 → 57835 (100.2%) **grew +128** |
+| /fabrik-plan-after-chat | 21575 → 21340 (98.9%) | 28508 → 27982 (98.2%) | 127378 → 127499 (100.1%) **grew +121** |
+| /fabrik-plan-review | 23211 → 22729 (97.9%) | 37052 → 35953 (97.0%) | 129771 → 129254 (99.6%) |
+| /fabrik-release | 6736 → 6373 (94.6%) | 9952 → 9321 (93.7%) | 50153 → 50123 (99.9%) |
+| /fabrik-repo-review | 17835 → 17317 (97.1%) | 24768 → 23959 (96.7%) | 70981 → 70482 (99.3%) |
+| /fabrik-reverse-engineer | 5638 → 5410 (96.0%) | 8230 → 8003 (97.2%) | 41947 → 42740 (101.9%) **grew +793** |
+| /fabrik-review | 27571 → 26747 (97.0%) | 41412 → 39971 (96.5%) | 103589 → 102458 (98.9%) |
+| /fabrik-review-scoped | 9551 → 9257 (96.9%) | 34855 → 33640 (96.5%) | 73225 → 72295 (98.7%) |
+| /fabrik-rivals | 12612 → 12135 (96.2%) | 19545 → 18777 (96.1%) | 110293 → 110107 (99.8%) |
+| /fabrik-rules-review | 16324 → 16029 (98.2%) | 23257 → 22671 (97.5%) | 109346 → 109342 (100.0%) |
+| /fabrik-service-test | 17484 → 16786 (96.0%) | 24417 → 23428 (95.9%) | 83963 → 83349 (99.3%) |
+| /fabrik-spec | 19105 → 18516 (96.9%) | 38097 → 37157 (97.5%) | 99277 → 98919 (99.6%) |
+| /fabrik-spec-review | 20672 → 20085 (97.2%) | 34513 → 33309 (96.5%) | 127573 → 126951 (99.5%) |
+| /fabrik-task | 8714 → 8294 (95.2%) | 11306 → 10887 (96.3%) | 63790 → 64167 (100.6%) **grew +377** |
+| /fabrik-ui-design | 14053 → 13596 (96.7%) | 20986 → 20238 (96.4%) | 147272 → 147234 (100.0%) |
+| /fabrik-ui-design-review | 18565 → 18085 (97.4%) | 25498 → 24727 (97.0%) | 154306 → 154245 (100.0%) |
+| /fabrik-upstream | 8670 → 8013 (92.4%) | 15603 → 14655 (93.9%) | 49111 → 48745 (99.3%) |
+| /fabrik-user-test | 18885 → 17743 (94.0%) | 27137 → 25658 (94.5%) | 75608 → 74439 (98.5%) |
+| /fabrik-vision | 22541 → 22158 (98.3%) | 32333 → 31431 (97.2%) | 157259 → 156939 (99.8%) |
+| /fabrik-workflow-review | 15521 → 15120 (97.4%) | 22454 → 21762 (96.9%) | 112344 → 112234 (99.9%) |
+| /hibernate | 4841 → 4658 (96.2%) | 4841 → 4658 (96.2%) | 34920 → 35319 (101.1%) **grew +399** |
+| **all 40** | **596988 → 579853 (97.1%)** | **919518 → 888817 (96.7%)** | **3772913 → 3765568 (99.8%)** |
+
+`python3 commands/assemble_commands.py --check` → rc 0. It printed 11 lines: the render banner (`rendered 40 commands -> <tmp> …`) and the 10 below. It printed no DRIFT line.
 
 ```
 REPORT read grew .windsurf/rules/core/ocoron-design-system.md 5438→5566 in 2 command(s): fabrik-ui-design-review, fabrik-ui-design
@@ -150,20 +166,20 @@ check OK — installed commands + skills match rendered sources
 
 ## Step 3 — whole-plan doc checks
 
-Range `63d148626..HEAD`: the lock's recorded `baseline_commit` to master `c812b5cbf`, 573 commits.
+Range `1659737af..c812b5cbf`: the ticket's `<base>`, the parent of T01a's first commit `c312a59fc`, to master. That is 572 commits (`git rev-list --count`). The same two checks also ran rc 0, silent, over the lock's recorded `baseline_commit` `63d148626`, two commits earlier.
 
 ```
-$ python3 scripts/enforcement/check_doc_sync.py --range 63d148626ce7102c22257176a0fea585c48241b8..HEAD
+$ python3 scripts/enforcement/check_doc_sync.py --range 1659737af248326e6f54b909e06cd04760be7976..c812b5cbf
 (no output) rc=0
-$ python3 scripts/enforcement/check_doc_stubs.py --range 63d148626ce7102c22257176a0fea585c48241b8..HEAD
+$ python3 scripts/enforcement/check_doc_stubs.py --range 1659737af248326e6f54b909e06cd04760be7976..c812b5cbf
 (no output) rc=0
 ```
 
-`/fabrik-docs-review` was **not run** over this range. The range is every agent's master history across four days (573 commits). This plan's own changes are command sources, rule ledgers and their receipts, and each unit's receipt already reconciled its own docs. RECORDED.
+`/fabrik-docs-review` was **not run** over this range. The range is every agent's master history across four days (572 commits). This plan's own changes are command sources, rule ledgers and their receipts, and each unit's receipt already reconciled its own docs. RECORDED.
 
 ## Step 4 — L1, L2 and the standing ledger gate
 
-- **L1 (size ceiling) — live.** `commands/_size_ceiling.json` carries every command's ceiling. `--check` measures against it, and `--ratchet` lowered three ceilings at the batch 3 merge (`381c3e177`).
+- **L1 (size ceiling) — live, over the own measure only.** `commands/_size_ceiling.json` carries every command's ceiling, and `--check` exits 5 when the own measure breaches it. Reads are reported, never gated. `--ratchet` only lowers a ceiling, and the coordinator runs it by hand after the merge queue drains (`command_measure.py`'s docstring). It ran after the batch 3 merge as `381c3e177`, which lowered four ceilings: `fabrik-review` 41614 → 41171, `fabrik-upstream` 15603 → 15095, `fabrik-workflow-review` 22561 → 22415 and `fabrik-reverse-engineer` 8310 → 8244. Each new ceiling is the master own measure × 1.03, rounded up.
 - **Standing ledger gate — live.** `--check` runs `command_rules.losses()` before drift (a LOSS exits 4), and the seam test below shows 63 LEDGER lines and 0 LOSS.
 - **L2 (the required `remove:` field on every FEEDBACK close) — NOT landed.** In `~/.claude/state/command-feedback.jsonl` (4,765 rows), 0 rows carry a `remove` field, and neither `scripts/command_run.py` nor `commands/_fragments/close-feedback.md` names it. The code is infra-2's open item W-a9b5e763 (tagged `queued`, `waits-quota`). Spec § Program holds keeps `/fabrik-command-improve` paused until L1 and L2 land, so that hold still stands. This is a CLOSE-OUT gap reported to the coordinator, not fixed here (DO-NOT: tooling files).
 
@@ -236,7 +252,18 @@ LEDGER term-coverage.yaml: 31 entries · classes {'ban': 11, 'prose': 20} · van
 LEDGER term-edit.yaml: 63 entries · classes {'ban': 40, 'grammar': 4, 'prose': 19} · vanished {'narrative': 1, 'rule': 6} · provenance 0
 72 passed in 146.64s (0:02:26)
 $ python3 scripts/enforcement/check_convergence.py
-rc=0 — ⚠ check_convergence ADVISORY — committed plan(s) needing attention: (seven advisories, every one about an archived plan from 2026-08/09; none about this plan)
+⚠ check_convergence ADVISORY — committed plan(s) needing attention:
+  ⚠ docs/development/plans/archived/2026-08-07-plan-1-autotrigger-and-commands/2026-08-07-plan-1-autotrigger-and-commands.md: claims EXECUTED but its cited whole-plan review is missing on disk or not coverage-adjudicated …
+  ⚠ docs/development/plans/archived/2026-08-15-plan-1-login-once-credentials/2026-08-15-plan-1-login-once-credentials.md: claims EXECUTED but its cited whole-plan review is missing on disk or not coverage-adjudicated …
+  … (6 `⚠ docs/` lines in all, every one under docs/development/plans/archived/; 0 about this plan)
+rc=0
 ```
 
-FINAL_GATE_PLACEHOLDER
+```
+$ .venv/bin/python scripts/final_gate.py --check --json   # on this receipt's staged change, before this block was pasted
+"status": "success"
+"skipped_checks": ["static tier"]   # diff-sensed: only .md files in the diff, so lint/type debt is not asserted
+check outcomes: 34 pass · 22 advisory · 1 skipped · 0 fail
+```
+
+The gate is re-run on the final text before the commit; the commit's own gate line is the authority.

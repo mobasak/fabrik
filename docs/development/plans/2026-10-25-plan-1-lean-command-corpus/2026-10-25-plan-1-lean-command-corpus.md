@@ -176,7 +176,7 @@ Selections against it: a ticket's ledger is the single source of a rule's wordin
 | T43 | Lean rewrite of /fabrik-rules-review (light form) | T42 | ⛓️ | ✅ | 8c910e36f |
 | T44 | Lean rewrite of /fabrik-reverse-engineer (light form) | T43 | ⛓️ | ✅ | 0bae1ef5b (merged in ceadce76c) |
 | T45 | Lean rewrite of /fabrik-workflow-review (light form) | T44 | ⛓️ | ✅ | 46baae093 (merged in ceadce76c) |
-| T46 | Integration: close-out evidence, whole-plan gates and the review receipt | T45 | ⛓️ | ✅ | this commit (receipt: `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-review.md`) |
+| T46 | Integration: close-out evidence, whole-plan gates and the review receipt | T45 | ⛓️ | ✅ | 1677dd6f7 plus its review-fix commit (receipt: `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-review.md`); its work landed, but contract items 2 (full measure grew in 10 commands, through reads) and 4 (L2 not landed) are unmet, see the receipt's contract table |
 
 ## Merge Order
 

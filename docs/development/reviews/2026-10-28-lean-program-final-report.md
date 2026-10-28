@@ -4,77 +4,86 @@ Answers W-ee67bd9f (operator 2026-10-26: "when the command lean work finished, i
 
 ## The numbers
 
-- **Rules kept: all of them.** Across the 40 commands and 23 shared files there are 63 rule ledgers, holding 5,425 entries, and the rule check reports 0 LOSS. A ledger lists every rule-bearing line of a file's starting text. When a line vanished from its file, the ledger names where it went: 1,979 lines moved to another file (each proven by the check), and the rest were classed as narrative or duplicates.
+- **Rules: the rule check passes on every ledgered file.** Across the 40 commands and 23 shared files there are 63 rule ledgers, holding 5,425 entries, and the check reports 0 LOSS. A ledger lists the rule-bearing lines of a file's starting text. Of those starting lines that no longer sit in their own file, 1,979 are rule text proven present in another file, 156 were classed as narrative (no rule) and 18 as duplicates.
 - **Rendered words (what an agent loads when it runs a command), all 40 commands:** 596,988 → 579,853, **97.1%** of the starting size.
-- **Full measure (the command plus its seat definitions and the files it orders read):** 919,518 → 888,817, **96.7%**.
+- **Own measure (the command, its seat definitions and the files under `commands/` it names; L1's quantity):** 919,518 → 888,817, **96.7%**. No command's own measure grew.
+- **Full measure (own measure plus every other doc the command orders read; the spec's quantity):** 3,772,913 → 3,765,568, **99.8%**. **Ten commands grew on it, by 13 to 793 words**, all through docs outside `commands/` that other work edited during the program (the table below marks them). The plan required that no command's full measure grow, so this requirement is not met.
 - **Own text of the 63 ledgered files:** 226,025 → 217,451 words, **96.2%**.
 
 ## The 50% goal was missed — and why
 
-The program's goal was every command at half its size or less with no rule lost. **No command and no shared file reached 50%.** Each one closed instead on a recorded floor under the coordinator's ruling D-1254: 0 LOSS, an independent audit with zero counts, and a floor table showing why its own text cannot go lower without dropping a rule.
+The program's goal was every command at half its size or less with no rule lost. **No command and no shared file reached 50%.** Each closed instead under the coordinator's ruling D-1254, which reads: "0 LOSS under master's canonical loader + a self-audit pass with all-zero COUNTS + a per-file floor table whenever own text stays over 50%". Every file cites that ruling, but 13 of the 49 unit receipts record no per-file floor table. Several carry hand estimates instead (the close-out receipt lists them).
 
-The reason was measured, not guessed (D-1259, 2026-10-26). The pilot, /fabrik-review-scoped, reached only 89% against a 60% kill bar. Across about 17 light units with independent audits, the result was 49.8–100% (median ~91%) once every rule an auditor flagged as cut had been restored. The words in these commands are mostly rules, and the rules are what make them long. The pre-agreed KILL test therefore fired: no new rewrite unit started, and the 50% headline was retired in favour of per-file floors. You then ruled (D-1293, W-8d2815a8 answer A): finish the units already running, keep every rule, spend the API and cloud credits first, and rework the rules themselves in a later program.
+The reason was measured, not guessed (D-1259, 2026-10-26):
+- **The pilot.** /fabrik-review-scoped reached 89% of its own text against a 60% kill bar, before its re-ledger, which D-1259 notes "can only raise it". It ends at 97.8% (table below).
+- **The light units.** Across about 17 of them with independent audits, the results were 49.8–100% (median ~91%) once every rule an auditor flagged as cut had been restored. The low end is a mid-run figure: /fabrik-generate-tests stood at 49.8% before its restoration round and ends at 100.0%.
+- **The cause.** The words in these commands are mostly rules, and the rules are what make them long.
+
+The pre-agreed KILL test therefore fired: no new rewrite unit started, and the 50% headline was retired in favour of per-file floors. You then ruled (D-1293, W-8d2815a8 answer A): finish the units already running, keep every rule, spend the API and cloud credits first, and rework the rules themselves in a later program.
 
 ## What changed in how the commands work
 
-- **No command does anything differently.** By design, every rule survived: a lost or reworded rule is a LOSS, and the check exits red on it. The rewrites removed repetition, stories and restatements, and tightened wording. Behaviour is unchanged.
+- **The commands are meant to do the same things as before.** The rewrites removed repetition, stories and restatements, and tightened wording. What the rule check proves is narrower:
+  - **Ban phrases and grammar lines** must survive verbatim. A missing one is a LOSS.
+  - **Prose rules** may be reworded (D-1236). The check proves only that their anchor tokens and most of their key phrases are still present.
+  - **Whether a reworded rule still means the same** was judged by each unit's audit, not by the check.
+  - **Narrative labels** were assigned by the rewriter; one unit receipt (T42) records such a label that was wrong.
+  - So "behaviour unchanged" is the intent, backed by audits. It is not mechanically proven.
 - **Two guards now stand on the corpus:**
-  1. **The rule check (live).** `python3 commands/assemble_commands.py --check` fails on any LOSS. A future edit cannot silently drop a rule from a ledgered file.
-  2. **The size ceiling, L1 (live).** Each command has a ceiling in `commands/_size_ceiling.json`. An edit that grows a command past its ceiling fails `--check` (exit 5) unless a decision row licenses the raise. Every merge lowers each ceiling to 3% above the command's new size (`--ratchet`) and never raises one. A command can therefore grow by at most 3% without a recorded decision.
+  1. **The rule check (live).** `python3 commands/assemble_commands.py --check` fails (exit 4) on any LOSS. A future edit cannot drop a ledgered ban phrase or a prose rule's anchors without turning it red.
+  2. **The size ceiling, L1 (live, own measure only).** Each command has a ceiling in `commands/_size_ceiling.json`. An edit that grows a command's own measure past its ceiling fails `--check` (exit 5) unless a decision row licenses the raise. The coordinator lowers the ceilings by hand after merges (`--ratchet`, last run as `381c3e177`) to 3% above each command's size, and the ratchet never raises one. Growth in the docs a command reads is reported, never blocked.
 - **Not landed: L2, the `remove:` field.** This is the required "what could be removed" answer at every command close, and it is the part of the program that asks the feedback loop for leanness. Its code is infra-2's open item W-a9b5e763. Until it lands, the spec keeps `/fabrik-command-improve` paused.
-- **Not run: T05a–c.** Ten shared fragments (`subagents-core`, three `grounding-*`, `chat-intake`, `delegated-reads`, `injection`, `questionbar`, `repo-identity`, `test-generation-loop`) had not started when the KILL test fired. They are unchanged and have no ledger yet.
+- **Not run: T05a–c.** Ten shared fragments (`subagents-core`, three `grounding-*`, `chat-intake`, `delegated-reads`, `injection`, `questionbar`, `repo-identity`, `test-generation-loop`) had not started when the KILL test fired. No lean unit edited them, and they have no ledger yet.
 
 ## Every command
 
-Rendered words are what the agent loads. The full measure adds the seat definitions and the command's own reads, against the baseline published in `commands/_size_ceiling.json`.
+| Command | Rendered words, baseline → master | Own measure, L1's quantity (render + seats + files under `commands/` it names) | Full measure, the spec's (own + reads) |
+|---|---|---|---|
+| /design-review | 14942 → 14663 (98.1%) | 23194 → 22578 (97.3%) | 113817 → 113783 (100.0%) |
+| /fabrik-catchup | 7326 → 7115 (97.1%) | 10542 → 10063 (95.5%) | 74147 → 74312 (100.2%) **grew +165** |
+| /fabrik-command-improve | 10536 → 10270 (97.5%) | 22453 → 21701 (96.7%) | 77285 → 77115 (99.8%) |
+| /fabrik-conformance-review | 17515 → 16878 (96.4%) | 24448 → 23520 (96.2%) | 69619 → 69001 (99.1%) |
+| /fabrik-data-contract | 17266 → 16970 (98.3%) | 24199 → 23612 (97.6%) | 110900 → 110895 (100.0%) |
+| /fabrik-decommission | 7369 → 7107 (96.4%) | 10585 → 10055 (95.0%) | 41566 → 41618 (100.1%) **grew +52** |
+| /fabrik-deploy | 9415 → 9114 (96.8%) | 12631 → 12062 (95.5%) | 42498 → 42511 (100.0%) **grew +13** |
+| /fabrik-deploy-checklist | 18612 → 18092 (97.2%) | 25545 → 24734 (96.8%) | 124743 → 124514 (99.8%) |
+| /fabrik-deploy-plan | 9302 → 9092 (97.7%) | 12518 → 12040 (96.2%) | 42385 → 42489 (100.2%) **grew +104** |
+| /fabrik-deploy-plan-review | 14249 → 13807 (96.9%) | 21182 → 20449 (96.5%) | 97230 → 97079 (99.8%) |
+| /fabrik-deploy-verify | 9806 → 9443 (96.3%) | 15351 → 14673 (95.6%) | 57438 → 57342 (99.8%) |
+| /fabrik-doc-converge | 16097 → 15823 (98.3%) | 23030 → 22465 (97.5%) | 134010 → 134092 (100.1%) **grew +82** |
+| /fabrik-docs-review | 16363 → 16104 (98.4%) | 30204 → 29328 (97.1%) | 117138 → 116844 (99.7%) |
+| /fabrik-epics | 16864 → 16366 (97.0%) | 23797 → 23008 (96.7%) | 93412 → 93205 (99.8%) |
+| /fabrik-epics-review | 21681 → 21109 (97.4%) | 28614 → 27751 (97.0%) | 125160 → 124879 (99.8%) |
+| /fabrik-execute-plan | 21366 → 20898 (97.8%) | 40554 → 39412 (97.2%) | 121252 → 121241 (100.0%) |
+| /fabrik-features | 16317 → 15907 (97.5%) | 23250 → 22549 (97.0%) | 129129 → 129010 (99.9%) |
+| /fabrik-flows | 16621 → 16228 (97.6%) | 23554 → 22870 (97.1%) | 109717 → 109615 (99.9%) |
+| /fabrik-flows-review | 18140 → 17542 (96.7%) | 25073 → 24184 (96.5%) | 111654 → 111347 (99.7%) |
+| /fabrik-generate-tests | 7097 → 6934 (97.7%) | 14030 → 13576 (96.8%) | 57707 → 57835 (100.2%) **grew +128** |
+| /fabrik-plan-after-chat | 21575 → 21340 (98.9%) | 28508 → 27982 (98.2%) | 127378 → 127499 (100.1%) **grew +121** |
+| /fabrik-plan-review | 23211 → 22729 (97.9%) | 37052 → 35953 (97.0%) | 129771 → 129254 (99.6%) |
+| /fabrik-release | 6736 → 6373 (94.6%) | 9952 → 9321 (93.7%) | 50153 → 50123 (99.9%) |
+| /fabrik-repo-review | 17835 → 17317 (97.1%) | 24768 → 23959 (96.7%) | 70981 → 70482 (99.3%) |
+| /fabrik-reverse-engineer | 5638 → 5410 (96.0%) | 8230 → 8003 (97.2%) | 41947 → 42740 (101.9%) **grew +793** |
+| /fabrik-review | 27571 → 26747 (97.0%) | 41412 → 39971 (96.5%) | 103589 → 102458 (98.9%) |
+| /fabrik-review-scoped | 9551 → 9257 (96.9%) | 34855 → 33640 (96.5%) | 73225 → 72295 (98.7%) |
+| /fabrik-rivals | 12612 → 12135 (96.2%) | 19545 → 18777 (96.1%) | 110293 → 110107 (99.8%) |
+| /fabrik-rules-review | 16324 → 16029 (98.2%) | 23257 → 22671 (97.5%) | 109346 → 109342 (100.0%) |
+| /fabrik-service-test | 17484 → 16786 (96.0%) | 24417 → 23428 (95.9%) | 83963 → 83349 (99.3%) |
+| /fabrik-spec | 19105 → 18516 (96.9%) | 38097 → 37157 (97.5%) | 99277 → 98919 (99.6%) |
+| /fabrik-spec-review | 20672 → 20085 (97.2%) | 34513 → 33309 (96.5%) | 127573 → 126951 (99.5%) |
+| /fabrik-task | 8714 → 8294 (95.2%) | 11306 → 10887 (96.3%) | 63790 → 64167 (100.6%) **grew +377** |
+| /fabrik-ui-design | 14053 → 13596 (96.7%) | 20986 → 20238 (96.4%) | 147272 → 147234 (100.0%) |
+| /fabrik-ui-design-review | 18565 → 18085 (97.4%) | 25498 → 24727 (97.0%) | 154306 → 154245 (100.0%) |
+| /fabrik-upstream | 8670 → 8013 (92.4%) | 15603 → 14655 (93.9%) | 49111 → 48745 (99.3%) |
+| /fabrik-user-test | 18885 → 17743 (94.0%) | 27137 → 25658 (94.5%) | 75608 → 74439 (98.5%) |
+| /fabrik-vision | 22541 → 22158 (98.3%) | 32333 → 31431 (97.2%) | 157259 → 156939 (99.8%) |
+| /fabrik-workflow-review | 15521 → 15120 (97.4%) | 22454 → 21762 (96.9%) | 112344 → 112234 (99.9%) |
+| /hibernate | 4841 → 4658 (96.2%) | 4841 → 4658 (96.2%) | 34920 → 35319 (101.1%) **grew +399** |
+| **all 40** | **596988 → 579853 (97.1%)** | **919518 → 888817 (96.7%)** | **3772913 → 3765568 (99.8%)** |
 
-| Command | Rendered words, baseline | Rendered words, master | Ratio | Full measure (own + seats + own reads), ceiling baseline → master |
-|---|---:|---:|---:|---|
-| /design-review | 14942 | 14663 | 98.1% | 23194 → 22578 (97.3%) |
-| /fabrik-catchup | 7326 | 7115 | 97.1% | 10542 → 10063 (95.5%) |
-| /fabrik-command-improve | 10536 | 10270 | 97.5% | 22453 → 21701 (96.7%) |
-| /fabrik-conformance-review | 17515 | 16878 | 96.4% | 24448 → 23520 (96.2%) |
-| /fabrik-data-contract | 17266 | 16970 | 98.3% | 24199 → 23612 (97.6%) |
-| /fabrik-decommission | 7369 | 7107 | 96.4% | 10585 → 10055 (95.0%) |
-| /fabrik-deploy | 9415 | 9114 | 96.8% | 12631 → 12062 (95.5%) |
-| /fabrik-deploy-checklist | 18612 | 18092 | 97.2% | 25545 → 24734 (96.8%) |
-| /fabrik-deploy-plan | 9302 | 9092 | 97.7% | 12518 → 12040 (96.2%) |
-| /fabrik-deploy-plan-review | 14249 | 13807 | 96.9% | 21182 → 20449 (96.5%) |
-| /fabrik-deploy-verify | 9806 | 9443 | 96.3% | 15351 → 14673 (95.6%) |
-| /fabrik-doc-converge | 16097 | 15823 | 98.3% | 23030 → 22465 (97.5%) |
-| /fabrik-docs-review | 16363 | 16104 | 98.4% | 30204 → 29328 (97.1%) |
-| /fabrik-epics | 16864 | 16366 | 97.0% | 23797 → 23008 (96.7%) |
-| /fabrik-epics-review | 21681 | 21109 | 97.4% | 28614 → 27751 (97.0%) |
-| /fabrik-execute-plan | 21366 | 20898 | 97.8% | 40554 → 39412 (97.2%) |
-| /fabrik-features | 16317 | 15907 | 97.5% | 23250 → 22549 (97.0%) |
-| /fabrik-flows | 16621 | 16228 | 97.6% | 23554 → 22870 (97.1%) |
-| /fabrik-flows-review | 18140 | 17542 | 96.7% | 25073 → 24184 (96.5%) |
-| /fabrik-generate-tests | 7097 | 6934 | 97.7% | 14030 → 13576 (96.8%) |
-| /fabrik-plan-after-chat | 21575 | 21340 | 98.9% | 28508 → 27982 (98.2%) |
-| /fabrik-plan-review | 23211 | 22729 | 97.9% | 37052 → 35953 (97.0%) |
-| /fabrik-release | 6736 | 6373 | 94.6% | 9952 → 9321 (93.7%) |
-| /fabrik-repo-review | 17835 | 17317 | 97.1% | 24768 → 23959 (96.7%) |
-| /fabrik-reverse-engineer | 5638 | 5410 | 96.0% | 8230 → 8003 (97.2%) |
-| /fabrik-review | 27571 | 26747 | 97.0% | 41412 → 39971 (96.5%) |
-| /fabrik-review-scoped | 9551 | 9257 | 96.9% | 34855 → 33640 (96.5%) |
-| /fabrik-rivals | 12612 | 12135 | 96.2% | 19545 → 18777 (96.1%) |
-| /fabrik-rules-review | 16324 | 16029 | 98.2% | 23257 → 22671 (97.5%) |
-| /fabrik-service-test | 17484 | 16786 | 96.0% | 24417 → 23428 (95.9%) |
-| /fabrik-spec | 19105 | 18516 | 96.9% | 38097 → 37157 (97.5%) |
-| /fabrik-spec-review | 20672 | 20085 | 97.2% | 34513 → 33309 (96.5%) |
-| /fabrik-task | 8714 | 8294 | 95.2% | 11306 → 10887 (96.3%) |
-| /fabrik-ui-design | 14053 | 13596 | 96.7% | 20986 → 20238 (96.4%) |
-| /fabrik-ui-design-review | 18565 | 18085 | 97.4% | 25498 → 24727 (97.0%) |
-| /fabrik-upstream | 8670 | 8013 | 92.4% | 15603 → 14655 (93.9%) |
-| /fabrik-user-test | 18885 | 17743 | 94.0% | 27137 → 25658 (94.5%) |
-| /fabrik-vision | 22541 | 22158 | 98.3% | 32333 → 31431 (97.2%) |
-| /fabrik-workflow-review | 15521 | 15120 | 97.4% | 22454 → 21762 (96.9%) |
-| /hibernate | 4841 | 4658 | 96.2% | 4841 → 4658 (96.2%) |
-| **all 40** | **596988** | **579853** | **97.1%** | **919518 → 888817 (96.7%)** |
+## Every rule-ledgered file (40 commands and 23 shared files; the 10 unledgered fragments are listed after the table)
 
-## Every rule-ledgered file (commands and shared files)
-
-Own text at the unit's start commit against master. 'Lines moved' counts baseline lines that left the file and are proven present elsewhere; 'narrative' and 'duplicate' count lines the ledger classed as carrying no rule. Every ledger currently reports 0 LOSS. The floor column names the ruling each file closed under; its per-file floor arithmetic is in the unit's receipt under `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T*-receipt.md`.
+Own text at the unit's start commit against master. 'Lines moved' counts baseline lines that left the file and are proven present elsewhere; 'narrative' and 'duplicate' count lines the ledger classed as carrying no rule. Every ledger currently reports 0 LOSS. The floor column names the ruling each file closed under; per-file floor arithmetic, where the unit recorded one, is in the unit's receipt under `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T*-receipt.md`.
 
 | File | Ledger | Baseline own words | Master own words | Ratio | Ledger entries | Lines moved (rule) / narrative / duplicate | Floor |
 |---|---|---:|---:|---:|---:|---|---|

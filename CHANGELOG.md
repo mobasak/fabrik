@@ -5,8 +5,8 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added — Lean command program close-out: T46 receipt, board ticked, operator report (2026-10-28)
-- `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-review.md`: the plan's T46 integration receipt. All 40 commands keep every rule (0 LOSS over 63 ledgers, 5,425 entries); rendered words 596,988 → 579,853 (97.1%); every file closed on its D-1254 floor, so the 50% goal was missed (D-1259). L1 and the standing ledger gate are live; L2 (the `remove:` field, W-a9b5e763) has not landed.
-- The plan's Ticket Board now names the master commit for each of the 54 landed tickets. T05a–c are marked 🔴 because they never started before the KILL.
+- `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-review.md`: the plan's T46 integration receipt. All 40 commands pass the rule check (0 LOSS over 63 ledgers, 5,425 entries); rendered words 596,988 → 579,853 (97.1%). Every file closed under the D-1254 floor ruling, so the 50% goal was missed (D-1259). On the spec's full measure (render + reads), 10 commands grew through docs outside `commands/`. L1 and the standing ledger gate are live; L2 (the `remove:` field, W-a9b5e763) has not landed.
+- The plan's Ticket Board: this change ticks T01d–T46, 51 ✅ (each but T46 naming its master commit) and T05a–c 🔴 (never started before the KILL).
 - `docs/development/reviews/2026-10-28-lean-program-final-report.md`: the operator's before/after report (W-ee67bd9f).
 
 ### Added — Coordinator wait guard: a merge owner's long foreground Bash wait is refused (2026-10-27)
