@@ -36,6 +36,43 @@ CLAUDE_AGENT=agent-2 claude -n agent-2-<repo>
 
 Both are valid; the env var always wins over a binding, so a named launch never needs the command.
 
+**A session that does not exist yet — the spawner-only binding** (dynamic builders, W-b9ad80ae). The
+spawner (`agents_spawn.py add`) mints a fresh session id for the builder it is about to launch and
+records it before the pane exists:
+
+```bash
+python3 /opt/fabrik/scripts/whoami_agent.py --spawned b-1 --session-id <fresh uuid> --repo <repo> --lock-fd <n>
+```
+
+It is the one input that takes a session id as an argument, an exception to "the id comes from the
+environment only", bounded by a caller proof checked in this order:
+
+1. `--lock-fd <n>` is an open descriptor on exactly `<git common dir of --repo>/fabrik-agents.lock`;
+2. a fresh open of that file cannot take its `flock` (`EWOULDBLOCK`): somebody holds it. If the probe
+   gets the lock, nobody holds it; the probe releases it at once and the call refuses;
+3. only then may the passed descriptor take the lock without blocking. That is a no-op for the open
+   file description that already holds it, and it fails for a copy that is open but unlocked while
+   another process holds the lock.
+
+The spawner holds that lock across the whole `add` and passes the descriptor with
+`subprocess.run(..., pass_fds=(fd,))`. The id must be a lowercase UUID that no row of the store has
+ever carried, so the call can never re-name an existing session. `--session-id`, `--repo` and
+`--lock-fd` are refused without `--spawned`, `--spawned` is refused without all three, and it takes
+no `--force`. The scope is `--repo`'s common dir, read with `GIT_DIR`, `GIT_COMMON_DIR`,
+`GIT_WORK_TREE` and `GIT_INDEX_FILE` removed, so an inherited value cannot redirect it.
+
+Exit codes, for `--spawned` only: **0** written · **1** a live session holds the name in this repo ·
+**2** refused (usage, caller proof, a malformed or already-known id) · **3** an unexpected exception,
+so a spawner can tell a crash from a collision. `--as` and `--who` keep their codes.
+
+The row carries `"spawned": true` with `pid` and `pid_start` null, and no `predecessor`, because
+stamping the caller's process would make the spawner the holder of the builder's name. ⚠️ **The
+null-pid gap:** a row with no pid is not a holder, so until the builder re-binds itself on its first
+turn (`--as <name>`, which writes its own pid) nothing in the store reserves the name. The spawner's
+own live-session preflight and the agents lock cover `add` itself. The cheapest bypass is a caller
+that takes the agents lock itself. That is accepted, because only hub tooling (`agents_spawn.py`,
+`rotate_session.py`) takes it, and the row it writes is marked `spawned` and reserves nothing.
+
 ## How it resolves
 
 `CLAUDE_AGENT` (when well-formed) → this session's **binding** → `""`. A malformed env value falls

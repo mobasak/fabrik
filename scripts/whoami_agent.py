@@ -50,6 +50,12 @@ from pathlib import Path
 # already uses fullmatch, so `match` also falsified the "strictest of the three" claim below.
 _NAME_RE = re.compile(r"[a-z0-9-]{1,32}")
 
+# A spawned session id: a lowercase UUID, `agents_up.sh`'s `SID` shape (`scripts/sysadmin/agents_up.sh:120`).
+_SID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+# The agents lock the spawner holds across an `add`, in the repo's git common dir.
+AGENTS_LOCK = "fabrik-agents.lock"
+_GIT_LOCATION_VARS = ("GIT_DIR", "GIT_COMMON_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE")
+
 _TRIM_AFTER_S = 30 * 24 * 3600  # nothing else prunes ~/.claude/state: `scratch_sweep.py:59` states
 # it touches only its own lock there and "reads, writes and deletes nothing else". An unowned store
 # would grow forever, so the WRITER trims as it appends.
@@ -74,6 +80,15 @@ def session_id() -> str:
 
     That is not a convenience: it is the structural half of the Cobra counter-measure. A process
     cannot name a session it is not part of, because there is no input that sets this.
+
+    ONE exception, bounded by a lock: the spawner-only ``--spawned`` binding (`bind_spawned`) takes a
+    NEW session's id as an argument, because the session it names does not exist yet. It is
+    refused unless the caller passes a descriptor that HOLDS ``<git common dir>/fabrik-agents.lock``
+    (`_caller_proof`), and it only binds an id no row has ever carried — it can never re-name a
+    session that already exists. COBRA (D-253): the cheapest bypass is a caller that takes that
+    lock itself and passes it; accepted, because only the hub's own tooling (``agents_spawn.py``,
+    ``rotate_session.py``) takes the agents lock, and the row it writes carries ``spawned: true``
+    and a null pid, so it is visible as a spawner's row and reserves the name against nobody.
     """
     return (os.environ.get("CLAUDE_CODE_SESSION_ID") or "").strip()
 
@@ -166,8 +181,13 @@ def _pid_alive_same_start(row: dict) -> bool:
     return _pid_start(pid) == _as_int(was)
 
 
-def _toplevel() -> str:
+def _toplevel(cwd: str | None = None) -> str:
     """The git COMMON DIR, or "" — the collision scope.
+
+    With ``cwd`` (the spawner-only bind's ``--repo``), git runs THERE with its own location
+    variables (``GIT_DIR``, ``GIT_COMMON_DIR``, ``GIT_WORK_TREE``, ``GIT_INDEX_FILE``) removed, so a
+    value inherited from a hook or an IDE cannot redirect the scope — the same as
+    ``agents_up.sh``'s ``SCOPE``. Without it (every other caller) nothing changes.
 
     ⚠️ Common-dir, NOT `--show-toplevel`: a worktree and its main checkout are ONE repo with two
     toplevels, so a toplevel scope let two sessions committing into one history hold one name
@@ -181,6 +201,9 @@ def _toplevel() -> str:
     (``docs/workstation/session-recall.md:43``: a session that changes cwd is RE-FILED mid-session,
     and ``EnterWorktree`` moves it into ``<repo>/.claude/worktrees/<name>``).
     """
+    env = None
+    if cwd is not None:
+        env = {k: v for k, v in os.environ.items() if k not in _GIT_LOCATION_VARS}
     try:
         out = subprocess.run(
             ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
@@ -188,6 +211,8 @@ def _toplevel() -> str:
             text=True,
             timeout=10,
             check=False,
+            cwd=cwd,
+            env=env,
         )
         return out.stdout.strip() if out.returncode == 0 else ""
     except (OSError, subprocess.SubprocessError):
@@ -420,6 +445,25 @@ def _bind_locked(
     }
     if predecessor:
         row["predecessor"] = predecessor
+    _store_row(path, rows, row, top, name)
+    unprotected = (
+        ""
+        if row["pid"]
+        else (
+            " ⚠️ no session pid could be determined, so this binding does NOT reserve the name against"
+            " a sibling"
+        )
+    )
+    return 0, (
+        f"whoami_agent: {name} bound to session {sid}"
+        + (" (forced)" if force else "")
+        + (f" (succeeds {predecessor})" if predecessor else "")
+        + unprotected
+    )
+
+
+def _store_row(path: Path, rows: list[dict], row: dict, top: str, name: str) -> None:
+    """Write `row` after the snapshot `rows`, trimming as it goes — the one writer both binds share."""
     cutoff = int(time.time()) - _TRIM_AFTER_S
     # ⚠️ A row's `at` is whatever is on disk. `int("abc")` raises ValueError and `int([1])` raises
     # TypeError (both executed), and an exception here would abort a BIND — the one operation the
@@ -446,19 +490,121 @@ def _bind_locked(
         _write_rows(path, keep + [row])
     else:
         _append_row(path, row)
-    unprotected = (
-        ""
-        if row["pid"]
-        else (
-            " ⚠️ no session pid could be determined, so this binding does NOT reserve the name against"
-            " a sibling"
+
+
+def _caller_proof(top: str, fd: int) -> str:
+    """Empty when descriptor `fd` HOLDS `<top>/fabrik-agents.lock`, else the condition that failed.
+
+    The order is load-bearing (plan-review pass 2, A-N1): (a) the descriptor is open on exactly that
+    file; (b) a FRESH open of it cannot take the lock (EWOULDBLOCK) — so somebody holds it, and a
+    success means nobody does, which is released at once and refused; (c) only then may the PASSED
+    descriptor take it, a no-op for the open file description that already holds it and a refusal
+    for an unlocked copy while another process holds it. Checking (c) first passed a caller that
+    merely opened the file while nobody held it. The passed descriptor is never unlocked here: its
+    lock is the CALLER's, held across the whole spawn.
+    """
+    expected = os.path.realpath(os.path.join(top, AGENTS_LOCK))
+    try:
+        held = os.readlink(f"/proc/self/fd/{fd}")
+    except (OSError, ValueError):
+        return f"--lock-fd {fd} is not an open descriptor"
+    if held != expected:
+        return f"--lock-fd {fd} is open on {held!r}, not the agents lock {expected!r}"
+    try:
+        probe = os.open(expected, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
+    except OSError as exc:
+        return f"the agents lock {expected!r} could not be opened ({exc.strerror or exc})"
+    try:
+        fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        pass  # somebody holds it — (c) decides whether it is the caller
+    except OSError as exc:
+        os.close(probe)
+        return f"the agents lock {expected!r} could not be probed ({exc.strerror or exc})"
+    else:
+        with contextlib.suppress(OSError):
+            fcntl.flock(probe, fcntl.LOCK_UN)
+        os.close(probe)
+        return (
+            f"nobody holds the agents lock {expected!r} — the caller must hold it across the spawn"
         )
-    )
+    os.close(probe)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return (
+            f"--lock-fd {fd} is open on the agents lock but does not hold it — another process does"
+        )
+    return ""
+
+
+def bind_spawned(name: str, sid: str, repo: str, lock_fd: int) -> tuple[int, str]:
+    """SPAWNER-ONLY: bind a NEW session id `sid` to `name` in `repo`'s scope. Returns (exit code, message).
+
+    0 written · 1 a live pid-bearing row holds the name in this scope · 2 refused (name, repo, caller
+    proof, a malformed id, or an id any row already carries). The row carries ``spawned: true`` and a
+    null pid: stamping the CALLER's process would make the spawner the holder of the builder's name.
+    """
+    if not _NAME_RE.fullmatch(name):
+        return 2, (
+            f"whoami_agent: refused — {name!r} is not a valid agent name (^[a-z0-9-]{{1,32}}$)."
+        )
+    top = _toplevel(cwd=repo)
+    if not top:
+        return 2, f"whoami_agent: refused — --repo {repo!r} is not inside a git repository."
+    why = _caller_proof(top, lock_fd)
+    if why:
+        return 2, (
+            f"whoami_agent: refused — {why}. --spawned is spawner-only: the caller must hold the "
+            "repo's agents lock and pass that descriptor (--lock-fd)."
+        )
+    if not _SID_RE.fullmatch(sid):
+        return 2, f"whoami_agent: refused — session id {sid!r} is not a lowercase UUID."
+    path = store_path()
+    with _locked(path) as (locked, lwhy):
+        code, msg = _bind_spawned_locked(path, sid, name, top, locked)
+    if code == 0 and not locked:
+        msg += (
+            f" ⚠️ the store lock could not be taken ({lwhy}); this bind was NOT serialized against"
+            " a concurrent sibling"
+        )
+    return code, msg
+
+
+def _bind_spawned_locked(
+    path: Path, sid: str, name: str, top: str, locked: bool
+) -> tuple[int, str]:
+    """The read-modify-write half of `bind_spawned`. No window logic: the spawner's own process is never
+    this row's window, so there is no `same_window` and no `predecessor`."""
+    rows = _rows(path)
+    if any(str(r.get("session_id")) == sid for r in rows):
+        return 2, (
+            f"whoami_agent: refused — session id {sid!r} is already in the identity store; "
+            "--spawned binds only a FRESH id, never a session that already exists."
+        )
+    for r in rows:
+        if str(r.get("name") or "") != name or str(r.get("toplevel") or "") != top:
+            continue
+        if _pid_alive_same_start(r):
+            return 1, (
+                f"whoami_agent: refused — {name!r} is held by a LIVE session (pid "
+                f"{r.get('pid')}) in this repo. Pick another name."
+            )
+    row = {
+        "session_id": sid,
+        "name": name,
+        "pid": None,
+        "pid_start": None,
+        "toplevel": top,
+        "at": int(time.time()),
+        "force": False,
+        "unlocked": not locked,
+        "spawned": True,
+    }
+    _store_row(path, rows, row, top, name)
     return 0, (
-        f"whoami_agent: {name} bound to session {sid}"
-        + (" (forced)" if force else "")
-        + (f" (succeeds {predecessor})" if predecessor else "")
-        + unprotected
+        f"whoami_agent: {name} bound to spawned session {sid} ⚠️ no pid: this binding does NOT"
+        " reserve the name against a sibling until the builder re-binds on its first turn"
     )
 
 
@@ -474,8 +620,45 @@ def main(argv: list[str]) -> int:
     # --who branch and reported the OLD name at rc 0 — a silent no-op that reads as success — and
     # `--who --as fleet` silently ignored the bind.
     mode.add_argument("--who", action="store_true", help="print the resolved name and exit")
+    mode.add_argument(
+        "--spawned",
+        metavar="NAME",
+        help="SPAWNER-ONLY: bind a NEW session (--session-id) to NAME in --repo's scope; the caller "
+        "must hold the repo's agents lock and pass it (--lock-fd). Exit 0 written, 1 live holder, "
+        "2 refused, 3 crash",
+    )
+    ap.add_argument(
+        "--session-id", dest="spawn_sid", help="with --spawned only: the new session's id"
+    )
+    ap.add_argument("--repo", dest="spawn_repo", help="with --spawned only: the repo it binds in")
+    ap.add_argument(
+        "--lock-fd", dest="spawn_fd", type=int, help="with --spawned only: the held agents-lock fd"
+    )
     ap.add_argument("--force", action="store_true", help="override a collision, and record that")
     args = ap.parse_args(argv[1:])
+    spawner = {
+        "--session-id": args.spawn_sid,
+        "--repo": args.spawn_repo,
+        "--lock-fd": args.spawn_fd,
+    }
+    if args.spawned is None:
+        given = [flag for flag, value in spawner.items() if value is not None]
+        if given:
+            ap.error(f"{', '.join(given)}: only with --spawned")
+    else:
+        missing = [flag for flag, value in spawner.items() if value is None]
+        if missing:
+            ap.error(f"--spawned needs {', '.join(missing)}")
+        if args.force:
+            ap.error("--spawned takes no --force: a live holder of the name always refuses")
+        # Exit 3, not the `__main__` catch-all's 1, so a spawner can tell a crash from a collision.
+        try:
+            code, msg = bind_spawned(args.spawned, args.spawn_sid, args.spawn_repo, args.spawn_fd)
+        except Exception as exc:
+            print(f"whoami_agent: --spawned crashed: {type(exc).__name__}: {exc}", file=sys.stderr)
+            return 3
+        print(msg, file=sys.stderr if code else sys.stdout)
+        return code
     if args.who or args.name is None:
         name = resolve_agent_name()
         print(name)
