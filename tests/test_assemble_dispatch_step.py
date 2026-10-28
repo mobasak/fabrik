@@ -601,13 +601,35 @@ def test_a_preview_render_without_a_skills_tree_still_trips_the_cap(tmp_path, mo
     assert _census(tmp_path) == (0, 0, 0)
 
 
+def _gate_at(monkeypatch, d, s, a):
+    """Point `check()` at the scratch trees ``d``/``s``/``a`` for a test that grades its INSTALLED-tree
+    reads. The rule-ledger LOSS pass and the size measure read the temp render, the sources and tracked
+    repo files and take minutes on the full corpus (W-bda24c48: 11 such tests held ~1,950 s); their
+    own tests grade them and check()'s wiring of them (tests/test_command_rules.py,
+    tests/test_command_measure.py). Here they are spies that return their empty results and refuse an
+    installed tree, so a regression that hands one to them still goes red."""
+
+    def _not_installed(empty):
+        def spy(render_dir, *args, **kwargs):
+            assert not any(
+                Path(render_dir).resolve().is_relative_to(t.resolve()) for t in (d, s, a)
+            ), f"a ledger or measure pass was handed the installed tree {render_dir}"
+            return empty
+
+        return spy
+
+    monkeypatch.setattr(ac.command_rules, "losses", _not_installed([]))
+    monkeypatch.setattr(ac.command_measure, "findings", _not_installed(([], [])))
+    monkeypatch.setattr(ac, "OUT", d)
+    monkeypatch.setattr(ac, "SKILLS", s)
+    monkeypatch.setattr(ac, "AGENTS", a)
+
+
 def _installed(tmp_path, monkeypatch):
     """A clean install rendered into scratch trees, with `check()` pointed at them."""
     d, s, a = _trees(tmp_path)
     ac.render(d, s, agents_dest=a)
-    monkeypatch.setattr(ac, "OUT", d)
-    monkeypatch.setattr(ac, "SKILLS", s)
-    monkeypatch.setattr(ac, "AGENTS", a)
+    _gate_at(monkeypatch, d, s, a)
     first_cmd = sorted(d.glob("*.md"))[0]
     first_agent = sorted(a.glob("*.md"))[0]
     return {
@@ -814,9 +836,7 @@ def test_a_symlinked_orphan_is_reported_by_the_gate_and_unlinked_by_the_prune(
         (outside / "zz-old.md").write_text(ac.BANNER + "\n# old\n")
         link = a / "zz-old.md"
         link.symlink_to(outside / "zz-old.md")
-    monkeypatch.setattr(ac, "OUT", d)
-    monkeypatch.setattr(ac, "SKILLS", s)
-    monkeypatch.setattr(ac, "AGENTS", a)
+    _gate_at(monkeypatch, d, s, a)
     if tree != "agents":  # check() has orphan rules for the commands and skills trees
         with pytest.raises(SystemExit) as exc:
             ac.check()
@@ -834,9 +854,7 @@ def test_the_gate_reports_a_malformed_orphan_position_instead_of_crashing(
 ):
     d, s, a = _trees(tmp_path)
     ac.render(d, s, agents_dest=a)
-    monkeypatch.setattr(ac, "OUT", d)
-    monkeypatch.setattr(ac, "SKILLS", s)
-    monkeypatch.setattr(ac, "AGENTS", a)
+    _gate_at(monkeypatch, d, s, a)
     if shape == "a directory":
         (d / "zz-odd.md").mkdir()
         (s / "zz-odd" / "SKILL.md").mkdir(parents=True)
@@ -972,29 +990,13 @@ def test_an_orphan_fifo_never_hangs_the_render_or_the_gate(tmp_path, monkeypatch
         raise TimeoutError("a read guard let a FIFO through — the render or the gate blocked on it")
 
     # The alarm bounds the orphan-position reads: the render's prune and check()'s orphan walks over the
-    # installed trees. The rule-ledger LOSS pass and the size measure read the rendered temp tree, the
-    # sources and tracked repo files, where no FIFO sits, and on the full lean corpus they take 45-105 s —
-    # inside the alarm they made it fire mid-ledger (exit 4, not 1; kaizen 2026-10-27). Their own tests
-    # grade them; these spies return their empty results and refuse an installed tree, so a regression
-    # that hands one to them still goes red here.
-    def _not_installed(empty):
-        def spy(render_dir, *args, **kwargs):
-            assert not any(
-                Path(render_dir).resolve().is_relative_to(t.resolve()) for t in (d, s, a)
-            ), f"a ledger or measure pass was handed the installed tree {render_dir}"
-            return empty
-
-        return spy
-
-    monkeypatch.setattr(ac.command_rules, "losses", _not_installed([]))
-    monkeypatch.setattr(ac.command_measure, "findings", _not_installed(([], [])))
+    # installed trees. The LOSS pass and the size measure are `_gate_at`'s spies: live, they took 45-105 s
+    # and made the alarm fire mid-ledger (exit 4, not 1; kaizen 2026-10-27).
+    _gate_at(monkeypatch, d, s, a)
     old = signal.signal(signal.SIGALRM, _hang)
     signal.alarm(20)
     try:
         ac.render(d, s, agents_dest=a)
-        monkeypatch.setattr(ac, "OUT", d)
-        monkeypatch.setattr(ac, "SKILLS", s)
-        monkeypatch.setattr(ac, "AGENTS", a)
         with pytest.raises(SystemExit) as exc:
             ac.check()
         out = capsys.readouterr().out
@@ -1057,7 +1059,9 @@ def test_render_refuses_a_fifo_at_a_kept_name(tmp_path, tree):
 
 @pytest.mark.parametrize("shape", ["fifo", "directory", "symlink"])
 @pytest.mark.parametrize("tree", ["commands", "skills", "agents"])
-def test_the_gate_reports_a_non_regular_file_at_a_kept_name(tmp_path, monkeypatch, capsys, tree, shape):
+def test_the_gate_reports_a_non_regular_file_at_a_kept_name(
+    tmp_path, monkeypatch, capsys, tree, shape
+):
     """W-21f88ec3: the gate compares every kept name's installed text. A FIFO there blocked the read
     forever, a directory crashed it with IsADirectoryError, and a symlink to a byte-identical copy
     passed although the render refuses to write through it; each is now one drift line and exit 1.
@@ -1068,11 +1072,7 @@ def test_the_gate_reports_a_non_regular_file_at_a_kept_name(tmp_path, monkeypatc
     d, s, a = _trees(tmp_path)
     ac.render(d, s, agents_dest=a)
     kept = _kept_name(tree, d, s, a)
-    monkeypatch.setattr(ac.command_rules, "losses", lambda *args, **kwargs: [])
-    monkeypatch.setattr(ac.command_measure, "findings", lambda *args, **kwargs: ([], []))
-    monkeypatch.setattr(ac, "OUT", d)
-    monkeypatch.setattr(ac, "SKILLS", s)
-    monkeypatch.setattr(ac, "AGENTS", a)
+    _gate_at(monkeypatch, d, s, a)
     if shape == "symlink":
         # the target sits outside every tree the gate walks, under a name no glob matches
         target = tmp_path / "outside" / f"{kept.name}.target"
@@ -1111,11 +1111,7 @@ def test_the_gate_reports_a_symlinked_kept_skill_directory(tmp_path, monkeypatch
     target.parent.mkdir()
     kept_dir.rename(target)
     kept_dir.symlink_to(target)
-    monkeypatch.setattr(ac.command_rules, "losses", lambda *args, **kwargs: [])
-    monkeypatch.setattr(ac.command_measure, "findings", lambda *args, **kwargs: ([], []))
-    monkeypatch.setattr(ac, "OUT", d)
-    monkeypatch.setattr(ac, "SKILLS", s)
-    monkeypatch.setattr(ac, "AGENTS", a)
+    _gate_at(monkeypatch, d, s, a)
     with pytest.raises(SystemExit) as exc:
         ac.check()
     out = capsys.readouterr().out
