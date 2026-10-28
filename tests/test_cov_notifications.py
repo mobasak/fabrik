@@ -74,9 +74,16 @@ def test_post_debug_logs_event(calls, caplog):
     assert any("deploy.success" in r.getMessage() for r in caplog.records)
 
 
-def test_post_does_not_check_status(monkeypatch):
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="notifications.py:24 never checks the status: a 5xx from the webhook is a silent failure",
+)
+def test_post_warns_on_server_error(monkeypatch, caplog):
     monkeypatch.setattr(httpx, "post", lambda *a, **k: httpx.Response(500))
-    assert _post("http://h/x", {}) is None
+    with caplog.at_level(logging.WARNING, logger="fabrik.notifications"):
+        assert _post("http://h/x", {}) is None
+    assert any(r.levelno == logging.WARNING for r in caplog.records)
 
 
 # ---- notify_deploy ----

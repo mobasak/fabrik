@@ -133,7 +133,9 @@ def test_get_usage_month_and_project_combined(tracker, db_path):
 
 def test_get_usage_month_is_bound_parameter_not_sql(tracker, db_path):
     _insert(db_path, ts="2026-01-01T00:00:00")
-    assert tracker.get_usage(month="' OR '1'='1")["total_calls"] == 0
+    _insert(db_path, ts="2026-02-01T00:00:00")
+    # Interpolated, this payload ends the LIKE and comments out the rest, so every row matches.
+    assert tracker.get_usage(month="' OR 1=1 --")["total_calls"] == 0
 
 
 def test_get_usage_includes_gpu_rows(tracker):
@@ -228,7 +230,9 @@ def test_record_gpu_persists_across_instances(tracker, db_path):
 
 
 @pytest.mark.xfail(
-    strict=True, reason="tracker.py:127 `if duration_seconds` maps 0.0 to NULL, not 0 ms"
+    strict=True,
+    raises=AssertionError,
+    reason="tracker.py:127 `if duration_seconds` maps 0.0 to NULL, not 0 ms",
 )
 def test_record_gpu_zero_duration_is_zero_ms(tracker, db_path):
     tracker.record_gpu(session_id="s", kind="k", workload="w", cost_usd=0.1, duration_seconds=0.0)

@@ -116,6 +116,15 @@ def test_collect_sums_positive_cost_only(env):
     assert sum(m["sessions_total"].values()) == 6
 
 
+def test_collect_zero_cost_only_labels_get_no_cost_series(env):
+    log, _ = env
+    _write_log(
+        log,
+        [{"provider": "p", "kind": "k", "workload": "free", "success": True, "cost_actual_usd": 0}],
+    )
+    assert gpu_metrics.collect()["cost_total"] == {}
+
+
 def test_collect_active_excludes_destroyed(env):
     _, state = env
     state["sessions"] = {
@@ -162,6 +171,7 @@ def test_collect_reconcile_age_empty_string_is_inf(env):
 
 @pytest.mark.xfail(
     strict=True,
+    raises=TypeError,
     reason="naive last_reconciled makes aware-naive subtraction raise TypeError (gpu_metrics.py:113)",
 )
 def test_collect_reconcile_age_naive_timestamp_does_not_crash(env):

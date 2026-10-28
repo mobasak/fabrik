@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "use `is not None`; flip the strict xfail in tests/test_cov_ai_tracker.py:230",
+  "next": "use `is not None`; turn the strict xfail test_record_gpu_zero_duration_is_zero_ms (tests/test_cov_ai_tracker.py) into a plain test; also fix the docstrings at tracker.py ~98 and ~124 that cite a record() method that does not exist",
   "note": "",
   "owner": "",
   "priority": 2,

@@ -11,10 +11,10 @@
     "plan": "",
     "spec": ""
   },
-  "next": "guard len(parts) < 2 -> False; flip the strict xfail in tests/test_cov_monitor.py:287 to a plain test",
+  "next": "guard len(parts) < 2 -> False; turn the strict xfail test_is_waiting_for_stdin_single_token_syscall (tests/test_cov_monitor.py) into a plain test",
   "note": "",
   "owner": "",
   "priority": 2,
   "status": "open",
-  "title": "monitor.py:182 reads parts[1] without a length check: a one-token syscall string (e.g. \"running\") raises IndexError in the WSL hang detector"
+  "title": "monitor.py:182 reads parts[1] without a length check: a one-token syscall string (e.g. \"running\") raises IndexError in the stuck-on-stdin detector (ProcessMonitor._is_waiting_for_stdin)"
 }

@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "treat a naive timestamp as UTC (or catch TypeError -> inf); flip the strict xfail in tests/test_cov_orchestrator_gpu_metrics.py:163",
+  "next": "treat a naive timestamp as UTC (or catch TypeError -> inf); turn the strict xfail test_collect_reconcile_age_naive_timestamp_does_not_crash (tests/test_cov_orchestrator_gpu_metrics.py) into a plain test",
   "note": "",
   "owner": "",
   "priority": 2,

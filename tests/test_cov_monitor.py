@@ -289,7 +289,9 @@ def test_is_waiting_for_stdin(mon, status, syscall, expected):
 
 
 @pytest.mark.xfail(
-    strict=True, reason="monitor.py:182 parts[1] IndexError on a one-token syscall string"
+    strict=True,
+    raises=IndexError,
+    reason="monitor.py:182 parts[1] IndexError on a one-token syscall string",
 )
 def test_is_waiting_for_stdin_single_token_syscall(mon):
     assert mon._is_waiting_for_stdin(metrics("sleeping", "running")) is False

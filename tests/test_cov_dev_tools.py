@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -237,7 +238,9 @@ def test_bundle_real_resolver_smoke(proj, monkeypatch):
     spec.write_text("name: demo\n")
     body, stats = dev_tools.build_review_bundle(proj, "HEAD", spec)
     assert "## Resolved registrars" in body
-    assert stats.registrars_run >= 0 and stats.registrars_skipped >= 0
+    # The except branch writes the same heading, so the resolver's success is what proves it ran.
+    assert "_resolve failed" not in body
+    assert stats.registrars_run + stats.registrars_skipped > 0
 
 
 # ---------------------------------------------------------- save_review_bundle
@@ -254,7 +257,7 @@ def test_save_default_location_timestamped(proj):
     target = dev_tools.save_review_bundle(proj, "# c")
     assert target.parent == proj / ".fabrik" / "review"
     assert target.suffix == ".md"
-    assert len(target.stem) == len("2026-01-01-000000")
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}-\d{6}", target.stem)
     assert target.read_text() == "# c"
 
 

@@ -102,6 +102,20 @@ def test_login_failure_propagates(api):
         uk.UptimeKumaClient(username="u", password="p").get_monitors()
 
 
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason="uptime_kuma.py:41-42 keeps self._api after login() raises, so the next call never logs in",
+)
+def test_failed_login_is_retried_on_next_call(api):
+    api.login.side_effect = [RuntimeError("bad creds"), None]
+    c = uk.UptimeKumaClient(username="u", password="p")
+    with pytest.raises(RuntimeError, match="bad creds"):
+        c.get_monitors()
+    c.get_monitors()
+    assert api.login.call_count == 2
+
+
 def test_disconnect_closes_and_resets(api):
     c = uk.UptimeKumaClient(username="u", password="p")
     c._ensure_connected()
