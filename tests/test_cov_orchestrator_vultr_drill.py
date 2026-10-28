@@ -337,6 +337,22 @@ def test_validate_spoke_restore_result_fields(monkeypatch):
     assert seen["t"] == d._SPOKE_RESTORE_BOOTSTRAP_TIMEOUT
 
 
+_ISOLATION_FLAGS = ("--skip-mesh", "--skip-services", "--skip-local-b2-check")
+
+
+@pytest.mark.parametrize("validate", ["_validate_hub", "_validate_spoke_restore"])
+def test_restore_drills_pass_every_isolation_flag(monkeypatch, validate):
+    # Spelled out, not read from the module: without these flags a drill droplet restores
+    # the live wg key into the mesh and runs backrest against B2 under the live identity.
+    runs = []
+    monkeypatch.setattr(d, "_wait_ssh", lambda ip: True)
+    monkeypatch.setattr(d, "_run_script", lambda argv, t, log: runs.append(argv) or 0)
+    getattr(d, validate)("8.8.8.8", "iso")
+    boot = runs[0]
+    for flag in _ISOLATION_FLAGS:
+        assert flag in boot, flag
+
+
 # ── write_report ──
 def test_write_report_appends_sorted_json_lines_and_creates_dir():
     d.write_report({"b": 1, "a": 2})

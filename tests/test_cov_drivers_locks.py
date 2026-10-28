@@ -18,7 +18,7 @@ GATUS = "/opt/monitoring/configs/gatus"
 
 
 class TestConstants:
-    def test_lock_dir_is_root_owned_shared_dir(self):
+    def test_lock_dir_is_the_shared_dir_outside_tmp(self):
         assert LOCK_DIR == "/var/lib/fabrik-locks"
         assert not LOCK_DIR.startswith("/tmp")
 
@@ -58,10 +58,12 @@ class TestRunLockedCommandShape:
         cmd = mock_ssh.call_args.args[0]
         head = cmd.split(" bash -c ")[0]
         steps = head.split(" && ")
-        assert steps[0].startswith("sudo install -d -m 755 -o root -g root")
-        assert steps[1].startswith("sudo touch ")
-        assert steps[2].startswith("sudo chmod 644 ")
+        lock_file = f"{LOCK_DIR}/fabrik-demo.lock"
+        assert steps[0] == f"sudo install -d -m 755 -o root -g root {LOCK_DIR}"
+        assert steps[1] == f"sudo touch {lock_file}"
+        assert steps[2] == f"sudo chmod 644 {lock_file}"
         assert steps[3].startswith("flock -x -w ")
+        assert steps[3].endswith(f" {lock_file}")
         assert len(steps) == 4
 
     @patch("fabrik.drivers.locks.ssh")

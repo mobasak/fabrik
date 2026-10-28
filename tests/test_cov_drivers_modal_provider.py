@@ -424,7 +424,7 @@ class _RedirectPath(type(Path())):
 def tpl_dir(monkeypatch, tmp_path):
     d = tmp_path / "tpls"
     d.mkdir()
-    _RedirectPath.redirect_to = d
+    monkeypatch.setattr(_RedirectPath, "redirect_to", d)
     monkeypatch.setattr(mp, "Path", _RedirectPath)
     out = tmp_path / "out"
     out.mkdir()

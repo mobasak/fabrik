@@ -11,10 +11,10 @@
     "plan": "",
     "spec": ""
   },
-  "next": "use output.split()[:1] or a split-then-check, drop the xfail marker",
+  "next": "take the first token only when split() is non-empty (e.g. tokens = output.split(); first = tokens[0] if tokens else \"\"), drop the xfail marker",
   "note": "",
   "owner": "",
   "priority": 3,
   "status": "open",
-  "title": "preflight._vps_resolves crashes with IndexError on whitespace-only ssh output (src/fabrik/drivers/preflight.py:148: output is truthy, split() is empty); should return False. Guarded by strict xfail tests/test_cov_drivers_preflight.py::test_vps_resolves_whitespace_only_output_is_false_not_a_crash"
+  "title": "preflight._vps_resolves raises IndexError on whitespace-only output (src/fabrik/drivers/preflight.py:148: output is truthy, split() is empty); should return False. LATENT: the real ssh() strips its answer (src/fabrik/drivers/ssh.py:282), so only a caller passing unstripped text reaches it. Guarded by strict xfail tests/test_cov_drivers_preflight.py::test_vps_resolves_whitespace_only_output_is_false_not_a_crash"
 }

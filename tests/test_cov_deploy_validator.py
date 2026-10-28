@@ -79,7 +79,23 @@ def test_electron_type_never_consults_renderer(monkeypatch):
 # --- _check_dockerfile ------------------------------------------------------
 
 
-@pytest.mark.parametrize("ptype", sorted(dv._NO_DOCKERFILE_TYPES))
+# Spelled out, never read from dv._NO_DOCKERFILE_TYPES: a parametrize over the module's own
+# constant drops a case silently when a member is removed.
+_EXPECTED_NO_DOCKERFILE = [
+    "chrome-extension",
+    "desktop-app",
+    "docusaurus",
+    "mobile-app",
+    "static-site",
+    "wordpress",
+]
+
+
+def test_dockerfile_exempt_set_is_exactly_the_expected_types():
+    assert frozenset(_EXPECTED_NO_DOCKERFILE) == dv._NO_DOCKERFILE_TYPES
+
+
+@pytest.mark.parametrize("ptype", _EXPECTED_NO_DOCKERFILE)
 def test_dockerfile_exempt_types_pass_without_file(tmp_path, ptype):
     r = _check_dockerfile(tmp_path, ptype)
     assert r.passed is True
@@ -159,6 +175,13 @@ def test_health_mobile_app_missing_server_dir(tmp_path):
     assert r.message == "src/ directory not found"
 
 
+def test_health_scanned_file_without_route_fails(tmp_path):
+    _write(tmp_path / "src" / "app.py", '@app.get("/ready")')
+    r = _check_health_endpoint(tmp_path, "python-api")
+    assert r.passed is False
+    assert r.message.startswith("Health endpoint not detected")
+
+
 def test_health_src_dir_empty_fails(tmp_path):
     (tmp_path / "src").mkdir()
     r = _check_health_endpoint(tmp_path, "python-api")
@@ -168,16 +191,28 @@ def test_health_src_dir_empty_fails(tmp_path):
 
 def test_health_skips_unreadable_file_and_continues(tmp_path, monkeypatch):
     bad = _write(tmp_path / "src" / "a_bad.py", 'get("/health")')
-    _write(tmp_path / "src" / "b_good.py", 'get("/health")')
+    good = _write(tmp_path / "src" / "b_good.py", 'get("/health")')
     real = Path.read_text
+    real_rglob = Path.rglob
+    read = []
 
     def flaky(self, *a, **kw):
+        read.append(self)
         if self == bad:
             raise OSError("denied")
         return real(self, *a, **kw)
 
+    def bad_first(self, pattern):
+        # rglob's order is the filesystem's; pin the unreadable file first so the
+        # `except OSError: continue` is what lets the good file be reached.
+        if self == tmp_path / "src":
+            return iter([bad, good])
+        return real_rglob(self, pattern)
+
     monkeypatch.setattr(Path, "read_text", flaky)
+    monkeypatch.setattr(Path, "rglob", bad_first)
     assert _check_health_endpoint(tmp_path, "python-api").passed is True
+    assert read == [bad, good]
 
 
 def test_health_only_unreadable_file_fails_without_raising(tmp_path, monkeypatch):

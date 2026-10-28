@@ -11,10 +11,10 @@
     "plan": "",
     "spec": ""
   },
-  "next": "use self.spec.get(\"postconditions\") or {} at both sites, drop the xfail marker",
+  "next": "use self.spec.get(\"postconditions\") or {} at :82 and :283 and self.spec.get(\"rollback\") or {} at :329, drop the xfail marker",
   "note": "",
   "owner": "",
   "priority": 3,
   "status": "open",
-  "title": "verify.PostconditionChecker crashes with AttributeError on a spec whose postconditions: key is null (src/fabrik/verify.py:82 and :283 call .get/.items on None). Guarded by strict xfail tests/test_cov_verify.py::test_null_postconditions_section_is_tolerated"
+  "title": "verify.PostconditionChecker crashes with AttributeError on a spec whose postconditions: or rollback: key is null (src/fabrik/verify.py:82 _get_check_config and :283 run_all call .get/.items on None; :329 should_rollback does the same on rollback:). Guarded by strict xfail tests/test_cov_verify.py::test_null_postconditions_section_is_tolerated"
 }

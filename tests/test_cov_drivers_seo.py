@@ -1,6 +1,8 @@
 """Coverage sweep for fabrik.drivers.seo.SEOClient (hermetic: httpx.Client is faked)."""
 
 import logging
+import time
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import httpx
@@ -225,8 +227,9 @@ def test_run_job_and_get_job_endpoints(client, http):
 
 @pytest.fixture
 def no_sleep(monkeypatch):
+    # A module-local stand-in, never the process-wide time module.
     sleeps = []
-    monkeypatch.setattr(seo_mod.time, "sleep", sleeps.append)
+    monkeypatch.setattr(seo_mod, "time", SimpleNamespace(time=time.time, sleep=sleeps.append))
     return sleeps
 
 
@@ -254,9 +257,19 @@ def test_wait_for_job_failed_raises_with_message(client, http, no_sleep):
 
 def test_wait_for_job_timeout(client, http, monkeypatch):
     now = [1000.0]
-    monkeypatch.setattr(seo_mod.time, "time", lambda: now[0])
-    monkeypatch.setattr(seo_mod.time, "sleep", lambda s: now.__setitem__(0, now[0] + s))
-    http.resp.json.return_value = {"status": "running"}
+    fake_time = SimpleNamespace(time=lambda: now[0], sleep=lambda s: now.__setitem__(0, now[0] + s))
+    monkeypatch.setattr(seo_mod, "time", fake_time)
+    polls = []
+
+    def running():
+        # The fake clock moves only through sleep(); a loop that stopped sleeping would
+        # spin forever, so a runaway poll count fails red instead of hanging.
+        polls.append(1)
+        if len(polls) > 10:
+            raise AssertionError("wait_for_job kept polling without sleeping")
+        return {"status": "running"}
+
+    http.resp.json.side_effect = running
     with pytest.raises(TimeoutError, match="did not complete within 20s"):
         client.wait_for_job("j", timeout=20, poll_interval=5)
     assert http.request.call_count == 4

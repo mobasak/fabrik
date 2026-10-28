@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import httpx
 import pytest
 
@@ -209,6 +211,14 @@ def test_query_filters_order_limit_encoded():
     )
 
 
+def test_query_select_and_order_are_encoded():
+    # Values that differ encoded and raw: an unencoded "&" would inject a query parameter.
+    c = make()
+    c.query("t", select="a&apikey=x", order="b&c=d")
+    url = c._client.calls[0][1]
+    assert url == f"{URL}/rest/v1/t?select=a%26apikey%3Dx&order=b%26c%3Dd"
+
+
 def test_query_limit_zero_is_applied():
     c = make()
     c.query("t", limit=0)
@@ -272,6 +282,16 @@ def test_update_builds_filter_url():
     assert method == "PATCH"
     assert url == f"{URL}/rest/v1/t?id=eq.a%2Fb&s=eq.p"
     assert kw["json"] == {"x": 1}
+
+
+@pytest.mark.parametrize(("service", "key"), [(True, "svc-key"), (False, "anon-key")])
+def test_update_and_delete_send_the_requested_key(service, key):
+    c = make([FakeResp(200, []), FakeResp(200, [])])
+    c.update("t", {"x": 1}, {"id": 1}, use_service_role=service)
+    c.delete("t", {"id": 1}, use_service_role=service)
+    for method, _url, kw in c._client.calls:
+        assert kw["headers"]["apikey"] == key, method
+        assert kw["headers"]["Authorization"] == f"Bearer {key}", method
 
 
 def test_update_empty_filters_refused():
@@ -388,12 +408,15 @@ def test_claim_next_job_no_types():
 
 def test_complete_job_success():
     c = make([FakeResp(200, [{"id": "j", "status": "completed"}])])
+    before = datetime.now(UTC)
     out = c.complete_job("j", True, result_data={"n": 1})
+    after = datetime.now(UTC)
     assert out["status"] == "completed"
     body = c._client.calls[0][2]["json"]
     assert body["status"] == "completed" and body["result_data"] == {"n": 1}
     assert "error_message" not in body
     assert body["completed_at"].endswith("+00:00")
+    assert before <= datetime.fromisoformat(body["completed_at"]) <= after
     assert "id=eq.j" in c._client.calls[0][1]
 
 

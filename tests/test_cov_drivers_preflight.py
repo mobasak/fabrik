@@ -84,7 +84,10 @@ def test_vps_resolves_ssh_runtime_error_is_false(monkeypatch):
 @pytest.mark.xfail(
     strict=True,
     raises=IndexError,
-    reason="whitespace-only ssh output is truthy but split() is empty -> IndexError (preflight.py:148)",
+    reason=(
+        "whitespace-only output is truthy but split() is empty -> IndexError (preflight.py:148); "
+        "latent: the real ssh() strips its answer (ssh.py:282)"
+    ),
 )
 def test_vps_resolves_whitespace_only_output_is_false_not_a_crash(monkeypatch):
     monkeypatch.setattr(pf, "ssh", lambda *a, **k: "  \n")
@@ -117,6 +120,13 @@ def test_public_resolves_missing_ip_or_empty_answer_is_false(monkeypatch):
     monkeypatch.setattr(pf.subprocess, "run", lambda *a, **k: _run_result(0, "5.6.7.8\n"))
     assert pf._public_resolves("x", "1.2.3.4") is False
     monkeypatch.setattr(pf.subprocess, "run", lambda *a, **k: _run_result(0, ""))
+    assert pf._public_resolves("x", "1.2.3.4") is False
+
+
+@pytest.mark.parametrize("answer", ["21.2.3.4", "1.2.3.45", "1.2.3.4.example.net."])
+def test_public_resolves_needs_an_exact_answer_line(monkeypatch, answer):
+    # A substring match would report a different public IP as propagated.
+    monkeypatch.setattr(pf.subprocess, "run", lambda *a, **k: _run_result(0, answer + "\n"))
     assert pf._public_resolves("x", "1.2.3.4") is False
 
 
