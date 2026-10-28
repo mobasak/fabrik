@@ -138,6 +138,29 @@ def _stale(d: dict) -> list[tuple[str, str, str]]:
     return out
 
 
+def _malformed(d: dict) -> list[tuple[str, str]]:
+    """Every (event, reason) the repair cannot rewrite without corrupting it: an owned event whose
+    value is not a list, or an entry in it whose `hooks` is not a list. The repair iterated both as
+    lists, so a dict kept only its KEYS and a string its characters (mail 01M5HK0CH6) — such a
+    file is named and left as the user wrote it, never rewritten."""
+    hooks = d.get("hooks")
+    if not isinstance(hooks, dict):
+        return []  # a non-dict `hooks` is replaced whole by design (P2-3)
+    out = []
+    for ev in ENTRIES:
+        v = hooks.get(ev)
+        if v is None:
+            continue
+        if not isinstance(v, list):
+            out.append((ev, f"value is a {type(v).__name__}, not a list"))
+            continue
+        for i, e in enumerate(v):
+            if isinstance(e, dict) and e.get("hooks") is not None:
+                if not isinstance(e["hooks"], list):
+                    out.append((ev, f"entry {i} `hooks` is a {type(e['hooks']).__name__}"))
+    return out
+
+
 def run(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--check", action="store_true", help="verify only; exit 1 on any missing entry")
@@ -156,6 +179,12 @@ def run(argv: list[str] | None = None) -> int:
                 d = {}
         except (OSError, ValueError):
             print(f"install_user_hooks: cannot read {path}", file=sys.stderr)
+            bad += 1
+            continue
+        malformed = _malformed(d)
+        if malformed:
+            for ev, why in malformed:
+                print(f"MALFORMED {path}: {ev} ({why}) — fix it by hand; not rewritten")
             bad += 1
             continue
         stale = _stale(d)

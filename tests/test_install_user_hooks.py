@@ -196,6 +196,39 @@ def test_a_list_shaped_hooks_value_is_replaced_not_a_traceback(tmp_path, monkeyp
     assert iuh.run([]) == 0 and isinstance(_entries(home / ".claude" / "settings.json"), dict)
 
 
+def test_a_non_list_event_value_is_refused_never_rewritten(tmp_path, monkeypatch, capsys):
+    """Mail 01M5HK0CH6 (fleet's deck review seat): the repair iterated `hooks[ev]` as a list, so
+    a dict value kept its KEYS as strings — `{"matcher": …}` became `["matcher", {…hook…}]` —
+    and a string value its characters. A shape the installer does not understand is named by
+    --check and left byte-for-byte as the user wrote it."""
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    f = home / ".claude" / "settings.json"
+    for bad in ({"matcher": "Bash"}, "oops"):
+        f.write_text(json.dumps({"hooks": {"PostToolUse": bad}}))
+        before = f.read_text()
+        assert iuh.run(["--check"]) == 1
+        assert "MALFORMED" in capsys.readouterr().out
+        assert iuh.run([]) == 1, "an install that cannot repair a file says so"
+        assert f.read_text() == before, f"{bad!r} rewritten"
+    assert iuh.run(["--check"]) == 1, "the refused file is still drift"
+    ob = home / ".claude-fleet" / "ob" / "settings.json"
+    assert "selfwatch_check.py" in ob.read_text(), "the healthy account dirs are still installed"
+
+
+def test_an_entry_whose_hooks_value_is_not_a_list_is_refused(tmp_path, monkeypatch, capsys):
+    """The same class one level down: an entry's `hooks` dict was rebuilt from its keys."""
+    home = _home(tmp_path)
+    monkeypatch.setenv("HOME", str(home))
+    f = home / ".claude" / "settings.json"
+    hook = {"type": "command", "command": "python3 /opt/OLD/selfwatch_check.py"}
+    f.write_text(json.dumps({"hooks": {"UserPromptSubmit": [{"hooks": hook}]}}))
+    before = f.read_text()
+    assert iuh.run(["--check"]) == 1
+    assert "MALFORMED" in capsys.readouterr().out
+    assert iuh.run([]) == 1 and f.read_text() == before
+
+
 def test_a_stale_duplicate_before_the_canonical_entry_is_still_caught(tmp_path, monkeypatch):
     """E4: `_stale` judged only the LAST entry carrying the script; a dead path registered
     before the canonical one kept firing on every prompt while --check said present."""
