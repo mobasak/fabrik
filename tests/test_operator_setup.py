@@ -535,7 +535,7 @@ def test_ssh_keepalive_planned_applied_and_verified(tmp_path):
     home, hub = _home(tmp_path), _hub(tmp_path)
     cfg = home / SSH_CONFIG
     cfg.write_bytes(SECTIONS)
-    cfg.chmod(0o600)
+    cfg.chmod(0o640)  # not the created file's 0600: the write keeps the file's own mode
     assert _resolved(cfg, home) == ("0", "3")
     r = _run(home, hub, "--apply")
     assert r.returncode == 0, r.stdout + r.stderr
@@ -543,7 +543,7 @@ def test_ssh_keepalive_planned_applied_and_verified(tmp_path):
     assert _resolved(cfg, home) == ("15", "4"), cfg.read_text()
     text = cfg.read_bytes()
     assert text.startswith(b"# operator_setup (W-030ac2fe)") and text.endswith(SECTIONS), text  # before the first section
-    assert cfg.stat().st_mode & 0o777 == 0o600
+    assert cfg.stat().st_mode & 0o777 == 0o640
     assert any(ln.startswith("cp -p ") and ln.endswith(SSH_CONFIG) for ln in _restore(r.stdout)), r.stdout  # backup restore
     assert _resolved(cfg, home, "vps")[0] == "30", "another host's keepalive changed"
     again = _run(home, hub)
@@ -576,6 +576,40 @@ def test_ssh_keepalive_planned_applied_and_verified(tmp_path):
     data = crlf.read_bytes()
     assert b"\n" not in data.replace(b"\r\n", b""), data  # no bare LF line ending
     assert _resolved(crlf, h3) == ("15", "4")
+    # more shapes, each written and resolved 15/4 by ssh: a file with no section gets the block appended; a
+    # leading Match section gets the block before it (after it, its CountMax 9 would win)
+    for label, body in (
+        ("no-section", b"# my settings\nForwardAgent no"),
+        ("match-first", b"Match all\n    ServerAliveCountMax 9\n\nHost x\n    HostName y\n"),
+    ):
+        h = _home(tmp_path / label)
+        c = h / SSH_CONFIG
+        c.write_bytes(body)
+        c.chmod(0o600)
+        r = _run(h, hub, "--apply")
+        assert r.returncode == 0, (label, r.stdout + r.stderr)
+        assert _resolved(c, h) == ("15", "4"), (label, c.read_text())
+        assert body.rstrip(b"\n") in c.read_bytes(), (label, "the file's own lines were not kept")
+    # an operator's own tighter keepalive is in place and never overridden — globally or under Host github.com
+    for label, body in (
+        ("tighter-global", b"ServerAliveInterval 10\nServerAliveCountMax 3\n\nHost vps\n    HostName x\n"),
+        ("tighter-host", b"Host github.com\n    ServerAliveInterval 10\n    ServerAliveCountMax 3\n"),
+    ):
+        h = _home(tmp_path / label)
+        c = h / SSH_CONFIG
+        c.write_bytes(body)
+        c.chmod(0o600)
+        r = _run(h, hub)
+        assert r.returncode == 0 and "== ssh:" not in r.stdout, (label, r.stdout + r.stderr)
+        assert c.read_bytes() == body
+    # a looser one is not: an interval over 15 s, or interval x count over 60 s — the block is planned above it
+    for label, interval, count in (("interval-30", 30, 1), ("product-90", 10, 9)):
+        h = _home(tmp_path / label)
+        c = h / SSH_CONFIG
+        c.write_bytes(f"Host github.com\n    ServerAliveInterval {interval}\n    ServerAliveCountMax {count}\n".encode())
+        c.chmod(0o600)
+        r = _run(h, hub)
+        assert r.returncode == 0 and "== ssh: .ssh/config" in r.stdout, (label, r.stdout + r.stderr)
 
 
 def test_ssh_keepalive_refusals_write_nothing(tmp_path):
@@ -606,9 +640,51 @@ def test_ssh_keepalive_refusals_write_nothing(tmp_path):
         assert "Traceback" not in r.stderr, (label, r.stderr)
         assert _digest(h) == before, f"{label}: something was written"
         assert not _manager_writes(h), (label, _calls(h))
-    # $HOME is not the passwd home ssh reads, and no override: refused
-    h = _home(tmp_path / "home-mismatch")
-    before = _digest(h)
-    r = _run(h, hub, OPERATOR_SETUP_SSH_HOME="")
-    assert r.returncode == 1 and "passwd home" in r.stderr, r.stdout + r.stderr
-    assert _digest(h) == before
+    # a ~/.ssh the write would fail in, or a config it cannot read: refused at planning, never a traceback mid-apply
+    # after the other steps are written
+    for label in ("ssh-dir-read-only", "ssh-dir-is-a-file", "ssh-dir-dangling-link", "config-unreadable"):
+        h = _home(tmp_path / label)
+        d = h / ".ssh"
+        if label == "ssh-dir-read-only":
+            d.chmod(0o500)
+        elif label == "ssh-dir-is-a-file":
+            d.rmdir()
+            d.write_text("not a dir\n")
+        elif label == "ssh-dir-dangling-link":
+            d.rmdir()
+            d.symlink_to(h / "gone")
+        else:
+            (d / "config").write_text("Host x\n")
+            (d / "config").chmod(0o200)
+        before = _digest(h) if label != "config-unreadable" else None
+        r = _run(h, hub, "--apply")
+        after = _digest(h) if before is not None else None
+        if label == "ssh-dir-read-only":
+            d.chmod(0o700)  # after the digest, so pytest can clean the tree up
+        assert r.returncode == 1 and "Nothing was written" in r.stderr and "Traceback" not in r.stderr, (label, r.stderr)
+        assert "wrote " not in r.stdout, (label, r.stdout)
+        assert after == before, f"{label}: something was written"
+    # $HOME is not the passwd home ssh reads, and no override (only "1" overrides): refused
+    for value in ("", "0"):
+        h = _home(tmp_path / f"home-mismatch-{value or 'empty'}")
+        before = _digest(h)
+        r = _run(h, hub, OPERATOR_SETUP_SSH_HOME=value)
+        assert r.returncode == 1 and "passwd home" in r.stderr, (value, r.stdout + r.stderr)
+        assert _digest(h) == before
+
+
+def test_ssh_config_owned_by_another_user_refused(tmp_path, monkeypatch):
+    # ssh refuses a config another (non-root) user owns, so it is never "in place"; the owner is read before any
+    # ssh runs, so this in-process run (where the fleet guard refuses ssh) reaches it by giving the process another uid
+    home, hub = _home(tmp_path), _hub(tmp_path)
+    cfg = home / SSH_CONFIG
+    cfg.write_bytes(b"Host github.com\n    ServerAliveInterval 15\n    ServerAliveCountMax 4\n")
+    cfg.chmod(0o600)
+    spec = importlib.util.spec_from_file_location("operator_setup", hub / "scripts" / "sysadmin" / "operator_setup.py")
+    mod = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, "operator_setup", mod)
+    spec.loader.exec_module(mod)
+    monkeypatch.setenv("OPERATOR_SETUP_SSH_HOME", "1")
+    monkeypatch.setattr(mod.os, "getuid", lambda: cfg.stat().st_uid + 1)
+    with pytest.raises(mod.PlanError, match="owned by another user"):
+        mod.plan_ssh(home)

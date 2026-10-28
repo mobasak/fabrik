@@ -13,7 +13,9 @@ runs this once; the coordinators do everything after it. Five steps:
             refusal leaves the other steps unwritten
   ssh     — a keepalive for git pushes (W-030ac2fe): a `Host github.com` block setting ServerAliveInterval 15
             and ServerAliveCountMax 4, put before the first section of ~/.ssh/config because ssh takes the
-            first value it reads; planned and verified by what `ssh -G` itself resolves for git@github.com
+            first value it reads; planned and verified by what `ssh -G` itself resolves for git@github.com — a
+            keepalive already as tight (interval <= 15 s, interval x count <= 60 s) is in place and kept.
+            `OPERATOR_SETUP_SSH_HOME=1` (tests only) lets a scratch HOME stand in for the passwd home ssh reads
 
     python3 /opt/fabrik/scripts/sysadmin/operator_setup.py           # dry run: a diff of every change, writes nothing
     python3 /opt/fabrik/scripts/sysadmin/operator_setup.py --apply   # back up, write, verify, print the undo lines
@@ -66,7 +68,7 @@ ARCHIVE_ALERT = "session-archive-alert.service"
 ARCHIVE_TIMER = "session-archive.timer"
 NO_MANAGER = "cannot reach the user systemd manager"
 SSH_TARGET = "git@github.com"  # git's own identity: a `Match user git` resolves differently for a bare host
-SSH_WANT = ("15", "4")  # (ServerAliveInterval, ServerAliveCountMax)
+SSH_WANT = ("15", "4")  # (ServerAliveInterval, ServerAliveCountMax) the block writes
 SSH_BLOCK = (
     "# operator_setup (W-030ac2fe): git push keepalive — ssh takes the first value, keep this above other Host blocks",
     "Host github.com",
@@ -327,8 +329,18 @@ def _ssh_resolves(data: bytes) -> tuple[str | None, str | None]:
     return vals.get("serveraliveinterval"), vals.get("serveralivecountmax")
 
 
+def _keepalive_ok(got: tuple[str | None, str | None]) -> bool:
+    """A keepalive at least as tight as the block's: a dead connection is dropped within 60 s. An operator's own
+    tighter value (10/3) is in place and is never overridden; ServerAliveInterval 0 is no keepalive at all."""
+    try:
+        interval, count = int(got[0] or ""), int(got[1] or "")
+    except ValueError:
+        return False
+    return 1 <= interval <= 15 and count >= 1 and interval * count <= 60
+
+
 def plan_ssh(home: Path) -> list[Change]:
-    if os.environ.get("OPERATOR_SETUP_SSH_HOME"):
+    if os.environ.get("OPERATOR_SETUP_SSH_HOME") == "1":  # the tests' scratch HOME; any other value is ignored
         print("SSH HOME OVERRIDE in effect: ~/.ssh/config is planned under $HOME", file=sys.stderr)
     else:  # ssh reads ~ from passwd, never $HOME: a config written elsewhere is never read
         pw = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve()
@@ -336,13 +348,21 @@ def plan_ssh(home: Path) -> list[Change]:
             raise PlanError(f"HOME ({home}) is not the passwd home ssh reads ({pw}) — run it with your own HOME")
     path = home / ".ssh" / "config"
     rel = _rel(home, path)
-    data, mode = _read(path)
+    sshdir = path.parent  # a write into it must not fail after the other steps are written
+    if sshdir.is_symlink() and not sshdir.exists():
+        raise PlanError(f"{sshdir} is a dangling symlink — refused; fix it by hand")
+    if sshdir.exists() and (not sshdir.is_dir() or not os.access(sshdir, os.W_OK | os.X_OK)):
+        raise PlanError(f"{sshdir} is not a directory this user can write — chmod 700 it and run again")
+    try:
+        data, mode = _read(path)
+    except OSError as exc:  # unreadable, or a component that is not a directory
+        raise PlanError(f"cannot read {path} ({exc})") from None
     if data is not None:  # ssh's own owner/permission check, which `-F` skips: a config ssh refuses is never "in place"
         if path.lstat().st_uid not in (0, os.getuid()) or mode & 0o022:
-            raise PlanError(f"{path} is writable by others or not yours (mode {mode:o}) — ssh refuses such a config; "
-                            "chmod 600 it and run again")
+            raise PlanError(f"{path} is writable by others or owned by another user (mode {mode:o}) — ssh refuses "
+                            "such a config; chmod 600 it and run again")
     current = data or b""
-    if _ssh_resolves(current) == SSH_WANT:
+    if _keepalive_ok(_ssh_resolves(current)):
         return []
     nl = b"\r\n" if b"\r\n" in current else b"\n"
     block = nl.join(line.encode("utf-8") for line in SSH_BLOCK) + nl
@@ -354,11 +374,11 @@ def plan_ssh(home: Path) -> list[Change]:
     else:
         after = current + block
     got = _ssh_resolves(after)
-    if got != SSH_WANT:
+    if not _keepalive_ok(got):
         raise PlanError(
             f"ssh resolves ServerAliveInterval {got[0]}/ServerAliveCountMax {got[1]} for {SSH_TARGET} from a line read "
-            "before the inserted block — a global setting or an Include above the first Host/Match line; move it below "
-            "or set 15/4 there by hand, or push with GIT_SSH_COMMAND='ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=4'"
+            "before the inserted block — a global setting or an Include above the first Host/Match line; move it below, "
+            "or set it there to an interval of 15 s or less with interval x count at most 60 s"
         )
     return [Change("ssh", path, rel, data, mode, after, mode if mode is not None else 0o600)]
 
@@ -505,7 +525,7 @@ def apply(home: Path, p: Plan) -> int:
             if dst.read_bytes() != c.before:
                 print(f"operator_setup: the backup of {c.path} does not match — nothing written", file=sys.stderr)
                 return 1
-        if p.archive_run:  # FIRST: a systemd refusal then leaves steps 1-3 unwritten
+        if p.archive_run:  # FIRST: a systemd refusal then leaves the other steps unwritten
             ran = True
             rc = _run_archive_installer(p, done)
             if rc:
@@ -567,7 +587,7 @@ def _verify_archive(home: Path) -> str | None:
 
 
 def _verify_ssh(home: Path) -> str | None:
-    return "ssh does not resolve ServerAliveInterval 15/ServerAliveCountMax 4 for git@github.com" if plan_ssh(home) else None
+    return "ssh does not resolve a keepalive of 15 s or tighter for git@github.com" if plan_ssh(home) else None
 
 
 def run(argv: list[str] | None = None) -> int:

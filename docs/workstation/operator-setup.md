@@ -22,7 +22,7 @@ The five steps:
 | `wrapper` | `~/.claude/bin/claude-agent-wrapper.sh` — a copy of `scripts/sysadmin/claude-agent-wrapper.sh` (the tab router's wrapper, `claude-tab-router.md`), mode 0755 |
 | `vscode` | `claudeCode.claudeProcessWrapper` in `~/.local/share/code-server/User/settings.json` and `~/.vscode-server/data/Machine/settings.json`, every other key kept; an editor that is not installed (no parent dir) is skipped |
 | `archive` | the nightly chat backup's three systemd user units (`session-archive.service`, its timer and its failure alert, W-36687f76) — the script diffs and backs them up, then runs `scripts/sysadmin/install_session_archive_timer.sh` once, which verifies, installs and enables them (`session-history-retention.md`) |
-| `ssh` | a keepalive for git pushes (W-030ac2fe): `~/.ssh/config` gains a comment-marked `Host github.com` block with `ServerAliveInterval 15` and `ServerAliveCountMax 4`, put before the file's first `Host`/`Match` section because ssh takes the first value it reads (a file without one gets it appended; a missing `~/.ssh` is created 0700, the config 0600). Without it a push on a dead connection hangs for good. The step plans and verifies by what `ssh -G -F <copy> git@github.com` itself resolves, never by parsing the file; `-G` never connects, but it runs the config's `Match exec` commands and may do DNS, as every push does (30 s limit) |
+| `ssh` | a keepalive for git pushes (W-030ac2fe): `~/.ssh/config` gains a comment-marked `Host github.com` block with `ServerAliveInterval 15` and `ServerAliveCountMax 4`, put before the file's first `Host`/`Match` section because ssh takes the first value it reads (a file without one gets it appended; a missing `~/.ssh` is created 0700, a new config 0600, an existing one keeps its mode). Without it a push on a dead connection never times out. Whether the step is needed, and whether its result works, is decided by what `ssh -G -F <copy> git@github.com` itself resolves; only the insert point is found by matching the `Host`/`Match` keyword. A keepalive already as tight (an interval of 15 s or less, interval × count at most 60 s) is in place and kept, so an operator's own tighter value is never overridden. `-G` never connects, but it runs the config's `Match exec` commands and may do DNS, as every push does (30 s limit) |
 
 Exit codes: 0 done or nothing to do · 1 a refusal, a failed archive installer or a failed verification · 2 `--apply`
 outside the hub main checkout or with it off master. A second `--apply` changes nothing and exits 0.
@@ -33,13 +33,14 @@ The whole plan is built before anything is written, and a planning refusal write
 or sits outside HOME, an account `settings.json` the installer cannot parse or that repeats a key, an editor settings
 file that is not plain JSON (comments, a trailing comma, a BOM, a duplicate key, the nested `claudeCode` form — the key
 to add by hand is printed), an unreachable user systemd manager, and linger off for the archive step (it prints
-`loginctl enable-linger <user>`). The ssh step also refuses a `~/.ssh/config` writable by others or not yours (ssh
-itself refuses such a file, but `-G -F` skips that check), a config ssh will not parse, a HOME that is not your passwd
-home (ssh reads `~` from passwd, never `$HOME`), and a setting the block cannot override: a global `ServerAliveInterval`
-or an `Include` above the first section wins over anything after it, so the step prints the value ssh resolves and the
-hand route instead (move it below, or push with
-`GIT_SSH_COMMAND='ssh -o ServerAliveInterval=15 -o ServerAliveCountMax=4'`). A host alias that reaches github.com under
-another `Host` name is not covered. A file edited after planning is never overwritten: it is re-read before the backups
+`loginctl enable-linger <user>`). The ssh step also refuses a `~/.ssh/config` writable by group or others or owned by
+another user than you or root (ssh itself refuses such a file, but `-G -F` skips that check), a config it cannot read or
+ssh will not parse, a `~/.ssh` that is not a directory you can write (a file, a dangling symlink, mode 0500), a HOME that
+is not your passwd home (ssh reads `~` from passwd, never `$HOME`; only the tests set `OPERATOR_SETUP_SSH_HOME=1` to
+stand a scratch HOME in), and a looser setting the block cannot override: a global `ServerAliveInterval` or an `Include`
+above the first section wins over anything after it, so the step prints the value ssh resolves; move that line below the
+first section, or tighten it there. A host alias that reaches github.com under another `Host` name is not covered. A
+file edited after planning is never overwritten: it is re-read before the backups
 and again right before its own write, and the run stops there. Once `--apply` has made its backup dir, a later stop —
 the archive installer failing, a backup that does not read back, or that re-read — leaves the backups and whatever was already written, and prints the
 undo lines for exactly that.
@@ -55,8 +56,8 @@ prints one undo line per file — `cp -p <backup> "$HOME"/<path>` for a file tha
 it created. When the archive installer ran, the lines open with `systemctl --user disable session-archive.timer` and
 `systemctl --user stop session-archive.timer` for whichever of the two the timer was not before (a unit cannot be
 disabled once its file is gone), and end with `systemctl --user daemon-reload`. The archive installer runs FIRST, so
-when it fails the other steps are unwritten and the undo lines name the units it changed. A `~/.ssh` the run created
-is left in place, empty, by the undo. The tab router's fast rollback stays
+when it fails the other steps are unwritten and the undo lines name the units it changed. Any parent directory a step
+has to create (`~/.ssh`, `~/.claude/bin`) is made 0700 and left in place, empty, by the undo. The tab router's fast rollback stays
 `"CLAUDE_TAB_ROUTER": "off"` in `claudeCode.environmentVariables`.
 
 ## Not in it
