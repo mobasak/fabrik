@@ -606,14 +606,18 @@ def _gate_at(monkeypatch, d, s, a):
     reads. The rule-ledger LOSS pass and the size measure read the temp render, the sources and tracked
     repo files and take minutes on the full corpus (W-bda24c48: 11 such tests held ~1,950 s); their
     own tests grade them and check()'s wiring of them (tests/test_command_rules.py,
-    tests/test_command_measure.py). Here they are spies that return their empty results and refuse an
-    installed tree, so a regression that hands one to them still goes red."""
+    tests/test_command_measure.py). Here they are spies that return their empty results and accept only
+    check()'s own temp render (the one tree holding `_agents`), so a regression that hands them an
+    installed tree, the sources or the repo still goes red."""
 
     def _not_installed(empty):
         def spy(render_dir, *args, **kwargs):
             assert not any(
                 Path(render_dir).resolve().is_relative_to(t.resolve()) for t in (d, s, a)
             ), f"a ledger or measure pass was handed the installed tree {render_dir}"
+            assert (Path(render_dir) / "_agents").is_dir(), (
+                f"a ledger or measure pass was handed {render_dir}, not check()'s temp render"
+            )
             return empty
 
         return spy
