@@ -532,7 +532,7 @@ def _spy_fits(world, monkeypatch) -> list[float]:
 
 
 def test_queue_times_only_green_legs(world, monkeypatch):
-    """A queue leg that ends on a matching record raises the budget to its wall-clock; one that leaves
+    """A queue leg that ends on a matching record raises the budget to its own recorded seconds; one that leaves
     no record (red, killed, timed out) never does, so a fast failure cannot open the window."""
     _leg_log(world, sleep=1.2)  # a record keeps whole seconds: 1
     sends, heads = [], []
@@ -569,7 +569,7 @@ def test_queue_keeps_the_longest_timed_leg(world, monkeypatch):
         "python3 - <<'PY'\n"
         "import subprocess, time\n"
         "s = subprocess.run(['git', 'log', '-1', '--format=%s', 'HEAD^2'], capture_output=True, text=True).stdout\n"
-        "time.sleep(2.3 if s.startswith('slow') else 1.2)\n"
+        "time.sleep(4.5 if s.startswith('slow') else 1.2)\n"  # whole seconds: a gap no load closes
         "PY\n"
     )
     _owner_tests(world, script)
