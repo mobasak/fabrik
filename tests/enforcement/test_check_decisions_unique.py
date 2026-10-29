@@ -608,6 +608,10 @@ _RENDER_CONTINUES = {
     "</p> | x": False,
     "<!-- c --> | x": False,
     "<?php | x": False,
+    "<pre> | x": False,
+    "<script> | x": False,
+    "<style> | x": False,
+    "<textarea> | x": False,
     "---|x": True,
     "-x | y": True,
     "12a | b": True,
@@ -671,6 +675,10 @@ def test_a_header_and_delimiter_of_different_widths_are_no_table():
         assert _mod._parse(text).header is None, head
         assert find_rows_outside_the_table(text) == []
     assert _mod._parse(_SHAPE_HEAD + _row("D-1")).header is not None
+    # the fence guard asks the same question (closing pass, B-sonnet NEW-1): a fence holding a
+    # mismatched pair holds no table, so it is blanked like any example and its row is no duplicate
+    fenced = "```\n| a | b | c | d | e | f |\n|---|---|---|\n" + _row("D-1") + "```\n"
+    assert find_duplicates(_SHAPE_HEAD + _row("D-1") + "\n" + fenced) == {}
 
 
 def test_a_triple_is_not_called_two_rows(tmp_path, monkeypatch, capsys):
