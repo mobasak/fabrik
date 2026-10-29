@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-29T02:55:28.856125Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-43c850b1",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "measure how many specs/services composes lack cpus, then decide refuse vs warn in _validate_compose with a red-first test",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "LOW: CPU-limit hardening follow-up of W-91a4a715, nobody blocked; one check or config each",
   "status": "open",
   "tags": [
     "deploy"

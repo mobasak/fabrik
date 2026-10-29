@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-29T02:55:30.320398Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-fdc9d593",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "measure host CPU saturation episodes over 30 days and, if any, trial cpu_shares 2048 on postgres-main and traefik with docker update --cpu-shares",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "LOW: CPU-limit hardening follow-up of W-91a4a715, nobody blocked; one check or config each",
   "status": "open",
   "tags": [
     "deploy"

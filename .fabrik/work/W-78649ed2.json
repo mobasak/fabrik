@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-29T02:47:40.636477Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-78649ed2",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "D-121 recorded the stack REMOVED (2026-09-05) and that a return re-enters via fabrik apply or is re-measured — it is live again without either: confirm with the operator via the coordinator whether it should exist; if yes, size memory + cpus from 7-day cAdvisor data, add them to infra/vps1/ocoron-com/compose.yaml, drop its exception in tests/test_infra_vps1_cpu_limits.py, hand the docker update to the coordinator",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH: a live stack with no memory or CPU limit breaks a Fabrik invariant (HARD STOPS: compose without limits.memory); LOW effort: one stack",
   "status": "open",
   "tags": [
     "deploy"
