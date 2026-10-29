@@ -336,3 +336,396 @@ def test_the_live_hub_ledger_masks_what_decisions_py_masks():
             out.append("\0" if ln[i] == "|" and inside else ln[i])
             i += 1
         assert _masked(ln) == "".join(out), ln[:40]
+
+
+# --------------------------------------------------------------------------------------
+# W-c25fd20f — the seven gaps the W-27db8c35 review found in the other legs.
+# --------------------------------------------------------------------------------------
+
+
+def _row(did: str, what: str = "what") -> str:
+    return f"| {did} | 2026-10-29 | infra | {what} | why | `x.py` |\n"
+
+
+def test_the_shape_ratchet_reports_each_state(tmp_path, monkeypatch, capsys):
+    """Gap 1: the advisory ratchet had no test — `gone = []`, `regressed = []` and an early return
+    all survived the file. Each state is graded by the line it prints."""
+    base = tmp_path / "baseline.json"
+    monkeypatch.setattr(_mod, "_SHAPE_BASELINE", base)
+    short = "| D-002 | 2026-10-29 | infra | what | why |\n"
+
+    _mod.check_row_shape(_SHAPE_HEAD + _row("D-001") + short)  # no baseline: seeds, blocks nothing
+    out = capsys.readouterr().out
+    assert "seeding baseline with 1 malformed row(s)" in out
+    # review pass 1, A-haiku-8: the line it tells the operator to write must parse — a Python list
+    # repr (`['D-002']`) is no JSON, so the copied baseline never armed the ratchet
+    import json
+    import re
+
+    seed = re.search(r"(\{\"malformed_ids\": .*\}) to arm", out).group(1)
+    assert json.loads(seed) == {"malformed_ids": ["D-002"]}
+
+    base.write_text('{"malformed_ids": ["D-002"]}')
+    _mod.check_row_shape(_SHAPE_HEAD + _row("D-001") + short)
+    assert "D-002 still malformed — 5 cells, header has 6" in capsys.readouterr().out
+
+    _mod.check_row_shape(_SHAPE_HEAD + _row("D-001") + short + "| D-003 | a |\n")
+    assert "1 row(s) became malformed since the baseline: D-003" in capsys.readouterr().out
+
+    _mod.check_row_shape(_SHAPE_HEAD + _row("D-001"))  # D-002 deleted, not repaired
+    assert "ABSENT rather than repaired (D-002)" in capsys.readouterr().out
+
+    _mod.check_row_shape(_SHAPE_HEAD + _row("D-001") + _row("D-002"))  # repaired
+    out = capsys.readouterr().out
+    assert "decision-shape: OK — 1 baseline row(s)" in out and "ABSENT" not in out
+
+
+def test_a_stray_row_in_a_fake_table_above_the_ledger_is_reported():
+    """Gap 2: a header plus delimiter typed above a stray row made the stray part of "the table"
+    (the FIRST confirmed delimiter). The ledger table is the one holding the most D-rows."""
+    fake = (
+        "| a | b |\n|---|---|\n"
+        + _row("D-999")
+        + "\n"
+        + _SHAPE_HEAD
+        + _row("D-001")
+        + _row("D-002")
+    )
+    assert find_rows_outside_the_table(fake) == [(3, "D-999")]
+    # a tie goes to the LAST table — the ledger table closes its file (293 of 293 ledgers)
+    tie = "| a | b |\n|---|---|\n" + _row("D-999") + "\n" + _SHAPE_HEAD + _row("D-001")
+    assert find_rows_outside_the_table(tie) == [(3, "D-999")]
+    # a row after the table, past a blank line, renders as a paragraph: it is outside too
+    after = _SHAPE_HEAD + _row("D-001") + "\n" + _row("D-002")
+    assert find_rows_outside_the_table(after) == [(5, "D-002")]
+
+
+def test_an_indented_row_inside_the_table_counts():
+    """Gap 3: up to 3 spaces of indent is still a table row (CommonMark), so a duplicate there was
+    a silent miss. An indented line OUTSIDE any table stays prose (test_prose_mentions_never_count)."""
+    text = _SHAPE_HEAD + _row("D-001") + "  " + _row("D-001")
+    assert find_duplicates(text) == {"D-001": 2}
+    assert "D-001" in _mod.malformed_ids(_SHAPE_HEAD + _row("D-002") + "   | D-001 | x |\n")
+
+
+def test_a_fenced_row_is_not_a_row():
+    """Gap 4: a ledger quoting a row inside a code fence (an example, a repair note) red as a
+    duplicate of the row it quotes."""
+    text = _SHAPE_HEAD + _row("D-001") + "\n```\n" + _row("D-001") + "```\n"
+    assert find_duplicates(text) == {}
+    assert find_rows_outside_the_table(text) == []
+
+
+def test_main_from_a_subdirectory_grades_the_repo_ledger(tmp_path):
+    """Gap 5: LEDGER was cwd-relative, so a run from docs/ found no ledger and passed."""
+    import subprocess
+    import sys
+
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "DECISIONS.md").write_text(_SHAPE_HEAD + _row("D-001") + _row("D-001"))
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True, timeout=60)
+    script = Path(_mod.__file__).resolve()
+    run = subprocess.run(
+        [sys.executable, str(script)],
+        cwd=tmp_path / "docs",
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert run.returncode == 1, run.stdout + run.stderr
+    assert "D-001 appears 2x" in run.stdout
+
+
+def test_a_short_header_still_reports_the_duplicate(tmp_path, monkeypatch, capsys):
+    """Gap 6: a header under 6 cells raised IndexError in the advisory leg, so the run crashed
+    before the blocking legs printed what was wrong."""
+    short = "| id | what |\n|---|---|\n| D-001 | x |\n| D-001 | y |\n"
+    assert _mod.malformed_ids(short) == {}
+    ledger = tmp_path / "docs" / "DECISIONS.md"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text(short)
+    monkeypatch.setattr(_mod, "LEDGER", ledger)
+    assert _mod.main() == 1
+    assert "D-001 appears 2x" in capsys.readouterr().out
+
+
+def test_annotated_and_padded_ids_share_one_key():
+    """Gap 7: an id cell with text after the id was not a row at all, and D-1 / D-001 were two
+    keys. The first spelling seen names the duplicate."""
+    annotated = (
+        _SHAPE_HEAD
+        + _row("D-001")
+        + "| D-001 (amended) | 2026-10-29 | infra | w | why | `x.py` |\n"
+    )
+    assert find_duplicates(annotated) == {"D-001": 2}
+    assert find_duplicates(_SHAPE_HEAD + _row("D-001") + _row("D-1")) == {"D-001": 2}
+    # a cell that only STARTS with the id's letters is no id: `D-1x`, `D-1.5`, `D-1-2` are not D-1
+    for other in ("D-1x", "D-1.5", "D-1.1", "D-1-2", "D-1/2"):
+        assert find_duplicates(_SHAPE_HEAD + _row("D-1") + f"| {other} | a |\n") == {}, other
+
+
+def test_an_indented_duplicate_in_another_table_reds_twice():
+    """Design critique C2: counting indented rows only inside the LEDGER table moved gap 3's miss
+    into a second table. Any table body's rows count; outside the ledger they are also stray."""
+    text = _SHAPE_HEAD + _row("D-5") + _row("D-6") + "\n| a | b |\n|---|---|\n  " + _row("D-5")
+    assert find_duplicates(text) == {"D-5": 2}
+    assert find_rows_outside_the_table(text) == [(8, "D-5")]
+
+
+def test_the_table_body_ends_where_the_renderer_ends_it():
+    """Design critiques C3 (Opus) and 1 (Fable), settled by rendering with markdown-it (GFM tables,
+    2026-10-29): a tab or a 4-space indent ENDS the table — that line is an indented code block and
+    the rows after it render outside the table — while a row with no leading pipe continues it."""
+    for indent in ("\t", "    "):
+        text = _SHAPE_HEAD + _row("D-1") + indent + _row("D-2") + _row("D-3")
+        assert find_rows_outside_the_table(text) == [(5, "D-3")], repr(indent)
+        assert find_duplicates(text + _row("D-2")) == {}, "the code-block copy is an example"
+    no_pipe = _SHAPE_HEAD + _row("D-1") + "D-2 | d | w | what | why | where\n" + _row("D-3")
+    assert find_rows_outside_the_table(no_pipe) == []
+
+
+def test_a_slightly_indented_stray_is_still_a_stray():
+    """Fable critique 3: an indented row outside the table is prose to the duplicate leg, so a one-
+    space indent would have hidden a stray — yet no renderer shows it as a row."""
+    text = " " + _row("D-9") + "\n" + _SHAPE_HEAD + _row("D-1")
+    assert find_rows_outside_the_table(text) == [(1, "D-9")]
+
+
+def test_a_fence_that_swallows_the_table_does_not_silence_it():
+    """Fable critique 3: an unclosed fence above the ledger pairs with any later fence line, and
+    blanking that block would hide every duplicate — a block holding a header and delimiter is kept."""
+    text = "```\n" + _SHAPE_HEAD + _row("D-1") + _row("D-1") + "```\n"
+    assert find_duplicates(text) == {"D-1": 2}
+
+
+def test_a_duplicate_written_two_ways_names_both(tmp_path, monkeypatch, capsys):
+    """Fable critique 7: `D-1` beside `D-001` is one id; the line must name both spellings, or the
+    repairer greps one row."""
+    ledger = tmp_path / "docs" / "DECISIONS.md"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text(_SHAPE_HEAD + _row("D-001") + _row("D-1"))
+    monkeypatch.setattr(_mod, "LEDGER", ledger)
+    assert _mod.main() == 1
+    assert "id D-001 appears 2x (written D-001 and D-1)" in capsys.readouterr().out
+
+
+def test_a_crlf_ledger_reads_as_lf():
+    """Design critique C4: `_fences` admits no `\\r` in a closer, so a CRLF fence was never blanked —
+    the fenced copy red as a duplicate AND as a stray."""
+    text = (_SHAPE_HEAD + _row("D-1") + "\n```\n" + _row("D-1") + "```\n").replace("\n", "\r\n")
+    assert find_duplicates(text) == {}
+    assert find_rows_outside_the_table(text) == []
+
+
+def test_a_delimiter_line_inside_the_body_opens_no_table():
+    """Design critique C10: a `| - |`-shaped row inside the ledger body is a row of that table, not
+    the delimiter of a second one a tie could prefer."""
+    text = _SHAPE_HEAD + _row("D-1") + "| --- | --- |\n" + _row("D-2")
+    assert find_rows_outside_the_table(text) == []
+    assert [i for _, i in _mod._all_row_ids(text)] == ["D-1", "D-2"]
+    # where it would decide: a non-D row then a delimiter-shaped row makes an inner "table" that
+    # TIES the ledger on D-rows, and the tie-to-last rule would read its 2-cell header as the ledger's
+    tie = _SHAPE_HEAD + "| x | y |\n|---|---|\n" + _row("D-1")
+    assert _mod.malformed_ids(tie) == {}
+
+
+def test_a_table_with_no_d_row_is_not_the_ledger():
+    """Design critiques C5 (Opus) and 4 (Fable): a status legend must not become "the ledger table"
+    of a ledger whose rows sit under an unconfirmed header (fabrik-lib's shape plus one legend) —
+    every real row would red as stray. Stated cost: a stray above a zero-row table goes quiet."""
+    legend = "| status | meaning |\n|---|---|\n| open | live |\n\n| id | when |\n" + _row("D-1")
+    assert find_rows_outside_the_table(legend + _row("D-2")) == []
+
+
+def test_the_stray_message_names_where_the_row_is(tmp_path, monkeypatch, capsys):
+    """Design critique C6: a row AFTER the table was told to move "below the |---| line" — where
+    it already was."""
+    ledger = tmp_path / "docs" / "DECISIONS.md"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text(_row("D-9") + "\n" + _SHAPE_HEAD + _row("D-1") + "\n" + _row("D-2"))
+    monkeypatch.setattr(_mod, "LEDGER", ledger)
+    assert _mod.main() == 1
+    out = capsys.readouterr().out.splitlines()
+    assert any("D-9 sits ABOVE the table delimiter" in ln for ln in out), out
+    assert any("D-2 sits outside the ledger table (after it" in ln for ln in out), out
+    assert all(
+        "placement fix, not a content edit" in ln for ln in out if ":" in ln and "row D-" in ln
+    )
+
+
+def test_main_from_a_subdirectory_under_a_hook_environment(tmp_path):
+    """Design critique C1: a git hook exports GIT_DIR, under which `--show-toplevel` answers the cwd
+    itself — the docs/ run found no ledger and passed again."""
+    import os
+    import subprocess
+    import sys
+
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "DECISIONS.md").write_text(_SHAPE_HEAD + _row("D-001") + _row("D-001"))
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True, timeout=60)
+    env = {**os.environ, "GIT_DIR": str(tmp_path / ".git")}
+    run = subprocess.run(
+        [sys.executable, str(Path(_mod.__file__).resolve())],
+        cwd=tmp_path / "docs",
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=env,
+    )
+    assert run.returncode == 1, run.stdout + run.stderr
+
+
+def test_a_ledger_in_the_cwd_wins_over_the_enclosing_repo(tmp_path, monkeypatch):
+    """The cwd is asked first, so a fixture nested inside another repo keeps grading its own ledger
+    (the liveness canary's copy form runs that way when TMPDIR sits inside a work tree)."""
+    import subprocess
+
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True, timeout=60)
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "DECISIONS.md").write_text(_SHAPE_HEAD + _row("D-1") + _row("D-1"))
+    fixture = tmp_path / "fixture"
+    (fixture / "docs").mkdir(parents=True)
+    (fixture / "docs" / "DECISIONS.md").write_text(_SHAPE_HEAD + _row("D-1"))
+    monkeypatch.chdir(fixture)
+    assert main() == 0
+
+
+# What markdown-it (GFM tables) does with each line placed between a ledger row and the next row:
+# True = the next row is still in the table (review pass 1, A-sonnet-1; executed 2026-10-29).
+_RENDER_CONTINUES = {
+    "# h | x": False,
+    "#h | x": True,
+    "> q | x": False,
+    "  > q | x": False,
+    "- li | x": False,
+    "* * * | x": False,
+    "1. a | x": False,
+    "1) a | x": False,
+    "```| x": False,
+    "~~~ | x": False,
+    "<div> | x": False,
+    "<DIV> | x": False,
+    "</p> | x": False,
+    "<!-- c --> | x": False,
+    "<?php | x": False,
+    "<pre> | x": False,
+    "<script> | x": False,
+    "<style> | x": False,
+    "<textarea> | x": False,
+    "---|x": True,
+    "-x | y": True,
+    "12a | b": True,
+    "<span> | x": True,
+    "<a | b": True,
+    "D-9 | no lead pipe |": True,
+}
+
+
+@pytest.mark.parametrize("line", sorted(_RENDER_CONTINUES))
+def test_a_line_that_starts_another_block_ends_the_table(line):
+    """Review pass 1, A-sonnet-1: any piped line continued the body, so a row after a heading, a
+    quote, a list item, a fence or an HTML block — outside the rendered table — passed as a row."""
+    text = _SHAPE_HEAD + _row("D-1") + line + "\n" + _row("D-2")
+    expected = [] if _RENDER_CONTINUES[line] else [(5, "D-2")]
+    assert find_rows_outside_the_table(text) == expected
+
+
+def test_the_render_table_matches_markdown_it():
+    """The expectations above are the renderer's, not the checker's — re-read where it is installed."""
+    markdown_it = pytest.importorskip("markdown_it")
+    md = markdown_it.MarkdownIt("commonmark").enable("table")
+    for line, continues in _RENDER_CONTINUES.items():
+        html = md.render(_SHAPE_HEAD + _row("D-1") + line + "\n" + _row("D-2"))
+        assert ("<td>D-2</td>" in html) is continues, line
+
+
+def test_the_blocking_lines_print_before_the_advisory_leg(tmp_path, monkeypatch, capsys):
+    """Review pass 1, B-sonnet-1: gap 6's fix moved the advisory ratchet AFTER the ✗ lines, so a
+    failure in it can no longer hide them — nothing graded that order."""
+    ledger = tmp_path / "docs" / "DECISIONS.md"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text(_SHAPE_HEAD + _row("D-1") + _row("D-1"))
+    monkeypatch.setattr(_mod, "LEDGER", ledger)
+
+    def boom(text):
+        raise RuntimeError("advisory leg failed")
+
+    monkeypatch.setattr(_mod, "check_row_shape", boom)
+    with pytest.raises(RuntimeError):
+        _mod.main()
+    assert "D-1 appears 2x" in capsys.readouterr().out
+
+
+def test_the_table_reading_legs_read_the_ledger_rows_only():
+    """Review pass 1, B-sonnet-2/3: a stray row is the stray leg's — the shape ratchet neither
+    grades it as malformed nor counts it as present (a deleted ledger row must still read ABSENT)."""
+    text = "| D-9 | short |\n\n" + _SHAPE_HEAD + _row("D-1")
+    assert _mod.malformed_ids(text) == {}
+    assert _mod._all_row_ids(text) == [(5, "D-1")]
+
+
+def test_a_header_and_delimiter_of_different_widths_are_no_table():
+    """Review pass 1, A-haiku-2: GFM renders no table when the counts differ (markdown-it renders
+    none for 6/7, 6/3 and 3/6), so the rows under such a pair are no ledger table's."""
+    for head in (
+        "| a | b | c | d | e | f |\n|---|---|---|\n",
+        "| a | b | c |\n|---|---|---|---|\n",
+    ):
+        text = head + _row("D-1") + "\n" + _row("D-2")
+        assert _mod._parse(text).header is None, head
+        assert find_rows_outside_the_table(text) == []
+    assert _mod._parse(_SHAPE_HEAD + _row("D-1")).header is not None
+    # the fence guard asks the same question (closing pass, B-sonnet NEW-1): a fence holding a
+    # mismatched pair holds no table, so it is blanked like any example and its row is no duplicate
+    fenced = "```\n| a | b | c | d | e | f |\n|---|---|---|\n" + _row("D-1") + "```\n"
+    assert find_duplicates(_SHAPE_HEAD + _row("D-1") + "\n" + fenced) == {}
+
+
+def test_a_mistyped_delimiter_reds_instead_of_silencing_the_stray_leg(
+    tmp_path, monkeypatch, capsys
+):
+    """Closing pass, A-haiku N-1: with the width rule a mistyped delimiter left NO table, so the
+    stray leg went quiet for the whole ledger while no renderer showed any of its rows."""
+    ledger = tmp_path / "docs" / "DECISIONS.md"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text(
+        "| id | when | who | what | why | where |\n|---|---|---|\n"
+        + _row("D-1")
+        + "\n"
+        + _row("D-2")
+    )
+    monkeypatch.setattr(_mod, "LEDGER", ledger)
+    assert _mod.main() == 1
+    out = capsys.readouterr().out
+    assert "DECISIONS.md:2 a table delimiter whose cell count differs" in out
+    # a dashed row INSIDE a real table body is a row, never a near-miss table (no false red)
+    inside = _SHAPE_HEAD + _row("D-1") + "| --- | --- |\n" + _row("D-2")
+    assert _mod.find_mismatched_tables(inside) == []
+    assert _mod.find_mismatched_tables(_SHAPE_HEAD + _row("D-1")) == []
+    # nor one quoted in a fenced example
+    fenced = "```\n| a | b | c |\n|---|---|\n```\n"
+    assert _mod.find_mismatched_tables(_SHAPE_HEAD + _row("D-1") + "\n" + fenced) == []
+
+
+def test_a_triple_is_not_called_two_rows(tmp_path, monkeypatch, capsys):
+    """Review pass 1, A-haiku-7: the summary said "two rows each" beside "appears 3x"."""
+    ledger = tmp_path / "docs" / "DECISIONS.md"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text(_SHAPE_HEAD + _row("D-1") + _row("D-1") + _row("D-1"))
+    monkeypatch.setattr(_mod, "LEDGER", ledger)
+    assert _mod.main() == 1
+    out = capsys.readouterr().out
+    assert "appears 3x" in out and "two rows" not in out
+
+
+def test_an_id_of_any_length_is_keyed_without_int():
+    """Review pass 1, A-sonnet-2: `int()` refuses over 4,300 digits, so one such cell crashed the run
+    before any line printed. Pass 1's first fix capped ids at 9 digits, which made a 10-digit id
+    invisible (C-haiku-1: the old checker caught its duplicate) — the key needs no `int()` at all.
+    A non-ASCII digit is no id digit."""
+    huge = "D-" + "9" * 5000
+    assert find_duplicates(_SHAPE_HEAD + _row(huge) + _row(huge)) == {huge: 2}
+    ten = "D-1234567890"
+    assert find_duplicates(_SHAPE_HEAD + _row(ten) + _row(ten)) == {ten: 2}
+    assert find_duplicates(_SHAPE_HEAD + _row("D-0") + _row("D-000")) == {"D-0": 2}
+    assert find_duplicates(_SHAPE_HEAD + "| D-١ | a |\n| D-١ | b |\n") == {}

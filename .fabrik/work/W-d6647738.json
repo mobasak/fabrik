@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T17:34:37.516969Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-d6647738",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1353",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "align decisions.py's _rows/mint regex with check_decisions_unique._parse (or import it), with a grader",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "scripts/decisions.py --check and its id mint key on the WRITTEN spelling of unindented id-only cells (^\\|\\s*D-(\\d+)\\s*\\|, decisions.py:449/:642), while check_decisions_unique.py (D-1353) keys by integer, reads annotated id cells and indented in-table rows — so the pre-commit hook and the mint see fewer rows than the gate; 0 such rows fleet-wide today (infra-2, W-c25fd20f)"
+}

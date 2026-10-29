@@ -3,7 +3,7 @@
   "created": "2026-10-24T22:55:43.185145Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "df45f8acf76dc376b86e21fffc8aad0c839a4fa2",
   "id": "W-a9b5e763",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra-2",
   "priority": 0,
   "score_reason": "P0 program member: the loop change D-1216 orders; infra beat (command_run.py); LOW: a size check at the close and one feedback field; queued behind W-a0a32de2 and kaizen's measure definition",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],
