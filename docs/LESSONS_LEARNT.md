@@ -7,6 +7,12 @@
 
 **Lesson:** before loosening a keep rule, size each class it governs (`du` per classified row, overlaps named), and replay the candidate rule on the live table. A class that leads by ROW count can be empty by BYTES. A residual a past decision called bounded ("until the next boot") is a claim to re-measure, not a fact to inherit.
 
+## A fake that returns the consumer's answer cannot see the producer's defect (2026-10-29, W-c27db1f1)
+
+**What happened:** `vps1_pg_scoped_logins.py` passed a full review and its own test file, then stopped on its first live step-3d run: the `.env` line it wrote had no key. The unit tests fed `env_upsert_sh` a `KEY=value` line the real caller never sent, and the step-3d tests ran through a fake ssh whose `docker compose config` returned the two scoped DSNs whatever the files said.
+
+**Lesson:** when a step writes a file and the next step reads it back through a real parser, test the pair with that parser. Run the step's own commands on a copy and let the real reader (here `docker compose config`) decide; a fake reader hands back the answer the test expects and proves nothing about the writer. Feed the writer exactly what its caller builds, never a line written for the test.
+
 ## On this fleet a `compose down` is not a removal (2026-10-29, W-80a1f9fd)
 
 **What happened:** D-121 took the ocoron-com stack down with `docker compose down`, and the stack was found running again weeks later. `fabrik-compose-boot.sh` runs `up -d` on every `/opt/*/compose.yaml` at each boot, and D-121 had left the file in place. A second reviver was waiting too: the vps1 sysadmin bot's prompt still ranked the stack P0 and gave it "full autonomous management".

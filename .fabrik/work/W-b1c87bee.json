@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T13:46:38.867099Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-b1c87bee",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "wrap step3c_hub_env's reads/writes in OSError/UnicodeError -> die(); grader: a missing hub .env after step 3b prints the SECRETS_DIR line",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "vps1_pg_scoped_logins.py step 3c: an exception reading or writing the hub .env after step 3b is a bare traceback, not die(), so the operator is not told where the new passwords are (review residue A-H4 of W-c27db1f1)"
+}
