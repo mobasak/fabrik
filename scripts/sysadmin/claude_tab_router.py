@@ -16,7 +16,7 @@ installed at ~/.claude/bin/claude-agent-wrapper.sh); on a stream-json chat launc
 operator's history pick and launches as today; one whose transcript lives under another project directory is a
 restored routed tab, RE-ROOTED silently to that session's own cwd with the role recorded for it. Otherwise it shows a
 Tk list (Enter or double-click picks; Esc, closing it, the 30 s deadline or the wrapper's death cancels):
-"Plain chat — as today" first, then per repo with known agents:
+"Plain chat — as today" first, then per repo (every git repo under /opt, and any repo with a known agent):
   a role whose session runs in a live process            listed "live elsewhere (pid N)", REFUSED on pick (one
                                                           process per session id — coordinator ruling 2026-10-21)
   a role not live, with a transcript                     "Resume <role>" — its newest session; the tab runs in the
@@ -28,8 +28,11 @@ Every pick drops each `--add-dir`: a routed agent gets no access to the window's
 whoami_agent.py would not bind (`_NAME_RE`) is listed "cannot bind", never offered.
 
 Roles come from each repo's `.fabrik/session-agents.json` (sid -> role), the identity store
-(~/.claude/state/agent-identity.jsonl, last row per sid wins, as whoami_agent.py reads it), this router's own map; a repo
-listed that way also offers its merge owner (`decisions.py --merge-owner`), which alone never lists a repo. Liveness is hibernate.live_sessions; a live process holding the
+(~/.claude/state/agent-identity.jsonl, last row per sid wins, as whoami_agent.py reads it), this router's own map; every
+listed repo also offers its coordinator (W-5f4b0972): its merge owner (`decisions.py --merge-owner`), else
+`coordinator` when the ledger answers "no owner" (exit 3), labelled "(no owner row)"; a missing ledger, or a lookup that
+fails, raises or outlives the picker's budget, offers none (never a guessed name). The lookups run on LOOKUP_THREADS
+threads, LOOKUP_TIMEOUT s each. Liveness is hibernate.live_sessions; a live process holding the
 very sid this tab resumes is this tab reattaching, never "elsewhere".
 
 Fail direction: OPEN, to today's plain launch, on every error — the wrapper sits under every chat tab on the box. A
@@ -42,6 +45,7 @@ always LISTED with its pid, never dropped.
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import os
 import re
@@ -182,6 +186,41 @@ def _projects(home: Path) -> Path:
     return Path(os.environ.get("CLAUDE_CONFIG_DIR") or str(home / ".claude")) / "projects"
 
 
+# D-1305's name, offered where the ledger answers "no owner" (W-5f4b0972)
+DEFAULT_COORDINATOR = "coordinator"
+# s per `decisions.py --merge-owner` (~0.13 s measured); a slower one costs its repo's row only
+LOOKUP_TIMEOUT = 5
+LOOKUP_THREADS = 8  # 44 lookups: 5.5 s serial, 1.05 s on 8 threads (measured 2026-10-29)
+LOOKUP_RESERVE = 3  # s of the picker's deadline kept for the picker itself
+
+
+def git_repos(opt: str) -> list[str]:
+    """Every direct child of the opt root holding a git entry (a dir, or a file in a linked layout)."""
+    return sorted(str(p.parent) for p in Path(opt).glob("*/.git"))
+
+
+def _owner(repo: str) -> tuple[str, str]:
+    try:
+        return hibernate.merge_owner(repo, timeout=LOOKUP_TIMEOUT)
+    except Exception as exc:  # one repo's lookup never costs the others theirs
+        return "", f"lookup failed ({exc})"
+
+
+def merge_owners(repos: list[str]) -> dict[str, tuple[str, str]]:
+    """repo -> (name, why), looked up in parallel and collected only until the picker's budget ends; a lookup still
+    running then is "lookup failed" for its repo. The pool is not waited for: a running worker ends within
+    LOOKUP_TIMEOUT, so interpreter exit is held at most that long."""
+    budget = max(0.0, picker_deadline() - LOOKUP_RESERVE - time.monotonic())
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=LOOKUP_THREADS)
+    futures = {pool.submit(_owner, repo): repo for repo in repos}
+    done, _late = concurrent.futures.wait(futures, timeout=budget)
+    pool.shutdown(wait=False, cancel_futures=True)
+    out = dict.fromkeys(repos, ("", "lookup failed (past the picker's budget)"))
+    for f in done:
+        out[futures[f]] = f.result()
+    return out
+
+
 def entries(home: Path, proc: Path, opt: str = "/opt", own_sid: str = "") -> list[dict]:
     projects = _projects(home)
     live = [
@@ -195,10 +234,15 @@ def entries(home: Path, proc: Path, opt: str = "/opt", own_sid: str = "") -> lis
         if s.get("agent"):
             live_by_agent.setdefault((s.get("repo") or "", s["agent"]), s)
     agents = known_agents(home, opt)
+    repos = sorted(set(agents) | set(git_repos(opt)))
+    owners = merge_owners(repos)
     rows: list[dict] = []
-    for repo in sorted(agents):
-        roles = dict(agents[repo])
-        owner, _why = hibernate.merge_owner(repo)
+    for repo in repos:
+        roles = dict(agents.get(repo, {}))
+        owner, why = owners[repo]
+        default = not owner and why == hibernate.DECLARES_NONE
+        if default:
+            owner = DEFAULT_COORDINATOR
         if owner:
             roles.setdefault(owner, [])
         name = Path(repo).name
@@ -253,7 +297,8 @@ def entries(home: Path, proc: Path, opt: str = "/opt", own_sid: str = "") -> lis
                     "repo": repo,
                     "role": role,
                     "cwd": repo,
-                    "label": f"New session as {role} in {name}",
+                    "label": f"New session as {role} in {name}"
+                    + (" (no owner row)" if default and role == owner else ""),
                 }
             )
         rows.append(

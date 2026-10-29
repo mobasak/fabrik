@@ -18,15 +18,20 @@ A small window, **"Claude — open which agent in this tab?"**, lists:
 | `Plain chat in <folder> — as today` (default) | the tab runs exactly as before the router existed |
 | `Resume <role> (<repo>) — last <date>` | the role's newest session, in that session's own folder (a builder's worktree included), with `CLAUDE_AGENT=<role>` |
 | `New session as <role> in <repo>` | a fresh chat in that repo, bound to the role |
+| `New session as coordinator in <repo> (no owner row)` | the same, for a repo whose ledger declares no merge owner yet: the default coordinator name (D-1305's plain `coordinator`); the session is then told to adopt, and once the repo has its `MERGE OWNER:` row the picker offers that name instead |
 | `New session in <repo>` | a fresh chat in that repo, no role |
 | `<role> (<repo>) — live elsewhere (pid N)` | listed, **refused**: that role already runs in another process (one process per session id — coordinator ruling 2026-10-21); the tab runs plain |
 | `<role> (<repo>) — cannot bind` | a registered name `whoami_agent.py` would not accept |
 
-Enter or double-click picks; Esc, closing the window, or the **30 s countdown** gives a plain chat. Repos are listed
-when they have a known agent: `<repo>/.fabrik/session-agents.json`, the identity store
-`~/.claude/state/agent-identity.jsonl` (last row per session wins), the router's own map
-`~/.claude/state/tab-router.jsonl`. A listed repo also offers its merge owner (`decisions.py --merge-owner`) as a
-role; a merge owner alone does not list a repo.
+Enter or double-click picks; Esc, closing the window, or the **30 s countdown** gives a plain chat. The list has no
+scrollbar: Up/Down, PageUp/PageDown and the mouse wheel move its 24-row view (about 130 rows on this box, 2026-10-29).
+Every git repo under `/opt` is listed (W-5f4b0972), and so is any repo with a known agent: `<repo>/.fabrik/session-agents.json`,
+the identity store `~/.claude/state/agent-identity.jsonl` (last row per session wins), the router's own map
+`~/.claude/state/tab-router.jsonl`. Each listed repo offers its coordinator as a role: its merge owner
+(`decisions.py --merge-owner`), or `coordinator` when the ledger answers "no owner" (no `MERGE OWNER:` row, or an
+un-adoption row). A repo with no ledger, or whose lookup fails or takes longer than the picker can wait, offers no
+coordinator row — never a guessed name. The lookups run 8 at a time, 5 s each at most, and stop 3 s before the
+countdown's deadline.
 
 No window appears for: the extension's `auth status` and config-probe launches, a tab you resume from its own history
 list, and a **restored** routed tab — that one is re-rooted silently to its session's folder with its role.

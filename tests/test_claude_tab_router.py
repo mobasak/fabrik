@@ -106,7 +106,7 @@ def test_slug_matches_the_cli_project_directory_names(r):
 def test_entries_from_fixture_box(r, box):
     yt = box.repo("youtube", owner="youtube-coordinator")
     hub = box.repo("fabrik", owner="coordinator")
-    box.repo("quiet", owner="nobody-here")  # a repo with a ledger but no known agent is not listed
+    box.repo("quiet", owner="nobody-here")  # no git entry and no known agent: not listed
     _agents(yt, {SID_YT: "yt1"})
     _agents(hub, {SID_FLEET: "fleet"})
     # the identity store binds the coordinator's session; last row per sid wins
@@ -462,3 +462,118 @@ def test_picker_deadline_counts_from_the_router_start(r, monkeypatch):
     monkeypatch.setattr(r, "_STARTED", 1000.0)
     monkeypatch.setattr(r.time, "monotonic", lambda: 1020.0)  # 20 s already spent on entries()
     assert r.picker_deadline() == 1030.0
+
+
+# ── W-5f4b0972: every git repo under the opt root offers its coordinator ──────────────────────────────────────────
+
+
+def _git(repo: str) -> str:
+    (Path(repo) / ".git").mkdir(exist_ok=True)
+    return repo
+
+
+def _no_owner_ledger(repo: str) -> str:
+    (Path(repo) / "docs" / "DECISIONS.md").write_text(
+        "| id | when | who | what | why | where |\n|---|---|---|---|---|---|\n"
+        "| D-001 | 2026-10-29 | x | an unrelated decision | why | here |\n",
+        encoding="utf-8",
+    )
+    return repo
+
+
+def _role_rows(rows, repo):
+    return [x for x in rows if x["repo"] == repo and x.get("role")]
+
+
+def test_an_unlisted_git_repo_offers_its_merge_owner(r, box):
+    """A repo no registry knows is listed once it is a git repo, and offers its declared merge owner."""
+    yt = _git(box.repo("youtube", owner="youtube-coordinator"))
+    rows = r.entries(box.home, box.proc, str(box.opt))
+    assert "New session in youtube" in [x["label"] for x in rows]
+    assert any(
+        x["kind"] == r.NEW_ROLE and x["role"] == "youtube-coordinator" and x["cwd"] == yt
+        for x in rows
+    )
+
+
+def test_a_repo_without_a_merge_owner_offers_the_default_coordinator(r, box):
+    """A ledger with no MERGE OWNER row (exit 3) earns the default `coordinator`, and the row says why."""
+    candle = _no_owner_ledger(_git(box.repo("candle", owner=None)))
+    roles = _role_rows(r.entries(box.home, box.proc, str(box.opt)), candle)
+    assert [(x["kind"], x["role"]) for x in roles] == [(r.NEW_ROLE, "coordinator")]
+    assert roles[0]["label"] == "New session as coordinator in candle (no owner row)"
+
+
+def test_no_default_coordinator_without_a_no_owner_answer(r, box, monkeypatch):
+    """Only the ledger's "no owner" answer earns the default: a missing ledger, a failed lookup and a lookup that
+    raises all give no coordinator row (never a guessed name), and a folder with no git entry is not listed."""
+    _git(box.repo("noledger", owner=None))  # Box writes no ledger for owner=None
+    failed = _no_owner_ledger(_git(box.repo("failed", owner=None)))
+    boom = _no_owner_ledger(_git(box.repo("boom", owner=None)))
+    _no_owner_ledger(box.repo("scratch", owner=None))  # a ledger but no git entry
+    real = r.hibernate.merge_owner
+
+    def fake(repo, **kw):
+        if repo == failed:
+            return "", "lookup failed (exit 2)"
+        if repo == boom:
+            raise RuntimeError("unexpected")
+        return real(repo, **kw)
+
+    monkeypatch.setattr(r.hibernate, "merge_owner", fake)
+    rows = r.entries(box.home, box.proc, str(box.opt))
+    labels = [x["label"] for x in rows]
+    want = {"New session in noledger", "New session in failed", "New session in boom"}
+    assert want <= set(labels)
+    assert "New session in scratch" not in labels
+    assert not [x for x in rows if x.get("role")], "no repo here may offer a coordinator"
+
+
+def test_a_hung_lookup_costs_only_its_own_row(r, box, monkeypatch):
+    """A lookup still running when the budget ends costs its repo's coordinator row only; entries() returns
+    within the budget instead of holding the picker past its deadline."""
+    import threading
+
+    slow = _git(box.repo("slow", owner="s1"))
+    fast = _git(box.repo("fast", owner="f1"))
+    release = threading.Event()
+    real = r.hibernate.merge_owner
+
+    def fake(repo, **kw):
+        if repo == slow:
+            release.wait(20)
+            return "s1", "late"
+        return real(repo, **kw)
+
+    monkeypatch.setattr(r.hibernate, "merge_owner", fake)
+    # the router's own deadline function, never the global clock (W-1e0f4229): 5 s from now, so the
+    # budget (deadline minus the 3 s reserve) is about 2 s
+    now = time.monotonic()
+    monkeypatch.setattr(r, "picker_deadline", lambda: now + 5.0)
+    try:
+        t0 = time.monotonic()
+        rows = r.entries(box.home, box.proc, str(box.opt))
+        took = time.monotonic() - t0
+    finally:
+        release.set()
+    assert took < 4.0, f"entries() waited {took:.1f} s on a hung lookup"
+    assert not _role_rows(rows, slow)
+    assert [x["role"] for x in _role_rows(rows, fast)] == ["f1"]
+    assert "New session in slow" in [x["label"] for x in rows]
+
+
+def test_merge_owner_timeout_keyword(r, box, monkeypatch):
+    """hibernate.merge_owner hands its timeout to the subprocess and keeps 30 s for every other caller."""
+    hub = box.repo("fabrik", owner="coordinator")
+    seen = []
+    real_run = r.hibernate.subprocess.run
+
+    def spy(*a, **kw):
+        seen.append(kw.get("timeout"))
+        return real_run(*a, **kw)
+
+    monkeypatch.setattr(r.hibernate.subprocess, "run", spy)
+    assert r.hibernate.merge_owner(hub) == ("coordinator", "the ledger's merge owner")
+    assert r.hibernate.merge_owner(hub, timeout=5) == ("coordinator", "the ledger's merge owner")
+    assert seen == [30, 5]
+    assert r.hibernate.DECLARES_NONE in r.hibernate.NO_OWNER
