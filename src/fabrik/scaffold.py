@@ -5960,7 +5960,7 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
         check = f'docker exec smoke-test python -c "{FILE_WORKER_HEARTBEAT_CHECK}"'
         smoke = {
             "\t@docker run -d --name smoke-test -p $(PORT):$(PORT) --env-file .env $(PROJECT_NAME) || true\n": (
-                "\t@docker rm -f smoke-test >/dev/null 2>&1 || true\n"
+                "\t@docker rm -fv smoke-test >/dev/null 2>&1 || true\n"
                 "\t@docker run -d --name smoke-test --network none -e WORKER_SMOKE=1 --env-file .env $(PROJECT_NAME) || true\n"
             ),
             '\t@curl -sf http://localhost:$(PORT)/health && echo " ✓ Health OK" || echo " ✗ Health FAILED"\n': (
@@ -7751,19 +7751,21 @@ docker-build:
 # Docker smoke test
 docker-smoke: docker-build
 \t@echo "Starting container..."
-\t@docker run -d --name $(PROJECT_NAME)-test -p $(PORT):$(PORT) -e PORT=$(PORT) $(PROJECT_NAME)
+\t@docker rm -fv $(PROJECT_NAME)-test >/dev/null 2>&1 || true
+\t@docker run -d --name $(PROJECT_NAME)-test -p $(PORT):$(PORT) -e PORT=$(PORT) $(PROJECT_NAME) || (docker rm -fv $(PROJECT_NAME)-test >/dev/null 2>&1; exit 1)
 \t@echo "Waiting for health check..."
 \t@sleep 5
-\t@curl -f http://localhost:$(PORT)/health || (docker logs $(PROJECT_NAME)-test && exit 1)
+\t@curl -f http://localhost:$(PORT)/health || (docker logs $(PROJECT_NAME)-test; docker rm -fv $(PROJECT_NAME)-test; exit 1)
 \t@echo "✅ Health check passed"
 \t@docker stop $(PROJECT_NAME)-test
-\t@docker rm $(PROJECT_NAME)-test
+\t@docker rm -v $(PROJECT_NAME)-test
 \t@echo "✅ Smoke test completed"
 
 # Clean build artifacts
 clean:
 \trm -rf extension/.output extension/.wxt extension/node_modules
 \tfind . -type d -name "__pycache__" -exec rm -rf {{}} +
+\tdocker rm -fv $(PROJECT_NAME)-test 2>/dev/null || true
 \tdocker rmi $(PROJECT_NAME) 2>/dev/null || true
 """
     )

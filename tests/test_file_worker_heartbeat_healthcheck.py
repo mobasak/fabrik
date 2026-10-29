@@ -220,7 +220,7 @@ def test_the_smoke_target_runs_the_heartbeat_check_not_a_curl(tmp_path, monkeypa
     # its own container name: another project's smoke run may hold the template's shared `smoke-test`
     assert "smoke-test" not in (project / "Makefile").read_text()
     lines = recipe.splitlines()
-    rm = lines.index("\t@docker rm -f $(PROJECT_NAME)-smoke >/dev/null 2>&1 || true")
+    rm = lines.index("\t@docker rm -fv $(PROJECT_NAME)-smoke >/dev/null 2>&1 || true")
     run = lines.index(
         "\t@docker run -d --name $(PROJECT_NAME)-smoke --network none -e WORKER_SMOKE=1"
         " --env-file .env $(PROJECT_NAME) || true"
