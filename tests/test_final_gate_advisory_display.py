@@ -260,8 +260,8 @@ def test_the_json_gate_separates_advisory_rows_from_blocking_ones() -> None:
     )
     # ⚠️ NOT `passed - advisory`: that arithmetic never learned about SKIPS, so it disagreed
     # with the roster in the same envelope whenever any tool was missing. It survived here
-    # only while --lean skipped nothing — it stopped holding once every lean run with code in
-    # its diff names the Tier-2 checks it skips (W-d488bbbf).
+    # only while --lean skipped nothing — it stopped holding once every lean run skips at least
+    # one row (W-d488bbbf).
     assert payload["blocking"] == sum(1 for c in payload["checks"] if c.get("outcome") == "pass")
     assert payload["blocking"] < payload["passed"], "the split must actually be visible"
 
@@ -1176,7 +1176,7 @@ def test_the_lean_tier_names_the_checks_it_never_ran(monkeypatch: pytest.MonkeyP
     assert len(lean) == 1, [r[0] for r in rows]
     _, ok, text = lean[0]
     assert ok is True, "a lean run must stay green — the row says what it skipped, it never reds"
-    for tool in ("mypy", "bandit", "semgrep", "pytest"):
+    for tool in ("mypy", "bandit", "semgrep", "sqlfluff", "vulture", "pytest"):
         assert tool in text, (tool, text)
     assert "final_gate.py --json" in text and "merge request" in text, text
 
@@ -1221,6 +1221,7 @@ def test_a_lean_json_run_reports_the_row_in_every_channel_a_consumer_reads(
     out = _main_output(monkeypatch, capsys, "--lean", "--check", "--json")
     payload = json.loads(out[out.index("{") :])
     assert payload["status"] == "success", "the row must never red a lean run"
+    assert payload["skipped"] >= 1, payload["skipped"]
     assert "Tier-2 checks" in payload["skipped_checks"], payload["skipped_checks"]
     assert {"name": fg.LEAN_NOT_RUN_ROW, "outcome": "skipped"} in payload["checks"]
     warned = [w for w in payload["warnings"] if w["check"] == fg.LEAN_NOT_RUN_ROW]
@@ -1232,6 +1233,6 @@ def test_a_lean_human_run_prints_the_skip_and_its_reason(
 ) -> None:
     out = _main_output(monkeypatch, capsys, "--lean", "--check")
     assert f"[{fg.YELLOW}SKIP{fg.RESET}] {fg.LEAN_NOT_RUN_ROW}" in out, out
-    assert "ran none of the Tier-2 checks (mypy," in out and "final_gate.py --json" in out, out
+    assert "ran none of these Tier-2 checks (mypy," in out and "final_gate.py --json" in out, out
     skipped = next(line for line in out.splitlines() if "Skipped:" in line)
     assert "Tier-2 checks" in skipped, skipped
