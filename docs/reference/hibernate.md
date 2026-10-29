@@ -62,7 +62,7 @@ The marker is `hibernate.json` in the rotation tick's state dir — `$ROTATE_STA
 `<passwd home>/.claude/state` (every verb defaults `--home` to the passwd entry's home, never `$HOME`) — beside the rotate ledger. Its keys: `paused_at`, `words`, `deadline_at` (T, optional),
 `lifted_at` (optional) and `lift_path` (`sleep`, `outage`, `cancelled`, `hub` or `migration`). Every writer goes
 through `update_marker`, which holds an `flock` on `hibernate.json.lock` across its read-modify-write, so two writers
-at once (the tick's lift and the hub's `lift`) both land.
+at once (the hub's `lift` and, once T06 builds it, the tick's lift) both land.
 
 - **The mark (T-0).** `hibernate.py mark --words "…" [--deadline 10m]` writes a fresh marker (no key of an earlier
   pause survives): `paused_at` now and, with `--deadline`, `deadline_at` = T (`10m`, `5m`, `1h`; a bare number is
@@ -125,8 +125,8 @@ overrides are refused outside tests and the plain-shell residual stays auditable
 Otherwise it exits 1 with `no pending resume`, and with no lift yet it names the lift paths. It exits 2 when it
 cannot tell: a marker `paused` would call corrupt (the same rule, every field it validates), or this session's run
 record exists but cannot be read or parsed. A `resume-wake` row in
-the rotate ledger is the tick's evidence for its lift, never `woke`'s, so an agent is never told to resume while the
-hold still stands.
+the rotate ledger is never `woke`'s evidence (it will be the tick's, for its own lift, once T06 builds it), so an agent
+is never told to resume while the hold still stands.
 
 On RESUME it lists the session's seeds (`<command-runs>/seeds/<safe sid>-….json` or `.md`, where `<command-runs>`
 is `$COMMAND_RUN_DIR` or `~/.claude/state/command-runs`, as `command_run.py` resolves it) written since the mark,
