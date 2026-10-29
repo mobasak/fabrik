@@ -61,8 +61,7 @@ _CPU_KEYS = (
     "cpu_rt_period",
 )
 # YAML line breaks other than \n: they would shift PyYAML's line marks against a split on \n
-_OTHER_BREAKS = ("\r", "\x85", " ", " ")
-NEVER = ("up", "restart", "stop", "rm", "create", "kill")
+_OTHER_BREAKS = ("\r", "\x85", "\u2028", "\u2029")
 
 # argv: F old-sha256 new-sha256 stamp; the new bytes on stdin. Exits 3 when F changed since it was read, 4 when the
 # bytes that arrived are not the ones sent, 5 when F is not a plain single-link file or the backup name is taken.
@@ -109,20 +108,56 @@ def gate(title: str, plan: str) -> None:
         die(f"not confirmed: {title} — nothing in this block ran")
 
 
+class TransportError(Exception):
+    """ssh could not deliver a command or its answer (timeout, no ssh, ssh's own rc 255): the remote state is unknown."""
+
+
+def allowed(cmd: str) -> bool:
+    """The ONLY command shapes this gate sends — an allowlist, so nothing that ups, restarts, removes or recreates a
+    container can be sent by any spelling."""
+    try:
+        argv = shlex.split(cmd)
+    except ValueError:
+        return False
+    if argv[:2] != ["sudo", "-n"]:
+        return False
+    a = argv[2:]
+    return (
+        (a[:4] == ["docker", "inspect", "--type", "container"] and len(a) > 4)
+        or (
+            len(a) == 5 and a[:3] == ["docker", "update", "--cpus"] and cpus_value(a[3]) is not None
+        )
+        or (
+            len(a) == 7
+            and a[:3] == ["docker", "compose", "-f"]
+            and a[4:] == ["config", "--format", "json"]
+        )
+        or (len(a) == 2 and a[0] in ("cat", "sha256sum"))
+        or (
+            len(a) >= 4
+            and a[:2] == ["sh", "-c"]
+            and a[2] in (WRITE_SH, RESTORE_SH)
+            and a[3] == "sh"
+        )
+    )
+
+
 def run(
     cmd: str, stdin: bytes | None = None, timeout: int = 120
 ) -> subprocess.CompletedProcess[bytes]:
-    """Run cmd on vps1. Bytes both ways, so a file is hashed and written exactly as it is."""
-    for word in NEVER:
-        if re.search(rf"\bdocker (compose -f \S+ )?{word}\b", cmd):
-            die(f"refusing a command this gate never runs: {cmd}")
+    """Run cmd on vps1. Bytes both ways, so a file is hashed and written exactly as it is. Raises TransportError
+    when ssh could not deliver it, so a caller holding a written file can still restore it."""
+    if not allowed(cmd):
+        die(f"refusing a command this gate never sends: {cmd}")
     try:
-        return subprocess.run(SSH + [cmd], input=stdin, capture_output=True, timeout=timeout)
+        r = subprocess.run(SSH + [cmd], input=stdin, capture_output=True, timeout=timeout)
     except subprocess.TimeoutExpired:
-        die(f"remote command timed out after {timeout}s: {cmd}")
+        raise TransportError(f"timed out after {timeout}s: {cmd}") from None
     except OSError as exc:
-        die(f"could not start ssh: {exc}")
-    raise AssertionError("unreachable")
+        raise TransportError(f"could not start ssh: {exc}") from None
+    if r.returncode == 255:
+        raise TransportError(f"ssh failed (rc 255): {_err(r)}")
+    return r
 
 
 def _err(r: subprocess.CompletedProcess[bytes]) -> str:
@@ -138,7 +173,8 @@ def cpus_value(text: object) -> Decimal | None:
     if not isinstance(text, str) or not _DECIMAL.fullmatch(text):
         return None
     value = Decimal(text)
-    return value if 0 < value <= MAX_CPUS else None
+    # docker counts whole nanoCPUs, so a finer text could never read back equal (NanoCpus == cpus * 10**9)
+    return value if 0 < value <= MAX_CPUS and (value * 10**9) % 1 == 0 else None
 
 
 def _child(node: yaml.Node | None, key: str) -> yaml.Node | None:
@@ -195,6 +231,30 @@ def _bad_key(node: yaml.Node, seen: set[int] | None = None) -> str | None:
         if found:
             return found
     return None
+
+
+def _references(root: yaml.Node) -> Counter[int]:
+    """How many places in the document point at each node: an anchored node reached through an alias counts once
+    per place, so a count above 1 is a node an edit would change in more than one place."""
+    refs: Counter[int] = Counter()
+    seen: set[int] = set()
+
+    def walk(node: yaml.Node) -> None:
+        if id(node) in seen:
+            return
+        seen.add(id(node))
+        if isinstance(node, yaml.MappingNode):
+            children = [v for _, v in node.value]
+        elif isinstance(node, yaml.SequenceNode):
+            children = list(node.value)
+        else:
+            children = []
+        for child in children:
+            refs[id(child)] += 1
+            walk(child)
+
+    walk(root)
+    return refs
 
 
 def _compose(text: str) -> yaml.Node:
@@ -260,7 +320,10 @@ def runtime_plan(
         if record is None:
             plan[name] = ("MISSING", {})
             continue
-        host = record.get("HostConfig") or {}
+        host = record.get("HostConfig")
+        if not isinstance(host, dict):
+            plan[name] = ("MISSING", {})  # not a container (inspect also passes --type container)
+            continue
         nano, quota, period = (int(host.get(k) or 0) for k in ("NanoCpus", "CpuQuota", "CpuPeriod"))
         if nano == quota == period == 0:
             plan[name] = ("UPDATE", record)
@@ -296,7 +359,7 @@ def insert_cpus(
     services = _child(root, "services")
     if not isinstance(services, yaml.MappingNode):
         raise RefusedError("no services mapping")
-    owners = Counter(id(lim) for _, svc in services.value if (lim := _limits(svc)) is not None)
+    refs = _references(root)
     inserts: list[tuple[int, str]] = []
     inserted: list[str] = []
     for name, (container, value, value_text) in sorted(wanted.items()):
@@ -308,18 +371,26 @@ def insert_cpus(
         for key in _CPU_KEYS:
             if _child(service, key) is not None:
                 raise RefusedError(f"service {name} has a service-level {key}")
+        # a merge key can carry a CPU key or a limits that the walk below would not see
+        deploy = _child(service, "deploy")
+        for where, node in (
+            ("service", service),
+            ("deploy", deploy),
+            ("resources", _child(deploy, "resources")),
+            ("limits", _limits(service)),
+        ):
+            if _child(node, "<<") is not None:
+                raise RefusedError(f"service {name}'s {where} has a << merge key")
         limits = _limits(service)
         if not isinstance(limits, yaml.MappingNode):
             raise RefusedError(f"service {name} has no deploy.resources.limits mapping")
         if limits.flow_style:
             raise RefusedError(f"service {name}'s limits is a flow mapping")
-        if owners[id(limits)] > 1 or not (
+        if refs[id(limits)] > 1 or not (
             service.start_mark.line <= limits.start_mark.line
             and limits.end_mark.line <= service.end_mark.line
         ):
             raise RefusedError(f"service {name}'s limits is shared through an anchor or alias")
-        if _child(limits, "<<") is not None:
-            raise RefusedError(f"service {name}'s limits has a << merge key")
         existing = _child(limits, "cpus")
         if existing is not None:
             current = _scalar_text(existing)
@@ -336,10 +407,11 @@ def insert_cpus(
         if (
             not isinstance(value_node, yaml.ScalarNode)
             or value_node.style in ("|", ">")
+            or value_node.tag == "tag:yaml.org,2002:null"
             or value_node.start_mark.line != line
             or value_node.end_mark.line != line
         ):
-            raise RefusedError(f"service {name}'s memory is not a one-line scalar")
+            raise RefusedError(f"service {name}'s memory is not a one-line value")
         inserts.append((line, " " * key_node.start_mark.column + f"cpus: '{value_text}'"))
         inserted.append(name)
     if not inserts:
@@ -366,7 +438,10 @@ def insert_cpus(
 def _config(path: str) -> dict:
     r = run(f"sudo -n docker compose -f {shlex.quote(path)} config --format json")
     if r.returncode != 0:
-        raise RefusedError(f"docker compose config failed: {_err(r)}")
+        # never forward compose's stderr: it echoes interpolated .env values (measured)
+        raise RefusedError(
+            f"docker compose config failed (rc {r.returncode}); run it on vps1 to see why"
+        )
     try:
         doc = json.loads(r.stdout.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
@@ -393,32 +468,70 @@ def config_problem(before: dict, after: dict, edited: dict[str, str]) -> str | N
     return None
 
 
+def _remote_sha(path: str) -> str | None:
+    try:
+        r = run(f"sudo -n sha256sum {shlex.quote(path)}")
+    except TransportError:
+        return None
+    words = r.stdout.decode("utf-8", "replace").split()
+    return words[0] if r.returncode == 0 and words else None
+
+
+def _restore(path: str, backup: str, old_sha: str, problem: str) -> None:
+    """Put the backup back and raise RefusedError; stop the run when even that cannot be confirmed."""
+    try:
+        r = run(
+            f"sudo -n sh -c {shlex.quote(RESTORE_SH)} sh {shlex.quote(path)} {shlex.quote(backup)} {old_sha}"
+        )
+        why = None if r.returncode == 0 else _err(r)
+    except TransportError as exc:
+        why = str(exc)
+    if why is not None:
+        die(
+            f"{path}: {problem}; and the restore FAILED ({why}) — restore it by hand: cp -p {backup} {path}"
+        )
+    raise RefusedError(f"{problem}; restored from {backup}")
+
+
 def apply_file(path: str, data: bytes, new: bytes, edited: dict[str, str]) -> str:
     """Write one live compose under compose's own before/after check; return the backup path. Raises RefusedError,
-    after restoring the backup whenever the file was replaced."""
-    before = _config(path)
+    after restoring the backup whenever the file was replaced (a dropped ssh included)."""
+    try:
+        before = _config(path)
+    except TransportError as exc:
+        raise RefusedError(f"not written: compose config not reached ({exc})") from None
+    for name in edited:
+        resolved = (before.get("services") or {}).get(name) or {}
+        found = [k for k in _CPU_KEYS if k in resolved]
+        if found:  # as compose resolves it: merges, extends and interpolation included
+            raise RefusedError(f"not written: service {name} resolves a service-level {found[0]}")
     old_sha, new_sha = sha256(data), sha256(new)
-    r = run(
-        f"sudo -n sh -c {shlex.quote(WRITE_SH)} sh {shlex.quote(path)} {old_sha} {new_sha} {STAMP}",
-        stdin=new,
-    )
-    if r.returncode != 0:
-        raise RefusedError(f"not written ({_err(r)}); the file was left as it was")
-    backup = r.stdout.decode("utf-8", "replace").strip()
+    backup = f"{path}.cpu-bak-{STAMP}"
+    try:
+        r = run(
+            f"sudo -n sh -c {shlex.quote(WRITE_SH)} sh {shlex.quote(path)} {old_sha} {new_sha} {STAMP}",
+            stdin=new,
+        )
+        why = None if r.returncode == 0 else _err(r)
+    except TransportError as exc:
+        why = str(exc)
+    if why is not None:
+        now = _remote_sha(path)
+        if now == old_sha:
+            raise RefusedError(f"not written ({why}); the file is unchanged")
+        if now != new_sha:
+            die(
+                f"{path}: the write failed ({why}) and the file's state is unconfirmed (sha256 {now}); "
+                f"its original sha256 is {old_sha}, and {backup} holds it if it exists"
+            )
     try:
         problem = config_problem(before, _config(path), edited)
-    except RefusedError as exc:
+    except (RefusedError, TransportError) as exc:
         problem = str(exc)
     if problem is None:
         return backup
-    r = run(
-        f"sudo -n sh -c {shlex.quote(RESTORE_SH)} sh {shlex.quote(path)} {shlex.quote(backup)} {old_sha}"
-    )
-    if r.returncode != 0:
-        die(
-            f"{path}: {problem}; and the restore from {backup} FAILED: {_err(r)} — restore it by hand"
-        )
-    raise RefusedError(f"{problem}; restored from {backup}")
+    _restore(path, backup, old_sha, problem)
+    raise AssertionError("unreachable")
 
 
 def acceptance_query(names: list[str]) -> str:
@@ -427,6 +540,20 @@ def acceptance_query(names: list[str]) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    try:
+        return _main(argv)
+    except TransportError as exc:
+        die(f"ssh: {exc} — re-run the dry run to read the current state")
+    raise AssertionError("unreachable")
+
+
+def _table(names: list[str], runtime: dict[str, str], files: dict[str, str]) -> None:
+    print("container                runtime   file")
+    for name in names:
+        print(f"{name:<24} {runtime[name]:<9} {files.get(name, '')}")
+
+
+def _main(argv: list[str] | None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument(
         "--apply", action="store_true", help="run the changes (default: dry run, reads only)"
@@ -437,7 +564,7 @@ def main(argv: list[str] | None = None) -> int:
     except RefusedError as exc:
         die(f"hub table: {exc}")
     names = sorted(table)
-    r = run("sudo -n docker inspect " + " ".join(shlex.quote(n) for n in names))
+    r = run("sudo -n docker inspect --type container " + " ".join(shlex.quote(n) for n in names))
     try:
         plan = runtime_plan(table, r.stdout)
     except RefusedError as exc:
@@ -462,6 +589,7 @@ def main(argv: list[str] | None = None) -> int:
         by_file.setdefault(path, {})[service] = (name, *table[name])
 
     edits: dict[str, tuple[bytes, bytes, dict[str, str]]] = {}
+    containers_of: dict[str, list[str]] = {}
     for path, wanted in sorted(by_file.items()):
         containers = [c for c, _v, _t in wanted.values()]
         r = run(f"sudo -n cat {shlex.quote(path)}")
@@ -477,11 +605,11 @@ def main(argv: list[str] | None = None) -> int:
             file_result.update(dict.fromkeys(containers, "OK"))
             continue
         edits[path] = (r.stdout, new, {svc: wanted[svc][2] for svc in inserted})
+        containers_of[path] = containers
         file_result.update(dict.fromkeys(containers, "edit"))
 
-    print("container                runtime   file")
-    for name in names:
-        print(f"{name:<24} {plan[name][0]:<9} {file_result.get(name, '')}")
+    runtime = {n: plan[n][0] for n in names}
+    _table(names, runtime, file_result)
     for path, (_old, _new, edited) in sorted(edits.items()):
         print(f"{path}: inserts cpus for {', '.join(sorted(edited))}")
 
@@ -496,7 +624,10 @@ def main(argv: list[str] | None = None) -> int:
                 r = run(f"sudo -n docker update --cpus {table[name][1]} {shlex.quote(name)}")
                 if r.returncode != 0:
                     die(f"docker update {name} failed: {_err(r)}")
-            r = run("sudo -n docker inspect " + " ".join(shlex.quote(n) for n in updates))
+            r = run(
+                "sudo -n docker inspect --type container "
+                + " ".join(shlex.quote(n) for n in updates)
+            )
             try:
                 after = runtime_plan({n: table[n] for n in updates}, r.stdout)
             except RefusedError as exc:
@@ -504,6 +635,7 @@ def main(argv: list[str] | None = None) -> int:
             wrong = [n for n in updates if after[n][0] != "OK"]
             if wrong:
                 die(f"after docker update these do not read their cap: {', '.join(wrong)}")
+            runtime.update(dict.fromkeys(updates, "updated"))
             print(f"runtime: {len(updates)} container(s) now read their cap (NanoCpus, CpuQuota 0)")
         if edits:
             gate(
@@ -516,8 +648,12 @@ def main(argv: list[str] | None = None) -> int:
                 try:
                     backup = apply_file(path, old, new, edited)
                     print(f"{path}: written, backup {backup}")
+                    file_result.update(dict.fromkeys(containers_of[path], "written"))
                 except RefusedError as exc:
                     problems.append(f"{path}: REFUSED — {exc}")
+                    file_result.update(dict.fromkeys(containers_of[path], "REFUSED"))
+        print("\nResult:")
+        _table(names, runtime, file_result)
     print(
         "\nNothing was started, stopped or recreated. The edited files take over at the next `up -d` or reboot "
         "(an `up -d` now recreates those containers)."

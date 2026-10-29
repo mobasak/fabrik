@@ -254,6 +254,9 @@ class FakeVps:
         self.commands: list[str] = []
         self.config_break: str | None = None  # path whose AFTER config should differ
         self.config_fail: set[str] = set()
+        self.configs = 0
+        self.config_timeout_at = 0  # the Nth config call raises a transport error
+        self.drop_after_write = False  # the write lands, then ssh drops before the answer
         for path, text in files.items():
             local = self.local(path)
             local.parent.mkdir(parents=True, exist_ok=True)
@@ -268,7 +271,8 @@ class FakeVps:
         assert argv[:2] == ["sudo", "-n"], cmd
         argv = argv[2:]
         if argv[:2] == ["docker", "inspect"]:
-            found = [r for r in self.records if r["Name"].lstrip("/") in argv[2:]]
+            assert argv[2:4] == ["--type", "container"], cmd
+            found = [r for r in self.records if r["Name"].lstrip("/") in argv[4:]]
             return subprocess.CompletedProcess(
                 cmd, 1 if len(found) < len(argv) - 2 else 0, json.dumps(found).encode(), b""
             )
@@ -280,10 +284,18 @@ class FakeVps:
             return subprocess.CompletedProcess(cmd, 0, name.encode(), b"")
         if argv[0] == "cat":
             return subprocess.CompletedProcess(cmd, 0, self.local(argv[1]).read_bytes(), b"")
+        if argv[0] == "sha256sum":
+            digest = hashlib.sha256(self.local(argv[1]).read_bytes()).hexdigest()
+            return subprocess.CompletedProcess(cmd, 0, f"{digest}  {argv[1]}\n".encode(), b"")
         if argv[:3] == ["docker", "compose", "-f"]:
             path = argv[3]
+            self.configs += 1
             if path in self.config_fail:
-                return subprocess.CompletedProcess(cmd, 1, b"", b"env file not readable")
+                return subprocess.CompletedProcess(
+                    cmd, 1, b"", b"invalid hostPort: sup3rS3cretValue"
+                )
+            if self.configs == self.config_timeout_at:
+                raise m.TransportError("timed out after 120s: config")
             import yaml
 
             doc = yaml.safe_load(self.local(path).read_text())
@@ -299,9 +311,10 @@ class FakeVps:
         if argv[:2] == ["sh", "-c"]:
             script, args = argv[2], argv[4:]
             args = [str(self.local(a)) if a.startswith("/opt/") else a for a in args]
-            return subprocess.run(
-                ["sh", "-c", script, "sh", *args], input=stdin, capture_output=True
-            )
+            r = subprocess.run(["sh", "-c", script, "sh", *args], input=stdin, capture_output=True)
+            if self.drop_after_write and script == m.WRITE_SH:
+                raise m.TransportError("ssh failed (rc 255): connection reset")
+            return r
         raise AssertionError(f"unexpected remote command: {cmd}")
 
 
@@ -356,6 +369,7 @@ def test_apply_file_writes_backs_up_and_checks_with_config(
     assert web.read_text() == BLOCK + "          cpus: '0.5'\n"
     assert vps.local("/opt/web/compose.yaml.cpu-bak-test").read_text() == BLOCK
     assert "cpus: '2.0'" in vps.local("/opt/db/compose.yaml").read_text()
+    assert "cpus" not in vps.local("/opt/db/compose.yaml.cpu-bak-test").read_text()
     assert sum("config --format json" in c for c in vps.commands) == 4
     assert not list(vps.root.rglob(".compose.yaml.*"))
 
@@ -450,8 +464,12 @@ def test_apply_runtime_updates_reads_back_and_never_recreates(
     assert m.main(["--apply"]) == 0
     nano = {r["Name"]: r["HostConfig"]["NanoCpus"] for r in vps.records}
     assert nano == {"/web-c": 500_000_000, "/db-c": 2_000_000_000}
-    never = re.compile(rf"\bdocker (compose -f \S+ )?({'|'.join(m.NEVER)})\b")
-    assert vps.commands and not [c for c in vps.commands if never.search(c)]
+    assert vps.commands and all(m.allowed(c) for c in vps.commands)
+    assert not [
+        c
+        for c in vps.commands
+        if re.search(r"\b(up|restart|stop|rm|create|kill|down|run|start)\b", c) and "sh -c" not in c
+    ]
 
 
 def test_apply_runtime_stops_when_the_cap_does_not_read_back(
@@ -484,16 +502,36 @@ def test_apply_runtime_never_touches_a_differs_container(
     assert vps.local("/opt/web/compose.yaml").read_text() == BLOCK
 
 
-def test_the_transport_refuses_a_recreating_command(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Given any command that would up, restart or remove a container, when sent, then run() stops first."""
-    monkeypatch.setattr(m.subprocess, "run", lambda *a, **k: pytest.fail("ssh was started"))
-    for cmd in (
+@pytest.mark.parametrize(
+    "cmd",
+    [
         "sudo -n docker restart x",
         "sudo -n docker compose -f /opt/a/compose.yaml up -d",
         "docker rm x",
-    ):
-        with pytest.raises(SystemExit):
-            m.run(cmd)
+        "sudo -n docker compose up -d",
+        "sudo -n docker compose -p x -f /opt/a/compose.yaml up",
+        "sudo -n docker compose --file /opt/a/compose.yaml up",
+        "sudo -n docker compose -f /opt/a/compose.yaml down",
+        "sudo -n docker container rm x",
+        "sudo -n docker  restart x",
+        "sudo -n docker -H tcp://x restart y",
+        "sudo -n docker run --rm alpine",
+        "sudo -n docker start x",
+        "sudo -n docker update --cpus 6 x",
+        "sudo -n docker update --cpus 0.5 --restart always x",
+        "sudo -n docker inspect x",
+        "sudo -n sh -c 'docker restart x' sh",
+        "sudo -n cat /opt/a/compose.yaml; docker restart x",
+    ],
+)
+def test_the_transport_refuses_every_command_outside_its_allowlist(
+    cmd: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Given any command shape this gate never sends (each spelling of up, restart, rm, down, run, start, a
+    too-large cap, an extra flag, an ad-hoc shell script), when sent, then run() stops before ssh starts."""
+    monkeypatch.setattr(m.subprocess, "run", lambda *a, **k: pytest.fail("ssh was started"))
+    with pytest.raises(SystemExit):
+        m.run(cmd)
 
 
 # 7 — summary and exit
@@ -517,3 +555,121 @@ def test_summary_counts_a_missing_container(vps: FakeVps) -> None:
     """Given a table container absent on vps1 (docker inspect rc 1 with partial JSON), then exit 1."""
     vps.records.pop()
     assert m.main([]) == 1
+
+
+# pass-1 review regressions
+
+
+def test_apply_file_restores_when_the_after_config_drops(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Given the write landed and the AFTER compose config times out, then the file is restored and exit is 1."""
+    vps.config_timeout_at = 2  # /opt/db sorts first: its BEFORE is config call 1, its AFTER call 2
+    _answer(monkeypatch, "yes", "yes")
+    assert m.main(["--apply"]) == 1
+    assert "cpus" not in vps.local("/opt/db/compose.yaml").read_text()
+    assert vps.local("/opt/web/compose.yaml").read_text() == BLOCK + "          cpus: '0.5'\n"
+
+
+def test_apply_file_carries_on_when_ssh_drops_after_the_write_landed(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Given the write landed but ssh dropped before its answer, then the file's hash shows the new bytes and the
+    AFTER check still runs, so the file is kept, not reported as unchanged."""
+    vps.drop_after_write = True
+    _answer(monkeypatch, "yes", "yes")
+    assert m.main(["--apply"]) == 0
+    assert vps.local("/opt/web/compose.yaml").read_text() == BLOCK + "          cpus: '0.5'\n"
+
+
+def test_a_failed_config_never_prints_its_stderr(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Given compose config failing with an interpolated .env value in its stderr, then the value is not printed."""
+    vps.config_fail.add("/opt/web/compose.yaml")
+    _answer(monkeypatch, "yes", "yes")
+    assert m.main(["--apply"]) == 1
+    captured = capsys.readouterr()
+    assert "sup3rS3cretValue" not in captured.out + captured.err
+    assert "docker compose config failed (rc 1)" in captured.out
+
+
+def test_apply_file_refuses_a_service_that_resolves_a_cpu_key(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Given compose's resolved config showing a service-level cpu_quota the raw text hides, then not written."""
+    real = vps.__call__
+
+    def with_quota(cmd: str, stdin: bytes | None = None, timeout: int = 120):
+        r = real(cmd, stdin, timeout)
+        if "config --format json" in cmd and "/opt/web/" in cmd:
+            doc = json.loads(r.stdout)
+            doc["services"]["web"]["cpu_quota"] = 50000
+            r = subprocess.CompletedProcess(cmd, 0, json.dumps(doc).encode(), b"")
+        return r
+
+    monkeypatch.setattr(m, "run", with_quota)
+    _answer(monkeypatch, "yes", "yes")
+    assert m.main(["--apply"]) == 1
+    assert vps.local("/opt/web/compose.yaml").read_text() == BLOCK
+
+
+def test_the_result_table_is_printed_after_the_apply(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Given a clean apply, then the closing table reads updated / written for each container."""
+    _answer(monkeypatch, "yes", "yes")
+    assert m.main(["--apply"]) == 0
+    result = capsys.readouterr().out.split("Result:")[1]
+    assert "web-c                    updated   written" in result
+
+
+def test_plan_reads_a_record_without_hostconfig_as_missing() -> None:
+    """Given an inspect record that is not a container (a network of the same name), then MISSING, never UPDATE."""
+    stdout = json.dumps([{"Name": "web-c", "Driver": "bridge"}]).encode()
+    assert m.runtime_plan({"web-c": (Decimal("0.5"), "0.5")}, stdout)["web-c"][0] == "MISSING"
+
+
+@pytest.mark.parametrize(
+    ("text", "reason"),
+    [
+        (
+            "x-base: &base\n  cpu_quota: 50000\nservices:\n  web:\n    <<: *base\n    container_name: web-c\n"
+            "    deploy:\n      resources:\n        limits:\n          memory: 64M\n",
+            "service has a << merge key",
+        ),
+        (
+            "x-r: &r\n  limits:\n    cpus: '1'\nservices:\n  web:\n    container_name: web-c\n    deploy:\n"
+            "      resources:\n        <<: *r\n        limits:\n          memory: 64M\n",
+            "resources has a << merge key",
+        ),
+        (
+            "services:\n  web:\n    container_name: web-c\n    deploy:\n      resources:\n        limits: &ll\n"
+            "          memory: 64M\n  other:\n    image: x\n    x-lim: *ll\n",
+            "anchor or alias",
+        ),
+        (BLOCK.replace("memory: 64M  # keep this comment", "memory:"), "one-line value"),
+    ],
+)
+def test_insert_refuses_merges_aliases_and_a_null_memory(text: str, reason: str) -> None:
+    """Given a merge key at service or resources level, a limits aliased anywhere in the file, or a null memory,
+    when inserted, then the file is refused."""
+    with pytest.raises(m.RefusedError, match=reason):
+        m.insert_cpus(text.encode(), WANT)
+
+
+@pytest.mark.parametrize("text", ["0.3333333333", "1.0000000001"])
+def test_a_cpus_text_finer_than_a_nanocpu_is_refused(text: str) -> None:
+    """Given a cpus text docker cannot hold exactly in NanoCpus, then it is not a usable cap."""
+    assert m.cpus_value(text) is None
+
+
+def test_apply_file_write_script_refuses_a_taken_backup_name(tmp_path: Path) -> None:
+    """Given a backup name already on disk, when written, then exit 5 and F untouched."""
+    stack = tmp_path / "stack"
+    stack.mkdir()
+    f = stack / "compose.yaml"
+    f.write_text("a: 1\n")
+    (stack / "compose.yaml.cpu-bak-t").write_text("older\n")
+    assert _write(f, b"a: 2\n").returncode == 5
+    assert f.read_text() == "a: 1\n"
