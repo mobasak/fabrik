@@ -108,7 +108,7 @@ This lane's brief has each seat EXECUTE: replay reported incident and real corpu
 
 It pins tree (commit or `git archive` copy) and any live state file design reads, names unmerged branch owning mirrored file, bars live-provider credentials (no `.env` loaded, no provider client built) and asks for small outputs.
 
-Quota runway: when the `QUOTA:` line names `successor none`, its 5h `wall in ~<m>m` is the time seats have, and seats (these, or phase 4's review) that would outlast it are never skipped and never dispatched: commit, push and close `blocked --wall`, resuming after the lift.
+Quota runway, read before stamping seats here and at phase 4: with `successor none` on the `QUOTA:` line, minutes until its 5h `<n>%` reaches 90 at its `<r>%/m` (urgent-90 lane parks builders there; merge owner or P0 owner it lets through reads `wall in ~<m>m`; `reset in` forecast ends it at reset), missing reading from `claude_rotate.py --status`; seats are sized to finish inside it, never skipped; pair that cannot goes out after lane's park and resume (`CLAUDE.md` § Pointers).
 
 Wait for both in-turn: with stamped seats out, Stop hook's run-record block stands down and will not hold you.
 
