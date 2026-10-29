@@ -187,6 +187,18 @@ def test_digest_shows_three_rows_under_the_total(monkeypatch, capsys, mailbox):
     assert _prompt(monkeypatch, capsys).startswith("## 📬 fabrik-mail — 7 unread in testrepo")
 
 
+def test_a_dot_named_file_is_neither_a_row_nor_in_more(tmp_path):
+    """W-f3039837: pathlib's glob("*.md") matches dot-names, which `mail.py list` and the header
+    total skip, so a parseable editor swap (sorting first) rendered as the top row."""
+    inbox = tmp_path / "inbox"
+    for i in range(4):
+        _write_msg(inbox, f"01MSG{i:02d}", body=f"subject {i}")
+    _write_msg(inbox, ".01SWAP", body="a dot-name")
+    lines = hook._summaries(inbox)
+    assert not any("a dot-name" in ln for ln in lines)
+    assert lines[-1].startswith("+1 more")  # 4 messages, 3 rows: the dot-name is not counted
+
+
 def test_the_conftest_pins_both_prompt_digest_stores_outside_home():
     home_state = str(Path.home() / ".claude" / "state")
     for var in ("MAIL_NOTIFY_STATE_DIR", "THREAD_ANCHOR_DIR"):
