@@ -306,6 +306,8 @@ globalThis.agent = (prompt, opts) => {{
   if (results[opts.label] === 'SYNC_THROW') throw new Error('seat ' + opts.label + ' threw at the call');
   return (async () => {{
     if (results[opts.label] === 'THROW') throw new Error('seat ' + opts.label + ' rejected');
+    // "THROW_UNREADABLE" rejects with a value whose `message` getter itself throws (review pass 3, A-H12)
+    if (results[opts.label] === 'THROW_UNREADABLE') throw {{ get message() {{ throw new Error('boom'); }} }};
     return Object.hasOwn(results, opts.label) ? results[opts.label] : null;
   }})();
 }};
@@ -2355,14 +2357,18 @@ def test_a_finder_that_throws_at_the_call_is_retried_and_keeps_its_text() -> Non
 
 
 def test_the_kept_error_is_the_first_non_blank_line_of_any_rejection() -> None:
-    """Review pass 1, A-S3 A-H2: a message that opens with a newline lost its cause (`split('\\n')[0]` is empty), and
-    a plain-object rejection read `[object Object]`. The first non-blank line is kept, and an object as JSON."""
+    """Review passes 1 and 3, A-S3 A-H2 A-H10 A-H11 A-H12: a message that opens with a newline lost its cause
+    (`split('\\n')[0]` is empty), a plain-object rejection read `[object Object]`, an Error with an empty message lost
+    its name, a cycle still read `[object Object]`, and a throwing `message` getter made the helper itself throw. The
+    first non-blank line is kept, an object as JSON, an empty Error by its name, and nothing ever throws."""
     src = _script()
     start = src.index("function firstLine(e)")
     body = src[start : src.index("\n}\n", start) + 2]
     calls = (
         "[firstLine(new Error('\\n  cause here\\nstack')), firstLine({code: 1}), firstLine(undefined),"
-        " firstLine('x'.repeat(400)).length, firstLine(new Error('one\\ntwo'))]"
+        " firstLine('x'.repeat(400)).length, firstLine(new Error('one\\ntwo')), firstLine(new TypeError()),"
+        " firstLine((() => { const c = {}; c.self = c; return c })()),"
+        " firstLine({ get message() { throw new Error('boom') } })]"
     )
     probe = body + f"\nconsole.log(JSON.stringify({calls}))"
     proc = subprocess.run(
@@ -2374,7 +2380,15 @@ def test_the_kept_error_is_the_first_non_blank_line_of_any_rejection() -> None:
         check=False,
     )
     assert proc.returncode == 0, proc.stderr
-    assert json.loads(proc.stdout) == ["cause here", '{"code":1}', "", 300, "one"], proc.stdout
+    unreadable = "an error whose text could not be read"
+    expected = ["cause here", '{"code":1}', "", 300, "one", "TypeError", unreadable, unreadable]
+    assert json.loads(proc.stdout) == expected, proc.stdout
+    # end to end: a seat rejecting with an unreadable value stays a failed seat; its slice is never dropped
+    out, _, _ = _harness(
+        _ARGS,
+        {"find:S:sonnet": _FULL_READ, "find:S:haiku": "THROW_UNREADABLE", "find:S:haiku:retry": "THROW_UNREADABLE"},
+    )
+    assert out["dropped_slices"] == 0 and _seat(out, "haiku")["notes"].endswith(unreadable), out
 
 
 def test_every_finder_null_fails_the_launch() -> None:

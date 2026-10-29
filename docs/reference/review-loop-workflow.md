@@ -77,9 +77,9 @@ time is the tell: that run never ends, so relaunch the slices whose seats return
 candidates yourself and build the next pass's ledger by hand (`{id, file, line, claim}` rows). A run file that does not parse, or one with any other status, also exits 5: read again. An ended
 run prints `workflow: <status> · closable|NOT closable` and a `SLICE DROPPED`, `REFUTER FAILED <slice> —
 <reason>` or `SEAT FAILED <slice>:<model>` line for each failure the workflow recorded; an ended run whose file
-holds no `result` (a killed run, or one whose script threw) prints `workflow: <status> — no result`, followed by
-` — <the first non-blank line of the run file's error, at most 300 characters>` when it carries one (W-b36e2a4a),
-and its seats without one stay `NO RESULT`. A run dir outside `<session>/subagents/workflows/` reads `workflow: NOT CHECKED`, and there a seat still
+holds no `result` (a killed run, or one whose script threw) prints `workflow: <status> — no result: every seat
+without one is NO RESULT`, followed by ` — <the first non-blank line of the run file's error, at most 300
+characters>` when it carries one (W-b36e2a4a), and its seats without one stay `NO RESULT`. A run dir outside `<session>/subagents/workflows/` reads `workflow: NOT CHECKED`, and there a seat still
 out prints `NO RESULT` at rc 0 as before. PIN MOVED (3) and SEAT ARCHIVE (4) outrank the 5,
 and `next` refuses a pass file read while the workflow had not ended. Re-run the command of every `confirmed` verdict on the pinned copy before writing a fix; treat `unverified`
 and every `gaps` entry as open; fix; record the round (`command_run.py round --slices …`) and name its stop and fix

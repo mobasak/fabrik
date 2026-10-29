@@ -16,7 +16,8 @@ file, not its scrollback. So:
         ran 59 minutes against a 12-minute box on 2026-09-23). A seat with no result row is `NO RESULT` — or
         `RUNNING` while the workflow's run file is absent (`workflow_state`: the read then exits 5), and an ended
         run's own failures print as SLICE DROPPED / REFUTER FAILED / SEAT FAILED, and an ended run with no result
-        prints the first line of the run file's `error` (a review loop whose every finder came back null throws,
+        prints the first non-blank line of the run file's `error`, at most 300 characters (a review loop whose
+        every finder came back null throws,
         W-b36e2a4a). Each seat also keeps its
         `notes` (every result's non-blank string note: its coverage statement and MACHINERY block) and its
         `files_read` (every result's non-blank string entries, trimmed and deduplicated), so a lead resuming from

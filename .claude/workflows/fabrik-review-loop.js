@@ -483,24 +483,27 @@ async function refuteSlice(r0) {
 // same model and agent, after the first ends — the refuter retry's shape, so it never exceeds the dispatch stamp —
 // under its own label and scratch dir, so a dead seat's half-built arch/ never poisons it. A second null is the
 // failed seat it always was. One helper holds the call, so every finder names its model and effort.
-// feedback row 1790707386: a call resolves to `{ r, error }` — a REJECTION's first line is kept as `error`, which
-// `.catch(() => null)` threw away, and the leading `Promise.resolve().then` catches a throw while the prompt is
-// built too. A seat that died on a terminal API error (a disabled subscription) resolves null with NO text — the
-// runtime keeps the cause in the seat transcript only — so `error` stays '' there.
-// the first NON-BLANK line, so a message opening with a newline keeps its cause; a plain-object rejection is
-// shown as JSON, never `[object Object]` (review pass 1, A-S3 A-H2)
+// A rejection's text, as one line: the first NON-BLANK line of its message (a message opening with a newline keeps
+// its cause), an object as JSON, an Error with an empty message by its name — and it NEVER throws, so findCall
+// never rejects (a throwing `message` getter, a cycle or a BigInt reads as unreadable, never `[object Object]`).
+// Review passes 1 and 3: A-S3 A-H2 A-H10 A-H11 A-H12.
 function firstLine(e) {
-  let raw = e && typeof e === 'object' && 'message' in e ? e.message : e
-  if (raw && typeof raw === 'object') {
-    try {
-      raw = JSON.stringify(raw)
-    } catch {
-      raw = Object.prototype.toString.call(raw)
-    }
+  let text
+  try {
+    const raw = e && typeof e === 'object' && 'message' in e ? e.message : e
+    text = raw && typeof raw === 'object' ? JSON.stringify(raw) : String(raw ?? '')
+    if (!text.trim() && e && typeof e === 'object') text = String(e)
+  } catch {
+    text = 'an error whose text could not be read'
   }
-  const line = String(raw ?? '').split('\n').map((l) => l.trim()).find(Boolean) || ''
+  const line = String(text ?? '').split('\n').map((l) => l.trim()).find(Boolean) || ''
   return line.slice(0, 300)
 }
+// feedback row 1790707386: a call resolves to `{ r, error }` — a REJECTION's text is kept as `error`, which
+// `.catch(() => null)` threw away, and the leading `Promise.resolve().then` also catches the agent call throwing
+// before it returns a promise (a spent budget, an unsatisfiable schema). A seat that died on a terminal API error (a disabled
+// subscription) resolves null with NO text — the runtime keeps the cause in the seat transcript only — so
+// `error` stays '' there.
 function findCall(s, m, retry) {
   return Promise.resolve()
     .then(() =>
