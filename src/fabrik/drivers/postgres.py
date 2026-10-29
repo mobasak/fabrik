@@ -1033,6 +1033,30 @@ def _payments_ingest_policy_block(table: str, role: str, *, write: bool) -> str:
     )
 
 
+def _payments_ingest_signature_guard(role: str) -> str:
+    """RAISE when ``payments_grant_ingest`` exists, but not with the signature the hub calls.
+
+    The legacy block reads an absent exact signature as a pre-migration install, so a changed
+    signature (an added parameter, a DEFAULT included) would run its DROP+CREATE and re-widen
+    the role (W-d8505af5). Same name-then-signature pair as the fulfilment lane (spec item 3.2);
+    placed before the legacy blocks, so ``ON_ERROR_STOP`` stops the batch ahead of every lane
+    grant. ``role`` is ``_validate_identifier``-gated; names are constants.
+    """
+    return (
+        "DO $$ BEGIN\n"  # nosec B608 — role is _validate_identifier-gated; function name is a constant
+        "  IF EXISTS (SELECT 1 FROM pg_catalog.pg_proc p\n"
+        "               JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace\n"
+        "              WHERE p.proname = 'payments_grant_ingest'\n"
+        "                AND n.nspname = ANY (pg_catalog.current_schemas(false)))\n"
+        f"     AND to_regprocedure('{_PAYMENTS_GRANT_INGEST_FN}') IS NULL THEN\n"
+        f"    RAISE EXCEPTION 'payments_grant_ingest for {role}: a function of that name "
+        f"exists, but not as {_PAYMENTS_GRANT_INGEST_FN}, the signature the hub calls; "
+        "fabrik-lib changed it, so the hub constant must follow';\n"
+        "  END IF;\n"
+        "END $$;"
+    )
+
+
 def _payments_grant_ingest_block(role: str) -> str:
     """Delegate to fabrik-lib's ``payments_grant_ingest`` when the install carries it.
 
@@ -1257,6 +1281,7 @@ def grant_payments_role(
         f'GRANT USAGE ON SCHEMA public TO "{role}";',
     ]
     if lane == "ingest":
+        parts.append(_payments_ingest_signature_guard(role))
         for t in _PAYMENTS_INGEST_READ_TABLES:
             parts.append(_payments_ingest_policy_block(t, role, write=False))
         parts.append(_payments_ingest_policy_block(_PAYMENTS_INGEST_WRITE_TABLE, role, write=True))

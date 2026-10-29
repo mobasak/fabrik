@@ -157,8 +157,31 @@ def test_a_changed_function_signature_fails_the_step_without_the_legacy_grant() 
         with pytest.raises(RuntimeError, match="the signature the hub calls"):
             _apply(s)
         assert _policy_roles(s, "customers") == "other_reader"
+        assert not _can(
+            s,
+            "EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'payments_ingest_ins' "
+            "AND polrelid = 'webhook_events'::regclass)",
+        )
         assert not _can(s, f"has_table_privilege('{ROLE}', 'customers', 'SELECT')")
         assert not _can(s, f"has_table_privilege('{ROLE}', 'webhook_events', 'INSERT')")
+
+
+def test_an_ambiguous_overload_fails_the_step_without_the_legacy_grant() -> None:
+    """The exact function plus an overload with a DEFAULT: the exact signature resolves, so the
+    guard is silent and the legacy blocks skip, but the one-argument call is ambiguous (42725) —
+    the step fails closed, never re-widened."""
+    schema = _schema()
+    with scratch_pg() as s:
+        _database(s, schema)
+        _in_db(
+            s,
+            "CREATE FUNCTION payments_grant_ingest(r pg_catalog.regrole, extra text DEFAULT '') "
+            "RETURNS void LANGUAGE sql AS $$ SELECT $$;",
+        )
+        with pytest.raises(RuntimeError, match="is not unique"):
+            _apply(s)
+        assert _policy_roles(s, "customers") == "other_reader"
+        assert not _can(s, f"has_table_privilege('{ROLE}', 'customers', 'SELECT')")
 
 
 def test_upgrade_from_a_legacy_grant_narrows_the_role() -> None:

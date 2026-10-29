@@ -156,6 +156,9 @@ def test_legacy_block_stands_down_when_the_module_grant_function_exists() -> Non
     legacy = [b for b in grant_sql.split("DO $$") if "DROP POLICY" in b]
     assert len(legacy) == 3 and all(f"{fn} IS NULL" in b for b in legacy)
     assert f"{fn} IS NOT NULL" in grant_sql
+    # W-d8505af5: a function of that name with another signature RAISES before any legacy block
+    guard = grant_sql.index("exists, but not as payments_grant_ingest(pg_catalog.regrole)")
+    assert guard < grant_sql.index("DROP POLICY")
     assert (
         "PERFORM payments_grant_ingest('\"ti_payments_ingest\"'::pg_catalog.regrole)" in grant_sql
     )
