@@ -46,12 +46,11 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-HUB = (
-    Path(__file__).resolve().parents[2]
-)  # the checkout this runs from — its scripts/ are the tools
-AGENTS_LOCK = (
-    "fabrik-agents.lock"  # whoami_agent.py::AGENTS_LOCK — the file its --spawned proof checks
-)
+# the checkout this runs from — its scripts/ are the tools
+HUB = Path(__file__).resolve().parents[2]
+WHOAMI = HUB / "scripts" / "whoami_agent.py"
+# whoami_agent.py::AGENTS_LOCK — the file its --spawned proof checks
+AGENTS_LOCK = "fabrik-agents.lock"
 NAME_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,31}")  # agents_up.sh NAME_RE
 ITEM_RE = re.compile(r"W-[0-9a-f]{8}")  # agents_up.sh ITEM_RE
 CHARTER_MARKER = "# Agent charter"  # .claude/hooks/agent_role.py::_CHARTER_MARKER
@@ -63,9 +62,9 @@ REMOTE_TIMEOUT_S = 20
 
 
 class RefusedError(Exception):
-    """A refusal: exit 2, the reason named, one line in the spawn record."""
+    """A refusal: exit 2, the reason named, one line in the spawn record. `step=None` is the step `add` was running."""
 
-    def __init__(self, reason: str, step: int = 1) -> None:
+    def __init__(self, reason: str, step: int | None = 1) -> None:
         super().__init__(reason)
         self.reason = reason
         self.step = step
@@ -143,22 +142,60 @@ def record_refusal(repo: str, name: str, step: int, reason: str) -> None:
         )
 
 
+def _crashed(exc: BaseException) -> RefusedError:
+    return RefusedError(f"whoami crashed: {type(exc).__name__}: {exc}", None)
+
+
 def _whoami():
-    """whoami_agent.py from THIS checkout — its store reader and liveness test, never a second copy."""
-    spec = importlib.util.spec_from_file_location(
-        "whoami_agent_for_spawn", HUB / "scripts" / "whoami_agent.py"
-    )
-    if spec is None or spec.loader is None:
-        raise RefusedError(f"cannot load {HUB / 'scripts' / 'whoami_agent.py'}")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
+    """whoami_agent.py from THIS checkout — its store reader and liveness test, never a second copy. A load that
+    fails is a refusal at the running step ("whoami crashed: …"), never a traceback."""
+    try:
+        spec = importlib.util.spec_from_file_location("whoami_agent_for_spawn", WHOAMI)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"cannot load {WHOAMI}")
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = mod
+        spec.loader.exec_module(mod)
+    except Exception as exc:  # noqa: BLE001 — any failure of the helper is reported, never raised through
+        raise _crashed(exc) from None
     return mod
+
+
+def _store_rows() -> list[dict]:
+    """The identity store's rows, read by whoami_agent.py's own reader."""
+    whoami = _whoami()
+    try:
+        return whoami._rows(whoami.store_path())
+    except Exception as exc:  # noqa: BLE001
+        raise _crashed(exc) from None
+
+
+def _alive(row: dict) -> bool:
+    """whoami_agent.py's liveness test: a pid that is alive AND the process the row was written for."""
+    whoami = _whoami()
+    try:
+        return bool(whoami._pid_alive_same_start(row))
+    except Exception as exc:  # noqa: BLE001
+        raise _crashed(exc) from None
 
 
 # ---- measurements -------------------------------------------------------------------------------------------------
 
 
-def _cgroup_dir() -> Path:
+def _user_env() -> dict[str, str]:
+    """A COPY of the environment for a systemctl call, with the XDG_RUNTIME_DIR a .bat launch lacks (as capped_run.sh
+    sets it). Never os.environ itself: that is the caller's, passed unchanged to `work.py assign`."""
+    env = dict(os.environ)
+    if not env.get("XDG_RUNTIME_DIR"):
+        bus = f"/run/user/{os.getuid()}"
+        if os.path.exists(f"{bus}/bus"):
+            env["XDG_RUNTIME_DIR"] = bus
+    return env
+
+
+def _cgroup_dir() -> Path | None:
+    """The slice's cgroup directory; None when the user manager reports NO cgroup for it (an inactive slice: no grid
+    has started since boot, and agents_up.sh asserts the ceiling only at a grid start)."""
     seam = os.environ.get("FABRIK_AGENTS_CGROUP_DIR")
     if seam:
         return Path(seam)
@@ -168,8 +205,11 @@ def _cgroup_dir() -> Path:
         text=True,
         timeout=10,
         check=False,
+        env=_user_env(),
     )
     cg = out.stdout.strip()
+    if out.returncode == 0 and not cg:
+        return None
     if out.returncode != 0 or not cg.startswith("/"):
         raise RefusedError(
             f"no measurable memory limit on {SLICE} (its cgroup is not known to the user manager)"
@@ -177,13 +217,29 @@ def _cgroup_dir() -> Path:
     return Path("/sys/fs/cgroup" + cg)
 
 
-def headroom_bytes() -> int:
-    """The slice's headroom: limit − (memory.current − memory.stat inactive_file), so reclaimable page cache does not
-    refuse falsely. limit = memory.high, or memory.max when memory.high reads `max` (FABRIK_AGENT_SLICE_MAX sets
-    MemoryHigh to infinity); both `max`, or any value unreadable, raises RefusedError."""
+def box_available_bytes() -> int:
+    """The box's MemAvailable (`/proc/meminfo`, seam FABRIK_AGENTS_MEMINFO), in bytes; unreadable raises."""
+    path = Path(os.environ.get("FABRIK_AGENTS_MEMINFO") or "/proc/meminfo")
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            key, _, value = line.partition(":")
+            if key == "MemAvailable":
+                return int(value.split()[0]) * 1024
+    except (OSError, ValueError, IndexError) as exc:
+        raise RefusedError(f"the box's MemAvailable cannot be read from {path} ({exc})") from None
+    raise RefusedError(f"the box's MemAvailable cannot be read from {path} (no MemAvailable line)")
+
+
+def headroom() -> tuple[int, str]:
+    """(bytes, what was measured). An ACTIVE slice: limit − (memory.current − memory.stat inactive_file), so
+    reclaimable page cache does not refuse falsely; limit = memory.high, or memory.max when memory.high reads `max`
+    (FABRIK_AGENT_SLICE_MAX sets MemoryHigh to infinity); both `max`, or any value unreadable, raises RefusedError.
+    A slice with no cgroup yet (inactive) measures the box's MemAvailable instead — the floor always applies."""
     no_limit = f"no measurable memory limit on {SLICE}"
     try:
         cg = _cgroup_dir()
+        if cg is None:
+            return box_available_bytes(), f"the box's MemAvailable ({SLICE} is not active yet)"
         high = (cg / "memory.high").read_text(encoding="utf-8").strip()
         limit_raw = (
             high if high != "max" else (cg / "memory.max").read_text(encoding="utf-8").strip()
@@ -201,15 +257,17 @@ def headroom_bytes() -> int:
             raise RefusedError(f"{no_limit} (memory.stat has no inactive_file)")
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         raise RefusedError(f"{no_limit} ({exc})") from None
-    return limit - (current - inactive)
+    return limit - (current - inactive), SLICE
+
+
+def headroom_bytes() -> int:
+    """The headroom `headroom()` measures, in bytes (T08's re-measure)."""
+    return headroom()[0]
 
 
 def _capped() -> bool:
     """agents_up.sh's CAPPED: systemd-run on PATH and a user manager that answers."""
-    if not os.environ.get("XDG_RUNTIME_DIR"):
-        bus = f"/run/user/{os.getuid()}"
-        if os.path.exists(f"{bus}/bus"):
-            os.environ["XDG_RUNTIME_DIR"] = bus
+    env = _user_env()
     if not shutil.which("systemd-run"):
         return False
     try:
@@ -218,6 +276,7 @@ def _capped() -> bool:
             capture_output=True,
             timeout=10,
             check=False,
+            env=env,
         )
     except (OSError, subprocess.SubprocessError):
         return False
@@ -327,9 +386,21 @@ def _read_registry(root: str) -> dict | None:
     return reg
 
 
+def _main_checkout(root: str) -> str:
+    """The main checkout: the directory holding the git common dir. `add` takes only that, so a builder never nests
+    under a linked worktree or a subdirectory, and the item is assigned on the store of record.
+    The check is `root == this` (root is already realpath'd): a linked worktree's toplevel, or a subdirectory, differs."""
+    return os.path.realpath(os.path.dirname(git_common_dir(root)))
+
+
 def preflight(ctx: Spawn) -> None:
     """D2 (1): every refusal BEFORE any write, so a refused add leaves no worktree or branch."""
     name, role, root = ctx.name, ctx.role, ctx.root
+    main = _main_checkout(root)
+    if root != main:
+        raise RefusedError(
+            f"{root} is not the repo's main checkout — pass the main checkout {main}, not a linked worktree"
+        )
     if not NAME_RE.fullmatch(name):
         raise RefusedError(f"{name!r} is not an agent name ([a-z0-9][a-z0-9-]{{0,31}})")
     if not NAME_RE.fullmatch(role):
@@ -341,7 +412,8 @@ def preflight(ctx: Spawn) -> None:
         raise RefusedError(
             f"--role {role}: {charter} is missing or its first line is not '{CHARTER_MARKER}'"
         )
-    if not name.startswith(f"{role}-"):
+    suffix = name[len(role) + 1 :]
+    if not name.startswith(f"{role}-") or not suffix or not name[-1].isalnum():
         raise RefusedError(
             f"{name!r} does not start with '{role}-' (role {role}: names read {role}-1, {role}-2, …)"
         )
@@ -353,7 +425,7 @@ def preflight(ctx: Spawn) -> None:
             f"{name!r} is the repo's merge owner (its coordinator) — a coordinator gets no builder pane"
         )
     who = subprocess.run(
-        [sys.executable, str(HUB / "scripts" / "whoami_agent.py"), "--who"],
+        [sys.executable, str(WHOAMI), "--who"],
         capture_output=True,
         text=True,
         timeout=30,
@@ -364,13 +436,8 @@ def preflight(ctx: Spawn) -> None:
         raise RefusedError("add needs a bound coordinator — run whoami_agent.py --as <name>")
     if ctx.coordinator == name:
         raise RefusedError(f"{name!r} is the caller's own name")
-    whoami = _whoami()
-    for row in whoami._rows(whoami.store_path()):
-        if (
-            row.get("name") == name
-            and row.get("toplevel") == ctx.scope
-            and whoami._pid_alive_same_start(row)
-        ):
+    for row in _store_rows():
+        if row.get("name") == name and row.get("toplevel") == ctx.scope and _alive(row):
             raise RefusedError(
                 f"{name!r} is bound to a LIVE session (pid {row.get('pid')}) in this repo — pick another name"
             )
@@ -381,21 +448,25 @@ def preflight(ctx: Spawn) -> None:
     _read_registry(root)
     ctx.base = resolve_base(root)
     if _capped():
-        room = headroom_bytes()
-        if room < HEADROOM_FLOOR:
-            raise RefusedError(
-                f"{SLICE} has {room / 1024**3:.1f} GB headroom, under the 2 GB floor — retire a builder first"
-            )
+        room, what = headroom()
     elif os.environ.get("FABRIK_AGENTS_UNCAPPED") == "1":
         print(
-            "agents_spawn: FABRIK_AGENTS_UNCAPPED=1 — the builder runs UNCAPPED (no user manager); "
-            "the headroom floor is not measured",
+            "agents_spawn: FABRIK_AGENTS_UNCAPPED=1 — the builder runs UNCAPPED (no user manager)",
             file=sys.stderr,
         )
+        room, what = box_available_bytes(), "the box's MemAvailable (no slice: uncapped)"
     else:
         raise RefusedError(
             "no systemd-run on PATH, or no systemd user manager answers — the builder would run uncapped; "
             "set FABRIK_AGENTS_UNCAPPED=1 to start it anyway"
+        )
+    if what != SLICE:
+        print(
+            f"agents_spawn: headroom measured on {what}: {room / 1024**3:.1f} GB", file=sys.stderr
+        )
+    if room < HEADROOM_FLOOR:
+        raise RefusedError(
+            f"{what} has {room / 1024**3:.1f} GB headroom, under the 2 GB floor — retire a builder first"
         )
 
 
@@ -454,20 +525,20 @@ def cold_start(ctx: Spawn) -> None:
 
 
 def _bound_sid(ctx: Spawn) -> str:
-    """The session id the identity store binds to the name in this scope (the LAST such row whose session the name
-    still owns — agents_up.sh's `binding`), or ""."""
-    whoami = _whoami()
-    rows = whoami._rows(whoami.store_path())
+    """The session id an EARLIER `add` bound to the name and nobody has started yet, or "". Reused only when the
+    LAST row naming the name in this scope is that `--spawned` row (`spawned: true`, no live pid) AND the session is
+    still the name's (its own last row anywhere). Anything else — an `--as` row, a dead pid row, a spawned session its
+    builder has since re-bound — mints a fresh id: resuming a started session would resume a dead transcript."""
+    rows = _store_rows()
     owner = {str(r.get("session_id")): str(r.get("name") or "") for r in rows}
-    sid = ""
+    last = None
     for r in rows:
-        if (
-            r.get("toplevel") == ctx.scope
-            and r.get("name") == ctx.name
-            and owner.get(str(r.get("session_id"))) == ctx.name
-        ):
-            sid = str(r.get("session_id"))
-    return sid
+        if r.get("toplevel") == ctx.scope and r.get("name") == ctx.name:
+            last = r
+    if last is None or last.get("spawned") is not True or _alive(last):
+        return ""
+    sid = str(last.get("session_id"))
+    return sid if owner.get(sid) == ctx.name else ""
 
 
 def _write_registry_row(ctx: Spawn) -> None:
@@ -475,12 +546,19 @@ def _write_registry_row(ctx: Spawn) -> None:
     # a repo with no registry gets NO file: the resolver would then read only registry names (agents_up.sh)
     if reg is None:
         return
-    if ctx.name in reg.values():
+    if reg.get(ctx.sid) == ctx.name and list(reg.values()).count(ctx.name) == 1:
         return
+    # exactly one row for the name, the bound session's: a stale `{old: name}` row would resume a dead session
+    reg = {sid: n for sid, n in reg.items() if n != ctx.name}
     reg[ctx.sid] = ctx.name
     path = _registry_path(ctx.root)
+    try:
+        mode = os.stat(path).st_mode & 0o7777
+    except OSError:
+        mode = 0o644
     fd, tmp = tempfile.mkstemp(prefix=".session-agents.", suffix=".tmp", dir=os.path.dirname(path))
     try:
+        os.fchmod(fd, mode)  # mkstemp makes 0600; the replaced file keeps the registry's own mode
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(reg, fh, indent=2)
             fh.write("\n")
@@ -501,7 +579,7 @@ def bind(ctx: Spawn, lock_fd: int) -> None:
         out = subprocess.run(
             [
                 sys.executable,
-                str(HUB / "scripts" / "whoami_agent.py"),
+                str(WHOAMI),
                 "--spawned",
                 ctx.name,
                 "--session-id",
@@ -618,13 +696,14 @@ def add(argv: list[str]) -> int:
             place_and_launch(ctx)
         step = 7
         regenerate_launchers(ctx)  # unlocked: the desktop lock alone (panel PF3)
-    except (RefusedError, OSError, subprocess.SubprocessError) as raised:
-        # a tool that hung or could not run is a refusal at the step it stopped, never a traceback
+    except Exception as raised:  # noqa: BLE001 — every failure is a recorded refusal at its step, never a traceback
         exc = (
             raised
             if isinstance(raised, RefusedError)
             else RefusedError(f"{type(raised).__name__}: {raised}", step)
         )
+        if exc.step is None:
+            exc.step = step
         record_refusal(root, ctx.name, exc.step, exc.reason)
         print(f"agents_spawn: {exc.reason}", file=sys.stderr)
         print(

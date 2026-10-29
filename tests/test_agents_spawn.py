@@ -46,6 +46,7 @@ facts = {
     "args": args,
     "worktree": os.path.isfile(os.path.join(".claude", "worktrees", args[3], ".git")),
     "bound": args[3] in Path(os.environ["AGENT_IDENTITY_FILE"]).read_text(encoding="utf-8"),
+    "xdg": os.environ.get("XDG_RUNTIME_DIR"),
 }
 with open(home / "work.log", "a", encoding="utf-8") as fh:
     fh.write(json.dumps(facts) + "\\n")
@@ -142,7 +143,17 @@ class Box:
         self.scope = _git(self.repo, "rev-parse", "--path-format=absolute", "--git-common-dir")
         self.cg = self.home / "cgroup"
         self.cgroup(high=str(31 * GIB), mx="max", current=20 * GIB, inactive=8 * GIB)
+        self.meminfo_path = self.home / "meminfo"
+        self.meminfo(16)
         self.trust(self.repo)
+
+    def meminfo(self, avail_gib: float) -> None:
+        """The box's /proc/meminfo behind the FABRIK_AGENTS_MEMINFO seam (MemAvailable in kB)."""
+        kb = int(avail_gib * 1024 * 1024)
+        self.meminfo_path.write_text(
+            f"MemTotal:       {64 * 1024 * 1024} kB\nMemFree:  1 kB\nMemAvailable:   {kb} kB\n",
+            encoding="utf-8",
+        )
 
     def trust(self, root: Path, accepted: bool = True) -> None:
         cfg = self.home / ".claude-fleet" / "active" / ".claude.json"
@@ -171,6 +182,7 @@ class Box:
             "HOME": str(self.home),
             "AGENT_IDENTITY_FILE": str(self.store),
             "FABRIK_AGENTS_CGROUP_DIR": str(self.cg),
+            "FABRIK_AGENTS_MEMINFO": str(self.meminfo_path),
             "CLAUDE_AGENT": "coordinator",
         }
         env.update(extra)
@@ -405,6 +417,10 @@ def _live_row(box: Box, name: str) -> None:
         ("no binding", "builder-1", (), "unbound", "add needs a bound coordinator"),
         ("unmarked role", "reviewer-1", ("--role", "reviewer"), "unmarked", "reviewer.md"),
         ("prefix", "x-1", (), None, "builder-"),
+        ("trailing hyphen", "builder-", (), None, "builder-"),
+        ("double hyphen", "builder--", (), None, "builder-"),
+        ("uncapped low box", "builder-1", (), "uncapped-low", "under the 2 GB floor"),
+        ("cold slice low box", "builder-1", (), "cold-low", "under the 2 GB floor"),
     ],
 )
 def test_preflight_refuses_with_no_trace_and_one_record(
@@ -426,6 +442,15 @@ def test_preflight_refuses_with_no_trace_and_one_record(
         (box.home / "manager-down").write_text("", encoding="utf-8")
     elif setup == "tight":
         box.cgroup(high=str(31 * GIB), mx="max", current=30 * GIB, inactive=0)
+    elif setup == "uncapped-low":
+        (box.home / "manager-down").write_text("", encoding="utf-8")
+        box.meminfo(1.5)
+        env = box.env(FABRIK_AGENTS_UNCAPPED="1")
+    elif (
+        setup == "cold-low"
+    ):  # capped, but the slice has no cgroup yet (no grid since boot): the box is measured
+        box.meminfo(1.5)
+        env = box.env(FABRIK_AGENTS_CGROUP_DIR=None)
     elif setup == "unbound":
         env = box.env(CLAUDE_AGENT=None)
     elif setup == "unmarked":
@@ -473,6 +498,7 @@ def test_a_symlinked_or_trailing_slash_root_names_the_same_trusted_repo(
         ("builder-1", ()),
         ("builder-12", ()),
         ("builder-a1", ()),
+        ("builder-a2", ()),
         ("reviewer-1", ("--role", "reviewer")),
     ],
 )
@@ -486,12 +512,25 @@ def test_legitimate_names_and_roles_pass(tmp_path: Path, name: str, args: tuple)
     assert (box.wt(name) / ".git").is_file() and not box.refusals()
 
 
-def test_the_uncapped_override_passes(tmp_path: Path) -> None:
+def test_the_uncapped_override_passes_on_the_box_floor(tmp_path: Path) -> None:
+    """F5: the override still measures — the box's MemAvailable, not the slice — and says so."""
     box = Box(tmp_path)
     (box.home / "manager-down").write_text("", encoding="utf-8")
+    box.cgroup(high=str(3 * GIB), mx="max", current=3 * GIB, inactive=0)  # a slice that is not read
     out = _spawn(box, str(box.repo), "builder-1", env=box.env(FABRIK_AGENTS_UNCAPPED="1"))
     assert out.returncode == 0, out.stderr
-    assert "UNCAPPED" in out.stderr
+    assert "UNCAPPED" in out.stderr and "MemAvailable" in out.stderr, out.stderr
+
+
+def test_a_cold_slice_is_measured_on_the_box(tmp_path: Path) -> None:
+    """F4: capped, but the slice's ControlGroup reads empty (no grid since boot) → the box's MemAvailable decides."""
+    box = Box(tmp_path)
+    out = _spawn(box, str(box.repo), "builder-1", env=box.env(FABRIK_AGENTS_CGROUP_DIR=None))
+    assert out.returncode == 0, out.stderr
+    assert "MemAvailable" in out.stderr, out.stderr
+    assert "show -p ControlGroup --value fabrik-agents.slice" in (
+        box.home / "systemctl.log"
+    ).read_text(encoding="utf-8")
 
 
 # ---- row 4: headroom ---------------------------------------------------------------------------------------------
@@ -635,3 +674,135 @@ def test_assign_refused_stops_at_step_five_and_a_rerun_completes(tmp_path: Path)
     assert list(reg.values()) == ["builder-1"], reg
     listed = _git(box.repo, "worktree", "list", "--porcelain")
     assert listed.count(f"worktree {box.wt('builder-1')}") == 1, listed
+
+
+# ---- review pass 1 (F1-F9) ---------------------------------------------------------------------------------------
+
+OLD = "11111111-2222-4333-8444-555555555555"
+
+
+def _row(box: Box, sid: str, name: str, **kw) -> None:
+    row = {"session_id": sid, "name": name, "pid": None, "pid_start": None, "toplevel": box.scope}
+    row.update({"at": int(time.time()), **kw})
+    with box.store.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(row) + "\n")
+
+
+@pytest.mark.parametrize("shape", ["dead-pid", "as-no-pid", "spawned-then-rebound"])
+def test_a_binding_that_is_not_an_unstarted_spawn_is_never_reused(
+    tmp_path: Path, shape: str
+) -> None:
+    """F1: step 4 reuses ONLY an earlier add's `spawned: true` row with no live pid; a dead `--as` row (or a spawned
+    session its builder has since re-bound) gets a FRESH id, and the registry names that fresh id alone."""
+    box = Box(tmp_path, registry={})
+    if shape == "dead-pid":
+        _row(box, OLD, "builder-1", pid=999999, pid_start=1)
+    elif shape == "as-no-pid":
+        _row(box, OLD, "builder-1")
+    else:
+        _row(box, OLD, "builder-1", spawned=True)
+        _row(box, OLD, "builder-1", pid=999999, pid_start=1)  # the builder's own first-turn re-bind
+    out = _spawn(box, str(box.repo), "builder-1")
+    assert out.returncode == 0, out.stderr
+    fresh = [r for r in box.rows() if r["session_id"] != OLD]
+    assert len(fresh) == 1 and fresh[0]["spawned"] is True, box.rows()
+    reg = json.loads((box.repo / ".fabrik" / "session-agents.json").read_text(encoding="utf-8"))
+    assert reg == {fresh[0]["session_id"]: "builder-1"}, reg
+
+
+def test_an_unstarted_spawned_binding_is_reused(tmp_path: Path) -> None:
+    """F1 mirror: a re-run after a later step failed keeps the spawned id from step 4 — no second binding."""
+    box = Box(tmp_path, registry={})
+    _row(box, OLD, "builder-1", spawned=True)
+    out = _spawn(box, str(box.repo), "builder-1")
+    assert out.returncode == 0, out.stderr
+    assert [r["session_id"] for r in box.rows()] == [OLD], box.rows()
+    reg = json.loads((box.repo / ".fabrik" / "session-agents.json").read_text(encoding="utf-8"))
+    assert reg == {OLD: "builder-1"}, reg
+
+
+def test_the_registry_ends_with_exactly_one_row_for_the_name(tmp_path: Path) -> None:
+    """F2: a stale `{old: builder-1}` row is replaced by `{sid: builder-1}`; other names' rows stay."""
+    other = "22222222-3333-4444-8555-666666666666"
+    box = Box(tmp_path, registry={OLD: "builder-1", other: "builder-2"})
+    out = _spawn(box, str(box.repo), "builder-1")
+    assert out.returncode == 0, out.stderr
+    sid = [r["session_id"] for r in box.rows() if r["name"] == "builder-1"][-1]
+    reg = json.loads((box.repo / ".fabrik" / "session-agents.json").read_text(encoding="utf-8"))
+    assert reg == {other: "builder-2", sid: "builder-1"}, reg
+
+
+def test_a_linked_worktree_root_refuses_naming_the_main_checkout(tmp_path: Path) -> None:
+    """F3: the root must be the main checkout; a linked worktree path refuses before any write."""
+    box = Box(tmp_path, registry=None)
+    wt2 = tmp_path / "wt2"
+    _git(box.repo, "worktree", "add", "-q", "-b", "side", str(wt2))
+    wt2 = wt2.resolve()
+    box.trust(wt2)
+    out = _spawn(box, str(wt2), "builder-1")
+    assert out.returncode == 2, out.stderr
+    assert f"pass the main checkout {box.repo}, not a linked worktree" in out.stderr, out.stderr
+    assert not (wt2 / ".claude" / "worktrees" / "builder-1").exists()
+    assert not box.rows() and len(box.refusals()) == 1, box.refusals()
+
+
+def test_a_whoami_crash_is_a_recorded_refusal(tmp_path: Path, monkeypatch) -> None:
+    """F7: an exception inside whoami_agent.py's helpers exits 2 with one record and the step line, never a trace."""
+    box = Box(tmp_path)
+    for k, v in box.env().items():
+        monkeypatch.setenv(k, v)
+    broken = tmp_path / "whoami_agent.py"
+    text = (ROOT / "scripts" / "whoami_agent.py").read_text(encoding="utf-8")
+    broken.write_text(
+        text + "\n\ndef _rows(path):\n    raise RuntimeError('boom')\n", encoding="utf-8"
+    )
+    mod = _load()
+    monkeypatch.setattr(mod, "WHOAMI", broken)
+    assert mod.main(["add", str(box.repo), "builder-1"]) == 2
+    recs = box.refusals()
+    assert len(recs) == 1 and recs[0]["reason"] == "whoami crashed: RuntimeError: boom", recs
+    _no_trace(box, "builder-1")
+
+
+def test_an_unexpected_exception_at_a_step_is_a_recorded_refusal(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """F7: any other exception at a step maps to a refusal at THAT step."""
+    box = Box(tmp_path)
+    for k, v in box.env().items():
+        monkeypatch.setenv(k, v)
+    mod = _load()
+
+    def boom(ctx) -> None:
+        raise KeyError("nope")
+
+    monkeypatch.setattr(mod, "assign_item", boom)
+    assert mod.main(["add", str(box.repo), "builder-1"]) == 2
+    recs = box.refusals()
+    assert len(recs) == 1 and recs[0]["step"] == 5, recs
+    assert "add stopped at step 5 (builder-1)" in capsys.readouterr().err
+
+
+def test_the_callers_environment_reaches_work_py_unchanged(tmp_path: Path) -> None:
+    """F8: add never writes os.environ — an unset XDG_RUNTIME_DIR stays unset for `work.py assign`."""
+    if not os.path.exists(f"/run/user/{os.getuid()}/bus"):
+        pytest.skip(
+            "no user bus here: _capped() would have nothing to add, so the test could not fail"
+        )
+    box = Box(tmp_path)
+    out = _spawn(box, str(box.repo), "builder-1", "--item", ITEM, env=box.env(XDG_RUNTIME_DIR=None))
+    assert out.returncode == 0, out.stderr
+    log = (box.home / "work.log").read_text(encoding="utf-8").splitlines()
+    facts = [json.loads(ln) for ln in log]
+    assert facts[0]["xdg"] is None, facts
+
+
+@pytest.mark.parametrize("mode", [0o644, 0o664])
+def test_the_registry_keeps_its_mode(tmp_path: Path, mode: int) -> None:
+    """F9: the atomic replace keeps the previous file's mode (mkstemp alone would leave 0600)."""
+    box = Box(tmp_path, registry={})
+    reg = box.repo / ".fabrik" / "session-agents.json"
+    reg.chmod(mode)
+    out = _spawn(box, str(box.repo), "builder-1")
+    assert out.returncode == 0, out.stderr
+    assert (reg.stat().st_mode & 0o777) == mode
