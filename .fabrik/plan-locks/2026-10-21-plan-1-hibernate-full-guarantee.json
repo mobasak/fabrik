@@ -51,10 +51,23 @@
     "docs/CONFIGURATION.md",
     "docs/reference/long-command-monitoring.md"
   ],
-  "branch": "worktree-infra",
+  "branch": "infra-3-hibernate",
   "started_at": "2026-10-21T17:13:43+03:00",
   "status": "active",
   "baseline_commit": "ea2fd1c63fd4f50e0b3e233afb9efecfbe06cb46",
-  "baseline_gate": {"status": "success", "red": [], "tier": "lean --check"},
-  "tickets": {}
+  "baseline_gate": {
+    "status": "success",
+    "red": [],
+    "tier": "lean --check"
+  },
+  "tickets": {
+    "T04": {
+      "state": "dispatched",
+      "worktree_path": null,
+      "branch": null,
+      "base_commit": "0b2111f7f",
+      "started_at": "2026-10-30T00:55:00+03:00"
+    }
+  },
+  "handover": "2026-10-30: infra -> infra-3 (coordinator relayed the operator's P0 order); master merged 0b2111f7f"
 }
