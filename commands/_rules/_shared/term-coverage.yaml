@@ -310,6 +310,15 @@ entries:
   text:
   - |-
     The STALL BREAKER cannot make this stop
+- id: tc-u79-exit-in-short
+  class: prose
+  file: commands/_fragments/term-coverage.md
+  section: '## ⚠️ Termination contract — coverage-adjudicated (READ FIRST — the rule agents skip)'
+  baseline: |-
+    The exit, in short: NAME and fix every confirmed defect still open in the window, route genuinely own-fix work to the chosen route (`/fabrik-spec` or the backlog row), re-verify the fixed set alone (in a slice-partitioned loop, its `round --slices` still re-states every earlier slice; an own-fix defect those rounds raise is RECORDED onto the routed work and never re-arms the stop), and close on a `confirmed: 0 · fixed: 0 · unexecuted: 0` row, as any review closes (D-355)
+  text:
+  - |-
+    The exit, in short: NAME and fix every confirmed defect still open in the window, route genuinely own-fix work to the chosen route (`/fabrik-spec` or the backlog row), re-verify the fixed set alone (in a slice-partitioned loop, its `round --slices` still re-states every earlier slice; an own-fix defect those rounds raise, a regression excepted (below), is RECORDED onto the routed work and never re-arms the stop), and close on a `confirmed: 0 · fixed: 0 · unexecuted: 0` row, as any review closes (D-355)
 vanished:
   L2: {rule: [tc-u02-loop-runs-until]}
   L5: {duplicate-of: tc-u02-loop-runs-until}
@@ -332,6 +341,7 @@ vanished:
   L66: {rule: [tc-u66-forged-evidence]}
   L68: {rule: [tc-u68-accuracy-run-s]}
   L70: {rule: [tc-u70-slice-handed-capped, tc-u70-pass-overrun-budget, tc-u68-accuracy-run-s]}
+  L79: {rule: [tc-u79-exit-in-short]}
   L80: {rule: [tc-u80-stop-scope-outstanding]}
   L81: narrative
   L82: {rule: [tc-u82-stop-suspends-new]}

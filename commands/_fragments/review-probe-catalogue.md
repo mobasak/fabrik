@@ -373,8 +373,9 @@ name UNPINNED.
   completion gate; read callee before confirming wrong-method finding; refuter that needs forbidden surface marks it
   `unverified` naming surface, and lead executes it; run files reader names, not every grep hit.
 - Remainder rounds: a remainder round names classes its fixed set re-sweeps; it never fixes a RECORDED candidate;
-  fixed-set fix that fails its re-verify is fixed again; other finding it raises is recorded onto routed backlog row,
-  except regression (one input with opposite verdicts on round 1's pin and current pin), whose hunk is reverted;
+  fixed-set defect a re-verify finds still present is fixed again; other finding it raises is recorded onto routed
+  backlog row, except regression (an input the code before the review's first fix handled correctly and the current
+  code handles wrongly, in either direction), whose hunk the lead reverts, counting the revert in `--confirmed`;
   premise-refuted verdict is re-probed under later reader's rule; slice trim left with one finder gets its second next
   wave, or, when cap is known before round 1, merge two low-risk slices so the riskiest keeps both finders.
 - Route-up and close: a fix that adds file re-applies step 1's count; critical finding on published contract routes up
