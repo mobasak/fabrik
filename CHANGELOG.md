@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — WSL proves its network to the Windows NAT watchdog with a heartbeat timer (2026-10-29)
+- `scripts/sysadmin/wsl_net_heartbeat.sh` + `wsl-net-heartbeat.{service,timer}` (every 60 s) and
+  `install_wsl_net_heartbeat_timer.sh` (W-960d68a8, D-1348). The operator's `WSL-NatWatchdog`
+  probed WSL with `wsl.exe -e curl`, and about one run in seven left an orphaned relay holding
+  hv_sock channels forever (W-97557e65), the cause of the daily `wsl.exe` hang. The timer runs the
+  same probe inside WSL and writes `wsl-net-ran` and `wsl-net-ok` on the Windows drive: both on
+  success, ran only on a network failure, neither on a local fault such as a missing curl. The
+  watchdog then reads whether each file changed. `docs/workstation/wsl-net-heartbeat.md` gives
+  the install, the hand-off order and the operator's exact ps1 edit. Not installed yet: it runs
+  from the main checkout after merge.
+
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
   `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`
