@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T20:03:43.046813Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3ef870d8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5MJVK8H6588NERHPK44WFMX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "open",
+  "title": "W-682f1189 — build the incremental AFCL / LESSONS_LEARNT reader (cursor + verdict-shaped rows into kaizen's queue)"
+}
