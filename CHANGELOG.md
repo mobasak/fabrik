@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the vps1 scoped-login script writes a keyed `.env` line at step 3d (2026-10-29)
+- `scripts/sysadmin/vps1_pg_scoped_logins.py`: `env_upsert_sh` writes `KEY=` itself and stdin carries the
+  value alone. Step 3d sent only the DSN, so `/opt/glitchtip/.env` got a line `postgresql://glitchtip:…`
+  with no key; compose read it as a key named `postgresql`, `${GLITCHTIP_DATABASE_URL}` resolved blank, and
+  the operator's 2026-10-29 run stopped at "compose config resolves 0 scoped DSN(s)" with GlitchTip still on
+  the superuser (W-c27db1f1). The upsert also keeps a line with a NUL or non-UTF-8 byte (`grep -a`) and
+  replaces `.env` only when grep exits 0 or 1. A new test drives the real `step3d_move` with each command run
+  locally on copies of the glitchtip and monitoring mirrors and a real `docker compose config`; it is red on
+  the old script with that same STOP line.
+
 ### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)
 - `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the
   box at 96 % the hook's `SCRATCH ALARM` line landed in the stdout of every `--hook` run that passes its
