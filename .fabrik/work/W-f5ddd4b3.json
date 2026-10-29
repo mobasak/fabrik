@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-29T01:11:40.535859Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-f5ddd4b3",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "measure which of the 39 are deployed specs (specs/services source paths) and whether their services join fabrik another way; then decide refuse vs warn",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "LOW: 12 live composes lack the fabrik network key, only 2 have a deploy spec and both are already refused for other invariants (D-932); LOW effort: one check plus a test",
   "status": "open",
   "tags": [
     "medium"
