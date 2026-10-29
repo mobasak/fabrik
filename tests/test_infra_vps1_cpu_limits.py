@@ -21,7 +21,10 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[1]
 INFRA_VPS1 = REPO / "infra" / "vps1"
-HOST_CPUS = 6  # vps1: count(node_cpu_seconds_total{mode="idle"}) on node-exporter:9100, 2026-10-29
+# vps1 has 6 CPUs (count(node_cpu_seconds_total{mode="idle"}) on node-exporter:9100, 2026-10-29); D-1324's
+# protection is that no single container takes more than 2 of them, so a cap above 2.0 — up to a whole-host
+# `6`, which limits nothing — is refused, not just one above the host.
+MAX_CPUS = 2.0
 
 # (file relative to infra/vps1, exact service set) -> the item that removes the exception.
 EXCEPTIONS: dict[tuple[str, frozenset[str]], str] = {
@@ -44,8 +47,35 @@ def cpu_limit_problem(value: object) -> str | None:
         number = float(value)
     else:
         return f"cpus {value!r} is not a plain decimal"
-    if not 0 < number <= HOST_CPUS:
-        return f"cpus {value!r} is outside 0 < cpus <= {HOST_CPUS}"
+    if not 0 < number <= MAX_CPUS:
+        return f"cpus {value!r} is outside 0 < cpus <= {MAX_CPUS}"
+    return None
+
+
+def _duplicate_key(node: yaml.Node, seen: set[int] | None = None) -> str | None:
+    """The first mapping key that occurs twice anywhere in the document. PyYAML keeps one silently and
+    `_child` reads the first, while compose refuses the file — so a duplicate is a file-level failure."""
+    seen = set() if seen is None else seen
+    if id(node) in seen:
+        return None
+    seen.add(id(node))
+    if isinstance(node, yaml.MappingNode):
+        keys: set[str] = set()
+        for key_node, value_node in node.value:
+            if isinstance(key_node, yaml.ScalarNode):
+                if key_node.value in keys:
+                    return (
+                        f"duplicate key {key_node.value!r} at line {key_node.start_mark.line + 1}"
+                    )
+                keys.add(key_node.value)
+            found = _duplicate_key(value_node, seen)
+            if found:
+                return found
+    elif isinstance(node, yaml.SequenceNode):
+        for item in node.value:
+            found = _duplicate_key(item, seen)
+            if found:
+                return found
     return None
 
 
@@ -77,7 +107,11 @@ def _cpus_scalar(service: yaml.Node) -> object:
 
 def compose_problems(text: str) -> dict[str, str]:
     """Map each service of one compose text to its CPU-limit problem (services with none are omitted)."""
-    services = _child(yaml.compose(text, Loader=yaml.SafeLoader), "services")
+    root = yaml.compose(text, Loader=yaml.SafeLoader)
+    duplicate = _duplicate_key(root) if root is not None else None
+    if duplicate:
+        return {"<file>": duplicate}
+    services = _child(root, "services")
     if not isinstance(services, yaml.MappingNode) or not services.value:
         return {"<file>": "no services mapping"}
     problems: dict[str, str] = {}
@@ -123,6 +157,9 @@ def test_every_infra_vps1_service_declares_a_cpu_limit() -> None:
         "-1",
         7,
         "6.5",
+        "6",
+        "2.01",
+        3,
         True,
         "yes",
         "0_5",
@@ -135,15 +172,33 @@ def test_every_infra_vps1_service_declares_a_cpu_limit() -> None:
     ],
 )
 def test_bad_cpu_values_are_refused(value: object) -> None:
-    """Given a cpus value that is absent, zero, negative, above the host, a boolean, an
-    underscore/whitespace/exponent/hex spelling or other text, when graded, then it is refused."""
+    """Given a cpus value that is absent, zero, negative, above D-1324's 2-CPU ceiling (a whole-host
+    `6` included), a boolean, an underscore/whitespace/exponent/hex spelling or other text, when
+    graded, then it is refused."""
     assert cpu_limit_problem(value) is not None
 
 
-@pytest.mark.parametrize("value", [0.25, 1, "0.5", "2.0", "6"])
+@pytest.mark.parametrize("value", [0.25, 1, "0.5", "2.0", "2"])
 def test_good_cpu_values_are_accepted(value: object) -> None:
-    """Given a plain positive decimal no greater than the host's CPUs, when graded, then it passes."""
+    """Given a plain positive decimal no greater than 2.0, when graded, then it passes."""
     assert cpu_limit_problem(value) is None
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "services:\n  a:\n    deploy: {resources: {limits: {cpus: '1', cpus: '1'}}}\n",
+        "services:\n  a:\n    deploy: {resources: {limits: {cpus: '1'}}}\n    deploy: {}\n",
+        "services:\n  a:\n    deploy: {resources: {limits: {cpus: '1'}}}\n  a:\n    image: x\n",
+        "services:\n  a:\n    deploy: {resources: {limits: {cpus: '1'}}}\nservices:\n  b: {image: x}\n",
+    ],
+)
+def test_a_duplicate_key_fails_the_file(text: str) -> None:
+    """Given a compose with a key repeated at any level (compose refuses it; PyYAML keeps one silently),
+    when graded, then the file fails naming the duplicate — even when the copy read first is valid."""
+    problems = compose_problems(text)
+    assert list(problems) == ["<file>"]
+    assert problems["<file>"].startswith("duplicate key")
 
 
 def test_yaml_spellings_reach_the_grader_as_compose_would_refuse_them() -> None:

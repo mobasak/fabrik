@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the 22 vps1 infra services with no CPU limit now declare one, and a test keeps it that way (2026-10-29)
 
 - `infra/vps1/*/compose.yaml`: `deploy.resources.limits.cpus` on postgres-main, traefik, browserless (2.0), nine burst or shared services (1.0), five steady ones (0.5) and five exporters/sidecars (0.25), sized from 7-day cAdvisor data (D-1324, W-91a4a715). Nothing changes on vps1 until the coordinator's deploy gate runs `docker update --cpus` and edits each VPS copy.
-- `tests/test_infra_vps1_cpu_limits.py`: refuses an infra/vps1 service without a plain-decimal cpus in (0, 6]; ocoron-com is excepted until W-78649ed2.
+- `tests/test_infra_vps1_cpu_limits.py`: refuses an infra/vps1 service without a plain-decimal cpus in (0, 2.0], and a compose with a duplicate key; ocoron-com is excepted until W-78649ed2. The PG18 upgrade runbook's installed compose carries postgres-main's cap too.
 
 ### Changed — chrome-extension scaffold: lint plugins float on purpose, no lockfile or overrides (2026-10-29)
 
