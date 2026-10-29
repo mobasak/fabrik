@@ -173,14 +173,17 @@ if [ "$panecmd" = 1 ]; then
       # claude <pid> that runs <old sid>; the three come together and take none of the spawn flags
       --into)
         [ $# -ge 2 ] || bad_arg "$usage"
+        [ -z "$SP_INTO" ] || bad_arg "--into is given once"
         [[ "$2" =~ $NAME_RE ]] || bad_arg "'$2' is not a worktree folder name ([a-z0-9][a-z0-9-]{0,31})"
         SP_INTO="$2"; shift 2 ;;
       --from)
         [ $# -ge 2 ] || bad_arg "$usage"
+        [ -z "$pane_from" ] || bad_arg "--from is given once"
         [[ "$2" =~ $SID_RE ]] || bad_arg "--from '$2' is not a session id (a lowercase UUID)"
         pane_from="$2"; shift 2 ;;
       --replacing)
         [ $# -ge 2 ] || bad_arg "$usage"
+        [ -z "$pane_replacing" ] || bad_arg "--replacing is given once"
         [[ "$2" =~ ^[1-9][0-9]{0,9}$ ]] || bad_arg "--replacing '$2' is not a process id"
         pane_replacing="$2"; shift 2 ;;
       *) bad_arg "$usage" ;;
@@ -639,7 +642,7 @@ first_prompt() {  # $1 = name, $2 = session id: a spawned builder's first turn, 
 # W-e38f8ee7: a moved builder's first turn — where it now starts, then rotate_session.resume_prompt's text with the id
 # filled in and this checkout's paths (tests/test_agents_up.py pins the two equal); ONE line, nothing for a shell to read
 move_prompt() {  # $1 = name, $2 = session id; the folder is SP_INTO
-  printf '%s' "You were moved by agents_up into .claude/worktrees/$SP_INTO as a fresh session $2, so your hooks load from the tree you work in. You were rotated at an item boundary (D-1119). First re-arm your self-watch: run bash $HUB/scripts/sysadmin/selfwatch_arm.sh $2 in the background. Then run python3 $HUB/scripts/whoami_agent.py --as $1 --force. Then read only your memory notes, python3 scripts/work.py next and your run's seed if one is named there — never the previous transcript — and carry on. Read your memory notes and seed with the Read tool, not cat; run each command, git included, as a separate Bash call (the self-watch arm stays in the background); open any output the harness saved to a file with the Read tool (offset and limit) — never give sed, awk or head a shell variable or \$( ), in the file name or the expression."
+  printf '%s' "You were moved by agents_up into .claude/worktrees/$SP_INTO as a fresh session $2, so your hooks load from the tree you work in. You were rotated at an item boundary (D-1119). First re-arm your self-watch: run bash \"$HUB/scripts/sysadmin/selfwatch_arm.sh\" $2 in the background. Then run python3 \"$HUB/scripts/whoami_agent.py\" --as $1 --force. Then read only your memory notes, python3 scripts/work.py next and your run's seed if one is named there — never the previous transcript — and carry on. Read your memory notes and seed with the Read tool, not cat; run each command, git included, as a separate Bash call (the self-watch arm stays in the background); open any output the harness saved to a file with the Read tool (offset and limit) — never give sed, awk or head a shell variable or \$( ), in the file name or the expression."
 }
 
 cmd_of() {  # $1 = name, $2 = session id, $3 = status, $4 = new (1: spawned, 2: moved — both --session-id launches); name and id are validated above
@@ -777,6 +780,11 @@ if [ "$panecmd" = 1 ] && [ -n "$SP_INTO" ]; then
   if other="$(named_running "$SP_NAME" "$dir" "$pane_replacing")"; then
     bad_arg "another claude -n $SP_NAME (pid $other) already runs in .claude/worktrees/$SP_INTO — not starting a second"
   fi
+  # the pid skipped above must BE this builder's claude (started `-n <name>`, as every grid pane is), or a wrong pid
+  # would disarm that refusal (review pass 1, B4); a pane launched without a name is refused, never guessed at
+  rep_args="$(printf '%s\n' "$RUNNING" | /usr/bin/awk -v p="$pane_replacing" '$1 == p { $1 = ""; print; exit }')"
+  [[ " $rep_args " == *" -n $SP_NAME "* || " $rep_args " == *" --name $SP_NAME "* || " $rep_args " == *" --name=$SP_NAME "* ]] \
+    || bad_arg "--replacing $pane_replacing is not a running claude -n $SP_NAME"
   pane_line="$(cmd_of "$SP_NAME" "$pane_sid" ok 2)"
   slice_ceiling
   printf '%s\n' "$pane_line"

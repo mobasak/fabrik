@@ -1634,8 +1634,14 @@ def _reap(pid: int, start: str) -> str:
     not reaped, as `agents_spawn.remove` reaps none."""
     proc = _proc()
 
-    def alive() -> bool:
-        return hib._proc_start(proc, pid) == str(start)
+    def alive() -> (
+        bool
+    ):  # that pid, that start time, and not a zombie (exited, its parent yet to reap it)
+        try:
+            rest = (proc / str(pid) / "stat").read_text().rsplit(")", 1)[1].split()
+        except (OSError, IndexError):
+            return False
+        return len(rest) > 19 and rest[19] == str(start) and rest[0] != "Z"
 
     for label, wait, sig in (
         ("gone", OLD_EXIT_S, signal.SIGTERM),
@@ -1721,6 +1727,12 @@ def _settled(t: dict, path: Path) -> None:
         raise CheckFailedError("idle", "the transcript was written during the last re-read")
     if any(box != "" for box, _ in seen):
         raise CheckFailedError("screen", "the input box was not empty at the last re-read")
+    # a turn that started during run_checks' own git calls wrote its first row BEFORE the two reads above, which then
+    # agree (review pass 1, A-C1): the turn end must still be the transcript's last real row
+    try:
+        _idle_row_check(_tail_rows(path, 2 * 1024 * 1024))
+    except OSError as exc:
+        raise CheckFailedError("idle", f"transcript unreadable ({exc})") from exc
 
 
 def _move(data: dict, row: dict, cmd: str, new_sid: str) -> dict:

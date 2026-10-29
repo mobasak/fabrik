@@ -3348,11 +3348,24 @@ def test_pane_cmd_into_prints_a_fresh_launch_with_the_move_prompt(tmp_path: Path
     want = (
         rs.resume_prompt("b2")
         .replace("<your session id>", MOVED)
-        .replace("/opt/fabrik/scripts/", f"{ROOT}/scripts/")
+        .replace(
+            "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh",
+            f'bash "{ROOT}/scripts/sysadmin/selfwatch_arm.sh"',
+        )
+        .replace(
+            "python3 /opt/fabrik/scripts/whoami_agent.py",
+            f'python3 "{ROOT}/scripts/whoami_agent.py"',
+        )
     )
+    # the checkout's paths are double-quoted, as first_prompt's are, so a path with a space stays one word (pass 1, B1)
     assert prompt[len(head) :] == want, (prompt[len(head) :], want)
     said = _hint("run b2 " + out.stdout.strip(), tmp_path)
     assert f"claude -n b2 --session-id {MOVED}" in said, said
+    # the same valid launch with one flag given twice is refused, never silently the last value (pass 1, B5)
+    for flag, value in (("--into", "b2-work"), ("--from", B2), ("--replacing", "4242")):
+        twice = _run(*_move_args(repo), flag, value, home=home, AGENT_IDENTITY_FILE=str(store))
+        assert twice.returncode == 2 and twice.stdout == "", (flag, twice.stdout)
+        assert f"{flag} is given once" in twice.stderr, (flag, twice.stderr)
 
 
 def test_pane_cmd_into_refusals(tmp_path: Path) -> None:
@@ -3409,3 +3422,38 @@ def test_pane_cmd_into_refusals(tmp_path: Path) -> None:
     ):
         bad = _run(*argv, home=home, **env)
         assert bad.returncode == 2 and bad.stdout == "", (argv, bad.stdout, bad.stderr)
+
+
+def test_pane_cmd_into_refuses_the_owner_a_shared_folder_and_a_foreign_pid(tmp_path: Path) -> None:
+    """W-e38f8ee7 review pass 1 (B2, B3, B4): `--into` refuses the merge owner's tree (the resolver drops the owner, so
+    only the owner check sees it), a folder another builder's session resolved to (not its own-named tree), and a
+    `--replacing` pid that is not a running `claude -n <name>` — a wrong pid would otherwise disarm the refusal of a
+    second same-named claude in the folder."""
+    # the merge owner: b3 is declared owner, so it is no builder and `--into b3` meets the owner check alone
+    repo, store, home = _move_repo(tmp_path / "own")
+    _ledger(repo, "b3")
+    _live_claude(home, 4242, _wt(repo, "b2"), f"claude -n b2 --resume {B2}")
+    bad = _run(*_move_args(repo, into="b3"), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert bad.returncode == 2 and bad.stdout == "", bad.stdout
+    assert "b3 is the coordinator's tree (the merge owner)" in bad.stderr, bad.stderr
+    # b3's session lives in b2-work, so b3's resolved folder is b2-work: never b2's to move into
+    repo, store = _bound_repo(tmp_path / "shared")
+    _worktree(repo, "b2-work")
+    home = _home(
+        tmp_path / "shared", transcripts=((_wt(repo, "b2"), B2), (_wt(repo, "b2-work"), B3))
+    )
+    bad = _run(*_move_args(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert bad.returncode == 2 and bad.stdout == "", bad.stdout
+    assert "b2-work is b3's tree" in bad.stderr, bad.stderr
+    # the replaced pid must be this builder's claude: another name, or no such process, refuses
+    repo, store, home = _move_repo(tmp_path / "pid")
+    for args in (f"claude -n b3 --resume {B3}", None):
+        if args:
+            _live_claude(home, 4242, _wt(repo, "b3"), args)
+        else:
+            (home / ".local" / "bin" / "ps").write_text(
+                '#!/bin/sh\n[ "$*" = "-ww -C claude -o pid=,args=" ] || exit 1\n', encoding="utf-8"
+            )
+        bad = _run(*_move_args(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+        assert bad.returncode == 2 and bad.stdout == "", (args, bad.stdout)
+        assert "--replacing 4242 is not a running claude -n b2" in bad.stderr, (args, bad.stderr)

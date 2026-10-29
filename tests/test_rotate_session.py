@@ -2197,6 +2197,65 @@ def test_w_e38f8ee7_move_refusals_and_partials(world, monkeypatch):
     assert world["signals"] == [(102, signal.SIGTERM), (102, signal.SIGKILL)], world["signals"]
 
 
+def test_w_e38f8ee7_review_p1_the_last_look_and_a_zombie(world, monkeypatch):
+    """Review pass 1 (A-C1, A-C5, A-C2): a turn that STARTED during run_checks' own git calls wrote its first row before
+    the last re-read, whose two reads then agree — the re-read still refuses, because the turn end is no longer the
+    transcript's last real row; a box that holds text only at the last re-read refuses `screen`; neither respawns. An
+    old claude that is a zombie (exited, not yet reaped) is gone, never signalled."""
+    import signal
+
+    repo, wt = _move_world(world, monkeypatch)
+    real_state = rs.hib.worktree_state
+
+    def turn_starts(path):  # a prompt arrives while the worktree probe runs
+        with world["transcript"].open("a") as fh:
+            fh.write(json.dumps({"type": "user", "timestamp": "2026-10-23T00:00:05Z"}) + "\n")
+        return real_state(path)
+
+    monkeypatch.setattr(rs.hib, "worktree_state", turn_starts)
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    rs.execute()
+    row = _rows(world)[-1]
+    assert row["outcome"] == "refused:idle", row
+    monkeypatch.setattr(rs.hib, "worktree_state", lambda path: (False, "clean, pushed"))
+    world["transcript"].write_text(
+        "".join(
+            json.dumps(r) + "\n"
+            for r in (
+                {"type": "assistant", "timestamp": "2026-10-23T00:00:00Z"},
+                {"type": "system", "subtype": "turn_duration", "timestamp": "2026-10-23T00:00:01Z"},
+            )
+        )
+    )
+    real_box = rs._box_now
+    reads = {"n": 0}
+
+    def typed_late(
+        pane,
+    ):  # run_checks' read sees an empty box; the last re-read's second read sees text
+        reads["n"] += 1
+        box, screen = real_box(pane)
+        return ("half typed", screen) if reads["n"] >= 3 else (box, screen)
+
+    monkeypatch.setattr(rs, "_box_now", typed_late)
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    rs.execute()
+    assert _rows(world)[-1]["outcome"] == "refused:screen", _rows(world)[-1]
+    assert _respawns(world) == [] and world["signals"] == []
+    monkeypatch.setattr(rs, "_box_now", real_box)
+    # the old claude is a zombie after the respawn: gone at once, no signal sent
+    _set(
+        world,
+        on_respawn=RESPAWN_OK.replace("(claude) S 101", "(claude) Z 101").replace("' 999", "' 777"),
+    )
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    rs.execute()
+    row = _rows(world)[-1]
+    assert row["outcome"] == "ok" and row["old_exit"] == "gone", row
+    assert world["signals"] == [], world["signals"]
+    assert signal.SIGKILL not in [s for _, s in world["signals"]]
+
+
 def test_w_e38f8ee7_validate_into_only_with_move(world):
     """B4: `into` rides only on a move request, and a move request needs a valid one; anything else is
     `refused:request`, so an older unit reading a move file refuses it too (fail closed)."""
