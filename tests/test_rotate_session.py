@@ -1478,6 +1478,7 @@ def _boom(root: str) -> str:
     [
         "agents_spawn.py missing",
         "agents_spawn.py fails to import",
+        "agents_spawn.py exits at import",
         "agents_spawn.py has no lock_path",
         "lock_path raises",
         "not a git repository",
@@ -1495,6 +1496,8 @@ def test_t07_an_unresolvable_lock_is_refused_unavailable(tmp_path, monkeypatch, 
         mod = _rotate_copy(tmp_path, None)
     elif shape == "agents_spawn.py fails to import":
         mod = _rotate_copy(tmp_path, "def lock_path(root:\n")
+    elif shape == "agents_spawn.py exits at import":  # review pass 1, F1: SystemExit is no Exception
+        mod = _rotate_copy(tmp_path, "import sys\nsys.exit(3)\n")
     elif shape == "agents_spawn.py has no lock_path":
         mod = _rotate_copy(tmp_path, "X = 1\n")
     elif shape == "lock_path raises":

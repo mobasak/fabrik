@@ -296,7 +296,9 @@ def _repoint_registry(path: Path, old_sid: str, new_sid: str, name: str) -> str:
     stays on the old id and the next `add`/`remove` heals it (agents_spawn.heal_registry, PF3)."""
     try:
         fd = os.open(_agents_lock_file(path), os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o644)
-    except Exception:  # a missing or broken agents_spawn.py, a git failure, an unopenable lock: a state, never a raise
+    # a missing or broken agents_spawn.py (one that calls sys.exit at import included — SystemExit is no Exception), a
+    # git failure, an unopenable lock: a state, never a raise; KeyboardInterrupt still propagates
+    except (Exception, SystemExit):
         return "refused:agents lock unavailable"
     try:
         deadline = time.monotonic() + _wait_s(AGENTS_LOCK_WAIT_S)
