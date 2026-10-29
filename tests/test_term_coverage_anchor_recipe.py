@@ -22,20 +22,20 @@ FRAGMENT = ROOT / "commands" / "_fragments" / "term-coverage.md"
 SCRIPT = ROOT / "scripts" / "review_receipt.py"
 
 NEW_TEXT = (
-    "Compute the surface hash the way the prior line was made. A line `review_receipt.py --init` wrote (it starts "
-    "`` `git rev-parse HEAD` = <sha>; ``) is recomputed from the repo root by "
-    "`python scripts/review_receipt.py --restamp <the copy>` on an absolute scratch copy of that receipt, never the "
-    "receipt itself, whose anchor it would rewrite. It matches only when it exits 0, the copy is then "
-    "byte-identical to the receipt (`cmp`), and the paths that line names are the paths this review is over, since "
-    "it hashes those paths alone; any other result is a mismatch whatever remedy its message names (that remedy is "
-    "for a receipt being written), and a `--range` line always exits 1. Any "
-    "other line of a DIFF surface is compared with `git rev-parse HEAD` + `git diff HEAD | md5sum`; a non-diff "
-    "surface keeps the inventory hash below."
+    "Recompute the surface hash the way the prior line was made. A `review_receipt.py --init` line "
+    "(`` `git rev-parse HEAD` = <sha>; `` then `` `git diff HEAD -- <paths>` `` or `range tip`) is re-hashed from "
+    "the repo root by `python scripts/review_receipt.py --restamp <the copy>` on an absolute scratch copy, never on "
+    "the receipt, whose anchor it rewrites. The line matches only on exit 0 with the copy `cmp`-identical to the "
+    "receipt, its **Command:** this command, `fixed: 0` in every Pass Ledger row (the line predates any fix), and "
+    "its paths exactly this review's, none gitignored (only those are hashed, ignored ones never); anything else is "
+    "a mismatch whatever its message advises, and a `--range` line exits 1. Other DIFF-surface lines use "
+    "`git rev-parse HEAD` + `git diff HEAD | md5sum`; a non-diff surface keeps the inventory hash below."
 )
 OLD_SENTENCE = "Compute the surface hash: `git rev-parse HEAD` + `git diff HEAD | md5sum`."
-SET_CLAUSE = (
-    "the paths that line names are the paths this review is over, since it hashes those paths alone"
-)
+# the conditions the script alone does not enforce — each test below that shows the script matching proves its clause is
+# load-bearing (round-1 review: a lost fix, an unnamed path and an ignored path all restamp byte-identical)
+SET_CLAUSE = "its paths exactly this review's, none gitignored"
+FIXED_CLAUSE = "`fixed: 0` in every Pass Ledger row (the line predates any fix)"
 _RECIPE = re.compile(r"`python scripts/review_receipt\.py (--\w+) <the copy>`")
 
 
@@ -106,6 +106,10 @@ def _anchor(
 
 
 def test_obligation_one_carries_the_restamp_anchor_text_whole() -> None:
+    lines = FRAGMENT.read_text(encoding="utf-8").splitlines()
+    assert (
+        sum(ln.startswith("1. **Anchor:**") for ln in lines) == 1
+    )  # a second Anchor line would go unread
     para = _obligation_one()
     assert NEW_TEXT in para
     assert OLD_SENTENCE not in para
@@ -127,9 +131,24 @@ def test_the_named_recipe_matches_an_unchanged_surface_and_leaves_the_receipt_al
     assert prior.read_bytes() == before
 
 
-def test_the_named_recipe_differs_after_an_edit(repo: Path, tmp_path: Path) -> None:
-    prior = _prior(repo, tmp_path)
+def _edit_tracked(repo: Path) -> None:
     (repo / "app.py").write_text("x = 3\n", encoding="utf-8")
+
+
+def _edit_untracked(repo: Path) -> None:
+    (repo / "new.py").write_text("y = 2\n", encoding="utf-8")
+
+
+def _move_head(repo: Path) -> None:
+    _git(repo, "commit", "-q", "--allow-empty", "-m", "unrelated")  # same surface, new HEAD
+
+
+@pytest.mark.parametrize(
+    "change", [_edit_tracked, _edit_untracked, _move_head], ids=lambda f: f.__name__
+)
+def test_the_named_recipe_differs_after_an_edit(repo: Path, tmp_path: Path, change) -> None:
+    prior = _prior(repo, tmp_path)
+    change(repo)
     r, copy = _anchor(repo, prior, tmp_path)
     assert r.returncode == 0, r.stderr
     assert copy.read_bytes() != prior.read_bytes()
@@ -156,14 +175,43 @@ def test_the_named_recipe_exits_one_on_an_empty_surface(repo: Path, tmp_path: Pa
     assert copy.read_bytes() == before and prior.read_bytes() == before
 
 
-def test_an_unnamed_path_matches_so_the_text_requires_the_path_set(
-    repo: Path, tmp_path: Path
-) -> None:
-    prior = _prior(repo, tmp_path)
+def _edit_unnamed(repo: Path) -> None:
     (repo / "other.py").write_text(
         "x = 9\n", encoding="utf-8"
     )  # a path the prior line does not name
+
+
+def _lose_a_fix(repo: Path) -> None:
+    _edit_tracked(repo)  # the review's fix ...
+    (repo / "app.py").write_text(
+        "x = 2\n", encoding="utf-8"
+    )  # ... lost: the tree is back at the init surface
+
+
+@pytest.mark.parametrize(
+    ("change", "clause"),
+    [(_edit_unnamed, SET_CLAUSE), (_lose_a_fix, FIXED_CLAUSE)],
+    ids=["unnamed-path", "lost-fix"],
+)
+def test_the_script_alone_matches_what_the_text_excludes(
+    repo: Path, tmp_path: Path, change, clause
+) -> None:
+    prior = _prior(repo, tmp_path)
+    change(repo)
     r, copy = _anchor(repo, prior, tmp_path)
     assert r.returncode == 0, r.stderr
     assert copy.read_bytes() == prior.read_bytes()  # the script alone would call this a match
-    assert SET_CLAUSE in _obligation_one()  # so the text adds the path-set condition
+    assert clause in _obligation_one()  # so the text carries the condition that excludes it
+
+
+def test_an_ignored_named_path_is_not_hashed_so_the_text_excludes_it(
+    repo: Path, tmp_path: Path
+) -> None:
+    (repo / ".gitignore").write_text("gen.cfg\n", encoding="utf-8")
+    (repo / "gen.cfg").write_text("g = 1\n", encoding="utf-8")
+    prior = _prior(repo, tmp_path, "gen.cfg")
+    (repo / "gen.cfg").write_text("g = 2\n", encoding="utf-8")
+    r, copy = _anchor(repo, prior, tmp_path)
+    assert r.returncode == 0, r.stderr
+    assert copy.read_bytes() == prior.read_bytes()  # the ignored path's edit never reaches the hash
+    assert SET_CLAUSE in _obligation_one()

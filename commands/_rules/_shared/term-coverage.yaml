@@ -19,13 +19,15 @@ entries:
     Compute the surface hash: `git rev-parse HEAD` + `git diff HEAD | md5sum`
   text:
   - |-
-    Compute the surface hash the way the prior line was made
+    Recompute the surface hash the way the prior line was made
   - |-
-    is recomputed from the repo root by `python scripts/review_receipt.py --restamp <the copy>` on an absolute scratch copy of that receipt, never the receipt itself, whose anchor it would rewrite
+    is re-hashed from the repo root by `python scripts/review_receipt.py --restamp <the copy>` on an absolute scratch copy, never on the receipt, whose anchor it rewrites
   - |-
-    It matches only when it exits 0, the copy is then byte-identical to the receipt (`cmp`), and the paths that line names are the paths this review is over, since it hashes those paths alone
+    The line matches only on exit 0 with the copy `cmp`-identical to the receipt, its **Command:** this command, `fixed: 0` in every Pass Ledger row (the line predates any fix), and its paths exactly this review's, none gitignored (only those are hashed, ignored ones never)
   - |-
-    Any other line of a DIFF surface is compared with `git rev-parse HEAD` + `git diff HEAD | md5sum`; a non-diff surface keeps the inventory hash below
+    anything else is a mismatch whatever its message advises, and a `--range` line exits 1
+  - |-
+    Other DIFF-surface lines use `git rev-parse HEAD` + `git diff HEAD | md5sum`; a non-diff surface keeps the inventory hash below
 - id: tc-u11-prior-surface-comparable
   class: prose
   file: commands/_fragments/term-coverage.md
