@@ -16,5 +16,5 @@
   "owner": "",
   "priority": 2,
   "status": "open",
-  "title": "kaizen rule_activation metric: historical rubric_injection rows from the gate's grader (up to 24,880 of 39,632, 2026-08-19..2026-10-29) still inflate the series; W-5bfeb31e stopped new ones — filter rows sharing a (sid, minute) with a gate_run or mark the break with a metric version bump in kaizen_collect_v2.py (~1117, _BUMP_GAP_SENTENCE)"
+  "title": "kaizen rule_activation metric: historical rubric_injection rows from the gate's grader (up to 24,880 of 39,632, 2026-08-19..2026-10-29) still inflate the series; W-5bfeb31e stopped new ones — filter rows sharing a (sid, minute) with a gate_run, or mark the break with a metric version bump in scripts/sysadmin/kaizen_collect_v2.py (the rule_activation metric entry at :1117; _BUMP_GAP_SENTENCE defined at :1011)"
 }

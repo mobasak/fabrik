@@ -6,11 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — the rule-grounding grader's rubric re-run records no rule activation (2026-10-29)
 - `scripts/enforcement/check_rule_grounding.py` re-runs `scripts/review_rubric.py` once per
-  candidate plan to read its MATCHED set, and the rubric's kaizen sensor recorded every re-run as
-  a `rule_activation` / `rubric_injection` event in the caller's stream: 5 false rows per gate run
-  on the hub, and the Stop hook runs the gate in every session, so the collector's rule_activation
-  metric counted any session that ran the gate (about 63 % of the 39,632 live rubric_injection rows
-  share a session and minute with a gate run). It also kept master red on
+  CONVERGED in-window plan it grades (a digest and a File Scope) to read its MATCHED set, and the
+  rubric's kaizen sensor recorded every re-run as a `rule_activation` / `rubric_injection` event
+  in the caller's stream — 5 false rows in one lean gate run on the hub's tree at the fix. The Stop
+  hook's own `--lean --check` gate runs fed the same rows, so the collector's rule_activation metric
+  counted sessions that only ran the gate (up to 63 % of the 39,632 live rubric_injection rows, an
+  upper bound, share a session and minute with a gate run). It also kept master red on
   `tests/test_kaizen_sensor_emitters.py::test_gate_stdout_and_exit_code_are_byte_identical_without_the_emitter`.
   The rubric's sensor now stays off when `REVIEW_RUBRIC_SENSOR_OFF` is exactly `1`, which only the
   grader sets on its child; real rubric runs emit as before (W-5bfeb31e, D-1345). Historical rows
