@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AFTER-EDIT: docs/reference/repo-coordinator-rollout.md | tests/test_agents_up.py
-# agents_up.sh [--print] [--detach] <repo> — open a repo's builder agents side by side, four per tmux window (D-1031). Also: agents_up.sh --window <n> <repo>. Also: agents_up.sh rotate-session <name> [--compact FOCUS] [--trigger T] (W-f975fee0).
+# agents_up.sh [--print] [--detach] <repo> — open a repo's builder agents side by side, four per tmux window (D-1031). Also: agents_up.sh --window <n> <repo>. Also: agents_up.sh rotate-session <name> [--compact FOCUS | --move] [--trigger T] (W-f975fee0, W-e38f8ee7).
 #
 # Every repo's launcher (W-66e2f6a7 retired ~/bin/hub-up). The builders come from the repo's own registry,
 # <repo>/.fabrik/session-agents.json ({"<session id>": "<agent name>"}), when it has one, and otherwise from the identity
@@ -54,7 +54,9 @@
 # claude 2.1.312; spec D3). A spawner-bound session (T01's `whoami_agent.py --spawned` row, `spawned: true`) with no
 # transcript in ANY project folder launches `claude -n <name> --session-id <sid> --settings … "<first prompt>"` instead
 # of --resume (the resolver's 4th field). `agents_up.sh --pane-cmd <repo> <name> <sid> [--new] [--coordinator <name>]
-# [--item <W-id>]` prints that one pane command (the same cmd_of the grid runs) and launches nothing; FABRIK_SPAWN_NAME /
+# [--item <W-id>]` prints that one pane command (the same cmd_of the grid runs) and launches nothing; its form `--pane-cmd
+# <repo> <name> <sid> --into <folder> --from <old sid> --replacing <pid>` prints the FRESH `--session-id` launch
+# `rotate-session --move` respawns a builder's pane with, in the worktree it works in (W-e38f8ee7); FABRIK_SPAWN_NAME /
 # _COORDINATOR / _ITEM name the coordinator and item in the first prompt of a builder a --detach start launches.
 #
 # Names and session ids reach a shell command string, so the registry is validated first: a session id must be a
@@ -88,8 +90,9 @@ export PATH="$HOME/.local/bin:$PATH"
 export CLAUDE_CONFIG_DIR="$HOME/.claude-fleet/active"
 export CLAUDE_QUOTA_HOME="$HOME/.claude-fleet/active"
 
-# `agents_up.sh rotate-session <name> [--compact FOCUS] [--trigger T]` (W-f975fee0, D-1135): the coordinator's verb —
-# rotate_session.py checks the pane and writes one request; the fabrik-rotate user unit types it. Dispatched before the
+# `agents_up.sh rotate-session <name> [--compact FOCUS | --move] [--trigger T]` (W-f975fee0, D-1135): the coordinator's
+# verb — rotate_session.py checks the pane and writes one request; the fabrik-rotate user unit types it (`--move`,
+# W-e38f8ee7: respawns the pane with a fresh session in the worktree the builder works in). Dispatched before the
 # grid's own arguments; the repo is the caller's git toplevel.
 if [ "${1:-}" = "rotate-session" ]; then
   shift
@@ -147,9 +150,10 @@ SP_NAME="${FABRIK_SPAWN_NAME:-}"
 SP_COORD="${FABRIK_SPAWN_COORDINATOR:-}"
 SP_ITEM="${FABRIK_SPAWN_ITEM:-}"
 pane_new=0
+SP_INTO="" pane_from="" pane_replacing=""
 if [ "$panecmd" = 1 ]; then
   [ "$print" = 0 ] && [ "$detach" = 0 ] || bad_arg "--pane-cmd is its own mode: it takes neither --print nor --detach"
-  usage="usage: agents_up.sh --pane-cmd <repo> <name> <sid> [--new] [--coordinator <name>] [--item <W-id>]"
+  usage="usage: agents_up.sh --pane-cmd <repo> <name> <sid> [--new] [--coordinator <name>] [--item <W-id>]   |   --pane-cmd <repo> <name> <sid> --into <folder> --from <old sid> --replacing <pid>"
   [ $# -ge 3 ] || bad_arg "$usage"
   pane_repo="$1" SP_NAME="$2" pane_sid="$3"
   shift 3
@@ -165,11 +169,29 @@ if [ "$panecmd" = 1 ]; then
         [ $# -ge 2 ] || bad_arg "$usage"
         [[ "$2" =~ $ITEM_RE ]] || bad_arg "the item '$2' is not a work item id (W- and 8 lowercase hex)"
         SP_ITEM="$2"; shift 2 ;;
+      # W-e38f8ee7 (rotate-session --move): a FRESH session for <name> in another of its worktrees, replacing the pane's
+      # claude <pid> that runs <old sid>; the three come together and take none of the spawn flags
+      --into)
+        [ $# -ge 2 ] || bad_arg "$usage"
+        [[ "$2" =~ $NAME_RE ]] || bad_arg "'$2' is not a worktree folder name ([a-z0-9][a-z0-9-]{0,31})"
+        SP_INTO="$2"; shift 2 ;;
+      --from)
+        [ $# -ge 2 ] || bad_arg "$usage"
+        [[ "$2" =~ $SID_RE ]] || bad_arg "--from '$2' is not a session id (a lowercase UUID)"
+        pane_from="$2"; shift 2 ;;
+      --replacing)
+        [ $# -ge 2 ] || bad_arg "$usage"
+        [[ "$2" =~ ^[1-9][0-9]{0,9}$ ]] || bad_arg "--replacing '$2' is not a process id"
+        pane_replacing="$2"; shift 2 ;;
       *) bad_arg "$usage" ;;
     esac
   done
   [[ "$SP_NAME" =~ $NAME_RE ]] || bad_arg "'$SP_NAME' is not an agent name ([a-z0-9][a-z0-9-]{0,31})"
   [[ "$pane_sid" =~ $SID_RE ]] || bad_arg "'$pane_sid' is not a session id (a lowercase UUID)"
+  if [ -n "$SP_INTO$pane_from$pane_replacing" ]; then
+    [ -n "$SP_INTO" ] && [ -n "$pane_from" ] && [ -n "$pane_replacing" ] || bad_arg "--into, --from and --replacing come together"
+    [ "$pane_new" = 0 ] && [ -z "$SP_COORD" ] && [ -z "$SP_ITEM" ] || bad_arg "--into takes none of --new, --coordinator and --item"
+  fi
   set -- "$pane_repo"
 fi
 if [ $# -ne 1 ] || [ -z "$1" ]; then
@@ -562,20 +584,22 @@ newer_unbound() {  # $1 = name, $2 = session id, $3 = the folder its pane starts
 }
 
 # a claude process started by NAME (`-n <name>`, no --resume: a spawned pane's --session-id launch) in the pane's folder
-# or below it is the same builder running; `-n infra` never matches `-n infra-2`, which grep -w would (`-` is a boundary)
-named_running() {  # $1 = name, $2 = the folder its pane starts in
+# or below it is the same builder running; `-n infra` never matches `-n infra-2`, which grep -w would (`-` is a boundary).
+# The pid it found is printed; $3, when given, is a pid never counted (the claude a --move replaces, W-e38f8ee7).
+named_running() {  # $1 = name, $2 = the folder its pane starts in, $3 = a pid to skip
   local pid args cwd
   while read -r pid args; do
     [[ "$pid" =~ ^[0-9]+$ ]] || continue
+    [ "$pid" = "${3:-}" ] && continue
     [[ " $args " == *" -n $1 "* || " $args " == *" --name $1 "* || " $args " == *" --name=$1 "* ]] || continue
     cwd="$(readlink "$PROC_ROOT/$pid/cwd" 2>/dev/null)"
-    case "$cwd" in "$2" | "$2"/*) return 0 ;; esac
+    case "$cwd" in "$2" | "$2"/*) echo "$pid"; return 0 ;; esac
   done <<< "$RUNNING"
   return 1
 }
 
 status_of() {  # $1 = session id, $2 = the folder its pane starts in, $3 = the builder's name
-  if printf '%s\n' "$RUNNING" | /usr/bin/grep -qE -- "(^| )(--resume[= ]|-r |--session-id[= ])$1( |\$)" || named_running "$3" "$2"; then
+  if printf '%s\n' "$RUNNING" | /usr/bin/grep -qE -- "(^| )(--resume[= ]|-r |--session-id[= ])$1( |\$)" || named_running "$3" "$2" >/dev/null; then
     echo running
   elif [ ! -f "$(proj_of "$2")/$1.jsonl" ]; then
     echo no-transcript
@@ -612,7 +636,13 @@ first_prompt() {  # $1 = name, $2 = session id: a spawned builder's first turn, 
   printf '%s' "You were started by agents_up as $1 (\$CLAUDE_AGENT), session $2, in your own worktree. First arm your self-watch: run bash \"$HUB/scripts/sysadmin/selfwatch_arm.sh\" $2 in the background. Then re-bind: run python3 \"$HUB/scripts/whoami_agent.py\" --as $1 --force. Then read your charter (the SessionStart hook printed it; else docs/reference/agents/builder.md). Your coordinator is $coord.$item Run python3 scripts/work.py next and claim your item; when next shows nothing, message your coordinator and wait. Merge the repo's base branch only when the store or your coordinator says your item is committed there, then claim it. \"Every question goes to your coordinator by SendMessage - never to the operator.\""
 }
 
-cmd_of() {  # $1 = name, $2 = session id, $3 = status, $4 = new (1: --session-id launch); name and id are validated above
+# W-e38f8ee7: a moved builder's first turn — where it now starts, then rotate_session.resume_prompt's text with the id
+# filled in and this checkout's paths (tests/test_agents_up.py pins the two equal); ONE line, nothing for a shell to read
+move_prompt() {  # $1 = name, $2 = session id; the folder is SP_INTO
+  printf '%s' "You were moved by agents_up into .claude/worktrees/$SP_INTO as a fresh session $2, so your hooks load from the tree you work in. You were rotated at an item boundary (D-1119). First re-arm your self-watch: run bash $HUB/scripts/sysadmin/selfwatch_arm.sh $2 in the background. Then run python3 $HUB/scripts/whoami_agent.py --as $1 --force. Then read only your memory notes, python3 scripts/work.py next and your run's seed if one is named there — never the previous transcript — and carry on. Read your memory notes and seed with the Read tool, not cat; run each command, git included, as a separate Bash call (the self-watch arm stays in the background); open any output the harness saved to a file with the Read tool (offset and limit) — never give sed, awk or head a shell variable or \$( ), in the file name or the expression."
+}
+
+cmd_of() {  # $1 = name, $2 = session id, $3 = status, $4 = new (1: spawned, 2: moved — both --session-id launches); name and id are validated above
   # HOME..LANG are read by the pane's own shell at run time (single-quoted here); the rest are fixed now. PATH is
   # fixed ONCE: a capped pane's outer `env -i` sets it, and the commands inside the scope read it back at run time
   # (`PATH="$PATH"`) — three fixed copies of a WSL PATH (4 KB here) brought a pane command to ~14 KB, near the size
@@ -639,7 +669,7 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status, $4 = new (1: --session-id
   # the flag is picked when the text is PRINTED (T10 F14): `--resume` once any project folder holds the session's
   # transcript (fresh()'s glob), else `--session-id` — a launch-time flag goes stale the moment claude writes one
   local flag=--resume
-  [ "${4:-0}" = 1 ] && flag="\$(for t in $(squote "$CLAUDE_CONFIG_DIR")/projects/*/$2.jsonl; do [ -e \"\$t\" ] && { echo --resume; exit; }; done; echo --session-id)"
+  [ "${4:-0}" != 0 ] && flag="\$(for t in $(squote "$CLAUDE_CONFIG_DIR")/projects/*/$2.jsonl; do [ -e \"\$t\" ] && { echo --resume; exit; }; done; echo --session-id)"
   if [ "$3" = running ]; then
     inner="echo \"[$1 is already running elsewhere (session $2) — close it there, then run: claude -n $1 $flag $2]\"; exec $penv bash -l"
   else
@@ -657,6 +687,10 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status, $4 = new (1: --session-id
     if [ "${4:-0}" = 1 ]; then
       # a spawner-bound session with no transcript yet: --resume of it would drop to the kept shell
       wake="$(first_prompt "$1" "$2")"
+      claude="claude -n $1 --session-id $2"
+    elif [ "${4:-0}" = 2 ]; then
+      # W-e38f8ee7: a FRESH session the rotation started in the worktree the builder works in
+      wake="$(move_prompt "$1" "$2")"
       claude="claude -n $1 --session-id $2"
     else
       wake="You were relaunched by agents_up. First re-arm your self-watch: run bash \"$HUB/scripts/sysadmin/selfwatch_arm.sh\" $2 in the background. Then carry on as usual."
@@ -716,6 +750,39 @@ slice_ceiling() {
 # --pane-cmd: the one command the grid would run for ONE builder, through the same resolver and cmd_of, so a pane the
 # spawner launches differs from a relaunched one only in its session flag and prompt. --new asserts the resolver's own
 # <new> (a spawner-bound session with no transcript anywhere); nothing prints on a refusal.
+# --pane-cmd --into (W-e38f8ee7, rotate-session --move): the command that starts <name> as a FRESH session <sid> in
+# .claude/worktrees/<folder>, the tree it works in. The resolver must still give <name> the session the pane runs
+# (<old sid>); <sid> is no id this repo knows and has no transcript; <folder> is a linked worktree in place that is
+# neither a coordinator's tree nor another builder's (own-named or resolved); and no OTHER claude by that name runs
+# there — the pane's own claude (<pid>) is the one respawn-pane replaces, so it is skipped and the status is `ok`.
+if [ "$panecmd" = 1 ] && [ -n "$SP_INTO" ]; then
+  chosen_sid=""
+  while read -r name sid folder new; do
+    [ "$name" = "$SP_NAME" ] && chosen_sid="$sid"
+  done <<< "$AGENTS"
+  [ -n "$chosen_sid" ] || bad_arg "$SP_NAME is not a builder the resolver gives $ROOT"
+  [ "$chosen_sid" = "$pane_from" ] || bad_arg "$SP_NAME's session is $chosen_sid, not $pane_from — the pane changed since the request"
+  printf '%s\n' "$KNOWN" | /usr/bin/grep -qxF -- "$pane_sid" && bad_arg "$pane_sid is a session this repo already knows — not a fresh session"
+  if compgen -G "$CLAUDE_CONFIG_DIR/projects/*/$pane_sid.jsonl" >/dev/null; then
+    bad_arg "$pane_sid has a transcript — not a fresh session"
+  fi
+  case "$SP_INTO" in coordinator | *-coordinator) bad_arg "$SP_INTO is the coordinator's tree" ;; esac
+  [ -n "$OWNER" ] && [ "$SP_INTO" = "$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')" ] && bad_arg "$SP_INTO is the coordinator's tree (the merge owner)"
+  while read -r name sid folder new; do
+    [ "$name" = "$SP_NAME" ] && continue
+    [ "$SP_INTO" = "$name" ] || [ "$SP_INTO" = "$folder" ] && bad_arg "$SP_INTO is $name's tree"
+  done <<< "$AGENTS"
+  dir="$(dir_of "$SP_INTO")"
+  [ -n "$dir" ] || exit 2
+  if other="$(named_running "$SP_NAME" "$dir" "$pane_replacing")"; then
+    bad_arg "another claude -n $SP_NAME (pid $other) already runs in .claude/worktrees/$SP_INTO — not starting a second"
+  fi
+  pane_line="$(cmd_of "$SP_NAME" "$pane_sid" ok 2)"
+  slice_ceiling
+  printf '%s\n' "$pane_line"
+  exit 0
+fi
+
 if [ "$panecmd" = 1 ]; then
   found=0
   pane_line=""
