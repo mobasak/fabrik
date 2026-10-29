@@ -3,7 +3,7 @@
   "created": "2026-10-29T12:01:45.333832Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "5710bdf5d9fc5f2fa2c2097902a962839bfbdac3",
   "id": "W-553788d5",
   "impact": "low",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "coordinator",
   "priority": 3,
   "score_reason": "LOW: one charter clause; the rule already binds via CLAUDE.md and the hook",
-  "status": "open",
+  "status": "done",
   "title": "coordinator charter docs/reference/agents/coordinator.md:91 says 'merge --queue until no request waits' with no word of D-1296 (never block a turn on a long wait) or D-1297 (the hook denies a foreground call over 120 s): add 'run it in the background (run_in_background) and end the turn until it wakes you (D-1296)' — kaizen finding from the kaizen-wording-1029 review; coordinator's own edit (D-882), owes /fabrik-review-scoped"
 }
