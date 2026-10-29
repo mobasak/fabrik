@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## Time a lock's tail from the timestamps its steps already leave (2026-10-30, W-4f4ac600)
+
+**What happened:** a merge lock was held ~4.3 min after each merge commit and the item named five suspect steps. A live sampler had started after the landing and saw none of it; the shared reflogs (`master` for the CAS, `origin/master` for the push) and the mail store's mtimes (reply, ack) split the window in one read: carry + push 6 s, sync 251 s, reply + ack 1 s, and two no-sync landings closed the case as controls.
+
+**Lesson:** before instrumenting a slow serial path, list the durable side effects each step writes (a ref move, a file, a mail) and read their times; a step with no timestamp is the gap to instrument, not the whole path. Then compare with a run that skipped the suspect step.
+
 ## A cheap selector's saving can be the edges it cannot see (2026-10-29, W-1fb11ec8)
 
 **What happened:** an import-closure selector replayed 17 of 17 past catches and cut the merge leg's selection 26 %. Two critique seats named the import edges it could not resolve (relative imports, sys.path-rooted packages, literal `"x.py"` loads); resolving them made one modified script's closure ~120 scripts and the selection larger than the rule it replaced.
