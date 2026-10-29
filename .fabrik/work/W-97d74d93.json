@@ -1,0 +1,26 @@
+{
+  "block_digest": "0723439b001c276e8a3e5bde37e1e0aea4ba5b920b1399cf638feecfc8f5f3dd",
+  "blocked_by": [],
+  "created": "2026-10-29T05:19:49.071051Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-97d74d93",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "df31004d67e598c3f5949989343792ab2db17ab58d18cc4048164edbd4ddb433"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "Will you re-apply the five docker-source specs, so their containers pick up the CPU caps fleet's fix now writes? - vps1: zitadel, evolution-api, fabrik-smoke-test, watchdog-test - vps2: spoke-canary",
+  "status": "awaiting-operator",
+  "title": "Will you re-apply the five docker-source specs, so their containers pick up the CPU caps fleet's fix now writes? - vps1: zitadel, evolution-api, fabrik-smoke-test, watchdog-test - vps2: spoke-canary"
+}
