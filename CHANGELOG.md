@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — /fabrik-task captures with the `command_run.py capture` verb; the after-commit review close is numbered (2026-10-29)
+
+- `commands/_sources/fabrik-task.md` phase 5 step 5 runs `python3 scripts/command_run.py capture --msg <msg> --out <durable>/commit.sha` as its own plain call once the commit exits 0, replacing the chained `subj=$(head …)` recipe a linked worktree's isolation guard refused and the separate worktree plain-calls paragraph (D-1339).
+- The full `/fabrik-review` over committed work closes as a numbered list run between step 5's ledger commit and step 6 (draft review, gate, receipt `--init` at the last captured sha, close order and receipt commit, nested review's close); phase 4 dispatches the review after phase 5 steps 1-5 by default, a sync-path run in the main checkout and a review whose receipt the D-row cites reviewing before the commit.
+- Rule ledger `commands/_rules/fabrik-task.yaml`: three entries `changed-by: D-1339`, seven new entries; `tests/test_fabrik_task_source.py` SIZE_CAP 27508 -> 27649.
+
 ### Changed — Coordinators never block on a long wait; self-healing row for an unkillable worker child; /fabrik-task range-tip wording (2026-10-29)
 
 - `CLAUDE.md` and `templates/governance/CLAUDE.md`, coordinator job (5): a merge, queue, test leg or API run goes to the background and the turn ends until its notification wakes it, never a foreground sleep, poll loop or long `runwait` (operator ruling D-1296, W-32ab8277); the HARD STOPS long-command row says the same.
