@@ -257,15 +257,15 @@ brief. Each is a step, not a check box: execute it, or name in the brief why the
   a copy of it is a copy of the live checkout, which this section bars; so a seat reports that test unverifiable and
   never runs it, and the lead runs it when the change touches it, the code it tests, or the config, manifest or
   lockfile its run reads, in CLAUDE.md's throwaway worktree at the pin's `base_sha` with the pins laid over it, after
-  an install from that tree's own lockfile (none for a tree outside the repo or one the repo has no lockfile for: the
-  lead then names the tree the run read UNPINNED). A script seat runs is run from its archive copy with every path
-  argument under scratch (a script may treat any argument as a write path), and pin carries changed files' one-hop
-  callees that are repo files (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink
-  or outside the repo root). The pin also carries each file a fix's text points at by path, and the brief says the pin
-  holds only the files it lists, so a seat reads any other file, the rest of a changed module's directory included,
-  from the base tree with the pins laid over it (`<pins_dir>.base` when the pin was taken `--base`, else the archive
-  of its `base_sha`), never from the live tree beyond what the seat prompt's recipes (`PIN_IMPORT`, `PYTEST_PINS`,
-  `GATE_PINS`) take from the live disk and
+  an install from that tree's own lockfile (a repo tree with no lockfile is installed from its manifest alone, and a
+  tree outside the repo is read in place: the lead then names the tree the run read UNPINNED). A script seat runs is
+  run from its archive copy with every path argument under scratch (a script may treat any argument as a write path),
+  and pin carries changed files' one-hop callees that are repo files (`review_loop_ledger.py pin` refuses the whole
+  list when one path is missing, a symlink or outside the repo root). The pin also carries each file a fix's text
+  points at by path, and the brief says the pin holds only the files it lists, so a seat reads any other file, the
+  rest of a changed module's directory included, from the base tree with the pins laid over it (`<pins_dir>.base` when
+  the pin was taken `--base`, else the archive of its `base_sha`), never from the live tree beyond what the seat
+  prompt's recipes (`PIN_IMPORT`, `PYTEST_PINS`, `GATE_PINS`) take from the live disk and
 name UNPINNED.
 - A pins-only copy is not a test tree: it holds the pins and nothing else — no package, no pytest config, no
   conftest, none of the files a conftest loads by path (the hub's `tests/conftest.py` loads `tests/memguard.py`; its

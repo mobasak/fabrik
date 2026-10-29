@@ -10,8 +10,8 @@ All notable changes to this project will be documented in this file.
   variable pointing at the live one lets the run write inside it; a copy is the barred copy of the
   live checkout). The seat reports it unverifiable and the lead runs it when the change touches it,
   the code it tests or the config, manifest or lockfile its run reads, in the throwaway worktree at
-  the pin's base with the pins laid over it, after a lockfile install (a tree outside the repo or
-  with no lockfile is named UNPINNED) (intel mail 01M640TVJY, W-9ad5860f's lead half). Ledger
+  the pin's base with the pins laid over it, after a lockfile install (a repo tree with no lockfile
+  is installed from its manifest, a tree outside the repo read in place, either named UNPINNED) (intel mail 01M640TVJY, W-9ad5860f's lead half). Ledger
   entry `cat-a-node-harness-test-is-the-leads-to-run`, grader in `tests/test_seat_recipe_readable.py`.
 
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
