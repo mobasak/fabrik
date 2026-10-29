@@ -9,7 +9,7 @@
   "kind": "decision",
   "legacy": false,
   "links": {
-    "decision": "",
+    "decision": "D-1335",
     "plan": "",
     "spec": ""
   },
@@ -17,10 +17,10 @@
     "aa08eeadd545bc4de9eab98adbba86baa6f4c4c01688ff518d716b7bdeddad28"
   ],
   "next": "",
-  "note": "",
+  "note": "ok (kaizen and intel come off the pause)",
   "owner": "",
   "priority": 2,
   "question": "Now that the lean rewrite is finished, may kaizen and intel come off the pause and work their own queues?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "Now that the lean rewrite is finished, may kaizen and intel come off the pause and work their own queues?"
 }

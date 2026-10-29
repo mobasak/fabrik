@@ -9,6 +9,32 @@ All notable changes to this project will be documented in this file.
 - `_main_checkout` takes command_run's identity rule (GIT_DIR, GIT_WORK_TREE, GIT_COMMON_DIR and GIT_INDEX_FILE stripped, the common dir named `.git`) and adds one of its own (the toplevel must be the project root). A bare-repo worktree or a subdirectory therefore keeps the old skip; a dangling symlink at a synced path or a parent, or a plain file where a synced directory was, reds DELETED in both modes.
 - `scripts/final_gate.py::_synced_paths` reads the same resolver, so the gate never reformats a file the check grades. Over 224 live worktrees, 2 lockless ones go red, both on genuinely stale copies.
 
+### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)
+- `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the
+  box at 96 % the hook's `SCRATCH ALARM` line landed in the stdout of every `--hook` run that passes its
+  gates (a valid session id, an `/opt` cwd, not headless or autonomous), and the three tests asserting
+  silence went red on master in every merge-test leg that runs this file (MR 01M63G10MT was refused on
+  one of them). The headless, autonomous and non-`/opt` legs now run at a 96 % reading and assert empty
+  stdout and stderr, so a gate that let the alarm through still fails.
+
+### Fixed — the coordinator's open-plan view no longer goes blank on one error (2026-10-29)
+- `scripts/work.py` `_open_plans` (shown by `work.py queue` and `triage` as `plan not executed:`):
+  an outer `except Exception` returned an empty list on any error, so a `docs_updater.py` that
+  failed to load, or one plan its parser raised on, read as "no open plans", and a plans directory
+  that could not be read did too (`Path.glob` swallows its `PermissionError`). Now a parser that
+  cannot load, or an unreadable plans directory, prints one line saying the view is unavailable,
+  and a plan the parser raises on is listed as open with the error. A repo with no plans directory
+  still lists nothing. Item W-f1412a11
+  (review B-S1 of the 2026-10-08 docs-updater plan-status receipt); tests in
+  `tests/test_docs_updater.py`.
+
+### Fixed — hub mail auto-replies tell one agent from another (2026-10-29)
+- `scripts/mail.py`: in the hub's shared `fabrik` mailbox the `--auto` self-guard and rate cap key on
+  `(from, from-agent)` (W-19b57b9a, D-1329). A fleet request auto-replied by infra was held as infra's
+  own message, and every hub agent shared one rate bucket. A parent now passes when its `from-agent` and
+  the replier's agent are both hub agents and differ; the rate bucket is that agent's, with unattributed
+  messages counted in every bucket. Unknown agents, other mailboxes and callers passing none keep the old rule.
+
 ### Fixed — a wide merge-test leg declares its memory ceiling, and a ceiling kill says so (2026-10-29)
 - `scripts/merge_request.py` reads `# merge-test-mem: <n>M|<n>G` from the BASE's `.fabrik/merge-tests`
   (clamped 256M..8G) and passes it to capped_run as `--mem`; the hub declares 8G (W-e64a7b8e, D-1328).
@@ -18,6 +44,10 @@ All notable changes to this project will be documented in this file.
   had been the script's last comment lines); a 137 without that line says it was a SIGKILL inside the leg.
   A merge-test-mem line the grammar refuses is named in the leg's own verdict.
 
+### Fixed — backfill_ci.py keys on ci_local.sh and grades the SQL its replica will lint (2026-10-29)
+
+- `scripts/backfill_ci.py` decided "already has CI" from `.github/workflows/ci.yml`, which the generator stopped emitting on 2026-08-29, so a newer repo was rewritten on every `--apply`; and it wrote a `scripts/ci_local.sh` that lints every tracked `*.sql` with sqlfluff without checking that SQL first. A project with anything at `scripts/ci_local.sh` is now skipped (its row names a stale or non-fabrik-managed replica); each target's SQL is graded by the pinned sqlfluff the replica's way, and `--apply` refuses a red or unknown verdict unless `--force`, which records the verdict. An existing `.fabrik/run-pytest` or lint baseline is kept, a symlinked parent directory or dangling leaf fails the project before any write, and the exit is 1 on a refusal, failure or missing project. Graded by `tests/test_backfill_ci.py` (D-1332, W-76d3448d).
+
 ### Fixed — the project audit accepts the docusaurus serve stage `nginx:mainline-<codename>` (2026-10-29)
 
 - `scripts/audit_all_projects.py` knew only the python, node and debian base shapes, so a scaffolded docusaurus project, whose final stage is the `nginx:mainline-<codename>` that `core/42-docusaurus.md` mandates (D-664), was graded critical. For a project of type `docusaurus` that serve stage is now a base on the same pinned codename (pinned, superseded one release back, otherwise noncompliant), and its fix hint names the serve stage; every other type still grades an nginx final stage noncompliant and keeps the python/node/debian hint. The noncompliant row's required text reads "A pinned Debian base". Graded by `tests/test_audit_all_projects_base_image.py`, which renders `templates/docusaurus/Dockerfile.j2` and audits it (W-cd8b8ead).
@@ -25,6 +55,11 @@ All notable changes to this project will be documented in this file.
 ### Fixed — a re-score out of the one-major class clears the item's hold behind the in-flight major (2026-10-29)
 
 - `work.py assign --impact/--effort` rewrote an item's score but never its `blocked_by`, so a major held behind the in-flight major and re-scored to a quick win stayed out of `ready` and `claim`: nine hub P1s waited 11 days behind W-ab566484. A re-score that takes a major, or an unscored `medium` item, to a scored non-major now drops every hold naming an in-flight major (triage's own predicate, now one helper, read from the main checkout as triage reads it) and prints each with its re-add command; an unreadable blocker is kept and said (W-0fe931b7, D-1327).
+
+### Fixed — docker-image deploys carry their spec's CPU limit, and every spec path holds one cpu grammar (2026-10-29)
+
+- `fabrik apply` of a `source.type: docker` spec wrote `deploy.resources.limits` with memory only, so the container ran with no CPU limit (zitadel on vps1, NanoCpus 0). `_generate_docker_compose` now emits `cpus` from `resources.cpu`, or the `Resources` default 0.5 when the spec omits it, as the template path already did (D-1326, W-f01710a0). The five docker-sourced specs change on vps1 only when the coordinator's deploy gate re-applies them.
+- `resources.cpu` must be a quoted plain decimal from 0.01 to 1024 with at most 2 decimals (`spec_loader.CPU_RE` / `cpu_in_grammar`), checked by the `Resources` model, the apply validator (which also refuses a non-mapping `resources`) and the docker emitter: compose 2.40.3 reads `0_5` as 5 CPUs, `0` as no limit and `-1` as -1 without complaint. 134 cpu values across the box's specs, templates and fixtures: 0 refused. Graded by `tests/test_docker_compose_emitter.py`.
 
 ### Fixed — mobile-app scaffold lints clean out of the box and its EAS delivery workflows can run (2026-10-29)
 
@@ -77,6 +112,10 @@ All notable changes to this project will be documented in this file.
 ### Changed — the renderer's gate tests stop running the rule-ledger LOSS pass (2026-10-28)
 
 `tests/test_assemble_dispatch_step.py` held 1,976 s of the hub merge leg's test time, and 11 of its 89 tests held ~1,950 s of that, up to 340 s each. Every one called `check()` with the rule-ledger LOSS pass live, and that pass takes 168.9 s of a single `check()` (profiled; the render takes 0.3 s and the size measure 3.7 s). None of the 11 grades that pass. A new helper, `_gate_at`, points `check()` at the scratch trees and replaces the LOSS pass and the size measure with spies. Each spy returns an empty result and goes red unless it is handed a temp render made during that same `check()` call (never an installed tree), the repo as root and the sources as `src_dir`. Six tests use it. `tests/test_command_measure.py`'s exit-order test ran the same live pass three times (441.5 s) and now points the rule ledgers at an empty path before step 1. Measured with the same 8-group probe: all 89 tests pass in 26 s summed (9 s wall), slowest 1.6 s; the exit-order test runs in 22.1 s. `check()`'s calls to both passes stay graded in `tests/test_command_rules.py` and `tests/test_command_measure.py`, and the live corpus's LOSS and ceiling state by `test_the_live_corpus_has_no_loss` and `test_live_corpus_within_ceiling`.
+
+### Fixed — operator_setup.py's timer-link undo survives an option-like or unprintable old target (2026-10-29)
+
+- `scripts/sysadmin/operator_setup.py`: the undo line that puts a rewritten `timers.target.wants` link back is now `ln -sfn -- <old target> <link>`, so an old target beginning with `-` is no longer read by `ln` as an option (`-x` failed loudly; `--`, `-n`, `--help` silently restored nothing). An old target `str.isprintable()` rejects — not UTF-8, or holding a control, line-break or format character or a non-ASCII space — is refused at planning, since a non-UTF-8 name crashed the undo print under a strict UTF-8 stdout after the installer ran and a line break split the pasted line. The file is reformatted at the repo's 100-column ruff line length (format only). Residue: W-364653b9. W-b3192e98.
 
 ### Fixed — operator_setup.py's undo puts the archive timer's link back as it was (2026-10-29)
 

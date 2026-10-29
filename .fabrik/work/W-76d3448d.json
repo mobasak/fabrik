@@ -3,7 +3,7 @@
   "created": "2026-10-12T20:11:13.876255Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "765eca14d037bae2abea8f91f45900a78f368b4b",
   "id": "W-76d3448d",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — backfill_ci guard bug",
-  "status": "open",
+  "status": "done",
   "tags": [
     "ci-scaffold",
     "fleet"

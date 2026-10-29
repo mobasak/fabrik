@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T10:20:55.530917Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-255d7843",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M63H5FV80ZDCVZGPKD7NYPEV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: w-b3192e98-operator-setup-nits"
+}

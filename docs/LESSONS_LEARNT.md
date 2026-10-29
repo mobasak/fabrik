@@ -7,11 +7,29 @@
 
 **Lesson:** a count printed by a new mode is a claim about the population, not about the fixture. Run the new mode over the real population and read every distinct line it prints before the review starts. Then derive the count from the rows the loop actually graded, never from the total minus one category.
 
+## A scope condition written twice hides from every single mutant (2026-10-29, W-19b57b9a)
+
+**What happened:** the hub-only self-guard first checked `self_repo == "fabrik"` on BOTH sides it compared (the parent's agent and the caller's). Deleting either check alone changed nothing, because the other one still emptied the comparison, so two mutants survived a battery that killed everything else. The tests were complete; the code made each half redundant.
+
+**Lesson:** a scope test that gates a decision belongs in ONE place, joined into the decision itself (`if not (hub and …)`), never repeated on each input. A survivor whose deletion "should" matter is a sign of duplicated logic before it is a sign of a missing test, so restructure first, then re-run the battery.
+
 ## A hold written for a reason must end when the reason does (2026-10-29, W-0fe931b7)
 
 **What happened:** the one-major rule holds every other major with `assign --blocked-by <the in-flight major>`. A later re-score turned nine of those majors into quick wins, but `blocked_by` carries no reason and the re-score never looked at it, so the items sat unclaimable for 11 days while their priority said P1.
 
 **Lesson:** when a write exists only because of a field's value (here, a hold that exists because the item is high/high), the verb that changes that value owns ending the write too. Find that verb and make it clear what it wrote, reading the same predicate the writer used (triage's in-flight test), not a looser one. A looser "any major" rule would also have dropped real prerequisites.
+
+## Six convenient values are not evidence for "every value" (2026-10-29, W-f01710a0)
+
+**What happened:** a review fix for the docker cpu grammar wrote into a docstring that the daemon stores every grammar value exactly, citing a probe of six values (0.01, 0.02, 0.07, 0.1, 0.29, 1.5), all exact. An Opus seat modelled compose's 32-bit read and predicted 0.13 → NanoCpus 129999992; the daemon then stored exactly that, and 2.15 and 3.33 were off too. Two review rounds went to one sentence.
+
+**Lesson:** before a fix states a property of a whole input space, generate the space (here 102,400 two-decimal strings) or find a model that predicts which members fail, and probe the ones the model says fail, never only the round numbers at hand. A claim that cannot be checked that way is narrowed to the values actually executed, or deleted.
+
+## A population counted from the files you are about to change misses the ones you are about to reach (2026-10-29, W-76d3448d)
+
+**What happened:** to measure who a re-keyed skip guard would affect, the first census walked the 9 repos that already carried the generated CI files. The Opus design critic re-walked every git repo under /opt (44) and found the 36 the guard would newly make backfill targets, 32 of them tracking SQL. The same census had also read "sqlfluff red" as "the replica is red today" without grepping the replica for the sqlfluff step it lacked, and the wrong claim was relayed to the coordinator and corrected an hour later.
+
+**Lesson:** a guard's population is the set its NEW verdict reaches, not the set its old verdict marked; count the whole space the predicate ranges over. And a lint verdict about a file a tool would write says nothing about the copy already there: check that the live artifact runs the step before claiming it fails.
 
 ## An exact-signature probe is not a call-resolvability probe (2026-10-29, W-d8505af5)
 
@@ -30,6 +48,12 @@
 **What happened:** to stop 11 tests paying a 169 s LOSS pass, a spy replaced it and accepted only "check()'s temp render", identified by the `_agents` subdirectory only the render holds. Review round 1 found the source tree `commands/` holds `_agents` too, so a check() handing the pass its own sources stayed green. It also found that a neutral rename of the temp dir false-redded every test. The next two identity rules each failed once more: "the last render" false-redded a check() rendering twice, and "any render this test made" accepted an earlier call's deleted temp dir.
 
 **Lesson:** identify the object a guard accepts by recording its producer (wrap the function that creates it, scoped to the call under test), never by a property you believe only it has. Then mutate the caller with every other value of the right type, including its siblings, its sources and its own earlier output.
+
+## A seat probing the UNFIXED form of an option-injection bug writes outside its scratch (2026-10-29, W-b3192e98)
+
+**What happened:** to prove `ln -sfn -- <old> <link>` against `ln -sfn <old> <link>`, the review seats ran the old form over targets like `--`, `-n`, `-v` and `--target-directory=/tmp`. The defect they were measuring did exactly what it does: `ln` took the target as an option and the link name as the source, creating `session-archive.timer` in the seat's cwd, one symlink in `/tmp`, and another (`l`) in the live worktree, all at exit 0.
+
+**Lesson:** when a brief asks seats to execute the unfixed form of an argument-injection defect, the defect's own side effect is a write to wherever the cwd or an injected option points. Say in the brief: `cd` into the seat folder first in every call, never pass `-t`/`--target-directory=`, and the lead runs the leak check (`git status`, the named out-of-tree paths) after the pass returns — here that check is what found the worktree stray.
 
 ## Probe a guard on COMBINED states, not each state alone (2026-10-29, W-88173de4)
 

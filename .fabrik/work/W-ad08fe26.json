@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T11:45:47.762593Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-ad08fe26",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M63PMSB7GMERY4ERGRBC72TK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: blocked",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "VPS SCRIPT DRIFT — hosts are not running the hub's committed scripts"
+}
