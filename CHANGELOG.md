@@ -6,13 +6,13 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — the never-execute rule binds the orchestrator and every Bash agent (2026-10-29)
 - `commands/_fragments/term-coverage.md`, `commands/_fragments/term-edit.md`: round-zero rule (1) never runs a script
-  that deletes, deploys, provisions, writes outside scratch or contacts a non-local host against the live tree; a
-  Python one runs only under fakes that raise, and an unsettled claim is BLOCKED (code) or deleted (documents) (D-1338).
+  that deletes, deploys, provisions, writes outside scratch or contacts a non-local host to settle a claim, faked
+  or not; an unsettled claim is BLOCKED (code) or deleted (documents) (D-1338).
 - `commands/_sources/fabrik-review.md`, `commands/_sources/fabrik-review-scoped.md`,
   `commands/_fragments/delegated-reads.md`: the lead's own "execute every claim" rules carry the same carve-out.
 - `commands/_agents/design-review.md`, `commands/_agents/fabrik-gui.md`: the house-rule clause fabrik-reviewer has.
 - `commands/_fragments/subagents-core.md`: `final_gate.py --check` is a writer seat's line only; read-only seats run
-  ruff, mypy and pytest with their caches off or in scratch.
+  ruff, mypy and pytest with their caches off or in scratch, every path absolute into their copy.
 - `commands/_sources/fabrik-command-improve.md`: a script that hard-codes a live path is read, never run.
 - `tests/test_never_execute_carriers.py`: pins every carrier and the rendered corpus.
 
