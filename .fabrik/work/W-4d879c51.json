@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T09:09:13.592468Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-4d879c51",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "compare the stripped last line to 'ok' (the probe runs ok), grader: stdout 'token' is not reachable",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "vultr_drill._ssh_probe treats any stdout containing the substring ok as success (\"ok\" in r.stdout, src/fabrik/orchestrator/vultr_drill.py ~:140), so a banner like 'token' or 'broker' reads as a reachable host; pre-existing, found by the W-7ac62afc review (Opus seat)."
+}

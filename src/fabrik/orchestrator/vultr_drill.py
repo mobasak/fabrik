@@ -29,6 +29,12 @@ from pathlib import Path
 from typing import Any
 
 from fabrik.config import FABRIK_ROOT
+
+# Remote output is decoded as the driver decodes it (D-1286, W-7ac62afc): the decode never raises and the rc
+# is always read. The text is handed on, since its readers scan for ASCII tokens only (`ok`, `RC=<n>`, a sha256
+# word); `RC=` takes ASCII digits only (`isdigit()` alone admits `²`, which int() refuses, and `０`, which it reads
+# as 0), so an escaped byte or a non-ASCII digit makes the token absent (rc 127), never a value.
+from fabrik.drivers.ssh import _REMOTE_ENCODING, _REMOTE_ERRORS
 from fabrik.drivers.vultr import VultrClient, VultrError
 from fabrik.orchestrator import vultr_state
 
@@ -127,6 +133,8 @@ def _ssh_probe(ip: str, *, attempts: int = 6, interval: int = 5) -> bool:
                 ],
                 capture_output=True,
                 text=True,
+                encoding=_REMOTE_ENCODING,
+                errors=_REMOTE_ERRORS,
                 timeout=15,
                 check=False,
             )
@@ -174,6 +182,8 @@ def _ssh_ozgur_drill(ip: str, cmd: str, *, timeout: int = 60) -> subprocess.Comp
         ],
         capture_output=True,
         text=True,
+        encoding=_REMOTE_ENCODING,
+        errors=_REMOTE_ERRORS,
         timeout=timeout + 5,
         check=False,
     )
@@ -209,6 +219,8 @@ def _g0_creds_smoke(ip: str) -> dict[str, Any]:
             ],
             capture_output=True,
             text=True,
+            encoding=_REMOTE_ENCODING,
+            errors=_REMOTE_ERRORS,
             timeout=30,
             check=False,
         )
@@ -218,7 +230,14 @@ def _g0_creds_smoke(ip: str) -> dict[str, Any]:
         before = _ssh_ozgur_drill(ip, "sha256sum ~/.claude/.credentials.json").stdout.split()[:1]
         # exit code of claude -p is the immediate-auth signal
         rc = _ssh_ozgur_drill(ip, "claude -p ok >/dev/null 2>&1; echo RC=$?", timeout=120)
-        claude_rc = next((int(t[3:]) for t in rc.stdout.split() if t.startswith("RC=")), 127)
+        claude_rc = next(
+            (
+                int(t[3:])
+                for t in rc.stdout.split()
+                if t.startswith("RC=") and t[3:].isascii() and t[3:].isdigit()
+            ),
+            127,
+        )
         after = _ssh_ozgur_drill(ip, "sha256sum ~/.claude/.credentials.json").stdout.split()[:1]
         return {
             "attempted": True,

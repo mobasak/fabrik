@@ -309,6 +309,8 @@ CONVERTED_FILES = {
 ALLOWLIST: dict[str, str] = {
     # ── reads, not write roots ──
     "scripts/lane_replay_capture.py": "read: `/opt/fabrik` is the git repo whose history the lane replay fixture is captured FROM (`git -C` reads, :189-196) — nothing is written under it",
+    "scripts/sysadmin/operator_setup.py": "no-write: `/opt/fabrik` is the hub main checkout `--apply`'s guard requires the script to RUN from (its .git/HEAD is read; its install_user_hooks.py is imported and install_session_archive_timer.sh run) — the script writes under $HOME and its dry-run mirror in the system temp dir, never the repo",
+    "scripts/sysadmin/vps1_ocoron_removal.py": "no-write: `/opt/fabrik/scripts/sysadmin/system-prompt.txt` is vps1's DEPLOYED copy, grepped read-only over ssh; its mv/rm run on vps1 under /opt/ocoron-com, never in the repo",
     "scripts/sysadmin/kaizen_outcomes.py": "no-write: `/opt/fabrik/scripts/capped_run.sh` is the EXECUTABLE `_capped_run` falls back to after FABRIK_CAPPED_RUN and this tree's own copy (W-162398ef) — run, never written",
     "scripts/ci_fix_dispatcher.py": "no-write: `/opt/fabrik/scripts/sysadmin/hibernate.py` is the EXECUTABLE the `paused` probe runs (T03a) — run, never written",
     "scripts/enforcement/check_mutation.py": "no-write: `/opt/fabrik/scripts/sysadmin/hibernate.py` is the EXECUTABLE the `paused` probe runs (T03a, synced file: hub path, fail-open when absent) — run, never written",
@@ -347,20 +349,23 @@ ALLOWLIST: dict[str, str] = {
     "scripts/snapshot_vps_state.py": "untracked: writes .tmp/vps-snapshot-<label>.json (gitignored `.tmp/`)",
     "scripts/sysadmin/archive_transcripts.py": "untracked: reads the gitignored .env (SESSION_ARCHIVE_ENV_FILE); writes the archive under ~/.claude/archive and uploads it to B2, no tracked-file write",
     "scripts/sysadmin/claude_rotate.py": "untracked: rotate-ledger.jsonl under ~/.claude/state, outside the repo",
+    "scripts/sysadmin/fabrik_deck.py": "untracked: `--hub` defaults to /opt/fabrik as the checkout the systemd unit runs it from; writes go to ~/.config/fabrik-deck and ~/.config/systemd/user, outside the repo",
     "scripts/sysadmin/detect_reversals.py": "untracked: writes logs/lessons-pending.jsonl + logs/sysadmin-actions.jsonl (gitignored `logs/`)",
-    "scripts/sysadmin/emit_mcp_project_config.py": "untracked: writes /opt/fabrik/.mcp.json (not tracked — `git ls-files .mcp.json` is empty)",
+    "scripts/sysadmin/emit_mcp_project_config.py": "untracked: writes /opt/fabrik/.mcp.json and its existing worktree copies under .claude/worktrees/ (not tracked — `git ls-files .mcp.json` is empty)",
     "scripts/sysadmin/hibernate.py": "no-write: `/opt/fabrik/scripts/decisions.py` is the merge-owner resolver `lift` RUNS outside a test (HUB_DECISIONS, W-6e656dac T01a); its writes (the pause marker, the rotate-ledger rows) go under $ROTATE_STATE_DIR or the passwd home's ~/.claude/state, outside the repo",
     "scripts/sysadmin/install_user_hooks.py": "untracked: installs into the user's own ~/.claude hooks, outside the repo",
     "scripts/sysadmin/prune_transcripts.py": "untracked: `/opt/fabrik/.env` is only the default SESSION_ARCHIVE_ENV_FILE it reads; its writes (prune ledger and logs under ~/.claude/archive, unlinks and rmtree under ~/.claude, `--restore` back into ~/.claude/projects) are all outside the repo",
     "scripts/sysadmin/quota_dashboard.py": "untracked: quota dashboard state under ~/.claude, outside the repo",
     "scripts/sysadmin/quota_posture_hook.py": "untracked: quota posture state under ~/.claude, outside the repo",
+    "scripts/sysadmin/rotate_session.py": "untracked: TYPES a resume prompt naming /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh and /opt/fabrik/scripts/whoami_agent.py into an agent's pane; its writes (request files, the rotations log) are under ~/.claude/state, outside the repo",
     "scripts/sysadmin/selfwatch_check.py": "untracked: self-watch arm marker under ~/.claude, outside the repo (invokes selfwatch_arm.sh by path)",
     "scripts/sysadmin/send-telegram.sh": "untracked: reads gitignored .env.sysadmin only; sends to the Telegram API, no local tracked-file write",
-    "scripts/sysadmin/transcript_size_check.py": "untracked: reads the default SESSION_ARCHIVE_ENV_FILE `/opt/fabrik/.env` and PRINTS a `/opt/fabrik/scripts/whoami_agent.py` command; its one write is the rotate-advised stamp under ~/.claude/state",
+    "scripts/sysadmin/transcript_size_check.py": "untracked: reads the default SESSION_ARCHIVE_ENV_FILE `/opt/fabrik/.env` and PRINTS a `/opt/fabrik/scripts/whoami_agent.py` command; its one write is the rotate-advised stamp under ~/.claude/state (the context sensor's under its .ctx/ subdir)",
+    "scripts/sysadmin/vps1_pg_scoped_logins.py": "untracked: operator-run credential rotation (D-1176), refused from any cwd but /opt/fabrik; its local writes go only there, to the gitignored .env and under backups/ (password files, the .env backup, the .env staging file); its other writes are vps1 files over ssh",
     "scripts/sysadmin/vps_script_drift.py": "untracked: reads the hub HEAD via git (honours $FABRIK_ROOT) and the VPS copies over ssh; its watermark lives under ~/.claude/state, no tracked-file write",
+    ".claude/hooks/mail_notify.py": "untracked: reads /opt/fabrik-mail (sanctioned exception, CLAUDE.md HARD STOPS); its one write is the per-session digest under ~/.claude/state/mail-notify, outside the repo",
     "src/fabrik/drivers/modal_provider.py": "untracked: reads gitignored .env.sysadmin + a fixed template dir; its Modal deployment output is written into the TARGET project, not a hub-hardcoded tracked path",
     # ── other-repo: the write target is a DIFFERENT store/repo than the hub's own tree ──
-    ".claude/hooks/mail_notify.py": "other-repo: writes /opt/fabrik-mail (sanctioned exception, CLAUDE.md HARD STOPS)",
     "scripts/bootstrap/bootstrap-hub.sh": "other-repo: reads/restores from /opt/fabrik-dr-store, the disaster-recovery env store",
     "scripts/bootstrap/bootstrap-spoke-restore.sh": "other-repo: reads/restores from /opt/fabrik-dr-store",
     "scripts/deploy_doc_policy.py": "other-repo: writes .doc-policy.md into every /opt/<project> repo, not the hub's own tree",
@@ -397,6 +402,7 @@ ALLOWLIST: dict[str, str] = {
     # ── no-write: comment, read-only reference, test fixture, or already __file__-derived ──
     "docs/reference/research/2026-09-23-stop-compaction/mine.py": "no-write: dated one-off research artifact, loads final_gate_stop.py by absolute path to inspect it, does not write a tracked hub file",
     "scripts/.scratch/test_env_consolidation.py": "no-write: dead scratch test (last touched 2026-05-25), force-tracked despite scripts/.scratch/ being gitignored",
+    ".claude/hooks/agent_role.py": "no-write: runs $FABRIK_DECISIONS_PY, else /opt/fabrik/scripts/decisions.py, --merge-owner read-only, only to refuse a merge owner's role-charter fallback",
     "scripts/docs_updater.py": "no-write: the literal `/opt/fabrik/scripts/decisions.py` is the hub id allocator it RUNS (`$FABRIK_DECISIONS_PY` overrides it); the ledger that run appends is the cwd repo's (`PROJECT_ROOT = Path.cwd()`), never the literal",
     "scripts/enforcement/check_doc_links.py": "no-write: `/opt/fabrik/` is a READ-side prefix check classifying a doc link, not a write target",
     "scripts/enforcement/check_structure.py": "no-write: the matched lines are a COMMENT describing the pattern, no FABRIK_ROOT usage of its own",
@@ -432,7 +438,7 @@ ALLOWLIST: dict[str, str] = {
     # ── the former `deferred` rows, measured (W-319a83d7): update_vps_docs.py is CONVERTED ──
     "scripts/sysadmin/kaizen_digest.py": "read: REPO only locates send-telegram.sh to execute (:123); it writes no tracked file — `kaizen-log-*.md` is text in its message (:115)",
     "scripts/sysadmin/kaizen_shrink_audit.py": "no-write: REPO = Path(__file__).resolve().parents[2] (:53), so kaizen-shrink-audit.md (:1065) is already worktree-relative; its /opt/fabrik literals classify crontab lines (:512, :516)",
-    "scripts/review_loop_ledger.py": "read: its only hit is a comment naming PIN_IMPORT's FABRIK_ROOT warning (:352); it writes only under the caller's --pins-dir",
+    "scripts/review_loop_ledger.py": "read: its hits are a comment naming PIN_IMPORT's FABRIK_ROOT warning and stage's printed launcher text (FABRIK_ROOT set to the staged tree); it writes only under the caller's --pins-dir and stage's --out (refused inside a work tree unless ignored, or under home) with its sibling home/ and tmp/",
 }
 
 _EXCLUDED_DIR_PREFIXES = ("tests/", "libs/", "scripts/.archive/", "scripts/archived/")

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T12:29:49.373920Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-d1a4a8f5",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 1,
+  "score_reason": "HIGH: disk on the box (119 GB unreclaimable); effort low: one script, one /fabrik-task",
+  "status": "open",
+  "title": "Scratch janitor cannot reach 119 GB of /tmp/claude-1000 (infra-2 2026-10-29): nightly scratch_sweep.py --dead --apply keeps (a) 329 unclassified folders with no live or death signal, (b) resumable markers kept after the run resumed and closed, (c) folders pinned by seats' registered throwaway worktrees; needs a design choice (when a no-signal session counts as dead, an age bound for resumable markers) — /fabrik-task or spec"
+}

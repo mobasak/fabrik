@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T14:48:09.709344Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-1eba92c8",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "rename to $(PROJECT_NAME)-smoke in templates/scaffold/docker/Makefile.python and Makefile.node as the file-worker emitter does (update its replacement map + rename step), add the leftover rm -fv before the run, make a failed health check exit 1, make 'docker stop N && docker rm -v N' remove even when stop fails; in tests/test_scaffold_smoke_volumes.py _flags_drop_volumes, cut a whitespace-led # outside quotes so a '# TODO -v' comment cannot satisfy the flag check (W-2c8173fa remainder-round residue)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "Scaffold python/node Makefile templates name the smoke container a shared 'smoke-test', so one project's make docker-smoke/clean stops and (now with -v) removes another project's smoke container and its anonymous volumes; the templates also have no pre-run removal and their health check fails open (echo, exit 0) — review residue O7 of W-2c8173fa"
+}

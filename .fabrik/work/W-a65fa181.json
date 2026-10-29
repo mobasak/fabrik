@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T11:00:27.762156Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-a65fa181",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "once that lock is released, add one sentence per row naming _api_key_session / api_key_exempt and that the battery hold still holds",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "waits-fabrik-deck-lock"
+  ],
+  "title": "hooks-index.md: add the W-effb7141 API-key exemption sentence to the quota_stop.py and quota_posture_hook.py rows (taken out of the W-effb7141 branch because fleet plan lock 2026-10-22-plan-1-fabrik-deck owns the file)"
+}

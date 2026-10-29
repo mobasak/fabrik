@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T22:53:30.428478Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-5dccd24e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5F39EG94RH2KBPJBK66Y6Q0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "youtube (yt1, builder for W-994a1c68), reply to 01M5F32DEQ — the measured cause differs from the finding's WHY; please forward to fabrik-lib's db-pool fix (01M5F32DHR) so it designs from the true cause."
+}

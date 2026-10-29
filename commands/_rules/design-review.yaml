@@ -1,0 +1,254 @@
+command: design-review
+baseline_sentences: design-review.baseline.txt
+baseline_sha256: '21e0043c50f853460370b92752fda59fc00384efeb497a0117177121560295b2'
+entries:
+- id: u-L2
+  class: prose
+  file: render
+  baseline: 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
+  current: 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
+  text:
+  - 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
+- id: u-L3
+  class: ban
+  file: render
+  baseline: 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
+  current: 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
+  text:
+  - 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
+- id: u-L4
+  class: prose
+  file: render
+  baseline: 'Canonical: `62-using-subagents.md` § Dispatch policy'
+  current: 'Canonical: `62-using-subagents.md` § Dispatch policy'
+  text:
+  - 'Canonical: `62-using-subagents.md` § Dispatch policy'
+- id: u-L5
+  class: behavioural
+  file: render
+  baseline: 'Dispatch step (D-191): run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and mix it prints, all in ONE message, each seat a distinct unit × angle brief with its model token — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (what sibling sessions subtract), and closed with `python3 scripts/command_run.py round --seats <n> --findings <n> …` (the tripwire on D-186 is blind without it); the box is the ceiling, the units only the partition'
+  current: 'Dispatch step (D-191): run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and mix it prints, all in ONE message, each seat a distinct unit × angle brief with its model token — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (what sibling sessions subtract), and closed with `python3 scripts/command_run.py round --seats <n> --findings <n> …` (the tripwire on D-186 is blind without it); the box is the ceiling, the units only the partition'
+  text:
+  - 'Dispatch step (D-191): run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and mix it prints, all in ONE message, each seat a distinct unit × angle brief with its model token — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (what sibling sessions subtract), and closed with `python3 scripts/command_run.py round --seats <n> --findings <n> …` (the tripwire on D-186 is blind without it); the box is the ceiling, the units only the partition'
+- id: u-L7
+  class: prose
+  file: render
+  baseline: You conduct world-class design reviews following the rigorous standards of top Silicon Valley companies like Stripe, Airbnb, and Linear
+  current: You conduct world-class design reviews following the rigorous standards of top Silicon Valley companies like Stripe, Airbnb, and Linear
+  text:
+  - You conduct world-class design reviews following the rigorous standards of top Silicon Valley companies like Stripe, Airbnb, and Linear
+- id: u-L8
+  class: grammar
+  file: render
+  baseline: 'GIT STATUS:'
+  current: 'GIT STATUS:'
+  text:
+  - 'GIT STATUS:'
+- id: u-L10
+  class: grammar
+  file: render
+  baseline: 'FILES MODIFIED:'
+  current: 'FILES MODIFIED:'
+  text:
+  - 'FILES MODIFIED:'
+- id: u-L12
+  class: grammar
+  file: render
+  baseline: 'COMMITS:'
+  current: 'COMMITS:'
+  text:
+  - 'COMMITS:'
+- id: u-L14
+  class: grammar
+  file: render
+  baseline: 'DIFF CONTENT:'
+  current: 'DIFF CONTENT:'
+  text:
+  - 'DIFF CONTENT:'
+- id: u-L16
+  class: prose
+  file: render
+  baseline: 'OBJECTIVE: Use the design-review agent to comprehensively review the complete diff above, and reply back to the user with the design review report'
+  current: 'OBJECTIVE: Use the design-review agent to comprehensively review the complete diff above, and reply back to the user with the design review report'
+  text:
+  - 'OBJECTIVE: Use the design-review agent to comprehensively review the complete diff above, and reply back to the user with the design review report'
+- id: u-L17
+  class: behavioural
+  file: render
+  baseline: The "report and nothing else" shape binds the DISPATCHED design-review agent's return value — the parent command's own closing response still owes its `RUN:` line, the decision/`FEEDBACK:` lines, and CLAUDE.md's completion footer around the report
+  current: The "report and nothing else" shape binds the DISPATCHED design-review agent's return value — the parent command's own closing response still owes its `RUN:` line, the decision/`FEEDBACK:` lines, and CLAUDE.md's completion footer around the report
+  text:
+  - The "report and nothing else" shape binds the DISPATCHED design-review agent's return value — the parent command's own closing response still owes its `RUN:` line, the decision/`FEEDBACK:` lines, and CLAUDE.md's completion footer around the report
+- id: u-L19
+  class: prose
+  file: render
+  baseline: '⚠️ MODEL FLOOR — at least the authoritative seat runs on Opus (`model: "opus"`): the visual/UX/a11y judgement is high-stakes and this native browser-driven pass is the review''s authoritative Opus eyes'
+  current: '⚠️ MODEL FLOOR — at least the authoritative seat runs on Opus (`model: "opus"`): the visual/UX/a11y judgement is high-stakes and this native browser-driven pass is the review''s authoritative Opus eyes'
+  text:
+  - '⚠️ MODEL FLOOR — at least the authoritative seat runs on Opus (`model: "opus"`): the visual/UX/a11y judgement is high-stakes and this native browser-driven pass is the review''s authoritative Opus eyes'
+- id: u-L20
+  class: ban
+  file: render
+  baseline: (The OpenRouter pool floor that the code/text review commands carry does not apply here — driving a running screen needs the Playwright/browser MCPs, which have no pool equivalent; this is the same native-only carve-out as `/fabrik-ui-design`'s Build Verification Loop.)
+  current: (The OpenRouter pool floor that the code/text review commands carry does not apply here — driving a running screen needs the Playwright/browser MCPs, which have no pool equivalent; this is the same native-only carve-out as `/fabrik-ui-design`'s Build Verification Loop.)
+  text:
+  - (The OpenRouter pool floor that the code/text review commands carry does not apply here — driving a running screen needs the Playwright/browser MCPs, which have no pool equivalent; this is the same native-only carve-out as `/fabrik-ui-design`'s Build Verification Loop.)
+- id: u-L21
+  class: ban
+  file: render
+  baseline: '⚠️ CONVERGENCE — this review is a LOOP, not a one-shot; its exit is the Termination contract below (`term-edit`): a design is "done" ONLY at the closing round — the closing pass, the round-1 seats over their own axes, CONFIRMING zero findings (no Blockers / High-Priority / Medium findings confirmed by execution against the running screen), the reviewed surface''s md5 unchanged'
+  current: '⚠️ CONVERGENCE — this review is a LOOP, not a one-shot; its exit is the Termination contract below (`term-edit`): a design is "done" ONLY at the closing round — the closing pass, the round-1 seats over their own axes, CONFIRMING zero findings (no Blockers / High-Priority / Medium findings confirmed by execution against the running screen), the reviewed surface''s md5 unchanged'
+  text:
+  - '⚠️ CONVERGENCE — this review is a LOOP, not a one-shot; its exit is the Termination contract below (`term-edit`): a design is "done" ONLY at the closing round — the closing pass, the round-1 seats over their own axes, CONFIRMING zero findings (no Blockers / High-Priority / Medium findings confirmed by execution against the running screen), the reviewed surface''s md5 unchanged'
+- id: u-L22
+  class: ban
+  file: render
+  baseline: 'The pass in which anything was found or fixed is NEVER the converged pass: the surviving findings must be fixed and the screen RE-REVIEWED, and you keep looping (review → fix → re-review) until the closing round'
+  current: 'The pass in which anything was found or fixed is NEVER the converged pass: the surviving findings must be fixed and the screen RE-REVIEWED, and you keep looping (review → fix → re-review) until the closing round'
+  text:
+  - 'The pass in which anything was found or fixed is NEVER the converged pass: the surviving findings must be fixed and the screen RE-REVIEWED, and you keep looping (review → fix → re-review) until the closing round'
+- id: u-L23
+  class: ban
+  file: render
+  baseline: Refuted and RECORDED candidates never count in `confirmed:` and never reopen the loop (D-206); a re-raise of an already-adjudicated standing finding (an accepted UX tradeoff, a deferred nit) is cited in its RECORDED row of the Pass Ledger, never counted
+  current: Refuted and RECORDED candidates never count in `confirmed:` and never reopen the loop (D-206); a re-raise of an already-adjudicated standing finding (an accepted UX tradeoff, a deferred nit) is cited in its RECORDED row of the Pass Ledger, never counted
+  text:
+  - Refuted and RECORDED candidates never count in `confirmed:` and never reopen the loop (D-206); a re-raise of an already-adjudicated standing finding (an accepted UX tradeoff, a deferred nit) is cited in its RECORDED row of the Pass Ledger, never counted
+- id: u-L24
+  class: ban
+  file: render
+  baseline: 'The report MUST end with a `Converged: yes | no` line and the fragment''s Pass Ledger (its rows and md5 pair — the `Standing:` line and the one-line `Pass k — found: N, fixed: M` form are retired, D-219/D-206); `Converged: yes` is permitted only when the last row reads `confirmed: 0, fixed: 0, unexecuted: 0`'
+  current: 'The report MUST end with a `Converged: yes | no` line and the fragment''s Pass Ledger (its rows and md5 pair — the `Standing:` line and the one-line `Pass k — found: N, fixed: M` form are retired, D-219/D-206); `Converged: yes` is permitted only when the last row reads `confirmed: 0, fixed: 0, unexecuted: 0`'
+  text:
+  - 'The report MUST end with a `Converged: yes | no` line and the fragment''s Pass Ledger (its rows and md5 pair — the `Standing:` line and the one-line `Pass k — found: N, fixed: M` form are retired, D-219/D-206); `Converged: yes` is permitted only when the last row reads `confirmed: 0, fixed: 0, unexecuted: 0`'
+- id: u-L25
+  class: ban
+  file: render
+  baseline: Record each pass in the run record too — `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <n> --confirmed <n> --classes-swept <the axes swept> --classes-new <…>` — the report is chat-only, so the round ledger is this loop's only machine-read trace
+  current: Record each pass in the run record too — `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <n> --confirmed <n> --classes-swept <the axes swept> --classes-new <…>` — the report is chat-only, so the round ledger is this loop's only machine-read trace
+  text:
+  - Record each pass in the run record too — `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <n> --confirmed <n> --classes-swept <the axes swept> --classes-new <…>` — the report is chat-only, so the round ledger is this loop's only machine-read trace
+- id: u-L27
+  class: prose
+  file: render
+  baseline: ⚠️ GROUNDING GATE (BINDING — validate against the RUNNING screen + the frozen contracts, not the diff)
+  current: ⚠️ GROUNDING GATE (BINDING — validate against the RUNNING screen + the frozen contracts, not the diff)
+  text:
+  - ⚠️ GROUNDING GATE (BINDING — validate against the RUNNING screen + the frozen contracts, not the diff)
+- id: u-L28
+  class: prose
+  file: render
+  baseline: A design review runs against a project that already has screens, a design system, and a frozen `docs/ui-design.md` + `docs/data-contract.md` — so the dominant defect is a critique or a fix asserted from the diff or from memory that the actually-rendered screen contradicts
+  current: A design review runs against a project that already has screens, a design system, and a frozen `docs/ui-design.md` + `docs/data-contract.md` — so the dominant defect is a critique or a fix asserted from the diff or from memory that the actually-rendered screen contradicts
+  text:
+  - A design review runs against a project that already has screens, a design system, and a frozen `docs/ui-design.md` + `docs/data-contract.md` — so the dominant defect is a critique or a fix asserted from the diff or from memory that the actually-rendered screen contradicts
+- id: u-L29
+  class: ban
+  file: render
+  baseline: 'Nothing is validated until it is grounded in what the browser shows TODAY: (1) See the real screen — drive the running UI (Playwright MCP) and screenshot it at 375 / 768 / 1440; judge what renders, not what the diff claims; a screen behind a login is reached through the vendored `fabrik-lib/ui-verify` auth harness (`makeAuthedTest` or `makeUiAuthedTest`, never a hand-rolled login) with credentials read from the environment, never pasted into a brief; the seat confirms the render is the signed-in screen, not a login redirect, before judging it, and strips session tokens from the evidence it returns'
+  current: 'Nothing is validated until it is grounded in what the browser shows TODAY: (1) See the real screen — drive the running UI (Playwright MCP) and screenshot it at 375 / 768 / 1440; judge what renders, not what the diff claims; a screen behind a login is reached through the vendored `fabrik-lib/ui-verify` auth harness (`makeAuthedTest` or `makeUiAuthedTest`, never a hand-rolled login) with credentials read from the environment, never pasted into a brief; the seat confirms the render is the signed-in screen, not a login redirect, before judging it, and strips session tokens from the evidence it returns'
+  text:
+  - 'Nothing is validated until it is grounded in what the browser shows TODAY: (1) See the real screen — drive the running UI (Playwright MCP) and screenshot it at 375 / 768 / 1440; judge what renders, not what the diff claims; a screen behind a login is reached through the vendored `fabrik-lib/ui-verify` auth harness (`makeAuthedTest` or `makeUiAuthedTest`, never a hand-rolled login) with credentials read from the environment, never pasted into a brief; the seat confirms the render is the signed-in screen, not a login redirect, before judging it, and strips session tokens from the evidence it returns'
+  pins:
+  - tests/test_design_review_queue_pass.py::test_a_login_gated_screen_is_reached_through_the_auth_harness
+- id: u-L30
+  class: ban
+  file: render
+  baseline: (2) Check the frozen contracts — every screen, component, state, and field you assert about must exist in `docs/ui-design.md` / `docs/data-contract.md` (a screen or field not in them is an invented-surface defect; a design-system token is the only styling that counts)
+  current: (2) Check the frozen contracts — every screen, component, state, and field you assert about must exist in `docs/ui-design.md` / `docs/data-contract.md` (a screen or field not in them is an invented-surface defect; a design-system token is the only styling that counts)
+  text:
+  - (2) Check the frozen contracts — every screen, component, state, and field you assert about must exist in `docs/ui-design.md` / `docs/data-contract.md` (a screen or field not in them is an invented-surface defect; a design-system token is the only styling that counts)
+  pins:
+  - tests/test_design_review_queue_pass.py::test_a_login_gated_screen_is_reached_through_the_auth_harness
+- id: u-L31
+  class: prose
+  file: render
+  baseline: (3) Any finding or fix you cannot tie to a freshly-rendered screenshot + the frozen contract is UNVALIDATED — re-render and confirm, or drop it
+  current: (3) Any finding or fix you cannot tie to a freshly-rendered screenshot + the frozen contract is UNVALIDATED — re-render and confirm, or drop it
+  text:
+  - (3) Any finding or fix you cannot tie to a freshly-rendered screenshot + the frozen contract is UNVALIDATED — re-render and confirm, or drop it
+- id: u-L32
+  class: prose
+  file: render
+  baseline: 'Follow and implement THIS project''s design contract as the design principles + style guide, in priority order:'
+  current: 'Follow and implement THIS project''s design contract as the design principles + style guide, in priority order:'
+  text:
+  - 'Follow and implement THIS project''s design contract as the design principles + style guide, in priority order:'
+- id: u-L33
+  class: prose
+  file: render
+  baseline: '`docs/ui-design.md` (the FROZEN screen+flow contract from `/fabrik-ui-design`) — the authoritative screens, minimal-click flows + click budgets, per-screen components/states, and screen↔`docs/data-contract.md` field mapping'
+  current: '`docs/ui-design.md` (the FROZEN screen+flow contract from `/fabrik-ui-design`) — the authoritative screens, minimal-click flows + click budgets, per-screen components/states, and screen↔`docs/data-contract.md` field mapping'
+  text:
+  - '`docs/ui-design.md` (the FROZEN screen+flow contract from `/fabrik-ui-design`) — the authoritative screens, minimal-click flows + click budgets, per-screen components/states, and screen↔`docs/data-contract.md` field mapping'
+- id: u-L34
+  class: prose
+  file: render
+  baseline: 'Judge the UI against THIS: every screen present, flows within budget, all enriched states, no invented field/component'
+  current: 'Judge the UI against THIS: every screen present, flows within budget, all enriched states, no invented field/component'
+  text:
+  - 'Judge the UI against THIS: every screen present, flows within budget, all enriched states, no invented field/component'
+- id: u-L35
+  class: ban
+  file: render
+  baseline: 'The design system, resolved by the LADDER (`saas/60-saas-ui.md`, operator ruling 2026-08-29): the project''s own `docs/design-system.md` (BIC-sourced) first; `ocoron-design-system.md` / `tojlo-design-system.md` ONLY on the project''s explicit house-identity declaration; the structure is `design-system-template.md` whatever the brand — plus `.windsurf/rules/saas/60-saas-ui.md` (web) / `mobile-app/80-mobile.md` (RN) — tokens, components, motion, density, accessibility (WCAG 2.2 AA), responsive, voice/microcopy'
+  current: 'The design system, resolved by the LADDER (`saas/60-saas-ui.md`, operator ruling 2026-08-29): the project''s own `docs/design-system.md` (BIC-sourced) first; `ocoron-design-system.md` / `tojlo-design-system.md` ONLY on the project''s explicit house-identity declaration; the structure is `design-system-template.md` whatever the brand — plus `.windsurf/rules/saas/60-saas-ui.md` (web) / `mobile-app/80-mobile.md` (RN) — tokens, components, motion, density, accessibility (WCAG 2.2 AA), responsive, voice/microcopy'
+  text:
+  - 'The design system, resolved by the LADDER (`saas/60-saas-ui.md`, operator ruling 2026-08-29): the project''s own `docs/design-system.md` (BIC-sourced) first; `ocoron-design-system.md` / `tojlo-design-system.md` ONLY on the project''s explicit house-identity declaration; the structure is `design-system-template.md` whatever the brand — plus `.windsurf/rules/saas/60-saas-ui.md` (web) / `mobile-app/80-mobile.md` (RN) — tokens, components, motion, density, accessibility (WCAG 2.2 AA), responsive, voice/microcopy'
+- id: u-L36
+  class: prose
+  file: render
+  baseline: Judging a BIC-branded product against ocoron tokens is itself a finding
+  current: Judging a BIC-branded product against ocoron tokens is itself a finding
+  text:
+  - Judging a BIC-branded product against ocoron tokens is itself a finding
+- id: u-L37
+  class: prose
+  file: render
+  baseline: A project-local `context/design-principles.md` / `context/style-guide.md` if present
+  current: A project-local `context/design-principles.md` / `context/style-guide.md` if present
+  text:
+  - A project-local `context/design-principles.md` / `context/style-guide.md` if present
+- id: u-L38
+  class: ban
+  file: render
+  baseline: On a web surface, `frontend-design:frontend-design`'s critique — its AI-generated clusters and generic treatments, written out in `core/63-frontend-design.md` — applied only to what 1–3 leave free; a finding there terminates FIXED or REFUTED like any other, never by editing a frozen contract in place
+  current: On a web surface, `frontend-design:frontend-design`'s critique — its AI-generated clusters and generic treatments, written out in `core/63-frontend-design.md` — applied only to what 1–3 leave free; a finding there terminates FIXED or REFUTED like any other, never by editing a frozen contract in place
+  text:
+  - On a web surface, `frontend-design:frontend-design`'s critique — its AI-generated clusters and generic treatments, written out in `core/63-frontend-design.md` — applied only to what 1–3 leave free; a finding there terminates FIXED or REFUTED like any other, never by editing a frozen contract in place
+- id: u-L39
+  class: prose
+  file: render
+  baseline: If `docs/ui-design.md` is absent, fall back to the design system + `saas/60-saas-ui.md`'s "Done When" checklist
+  current: If `docs/ui-design.md` is absent, fall back to the design system + `saas/60-saas-ui.md`'s "Done When" checklist
+  text:
+  - If `docs/ui-design.md` is absent, fall back to the design system + `saas/60-saas-ui.md`'s "Done When" checklist
+- id: design-review-r1
+  class: prose
+  file: render
+  baseline: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
+  current: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
+  text:
+  - '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
+- id: design-review-r3
+  class: ban
+  file: render
+  baseline: ⚠️ FAN-OUT — dispatch the `design-review` seats `dispatch_headroom.py --units <screens>` prints — one Sonnet seat per SCREEN/route under review plus the Haiku mechanical seat(s) and the Opus authoritative seat — all in a single message so they drive their screens in parallel (screens are independent — the same shape `/fabrik-ui-design`'s Build Verification Loop already uses for `fabrik-gui`); the screen count is the PARTITION and `dispatch_headroom.py --units <screens>` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — never a token one (D-191) — the Sonnet seat drives the screen, the Haiku mechanical seat runs that screen's AUTOMATED checks (the axe scan, contrast, token lint — grep-shaped, no judgement), the Opus authoritative seat re-drives the highest-risk screen and owns the visual/UX judgement
+  current: ⚠️ FAN-OUT — dispatch the `design-review` seats `dispatch_headroom.py --units <screens>` prints — one Sonnet seat per SCREEN/route under review plus the Haiku mechanical seat(s) and the Opus authoritative seat — all in a single message so they drive their screens in parallel (screens are independent — the same shape `/fabrik-ui-design`'s Build Verification Loop already uses for `fabrik-gui`); the screen count is the PARTITION and `dispatch_headroom.py --units <screens>` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — never a token one (D-191) — the Sonnet seat drives the screen, the Haiku mechanical seat runs that screen's AUTOMATED checks (the axe scan, contrast, token lint — grep-shaped, no judgement), the Opus authoritative seat re-drives the highest-risk screen and owns the visual/UX judgement
+  text:
+  - ⚠️ FAN-OUT — dispatch the `design-review` seats `dispatch_headroom.py --units <screens>` prints — one Sonnet seat per SCREEN/route under review plus the Haiku mechanical seat(s) and the Opus authoritative seat — all in a single message so they drive their screens in parallel (screens are independent — the same shape `/fabrik-ui-design`'s Build Verification Loop already uses for `fabrik-gui`); the screen count is the PARTITION and `dispatch_headroom.py --units <screens>` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — never a token one (D-191) — the Sonnet seat drives the screen, the Haiku mechanical seat runs that screen's AUTOMATED checks (the axe scan, contrast, token lint — grep-shaped, no judgement), the Opus authoritative seat re-drives the highest-risk screen and owns the visual/UX judgement
+- id: design-review-r4
+  class: ban
+  file: render
+  baseline: '(When run inside `/fabrik-ui-design`''s Build Verification Loop, that loop drives the re-review to this closing round.) Context is never a reason to stop: the harness auto-compacts and the run continues — keep going'
+  current: '(When run inside `/fabrik-ui-design`''s Build Verification Loop, that loop drives the re-review to this closing round.) Context is never a reason to stop: the harness auto-compacts and the run continues — keep going'
+  text:
+  - '(When run inside `/fabrik-ui-design`''s Build Verification Loop, that loop drives the re-review to this closing round.) Context is never a reason to stop: the harness auto-compacts and the run continues — keep going'
+vanished:
+  L1: {"rule": ["design-review-r1"]}
+  L6: narrative
+  L19: {"rule": ["u-L19"]}
+  L20: {"rule": ["u-L20"]}
+  L21: {"rule": ["u-L21"]}
+  L18: {"rule": ["design-review-r3"]}
+  L26: {"rule": ["design-review-r4"]}

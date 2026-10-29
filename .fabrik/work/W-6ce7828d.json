@@ -1,5 +1,7 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-686647c8"
+  ],
   "created": "2026-10-07T06:03:21.528959Z",
   "creator": "infra",
   "effort": "low",
@@ -14,11 +16,11 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "contradicts operator rulings D-613/D-1110 (the Opus+Fable panel answers design and plan approval); the 2026-10-06 classifier refusal has not recurred — 22 panel-approval rows committed since (kaizen measured 2026-10-29)",
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — command wording fix from feedback mail",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "mail-01m492801e"
   ],

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T18:22:05.424419Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-e676ba7e",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: rare edge, wall time only, no verdict change",
+  "status": "open",
+  "title": "merge_test_select._on_base whole-file fallback runs once per shard group when the BASE fails to collect a split file: wall time only, verdicts unaffected (W-231f4695 review pass 2 residual)"
+}

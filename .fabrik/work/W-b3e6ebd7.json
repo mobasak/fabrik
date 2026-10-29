@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T04:46:00.804899Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-b3e6ebd7",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "after W-c832e59f merges and two hub legs have run: read their merge-tests lines (coordinator sends the leg logs), table planned vs measured per shard, close or escalate",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Measure the duration-balanced merge-test shards (D-1279) on the next hub merge legs: compare each leg's 'shards planned' with 'shards measured' and the max shard against the 2026-10-27 baseline of 842 s (round-robin, 253-842 s); if one file dominates a shard or planned and measured diverge, that is the evidence for per-test splitting or a pull queue"
+}

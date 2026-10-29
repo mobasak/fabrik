@@ -274,6 +274,39 @@ def test_census_names_ungraded_when_no_rule_packs(tmp_path):
     assert "completeness: no rule packs at" in out, out
 
 
+def test_the_rubric_child_runs_with_the_sensor_off(tmp_path):
+    """W-5bfeb31e: the grader's rubric re-run armed no reviewer, so it runs with
+    REVIEW_RUBRIC_SENSOR_OFF=1 and records no rule activation — and still grades: a broken
+    `env=` line would fall into the advisory's UNGRADED branch and stay silent otherwise."""
+    root = _root(tmp_path)
+    seen = tmp_path / "rubric-env.txt"
+    (root / "scripts" / "review_rubric.py").write_text(
+        "import os, pathlib\n"
+        f"pathlib.Path({str(seen)!r}).write_text(os.environ.get('REVIEW_RUBRIC_SENSOR_OFF', '<unset>'))\n"
+        + FAKE_RUBRIC.split("\n", 1)[1],
+        encoding="utf-8",
+    )
+    _plan(root, digest_rows=f'| "{WRAPPED_QUOTE}" | {PACK_REL} | x |')
+    env = {k: v for k, v in os.environ.items() if k != "REVIEW_RUBRIC_SENSOR_OFF"}
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(REPO / "scripts" / "enforcement" / "check_rule_grounding.py"),
+            "--root",
+            str(root),
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=str(root),
+        timeout=60,
+    )
+    assert r.returncode == 0, r.stderr[:300]
+    assert seen.read_text() == "1", seen.read_text()
+    assert "1 CONVERGED in-window plan(s) examined, 0 with findings" in r.stdout, r.stdout
+    assert "UNGRADED" not in r.stdout, r.stdout
+
+
 def test_census_has_no_ungraded_clause_when_rubric_runs(tmp_path):
     root = _root(tmp_path)
     _plan(root, digest_rows=f'| "{WRAPPED_QUOTE}" | {PACK_REL} | x |')
@@ -512,7 +545,7 @@ def test_an_existing_extensionless_root_file_still_grades(tmp_path):
 
 
 def test_an_escaped_pipe_is_one_cell_and_matches_on_both_sides(tmp_path):
-    """A pack table carries `\\|` (core/12-node.md:297 has `process.env.X \\|\\| 'default'`); a digest
+    """A pack table carried `\\|` (core/12-node.md's secrets row had `process.env.X \\|\\| 'default'` until W-80ffca68); a digest
     quoting it must escape it to stay one cell, and `_norm` compares both sides un-escaped."""
     root = _root(tmp_path)
     pack = root / PACK_REL

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T04:54:36.804935Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-272ffba7",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-upstream",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: STATED: fabrik-upstream.md:108-109 property 1 'Reproducible evidence — computed numbers, command output, or a re-derivable calculation a hub agent can re-run an",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-upstream"
+}

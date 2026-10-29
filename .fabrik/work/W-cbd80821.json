@@ -17,10 +17,10 @@
     "1564326392709e292a90aa0df2ddf0d77c2b5512895790ac0dbdac375a97b204"
   ],
   "next": "",
-  "note": "",
+  "note": "panel unanimous: approved. Diff the live /opt/browserless/compose.yaml against the repo copy first (only the memory line may differ; TOKEN stays from the live .env), back it up, then docker compose up -d through the vps2 jump",
   "owner": "",
   "priority": 2,
   "question": "May the operator redeploy browserless on vps1 with its memory limit raised from 2G to 3G? That means backing up `/opt/browserless/compose.yaml`, copying the repo version over it, then `docker compose up -d`, about a minute's restart.",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May the operator redeploy browserless on vps1 with its memory limit raised from 2G to 3G? That means backing up `/opt/browserless/compose.yaml`, copying the repo version over it, then `docker compose up -d`, about a minute's restart."
 }

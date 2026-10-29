@@ -1,6 +1,6 @@
 # VPS Fleet — Service URLs and Endpoints
 
-**Last Updated:** 2026-10-01 23:05 UTC
+**Last Updated:** 2026-10-29 11:07 UTC
 **Last probe report:** [`probe-reports/infra-probe-2026-06-07T20-20Z.yaml`](probe-reports/infra-probe-2026-06-07T20-20Z.yaml)
 **Hosts:** vps1 (hub, LA, `172.93.160.197`) · vps2 (Coventry UK, `96.9.214.128`) · vps3 (Coventry UK, `104.128.190.151`)
 **Mesh:** Wireguard `10.99.0.0/24` over UDP 51820 (vps1 = `.1`, vps2 = `.2`, vps3 = `.3`)
@@ -146,7 +146,7 @@ These resolve only *inside* a container on the same `fabrik` network on the same
 | Loki push API | `http://loki:3100/loki/api/v1/push` |
 | Prometheus query | `http://prometheus:9090` |
 | Authelia forward-auth target | `http://authelia:9091/api/verify` |
-| Apprise notify (stateful — the fleet convention) | `http://apprise:8000/notify/alerts` |
+| Apprise notify (stateful — the fleet convention; vps1 containers only: no mesh port, so a spoke watchdog is refused until it is mesh-published, W-37dda1e1) | `http://apprise:8000/notify/alerts` |
 | Apprise notify (stateless — n8n only) | `http://apprise:8000/notify` |
 | Gotenberg | `http://gotenberg:3000` |
 | Browserless | `http://browserless:3000` |

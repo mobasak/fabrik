@@ -92,7 +92,7 @@ def test_low_battery_arms_the_hold(box):
     assert box.stamp.read_text() == "0\nbattery\n"
     assert _deny(box.stamp) == "deny"
     assert any(r.get("event") == "battery-hold" for r in _ledger(box.state))
-    box.stamp.write_text("0\nurgent-90\n")  # the quota's WARNING tier holds nothing
+    box.stamp.write_text("0\nurgent-90\n")  # the quota's LANE tier: no all-session hold
     assert (
         hook.decide("Edit", None, stamp_exists=True, tick_age_s=10.0, tier="urgent-90")[0] != "deny"
     )

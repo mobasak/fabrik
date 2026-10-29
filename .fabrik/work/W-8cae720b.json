@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T12:45:27.999423Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8cae720b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5HT2HJTSAA4PSGJ4WGVH93H",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-task feedback asking for scratch_sweep.py and quota-posture code: two rows routed from kaizen's queue pass (W-82a196a7)"
+}

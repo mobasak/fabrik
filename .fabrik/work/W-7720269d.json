@@ -14,10 +14,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — one-line message path",
-  "status": "open",
+  "status": "dropped",
   "title": "command_feedback_report.py --take's claim-not-re-read line names the relative scripts/work.py; from a repo without it the instruction points at a missing file — print /opt/fabrik/scripts/work.py (recorded by the T04 review pass 4, plan 2026-09-25-plan-1)"
 }

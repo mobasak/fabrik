@@ -7,17 +7,35 @@ hub, and this runbook is the template for the rest. The model itself (worktrees,
 `docs/reference/multi-agent-operating-model.md`, and the coordinator's jobs are in `templates/governance/CLAUDE.md`
 § Orient, the paragraph opening "The coordinator role". This page covers only how a repo gets there and how its agents are launched.
 
-The repo's own agents do every step: the hub may not edit another repo. The hub sends the brief, builds the
+The repo's own agents do every step except the operator's (§ The operator's steps): the hub may not edit another
+repo. The hub sends the brief, builds the
 launcher, and keeps the hub item open until the repo confirms each phase.
 
 ## Who does what
 
 | Who | Does |
 |---|---|
-| The operator | Opens the repo's coordinator window, closes old builder windows before the first launch, renames windows, answers gates (§ The operator's steps). |
+| The operator | Opens the repo's coordinator window, closes old builder windows before the first launch, renames windows, writes each builder worktree's `.claude/settings.local.json`, answers gates (§ The operator's steps). |
 | The hub coordinator | Runs the pre-flight below, sends the brief to the repo, writes the repo's desktop .bat (§ The Windows side), keeps the hub item open. |
 | The repo's coordinator | Runs phase 5 and then the repo, as the merge owner. Until it exists, an existing builder does phases 1–3. |
-| The repo's builders | Do phases 1–3 through the repo's own gate and review, then work their queue. |
+| The repo's builders | Do phases 1–3 through the repo's own gate and review (step 11's settings file excepted), then work their queue. |
+
+## A repo `fabrik scaffold` creates
+
+A new repo is born with the coordinator side of this runbook (hub D-1305): the merge-owner row
+`MERGE OWNER: coordinator` (its D-001), a work store whose `distributor` is `coordinator`, with `coordinator_mode`,
+`queue_floor` 1, `autonomy` and a null `feedback_owner`, and the charter `docs/reference/agents/coordinator.md`. With
+the scripts and `.claude/` hooks every scaffold copies, phase 1 steps 1, 3 and 4 and phase 2 step 7 are done, and
+step 6's coordinator charter exists but is still adapted as step 6 says (it is generic, and it lets the coordinator
+build while the repo has no builders, the one exception to "never building"). The pre-flight still runs and every
+other step applies as written. The scaffold does not check its initial commit, and with pre-commit installed that
+commit fails on the ledger hook, which runs a `scripts/decisions.py` the scaffold does not copy (hub W-d93f2987). So
+when `git -C /opt/<repo> show --stat HEAD` errors on `HEAD`, nothing was committed: do phase 1 step 2 first, which
+vendors `decisions.py`, then make the initial commit of the whole tree. When a scaffold could not write the pieces it
+printed one WARNING and left none of them, so the repo takes the full runbook. The
+coordinator's agent name (`CLAUDE_AGENT`) is plain `coordinator` (the reason is in D-1305); its window may keep the
+session name `<repo>-coordinator` that the scaffold prints, since a session name is only a label and the launcher
+opens no pane for the coordinator.
 
 ## Before the first phase: what the hub coordinator reads (read-only)
 
@@ -68,9 +86,12 @@ Written for the operator; nothing here can be done by an agent.
    session mix its transcript and hooks.
 3. **Rename each window** with `/rename <name>` (the coordinator and each builder). Only the operator can, and two
    windows with the same auto-name in one folder collide.
-4. **Double-click `<Repo> Agents.bat`** on the desktop once the hub coordinator has written it. It opens the builders'
+4. **Write each builder worktree's `.claude/settings.local.json`** (phase 3, step 11) from the content boarded for
+   you, before that builder's first pane opens from the grid (step 5). No agent writes it. A builder session
+   already running in its worktree reads the file only when it next starts.
+5. **Double-click `<Repo> Agents.bat`** on the desktop once the hub coordinator has written it. It opens the builders'
    grid; the coordinator stays in VS Code.
-5. **Answer the gates** the coordinator boards: removing a worktree with unmerged work, dropping backlog items, deploys.
+6. **Answer the gates** the coordinator boards: removing a worktree with unmerged work, dropping backlog items, deploys.
 
 ## The phases
 
@@ -100,10 +121,14 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 
 6. Write the charters in `docs/reference/agents/`, each starting with the line `# Agent charter` (otherwise
    `agent_role.py` ignores the file):
-   - `<coordinator name>.md` (the agent the pre-flight's ledger check named; a newly named one is usually
-     `<repo>-coordinator`), adapted from the hub's `docs/reference/agents/coordinator.md`.
+   - `<coordinator name>.md` (the agent the pre-flight's ledger check named; a newly named one is plain
+     `coordinator`, as in a scaffolded repo, § A repo `fabrik scaffold` creates; `<repo>-coordinator` fails the
+     agent-name rule `[a-z0-9-]{1,32}` for a repo name over 20 characters or holding any other character, such as an
+     underscore or a capital), adapted from the hub's
+     `docs/reference/agents/coordinator.md`.
      - Keep: mail sorting, scoring, one major project in flight, merges, records, improving a request before routing
-       it, never building, and the Opus + Fable panel for decisions.
+       it, never building (a scaffolded charter's build-while-no-builders clause stays until builders exist), and the
+       Opus + Fable panel for decisions.
      - Drop what only the hub does: fleet sync, rendering commands, VPS and deploy gates.
      - Add the repo's own rules: its routing map (for fabrik-lib, `.fabrik/module-owners.json`), its gate and its
        decision log.
@@ -145,6 +170,13 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 11. Each builder worktree gets `.claude/settings.local.json` listing the main checkout's `CLAUDE.md` under
     `claudeMdExcludes`, plus the `.venv` symlink setting if the repo shares one venv, plus its `memory` and
     `mcpServers` settings; never copy the main checkout's permission allow-list into it (youtube's adaptation).
+    The operator writes each file (§ The operator's steps, step 4; the gap was reported by web-ecommerce-factory's
+    `wef2` in hub mail `01M5X8DT0Q`). It is a session's own config, so no request from any agent, the coordinator
+    or the hub included, can authorize an agent to write it, for the writer's own worktree or another builder's.
+    The agent doing phases 1–3 sends the content (the step-14 deny entry included, if used) as text: to the repo's
+    coordinator, or, while the repo's coordinator is not open yet, to the hub coordinator in a hub mail (as
+    youtube's rollout report went, hub mail `01M5CGP8FN`). Either receiver boards it for the operator. The agent
+    writes no file, script or template that writes or installs another session's settings.
     Known false alarm: in a worktree that shares the main checkout's `.venv`, the gate's undeclared-imports check
     reports the repo's own editable packages as undeclared, because they resolve to the main checkout's copy (youtube
     01M5CG2QC2, 01M5CG40NV, with infra). It is not a defect of the builder's change: report it to the coordinator,
@@ -158,7 +190,8 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 13. Every charter carries D-943: a builder sends every question, approval, blocker or refused permission to the
     coordinator by `SendMessage`. The coordinator answers from the records, the panel, or (for gates only) the
     operator.
-14. Optional, not used by the hub: deny the AskUserQuestion tool in the builders' worktree settings.
+14. Optional, not used by the hub: deny the AskUserQuestion tool in the builders' worktree settings (the same file
+    as step 11, written the same way).
 15. Sessions launch with `CLAUDE_CONFIG_DIR=$HOME/.claude-fleet/active`, which runs every session in auto mode; the
     launcher sets it. Each agent reports any permission prompt it still hits, and the fix is an allow entry in the
     repo's `.claude/settings.json`.
@@ -182,8 +215,103 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 /opt/fabrik/scripts/sysadmin/agents_up.sh --print /opt/<repo>  # show the grid it would build; launches nothing
 ```
 
-The launcher builds one tmux session per repo, named after the repo's folder (every character other than
-`[A-Za-z0-9_-]` becomes `-`), with one window, `agents`, and one pane per builder in name order:
+### Start using it in every repo
+
+What the operator types ONCE, from WSL, then double-clicks:
+
+```bash
+python3 /opt/fabrik/scripts/sysadmin/agents_bat.py --tabbed \
+  --desktop "/mnt/c/Users/user/OneDrive - Tojlo Solutions LLC/Desktop"   # writes "All Agents (tabbed).bat", remembers the desktop
+```
+
+The first run remembers that folder in `~/.config/fabrik/agents-desktop`. A hand-written `All Agents (tabbed).bat`
+already on the desktop is refused (exit 2) until it is named once with `--replace "All Agents (tabbed).bat"`. Then
+double-click `All Agents (tabbed).bat`: one Windows Terminal window (`fabrik-agents`) with a tab per repo, which
+starts that repo's grid when it is down, and a tab per extra window of a grid that is up.
+
+What EACH COORDINATOR does from then on, with nothing left for the operator:
+
+```bash
+/opt/fabrik/scripts/sysadmin/agents_up.sh add /opt/<repo> <name> [--role <role>] [--item <W-id>]  # spawn a builder
+/opt/fabrik/scripts/sysadmin/agents_up.sh remove /opt/<repo> <name>                                # retire it
+/opt/fabrik/scripts/sysadmin/agents_up.sh /opt/<repo>                                              # open the grid
+```
+
+The coordinator spawns at an item boundary when the ready items it would assign outnumber its idle builders and the
+band is GREEN with no LANE, and retires a builder at the boundary where its item closed and its queue is empty
+(§ Spawning and retiring builders). Every `add` and every `remove` regenerates `All Agents (tabbed).bat` on the
+remembered desktop by itself; running `python3 /opt/fabrik/scripts/sysadmin/agents_bat.py --tabbed` with no
+`--desktop` is the same regeneration by hand.
+
+### Spawning and retiring builders (`add`, `remove`)
+
+Both verbs are the coordinator's, run against the repo's MAIN checkout (a linked worktree or a subdirectory refuses),
+and both exit 0 done or 2 refused. Every refusal once the arguments parse names each reason on stderr and
+appends ONE JSON line `{"at", "repo", "name", "step", "reason"}` to `~/.claude/state/agents-spawn.jsonl` (a
+`remove` row adds `"verb": "remove"`); the coordinator reads its refusals there. A usage error (a missing operand,
+an unknown flag or verb) prints the usage and exits 2 with no row. Each verb holds the repo's agents lock — `flock` on
+`<git common dir>/fabrik-agents.lock`, shared by every worktree and by `rotate_session.py`'s registry re-point — while
+it changes anything, so two verbs, or a verb and a rotation, never interleave. A re-run completes what a failed run
+left.
+
+`agents_up.sh add <repo> <name> [--role <role>] [--item <W-id>]` (`--role` defaults to `builder`; the name must read
+`<role>-<suffix>` and `docs/reference/agents/<role>.md` must be a marked charter) refuses before any write when the
+name is a coordinator's or the merge owner's, the `--role` is itself a coordinator name, the name is already bound to
+a live session in the repo, the caller is not bound (`whoami_agent.py --as <name>`) or is bound under a name outside
+agents_up.sh's name grammar (`[a-z0-9][a-z0-9-]{0,31}`), the root is not trusted, the start would run uncapped (unless
+`FABRIK_AGENTS_UNCAPPED=1`, said at every use), or `fabrik-agents.slice` has under 2 GB headroom. Then it makes
+`.claude/worktrees/<name>` on `worktree-<name>` from the base branch (`base_branch` in `.fabrik/work/config.json`, else
+origin's HEAD), starts the whole grid first when no tmux session exists, binds a fresh session id
+(`whoami_agent.py --spawned`), assigns `--item` on the main checkout with `work.py assign` (the coordinator commits
+the store change in its own store commit; `add` never commits), measures the headroom again after a cold start, and
+places the one pane. A builder whose `work.py next` is empty messages its coordinator. Then, outside the lock, it
+regenerates the launchers: `agents_bat.py --tabbed`, plus a live `wt.exe -w fabrik-agents new-tab` attaching the new
+window's session when the pane opened a new window `agents-<k>`. A launcher failure is said and `add` still exits 0.
+
+`agents_up.sh remove <repo> <name>` never loses work, and every doubt refuses. It refuses, naming every failing
+check at once, unless all hold:
+
+- no run record `running` (`~/.claude/state/command-runs/<sid>.json`) under any session id the name owns — its
+  registry rows and every id the identity store binds to it in the repo, so a re-bind after `/clear` counts;
+- the worktree is clean (`git status --porcelain` prints nothing) and on a branch (a detached HEAD refuses; any
+  branch name, so builders older than `add` retire the same way);
+- its work is safe: no commit beyond the base branch, or an upstream with nothing unpushed (a never-pushed branch with
+  commits refuses);
+- no ignored file would be lost — `git worktree remove` deletes them unasked. The dependency and cache trees
+  (`.venv`, `node_modules`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, by path segment anywhere)
+  and the path prefixes the repo lists as `remove_ignored_ok` in `.fabrik/work/config.json` are let go;
+  `.tmp/runs/<sid>/<run>` folders are walked one by one and each refuses while any resume seed under
+  `~/.claude/state/command-runs/seeds/` names a path inside it, whichever session wrote it, and is let go otherwise;
+  everything else refuses, named, for the coordinator to delete or keep by hand. Each path let go is printed
+  `let go: <path>`;
+- the tmux read answers: an error, or nothing while the grid is up, refuses and removes nothing;
+- the name is a builder at all: with its worktree already gone, it still needs a registry row, a binding or a tagged
+  pane, else `no such builder <name> in <repo>`.
+
+Then, in order: it kills the pane tagged `@agent <name>`, re-lays its window `even-horizontal` (or, when that was the
+window's last pane, kills the window's overflow session `<S>+<k>`; tmux has already removed the window), runs
+`git worktree remove` (never `--force`), deletes the branch with `git branch -D` only after `git merge-base
+--is-ancestor <branch> <base>` (an unmerged branch is kept and said), drops the name's rows from
+`.fabrik/session-agents.json` where one exists, re-points the other builders' rows to their live sessions, and
+regenerates the launchers as `add` does. A `remove` interrupted after the worktree went is re-run the same way: it
+skips the worktree checks and finishes the rest. The name's run folders under ANOTHER checkout's
+`.tmp/runs/<sid>/` are listed `kept: <path>` and never touched. The charter and the transcript stay; the nightly
+archive takes the transcript to B2 and it stays searchable in session-recall.
+
+The usual trigger for `remove` is the builder's own `done — retire me` message (`docs/reference/agents/builder.md`,
+the generic builder charter `agent_role.py` falls back to for a `<role>-<suffix>` name with no charter of its own);
+`remove` needs no message to work.
+
+### The grid
+
+The launcher builds one tmux session `<S>` per repo, named after the repo's folder (every character other than
+`[A-Za-z0-9_-]` becomes `-`), with four panes per window: `agents` holds the first four builders, `agents-2` the
+next four, and so on. A new builder joins the lowest window with room; when none has room it opens the lowest free
+`agents-<k>` in the background, and an emptied window simply ceases (nothing assumes `agents` exists). Each window
+`agents-<k>` (k >= 2) is shown in its own tmux session `<S>+<k>`, grouped with `<S>`, so a separate terminal tab can
+attach it (`+` is outside the base-name alphabet, so such a session is this repo's by construction);
+`agents_up.sh --window <k> <repo>` attaches it, waiting up to 120 s (`FABRIK_AGENTS_WINDOW_WAIT_S`) while the grid is
+absent or still being built, and with no window `agents-<k>` says so and attaches `<S>`. One pane per builder:
 
 - The builders are the registry's names when the repo has a `.fabrik/session-agents.json`, and otherwise every name
   bound in the repo's git scope in the identity store (W-89474fc1). The coordinator gets no pane: a name `coordinator`
@@ -191,18 +319,28 @@ The launcher builds one tmux session per repo, named after the repo's folder (ev
   refuses the launch.
 - Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --resume <session id> "<wake prompt>"` (the prompt is the
   session's first turn: re-arm the self-watch, run `hibernate.py woke --self <id>`, resume from the seed only on exit 0,
-  otherwise carry on) with `CLAUDE_CODE_RETRY_WATCHDOG=1` in its environment and `oom_score_adj` 200, ONLY in the builder's worktree,
-  `.claude/worktrees/<name>`, when that folder is a linked git worktree in place (it holds a `.git` file, and no part
-  of its path is a symlink). A name with no such worktree gets no pane, said on stderr, and a repo left with no builder
-  refuses (exit 2). The main checkout is the coordinator's, and a builder resumed there would edit main's tree and read
-  main's `CLAUDE.md` (W-6c7c3292).
+  otherwise carry on) with `CLAUDE_CODE_RETRY_WATCHDOG=1` in its environment and `oom_score_adj` 200, ONLY in a linked
+  git worktree in place under `.claude/worktrees/` (it holds a `.git` file, and no part of its path is a symlink): the
+  one whose claude project folder holds the builder's session, else `.claude/worktrees/<name>` (W-456aa02a). Claude Code
+  keeps the folder a pane STARTED in as the window's `CLAUDE_PROJECT_DIR` — where its hooks, settings and permissions
+  load from — after the session moves into another worktree, and files the transcript under the folder it works in;
+  so infra's pane, started by name in `worktrees/infra` while infra worked in `infra-uncapped`, ran a tree 1602 commits
+  behind for days. A candidate folder must be an agent name (`[a-z0-9][a-z0-9-]{0,31}`); another builder's own-named
+  tree and the coordinator's trees (a coordinator name, the declared merge owner) are never taken; a session in several worktrees, or two builders found in one, keep `<name>` (said on stderr,
+  the launch continues); a found `agent-*` tree (Claude Code's subagent trees) is flagged. A name with no own worktree
+  takes a found folder only where the repo declares its merge owner, and is dropped before its registry rows are read
+  when no candidate holds one of its sessions. A name with no folder at all gets no pane, said on
+  stderr, and a repo left with no builder launches nothing and exits 3 ("nothing to launch", told apart from a
+  refusal, which exits 2). The main checkout is the coordinator's, and a builder
+  resumed there would edit main's tree and read main's `CLAUDE.md` (W-6c7c3292).
 - Every pane runs whole — claude, its exit hint and the shell it keeps — in its own `systemd-run --user --scope` in
   `fabrik-agents.slice`, with `MemorySwapMax=0` and `TasksMax` (`FABRIK_AGENT_TASKS_MAX`, default 1024) and no
   `MemoryMax` of its own (W-56b3f90d, then W-6e656dac L5: `FABRIK_AGENT_MEM_MAX` is retired — a set value is warned
   about and ignored; a pane killed at a per-pane cap lost a review's seats). One ceiling bounds every pane and every
   `capped_run.sh` job (whose `fabrik-agents-tests.slice` nests under it): `MemoryHigh` = MemTotal − max(4G, floor) and
   `MemoryMax` = MemTotal − max(2G, floor − 2G), in whole G, with `floor` = `FABRIK_AGENT_NONAGENT_FLOOR` (default
-  12G, whole G; W-0b8a0fba) kept for Windows, VS Code and the system, and swap unlimited. MemTotal is read from
+  12G, whole G; W-0b8a0fba) kept for Windows, VS Code and the system at `MemoryHigh` (floor − 2G at `MemoryMax`);
+  the slice itself sets no swap limit, and every pane and test scope inside it keeps `MemorySwapMax=0`. MemTotal is read from
   `$FABRIK_PROC_ROOT/meminfo` (default `/proc`); under 8G or unreadable keeps D-1075's
   16G `MemoryMax`, said on stderr (a floor that leaves nothing uses MemTotal − 4G / MemTotal − 2G); `FABRIK_AGENT_SLICE_MAX` still overrides the derived `MemoryMax`. Each launch of a
   new grid first sets that runtime ceiling (the last launch's value holds for every grid); reattaching to a running grid
@@ -258,7 +396,7 @@ Each row of the registry is checked before it reaches a shell command, and one b
 - a name must match `[a-z0-9][a-z0-9-]{0,31}`;
 - no session id may appear twice;
 - no name may hold two session ids;
-- the file must name at least one builder.
+- the file must name at least one builder (a registry naming only the coordinator exits 3, nothing to launch).
 
 The registry is box-local state (gitignored) that names a repo's builders; each builder's SESSION comes from the
 identity store `whoami_agent.py` keeps (W-66e2f6a7), read the way whoami reads it:
@@ -299,10 +437,22 @@ python3 /opt/fabrik/scripts/sysadmin/agents_bat.py \
   --desktop "/mnt/c/Users/user/OneDrive - Tojlo Solutions LLC/Desktop"  # write them to the operator's desktop
 ```
 
+`--tabbed` writes ONE `All Agents (tabbed).bat` instead (W-b9ad80ae D5): a named Windows Terminal window
+(`wt.exe -M -w fabrik-agents`) with, per repo, a first tab running `agents_up.sh /opt/<repo>` (attach-or-launch) and
+one tab per live window `agents-<k>` (k >= 2) running `agents_up.sh --window <k> /opt/<repo>`. A run with `--desktop`
+that wrote its file remembers the folder in `~/.config/fabrik/agents-desktop`; a `--tabbed` run without `--desktop`
+writes there (with nothing remembered it prints the text and says so, exit 0). Every regeneration holds
+`~/.config/fabrik/agents-desktop.lock` (one box-wide lock, 30 s at most) and writes through a unique temp file and a
+rename. `add` and `remove` run it after every change, so a click always opens the live set; Windows Terminal cannot
+list or close tabs, so a retired builder's pane simply disappears from its tab and an emptied tab shows the closed
+attach until the next click (§ Start using it in every repo).
+
 It writes only under `--desktop`, because the desktop is outside every repo. A desktop file it did not write — the
 hand-made launchers from before — is left untouched (exit 2) until it is named once with
 `--replace "<Repo> Agents.bat"`; a file it wrote is rewritten when its text changes and left alone otherwise. The WSL
-distro comes from `--distro`, else `$WSL_DISTRO_NAME`.
+distro comes from `--distro`, else a non-blank `$WSL_DISTRO_NAME`, else the distro this shell runs in, read from
+`wslpath -w /` (`fabrik_deck.py::_default_distro`), so a run from tmux, systemd or code-server, where the variable
+is unset, still names this distro; `--distro ""` and an underivable distro refuse.
 
 Each .bat is self-contained and needs no hand-made Windows Terminal profile. `wt.exe` has no font-size option, so the
 .bat writes a Windows Terminal JSON fragment, `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\Fabrik\<repo>.json`,
@@ -349,7 +499,8 @@ W-0076b052:
   it starts the grid through `wsl.exe` (§ The Windows side).
 - **Agents run memory-capped.** Every pane the launcher starts runs in its own `systemd-run --user --scope` in
   `fabrik-agents.slice` (1024 tasks per pane, no per-pane memory cap; the parent slice holds MemTotal minus the
-  non-agent floor), uncapped only when no user manager answers on the boot path, which the launcher says (§ Launching a
+  non-agent floor), uncapped only when no user manager answers on the boot path or an interactive launch sets
+  `FABRIK_AGENTS_UNCAPPED=1`, which the launcher says (§ Launching a
   repo's builders, W-56b3f90d, W-6e656dac). Sessions started from VS Code, which
   is where every coordinator runs, are not capped. After a
   box reboot, the reboot sweep is to resume no more autonomous sessions than the work-in-progress limit; that limit is
@@ -390,4 +541,5 @@ means updating this page in the same change. This list is generated from those h
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
 - `scripts/sysadmin/agents_bat.py`
+- `scripts/sysadmin/agents_spawn.py`
 <!-- END related-scripts -->

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/enforcement/test_phase_tests_gate.py
+# AFTER-EDIT: tests/enforcement/test_phase_tests_gate.py, tests/enforcement/test_contract_regions_linear.py
 """Behavior-Contract test-accompaniment advisory — WARN when a plan-execution window
 declares behaviors but has added no tests.
 
@@ -23,9 +23,12 @@ advisory must never break a commit).
 
 from __future__ import annotations
 
+import bisect
 import json
+import re
 import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 _HERE = Path(__file__).resolve().parent
@@ -69,6 +72,24 @@ def _given_rows(plan_path: str) -> list[str]:
     return [m.group(1).strip() for m in GIVEN_ROW_RE.finditer(scoped)]
 
 
+_LINE_BREAK = re.compile(
+    "\r\n|[\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029]"
+)  # str.splitlines' boundaries
+
+
+def _lines_from(text: str, start: int) -> Iterator[str]:
+    """`text[start:].splitlines()`, yielded lazily without copying the rest of the text: a caller that stops at the
+    end of its block reads only that block. LOCKSTEP with check_test_proposal._lines_from (W-6904b41e)."""
+    pos, size = start, len(text)
+    while pos < size:
+        brk = _LINE_BREAK.search(text, pos)
+        if brk is None:
+            yield text[pos:]
+            return
+        yield text[pos : brk.start()]
+        pos = brk.end()
+
+
 def _contract_regions(text: str) -> str:
     """Behavior-Contract regions only — check_plan_tickets scopes GIVEN_ROW_RE to
     `_section(scan, "Behavior Contract")` and an unscoped scan here would drift from it
@@ -89,21 +110,26 @@ def _contract_regions(text: str) -> str:
     text = _fences.strip_three_marker_fences(text)
     regions: list[str] = []
     heading_spans: list[tuple[int, int]] = []  # absolute offsets of heading regions
+    next_heading = re.compile(r"(?m)^#{2,4}\s")
     for m in re.finditer(r"(?im)^#{2,4}\s+Behavior Contract[^\n]*$", text):
-        rest = text[m.end() :]
-        stop = re.search(r"(?m)^#{2,4}\s", rest)
-        end = m.end() + (stop.start() if stop else len(rest))
+        # searched from m.end() in place: slicing the rest of the text per heading was quadratic (W-6904b41e)
+        stop = next_heading.search(text, m.end())
+        end = stop.start() if stop else len(text)
         heading_spans.append((m.start(), end))
         regions.append(text[m.end() : end])
+    span_starts = [s for s, _ in heading_spans]
     for m in re.finditer(r"(?im)^\*\*Behavior Contract[^\n]*$", text):
         # LOCKSTEP with check_test_proposal._bold_contract_regions — the two checks grade the
         # same construct and must accept the same grammar (tryton-crm 01M17EKV); edit both.
         # A bold label nested INSIDE a heading region is already captured above — scanning it
         # again would double-count its rows (review finding, live-reproduced: 2 rows printed 3).
-        if any(s <= m.start() < e for s, e in heading_spans):
+        # spans are sorted and disjoint, so one bisect finds the only span that could hold the label;
+        # testing every span per label was labels x headings (W-6904b41e)
+        i = bisect.bisect_right(span_starts, m.start()) - 1
+        if i >= 0 and m.start() < heading_spans[i][1]:
             continue
         lines: list[str] = []
-        for line in text[m.end() :].splitlines():
+        for line in _lines_from(text, m.end()):
             if not line.strip() or re.match(r"^\s*[-*]\s", line) or re.match(r"^\s{2,}\S", line):
                 lines.append(line)
                 continue
@@ -164,20 +190,21 @@ def _owned(path: str, owned_paths: list[str]) -> bool:
     """Lock-scope filter — on the shared-master tree, SIBLING commits land inside the window
     (review finding, live-verified: three tryton-crm commits sat in this plan's own window).
     Without this filter a sibling's untested source misattributes a WARN to this plan, and a
-    sibling's unrelated tests/ addition masks this plan's real zero-test gap. An entry owns
-    exactly itself or, as a dir prefix, its subtree. Comparison is CASE-INSENSITIVE — a
+    sibling's unrelated tests/ addition masks this plan's real zero-test gap. A literal entry owns
+    exactly itself or, as a dir prefix, its subtree; a GLOB entry (`src/app/**`, `tests/test_*.py`,
+    the bare `**`) owns what it matches, read by `check_plan_tickets._glob_covers` — the directional,
+    `/`-aware matcher the same lock files' discovery reader uses (W-b2bbc1f1, D-1094), whose
+    glob-free branch is this literal rule (W-9fcb6ce4). Comparison is CASE-INSENSITIVE — a
     re-cased entry (`Src/` for `src/`) matched nothing and silenced the window (review
     finding). Honest tradeoff, both directions: on a hypothetical case-COLLIDING tree
     (`src/App/` and `src/app/` as distinct dirs) this can over-scope a WARN or
     cross-attribute a sibling's test as accompaniment (a silence) — accepted: such trees
     are themselves an error class in this fleet, and the typo'd-case lock is the real,
     observed input."""
+    from check_plan_tickets import _glob_covers
+
     p = path.lower()
-    for o in owned_paths:
-        o = o.rstrip("/").lower()
-        if p == o or p.startswith(o + "/"):
-            return True
-    return False
+    return any(_glob_covers(o.lower(), p) for o in owned_paths)
 
 
 _CODE_TEST_SUFFIXES = (".py", ".ts", ".tsx", ".js", ".jsx", ".sh")
@@ -230,19 +257,31 @@ def _check_lock(lock: dict) -> bool:
         # Any other type (int, dict, …) falls back to the whole window — toward warning,
         # never toward silence (review finding: an int aborted the WHOLE run pre-isolation).
         raw_owned = []
-    # Entries are normalized through the SSOT `_norm_path` (check_plan_tickets — the very
+    # A LITERAL entry is normalized through the SSOT `_norm_path` (check_plan_tickets — the very
     # function that builds File-Scope tokens, so every form IT accepts is a real input
     # shape here): strips padding, `./` prefixes, emphasis/backtick wraps, `/./`
     # self-references. Empty, `.`, and slash-only entries drop — each matched NOTHING and
     # silenced the whole window (review findings: `[""]`, `" src/ "`, `"./src"`, `"."` all
     # live-reproduced false silences; `.` = repo root = the whole-window fallback anyway).
     # An all-dropped list degrades to the whole-window fallback, toward warning.
-    from check_plan_tickets import _norm_path
+    # A GLOB entry — one whose `_norm_glob` form holds `*` or `?` — is read as the same lock
+    # files' discovery reader reads it (W-b2bbc1f1, D-1094): `_norm_glob` (edge backticks and
+    # quotes, `./`, `/./`), then `_owned`'s `_glob_covers`. `_norm_path`'s emphasis strip eats
+    # stars (`**` → empty, `**/x/**` → `/x/`, `**/*` → `*/`), so its form is taken only when it
+    # keeps every `*` and `?` of the `_norm_glob` form — then it removed debris alone (`src//**`,
+    # `src/**:12`, `src/**.` → `src/**`), which discovery leaves unmatched (W-9fcb6ce4). Accepted
+    # cost, 0 of 5 720 live entries: an entry reads as the glob it spells — a star-WRAPPED literal
+    # (`*src*`, `*.*`) included, and `*/*` owns exactly two segments and `***` one.
+    from check_plan_tickets import _norm_glob, _norm_path
 
     owned = []
     for o in raw_owned:
+        g = _norm_glob(str(o))
         n = _norm_path(str(o))
-        if n and n != "." and n.strip("/"):
+        if any(c in g for c in "*?"):
+            keeps_wildcards = sum(n.count(c) for c in "*?") == sum(g.count(c) for c in "*?")
+            owned.append(n if keeps_wildcards else g)
+        elif n and n != "." and n.strip("/"):
             owned.append(n)
     baseline = str(lock["baseline_commit"])
     files = _window_files(baseline)

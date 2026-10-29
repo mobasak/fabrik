@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T11:12:19.896733Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5630770a",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read the glitchtip registrar's team/project create call and the URL it builds (teams/<org>/<team>/projects/ — 'vps1' as team for a vps2 spec?); reproduce the request shape without a live call; ask the operator for the glitchtip-web log line at that time if needed",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "spoke-canary deploy: GlitchTip registrar gets 500 Server Error on /api/0/teams/ocoron/vps1/projects/ (deploy itself succeeded)"
+}

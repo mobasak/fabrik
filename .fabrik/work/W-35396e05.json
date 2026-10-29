@@ -14,10 +14,10 @@
     "spec": ""
   },
   "next": "### [infra] A background Bash task inside a subagent is killed at ~1h with no signal to the caller\n\nFinding 2 of the same mail, measured: a wave driver died silently at 47 of 99 pages at exactly 60\nminutes and was recovered with `setsid nohup … & disown`. NOT independently reproduced by infra (it\nwould cost an hour to observe). Destination: one line in `.windsurf/rules/core/62-using-subagents.md`\ntelling a long driver to launch detached from the start — a fleet-synced pack, so it rides whatever\nchange next touches that file rather than a commit of its own.",
-  "note": "migrated-digest:baa99820a211",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — unreproduced harness limit",
-  "status": "open",
+  "status": "dropped",
   "title": "A background Bash task inside a subagent is killed at ~1h with no signal to the caller"
 }

@@ -36,6 +36,53 @@ CLAUDE_AGENT=agent-2 claude -n agent-2-<repo>
 
 Both are valid; the env var always wins over a binding, so a named launch never needs the command.
 
+**A session that does not exist yet — the spawner-only binding** (dynamic builders, W-b9ad80ae). It
+serves the spawner, `agents_spawn.py add` (`agents_up.sh add`): that command mints a fresh session id
+for the builder it is about to launch and records it, before the pane exists, with:
+
+```bash
+python3 /opt/fabrik/scripts/whoami_agent.py --spawned b-1 --session-id <fresh uuid> --repo <repo> --lock-fd <n>
+```
+
+It is the one input that takes a session id as an argument, an exception to "the id comes from the
+environment only", bounded by a caller proof with two checks:
+
+1. `--lock-fd <n>` is an open descriptor on exactly `<git common dir of --repo>/fabrik-agents.lock`.
+   That is the literal path, which must exist and must not be a symlink, compared with
+   `readlink /proc/self/fd/<n>`;
+2. `/proc/self/fdinfo/<n>` lists an EXCLUSIVE flock (`FLOCK ADVISORY WRITE`). The kernel lists a lock
+   only for the open file description that owns it, so a `dup()` of the holder passes, while a second,
+   unlocked open of the same file, a shared (`READ`) flock, or a POSIX (`lockf`) lock is refused.
+
+The proof only reads; it never takes, converts or releases a lock. An earlier version probed with
+`flock`, and review pass 1 rejected it: a holder releasing between the probe and the check let an
+unlocked copy take the lock and pass, and the check changed the caller's own lock, upgrading a shared
+holder or dropping it.
+
+The spawner holds that lock across the whole `add` and passes the descriptor with
+`subprocess.run(..., pass_fds=(fd,))`. The id must be a lowercase UUID that no row the store still
+holds carries (the 30-day trim can drop an old row), so the call cannot re-name a session the store
+knows. `--session-id`, `--repo` and `--lock-fd` are refused without `--spawned`, `--spawned` is
+refused without all three, it takes no `--force`, and no flag may be abbreviated (`--spawn`,
+`--session`, `--rep` and `--lock` are refused). The scope is `--repo`'s common dir, read with
+`GIT_DIR`, `GIT_COMMON_DIR`, `GIT_WORK_TREE` and `GIT_INDEX_FILE` removed, so an inherited value
+cannot redirect it.
+
+Exit codes, for `--spawned` only: **0** written · **1** a live session holds the name in this repo ·
+**2** refused (usage, caller proof, a malformed or already-known id, or git refusing `--repo`, with
+git's own message) · **3** an unexpected exception, git absent or timed out included, so a spawner
+can tell a crash from a collision. `--as` and `--who` keep their codes.
+
+The row carries `"spawned": true` with `pid` and `pid_start` null, and no `predecessor`, because
+stamping the caller's process would make the spawner the holder of the builder's name. ⚠️ **The
+null-pid gap:** a row with no pid is not a holder, so until the builder re-binds itself on its first
+turn (`--as <name>`, which writes its own pid) nothing in the store reserves the name. The spawner's
+own live-session preflight and the agents lock cover `add` itself. The cheapest bypass is a
+caller that takes the agents lock itself. That is accepted, because the lock is hub tooling's alone,
+and the row it writes is marked `spawned` and reserves nothing. The lock's takers are
+`agents_spawn.py add` and `remove` (`agents_up.sh add|remove`) and `rotate_session.py`'s registry
+re-point.
+
 ## How it resolves
 
 `CLAUDE_AGENT` (when well-formed) → this session's **binding** → `""`. A malformed env value falls

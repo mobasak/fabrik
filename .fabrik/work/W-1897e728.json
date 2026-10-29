@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T15:18:42.241028Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-1897e728",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5YN7WJ9AE2G8SA6MTAYGJYP",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: w-d077095a-api-write-sighup"
+}

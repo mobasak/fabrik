@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_install_user_hooks.py | docs/workstation/hooks-index.md | scripts/sysadmin/user_hook_gate.py | scripts/sysadmin/selfwatch_check.py
+# AFTER-EDIT: tests/test_install_user_hooks.py | docs/workstation/hooks-index.md | scripts/sysadmin/user_hook_gate.py | scripts/sysadmin/selfwatch_check.py | docs/workstation/fabrik-deck.md
 """Install / verify the USER-LEVEL hook registrations in every account dir (review 2026-09-06, B10).
 
 The three entries — the self-watch arm check, and the gate that runs the hub's mcp_watch.py and
@@ -26,6 +26,7 @@ import sys
 from pathlib import Path
 
 HUB = "/opt/fabrik"
+DECK_HOOK = f"python3 {HUB}/scripts/sysadmin/fabrik_deck.py hook"
 ENTRIES = {
     "UserPromptSubmit": [
         f"python3 {HUB}/scripts/sysadmin/selfwatch_check.py",
@@ -38,6 +39,7 @@ ENTRIES = {
         # separately measured — the stamp is the counter-measure to that shape, not a claim that
         # the measurement was repeated here (review 2026-10-11, wiring-docs-S2).
         f"python3 {HUB}/scripts/sysadmin/transcript_size_check.py",
+        DECK_HOOK,
     ],
     "PreToolUse": [
         f"python3 {HUB}/scripts/sysadmin/user_hook_gate.py {HUB}/.claude/hooks/quota_stop.py",
@@ -58,13 +60,20 @@ ENTRIES = {
     # its own copy to defer to.
     "Stop": [
         f"python3 {HUB}/scripts/sysadmin/worktree_transcript_link.py",
+        DECK_HOOK,
     ],
     # Operator mail 01M4AR32MY (2026-10-07): a session's stdio MCP servers outlive it (48 Maestro
     # JVMs, ~11 GB swap after a hibernate resume). SessionEnd reaps the ones already REPARENTED
     # (pid 1 / the vscode-server root) and older than two minutes — never a live session's child.
     "SessionEnd": [
         f"python3 {HUB}/scripts/sysadmin/mcp_orphan_reaper.py --hook",
+        DECK_HOOK,
     ],
+    # The Fabrik Deck's attention hook (docs/workstation/fabrik-deck.md, plan 2026-10-22-plan-1-fabrik-deck): one
+    # file per session waiting on the operator, which the Deck board reads. No matcher — the hook filters the
+    # notification type itself and always exits 0, so it can never block a session.
+    "Notification": [DECK_HOOK],
+    "PostToolUse": [DECK_HOOK],
 }
 TIMEOUT_S = 10
 
@@ -116,7 +125,10 @@ def _stale(d: dict) -> list[tuple[str, str, str]]:
             for e, h in found:
                 if str(h.get("command", "")) != cmd:
                     out.append((ev, cmd, f"stale command `{h.get('command', '')}`"))
-                elif not isinstance(h.get("timeout"), (int, float)) or h["timeout"] < TIMEOUT_S:
+                # `not >=`, never `<`: a NaN timeout (json.loads accepts it) compares False both ways
+                elif (
+                    not isinstance(h.get("timeout"), (int, float)) or not h["timeout"] >= TIMEOUT_S
+                ):
                     out.append((ev, cmd, f"timeout {h.get('timeout')!r} < {TIMEOUT_S}"))
                 elif ev == "PreToolUse" and not e.get("matcher"):
                     out.append((ev, cmd, "no matcher"))
@@ -126,6 +138,29 @@ def _stale(d: dict) -> list[tuple[str, str, str]]:
             # `if not stale: continue` then stopped repairing it (non-author pass F5, 2026-09-07).
             if len(found) > 1:
                 out.append((ev, cmd, f"{len(found)} registrations of one script"))
+    return out
+
+
+def _malformed(d: dict) -> list[tuple[str, str]]:
+    """Every (event, reason) the repair cannot rewrite without corrupting it: an owned event whose
+    value is not a list, or an entry in it whose `hooks` is not a list. The repair iterated both as
+    lists, so a dict kept only its KEYS and a string its characters (mail 01M5HK0CH6) — such a
+    file is named and left as the user wrote it, never rewritten."""
+    hooks = d.get("hooks")
+    if not isinstance(hooks, dict):
+        return []  # a non-dict `hooks` is replaced whole by design (P2-3)
+    out = []
+    for ev in ENTRIES:
+        v = hooks.get(ev)
+        if v is None:
+            continue
+        if not isinstance(v, list):
+            out.append((ev, f"value is a {type(v).__name__}, not a list"))
+            continue
+        for i, e in enumerate(v):
+            if isinstance(e, dict) and e.get("hooks") is not None:
+                if not isinstance(e["hooks"], list):
+                    out.append((ev, f"entry {i} `hooks` is a {type(e['hooks']).__name__}"))
     return out
 
 
@@ -139,15 +174,26 @@ def run(argv: list[str] | None = None) -> int:
         "(a warn_only row that exits non-zero still FAILS the gate, closing review R1)",
     )
     args = ap.parse_args(argv)
-    bad = 0
+    bad = by_hand = 0
     for path in _targets():
         try:
             d = json.loads(path.read_text(encoding="utf-8") or "{}") if path.exists() else {}
-            if not isinstance(d, dict):
-                d = {}
         except (OSError, ValueError):
             print(f"install_user_hooks: cannot read {path}", file=sys.stderr)
             bad += 1
+            by_hand += 1  # the installer cannot repair what it cannot read
+            continue
+        if not isinstance(d, dict):
+            # a settings file that is not a JSON object was replaced by `{}` plus the hooks,
+            # losing whatever the user wrote — refused like any shape below (mail 01M5HK0CH6)
+            malformed = [("(file)", f"top level is a {type(d).__name__}, not an object")]
+        else:
+            malformed = _malformed(d)
+        if malformed:
+            for ev, why in malformed:
+                print(f"MALFORMED {path}: {ev} ({why}) — fix it by hand; not rewritten")
+            bad += 1
+            by_hand += 1
             continue
         stale = _stale(d)
         if not stale:
@@ -194,10 +240,18 @@ def run(argv: list[str] | None = None) -> int:
     if args.check:
         print(
             "user-level hooks: "
-            + ("present in every account dir" if not bad else f"{bad} file(s) missing entries")
+            + ("present in every account dir" if not bad else f"{bad} file(s) not installed")
+            + (
+                f", {by_hand} of them MALFORMED or unreadable — fix by hand, install refuses them"
+                if by_hand
+                else ""
+            )
         )
     if bad and args.check and args.warn:
-        print("WARN: user-level hook registrations drifted on this box — run install_user_hooks.py")
+        fixes = ["run install_user_hooks.py"] if bad > by_hand else []
+        if by_hand:
+            fixes.append("fix the MALFORMED or unreadable file(s) by hand")
+        print(f"WARN: user-level hook registrations drifted on this box — {' and '.join(fixes)}")
         return 0
     return 1 if bad else 0
 

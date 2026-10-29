@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T05:48:22.229735Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-9b833bd3",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure both on the two rows in ~/.claude/state/rotations.jsonl, then one change in execute with graders; after W-84ad2ff1",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "records correctness of a working rotation: a misleading outcome row and a stale sid→name registry the coordinator fixes by hand each time",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "rotate_session.py execute: a successful rotation is rowed partial:rebind because the 90 s rebind wait ends before the new session's first turn (infra 07:52, kaizen 08:18, both fine), and execute does not rewrite the rotated builder's row in .fabrik/session-agents.json (old sid stays until the coordinator edits it by hand) — record 'typed' and let the identity binding settle 'ok' later; rewrite the one registry row once the new sid is known (infra, 2026-10-23)"
+}

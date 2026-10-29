@@ -23,11 +23,11 @@
     "spec": ""
   },
   "next": "add tests/test_vps_sync.py for categorize_containers and the meilisearch pipeline (incl. a NO_MEILI marker on an empty match); widen the UUID-leak test; import fabrik at module top in test_proof_run_guard",
-  "note": "T09 review adds: docs/development/capability-defects.md:18 carries an unowned compose_updater retire row; check_health.py counts a comment naming check_dns as a dependency check inside its 1000-char window (fleet-synced enforcement — infra's beat, mail infra if fixing); cli._split_domain_for_dns is dead since T05 and destroyer.py's docstring cites it (both outside the plan's scope). T11 Finish review adds (one hop out, recorded): docs registrar counts disagree with _REGISTRAR_ORDER's 10 entries (fabrik-cli-reference.md:104/:113/:159/:173 say 7, DEPLOYMENT_ARCHITECTURE.md:43/:75/:77, README.md:9 and deployment-orchestrator.md:231 say 9) and the infrastructure.py:136 anchors are stale (now :156); a local-source spec whose path is not /opt/<name> records coolify_uuid=<spec name> on apply but the directory basename on refresh, and apply's inject_env targets /opt/<spec name> (deployer_ssh._deploy_inner); scripts/sync_projects.py _load_deploy_state and portability._collect_state call .get/.pop on a state file that is not a JSON object (state.load now returns None for one); specs/services/wpf.yaml:36 still lists COOLIFY_API_TOKEN and scripts/provision_glitchtip_project.sh reads COOLIFY_API_*; probe_app's cd runs as the ssh user before sudo (a 0700 app dir reads exists+error); proof_run's worker proof is one probe with no retry; reconcile-all --filter matches the spec file stem (0 of 69 specs differ from id); a hand-edited registrar_failures entry with a null registrar breaks audit-registrars' join. Spoke glitchtip verify filed as W-1ee6341d. Finish review round 3 adds: state.py:27 says refresh records \"the matched /opt directory\" where the code records its basename; orchestrator/destroyer.py has no HANDLER_FUNCS entry for watchdog, so destroy --use-state over a record listing it reports an error and skips the state archive; destroy --use-state on a corrupt record prints \"No state file\" though the file exists.",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — missing tests near deploy path",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "fleet",
     "medium",

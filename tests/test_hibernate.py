@@ -1606,3 +1606,70 @@ def test_k3_a_fifo_at_the_lock_path_is_not_armed_even_when_flocked(tmp_path: Pat
         assert "self-watch not armed" in out.stdout, out.stdout
     finally:
         os.close(holder)
+def test_lift_prints_rotation_offers_and_survives_their_fault(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """W-f975fee0 slice 3: once the pause is lifted, `lift` offers `rotate-session` for every live agent at/past the
+    threshold; a fault in the offer never fails the lift. The caller is the hub merge owner's session (W-6e656dac
+    T01a: `lift` is refused for every other caller), in the subprocess and in-process alike."""
+    box = Box(tmp_path)
+    hub = box.repo("fabrik", "coordinator")
+    box.session(9001, "s-hub", hub, "fabrik-64", env_agent="coordinator")
+    box.process(os.getpid(), 9001)
+    stub = _decisions_stub(tmp_path, "coordinator")
+    repo = box.repo("r1", "coordinator")
+    sid = "33333333-3333-4333-8333-333333333333"
+    box.session(4242, sid, repo, "dev1-peer", env_agent="dev1")
+    tr = box.home / ".claude" / "projects" / "-r1" / f"{sid}.jsonl"
+    tr.parent.mkdir(parents=True)
+    tr.write_text(
+        json.dumps(
+            {
+                "type": "assistant",
+                "message": {"model": "m", "usage": {"cache_read_input_tokens": 450000}},
+            }
+        )
+        + "\n"
+    )
+    assert box.run("mark", "--words", "w").returncode == 0
+    out = box.run(
+        "lift",
+        env={"FABRIK_DECISIONS_PY": stub, "SESSION_ARCHIVE_ENV_FILE": str(tmp_path / "none.env")},
+    )
+    assert out.returncode == 0, out.stderr
+    assert "rotation offers" in out.stdout, out.stdout
+    assert f"rotate-session dev1 --repo {repo} --trigger lift" in out.stdout, out.stdout
+    hib = _load("hibernate_lift_fault", HIB)
+    monkeypatch.setenv("ROTATE_STATE_DIR", str(box.state))  # where box.run marks
+    monkeypatch.setenv("FABRIK_DECISIONS_PY", stub)
+    monkeypatch.setattr(hib.os, "getppid", lambda: 9001)
+    argv = ["--home", str(box.home), "--proc", str(box.proc), "--opt", str(box.opt), "lift"]
+    box.run("mark", "--words", "w2")
+
+    def boom():
+        raise RuntimeError("offer loader broke")
+
+    monkeypatch.setattr(hib, "_load_rotate", boom)
+    capsys.readouterr()
+    rc = hib.main(argv)
+    marker = _marker(box)
+    assert rc == 0 and marker["lifted_at"] >= marker["paused_at"], marker
+    assert "rotation offers unavailable" in capsys.readouterr().err
+    # review B1/B2: a fault past the loader — SystemExit inside due(), or one raised while printing — never fails it
+    for fault in (SystemExit(3), UnicodeEncodeError("utf-8", "x", 0, 1, "surrogate")):
+
+        class Rs:
+            @staticmethod
+            def due(*a, _f=fault, **k):
+                raise _f
+
+        box.run("mark", "--words", "w3")
+        monkeypatch.setattr(hib, "_load_rotate", lambda: Rs)
+        assert hib.main(argv) == 0
+        assert "rotation offers unavailable" in capsys.readouterr().err
+    # a REFUSED lift offers nothing: the offers follow only a lift that happened
+    box.run("mark", "--words", "w4")
+    monkeypatch.setattr(hib, "_load_rotate", boom)
+    monkeypatch.setattr(hib.os, "getppid", lambda: 4242)  # dev1's session: not the merge owner
+    assert hib.main(argv) == 3
+    assert "rotation offers" not in capsys.readouterr().err

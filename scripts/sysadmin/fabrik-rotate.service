@@ -1,0 +1,15 @@
+# W-f975fee0 slice 2 (D-1135): execute the waiting rotation requests — one at a time, each re-checked, never retried.
+# StartLimitIntervalSec=0: PathExistsGlob restarts the service while a matching file exists, and the default start limit
+# (5 in 10 s) would otherwise fail the path unit for good; execute deletes every matching file it reaches — one it
+# cannot claim too, and a directory it moves aside — and leaves a file only after running CLAIM_CUTOFF_S (20 s,
+# W-b72231b8), so the path unit's own TriggerLimit (200 per 2 s) is never approached. TimeoutStartSec bounds
+# rotate_session.py's REQUEST_WORST_S + CLAIM_CUTOFF_S (tests/test_rotate_session.py reads it here).
+[Unit]
+Description=Fabrik session rotation — execute waiting requests
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/fabrik
+ExecStart=/usr/bin/python3 /opt/fabrik/scripts/sysadmin/rotate_session.py execute
+TimeoutStartSec=600

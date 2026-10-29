@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T13:52:25.441330Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-70104417",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5YSAPR81HFJ1AT31MC4HNAA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: w-d45c790c-headless-discovery"
+}

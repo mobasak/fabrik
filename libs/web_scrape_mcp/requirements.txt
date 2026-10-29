@@ -1,0 +1,6 @@
+# The fabrik-scrape server's own venv (libs/web_scrape_mcp/.venv), never the hub .venv: the hub pins mcp 1.x and
+# this server needs the MCP SDK v2. Union of the three vendored modules' runtime requirements.
+mcp>=2.3,<3            # web-scrape-mcp: the MCP Python SDK v2 (MCPServer)
+httpx>=0.27            # web-scrape: static fetch, robots.txt, SsrfSafeTransport
+beautifulsoup4>=4.12   # doc-crawl: readability (HTML to markdown)
+lxml>=5                # doc-crawl: the beautifulsoup4 parser backend

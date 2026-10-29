@@ -32,6 +32,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import io
+import os
 import re
 import sys
 from pathlib import Path
@@ -385,7 +386,10 @@ def main() -> int:
     # disk still gets a heading + a "(pack missing…)" placeholder — none of its content
     # reached the reviewer, so it is reported as a gap, never counted as injected.
     # Invocation-time by label: per-EDIT activation needs a PostToolUse surface (M2).
-    if kaizen_events and rubric:
+    # REVIEW_RUBRIC_SENSOR_OFF=1 (exactly) is set by a GRADER that re-runs this script to read
+    # its MATCHED set (check_rule_grounding.py) — that run armed no reviewer, so it records
+    # nothing (W-5bfeb31e). Never set it around a real invocation: it would hide true activations.
+    if kaizen_events and rubric and os.environ.get("REVIEW_RUBRIC_SENSOR_OFF") != "1":
         _dir = root / ".windsurf" / "rules"
         _named = [h[4:].split("  (hit:")[0] for h in rubric.splitlines() if h.startswith("### ")]
         _named = [p for p in _named if p.endswith(".md")]  # not the 12-FACTOR axis block

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T12:36:13.824502Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "45b00bb0ca4c5700f241a37e9bf4eaddb2cc30b6",
+  "id": "W-4e756979",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1118",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "resume at GREEN from seed /opt/fabrik/.tmp/runs/f47e7290-7ce7-4c05-88b5-f016f7a2400d/fabrik-task-2026-10-23T19-32-34-0300/design.md: hypothesis refuted (3/3 cause branches red alone; hub has no .fabrik/merge-tests so repo-wide graders a branch breaks without editing run nowhere); planned hub-only .fabrik/merge-tests selector, differential vs base because master is not green on the full suite (~112 red serially); design critique pair + full /fabrik-review owed",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 1,
+  "score_reason": "the token-waste series' first out-of-control line (red-master rework: 29 fix commits since 09-29, infra paid 15); the fix sits in merge_request.py testing a branch on current main before it lands — infra's script, one measurement pass + one change; fits infra-3's scripts class",
+  "status": "done",
+  "tags": [
+    "kaizen-waste"
+  ],
+  "title": "waste_red_master_rework is OUT OF CONTROL ↑ (D-1118): 29 red-master fix commits since 2026-09-29 against a 0 baseline (2026-09-07..09-20, c-chart); today 1 of 306 arrivals. Who paid: infra 15, fleet 7, intel 4, kaizen 3. Cause to find: merges landing on a moving main (a branch green alone, red once merged onto current main)."
+}

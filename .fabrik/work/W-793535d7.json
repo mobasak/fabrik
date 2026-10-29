@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T17:57:21.904906Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-793535d7",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "wrap resolve() in the same RuntimeError -> RefusalError(2) as expanduser, with a loop-symlink test case",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "scripts/api_write.py::run_root — a symlink loop under API_WRITE_RUN_ROOT makes given.resolve() raise RuntimeError, uncaught, so the operator sees a traceback (exit 1) instead of RefusalError 2; still before any spend. Also its refusal message says 'a .claude directory' when the matched part is .claude-fleet (W-174b8543 run-root review pass 3, Haiku seat, executed on Python 3.12.3)"
+}

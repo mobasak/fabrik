@@ -1,7 +1,5 @@
 {
-  "blocked_by": [
-    "W-a48f253f"
-  ],
+  "blocked_by": [],
   "created": "2026-10-19T10:11:35.242822Z",
   "creator": "coordinator",
   "effort": "high",
@@ -15,14 +13,15 @@
     "plan": "",
     "spec": ""
   },
-  "next": "D-1041/D-1042: per repo, one coordinator in VS Code in the main checkout, 3+ builders in tmux via the repo's desktop .bat (W-bb6c9d9a), each in its worktree. Per-repo state and steps: docs/reference/repo-coordinator-rollout-repos.md (W-172faaa3). Once W-a48f253f (the fabrik-lib pilot) is confirmed, web-ecommerce-factory goes FIRST: its coordinator is named wef2-coordinator (agents_up.sh skips only *-coordinator names), which needs a 'supersedes D-198: MERGE OWNER: wef2-coordinator' row in wef's docs/DECISIONS.md; wef1 and wef3 are the builders (wef1 is currently off its worktree-wef1 branch). Then the rest one repo at a time, each mailed its section as a request and tracked to confirmed",
+  "next": "WAITS on repo sessions (measured 2026-10-27 ~09:45): briefs 01M5XVJG4F (tryton-crm) and 01M5XVJGKF (brand-identiy-creator) sit UNREAD in their inboxes, no session of either repo is live (ListAgents, 17 peers), no commit since 08:00; tryton-crm already has coordinator_mode+queue_floor, no charters; bic has neither. Coordinator: open a coordinator window in each main checkout, then fleet re-measures and closes the gaps they report.",
   "note": "",
   "owner": "fleet",
   "priority": 2,
-  "score_reason": "operator ask, fleet-wide (every repo): a major; waits on the fabrik-lib pilot",
+  "score_reason": "operator 2026-10-28 requirements doc: every mechanism for all repos",
   "status": "open",
   "tags": [
-    "operator-ask"
+    "operator-ask",
+    "waits-repo-session"
   ],
   "title": "Operator ruling D-1036: roll the coordinator model out to every repo — per repo: a coordinator window in the main checkout, charters for coordinator and builders, builders in worktrees, agents_up launcher entry (.bat + WT profile), full autonomy (agents ask their coordinator, never the operator); after the fabrik-lib pilot proves out"
 }

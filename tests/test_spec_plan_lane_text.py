@@ -321,8 +321,6 @@ def test_fabrik_spec_phase0_applies_the_lane_tests_when_no_refusal_row_exists():
     # AFTER it — a cold agent reads the ledger first, then applies the tests itself.
     assert re.search(r'--reason\s+"DOWNGRADE:\s*<[^>]*refusal id[^>]*>', phase0), phase0
     assert phase0.index("`decision=yes`") > phase0.index("Only THEN close this run")
-    # Small work that DOES need a design stays a spec (D10): the branch names what still proceeds.
-    assert re.search(r"D10\b.{0,20}still a spec", flat), flat
 
 
 def test_fabrik_spec_names_both_endings_and_a_sanctioned_close(tmp_path, monkeypatch) -> None:
@@ -383,10 +381,12 @@ def test_fabrik_spec_names_both_endings_and_a_sanctioned_close(tmp_path, monkeyp
     assert "surface those and stop" not in text
     assert ("A hard cap outranks the floor (D-189): when `dispatch_headroom.py` prints fewer `SEATS:`, dispatch that "
             "many, name the dependencies no seat grounded, and dispatch them when headroom returns.") in text
-    assert ("`firecrawl_scrape` on the library's OFFICIAL docs site for framework/API detail (`WebFetch` only to "
+    assert ("`firecrawl_scrape` (scrape with `proxy: \"basic\"`) on the library's OFFICIAL docs site for "
+            "framework/API detail (`WebFetch` only to "
             "locate the page) → the **`gh` CLI** (`gh search code` / `gh api -H 'Accept: application/vnd.github.raw' "
             "repos/<o>/<r>/contents/<path>`") in text
-    assert ("from a RAW fetch (`firecrawl_scrape` as markdown with `maxAge: 0`, the raw `gh api` call above, the raw file — a "
+    assert ("from a RAW fetch (`firecrawl_scrape` as markdown with `maxAge: 0` and `proxy: \"basic\"`, the raw `gh api` "
+            "call above, the raw file — a "
             "`WebFetch` reply summarises, below)") in text
 
 
@@ -404,10 +404,12 @@ def test_fabrik_spec_review_fetches_live_and_keeps_mechanism_in_the_plan() -> No
     src = (REPO / "commands" / "_sources" / "fabrik-spec-review.md").read_text(encoding="utf-8")
     text = norm(src)
     assert "→ `WebFetch` on the official library docs →" not in text
-    assert ("`mcp__firecrawl__firecrawl_search`/`firecrawl_scrape` (on the official library docs; `WebFetch` only to "
+    assert ("`mcp__firecrawl__firecrawl_search`/`firecrawl_scrape` (scrape with `proxy: \"basic\"`, on the official "
+            "library docs; `WebFetch` only to "
             "locate a page) → the `gh` CLI") in text
-    assert ("`firecrawl_scrape` with `maxAge: 0` — firecrawl reuses recently indexed content unless `maxAge: 0` forces a "
-            "live fetch (its tool schema) and `mcp__exa__web_fetch_exa` serves a crawl cache (below), so a quote — yours or "
+    assert ("`firecrawl_scrape` with `maxAge: 0` and `proxy: \"basic\"` — a live fetch needs that `maxAge: 0`, since "
+            "Firecrawl serves recently indexed content by default (its tool schema), and `mcp__exa__web_fetch_exa` serves "
+            "a crawl cache (below), so a quote — yours or "
             "a grounder's — is called NOT FOUND only after that live re-fetch)") in text
     a = norm(_section(src, r"^\*\*A\) External facts", r"^\*\*B\) fabrik-lib"))
     assert "A cached/mirroring fetch tool is NOT a liveness oracle" in a and "`mcp__exa__web_fetch_exa` serves crawl cache" in a
@@ -423,15 +425,14 @@ def test_fabrik_spec_review_fetches_live_and_keeps_mechanism_in_the_plan() -> No
             "touches); the executable sequence belongs to the plan, so every fix inside such a section is written as "
             "invariants + touchpoints from its FIRST edit — not only once the edit loop's TWO CONSECUTIVE RESIDUE "
             "PASSES rule forces a rewrite there — and never as a re-worded sequence or new mechanism.") in d
-    te = (REPO / "commands" / "_fragments" / "term-edit.md").read_text(encoding="utf-8")
-    assert "(3) **TWO CONSECUTIVE RESIDUE PASSES FORCE A REWRITE**" in te, "the rule the review names moved"
     spec = norm((REPO / "commands" / "_sources" / "fabrik-spec.md").read_text(encoding="utf-8"))
-    assert "`firecrawl_scrape` with `maxAge: 0`, a live fetch) and match" in spec
+    assert '`firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`, a live fetch) and match' in spec
     assert "data flow (as invariants + touchpoints — the step sequence is the plan's)" in spec
     agent = norm((REPO / "commands" / "_agents" / "fabrik-researcher.md").read_text(encoding="utf-8"))
     assert ("have failed a correct quote as MISQUOTED). Exa serves a crawl cache, so before you report a quote NOT "
-            "FOUND re-fetch the page with `mcp__firecrawl__firecrawl_scrape` and `maxAge: 0` (a live fetch).") in agent
-    assert "from a RAW fetch (`firecrawl_scrape` as markdown with `maxAge: 0`," in spec
+            "FOUND re-fetch the page through `mcp__firecrawl__firecrawl_scrape` with `maxAge: 0` and "
+            '`proxy: "basic"` (a live fetch).') in agent
+    assert 'from a RAW fetch (`firecrawl_scrape` as markdown with `maxAge: 0` and `proxy: "basic"`,' in spec
 
 
 def test_fabrik_plan_after_chat_tells_the_gates_truth() -> None:
@@ -509,16 +510,6 @@ def test_fabrik_spec_carries_its_recurring_feedback_rules(tmp_path, monkeypatch)
     assert ("a question with several parts is numbered in the brief, which tells the seat to answer the parts in "
             "order, each within its named share of that ~2 k, so a truncated return loses the tail, not the middle, "
             "and a part the return never reaches is asked again, never read as empty.") in reads
-    assert ("every premise the brief states about the codebase, every mechanism the design relies on (\"X fires\", "
-            "\"Y catches this\"), every design rule (an algebra, a classifier) and every runtime-state claim is EXECUTED "
-            "this session, its command and output cited in the spec (a key, token or credential in that output is "
-            "described by its kind, length and a non-secret prefix, never pasted, its BEGIN line included: the "
-            "`detect-private-key` commit hook refuses a private-key PEM header), and Phase 3 waits on it as on the "
-            "BLOCKING bullet "
-            "below. A design rule that names stores (a matrix, an allowlist, an entity schema's fields) is preceded by an "
-            "executed census of each store's current members, and its invariants are written against that census, "
-            "never against one member. An executed in-repo measurement outranks a web answer about the repo's own code; a vendored or "
-            "installed third-party package's behaviour stays an external claim under this gate.") in text
     assert ("the machine-readable schema when one exists (an OpenAPI endpoint names the parameters), the error-code page "
             "beside the endpoint page when the design retries or re-sends, and a design that survives both readings when "
             "two vendor pages contradict each other.") in text

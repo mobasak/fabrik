@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T06:24:46.878873Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-6b7216d4",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure stale labels across the lean ledgers (kaizen-lean-u01: 1540 labels), then decide whether _check reports a label whose line is still present",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "command_rules loader: a vanished: label on a baseline line that did NOT vanish is never read, for every label kind (rule, duplicate-of, narrative, superseded) — a stale label passes silently (found in the W-5dc4163d review, Slice A Haiku candidate 6)"
+}

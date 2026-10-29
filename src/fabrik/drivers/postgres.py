@@ -56,6 +56,7 @@ from typing import Any
 from fabrik.drivers.backrest import register_postgres_plan, unregister_postgres_plan
 from fabrik.drivers.ssh import scp_to_vps, ssh
 from fabrik.locks_local import file_lock
+from fabrik.spec_loader import POSTGRES_IDENT_RE
 
 logger = logging.getLogger(__name__)
 
@@ -78,15 +79,8 @@ Lives on the VPS at the same path as other registry-style configs
 ``pg_database`` table to surface drift (registry says X exists but DB
 doesn't, or vice-versa). T4-01 G-J4."""
 
-_IDENT_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")
-"""PostgreSQL identifier validation.
-
-Matches the conservative subset of the SQL standard: leading letter or
-underscore, followed by up to 62 letters / digits / underscores. This is
-deliberately stricter than Postgres's own rules (which allow quoted
-identifiers with arbitrary content) — we never want the driver to need
-to emit a quoted identifier that a shell might unquote.
-"""
+_IDENT_RE = POSTGRES_IDENT_RE
+"""PostgreSQL identifier validation — one rule with ``Depends.postgres`` (W-ff313a14)."""
 
 PASSWORD_ALPHABET = string.ascii_letters + string.digits
 """Alphabet for generated passwords. 62 characters = ~5.95 bits/char."""
@@ -588,6 +582,7 @@ def _foreign_role_reasons(
     *,
     own_db: str | None,
     any_dependency: bool = False,
+    escalation: bool = False,
     container: str = POSTGRES_CONTAINER,
 ) -> list[str]:
     """Why an EXISTING role named like a registrar role is not this registrar's (W-f599a88c).
@@ -599,8 +594,16 @@ def _foreign_role_reasons(
     to someone else. ``any_dependency`` (the ``create_database`` form, where the role should be a leftover
     owner of a dropped database holding nothing at all) also counts every grant, policy row and membership.
 
-    Fails CLOSED: the query runs under ``ON_ERROR_STOP`` and must end with its marker row, so an error or a
-    truncated answer raises instead of reading as "no reasons". Empty means the role is ours.
+    ``escalation`` (the payments re-apply, W-98debf05) reads every way a role this registrar minted can have been
+    escalated out of band, which the operator's ruling D-1105 says stops the re-apply and is never stripped: a
+    membership in either direction (the registrar grants none), a grant in another database, and any
+    persistent object it owns in its OWN database (a live session's temp table or temp function excepted). The
+    own-database read is a second call, in that database, with psql's connect notice silenced. A superuser is
+    refused by the re-apply's own DO block, whose message carries the recovery steps.
+
+    Fails CLOSED: each query runs under ``ON_ERROR_STOP`` and must end with its marker row, so an error or a
+    truncated answer raises instead of reading as "no reasons"; an own-database answer line that is not an
+    ``owns …`` reason raises too. Empty means the role is ours.
     """
     # role / own_db are _validate_identifier-gated by every caller (registrar-built names).
     rid = f"(SELECT oid FROM pg_roles WHERE rolname = '{role}')"  # nosec B608
@@ -612,6 +615,10 @@ def _foreign_role_reasons(
         f"WHERE s.refclassid = 'pg_authid'::regclass AND s.refobjid = {rid} AND s.deptype = 'o' "
         f"AND db.datname IS DISTINCT FROM {own} GROUP BY db.datname",
     ]
+    member = (
+        "SELECT 'is a member of ' || g.rolname FROM pg_auth_members m "  # nosec B608
+        f"JOIN pg_roles g ON g.oid = m.roleid WHERE m.member = {rid}"
+    )
     if any_dependency:
         parts += [
             "SELECT 'holds ' || count(*) || ' grant(s) or policy row(s) in ' "  # nosec B608
@@ -619,8 +626,26 @@ def _foreign_role_reasons(
             "FROM pg_shdepend s LEFT JOIN pg_database db ON db.oid = s.dbid "
             f"WHERE s.refclassid = 'pg_authid'::regclass AND s.refobjid = {rid} AND s.deptype <> 'o' "
             "GROUP BY db.datname",
-            "SELECT 'is a member of ' || g.rolname FROM pg_auth_members m "  # nosec B608
-            f"JOIN pg_roles g ON g.oid = m.roleid WHERE m.member = {rid}",
+            member,
+        ]
+    if escalation:
+        if not any_dependency:
+            parts.append(member)
+        parts += [
+            "SELECT 'is granted to ' || mem.rolname FROM pg_auth_members m "  # nosec B608
+            f"JOIN pg_roles mem ON mem.oid = m.member WHERE m.roleid = {rid}",
+            # grants on objects inside another database (rows carrying that database's oid)
+            "SELECT 'holds ' || count(*) || ' grant(s) or policy row(s) in database ' || db.datname "  # nosec B608
+            "FROM pg_shdepend s JOIN pg_database db ON db.oid = s.dbid "
+            f"WHERE s.refclassid = 'pg_authid'::regclass AND s.refobjid = {rid} AND s.deptype <> 'o' "
+            f"AND db.datname IS DISTINCT FROM {own} GROUP BY db.datname",
+            # ...and on SHARED objects (dbid 0): another database's CONNECT/TEMP, a tablespace, a parameter
+            # ACL. Only the role's grants on its own database (CONNECT, which grant_payments_role gives) are
+            # its own; a database it owns is reported by the first row, never twice.
+            "SELECT 'holds ' || count(*) || ' grant(s) on shared object(s) outside its own database' "  # nosec B608
+            f"FROM pg_shdepend s WHERE s.dbid = 0 AND s.refclassid = 'pg_authid'::regclass AND s.refobjid = {rid} "
+            "AND NOT (s.classid = 'pg_database'::regclass AND (s.deptype = 'o' OR s.objid = "
+            f"(SELECT oid FROM pg_database WHERE datname = {own}))) HAVING count(*) > 0",
         ]
     out = _run_sql(
         "\\set ON_ERROR_STOP on\n" + "\nUNION ALL\n".join(parts) + f";\nSELECT '{_GUARD_END}';",
@@ -629,18 +654,70 @@ def _foreign_role_reasons(
     lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
     if not lines or lines[-1] != _GUARD_END:
         raise RuntimeError(f"foreign-role guard for {role}: unreadable answer, refusing to proceed")
+    reasons = lines[:-1]
+    if escalation:
+        if (
+            not own_db
+        ):  # the own-database read is half of the escalation guard; never skip it silently
+            raise RuntimeError(
+                f"foreign-role guard for {role}: the escalation read needs the role's own database"
+            )
+        reasons += _own_db_ownership(role, rid, own_db, container)
+    return reasons
+
+
+def _own_db_ownership(role: str, rid: str, own_db: str, container: str) -> list[str]:
+    """Persistent objects ``role`` owns in its own database (W-98debf05), read IN that database.
+
+    ``pg_shdepend`` is cluster-wide, so the current database is a predicate, not an assumption. A live session's
+    temp table (``relpersistence = 't'``, its sequence included) or temp function (in ``pg_temp_N``) is not
+    ownership; everything else is — a non-relation object reaches the LEFT JOIN with no ``pg_class`` row, which is
+    why the temp test is ``NOT (… AND c.relpersistence = 't')`` and never ``c.relpersistence <> 't'`` (NULL would
+    drop it). ``\\set QUIET on`` keeps psql's ``\\c`` notice off stdout; a line that is not an ``owns …`` reason
+    still fails closed.
+    """
+    out = _run_sql(
+        "\\set ON_ERROR_STOP on\n\\set QUIET on\n"
+        f"\\c {own_db}\n"
+        f"SELECT 'owns ' || count(*) || ' object(s) in its own database {own_db}' "  # nosec B608 — gated names
+        "FROM pg_shdepend s LEFT JOIN pg_class c ON s.classid = 'pg_class'::regclass AND c.oid = s.objid "
+        f"WHERE s.refclassid = 'pg_authid'::regclass AND s.refobjid = {rid} AND s.deptype = 'o' "
+        "AND s.dbid = (SELECT oid FROM pg_database WHERE datname = current_database()) "
+        "AND NOT (s.classid = 'pg_class'::regclass AND c.relpersistence = 't') "
+        "AND NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace "
+        "WHERE s.classid = 'pg_proc'::regclass AND p.oid = s.objid AND n.nspname LIKE 'pg\\_temp\\_%') "
+        "HAVING count(*) > 0;\n"
+        f"SELECT '{_GUARD_END}';",
+        container=container,
+    )
+    lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
+    if not lines or lines[-1] != _GUARD_END or any(not ln.startswith("owns ") for ln in lines[:-1]):
+        raise RuntimeError(f"foreign-role guard for {role}: unreadable answer, refusing to proceed")
     return lines[:-1]
 
 
-def _refuse_foreign_role(role: str, reasons: list[str], purpose: str) -> None:
-    """Raise when ``reasons`` is non-empty: the role is someone else's, so the registrar touches nothing."""
+def _refuse_foreign_role(
+    role: str, reasons: list[str], purpose: str, escalated: bool = False
+) -> None:
+    """Raise when ``reasons`` is non-empty: the role is someone else's, so the registrar touches nothing.
+
+    ``escalated`` (the payments re-apply) appends the D-1105 remedy for this project's own login escalated out of
+    band; the collision sentence stays, since a reason naming a database may still be another project's.
+    """
     if reasons:
-        raise RuntimeError(
+        msg = (
             f"role {role} exists but is not this registrar's {purpose}: {'; '.join(reasons)}. "
             "Another project's database (whose owner role carries the same name) or a hand-made role "
             "shares the name; rename one project's database with `depends.postgres` and re-apply — "
             "the other role is left as it is"
         )
+        if escalated:
+            msg += (
+                ". If it is this project's own payments login escalated outside the registrar, the registrar "
+                "leaves it as it is and this payments registrar reports FAILED (D-1105): revoke the membership "
+                f"or grant, give the objects another owner or ALTER ROLE {role} NOSUPERUSER by hand, then re-apply"
+            )
+        raise RuntimeError(msg)
 
 
 def _db_owner(db_name: str, container: str) -> str | None:
@@ -956,6 +1033,31 @@ def _payments_ingest_policy_block(table: str, role: str, *, write: bool) -> str:
     )
 
 
+def _payments_ingest_signature_guard(role: str) -> str:
+    """RAISE when ``payments_grant_ingest`` exists, but not as the signature the hub calls.
+
+    The legacy block reads an unresolved exact signature as a pre-migration install, so a
+    changed signature (an added parameter, a DEFAULT included) would run its DROP+CREATE and
+    re-widen the role (W-d8505af5). The name is matched in EVERY schema, not only the session's
+    search_path: a function of that name off the path is fabrik-lib's migration installed
+    elsewhere, never a pre-migration install, so the guard errs to a failed step over a
+    re-widened role. Placed before the legacy blocks, so ``ON_ERROR_STOP`` stops the batch
+    ahead of every lane grant. ``role`` is ``_validate_identifier``-gated; names are constants.
+    """
+    return (
+        "DO $$ BEGIN\n"  # nosec B608 — role is _validate_identifier-gated; function name is a constant
+        "  IF EXISTS (SELECT 1 FROM pg_catalog.pg_proc p\n"
+        "              WHERE p.proname = 'payments_grant_ingest')\n"
+        f"     AND to_regprocedure('{_PAYMENTS_GRANT_INGEST_FN}') IS NULL THEN\n"
+        f"    RAISE EXCEPTION 'payments_grant_ingest for {role}: a function of that name "
+        f"exists, but {_PAYMENTS_GRANT_INGEST_FN}, the signature the hub calls, does not "
+        "resolve on the search_path; fabrik-lib changed it or installed it in another "
+        "schema, so the hub constant or the search_path must follow';\n"
+        "  END IF;\n"
+        "END $$;"
+    )
+
+
 def _payments_grant_ingest_block(role: str) -> str:
     """Delegate to fabrik-lib's ``payments_grant_ingest`` when the install carries it.
 
@@ -1079,7 +1181,7 @@ def mint_payments_role(
     NOREPLICATION`` with a CSPRNG password, and NOTHING else, so no later statement can raise and lose the one-time
     password before the caller holds it. On re-apply (the returned ``password`` is ``None``):
     ``ALTER ROLE`` re-asserts the same attributes (with INHERIT, no connection limit, no expiry)
-    and resets its role settings (global and in this database), so a role altered out of band (e.g. to BYPASSRLS or
+    and resets its role settings (global and in every database that holds one), so a role altered out of band (e.g. to BYPASSRLS or
     REPLICATION) is narrowed again rather than granted as it stands; the password is never
     reset. A role of that name that is a superuser or owns a database (never left so by this
     registrar) makes re-apply RAISE rather than alter it. No membership is granted. ``CONNECT``/``USAGE`` and the lane's grants run in :func:`grant_payments_role`,
@@ -1104,31 +1206,46 @@ def mint_payments_role(
     else:
         _refuse_foreign_role(
             role,
-            _foreign_role_reasons(role, own_db=db_name, container=container),
+            _foreign_role_reasons(role, own_db=db_name, escalation=True, container=container),
             f"payments-{lane} role for {db_name}",
+            escalated=True,
         )
         # A role of this name that is a superuser or owns a database was never left that way by
         # this registrar (it grants neither): it may be an unrelated admin or owner role, or one
         # escalated out of band, and the registrar cannot tell which. Fail closed and say so,
         # never silently strip it; an operator narrows or drops it by hand. Otherwise narrow
         # every attribute back, including the ones that would leave the role unusable
-        # (CONNECTION LIMIT, VALID UNTIL) and its role settings.
+        # (CONNECTION LIMIT, VALID UNTIL) and its role settings in every database.
         _run_sql(
             "\\set ON_ERROR_STOP on\n"
             "DO $$ BEGIN\n"
             "  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles r\n"
             f"             WHERE r.rolname = '{role}'\n"  # nosec B608 — role is _validate_identifier-gated
             "               AND (r.rolsuper OR EXISTS (SELECT 1 FROM pg_catalog.pg_database d\n"
-            "                                          WHERE d.datdba = r.oid))) THEN\n"
-            f"    RAISE EXCEPTION 'payments-{lane} role {role} exists but is a superuser or owns a "
-            "database, which this registrar never grants; refusing to re-assert its attributes. "
+            "                                          WHERE d.datdba = r.oid)\n"
+            "                    OR EXISTS (SELECT 1 FROM pg_catalog.pg_auth_members m WHERE m.member = r.oid OR m.roleid = r.oid))) THEN\n"
+            f"    RAISE EXCEPTION 'payments-{lane} role {role} exists but is a superuser, owns a "
+            "database or holds a role membership, which this registrar never grants; refusing to re-assert its attributes. "
             f"Narrow it by hand (ALTER ROLE {role} NOSUPERUSER; give each database it owns another "
             "owner) or drop it once it owns none, then re-apply';\n"
             "  END IF;\n"
             "END $$;\n"
             f"ALTER ROLE \"{role}\" WITH {attrs} INHERIT CONNECTION LIMIT -1 VALID UNTIL 'infinity';\n"  # nosec B608
             f'ALTER ROLE "{role}" RESET ALL;\n'  # nosec B608 — role is _validate_identifier-gated
-            f'ALTER ROLE "{role}" IN DATABASE "{db_name}" RESET ALL;',  # nosec B608
+            # ...and its settings in EVERY database that holds one, not only this project's
+            # (W-3c302832), read from the catalog. A database dropped between that SELECT and its
+            # ALTER raises invalid_catalog_name; dropping it also removed its settings rows, so
+            # that one database is skipped and the re-apply goes on.
+            "DO $$ DECLARE d text; BEGIN\n"
+            "  FOR d IN SELECT db.datname FROM pg_catalog.pg_db_role_setting s\n"
+            "           JOIN pg_catalog.pg_database db ON db.oid = s.setdatabase\n"
+            f"           WHERE s.setrole = (SELECT oid FROM pg_catalog.pg_roles WHERE rolname = '{role}') LOOP\n"  # nosec B608
+            "    BEGIN\n"
+            f"      EXECUTE format('ALTER ROLE %I IN DATABASE %I RESET ALL', '{role}', d);\n"
+            "    EXCEPTION WHEN invalid_catalog_name THEN NULL;\n"
+            "    END;\n"
+            "  END LOOP;\n"
+            "END $$;",
             container=container,
         )
     status = "created" if not exists else "exists"
@@ -1165,6 +1282,7 @@ def grant_payments_role(
         f'GRANT USAGE ON SCHEMA public TO "{role}";',
     ]
     if lane == "ingest":
+        parts.append(_payments_ingest_signature_guard(role))
         for t in _PAYMENTS_INGEST_READ_TABLES:
             parts.append(_payments_ingest_policy_block(t, role, write=False))
         parts.append(_payments_ingest_policy_block(_PAYMENTS_INGEST_WRITE_TABLE, role, write=True))

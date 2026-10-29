@@ -220,7 +220,7 @@ def test_the_smoke_target_runs_the_heartbeat_check_not_a_curl(tmp_path, monkeypa
     # its own container name: another project's smoke run may hold the template's shared `smoke-test`
     assert "smoke-test" not in (project / "Makefile").read_text()
     lines = recipe.splitlines()
-    rm = lines.index("\t@docker rm -f $(PROJECT_NAME)-smoke >/dev/null 2>&1 || true")
+    rm = lines.index("\t@docker rm -fv $(PROJECT_NAME)-smoke >/dev/null 2>&1 || true")
     run = lines.index(
         "\t@docker run -d --name $(PROJECT_NAME)-smoke --network none -e WORKER_SMOKE=1"
         " --env-file .env $(PROJECT_NAME) || true"
@@ -373,3 +373,109 @@ def test_a_template_with_no_smoke_rule_is_left_alone(makefile, tmp_path, monkeyp
     project.mkdir()
     scaffold._scaffold_file_worker(project, "fw-plain", "plain")
     assert (project / "Makefile").exists()
+
+
+# W-1cb0d89f: any line holding `docker [container] run` text must BE the sealed smoke line the scaffold wrote
+_LIVE_RUNS = {
+    # the substring check let these through
+    "double-space": "\t@docker  run -d --env-file .env $(PROJECT_NAME)\n",
+    "container-run": "\t@docker container run -d --env-file .env $(PROJECT_NAME)\n",
+    "seal-in-comment": "\t@docker run -d --env-file .env $(PROJECT_NAME) # --network none -e WORKER_SMOKE=1\n",
+    # a seal in a later command, after every separator spelling
+    **{
+        f"seal-after-{name}": f"\t@docker run -d $(PROJECT_NAME){sep}echo --network none -e WORKER_SMOKE=1\n"
+        for name, sep in {
+            "and": " && ",
+            "or": " || ",
+            "semicolon": ";",
+            "pipe": " | ",
+            "background": " & ",
+            "double-semicolon": " ;; ",
+            "pipe-amp": " |& ",
+            "semicolon-paren": ";(",
+            "pipe-paren": " |(",
+        }.items()
+    },
+    # half a seal, or a seal overridden later in the same run
+    "network-only": "\t@docker run -d --network none $(PROJECT_NAME)\n",
+    "smoke-only": "\t@docker run -d -e WORKER_SMOKE=1 $(PROJECT_NAME)\n",
+    "smoke-overridden": "\t@docker run -d --network none -e WORKER_SMOKE=1 -e WORKER_SMOKE=0 $(PROJECT_NAME)\n",
+    "network-overridden": "\t@docker run -d --network none -e WORKER_SMOKE=1 --network host $(PROJECT_NAME)\n",
+    "near-miss": "\t@docker run -d --network=nonexistent -e WORKER_SMOKE=10 $(PROJECT_NAME)\n",
+    # quoted, backticked, by path, behind a mid-word or quoted `#`, a seal in a plain-image comment or after `;`
+    "sh-c": '\t@sh -c "docker run -d $(PROJECT_NAME)"\n',
+    "sh-c-container": '\t@sh -c "docker container run -d $(PROJECT_NAME)"\n',
+    "backticks": "\t@echo `docker run -d $(PROJECT_NAME)`\n",
+    "by-path": "\t@/usr/bin/docker run -d $(PROJECT_NAME)\n",
+    "mid-word-hash": "\t@[ $$# -gt 0 ] && docker run -d $(PROJECT_NAME)\n",
+    "quoted-hash": "\t@echo '#'; docker run -d img\n",
+    "plain-image-comment": "\t@docker run -d img # --network none -e WORKER_SMOKE=1\n",
+    "plain-image-semicolon": "\t@docker run -d img;echo --network none -e WORKER_SMOKE=1\n",
+    # make's recipe prefixes and a continuation
+    "dash-prefix": "\t-docker run -d $(PROJECT_NAME)\n",
+    "plus-prefix": "\t+docker run -d $(PROJECT_NAME)\n",
+    "continued": "\t@docker run -d \\\n\t\t$(PROJECT_NAME)\n",
+    "split-across-continuation": "\t@docker \\\n\t\trun -d $(PROJECT_NAME)\n",
+    # outside a recipe make joins with a space, and $(shell …) runs while make parses the file
+    "parse-time-shell": "X := $(shell docker\\\nrun -d img)\n",
+}
+
+# sealed, but not the line the scaffold writes: drift, refused like any drifted smoke line
+_DRIFTED_SEALED_RUNS = [
+    # split mid-line with no space before the `\`: make + sh run `smoke-test--network none …`, not the sealed line
+    "\t@docker run -d --name smoke-test\\\n\t--network none -e WORKER_SMOKE=1 --env-file .env $(PROJECT_NAME) || true\n",
+    "\t@docker run  --network none  -e WORKER_SMOKE=1 $(PROJECT_NAME) || true\n",
+    "\t@docker container run --network=none --env=WORKER_SMOKE=1 $(PROJECT_NAME)\n",
+]
+
+
+def _scaffold_with_extra_target(tmp_path, monkeypatch, recipe: str) -> Path:
+    tpl = tmp_path / "tpl"
+    shutil.copytree(_ROOT / "templates" / "scaffold", tpl)
+    mk = tpl / "docker" / "Makefile.python"
+    mk.write_text(mk.read_text() + "\nextra-run:\n" + recipe)
+    monkeypatch.setattr(scaffold, "TEMPLATE_DIR", tpl)
+    monkeypatch.setattr(scaffold, "FILE_WORKER_TEMPLATE_DIR", _ROOT / "templates" / "file-worker")
+    project = tmp_path / "fw-extra"
+    project.mkdir()
+    scaffold._scaffold_file_worker(project, "fw-extra", "extra")
+    return project
+
+
+@pytest.mark.parametrize("case", sorted(_LIVE_RUNS))
+def test_a_live_run_fails_the_scaffold(tmp_path, monkeypatch, case):
+    with pytest.raises(ValueError, match="live worker"):
+        _scaffold_with_extra_target(tmp_path, monkeypatch, _LIVE_RUNS[case])
+
+
+@pytest.mark.parametrize("recipe", _DRIFTED_SEALED_RUNS)
+def test_a_sealed_run_the_scaffold_did_not_write_is_refused_as_drift(tmp_path, monkeypatch, recipe):
+    with pytest.raises(ValueError, match="live worker"):
+        _scaffold_with_extra_target(tmp_path, monkeypatch, recipe)
+
+
+def test_a_word_that_only_starts_with_run_is_not_a_run():
+    sealed = frozenset()
+    assert (
+        scaffold._live_docker_runs("\t@echo docker runner\n\t@docker running-total\n", sealed) == []
+    )
+    assert scaffold._live_docker_runs("\t@echo docker run\n", sealed) == ["@echo docker run"]
+
+
+def test_continuations_are_read_both_ways_make_joins_them():
+    # nothing inserted (a recipe line): `docker \` + tab-tab `run` reads `docker \trun`
+    assert scaffold._live_docker_runs("\t@docker \\\n\t\trun -d img\n", frozenset()) == [
+        "@docker \trun -d img",
+        "@docker run -d img",
+    ]
+    # an escaped backslash ends no line: the next line stands alone
+    assert (
+        scaffold._live_docker_runs(
+            "\t@echo x\\\\\n\t@docker run -d img\n", frozenset({"@docker run -d img"})
+        )
+        == []
+    )
+    # `docker\` + `run`: the shell's `dockerrun`, but make's `docker run` outside a recipe — either reading refuses
+    assert scaffold._live_docker_runs("\t@docker\\\n\trun -d img\n", frozenset()) == [
+        "@docker run -d img"
+    ]

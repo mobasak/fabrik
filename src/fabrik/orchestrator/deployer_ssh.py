@@ -22,9 +22,22 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from fabrik.drivers.ssh import UndecodableAnswerError
+from fabrik.env_file import EnvTemplate
+from fabrik.env_file import format_env as _format_env
+from fabrik.env_file import parse_env as _parse_env
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.exceptions import DeployError, ProvisioningError
-from fabrik.spec_loader import OWNER_ENV_FILE, OWNER_ENV_KEYS, Source, SourceType, Spec
+from fabrik.spec_loader import (
+    CPU_GRAMMAR_MESSAGE,
+    OWNER_ENV_FILE,
+    OWNER_ENV_KEYS,
+    Resources,
+    Source,
+    SourceType,
+    Spec,
+    cpu_in_grammar,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -199,9 +212,10 @@ def app_dir(spec: dict[str, Any] | Spec) -> list[str]:
 
 
 _PS_KEYS = ("Service", "State", "Health", "ExitCode")
-# Everything the ssh driver's subprocess.run can raise (drivers/ssh.py:99): a failed command
-# (RuntimeError), a missing ssh binary or fork failure (OSError), undecodable stdout
-# (UnicodeDecodeError is a ValueError) and the timeout. probe_app RETURNS these, never raises.
+# Everything the ssh driver (`fabrik.drivers.ssh.ssh`) can raise: a failed command or an answer
+# that is not valid UTF-8 (RuntimeError, W-5597922e), a missing ssh binary or fork failure
+# (OSError), a bad host alias or jump setting (SshHostError / JumpConfigError are ValueErrors) and
+# the timeout. probe_app RETURNS these, never raises.
 _SSH_FAILURES = (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired)
 
 # Printed by the remote shell when a compose filename does not exist (_read_compose_from_vps), so
@@ -583,6 +597,13 @@ class SSHDeployer:
             )
             try:
                 _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
+            except UndecodableAnswerError:
+                # `up --wait` exited 0 — the services are up and healthy — and only its output was not
+                # UTF-8. Rolling back would tear down a healthy deploy (W-5597922e review).
+                logger.warning(
+                    "Redeploy of %s: compose up succeeded but its output was not UTF-8 (not read)",
+                    name,
+                )
             except (RuntimeError, subprocess.TimeoutExpired) as err:
                 logger.error(
                     "Redeploy of %s failed health check; rolling back to %s",
@@ -655,6 +676,7 @@ class SSHDeployer:
         from fabrik.drivers.ssh import ssh as _ssh
         from fabrik.spec_loader import Spec
         from fabrik.template_renderer import TemplateRenderer
+        from fabrik.version_registry import VersionRegistryError
 
         spec = ctx.spec
 
@@ -684,11 +706,34 @@ class SSHDeployer:
         # key among the secrets never reaches compose.yaml (the renderer puts every secret into
         # every service's `environment:`, which would hand the app the owner DSN, D-754): it
         # rides to `.env.owner` through `_build_env` and the writer instead (the Finish review, O1).
-        rendered = TemplateRenderer().render(
-            spec_obj,
-            secrets={k: v for k, v in ctx.secrets.items() if k not in OWNER_ENV_KEYS},
-            dry_run=True,
-        )
+        # A render refusal is the spec's or a secret's (a template that is not one, a NUL or
+        # non-UTF-8 value, a bad port — D-1269), so it is a named DeployError, not an orchestrator
+        # traceback (W-c9dcd641). The renderer's messages name a key or a template, never a value.
+        # A hub defect stays a traceback, the only report that names the broken file: the spec's
+        # template must be exactly one of list_templates() (a path that only resolves to one, such
+        # as `a/../python-api`, is refused here, since jinja's loader refuses it), so a
+        # TemplateNotFound inside the render is a missing include and is not caught; the version
+        # registry's error and a template file that will not decode are ValueErrors, so they are
+        # re-raised first; a template's syntax or undefined-attribute error is a jinja2 error no
+        # clause names. Limits: a template directory that lost its compose.yaml.j2 is refused like
+        # a misspelt name (the message names the file it looked for), and a bad value in a
+        # template's own defaults.yaml is refused by the same input guards as a spec value.
+        renderer = TemplateRenderer()
+        if spec_obj.template not in renderer.list_templates():
+            raise DeployError(
+                f"Template render failed for {name}: {spec_obj.template!r} is not a template"
+                f" (no {spec_obj.template!r}/compose.yaml.j2 in {renderer.templates_dir.name}/)"
+            )
+        try:
+            rendered = renderer.render(
+                spec_obj,
+                secrets={k: v for k, v in ctx.secrets.items() if k not in OWNER_ENV_KEYS},
+                dry_run=True,
+            )
+        except (VersionRegistryError, UnicodeDecodeError):
+            raise
+        except ValueError as exc:
+            raise DeployError(f"Template render failed for {name}: {exc}") from exc
         compose_content = rendered["compose.yaml"]
 
         # Validate compose against rule-pack constraints
@@ -814,8 +859,12 @@ class SSHDeployer:
         spec = ctx.spec
         domain = spec.get("domain", "")
 
-        # Generate minimal compose.yaml
-        compose_content = _generate_docker_compose(name, image, image_port, domain, spec)
+        # Generate minimal compose.yaml. A refused scalar (a NUL or non-UTF-8 image_command) is a
+        # spec error: a DeployError, as the template path maps its render ValueError (D-1289).
+        try:
+            compose_content = _generate_docker_compose(name, image, image_port, domain, spec)
+        except ValueError as e:  # the message names the field, never the value
+            raise DeployError(f"Cannot generate the compose for {name}: {e}") from None
 
         errors = _validate_compose(compose_content)
         if errors:
@@ -948,7 +997,9 @@ class SSHDeployer:
             existing_val = merged.get(key)
             if _is_placeholder(value) and existing_val and not _is_placeholder(existing_val):
                 continue  # keep the registrar-injected real value
-            merged[key] = value
+            # A spec value's `$` is a compose interpolation (`${LOG_LEVEL:-INFO}`), written bare;
+            # every other value's `$` is literal and is escaped (fabrik.env_file).
+            merged[key] = EnvTemplate(value) if "$" in value else value
 
         merged.update(overrides or {})
 
@@ -1038,83 +1089,9 @@ def _is_placeholder(value: str) -> bool:
     return "placeholder" in value.lower() or bool(_INTERPOLATION_RE.fullmatch(value))
 
 
-def _closing_quote(value: str) -> int:
-    """Index of the quote closing ``value[0]``, or -1 when unterminated.
-
-    Inside double quotes a backslash escapes the next character (the form
-    ``_format_env`` writes); single quotes have no escapes.
-    """
-    quote, i = value[0], 1
-    while i < len(value):
-        if quote == '"' and value[i] == "\\":
-            i += 2
-            continue
-        if value[i] == quote:
-            return i
-        i += 1
-    return -1
-
-
-def _parse_env(content: str) -> dict[str, str]:
-    """Parse a .env file into a dict, ignoring comments and blank lines."""
-    result: dict[str, str] = {}
-    for line in content.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        key = key.strip()
-        # `export KEY=…` (a shell-sourceable .env) is the key KEY — for read_env's
-        # decision and inject_env's merge alike, or the merge writes a second key.
-        if key.startswith("export "):
-            key = key[len("export ") :].strip()
-        # Strip surrounding quotes — and UNESCAPE a double-quoted value, mirroring
-        # `_format_env`'s escaping. Without the unescape the round-trip corrupts:
-        # write escapes `\"` -> read strips the wrapper but leaves the backslashes ->
-        # the next write escapes them AGAIN, so a value grows a backslash per apply.
-        value = value.strip()
-        # A value that OPENS with a quote and is followed by only `# comment`
-        # (`K="v" # note`) is the quoted content; an unterminated quote or any other
-        # tail keeps the rule below.
-        if value[:1] in ("'", '"'):
-            end = _closing_quote(value)
-            if end > 0 and value[end + 1 :].strip()[:1] in ("", "#"):
-                value = value[: end + 1]
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
-            quote = value[0]
-            value = value[1:-1]
-            if quote == '"':
-                value = value.replace('\\"', '"').replace("\\\\", "\\")
-        result[key] = value
-    return result
-
-
-def _format_env(env: dict[str, str]) -> str:
-    """Format a dict as .env file content."""
-    lines = []
-    for key, value in sorted(env.items()):
-        # Quote values with spaces or special chars — and ESCAPE when we do.
-        #
-        # The escape is the fix (2026-08-31). The old code wrapped without it:
-        # `value = f'"{value}"'`. A JSON secret contains `"`, so it shipped as
-        # `K="{"a":"b"}"` and Compose read the first inner quote as a NEW VARIABLE
-        # NAME — `failed to read .env: unexpected character '"' in variable name` —
-        # breaking `docker compose build` for EVERY value carrying a quote on the
-        # fleet. Measured live on tryton-crm's CONSUMER_TOKENS: two byte-identical
-        # apply failures.
-        #
-        # The QUOTE TRIGGER is deliberately unchanged. Dropping it for spaces (a
-        # compose env_file reads to end-of-line, so `K=a b` parses) broke
-        # `TestFormatEnv::test_quotes_spaces`, which encodes a real contract: the
-        # file must stay safe for a shell `source`, where a bare `K=a b` word-splits.
-        # Verified live that Compose unescapes correctly: `K="{\"a\":\"b\"}"`
-        # resolves to `{"a":"b"}`. `_parse_env` carries the matching unescape.
-        if any(c in value for c in (" ", "#", "'", '"', "\n")):
-            value = '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
-        lines.append(f"{key}={value}")
-    return "\n".join(lines) + "\n" if lines else ""
+# The line `_read_env_file` echoes between `.env` and `.env.owner`: no `=`, so a .env parser skips
+# it, and no shell metacharacter (a leading `#` would make it a shell comment), so it needs no quoting.
+_OWNER_SEPARATOR = "__fabrik_env_owner_follows__"
 
 
 def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
@@ -1127,7 +1104,8 @@ def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
     :meth:`SSHDeployer._build_env` (the deploy/redeploy merge). ONE probe and ONE
     read, as before the owner split: the probe answers ``present``/``absent`` for ``.env`` on
     its first line and ``owner`` on a second line when ``.env.owner`` exists; the read is then
-    today's ``sudo cat <env>`` alone, or ``sudo sh -c 'cat <env> && echo && cat <owner>'`` —
+    today's ``sudo cat <env>`` alone, or ``sudo sh -c 'cat <env> && echo && echo <separator> && cat
+    <owner>'`` —
     chained with ``&&`` so a failed read of EITHER file is a non-zero exit the ssh driver raises
     on (a ``;`` chain exits with the LAST cat's status and would hand back the owner keys alone
     as the merged view — executed in Phase A's review), and the ``echo`` is a SEPARATOR,
@@ -1136,6 +1114,12 @@ def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
     approval panel: the owner key vanished from the parse and the owner DSN rode into
     ``REDIS_URL``'s value, which the next write would have put back into ``.env``). The owner
     file's keys parse LAST, so they win a shared key (a stale copy left in ``.env``).
+
+    The two files are PARSED APART: ``echo <_OWNER_SEPARATOR>`` follows the separator ``echo``
+    and the content is split on that line, because a quoted value may span lines and an unterminated
+    quote in ``.env`` would otherwise read the owner file into an app key — which the next write
+    puts into ``.env`` (W-2ae286e2 critique). An unterminated quote raises (compose refuses the same
+    file), so the read fails closed.
     """
     env_path = f"{path}/.env"
     owner_path = f"{path}/{OWNER_ENV_FILE}"
@@ -1159,13 +1143,33 @@ def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
         if first != "present" or len(lines) > 2 or (len(lines) == 2 and lines[1] != "owner"):
             raise DeployError(f"cannot read {env_path}: unexpected probe answer {probe[:40]!r}")
         if len(lines) == 2:
-            cat = f"cat {shlex.quote(env_path)} && echo && cat {shlex.quote(owner_path)}"
+            cat = (
+                f"cat {shlex.quote(env_path)} && echo && echo {_OWNER_SEPARATOR} && "
+                f"cat {shlex.quote(owner_path)}"
+            )
             content = _ssh(f"sudo sh -c {shlex.quote(cat)}", timeout=10)
+            # The separator is matched as a whole LINE, never as `\n<sep>\n`: the ssh driver
+            # strips the output, so an empty `.env` puts it on the first line and an empty
+            # `.env.owner` on the last. The LAST such line wins — the owner file is ours, `.env`
+            # may carry hand-written text.
+            lines = content.split("\n")
+            at = [i for i, ln in enumerate(lines) if ln.rstrip("\r") == _OWNER_SEPARATOR]
+            if not at:
+                raise DeployError(f"cannot read {env_path}: the owner separator is missing")
+            app_text = "\n".join(lines[: at[-1]])
+            owner_text = "\n".join(lines[at[-1] + 1 :])
         else:
-            content = _ssh(f"sudo cat {shlex.quote(env_path)}", timeout=10)
+            app_text = _ssh(f"sudo cat {shlex.quote(env_path)}", timeout=10)
+            owner_text = ""
     except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
         raise DeployError(f"cannot read {env_path}: {e}") from e
-    return _parse_env(content)
+    merged: dict[str, str] = {}
+    for file_path, text in ((env_path, app_text), (owner_path, owner_text)):
+        try:
+            merged.update(_parse_env(text))
+        except ValueError as e:  # the message names the key and line, never the value
+            raise DeployError(f"cannot read {file_path}: {e}") from None
+    return merged
 
 
 def _split_env(env: dict[str, str]) -> tuple[dict[str, str], dict[str, str]]:
@@ -1188,10 +1192,19 @@ def _write_env_files(
     :func:`_env_writer_for` for the ``/opt/<name>`` apps.
     """
     app, owner = _split_env(merged)
+    # Both halves are formatted before the first write, so a line the codec refuses (a NUL, a lone
+    # surrogate — W-8495d72f) leaves both files as they were; the try holds no write, whose own
+    # ValueError (a filename outside the app dir) is not a codec refusal.
+    content: dict[str, str] = {}
+    for filename, half in ((OWNER_ENV_FILE, owner), (".env", app)):
+        try:
+            content[filename] = _format_env(half)
+        except ValueError as e:  # the message names the key, never the value
+            raise DeployError(f"cannot write {path}/{filename}: {e}") from None
     if owner:
-        write(path, OWNER_ENV_FILE, _format_env(owner))
+        write(path, OWNER_ENV_FILE, content[OWNER_ENV_FILE])
         logger.info("env: %d owner key(s) kept in %s for %s", len(owner), OWNER_ENV_FILE, path)
-    write(path, ".env", _format_env(app))
+    write(path, ".env", content[".env"])
 
 
 def _env_writer_for(name: str) -> Callable[[str, str, str], None]:
@@ -1259,7 +1272,10 @@ def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
     safe_name = filename.replace("/", "-")
     fd, tmp_local = tempfile.mkstemp(prefix=f"fabrik-{safe_name}-")
     try:
-        with os.fdopen(fd, "w") as f:
+        # UTF-8 whatever the hub's locale: the codec's refusals (env_file.format_env_line) promise
+        # that a line passing them is writable, and a locale codec (LC_ALL=C → ASCII) broke that
+        # mid-write, after .env.owner was already on the VPS (W-8495d72f review).
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(content)
         # The remote temp file is made by `mktemp` (a random name, O_EXCL, mode 0600) BEFORE scp
         # writes into it. A pid-derived name was predictable: a local VPS user could pre-create it
@@ -1443,6 +1459,15 @@ def _validate_compose(content: str) -> list[str]:
                     '(e.g. test: ["CMD-SHELL", "kill -0 1"]) or omit the block when the image '
                     "declares no HEALTHCHECK"
                 )
+            # Compose takes a duration only as a string ("10s"): an empty template line renders YAML
+            # null, and a bare number an int, and the VPS `compose up` refuses both (W-3197a125).
+            for key in ("interval", "timeout", "start_period", "start_interval"):
+                value = healthcheck.get(key)
+                if key in healthcheck and (not isinstance(value, str) or not value.strip()):
+                    errors.append(
+                        f"Service '{svc_name}': healthcheck.{key} must be a duration string such "
+                        f"as '10s' (got {value!r})"
+                    )
 
     # Network: fabrik external (renamed from `coolify` 2026-05-31; W12 of fleet-hardening plan).
     networks = data.get("networks", {})
@@ -1549,6 +1574,12 @@ def _assert_deployed_env_present(name: str) -> None:
         )
 
 
+def _raw_duration(health: dict[str, Any], key: str, default: str) -> object:
+    value = health.get(key)
+    unset = value is None or (isinstance(value, str) and not value.strip())  # as `Health` reads it
+    return default if unset else value
+
+
 def _generate_docker_compose(
     name: str,
     image: str,
@@ -1559,6 +1590,13 @@ def _generate_docker_compose(
     """Generate a minimal compose.yaml for a Docker image source."""
     resources = spec.get("resources", {})
     memory = resources.get("memory", "256M") if isinstance(resources, dict) else "256M"
+    # The CPU limit was dropped here, so a docker-sourced service ran unlimited (W-f01710a0). An absent cpu takes
+    # the `Resources` default, as the template path's `Spec` does, and the cpu is held to the same grammar. A
+    # non-mapping `resources` defaults both values here, as memory always did; apply's validator refuses it first.
+    default_cpu = Resources.model_fields["cpu"].default
+    cpu = resources.get("cpu", default_cpu) if isinstance(resources, dict) else default_cpu
+    if not cpu_in_grammar(cpu):
+        raise ValueError(CPU_GRAMMAR_MESSAGE)  # never the value
 
     # Health: read from spec (W12.b 2026-06-02 — was hardcoded /health + curl).
     # `curl` is not in nginx:alpine or many other small images; use a wget/Python
@@ -1566,7 +1604,11 @@ def _generate_docker_compose(
     # nonzero otherwise — works in alpine, debian, ubuntu, distroless-busybox.
     health = spec.get("health", {}) if isinstance(spec.get("health"), dict) else {}
     health_path = health.get("path", "/health")
-    health_interval = health.get("interval", "30s")
+    # A raw spec dict never passes `Spec`: an absent, null or blank value takes the default (a
+    # model_dump'd spec carries `start_period: None`), and any other value is written as given so
+    # `_validate_compose` refuses a non-string one instead of it being swapped (W-3197a125).
+    health_interval = _raw_duration(health, "interval", "30s")
+    health_start_period = _raw_duration(health, "start_period", "20s")
     source = spec.get("source", {}) if isinstance(spec.get("source"), dict) else {}
     image_command = source.get("image_command")
 
@@ -1587,17 +1629,20 @@ def _generate_docker_compose(
     # the 2.40.3 check could not tell them apart; a secrets-minted ${ZITADEL_MASTERKEY} expands here because
     # it lives in that project `.env` — an owner key never would (it lives in `.env.owner`).
     if image_command:
-        # Single-quoted YAML scalar (escape embedded single-quotes by doubling) — keeps a colon, `#`, or
-        # other YAML-special char in the command from breaking the compose, and matches Zitadel's own official
-        # docker-compose form. Compose still interpolates ${VAR} from the project `.env` (interpolation runs
-        # on the parsed string value, after YAML parsing).
-        _q = image_command.replace("'", "''")
-        lines.append(f"    command: '{_q}'")
+        # One double-quoted YAML scalar via the template path's `_compose_str` (W-4b977f21): a single-quoted
+        # scalar folded a newline to a space and passed DEL / lone surrogates raw. A colon, `#` or quote stays
+        # inert, and compose still interpolates ${VAR} from the project `.env` after YAML parsing.
+        from fabrik.template_renderer import TemplateRenderer
+
+        lines.append(
+            f"    command: {TemplateRenderer._compose_str(image_command, 'image_command')}"
+        )
     lines += [
         "    deploy:",
         "      resources:",
         "        limits:",
         f"          memory: {memory}",
+        f"          cpus: '{cpu}'",
     ]
     # `health: { disabled: true }` → OMIT the healthcheck. The default `wget --spider` probe needs a shell +
     # wget, absent from FROM-scratch/distroless images (e.g. Zitadel) — a forced healthcheck there errors,
@@ -1606,11 +1651,13 @@ def _generate_docker_compose(
     if not health.get("disabled"):
         lines += [
             "    healthcheck:",
-            f'      test: ["CMD-SHELL", "wget -q --spider http://localhost:{port}{health_path} || exit 1"]',  # noqa: localhost is correct — a container health-check probes its OWN port
+            # The URL is single-quoted: a health path may hold `&`, `;` or parentheses
+            # (HEALTH_PATH_RE, checked by the apply validator), which the shell would read (W-ff313a14).
+            f'      test: ["CMD-SHELL", "wget -q --spider \'http://localhost:{port}{health_path}\' || exit 1"]',  # noqa: localhost is correct — a container health-check probes its OWN port
             f"      interval: {health_interval}",
             "      timeout: 10s",
             "      retries: 3",
-            "      start_period: 20s",
+            f"      start_period: {health_start_period}",
         ]
     lines += [
         "    networks:",

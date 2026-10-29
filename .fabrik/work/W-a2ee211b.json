@@ -17,10 +17,10 @@
     "2f8e3adc7762b748e4b7cc45b1dc6b3ced48c392aa77cca96c02721e743630bb"
   ],
   "next": "",
-  "note": "",
+  "note": "panel: approved in principle; execute only through a fleet runbook that lists every admin-login consumer (glitchtip web and worker, postgres_exporter, the untracked infra/vps1/postgres/.env, hub .env PG_ and POSTGRES_ keys, site-provisioner DATABASE_URL, /opt/backups/pre-backup.sh), mints the two scoped roles, switches and verifies each, keeps the old password for rollback, rotates before the PG18 hub window and hands the new password to the operator",
   "owner": "",
   "priority": 2,
   "question": "May fleet replace GlitchTip's and the database-monitoring exporter's use of the main database admin login on vps1 with their own limited logins, then change the admin password?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May fleet replace GlitchTip's and the database-monitoring exporter's use of the main database admin login on vps1 with their own limited logins, then change the admin password?"
 }

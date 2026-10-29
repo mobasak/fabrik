@@ -15,7 +15,24 @@ charter is OPTIONAL — present-and-marked → injected; absent, unmarked, unset
 malformed name → silent no-op, same as every project with no charters at all.
 FLEET-SAFE BY CONSTRUCTION: a project that names agents but never writes charters
 still injects nothing. stdout only; never writes; never reads outside
-``docs/reference/agents/`` (realpath-contained, symlinks included).
+``docs/reference/agents/`` (realpath-contained, symlinks included) — except the one
+read-only merge-owner query of the role fallback below.
+
+ROLE FALLBACK (dynamic-builders D8): when ``<name>.md`` is ABSENT (``os.path.lexists``
+false — an existing but unmarked own file, or a dangling symlink, stays a silent no-op,
+never a fallback), a ``<role>-<suffix>`` name (both halves non-empty; ``<role>`` is the
+name with its last ``-<suffix>`` removed: ``infra-4`` → ``infra.md``, ``builder-w1a2b``
+→ ``builder.md``) gets ``<role>.md`` — same marker check, same containment, the header
+naming the session's own name. Never for a coordinator name or a coordinator ROLE
+(``coordinator`` or ``*-coordinator``, the grid's rule: ``coordinator-2`` and
+``fabrik-lib-coordinator-3`` get nothing), and never when ``<role>`` is the repo's
+merge owner: when ``docs/DECISIONS.md`` exists the hook runs ``$FABRIK_DECISIONS_PY``
+(else the hub's ``/opt/fabrik/scripts/decisions.py``, never the repo's own copy)
+``--merge-owner <root>`` — exit 0 names the owner (empty stdout, or exit 3, names
+nobody); any other exit, a timeout or an OSError refuses the fallback (fail-closed for
+the fallback only — the own-name path never runs it). So the fallback is bound to the
+hub resolver: on a box without it, a repo that has a ``docs/DECISIONS.md`` gets no role
+fallback (the run fails → refused, by design).
 """
 
 from __future__ import annotations
@@ -23,6 +40,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
 
 # Any project-local agent name — hub-agent-roles spec r2 relaxed the fixed
@@ -40,6 +58,12 @@ _MAX_BYTES = 32_768  # a charter is ~2KB; anything bigger is cut LOUDLY below
 # CLAUDE.md" (T02a acceptance review, findings 1 and its round-2 follow-up: a bare
 # prefix match also let "# Agent charter-obsolete" or "# Agent chartering" through).
 _CHARTER_MARKER = b"# Agent charter"
+# The role fallback's merge-owner resolver: the hub's, by the hub convention (docs_updater.py,
+# merge_request.py); this hook is fleet-synced and runs from the downstream repo's own tree, so a
+# project's own scripts/decisions.py is never consulted. 5 s fits the hook's 10 s budget after its
+# own <= 2 s stdin read (.claude/settings.json).
+_HUB_DECISIONS_PY = "/opt/fabrik/scripts/decisions.py"
+_OWNER_TIMEOUT_S = 5
 
 
 def _has_charter_marker(first_line: bytes) -> bool:
@@ -121,6 +145,64 @@ def _bound_name(root: str) -> str:
         return ""
 
 
+def _read_charter(root_r: str, agents_dir: str, stem: str) -> tuple[str, bool] | None:
+    """``(body, truncated)`` of ``<agents_dir>/<stem>.md`` when it is a contained, marked,
+    non-empty charter, else None."""
+    path = os.path.realpath(os.path.join(agents_dir, f"{stem}.md"))
+    # containment: neither a symlinked charter FILE nor a symlinked agents/ DIRECTORY may
+    # resolve outside the repo root — "never reads outside the repo" holds by construction
+    if os.path.dirname(path) != agents_dir or not agents_dir.startswith(root_r + os.sep):
+        return None
+    try:
+        with open(path, "rb") as fh:
+            raw = fh.read(_MAX_BYTES + 1)
+    except OSError:
+        return None  # no charter here → silent no-op (the fleet case)
+    if not _has_charter_marker(raw.split(b"\n", 1)[0]):
+        return None  # not a charter (e.g. a kaizen log, or a look-alike H1) → silent no-op
+    body = raw[:_MAX_BYTES].decode("utf-8", errors="ignore").strip()
+    return (body, len(raw) > _MAX_BYTES) if body else None
+
+
+def _role_of(name: str) -> str | None:
+    """``<role>`` of a ``<role>-<suffix>`` name, or None — no ``-``, an empty half, a coordinator
+    name, or a coordinator ROLE (``coordinator`` / ``*-coordinator``, ``agents_up.sh``'s rule, applied
+    to the name and to its role: ``coordinator-2`` never inherits the coordinator's charter)."""
+
+    def coordinator(n: str) -> bool:
+        return n == "coordinator" or n.endswith("-coordinator")
+
+    if coordinator(name):
+        return None
+    role, sep, suffix = name.rpartition("-")
+    # the ONE empty-half guard: main() reads only None as "no role" (review pass 1, G3)
+    return role if sep and role and suffix and not coordinator(role) else None
+
+
+def _role_is_not_merge_owner(root: str, role: str) -> bool:
+    """True when the repo's declared merge owner is not ``role`` — read exactly as the grid reads it
+    (``agents_up.sh``): no ledger declares nobody; exit 0 prints the owner (empty = nobody), exit 3 is
+    UNDECLARED; any other exit, a timeout or an OSError is False (refuse the fallback)."""
+    if not os.path.isfile(os.path.join(root, "docs", "DECISIONS.md")):
+        return True
+    resolver = os.environ.get("FABRIK_DECISIONS_PY") or _HUB_DECISIONS_PY
+    try:
+        res = subprocess.run(  # read-only query; never writes
+            [sys.executable, resolver, "--merge-owner", root],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=_OWNER_TIMEOUT_S,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if res.returncode == 3:
+        return True
+    if res.returncode != 0:
+        return False
+    return res.stdout.strip().lower() != role
+
+
 def main() -> int:
     root = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
     name = os.environ.get("CLAUDE_AGENT", "").strip() or _bound_name(root)
@@ -128,23 +210,18 @@ def main() -> int:
         return 0  # unset / malformed name → silent no-op (the fleet case)
     root_r = os.path.realpath(root)
     agents_dir = os.path.realpath(os.path.join(root, "docs", "reference", "agents"))
-    path = os.path.realpath(os.path.join(agents_dir, f"{name}.md"))
-    # containment: neither a symlinked charter FILE nor a symlinked agents/ DIRECTORY may
-    # resolve outside the repo root — "never reads outside the repo" holds by construction
-    if os.path.dirname(path) != agents_dir or not agents_dir.startswith(root_r + os.sep):
+    if os.path.lexists(os.path.join(agents_dir, f"{name}.md")):
+        found = _read_charter(root_r, agents_dir, name)  # an own file, marked or not, is final
+    else:
+        role = _role_of(name)
+        found = None
+        if role is not None:
+            found = _read_charter(root_r, agents_dir, role)
+            if found is not None and not _role_is_not_merge_owner(root, role):
+                found = None  # the merge owner's role (or an unreadable owner) never falls back
+    if found is None:
         return 0
-    try:
-        with open(path, "rb") as fh:
-            raw = fh.read(_MAX_BYTES + 1)
-    except OSError:
-        return 0  # no charter here → silent no-op (the fleet case)
-    first_line = raw.split(b"\n", 1)[0]
-    if not _has_charter_marker(first_line):
-        return 0  # not a charter (e.g. a kaizen log, or a look-alike H1) → silent no-op
-    truncated = len(raw) > _MAX_BYTES
-    body = raw[:_MAX_BYTES].decode("utf-8", errors="ignore").strip()
-    if not body:
-        return 0
+    body, truncated = found
     print(f"## AGENT ROLE: {name} (charter — binding overlay on CLAUDE.md)")
     print("--- charter begin ---")
     print(body)

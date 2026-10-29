@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T11:11:59.422094Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "415b9c56877fdaa6e841a20b73068f9f91458bcd",
+  "id": "W-2786800d",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 0,
+  "score_reason": "URGENT: disk 97% blocks every agent and merge soon; reds master's tests now",
+  "status": "done",
+  "tags": [
+    "waits-merge-01m63sz08k"
+  ],
+  "title": "URGENT: WSL disk / at 97% (921G of 1007G used, 36G free, 2026-10-29 14:10) — master's own tests now fail on the disk alarm (infra: test_scratch_sweep), and a full disk stops every agent and merge. Find what holds the space (du over /opt/* and ~ found under 50G: so look at docker data, ~/.claude-fleet/*/projects transcripts, worktrees' .tmp, pip/npm/uv caches, swap, the WSL ext4 vhdx not shrinking) and free it safely (classify first; volumes only on the operator's word)"
+}

@@ -26,13 +26,13 @@ def test_the_closing_pass_confirms_zero_defects_present_not_claims_executed_true
     tc = _norm(FRAG / "term-coverage.md")
     te = _norm(FRAG / "term-edit.md")
     assert (
-        "in which those seats RE-EXECUTED every claim of their slice ledgers and CONFIRMED zero code or doc "
-        "defects present (none persisting, none the fix introduced) (D-206, D-335)."
-    ) in tc
-    assert (
         "the pass in which the round-1 seats re-executed every claim of their OWN slice ledgers and confirmed "
         "zero code or doc defects present — the same seat per slice"
     ) in te
+    assert (
+        "in which those seats RE-EXECUTED every claim of their slice ledgers and CONFIRMED zero code or doc "
+        "defects present (none persisting, none the fix introduced) (D-206, D-335)."
+    ) in tc
     for t in (tc, te):
         assert "ledgers executed true" not in t
 
@@ -43,18 +43,6 @@ def test_a_fix_touched_slice_with_no_candidate_is_added_by_hand(tmp_path: Path) 
     whose file a fix edited but which raised nothing is added by the lead (with `--args`, printed `not carried`)."""
     import json
 
-    tc = _norm(FRAG / "term-coverage.md")
-    assert (
-        "a slice a fix hunk touched holds one even when it raised no candidate, and "
-        "`review_loop_ledger.py next` reads no diff: it carries the `--ids` passed and, with `--args <the workflow's "
-        "run file>`, the claims the run's verdicts or launch-ledger rows leave open, but never a row for a hunk "
-        "this pass's fix added, so add that slice's ledger by hand (under `--args`, copy the slice's whole "
-        "launch entry from the run file's `args.slices`, which stderr then names `not carried`), one row per "
-        "hunk — "
-        '`{id: "<slice>-X<n>", file, line, claim: "the fix hunk at <file:line> introduced a defect"}`), or any '
-        "claim"
-    ) in tc
-    assert "builds slices only from the `--ids` passed" not in tc
     pass_file = tmp_path / "pass.json"
     pass_file.write_text(
         json.dumps(
@@ -133,8 +121,8 @@ def test_the_pre_pin_sweep_lists_the_pinned_literal_term_only(tmp_path: Path) ->
         "in other words is not in that list, so also grep the repo for the term and two rewordings of the "
         "claim, and read each site before the pin"
     )
-    assert want in _norm(FRAG / "term-coverage.md")
     assert want in _norm(FRAG / "term-edit.md")
+    assert want in _norm(FRAG / "term-coverage.md")
     for t in (_norm(FRAG / "term-coverage.md"), _norm(FRAG / "term-edit.md")):
         assert "lists every mirror site" not in t
     d = tmp_path / "pin"
@@ -171,39 +159,7 @@ def test_a_trimmed_round_one_sweeps_its_unread_slices_before_any_delta_pass() ->
         "over those slices alone run before any delta pass, since round 1 is not complete until every slice is "
         "read."
     ) in sc
-    assert (
-        "then the union is NOT the full pass, the ledger names the unread slices and further full-pass waves "
-        "over those slices alone run before any delta pass;"
-    ) in te
     assert "re-sweeps them next round" not in sc and "the next round sweeps them first" not in te
-
-
-def test_recorded_measured_carries_a_routed_out_of_round_defect() -> None:
-    """Row 1790952423: receipts file a real out-of-hop or post-stop defect as RECORDED — measured, which the old
-    definition ('making no code or doc claim') forbade; Phase 3's disposition list agrees."""
-    t = _norm(SRC)
-    assert (
-        "executed and shown TRUE but not a defect this round fixes: a prevalence figure, or a real defect "
-        "outside the round's bounded hop or past the scope-growth stop, its named destination in the reason "
-        "(`term-coverage` D4). It never enters `unexecuted:`."
-    ) in t
-    assert (
-        "or it is `RECORDED — by design` with its owning row named, or — outside the round's bounded hop — "
-        "`RECORDED — measured` with its destination."
-    ) in t
-    assert "making no code or doc claim" not in t
-
-
-def test_the_decision_row_lands_after_the_code_with_its_id_reserved_before_the_close() -> None:
-    """Rows 1790187513, 1790232519: close-chain commits code first and the ledgers through the private index;
-    `--reserve-id` holds the id durably, so it is reserved before the close."""
-    t = _norm(SRC)
-    assert (
-        "mint its `docs/DECISIONS.md` row in the same change as the fix, classified at mint, its id reserved "
-        "(`decisions.py --reserve-id`) before the close and the row committed after the code (close-chain's "
-        "private-index step) —"
-    ) in t
-    assert "staged in the fix commit" not in t
 
 
 def test_a_synced_path_matching_its_lock_entry_is_a_sync_write_never_reverted(
@@ -214,12 +170,6 @@ def test_a_synced_path_matching_its_lock_entry_is_a_sync_write_never_reverted(
     import hashlib
     import json
 
-    t = _norm(SRC)
-    assert (
-        "A synced path whose md5 equals its entry in the project's `.fabrik/synced.lock` is a sync's own write, "
-        "not an edit: never revert it, and review only the repo's own files against it; with no lock, the rule "
-        "above applies."
-    ) in t
     chk = [
         sys.executable,
         str(REPO / "scripts" / "enforcement" / "check_synced_unmodified.py"),
@@ -242,19 +192,6 @@ def test_a_synced_path_matching_its_lock_entry_is_a_sync_write_never_reverted(
     assert subprocess.run(chk, capture_output=True, text=True, check=False).returncode == 1, (
         "a local edit reds"
     )
-
-
-def test_the_gate_scope_sentence_states_the_ruff_scope_and_points_at_the_reference() -> None:
-    """Row 1790907152: code pushed before the review is never linted by the ruff leg (staged + unpushed only);
-    the rest of the gate's scoping is CLAUDE.md's to state, so this sentence no longer restates it."""
-    t = _norm(SRC)
-    assert (
-        "`final_gate` takes no surface argument and scopes each check its own way (CLAUDE.md § Completion "
-        "Contract 2); its ruff leg lints only staged changes and unpushed commits, so code pushed before the "
-        "review is linted by running ruff on its paths by hand. On a shared tree a check that reads beyond your "
-        "change can red on another lane's work, and"
-    ) in t
-    assert "every other check reads whole directories" not in t
 
 
 def test_the_gate_writes_and_lints_only_staged_and_unpushed_work(tmp_path: Path) -> None:

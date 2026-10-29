@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T12:49:29.430772Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-cccfe82b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5YHMMQV9Q2F3D2X6WRN7A26",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Request from infra (W-09957e81): one sentence for docs/workstation/hooks-index.md, which your fabrik-deck plan lock owns."
+}

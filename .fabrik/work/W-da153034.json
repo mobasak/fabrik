@@ -1,0 +1,26 @@
+{
+  "block_digest": "1463e0cf8c2804d5f70277d03a8f6e1506cd7909bf0a43c27dd4046f0eb4f93c",
+  "blocked_by": [],
+  "created": "2026-10-23T21:11:47.631277Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-da153034",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "78cd9f8c6dc543b3d1c3900f0673e6908a1ba4fa195163474aeed9d178a03069"
+  ],
+  "next": "",
+  "note": "operator 2026-10-24: 'raise the cap for ob for it then when finished make the cap 95 again' / 'done' — the coordinator watched the 00:05 archive run, filed W-36687f76 and W-0d730e8c, installed the nightly 00:43 watch, and set ob back to 95 (caps.json read back)",
+  "owner": "",
+  "priority": 2,
+  "question": "Should ob's weekly cap be raised from 95% to 99%, so ob can serve, the hold lifts, and I can attach the nightly archive watch now?",
+  "status": "done",
+  "title": "Should ob's weekly cap be raised from 95% to 99%, so ob can serve, the hold lifts, and I can attach the nightly archive watch now?"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T23:34:20.292345Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-517ed4b5",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "pass an onerror that treats an unreadable subdir as 'now' (never older); test with a chmod 000 subdir",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "infra's own follow-up from W-128df814; narrow and pre-existing",
+  "status": "open",
+  "title": "command_run.py _newest_mtime walks with no onerror, so a run dir with an unreadable subdir is aged by its readable files only and can be swept while live (pre-existing D-836 code; out-of-hop note from W-128df814's review, D-1268)"
+}

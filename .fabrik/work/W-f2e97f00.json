@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T12:49:14.329600Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f2e97f00",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5JTMSVY776ST9W0M6PQ492S",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-task DESIGN path reader pairs single backticks only — a double-backtick span unpairs every later path (feedback row 1792673357.0443344)"
+}

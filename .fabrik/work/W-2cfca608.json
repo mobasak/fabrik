@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T23:34:20.663439Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-2cfca608",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "claim mail 01M4WBJ6P3, read each row, fix or refute each in one infra pass, reply and ack",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "infra's own follow-up from W-128df814; narrow and pre-existing",
+  "status": "open",
+  "title": "Work the remaining rows of mail 01M4WBJ6P3: five /fabrik-task feedback rows asking for command_run.py / review_receipt.py code"
+}

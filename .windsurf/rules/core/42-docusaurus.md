@@ -30,7 +30,7 @@ Do not use Docusaurus when:
 Deploy via `fabrik apply` using a **two-stage Dockerfile**:
 
 1. **Build stage**: `node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->trixie<!--/v-->-slim` — `npm ci` then `npm run build`, then `npx -y pagefind --site build` for search indexing.
-2. **Serve stage**: `nginx:mainline-<!--v:debian_codename-->trixie<!--/v-->` — copy `build/` to `/usr/share/nginx/html`. The stock image is the deliberate choice: it is upstream's default, its master process runs as root and its workers as the `nginx` user (uid 101), and it serves on port 80 like every Fabrik service behind Traefik. `nginxinc/nginx-unprivileged` is the alternative: every process runs as uid 101, and with this pack's config it still serves on 80 under Docker; adopting its own default port 8080 instead changes the `EXPOSE`, the health check and the Traefik `loadbalancer.server.port` label together.
+2. **Serve stage**: `nginx:mainline-<!--v:debian_codename-->trixie<!--/v-->` — copy `build/` to `/usr/share/nginx/html`. The stock image is the deliberate choice: it is upstream's default, its master process runs as root and its workers as the `nginx` user (uid 101), and it serves on port 80 like every Fabrik service behind Traefik. `nginxinc/nginx-unprivileged` (every process as uid 101) is outside this mandate: the checklist below and the hub's project audit (`/opt/fabrik/scripts/audit_all_projects.py`, hub-only) accept only the stock image named above and grade the unprivileged image CRITICAL, so a project wanting it asks the hub to change this pack and the audit together (`python scripts/mail.py send --to fabrik --to-agent fleet --kind request`) — never its own Dockerfile alone.
 
 ```dockerfile
 FROM node:<!--v:node_lts-->24<!--/v-->-<!--v:debian_codename-->trixie<!--/v-->-slim AS builder
@@ -188,9 +188,9 @@ networks:
   - `--ifm-background-color` → `#0A0A0A` (surface-0)
   - `--ifm-background-surface-color` → `#141414` (surface-1)
   - Map all surface, text, and border tokens from the design system.
-- Load **Space Grotesk** (headings), **Inter** (body), **JetBrains Mono** (code) **self-hosted** in `static/fonts/` and declared in `custom.css` (no Google Fonts — external dependency + GDPR concern). Override Infima's default font stack:
-  - `--ifm-font-family-base` → `'Inter', sans-serif`
-  - `--ifm-heading-font-family` → `'Space Grotesk', sans-serif`
+- Load **Arya** 700 (headings), **IBM Plex Sans** 400 and 500 (body), **JetBrains Mono** (code) **self-hosted** in `static/fonts/` and declared in `custom.css` (no Google Fonts — external dependency + GDPR concern). Override Infima's default font stack:
+  - `--ifm-font-family-base` → `'IBM Plex Sans', sans-serif`
+  - `--ifm-heading-font-family` → `'Arya', 'IBM Plex Sans', sans-serif`
   - `--ifm-font-family-monospace` → `'JetBrains Mono', monospace`
 - Set `colorMode.defaultMode: 'dark'` in `docusaurus.config.js`. Dark mode is the Ocoron default.
 - Sidebar navigation uses the Ocoron surface hierarchy (`--surface-0` background, `--surface-1` for active items).

@@ -17,10 +17,10 @@
     "957dd9e4cbadfebea9bba87f2ac9e4458425ee4cb83086b14750c34b3fe5bba5"
   ],
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-21: ok — approved; the panel's safety order holds: git bundle --all plus a tar of /opt/fabrik-test-saas-skeleton into backups/ and verify the bundle, take the folder out of the wip-backup set, then the GitHub step, the data/projects.yaml:273 row, the chat-auth adoption list entry and repo-coordinator-rollout-repos.md:96",
   "owner": "",
   "priority": 2,
   "question": "May fleet delete the incident-created GitHub repo mobasak/fabrik-test-saas-skeleton and remove /opt/fabrik-test-saas-skeleton, with infra removing its data/projects.yaml entry in the main checkout?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May fleet delete the incident-created GitHub repo mobasak/fabrik-test-saas-skeleton and remove /opt/fabrik-test-saas-skeleton, with infra removing its data/projects.yaml entry in the main checkout?"
 }

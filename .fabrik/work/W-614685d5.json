@@ -14,10 +14,10 @@
     "spec": ""
   },
   "next": "## [infra] `thread_anchor.py cmd_line` anchor lines can exceed the 300-char cap (2026-09-24)\n\nRecorded by the T04 review (A-H1, A-H2): the pre-existing anchor lines `cmd_line` prints are not bounded the way T04's new `prompt_block` lines are (300 chars), so one long thread title widens every prompt. Untouched by T04's diff. Destination `scripts/thread_anchor.py` `cmd_line`. Owner: infra.",
-  "note": "migrated-digest:488745e7aafe",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — rare long-title edge",
-  "status": "open",
+  "status": "dropped",
   "title": "`thread_anchor.py cmd_line` anchor lines can exceed the 300-char cap (2026-09-24)"
 }

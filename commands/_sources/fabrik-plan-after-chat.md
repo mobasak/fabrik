@@ -28,8 +28,7 @@ First capture the **source of truth** — do NOT invent scope:
   as an anchor (`check_citations_resolve.py --changed` covers the `path:line` form at pin time — but `--changed` lists files from
   `git diff` only, so an untracked plan or ticket is never in scope (the run prints a ✓ over the other docs,
   or `nothing in scope — 0 docs`). Before the review's citation check, grade the new files by name, read-only:
-  `check_citations_resolve.py --doc <plan>`, one `--doc` per ticket of a set). No grader on
-  the prose yet — measured after the first five spec-fed plans under the rule (backlog row of 2026-09-10).
+  `check_citations_resolve.py --doc <plan>`, one `--doc` per ticket of a set). 
 - **If that spec was fed by an EPIC, read the epic file too** (`/fabrik-spec docs/development/epics/<file>`
   is the epic intake path; the spec names the epic file it consumed). Capture two things from the epic's
   frontmatter and carry them into Phase 4: its **path** (the plan's `Epic:` header line) and its
@@ -81,8 +80,7 @@ the convention/default, and note it in one line** the user can override. **Never
 / variable / table / endpoint names, field ordering, test-file placement, formatting, obvious version pins, or
 any Fabrik-conventioned choice (naming = kebab-case; auth = Pattern A; DB host = `postgres-main`). **Do** raise
 ambiguous scope, product/behaviour decisions with no default, data-model/security tradeoffs, conflicting
-requirements, or irreversible actions — batch several real questions rather than dripping one at a time. A plan run
-that halts to ask "what should I name this folder?" is the exact defect this bar prevents.
+requirements, or irreversible actions — batch several real questions rather than dripping one at a time. 
 
 **Ask the execution-blocking questions HERE, not at execution.** The mirror-image defect: a real
 cross-AI / infra / credential / product-behaviour question that clears the bar but you *defer* into the plan
@@ -128,8 +126,7 @@ justified against these sources, not made blind. Consult each that applies and c
   drifts upstream.
 - **`docs/operations/fabrik-lifecycle.md`** — the deploy lifecycle (`fabrik apply`/`redeploy`,
   trigger-don't-execute, what the registrars provision). **Mandatory** if the plan touches deploy,
-  `compose.yaml`, secrets, DB provisioning, or any hub-side infra — so deploy steps are correct and
-  don't assume the project self-deploys.
+  `compose.yaml`, secrets, DB provisioning, or any hub-side infra — so deploy steps are correct and don't assume the project self-deploys.
 - **`specs/services/<id>.yaml` `shape:`** — canonical. If the plan adds/removes a database call, cache,
   `/metrics`, search index, or admin UI, the corresponding `shape.*` flag MUST change too. **Ground this by
   reading the spec's `shape:` block directly** (the shape→registrars mapping is documented in the spec
@@ -193,8 +190,13 @@ Treat every intended step as unproven until verified against the real code/schem
   its file's basename and its path for the path-injected and string readers, with the count, each marked when its
   file is fleet-synced (the hub's `fabrik_synced_manifest.py --list`; a project's `.fabrik/synced.lock`) — its
   command and output cited in the plan's Evidence; its readers and the tests that pin the old behaviour in File Scope
-  or named as untouched. A build script's census follows each caller transitively (an alias script, a Makefile
-  target, a Dockerfile, a generator that writes one, and a gate that builds or runs the image, each counted as a
+  or named as untouched. When the plan adds a mechanism, its census also covers the WRITERS of each state the mechanism
+  reads (every file, row, key or env value, and each script, hook or job that writes it), counted and cited the same
+  way. Each existing test that pins the old behaviour, every test asserting a shape the change now refuses (its MIRROR,
+  CLAUDE.md § Behavior) among them, lands in File Scope with its planned edit (re-expect, rewrite or delete) stated in
+  the step that makes it, or is named as untouched with the reason. A build script's census follows each caller
+  transitively (an alias script, a Makefile target, a Dockerfile, a generator that writes one, and a gate that builds or
+  runs the image, each counted as a
   reader) and runs before the Phase 2 shape decision. Its count is of the copies that run, each classed by its
   lineage (imported, hand-vendored, built into an image) and by the channel that delivers it, never of the paths the
   grep returned.
@@ -213,7 +215,7 @@ Treat every intended step as unproven until verified against the real code/schem
 - For each external dependency or data source, **ground it to 100% truth NOW — never infer from training.**
   Repo-first (`grep docs/`, `docs/reference/`, `AFCL.md`); if unresolved, escalate to **live external
   research: `WebSearch` → `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` /
-  `mcp__firecrawl__firecrawl_search` / `firecrawl_scrape`** (and official-docs `WebFetch` for library detail). Capture the
+  `mcp__firecrawl__firecrawl_search` / `firecrawl_scrape` (scrape with `proxy: "basic"`)** (and official-docs `WebFetch` for library detail). Capture the
   **real** endpoint / signature / auth headers / rate limits
   and **cite the source URL in the plan**. If 3 research passes still can't confirm it, record it as a
   **named, BLOCKING unknown with an explicit resolution step** — never silently defer as "to be discovered."
@@ -223,7 +225,11 @@ Treat every intended step as unproven until verified against the real code/schem
   external tool a phase will shell out to (`docker`, `pytest`, `alembic`, `playwright`, `eas`, `npx expo
   run:android`, `gradle`, `size-limit`, a compiler/SDK, a linter), verify **the tool actually exists in the
   environment that phase runs in** — WSL dev, CI, or the VPS — with a concrete probe (`which <tool>` / a
-  `--version` / an SDK-root check), and write that probe into the phase as its first step. **Packages** live in
+  `--version` / an SDK-root check), and write that probe into the phase as its first step. When the plan builds in a
+  vendored or fabrik-lib module, that first step also reads the module's own test recipe (its env, fixtures and hermetic
+  flags), from the vendored copy's `README.md`, else `/opt/fabrik-lib/<module>/README.md` (never the fabrik-lib module
+  table), before the first suite run, and says so when neither has one, so the first suite count is the module's own.
+  **Packages** live in
   a manifest (`requirements.txt`/`package.json` — editing it needs authorization per CLAUDE.md); a **system
   toolchain** (JDK + Android SDK, an Expo login/`EXPO_TOKEN`, a macOS host for iOS, a headless-Chromium image)
   is declared by **no manifest** and is the class that stops execution mid-plan. If a required tool is absent,
@@ -231,7 +237,7 @@ Treat every intended step as unproven until verified against the real code/schem
   earlier phase, or (b) **choose the environment-compatible path** (e.g. **cloud EAS build** `eas build -p
   android --profile preview` needs no local Android SDK — the canonical mobile path per `mobile-app/80-mobile.md`;
   a local `--local`/`expo run:android` build does), or (c) record it as a **named BLOCKING unknown with a
-  resolution step**. Never a step that will discover the gap at runtime and ask the user — that is the exact mid-execution stall this preflight exists to prevent.
+  resolution step**. Never a step that will discover the gap at runtime and ask the user.
 - Hunt, before they reach the plan: unstated assumptions, missing edge cases/failure modes, and any step
   whose validation would be vague or unrunnable. A behavioural claim the plan rests on (a render, a state
   transition, a suite count after the core edit) is EXECUTED once against a copy, never inferred from anchors;
@@ -263,7 +269,11 @@ pool tiers). Per phase the review is `/fabrik-review-scoped` (tests + gate + the
 the ONE heavy round — the `/fabrik-execute-plan` D7 floor (≥1 Opus authoritative seat + one Sonnet AND one Haiku mechanical seat per independent failure-class group — `dispatch_headroom.py --units <groups>` prints the seats — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them — D-191 — never a fixed three), ONE receipt — runs over the whole-plan diff at Finish.
 Behavior Contract rows stay one per behaviour, but the TEST budget is proportional: target ≤ ~1.5× the
 code diff in test lines, and seam tests are written ONCE, in the last phase, never repeated per phase.
-The profile's floor is about an hour of execution; larger than that ⇒ the shape decision.
+The profile's floor is about an hour of execution; larger than that ⇒ the shape decision. The default way to draft a
+small plan's code steps is a prototype: apply each edit by a script keyed on unique anchors in a throwaway worktree of
+the base, then apply the resulting diff to a second fresh worktree of the base and run the touched tests there; the
+plan's steps cite that diff as a file rather than carrying it (so it never counts toward the shape decision's line
+trigger), its Evidence cites that run, and its code-file list is read from the diff's own headers.
 
 **Every phase or ticket declares `Appetite: <minutes>` (spec § The delta D11) — every profile, both
 shapes.** Write `Appetite: <minutes>` on its own line for every ticket (spine+ticket set), before its first
@@ -280,8 +290,9 @@ elapsed it prints the standing order to stop and re-plan the rest of the phase w
 a recorded verdict, never a forced cancel.
 
 **⚠️ SHAPE DECISION FIRST — monolith or spine+tickets.** Emit the **spine+ticket plan SET** when ANY
-of: the work decomposes into **>3 phases** · the projected monolith would exceed **~300 lines** · any
-single phase's computed READ set (its files + Context Files:
+of: the work decomposes into **>3 phases** · the projected monolith would exceed **~300 lines** of its
+own text, pasted code and diffs included (only the `review_rubric.py` output this command's Phase 4
+pastes is not counted) · any single phase's computed READ set (its files + Context Files:
 `find <paths> -type f -exec cat {} + | wc -c` — one exact number for paths each listed ONCE (the gate drops
 exact repeats, rules packs, the exempt shared reads and generated artifacts, but a file beside its own
 directory, or `dir` beside `dir/`, counts twice there too), but CHECK STDERR: a typo'd or
@@ -290,8 +301,7 @@ into multiple misleading `total` lines and plain `wc -c` errors on `dir/` entrie
 `READ_BUDGET_BYTES` (262144 — the gate's PER-TICKET budget in
 `scripts/enforcement/check_plan_tickets.py`, reused here as the shape trigger — outside `Profile: small`,
 which waives it; the byte test keeps a
-compact-but-heavy plan out of the monolith path). Smaller work keeps the single-file monolith below —
-both shapes are first-class, no forced migration of old plans. **One file larger than the budget does
+compact-but-heavy plan out of the monolith path). Smaller work keeps the single-file monolith below — both shapes are first-class, no forced migration of old plans. **One file larger than the budget does
 NOT force the monolith:** the per-ticket budget exempts the set's single `Integration: true` ticket
 (`check_plan_tickets.py`, the `if t.integration: continue` before the per-entry sum — a tally also
 skipped under `Profile: small`), so an
@@ -471,9 +481,7 @@ a's Produces), rename to the `T05a-`/`T05b-` shape, update Board + Merge Order, 
 **exit 0 with zero WARN lines** (the exit code alone ignores the advisory caps — and the emit gate
 is the only place they surface on any GATE path, per Phase 5). ⚠️ **Record its SUMMARY line as the
 sizing evidence, not "exit 0"**: the run ends with `graded N ticket(s), M Touches path(s), K
-Context-Files entry(ies); READ budget measured against <root>; 0 finding(s)`. A bare exit 0 is
-byte-identical to a run that graded nothing, so citing it is the un-denominated claim the
-bounded-search rule forbids. Under `Profile: small` the budget is waived outright (inline execution reads nothing cold); otherwise a single behavior that cannot fit the READ budget is a named BLOCKING unknown for the
+Context-Files entry(ies); READ budget measured against <root>; 0 finding(s)`. A bare exit 0 is byte-identical to a run that graded nothing, so citing it is the un-denominated claim the bounded-search rule forbids. Under `Profile: small` the budget is waived outright (inline execution reads nothing cold); otherwise a single behavior that cannot fit the READ budget is a named BLOCKING unknown for the
 operator — one of the two non-self-service sizing cases (the other: the Integration slot already taken).
 
 **Size as you draft.** Write the spine first (the gate grades nothing in a dir without its same-stem spine).
@@ -530,7 +538,7 @@ output field names the PRODUCTION caller that consumes it — `path:line`, eithe
 File Scope or already live in the repo. No consumer = add the terminal-consumer ticket/phase (the
 route, CLI entry, or job that invokes the new surface) at PLAN time, never as a mid-run rescue. A
 plan whose File Scope contains no consumer of its own output ships stored-and-never-read by
-construction — scope decides the outcome, not intent. The spine is the same-stem `.md` beside the tickets: `Status: DRAFT` + the
+construction. The spine is the same-stem `.md` beside the tickets: `Status: DRAFT` + the
 section list above, one Board row per ticket, e.g. `| T01 | <title> | — | ⚡ | ⬜ | |`.
 
 **The MONOLITH shape:** the per-phase emission mechanics below — including the per-phase-boundary
@@ -559,8 +567,7 @@ write it WITHOUT backticks, so the heading itself never contains a code span):
   seat for GUI / the authoritative-high-risk pass / the decide-merge. Naming no policy leaves the
   executor without an author-blind floor.<!-- POOL OFF (D-181): pool-default (`fanout(task_type, …)`, auto-records, `set_quality` back-fill) with native on top -->
 - **Parallelism + merge** — which tickets fan out concurrently and **where their results
-  merge/dedupe**. `## Merge Order` gives sequencing; this gives the fan-out semantics, which a
-  topological list cannot express.
+  merge/dedupe**. `## Merge Order` gives sequencing; this gives the fan-out semantics, which a topological list cannot express.
 
 A spine missing ANY of the three is the same defect as a monolith that omits its per-phase
 `/fabrik-review` step — `check_plan_quality.py` WARNs on each one that is absent (it is not a
@@ -648,8 +655,7 @@ a step that says WHAT without HOW; or a reference to a type / function / env var
 
 **Documentation is a first-class deliverable, not an afterthought (enforced).** For the plan's declared
 changes, compute the required doc updates from the **Doc Sync Matrix** (`CLAUDE.md`) and emit them as
-**explicit steps in the owning phase**, each a *checked artifact of that phase's gate* — not left to a
-WARN. Map every trigger: new feature → `docs/FEATURES.md`; API route → `docs/QUICKSTART.md`; env var →
+**explicit steps in the owning phase**, each a *checked artifact of that phase's gate* — not left to a WARN. Map every trigger: new feature → `docs/FEATURES.md`; API route → `docs/QUICKSTART.md`; env var →
 `docs/CONFIGURATION.md` + `.env.example`; compose service → `docs/SERVICES.md` + `docs/OPERATIONS.md`;
 resilience pattern → `docs/RESILIENCE.md`; schema → `db/schema.sql` + `docs/data-contract.md`; new
 port → `PORTS.md`; file added/removed → `INDEX.md`; always `CHANGELOG.md`. **Annotate each trigger→doc
@@ -672,8 +678,7 @@ carries none of the three is a defective plan, not a shape difference:
    surface *plus everything it calls/is called by* — independent finder subagents (parallel) for recall
    → refute false positives → **prove-before-fix** with a kept regression test → classify
    correctness/security vs style → **re-run the gate after each fix**. Phase N+1 does not begin until a
-   closing pass — the round-1 seats over their own slices — CONFIRMS **zero code or doc defects** (D-206, D-335). Not a one-line "review here" — the full
-   methodology, and progression is gated on it.
+   closing pass — the round-1 seats over their own slices — CONFIRMS **zero code or doc defects** (D-206, D-335). Not a one-line "review here" — the full methodology, and progression is gated on it.
 2. **Subagents mandated where the work is independently decomposable** — implementation, research,
    grounding, and review are dispatched to subagents, stated in each phase's steps. **The plan must specify
    its dispatch policy** (per `62-using-subagents.md` § Dispatch policy — native Claude seats for every
@@ -731,9 +736,15 @@ Append, so the downstream converge/execute commands have what they need:
   path), while `src/a/b/deep.py` is NOT inside `src/a/*`; a `dir/` entry is inside a glob when the
   directory's whole SUBTREE is (`docs/x/` lies inside `docs/**`, not inside `docs/*`).
 - **`## Evidence`** — per phase, ≥1 real `path:line` you read AND ≥1 fenced command-output block you
-  captured in Phase 1, pasted from that run's captured output, never typed (including the **external-research URLs** that grounded any 3rd-party dependency).
+  captured in Phase 1, pasted from that run's captured output, never typed (including the **external-research URLs**
+  that grounded any 3rd-party dependency). Every measured count the plan states (a census total, a test count, a byte
+  size, a row count) names beside it the command that printed it, and an estimate is marked as one; each fenced output
+  block is written by redirecting that command's own output into a file the draft takes its text from, never retyped;
+  and each `## Constraints Digest` quote is copied from a read of its cited `file:line` (`sed -n '<N>p' <file>`) when
+  the row is written.
   This grounded design rationale is what makes the plan self-contained, so `/fabrik-execute-plan`'s
   "design spec" need is met by the plan itself.
+  
 - **`## Self-audit`** — the grounding passes you ran and what each found, PLUS two completeness checks run
   with fresh eyes over the finished plan: **(a) coverage** — walk each item in "What we already agreed"
   (Phase 0) and point to the phase that delivers it; list any gap and add the missing phase. **(b) cross-phase
@@ -749,8 +760,7 @@ Append, so the downstream converge/execute commands have what they need:
   answerable for. `CLAUDE_AGENT`
   unset (a repo running one unnamed session) is the one case the value is `—`, which renders as untagged
   for the ownership sweep to fill; a guessed name is worse than an honest dash. An epic-born plan (Phase 0)
-  ALSO carries exactly ONE `Epic: docs/development/epics/<file>` line naming the epic file it was fed —
-  that line is the interface the epic-containment check keys on. Write exactly one, and RESOLVE it before
+  ALSO carries exactly ONE `Epic: docs/development/epics/<file>` line naming the epic file it was fed — that line is the interface the epic-containment check keys on. Write exactly one, and RESOLVE it before
   you write it: an epic file you cannot read, or one whose frontmatter carries no `owned_paths`, is
   `BLOCKED: epic <path> unreadable — searched: <what you opened> — missing: its owned_paths frontmatter`,
   never a plan that emits the header anyway (a header the check cannot resolve fails open, which is the
@@ -773,9 +783,7 @@ Append, so the downstream converge/execute commands have what they need:
   DIRECTORY — `docs/development/plans/YYYY-MM-DD-plan-<n>-<slug>/` holding the same-stem spine +
   `T##[a-z]?-<slug>.md` tickets (both allowlisted; the whole SET is the plan unit, referenced by its
   directory).
-- **The file is NOT renamed or moved afterward** — its name is stable for the whole
-  `fabrik-plan-after-chat → fabrik-plan-review → fabrik-execute-plan` pipeline; every downstream command
-  references it by that path. What changes is the internal **`Status:` field** (the SPINE's, for a plan
+- **The file is NOT renamed or moved afterward** — its name is stable for the whole `fabrik-plan-after-chat → fabrik-plan-review → fabrik-execute-plan` pipeline; every downstream command references it by that path. What changes is the internal **`Status:` field** (the SPINE's, for a plan
   set — tickets never carry one) — this command writes `Status: DRAFT`, and the enforced
   `/fabrik-plan-review` flips it to `Status: CONVERGED` in place. Do not create a second file or rename
   on convergence.
@@ -817,7 +825,6 @@ stopping on a `running` record; otherwise converge.
 
 Do not promise the plan is complete or correct — `/fabrik-plan-after-chat` delivers a *converged* plan
 (DRAFT grounded here → hardened by the enforced `/fabrik-plan-review`); execution remains the user's call.
-
 
 {{include:subagents-core}}
 

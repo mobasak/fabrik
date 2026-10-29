@@ -72,6 +72,33 @@ ROUTE_PATTERNS = (
     r"@api_router\.(get|post|put|patch|delete|options|head)\s*\(",
 )
 CHANGELOG_ENTRY_RE = re.compile(r"###\s+(Added|Changed|Fixed|Removed|Security|Deprecated)")
+_BACKTICK_RUN_RE = re.compile(r"`+")
+
+
+def _strip_span_runs(line: str) -> str:
+    """`line` with every inline code span DELETED: a whole backtick run, its text, and the next run of the
+    same length (`_changelog_quality_ok`). An opener with no equal run after it is text, so the scan moves on
+    to the next run. Linear — each run's next equal run comes from one backward pass; the regex form
+    `(?<!`)(`+)(?!`)(.*?)(?<!`)\\1(?!`)` it replaced retried the lazy body at every unmatched opener (1.4 s on
+    one 200 KB line of distinct-length runs, W-753040b8 review) and is kept as this function's test oracle."""
+    runs = list(_BACKTICK_RUN_RE.finditer(line))
+    nxt: list[int | None] = [None] * len(runs)
+    last: dict[int, int] = {}
+    for k in range(len(runs) - 1, -1, -1):
+        size = len(runs[k].group())
+        nxt[k] = last.get(size)
+        last[size] = k
+    out, kept, i = [], 0, 0
+    while i < len(runs):
+        j = nxt[i]
+        if j is None:
+            i += 1
+            continue
+        out.append(line[kept : runs[i].start()])
+        kept, i = runs[j].end(), j + 1
+    return "".join(out) + line[kept:]
+
+
 # \bfallback\b was dropped 2026-08-26 (web-ecommerce-factory upstream proposal, measured
 # 4/4 prose false-positives — comments and operator-facing strings): a REAL code fallback
 # almost always co-occurs with retry/backoff/max_retries/circuit-breaker, which still
@@ -354,10 +381,14 @@ def _changelog_quality_ok() -> bool:
     # So: strip spans PER LINE, and only where the line's backticks are BALANCED (even count).
     # An odd count means the pairing is ambiguous, so that line is left intact and its bare
     # markers still fire — fail-closed exactly where the ambiguity lives.
+    #
+    # A span is a whole backtick RUN closed only by an equal run (W-753040b8): the one-backtick pattern read
+    # ``TODO`` as two empty spans around a bare TODO, and deleted a lone `` to glue `todo``todo` into one word.
+    # Deletion stays (a blank where a span sat between letters would pass `to`x`do`, the fail-open direction).
     def _strip_quotations(text: str) -> str:
         out = []
         for line in text.split("\n"):
-            out.append(re.sub(r"`[^`]*`", "", line) if line.count("`") % 2 == 0 else line)
+            out.append(_strip_span_runs(line) if line.count("`") % 2 == 0 else line)
         return "\n".join(out)
 
     defenced_for_tokens = _strip_quotations(defenced)

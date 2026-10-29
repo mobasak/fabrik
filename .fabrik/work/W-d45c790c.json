@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T16:21:25.996585Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-d45c790c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "widen discovery to Call args, Tuple and str constants holding 'claude' + '-p', red-prove on a planted spawner per shape",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "tests/test_hooks_headless_guard.py::_files_that_build_a_claude_p_argv walks only ast.List literals, so a claude -p spawner built as call args (asyncio.create_subprocess_exec('claude','-p',x) — rivals_run.py:515 is covered only by hand-listing), a tuple argv, or a shell string ('bash','-c','claude -p …') escapes discovery and test_no_undeclared_headless_spawner_appears stays green (W-174b8543 scoped review, Haiku seat; executed for the exec shape)"
+}

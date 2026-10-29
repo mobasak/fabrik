@@ -11,7 +11,11 @@ The cheap ways to satisfy it without the outcome, each closed here: delete a row
 derives it from the contract instead of trusting it), or change a value only in the pack's CSS
 block, which repeats every value (`test_css_block_matches_token_table`), point a retired alias or a
 `--viz` slot at the wrong colour (`test_css_aliases_and_viz_point_where_the_pack_says`), or misquote
-a forbidden pair's ratio (`test_forbidden_pair_ratios_are_computed`).
+a forbidden pair's ratio (`test_forbidden_pair_ratios_are_computed`). The operator's brand fills and
+their white-text override (W-79008127) close three more: re-colour a fill until white passes, or give
+one a near-black foreground (`test_brand_values_are_the_operator_ruling` pins the ruled values), drop
+or soften the override's wording on a sub-4.5 row (`test_brand_fill_override_ratios_are_computed`),
+or misquote its lowest ratio (`test_brand_fill_forbidden_quote_is_computed`).
 """
 
 from __future__ import annotations
@@ -231,3 +235,100 @@ def test_forbidden_pair_ratios_are_computed() -> None:
         assert abs(float(m.group(1)) - got) < 0.006, (
             f"{pattern!r} states {m.group(1)}:1, computes {got:.2f}:1"
         )
+
+
+# ── The operator's four Ocoron brand fills (W-79008127, operator ruling 2026-10-24) ─────────────
+# "blue 120AF1 / magenta A50FEA / green 08941F / orange EA880F", WHITE text on all four, "accepting
+# 2.62:1 on orange and 3.99:1 on green as their call". Pinned here so the cheapest "fix" — re-colour a
+# fill until white passes and restate its row, or give one fill a near-black fg — goes red.
+_OPERATOR_BRAND = {
+    "--color-brand-blue": "#120AF1",
+    "--color-brand-magenta": "#A50FEA",
+    "--color-brand-green": "#08941F",
+    "--color-brand-orange": "#EA880F",
+    "--color-brand-fg": "#FFFFFF",
+}
+_BRAND_FILLS = tuple(s for s in _OPERATOR_BRAND if s != "--color-brand-fg")
+_BRAND_HEADING = "### Brand fills — the operator's white-text override"
+
+
+def _brand_rows() -> list[tuple[str, str, float, str]]:
+    """(fg, fill, stated ratio, ruling) from the override subsection's 4-column table. Four columns
+    on purpose: `_rows()` floats every 5-cell row of § Contrast table against a threshold, which a
+    sub-4.5 override row must never meet."""
+    text = _section(_PACK.read_text(encoding="utf-8"), "Contrast table")
+    assert _BRAND_HEADING in text, f"{_BRAND_HEADING!r} missing from § Contrast table"
+    rows = []
+    for line in text[text.index(_BRAND_HEADING) :].splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) == 4 and cells[0].startswith("`--") and cells[2].endswith(":1"):
+            rows.append((cells[0].strip("`"), cells[1].strip("`"), float(cells[2][:-2]), cells[3]))
+    return rows
+
+
+def test_brand_values_are_the_operator_ruling() -> None:
+    tok, css = _tokens(), _css_blocks()
+    for slot, want in _OPERATOR_BRAND.items():
+        assert tok.get(slot) == {"dark": want, "light": want}, (
+            f"{slot} is {tok.get(slot)}, the operator ruled {want} in both modes"
+        )
+        # the light block repeats every colour; test_css_block_matches_token_table falls back to
+        # :root for a missing light entry, so the light block is graded here
+        assert _norm(css["light"].get(slot, "")) == want, f"{slot} missing from the light block"
+    fgs = {fg for fg, *_ in _brand_rows()}
+    assert fgs == {"--color-brand-fg"}, f"an override row names another foreground: {fgs}"
+
+
+def test_brand_fill_override_ratios_are_computed() -> None:
+    tok = _tokens()
+    rows = _brand_rows()
+    assert sorted(fill for _, fill, *_ in rows) == sorted(_BRAND_FILLS), rows
+    for fg, fill, stated, ruling in rows:
+        for mode in ("dark", "light"):
+            got = _ratio(_rgb(_resolve(tok, fg, mode)), _rgb(_resolve(tok, fill, mode)))
+            assert abs(got - stated) < 0.006, (
+                f"{mode}: {fg} on {fill} states {stated}:1, computes {got:.2f}:1"
+            )
+        # the wording follows the ratio: below 4.5 the row names the ruling and what WCAG still
+        # grants (3:1 for large text), so a row cannot say less than the operator accepted
+        # and never the phrase of another band, so a row cannot also claim what its ratio denies
+        bands = {
+            "pass": ["passes 4.5:1"],
+            "large": ['operator override, do not "fix"', "meets WCAG AA only as large text"],
+            "fail": ['operator override, do not "fix"', "fails WCAG AA at every text size"],
+        }
+        band = "pass" if stated >= 4.5 else "large" if stated >= 3.0 else "fail"
+        for phrase in bands[band]:
+            assert phrase in ruling, f"{fill} at {stated}:1 lacks {phrase!r}: {ruling!r}"
+        for other in set(sum(bands.values(), [])) - set(bands[band]):
+            assert other not in ruling, f"{fill} at {stated}:1 also says {other!r}: {ruling!r}"
+    # the prose quotes the operator's two accepted ratios; they are the green and orange rows
+    text = _section(_PACK.read_text(encoding="utf-8"), "Contrast table")
+    m = re.search(r"accepting (\d+\.\d+):1 on orange and (\d+\.\d+):1 on green", text)
+    assert m, "the operator's quoted ratios are missing from the override paragraph"
+    by_fill = {fill: stated for _, fill, stated, _ in rows}
+    assert float(m.group(1)) == by_fill["--color-brand-orange"], m.group(0)
+    assert float(m.group(2)) == by_fill["--color-brand-green"], m.group(0)
+
+
+def test_brand_fill_forbidden_quote_is_computed() -> None:
+    """The quote names the LOWEST brand-fill-on-surface ratio over surface-0…2 in both modes (the
+    table's population; `--surface-3` is a hover surface, template § Contrast contract) and the pair
+    that reaches it."""
+    text = _section(_PACK.read_text(encoding="utf-8"), "Contrast table")
+    para = text[text.index("**Forbidden pairs") :].split("\n\n")[0]
+    tok = _tokens()
+    m = re.search(
+        r"chart series \(as low as (\d+\.\d+):1 across surface-0…2 — "
+        r"`(--color-brand-[a-z]+)` on (dark|light) `(--surface-[0-2])`",
+        para,
+    )
+    assert m, "the brand-fill forbidden quote is missing"
+    low = min(
+        (_ratio(_rgb(_resolve(tok, f, mode)), _rgb(_resolve(tok, s, mode))), f, mode, s)
+        for f in _BRAND_FILLS
+        for mode in ("dark", "light")
+        for s in _SURFACES
+    )
+    assert abs(float(m.group(1)) - low[0]) < 0.006, f"states {m.group(1)}:1, the lowest is {low}"
+    assert m.groups()[1:] == low[1:], f"names {m.groups()[1:]}, the lowest is {low[1:]}"

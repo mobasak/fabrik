@@ -25,6 +25,10 @@ source:
 env:
   NGINX_HOST: canary.vps2.ocoron.com
 
+# D-1153: a spoke watchdog cannot alert (apprise is vps1-only) and is refused; W-5dcafaef lifts this once mesh-published.
+watchdog:
+  enabled: false
+
 resources:
   memory: 64M
   cpu: "0.1"

@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-03T15:44:19.627129Z",
   "creator": "infra",
-  "effort": "low",
+  "effort": "high",
   "evidence": "",
   "id": "W-8ba6e25c",
   "impact": "high",
@@ -16,8 +16,8 @@
   "next": "Do the remaining work: The ruling was never sent back to web-ecommerce-factory: the thread got no reply, the correction mail 01M3WZJA6 is still unread in the inbox and D-497 does not cover it, and the reply now depends only on W-2fc93899, which is open and has no owner.",
   "note": "",
   "owner": "infra",
-  "priority": 1,
-  "score_reason": "D-958 re-score 2026-10-18: HIGH — ruling never sent back; another repo waiting on reply",
+  "priority": 2,
+  "score_reason": "UPGRADE from /fabrik-task: three approaches to D-497's legacy-receipt reach the build cannot settle (27 EXECUTED plans still flagged fleet-wide); spec + build of a fleet-synced gate",
   "status": "open",
   "title": "Reopened from W-1db0b909 (closed in error by triage wave 1, overturned by the third check): The ruling was never sent back to web-ecommerce-factory: the thread got no reply, the correction mail 01M3WZJA6 is still unread in the inbox and D-497 does not cover it, and the reply now depends only on W-2fc93899, which is open and has no owner."
 }

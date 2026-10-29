@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T13:03:33.178670Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-634ad214",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5X97Y0TY8M7AHY6CCXG11GK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra-3",
+  "priority": 2,
+  "status": "done",
+  "title": "Stop hook claim rung also pushes new work after ROTATE-DUE (addendum to 01M5MST4C9)"
+}

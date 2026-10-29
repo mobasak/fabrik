@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T11:03:23.978058Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-bf61de3f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reword the deletion list to 'a file, link or directory in the staged tree that a pin replaces' and rule on the two stage refusals; re-run test_prompts_point_at_the_stage_verb",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "STAGE_VERB residue (W-b976638f review, recorded after its scope-growth stop): the 'every deletion' list in .claude/workflows/fabrik-review-loop.js omits a regular FILE an overlay replaces where a pin needs a directory (_overlay cur.unlink()); and stage's own refusals 'records no base_sha and no base copy' and 'md5 mismatch after the overlay' fall to the manual steps — decide whether either belongs in the stop list"
+}

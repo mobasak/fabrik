@@ -101,8 +101,8 @@ Git can't distinguish AI agents — every commit is authored by the same user. T
 
 | Trailer | Values | When |
 |---------|--------|------|
-| `Agent-Role` | `primary` · `orchestrator` · `subagent` · `review-fix` · `ci-fix` | every AI commit (`ci-fix` = automated dispatcher/cron commits) |
-| `Agent-Name` | `infra` · `fleet` · `intel` | hub sessions with `CLAUDE_AGENT` set (hub-side; most projects omit) |
+| `Agent-Role` | `primary` · `orchestrator` · `subagent` · `review-fix` · `ci-fix` | every AI commit (`ci-fix` ONLY when one of the hub's two unattended writers made the commit — the CI-fix dispatcher's `claude -p` run in THIS repo after a GitHub Actions failure, or the hub's own rules-version cron; any other session never writes it) |
+| `Agent-Name` | the name the operator gave your window — your `CLAUDE.md` § Agent Provenance Trailers owns the rule (in a project: write it by hand; never invent one) | every AI commit |
 | `Agent-Phase` | `A`, `B`, `C`, … | plan execution only |
 | `Agent-Task` | task number | subagent commits only |
 | `Agent-Context` | short description of what the agent did | every AI commit |
@@ -240,7 +240,7 @@ Follow these when writing ANY `.md` file — they affect AI parsing quality and 
 
 - **One H1 per document** — semantic root for chunking
 - **No skipped heading levels** — `##` to `###`, never `##` to `####`
-- **Blank lines around headings, lists, code blocks** — parser boundary signals
+- **Blank lines around headings, lists, code blocks, tables** — parser boundary signals (a paragraph line flush against a table's last row renders as one more row)
 - **Fenced code blocks only** — never indented code (AI treats it inconsistently)
 - **Always specify code language** — ` ```python `, ` ```bash `, ` ```json `
 - **Lists imply constraints or steps** — don't mix narrative paragraphs inside lists

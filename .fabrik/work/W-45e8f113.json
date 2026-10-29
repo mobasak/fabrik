@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T11:47:41.166916Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-45e8f113",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5HP8FTJQWFSY3GH7FVSGZFG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "review_loop_ledger.py pin should copy the sibling modules a pinned test imports (feedback row 1792613761.9043047, /fabrik-review)"
+}

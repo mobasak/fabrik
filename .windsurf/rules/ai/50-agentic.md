@@ -55,6 +55,8 @@ Last content verification: 2026-10-02
   session's turns: changing it between requests drops the prompt cache.
 - **Auth boundary.** Agents run on the subscription's OAuth through the unmodified CLI, never `ANTHROPIC_API_KEY`
   (ai/00). Never pass `bare=True` on that lane: bare mode never reads OAuth credentials and fails with "Not logged in".
+  The one exception is the hub's `scripts/api_credit.py` (D-1196): three prepaid API credits spent on `--bare`,
+  read-only, dollar-capped runs that never share a session's OAuth; the plain `ANTHROPIC_API_KEY` stays empty.
   A deployed service declares `shape.uses_claude_cli` and mounts the rotated `~/.claude`, never a static token.
   Anthropic's terms say subscription OAuth is for ordinary, individual use of Claude Code and its own apps; developers
   building products or services, including with the Agent SDK, should use an API key, and Anthropic does not permit

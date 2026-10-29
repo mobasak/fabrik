@@ -499,10 +499,29 @@ def test_a_fire_without_a_session_id_exits_1_and_records_the_attempt_as_unparsed
 # --- Behaviour 5: --pick --------------------------------------------------------------------------
 
 
-def _status(*rows):
+def _status(*rows, states=None, drain_band=85.0, extra=None):
+    """Raw rows plus claude_rotate's `picture` view (state, weekly_pct, source and age per
+    account), the part pick_account reads for the weekly wall (W-87078932). A state defaults to
+    `eligible`, or `weekly-exhausted` at 100%; `states={slug: state}` overrides it and
+    `extra={slug: {field: value}}` adds picture fields (weekly_cap, session_pct, trip, …)."""
     out = []
+    pic = []
     for slug, weekly, parked, expires_in_days, *rest in rows:
         source, age = (rest + ["live", None])[:2] if rest else ("live", None)
+        state = (states or {}).get(slug) or (
+            "weekly-exhausted" if weekly is not None and weekly >= 100 else "eligible"
+        )
+        pic.append(
+            {
+                "slugs": [slug],
+                "state": state,
+                "weekly_pct": weekly,
+                "source": source,
+                "age_s": age,
+                "session_pct": 10.0,  # the tick never calls a row with no 5h reading eligible
+                **(extra or {}).get(slug, {}),
+            }
+        )
         out.append(
             {
                 "email": f"{slug}@ocoron.com",
@@ -518,7 +537,11 @@ def _status(*rows):
                 else 1_000_000.0 + expires_in_days * 86400,
             }
         )
-    return {"accounts": out, "active": "ob"}
+    return {
+        "accounts": out,
+        "active": "ob",
+        "picture": {"accounts": pic, "thresholds": {"trip": 99.0, "drain_band": drain_band}},
+    }
 
 
 def _reg(*slugs):
@@ -529,9 +552,9 @@ def _rows(**counts):
     return [{"account": s, "ts": 999_000.0} for s, n in counts.items() for _ in range(n)]
 
 
-def test_pick_prefers_a_token_account_then_the_fewest_dispatches_this_week(tmp_path):
+def test_pick_prefers_a_token_account_then_the_coolest_week(tmp_path):
     fleet = _fleet(tmp_path, "ob", "can", "mob", token_for="mob")
-    status = _status(("ob", 14.0, False, 30), ("can", 100.0, False, 30), ("mob", 99.0, False, 30))
+    status = _status(("ob", 14.0, False, 30), ("can", 100.0, False, 30), ("mob", 50.0, False, 30))
     slug, reason = cd.pick_account(
         _reg("ob", "can", "mob"), status, _rows(mob=5, can=1), fleet, now=1_000_000.0
     )
@@ -540,34 +563,34 @@ def test_pick_prefers_a_token_account_then_the_fewest_dispatches_this_week(tmp_p
     slug, reason = cd.pick_account(
         _reg("ob", "can", "mob"), status, _rows(mob=5, can=1), fleet, now=1_000_000.0
     )
-    assert slug == "ob" and "0 dispatch" in reason  # fewest this week wins over weekly %
+    assert slug == "ob" and "0 dispatch" in reason and "weekly 14%" in reason
 
 
-def test_pick_skips_parked_stale_expired_and_expiring_rows_and_breaks_ties_by_weekly(tmp_path):
+def test_pick_skips_parked_stale_expired_and_expiring_rows(tmp_path):
     fleet = _fleet(tmp_path, "ob", "can", "mob", "sarp", "x", "y", "z")
-    status = _status(
-        ("ob", 14.0, False, 30),
-        ("can", 100.0, False, 0.5),
-        ("mob", 99.0, False, 30),
-        ("sarp", 95.0, True, 3),
-        ("x", 50.0, False, -1),
-        ("y", 100.0, False, 30, "cache", 234_458.0),
-        ("z", 100.0, False, 30, "cache", None),
+    status = _status(  # every skipped row is COOLER than the two that qualify
+        ("ob", 80.0, False, 30),
+        ("can", 10.0, False, 0.5),
+        ("mob", 60.0, False, 30),
+        ("sarp", 5.0, True, 3),
+        ("x", 3.0, False, -1),
+        ("y", 2.0, False, 30, "cache", 234_458.0),
+        ("z", 1.0, False, 30, "cache", None),
     )
     slug, reason = cd.pick_account(
         _reg("ob", "can", "mob", "sarp", "x", "y", "z"), status, [], fleet, now=1_000_000.0
     )
     assert slug == "mob", (
         reason
-    )  # can expires within a day, sarp parked, x expired, y stale, z unknown age, mob hotter than ob
-    assert "99" in reason
+    )  # can expires within a day, sarp parked, x expired, y stale, z unknown age, mob cooler than ob
+    assert "60" in reason
 
 
 def test_pick_never_takes_a_parked_account_even_with_a_token_or_fewer_dispatches(tmp_path):
     fleet = _fleet(tmp_path, "ob", "sarp", token_for="sarp")
-    status = _status(("ob", 14.0, False, 30), ("sarp", 99.0, True, 30))
+    status = _status(("ob", 14.0, False, 30), ("sarp", 5.0, True, 30))
     slug, _ = cd.pick_account(_reg("ob", "sarp"), status, _rows(ob=3), fleet, now=1_000_000.0)
-    assert slug == "ob"  # sarp has a token, fewer dispatches and a hotter week, and is parked
+    assert slug == "ob"  # sarp has a token, fewer dispatches and a cooler week, and is parked
 
 
 def test_pick_fails_closed_when_no_account_qualifies(tmp_path, monkeypatch, capsys, quiet_remote):
@@ -577,10 +600,9 @@ def test_pick_fails_closed_when_no_account_qualifies(tmp_path, monkeypatch, caps
     assert "no_account" in str(exc.value) and "--account" in str(exc.value)
     with pytest.raises(cd.DispatchError):
         cd.pick_account(_reg("ob"), None, [], fleet, now=1_000_000.0)
-    assert (
-        cd.pick_account(_reg("ob"), _status(("ob", None, False, 30)), [], fleet, now=1_000_000.0)[0]
-        == "ob"
-    )
+    with pytest.raises(cd.DispatchError) as exc:  # no readable weekly figure: never picked blind
+        cd.pick_account(_reg("ob"), _status(("ob", None, False, 30)), [], fleet, now=1_000_000.0)
+    assert "ob no weekly reading" in str(exc.value)
     monkeypatch.setattr(cd, "fleet_status", lambda: None)
     args = _args(tmp_path, fleet)
     args[args.index("--account")] = "--pick"
@@ -605,6 +627,253 @@ def test_pick_survives_malformed_status_and_ledger_rows(tmp_path):
         )[0]
         == "ob"
     )
+
+
+_WALLED_STATES = (
+    "cap-walled",
+    "weekly-unreadable",
+    "weekly-exhausted",
+    "session-exhausted",
+    "over-threshold",
+    "unavailable",
+    "something-new",
+)
+
+
+@pytest.mark.parametrize("allow_plan", [False, True])
+@pytest.mark.parametrize("state", _WALLED_STATES)
+def test_pick_takes_only_eligible_or_active_accounts_in_both_modes(tmp_path, state, allow_plan):
+    """W-87078932: the rotation tick's own verdict decides; every other state is out, even when
+    it is the coolest account with a token and no dispatches (mob at 100% won both modes live)."""
+    fleet = _fleet(tmp_path, "ob", "mob", token_for="mob")
+    tok = fleet / "ob" / "routine-token"
+    tok.write_text("sk-ant-oat01-secret\n", encoding="utf-8")
+    os.chmod(tok, 0o600)
+    status = _status(("ob", 60.0, False, 30), ("mob", 5.0, False, 30), states={"mob": state})
+    slug, _ = cd.pick_account(
+        _reg("ob", "mob"), status, _rows(ob=9), fleet, now=1_000_000.0, allow_plan=allow_plan
+    )
+    assert slug == "ob"
+    status = _status(("ob", 60.0, False, 30), ("mob", 5.0, False, 30), states={"mob": "active"})
+    assert (
+        cd.pick_account(
+            _reg("ob", "mob"), status, _rows(ob=9), fleet, now=1_000_000.0, allow_plan=allow_plan
+        )[0]
+        == "mob"
+    )
+
+
+def test_pick_skips_an_account_at_or_over_the_weekly_ceiling(tmp_path):
+    fleet = _fleet(tmp_path, "ob", "mob", token_for="mob")
+    tok = fleet / "ob" / "routine-token"
+    tok.write_text("sk-ant-oat01-secret\n", encoding="utf-8")
+    os.chmod(tok, 0o600)
+    reg = _reg("ob", "mob")
+    # the default ceiling is the picture's drain band, at its edge exactly
+    status = _status(("ob", 84.9, False, 30), ("mob", 85.0, False, 30))
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "ob"
+    # a published band of 90 admits an 86% account that the default 85 would skip
+    status = _status(("ob", 86.0, False, 30), ("mob", 95.0, False, 30), drain_band=90.0)
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "ob"
+    status = _status(("ob", 50.0, False, 30), ("mob", 40.0, False, 30))
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0, max_weekly=45.0)[0] == "mob"
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0, max_weekly=40.0)
+    assert "mob weekly 40% >= ceiling 40%" in str(exc.value)
+    status = _status(("ob", 50.0, False, 30), ("mob", 40.0, False, 30))
+    status["picture"]["accounts"][1]["weekly_pct"] = "40"  # not a number: no reading
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "ob"
+    del status["picture"]["thresholds"]  # no band published: the documented 85
+    status["picture"]["accounts"][0]["weekly_pct"] = 85.0
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert "ob weekly 85% >= ceiling 85%" in str(exc.value)
+
+
+def test_pick_ranks_the_coolest_week_above_the_dispatch_count(tmp_path):
+    fleet = _fleet(tmp_path, "ob", "mob", token_for="mob")
+    tok = fleet / "ob" / "routine-token"
+    tok.write_text("sk-ant-oat01-secret\n", encoding="utf-8")
+    os.chmod(tok, 0o600)
+    status = _status(("ob", 70.0, False, 30), ("mob", 20.0, False, 30))
+    for allow_plan in (False, True):
+        slug, why = cd.pick_account(
+            _reg("ob", "mob"),
+            status,
+            _rows(mob=12),
+            fleet,
+            now=1_000_000.0,
+            allow_plan=allow_plan,
+        )
+        assert slug == "mob" and "12 dispatch(es)" in why and "weekly 20%" in why
+
+
+def test_pick_refuses_without_a_picture_and_names_each_skip(tmp_path):
+    fleet = _fleet(tmp_path, "ob", "mob", "can", token_for="mob")
+    reg = _reg("ob", "mob", "can")
+    status = _status(("ob", 10.0, False, 30), ("mob", 10.0, False, 30))
+    del status["picture"]
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert str(exc.value).startswith("no_account: no fleet status picture")
+    assert "--account" in str(exc.value)
+    status = _status(
+        ("ob", 10.0, False, 30), ("mob", 100.0, False, 30), states={"ob": "cap-walled"}
+    )
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    msg = str(exc.value)
+    assert msg.startswith("no_account:") and "--account" in msg
+    assert (
+        "ob cap-walled" in msg and "mob weekly-exhausted" in msg and "can no weekly reading" in msg
+    )
+
+
+def test_a_live_status_snapshot_picks_the_only_account_with_room(tmp_path):
+    """The 2026-10-27 15:30 picture, as claude_rotate wrote it: three walled accounts and the
+    active one at 33%. The old order took mob (100%) in both modes."""
+    fleet = _fleet(tmp_path, "ob", "ozgurbasak", "can", "mob", token_for="ob")
+    for s in ("ozgurbasak", "can", "mob"):
+        tok = fleet / s / "routine-token"
+        tok.write_text("sk-ant-oat01-secret\n", encoding="utf-8")
+        os.chmod(tok, 0o600)
+    status = _status(
+        ("can", 99.0, False, 30),
+        ("mob", 100.0, False, 30),
+        ("ob", 100.0, False, 30),
+        ("ozgurbasak", 33.0, False, 30),
+        states={"can": "cap-walled", "ozgurbasak": "active"},
+    )
+    reg = _reg("ob", "ozgurbasak", "can", "mob")
+    rows = _rows(ozgurbasak=12, mob=9, ob=1)
+    for allow_plan in (False, True):
+        assert (
+            cd.pick_account(reg, status, rows, fleet, now=1_000_000.0, allow_plan=allow_plan)[0]
+            == "ozgurbasak"
+        )
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, rows, fleet, now=1_000_000.0, max_weekly=30.0)
+    assert "ozgurbasak weekly 33% >= ceiling 30%" in str(exc.value)
+
+
+def _two_token_fleet(tmp_path):
+    fleet = _fleet(tmp_path, "ob", "hub", token_for="hub")
+    tok = fleet / "ob" / "routine-token"
+    tok.write_text("sk-ant-oat01-secret\n", encoding="utf-8")
+    os.chmod(tok, 0o600)
+    return fleet, _reg("ob", "hub")
+
+
+@pytest.mark.parametrize(
+    "extra, needle",
+    [
+        ({"weekly_cap": 40, "session_pct": 10.0, "trip": 99.0}, "hub weekly 42% >= cap 40%"),
+        ({"weekly_cap": 42, "session_pct": 10.0, "trip": 99.0}, "hub weekly 42% >= cap 42%"),
+        ({"weekly_cap": 99, "session_pct": None, "trip": 99.0}, "hub no session reading"),
+        ({"weekly_cap": 99, "session_pct": "x", "trip": 99.0}, "hub no session reading"),
+        ({"weekly_cap": 99, "session_pct": 99.0, "trip": 99.0}, "hub session 99% spent"),
+        ({"weekly_cap": 99, "session_pct": 100.0, "trip": None}, "hub session 100% spent"),
+    ],
+)
+def test_the_active_account_keeps_its_own_cap_and_session_trip(tmp_path, extra, needle):
+    """The tick names the ACTIVE account `active` before any wall test, so its cap and session
+    trip are re-applied (review pass 1: an active row at 42% over cap 40 was picked)."""
+    fleet, reg = _two_token_fleet(tmp_path)
+    status = _status(
+        ("ob", 70.0, False, 30),
+        ("hub", 42.0, False, 30),
+        states={"hub": "active"},
+        extra={"hub": extra},
+    )
+    slug, _ = cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert slug == "ob"
+    status["accounts"].pop(0)
+    status["picture"]["accounts"].pop(0)
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert needle in str(exc.value)
+    extra_ok = {**extra, "weekly_cap": 99, "session_pct": 10.0}
+    status = _status(("hub", 42.0, False, 30), states={"hub": "active"}, extra={"hub": extra_ok})
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "hub"
+
+
+@pytest.mark.parametrize("bad", [-5.0, True, float("nan"), float("inf"), 10**400, "40", None])
+def test_an_unreadable_weekly_figure_is_no_reading(tmp_path, bad):
+    fleet, reg = _two_token_fleet(tmp_path)
+    status = _status(("ob", 70.0, False, 30), ("hub", 20.0, False, 30))
+    status["picture"]["accounts"][1]["weekly_pct"] = bad
+    slug, _ = cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert slug == "ob", bad  # hub would win on every key if its figure were read
+    status["accounts"].pop(0)
+    status["picture"]["accounts"].pop(0)
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert "hub no weekly reading" in str(exc.value), bad
+
+
+def test_a_stale_cached_reading_is_no_reading_for_a_token_account_too(tmp_path):
+    fleet, reg = _two_token_fleet(tmp_path)
+    stale = cd.STALE_STATUS_S + 1
+    status = _status(("hub", 20.0, False, 30, "cache", stale))
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert "hub cache reading, age 6 h" in str(exc.value)
+    status = _status(("hub", 20.0, False, 30, "cache", None))
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert "hub cache reading, age unknown" in str(exc.value)
+    status = _status(("ob", 70.0, False, 30), ("hub", 20.0, False, 30, "cache", stale))
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "ob"
+    status = _status(("ob", 70.0, False, 30), ("hub", 20.0, False, 30, "cache", 3600.0))
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "hub"  # fresh cache
+    edge = float(cd.STALE_STATUS_S)  # "no more than 6 h": the edge itself is still fresh
+    status = _status(("ob", 70.0, False, 30), ("hub", 20.0, False, 30, "cache", edge))
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "hub"
+    for bad_age in (float("nan"), -1.0, "60", True):  # an age that is no number is no age
+        status = _status(("ob", 70.0, False, 30), ("hub", 20.0, False, 30, "cache", bad_age))
+        assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "ob", bad_age
+
+
+@pytest.mark.parametrize("state", [["eligible"], {"a": 1}, None, 7])
+def test_a_malformed_state_is_skipped_never_a_crash(tmp_path, state):
+    fleet, reg = _two_token_fleet(tmp_path)
+    status = _status(("ob", 70.0, False, 30), ("hub", 20.0, False, 30))
+    status["picture"]["accounts"][1]["state"] = state
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "ob"
+
+
+def test_an_error_picture_is_refused_as_no_picture(tmp_path):
+    """claude_rotate writes {"error": …, "accounts": []} when building the picture raised."""
+    fleet, reg = _two_token_fleet(tmp_path)
+    status = _status(("ob", 10.0, False, 30))
+    status["picture"] = {"error": "RuntimeError: boom", "accounts": []}
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert str(exc.value).startswith("no_account: no fleet status picture")
+
+
+@pytest.mark.parametrize("band", [0, -1, 500, "90", None])
+def test_a_drain_band_outside_0_to_100_falls_back_to_85(tmp_path, band):
+    fleet, reg = _two_token_fleet(tmp_path)
+    status = _status(("ob", 70.0, False, 30), ("hub", 86.0, False, 30))
+    status["picture"]["thresholds"]["drain_band"] = band
+    assert cd.pick_account(reg, status, [], fleet, now=1_000_000.0)[0] == "ob"
+    status["picture"]["accounts"][0]["weekly_pct"] = 85.0
+    with pytest.raises(cd.DispatchError) as exc:
+        cd.pick_account(reg, status, [], fleet, now=1_000_000.0)
+    assert "ceiling 85%" in str(exc.value)
+
+
+def test_dispatch_pick_forwards_the_weekly_ceiling(tmp_path, monkeypatch, capsys, quiet_remote):
+    fleet = _fleet(tmp_path, *TRIG)
+    monkeypatch.setattr(cd, "fleet_status", lambda: _status(*((s, 33.0, False, 30) for s in TRIG)))
+    args = _args(tmp_path, fleet, extra=("--max-weekly", "30"))
+    args[args.index("--account")] = "--pick"
+    del args[args.index("can")]
+    assert cd.main(args) == 3
+    assert "33% >= ceiling 30%" in capsys.readouterr().err
+    assert cd.main(_args(tmp_path, fleet, extra=("--max-weekly", "30"))) == 1
+    assert "--max-weekly is the --pick ceiling" in capsys.readouterr().err
 
 
 # --- Behaviour 6: wait + the branch guard ---------------------------------------------------------
@@ -1293,7 +1562,7 @@ def test_dispatch_and_pick_refuse_a_paused_account(monkeypatch, tmp_path, capsys
         lambda u, h, b: (200, '{"claude_code_session_id": "cse_01XYZABCDE"}', {}),
     )
     monkeypatch.setattr(
-        cd, "fleet_status", lambda: _status(("ob", 14.0, False, 30), ("can", 50.0, False, 30))
+        cd, "fleet_status", lambda: _status(("ob", 50.0, False, 30), ("can", 14.0, False, 30))
     )
     assert (
         cd.main(
@@ -1311,7 +1580,7 @@ def test_dispatch_and_pick_refuse_a_paused_account(monkeypatch, tmp_path, capsys
         == 7
     )
     assert "paused" in capsys.readouterr().err
-    # can would WIN the pick on every other key (token path too, hotter weekly): the pause removes it
+    # can would WIN the pick on every other key (token path too, cooler weekly): the pause removes it
     tok = fleet / "can" / "routine-token"
     tok.write_text("sk-ant-oat01-secret\n", encoding="utf-8")
     os.chmod(tok, 0o600)
@@ -1325,14 +1594,15 @@ def test_dispatch_and_pick_refuse_a_paused_account(monkeypatch, tmp_path, capsys
     assert cd.pick_account(registry, status, rows, fleet, now=1_000_000.0)[0] == "ob"
     assert (
         cd.pick_account(registry, status, rows, fleet, now=1_000_000.0, allow_plan=True)[0] == "can"
-    ), "the flag ignores the pause and takes the COOLEST weekly reading"
+    ), "the flag ignores the pause; the coolest weekly reading wins in both modes"
     # an expired account is out of the pick the same way (6 h before 00:00 UTC of its date)
     registry["accounts"]["ob"]["credit"]["expires"] = "2026-11-04"
     registry["accounts"]["can"]["credit"]["expires"] = "2026-12-01"
     at_wall = cd.expiry_epoch("2026-11-04") - cd.EXPIRY_GUARD_S
     cd.append_ledger(ledger, {"kind": "unpause", "account": "can", "ts": 2.0})
     rows = cd.read_ledger(ledger)
-    status = _status(("ob", 50.0, False, 30, "live", 0), ("can", 14.0, False, 30, "live", 0))
+    # ob is the COOLER account, so only its expiry can hand the pick to can
+    status = _status(("ob", 14.0, False, 30, "live", 0), ("can", 50.0, False, 30, "live", 0))
     assert cd.pick_account(registry, status, rows, fleet, now=at_wall)[0] == "can"
     assert cd.pick_account(registry, status, rows, fleet, now=at_wall - 1)[0] == "ob"
 
@@ -1714,3 +1984,522 @@ def test_the_plan_rise_advisory_fires_from_the_previous_settle_not_the_current_o
     assert cd.main(["settle", "--all", *_g(tmp_path, fleet, reg)]) == 0
     err = capsys.readouterr().err
     assert "advisory" in err and "0.100 → 0.300" in err
+
+
+# --- drain: a pre-flighted batch (W-b00d9d72) ------------------------------------------------------
+
+MASTER = "a" * 40
+
+
+class _FakeGit:
+    """Every git read the drain makes, answered from a small model of origin and master; a
+    verb in ``fail`` exits 128 with empty stdout, which is what a dead network looks like."""
+
+    def __init__(
+        self, branches=None, master_text=None, local=MASTER, origin=MASTER, dirs=(), entries=None
+    ):
+        self.branches = branches or {}  # name -> (tip, files, merged)
+        self.master_text = master_text or {}
+        self.dirs = set(dirs)
+        self.entries = entries or {}  # path -> "<mode> <type>", e.g. a gitlink or a symlink
+        self.master_log = ""
+        self.local, self.origin = local, origin
+        self.fail: set[str] = set()
+        self.calls: list[tuple] = []
+
+    def __call__(self, *args):
+        self.calls.append(args)
+        verb = args[0]
+        if verb in self.fail:
+            return 128, ""
+        if verb == "ls-remote":
+            lines = [f"{self.origin}\trefs/heads/master"] if self.origin else []
+            lines += [f"{t}\trefs/heads/claude/{n}" for n, (t, _, _) in self.branches.items()]
+            return 0, "".join(f"{ln}\n" for ln in lines)
+        if verb == "rev-parse":
+            return 0, f"{self.local}\n"
+        if verb == "fetch":
+            return 0, ""
+        if verb == "merge-base":
+            tip = args[2]
+            merged = next(m for t, _, m in self.branches.values() if t == tip)
+            return (0 if merged else 1), ""
+        if verb == "diff":
+            assert "--no-renames" in args and "-z" in args
+            tip = args[-1].split("...", 1)[1]
+            files = next(f for t, f, _ in self.branches.values() if t == tip)
+            return 0, "".join(f"{p}\0" for p in files)
+        if verb == "ls-tree":
+            path = args[-1]
+            if path in self.dirs:
+                return 0, f"040000 tree x\t{path}\n"
+            if path in self.entries:
+                return 0, f"{self.entries[path]} x\t{path}\n"
+            return 0, (f"100644 blob x\t{path}\n" if path in self.master_text else "")
+        if verb == "show":
+            return 0, self.master_text[args[1].split(":", 1)[1]]
+        if verb == "log":
+            return 0, self.master_log
+        raise AssertionError(f"unexpected git {args}")
+
+
+def _hub(tmp_path, monkeypatch, files=r"'(^scripts/command_run\.py$|^\.claude/hooks/)'"):
+    hub = tmp_path / "hub"
+    hub.mkdir(exist_ok=True)
+    (hub / ".pre-commit-config.yaml").write_text(
+        "repos:\n  - repo: local\n    hooks:\n      - id: governance-sync\n"
+        f"        name: sync\n        files: {files}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("FABRIK_HUB_ROOT", str(hub))
+
+
+def _drain_env(tmp_path, monkeypatch, git=None, fire_rc=None):
+    """A hermetic drain: a fake git, a tmp hub filter, and a fire that records its Namespace and
+    ledgers an ok dispatch row as `_cmd_dispatch` would."""
+    git = git or _FakeGit()
+    monkeypatch.setattr(cd, "_git_run", git)
+    _hub(tmp_path, monkeypatch)
+    fired: list = []
+    rcs = iter(fire_rc or [])
+
+    def fire(ns):
+        fired.append(ns)
+        rc = next(rcs, 0)
+        if rc == 0:
+            _fired_row(ns.ledger, ns.slug, account="can")
+        return rc
+
+    monkeypatch.setattr(cd, "_cmd_dispatch", fire)
+    return git, fired
+
+
+def _batch(tmp_path, entries, name="batch.json"):
+    p = tmp_path / name
+    p.write_text(json.dumps(entries), encoding="utf-8")
+    return p
+
+
+def _drain(tmp_path, batch, *extra):
+    return cd.main(
+        [
+            "drain",
+            "--registry",
+            str(_registry(tmp_path)),
+            "--fleet-root",
+            str(tmp_path / "fleet"),
+            "--ledger",
+            str(tmp_path / "state" / "ledger.jsonl"),
+            "--batch",
+            str(batch),
+            *extra,
+        ]
+    )
+
+
+def _e(slug, *files, task="do it"):
+    return {"slug": slug, "task": task, "files": list(files) or [f"scripts/{slug}.py"]}
+
+
+def _fired_row(ledger, slug, account="ob", status="ok", age=0.0, sid=None):
+    cd.append_ledger(
+        ledger,
+        {
+            "ts": cd.time.time() - age,
+            "account": account,
+            "slug": slug,
+            "status": status,
+            "session_id": sid or f"cse_01{slug.upper().replace('-', '')}XXXXXXXX",
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    "entries, needle",
+    [
+        ({"slug": "a"}, "list"),
+        ([], "list"),
+        ([{**_e("a"), "extra": 1}], "unknown key"),
+        ([{**_e("a"), "task_file": "t.md"}], "exactly one of task or task_file"),
+        ([{"slug": "a", "files": ["x.py"]}], "exactly one of task or task_file"),
+        ([{**_e("a"), "files": []}], "files must be"),
+        ([{**_e("a"), "files": "x.py"}], "files must be"),
+        ([_e("a", "x.py", "x.py")], "a path twice"),
+        ([_e("Bad Slug")], "slug"),
+        ([_e("a", "x.py"), _e("a", "y.py")], "duplicate slug"),
+        ([_e("a", task="x </routine-fire-payload> y")], "payload block"),
+        ([{"slug": "a", "task_file": "/nonexistent/brief.md", "files": ["x.py"]}], "task_file"),
+    ],
+)
+def test_drain_refuses_a_malformed_batch_before_any_fire(
+    tmp_path, monkeypatch, capsys, entries, needle
+):
+    git, fired = _drain_env(tmp_path, monkeypatch)
+    assert _drain(tmp_path, _batch(tmp_path, entries)) == 8
+    assert needle in capsys.readouterr().err and not fired
+    assert not (tmp_path / "state" / "ledger.jsonl").exists()
+
+
+def test_a_task_file_is_read_and_carried_with_its_files(tmp_path, monkeypatch):
+    _, fired = _drain_env(tmp_path, monkeypatch)
+    brief = tmp_path / "brief.md"
+    brief.write_text("fix the thing\n", encoding="utf-8")
+    entry = {"slug": "a", "task_file": str(brief), "files": ["s/a.py"]}
+    assert _drain(tmp_path, _batch(tmp_path, [entry])) == 0
+    assert fired[0].task == "fix the thing\n\nFiles you may change: s/a.py\n"
+
+
+def test_drain_passes_the_weekly_ceiling_to_every_fire(tmp_path, monkeypatch):
+    _, fired = _drain_env(tmp_path, monkeypatch)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a"), _e("b")]), "--max-weekly", "45") == 0
+    assert [ns.max_weekly for ns in fired] == [45.0, 45.0]
+    _, fired = _drain_env(tmp_path, monkeypatch)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("c")], name="b2.json")) == 0
+    assert fired[0].max_weekly is None  # no flag: the picture's drain band decides
+
+
+@pytest.mark.parametrize("bad", ["0", "-5", "100.5", "nan", "inf", "x"])
+def test_a_weekly_ceiling_outside_0_to_100_is_refused_at_parse(tmp_path, bad, capsys):
+    with pytest.raises(SystemExit):
+        cd.main(["dispatch", "--slug", "s", "--pick", "--task", "t", "--max-weekly", bad])
+    assert "must be a percentage in (0, 100]" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("good, val", [("100", 100.0), ("0.5", 0.5), ("45", 45.0)])
+def test_a_weekly_ceiling_inside_0_to_100_parses(good, val):
+    assert cd._weekly_pct_arg(good) == val
+
+
+@pytest.mark.parametrize("max_open", ["0", "-1"])
+def test_a_max_open_below_one_is_refused(tmp_path, monkeypatch, capsys, max_open):
+    _, fired = _drain_env(tmp_path, monkeypatch)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a")]), "--max-open", max_open) == 8
+    assert "--max-open" in capsys.readouterr().err and not fired
+
+
+def test_a_second_drain_is_refused_while_the_lock_is_held(tmp_path, monkeypatch, capsys):
+    git, fired = _drain_env(tmp_path, monkeypatch)
+    lock = tmp_path / "state" / "cloud-drain.lock"
+    lock.parent.mkdir(parents=True)
+    with open(lock, "w") as fh:
+        # a SHARED hold: an exclusive request conflicts with it, a shared one would not
+        cd.fcntl.flock(fh, cd.fcntl.LOCK_SH)
+        assert _drain(tmp_path, _batch(tmp_path, [_e("a")])) == 8
+    assert "another drain" in capsys.readouterr().err and not fired
+
+
+@pytest.mark.parametrize(
+    "verb", ["ls-remote", "rev-parse", "fetch", "merge-base", "diff", "ls-tree", "show", "log"]
+)
+def test_drain_refuses_on_any_git_failure(tmp_path, monkeypatch, capsys, verb):
+    git = _FakeGit(
+        branches={"old": ("b" * 40, ["scripts/z.py"], False)},
+        master_text={"tests/test_t.py": "def test_x():\n    pass\n"},
+    )
+    git.fail.add(verb)
+    _, fired = _drain_env(tmp_path, monkeypatch, git)
+    _fired_row(tmp_path / "state" / "ledger.jsonl", "recent")
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "tests/test_t.py")])) == 8
+    assert f"git {verb} failed" in capsys.readouterr().err and not fired
+
+
+@pytest.mark.parametrize("origin", ["c" * 40, ""])
+def test_drain_refuses_when_local_master_is_not_origin_master(
+    tmp_path, monkeypatch, capsys, origin
+):
+    _, fired = _drain_env(tmp_path, monkeypatch, _FakeGit(origin=origin))
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a")])) == 8
+    assert "master" in capsys.readouterr().err and not fired
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "scripts/command_run.py",
+        "./scripts/command_run.py",
+        "scripts//command_run.py",
+        ".claude/hooks/x.py",
+        "scripts/cloud_dispatch.py",
+        ".fabrik/cloud-routines.json",
+        ".pre-commit-config.yaml",
+        "commands/_sources/fabrik-task.md",
+        "commands",
+        "scripts/sysadmin/claude_rotate.py",
+        "scripts/sysadmin",
+        "tests/conftest.py",
+        "tests/sub/conftest.py",
+        "/etc/passwd",
+        "../other/x.py",
+        "..",
+        ".",
+        "scripts/../.claude/hooks/x.py",
+        "scripts\\x.py",
+        "scripts/",
+        "",
+        "docs",
+        "vendor/sub",
+        "s/link.py",
+        "tests/test_home.py",
+    ],
+)
+def test_drain_refuses_a_path_that_is_not_cloud_safe(tmp_path, monkeypatch, capsys, path):
+    git = _FakeGit(
+        master_text={"tests/test_home.py": "p = Path.home() / '.claude'\n"},
+        dirs={"docs"},
+        entries={"vendor/sub": "160000 commit", "s/link.py": "120000 blob"},
+    )
+    _, fired = _drain_env(tmp_path, monkeypatch, git)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", path)])) == 8
+    assert "not cloud-safe" in capsys.readouterr().err and not fired
+
+
+@pytest.mark.parametrize("entry", ["100644 blob", "100755 blob"])
+def test_a_regular_or_executable_file_at_master_is_cloud_safe(tmp_path, monkeypatch, entry):
+    git = _FakeGit(entries={"s/run.py": entry})
+    _, fired = _drain_env(tmp_path, monkeypatch, git)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "s/run.py")])) == 0
+    assert [ns.slug for ns in fired] == ["a"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "p = Path.home() / 'x'\n",
+        "h = Path.home\n",
+        "p = os.path.expanduser('~')\n",
+        "p = '~/.claude/state'\n",
+        "h = os.environ['HOME']\n",
+        "h = os.getenv('HOME')\n",
+        "h = pwd.getpwuid(os.getuid()).pw_dir\n",
+    ],
+)
+def test_every_home_read_spelling_refuses_a_test_file(tmp_path, monkeypatch, capsys, text):
+    git = _FakeGit(master_text={"tests/test_h.py": text})
+    _, fired = _drain_env(tmp_path, monkeypatch, git)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "tests/test_h.py")])) == 8
+    assert "reads the home dir" in capsys.readouterr().err and not fired
+
+
+@pytest.mark.parametrize("files", ["'(unclosed'", "|", "'x'"])
+def test_an_unreadable_or_uncompilable_sync_filter_refuses(tmp_path, monkeypatch, capsys, files):
+    _, fired = _drain_env(tmp_path, monkeypatch)
+    _hub(tmp_path, monkeypatch, files=files)
+    if files == "'x'":  # readable and compilable: the control that proves the other two refuse
+        assert _drain(tmp_path, _batch(tmp_path, [_e("a")])) == 0
+        return
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a")])) == 8
+    assert "governance-sync filter" in capsys.readouterr().err and not fired
+
+
+def test_a_home_free_test_file_and_a_new_test_file_are_cloud_safe(tmp_path, monkeypatch):
+    git = _FakeGit(master_text={"tests/test_ok.py": "def test_x():\n    assert 1\n"})
+    _, fired = _drain_env(tmp_path, monkeypatch, git)
+    entries = [_e("a", "tests/test_ok.py"), _e("b", "tests/test_new.py")]
+    assert _drain(tmp_path, _batch(tmp_path, entries)) == 0
+    assert [ns.slug for ns in fired] == ["a", "b"]
+
+
+def test_drain_refuses_overlapping_file_sets(tmp_path, monkeypatch, capsys):
+    git = _FakeGit(
+        branches={
+            "open-one": ("b" * 40, ["scripts/taken.py", "docs/my file.md"], False),
+            "merged-one": ("d" * 40, ["scripts/free.py"], True),
+        }
+    )
+    _, fired = _drain_env(tmp_path, monkeypatch, git)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "x.py"), _e("b", "x.py")])) == 8
+    assert "x.py is in both a and b" in capsys.readouterr().err
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "scripts/taken.py")])) == 8
+    assert "held by claude/open-one" in capsys.readouterr().err
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "docs/my file.md")])) == 8
+    assert "held by claude/open-one" in capsys.readouterr().err
+    assert _drain(tmp_path, _batch(tmp_path, [_e("open-one", "y.py")])) == 8
+    assert "already exists" in capsys.readouterr().err
+    ledger = tmp_path / "state" / "ledger.jsonl"
+    cd.append_ledger(ledger, {"kind": "drain", "slug": "inflight", "files": ["scripts/busy.py"]})
+    _fired_row(ledger, "inflight")
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "scripts/busy.py")])) == 8
+    assert "held by in-flight inflight" in capsys.readouterr().err and not fired
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "scripts/free.py")])) == 0
+    assert [ns.slug for ns in fired] == ["a"]
+
+
+def test_a_drained_runs_files_stay_held_until_its_work_lands(tmp_path, monkeypatch, capsys):
+    """End to end: the drain's own row holds the files; a partly pushed branch, or one still at
+    master's tip, keeps holding the declared files; the done trailer on master releases them."""
+    git = _FakeGit()
+    _, fired = _drain_env(tmp_path, monkeypatch, git)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "s/a.py", "s/b.py")])) == 0
+    assert _drain(tmp_path, _batch(tmp_path, [_e("b", "s/a.py")])) == 8
+    assert "held by in-flight a" in capsys.readouterr().err
+    git.branches = {"a": ("b" * 40, ["s/a.py"], False)}  # pushed s/a.py only so far
+    assert _drain(tmp_path, _batch(tmp_path, [_e("c", "s/b.py")])) == 8
+    assert "held by claude/a" in capsys.readouterr().err
+    git.branches = {"a": ("d" * 40, [], True)}  # a branch at master's tip, nothing pushed yet
+    assert _drain(tmp_path, _batch(tmp_path, [_e("c", "s/b.py")])) == 8
+    assert "held by claude/a" in capsys.readouterr().err
+    git.branches = {}  # merged and deleted: landed once master carries the done trailer
+    git.master_log = f"merge a\n\n{cd.DONE_TRAILER} cse_01AXXXXXXXX\n"
+    assert _drain(tmp_path, _batch(tmp_path, [_e("c", "s/b.py")])) == 0
+    assert [ns.slug for ns in fired] == ["a", "c"]
+
+
+@pytest.mark.parametrize(
+    ("trailer_id", "lands"),
+    [
+        ("cse_01AXXXXXXXX", True),
+        ("session_01AXXXXXXXX", True),  # what a cloud worker writes (W-3478033b's real trailer)
+        ("01AXXXXXXXX", True),
+        ("unknown", False),
+        ("session_01AXXXXXXXY", False),
+    ],
+)
+def test_a_done_trailer_lands_a_run_whatever_prefix_its_session_id_carries(
+    tmp_path, monkeypatch, capsys, trailer_id, lands
+):
+    git = _FakeGit()
+    _, fired = _drain_env(tmp_path, monkeypatch, git)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "s/a.py")])) == 0
+    git.master_log = f"merge a\n\n{cd.DONE_TRAILER} {trailer_id}\n"
+    assert _drain(tmp_path, _batch(tmp_path, [_e("b", "s/a.py")])) == (0 if lands else 8)
+    assert ("held by in-flight a" in capsys.readouterr().err) is not lands
+
+
+def test_an_unknown_done_trailer_never_lands_a_run_whose_session_id_was_not_parsed(
+    tmp_path, monkeypatch, capsys
+):
+    git = _FakeGit()
+    _drain_env(tmp_path, monkeypatch, git)
+    ledger = tmp_path / "state" / "ledger.jsonl"
+    cd.append_ledger(ledger, {"kind": "drain", "slug": "u", "files": ["s/u.py"]})
+    cd.append_ledger(
+        ledger,
+        {
+            "ts": cd.time.time(),
+            "account": "ob",
+            "slug": "u",
+            "status": "unparsed",
+            "session_id": None,
+        },
+    )
+    git.master_log = f"merge something\n\n{cd.DONE_TRAILER} unknown\n"
+    assert _drain(tmp_path, _batch(tmp_path, [_e("b", "s/u.py")])) == 8
+    assert "held by in-flight u" in capsys.readouterr().err
+
+
+def test_an_in_flight_run_older_than_a_day_no_longer_holds_its_files(tmp_path, monkeypatch):
+    _, fired = _drain_env(tmp_path, monkeypatch)
+    ledger = tmp_path / "state" / "ledger.jsonl"
+    cd.append_ledger(ledger, {"kind": "drain", "slug": "stale", "files": ["scripts/busy.py"]})
+    _fired_row(ledger, "stale", age=2 * 86400)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "scripts/busy.py")])) == 0
+    assert [ns.slug for ns in fired] == ["a"]
+
+
+def test_drain_refuses_past_the_open_work_cap(tmp_path, monkeypatch, capsys):
+    git = _FakeGit(
+        branches={"o1": ("b" * 40, ["s/1.py"], False), "m1": ("d" * 40, ["s/2.py"], True)}
+    )
+    _, fired = _drain_env(tmp_path, monkeypatch, git)
+    _fired_row(tmp_path / "state" / "ledger.jsonl", "plain")
+    entries = [_e("a", "s/a.py"), _e("b", "s/b.py")]
+    assert _drain(tmp_path, _batch(tmp_path, entries), "--max-open", "3") == 8
+    assert "over the cap of 3" in capsys.readouterr().err and not fired
+    assert _drain(tmp_path, _batch(tmp_path, entries), "--max-open", "4") == 0
+    assert len(fired) == 2
+
+
+def test_drain_fires_each_entry_stops_at_the_first_failure_and_never_refires(
+    tmp_path, monkeypatch, capsys
+):
+    _, fired = _drain_env(tmp_path, monkeypatch, fire_rc=[0, 4])
+    entries = [_e("a", "s/a.py"), _e("b", "s/b.py"), _e("c", "s/c.py")]
+    batch = _batch(tmp_path, entries)
+    assert _drain(tmp_path, batch, "--allow-plan-usage") == 4
+    assert [ns.slug for ns in fired] == ["a", "b"]
+    ns = fired[0]
+    assert ns.account is None and ns.force_new is False and ns.task_file is None
+    assert ns.allow_plan_usage is True
+    assert ns.task == "do it\n\nFiles you may change: s/a.py\n"
+    err = capsys.readouterr().err
+    assert (
+        "drain a: fired" in err and "drain b: refused rc4" in err and "drain c: not reached" in err
+    )
+    rows = _ledger(tmp_path)
+    assert [r["slug"] for r in rows if r.get("kind") == "drain"] == ["a", "b"]
+    assert rows[0]["kind"] == "drain" and rows[0]["files"] == ["s/a.py"]
+    assert _drain(tmp_path, batch) == 0
+    assert [ns.slug for ns in fired] == ["a", "b", "b", "c"]
+    assert "drain a: already fired" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("status", ["unparsed", "error", "http_502"])
+def test_a_fire_that_may_have_started_a_run_is_never_refired(tmp_path, monkeypatch, capsys, status):
+    fired: list = []
+    _drain_env(tmp_path, monkeypatch)
+    ledger = tmp_path / "state" / "ledger.jsonl"
+
+    def fire(ns):
+        fired.append(ns)
+        cd.append_ledger(ledger, {"ts": cd.time.time(), "slug": ns.slug, "status": status})
+        return 1
+
+    monkeypatch.setattr(cd, "_cmd_dispatch", fire)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "s/a.py"), _e("b", "s/b.py")])) == 1
+    err = capsys.readouterr().err
+    assert f"drain a: fired? ({status}" in err and "drain b: not reached" in err
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "s/a.py")])) == 0
+    assert "drain a: already fired" in capsys.readouterr().err and len(fired) == 1
+
+
+@pytest.mark.parametrize("status", ["http_401", "http_429", "walled", "chain_dead"])
+def test_a_fire_that_never_started_a_run_may_be_retried(tmp_path, monkeypatch, status):
+    _, fired = _drain_env(tmp_path, monkeypatch)
+    _fired_row(tmp_path / "state" / "ledger.jsonl", "a", status=status)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "s/a.py")])) == 0
+    assert [ns.slug for ns in fired] == ["a"]
+
+
+def test_a_slug_a_sibling_fires_after_the_pre_flight_is_not_fired_again(
+    tmp_path, monkeypatch, capsys
+):
+    _, fired = _drain_env(tmp_path, monkeypatch)
+    ledger = tmp_path / "state" / "ledger.jsonl"
+
+    def fire(ns):  # a sibling dispatch of `b` lands while `a` fires
+        fired.append(ns)
+        _fired_row(ns.ledger, ns.slug)
+        _fired_row(ledger, "b", account="mob")
+        return 0
+
+    monkeypatch.setattr(cd, "_cmd_dispatch", fire)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "s/a.py"), _e("b", "s/b.py")])) == 0
+    assert [ns.slug for ns in fired] == ["a"]
+    assert "drain b: already fired (by another session" in capsys.readouterr().err
+
+
+def test_an_exception_mid_batch_still_prints_every_entrys_status(tmp_path, monkeypatch, capsys):
+    _, fired = _drain_env(tmp_path, monkeypatch)
+    calls = iter([0])
+
+    def fire(ns):
+        if next(calls, None) is None:
+            raise cd.RegistryError("registry vanished")
+        fired.append(ns)
+        _fired_row(ns.ledger, ns.slug)
+        return 0
+
+    monkeypatch.setattr(cd, "_cmd_dispatch", fire)
+    entries = [_e("a", "s/a.py"), _e("b", "s/b.py"), _e("c", "s/c.py")]
+    assert _drain(tmp_path, _batch(tmp_path, entries)) == 1
+    err = capsys.readouterr().err
+    assert "drain a: fired" in err and "drain c: not reached" in err
+    # b's drain row was written before its fire raised: an attempt, never "not reached"
+    assert "drain b: attempted (raised before a result — read the ledger before retrying)" in err
+
+
+def test_drain_dry_run_fires_nothing(tmp_path, monkeypatch, capsys):
+    _, fired = _drain_env(tmp_path, monkeypatch)
+    assert _drain(tmp_path, _batch(tmp_path, [_e("a", "s/a.py")]), "--dry-run") == 0
+    assert "drain a: would fire" in capsys.readouterr().err and not fired
+    assert not (tmp_path / "state" / "ledger.jsonl").exists()

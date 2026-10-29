@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "Do the remaining work: The item's 'next' condition is met: I found a malformed-row shape that _table_body() and ROW both miss (a blank line splitting the table, followed by a malformed row). The owed step, adding a red battery covering that shape, was never done.",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — missing red battery for malformed-row shape",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "medium"
   ],

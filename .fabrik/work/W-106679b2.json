@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T19:01:05.886390Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-106679b2",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "send A1 per the runbook, mail brand-identiy-creator's coordinator for the uuidv7 branch, run section 1 probes, then run the WSL window under the answered W-4d452199",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "MEDIUM (real value, nobody blocked); two mails and a probe run, one session",
+  "status": "open",
+  "tags": [
+    "medium",
+    "waits-repo-reply"
+  ],
+  "title": "Preconditions for the PostgreSQL 18 WSL window (W-4d452199, panel 2026-10-21): send appendix A1 (postgres-major-upgrade-runbook.md:316-317) and get brand-identiy-creator's uuidv7 branch ready (pg_uuidv7/uuid_generate_v7 still in its src, migrations and db/schema.sql), run the section 1 probes, then the window may run"
+}

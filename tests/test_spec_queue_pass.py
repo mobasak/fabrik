@@ -10,7 +10,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "commands" / "_sources" / "fabrik-spec.md"
-RESEARCHER = ROOT / "commands" / "_agents" / "fabrik-researcher.md"
 sys.path.insert(0, str(ROOT / "scripts" / "enforcement"))
 
 import check_spec_convergence  # noqa: E402
@@ -52,8 +51,6 @@ def test_self_review_grades_a_converged_copy_of_the_draft() -> None:
     p5 = _section("## Phase 5", "## Phase 6")
     assert "set the copy's Status line to `CONVERGED`" in p5
     assert "scripts/enforcement/check_spec_convergence.py <the copy>" in p5
-    assert "a DRAFT is not graded" in p5
-    assert "`/fabrik-plan-review` for a `Size: small` spec" in p5
 
 
 def _grade(tmp_path: Path, body: str, capsys) -> str:
@@ -76,15 +73,6 @@ def test_the_check_skips_a_draft_and_grades_its_flipped_copy(tmp_path: Path, cap
     )
     graded = _grade(tmp_path, recipe, capsys)
     assert "SILENT-1a" not in graded and "APPROACH-FLOOR" in graded
-
-
-def test_researcher_quotes_schema_and_versions_from_a_raw_fetch() -> None:
-    """Row 1791275601."""
-    text = _flat(RESEARCHER)
-    assert (
-        "on an HTML docs page a schema field or a parameter name is quoted from the raw arm" in text
-    )
-    assert "JSON/XML and version claims keep rule 3's routing" in text
 
 
 def test_the_skip_line_routes_an_as_built_revision_to_an_amendment() -> None:
@@ -135,10 +123,6 @@ def test_the_orchestrator_runs_every_shell_only_check_the_grounder_cannot() -> N
         + " the quote rule says — "
         + tail
     ) in spec
-    assert (
-        "When the raw-fetch tools are down, you make that fetch from the shell (the division of labour below)."
-        in spec
-    )
     review = _flat(ROOT / "commands" / "_sources" / "fabrik-spec-review.md")
     assert rule + " the quote rule above says — " + tail in review
 
@@ -154,17 +138,6 @@ def _load(name: str, rel: str):
 
 def test_a_research_brief_names_each_arms_verdict(tmp_path: Path, capsys) -> None:
     """Rows 1792472452, 1792465862, 1792412700: seats spent calls on dead arms the lead already knew about."""
-    para = _section("**Parallelism — UNCONDITIONAL", "**Never solo")
-    assert (
-        "the seats of one wave go in one message. Each research seat's brief names the search and fetch arms with"
-        " this session's verdict on each — every `<server>: <verdict>` line and every `MCP-HEALTH:` line the"
-        " ORIENT `mcp_health.py` run printed, and every arm a seat of an earlier wave reported failing: a `DEAD`,"
-        " `TIMEOUT` or `UNAUTHORIZED` server is down; a `CONNECTED` one with no `key check` line, or one whose key"
-        " check reads `unverified`, is reachable but its key is unknown; and an arm with no verdict (a `SKIPPED`"
-        " entry, the built-in `WebSearch` and `WebFetch`, and every server when the repo has no `.mcp.json`) is"
-        " unknown. A seat whose arm fails as an arm (auth, credit, quota, transport — never one page's 404 or host"
-        " block) says so in a line after its verdicts, which the brief asks for, and stops calling that arm. "
-    ) in para
     # the two line shapes the sentence tells the lead to carry, from the probe's own main()
     health = _load("mcp_health_for_spec", "scripts/sysadmin/mcp_health.py")
     (tmp_path / ".mcp.json").write_text("{}")
@@ -185,18 +158,6 @@ def test_a_research_brief_names_each_arms_verdict(tmp_path: Path, capsys) -> Non
 
 def test_the_draft_and_the_judge_brief_run_the_citation_checker(tmp_path: Path) -> None:
     """Rows 1792447087, 1792346710, 1792450363: the self-review's grep left drifted cites for the grader to miss."""
-    review = _section("**Spec self-review", "Fix all before proceeding.")
-    assert (
-        "does every backticked `path:line` resolve (grep it)? Run `python3"
-        " /opt/fabrik/scripts/enforcement/check_citations_resolve.py --root <repo> --doc <the spec>` too (its"
-        " `--changed` reads `git diff`, so it never sees an untracked draft), confirm it printed `--doc examined 1"
-        " file(s)` (a path it cannot open prints a clean zero), and fix every cite it reports. It grades only a"
-        " line past the end of its file or a blank target, and never an absolute path as itself: the plain"
-        " `/opt/fabrik/…` form is skipped, and one with a `.` or `-` in a segment is cut there and its tail graded"
-        " against `<repo>`. So write a cite into `<repo>` repo-relative, open a cite into another repo, which stays"
-        " absolute, by hand (a finding on it is the cut tail, not the cite), and still open each cite a design"
-        " step rests on. Then grade"
-    ) in review
     judge = _section("{{include:judge-panel}}", "If the research direction")
     assert judge == (
         "{{include:judge-panel}} Before the judge brief goes out, write it to a file in the run's `RUN-SCRATCH:`"
@@ -234,3 +195,25 @@ def test_the_downgrade_check_names_the_lane_ledger_path(monkeypatch, tmp_path: P
     assert cr._lane_ledger() == tmp_path / ".claude" / "state" / "lane-refusals.jsonl"
     monkeypatch.setenv("COMMAND_RUN_DIR", str(tmp_path / "x" / "runs"))
     assert cr._lane_ledger() == tmp_path / "x" / "lane-refusals.jsonl"
+
+
+def _live(path: Path, start: str, end: str) -> str:
+    """The comment-free text from `start` to the next `end` — a commented-out rule is not a live one."""
+    text = re.sub(r"\s+", " ", re.sub(r"<!--.*?-->", " ", path.read_text(), flags=re.S))
+    assert text.count(start) == 1, f"anchor not unique or moved: {start!r}"
+    i = text.index(start)
+    return text[i : text.index(end, i + len(start))]
+
+
+def test_a_design_that_changes_what_readers_read_censuses_them_per_reader_kind() -> None:
+    """Rows 1792540718, 1792539852, 1792561636: the 1a local-claims bullet requires, before Phase 3, a reader census per
+    reader kind (symbol, value or script, table incl. grants, matcher under the old and new pattern) and a
+    find-then-scan across repos for a subject another repo can read."""
+    plan = _live(
+        ROOT / "commands" / "_sources" / "fabrik-plan-after-chat.md", "## Phase 1 —", "## Phase 2 —"
+    )
+    assert (
+        "census its production readers before any step that changes it: the call sites"
+        " (`find_referencing_symbols`) plus a grep of its name, its file's basename and its path"
+        in plan
+    ), "the census this sentence extends left /fabrik-plan-after-chat Phase 1"

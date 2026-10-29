@@ -528,6 +528,29 @@ def _suite_reads_test_database_url(root: Path) -> bool:
     return False
 
 
+def _tdb_missing_hint(where: str, consequence: str) -> str:
+    """The pytest leg's "key missing" sentence — ONE text for the green-skip advisory and the
+    exit-4 refusal row, so the two cannot drift (W-f46bca45): the key resolved to nothing, a file
+    under tests/ reads it, and the remedy is the gate's OWN channel (.env.local, D-597). The
+    sentinel row (`DB SUITE NOT RUN`) keeps its own copy deliberately: its remedy differs
+    (`or delete the sentinel`) and it fires before pytest runs."""
+    return (
+        f"\u26a0 {_TDB_KEY} is set in neither the environment nor {where}, and tests/ reads it "
+        f"\u2014 {consequence}. Add a disposable database URL (name ending `_test`, `throwaway` "
+        "or `scratch`) to .env.local to run it here."
+    )
+
+
+def _tdb_named_error_lines(out: str) -> list[str]:
+    """The lines of a pytest run's output that REFUSE and name TEST_DATABASE_URL: pytest prints
+    a UsageError as `ERROR: <message>` and a failing import or assertion as `E   <text>`. The
+    exit-4 row claims CAUSE only from these — a comment a conftest prints, or a traceback source
+    line that merely quotes the key, is not a refusal about it (review A-2)."""
+    return [
+        ln for ln in out.splitlines() if _TDB_KEY in ln and ln.lstrip().startswith(("ERROR", "E "))
+    ]
+
+
 # Rows whose check has NO failing exit path — declared at registration with
 # `warn_only=True`. They can never turn the gate red, and until 2026-08-16 they printed
 # the SAME `[PASS]` as a check that genuinely blocks, so a green gate could not be read:
@@ -1291,11 +1314,68 @@ def _run_pytest_suite() -> tuple[str, bool, str]:
         # Neither a pass nor a test failure — a plain red here sends the next agent
         # hunting for a broken test that does not exist (transdoc 01M171R8: their
         # conftest deliberately refuses without TEST_DATABASE_URL). Red, but named.
+        #
+        # W-f46bca45: the suite's own remedy is an `export` into a shell — an agent's Bash call
+        # does not persist it into the gate — and, in transdoc's case, a database name the
+        # disposable bar refuses (`transdoc_test_$USER`). So the gate's channel comes FIRST,
+        # inside clip_output's head (the 15-line tail below has already lost the suite's own
+        # headline), and it claims CAUSE only when the refusal's full output names the key; a
+        # suite that merely reads the key gets the hedged line, and any other refusal nothing.
+        hint = ""
+        named = _tdb_named_error_lines(out) if not tdb else []
+        if not tdb:
+            channel = (
+                "an export typed in an agent's shell does not persist into the gate, which reads "
+                "the key from .env.local (then .env), where the database name must end _test, "
+                "throwaway or scratch (<project>_<you>_test, not <project>_test_<you>)"
+            )
+            if named:
+                hint = _tdb_missing_hint(
+                    where,
+                    "the suite refused to run without it \u2014 its message names the key \u2014 "
+                    "and it refuses here on every completion gate: " + channel,
+                )
+            elif _suite_reads_test_database_url(PROJECT_ROOT):
+                hint = _tdb_missing_hint(
+                    where,
+                    "a suite that refuses without it refuses here on every completion gate: "
+                    + channel,
+                )
+        lines = out.splitlines()
+        tail_lines = lines[-15:]
+        # The tail has already lost the suite's headline (transdoc's refusal names the key on
+        # line 1 of 31): quote the FIRST key-naming line with its paragraph (to the next blank
+        # line, at most 4 lines — a wrapped sentence, never a fragment) above the tail, so the
+        # row never says "its message names the key" over a quote that does not show it
+        # (review A-3, A-X-1). One paragraph by design: a later key-naming line is in the tail
+        # or behind the `\u2026`.
+        above: list[str] = []
+        if named and named[0] not in tail_lines:
+            start = lines.index(named[0])
+            for ln in lines[start : start + 4]:
+                if not ln.strip() or ln in tail_lines:
+                    break
+                above.append(ln)
+        quoted = "\n".join(above + (["\u2026"] if above else []) + tail_lines)
+        if named:
+            follows = (
+                "The suite's own message follows (its export remedy is for a shell; the gate's "
+                "channel is the line above):"
+            )
+        elif hint:
+            follows = (
+                "The suite's own message follows (when it is about the key, the gate's channel "
+                "is the line above):"
+            )
+        else:
+            follows = "The refusal message names the remedy:"
+        # With no hint the row keeps its pre-W-f46bca45 one-line header, byte for byte: a repo
+        # that never resolves the key sees no change at all (review A-X-1).
+        head = "exit 4: the suite refused to run (conftest/usage error, not a failing test)."
         return (
             "pytest (SUITE REFUSED — usage error)",
             False,
-            "exit 4: the suite refused to run (conftest/usage error, not a failing "
-            "test). The refusal message names the remedy:\n" + "\n".join(out.splitlines()[-15:]),
+            (head + "\n" + hint + "\n" + follows if hint else head + " " + follows) + "\n" + quoted,
         )
     else:
         tail = "\n".join(out.splitlines()[-30:])
@@ -1310,11 +1390,8 @@ def _run_pytest_suite() -> tuple[str, bool, str]:
             )
         advised = skip_advisory(out, tail)
         if advised != tail and not tdb and _suite_reads_test_database_url(PROJECT_ROOT):
-            advised += (
-                f"\n\u26a0 TEST_DATABASE_URL is set in neither the environment nor {where}, and "
-                "tests/ reads it — the skips above likely include the DB-backed suite. Add a "
-                "disposable database URL (name ending `_test`, `throwaway` or `scratch`) to "
-                ".env.local to run it here."
+            advised += "\n" + _tdb_missing_hint(
+                where, "the skips above likely include the DB-backed suite"
             )
         tail = advised
         # T12.4 (01M2606BZ): the mail called this "a green over unreached tests". REFUTED by
@@ -1849,8 +1926,8 @@ def run_consistency_checks(
     # rule for every rendered reader while the raw file still reads fine. Measured 2026-09-10: the
     # denominator HARD STOP row had carried three of them since 2026-09-03 and rendered as 2 cells —
     # its FIFTH shape cut mid-sentence, its SIXTH gone — in the hub contract and in the template that
-    # ships to ~46 repos. Scoped to the governance
-    # contracts on purpose — the same rule over the wider markdown scope is wallpaper. The measured
+    # ships to ~46 repos. Scoped to the governance contracts + the synced rule packs
+    # (`.windsurf/rules/**`, W-80ffca68); docs/ and commands/ stay out — wallpaper there. The measured
     # fire rate and its denominator live in the check's own module docstring, single-sourced: a
     # comment restating another file's numbers is the drift class, and this one had already gone
     # stale against the docstring beside it. ADVISORY on landing per the standing rollout law.
@@ -3081,14 +3158,28 @@ def _synced_paths() -> set[str]:
     hub's) rewrites them and self-fails that check, and the project can't legally edit
     them anyway. Empty in the hub (/opt/fabrik): there they ARE the source and get
     linted/formatted like any other file. In a consumer, read from the per-project
-    lock (.fabrik/synced.lock) — the same source check_synced_unmodified trusts. Any
+    lock (.fabrik/synced.lock) — the same source check_synced_unmodified trusts, through its own
+    `synced_lock` (a lockless linked worktree borrows its main checkout's lock, W-c77f91c6), so
+    the two never disagree; that module failing to load falls back to the own lock. Any
     failure → empty (fail-open: lint normally rather than silently skip everything).
     """
     try:
         if _is_hub():
             return set()
-        lock = PROJECT_ROOT / ".fabrik" / "synced.lock"
-        if not lock.exists():
+        lock: Path | None = PROJECT_ROOT / ".fabrik" / "synced.lock"
+        try:
+            import importlib.util
+
+            path = Path(__file__).resolve().parent / "enforcement" / "check_synced_unmodified.py"
+            spec = importlib.util.spec_from_file_location("_check_synced_unmodified", path)
+            if spec is None or spec.loader is None:
+                raise ImportError(path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            lock = module.synced_lock(PROJECT_ROOT)[0]
+        except Exception:
+            pass
+        if lock is None or not lock.exists():
             return set()
         import json
 

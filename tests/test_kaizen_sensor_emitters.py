@@ -31,6 +31,9 @@ REPO = Path(__file__).resolve().parents[1]
 GATE = REPO / "scripts" / "final_gate.py"
 SELECT_RULES = REPO / "scripts" / "select_rules.py"
 REVIEW_RUBRIC = REPO / "scripts" / "review_rubric.py"
+# The switch a GRADER sets on its rubric child (check_rule_grounding.py) so its re-run is not
+# recorded as a rule activation (W-5bfeb31e).
+RUBRIC_SENSOR_OFF = "REVIEW_RUBRIC_SENSOR_OFF"
 
 # Runs a script with `kaizen_events` made unimportable — the exact state of a project
 # that has not received the box-local module. `python -c <harness> <script> <args…>`.
@@ -44,6 +47,7 @@ _ABSENT_HARNESS = (
 
 def _env(events_dir: Path | str, sid: str, extra: dict[str, str] | None = None) -> dict[str, str]:
     env = dict(os.environ)
+    env.pop(RUBRIC_SENSOR_OFF, None)  # a box export must not silence the sensor under test
     env["KAIZEN_EVENTS_DIR"] = str(events_dir)
     env["CLAUDE_SESSION_ID"] = sid
     env.update(extra or {})
@@ -182,6 +186,11 @@ def test_gate_run_rows_are_1to1_with_the_report(_frozen_tree, tmp_path):
         a["check"] for a in report["advisory"]
     }
     assert ev["status"] == report["status"]
+    # W-5bfeb31e: the gate's grader re-runs review_rubric.py per plan; that re-run armed no
+    # reviewer, so it must not land a rule_activation in the caller's stream.
+    assert _events(events, sid, "rule_activation") == [], (
+        "a grader's rubric run is no rule activation"
+    )
     assert ev["tier"] == report["tier"] == 1
     assert ev["mode"]["check"] is True and ev["mode"]["lean"] is True
     assert ev["mode"]["systemic"] is False and ev["mode"]["json"] is True
@@ -298,6 +307,38 @@ def test_review_rubric_stdout_is_byte_identical_without_the_emitter(project, tmp
     absent = _run(*args, events_dir=tmp_path / "gone", sid="t04-rubric-gone", absent=True)
     assert absent.stdout == live.stdout
     assert absent.returncode == live.returncode == 0
+
+
+def test_review_rubric_sensor_off_writes_nothing(project, tmp_path):
+    """W-5bfeb31e: a grader re-running the rubric sets the switch — no event, same output."""
+    args = (REVIEW_RUBRIC, "--changed", "app/thing.fixture.py", "--project-root", str(project))
+    live = _run(*args, events_dir=tmp_path / "live", sid="t04-rubric-on")
+    off = _run(
+        *args, events_dir=tmp_path / "off", sid="t04-rubric-off", extra_env={RUBRIC_SENSOR_OFF: "1"}
+    )
+    assert _events(tmp_path / "live", "t04-rubric-on", "rule_activation"), "baseline must emit"
+    assert not (tmp_path / "off").exists(), "the switched-off sensor must not create a store"
+    assert off.stdout == live.stdout
+    assert off.stderr == live.stderr
+    assert off.returncode == live.returncode == 0
+
+
+@pytest.mark.parametrize("value", ["", "0", "true", " 1", "1 "])
+def test_review_rubric_sensor_off_takes_exactly_one(project, tmp_path, value):
+    """Only the exact value `1` silences the sensor: a mistyped switch over-records, never hides."""
+    events = tmp_path / "events"
+    proc = _run(
+        REVIEW_RUBRIC,
+        "--changed",
+        "app/thing.fixture.py",
+        "--project-root",
+        str(project),
+        events_dir=events,
+        sid="t04-rubric-value",
+        extra_env={RUBRIC_SENSOR_OFF: value},
+    )
+    assert proc.returncode == 0, proc.stderr[-2000:]
+    assert len(_events(events, "t04-rubric-value", "rule_activation")) == 1, repr(value)
 
 
 def test_review_rubric_is_unharmed_when_the_event_store_is_unwritable(project, tmp_path):

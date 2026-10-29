@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T15:34:59.506903Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-e38653f5",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: a shared live-section helper for the corpus graders; residue of the /fabrik-review-scoped queue pass (W-825b61ef), scope-growth stop after 4 own-fix rounds",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 3,
+  "score_reason": "clean-up of a test helper (LOW): a shared live-section parser for the corpus graders; one file, one session, nobody blocked",
+  "status": "open",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "The queue-pass graders' section helper (_own_section in tests/test_review_scoped_queue_pass.py) is a hand-rolled partial Markdown parser: a bare '##' line, list-nested headings and other CommonMark forms are not modelled. Replace it with one shared helper (e.g. markdown-it tokens) that every *_queue_pass.py grader can use"
+}

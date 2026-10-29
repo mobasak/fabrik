@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T22:15:55.921222Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-409407b1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Y3N9GW8N6HZ5D1QTFZPHWF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "D-836 run scratch is unwritable from a linked-worktree session (Write tool refused) — seats fall back to the session scratchpad"
+}

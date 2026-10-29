@@ -14,10 +14,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — writer shape check residual",
-  "status": "open",
+  "status": "dropped",
   "title": "decisions.py --append writes a row without checking its shape: a field with a bare pipe (outside a code span) or with no word at all goes in, and the ratchet sees it only at the next gate — refuse both at write time (intel 01M4405E SYSTEMIC; the writer exists, it validates only newlines)"
 }

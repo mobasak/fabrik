@@ -162,6 +162,45 @@ RESERVED_NAMES = frozenset(
 # and ``_write_server_lint_config`` excludes these names as vendored — its own code would go unlinted.
 VENDORED_MODULE_NAMES = frozenset({"fastapi_user_auth", "audit_log"})
 
+# Top-level import names of every library a scaffolded Python project pins in its requirements files
+# (plus alembic/celery). A project whose package bears one of these names would shadow the library —
+# ruff I001 fails and the import breaks (W-a352701a). A static list on purpose: an importlib lookup would
+# depend on what the local environment has installed. tests/test_scaffold_project_name_shadow.py reads
+# every pinned requirement in this file and in templates/**/requirements*.txt and fails when one is
+# missing here (Pillow excepted: it imports as `PIL`, which no lowercase project name can shadow).
+SHADOWABLE_LIBRARY_NAMES = frozenset(
+    {
+        "alembic",
+        "argon2",
+        "asyncpg",
+        "boto3",
+        "celery",
+        "dotenv",
+        "fastapi",
+        "httpx",
+        "jwt",
+        "packaging",
+        "pdf2image",
+        "prometheus_client",
+        "psycopg",
+        "pydantic",
+        "pydantic_settings",
+        "pydub",
+        "pypdf",
+        "pytesseract",
+        "pytest",
+        "pytest_asyncio",
+        "pytest_timeout",
+        "redis",
+        "sentry_sdk",
+        "sqlalchemy",
+        "structlog",
+        "supabase",
+        "uuid_utils",
+        "uvicorn",
+    }
+)
+
 SCAFFOLD_TYPES = frozenset(
     {
         "python-api",
@@ -788,6 +827,11 @@ def _validate_project_name(name: str) -> None:
         raise ValueError(
             f"Reserved project name: '{name}' — its package would shadow the vendored "
             f"'{_get_package_name(name)}' module (and the lint config would exclude it as vendored)"
+        )
+    if _get_package_name(name) in SHADOWABLE_LIBRARY_NAMES:
+        raise ValueError(
+            f"Reserved project name: '{name}' — its package would shadow the '{_get_package_name(name)}' "
+            "library the scaffolded server imports"
         )
     if len(name) > 50:
         raise ValueError(f"Project name too long: {len(name)} chars (max 50)")
@@ -2215,7 +2259,9 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         f'"""Health endpoint tests."""\n'
         f"\n"
         f"import os\n"
-        f"from unittest.mock import patch\n"
+        f"import sys\n"
+        f"from types import SimpleNamespace\n"
+        f"from unittest.mock import AsyncMock, patch\n"
         f"\n"
         f"from fastapi.testclient import TestClient\n"
         f"\n"
@@ -2235,13 +2281,56 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         f'        assert data["dependencies"]["database"] == "not_configured"\n'
         f"\n"
         f"\n"
-        f"def test_health_returns_200_with_db_configured():\n"
-        f'    """Health returns 200 when DB is configured (mocked)."""\n'
-        f'    with patch.dict(os.environ, {{"DATABASE_URL": "postgresql://test@localhost/test"}}):\n'
+        f"# The DB tests swap the driver module itself (sys.modules), so each branch of /health runs the\n"
+        f"# same whether or not asyncpg is installed and never needs a real database.\n"
+        f'_DB_ENV = {{"DATABASE_URL": "postgresql+asyncpg://test@localhost/test"}}\n'
+        f"\n"
+        f"\n"
+        f"def test_health_returns_200_when_db_ping_succeeds(monkeypatch):\n"
+        f'    """Health pings the DB (SELECT 1) and returns 200 when the ping succeeds."""\n'
+        f"    conn = AsyncMock()\n"
+        f"    fake = SimpleNamespace(connect=AsyncMock(return_value=conn))\n"
+        f'    monkeypatch.setitem(sys.modules, "asyncpg", fake)\n'
+        f"    with patch.dict(os.environ, _DB_ENV, clear=True):\n"
         f'        response = client.get("/health")\n'
-        f"        assert response.status_code == 200\n"
-        f"        data = response.json()\n"
-        f'        assert data["dependencies"]["database"] == "configured"\n'
+        f"    assert response.status_code == 200\n"
+        f'    assert response.json()["dependencies"]["database"] == "ok"\n'
+        f'    fake.connect.assert_awaited_once_with("postgresql://test@localhost/test", timeout=5.0)\n'
+        f'    conn.execute.assert_awaited_once_with("SELECT 1")\n'
+        f"    conn.close.assert_awaited_once()\n"
+        f"\n"
+        f"\n"
+        f"def test_health_returns_503_when_db_ping_fails(monkeypatch):\n"
+        f'    """Health returns 503 (degraded) when the DB cannot be reached."""\n'
+        f'    fake = SimpleNamespace(connect=AsyncMock(side_effect=OSError("connection refused")))\n'
+        f'    monkeypatch.setitem(sys.modules, "asyncpg", fake)\n'
+        f"    with patch.dict(os.environ, _DB_ENV, clear=True):\n"
+        f'        response = client.get("/health")\n'
+        f"    assert response.status_code == 503\n"
+        f"    data = response.json()\n"
+        f'    assert data["status"] == "degraded"\n'
+        f'    assert data["dependencies"]["database"].startswith("error:")\n'
+        f"\n"
+        f"\n"
+        f"def test_health_closes_the_connection_when_the_query_fails(monkeypatch):\n"
+        f'    """A DB that accepts the connection but fails SELECT 1 is 503, and the connection is still closed."""\n'
+        f"    conn = AsyncMock()\n"
+        f'    conn.execute.side_effect = RuntimeError("query failed")\n'
+        f"    fake = SimpleNamespace(connect=AsyncMock(return_value=conn))\n"
+        f'    monkeypatch.setitem(sys.modules, "asyncpg", fake)\n'
+        f"    with patch.dict(os.environ, _DB_ENV, clear=True):\n"
+        f'        response = client.get("/health")\n'
+        f"    assert response.status_code == 503\n"
+        f"    conn.close.assert_awaited_once()\n"
+        f"\n"
+        f"\n"
+        f"def test_health_reports_no_driver_without_asyncpg(monkeypatch):\n"
+        f'    """Without a DB driver there is nothing to ping: 200, reported honestly as no driver."""\n'
+        f'    monkeypatch.setitem(sys.modules, "asyncpg", None)  # import asyncpg now raises ImportError\n'
+        f"    with patch.dict(os.environ, _DB_ENV, clear=True):\n"
+        f'        response = client.get("/health")\n'
+        f"    assert response.status_code == 200\n"
+        f'    assert response.json()["dependencies"]["database"] == "configured (no driver)"\n'
         f"\n"
         f"\n"
         f"def test_root_endpoint():\n"
@@ -2253,13 +2342,15 @@ def _scaffold_python_api(project_dir: Path, name: str, description: str, **kwarg
         f"\n"
         f"def test_health_returns_correlation_id():\n"
         f'    """Health response includes X-Request-ID header."""\n'
-        f'    response = client.get("/health")\n'
+        f"    with patch.dict(os.environ, {{}}, clear=True):  # no DB: never a network call\n"
+        f'        response = client.get("/health")\n'
         f'    assert "x-request-id" in response.headers\n'
         f"\n"
         f"\n"
         f"def test_health_preserves_provided_request_id():\n"
         f'    """Health response preserves client-provided X-Request-ID."""\n'
-        f'    response = client.get("/health", headers={{"X-Request-ID": "test-123"}})\n'
+        f"    with patch.dict(os.environ, {{}}, clear=True):\n"
+        f'        response = client.get("/health", headers={{"X-Request-ID": "test-123"}})\n'
         f'    assert response.headers["x-request-id"] == "test-123"\n'
     )
 
@@ -5740,6 +5831,34 @@ SERVICE_NAME={name}
         _emit_node_audit_log(project_dir)
 
 
+_DOCKER_RUN_TEXT = re.compile(r"docker\s+(?:container\s+)?run\b")
+
+
+def _live_docker_runs(makefile: str, sealed: frozenset[str]) -> list[str]:
+    """Every Makefile line holding `docker [container] run` text that is not one of the `sealed` smoke lines (W-1cb0d89f).
+
+    An allow-list, not a parser: the Makefile comes from our own template, so a line whose raw text holds
+    `docker [container] run` — however spaced, in quotes, backticks, `sh -c`, a comment or a later command — passes
+    only when, stripped, it IS a sealed line the scaffold produced. Any other spelling, a sealed run included, is
+    template drift and is refused, as a drifted smoke line already is. Backslash continuations (an odd run of
+    backslashes before the newline) are joined both ways make can join them — with nothing inserted and one tab after
+    the newline dropped, as a recipe line reaches the shell, and with one space, as make joins every other line — and
+    either reading refuses. Not covered: docker reached without that text (`$(DOCKER) run`, options before `run`,
+    `docker compose run`, `create`+`start`, a `docker` or `run` word quoted whole or in part or escaped, such as
+    `"docker"`, `d''ocker` or `doc\\ker`) — W-b6f4b941.
+    """
+    readings = (
+        re.sub(r"(?<!\\)((?:\\\\)*)\\\n\t?", r"\1", makefile),
+        re.sub(r"(?<!\\)((?:\\\\)*)[ \t]*\\\n\s*", r"\1 ", makefile),
+    )
+    live: list[str] = []
+    for text in readings:
+        for ln in text.splitlines():
+            if _DOCKER_RUN_TEXT.search(ln) and ln.strip() not in sealed and ln.strip() not in live:
+                live.append(ln.strip())
+    return live
+
+
 def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwargs: object) -> None:
     """Create File Worker-specific project structure."""
     # a) Create worker/ directory
@@ -5841,7 +5960,7 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
         check = f'docker exec smoke-test python -c "{FILE_WORKER_HEARTBEAT_CHECK}"'
         smoke = {
             "\t@docker run -d --name smoke-test -p $(PORT):$(PORT) --env-file .env $(PROJECT_NAME) || true\n": (
-                "\t@docker rm -f smoke-test >/dev/null 2>&1 || true\n"
+                "\t@docker rm -fv smoke-test >/dev/null 2>&1 || true\n"
                 "\t@docker run -d --name smoke-test --network none -e WORKER_SMOKE=1 --env-file .env $(PROJECT_NAME) || true\n"
             ),
             '\t@curl -sf http://localhost:$(PORT)/health && echo " ✓ Health OK" || echo " ✗ Health FAILED"\n': (
@@ -5864,11 +5983,14 @@ def _scaffold_file_worker(project_dir: Path, name: str, description: str, **kwar
                 )
             content = content.replace(old, new)
         # the hazard itself, whatever the header or drift: no `docker run` leaves here able to reach a real queue
-        live = [
+        # the sealed run line this scaffold writes; the check runs before the `smoke-test` rename below
+        sealed = frozenset(
             ln.strip()
-            for ln in content.splitlines()
-            if "docker run" in ln and "--network none -e WORKER_SMOKE=1" not in ln
-        ]
+            for new in smoke.values()
+            for ln in new.splitlines()
+            if _DOCKER_RUN_TEXT.search(ln)
+        )
+        live = _live_docker_runs(content, sealed)
         if live:
             raise ValueError(
                 f"{makefile_src}: a docker run line would run a live worker: {live[0]!r}"
@@ -6649,6 +6771,9 @@ export default defineConfig({
             "@axe-core/playwright": "^4.10.1",
             "@tailwindcss/vite": "^4.3.2",
             "tailwindcss": "^4.3.2",
+            # D-1322: eslint and the plugins under the lint config float on purpose — no lockfile,
+            # no blanket overrides. Red lint on an unchanged template: fix the template first; a
+            # one-plugin override only for a broken plugin release, with a lift condition.
             "eslint": "^9.39.2",
             # 7.x is closed at 7.7.3, the version this scaffold lints clean on (W-70d9c609)
             "@antfu/eslint-config": "~7.7.3",
@@ -7626,19 +7751,21 @@ docker-build:
 # Docker smoke test
 docker-smoke: docker-build
 \t@echo "Starting container..."
-\t@docker run -d --name $(PROJECT_NAME)-test -p $(PORT):$(PORT) -e PORT=$(PORT) $(PROJECT_NAME)
+\t@docker rm -fv $(PROJECT_NAME)-test >/dev/null 2>&1 || true
+\t@docker run -d --name $(PROJECT_NAME)-test -p $(PORT):$(PORT) -e PORT=$(PORT) $(PROJECT_NAME) || (docker rm -fv $(PROJECT_NAME)-test >/dev/null 2>&1; exit 1)
 \t@echo "Waiting for health check..."
 \t@sleep 5
-\t@curl -f http://localhost:$(PORT)/health || (docker logs $(PROJECT_NAME)-test && exit 1)
+\t@curl -f http://localhost:$(PORT)/health || (docker logs $(PROJECT_NAME)-test; docker rm -fv $(PROJECT_NAME)-test; exit 1)
 \t@echo "✅ Health check passed"
 \t@docker stop $(PROJECT_NAME)-test
-\t@docker rm $(PROJECT_NAME)-test
+\t@docker rm -v $(PROJECT_NAME)-test
 \t@echo "✅ Smoke test completed"
 
 # Clean build artifacts
 clean:
 \trm -rf extension/.output extension/.wxt extension/node_modules
 \tfind . -type d -name "__pycache__" -exec rm -rf {{}} +
+\tdocker rm -fv $(PROJECT_NAME)-test 2>/dev/null || true
 \tdocker rmi $(PROJECT_NAME) 2>/dev/null || true
 """
     )
@@ -8848,6 +8975,142 @@ def _configure_git_repo(project_dir: Path) -> None:
             return  # no git, no repo, unwritable — never fail a scaffold over config
 
 
+COORDINATOR_NAME = "coordinator"  # always fits NAME_RULE [a-z0-9-]{1,32}; "<name>-coordinator" overflows past 20 chars
+_COORDINATOR_CHARTER = Path("docs") / "agents" / "COORDINATOR_CHARTER_TEMPLATE.md"
+
+
+def _hub_file(rel: str) -> Path | None:
+    """A hub asset by repo-relative path: FABRIK_ROOT first, then the module-relative root (the
+    `_load_doc_registry` fallback, so a test that mocks FABRIK_ROOT still finds the real file)."""
+    for base in (FABRIK_ROOT, Path(__file__).resolve().parents[2]):
+        if (base / rel).is_file():
+            return base / rel
+    return None
+
+
+def _work_py() -> Path | None:
+    return _hub_file("scripts/work.py")
+
+
+def _emit_coordinator_model(project_dir: Path, name: str, today: str) -> None:
+    """Make a new repo coordinator-ready (W-a02d1c86; operator 2026-10-28: "i want these mechanism for all
+    repos not only fabrik."): a MERGE OWNER row naming COORDINATOR_NAME above D-000, the work store made by the
+    hub's real `work.py init --distributor`, its coordinator keys (the rollout runbook's phase 1 step 1), and
+    the coordinator charter. Builders are the hub spawn verb's (W-b9ad80ae), never emitted here.
+
+    Fail direction: all or nothing, and never a raised error. Every input is checked and the store is made
+    FIRST; the ledger row, the charter and the launch line are written only once the store holds the
+    coordinator keys. Any failure prints one WARNING naming its cause, removes a store this call created, and
+    leaves the repo a pre-coordinator scaffold (an outage, never a wrong answer). The distributor is passed
+    explicitly because work.py derives it from a hub-absolute decisions.py and writes "" at rc 0 off-hub.
+    COBRA (D-253): the cheapest way to pass the grader is a WARNING printed beside a half-written repo; the
+    failure tests assert the ledger, the charter and the store are all untouched, and the success test
+    byte-compares the config to work.py's own writer."""
+
+    def warn(why: str) -> None:
+        # stderr, like the launch line below: a caller that scaffolds a probe and prints JSON on stdout
+        # (scripts/enforcement/check_pack_reachability.py) must not get operator text inside it
+        print(f"WARNING: coordinator model not emitted: {why}", file=sys.stderr)
+
+    ledger = project_dir / "docs" / "DECISIONS.md"
+    store = project_dir / ".fabrik" / "work"
+    charter = project_dir / "docs" / "reference" / "agents" / f"{COORDINATOR_NAME}.md"
+    # what this call may create, outermost first, so a failure removes exactly what it made
+    created = [
+        p for p in (store.parent, store, charter.parent.parent, charter.parent) if not p.exists()
+    ]
+    charter_existed = charter.exists()
+    text: str | None = None
+    ledger_written = False
+    try:
+        if not ledger.is_file():
+            return warn("docs/DECISIONS.md was not seeded, so no MERGE OWNER row")
+        text = ledger.read_text(encoding="utf-8")
+        if text.count("| D-000 |") != 1:
+            return warn("docs/DECISIONS.md does not hold exactly one D-000 row to seed above")
+        template = _hub_file(str(Path("templates") / "scaffold" / _COORDINATOR_CHARTER))
+        if template is None:
+            return warn(f"templates/scaffold/{_COORDINATOR_CHARTER} was not found")
+        charter_text = (
+            template.read_text(encoding="utf-8")
+            .replace("[Project Dir]", str(project_dir))
+            .replace("[Project Name]", name)
+        )
+        work_py = _work_py()
+        if work_py is None:
+            return warn("the hub's scripts/work.py was not found")
+
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(work_py),
+                "--repo",
+                str(project_dir),
+                "init",
+                "--distributor",
+                COORDINATOR_NAME,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if proc.returncode != 0:
+            raise _CoordinatorEmitError(
+                f"work.py init exited {proc.returncode}: {(proc.stderr or proc.stdout).strip()[-300:]}"
+            )
+        cfg_path = store / "config.json"
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        if not isinstance(cfg, dict) or cfg.get("distributor") != COORDINATOR_NAME:
+            got = cfg.get("distributor") if isinstance(cfg, dict) else cfg
+            raise _CoordinatorEmitError(f"work.py init recorded distributor {got!r}")
+        cfg.update(coordinator_mode=True, queue_floor=1, autonomy=True, feedback_owner=None)
+        # work.py's own _dump shape, so its next write is no churn
+        cfg_path.write_text(
+            json.dumps(cfg, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+
+        row = (
+            f"| D-001 | {today} | fabrik scaffold | MERGE OWNER: {COORDINATOR_NAME} — the coordinator works alone "
+            f"in the main checkout and keeps both roles while the repo has no builders; builders, spawned later, "
+            f"work in `.claude/worktrees/<name>`. Work store born with `coordinator_mode`, `queue_floor` 1, "
+            f"`autonomy` and no feedback owner. Reversible: a new row moves the merge owner. | the operator's "
+            f'2026-10-28 order "i want these mechanism for all repos not only fabrik." (hub '
+            f"docs/reference/operator-agent-requirements.md) | `docs/reference/agents/{COORDINATOR_NAME}.md`; "
+            f"`.fabrik/work/config.json` |\n"
+        )
+        ledger_written = (
+            True  # set first: a write that fails part-way still needs the original back
+        )
+        ledger.write_text(text.replace("| D-000 |", row + "| D-000 |", 1), encoding="utf-8")
+        charter.parent.mkdir(parents=True, exist_ok=True)
+        charter.write_text(charter_text, encoding="utf-8")
+    except (
+        _CoordinatorEmitError,
+        OSError,
+        UnicodeError,
+        ValueError,
+        RecursionError,  # json.loads on a deeply nested config
+        subprocess.SubprocessError,
+    ) as exc:
+        if ledger_written and text is not None:
+            with contextlib.suppress(OSError):
+                ledger.write_text(text, encoding="utf-8")
+        if not charter_existed:
+            with contextlib.suppress(OSError):
+                charter.unlink()
+        for path in reversed(created):  # innermost first
+            shutil.rmtree(path, ignore_errors=True)
+        return warn(str(exc) or type(exc).__name__)
+    print(
+        f"Coordinator: open it as `CLAUDE_AGENT={COORDINATOR_NAME} claude -n {name}-coordinator` in {project_dir}",
+        file=sys.stderr,
+    )
+
+
+class _CoordinatorEmitError(Exception):
+    """A coordinator-model step failed in a way worth naming in the WARNING."""
+
+
 def _ensure_dockerignore(project_dir: Path) -> Path | None:
     """Every project that emits a Dockerfile gets a ``.dockerignore`` at the BUILD CONTEXT root.
 
@@ -9012,6 +9275,9 @@ def _create_project(
     # Every Dockerfile-bearing project carries a .dockerignore at the build context root —
     # emitted here, once, so a new scaffold type cannot forget it (see _ensure_dockerignore).
     _ensure_dockerignore(project_dir)
+
+    # Born coordinator-ready: merge-owner row, work store, coordinator charter — in the initial commit.
+    _emit_coordinator_model(project_dir, name, today)
 
     # Final commit after all files (shared + type-specific) are in place so the
     # initial snapshot is complete and clean.

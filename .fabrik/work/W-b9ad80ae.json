@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T11:27:43.334847Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "ca53c906f3109c1b417d8c2e9b7e04afeb9b0385",
+  "id": "W-b9ad80ae",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1128",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-28-dynamic-builders-design.md"
+  },
+  "next": "infra, after W-f975fee0: /fabrik-task (new mechanism, several files → full /fabrik-review); the hand launch recipe and prompt file are in the coordinator's scratch; test the classifier on each tmux call the verb makes (split-window and respawn-pane passed today, send-keys did not) LAYOUT RULE (D-1132, operator 2026-10-22): ≤4 panes per tab, side by side; overflow builders go to a second tmux WINDOW of the repo session and a GROUPED session <repo>-2 (new-session -t <repo> -s <repo>-2, current window 1) that the tab '<Repo> Agents 2' attaches; pane-border-status top with ' #{@agent} '. The add verb places a new builder in the first window with <4 panes or opens the next window + grouped session; agents_bat.py emits one tab per (repo, window); hibernate.py targets/agents_up.sh treat <repo>-N grouped sessions as the same repo. Applied by hand today: fabrik:0 (fleet, kaizen, intel, infra), fabrik:1 (infra-2, infra-3), session fabrik-2.",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 0,
+  "score_reason": "operator 2026-10-28 D-1301: dynamic disposable agents in every repo, no operator questions; D-1128 ruled it 10-22, still unbuilt",
+  "status": "done",
+  "tags": [
+    "waits-merge-01m64ae48h"
+  ],
+  "title": "Operator 2026-10-22 (D-1128): 'i want all coordinators to be able to create new agents for themselves when needed, and create or symlink chartets for them and the new agents must be automatically is seen on tmux window All Agents (tabbed).bat file.' — agents_up.sh gains add <repo> <name> [--role <charter>] / remove <repo> <name>: validate the name; create the worktree <repo>/.claude/worktrees/<name> (branch worktree-<name>) from the repo's main; create the charter docs/reference/agents/<name>.md as a symlink to the role charter (first line must be the charter marker) or from a template, and print the commit the coordinator makes; launch the pane into the existing grid (split + tiled layout, @agent tag, uncapped scope in fabrik-agents.slice) with the FIRST PROMPT as claude's positional argument (whoami re-bind + work.py next) so no key is ever typed into the pane (the classifier refuses send-keys for coordinators, D-1123 note); register the id in .fabrik/session-agents.json once the binding row appears; remove = pause checks (no run running, clean, pushed), kill pane, remove worktree, keep the charter. The tabbed launcher: agents_bat.py generates 'All Agents (tabbed).bat' from the repos whose grid it accepts (W-e841ac37), so a new repo gets a tab; new panes in a session already appear. Store: builders in coordinator_mode see only owner==their name, so either the coordinator assigns by agent name (today's practice: infra-2, infra-3) or work.py next for <beat>-N also matches owner <beat> — settle in the design and record it. Proven today by hand: infra-2 and infra-3 launched this way (coordinator scratch infra-2-run.sh)."
+}

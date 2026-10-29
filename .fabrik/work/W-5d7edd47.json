@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T11:42:50.531499Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-5d7edd47",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: small change on scripts/work.py (fleet-synced) + test; right-now + /fabrik-review-scoped; tell intel when merged",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "unblocks intel's W-04238176 (D-1123 control metric); one small work.py change",
+  "status": "open",
+  "title": "work.py: a durable per-item CLOSE record (intel's ask for W-04238176, D-1123 rotation columns): the control metric 'input-equivalents per CLOSED item' needs a close time per item, but items keep only evidence and the closed/ marker (_write_marker: at, session, agent) is PRUNED by _prune_markers once the base branch reads it resolved; the only durable trace is git history of every repo's .fabrik/work/. Proposal (intel): in _write_marker also append one line {id, at, session, agent, status, tree} to an append-only <git common dir>/fabrik-work/closed.jsonl, never pruned; intel backfills history once and reads the ledger daily fleet-wide. Alternative rejected by the coordinator: mining ~50 repos' git daily (heavier; extends the D-1120 daily-tier git exception)."
+}

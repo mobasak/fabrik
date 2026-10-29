@@ -28,7 +28,7 @@ operator as fact:
      sweep has NEVER run". Truth: the file holds one invalid UTF-8 byte, GNU grep called it
      BINARY and suppressed every match. `grep -a` shows 21 events, including that morning's.
   2. `ls specs/services/ | grep apprise` -> nothing -> "Apprise was never fabrik-managed".
-     Truth: the spec is `specs/infrastructure/apprise.yaml`. One directory, generalised.
+     Truth: the spec WAS `specs/infrastructure/apprise.yaml` (retired D-1097). One directory, generalised.
   3. `ssh vps docker ps` -> EMPTY -> "no apprise container, not even stopped". Truth: the
      ssh user is not in the `docker` group; every call failed with permission denied and
      printed NOTHING to stdout. With sudo: 31 containers, apprise healthy, HTTP 200.
@@ -1639,11 +1639,18 @@ CANARIES: dict[str, dict[str, Any]] = {
         "form": "copy",
         "strict": True,
         "row_warn_only": "returns `1 if opts.strict else 0` (check_governance_tables.py main()); its registration passes no --strict",
-        "clean": {"CLAUDE.md": "# Project\n\n| Rule | Detail |\n|---|---|\n| Something | fine |\n"},
-        "files": {
-            "CLAUDE.md": "# Project\n\n| Rule | Detail |\n|---|---|\n| Something | a | pipe | without | escape |\n"
+        # Two rules, two files: the contract row for the WIDTH rule, the rule-pack row for the code-SPAN rule
+        # (W-76c49aa8 — the first fixture exercised only the width rule). The clean tree carries the same
+        # pack file with its span rephrased, so the control proves the span rule is silent on a clean span.
+        "clean": {
+            "CLAUDE.md": "# Project\n\n| Rule | Detail |\n|---|---|\n| Something | fine |\n",
+            ".windsurf/rules/core/x.md": "| Don't | Do |\n|---|---|\n| `Optional[str]` | `str` or `None` |\n",
         },
-        "expect": "an unescaped `|` makes a governance table row render past its header width",
+        "files": {
+            "CLAUDE.md": "# Project\n\n| Rule | Detail |\n|---|---|\n| Something | a | pipe | without | escape |\n",
+            ".windsurf/rules/core/x.md": "| Don't | Do |\n|---|---|\n| `Optional[str]` | `str \\| None` |\n",
+        },
+        "expect": "an unescaped `|` makes a governance table row render past its header width, and a rule-pack row's code span carries a table-escaped pipe (the second rule)",
     },
     "check_citations_resolve": {
         "form": "root",

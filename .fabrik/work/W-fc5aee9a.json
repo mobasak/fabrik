@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T14:21:56.992623Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "e746d971135b1969eb47cf7baae2aed25eae1684",
+  "id": "W-fc5aee9a",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "redact a PEM-shaped value whatever its key, add jwks key to the patterns, str() the key before matching; test with the jwks shape (found by drain-grade-2 review, executed)",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "security: portability export leaks an Authelia OIDC signing key",
+  "status": "done",
+  "title": "portability export bundle leaks an Authelia OIDC signing key: _SENSITIVE_KEY_PATTERNS (src/fabrik/portability.py:75-89) has no bare key/pem, so identity_providers.oidc.jwks[].key passes unredacted (module invariant :31 says NO private keys); a non-str YAML key makes _key_is_sensitive (:112) raise and drops the whole authelia section"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T19:01:07.097412Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-01f2db93",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "re-draft from the memory note and the ROTATE hook history, commit it, board the publish gate",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: advisory report; one session",
+  "status": "open",
+  "title": "Re-draft the lost Claude Code exthost out-of-memory bug report (W-49a8280d obsolete: the scratchpad draft died with the 19:31 WSL restart; the facts survive in memory note reference_hub_transcripts_too_big_to_load.md) — save it under docs/development/reviews/ this time, then board the send as a new gate"
+}

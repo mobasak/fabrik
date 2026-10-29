@@ -6,6 +6,9 @@ import secrets
 import string
 from pathlib import Path
 
+from fabrik.env_file import parse_env
+from fabrik.orchestrator.exceptions import ValidationError
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,29 +26,41 @@ def generate_secret(length: int = 32) -> str:
 
 
 def load_dotenv(env_path: Path) -> dict[str, str]:
-    """Load variables from a .env file.
+    """Load variables from a .env file, read as compose reads it (``fabrik.env_file``, D-1277).
+
+    Every value is a plain ``str``: a secret is a literal, so a ``$`` in it is never a template.
 
     Args:
         env_path: Path to .env file
 
     Returns:
-        Dict of key-value pairs
-    """
-    result: dict[str, str] = {}
-    if not env_path.exists():
-        return result
+        Dict of key-value pairs; empty when the file does not exist
 
-    with open(env_path) as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            if "=" in line:
-                key, _, value = line.partition("=")
-                key = key.strip()
-                value = value.strip().strip("\"'")
-                result[key] = value
-    return result
+    Raises:
+        ValidationError: the file cannot be read, is not UTF-8, or compose would refuse it (an
+            unterminated quote, a quote after the closing quote). Fail closed: an unread key would
+            be minted over the real secret. The message names the file, key and line or byte
+            offset, never a value.
+    """
+    try:
+        # UTF-8 whatever the locale. Universal newlines stay, as before: a lone \r ends a line
+        # (so a stray one after a quoted value cannot hide the next key) and CRLF reads as LF.
+        parsed = parse_env(env_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except UnicodeDecodeError as e:
+        # The decoder's own message quotes the offending byte, which may sit inside a secret.
+        raise ValidationError(f"cannot read {env_path}: not UTF-8 at byte {e.start}") from None
+    except ValueError as e:
+        raise ValidationError(f"cannot read {env_path}: {e}") from None
+    except OSError as e:
+        raise ValidationError(f"cannot read {env_path}: {e.strerror or type(e).__name__}") from None
+    for key, value in parsed.items():
+        if "\n" in value:
+            # Legal (compose reads it too), but an unterminated quote swallows the next KEY= line
+            # the same way, and that key would then be minted in silence — so say which one.
+            logger.warning("%s: the value of %s holds a line break", env_path, key)
+    return {key: str(value) for key, value in parsed.items()}
 
 
 class SecretsManager:

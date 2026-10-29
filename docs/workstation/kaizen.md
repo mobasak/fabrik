@@ -203,13 +203,15 @@ version · every week day gapped/unpublished:
 | Review rounds /plan | **real** (M1) | the single-source law's ONE carve-out (W8-1): recomputed latest-per-sid over the ISO week's day-scoped delta rows via `kaizen_outcomes.review_rounds(days=<week days>)` — never the day points (anonymous points cannot per-session-deduplicate a multi-day session). All windowed honesty (growth-only population, the 20% attribution floor, bootstrap/bump-day/pre-v3/shrink causes) runs at week scope; the detail rides stderr with the row (W9-2). A day whose point was never published still contributes when its store rows exist — the weekly value is not reconcilable against the day series by design (W9-4). |
 | Missed crons | `—` in this row | Not an event-stream metric — the liveness audit owns the answer (`scripts/sysadmin/liveness_audit.py`, `docs/workstation/liveness.md`); the reason rides stderr + mail. |
 | Top friction fixed | **the analyst's** | Never overwritten by a re-run. Never computed. |
-| Filed (spec/mail) | **the analyst's**, auto-FILLED when empty | Never overwritten by a re-run: a value the analyst typed always wins. When the cell is empty the collector fills it from the measured close-out verdicts (`kaizen_outcomes.filings()` — `N filed / N none / N unstated`), so a week nobody annotated still carries its filing counts instead of a dash. |
+| Filed (spec/mail) | **the analyst's**, auto-FILLED when empty | When the cell is empty the collector fills it from the measured close-out verdicts (`kaizen_outcomes.filings()` — `N filed / N none / N unstated`), so a week nobody annotated still carries its filing counts instead of a dash. While the cell is EXACTLY that bare count it is the collector's own, and every later run of the week refreshes it (W-90163961); any text the analyst adds (`…; fleet mail …`, `… (auto) · …`) makes it the analyst's, and from then on no re-run overwrites it. A bare count typed by hand reads as the collector's. |
 
 **Idempotence** — the row is keyed by ISO week: a same-week re-run updates that week's row;
 mechanical cells always take the newly computed value **including a dash** (a fresh honest `—`
 must never republish the previous run's stale number under a new date); only the ANALYST cells
-(`Top friction fixed`, `Filed`) yield a `—` to whatever a human/agent put there. On a golden
-refusal the mechanical cells are stamped `—` regardless while the analyst cells still survive.
+(`Top friction fixed`, `Filed`) yield a `—` to whatever a human/agent put there — except a `Filed`
+cell that is still the collector's own bare count, which is treated like a mechanical cell. On a
+golden refusal the mechanical cells, and a collector-owned `Filed`, are stamped `—` regardless
+while the analyst's cells still survive.
 **A wrong metric is worse than an absent one** — unmeasurable renders `—` with its reason on
 stderr and in the mail, never a fabricated 0.
 
@@ -263,6 +265,7 @@ re-opens on M1 activation data.
 | `scripts/sysadmin/kaizen_coroner.py` | post-hoc death/revival reconstruction + session closure + the hole metric |
 | `scripts/sysadmin/kaizen_outcomes.py` | outcome tier: rework miner, fleet-health sweep, premature-stop reader |
 | `scripts/sysadmin/kaizen_backfill.py` | one-time transcript-era backfill + the noise-floor report |
+| `scripts/sysadmin/kaizen_waste.py` | the token-waste tier (D-1118): six daily waste series + breakdown, `--backfill`, `--rebaseline`; categories and control rules in `docs/reference/kaizen-waste-define.md` |
 | `scripts/sysadmin/weekly_catchup.sh` | wake-proof stamp-check runner (daily kaizen jobs + weekly audits) |
 | `scripts/sysadmin/archived/kaizen_metrics.py` | the RETIRED weekly v1 meter (M0 operator ruling) |
 | `scripts/sysadmin/kaizen_shrink_audit.py` / `kaizen_immune_list.py` | the M0 census engine + immune registry |
@@ -282,7 +285,12 @@ re-opens on M1 activation data.
 (latest point + delta vs the prior point, highest series version per metric) and `--send` posts it
 to the operator's Telegram via `send-telegram.sh`. Built on the operator's challenge — the
 collector had published real series for days into a log nobody is shown; measurement without a
-reader is wallpaper. An EMPTY store composes a loud warning, never a quiet skip.
+reader is wallpaper. An EMPTY store composes a loud warning, never a quiet skip. Points are read in DAY
+order (a backfill appends older days after a daily publish). The message opens with the waste series'
+CONTROL section (D-1118): an `OUT OF CONTROL ↑` line per series above its frozen 3-sigma limits or 8 in a
+row above its centre, an `IMPROVED ↓` line for a downward shift to re-baseline, then the baselines still short
+of 14 points; a failure inside the section prints `CONTROL unavailable` and leaves the rest of the digest
+intact — rules in `docs/reference/kaizen-waste-define.md`.
 
 Cron (⚠️ operator-installed — agent crontab writes are classifier-blocked on this box):
 
@@ -397,5 +405,6 @@ means updating this page in the same change. This list is generated from those h
 - `scripts/sysadmin/kaizen_collect.py`
 - `scripts/sysadmin/kaizen_collect_v2.py`
 - `scripts/sysadmin/kaizen_digest.py`
+- `scripts/sysadmin/kaizen_waste.py`
 - `scripts/sysadmin/vps_script_drift.py`
 <!-- END related-scripts -->

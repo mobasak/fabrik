@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T04:51:58.489354Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-03d72174",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-ui-design-review",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: HELD:pre-dispatch-pin-presence-check — subagents-core.md:11 makes review_loop_ledger.py pin the way to create pins, with MANIFEST.json, and :5 has the brief nam",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-ui-design-review"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T14:25:29.609982Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-1a741d8b",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1343",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure npm ci --offline into a throwaway archive of one lockfile repo (tryton-crm or transdoc) with HOME=SCRATCH and --cache pointed at the real cache read-only; report time, size and whether the node tests then run",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "Probe an offline node install for review seats: D-1343 makes a test needing a gitignored node_modules unverifiable; 5 of the 9 /opt repos with a gitignored node_modules have a root package-lock.json (wef has none). Measure whether npm/pnpm --offline from the box cache into a seat's archive works with HOME set to SCRATCH, so fewer node tests stay unverified"
+}

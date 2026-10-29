@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "**[infra] The Bash tool persists large output to a `$HOME`-rooted `.claude*` path and instructs the agent to read it — which every subagent brief on this box forbids (2026-09-18)** — hit by two review seats in one run (a 50.6 KB and a 36.3 KB command output). The prohibition exists because such a read stalls a seat indefinitely; the seats correctly declined and re-sliced with `sed`, at a real cost in turns. There is no way to tell the tool the destination is out of bounds. Worth raising with the harness, or documenting the `sed`-offset workaround in the subagent brief fragment. Medium.",
-  "note": "migrated-digest:78a609052980",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — workaround documentation",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "medium"
   ],

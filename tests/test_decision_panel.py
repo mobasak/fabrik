@@ -781,3 +781,148 @@ def test_a_queued_prompt_is_filtered_like_a_user_row(tmp_path):
     assert hook._in_operator_entries("harness text", _transcript(tmp_path, reminded)) is False
     for prefixed in (f"Stop hook feedback: {_QUESTION}", f"[SCHEDULED TASK] {_QUESTION}"):
         assert hook._operator_said(json.loads(_queued_prompt(prefixed))) is None, prefixed
+
+
+def _queued_with_uuid(text: str, uuid: str) -> str:
+    row = json.loads(_queued_prompt(text))
+    row["uuid"] = uuid
+    return json.dumps(row)
+
+
+def test_a_backed_brief_before_a_queued_prompt_passes(tmp_path, panel_mode):
+    """W-6424f2e8 (W-1b9ae5f2 Opus critique, case G): a PANEL APPROVED brief written before an operator prompt queued
+    mid-turn is judged against the verdicts the seats returned up to that prompt — the queued prompt used to clear
+    them, so a properly backed brief was refused at the end-of-turn Stop."""
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _said(_BRIEF.format(panel=_approve_line())),
+        _queued_with_uuid("also fix the typo", "q-1"),
+    )
+    assert hook._panel_brief_problem(tr, "") == ""
+    # the hook passes the turn's last text as final_text — here the brief itself (Fable critique)
+    assert hook._panel_brief_problem(tr, _BRIEF.format(panel=_approve_line())) == ""
+
+
+def test_a_brief_after_a_queued_prompt_still_needs_verdicts_given_after_it(tmp_path, panel_mode):
+    """The cut-off is per brief: a brief written AFTER the queued prompt still reads verdicts only from after it."""
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _queued_with_uuid("a new question entirely", "q-1"),
+        _said(_BRIEF.format(panel=_approve_line())),
+    )
+    assert "since the operator's last message" in hook._panel_brief_problem(tr, "")
+
+
+def test_a_stale_earlier_copy_of_the_queued_uuid_never_backs_a_brief(tmp_path, panel_mode):
+    """Design critique (Opus, W-6424f2e8): Claude Code re-writes a queued row with the same uuid across compactions,
+    so the cut-off is the LAST copy — the first copy, in an earlier turn, would let that turn's verdicts back this
+    turn's brief."""
+    tr = _transcript(
+        tmp_path,
+        _user("an earlier question"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _queued_with_uuid("an earlier queued prompt", "q-1"),
+        _user("go"),
+        _said(_BRIEF.format(panel=_approve_line())),
+        _queued_with_uuid("an earlier queued prompt", "q-1"),
+    )
+    assert "since the operator's last message" in hook._panel_brief_problem(tr, "")
+
+
+def test_a_queued_prompt_written_twice_in_the_turn_keeps_the_verdicts_before_it(
+    tmp_path, panel_mode
+):
+    """Review pass 1 (W-6424f2e8): a queued row re-written within the same turn must not move the cut-off past the
+    first copy's reset — the snapshot is the first copy's."""
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _said(_BRIEF.format(panel=_approve_line())),
+        _queued_with_uuid("also fix the typo", "q-1"),
+        _queued_with_uuid("also fix the typo", "q-1"),
+    )
+    assert hook._panel_brief_problem(tr, "") == ""
+
+
+def test_a_multi_block_final_message_keeps_its_cut_off(tmp_path, panel_mode):
+    """Review pass 1 (W-6424f2e8): the hook's final_text joins the last entry's text blocks, so it equals no single
+    walked block — it takes the cut-off of the newest block it contains."""
+    brief = _BRIEF.format(panel=_approve_line())
+    last = json.dumps(
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {"type": "text", "text": brief},
+                    {"type": "text", "text": "one more note"},
+                ]
+            },
+        }
+    )
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        last,
+        _queued_with_uuid("also fix the typo", "q-1"),
+    )
+    assert hook._panel_brief_problem(tr, brief + "\none more note") == ""
+
+
+def test_a_copy_of_the_queued_prompt_before_the_brief_still_resets(tmp_path, panel_mode):
+    """Review pass 2 (Sonnet, W-6424f2e8): with verdicts, a queued prompt, the brief, then a re-written copy of that
+    prompt, the cut-off is the copy right AFTER the brief — the first copy came before it and is the operator's word,
+    so the verdicts before it never back the brief. The cut is positional, (uuid, copy count from the end)."""
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _queued_with_uuid("a new question", "q-1"),
+        _said(_BRIEF.format(panel=_approve_line())),
+        _queued_with_uuid("a new question", "q-1"),
+    )
+    assert "since the operator's last message" in hook._panel_brief_problem(tr, "")
+
+
+def test_fresh_verdicts_between_two_copies_back_a_brief_after_them(tmp_path, panel_mode):
+    """Review pass 2 (Haiku, W-6424f2e8): verdicts returned after a queued prompt's first copy back a brief written
+    after them, when the prompt's re-written copy follows the brief — the cut is that later copy."""
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", "VERDICT: unsound — an older question"),
+        _result("t-fable", "VERDICT: unsound — an older question"),
+        _queued_with_uuid("re-review the spec", "q-1"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _said(_BRIEF.format(panel=_approve_line())),
+        _queued_with_uuid("re-review the spec", "q-1"),
+    )
+    assert hook._panel_brief_problem(tr, "") == ""

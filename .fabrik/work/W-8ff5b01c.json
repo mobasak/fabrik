@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T22:14:04.538765Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-8ff5b01c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5HTCCA90Q94CVXND6APC11B",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "review-probe-catalogue § Seat isolation — say the base pin tree is mode 0444 and chmod BEFORE the overlay (five seats hit Permission denied in one review)"
+}

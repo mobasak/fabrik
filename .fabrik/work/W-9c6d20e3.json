@@ -3,7 +3,7 @@
   "created": "2026-10-15T19:13:53.436509Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "c1280ac4ca42c87b9bc09b4c1ebc614a90da96d8",
   "id": "W-9c6d20e3",
   "impact": "low",
   "kind": "task",
@@ -18,9 +18,6 @@
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — split tables",
-  "status": "open",
-  "tags": [
-    "waits-quota"
-  ],
+  "status": "done",
   "title": "Two markdown tables split by an interior line, found by intel's new split-table check (D-909): INDEX.md ~1653 (a one-line HTML comment inside the index table, so the rows after it render as paragraphs) and docs/workstation/quota-dashboard.md ~99"
 }

@@ -14,7 +14,9 @@ SRC = ROOT / "commands" / "_sources" / "fabrik-plan-after-chat.md"
 
 
 def _flat() -> str:
-    return re.sub(r"\s+", " ", SRC.read_text())
+    return re.sub(
+        r"\s+", " ", re.sub(r"<!--.*?-->", " ", SRC.read_text(encoding="utf-8"), flags=re.S)
+    )
 
 
 def test_new_plan_files_are_graded_by_name() -> None:
@@ -275,16 +277,77 @@ def test_a_new_pattern_the_plan_writes_runs_on_near_miss_inputs() -> None:
     )
 
 
-def test_the_close_list_names_the_wall_and_the_pause_as_stops() -> None:
-    """W-8d98265e: the run-record close list said "Nothing else is a legitimate halt" after the three BLOCKED cases,
-    so the quota wall and an operator's pause (D-993) had no stated close; it now names both, additive to every stop
-    a command's own text names."""
-    frag = re.sub(r"\s+", " ", (ROOT / "commands" / "_fragments" / "run-record.md").read_text())
+def _span(after: str, before: str) -> str:
+    """The text between the ONE live copy of `after` and the next `before` — the whole rule, so an appended
+    exemption or a sentence with '. ' inside it cannot slip past the comparison."""
+    text = _flat()
+    assert text.count(after) == 1, f"anchor not unique or moved: {after!r} x{text.count(after)}"
+    i = text.index(after) + len(after)
+    assert before in text[i:], f"end marker {before!r} not after {after!r}"
+    return text[i : text.index(before, i)]
+
+
+def test_the_census_covers_writers_and_each_refused_test() -> None:
+    """Rows 1792490076, 1792464433, 1792453856 (W-2cef0b6b): a new mechanism's state writers went uncensused, and the
+    tests a change's MIRROR refuses were left without a planned edit."""
+    assert _span(
+        "the tests that pin the old behaviour in File Scope or named as untouched. ",
+        " A build script's census",
+    ) == (
+        "When the plan adds a mechanism, its census also covers the WRITERS of each state the mechanism reads (every"
+        " file, row, key or env value, and each script, hook or job that writes it), counted and cited the same way."
+        " Each existing test that pins the old behaviour, every test asserting a shape the change now refuses (its"
+        " MIRROR, CLAUDE.md § Behavior) among them, lands in File Scope with its planned edit (re-expect, rewrite or"
+        " delete) stated in the step that makes it, or is named as untouched with the reason."
+    )
+
+
+def test_every_count_names_the_command_that_printed_it() -> None:
+    """Rows 1792431959, 1792354623, 1792447490: counts, fenced blocks and digest quotes were typed by hand."""
+    assert _span(
+        "that grounded any 3rd-party dependency). ", " This grounded design rationale"
+    ) == (
+        "Every measured count the plan states (a census total, a test count, a byte size, a row count) names beside it"
+        " the command that printed it, and an estimate is marked as one; each fenced output block is written by"
+        " redirecting that command's own output into a file the draft takes its text from, never retyped; and each"
+        " `## Constraints Digest` quote is copied from a read of its cited `file:line` (`sed -n '<N>p' <file>`) when"
+        " the row is written."
+    )
+
+
+def test_a_small_plan_is_prototyped_in_throwaway_worktrees() -> None:
+    """Row 1792466452: the prototype recipe was re-derived for every small plan."""
+    assert _span(
+        "larger than that ⇒ the shape decision. ", " **Every phase or ticket declares"
+    ) == (
+        "The default way to draft a small plan's code steps is a prototype: apply each edit by a script keyed on"
+        " unique anchors in a throwaway worktree of the base, then apply the resulting diff to a second fresh worktree"
+        " of the base and run the touched tests there; the plan's steps cite that diff as a file rather than carrying"
+        " it (so it never counts toward the shape decision's line trigger), its Evidence cites that run, and its"
+        " code-file list is read from the diff's own headers."
+    )
+
+
+def test_a_module_plan_reads_the_module_test_recipe_first() -> None:
+    """Row 1792432614: a module plan's first suite run ignored the module README's hermetic test recipe."""
+    assert _span(
+        "write that probe into the phase as its first step. ", " **Packages** live in"
+    ) == (
+        "When the plan builds in a vendored or fabrik-lib module, that first step also reads the module's own test"
+        " recipe (its env, fixtures and hermetic flags), from the vendored copy's `README.md`, else"
+        " `/opt/fabrik-lib/<module>/README.md` (never the fabrik-lib module table), before the first suite run, and"
+        " says so when neither has one, so the first suite count is the module's own."
+    )
+
+
+def test_the_line_trigger_does_not_count_the_pasted_rubric() -> None:
+    """Rows 1792643183, 1792630841: the ~300-line shape trigger excludes only the pasted rubric output."""
+    shape = _span("**⚠️ SHAPE DECISION FIRST", "**The spine+ticket shape**")
     assert (
-        "Two more stops close `blocked` too: the quota wall (`blocked --wall`, at the RED or WALL band of `CLAUDE.md`'s"
-        " quota bands: commit, push, then close) and a pause the operator ordered (`blocked --paused`, its `--reason`"
-        " the operator's words, D-993). Both hold in every command, even where its text calls other stops the only"
-        " ones, and every stop that text names holds too"
-    ) in frag
-    assert "Nothing else is a legitimate halt" not in frag
-    assert "nothing else halts a run" not in frag
+        "of: the work decomposes into **>3 phases** · the projected monolith would exceed **~300 lines** of its"
+        " own text, pasted code and diffs included (only the `review_rubric.py` output this command's Phase 4"
+        " pastes is not counted) · any single phase's computed READ set"
+    ) in shape
+    assert shape.count("not counted") == 1, (
+        "a second exemption in the shape decision contradicts its 'only'"
+    )

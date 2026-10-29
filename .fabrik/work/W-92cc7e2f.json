@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T14:32:34.101123Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-92cc7e2f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "append ', not their wording' inside the infra parenthetical; scoped review",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "templates/governance/CLAUDE.md:458-459 Send bullet: 'synced-file defects' for infra can be read to cover a command's or rule's WORDING (commands and rules are synced files) though the kaizen clause at :462 takes wording — add 'not their wording' to the parenthetical (W-a5b90257 review pass 4, recorded after the scope-growth stop)"
+}

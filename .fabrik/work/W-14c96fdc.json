@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "once the uncommitted claude_rotate.py WIP lands, port _armed's one-open O_NONBLOCK|O_NOFOLLOW + fstat S_ISREG body into both copies and add a FIFO + symlink case to tests/test_claude_rotate_v2.py's lockstep grader",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — FIFO at lock hangs tick; rare and contrived",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "medium"
   ],

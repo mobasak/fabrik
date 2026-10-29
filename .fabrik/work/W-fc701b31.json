@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T02:55:29.361743Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-fc701b31",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add a NanoCpus predicate to vps_apply_limits.sh --check and a throttled-ratio > 0.25 for 15m warning rule, each with a red-first test",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "LOW: CPU-limit hardening follow-up of W-91a4a715, nobody blocked; one check or config each",
+  "status": "open",
+  "tags": [
+    "deploy"
+  ],
+  "title": "Nothing verifies or watches vps1 CPU limits once set — scripts/vps_apply_limits.sh --check reads HostConfig.Memory only, and no alert fires on CFS throttling (container_cpu_cfs_throttled_periods_total / container_cpu_cfs_periods_total; trytond-worker hit 0.96 in one 5m window, 2026-10-29)"
+}

@@ -1,0 +1,26 @@
+{
+  "block_digest": "93da25d3a1b15a773ad0ce4e18942311ff51a7ebf87b8d9a32959d0085bb33a2",
+  "blocked_by": [],
+  "created": "2026-10-22T11:19:06.169172Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-1c7d7e0f",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "fd044e4f21537c23a43468600ca65fe2e12ae507b04f412b45f4f5b159f048b5"
+  ],
+  "next": "",
+  "note": "operator 2026-10-22 ~15:05, verbatim: 'yes i can do that, tell me when to do, but before doing so all repo agents must be paused as like hibernate.' → A, with the condition: a /hibernate-style pause of every repo's agents precedes the acceptance run; the coordinator tells the operator when (after the Deck merge and install)",
+  "owner": "",
+  "priority": 2,
+  "question": "After the Fabrik Deck is merged and installed, will you run its five hands-on acceptance checks (Vivaldi tab restore and tiling; tab hibernation with a notification; `wsl --shutdown` then a Windows reboot, checking that localhost ports 8443 and 8445 answer from Windows; a second double-click of the .bat; memory with six tabs open)?",
+  "status": "done",
+  "title": "After the Fabrik Deck is merged and installed, will you run its five hands-on acceptance checks (Vivaldi tab restore and tiling; tab hibernation with a notification; `wsl --shutdown` then a Windows reboot, checking that localhost ports 8443 and 8445 answer from Windows; a second double-click of the .bat; memory with six tabs open)?"
+}

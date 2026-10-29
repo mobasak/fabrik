@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T14:10:22.210183Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-293b6500",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "re-derive each live cite in FINAL_GATE_WORKFLOW.md against current final_gate.py and grade them like tests/test_governance_template_split.py does for CLAUDE.md; frozen plan/review records stay as written",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Stale scripts/final_gate.py line cites outside the contracts (all wrong at merge-base e844fdad0 already): docs/workflows/FINAL_GATE_WORKFLOW.md:244 :1487-1497 (the pytest conjunction is :1698-1708) plus :1124-1126, :3085-3099, :3242, :3265-3269, :291; plan 2026-10-08-plan-3-review-coverage-commit-scope.md:99 :3409-3431; review 2026-10-09-w-b63ffe1a-gate-scope-wording-review.md:140 :3225 (found by the W-c77f91c6 merge-fix review)"
+}

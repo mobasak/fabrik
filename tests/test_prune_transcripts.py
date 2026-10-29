@@ -151,9 +151,11 @@ class World:
             self.index.append((st.st_ino, st.st_size))
 
     def bucket_from_archive(self) -> None:
+        """slug → {path under the slug: (size, sha1)} — what `lsf -R` prints (a MAIN key is a bare name)."""
         self.bucket = {}
-        for zst in self.archive.glob("*/*.jsonl.zst"):
-            self.bucket.setdefault(zst.parent.name, {})[zst.name] = (zst.stat().st_size, _sha1(zst))
+        for zst in self.archive.glob("*/**/*.jsonl.zst"):
+            slug, key = zst.relative_to(self.archive).as_posix().split("/", 1)
+            self.bucket.setdefault(slug, {})[key] = (zst.stat().st_size, _sha1(zst))
 
     def ready(self) -> None:
         self.archive_all()
@@ -168,7 +170,11 @@ class World:
             objects = self.bucket.get(slug)
             if objects is None:
                 return subprocess.CompletedProcess(argv, 1, "", "listing failed")
-            out = "".join(f"{n};{s};{h}\n" for n, (s, h) in sorted(objects.items()))
+            # like rclone: without -R a listing shows the top-level objects only
+            recursive = "-R" in argv
+            out = "".join(
+                f"{n};{s};{h}\n" for n, (s, h) in sorted(objects.items()) if recursive or "/" not in n
+            )
             return subprocess.CompletedProcess(argv, 0, out, "")
         if verb == "copyto":  # --fetch: hand back the LOCAL archive's copy of that object
             src, dst = argv[-2], argv[-1]
@@ -178,11 +184,10 @@ class World:
                 # the bucket's copy of the restore list: served from `self.bucket_ledger` when set
                 if self.bucket_ledger is not None:
                     Path(dst).write_text(self.bucket_ledger)
-            elif (
-                local.is_file()
-                and self.bucket.get(local.parent.name, {}).get(local.name) is not None
-            ):
-                shutil.copyfile(local, dst)
+            elif local.is_file() and "/" in rel:
+                slug, key = rel.split("/", 1)
+                if (self.bucket.get(slug) or {}).get(key) is not None:
+                    shutil.copyfile(local, dst)
             return subprocess.CompletedProcess(argv, 0, "", "")
         return subprocess.CompletedProcess(argv, 0, "", "")
 
@@ -924,6 +929,127 @@ def test_nightly_runs_both_tiers_under_the_cap_without_expect(world, monkeypatch
     assert world.log()[-1]["tiers"] == ["main", "subagents"] and world.log()[-1]["deferred"] == 2
 
 
+# ── D-1182: the subagent tier is archived, so its pruning is vouched ──────────────────────
+
+
+def test_c3_a_sidechain_is_deleted_only_when_the_archive_vouches_for_it(world):
+    side = {
+        n: _sidechain(world, "-opt-alpha", "a-old-10", n, days=10, running=False)
+        for n in ("agent-changed", "agent-nozst", "agent-nobucket", "agent-good")
+    }
+    world.ready()
+    norow = _sidechain(world, "-opt-alpha", "a-old-10", "agent-norow", days=10, running=False)
+    with side["agent-changed"].open("ab") as fh:
+        fh.write(b'{"late":1}\n')
+    _age(side["agent-changed"], 10)
+    zdir = world.archive / "-opt-alpha" / "a-old-10" / "subagents"
+    (zdir / "agent-nozst.jsonl.zst").unlink()
+    del world.bucket["-opt-alpha"]["a-old-10/subagents/agent-nobucket.jsonl.zst"]
+    good_sha = at._sha256(side["agent-good"])
+    assert pt.run(["--tier", "subagents"]) == 0
+    s_ref = world.log()[-1]["subagents_refusals"]
+    assert {k: s_ref.get(k) for k in ("not-archived", "sha-mismatch", "zst-missing", "remote-missing")} == {
+        "not-archived": 1,
+        "sha-mismatch": 1,
+        "zst-missing": 1,
+        "remote-missing": 1,
+    }, s_ref
+    assert pt.run(["--apply", "--tier", "subagents", "--expect", "1"]) == 0
+    assert not side["agent-good"].exists()
+    assert norow.exists() and all(side[n].exists() for n in side if n != "agent-good")
+    row = world.ledger()[-1]
+    key = "a-old-10/subagents/agent-good.jsonl.zst"
+    assert row["kind"] == "subagent" and row["sha256"] == good_sha
+    assert row["object"] == f"-opt-alpha/{key}"
+    assert (row["object_bytes"], row["object_sha1"]) == world.bucket["-opt-alpha"][key]
+    lsf = [c for c in world.rclone_calls if c[1] == "lsf"]
+    assert lsf and all("-R" in c and "--fast-list" in c for c in lsf), "one recursive B2 list per slug"
+
+
+def test_the_summary_line_counts_each_tier_when_a_main_inode_is_skipped(world, monkeypatch, capsys):
+    """The closing line once split `deleted` by `len(run_main)`: a MAIN inode skipped by its last look
+    was reported as a subagent-tier deletion (review W-62d2ce7d pass 1, B-haiku-2/B-sonnet-4)."""
+    _sidechain(world, "-opt-alpha", "a-old-06", "agent-one", days=10, running=False)
+    world.ready()
+    real = pt.open_sessions
+    calls = {"n": 0}
+
+    def opens_late(*a, **kw):
+        calls["n"] += 1  # 1 evaluate_main, 2 evaluate_subagents, 3+ the per-unlink re-reads
+        out = real(*a, **kw)
+        return out | {"a-old-10"} if calls["n"] >= 3 else out
+
+    monkeypatch.setattr(pt, "open_sessions", opens_late)
+    assert pt.run(["--apply", "--nightly"]) == 0
+    assert "deleted 3 (MAIN 2 inode(s), subagent-tier 1)" in capsys.readouterr().out
+
+
+def test_a_zst_that_vanishes_before_its_sha1_refuses_the_file_not_the_night(world, monkeypatch):
+    world.ready()
+
+    def gone(_path):
+        raise FileNotFoundError("removed under the pruner")
+
+    monkeypatch.setattr(pt, "_sha1", gone)
+    reasons = world.evaluate()
+    assert reasons["a-old-10"] == "zst-missing" and reasons["b-old-10"] == "zst-missing"
+
+
+def test_c3_the_last_look_skips_a_sidechain_that_changed(world, monkeypatch):
+    target = _sidechain(world, "-opt-alpha", "a-old-10", "agent-late", days=10, running=False)
+    world.ready()
+    real = pt.open_sessions
+    calls = {"n": 0}
+
+    def grow_then_answer(*a, **kw):
+        calls["n"] += 1
+        if calls["n"] == 2:  # evaluate_subagents made the first; this is the one right before the unlink
+            with target.open("ab") as fh:
+                fh.write(b'{"late turn":1}\n')
+        return real(*a, **kw)
+
+    monkeypatch.setattr(pt, "open_sessions", grow_then_answer)
+    assert pt.run(["--apply", "--tier", "subagents", "--expect", "1"]) == 0
+    assert target.exists()
+    assert not any(r.get("kind") == "subagent" for r in world.ledger()), "no row for a skipped file"
+    assert world.log()[-1]["subagents_refusals"]["changed-under-hash"] == 1
+
+
+def test_restore_puts_a_pruned_sidechain_back_and_keeps_the_main_selection(world, capsys):
+    side = _sidechain(world, "-opt-alpha", "a-old-10", "agent-back", days=10, running=False)
+    body = side.read_bytes()
+    world.ready()
+    assert _apply(3) == 0  # MAIN first: a-old-10's own transcript is pruned
+    assert pt.run(["--apply", "--tier", "subagents", "--expect", "1"]) == 0  # then its sidechain
+    assert not side.exists()
+    # a MAIN restore still picks the MAIN row although a later subagent row carries the same session id
+    assert pt.run(["--restore", "a-old-10"]) == 0
+    assert (world.projects / "-opt-alpha" / "a-old-10.jsonl").exists() and not side.exists()
+    assert pt.run(["--restore", "agent-back"]) == 0
+    assert side.read_bytes() == body
+    assert time.time() - side.stat().st_mtime < 60
+    capsys.readouterr()
+    assert pt.run(["--verify-ledger"]) == 0
+    assert "OK      -opt-alpha/a-old-10/subagents/agent-back.jsonl.zst" in capsys.readouterr().out
+    # a pre-D-1182 row (no sha256) refuses by name; two distinct paths for one id refuse and list both
+    with (world.archive / pt.LEDGER_NAME).open("a") as fh:
+        for sid in ("x-1", "x-2"):
+            p = world.projects / "-opt-alpha" / sid / "subagents" / "agent-twice.jsonl"
+            fh.write(json.dumps({"tier": "subagents", "kind": "subagent", "project_slug": "-opt-alpha",
+                                 "session_id": sid, "paths": [str(p)], "sha256": "ab" * 32,
+                                 "object": f"-opt-alpha/{sid}/subagents/agent-twice.jsonl.zst",
+                                 "pruned_at": "2026-10-24T00:00:00Z"}) + "\n")
+        old = world.projects / "-opt-alpha" / "x-3" / "subagents" / "agent-old.jsonl"
+        fh.write(json.dumps({"tier": "subagents", "kind": "subagent", "project_slug": "-opt-alpha",
+                             "session_id": "x-3", "paths": [str(old)], "pruned_at": "2026-10-20T00:00:00Z"}) + "\n")
+    capsys.readouterr()
+    assert pt.run(["--restore", "agent-twice"]) == 3
+    err = capsys.readouterr().err
+    assert "x-1/subagents/agent-twice.jsonl" in err and "x-2/subagents/agent-twice.jsonl" in err
+    assert pt.run(["--restore", "agent-old"]) == 3
+    assert "no sha256" in capsys.readouterr().err
+
+
 # ── the unit file (C.2 unit ordering) ─────────────────────────────────────────────────────
 
 
@@ -935,12 +1061,112 @@ def test_unit_file_runs_the_pruner_after_the_archiver_with_the_dash_prefix():
     ]
     assert "Type=oneshot" in lines
     starts = [ln for ln in lines if ln.startswith("ExecStart=")]
-    assert len(starts) == 2
+    assert len(starts) == 3, "archiver, pruner, rotation mail (W-f975fee0 slice 3)"
     assert (
         starts[0]
         == "ExecStart=/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/archive_transcripts.py"
     )
-    assert starts[1].startswith(
+    assert starts[1] == (
         "ExecStart=-/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sysadmin/prune_transcripts.py"
-    )
-    assert starts[1].endswith("--dry-run"), "the unit stays on dry-run until Gate C step (6)"
+        " --apply --nightly"
+    ), "Gate C passed 2026-10-12 (D-746): the unit applies"
+    assert starts[2].startswith("ExecStart=-") and "rotate_session.py due" in starts[2]
+
+
+# ── set-asides (W-a2cae11b): `<sid>.jsonl.superseded-<ms>`, Claude Code's name for a moved-aside transcript ──
+
+
+def _set_aside(world: World, live: Path | None, slug: str, sid: str, ms: int, *, days: float = 10) -> Path:
+    """A set-aside: a hard link of `live` (Claude Code's measured shape), or an inode of its own."""
+    p = world.projects / slug / f"{sid}.jsonl.superseded-{ms}"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    if live is not None:
+        os.link(live, p)
+    else:
+        p.write_bytes(json.dumps({"sid": sid, "aside": ms}).encode() * 40 + b"\n")
+        _age(p, days)
+    return p
+
+
+def test_pruning_a_live_name_also_unlinks_its_set_aside_links(world):
+    """r7 over EVERY MAIN name of the inode: a set-aside link (one in a slug with no live name of the
+    inode) is vouched through the live rows, unlinked in the same pass and named in the ledger row —
+    so the blocks are freed, and `--restore` puts every name back."""
+    live = world.projects / "-opt-alpha" / "a-old-10.jsonl"
+    near = _set_aside(world, live, "-opt-alpha", "a-old-10", 1792094167189)
+    far = _set_aside(world, live, "-opt-gamma", "a-old-10", 1792288372659)
+    world.ready()
+    verdict = world.evaluate()
+    assert verdict["a-old-10"] is None, verdict  # not names-differ, not not-archived
+    assert not any(k.startswith("a-old-10.superseded") for k in verdict), "one inode, one candidate"
+    n = sum(1 for v in verdict.values() if v is None)
+    assert _apply(n) == 0
+    assert not live.exists() and not near.exists() and not far.exists(), "a set-aside pinned the inode"
+    row = next(r for r in world.ledger() if r.get("session_id") == "a-old-10")
+    assert set(row["paths"]) == {str(live), str(near), str(far)}
+    assert pt.run(["--restore", "a-old-10"]) == 0
+    assert live.exists() and near.exists() and far.exists()
+    assert live.stat().st_ino == near.stat().st_ino == far.stat().st_ino
+
+
+def test_a_set_aside_only_inode_is_archived_but_never_pruned(world):
+    """No live name: session-recall indexes `*/*.jsonl` only, so an index row for this inode can only be
+    a stale one — the inode is archived under its own key and refused, even with that row."""
+    aside = _set_aside(world, None, "-opt-alpha", "a-gone", 1792029283292)
+    world.ready()
+    st = aside.stat()
+    world.index.append((st.st_ino, st.st_size))  # a stale pre-rename row
+    key = "a-gone.superseded-1792029283292"
+    assert (world.archive / "-opt-alpha" / f"{key}.jsonl.zst").is_file()
+    assert world.evaluate()[key] == "set-aside-only"
+    assert _apply(sum(1 for v in world.evaluate().values() if v is None)) == 0
+    assert aside.exists()
+
+
+def test_a_fresh_set_aside_never_displaces_the_newest_live_session(world):
+    """Claude Code refreshes a set-aside's mtime, so a set-aside-only inode is often the slug's newest
+    file; counted by r3 it would unprotect the slug's real newest live session."""
+    _set_aside(world, None, "-opt-beta", "b-older", 1792255742699, days=4)  # newer than b-old-05
+    world.ready()
+    v = world.evaluate()
+    assert v["b-older.superseded-1792255742699"] == "set-aside-only"
+    assert v["b-old-05"] == "newest-of-slug", v
+
+
+def test_a_set_aside_in_a_slug_that_sorts_first_never_keys_its_live_inode(world, capsys):
+    """Path order puts `-opt-alpha/<sid>.jsonl.superseded-*` before `-opt-alpha--wt/<sid>.jsonl`; the
+    candidate must still key by the live name, or the inode is refused and pinned (review r1, O3).
+    An off-grammar name the set-aside glob matches is skipped, never a crash (review r1, O4), and the
+    over-threshold report counts the inode's live names, never its set-asides (review r1, O8)."""
+    live = world.transcript("-opt-alpha--wt", "w-1", days=10)
+    world.transcript("-opt-alpha--wt", "w-new", days=1)  # the slug's newest, so w-1 is not
+    _set_aside(world, live, "-opt-alpha", "w-1", 1792029283292)
+    (world.projects / "-opt-alpha" / "x-1.jsonl.superseded-abc").write_bytes(b"{}\n")
+    world.ready()
+    verdict = world.evaluate()
+    assert verdict["w-1"] is None, verdict
+    assert not any(k.startswith("w-1.superseded") for k in verdict)
+    w = pt._world(None)
+    w.advise_mb = 0  # every file is over the threshold
+    _cands, _refusals, over = pt.evaluate_main(w)
+    assert not any(".superseded-" in p for p in over), over
+    assert str(live) in over
+
+
+def test_restore_refuses_a_session_id_pruned_as_two_inodes_under_two_slugs(world, capsys):
+    """A set-aside makes "two inodes, one session id" ordinary: restoring only the latest row would
+    leave the other silently missing (review r1, O2) — refuse and list both, as `agent-` does."""
+    for slug, body in (("-opt-eta", b'{"b":1}\n' * 30), ("-opt-eta--wt", b'{"a":1}\n' * 40)):
+        world.transcript(slug, "e-1", days=10, body=body)
+        world.transcript(slug, "e-newest", days=1)
+    world.ready()
+    cands, _refusals, _over = pt.evaluate_main(pt._world(None))  # two inodes share one id: count both
+    assert _apply(sum(1 for c in cands if c.reason is None)) == 0
+    gone = [world.projects / s / "e-1.jsonl" for s in ("-opt-eta", "-opt-eta--wt")]
+    assert not any(p.exists() for p in gone)
+    assert pt.run(["--restore", "e-1"]) == pt.EXIT_REFUSED
+    err = capsys.readouterr().err
+    assert "-opt-eta--wt" in err and "--slug=" in err, err
+    assert not any(p.exists() for p in gone), "a refusal writes nothing"
+    assert pt.run(["--restore", "e-1", "--slug=-opt-eta--wt"]) == 0  # the spelling the refusal names
+    assert gone[1].exists() and not gone[0].exists()

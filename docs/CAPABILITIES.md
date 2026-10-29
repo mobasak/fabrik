@@ -99,6 +99,8 @@
 
 ## script
 - [scripts/agent_status.py](../INDEX.md) (owner: infra): Every hub worker's NOW, DONE and NEXT — or, with --json --all, every repo's agents — read from records that already exist.
+- [scripts/api_credit.py](../INDEX.md) (owner: infra): Spend the three prepaid Anthropic API credits through capped, read-only headless runs (D-1196, W-894f994f).
+- [scripts/api_write.py](../INDEX.md) (owner: infra): The API-key WRITE lane: disposable headless writers on the three prepaid keys (D-1247, D-1248, D-1251, W-174b8543).
 - [scripts/aro-wake/claude_rotate.py](../INDEX.md) (owner: infra): NB: this file is vendored BYTE-IDENTICAL into scripts/sysadmin/ and scripts/aro-wake/
 - [scripts/audit_all_projects.py](../INDEX.md) (owner: infra): Deep audit all /opt projects for Fabrik scaffold compliance (v2).
 - [scripts/audit_all_registrars.py](../INDEX.md) (owner: infra): T4-04 G-G5 — hourly drift audit across all 9 registrars × all specs.
@@ -120,6 +122,7 @@
 - [scripts/cloud_dispatch.py](../INDEX.md) (owner: infra): Dispatch a task to a fleet account's claude.ai routine as a CLOUD subagent (D-857).
 - [scripts/command_feedback_report.py](../INDEX.md) (owner: infra): Per-command optimisation report over the fleet-wide close-out ledger (D-175).
 - [scripts/command_run.py](../INDEX.md) (owner: infra): COMMAND RUN-RECORD — the in-flight state of the `/fabrik-*` command an agent is running.
+- [scripts/command_time_measure.py](../INDEX.md) (owner: infra): The lean program's time measure (D-1219): intel's W-0a91bf86 method as one pinned script.
 - [scripts/container_images.py](../INDEX.md) (owner: infra): Container Image Discovery Tool for Fabrik
 - [scripts/decisions.py](../INDEX.md) (owner: infra): Fleet decision-ledger query — grep every repo's docs/DECISIONS.md in one command.
 - [scripts/declare_subscription.py](../INDEX.md) (owner: infra): Declare a subscription (renewal date / price / account email) for a service.
@@ -230,6 +233,7 @@
 - [scripts/lint_fix_agent.py](../INDEX.md) (owner: infra): Lint Fix Sub-Agent - Cheap agent for lint-only fixes.
 - [scripts/mail.py](../INDEX.md) (owner: infra): fabrik-mail — durable hub↔project AI message store + protocol (stdlib-only).
 - [scripts/merge_request.py](../INDEX.md) (owner: infra): merge_request — finishing work in a linked worktree sends ONE merge request; the merge owner
+- [scripts/merge_test_select.py](../INDEX.md) (owner: infra): The hub's merge-time test leg (``.fabrik/merge-tests``, W-4e756979).
 - [scripts/probes/glitchtip_webhook_capture.py](../INDEX.md) (owner: infra): Capture + pin the live GlitchTip new-issue webhook envelope (watchdog Phase A).
 - [scripts/process_monitor.py](../INDEX.md) (owner: infra): Process Monitor - Detect stuck/hung subprocess states.
 - [scripts/proof_run.py](../INDEX.md) (owner: infra): End-to-end deploy harness: prove every scaffold type deploys live on VPS.
@@ -244,6 +248,7 @@
 - [scripts/review_receipt.py](../INDEX.md) (owner: infra): Review-artifact skeleton — `--init` emits the grammar `check_review_coverage.py` grades.
 - [scripts/review_rubric.py](../INDEX.md) (owner: infra): Armed-review rubric extractor — turns Tier-3 reviews from "reviewer reads the packs
 - [scripts/rivals_run.py](../INDEX.md) (owner: infra): Hub-side driver for the vendored `competitor-intel` engine — the executable half of `/fabrik-rivals`.
+- [scripts/scrape_ledger.py](../INDEX.md) (owner: infra): Probe the fabrik-scrape MCP server, harvest the URLs research seats fetch, and grade a capability ledger.
 - [scripts/scratch_sweep.py](../INDEX.md) (owner: infra): Sweep YOUR OWN session scratch, YOUR OWN agent worktrees, and DEAD sessions' scratch — never blindly.
 - [scripts/seed_real_ports.py](../INDEX.md) (owner: infra): One-time script: extract real host ports from compose.yaml/.env and update project.yaml.
 - [scripts/select_rules.py](../INDEX.md) (owner: infra): Select the .windsurf/rules packs applicable to this project — run BEFORE planning.
@@ -259,13 +264,16 @@
 - [scripts/sysadmin/ci_health_probe.py](../INDEX.md) (owner: infra): Fleet CI-health probe — catch CI that NEVER RAN, and the quota curve that kills it.
 - [scripts/sysadmin/claude_broker.py](../INDEX.md) (owner: infra): Completion-only container broker — subscription-billed Claude for Docker workloads.
 - [scripts/sysadmin/claude_rotate.py](../INDEX.md) (owner: infra): NB: this file is vendored BYTE-IDENTICAL into scripts/sysadmin/ and scripts/aro-wake/
+- [scripts/sysadmin/claude_tab_router.py](../INDEX.md) (owner: infra): claude_tab_router.py — the VS Code chat-tab ROUTER behind claude-agent-wrapper.sh (W-ea993618).
 - [scripts/sysadmin/detect_reversals.py](../INDEX.md) (owner: infra): Detect operator reversals of AI actions (trio plan Phase 5.1.a).
 - [scripts/sysadmin/dispatch_headroom.py](../INDEX.md) (owner: infra): dispatch_headroom — the seat budget for a native fan-out, from the BOX and the FLEET, not from prose.
 - [scripts/sysadmin/emit_mcp_project_config.py](../INDEX.md) (owner: infra): Emit each /opt repo's project-scope `.mcp.json` from the MCP split rulings.
 - [scripts/sysadmin/ensure-apprise-alerts-config.sh](../INDEX.md) (owner: infra): ensure-apprise-alerts-config.sh — guarantee Apprise's stateful "alerts" config exists. Idempotent.
+- [scripts/sysadmin/fabrik_deck.py](../INDEX.md) (owner: infra): fabrik_deck.py code-server | serve | hook | install | profile | launcher | up — the Fabrik Deck on this box.
 - [scripts/sysadmin/feedback_relay.py](../INDEX.md) (owner: infra): FEEDBACK relay — closes the loop the operator asked for five times (D-055, then the 6th ask:
 - [scripts/sysadmin/hibernate.py](../INDEX.md) (owner: infra): hibernate.py — the machinery behind /hibernate (W-1e9ae1e5): find every repo's live agents, hand out the pause
 - [scripts/sysadmin/incident_context.py](../INDEX.md) (owner: infra): Incident context marshaller — the HOST side of the pool-diagnosis path.
+- [scripts/sysadmin/install_rotate_unit.sh](../INDEX.md) (owner: infra): install_rotate_unit.sh [--check] — install (or check) the user systemd units that execute session rotations
 - [scripts/sysadmin/install_user_hooks.py](../INDEX.md) (owner: infra): Install / verify the USER-LEVEL hook registrations in every account dir (review 2026-09-06, B10).
 - [scripts/sysadmin/inventory_read.py](../INDEX.md) (owner: infra): The registry read the Services view runs, as a CHILD PROCESS the board spawns and kills at the read's deadline.
 - [scripts/sysadmin/kaizen_backfill.py](../INDEX.md) (owner: infra): Kaizen T08 — noise-floor backfill over the pre-event transcript corpus.
@@ -276,21 +284,26 @@
 - [scripts/sysadmin/kaizen_events.py](../INDEX.md) (owner: infra): CONSUMERS (re-verify on any SCHEMA/envelope change; not coupled to ordinary edits):
 - [scripts/sysadmin/kaizen_outcomes.py](../INDEX.md) (owner: infra): Kaizen M1 outcome tier — rework miner, fleet-health sweep, premature-stop reader.
 - [scripts/sysadmin/kaizen_shrink_audit.py](../INDEX.md) (owner: infra): M0 shrink audit — the usage-evidence census over every governance artifact.
+- [scripts/sysadmin/kaizen_waste.py](../INDEX.md) (owner: infra): Kaizen token-waste series — Lean Six Sigma MEASURE for the fleet's token burn (W-02472911, D-1118).
 - [scripts/sysadmin/liveness_audit.py](../INDEX.md) (owner: infra): LIVENESS AUDIT — we verify correctness at write-time and never verify liveness at run-time.
 - [scripts/sysadmin/mail_escalate.py](../INDEX.md) (owner: infra): fabrik-mail escalation digest — the destination-side half of the addressing plan.
 - [scripts/sysadmin/mcp_health.py](../INDEX.md) (owner: infra): Assigned-vs-LIVE MCP diff for the current repo (D-033 forcing pair, advisory).
 - [scripts/sysadmin/mcp_orphan_reaper.py](../INDEX.md) (owner: infra): Reap stdio MCP server processes whose Claude Code session is gone (operator mail 01M4AR32MY).
 - [scripts/sysadmin/next_census.py](../INDEX.md) (owner: infra): next_census — the NEXT: line measurement, as one script (T06, spec
+- [scripts/sysadmin/operator_setup.py](../INDEX.md) (owner: infra): The operator's ONE-TIME setup (W-d6726a65, docs/reference/operator-agent-requirements.md 1.1).
 - [scripts/sysadmin/prune_transcripts.py](../INDEX.md) (owner: infra): prune_transcripts — Phase C.2/C.3 of the session-history retention plan (D-736).
 - [scripts/sysadmin/quota_dashboard.py](../INDEX.md) (owner: infra): The command centre (plan 2026-10-17-plan-1): the localhost board the operator leaves open — six
 - [scripts/sysadmin/quota_governor.py](../INDEX.md) (owner: infra): Quota governor — headroom-aware router for the single-key ob@ VPS Claude.
 - [scripts/sysadmin/quota_posture_hook.py](../INDEX.md) (owner: infra): The box-local quota-posture hook — one injected line per prompt, one hold at RED.
+- [scripts/sysadmin/rotate_session.py](../INDEX.md) (owner: infra): rotate_session — rotate an agent's session (/clear) at an item boundary, typed by a unit, never by an agent.
 - [scripts/sysadmin/rules_currency_watch.py](../INDEX.md) (owner: infra): Rules-pack version-pin tripwire (operator question 2026-09-01: "what will happen
 - [scripts/sysadmin/rules_render_versions.py](../INDEX.md) (owner: infra): Version injection for the rules corpus (D-062 — no version literals in packs).
 - [scripts/sysadmin/selfwatch_check.py](../INDEX.md) (owner: infra): UserPromptSubmit (USER level — every window, every project) — is this session's self-watch ARMED?
+- [scripts/sysadmin/session_archive_alert.py](../INDEX.md) (owner: infra): session_archive_alert — mail infra and the coordinator when the nightly chat backup fails (W-36687f76).
 - [scripts/sysadmin/stop_mine.py](../INDEX.md) (owner: infra): stop_mine — the promoted research miner (spec 2026-09-23-stop-and-compaction-enforcement-design
-- [scripts/sysadmin/transcript_size_check.py](../INDEX.md) (owner: infra): transcript_size_check — the ROTATE advisory (C.1.3 of the session-history retention plan, D-736).
+- [scripts/sysadmin/transcript_size_check.py](../INDEX.md) (owner: infra): transcript_size_check — the ROTATE advisories (C.1.3 of the session-history retention plan, D-736; the
 - [scripts/sysadmin/user_hook_gate.py](../INDEX.md) (owner: infra): USER-level hook gate: run a hub hook for every window UNLESS the project already wires it.
+- [scripts/sysadmin/vps1_pg_scoped_logins.py](../INDEX.md) (owner: infra): vps1 Postgres rotation, runbook steps 2-3 (with step 1's stop checks and spoke sweep): scoped logins.
 - [scripts/sysadmin/vps_script_drift.py](../INDEX.md) (owner: infra): Read-only drift check: is every VPS still running the hub's committed scripts? (W-c792a205)
 - [scripts/sysadmin/worktree_transcript_link.py](../INDEX.md) (owner: infra): SessionStart + Stop (USER level, every window, every repo): keep a worktree session listed in its repo's window.
 - [scripts/test_process_monitor.py](../INDEX.md) (owner: infra): Test Suite for ProcessMonitor
@@ -375,6 +388,7 @@
 - [ui-verify](/opt/fabrik-lib/ui-verify/README.md) (owner: external:fabrik-lib): ui-verify
 - [watchdog](/opt/fabrik-lib/watchdog/README.md) (owner: external:fabrik-lib): watchdog — per-project AI self-heal sidecar (poll → diagnose → act → escalate)
 - [web-scrape](/opt/fabrik-lib/web-scrape/README.md) (owner: external:fabrik-lib): web-scrape — deterministic scrape primitive: httpx for static, vps1 browserless for JS-rendered
+- [web-scrape-mcp](/opt/fabrik-lib/web-scrape-mcp/README.md) (owner: external:fabrik-lib): web-scrape-mcp
 - [web-tools](/opt/fabrik-lib/web-tools/README.md) (owner: external:fabrik-lib): web-tools
 - [webhooks](/opt/fabrik-lib/webhooks/README.md) (owner: external:fabrik-lib): Webhooks
 - [xlsx-io](/opt/fabrik-lib/xlsx-io/README.md) (owner: external:fabrik-lib): xlsx-io — structure-preserving text extract/apply for spreadsheets
@@ -423,6 +437,7 @@
 - [core/58-resilience.md](../.windsurf/rules/core/58-resilience.md) (owner: infra): Resilience contract — timeout/retry/circuit-breaker for all services, plus autonomous pause-state/queue-bloat for workers
 - [core/60-watchdog.md](../.windsurf/rules/core/60-watchdog.md) (owner: infra): Watchdog sidecar contract — when to enable, how Tier A/B/C/D act, OAuth inheritance, fail-safe emitter, cost ceilings
 - [core/62-using-subagents.md](../.windsurf/rules/core/62-using-subagents.md) (owner: infra): How to dispatch subagents — native Claude Task subagents for every fan-out (the OpenRouter pool, Kilo subagents and ai-consult are PAUSED by ruling), per-task tool access, the never-delegate safety list, the mcp.json source-of-truth, the concurrency and model-resolution limits
+- [core/63-frontend-design.md](../.windsurf/rules/core/63-frontend-design.md) (owner: infra): Web UI design routes to the frontend-design:frontend-design skill (operator ruling 2026-10-24) — when it is invoked, the brief that outranks it (operator rulings, the frozen ui-design.md and design-system.md with the template's structure), and its AI-generated clusters written out for readers without the skill.
 - [core/65-rag-search.md](../.windsurf/rules/core/65-rag-search.md) (owner: infra): Search & retrieval discipline — MeiliSearch full-text, pgvector three-leg hybrid search via the vendored fabrik-lib `rag` module, embeddings through OpenRouter, chunking, citations, retrieval evals; the fleet's pgvector state stated as probed
 - [core/66-rag-chunking.md](../.windsurf/rules/core/66-rag-chunking.md) (owner: infra): Markdown chunking discipline — heading-based splits, chunk envelopes, overlap strategy, quality checks for RAG pipelines
 - [core/67-file-api.md](../.windsurf/rules/core/67-file-api.md) (owner: infra): File-handling discipline — S3-compatible storage (B2/R2 default; Supabase Storage legacy), presigned URL contracts, busboy + pipeline streams, magic-byte + polyglot validation, tenant-scoped blake3 dedup, clamd service, KVKK erasure lifecycle
@@ -457,7 +472,7 @@
 - [mail_notify.py](workstation/hooks-index.md) (owner: infra): SessionStart + UserPromptSubmit hook — surface unread fabrik-mail (Fabrik-synced).
 - [mcp_watch.py](workstation/hooks-index.md) (owner: infra): UserPromptSubmit hook — the PER-MESSAGE MCP forcing layer (D-041; Fabrik-synced).
 - [quota_stop.py](workstation/hooks-index.md) (owner: infra): PreToolUse — the fleet-wide GRACEFUL STOP when the quota is exhausted with nothing to rotate to.
-- [seat_guard.py](workstation/hooks-index.md) (owner: infra): PreToolUse (Bash) seat guard — refuse a review seat's pattern kills and its git writes outside scratch.
+- [seat_guard.py](workstation/hooks-index.md) (owner: infra): PreToolUse (Bash) seat guard — refuse a review seat's pattern kills and its git writes outside
 - [session_orient.py](workstation/hooks-index.md) (owner: infra): SessionStart orientation (Fabrik-synced, stdlib-only, fail-open).
 - [skill_router.py](workstation/hooks-index.md) (owner: infra): Claude Code UserPromptSubmit hook — bilingual (EN+TR) skill router.
 
@@ -467,7 +482,7 @@
 - [fabrik-command-improve](../CLAUDE.md) (owner: infra): Act on ONE command's accumulated `change:` queue — read every axis-keyed verdict agents filed against it at their closes, propose the ONE edit that answers the most rows, render, review, and commit it with a trailer naming those rows and the series it expects to move. The half of the kaizen loop that EDITS the corpus. TRIGGER…
 - [fabrik-conformance-review](../CLAUDE.md) (owner: infra): Reopen EVERY spec + plan in a project and verify each was actually IMPLEMENTED — inventory → one grounded verifier per spec↔plan pair → five-value verdict → adjudicated ledger. Catches what code review and staleness checks cannot: a CONVERGED-but-stale plan, an implemented-but-INERT surface, a live-SLA broken while code conforms, and spec-refreeze debt. TRIGGER…
 - [fabrik-data-contract](../CLAUDE.md) (owner: infra): Freeze the project's data contract — the frozen truth mapping every GUI/form field to its exact DB column (type, required, validation, PII, FK, enums) so parallel agents share one naming truth, nobody invents a field. Three modes: spec-driven, reverse-generated backfill, fresh stub. Self-converges to FROZEN. Sits between /fabrik-spec and /fabrik-plan-after-chat. TRIGGER…
-- [fabrik-decommission](../CLAUDE.md) (owner: infra): Retire a project or service safely: ground truth first (hub-side liveness probe vs sibling domains, fleet consumer sweep — never a catalog/PORTS/env row as evidence), then one of three named outcomes (archive-source-only, full decommission, migrate-consumers-first), an operator confirmation gate, and only then the source move + hub bookkeeping…
+- [fabrik-decommission](../CLAUDE.md) (owner: infra): Retire a project or service safely: hub-side liveness probe vs sibling domains and a fleet consumer sweep first (never a catalog/PORTS/env row as evidence), then one of three named outcomes (archive-source-only, full decommission, migrate-consumers-first), an operator confirmation gate, and only then the source move + hub bookkeeping. Runtime teardown is always a separate, operator-gated step…
 - [fabrik-deploy](../CLAUDE.md) (owner: infra): Execute a CONVERGED deployment plan — stage 3 of the deploy triad. OPERATOR-DISPATCHED ONLY (Gate-2: runs only on the operator's explicit invocation THIS turn — never self-triggered or auto-chained). Hard-refuses any plan not Status: CONVERGED. Runs the runbook step-by-step with per-step verification, maintenance-window (autoheal-pause) bracketing, and the plan's battery as the exit gate…
 - [fabrik-deploy-checklist](../CLAUDE.md) (owner: infra): Author the project's deployment-verification CONTRACT — `scripts/verify_prod_parity.py`: one runnable check + expected result per corpus row, every denominator DERIVED from the system (route table · compose ∪ sidecars · `os.getenv` · scheduler · schema head), features cross-checked, DEV-minus-exclusions baseline, every row SEEN RED before `FROZEN`…
 - [fabrik-deploy-plan](../CLAUDE.md) (owner: infra): Author a per-service DEPLOYMENT PLAN — stage 1 of the deploy triad. Resolves the deploy surface from the service's project.yaml type (all 12 scaffold types; unknown types inferred from artifacts), then authors docs/development/plans/YYYY-MM-DD-plan-deploy-<service>.md (Status: DRAFT): target + spec↔code↔compose reconciliation, a runbook with per-step verification + rollback, healing-window…
@@ -486,7 +501,8 @@
 - [fabrik-plan-review](../CLAUDE.md) (owner: infra): Converge a plan to a fixed point — adversarial grounding (parallel grounders) → refute/merge → runnable gates per step, embedding the code-review gate + subagent/parallelism. TRIGGER — EN: "review/harden this plan", "is this plan ready to execute"; TR: "bu planı gözden geçir/sağlamlaştır", "bu plan uygulamaya hazır mı"…
 - [fabrik-release](../CLAUDE.md) (owner: infra): Surface-aware release runner — the last mile between "built and reviewed" and Gate 2 (human approval, R14). Reads project.yaml::type and dispatches the matching path — VPS types → readiness verification + hand off to hub-side `fabrik apply`; mobile-app → EAS checklist; chrome-extension → Web Store checklist. Every verdict cites evidence. ALWAYS STOPS at the human gate…
 - [fabrik-repo-review](../CLAUDE.md) (owner: infra): Full-project adversarial code review + fix — partition the repo into disjoint file slices → parallel read-only review slices → triage → risk-ordered serial fixes with regression tests → incremental convergence, with a coverage ledger. TRIGGER — EN: "audit the whole repo", "sweep the entire project for bugs"; TR: "tüm repoyu denetle", "projenin tamamını incele"…
-- [fabrik-review](../CLAUDE.md) (owner: infra): Adversarial code review of the CHANGED SURFACE (diff/PR/branch) — the surface partitioned into disjoint file slices → independent finders → YOU execute every candidate and refutation → fix with regression guards → LOOP in DELTA rounds until every Coverage-Checklist class is CLEAN/FIXED/REFUTED/RECORDED and the closing pass — the round-1 seats confirming their own slices…
+- [fabrik-reverse-engineer](../CLAUDE.md) (owner: infra): Reverse-engineer ONE feature of an existing product (a public website, an Electron app, an APK, a native binary) into a BEHAVIOUR-ONLY spec, using the REA MCP (`mcp__rea__*`) to inspect it. LOOK (map it) · UNDERSTAND (x-ray the feature) · PLAN (clean-room spec) · BUILD (the pipeline builds from the spec, never the original) · ITERATE (compare, close gaps). TRIGGER…
+- [fabrik-review](../CLAUDE.md) (owner: infra): Adversarial code review of the CHANGED SURFACE (diff/PR/branch): disjoint file slices → independent finders → YOU execute every candidate and refutation → fix with regression guards → LOOP in DELTA rounds until every Coverage-Checklist class is CLEAN/FIXED/REFUTED/RECORDED and the closing pass (the round-1 seats over their own slices) returns confirmed:0·fixed:0 (refuted/recorded never count…
 - [fabrik-review-scoped](../CLAUDE.md) (owner: infra): LIGHT diff-scoped review with the full convergence spine — for SPONTANEOUS plain-chat changes made under no command. Rubric-armed passes over the changed surface, fix-in-run, loop to a delta pass that CONFIRMS zero; the run record's round ledger IS the artifact (no review file; the closing pass still owes ONE independent reader). TRIGGER — EN: "quick review of my changes", "scoped review"…
 - [fabrik-rivals](../CLAUDE.md) (owner: infra): Competitive evidence BEFORE a spec exists — drives fabrik-lib's `competitor-intel` to a match-then-beat dossier at `docs/reference/rivals/<market>.md` that feeds `/fabrik-spec`: finds the rivals, mines their real reviews, builds a feature MATRIX, then a ranked MATCH list (what they have that we lack) and a ranked BEAT list (their review-proven weaknesses = our openings), plus a pricing wedge and…
 - [fabrik-rules-review](../CLAUDE.md) (owner: infra): Read-only .windsurf/rules compliance POSTURE audit — the full-coverage complement to /fabrik-review's per-diff rubric floor: establish real stack + spec shape flags + ADR, fan out one native finder per applicable pack (parallel), refute false gaps, iterate to a stable gap list, prioritized GAP table with path:line proof…
@@ -499,5 +515,5 @@
 - [fabrik-upstream](../CLAUDE.md) (owner: infra): Two-mode synced-file-defect flow (trade-intelligence 2026-08-05/06 + fabrik's own 2026-08-07 check_secrets DSN fix). PROJECT mode (any project, no hub shell-outs): a synced-file defect becomes a proposal at `docs/reference/upstream-proposals/YYYY-MM-DD-<slug>.md` — evidence, diffs, why-filed, blast-radius — never edits the synced copy…
 - [fabrik-user-test](../CLAUDE.md) (owner: infra): End-to-end UX certification for ANY GUI surface (SaaS, website, doc site, mobile app, extension, desktop) — the UI/workflow QC engineer. Builds the element inventory + USER JOURNEYS as denominators, dispatches fabrik-gui subagents across journey/flow/persona/state, verifies UI truth vs SYSTEM truth, fix-or-handoff every finding, LOOPs discovery-until-dry; persists as a RERUNNABLE suite. TRIGGER…
 - [fabrik-vision](../CLAUDE.md) (owner: infra): Turn research (or an interview) into a grounded, confirmed Vision Summary for a multi-epic initiative — NEW (green-field) or EXISTING (a running project's delta) — via a BLOCKING dual live-research gate (facts + best-practice) + the fabrik-lib ladder, so every epic /fabrik-epics cuts inherits grounded decisions. TRIGGER — EN: "I have a big/multi-epic idea", "scope this whole initiative"…
-- [fabrik-workflow-review](../CLAUDE.md) (owner: infra): Force a workflow ARTIFACT to converge to a no-op — the shared paired review for the PRODUCER doers /fabrik-vision and /fabrik-epics (the `type` you pass — `vision-summary` · `epic-decomposition` · `expanded-epic-files` — names the ARTIFACT you hand it; Phase-0 table). Give it the artifact path + its type. (Not the cross-epic validation…
+- [fabrik-workflow-review](../CLAUDE.md) (owner: infra): Converge a workflow ARTIFACT to a no-op — the shared paired review for the PRODUCER doers /fabrik-vision and /fabrik-epics. Give it the artifact path + its type. (Not the cross-epic validation — that loop is /fabrik-epics-review's own.) The doer produces, THIS forces convergence. TRIGGER — EN: "converge this workflow artifact", "review the epic or ticket breakdown"…
 - [hibernate](../CLAUDE.md) (owner: infra): Pause every agent on the box for a hibernate — the hub coordinator finds each repo's live coordinator (its ledger's merge owner, never a hand list), sends one URGENT pause, collects a PAUSED line per agent, and says \"safe to hibernate\" only when every agent's worktree is clean and pushed and no run is running; after the wake every agent resumes its own item. TRIGGER…

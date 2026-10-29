@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_check_convergence.py, tests/enforcement/test_spec_convergence.py, commands/_sources/fabrik-execute-plan.md, commands/_sources/fabrik-plan-review.md, docs/workflows/FINAL_GATE_WORKFLOW.md
+# AFTER-EDIT: tests/test_check_convergence.py, tests/enforcement/test_status_in_code_span.py, tests/enforcement/test_spec_convergence.py, commands/_sources/fabrik-execute-plan.md, commands/_sources/fabrik-plan-review.md, docs/workflows/FINAL_GATE_WORKFLOW.md
 """Convergence-evidence gate — run by final_gate via run_optional_check (non-zero = fail).
 
 A markdown artifact that CLAIMS convergence must PROVE it. Inspects only
@@ -179,8 +179,9 @@ def _mask_spans(s: str) -> str:
     a LINE: the closer is searched on the opener's line only (an unbounded search let a stray
     backtick before the ledger pair with one after it and swallow every row between). STATED COSTS:
     a code span that legitimately wraps across lines is read as two literal runs, so a `<!--` inside
-    it opens a comment and the rule then FAILS OPEN over every row that comment swallows (0 live
-    instances); and a single pathological line holding hundreds of runs of distinct lengths is still
+    it opens a comment that swallows the rows below it — no refusal reader FAILS OPEN on that any more,
+    because each also reads `_mask_spans_wrapped`'s view and refuses when either does (D-1131,
+    `_quoted_views`); and a single pathological line holding hundreds of runs of distinct lengths is still
     quadratic (a 721 KB line of 800 runs: ~11 s) — the bound moved the cliff from the document to
     the line, it did not remove it."""
     out = list(s)
@@ -214,16 +215,63 @@ def _mask_spans(s: str) -> str:
     return "".join(out)
 
 
+def _mask_spans_wrapped(s: str) -> str:
+    """`_mask_spans` under the shared span model: the spans `_fences.blank_code_spans` pairs (a span may wrap across
+    lines inside a paragraph, never across a block start), re-filled the same way — delimiters and line breaks kept,
+    content to `x`. It is the second model of the D-1131 union (`_quoted_views`): each model fails open on a document
+    the other refuses (this one on a compact `|Pass N|` row inside a wrapped span; `_mask_spans` on a wrapped span
+    holding `<!--`), so a refusal reader reads both and refuses when either does."""
+    blanked = _fences.blank_code_spans(s)
+    out, i, n = list(s), 0, len(s)
+    while i < n:
+        if s[i] != "`" or blanked[i] == "`":  # not a backtick, or one the helper left literal
+            i += 1
+            continue
+        j = i
+        while j < n and s[j] == "`":
+            j += 1
+        k, close = j, -1
+        while k < n:  # the closer: the next run of the opener's length the helper also consumed
+            if s[k] != "`":
+                k += 1
+                continue
+            m = k
+            while m < n and s[m] == "`":
+                m += 1
+            if m - k == j - i and blanked[k] != "`":
+                close = k
+                break
+            k = m
+        if close < 0:
+            i = j
+            continue
+        for q in range(j, close):
+            if s[q] not in "\r\n":
+                out[q] = "x"
+        i = close + (j - i)
+    return "".join(out)
+
+
 _CONFIRMED_TOKEN = re.compile(r"(?<![\w-])confirmed\s*:\s*(\d+)", re.I)
 CLOSING_ROW_REFUSAL = "the flip is refused: the last Pass row does not read confirmed: 0"
 
 
-def _blank_quoted(text: str) -> str:
+def _blank_quoted(text: str, mask=_mask_spans) -> str:
     """The spine-set QUOTING policy, one definition for every check in `_check_spine_set`: fences
     stripped, then code spans masked, then HTML comments blanked — a parked (commented) Board row,
     ledger row or ticket `Status:` line is a quote, never live (W-98338ad4: the orphan-row loop and
-    the ticket Status ban read fence-stripped text only, so a parked Board row was an orphan)."""
-    return _fences.strip_html_comments(_mask_spans(FENCE_STRIP.sub("", text)))
+    the ticket Status ban read fence-stripped text only, so a parked Board row was an orphan).
+    `mask` picks the span model; the one-argument call (check_spec_convergence's twin read) is today's."""
+    return _fences.strip_html_comments(mask(FENCE_STRIP.sub("", text)))
+
+
+def _quoted_views(text: str) -> tuple[str, str]:
+    """The text blanked under both span models (D-1131, W-f365c610). A reader that REFUSES reads both views and
+    refuses when either refuses; an exemption holds only when both views grant it. STATED COST: where one model is
+    wrong and refuses (`_mask_spans` on a wrapped span putting `Status:` at a line start), the refusal stands.
+    Replayed over every live doc: no verdict changes. COBRA (D-253): nothing is counted here; the cheapest way past a
+    refusal is to re-wrap the span onto one line, which both models then read alike."""
+    return _blank_quoted(text), _blank_quoted(text, _mask_spans_wrapped)
 
 
 def _closing_row_fail(text: str) -> str | None:
@@ -243,14 +291,14 @@ def _closing_row_fail(text: str) -> str | None:
     # population the `_PASS_ROW` comment states — change verdict), then HTML comments blanked.
     # The archived carve-out in the caller is the lowercase
     # DIRECTORY part `archived` — `Archived/` and a slug carrying the word are graded.
-    text = _blank_quoted(text)
-    last: str | None = None
-    for m in _PASS_ROW.finditer(text):
-        tokens = _CONFIRMED_TOKEN.findall(m.group(0))
-        if tokens:
-            last = tokens[-1]
-    if last is not None and int(last) != 0:
-        return f"{CLOSING_ROW_REFUSAL} (its last counter row reads confirmed: {last})"
+    for view in _quoted_views(text):  # refused when either span model refuses (D-1131)
+        last: str | None = None
+        for m in _PASS_ROW.finditer(view):
+            tokens = _CONFIRMED_TOKEN.findall(m.group(0))
+            if tokens:
+                last = tokens[-1]
+        if last is not None and int(last) != 0:
+            return f"{CLOSING_ROW_REFUSAL} (its last counter row reads confirmed: {last})"
     return None
 
 
@@ -446,9 +494,13 @@ def _check_spine_set(root: Path, spine: Path, text: str) -> list[str]:
     if "archived" in rel.parts:
         return []  # settled history — never re-enforced
     fails: list[str] = []
-    text = _blank_quoted(text)  # fences, code spans and comments are quotes (W-98338ad4)
-    section = BOARD_SECTION.search(text)
-    rows = BOARD_ROW.findall(section.group(1)) if section else []
+    rows: list[str] = []
+    # fences, code spans and comments are quotes (W-98338ad4), read under both span models (D-1131)
+    for view in _quoted_views(text):
+        section = BOARD_SECTION.search(view)
+        rows += [
+            r for r in (BOARD_ROW.findall(section.group(1)) if section else []) if r not in rows
+        ]
     ticket_ids_on_disk = {
         f.name.split("-", 1)[0] for f in spine.parent.glob("*.md") if TICKET_FILE.match(f.name)
     }
@@ -461,7 +513,8 @@ def _check_spine_set(root: Path, spine: Path, text: str) -> list[str]:
     for f in sorted(spine.parent.glob("*.md")):
         if not TICKET_FILE.match(f.name):
             continue
-        if ANY_STATUS_LINE.search(_blank_quoted(f.read_text(encoding="utf-8", errors="replace"))):
+        ticket = f.read_text(encoding="utf-8", errors="replace")
+        if any(ANY_STATUS_LINE.search(view) for view in _quoted_views(ticket)):
             fails.append(
                 f"{rel}: ticket {f.name} carries a Status: line — ticket state lives ONLY "
                 "in the spine Board"
@@ -813,6 +866,20 @@ _STATUS_LINE = re.compile(r"^\s*\**Status\**:\**\s*\**\s*([A-Za-z][A-Za-z -]*)",
 _MIDFLIGHT = {"IN-PROGRESS", "IN PROGRESS", "DRAFT", "ACTIVE", "OPEN", "PLANNING"}
 
 
+def _archived_plan_status(text: str) -> str | None:
+    """An archived plan's own Status value: fences stripped, then the first Status line starting in the first 4000
+    characters whose key no inline code span hides. The match runs on the original text (`_fences.status_candidates`),
+    so a stray backtick cannot erase the real line. Both archived-plan reads go through here (W-a7cff030). They fail
+    CLOSED, so when only spanned candidates exist the strict branch returns a mid-flight value among them."""
+    candidates = _fences.status_candidates(FENCE_STRIP.sub("", text), _STATUS_LINE, endpos=4000)
+    shown = [m for m, hidden in candidates if not hidden]
+    if shown:
+        return shown[0].group(1).strip()
+    # only spanned candidates: this read fails CLOSED, so its strict branch flags a mid-flight value it can see
+    hidden_midflight = [m for m, _ in candidates if m.group(1).strip().upper() in _MIDFLIGHT]
+    return hidden_midflight[0].group(1).strip() if hidden_midflight else None
+
+
 def _archived_midflight(root: Path) -> list[str]:
     """Archived PLAN files whose own Status still claims work is in flight."""
     try:
@@ -836,12 +903,10 @@ def _archived_midflight(root: Path) -> list[str]:
         f = root / dst
         if not f.is_file():
             continue
-        m = _STATUS_LINE.search(
-            FENCE_STRIP.sub("", f.read_text(encoding="utf-8", errors="replace"))[:4000]
-        )
-        if m and m.group(1).strip().upper() in _MIDFLIGHT:
+        status = _archived_plan_status(f.read_text(encoding="utf-8", errors="replace"))
+        if status and status.upper() in _MIDFLIGHT:
             fails.append(
-                f"{dst}: archived while its own Status reads {m.group(1).strip()!r}. Archiving is "
+                f"{dst}: archived while its own Status reads {status!r}. Archiving is "
                 "the 'nothing is left' act. If the EXECUTED flip was lost by `git mv` (it moves "
                 "INDEXED content, not your working tree), re-stage: `git add <the archived path>`"
             )
@@ -1049,7 +1114,8 @@ def _first_commit_date(root: Path, relpath: str) -> str:
 def _legacy_receipt(root: Path, relpath: str, rtext: str) -> str:
     """The receipt's first-commit date when D-497 grandfathers it, else ""."""
     header = "".join(rtext.splitlines(keepends=True)[:10])  # the header zone (`_in_progress`'s)
-    if not _claims_converged(_blank_quoted(header)):  # one quoting policy (W-98338ad4)
+    # one quoting policy (W-98338ad4); an exemption, so it holds only when both span models agree (D-1131)
+    if not all(_claims_converged(v) for v in _quoted_views(header)):
         return ""
     first = _first_commit_date(root, relpath)
     return first if first and first < _D206_CUTOVER else ""
@@ -1294,13 +1360,14 @@ _COMMAND_LABEL = re.compile(
 _DESIGN_REVIEW_COMMAND = re.compile(r"`?/fabrik-(?:spec|plan)-review(?![\w/:-]|\.\w)", re.I)
 
 
-def _is_design_receipt(header: str, text: str, checklist_head: re.Pattern[str]) -> bool:
-    """Routing: the FIRST header `Command:` label leads with a design-review command, and no live
-    (unquoted) Coverage Checklist heading marks the receipt a code review."""
+def _is_design_receipt(header: str, text: str, checklist_head: re.Pattern[str]) -> set[bool]:
+    """Routing, one answer per span view (D-1131): the FIRST header `Command:` label leads with a design-review
+    command, and no live (unquoted) Coverage Checklist heading marks the receipt a code review. A route is not a
+    refusal, so when the two views disagree the caller grades BOTH routes and keeps every refusal."""
     m = _COMMAND_LABEL.search(header)
     if not m or not _DESIGN_REVIEW_COMMAND.match(m.group("v")):
-        return False
-    return not any(checklist_head.match(ln) for ln in _blank_quoted(text).splitlines())
+        return {False}
+    return {not any(checklist_head.match(ln) for ln in v.splitlines()) for v in _quoted_views(text)}
 
 
 def _design_review_fails(rel: Path, text: str) -> list[str]:
@@ -1312,8 +1379,10 @@ def _design_review_fails(rel: Path, text: str) -> list[str]:
     `confirmed:` counter is refused (fail-closed); a later table row elsewhere in the receipt that
     carries a `confirmed:` counter is read as a round — a nonzero one refuses an honest receipt, a
     zero one after a loud ledger passes it — exactly as on a plan spine."""
-    rows = [m.group(0) for m in _PASS_ROW.finditer(_blank_quoted(text))]
-    if not any(_CONFIRMED_TOKEN.search(r) for r in rows):
+    if not all(
+        any(_CONFIRMED_TOKEN.search(m.group(0)) for m in _PASS_ROW.finditer(v))
+        for v in _quoted_views(text)
+    ):
         return [
             f"{rel}: a /fabrik-spec-review or /fabrik-plan-review receipt claims a finished review "
             "but no `| Pass N |` row carries a `confirmed:` counter (the D-206 grammar) — record "
@@ -1357,8 +1426,10 @@ def _check_review(root: Path, path: Path) -> list[str]:
         return []
     rel = path.relative_to(root)
     header = _strip_fences("".join(_normalized(text).splitlines(keepends=True)[:10]))
-    if _is_design_receipt(header, text, CHECKLIST_HEAD):
-        return _design_review_fails(rel, text)
+    routes = _is_design_receipt(header, text, CHECKLIST_HEAD)
+    design_fails = _design_review_fails(rel, text) if True in routes else []
+    if False not in routes:
+        return design_fails
     fails: list[str] = []
     # A receipt graded only for its header Status has no claim WORD to explain the red, so the
     # first failure names the trigger and the honest ways out.
@@ -1404,7 +1475,7 @@ def _check_review(root: Path, path: Path) -> list[str]:
         )
     if not PHASE.search(text):
         fails.append("no per-phase verdict (no Phase/Step reference)")
-    return [f"{rel}: {why if i == 0 else ''}{x}" for i, x in enumerate(fails)]
+    return design_fails + [f"{rel}: {why if i == 0 else ''}{x}" for i, x in enumerate(fails)]
 
 
 def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
@@ -1452,9 +1523,9 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
         if not text:
             continue  # untracked, or unreadable at HEAD — not a committed claim
         if _ARCHIVED_PLAN.search("/" + str(rel)):
-            m = _STATUS_LINE.search(text[:4000])
-            if m and m.group(1).strip().upper() in _MIDFLIGHT:
-                out.append(f"{rel}: archived while its own Status reads {m.group(1).strip()!r}")
+            status = _archived_plan_status(text)
+            if status and status.upper() in _MIDFLIGHT:
+                out.append(f"{rel}: archived while its own Status reads {status!r}")
             continue
         if not EXECUTED.search(text):
             continue

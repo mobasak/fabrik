@@ -1,0 +1,23 @@
+{
+  "blocked_by": [
+    "W-bc394d0b"
+  ],
+  "created": "2026-10-29T19:15:26.288410Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-dbb525de",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M64EC41S86M6K8ME9FYQHWMP",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "open",
+  "title": "corpus wording — a TRIMMED partition can now run as ONE review-loop launch with max_seats (W-bc394d0b, D-1354)"
+}

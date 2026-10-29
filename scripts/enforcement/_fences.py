@@ -19,7 +19,9 @@ distinct-length backtick lines, 10.2 s on one 200 KB run); FENCE_BLOCK and _HTML
 start position. tests/enforcement/test_fences.py keeps the old regexes as the oracle.
 
 ``blank_code_spans`` blanks inline code spans for docs_updater and check_doc_links (W-b9af1d47) — one copy,
-linear (W-16c00597), its quadratic original the oracle in tests/test_docs_updater.py.
+linear (W-16c00597), its quadratic original the oracle in tests/test_docs_updater.py. ``blank_code_examples``
+(fence lines and bodies by ``fence_toggle``, then spans) is the one reading check_doc_links and check_doc_index
+grade markdown links on (W-85bd72fa).
 
 Every consumer imports it by its own name — ``scripts/enforcement`` inserted into ``sys.path`` once, then
 ``import _fences`` — so a package import, a by-path run and a ``spec_from_file_location`` load share one module.
@@ -256,16 +258,31 @@ def strip_three_marker_fences(text: str) -> str:
 
 # W-16c00597 / W-b9af1d47: inline code spans, blanked length-preserving — docs_updater's link scan and plan
 # header reads, and check_doc_links' link reader. A span opener is a whole backtick run (finditer's greedy `+`
-# never starts mid-run), not escaped; it closes on the next run of the same length.
+# never starts mid-run); it closes on the next run of the same length. Escapes by CommonMark's parity (W-753040b8):
+# an odd run of backslashes before the run escapes its FIRST backtick only, so the rest still opens one character
+# later, and an even run is escaped backslashes, leaving the run live; a backslash before a closer is span content.
 _BACKTICK_RUN_RE = re.compile(r"`+")
 # A link's `](dest "title")` tail is raw text: a backtick in it opens no span (it may still CLOSE
 # one opened before the link's `[`, as CommonMark reads it). Only a tail after `[text]` counts, so a
-# stray `](` cannot shield a real code span from blanking.
-_LINK_TAIL_RE = re.compile(r"\[(?:[^\[\]\n]|\[[^\[\]\n]*\])*(\]\((?:[^()\n]|\([^()\n]*\))*\))")
+# stray `](` cannot shield a real code span from blanking. W-f365c610 (F1): the tail must parse as a
+# CommonMark destination — `<…>`, or no space and parentheses nested one level — then an optional
+# `"…"`, `'…'` or `(…)` title; `[r](u `x`)` is no link, so its backticks open a span, as markdown-it
+# renders it; a title may hold backslash escapes. STATED COST: a destination nested two levels deep, a
+# title on the next line, and a title with no destination read otherwise than markdown-it (0 of 762 real
+# `](` lines under /opt/fabrik/docs, the W-f365c610 design critique's count). A backslash before the `[` is not read
+# either: `\[a](`)`` is no link to CommonMark, so its "`)`" is a span this tail still shields — the safe direction,
+# text left visible (W-753040b8 critique; filed as W-1c4e2a9a).
+_LINK_TAIL_RE = re.compile(
+    r"\[(?:[^\[\]\n]|\[[^\[\]\n]*\])*(\]\([ \t]*(?:<[^<>\n]*>|(?:[^\s()\\]|\\.|\((?:[^\s()\\]|\\.)*\))*)"
+    r"(?:[ \t]+(?:\"(?:[^\"\\\n]|\\.)*\"|'(?:[^'\\\n]|\\.)*'|\((?:[^()\\\n]|\\.)*\)))?[ \t]*\))"
+)
 # A line a span never crosses into: blank, or one that starts another block (a setext underline
-# and a thematic break end the paragraph too).
+# and a thematic break end the paragraph too). A line-start `<!--` opens an HTML block, which interrupts
+# a paragraph (W-f365c610, D4). STATED COST: the other HTML block starts (`<div>`, `<details>`, `<pre>` …)
+# are not modelled, so a span may still wrap across one (named by the W-f365c610 design critique; its
+# live count is unmeasured).
 _BLOCK_START_RE = re.compile(
-    r"[ \t]*(?:\r?$|[-*+>|][ \t]|\d+[.)][ \t]|#{1,6}(?:[ \t]|\r?$)|```|~~~"
+    r"[ \t]*(?:\r?$|[-*+>|][ \t]|\d+[.)][ \t]|#{1,6}(?:[ \t]|\r?$)|```|~~~|<!--"
     r"|(?:=+|-+)[ \t]*\r?$|(?:[*_][ \t]*){3,}\r?$)",
     re.M,
 )
@@ -273,12 +290,22 @@ _BLOCK_START_RE = re.compile(
 _ONE_LINE_BLOCK_RE = re.compile(r"[ \t]*(?:#{1,6}(?:[ \t]|\r?$)|\|)", re.M)
 
 
+def _escaped(content: str, pos: int) -> bool:
+    """True when an ODD run of backslashes ends at `pos` — the backtick there is escaped (CommonMark: an even run
+    is escaped backslashes, so the backtick after it is live)."""
+    k = pos
+    while k and content[k - 1] == "\\":
+        k -= 1
+    return (pos - k) % 2 == 1
+
+
 def _blank_span(text: str) -> str:
     return re.sub(r"[^\r\n]", " ", text)
 
 
 def blank_code_spans(content: str) -> str:
-    """Each unescaped opener, outside a link tail, pairs with the next run of its length unless a line break first
+    """Each opener (a run less the first backtick an odd backslash run escapes), outside a link tail, pairs with the
+    next run of its length unless a line break first
     ends the span (any break on a heading or table line, else one that starts a block); the runs between are consumed.
     Linear (W-16c00597): every gap between two runs is examined once, each run's line start comes from one forward
     walk, and an opener finds its closer by bisect in the list of runs of its length — the scan-forward-per-opener
@@ -323,22 +350,78 @@ def blank_code_spans(content: str) -> str:
     while i < n:
         opener = runs[i]
         i += 1
-        if opener.start() and content[opener.start() - 1] == "\\":
-            continue
-        t = bisect_right(tail_starts, opener.start()) - 1
-        if t >= 0 and opener.start() < tails[t][1]:
+        o_start, o_len = opener.start(), len(opener.group())
+        if _escaped(content, o_start):
+            # an odd run of backslashes escapes the run's FIRST backtick only; the rest still opens
+            o_start, o_len = o_start + 1, o_len - 1
+            if not o_len:
+                continue
+        t = bisect_right(tail_starts, o_start) - 1
+        if t >= 0 and o_start < tails[t][1]:
             continue
         start = line_of[i - 1]
         if start not in one_line_at:
             one_line_at[start] = _ONE_LINE_BLOCK_RE.match(content, start) is not None
         limit = (next_nl if one_line_at[start] else next_block)[i - 1]
-        same = by_len[len(opener.group())]
+        same = by_len.get(o_len, [])
         k = bisect_right(same, i - 1)
         if k < len(same) and same[k] <= limit:
             j = same[k]
             out += [
-                content[kept : opener.start()],
-                _blank_span(content[opener.start() : runs[j].end()]),
+                content[kept:o_start],
+                _blank_span(content[o_start : runs[j].end()]),
             ]
             kept, i = runs[j].end(), j + 1
     return "".join(out) + content[kept:]
+
+
+# A backtick run, text, then the same run: an inline code span on one line, not a fence opener.
+_INLINE_SPAN_RE = re.compile(r"(`{3,})[^`]+\1(?!`)")
+
+
+def fence_toggle(line: str) -> bool:
+    """The link checks' fence toggle: any line whose left-stripped text starts with ``` opens or closes a
+    fence — no run length, no ~~~, a closer may carry text (a CommonMark model is W-2725ed54's) — except a
+    line-leading inline span that closes on its own line (```` ```x``` ````), which is code, not a fence."""
+    stripped = line.lstrip()
+    return stripped.startswith("```") and not _INLINE_SPAN_RE.match(stripped)
+
+
+def blank_code_examples(text: str) -> str:
+    """`text` with every fence line and fence body (by `fence_toggle`) and then every inline code span blanked,
+    length-preserving — the reading check_doc_links and check_doc_index grade links on (W-b9af1d47, W-85bd72fa).
+    Fences go first, so a fence's ``` never pairs with an inline ``` run after it and a body's backticks never
+    pair with an opener above the fence; the toggle splits lines on every boundary str.splitlines() uses (\\r,
+    \\f, \\v, \\x1c-\\x1e, NEL, U+2028 and U+2029 too), while the span blanker breaks lines only on \\n, so
+    masking per line before the span pass is load-bearing.
+    Every offset in the output is the input's, so a caller cuts it at its own raw line offsets."""
+    masked = list(text)
+    in_fence, pos = False, 0
+    for raw in text.splitlines(keepends=True):
+        line = raw.splitlines()[0]
+        toggle = fence_toggle(line)
+        if toggle or in_fence:
+            masked[pos : pos + len(line)] = " " * len(line)
+        in_fence ^= toggle
+        pos += len(raw)
+    return blank_code_spans("".join(masked))
+
+
+def status_candidates(
+    text: str, pattern: re.Pattern[str], endpos: int | None = None
+) -> list[tuple[re.Match[str], bool]]:
+    """Every `pattern` match in the ORIGINAL text, paired with whether an inline code span hides its `Status` key.
+
+    W-a7cff030 (panel verdict, both seats): match on the original text, never on a blanked copy. Matching a blanked
+    copy let a stray backtick pair across lines and erase a REAL Status line, let a value's tail cross into the next
+    line, and let a line that only starts with a span count as a Status line. A hidden match is a REJECTED candidate,
+    not an invisible one: each reader takes the first match that is not hidden, and when only hidden ones exist it
+    falls to its own strict branch (its stated fail direction). `endpos` bounds where a match may start, as a slice
+    would."""
+    blanked = blank_code_spans(text)
+    out: list[tuple[re.Match[str], bool]] = []
+    for m in pattern.finditer(text, 0, len(text) if endpos is None else endpos):
+        at = m.group(0).lower().find("status")
+        key = m.start() + (at if at >= 0 else 0)
+        out.append((m, blanked[key] != text[key]))
+    return out

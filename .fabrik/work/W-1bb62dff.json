@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T16:48:12.798317Z",
+  "creator": "infra-2",
+  "evidence": "c1280ac4ca42c87b9bc09b4c1ebc614a90da96d8",
+  "id": "W-1bb62dff",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fix (1)(2) plus (7) the sentence split breaks at 'e.g.' so the docstring's 'in any wrap' overclaims — strip comments inside the block body, put the negation before the verb, split on sentence ends not after e.g./i.e.; then decide whether pack-prose lint belongs in check_review_hygiene.py (measure fire rate first)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "tags": [
+    "residue"
+  ],
+  "title": "Residue of W-dab6a341's review (scope-growth stop, round 2; RECORDED in pass 3): tests/test_design_system_template_pack.py — (1) the comment strip runs over the whole pack text, so glob prose like **/*.tsx … **/*.css pairs into a fake /* */ and can hide a @theme block between them (strip inside the brace-depth body instead); (2) the negation skip is sentence-wide, so 'Declare these in @theme (not @theme inline)' passes (require the negation before the verb); (3) the prose guard catches only the declare-these/them/the-slots family; (4) the version regex misses years and spelled numbers; (5) no .html/.json negative paths; (6) template globs miss nested src/styles/** and *-theme.css outside src/styles (0 of 24 measured @theme files have those shapes)"
+}

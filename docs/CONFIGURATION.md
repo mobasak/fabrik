@@ -158,6 +158,7 @@ project, environment and private-key UUIDs) and the hub `compose.yaml`'s four `C
 | `SESSION_ARCHIVE_B2_PREFIX` | path under the bucket, default `archive` |
 | `SESSION_ARCHIVE_ENV_FILE` | where the archiver reads every `SESSION_ARCHIVE_*` setting (key, bucket, prefix) from when the process environment lacks it or holds an empty value, default `/opt/fabrik/.env` — only `SESSION_ARCHIVE_*` lines are read |
 | `ROTATE_ADVISE_MB` | the ROTATE advisory's threshold in MB (default 200; D-736 C.1.3) — `scripts/sysadmin/transcript_size_check.py` prints its one line when a session's transcript is at or past it and has crossed a new 100 MB step; read from the process env, else this file's line |
+| `ROTATE_CONTEXT_WINDOW` | the context sensor's window in tokens (W-f975fee0) — unset, 1,000,000 for every session (a bare model id is no evidence of 200k: this box runs Opus 5.5 and Fable 5.1 at 1M under it, W-25f6b2a3); a positive int overrides it for every session; read from the process env, else this file's line |
 | `PRUNE_AFTER_DAYS` | the pruner's window in days (default 3; D-736 C.2.1 r1) — `scripts/sysadmin/prune_transcripts.py` never offers a MAIN transcript whose `mtime` is inside it, nor a subagent sidechain, task or shell snapshot; read from the process env, else this file's line |
 | `PRUNE_MAX_PER_RUN` | the cap on MAIN deletions per pruner run (default 200; C.2.2) — every run takes the oldest cap-many deletable inodes and reports the rest `deferred`; a hand run's `--max M` replaces it |
 | `SESSION_RECALL_RO_DSN` | session-recall's EXISTING read-only role `recall_ro` (`/opt/session-recall/db/schema.sql`), copied here by the operator — the pruner reads `index_state` by inode through it (C.2.1 r8) and deletes nothing it has not indexed to the file's current size; absent ⇒ every file is refused `not-indexed`. Never printed |
@@ -258,13 +259,11 @@ Used by `/opt/ai-model-catalog/engine/microbench_specialty.py` (ai-model-catalog
 
 ### GlitchTip (error tracking)
 
-GlitchTip (`errors.vps1.ocoron.com`, Sentry-compatible) is declared in `specs/infrastructure/glitchtip.yaml` and is the error-tracker source for the AI watchdog (`org=ocoron`, `team=vps1`). It reuses `postgres-main` (DB `glitchtip`) + `redis-main`. Env vars:
+GlitchTip (`errors.vps1.ocoron.com`, Sentry-compatible) is the error-tracker source for the AI watchdog (`org=ocoron`, `team=vps1`). It runs from the hand-maintained `/opt/glitchtip/compose.yaml` on vps1, mirrored at `infra/vps1/glitchtip/compose.yaml`, and never through `fabrik apply`. It reuses `postgres-main` (DB `glitchtip`) + `redis-main` (db 4); both `DATABASE_URL` and `REDIS_URL` are literal in that compose. Its one interpolated secret:
 
-- `GLITCHTIP_SECRET_KEY` — Django secret key. **Use the existing live value** (`/opt/glitchtip/compose.yaml`); changing it invalidates all sessions.
-- `GLITCHTIP_REDIS_URL` — e.g. `redis://redis-main:6379/<db>` (existing live value).
-- `POSTGRES_PASSWORD` — shared `postgres-main` superuser password (already provisioned).
+- `GLITCHTIP_SECRET_KEY` — Django secret key, set on vps1 beside the live compose (a host fact; the hub `.env` does not carry it). **Never regenerate it** — a changed key invalidates every session.
 
-⚠️ Do not `fabrik apply specs/infrastructure/glitchtip.yaml` until these match the live deployment, or the live tracker + its session keys break. The spec declares the existing hand-deployed stack; `fabrik apply` is targeted, so adding it does not auto-redeploy.
+The hub `.env` carries none of the stack's settings — only the API settings the GlitchTip registrar reads (`GLITCHTIP_AUTH_TOKEN`, `GLITCHTIP_ORG_SLUG`, `GLITCHTIP_TEAM_SLUG`; `src/fabrik/drivers/glitchtip.py`).
 
 ### Watchdog DB access — `WATCHDOG_DB_URL_RO` / `WATCHDOG_DB_URL_RW` (auto-injected, do NOT set by hand)
 
@@ -288,7 +287,7 @@ Boot every payments connection — ingest and the fulfilment worker — with `ve
 
 Every project with `shape.needs_database` carries two DSNs — `DATABASE_URL` in its `.env` and `DATABASE_URL_OWNER` in its `.env.owner` (root 0600, loaded only by the services that declare it: the audit-jobs companion, a `migrate` service — the owner split, D-754) — both injected by the postgres registrar at `fabrik apply` and neither with a default in code (a missing value fails loudly at boot):
 
-- `DATABASE_URL_OWNER` — the database OWNER. Only schema work uses it: `db/schema.sql` (whose header reads `DATABASE_URL_OWNER` out of `.env.owner` with `sed`, strips the quotes, and runs `u=$(pgurl "$v") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql` — `pgurl` is the one-line shell function from the project's TROUBLESHOOTING § Debug Commands, defined inside the root shell by the header's `sed` half — under one `sudo sh -c` that never sources the env files as shell code), migrations, runtime DDL, and the scheduled audit-log retention and verification jobs. It is the rollback DSN, so it is never removed.
+- `DATABASE_URL_OWNER` — the database OWNER. Only schema work uses it: `db/schema.sql` (whose header reads `DATABASE_URL_OWNER` out of `.env.owner` with `sed`, strips the double quotes — an owner DSN holding a `$` is written single-quoted or `\$`-escaped (`src/fabrik/env_file.py`), which `pgurl` then refuses loudly — and runs `u=$(pgurl "$v") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql` — `pgurl` is the one-line shell function from the project's TROUBLESHOOTING § Debug Commands, defined inside the root shell by the header's `sed` half — under one `sudo sh -c` that never sources the env files as shell code), migrations, runtime DDL, and the scheduled audit-log retention and verification jobs. It is the rollback DSN, so it is never removed.
 - `DATABASE_URL` — what the app connects with. On a fresh create both hold the owner DSN; once the spec's `shape.database_url_app_role: true` cuts over, `DATABASE_URL` names the non-owner `<db>_app` role (the same DSN with only user and password swapped), which cannot `CREATE`, owns no table, and holds only `INSERT, SELECT` on `audit_log`.
 
 `shape.database_url_app_role` (boolean, default `false`, requires `needs_database`) is the per-project switch and must be a YAML boolean (a string such as `"false"` or a number fails validation, as the registrar refuses it). Every scaffolded database spec (`--db`, or a type whose defaults need a database) emits it `true` together with `depends.postgres: <id with hyphens as underscores>` — the project's OWN database, the name the registrar derives — so a new project is born on the app role and never shares a database the cutover would refuse; an existing project flips it after `fabrik app-role-check` passes, and unsetting it rolls back. The runbook and the converge table are in [`docs/operations/fabrik-lifecycle.md`](operations/fabrik-lifecycle.md) § App-role cutover and rollback.
@@ -427,6 +426,12 @@ As of 2026-09-02 it carries the full AI-supplier set, each **validated live befo
   canary roster (deduped union; `anthropic/*` always excluded). Default `8`; hub-local tunable,
   read at batch start. See `docs/reference/canary-grounding.md`.
 
+### fabrik-scrape endpoint — `FABRIK_SCRAPE_MCP_URL`
+
+- `FABRIK_SCRAPE_MCP_URL` — the MCP endpoint `scripts/scrape_ledger.py` grades a ledger against when no `--server`
+  is given. Default `http://127.0.0.1:8034/mcp`, the loopback service `fabrik-scrape-mcp.service` runs. Set it only to
+  grade a server on another port, such as a scratch copy. See `docs/reference/fabrik-scrape-mcp.md`.
+
 ### Subagent flywheel — `SUBAGENT_RUNS_DSN` / `SUBAGENT_PROJECT` (hub-injected; do NOT hand-set the DSN)
 
 The vendored `libs/subagents` pool scores every run to `fabrik_analytics.subagent_runs` via `record_agent_run`, which `pick_models(task_type)` learns from. The module autoloads both vars from `.env` (`_dotenv.py`, non-overriding — a real `export` or a deploy-injected value always wins):
@@ -473,6 +478,25 @@ The test suite pins both dirs to empty folders (`tests/conftest.py`), so no test
 Read by `scripts/sysadmin/claude_rotate.py --tick` from the process environment; it never goes in a project `.env`. How the wake works: `docs/workstation/claude-account-rotation.md`, its **Resume wake** entry.
 
 - `CLAUDE_RESUME_GAP_MIN` — the gap, in minutes, from the last tick's end to this tick's start beyond which the tick reads a host sleep and wakes every armed self-watch (default `15`). A value under `12` falls back to `15`, because one missed `*/5` slot already makes a 10–11 minute gap; a non-finite value falls back too.
+
+### Fabrik Deck — `FABRIK_DECK_PORT` / `FABRIK_DECK_CODE_PORT` / `FABRIK_DECK_STATE` (WSL box, D-1106)
+
+Kept in `~/.config/fabrik-deck/env`, which the two systemd units load as their `EnvironmentFile=`; `serve` and
+`code-server` read the two ports from the process environment only; `serve` and the hook take `FABRIK_DECK_STATE`
+from the process environment, else from the file; `install` and `up` read the file only, so a value set just in a
+shell does not reach them.
+None of them goes in a project `.env`. `fabrik_deck.py install` writes the defaults and never overwrites a line you changed. How the Deck
+works: `docs/workstation/fabrik-deck.md`.
+
+- `FABRIK_DECK_PORT` — the board's port on 127.0.0.1 (default `8445`).
+- `FABRIK_DECK_CODE_PORT` — code-server's port on 127.0.0.1 (default `8443`); the board's repo links point at it.
+- `FABRIK_DECK_STATE` — the folder holding `attention/`, one file per session waiting on the operator (default
+  `<home>/.local/state/fabrik-deck`; written absolute, as systemd does not expand `~`; when read, a `~` is
+  expanded and a value still relative falls back to the default).
+
+`install` also seeds the code-server workbench's environment into the same file — `FABRIK_DECK=1` (marks a Deck tab,
+the hook's `origin: deck`), `CLAUDE_CONFIG_DIR`, `CLAUDE_QUOTA_HOME`, `PATH`, `DISPLAY` and `WAYLAND_DISPLAY`; their
+defaults are in `docs/workstation/fabrik-deck.md` § The two services.
 
 ### Mutation testing — `FABRIK_MUTMUT` (dev; advisory, opt-in)
 
@@ -530,7 +554,8 @@ Read from the process environment by `scripts/sysadmin/agents_up.sh`. Panes have
 `fabrik-agents.slice`, holds every pane and every capped test job: `MemoryHigh` = MemTotal − max(4G, floor) and
 `MemoryMax` = MemTotal − max(2G, floor − 2G), in whole G.
 
-- `FABRIK_AGENT_NONAGENT_FLOOR`: what the non-agent processes (Windows, VS Code, the system) keep, in whole G
+- `FABRIK_AGENT_NONAGENT_FLOOR`: what the non-agent processes (Windows, VS Code, the system) keep at `MemoryHigh`
+  (floor − 2G at `MemoryMax`), in whole G
   (default `12G`; the `G` is optional). A MemTotal under 8G, or an unreadable one keeps
   D-1075's 16G `MemoryMax` and says so; a floor that leaves nothing uses the minimum margins (MemTotal − 4G / MemTotal − 2G), also said.
 - `FABRIK_AGENT_SLICE_MAX`: overrides the derived `MemoryMax` (and clears `MemoryHigh`).
@@ -1086,6 +1111,7 @@ python -m alerting --selftest --dry-run  # configuration only, sends nothing
 | `ALERT_ENABLED` | `0` disables; `1` forces on; unset auto-enables when any delivery var is set. |
 | `ALERT_MIN_INTERVAL` | Dedup window in seconds per alert title (default `300`). |
 | `FABRIK_MAIL_ROOT` | Root of the durable mail store (default `/opt/fabrik-mail`). Every mailbox lives at `<root>/<repo>/{inbox,archive,malformed}`; the test suite points this at a temp dir. |
+| `MAIL_NOTIFY_STATE_DIR` | Where the mail hook keeps each session's digest of the last FULL block it printed (default `~/.claude/state/mail-notify`), so an unchanged block under 30 min old prints on UserPromptSubmit as one pointer line (D-1171); the test suite points this at a temp dir. ⚠️ Read from the hook's process environment only, never from `.env`, and used as written — give an absolute path, `~` is not expanded. |
 | `FABRIK_OPT_ROOT` | Base used to validate that a recipient repo actually exists on the box (default `/opt`). A recipient with no directory under it is refused. |
 | `FABRIK_MAIL_ESCALATE_DAYS` | escalation-digest age threshold in days (default `3`; a non-numeric or below-minimum value warns and uses the default). ⚠️ Read by the CRON LINE's env prefix, never from `.env` — cron sources no dotenv and the alerting loader's allowlist excludes it (`docs/workstation/fabrik-mail.md` § Escalation). |
 | `FABRIK_MAIL_HOP_CAP` | fabrik-mail auto-reply hop budget — HOLD when `parent.hops >=` this (default `3`; `0` = refuse all auto-replies; a negative or non-numeric value warns and uses the default). |
@@ -1124,6 +1150,24 @@ in `docs/reference/external-services-registry.md`.
 |---|---|---|
 | `FABRIK_SCAFFOLD_OFFLINE` | unset | `1`/`true`/`yes`/`on` makes scaffold code write every file but create no venv, install nothing, create no local database, skip the hub registry sync and the `.mcp.json` emitter; the venv and database steps print the command to run instead. Those steps already run only inside an explicit opt-in — `create_project(provision=True)`, which `fabrik scaffold` passes, or `scaffold.provisioning()` — so this switch matters only there; any other caller is offline without it (W-e2f0b6e5). `tests/conftest.py` pins it for the whole test session. It scopes scaffold code only: `fabrik scaffold`'s own registry save, sync and GitHub wiring around `create_project` still run. |
 | `FABRIK_REAL_DOCKER_BUILD` | unset | `1` opts `tests/test_docusaurus_static_runtime.py::test_real_build_serves_the_static_site` into a real `docker build` and run of a scaffolded docusaurus site (needs docker and the npm registry; ~80 s); unset, the test skips with a reason naming the flag; set with no `docker` on `PATH`, it fails rather than skips. |
+
+## Prepaid API credits (D-1196)
+
+Three prepaid $200 Anthropic API credits are spent by `scripts/api_credit.py` on capped, read-only `claude -p --safe-mode`
+runs, each behind a keyless pre-flight ([workstation/api-credit.md](workstation/api-credit.md)). The script reads the keys from the main checkout's
+`.env`, never prints them, and hands one key to each run as that run's own `ANTHROPIC_API_KEY`.
+
+| Var | Default | Effect |
+|---|---|---|
+| `ANTHROPIC_API_KEY_CAN` | empty | the Can credit's key; `api_credit.py run --key can` |
+| `ANTHROPIC_API_KEY_SARP` | empty | the Sarp credit's key; `--key sarp` |
+| `ANTHROPIC_API_KEY_OZGURBASAK` | empty | the Ozgur Basak credit's key; `--key ozgurbasak` |
+| `API_CREDIT_ENV_FILE` | the main checkout's `.env` | where `api_credit.py` reads the three keys (tests point it at a fixture) |
+| `API_CREDIT_MANAGED_DIR` | `/etc/claude-code` | the managed-settings directory whose existence refuses every run (tests point it at a fixture) |
+| `API_CREDIT_PREFLIGHT_TIMEOUT` | `60` | seconds the keyless pre-flight may take before the run is refused (tests shorten it) |
+
+The plain `ANTHROPIC_API_KEY` stays empty on purpose, so no tool bills the API by accident. The ledger lives under
+`ROTATE_STATE_DIR` (default `~/.claude/state`) as `api-credit.jsonl`.
 
 <!-- BEGIN related-scripts: generated by scripts/render_doc_script_links.py — do not hand-edit -->
 ## Related scripts

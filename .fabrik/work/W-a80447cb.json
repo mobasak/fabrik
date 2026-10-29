@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T17:32:03.645225Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-a80447cb",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5MX2VE9X0HSTSZ0518ES8TD",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra-2",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: four doc rows for W-25f6b2a3 slice 2 — land them yourself; the Deck lock no longer writes those three files"
+}

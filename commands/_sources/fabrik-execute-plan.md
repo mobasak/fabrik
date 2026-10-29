@@ -4,7 +4,6 @@ argument-hint: "<path to plan file>"
 ---
 {{include:no-workflow-hub}}
 
-
 # Autonomous Plan Executor
 
 > **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy. **Dispatch step (D-191):** run `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <N> [--heavy] [--risky <R>] [--mechanical <M>]` and dispatch exactly the `SEATS:` and mix it prints, all in ONE message, each seat a distinct unit × angle brief with its model token — stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` (what sibling sessions subtract), and closed with `python3 scripts/command_run.py round --seats <n> --findings <n> …` (the tripwire on D-186 is blind without it); the box is the ceiling, the units only the partition. A `/fabrik-review` round is sized by its own file partition instead (`--slices`, § Count discipline).
@@ -13,8 +12,7 @@ You are executing the plan at `$ARGUMENTS`. The user has pre-approved this plan 
 
 ## Run record — open it FIRST (this is the command that gets abandoned mid-flight)
 
-Before step 0, read the plan's phase count and open the record — `--phases` is **the plan's own phase
-count** (dispatcher mode: the Board's ticket count), not a fixed number:
+Before step 0, open the record with `--phases` = **the plan's own phase count** (dispatcher mode: the Board's ticket count), not a fixed number:
 
 ```bash
 python3 scripts/command_run.py start --command fabrik-execute-plan --phases <plan's phases> \
@@ -26,183 +24,34 @@ python3 scripts/command_run.py start --command fabrik-execute-plan --phases <pla
 
 {{include:delegated-reads}}
 
-`step --phase <N> --title "<the plan's phase title>" --appetite <the phase's Appetite: minutes>` on
-entering each phase (spec § The delta D11; `--appetite` on `step`, the `elapsed <m>/<appetite>` segment
-on `line`, and the `over_appetite_phases`/`phase_marks` recording on `done` are T08's — they land in the
-SAME merge window as this change, so this text never runs ahead of the code it describes). Omit
-`--appetite` when the phase declares no `Appetite:` line (a plan dated before the rollout is not
-re-graded and may carry none); in DISPATCHER MODE (§ Dispatcher Mode below) pass the TICKET's own
-`Appetite:` instead, since a spine declares none. Once set, `command_run.py line`'s pinned `RUN:` line
-reads `elapsed <m>/<appetite>` in the phase marker for the life of the phase, so burn against budget is
-visible on every reply, not just the title. **The `/fabrik-review` at a
-phase boundary opens its OWN nested record — the storage parks this run in the record's `stack` and the child's `done` restores it (01M280CV7)** — so a green phase gate
-never reads as "the plan is done" — and every close NAMES its own run, so a retried `done` from the
-nested review can never end the plan by accident (it is refused). Close this run with
-`done --command fabrik-execute-plan --evidence "<the phases + their review verdicts>" --feedback "<what you filed, to whom | none — surfaces exercised>"` only when the
-LAST phase is EXECUTED; a real halt is
-`blocked --command fabrik-execute-plan --reason "…" --feedback "<what you filed, to whom | none — surfaces exercised>"` naming one of the
-three sanctioned BLOCKED cases (3 consecutive same-test failures · missing infra · unresolvable spec/scope
-contradiction); a step the plan assigns to the operator under a § FINAL OUTPUT gate token closes `handoff --command
-fabrik-execute-plan --resume <a file with a ## RESUME block> --reason "…" --feedback "…"` instead (the halt rule
-below). **Open the `RUN:` line on every reply until the run closes** — the FINAL OUTPUT block is a
-TASK terminator, and the record is what proves the task is actually over.
+`step --phase <N> --title "<the plan's phase title>" --appetite <the phase's Appetite: minutes>` on entering each phase (spec § The delta D11; `--appetite` on `step`, the `elapsed <m>/<appetite>` segment on `line`, and the `over_appetite_phases`/`phase_marks` recording on `done` are T08's — they land in the SAME merge window as this change, so this text never runs ahead of the code it describes). Omit `--appetite` when the phase declares no `Appetite:` line (a plan dated before the rollout is not re-graded and may carry none); in DISPATCHER MODE (§ Dispatcher Mode below) pass the TICKET's own `Appetite:` instead, since a spine declares none. Once set, `command_run.py line`'s pinned `RUN:` line reads `elapsed <m>/<appetite>` in the phase marker for the life of the phase. **The `/fabrik-review` at a phase boundary opens its OWN nested record — the storage parks this run in the record's `stack` and the child's `done` restores it** — so a green phase gate never reads as "the plan is done" — and every close NAMES its own run, so a retried `done` from the nested review can never end the plan by accident (it is refused). Close this run with `done --command fabrik-execute-plan --evidence "<the phases + their review verdicts>" --feedback "<what you filed, to whom | none — surfaces exercised>"` only when the LAST phase is EXECUTED; a real halt is `blocked --command fabrik-execute-plan --reason "…" --feedback "<what you filed, to whom | none — surfaces exercised>"` naming one of the three sanctioned BLOCKED cases (3 consecutive same-test failures · missing infra · unresolvable spec/scope contradiction); a step the plan assigns to the operator under a § FINAL OUTPUT gate token closes `handoff --command fabrik-execute-plan --resume <a file with a ## RESUME block> --reason "…" --feedback "…"` instead (the halt rule below). **Open the `RUN:` line on every reply until the run closes** — the FINAL OUTPUT block is a TASK terminator, and the record is what proves the task is actually over.
 
 ## Before You Start
 
-0. **Shape detection — which mode runs.** If `$ARGUMENTS` is a dated plan DIRECTORY
-   (`docs/development/plans/YYYY-MM-DD-plan-<slug>/`), or a spine (`## Ticket Board` present), or any
-   file inside a plan-set directory (resolve to the parent), this run executes in **DISPATCHER MODE**
-   (§ Dispatcher Mode below): the plan unit is the WHOLE SET — read the spine + every
-   `T##[a-z]?-<slug>.md` ticket, and the dispatcher contract overrides the sections it names.
-   **Corroborate before committing to the mode:** a real set has the dated directory + a same-stem
-   spine + ≥1 `T##` ticket file — a lone `## Ticket Board` string in a monolith's prose with no
-   ticket files is NOT a set (run phase mode and report the anomaly). A
-   monolith plan file runs the phase mode below verbatim. **A spine or monolith declaring `Profile: small`**
-   (the line after `Status:`) runs its profile in either mode: every phase/ticket is coded INLINE by the
-   orchestrator in its own working tree (no worktree coder, no dispatch wait — a set's tickets carry
-   `Complexity: inline`), `/fabrik-review-scoped` closes each phase/ticket, and the ONE heavy review and the
-   ONE forced sync run at Finish (D2/D4/D5/D7 name the deltas; everything unnamed binds unchanged). In the
-   main checkout, a small plan whose owned paths include a governance-sync trigger path (the `governance-sync`
-   files-filter in `.pre-commit-config.yaml`) runs in its own isolation worktree, step 8's `EnterWorktree`
-   path even with no other plan-lock active, because every main-checkout commit on such a path distributes
-   fleet-wide and a worktree commit distributes nothing (`scripts/governance_sync_postcommit.sh`): its phases
-   still commit one by one, and the plan reaches the fleet ONCE, when Finish position (b) merges the branch
-   and the merge's own hook syncs it (post-merge over `ORIG_HEAD..HEAD`, or post-commit when a conflicted
-   merge is concluded with a commit). That hook run is the Finish sync; run
-   `sync_enforcement_to_projects.py --force` by hand only when it prints a sync failure.
+0. **Shape detection — which mode runs.** If `$ARGUMENTS` is a dated plan DIRECTORY (`docs/development/plans/YYYY-MM-DD-plan-<slug>/`), a spine (`## Ticket Board` present), or any file inside a plan-set directory (resolve to the parent), this run executes in **DISPATCHER MODE** (§ Dispatcher Mode below): the plan unit is the WHOLE SET — read the spine + every `T##[a-z]?-<slug>.md` ticket, and the dispatcher contract overrides the sections it names. **Corroborate before committing to the mode:** a real set has the dated directory + a same-stem spine + ≥1 `T##` ticket file — a lone `## Ticket Board` string in a monolith's prose with no ticket files is NOT a set (run phase mode and report the anomaly). A monolith plan file runs the phase mode below verbatim. **A spine or monolith declaring `Profile: small`** (the line after `Status:`) runs its profile in either mode: every phase/ticket is coded INLINE by the orchestrator in its own working tree (no worktree coder, no dispatch wait — a set's tickets carry `Complexity: inline`), `/fabrik-review-scoped` closes each phase/ticket, and the ONE heavy review and the ONE forced sync run at Finish (D2/D4/D5/D7 name the deltas; everything unnamed binds unchanged). In the main checkout, a small plan whose owned paths include a governance-sync trigger path (the `governance-sync` files-filter in `.pre-commit-config.yaml`) runs in its own isolation worktree, step 8's `EnterWorktree` path even with no other plan-lock active, because every main-checkout commit on such a path distributes fleet-wide and a worktree commit distributes nothing (`scripts/governance_sync_postcommit.sh`): its phases still commit one by one, and the plan reaches the fleet ONCE, when Finish position (b) merges the branch and the merge's own hook syncs it (post-merge over `ORIG_HEAD..HEAD`, or post-commit when a conflicted merge is concluded with a commit). That hook run is the Finish sync; run `sync_enforcement_to_projects.py --force` by hand only when it prints a sync failure.
 1. Read the plan file fully.
 2. Read `agents-fabrik.md` — the canonical infra + codebase map (`AGENTS.md` is a stub).
 3. Run `python scripts/select_rules.py` and read **every ACTIVE pack**.
 4. Read the design spec the plan references (usually linked at the top or in `docs/superpowers/specs/`).
 5. Read `AFCL.md` if it exists — known friction points.
-6. Identify all phases, their dependency order, and the Subagent Mandates table (in the design spec).
-   ⚠️ **A validation, or the PART of one, that tests the rule the plan BUILDS against evidence that ALREADY EXISTS — a
-   backtest over real history, a replay over a prior corpus — runs FIRST, before the FIRST ticket that
-   implements that rule, wherever the Board scheduled it.** (One that needs the built artifact — a
-   dogfood, a live probe — cannot, and is not this rule; nor is D7's whole-plan validation, which
-   still runs last.) Scheduled late, its verdict lands after the thing it judges is built, reviewed,
-   merged and distributed — the one position where acting on it is expensive: on the `/fabrik-task`
-   lane a backtest over 24 of 101 lane-choice commits re-cut two clauses of the decision rule six
-   tickets late (D-298). A spec that places it before the build and a Board that schedules it last are
-   a contradiction you resolve in the SPEC's favour, naming the re-order in the run record; a verdict
-   that REFUTES the rule is governed by the spec's own stop threshold and re-cuts the spec before the
-   implementing ticket runs. **The spec edit is always yours** — the plan is downstream of its spec
-   and never owns it, so an owned-paths test on the SPEC routes every refutation to a halt; re-pin
-   the spine's `**Spec:**` basis to the re-cut SHA and mint the D-row. The CONSEQUENT code edits are
-   the test: inside the spine's `## File Scope` they are authorised work you do, outside it the
-   `BLOCKED: unresolvable spec/scope contradiction` case; never a finding you absorb. Blast radius is
-   not the test — a synced surface a ticket already owns is that ticket's deliverable, and Finish's
-   sync discipline distributes it. Most specs carry no such validation — the test is whether the recipe can run on
-   evidence that exists today, under whatever heading it sits — and when yours has none, nothing is
-   owed.
-7. **Acquire the scope lock (this is what lets several scoped runs share one project, AND what makes a run
-   resumable after a crash / disconnect / quota-hit).** Before trusting the plan's `Status:` line, MEASURE it: a `Status: EXECUTED` plan whose phase receipts are absent on disk is not executed, and a `CONVERGED` one whose Pass Ledger is missing is not converged (01M2AJG97). Read the plan's `## File Scope (owned paths)`. Scan
-   `.fabrik/plan-locks/*.json` for any lock with `status:"active"` whose paths overlap yours, and resolve:
-   - **Your OWN plan's lock (same plan-id) left `active` by an interrupted / crashed / quota-killed prior
-     run → RESUME is permitted** (check `.fabrik/plan-locks/<plan-id>.json` directly by id, not only via the
-     overlap scan). The operator's re-invocation IS the authorization that the prior session is dead — running
-     two sessions of one plan at once is the operator's to avoid, exactly like freeing a sibling's lock.
-     Keep the lock. Then split by what the tree actually shows:
-     - **CLEAN-BOUNDARY resume (the normal case — per-phase commits make it so):** owned paths clean AND the
-       first unmarked phase has no landed commits → continue from the last `✅ EXECUTED` phase per §Plan
-       Status Tracking. Fully autonomous.
-     - **MESSY resume (died mid-phase):** owned paths dirty, or the first unmarked phase already has commits
-       the plan file doesn't account for →
-       `BLOCKED: resume needs operator ruling — found: <the files/commits> — missing: which are the crashed
-       run's to continue vs. a sibling's to leave`. **Never guess:** on this shared tree, uncommitted residue
-       on "your" paths can be an unlocked sibling's or the daily pipeline's, and
-       no prose heuristic can tell — resetting destroys a sibling's work, adopting publishes it. The operator
-       rules once — and a received ruling is a RECEIVED decision: its `docs/DECISIONS.md` row (appended by
-       the orchestrator — the dispatching session holds the pen) is committed WITH the spine-Evidence record
-       as the FIRST commit after the ruling, before any resumed work, so a second crash cannot orphan it
-       (CLAUDE.md § the decision ledger; the same law binds every operator ruling this run receives — the
-       D7 flaky-quarantine ruling and the blocked-resume ruling included); the run then continues autonomously. A resume never `reset`s, `clean`s, stashes, or
-       reverts anything. (The seven governance surfaces — CHANGELOG/INDEX/docs README/FEATURES/DECISIONS/STRATEGIC_BACKLOG/
-       LESSONS_LEARNT — are OUTSIDE every plan's lock by grammar; residue there is never resolved by this
-       rule alone — see the dispatcher MESSY-resume sweep for the one case where it can be yours.)
-   - **Same-plan lock `status:"released"`, or the plan already `EXECUTED`/archived → do NOT re-create the
-     lock or re-run** — report it as already finished (the lock's `completed_at`/`final_commit` is the
-     completion record; overwriting it destroys provenance).
-   - **A DIFFERENT plan's overlapping `active` lock → `BLOCKED: scope overlap with <plan-id> on <path>` and
-     STOP — always, even if it looks dead.** There is NO auto-reclaim of another plan's lock: with no atomic
-     lock primitive and no liveness signal a blocked-on-a-long-call agent can emit, any staleness heuristic
-     WILL eventually stomp a live sibling mid-slice (two runs committing the same paths to shared `master` =
-     data loss — the critical failure). Instead REPORT it: name the lock file, its `started_at`, and the
-     one-line operator remedy — *"if that run is confirmed dead, delete `.fabrik/plan-locks/<plan-id>.json`
-     and re-invoke"*. Freeing a dead sibling's lock is an OPERATOR action, never an agent judgment call.
-   - **No overlapping lock** → create `.fabrik/plan-locks/<plan-id>.json` =
-     `{plan, owned_paths, branch, started_at, status:"active"}`. After step 8's baseline capture, append
-     `baseline_commit` (HEAD then) + `baseline_gate` (the red-check set + owners) to the lock — a resume and
-     the Finish whole-plan review / doc-receipt ranges reuse THOSE recorded values, never a re-captured
-     mid-plan baseline (else pre-crash phases drop out of the cumulative diff and the run's own pre-crash
-     reds get mis-attributed to siblings; a legacy lock without these fields → the messy-resume BLOCKED path).
-     (A lock left `active` by an orderly `BLOCKED` halt is INTENTIONAL — the plan still owns its scope until
-     resolved; the BLOCKED report should say so.)
-   - **Locks are in-repo and PER WORKING TREE — that is the design.** A linked worktree carries its own
-     `.fabrik/plan-locks/`, so step 7's overlap scan sees the tree you are in, which is exactly the tree
-     your own resume reads. A sibling AGENT's lock is invisible from here until this tree's branch contains the merge of its branch (locks are committed, § Plan Status Tracking), and step 7's scan at start then reads it like any other lock — and that is safe: each agent commits to its own branch and only the merge owner writes the base branch, so overlapping work
-     surfaces as an ordinary git conflict at merge rather than as lost work. Cross-tree lock visibility is
-     unbuilt — never synthesise it by writing a lock outside this tree.
+6. Identify all phases, their dependency order, and the Subagent Mandates table (in the design spec). ⚠️ **A validation, or the PART of one, that tests the rule the plan BUILDS against evidence that ALREADY EXISTS — a backtest over real history, a replay over a prior corpus — runs FIRST, before the FIRST ticket that implements that rule, wherever the Board scheduled it.** (One that needs the built artifact — a dogfood, a live probe — cannot, and is not this rule; nor is D7's whole-plan validation, which still runs last.) Scheduled late, its verdict lands after the thing it judges is built, reviewed, merged and distributed — the one position where acting on it is expensive: on the `/fabrik-task` lane a backtest over 24 of 101 lane-choice commits re-cut two clauses of the decision rule six tickets late (D-298). A spec that places it before the build and a Board that schedules it last are a contradiction you resolve in the SPEC's favour, naming the re-order in the run record; a verdict that REFUTES the rule is governed by the spec's own stop threshold and re-cuts the spec before the implementing ticket runs. **The spec edit is always yours** — the plan is downstream of its spec and never owns it, so an owned-paths test on the SPEC routes every refutation to a halt; re-pin the spine's `**Spec:**` basis to the re-cut SHA and mint the D-row. The CONSEQUENT code edits are the test: inside the spine's `## File Scope` they are authorised work you do, outside it the `BLOCKED: unresolvable spec/scope contradiction` case; never a finding you absorb. Blast radius is not the test — a synced surface a ticket already owns is that ticket's deliverable, and Finish's sync discipline distributes it. Most specs carry no such validation — the test is whether the recipe can run on evidence that exists today, under whatever heading it sits — and when yours has none, nothing is owed.
+7. **Acquire the scope lock (this is what lets several scoped runs share one project, AND what makes a run resumable after a crash / disconnect / quota-hit).** Before trusting the plan's `Status:` line, MEASURE it: a `Status: EXECUTED` plan whose phase receipts are absent on disk is not executed, and a `CONVERGED` one whose Pass Ledger is missing is not converged. Read the plan's `## File Scope (owned paths)`. Scan `.fabrik/plan-locks/*.json` for any lock with `status:"active"` whose paths overlap yours, and resolve:
+   - **Your OWN plan's lock (same plan-id) left `active` by an interrupted / crashed / quota-killed prior run → RESUME is permitted** (check `.fabrik/plan-locks/<plan-id>.json` directly by id, not only via the overlap scan). The operator's re-invocation IS the authorization that the prior session is dead — running two sessions of one plan at once is the operator's to avoid, exactly like freeing a sibling's lock. Keep the lock. Then split by what the tree actually shows:
+     - **CLEAN-BOUNDARY resume (the normal case — per-phase commits make it so):** owned paths clean AND the first unmarked phase has no landed commits → continue from the last `✅ EXECUTED` phase per §Plan Status Tracking. Fully autonomous.
+     - **MESSY resume (died mid-phase):** owned paths dirty, or the first unmarked phase already has commits the plan file doesn't account for → `BLOCKED: resume needs operator ruling — found: <the files/commits> — missing: which are the crashed run's to continue vs. a sibling's to leave`. **Never guess:** on this shared tree, uncommitted residue on "your" paths can be an unlocked sibling's or the daily pipeline's, and no prose heuristic can tell — resetting destroys a sibling's work, adopting publishes it. The operator rules once — and a received ruling is a RECEIVED decision: its `docs/DECISIONS.md` row (appended by the orchestrator — the dispatching session holds the pen) is committed WITH the spine-Evidence record as the FIRST commit after the ruling, before any resumed work, so a second crash cannot orphan it (CLAUDE.md § the decision ledger; the same law binds every operator ruling this run receives — the D7 flaky-quarantine ruling and the blocked-resume ruling included); the run then continues autonomously. A resume never `reset`s, `clean`s, stashes, or reverts anything. (The seven governance surfaces — CHANGELOG/INDEX/docs README/FEATURES/DECISIONS/STRATEGIC_BACKLOG/ LESSONS_LEARNT — are OUTSIDE every plan's lock by grammar; residue there is never resolved by this rule alone — see the dispatcher MESSY-resume sweep for the one case where it can be yours.)
+   - **Same-plan lock `status:"released"`, or the plan already `EXECUTED`/archived → do NOT re-create the lock or re-run** — report it as already finished (the lock's `completed_at`/`final_commit` is the completion record; overwriting it destroys provenance).
+   - **A DIFFERENT plan's overlapping `active` lock → `BLOCKED: scope overlap with <plan-id> on <path>` and STOP — always, even if it looks dead.** There is NO auto-reclaim of another plan's lock: with no atomic lock primitive and no liveness signal a blocked-on-a-long-call agent can emit, any staleness heuristic WILL eventually stomp a live sibling mid-slice (two runs committing the same paths to shared `master` = data loss — the critical failure). Instead REPORT it: name the lock file, its `started_at`, and the one-line operator remedy — *"if that run is confirmed dead, delete `.fabrik/plan-locks/<plan-id>.json` and re-invoke"*. Freeing a dead sibling's lock is an OPERATOR action, never an agent judgment call.
+   - **No overlapping lock** → create `.fabrik/plan-locks/<plan-id>.json` = `{plan, owned_paths, branch, started_at, status:"active"}`. After step 8's baseline capture, append `baseline_commit` (HEAD then) + `baseline_gate` (the red-check set + owners) to the lock — a resume and the Finish whole-plan review / doc-receipt ranges reuse THOSE recorded values, never a re-captured mid-plan baseline (else pre-crash phases drop out of the cumulative diff and the run's own pre-crash reds get mis-attributed to siblings; a legacy lock without these fields → the messy-resume BLOCKED path). A lock left `active` by an orderly `BLOCKED` halt is INTENTIONAL — the plan still owns its scope until resolved; the BLOCKED report should say so.
+   - **Locks are in-repo and PER WORKING TREE — that is the design.** A linked worktree carries its own `.fabrik/plan-locks/`, so step 7's overlap scan sees the tree you are in. A sibling AGENT's lock is invisible from here until this tree's branch contains the merge of its branch (locks are committed, § Plan Status Tracking), and step 7's scan at start then reads it like any other lock — and that is safe: each agent commits to its own branch and only the merge owner writes the base branch, so overlapping work surfaces as an ordinary git conflict at merge rather than as lost work. Cross-tree lock visibility is unbuilt — never synthesise it by writing a lock outside this tree.
 8. **Isolate + verify clean + capture the baseline.**
-   - **Worktrees nest exactly TWO levels, split by ROLE — not by how deep you already are.** As the
-     ORCHESTRATOR you give every dispatched subagent its own worktree (§ Isolation model) whether you sit
-     in the main checkout, in this run's own concurrency-isolation worktree, or in a named agent's window
-     (`claude --worktree <agent>`): a linked worktree shares `$GIT_COMMON_DIR` with the repo, so
-     `git worktree add` from inside one registers against that same repo and the merge back is an ordinary
-     merge. A dispatched CODER already runs in the worktree its dispatch created (`GIT_DIR != GIT_COMMON`
-     and `git rev-parse --show-superproject-working-tree` empty, so it's not a submodule) — it works in
-     place and never opens a third level.
-   - **Resolve the BASE BRANCH from git, once, and use it for every merge, rebase and cleanup in this run:**
-     `BASE=$(git branch --show-current)` — three positions, all three live: `master` in the **main
-     checkout**; the tree's own branch inside **an isolation worktree THIS run created**;
-     `worktree-<agent>` inside **a named agent's window**. (§ Finish gives each position its merge-back
-     disposition — they differ, and only there.) **Never write a branch name as a default:** a merge or rebase aimed at a literal
-     `master` from inside an agent's worktree lands that agent's work on a line it does not own, crossing
-     the boundary the worktrees exist to hold (only the merge owner writes the repo's own base branch).
-     Empty output = detached HEAD → `BLOCKED: no current branch — searched: git branch --show-current —
-     missing: a checked-out branch to merge into`.
-   - **Probe the nesting before the first dispatch relies on it (R6 — once per repo, self-service).** In a
-     scratch repo run `claude -p --worktree agent-alpha` with a brief that adds a nested worktree, commits
-     in it, and merges into `worktree-agent-alpha`; record the verdict in the plan's Evidence. **Probe
-     passes** → dispatch subagents into nested worktrees exactly as the two-level rule states, and the
-     Merge Protocol merges their branches into `BASE`. **Probe blocked by the isolation enforcement** →
-     take the DEFAULT and say so: dispatch subagents on BRANCHES inside the agent's worktree — one branch
-     per unit, same Merge Protocol, no nested worktree.
-   - **Isolate concurrent runs — from the MAIN checkout only:** if you are in the main checkout and any
-     *other* plan-lock is `active`, or this is a `Profile: small` plan whose owned paths include a
-     governance-sync trigger path (§ Before You Start), run this plan in its **own git worktree, entered with
-     `EnterWorktree`**
-     (the tool that puts THIS session in a worktree — `isolation:"worktree"` is the Agent tool's parameter
-     for DISPATCHED coders, a different thing), so
-     two runs never share a working tree (ensure its `.venv`/deps exist before any gate runs there); otherwise
-     the main checkout is fine. **Already in a linked worktree — a named
-     agent's window, or an isolation tree a prior step created — work in place: that tree IS your
-     isolation**, and a second orchestrator level would push the coders to a third, against the two-level
-     rule above. In any linked worktree, a gate or live request that a shared runtime serves (a container or
-     service mounting the main checkout) runs MAIN's code, not this tree's; prove this tree's code as
-     `/opt/fabrik/docs/reference/multi-agent-operating-model.md` § The shared runtime is NOT isolated says.
-   - **Verify your owned paths are clean:** `git status --short -- <owned paths>` must be empty. If not →
-     STOP — for a step-7 same-plan RESUME this is the MESSY case: `BLOCKED: resume needs operator ruling`
-     per step 7 (never adopt, reset, or revert residue on shared paths — the operator rules first).
-   - **Capture the baseline (shared-master attribution — do this BEFORE Phase A).** Record the starting gate state: `python scripts/final_gate.py --lean --check --json` (`--check`: a bare run auto-fixes and re-stages, so the baseline would be taken after the gate edited the tree) → note its `status` and **every already-red check +
-     which file owns it** (yours vs. a sibling's / an untracked file). This is your attribution reference: a
-     red at finish that was **already red at start is NOT yours to fix** (a sibling owns it — shared-master);
-     only a **newly**-red check is. It's what lets you answer "did I introduce this?" instead of chasing a
-     sibling's file or an untracked plan (the exact trap that stalls a run at the end).
-9. **Critical pre-flight review (before Phase A, its spot-check repeated per phase — the plan may be stale even if it converged).** A plan
-   is grounded when written, not necessarily now — the repo moves under it (siblings commit, deps drift,
-   an approach gets invalidated). Read the plan **adversarially against the code AS IT IS NOW**: does any
-   phase contradict the current code/schema, assume a `path:line` / dependency / invariant that has since
-   changed, or rest on an approach the codebase has moved past? Spot-check the plan's key `Interfaces` and
-   Evidence `path:line`s still resolve. If a gap would prevent *starting correctly* →
-   `BLOCKED: <concern> — searched: <what you checked> — missing: <need>` and surface it to the user before
-   executing. Repeat the `path:line` and symbol spot-check before each later phase's first edit or dispatch (a resumed run's first phase included, with any cross-phase mechanism claim re-derived): a mismatch is a finding, never a typo. This is an **upfront sanity gate**; it does NOT weaken the autonomous contract — once
-   past it you execute start→finish per §Execution Contract, **fixing (not asking)** at every step. (This is
-   `executing-plans`' "review critically, raise concerns before starting," adapted: a pre-flight, not a
-   licence to stop mid-run.)
-10. **Track in-session with TodoWrite** — create one todo per phase (and per parallel task) so progress is
-    visible; the plan file's `Status:` field + phase-done markers remain the **durable** record a resumed
-    run reads (§Plan Status Tracking). The todo list is the ephemeral view, the plan file is the source of truth.
+   - **Worktrees nest exactly TWO levels, split by ROLE — not by how deep you already are.** As the ORCHESTRATOR you give every dispatched subagent its own worktree (§ Isolation model) whether you sit in the main checkout, in this run's own concurrency-isolation worktree, or in a named agent's window (`claude --worktree <agent>`): a linked worktree shares `$GIT_COMMON_DIR` with the repo, so `git worktree add` from inside one registers against that same repo and the merge back is an ordinary merge. A dispatched CODER already runs in the worktree its dispatch created (`GIT_DIR != GIT_COMMON` and `git rev-parse --show-superproject-working-tree` empty, so it's not a submodule) — it works in place and never opens a third level.
+   - **Resolve the BASE BRANCH from git, once, and use it for every merge, rebase and cleanup in this run:** `BASE=$(git branch --show-current)` — three positions, all three live: `master` in the **main checkout**; the tree's own branch inside **an isolation worktree THIS run created**; `worktree-<agent>` inside **a named agent's window**. (§ Finish gives each position its merge-back disposition — they differ, and only there.) **Never write a branch name as a default:** a merge or rebase aimed at a literal `master` from inside an agent's worktree lands that agent's work on a line it does not own, crossing the boundary the worktrees exist to hold (only the merge owner writes the repo's own base branch). Empty output = detached HEAD → `BLOCKED: no current branch — searched: git branch --show-current — missing: a checked-out branch to merge into`.
+   - **Probe the nesting before the first dispatch relies on it (R6 — once per repo, self-service).** In a scratch repo run `claude -p --worktree agent-alpha` with a brief that adds a nested worktree, commits in it, and merges into `worktree-agent-alpha`; record the verdict in the plan's Evidence. **Probe passes** → dispatch subagents into nested worktrees exactly as the two-level rule states, and the Merge Protocol merges their branches into `BASE`. **Probe blocked by the isolation enforcement** → take the DEFAULT and say so: dispatch subagents on BRANCHES inside the agent's worktree — one branch per unit, same Merge Protocol, no nested worktree.
+   - **Isolate concurrent runs — from the MAIN checkout only:** if you are in the main checkout and any *other* plan-lock is `active`, or this is a `Profile: small` plan whose owned paths include a governance-sync trigger path (§ Before You Start), run this plan in its **own git worktree, entered with `EnterWorktree`** (the tool that puts THIS session in a worktree — `isolation:"worktree"` is the Agent tool's parameter for DISPATCHED coders, a different thing), so two runs never share a working tree (ensure its `.venv`/deps exist before any gate runs there); otherwise the main checkout is fine. **Already in a linked worktree — a named agent's window, or an isolation tree a prior step created — work in place: that tree IS your isolation**, and a second orchestrator level would push the coders to a third, against the two-level rule above. In any linked worktree, a gate or live request that a shared runtime serves (a container or service mounting the main checkout) runs MAIN's code, not this tree's; prove this tree's code as `/opt/fabrik/docs/reference/multi-agent-operating-model.md` § The shared runtime is NOT isolated says.
+   - **Verify your owned paths are clean:** `git status --short -- <owned paths>` must be empty. If not → STOP — for a step-7 same-plan RESUME this is the MESSY case: `BLOCKED: resume needs operator ruling` per step 7 (never adopt, reset, or revert residue on shared paths — the operator rules first).
+   - **Capture the baseline (shared-master attribution — do this BEFORE Phase A).** Record the starting gate state: `python scripts/final_gate.py --lean --check --json` (`--check`: a bare run auto-fixes and re-stages, so the baseline would be taken after the gate edited the tree) → note its `status` and **every already-red check + which file owns it** (yours vs. a sibling's / an untracked file). This is your attribution reference: a red at finish that was **already red at start is NOT yours to fix** (a sibling owns it — shared-master); only a **newly**-red check is.
+9. **Critical pre-flight review (before Phase A, its spot-check repeated per phase — the plan may be stale even if it converged).** A plan is grounded when written, not necessarily now — the repo moves under it (siblings commit, deps drift, an approach gets invalidated). Read the plan **adversarially against the code AS IT IS NOW**: does any phase contradict the current code/schema, assume a `path:line` / dependency / invariant that has since changed, or rest on an approach the codebase has moved past? Spot-check the plan's key `Interfaces` and Evidence `path:line`s still resolve. If a gap would prevent *starting correctly* → `BLOCKED: <concern> — searched: <what you checked> — missing: <need>` and surface it to the user before executing. Repeat the `path:line` and symbol spot-check before each later phase's first edit or dispatch (a resumed run's first phase included, with any cross-phase mechanism claim re-derived): a mismatch is a finding, never a typo. This is an **upfront sanity gate**; it does NOT weaken the autonomous contract — once past it you execute start→finish per §Execution Contract, **fixing (not asking)** at every step. (This is `executing-plans`' "review critically, raise concerns before starting," adapted: a pre-flight, not a licence to stop mid-run.)
+10. **Track in-session with TodoWrite** — create one todo per phase (and per parallel task) so progress is visible; the plan file's `Status:` field + phase-done markers remain the **durable** record a resumed run reads (§Plan Status Tracking). The todo list is the ephemeral view, the plan file is the source of truth.
 
 > **Branch model — deliberate divergence, not an omission.** Fabrik runs on a **shared `BASE` branch**
 > (step 8 resolves it, three positions: `master` in the main checkout · that tree's own branch in an
@@ -247,15 +96,16 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
 >    unnecessary"*, *"running low on context so I'll finish the rest later"*, *"the core is done, the edges can
 >    wait"*, *"I'd rather do this carefully than fast"*, *"substantial enough to deserve a fresh context"*, *"I won't open work I can't
 >    finish — stopping at a clean state preserves the value"* (deferral dressed as judgment/prudence — the pattern live-observed repeatedly, incl. the quoted context and clean-state forms; a clean
->    boundary makes the RESUME cheap, it does not make the STOP legitimate — the next stage was still yours to run) are
->    **contract violations, not decisions.** **Context is NOT a reason to stop — the harness AUTO-COMPACTS:**
->    when the conversation grows long it is summarized and the run CONTINUES in the same invocation; your
->    per-phase commits + plan markers are exactly what make the post-compact continuation seamless, so keep
->    them current and KEEP GOING. Filing the context excuse as `BLOCKED: context budget` does not legitimize
->    it (live observed) — a resource limit is not missing infra, and the harness removes the limit. If a
->    remaining phase genuinely deserves fresher eyes than you have, the contract-legal move is to DISPATCH
->    that phase's work to fresh subagents per §Subagent Strategy — decompose, don't abort. Post-compact, the SessionStart hook auto-injects a recent-context recap, and the `session-recall` MCP (`search_chats` / `get_chat`) recovers any detail the summary dropped — use it instead of re-deriving or guessing. A step you believe is genuinely wrong is a `BLOCKED`
->    for the **user** to rule on — never a silent skip or a quiet descope.
+>    boundary makes the RESUME cheap, it does not make the STOP legitimate — the next stage was still yours to run) are **contract violations, not decisions.** **Context is NOT a reason to stop — the harness AUTO-COMPACTS:**
+>    when the conversation grows long it is summarized and the run CONTINUES in the same invocation; your per-phase
+>    commits + plan markers are exactly what make the post-compact continuation seamless, so keep them current and
+>    KEEP GOING. Filing the context excuse as `BLOCKED: context budget` does not legitimize it (live observed) — a
+>    resource limit is not missing infra, and the harness removes the limit. If a remaining phase genuinely deserves
+>    fresher eyes than you have, the contract-legal move is to DISPATCH that phase's work to fresh subagents per
+>    §Subagent Strategy — decompose, don't abort. Post-compact, the SessionStart hook auto-injects a recent-context
+>    recap, and the `session-recall` MCP (`search_chats` / `get_chat`) recovers any detail the summary dropped — use
+>    it instead of re-deriving or guessing. A step you believe is genuinely wrong is a `BLOCKED` for the **user** to
+>    rule on — never a silent skip or a quiet descope.
 > 2. **The plan file is updated every phase, INSIDE that phase's commit — not optional, not "at the end".** A
 >    phase is **not complete** until the plan file records it: mark the phase `✅ EXECUTED <YYYY-MM-DD>
 >    (<short-commit>)` at its boundary and **stage the plan file in the same phase commit** (flip `Status:`
@@ -263,77 +113,17 @@ Format when blocked: `BLOCKED: <what> — searched: <sources checked> — missin
 >    stage the plan-file update is an INCOMPLETE phase — go back and record it before moving on.** The plan
 >    file is the durable state; leaving it stale is how a resumed run redoes or drops work. (§Plan Status Tracking)
 
-1. **The plan is the approval — run start→finish, autonomously.** Execute every phase without per-step
-   confirmation and **without stopping mid-run to ask or to narrate progress.** Never end a turn with
-   "shall I continue / proceeding now unless you redirect" — keep going until the plan is `EXECUTED`,
-   `BLOCKED`, or a HARD STOP fires. The only permitted mid-run halts are a real `BLOCKED` (3 consecutive
-   same-test failures, missing infra, unresolvable spec/scope contradiction) or a HARD STOP; a step the plan assigns
-   to the operator under a § FINAL OUTPUT gate token ends the run behind `DECISION NEEDED (ground: gate)`, closed
-   `handoff` with its `## RESUME` naming the next phase (`CLAUDE.md` § Behavior, plan-execution override), the lock
-   and `Status: IN-PROGRESS` kept for the resume — a phase step, never Finish step 7's deploy, which the EXECUTED
-   plan closes `done`. Permitted output between start and finish is **exactly**: a one-line phase-boundary marker
-   per phase, and the final completion block (at such a gate step, its DECISION block). Commit per phase as
-   specified.
+1. **The plan is the approval — run start→finish, autonomously.** Execute every phase without per-step confirmation and **without stopping mid-run to ask or to narrate progress.** Never end a turn with "shall I continue / proceeding now unless you redirect" — keep going until the plan is `EXECUTED`, `BLOCKED`, or a HARD STOP fires. The only permitted mid-run halts are a real `BLOCKED` (3 consecutive same-test failures, missing infra, unresolvable spec/scope contradiction) or a HARD STOP; a step the plan assigns to the operator under a § FINAL OUTPUT gate token ends the run behind `DECISION NEEDED (ground: gate)`, closed `handoff` with its `## RESUME` naming the next phase (`CLAUDE.md` § Behavior, plan-execution override), the lock and `Status: IN-PROGRESS` kept for the resume — a phase step, never Finish step 7's deploy, which the EXECUTED plan closes `done`. Permitted output between start and finish is **exactly**: a one-line phase-boundary marker per phase, and the final completion block (at such a gate step, its DECISION block). Commit per phase as specified.
 2. **Fix, don't ask.** Test failures mean your code is wrong. Read the error, fix, re-run. After 3 consecutive failures on the same test with different fix approaches → STOP and report.
-3. **Phase reviews run as parallel subagents.** **Under `Profile: small` the per-phase pass is
-   `/fabrik-review-scoped` (its round ledger is the artifact; its route-up trigger defers to the Finish
-   review) and the full round below runs ONCE at Finish over the whole-plan diff — the rest of this item
-   binds unchanged.** Otherwise, at each phase boundary, run the full `/fabrik-review` on the changed surface
-   *plus everything it calls / is called by* — ITS loop, never a restatement of it: partitioned by
-   file, two cheap finders per slice and one refuter per slice in ONE `Workflow` call per pass, its args
-   carrying the fragment `review_loop_ledger.py pin` printed, as printed (`pins_dir`, `pin_manifest`, `digest`,
-   and `base_pin_dir` with `--base`)
-   (`<repo root>/.claude/workflows/fabrik-review-loop.js` — `<repo root>` is the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree; when the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this run (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the receipt's Pass row (or, with no receipt, the close's `--evidence`) notes `shape: agent-tool`), every later pass the round-1 seats over their own slice ledgers
-   (D-335, D-344); a phase diff touching auth / schema / migrations / secrets / concurrency names it as its
-   slice's hunt priority and that slice adds a native Opus finder (`models: ["sonnet", "haiku", "opus"]`). You adjudicate and **prove-before-fix** each confirmed finding with a kept regression
-   test. Every finding terminates **FIXED or REFUTED** (proof required to refute); an `unverified` verdict never
-   closes a pass — fix it defensively or prove it impossible. There is no noted/deferred/residual bucket for an
-   in-scope finding (see `/fabrik-review` Phase 3 + the disposition ledger). Re-run the phase gate after each
-   fix too (the gate finds no logic bugs; the loop's later passes do). The next phase begins **only** after that
-   review's closing pass — `confirmed: 0 · fixed: 0`, every slice verified; a single pass is never enough.
-   Fixes are the least-reviewed code in any loop, so `/fabrik-review`'s proof standard binds here too:
-   **a test that passes because the environment cannot express the failure has proven nothing** — "it
-   passed locally" is not evidence when local is the one place the bug is unreachable (a superuser role
-   for an RLS bug, one tenant for an isolation bug). Reach for the missing constraint in a
-   throwaway instance you own; **never** degrade shared or paid infrastructure to manufacture a red.
-   This changes what counts as proof — it adds no disposition and no halt.
-3b. **GUI phases also run the Build Verification Loop (per `/fabrik-ui-design`) — a BLOCKING per-screen gate,
-   looped to a no-op, alongside `/fabrik-review`.** **A GUI-phase build+verify subagent runs as
-   `subagent_type: fabrik-gui`** (web/extension surfaces — browser MCPs Playwright/shadcn/chrome-devtools to
-   build the screen and drive/screenshot its own render); the rendered critique stays the `design-review`
-   agent. For each screen the phase built: **drive the running screen
-   via the surface's MCP** — **web:** Playwright MCP (screenshot 375/768/1440); **mobile (RN):** Maestro MCP +
-   Mobile Next MCP, **deferring to `.windsurf/rules/mobile-app/80-mobile.md`**; **extension (MV3):** the web loop
-   via a Playwright load-extension fixture, **deferring to `.windsurf/rules/chrome-ext/70-chrome-ext.md`** — match
-   it to `docs/ui-design.md` +
-   `docs/data-contract.md` (flows within click budget, all enriched states, no invented field/component,
-   design-system tokens only), run the surface's a11y/visual/token **+ performance** gate (**web:**
-   `@axe-core/playwright` `violations == []` + `toHaveScreenshot` + a Core-Web-Vitals budget via the
-   `chrome-devtools` MCP `lighthouse_audit` (LCP/CLS/INP — a slow screen fails "easy to use"); **mobile:**
-   `eslint-plugin-react-native-a11y` +
-   `@testing-library/react-native` + Maestro `assertScreenshot`; **extension:** `@axe-core/playwright`
-   `bypassCSP:true` + `toHaveScreenshot` (400px popup) + `size-limit`), then dispatch **`/design-review`** (or the
-   `design-review` subagent) for the rendered critique. Every finding terminates FIXED or REFUTED; iterate until
-   `/fabrik-review` reaches its coverage-adjudicated exit (every checklist class CLEAN/FIXED/REFUTED). The next phase begins only after that exit. Non-GUI phases skip the screen steps above, never what follows. ⚠️ **Every phase's review exit — GUI or not — must EMIT AN ARTIFACT** — a non-empty file under `docs/development/reviews/` whose name contains `phase-<N>` (written at or after the run record's start, or starting with the plan's `<date>-plan-<n>-` prefix), or in DISPATCHER mode the ticket receipt `<plan-stem>-T<id>-review.md` bound to the plan the record's `--surface` names. `check_review_coverage.py`'s subject is that DIRECTORY, so a phase review that writes nothing there leaves the gate with NO SUBJECT and it passes on an empty set: transdoc shipped 17 phases that way and the first real adversarial gate found 71 defects, including a dead job queue. `command_run.py step --phase N+1` now REFUSES until phase N's artifact exists; an unavoidable skip goes through `--review-waived "<reason>"`, which is recorded in the run record rather than silent. A run resuming at phase N reaches the earlier phases' receipts through the plan-prefix form, which `step` reads from the record's `--surface` — so that run's `--surface` names the plan file and every phase receipt carries the prefix (only a `<date>-plan-<n>` stem has the escape); the waiver is for a phase that has none. ⚠️ **Under `Profile: small` this and item 3 bind at once and cannot both be satisfied**: the per-phase pass is `/fabrik-review-scoped`, whose round ledger IS its artifact and which writes no file by design — so `--review-waived "Profile: small — /fabrik-review-scoped, ledger is the artifact"` IS the sanctioned exit there, not an unavoidable skip. Say it in the record and move on; the Finish review writes the whole-plan receipt `check_review_coverage.py` grades (fabrik-lib 01M2JWEMFRFN3H, who resolved it by writing a file anyway because the exit was then named only here).
-4. **All HARD STOPS still apply** — except the commit restriction is suspended for plan-scoped commits. Never `git add -A`. Never push unless the plan says to.
-   Never run `ruff format` by hand beyond the plan's `## File Scope (owned paths)` — a wholesale format rewrites a
-   sibling's lines nobody reviews; the bare gate run already formats only your staged and unpushed changes.
-5. **Documentation is blocking, per phase — not advisory.** Before each phase commit, run
-   `python scripts/enforcement/check_doc_sync.py`; **any WARNING whose trigger file is in *this phase's*
-   changed set MUST be resolved** (update the doc) before you commit — treat it as an error, not a hint.
-   The plan's declared doc steps are checked artifacts of their phase gate. As the **final phase of any run
-   that shipped a feature / route / service / schema / config change**, run `/fabrik-docs-review` to
-   converge the docs to a truthful fixed point — touch-on-change proves presence; this proves correctness —
-   over the plan's changed docs MINUS the docs the whole-plan `/fabrik-review`'s `--init --changed` list will
-   name (that review grades their hunks — the Finish brief lists each excluded doc), and BEFORE that review, so a
-   code defect a doc claim exposes lands inside it; when that set is empty the step records
-   `SKIPPED — every changed doc was review surface` in the plan's § Execution notes (spec D9 — no second docs
-   loop over docs the heavy review grades).
+3. **Phase reviews run as parallel subagents.** **Under `Profile: small` the per-phase pass is `/fabrik-review-scoped` (its round ledger is the artifact; its route-up trigger defers to the Finish review) and the full round below runs ONCE at Finish over the whole-plan diff — the rest of this item binds unchanged.** Otherwise, at each phase boundary, run the full `/fabrik-review` on the changed surface *plus everything it calls / is called by* — ITS loop, never a restatement of it: partitioned by file, two cheap finders per slice and one refuter per slice in ONE `Workflow` call per pass, its args carrying the fragment `review_loop_ledger.py pin` printed, as printed (`pins_dir`, `pin_manifest`, `digest`, and `base_pin_dir` with `--base`) (`<repo root>/.claude/workflows/fabrik-review-loop.js` — `<repo root>` is the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree; when the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this run (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the receipt's Pass row (or, with no receipt, the close's `--evidence`) notes `shape: agent-tool`), every later pass the round-1 seats over their own slice ledgers (D-335, D-344); a phase diff touching auth / schema / migrations / secrets / concurrency names it as its slice's hunt priority and that slice adds a native Opus finder (`models: ["sonnet", "haiku", "opus"]`). You adjudicate and **prove-before-fix** each confirmed finding with a kept regression test. Every finding terminates **FIXED or REFUTED** (proof required to refute); an `unverified` verdict never closes a pass — fix it defensively or prove it impossible. There is no noted/deferred/residual bucket for an in-scope finding (see `/fabrik-review` Phase 3 + the disposition ledger). Re-run the phase gate after each fix too (the gate finds no logic bugs; the loop's later passes do). The next phase begins **only** after that review's closing pass — `confirmed: 0 · fixed: 0`, every slice verified; a single pass is never enough. Fixes are the least-reviewed code in any loop, so `/fabrik-review`'s proof standard binds here too: **a test that passes because the environment cannot express the failure has proven nothing** — "it passed locally" is not evidence when local is the one place the bug is unreachable (a superuser role for an RLS bug, one tenant for an isolation bug). Reach for the missing constraint in a throwaway instance you own; **never** degrade shared or paid infrastructure to manufacture a red. This changes what counts as proof — it adds no disposition and no halt.
+3b. **GUI phases also run the Build Verification Loop (per `/fabrik-ui-design`) — a BLOCKING per-screen gate, looped to a no-op, alongside `/fabrik-review`.** **A GUI-phase build+verify subagent runs as `subagent_type: fabrik-gui`** (web/extension surfaces — browser MCPs Playwright/shadcn/chrome-devtools to build the screen and drive/screenshot its own render; on a web surface it builds through `frontend-design:frontend-design` under `core/63-frontend-design.md`'s brief); the rendered critique stays the `design-review` agent. For each screen the phase built: **drive the running screen via the surface's MCP** — **web:** Playwright MCP (screenshot 375/768/1440); **mobile (RN):** Maestro MCP + Mobile Next MCP, **deferring to `.windsurf/rules/mobile-app/80-mobile.md`**; **extension (MV3):** the web loop via a Playwright load-extension fixture, **deferring to `.windsurf/rules/chrome-ext/70-chrome-ext.md`** — match it to `docs/ui-design.md` + `docs/data-contract.md` (flows within click budget, all enriched states, no invented field/component, design-system tokens only), run the surface's a11y/visual/token **+ performance** gate (**web:** `@axe-core/playwright` `violations == []` + `toHaveScreenshot` + a Core-Web-Vitals budget via the `chrome-devtools` MCP `lighthouse_audit` (LCP/CLS/INP — a slow screen fails "easy to use"); **mobile:** `eslint-plugin-react-native-a11y` + `@testing-library/react-native` + Maestro `assertScreenshot`; **extension:** `@axe-core/playwright` `bypassCSP:true` + `toHaveScreenshot` (400px popup) + `size-limit`), then dispatch **`/design-review`** (or the `design-review` subagent) for the rendered critique. Every finding terminates FIXED or REFUTED; iterate until `/fabrik-review` reaches its coverage-adjudicated exit (every checklist class CLEAN/FIXED/REFUTED). The next phase begins only after that exit. Non-GUI phases skip the screen steps above, never what follows. ⚠️ **Every phase's review exit — GUI or not — must EMIT AN ARTIFACT** — a non-empty file under `docs/development/reviews/` whose name contains `phase-<N>` (written at or after the run record's start, or starting with the plan's `<date>-plan-<n>-` prefix), or in DISPATCHER mode the ticket receipt `<plan-stem>-T<id>-review.md` bound to the plan the record's `--surface` names. `command_run.py step --phase N+1` now REFUSES until phase N's artifact exists; an unavoidable skip goes through `--review-waived "<reason>"`, which is recorded in the run record rather than silent. A run resuming at phase N reaches the earlier phases' receipts through the plan-prefix form, which `step` reads from the record's `--surface` — so that run's `--surface` names the plan file and every phase receipt carries the prefix (only a `<date>-plan-<n>` stem has the escape); the waiver is for a phase that has none, or for an unprefixed plan's earlier receipt that a resume without a seed cannot see (named in the reason). A closed `/fabrik-review-scoped` run record is never the receipt `step` reads: `step` reads only a file under `docs/development/reviews/`, and item 3, not `step`, makes a phase's review the full `/fabrik-review` without `Profile: small`, its receipt the one this item names. ⚠️ **Under `Profile: small` this and item 3 bind at once and cannot both be satisfied**: the per-phase pass is `/fabrik-review-scoped`, whose round ledger IS its artifact and which writes no file by design — so `--review-waived "Profile: small — /fabrik-review-scoped, ledger is the artifact"` IS the sanctioned exit there, not an unavoidable skip. Say it in the record and move on; the Finish review writes the whole-plan receipt `check_review_coverage.py` grades (fabrik-lib 01M2JWEMFRFN3H, who resolved it by writing a file anyway because the exit was then named only here).
+4. **All HARD STOPS still apply** — except the commit restriction is suspended for plan-scoped commits. Never `git add -A`. Never push unless the plan says to. Never run `ruff format` by hand beyond the plan's `## File Scope (owned paths)` — a wholesale format rewrites a sibling's lines nobody reviews; the bare gate run already formats only your staged and unpushed changes.
+5. **Documentation is blocking, per phase — not advisory.** Before each phase commit, run `python scripts/enforcement/check_doc_sync.py`; **any WARNING whose trigger file is in *this phase's* changed set MUST be resolved** (update the doc) before you commit — treat it as an error, not a hint. The plan's declared doc steps are checked artifacts of their phase gate. As the **final phase of any run that shipped a feature / route / service / schema / config change**, run `/fabrik-docs-review` to converge the docs to a truthful fixed point — touch-on-change proves presence; this proves correctness — over the plan's changed docs MINUS the docs the whole-plan `/fabrik-review`'s `--init --changed` list will name (that review grades their hunks — the Finish brief lists each excluded doc), and BEFORE that review, so a code defect a doc claim exposes lands inside it; when that set is empty the step records `SKIPPED — every changed doc was review surface` in the plan's § Execution notes (spec D9 — no second docs loop over docs the heavy review grades).
 6. **LESSONS_LEARNT** — at the end, either add an entry to `docs/LESSONS_LEARNT.md` or confirm `none` in the completion block. This is a Completion Contract requirement.
 
 ## Commit Provenance Trailers
 
-Every commit made during plan execution MUST include git trailers that identify which agent, phase, and task produced it. Git can't distinguish AI agents by author — all commits show the same user. Trailers solve this.
+Every commit made during plan execution MUST include git trailers that identify which agent, phase, and task produced it. Git can't distinguish AI agents by author — all commits show the same user.
 
 ### Trailer schema
 
@@ -348,9 +138,10 @@ Every commit made during plan execution MUST include git trailers that identify 
 
 ### Commit message format
 
-**Subagent commit** (in worktree, before merge):
-```bash
-git commit -m "$(cat <<'EOF'
+Every commit message in this command that carries trailers goes through a file: write the message with the Write tool to a NEW file in the session scratchpad (`<scratch>/msg-<name>`, one name per commit, since parallel subagents may share the scratchpad), then run `git commit -F <scratch>/msg-<name>`. A heredoc, even quoted (`<<'EOF'`), is a compound shape the worktree isolation check may refuse, in any position (`git commit -F - <<'EOF'` included) — `/opt/fabrik/docs/reference/multi-agent-operating-model.md`, the commit-message rule in its worktree list. Run each git command in its own Bash call.
+
+**Subagent commit** (in worktree, before merge) — `<scratch>/msg-<name>`:
+```text
 feat(scope): Phase B Task 5 — GDPR schema + routes
 
 Agent-Role: subagent
@@ -358,13 +149,10 @@ Agent-Phase: B
 Agent-Task: 5
 Agent-Context: GDPR schema migration + Flask consent routes
 Co-Authored-By: Claude <model> <noreply@anthropic.com>
-EOF
-)"
 ```
 
-**Orchestrator phase commit** (after squash-merging subagent branches):
-```bash
-git commit -m "$(cat <<'EOF'
+**Orchestrator phase commit** (after squash-merging subagent branches) — `<scratch>/msg-<name>`:
+```text
 feat(scope): Phase B — Compliance
 
 Merged-From: phase-B-task-4 (audit-log vendor), phase-B-task-5 (GDPR schema), phase-B-task-6 (audit wiring)
@@ -373,34 +161,31 @@ Agent-Phase: B
 Agent-Context: merged 3 subagent branches, ran phase gate + review
 Conflicts-Resolved: 0
 Co-Authored-By: Claude <model> <noreply@anthropic.com>
-EOF
-)"
 ```
 
-**Inline phase commit** (no subagents, orchestrator did the work directly):
-```bash
-git commit -m "$(cat <<'EOF'
+**Inline phase commit** (no subagents, orchestrator did the work directly) — `<scratch>/msg-<name>`:
+```text
 feat(scope): Phase D — File Cache
 
 Agent-Role: orchestrator
 Agent-Phase: D
 Agent-Context: inline execution, no subagents (low complexity)
 Co-Authored-By: Claude <model> <noreply@anthropic.com>
-EOF
-)"
 ```
 
-**Review-fix commit** (from `/fabrik-review` findings):
-```bash
-git commit -m "$(cat <<'EOF'
+**Review-fix commit** (from `/fabrik-review` findings) — `<scratch>/msg-<name>`:
+```text
 fix(scope): Phase B review — null guard in audit_log.record_event
 
 Agent-Role: review-fix
 Agent-Phase: B
 Agent-Context: fixed CONFIRMED finding from /fabrik-review — missing None check on target_id
 Co-Authored-By: Claude <model> <noreply@anthropic.com>
-EOF
-)"
+```
+
+Each one is then committed with:
+```bash
+git commit -F <scratch>/msg-<name>
 ```
 
 ### Querying provenance after the fact
@@ -450,7 +235,7 @@ for each PHASE in dependency order:
                 execute step
                 if test fails: read error → fix → re-run (max 3 attempts)
 
-    run phase validation gate (bash checks from the plan, under the repo's own interpreter, its `.venv` python where it has one — a python without the suite's dependencies can skip its tests and read green)
+    run phase validation gate (bash checks from the plan, under the repo's own interpreter, its `.venv` python where it has one — a python without the suite's dependencies can skip its tests and read green; a check that needs a working directory other than the repo root runs as its own Bash call in a subshell, `(cd <dir> && <check>)`, since the Bash tool keeps a bare `cd` for every later call, never chained with another check, and its exit is read before the next runs)
     fix any gate failures → re-run
     run: python scripts/enforcement/check_doc_sync.py
     → any WARNING whose trigger file is in THIS phase's diff is BLOCKING: update the doc before commit
@@ -458,7 +243,15 @@ for each PHASE in dependency order:
     commit the phase CODE (authors run on committed HEAD via git worktree add --detach) → /fabrik-generate-tests on THIS phase's ## Behavior Contract: native seats author one test per behavior the implementer did NOT already TDD (one seat per behavior, disjoint test files, self-verified collection; the pool is OFF, D-181), you review test-quality + git apply the survivors → re-run the phase gate (now incl. the authored tests). Skip only if the phase added no user-observable behavior.
     /fabrik-review on phase's changed surface (code + the authored tests) — its review-loop workflow, one Workflow call per pass → execute the confirmed → prove-before-fix
     iterate: fix → the next pass over the slice ledgers → repeat until its closing pass confirms 0, THEN next phase
-    → before the phase's closing commit (the one that stages the plan file), write its receipt to docs/development/reviews/ as `<plan-stem>-phase-<N>-review.md`, `<plan-stem>` being the plan file's whole stem, which starts with its `<date>-plan-<n>-` prefix (that prefix keeps it findable after a resume); under `Profile: small` there is no file, so pass item 3b's `--review-waived` on the next `step` call instead — `step --phase N+1` refuses without one (item 3b's artifact rule)
+    → before the phase's closing commit (the one that stages the plan file), write its receipt to
+    docs/development/reviews/ as `<plan-stem>-phase-<N>-review.md`, `<plan-stem>` being the plan file's whole stem (when
+    it starts with a `<date>-plan-<n>-` prefix, that prefix keeps it findable after a resume; without one, a resumed run
+    finds the earlier receipts only when it was started with `command_run.py start --resume-from <seed>`, which keeps
+    the original start time, and a seed exists only after a `blocked` close at the quota wall (`--wall`, or a reason
+    naming the wall) or an operator's pause (`--paused`); after a crash or a `handoff`,
+    waive each earlier phase whose receipt the gate cannot see, naming that receipt in the reason); under `Profile:
+    small` there is no file, so pass item 3b's `--review-waived` on the next
+    `step` call instead — `step --phase N+1` refuses without one (item 3b's artifact rule)
     fix CONFIRMED findings → commit review fixes with Agent-Role: review-fix trailer
     re-run gate until clean
     UPDATE THE PLAN FILE: mark this phase ✅ EXECUTED <date> (<commit>) [+ flip Status on the first/last phase]
@@ -511,307 +304,64 @@ is an ERROR — and treats the sanctioned back-flips ✅→🔵/🔴 as complian
 
 ### D1 — Entry + the IN-PROGRESS flip
 
-Lock acquisition is per Before You Start, with the set adaptations: the lock's `owned_paths` = the spine's
-`## File Scope` **minus the stem-scoped metadata** (the plan set's own directory, its lock file, its
-review files — orchestrator territory, never lockable work surface). **The FIRST dispatch commit flips the
-spine `Status: CONVERGED → IN-PROGRESS`** — the budget WARN keying and resume logic depend on that flip
-landing before any ticket work is visible. **The lock and the spine Board are ORCHESTRATOR territory:
-tickets never write either** — a coder that edits the spine, the lock, or another ticket's files has left
-its Touches (contract violation → its diff is rejected at acceptance).
+Lock acquisition is per Before You Start, with the set adaptations: the lock's `owned_paths` = the spine's `## File Scope` **minus the stem-scoped metadata** (the plan set's own directory, its lock file, its review files — orchestrator territory, never lockable work surface). **The FIRST dispatch commit flips the spine `Status: CONVERGED → IN-PROGRESS`** — the budget WARN keying and resume logic depend on that flip landing before any ticket work is visible. **The lock and the spine Board are ORCHESTRATOR territory: tickets never write either** — a coder that edits the spine, the lock, or another ticket's files has left its Touches (contract violation → its diff is rejected at acceptance).
 
 ### D2 — Dispatcher contract (who codes, who is dispatched, when)
 
-- **PRECONDITION — a dispatched coder must be able to RUN its proof floor.** A native
-  `claude -p` coder under `--permission-mode acceptEdits` can write files but cannot execute
-  ANY Bash without a pre-approved allowlist — five coders on one transdoc ticket each wrote
-  code none could verify (proposal 2026-08-23, upstream'd). The fleet baseline that grants the
-  verification surface (pytest/ruff/mypy/gate/git-reads) ships in the SYNCED
-  `.claude/settings.json` `permissions.allow`; **before the first dispatch, confirm it is
-  present in THIS repo's copy** (`python3 -c "import json;print('allow' in
-  json.load(open('.claude/settings.json')).get('permissions',{}))"` → `True`). Absent →
-  re-sync from the hub (`pull, don't expect push` for excluded repos) or halt with a
-  pre-start finding — do NOT fall back to `bypassPermissions` (unbounded grant) and do NOT
-  run the coders' tests yourself (that collapses coder and reviewer — the separation is what
-  catches the findings). The failure PRESENTS as "BLOCKED: missing infra"; it is a missing
-  capability grant — check the settings first. The probe covers the LANE it dispatches to: the native lane's `permissions.allow` above; a pool lane (when re-enabled) its allowlist carrying the repo's venv paths — a precondition that probes one lane while dispatching to another certifies nothing (01M2803TM, 01M1S923X).
-- **A plan-named checker is dry-run before its tickets' coders.** When a ticket's acceptance rests on a
-  checker the plan names (an identity diff, a parity script, a snapshot compare), run it once on a
-  throwaway head of the ticket's unit, a scratch build the orchestrator makes before the coder is dispatched
-  and never commits (it is no ticket code); a gap it reports, or a shape
-  it cannot see, becomes a ticket added to the Board up front rather than a find in review.
-- **The orchestrator writes NO ticket code**, with exactly ONE exception — trivial ≤1-file/≤50-LOC
-  **strictly-mechanical** inline edits (**no-new-logic** defined: no conditional/loop/function-body
-  change). Any orchestrator-authored fixup is bound by the same numeric limits, lands **inside the
-  ticket's acceptance commit under its `Agent-Task:` trailer**, and gets a native finder pass before final
-  validation trusts it.
-- **Fixup ROUTING (a rule, not an exception):** fixups go to the ticket's coder — SAME coder if its
-  session is alive; a FRESH coder/unit otherwise, whose task payload = the standard cold-coder
-  briefing frame (the § Briefing template's "Before you start" reads — rules/infra/spec) + the ticket
-  file + the branch history (`git log <base_commit>..HEAD`) + the specific findings — and NO session
-  history, prior-phase summaries, or other tickets (the exclusion targets context bloat, never the
-  standard briefing).
-- **Epic containment — REFUSE a ticket whose Touches escape the epic.** When the spine carries an
-  `Epic: docs/development/epics/<file>` header (an epic-born plan), read that epic's frontmatter
-  `owned_paths` and check every eligible ticket's `## Touches` against them BEFORE dispatch. A path the
-  epic does not own is refused by NAME — the ticket, the offending path, the epic — 🔴 that ticket and
-  CONTINUE the Board (a refused ticket halts the others no more than a D4 🔴 does), and report it as a
-  plan defect for the epic's owner to resolve; a dispatcher never widens an epic to admit a ticket.
-  The `Epic:` line is also what the emit-time containment check keys on; this is the dispatch-time half,
-  because a Board can gain a ticket after its last gate run. **The comparison is GLOB-AWARE, never a string
-  prefix:** `**` matches any depth (in the MIDDLE of a glob too — `libs/**/entitlements/**` is the shape
-  real epics use), a single `*` matches within ONE path segment. So `src/a/x.py` IS covered by `src/a/**`
-  — a prefix test answers no and would refuse every legitimate dispatch — while `src/a/b/deep.py` is NOT
-  covered by `src/a/*`; a `dir/` entry is covered when the directory's whole SUBTREE is (`docs/x/` under
-  `docs/**`, not under `docs/*`). Only the EPIC side carries globs: Touches and File Scope are literal
-  paths / `dir/` entries by grammar, and a spine that copied a glob in is a plan defect the emit gate
-  ERRORs, not something to match leniently. **An `Epic:` path that does not resolve on disk, or an epic
-  whose frontmatter carries no `owned_paths`, is
-  `BLOCKED: epic <path> unreadable — searched: <what you opened> — missing: its owned_paths frontmatter`
-  (the § Execution Contract shape, all three clauses) — never a silent
-  dispatch:** a header the dispatcher cannot read is containment that never ran, which is exactly the
-  fail-open this rule exists to close. A spine with no `Epic:` line at all is untouched by this rule.
-- **Dispatch eligibility:** every `Depends:` row ✅ AND no `Serialized:` barrier pending (a Serialized row
-  is a dispatch barrier: later waits for earlier ✅ — **direction per `## Merge Order` position, the
-  canonical order signal**; the row's own ID listing order is not load-bearing, and a row listed against
-  Merge Order is an authoring defect `/fabrik-plan-review` should have caught).
-- **Dispatch timeout:** a coder with no result within 2× the ticket's plan-time estimate (no estimate
-  stated → use 30 min as the estimate, i.e. a 60-minute timeout) → the D6 salvage procedure; 2
-  consecutive timeouts on one ticket → 🔴. Every coder dispatch — a wave, a fixup, a salvage
-  review, a re-dispatch — is a FOREGROUND Agent call, so this check runs when the call returns, against the
-  coder's wall-clock from dispatch; a coder that never returns holds the turn, and what bounds it is the
-  explicit command timeouts its brief demands (§ Dispatched subagents run their work SYNCHRONOUSLY).
-- **Coder runtime per `Complexity:` (all FIVE values):** **`inline`** (only under `Profile: small` —
-  gate-enforced) → NO dispatch: the orchestrator codes the ticket itself in the main checkout and
-  commits per D5 with `Agent-Role: orchestrator` + the ticket's `Agent-Task:` trailer — no worktree, no
-  dispatch wait · **`simple`** →
-  a NATIVE worktree coder (Sonnet) · **`complex`** → a NATIVE worktree coder (Sonnet; Opus when the ticket
-  says design-heavy) — the pool is OFF (D-181, on top of D-170's sandbox suspension), so no `NO-POOL:` is
-  owed<!-- POOL OFF (D-181): `simple` → `pick_models("code", prefer="value")` pool unit · `complex` → mid pool coder — both via `fanout("code", units=[{task, owned_paths: <ticket Touches>}…], mode="write")`; D-170 (2026-09-06: 3 of 3 pool coders failed — the write sandbox has no venv; 01M1V98VN3QNS73GCR3GYF9FXH) had already suspended them with `NO-POOL: sandbox` per ticket --> · **`never-route`** →
-  native worktree coder (**gate cross-check:** the gate independently ERRORs a pool-tier ticket
-  touching never-route paths — trust it, don't re-derive) · **`native`** → native worktree coder by
-  AUTHOR'S CHOICE for non-never-route work the pool must not code (the Integration ticket always
-  carries `Complexity: native` — a pool-tier Integration ticket is a gate ERROR). No `NO-POOL:` declaration is owed while the pool is OFF (D-181). Native coder tier: Sonnet default; Opus for design-heavy (auth
-  flow/schema/migration design, concurrency); Haiku never codes. Concurrency: **3 coders**; when more
-  tickets are eligible than a wave holds, fill each wave in `## Merge Order` position order (deterministic
-  across runs, and it frees downstream `Depends:` earliest); **acceptance reviews serialize** (one at
-  a time — the orchestrator's adjudication is serial anyway, and it meters the Opus stream).
+- **PRECONDITION — a dispatched coder must be able to RUN its proof floor.** A native `claude -p` coder under `--permission-mode acceptEdits` can write files but cannot execute ANY Bash without a pre-approved allowlist. The fleet baseline that grants the verification surface (pytest/ruff/mypy/gate/git-reads) ships in the SYNCED `.claude/settings.json` `permissions.allow`; **before the first dispatch, confirm it is present in THIS repo's copy** (`python3 -c "import json;print('allow' in json.load(open('.claude/settings.json')).get('permissions',{}))"` → `True`). Absent → re-sync from the hub (`pull, don't expect push` for excluded repos) or halt with a pre-start finding — do NOT fall back to `bypassPermissions` (unbounded grant) and do NOT run the coders' tests yourself (that collapses coder and reviewer — the separation is what catches the findings). The failure PRESENTS as "BLOCKED: missing infra"; it is a missing capability grant — check the settings first. The probe covers the LANE it dispatches to: the native lane's `permissions.allow` above; a pool lane (when re-enabled) its allowlist carrying the repo's venv paths — a precondition that probes one lane while dispatching to another certifies nothing.
+- **A plan-named checker is dry-run before its tickets' coders.** When a ticket's acceptance rests on a checker the plan names (an identity diff, a parity script, a snapshot compare), run it once on a throwaway head of the ticket's unit, a scratch build the orchestrator makes before the coder is dispatched and never commits (it is no ticket code); a gap it reports, or a shape it cannot see, becomes a ticket added to the Board up front rather than a find in review.
+- **The orchestrator writes NO ticket code**, with exactly ONE exception — trivial ≤1-file/≤50-LOC **strictly-mechanical** inline edits (**no-new-logic** defined: no conditional/loop/function-body change). Any orchestrator-authored fixup is bound by the same numeric limits, lands **inside the ticket's acceptance commit under its `Agent-Task:` trailer**, and gets a native finder pass before final validation trusts it.
+- **Fixup ROUTING (a rule, not an exception):** fixups go to the ticket's coder — SAME coder if its session is alive; a FRESH coder/unit otherwise, whose task payload = the standard cold-coder briefing frame (the § Briefing template's "Before you start" reads — rules/infra/spec — and its item 5 database fence) + the ticket file + the branch history (`git log <base_commit>..HEAD`) + the specific findings — and NO session history, prior-phase summaries, or other tickets (the exclusion targets context bloat, never the standard briefing).
+- **Epic containment — REFUSE a ticket whose Touches escape the epic.** When the spine carries an `Epic: docs/development/epics/<file>` header (an epic-born plan), read that epic's frontmatter `owned_paths` and check every eligible ticket's `## Touches` against them BEFORE dispatch. A path the epic does not own is refused by NAME — the ticket, the offending path, the epic — 🔴 that ticket and CONTINUE the Board (a refused ticket halts the others no more than a D4 🔴 does), and report it as a plan defect for the epic's owner to resolve; a dispatcher never widens an epic to admit a ticket. The `Epic:` line is also what the emit-time containment check keys on; this is the dispatch-time half, because a Board can gain a ticket after its last gate run. **The comparison is GLOB-AWARE, never a string prefix:** `**` matches any depth (in the MIDDLE of a glob too — `libs/**/entitlements/**` is the shape real epics use), a single `*` matches within ONE path segment. So `src/a/x.py` IS covered by `src/a/**` — a prefix test answers no and would refuse every legitimate dispatch — while `src/a/b/deep.py` is NOT covered by `src/a/*`; a `dir/` entry is covered when the directory's whole SUBTREE is (`docs/x/` under `docs/**`, not under `docs/*`). Only the EPIC side carries globs: Touches and File Scope are literal paths / `dir/` entries by grammar, and a spine that copied a glob in is a plan defect the emit gate ERRORs, not something to match leniently. **An `Epic:` path that does not resolve on disk, or an epic whose frontmatter carries no `owned_paths`, is `BLOCKED: epic <path> unreadable — searched: <what you opened> — missing: its owned_paths frontmatter` (the § Execution Contract shape, all three clauses) — never a silent dispatch:** a header the dispatcher cannot read is containment that never ran, which is exactly the fail-open this rule exists to close. A spine with no `Epic:` line at all is untouched by this rule.
+- **Dispatch eligibility:** every `Depends:` row ✅ AND no `Serialized:` barrier pending (a Serialized row is a dispatch barrier: later waits for earlier ✅ — **direction per `## Merge Order` position, the canonical order signal**; the row's own ID listing order is not load-bearing, and a row listed against Merge Order is an authoring defect `/fabrik-plan-review` should have caught).
+- **Dispatch timeout:** a coder with no result within 2× the ticket's plan-time estimate (no estimate stated → use 30 min as the estimate, i.e. a 60-minute timeout) → the D6 salvage procedure; 2 consecutive timeouts on one ticket → 🔴. Every coder dispatch — a wave, a fixup, a salvage review, a re-dispatch — is a FOREGROUND Agent call, so this check runs when the call returns, against the coder's wall-clock from dispatch; a coder that never returns holds the turn, and what bounds it is the explicit command timeouts its brief demands (§ Dispatched subagents run their work SYNCHRONOUSLY).
+- **Coder runtime per `Complexity:` (all FIVE values):** **`inline`** (only under `Profile: small` — gate-enforced) → NO dispatch: the orchestrator codes the ticket itself in the main checkout and commits per D5 with `Agent-Role: orchestrator` + the ticket's `Agent-Task:` trailer — no worktree, no dispatch wait · **`simple`** → a NATIVE worktree coder (Sonnet) · **`complex`** → a NATIVE worktree coder (Sonnet; Opus when the ticket says design-heavy) — the pool is OFF (D-181, on top of D-170's sandbox suspension), so no `NO-POOL:` is owed<!-- POOL OFF (D-181): `simple` → `pick_models("code", prefer="value")` pool unit · `complex` → mid pool coder — both via `fanout("code", units=[{task, owned_paths: <ticket Touches>}…], mode="write")`; D-170 (2026-09-06: 3 of 3 pool coders failed — the write sandbox has no venv; 01M1V98VN3QNS73GCR3GYF9FXH) had already suspended them with `NO-POOL: sandbox` per ticket --> · **`never-route`** → native worktree coder (**gate cross-check:** the gate independently ERRORs a pool-tier ticket touching never-route paths — trust it, don't re-derive) · **`native`** → native worktree coder by AUTHOR'S CHOICE for non-never-route work the pool must not code (the Integration ticket always carries `Complexity: native` — a pool-tier Integration ticket is a gate ERROR). No `NO-POOL:` declaration is owed while the pool is OFF (D-181). Native coder tier: Sonnet default; Opus for design-heavy (auth flow/schema/migration design, concurrency); Haiku never codes. Concurrency: **3 coders**; when more tickets are eligible than a wave holds, fill each wave in `## Merge Order` position order (deterministic across runs, and it frees downstream `Depends:` earliest); **acceptance reviews serialize** (one at a time — the orchestrator's adjudication is serial anyway, and it meters the Opus stream).
 - **Dispatch economics (budgeted rules, not vibes):**
-  - **One currency while the pool is OFF (D-181):** native Claude = subscription **quota** (binding; accounts
-    exhaust in ~2–3 days) — meter Opus, prefer Sonnet seats for breadth, Haiku for trivial checks — priced haiku 1× · sonnet 2× · opus 5× · fable 10× (D-190; `dispatch_headroom.py` prints the round's cost), so an Opus breadth seat is 2.5× a Sonnet one and the Fable adjudicator is one seat per run.<!-- POOL OFF (D-181): two currencies — pool = metered dollars at cents-scale; never burn an Opus call to avoid a cents-scale pool unit -->
-  - **Native tier map (four rungs — canonical in `core/62` § Dispatch economics; this restates it for the plan loop):** **Fable** = orchestrator/adjudication + the final validation's
-    authoritative native seat (it SUBSTITUTES for, never adds to, the Opus seat there); never a routine
-    finder, never a coder. **Opus** = the per-round per-wave authoritative finder (inside the loop, the third
-    finder on the riskiest ticket's slice) + design-heavy never-route coding. **Sonnet** = default never-route coder, and the ROUTINE
-    breadth finder — one seat per independent failure-class group per the count discipline below
-    (breadth is unit-funded, not trigger-funded; D-186 superseded the trigger precondition). **Haiku** = trivial-mechanical checks; never codes.
-  - **Count discipline — a review round is sized by the review command it runs (the exception is
-    `Profile: small`: there the per-ticket layer is `/fabrik-review-scoped` and the full round runs once, at
-    D7):** `/fabrik-review` by its file partition — `dispatch_headroom.py --slices opus=1,sonnet=N,haiku=N`, two
-    cheap finders and one refuter per slice plus the Opus floor (D4) as the riskiest slice's third finder, ONE
-    `Workflow` call per pass — and `/fabrik-review-scoped` by its units
-    (`dispatch_headroom.py --units <N>`). Either way the seats are stamped BEFORE they go out with `python3
-    scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them, then closed with `python3
-    scripts/command_run.py round --seats <n> …` when THIS wave's seats return (a partial close releases only
-    what closed; any other run's seats stay reserved — D-191). The partition is what the surface HAS, so a
-    named trigger (diff >~400 net LOC · never-route surface · a repeat-failed round) means MORE slices or units,
-    not a bigger cap. Grounding fan-outs: one unit per independent dependency, never per file.
-  - **Headroom before a wave:** act on the fleet's band — at AMBER or RED dispatch no new wave and say so
-    on the Board. At GREEN, when the `QUOTA:` line's `successor` reads `none`, compare its
-    `wall in ~<m>m` forecast for the hot window with the wave's summed ticket `Appetite:` (no
-    `Appetite:`, as in a pre-rollout plan → the 30-minute estimate the dispatch timeout above uses); when the
-    wall comes first, say so on the Board, dispatch only the tickets that fit, and hold the rest until
-    `claude_rotate.py --status` (the authority) shows the reset or a rotation, so no coder is cut mid-ticket with only its WIP checkpoints.
-  - **Quota-pause terminal:** a native call failing on quota exhaustion (not a transient error) → the
-    plan PAUSES: lock `status: "paused"`, Board preserved, spine stays IN-PROGRESS; resume on quota
-    reset/rotation. **The Opus floor is never substitutable downward** (the `Profile: small` per-ticket
-    layer is not a substitution — the floor still runs, once, at D7) — quota pressure pauses the plan,
-    it never thins the review.
+  - **One currency while the pool is OFF (D-181):** native Claude = subscription **quota** (binding; accounts exhaust in ~2–3 days) — meter Opus, prefer Sonnet seats for breadth, Haiku for trivial checks — priced haiku 1× · sonnet 2× · opus 5× · fable 10× (D-190; `dispatch_headroom.py` prints the round's cost), so an Opus breadth seat is 2.5× a Sonnet one and the Fable adjudicator is one seat per run.<!-- POOL OFF (D-181): two currencies — pool = metered dollars at cents-scale; never burn an Opus call to avoid a cents-scale pool unit -->
+  - **Native tier map (four rungs — canonical in `core/62` § Dispatch economics; this restates it for the plan loop):** **Fable** = orchestrator/adjudication + the final validation's authoritative native seat (it SUBSTITUTES for, never adds to, the Opus seat there); never a routine finder, never a coder. **Opus** = the per-round per-wave authoritative finder (inside the loop, the third finder on the riskiest ticket's slice) + design-heavy never-route coding. **Sonnet** = default never-route coder, and the ROUTINE breadth finder — one seat per independent failure-class group per the count discipline below (breadth is unit-funded, not trigger-funded; D-186 superseded the trigger precondition). **Haiku** = trivial-mechanical checks; never codes.
+  - **Count discipline — a review round is sized by the review command it runs (the exception is `Profile: small`: there the per-ticket layer is `/fabrik-review-scoped` and the full round runs once, at D7):** `/fabrik-review` by its file partition — `dispatch_headroom.py --slices opus=1,sonnet=N,haiku=N`, two cheap finders and one refuter per slice plus the Opus floor (D4) as the riskiest slice's third finder, ONE `Workflow` call per pass — and `/fabrik-review-scoped` by its units (`dispatch_headroom.py --units <N>`). Either way the seats are stamped BEFORE they go out with `python3 scripts/command_run.py dispatch --seats <n>` so sibling sessions subtract them, then closed with `python3 scripts/command_run.py round --seats <n> …` when THIS wave's seats return (a partial close releases only what closed; any other run's seats stay reserved — D-191). The partition is what the surface HAS, so a named trigger (diff >~400 net LOC · never-route surface · a repeat-failed round) means MORE slices or units, not a bigger cap. Grounding fan-outs: one unit per independent dependency, never per file.
+  - **Headroom before a wave:** act on the fleet's band — at AMBER or RED dispatch no new wave and say so on the Board. At GREEN, when the `QUOTA:` line's `successor` reads `none`, compare its `wall in ~<m>m` forecast for the hot window with the wave's summed ticket `Appetite:` (no `Appetite:`, as in a pre-rollout plan → the 30-minute estimate the dispatch timeout above uses); when the wall comes first, say so on the Board, dispatch only the tickets that fit, and hold the rest until `claude_rotate.py --status` (the authority) shows the reset or a rotation, so no coder is cut mid-ticket with only its WIP checkpoints.
+  - **Quota-pause terminal:** a native call failing on quota exhaustion (not a transient error) → the plan PAUSES: lock `status: "paused"`, Board preserved, spine stays IN-PROGRESS; resume on quota reset/rotation. **The Opus floor is never substitutable downward** (the `Profile: small` per-ticket layer is not a substitution — the floor still runs, once, at D7) — quota pressure pauses the plan, it never thins the review.
 
 ### D3 — Shared governance files: orchestrator-applied Deltas
 
-The seven governance surfaces (CHANGELOG.md · INDEX.md · docs/README.md · docs/FEATURES.md ·
-docs/STRATEGIC_BACKLOG.md ·
-docs/LESSONS_LEARNT.md · docs/DECISIONS.md) are never in Touches (gate-enforced — for DECISIONS.md
-the gate is also the pen-holder law: a ticket touching it hands a coder subagent the pen CLAUDE.md
-reserves for the dispatching session; a ticket-born decision reaches the ledger through the
-orchestrator's own mint, per § received rulings). Every coder report ends with a
-**`## Deltas` block** in fixed format: `### CHANGELOG` (entry text verbatim) · `### INDEX` (rows) ·
-`### LESSONS` (entry-or-none) · matching headings for any other fired governance surface — **except
-`docs/DECISIONS.md`, which has NO Deltas heading**: a ticket-born decision is reported in prose and
-MINTED by the orchestrator (§ received rulings; the pen never rides the Deltas channel). The
-orchestrator applies deltas at merge in Merge-Order order, **dedupes on normalized full entry text —
-same-title-different-body pairs are surfaced to the acceptance review, never silently dropped** — and the
-applied diff is part of the acceptance-review surface, landing in the acceptance commit (where
-`check_changelog.py` demands the entry). Integration-ticket command outputs flow through the same
-mechanism.
+The seven governance surfaces (CHANGELOG.md · INDEX.md · docs/README.md · docs/FEATURES.md · docs/STRATEGIC_BACKLOG.md · docs/LESSONS_LEARNT.md · docs/DECISIONS.md) are never in Touches (gate-enforced — for DECISIONS.md the gate is also the pen-holder law: a ticket touching it hands a coder subagent the pen CLAUDE.md reserves for the dispatching session; a ticket-born decision reaches the ledger through the orchestrator's own mint, per § received rulings). Every coder report ends with a **`## Deltas` block** in fixed format: `### CHANGELOG` (entry text verbatim) · `### INDEX` (rows) · `### LESSONS` (entry-or-none) · matching headings for any other fired governance surface — **except `docs/DECISIONS.md`, which has NO Deltas heading**: a ticket-born decision is reported in prose and MINTED by the orchestrator (§ received rulings; the pen never rides the Deltas channel). The orchestrator applies deltas at merge in Merge-Order order, **dedupes on normalized full entry text — same-title-different-body pairs are surfaced to the acceptance review, never silently dropped** — and the applied diff is part of the acceptance-review surface, landing in the acceptance commit (where `check_changelog.py` demands the entry). Integration-ticket command outputs flow through the same mechanism.
 
 ### D4 — Per-wave receive + review: the ettw-07 floor, per round
 
-("ettw-07" is provenance — the epic-to-ticket workflow step this floor was adapted from; the CONTRACT
-is the text below, self-contained.) **The review unit is the WAVE** — the tickets one pass of the D-loop dispatched together (D-429: 28 per-ticket runs were 76% of three chains' review minutes, each paying a 9–29 min floor). The wave converges to `/fabrik-review`'s coverage-adjudicated exit BEFORE any of its tickets merges — ONE
-review-loop workflow run over the wave, **one slice per ticket** (that ticket's diff; two cheap finders and one refuter per slice, D-344) **AND
-exactly 1 native Opus finder per round, UNCONDITIONAL** — the riskiest ticket's slice's third finder
-(`models: ["sonnet", "haiku", "opus"]`; under `Profile: small` this floor runs ONCE, at D7 — the carve-out below). **Secrets
-carve-out:** a diff touching secret-material paths (`.env` / `.env.*` **except `.env.example`** — the
-Doc-Sync-Matrix file every env-var change touches; without the exemption a routine env-var phase would be
-misread as secret-bearing — `secrets/`, key files) is reviewed
-**native-only** — secret contents never go to pool APIs; all other never-route classes get both layers.
-The orchestrator refutes/merges/adjudicates; fixups route per D2. Each wave's brief applies the lines of `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE, and each wave receipt starts from `review_receipt.py --init` (the `## Coverage Checklist` the check grades) and, once flipped `CONVERGED`, passes `python3 scripts/enforcement/check_review_coverage.py <the receipt>` before its closing round is recorded. **Every wave round is stamped and closed like any other:** `python3 scripts/command_run.py dispatch --seats <n>` BEFORE its seats go out, `python3 scripts/command_run.py round --seats <n> --findings <n> --classes-swept … --classes-new …` at its close — the D-186 tripwire is blind to a round that stamps and never closes, and the sibling reservation stands until its 25-minute expiry. **Under `Profile: small` the per-ticket
-layer is `/fabrik-review-scoped`** — tests + gate + the light scoped round, its run record the artifact, NO
-per-ticket review file — and the floor above runs ONCE at D7 over the whole-plan diff into the single
-receipt; the rest of this section (docs converge with the ticket, fixups, 3-strikes) binds unchanged.
-Otherwise each wave's review is persisted as
-`docs/development/reviews/<plan>-T<id>-review.md` named for the wave's FIRST ticket in Merge Order and listing every ticket it covers — except the last wave, whose run is D7's validation and writes `<plan>-review.md` (full ID; **one file per wave, round sections
-APPENDED**, each round carrying a machine-readable roster line — `Finders: pool <model×n> + native
-<model×n> — round N` — so the floor is attestable, not asserted). `/fabrik-generate-tests` runs at
-acceptance for non-TDD'd behaviors. Consumer seam tests are blocking at the CONSUMER's review. **Fixups
-reuse the ticket row/file — Board back to 🔵; new rows post-CONVERGED forbidden.** 3 consecutive
-same-test failures → 🔴 + `BLOCKED` for that ticket, **continue the Board** (3-strikes-continue: one
-red ticket never halts the others).
+("ettw-07" is provenance — the epic-to-ticket workflow step this floor was adapted from; the CONTRACT is the text below, self-contained.) **The review unit is the WAVE** — the tickets one pass of the D-loop dispatched together (D-429: 28 per-ticket runs were 76% of three chains' review minutes, each paying a 9–29 min floor). The wave converges to `/fabrik-review`'s coverage-adjudicated exit BEFORE any of its tickets merges — ONE review-loop workflow run over the wave, **one slice per ticket** (that ticket's diff; two cheap finders and one refuter per slice, D-344) **AND exactly 1 native Opus finder per round, UNCONDITIONAL** — the riskiest ticket's slice's third finder (`models: ["sonnet", "haiku", "opus"]`; under `Profile: small` this floor runs ONCE, at D7 — the carve-out below). **Secrets carve-out:** a diff touching secret-material paths (`.env` / `.env.*` **except `.env.example`** — the Doc-Sync-Matrix file every env-var change touches — `secrets/`, key files) is reviewed **native-only** — secret contents never go to pool APIs; all other never-route classes get both layers. The orchestrator refutes/merges/adjudicates; fixups route per D2. Each wave's brief applies the lines of `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE, and each wave receipt starts from `review_receipt.py --init` (the `## Coverage Checklist` the check grades) and, once flipped `CONVERGED`, passes `python3 scripts/enforcement/check_review_coverage.py <the receipt>` before its closing round is recorded. **Every wave round is stamped and closed like any other:** `python3 scripts/command_run.py dispatch --seats <n>` BEFORE its seats go out, `python3 scripts/command_run.py round --seats <n> --findings <n> --classes-swept … --classes-new …` at its close — the D-186 tripwire is blind to a round that stamps and never closes, and the sibling reservation stands until its 25-minute expiry. **Under `Profile: small` the per-ticket layer is `/fabrik-review-scoped`** — tests + gate + the light scoped round, its run record the artifact, NO per-ticket review file — and the floor above runs ONCE at D7 over the whole-plan diff into the single receipt; the rest of this section (docs converge with the ticket, fixups, 3-strikes) binds unchanged. Otherwise each wave's review is persisted as `docs/development/reviews/<plan>-T<id>-review.md` named for the wave's FIRST ticket in Merge Order and listing every ticket it covers — except the last wave, whose run is D7's validation and writes `<plan>-review.md` (full ID; **one file per wave, round sections APPENDED**, each round carrying a machine-readable roster line — `Finders: pool <model×n> + native <model×n> — round N` — so the floor is attestable, not asserted). `/fabrik-generate-tests` runs at acceptance for non-TDD'd behaviors. Consumer seam tests are blocking at the CONSUMER's review. **Fixups reuse the ticket row/file — Board back to 🔵; new rows post-CONVERGED forbidden.** 3 consecutive same-test failures → 🔴 + `BLOCKED` for that ticket, **continue the Board** (3-strikes-continue: one red ticket never halts the others).
 
-**Docs converge with the ticket, not at the end of the plan.** Before a ticket merges, run
-`python scripts/enforcement/check_doc_sync.py` — **any WARNING whose trigger file is in THIS ticket's
-diff is BLOCKING** — then the Tier-1 reconcile on the STAGED diff (`python scripts/doc_reconcile.py`,
-no `--range`: it reads `git diff --cached`), review the applied patches for truth, and stage them so
-they ride the TICKET's own commit. This mirrors the phase-mode loop, which has always done it per
-phase. Without it the dispatcher's only doc gate is D7's whole-plan receipt — so a stale doc surfaces
-at the END of the plan, detached from the ticket that caused it and from the agent that still had the
-context to write it. The receipt then stays what it is meant to be, a *receipt*, rather than the first
-time anyone looks.
+**Docs converge with the ticket, not at the end of the plan.** Before a ticket merges, run `python scripts/enforcement/check_doc_sync.py` — **any WARNING whose trigger file is in THIS ticket's diff is BLOCKING** — then the Tier-1 reconcile on the STAGED diff (`python scripts/doc_reconcile.py`, no `--range`: it reads `git diff --cached`), review the applied patches for truth, and stage them so they ride the TICKET's own commit. Without it the dispatcher's only doc gate is D7's whole-plan receipt, so a stale doc surfaces at the END of the plan, detached from the ticket that caused it.
 
 ### D5 — Merge protocol (overrides § Merge Protocol for ticket merges)
 
-Merge in `## Merge Order`. Merges are **squash-applied**: code + spine Board flip + applied Deltas staged
-in ONE ordinary commit with the full-ID `Agent-Task:` trailer — same-commit atomicity is what makes the
-Board trustworthy. **Synced surfaces sync ONCE, at Finish:** a merge that lands a fleet-synced path
-(`scripts/fabrik_synced_manifest.py`) through plumbing that skips the post-commit governance sync owes one
-`python3 scripts/sync_enforcement_to_projects.py --force` after the LAST merge, never per merge — the sync
-is idempotent and a project's older-but-unmodified copy passes its own gate until then
-(`check_synced_unmodified.py`); 2026-09-06 ran five forced syncs of 45 repos inside one plan. Touches are exclusively owned → a same-file collision between coders is a **contract
-violation → ERROR + re-dispatch**, never a merge-rule pick. Cross-ticket semantic incompatibility is
-caught by tests, not diffs: at each merge, re-run the producer tickets' Behavior-Contract tests + the consumer's seam tests on the tree before the merge and on the integrated tree, their reds compared BY NAME (a list, never a count — a swapped red keeps the count; a test absent before the merge counts as new) — a NEW red → fixup routed to the **CONSUMER's coder** with both
-contracts in scope. **Salvaged/stale branches are rebased onto the run's `BASE` branch — resolved by
-`git branch --show-current` per Before You Start step 8, never the literal `master` — before acceptance
-review** (conflicts → a fixup, never a silent resolution).
+Merge in `## Merge Order`. Merges are **squash-applied**: code + spine Board flip + applied Deltas staged in ONE ordinary commit with the full-ID `Agent-Task:` trailer — same-commit atomicity is what makes the Board trustworthy. **Synced surfaces sync ONCE, at Finish:** a merge that lands a fleet-synced path (`scripts/fabrik_synced_manifest.py`) through plumbing that skips the post-commit governance sync owes one `python3 scripts/sync_enforcement_to_projects.py --force` after the LAST merge, never per merge — the sync is idempotent and a project's older-but-unmodified copy passes its own gate until then (`check_synced_unmodified.py`). Touches are exclusively owned → a same-file collision between coders is a **contract violation → ERROR + re-dispatch**, never a merge-rule pick. Cross-ticket semantic incompatibility is caught by tests, not diffs: at each merge, re-run the producer tickets' Behavior-Contract tests + the consumer's seam tests on the tree before the merge and on the integrated tree, their reds compared BY NAME (a list, never a count — a swapped red keeps the count; a test absent before the merge counts as new) — a NEW red → fixup routed to the **CONSUMER's coder** with both contracts in scope. **Salvaged/stale branches are rebased onto the run's `BASE` branch — resolved by `git branch --show-current` per Before You Start step 8, never the literal `master` — before acceptance review** (conflicts → a fixup, never a silent resolution).
 
 ### D6 — Lock registry: per-ticket resume
 
-The lock gains `tickets: {<full ID>: {state, worktree_path, branch, base_commit, started_at}}` per
-dispatch — pool tickets record `worktree_path/branch: null` (fanout captures diffs, never auto-applies: a
-crashed pool unit leaves no partial writes; recovery = re-dispatch the unit). **Dead-coder procedure
-(native):** recorded path missing/erroring, or dirty with state ≠ merged → **salvage check first**
-(`git -C <wt> log <base_commit>..HEAD --oneline` non-empty → returned work → rebase → acceptance review;
-fixups → fresh coder per D2); otherwise capture the tree's uncommitted content first —
-`git -C <wt> add -N . && git -C <wt> diff HEAD > .fabrik/plan-locks/<stem>-salvage-<ticket>.diff`
-(`diff HEAD`, never bare `diff` — the gate AUTO-STAGES fixed files, so a dead coder's most likely
-state is staged-not-committed, which a bare `diff` silently omits)
-(gitignored; DELETE it once the re-dispatched ticket's work is accepted — a stale salvage diff is a
-false recovery artifact a future resume could wrongly re-apply over newer work)
-(durable — a scratchpad is session-private and a resume may be a DIFFERENT session; `-N` makes untracked
-files visible to the diff; cheap, and it converts the force-remove from ONE-WAY destruction into a
-reversible act) — log the dirty file list to spine Evidence, then
-`git worktree remove --force` + re-dispatch fresh — fully autonomous; coder worktrees are disposable,
-never resumed. Orchestrator partial-diff assessment is capped (`git diff --stat` + ≤3 files/500 lines;
-larger → straight to a fresh coder's salvage review — the orchestrator does not read big diffs at its
-tail). **MESSY-resume sweep:** on ANY resume, run this procedure over every 🔵 lock entry BEFORE new
-dispatches, and ALSO probe the seven governance surfaces (docs/DECISIONS.md included — a ruling row
-written but not yet committed is exactly the crash-orphan the received-ruling clause claims cannot
-happen) for uncommitted residue — a crashed run's
-half-applied Deltas are the ONE case where governance residue can be yours (the lock's `tickets` map
-says which merge was in flight); operator ruling remains only for the orchestrator's OWN tree. **SIZING
-DEFECT signals (orchestrator-logged to spine Evidence):** a re-dispatch, a partial diff vs Touches, a
-dispatch timeout, or a coder-report context marker.
+The lock gains `tickets: {<full ID>: {state, worktree_path, branch, base_commit, started_at}}` per dispatch — pool tickets record `worktree_path/branch: null` (fanout captures diffs, never auto-applies: a crashed pool unit leaves no partial writes; recovery = re-dispatch the unit). **Dead-coder procedure (native):** recorded path missing/erroring, or dirty with state ≠ merged → **salvage check first** (`git -C <wt> log <base_commit>..HEAD --oneline` non-empty → returned work → rebase → acceptance review; fixups → fresh coder per D2); otherwise capture the tree's uncommitted content first — `git -C <wt> add -N . && git -C <wt> diff HEAD > .fabrik/plan-locks/<stem>-salvage-<ticket>.diff` (`diff HEAD`, never bare `diff` — the gate AUTO-STAGES fixed files, so a dead coder's most likely state is staged-not-committed, which a bare `diff` silently omits) (gitignored; DELETE it once the re-dispatched ticket's work is accepted — a stale salvage diff is a false recovery artifact a future resume could wrongly re-apply over newer work) (durable — a scratchpad is session-private and a resume may be a DIFFERENT session; `-N` makes untracked files visible to the diff; cheap, and it converts the force-remove from ONE-WAY destruction into a reversible act) — log the dirty file list to spine Evidence, then `git worktree remove --force` + re-dispatch fresh — fully autonomous; coder worktrees are disposable, never resumed. Orchestrator partial-diff assessment is capped (`git diff --stat` + ≤3 files/500 lines; larger → straight to a fresh coder's salvage review — the orchestrator does not read big diffs at its tail). **MESSY-resume sweep:** on ANY resume, run this procedure over every 🔵 lock entry BEFORE new dispatches, and ALSO probe the seven governance surfaces (docs/DECISIONS.md included — a ruling row written but not yet committed is exactly the crash-orphan the received-ruling clause claims cannot happen) for uncommitted residue — a crashed run's half-applied Deltas are the ONE case where governance residue can be yours (the lock's `tickets` map says which merge was in flight); operator ruling remains only for the orchestrator's OWN tree. **SIZING DEFECT signals (orchestrator-logged to spine Evidence):** a re-dispatch, a partial diff vs Touches, a dispatch timeout, or a coder-report context marker.
 
 ### D7 — Final validation + terminal states
 
-**The Integration ticket's work lands BEFORE validation reviews it — it is a Board unit (the LAST one), and its wave's review run IS the validation (D4).** The set's
-exactly-one `Integration: true` ticket (`Complexity: native`, last in Merge Order — both
-gate-enforced) owns the monolith's mandatory closing work: the whole-plan doc receipts
-(`check_doc_sync.py --range <baseline>..HEAD` + `check_doc_stubs.py --range`), `/fabrik-docs-review` (none when the plan has a doc ticket — that ticket's wave slice IS the docs review),
-`/fabrik-features` when features shipped, the cross-ticket seam-test run, and the whole-plan
-`final_gate.py --check --json` + `check_convergence.py` run; its command outputs and doc-drift fixes
-flow through `## Deltas` (D3), and it merges like any ticket. D7's validation is the adversarial
-layer ON TOP of those receipts — never a substitute for them. **The whole-plan receipt starts from
-`python scripts/review_receipt.py --init --out docs/development/reviews/<plan>-review.md --changed
-<the plan's code paths> --range <baseline>..HEAD --plan <spine>`** — `<plan>` is the plan file's (a set's
-spine's) own dated stem, because `check_convergence.py` matches the citation by it: an undated
-`--scope <plan-slug>` is dated the day it is made, and a later date with one distinctive slug token
-(`plan-3-mail`) matches nothing. The generator writes the rubric run, the `Surface:` hash, the standing
-rows and the ledger/phase shapes; the reviewer writes every verdict (born `IN-PROGRESS`; a lazy flip fails
-the gate). Under `Profile: small` this is the plan's ONLY review artifact.
+**The Integration ticket's work lands BEFORE validation reviews it — it is a Board unit (the LAST one), and its wave's review run IS the validation (D4).** The set's exactly-one `Integration: true` ticket (`Complexity: native`, last in Merge Order — both gate-enforced) owns the monolith's mandatory closing work: the whole-plan doc receipts (`check_doc_sync.py --range <baseline>..HEAD` + `check_doc_stubs.py --range`), `/fabrik-docs-review` (none when the plan has a doc ticket — that ticket's wave slice IS the docs review), `/fabrik-features` when features shipped, the cross-ticket seam-test run, and the whole-plan `final_gate.py --check --json` + `check_convergence.py` run; its command outputs and doc-drift fixes flow through `## Deltas` (D3), and it merges like any ticket. D7's validation is the adversarial layer ON TOP of those receipts — never a substitute for them. **The whole-plan receipt starts from `python scripts/review_receipt.py --init --out docs/development/reviews/<plan>-review.md --changed <the plan's code paths> --range <baseline>..HEAD --plan <spine>`** — `<plan>` is the plan file's (a set's spine's) own dated stem, because `check_convergence.py` matches the citation by it: an undated `--scope <plan-slug>` is dated the day it is made, and a later date with one distinctive slug token (`plan-3-mail`) matches nothing. The generator writes the rubric run, the `Surface:` hash, the standing rows and the ledger/phase shapes; the reviewer writes every verdict (born `IN-PROGRESS`; a lazy flip fails the gate). Under `Profile: small` this is the plan's ONLY review artifact.
 
-Validation runs only when every non-🔴 ticket but the Integration ticket is terminal and the Integration coder has returned (✅ — no other ⬜ dispatchable, no 🔵/🟡 in
-flight, all salvage procedures complete). ONE whole-plan validation — internally consistent · factual · correct — and it is the LAST wave's review run (the Integration ticket's wave, before that ticket merges), carrying a cross-ticket slice over the cumulative diff beside that ticket's own slice, never a separate run after it; its receipt is the whole-plan `<plan>-review.md`, never a `-T##` name:
-spine↔tickets↔frozen-contract seams + the integrated cumulative diff + a full run of **every ticket's
-Behavior-Contract tests and every seam test**. **Finder counts SCALE with the surface:** minimum 3 native Sonnet
-finders + the native authoritative seat (**Fable substitutes for Opus here**; the pool is OFF, D-181), adding ~1 finder per
-2 tickets; NO round cap; closes only on `found: 0, fixed: 0` **(re-raises of already-adjudicated
-standing rows are CITED, never counted — D-206 (superseding D-048); counting them makes this terminal gate unreachable
-whenever a standing accepted-risk row stays true)**. A flaky test is itself a finding (fix or
-quarantine-with-recorded-ruling — never an excuse to loop). Validation findings are FIXED by fresh
-coders/units bound to the owning ticket's Touches, reviewed as that ticket's slice in the next wave's run, or in this last run while it is open (cross-cutting
-findings split along Touches); a producer-originated defect surfacing here (or at the Integration seam
-run) flips the producer's row ✅→🔵 and re-dispatches — the **sanctioned back-flip**. The validation MAY
-run in a fresh orchestrator context (spine + lock are the durable handoff).
+Validation runs only when every non-🔴 ticket but the Integration ticket is terminal and the Integration coder has returned (✅ — no other ⬜ dispatchable, no 🔵/🟡 in flight, all salvage procedures complete). ONE whole-plan validation — internally consistent · factual · correct — and it is the LAST wave's review run (the Integration ticket's wave, before that ticket merges), carrying a cross-ticket slice over the cumulative diff beside that ticket's own slice, never a separate run after it; its receipt is the whole-plan `<plan>-review.md`, never a `-T##` name: spine↔tickets↔frozen-contract seams + the integrated cumulative diff + a full run of **every ticket's Behavior-Contract tests and every seam test**. **Finder counts SCALE with the surface:** minimum 3 native Sonnet finders + the native authoritative seat (**Fable substitutes for Opus here**; the pool is OFF, D-181), adding ~1 finder per 2 tickets; NO round cap; closes only on `found: 0, fixed: 0` **(re-raises of already-adjudicated standing rows are CITED, never counted — D-206 (superseding D-048); counting them makes this terminal gate unreachable whenever a standing accepted-risk row stays true)**. A flaky test is itself a finding (fix or quarantine-with-recorded-ruling — never an excuse to loop). Validation findings are FIXED by fresh coders/units bound to the owning ticket's Touches, reviewed as that ticket's slice in the next wave's run, or in this last run while it is open (cross-cutting findings split along Touches); a producer-originated defect surfacing here (or at the Integration seam run) flips the producer's row ✅→🔵 and re-dispatches — the **sanctioned back-flip**. The validation MAY run in a fresh orchestrator context (spine + lock are the durable handoff).
 
-**⚠️ A plan that shipped HTTP surface does not reach a terminal state on green suites alone — it owes
-at least one LIVE REQUEST.** When any merged ticket added or changed a route, endpoint, or client
-call, validation requires ≥1 real request issued against the running service (from a linked worktree, read
-Before You Start step 8 first), with its actual
-response pasted verbatim into the spine's `## Evidence`. A passing suite proves the code the tests
-call; only a live request proves the route EXISTS at the path the caller uses. Measured (transdoc,
-2026-08-25): six verification layers were simultaneously green — the governing rule pack unreachable,
-45 `page.route` mocks covering exactly the missing endpoints, `final_gate` green, 296 tests passing —
-while 19 frontend calls pointed at routes that did not exist and 14 built endpoints had no caller. No
-suite could see it; one request would have. Mocked, stubbed, or recorded responses do NOT satisfy
-this; a plan with no HTTP surface states that in `## Evidence` and moves on.
+**⚠️ A plan that shipped HTTP surface does not reach a terminal state on green suites alone — it owes at least one LIVE REQUEST.** When any merged ticket added or changed a route, endpoint, or client call, validation requires ≥1 real request issued against the running service (from a linked worktree, read Before You Start step 8 first), with its actual response pasted verbatim into the spine's `## Evidence`. A passing suite proves the code the tests call; only a live request proves the route EXISTS at the path the caller uses. Mocked, stubbed, or recorded responses do NOT satisfy this; a plan with no HTTP surface states that in `## Evidence` and moves on.
 
-Then Finish: receipt, gate,
-spine `Status: EXECUTED` citing the WHOLE-PLAN validation review
-(`docs/development/reviews/<plan>-review.md` — `check_convergence` enforces the citation exists with a
-quiet `found: 0` pass, and for a plan set it rejects a per-ticket `-T##-review.md` as that proof), lock
-release, **archive = whole-directory move** (§ Finish step 6).
+Then Finish: receipt, gate, spine `Status: EXECUTED` citing the WHOLE-PLAN validation review (`docs/development/reviews/<plan>-review.md` — `check_convergence` enforces the citation exists with a quiet `found: 0` pass, and for a plan set it rejects a per-ticket `-T##-review.md` as that proof), lock release, **archive = whole-directory move** (§ Finish step 6).
 
-**A quota pause is not a block** — D2's Quota-pause terminal owns it. **Blocked-end rule:** when no dispatchable tickets remain, no 🔵/🟡 in flight, and any row is 🔴 — no
-final validation; flip spine `Status: BLOCKED` + commit; clean 🔴 tickets' worktrees/branches; the lock
-is RETAINED with `status: "blocked"` + the full `tickets` map for operator inspection but its
-`owned_paths` is CLEARED (so it never blocks future overlapping plans); stop for operator ruling.
-**Blocked-resume:** the ruling, recorded in spine Evidence, authorizes 🔴→🔵 re-dispatch of named
-tickets (never new rows); flip the spine `BLOCKED → IN-PROGRESS` (committed with the ruling), restore
-the lock (`status: "active"`, re-derive `owned_paths` per the D1 rule — File Scope MINUS the
-stem-scoped metadata), and execution re-enters at D2.
+**A quota pause is not a block** — D2's Quota-pause terminal owns it. **Blocked-end rule:** when no dispatchable tickets remain, no 🔵/🟡 in flight, and any row is 🔴 — no final validation; flip spine `Status: BLOCKED` + commit; clean 🔴 tickets' worktrees/branches; the lock is RETAINED with `status: "blocked"` + the full `tickets` map for operator inspection but its `owned_paths` is CLEARED (so it never blocks future overlapping plans); stop for operator ruling. **Blocked-resume:** the ruling, recorded in spine Evidence, authorizes 🔴→🔵 re-dispatch of named tickets (never new rows); flip the spine `BLOCKED → IN-PROGRESS` (committed with the ruling), restore the lock (`status: "active"`, re-derive `owned_paths` per the D1 rule — File Scope MINUS the stem-scoped metadata), and execution re-enters at D2.
 
 ## Subagent Strategy
 
 ### When to dispatch
 
-Check the plan's design spec for a **Subagent Mandates** table. It specifies per-phase:
-- How many parallel subagents
-- What each subagent does
-- Where results merge
-
-Phases marked "inline" or with 1 subagent → execute directly, no dispatch.
+Check the plan's design spec for a **Subagent Mandates** table. It specifies per-phase how many parallel subagents, what each subagent does, and where results merge. Phases marked "inline" or with 1 subagent → execute directly, no dispatch.
 
 ### ⚠️ Dispatched subagents run their work SYNCHRONOUSLY — never background, never wait on a Monitor
 
-**The #1 way a phase silently burns its whole budget without writing a line.** A dispatched implementer /
-reviewer subagent that starts a long job (a build, a test suite, a provisioning routine, `pytest`, a
-migration) **in the background — or arms a Monitor and ends its turn to "wait for the result" — STALLS
-FOREVER: background and Monitor notifications do NOT deliver to a subagent.** From the orchestrator's side it
-looks alive, then reports `completed` with nothing done. Every dispatched subagent MUST run each command as a
-plain **synchronous** shell call (a generous `timeout`) and read its exit output in the SAME turn. **If a
-step is too slow for one synchronous call, SPLIT its scope** (e.g. a big provisioning phase → seed-countries,
-then chart-of-accounts, then fiscal-year, each run and verified synchronously) — never defer a slice to a
-signal that will not arrive. ⚠️ **"A generous `timeout`" is not advice, it is the load-bearing part:
-the Bash tool's DEFAULT is 120s, and a call that exceeds it does not error — it AUTO-BACKGROUNDS.**
-So a subagent obeying this instruction to the letter lands in exactly the state the instruction
-exists to prevent, with no signal that it happened (transdoc, 2026-08-28: a first synchronous
-`npx playwright test` silently backgrounded on a cold dev-server boot). Pass an EXPLICIT
-multi-minute `timeout` on anything that boots a server, runs a browser suite, or provisions —
-"split scope" cannot help when the call is a single unsplittable server boot. Dispatch every
-subagent with an explicit *"run synchronously with an explicit multi-minute `timeout` on any
-server-boot / browser-suite / provisioning call; never background a run or wait on a
-Monitor/notification; split scope only when the work genuinely divides"* instruction in its brief.
+**The #1 way a phase silently burns its whole budget without writing a line.** A dispatched implementer / reviewer subagent that starts a long job (a build, a test suite, a provisioning routine, `pytest`, a migration) **in the background — or arms a Monitor and ends its turn to "wait for the result" — STALLS FOREVER: background and Monitor notifications do NOT deliver to a subagent.** From the orchestrator's side it looks alive, then reports `completed` with nothing done. Every dispatched subagent MUST run each command as a plain **synchronous** shell call (a generous `timeout`) and read its exit output in the SAME turn. **If a step is too slow for one synchronous call, SPLIT its scope** (e.g. a big provisioning phase → seed-countries, then chart-of-accounts, then fiscal-year, each run and verified synchronously) — never defer a slice to a signal that will not arrive. ⚠️ **"A generous `timeout`" is not advice, it is the load-bearing part: the Bash tool's DEFAULT is 120s, and a call that exceeds it does not error — it AUTO-BACKGROUNDS.** So a subagent obeying this instruction to the letter lands in exactly the state the instruction exists to prevent, with no signal that it happened (transdoc, 2026-08-28: a first synchronous `npx playwright test` silently backgrounded on a cold dev-server boot). Pass an EXPLICIT multi-minute `timeout` on anything that boots a server, runs a browser suite, or provisions — "split scope" cannot help when the call is a single unsplittable server boot. Dispatch every subagent with an explicit *"run synchronously with an explicit multi-minute `timeout` on any server-boot / browser-suite / provisioning call; never background a run or wait on a Monitor/notification; split scope only when the work genuinely divides"* instruction in its brief.
 
 ### Isolation model: worktrees
 
@@ -839,15 +389,7 @@ ExitWorktree returns it to the main checkout · (c) the merge owner merges it. �
 
 Each subagent starts **cold** — it has zero context from this conversation. The prompt you give it must be self-contained. Use this template:
 
-⚠️ **State the precedence in the brief, or every finder re-derives it.** A dispatched subagent inherits
-`CLAUDE.md`'s response contract (the FIRST-OUTPUT `RULES ACTIVE` line, the 7-line FINAL OUTPUT block,
-the STATE footer) — written for an OPERATOR-facing turn — while its brief asks for a return VALUE the
-orchestrator will parse. Those collide, and nothing says which wins, so each finder decides for itself
-(reported by brand-identiy-creator `01M150NTHP`). **The brief outranks the response-format contract for
-a dispatched subagent:** return exactly what the brief asks for and nothing else. The response contract
-binds the ORCHESTRATOR's turn, not the subagent's return value — a subagent that wraps its findings in a
-7-line block is handing the parser prose it did not ask for. Put this line IN the brief; do not assume
-it.
+⚠️ **State the precedence in the brief, or every finder re-derives it.** A dispatched subagent inherits `CLAUDE.md`'s response contract (the FIRST-OUTPUT `RULES ACTIVE` line, the 7-line FINAL OUTPUT block, the STATE footer) — written for an OPERATOR-facing turn — while its brief asks for a return VALUE the orchestrator will parse. **The brief outranks the response-format contract for a dispatched subagent:** return exactly what the brief asks for and nothing else. The response contract binds the ORCHESTRATOR's turn, not the subagent's return value — a subagent that wraps its findings in a 7-line block is handing the parser prose it did not ask for. Put this line IN the brief; do not assume it.
 
 ```
 You are executing Task {N} of the fabrik-lib integration plan as an isolated subagent.
@@ -875,6 +417,12 @@ Test: {list}
 2. Run `python scripts/select_rules.py` and read every ACTIVE pack.
 3. Read the design spec at {path} — sections {X, Y} for context on why.
 4. Read `AFCL.md` if it exists.
+5. A worktree whose `.env` is deleted or absent is not a database fence, since a suite can still reach a live
+   database through a default or the shell's environment: run the tests with each database variable the suite
+   reads ({the variable names}) set to {an isolated test database, or an unreachable URL such as
+   `postgresql://fence.invalid/fence_test`, whose `_test` name passes a throwaway-name guard}, and with the
+   unreachable URL report the database tests as not run, never as passing: their connection errors are the fence,
+   not a defect to fix.
 
 ## Global Constraints
 
@@ -890,9 +438,12 @@ Test: {list}
 
 ## When done
 
-Commit your work to the worktree branch with provenance trailers:
-  git add {explicit file list}
-  git commit -m "$(cat <<'EOF'
+Commit your work to the worktree branch with provenance trailers. Write the message — exactly the
+lines from `feat(scope)` through `Co-Authored-By`, unindented — with the Write tool to a NEW file
+`msg-phase-{X}-task-{N}` in your session scratchpad (sibling subagents may share it; the task-unique
+name keeps their messages apart) — call its absolute path <msg-file>. Never a heredoc, in any position
+(`git commit -F - <<'EOF'` included): it is a compound shape the worktree isolation check may refuse.
+
 feat(scope): Phase {X} Task {N} — {title}
 
 Agent-Role: subagent
@@ -900,8 +451,10 @@ Agent-Phase: {X}
 Agent-Task: {N}
 Agent-Context: {one-line summary of what you did}
 Co-Authored-By: Claude <model> <noreply@anthropic.com>
-EOF
-  )"
+
+then run, one command per call:
+git add {explicit file list}
+git commit -F <msg-file>
 
 Do NOT push. Do NOT merge. The orchestrator handles that.
 
@@ -910,43 +463,37 @@ Report: list of files changed, tests passing (count), any issues encountered.
 
 ### Dispatch pattern
 
-Send ALL parallel subagents for a phase in a **single message** with multiple Agent tool calls, each passing
-`run_in_background=False`: they still run in parallel, and the turn holds until every one returns. The Agent
-tool's default is background, and a backgrounded wave lets the orchestrator end its turn while its coders
-run, which the Stop hook blocks (its stand-down covers stamped review seats only):
+Send ALL parallel subagents for a phase in a **single message** with multiple Agent tool calls, each passing `run_in_background=False`: they still run in parallel, and the turn holds until every one returns. The Agent tool's default is background, and a backgrounded wave lets the orchestrator end its turn while its coders run, which the Stop hook blocks (its stand-down covers stamped review seats only):
 
 ```python
 # Example: Phase B with 3 parallel subagents
 Agent(
-    description="Phase B Task 4 — audit-log vendor",
-    isolation="worktree",
-    run_in_background=False,
-    model="sonnet",
-    prompt="You are executing Task 4 of the fabrik-lib integration plan..."
+  description="Phase B Task 4 — audit-log vendor",
+  isolation="worktree",
+  run_in_background=False,
+  model="sonnet",
+  prompt="You are executing Task 4 of the fabrik-lib integration plan..."
 )
 Agent(
-    description="Phase B Task 5 — GDPR schema + routes",
-    isolation="worktree",
-    run_in_background=False,
-    model="sonnet",
-    prompt="You are executing Task 5 of the fabrik-lib integration plan..."
+  description="Phase B Task 5 — GDPR schema + routes",
+  isolation="worktree",
+  run_in_background=False,
+  model="sonnet",
+  prompt="You are executing Task 5 of the fabrik-lib integration plan..."
 )
 Agent(
-    description="Phase B Task 6 — audit wiring",
-    isolation="worktree",
-    run_in_background=False,
-    model="sonnet",
-    prompt="You are executing Task 6 of the fabrik-lib integration plan..."
+  description="Phase B Task 6 — audit wiring",
+  isolation="worktree",
+  run_in_background=False,
+  model="sonnet",
+  prompt="You are executing Task 6 of the fabrik-lib integration plan..."
 )
 # All three dispatch in ONE message → true parallel execution
 ```
 
 ### Model selection (specify it explicitly — an omitted model burns the session default)
 
-**Always pass `model=` on every Agent dispatch.** An omitted model inherits *this* session's model —
-usually the most capable and most expensive — which silently defeats cost control. Pick the **least
-powerful model that can do the role**, because **turn count beats token price**: the cheapest models take
-2–3× the turns on multi-step work, costing more overall.
+**Always pass `model=` on every Agent dispatch.** An omitted model inherits *this* session's model — usually the most capable and most expensive — which silently defeats cost control. Pick the **least powerful model that can do the role**, because **turn count beats token price**: the cheapest models take 2–3× the turns on multi-step work, costing more overall.
 
 | Role | Model |
 |---|---|
@@ -958,51 +505,25 @@ powerful model that can do the role**, because **turn count beats token price**:
 
 ### File handoffs — move artifacts as FILES, not pasted text
 
-Everything you paste into a dispatch prompt **and** everything a subagent prints back stays resident in
-your context and is **re-read on every later turn** — a real session hit 42k chars of pasted prior-task
-history. Conserve the orchestrator's context:
+Conserve the orchestrator's context:
 
-- **Brief as a file:** write the phase's brief (its steps + `Interfaces` + `Global Constraints`) to a scratch
-  file (e.g. `<run scratch>/phase-<X>-brief.md`) and give the subagent the **path**, introduced as "read this
-  first — your requirements, use its exact values verbatim." Exact values (signatures, magic strings, test
-  cases) live only in the brief.
-- **Report as a file:** tell the subagent to write its full report to `<run scratch>/phase-<X>-task-<N>-report.md`
-  and **return only** status + commit range + a one-line test summary + concerns. The reviewer reads the
-  brief + report + the diff (`git diff <base>..<head>`) as files. `<run scratch>` is the path this run's `start`
-  printed as `RUN-SCRATCH:` (`/opt/fabrik/commands/_fragments/subagents-core.md`, the D8 paragraph); the folder
-  goes when the run is consumed, which is why the salvage diff above is written elsewhere, and why a review in a
-  later run (a resume's acceptance review of salvaged work) re-derives the brief from the plan and the ticket,
-  never from a folder another run owned.
-- **Never paste session history / prior-phase summaries into a dispatch.** A cold subagent needs only its
-  brief, the `Interfaces` it touches, the Global Constraints, and your resolution of any ambiguity you
-  spotted. Nothing else — not "state after Phases A–C."
+- **Brief as a file:** write the phase's brief (its steps + `Interfaces` + `Global Constraints`) to a scratch file (e.g. `<run scratch>/phase-<X>-brief.md`) and give the subagent the **path**, introduced as "read this first — your requirements, use its exact values verbatim." Exact values (signatures, magic strings, test cases) live only in the brief.
+- **Report as a file:** tell the subagent to write its full report to `<run scratch>/phase-<X>-task-<N>-report.md` and **return only** status + commit range + a one-line test summary + concerns. The reviewer reads the brief + report + the diff (`git diff <base>..<head>`) as files. `<run scratch>` is the path this run's `start` printed as `RUN-SCRATCH:` (`/opt/fabrik/commands/_fragments/subagents-core.md`, the D8 paragraph); the folder goes when the run is consumed, which is why the salvage diff above is written elsewhere, and why a review in a later run (a resume's acceptance review of salvaged work) re-derives the brief from the plan and the ticket, never from a folder another run owned.
+- **Never paste session history / prior-phase summaries into a dispatch.** A cold subagent needs only its brief, the `Interfaces` it touches, the Global Constraints, and your resolution of any ambiguity you spotted. Nothing else — not "state after Phases A–C."
 
 ### Implementer status protocol
 
-Each implementer subagent reports exactly one status; handle each — **never force the same model to retry
-unchanged**:
+Each implementer subagent reports exactly one status; handle each — **never force the same model to retry unchanged**:
 
-- **DONE** → a `DONE` is a **claim, not proof — verify it yourself before accepting the phase.** Read the
-  actual `git diff <base>..<head>` (using the base you recorded *before* dispatching — never `HEAD~1`, which
-  truncates a multi-commit task): do the changes match the assignment, and did it change only its owned
-  paths? **Re-run the covering tests yourself** (the subagent's "N/N passing" line is its report, not your
-  evidence — a fresh run in your turn is). Only a diff that matches + your own green run → phase-boundary
-  `/fabrik-review`.
-- **DONE_WITH_CONCERNS** → read the concerns first; if correctness/scope, resolve before review; if
-  observations, note in the ledger and proceed.
+- **DONE** → a `DONE` is a **claim, not proof — verify it yourself before accepting the phase.** Read the actual `git diff <base>..<head>` (using the base you recorded *before* dispatching — never `HEAD~1`, which truncates a multi-commit task): do the changes match the assignment, and did it change only its owned paths? **Re-run the covering tests yourself** (the subagent's "N/N passing" line is its report, not your evidence — a fresh run in your turn is). Only a diff that matches + your own green run → phase-boundary `/fabrik-review`.
+- **DONE_WITH_CONCERNS** → read the concerns first; if correctness/scope, resolve before review; if observations, note in the ledger and proceed.
 - **NEEDS_CONTEXT** → supply the missing context, re-dispatch (same model).
-- **BLOCKED** → diagnose: context gap → re-dispatch with more context; needs more reasoning → re-dispatch
-  on a more capable model; task too large → split it; **plan itself wrong → escalate to the user** (`BLOCKED:`).
+- **BLOCKED** → diagnose: context gap → re-dispatch with more context; needs more reasoning → re-dispatch on a more capable model; task too large → split it; **plan itself wrong → escalate to the user** (`BLOCKED:`).
 
 ### Reviewer & fix-dispatch discipline
 
-- **Do NOT pre-judge findings in a review dispatch.** Never tell a finder what *not* to flag or pre-rate a
-  severity ("treat as Minor at most", "the plan chose this"). If your dispatch text contains "don't flag" /
-  "the plan mandates it" — stop, you're suppressing a finding to save a loop. Let it surface and adjudicate
-  it in the refute/merge step. A plan-mandated finding that conflicts with the plan is the **user's** call.
-- **One fix subagent for the whole findings list, not one per finding.** Per-finding fixers each rebuild
-  context and re-run suites — a real session's per-finding fix wave cost more than all its tasks combined.
-  Batch CONFIRMED findings into a single fix dispatch; it re-runs the covering tests and reports results.
+- **Do NOT pre-judge findings in a review dispatch.** Never tell a finder what *not* to flag or pre-rate a severity ("treat as Minor at most", "the plan chose this"). If your dispatch text contains "don't flag" / "the plan mandates it" — stop, you're suppressing a finding to save a loop. Let it surface and adjudicate it in the refute/merge step. A plan-mandated finding that conflicts with the plan is the **user's** call.
+- **One fix subagent for the whole findings list, not one per finding.** Per-finding fixers each rebuild context and re-run suites — a real session's per-finding fix wave cost more than all its tasks combined. Batch CONFIRMED findings into a single fix dispatch; it re-runs the covering tests and reports results.
 
 ### Flywheel — SUSPENDED (D-181): native seats record nothing; no `set_quality` back-fill, no `NO-POOL:` declaration
 
@@ -1045,11 +566,10 @@ configured DSN; exact connection handling (WSL dev vs VPS `SUBAGENT_RUNS_DSN`), 
 > no-ops instead of erroring.
 
 -->
+
 ## Merge Protocol
 
-After all subagents for a phase complete, merge their branches back into the run's `BASE` branch — the one
-`git branch --show-current` reports (Before You Start step 8), which is `master` only when that is what this
-checkout is on. This is the critical step — do it carefully.
+After all subagents for a phase complete, merge their branches back into the run's `BASE` branch — the one `git branch --show-current` reports (Before You Start step 8), which is `master` only when that is what this checkout is on. This is the critical step — do it carefully.
 
 ### Sequential merge, lowest task number first
 
@@ -1068,7 +588,7 @@ git merge --no-ff phase-B-task-6 -m "merge: Phase B Task 6 — audit wiring"
 #    - For additive conflicts (both added to same file, different locations):
 #      keep both additions
 #    - For import conflicts: combine both import sets
-#    - Resolve, then: git add <resolved files> && git merge --continue
+#    - Resolve, then, one command per call: git add <resolved files>   then   git merge --continue
 
 # 4. After all merges: verify the combined result compiles
 python -c "import src.module_that_changed"  # or whatever the plan's verify command is
@@ -1096,21 +616,21 @@ After merging all subagent branches for a phase:
 2. Run the phase validation gate
 3. Run `python scripts/enforcement/check_doc_sync.py`
 4. Fix any issues (you're the orchestrator — you fix merge-induced bugs)
-5. Squash the merge commits into one phase commit with provenance trailers:
+5. Squash the merge commits into one phase commit with provenance trailers — the message written with the Write tool to `<scratch>/msg-<name>` (§ Commit message format), then the three git commands below, one per Bash call:
+   ```text
+   feat(scope): Phase {X} — {title}
+
+   Merged-From: phase-{X}-task-{A} ({desc}), phase-{X}-task-{B} ({desc})
+   Agent-Role: orchestrator
+   Agent-Phase: {X}
+   Agent-Context: merged {N} subagent branches, ran phase gate
+   Conflicts-Resolved: {count}
+   Co-Authored-By: Claude <model> <noreply@anthropic.com>
+   ```
    ```bash
    git reset --soft <pre-merge-commit>
    git add <all phase files — explicit list>
-   git commit -m "$(cat <<'EOF'
-feat(scope): Phase {X} — {title}
-
-Merged-From: phase-{X}-task-{A} ({desc}), phase-{X}-task-{B} ({desc})
-Agent-Role: orchestrator
-Agent-Phase: {X}
-Agent-Context: merged {N} subagent branches, ran phase gate
-Conflicts-Resolved: {count}
-Co-Authored-By: Claude <model> <noreply@anthropic.com>
-EOF
-   )"
+   git commit -F <scratch>/msg-<name>
    ```
 6. THEN proceed to `/fabrik-review`
 
@@ -1119,11 +639,7 @@ EOF
 The design spec may indicate that some phases are independent (e.g., "Phases A, C, D are independent — MAY run in parallel"). If so:
 
 1. Only parallelize phases that the spec explicitly marks as independent.
-2. **No per-phase orchestrator worktree — the two-level rule binds here too** (Before You Start step 8).
-   There is ONE orchestrator (you) and ONE level of coder worktrees: dispatch every parallel phase's
-   subagents as SIBLING worktrees at that same level, whichever phase each belongs to, or run a phase in
-   place when it needs no isolation. Giving a phase its own worktree makes it a second orchestrator level
-   and puts its subagents at a third.
+2. **No per-phase orchestrator worktree — the two-level rule binds here too** (Before You Start step 8). There is ONE orchestrator (you) and ONE level of coder worktrees: dispatch every parallel phase's subagents as SIBLING worktrees at that same level, whichever phase each belongs to, or run a phase in place when it needs no isolation. Giving a phase its own worktree makes it a second orchestrator level and puts its subagents at a third.
 3. After all parallel phases complete, merge their branches into `BASE` sequentially (alphabetical phase order).
 4. Run the validation gate for EACH phase after merge to confirm nothing broke.
 5. Run `/fabrik-review` on the combined changed surface.
@@ -1132,54 +648,22 @@ The design spec may indicate that some phases are independent (e.g., "Phases A, 
 
 ## When Vendoring (Copying fabrik-lib Modules)
 
-1. Copy the files as the plan specifies, each read from fabrik-lib's COMMITTED blob — `git -C /opt/fabrik-lib
-   show <sha>:<its path in fabrik-lib>`, at the SHA the plan names or else `git -C /opt/fabrik-lib rev-parse
-   --short=8 HEAD` — never its working file, where a sibling's uncommitted edit would ship; record that SHA as a
-   `Vendored-From: fabrik-lib@<sha>` trailer on the task's commit
+1. Copy the files as the plan specifies, each read from fabrik-lib's COMMITTED blob — `git -C /opt/fabrik-lib show <sha>:<its path in fabrik-lib>`, at the SHA the plan names or else `git -C /opt/fabrik-lib rev-parse --short=8 HEAD` — never its working file, where a sibling's uncommitted edit would ship; record that SHA as a `Vendored-From: fabrik-lib@<sha>` trailer on the task's commit
 2. Fix internal imports: `from module_name import X` → `from libs.module_name import X`
 3. Add `__init__.py` if the source module doesn't have one
 4. Verify: `python -c "from libs.X import Y"` — must exit 0
 5. Then proceed to wiring steps
-6. **If you FIX a bug in the vendored copy** (not just adapt imports/wiring): append a dated note to
-   `/opt/fabrik-lib/<module>/UPSTREAM_FEEDBACK.md` — the symptom + how you fixed it — so the fabrik-lib AI
-   upstreams it for every future project. This single append is the **only** write permitted outside the
-   project tree.
+6. **If you FIX a bug in the vendored copy** (not just adapt imports/wiring): append a dated note to `/opt/fabrik-lib/<module>/UPSTREAM_FEEDBACK.md` — the symptom + how you fixed it — so the fabrik-lib AI upstreams it for every future project. This single append is the **only** write permitted outside the project tree.
 
 ## Plan Status Tracking
 
-Keep the plan file's own `**Status:**` field current as you execute — it is the **durable record** of
-where execution stands, and a resumed session reads it to know what is already done. All of these edits
-are part of the phase commits (explicit paths: **the plan file AND this run's lock file**,
-`.fabrik/plan-locks/<plan-id>.json`) and carry the same provenance trailers; do
-**not** delete the `## Evidence` / `## Self-audit` sections (they remain the execution's design record).
-**The lock is COMMITTED, not left dirty** — it is tracked like any other file, so every phase commit that
-stages the plan file stages the lock's current state beside it. Two consequences make this load-bearing
-rather than tidiness: an uncommitted lock makes `git worktree remove` refuse the tree outright
-(`fatal: contains modified or untracked files`), and only a committed lock TRAVELS with the branch when a
-position-(b) tree merges back (§ Finish). The lock stays orchestrator territory — a ticket may never list
-it in Touches — but the orchestrator commits it.
+Keep the plan file's own `**Status:**` field current as you execute — it is the **durable record** of where execution stands, and a resumed session reads it to know what is already done. All of these edits are part of the phase commits (explicit paths: **the plan file AND this run's lock file**, `.fabrik/plan-locks/<plan-id>.json`) and carry the same provenance trailers; do **not** delete the `## Evidence` / `## Self-audit` sections (they remain the execution's design record). **The lock is COMMITTED, not left dirty** — it is tracked like any other file, so every phase commit that stages the plan file stages the lock's current state beside it. Two consequences make this load-bearing rather than tidiness: an uncommitted lock makes `git worktree remove` refuse the tree outright (`fatal: contains modified or untracked files`), and only a committed lock TRAVELS with the branch when a position-(b) tree merges back (§ Finish). The lock stays orchestrator territory — a ticket may never list it in Touches — but the orchestrator commits it.
 
-- **On start** (before the first phase commit): flip `**Status:** CONVERGED` → `**Status:** IN-PROGRESS`.
-  This also moves the plan out of `check_convergence.py`'s scope — it only gates plans whose Status is
-  `CONVERGED`/`zero unknowns` — so the Evidence stays as the design record with no re-validation.
-- **At each phase boundary** (after the phase commit AND a clean review — the full `/fabrik-review`, or
-  `/fabrik-review-scoped` under `Profile: small` per Execution Contract item 3): mark that phase done
-  in the plan — append `— ✅ EXECUTED <YYYY-MM-DD> (<short-commit>)` to the phase's heading (or tick its
-  DoD checklist). A resumed run skips phases already marked done; a first UNMARKED phase with landed-but-unaccounted commits or dirty owned paths is step 7's MESSY case -> BLOCKED for the operator (never blind-redo, never mark on partial evidence, never guess residue ownership).
-- **On completion** (all phases done, final gate green): flip `**Status:** IN-PROGRESS` →
-  `**Status:** EXECUTED <YYYY-MM-DD>`, add a one-line completion stamp (final commit + gate result), **and
-  cite the whole-plan review artifact** — `Whole-plan review: docs/development/reviews/<plan>-review.md`.
-  Gate-enforced: `check_convergence.py` fails an `EXECUTED` plan that cites no existing, coverage-adjudicated
-  review (the backstop for a run that skipped the step-1 whole-plan `/fabrik-review`).
-- **On a HARD STOP / BLOCKED**: set `**Status:** BLOCKED — <what> (Phase N)` so the halt reason lives in
-  the plan, not just the chat.
-- **Dispatcher mode:** the "at each phase boundary" bullet does NOT apply — the Board row flip inside
-  each acceptance commit (D5) IS the durable per-unit record. **Never write a completion marker or
-  `Status:` line into a ticket file** (the gate rejects any ticket Status — state lives ONLY in the
-  spine Board). The spine's own `Status:` moves only on D1/D7 events: `CONVERGED → IN-PROGRESS` at
-  the first dispatch commit (D1); `→ EXECUTED` only at D7's close; `→ BLOCKED` at blocked-end, and
-  on blocked-resume `BLOCKED → IN-PROGRESS` (committed with the ruling) before any 🔴→🔵 re-dispatch —
-  never any other value, never mid-run.
+- **On start** (before the first phase commit): flip `**Status:** CONVERGED` → `**Status:** IN-PROGRESS`. This also moves the plan out of `check_convergence.py`'s scope — it only gates plans whose Status is `CONVERGED`/`zero unknowns` — so the Evidence stays as the design record with no re-validation.
+- **At each phase boundary** (after the phase commit AND a clean review — the full `/fabrik-review`, or `/fabrik-review-scoped` under `Profile: small` per Execution Contract item 3): mark that phase done in the plan — append `— ✅ EXECUTED <YYYY-MM-DD> (<short-commit>)` to the phase's heading (or tick its DoD checklist). A resumed run skips phases already marked done; a first UNMARKED phase with landed-but-unaccounted commits or dirty owned paths is step 7's MESSY case -> BLOCKED for the operator (never blind-redo, never mark on partial evidence, never guess residue ownership).
+- **On completion** (all phases done, final gate green): flip `**Status:** IN-PROGRESS` → `**Status:** EXECUTED <YYYY-MM-DD>`, add a one-line completion stamp (final commit + gate result), **and cite the whole-plan review artifact** — `Whole-plan review: docs/development/reviews/<plan>-review.md`. Gate-enforced: `check_convergence.py` fails an `EXECUTED` plan that cites no existing, coverage-adjudicated review (the backstop for a run that skipped the step-1 whole-plan `/fabrik-review`).
+- **On a HARD STOP / BLOCKED**: set `**Status:** BLOCKED — <what> (Phase N)` so the halt reason lives in the plan, not just the chat.
+- **Dispatcher mode:** the "at each phase boundary" bullet does NOT apply — the Board row flip inside each acceptance commit (D5) IS the durable per-unit record. **Never write a completion marker or `Status:` line into a ticket file** (the gate rejects any ticket Status — state lives ONLY in the spine Board). The spine's own `Status:` moves only on D1/D7 events: `CONVERGED → IN-PROGRESS` at the first dispatch commit (D1); `→ EXECUTED` only at D7's close; `→ BLOCKED` at blocked-end, and on blocked-resume `BLOCKED → IN-PROGRESS` (committed with the ruling) before any 🔴→🔵 re-dispatch — never any other value, never mid-run.
 
 ## Progress Reporting
 
@@ -1317,14 +801,13 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    closes with `work.py done <id> --evidence <sha>`) and run `work.py render` rather than editing the row.
    Doc Link Integrity DOES catch a missed one outside `docs/DECISIONS.md` (the ledger is no link source,
    W-e9c8a4df) — but at the last gate before the commit, after the move,
-   so it costs a full gate re-run and lands the repair in a commit whose message was already written
-   (`01M2GCTCP5F8`). **The grep also lists the review receipts under
+   so it costs a full gate re-run and lands the repair in a commit whose message was already written (`01M2GCTCP5F8`). **The grep also lists the review receipts under
    `docs/development/reviews/` — never repoint those, nor any verbatim captured output:** a receipt is a
    frozen artifact, rewriting one re-admits it to `check_convergence`/`check_review_coverage` under
    today's grammar (four 2026-08/09 receipts redded on the first try, `01M4BYT60T`), and the link check
    never reads `docs/development/`, so its pre-archive cite stays as written. ⚠️ **`git mv` moves the INDEXED content, not your working tree — re-stage the plan
    AFTER the move:** `git add docs/development/plans/archived/<plan>.md`. ⚠️ **And the scoped commit
-   must name BOTH paths** — `git commit -m <msg> -- <old-path> <new-path>` — or the deletion half of the
+   must name BOTH paths** — `git commit -F <scratch>/msg-<name> -- <old-path> <new-path>` (§ Commit message format) — or the deletion half of the
    rename stays staged-uncommitted and the plan lives at TWO paths in HEAD (youtube `01M1584B0`;
    the constitutions carry the same clause at the realign rule). Step 5's `Status: EXECUTED`
    flip is an unstaged working-tree edit, so the rename carries the OLD bytes and the archived plan
@@ -1339,9 +822,9 @@ is where `BASE` goes, and each of step 8's three positions has its own dispositi
    --check --json` green over them (the step 5-6 commits have not been gated), then **PUSH them now** (`git push`,
    which pushes the current branch; at position (b) that is the branch step 4 merged INTO, pushed from the
    main checkout; a branch with no upstream yet — an agent window's first push — `git push -u origin "$BASE"`;
-   the task-end law: rejected → dirty tree: defer + report, wip-net protects · clean tree:
-   `git pull --rebase=merges` then push (preserves the Merge Protocol's `--no-ff` merge commits —
-   plain `--rebase` linearizes them away) · conflict: abort + report · NEVER `--force`). The only remaining
+   the task-end law: rejected → `CLAUDE.md` § EXIT's ladder, whose clean-tree step checks the
+   upstream's reflog for a rewrite before `git rebase --rebase-merges @{u}`, which keeps the Merge
+   Protocol's `--no-ff` merge commits · NEVER `--force`). The only remaining
    operator call is **deploy**: `fabrik redeploy` / `fabrik apply` is **hub-side + user-run**
    (trigger-not-execute) — name it as the next step, don't run it. Don't trail off with "what next?" —
    push, name the deploy decision, stop.

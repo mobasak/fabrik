@@ -49,6 +49,11 @@ for _var in ("CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS", "CLAUDE_CODE_SUBAGENT_MODEL
 # process-level default below survives any undo; a test that wants a root still sets its own.
 os.environ["FABRIK_MAIL_ROOT"] = tempfile.mkdtemp(prefix="pytest-mail-root-")
 
+# The two prompt hooks keep a per-session digest of the block they last printed (W-25f6b2a3): pinned here so
+# no test that drives `mail_notify.main` or `thread_anchor.py line` with a session id writes ~/.claude/state.
+os.environ["MAIL_NOTIFY_STATE_DIR"] = tempfile.mkdtemp(prefix="pytest-mail-notify-")
+os.environ["THREAD_ANCHOR_DIR"] = tempfile.mkdtemp(prefix="pytest-thread-anchor-")
+
 # Likewise no test takes a lock in the operator's real lock dir (fabrik.locks_local, now ~/.cache/fabrik-locks,
 # W-1f70f2e9): tests that call state.save or an allocation without pinning one left state-*.lock files in the old
 # /tmp default. Set at the top, before any collected module imports locks_local and reads it.
@@ -149,6 +154,9 @@ def pytest_configure(config):
     # two elements; tests that want a jump set it with monkeypatch.
     for key in [k for k in os.environ if k.startswith("FABRIK_SSH_JUMP_")]:
         os.environ.pop(key, None)
+    # A pretest or `merge --queue` leg exports FABRIK_MERGE_TESTS_RECORDS to redirect its OWN
+    # records; inherited by the shards, it redirected the selector tests' records too (W-bce8914b).
+    os.environ.pop("FABRIK_MERGE_TESTS_RECORDS", None)
     _install_fleet_guard()
     # A runaway test is killed past FABRIK_TEST_RSS_MAX, never the host: two WSL crashes on
     # 2026-10-17 came from one test process at ~32 GB (W-162398ef; tests/memguard.py).
@@ -228,6 +236,23 @@ def _isolated_print_mode(tmp_path, _private_monkeypatch):
     proc.mkdir(exist_ok=True)
     monkeypatch.setenv("FABRIK_WORK_PROC", str(proc))
     yield proc
+
+
+@pytest.fixture(autouse=True)
+def _no_api_key_session(_private_monkeypatch):
+    """The quota hooks exempt a session on an Anthropic API key (W-effb7141), so a suite run from
+    such a session would see every hold lifted and every hold grader go falsely red. One autouse
+    pin: the key and every credential the hooks weigh beside it (`quota_stop.py::_OTHER_AUTH`)
+    removed; a test that wants an API-key session sets them after this."""
+    for name in (
+        "ANTHROPIC_API_KEY",
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "ANTHROPIC_AUTH_TOKEN",
+        "CLAUDE_CODE_USE_BEDROCK",
+        "CLAUDE_CODE_USE_VERTEX",
+        "CLAUDE_CODE_USE_FOUNDRY",
+    ):
+        _private_monkeypatch.delenv(name, raising=False)
 
 
 @pytest.fixture(autouse=True)
@@ -340,6 +365,11 @@ def _isolated_command_run_dir(tmp_path, _private_monkeypatch):
     # graders would otherwise append to the operator's real ~/.claude/state/agent-identity.jsonl.
     # Same class as the three pins above: one autouse pin, no opt-in.
     monkeypatch.setenv("AGENT_IDENTITY_FILE", str(tmp_path / "agent-identity.jsonl"))
+    # The token-waste tier (W-02472911) runs inside every `kaizen_collect_v2.daily()` a grader drives:
+    # without these it reads the live transcript roots and this repo's live `git log` — a grader then
+    # passes or fails on the box's state, not the code. A missing repo is the tier's fail-open path.
+    monkeypatch.setenv("KAIZEN_TRANSCRIPT_ROOTS", str(tmp_path / "transcripts"))
+    monkeypatch.setenv("KAIZEN_WASTE_GIT_REPO", str(tmp_path / "no-git-repo"))
     # The harness scratch root (scratch lifecycle plan, Phase A): `start` mints a run folder under
     # `<root>/<slug>/<sid>/scratchpad/` and the sweep removes consumed ones — never the live
     # /tmp/claude-<uid>. The hub module `start` loads for that is the tree under test, not /opt/fabrik.

@@ -177,6 +177,18 @@ registers under `<repo>/.tmp` (fabrik-lib has one) is classified like any other 
 by the ordinary guards; it is never swept as a spool. And because `git worktree remove` deletes
 ignored files even without `--force`, a worktree holding ignored DATA outside the cache allowlist is
 `wt-ignored-data` and is never removed — which is what keeps § D's spools safe on that path too.
+
+**What "merged" means (D-1290).** A branch is merged when it is an ancestor of the main checkout's
+branch, or when a squash commit there (a non-merge commit) names it in a `Merged-From:` trailer AND
+none of the commits the main branch lacks is newer than that squash — a merge among them counts by
+its own time unless every parent after its first is already on the main branch (the branch
+catching up). Branch names are reused — hand merges
+once carried `Merged-From: worktree-fleet`, and agent branches gained a wip snapshot after their
+squash — so a trailer vouches for the state it squashed, never for later work: such a branch reads
+`wt-unmerged`, its row saying how many commits are newer than the squash. A merge commit's trailer is
+never read; its parents already answer. The rule is by commit time, so it can be fooled by work made
+during the squash itself, by a commit dated backwards or by a catch-up merge that carries edits of
+its own, and it keeps (never removes) a branch rebased after its squash.
 - **`wt-sync-only`** (added 2026-09-15, widened 2026-10-01) — nothing in the worktree is anyone's work: every untracked or ignored path is the governance sync's output (the current hub bytes, an OLDER version found in a hub commit on its sync-source path, or a file still matching its md5 in the worktree's own `.fabrik/worktree-synced.lock`), a creation copy byte-identical to the main checkout's file, the worktree's own `.claude/settings.local.json`, any symlink (removal unlinks it, never its target), or an IGNORED tool cache by path component (`.venv`, `node_modules`, `__pycache__`, `.pytest_cache`, `.ruff_cache`, `.mypy_cache`, `.astro`). Never an output directory such as `dist/` or `test-results/`, ignored or not: that is where a report or the one trace of a failing run lands, so such a tree stays `wt-ignored-data` for a human. A TRACKED edit is never judged this way — it stays `wt-dirty`. Removable only under `--include-unmerged`, and then with `--force`: the state is re-read at removal time and any authored path, a stash naming its branch, or ignored data refuses it.
 
 **What it never touches** (hard-coded, printed by `--help` and by every apply run): repo files, except
@@ -204,9 +216,18 @@ consumed will be done so"*. `classify_run_folder` is the ONE function that answe
   unreadable or future time is doubt counted from the close, never a keep until that date —
   a write that only modifies an existing file, or lands inside an existing subfolder, is not seen, and
   a cleanup inside the folder after its close keeps it 36 h); a holder (fd or cwd)
-  inside; a same-uid `/proc` gap whose process started after the marker was written, or whose start is
-  unknown (D-877 — this box always carries three such daemons that started at boot, so "any gap keeps"
-  would keep everything; a zombie is no gap; that ruling is the operator's, interim until they rule);
+  inside; a same-uid `/proc` gap whose process started INSIDE the run's own window — after the marker
+  was written and no later than the run's last activity (its vouched close or a later top-level write
+  for a `done` run; its heartbeat for a `running`/`resumable` one; either raised to the newest seat
+  transcript of the marker's or the directory's sid; a `.trash-*`'s rename),
+  each with a 5-minute clock margin — or whose start, or the window's end, is unknown (D-877, D-878; the
+  end bound is W-d1a4a8f5: this box always carries daemons whose `/fd` no one can read — gpg-agent, the
+  document portal's setuid `fusermount3` — and without an end one started mid-uptime kept every older
+  folder, 152 of them / 77 GB on 2026-10-29, while `/tmp` is NOT cleared at boot here; a zombie is no gap.
+  Residuals: a non-seat process started after the run's last activity that still writes into the folder
+  only in place loses it once the grace has passed; a close clobbered back to near `created`, which the
+  D-900 vouch still believes, ends the window there; and a run whose seat transcripts the 3-day local
+  pruner removed ends at its close);
   a holder probe that did not complete; a `.keep`; a registered worktree it cannot remove; no
   readable marker; a marker naming another session (D3 only).
 - **CONSUMED, removed walk-free** (INV-2): `done` past its grace, or `running` in a dead session with

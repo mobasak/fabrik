@@ -271,7 +271,7 @@ def test_merge_lands_one_merge_commit_and_keeps_sibling_ledger_wip(world):
 
     new = world.base()
     assert _git(world.main, "rev-parse", f"{new}^1", f"{new}^2").split() == [old, head]
-    message = _git(world.main, "log", "-1", "--format=%B", new)
+    message = _git(world.main, "log", "-1", "--format=%s", new)  # Agent-Context repeats the phrase
     assert f"request {msg_id}, item W-0123abcd" in message
     assert world.origin() == new
     # sibling WIP byte-for-byte on top of the merged content; nothing staged
@@ -1926,3 +1926,314 @@ def test_base_alone_names_an_outer_timeout_and_a_check_that_could_not_run(world,
     reason = world.record(second)["reason"]
     assert reason.startswith("(a)-(d) build, preflight, tests, CAS: owner tests red"), reason
     assert "not checked (the check could not run: the base tree is unusable)" in reason, reason
+
+
+# --- W-347cd0c3: one owner-test budget per invocation, inside the documented wrapper -------------
+def _logging_runner(world) -> Path:
+    """A stand-in for capped_run.sh that logs its argv and honours ``--timeout`` with coreutils
+    ``timeout`` (exit 124 on the limit, as capped_run's own time limit exits)."""
+    log = world.tmp / "runner.log"
+    runner = world.tmp / "runner.sh"
+    runner.write_text(
+        f'#!/bin/sh\necho "$*" >> {log}\nshift\nt="$1"\nshift 2\nexec timeout "$t" "$@"\n',
+        encoding="utf-8",
+    )
+    runner.chmod(0o755)
+    world.mp.setenv("FABRIK_CAPPED_RUN", str(runner))
+    return log
+
+
+def test_the_owner_test_budget_refuses_before_any_outer_wrapper(world):
+    import time
+
+    log = _logging_runner(world)
+    # the budget (8 s) is shorter than one leg's limit (60 s): the leg is stopped at what is left
+    world.mp.setattr(world.mod, "TEST_TIMEOUT_S", 60)
+    world.mp.setattr(world.mod, "MERGE_TEST_BUDGET_S", 8, raising=False)
+    world.mp.setattr(world.mod, "LEG_FLOOR_S", 1, raising=False)
+    world.write(".fabrik/merge-tests", "sleep 30\n")
+    world.commit_main("slow owner tests", ".fabrik/merge-tests")
+    msg_id = world.send(world.branch({"s.txt": "s\n"}, msg="s"))
+    t0 = time.monotonic()
+    assert world.run("merge") == 1
+    took = time.monotonic() - t0
+    reason = world.record(msg_id)["reason"]
+    assert "budget" in reason and "not a test verdict" in reason, reason
+    assert f"`merge_request.py retry {msg_id}`" in reason, reason
+    assert "on base alone" not in reason and "owner tests red" not in reason, reason
+    # one line per runner call (the script's own newline splits an argv across two log lines)
+    limits = [
+        int(ln.split()[1]) for ln in log.read_text().splitlines() if ln.startswith("--timeout ")
+    ]
+    assert len(limits) == 1 and 1 <= limits[0] <= 8, limits  # one leg, at what the budget left
+    assert took < 25, took  # the leg was stopped at the budget, not run for its 30 s
+    # the requester is told it is not theirs to fix
+    replies = world.replies(msg_id)
+    told = "the owner-test budget of the run, change nothing and send nothing either"
+    assert replies and all(told in " ".join(r.split()) for r in replies.values()), replies
+
+
+def test_an_owner_exit_124_inside_a_shortened_leg_stays_a_red(world):
+    """The owner's own `timeout` (here a plain exit 124) ends the leg well inside its shortened
+    limit: that is the tests' verdict, never the budget's."""
+    _logging_runner(world)
+    world.mp.setattr(world.mod, "TEST_TIMEOUT_S", 60)
+    world.mp.setattr(world.mod, "MERGE_TEST_BUDGET_S", 30)
+    world.mp.setattr(world.mod, "LEG_FLOOR_S", 1)
+    world.write(".fabrik/merge-tests", "exit 124\n")
+    world.commit_main("owner tests time out themselves", ".fabrik/merge-tests")
+    msg_id = world.send(world.branch({"t.txt": "t\n"}, msg="t"))
+    assert world.run("merge") == 1
+    reason = world.record(msg_id)["reason"]
+    assert "owner tests red" in reason and "exit 124" in reason and "budget" not in reason, reason
+
+
+def test_an_outer_timeout_under_a_shortened_limit_is_the_budget(world, monkeypatch):
+    """A runner that itself hangs past limit + 60 raises TimedOutError; under a shortened limit
+    that is the budget too, with no base-alone run."""
+    world.write(".fabrik/merge-tests", "true\n")
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+
+    def hangs_short(ctx, wt, script, touched):
+        ctx.leg_limit = 5
+        raise world.mod.TimedOutError("sh -e -c timed out after 65s")
+
+    monkeypatch.setattr(world.mod, "_run_owner_leg", hangs_short)
+    msg_id = world.send(world.branch({"h.txt": "h\n"}, msg="h"))
+    assert world.run("merge") == 1
+    reason = world.record(msg_id)["reason"]
+    assert "budget" in reason and "stopped at 5s" in reason, reason
+    assert "on base alone" not in reason and "timed out after" not in reason, reason
+
+
+def test_the_leg_floor_is_exact(world):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
+    floor = world.mod.LEG_FLOOR_S
+    ctx.test_deadline = world.mod.time.monotonic() + floor + 0.5
+    assert world.mod._leg_timeout(ctx) == floor  # exactly the floor left: a leg of that length
+    ctx.test_deadline = world.mod.time.monotonic() + floor - 0.5
+    with pytest.raises(world.mod.BudgetSpentError):
+        world.mod._leg_timeout(ctx)
+
+
+def test_a_parked_budget_catch_up_is_told_resume_not_a_hand_merge(world, capsys):
+    parked = _strand(world, _dead_pid(), "1", phase="catchup-refused")
+    path = world.main / ".git" / "fabrik-merge" / f"{parked}.json"
+    rec = json.loads(path.read_text())
+    rec["reason"] = world.mod._catch_up_refused(
+        world.mod._Ctx(world.main, world.main / ".git", "infra"),
+        rec,
+        "origin",
+        world.mod.BudgetSpentError("the owner-test budget of this run (3600s) ran out"),
+    )
+    path.write_text(json.dumps(rec))
+    assert world.run("merge") == 4
+    err = capsys.readouterr().err
+    assert f"`merge_request.py resume {parked}` again" in err and "by hand" not in err, err
+
+
+def test_a_spent_budget_starts_no_leg_and_a_catch_up_names_resume(world):
+    log = _logging_runner(world)
+    world.mp.setattr(world.mod, "MERGE_TEST_BUDGET_S", 0, raising=False)
+    world.write(".fabrik/merge-tests", "true\n")
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    msg_id = world.send(world.branch({"n.txt": "n\n"}, msg="n"))
+    before = world.state()
+    assert world.run("merge") == 1
+    reason = world.record(msg_id)["reason"]
+    assert "budget" in reason and f"`merge_request.py retry {msg_id}`" in reason, reason
+    assert not log.exists(), log.read_text()  # no leg started, so the runner never ran
+    after = world.state()
+    assert (after["refs"], after["origin"]) == (before["refs"], before["origin"])
+    # a catch-up refused by the budget is a new run's job, never a hand merge
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
+    spent = world.mod.BudgetSpentError("x")
+    text = world.mod._catch_up_refused(ctx, {"id": msg_id, "base": "master"}, "origin", spent)
+    assert f"`merge_request.py resume {msg_id}` again" in text and "by hand" not in text, text
+
+
+def test_the_documented_merge_wrapper_covers_the_budget():
+    """The newest decision row naming the merge command must give capped_run room for the whole
+    budget plus the push, the sync and 300 s for builds, preflights, the carry and the reply, and
+    rund a longer bound than capped_run (a shorter outer bound kills the merge mid-push)."""
+    import re
+
+    mod = _load_module()
+    rows = (Path(__file__).resolve().parents[1] / "docs" / "DECISIONS.md").read_text(
+        encoding="utf-8"
+    )
+    shape = re.compile(
+        r"rund --timeout (\d+) -- \S*capped_run\.sh --timeout (\d+) -- python3 "
+        r"scripts/merge_request\.py merge"
+    )
+    found = [
+        (int(m.group(1)), int(m.group(2)), int(d))
+        for d, line in re.findall(r"(?m)^\| D-(\d+) (.*)$", rows)
+        for m in shape.finditer(line)
+    ]
+    assert found, "no decision row documents the merge command"
+    outer, capped, _row = max(found, key=lambda f: f[2])
+    need = (
+        getattr(mod, "MERGE_TEST_BUDGET_S", 10**9) + mod.PUSH_TIMEOUT_S + mod.SYNC_TIMEOUT_S + 300
+    )
+    assert capped >= need and outer > capped, (outer, capped, need)
+
+
+# --- W-e914202a: every scripted merge commit is signed with a parseable trailer block --------
+def _trailer_lines(world: World, sha: str) -> list[str]:
+    """The trailer lines git itself parses from ``sha``'s message, in order (never a substring)."""
+    body = _git(world.main, "log", "-1", "--format=%B", sha)
+    res = subprocess.run(
+        ["git", "interpret-trailers", "--parse"],
+        cwd=world.main,
+        input=body + "\n",
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=True,
+    )
+    return res.stdout.splitlines()
+
+
+def _trailers(world: World, sha: str) -> dict[str, str]:
+    return dict(ln.split(": ", 1) for ln in _trailer_lines(world, sha) if ": " in ln)
+
+
+def test_a_request_merge_commit_carries_parseable_provenance_trailers(world):
+    head = world.branch({"x.txt": "x\n"})
+    msg_id = world.send(head, item="W-0123abcd")
+
+    assert world.run("merge") == 0
+
+    new = world.base()
+    assert _git(world.main, "log", "-1", "--format=%s", new) == (
+        f"merge(infra): feat — request {msg_id}, item W-0123abcd"
+    )
+    # the exact block, in order: a duplicated or forged trailer line fails here, and no Merged-From
+    # (scratch_sweep reads it over merges, where a reused branch name would read merged for ever)
+    assert _trailer_lines(world, new) == [
+        "Agent-Role: orchestrator",
+        "Agent-Name: infra",
+        f"Agent-Context: merge_request.py merged branch feat for request {msg_id}, item W-0123abcd",
+    ]
+
+
+def test_a_conflict_resolved_merge_commit_is_signed(world):
+    head = world.branch(
+        {"docs/DECISIONS.md": DECISIONS.replace("| D-1 |", "| D-2 | branch |\n| D-1 |")}
+    )
+    world.write("docs/DECISIONS.md", DECISIONS.replace("| D-1 |", "| D-3 | base |\n| D-1 |"))
+    world.commit_main("base row", "docs/DECISIONS.md")
+    msg_id = world.send(head)
+
+    assert world.run("merge") == 0
+    tr = _trailers(world, world.base())
+    assert tr.get("Agent-Role") == "orchestrator" and tr.get("Agent-Name") == "infra", tr
+    assert msg_id in tr.get("Agent-Context", ""), tr
+
+
+def test_a_catch_up_merge_commit_is_signed(world, capsys):
+    head = world.branch({"x.txt": "x\n"})
+    msg_id = world.send(head)
+    pushed: list[str] = []
+
+    def race(name):
+        if name == "before-push" and not pushed:
+            pushed.append(world.push_from_elsewhere("y.txt", "y\n"))
+
+    assert world.run("merge", phase=race) == 4
+    capsys.readouterr()
+    assert world.run("resume", msg_id) == 0
+
+    tip = world.base()
+    assert _git(world.main, "rev-parse", f"{tip}^2") == pushed[0]  # the catch-up merge itself
+    assert _trailer_lines(world, tip) == [
+        "Agent-Role: orchestrator",
+        "Agent-Name: infra",
+        f"Agent-Context: merge_request.py catch-up of origin/master after request {msg_id}",
+    ]
+    # both runs passed the post-CAS steps: the duty is recorded once, and the resume's gate line
+    # reports the REQUEST merge's owner tests (recorded by the first run), named as such
+    assert world.record(msg_id)["evidence"].count(world.mod.GATE_DUTY) == 1
+    out = capsys.readouterr().out
+    assert (
+        f"{world.mod.GATE_DUTY}; owner tests of the request merge: no owner tests ran "
+        "(no .fabrik/merge-tests, no touched tests/)"
+    ) in out.splitlines(), out
+
+
+def test_the_gate_line_without_recorded_tests_says_so():
+    mod = _load_module()
+    assert mod._gate_line({"merge_sha": "abc123"}) == (
+        f"{mod.GATE_DUTY}; owner tests of the request merge: none recorded "
+        "(resumed an existing merge abc123)"
+    )
+    rec = {"evidence": ["tests: A", "catch-up merge s of origin/master (tests: B)", mod.GATE_DUTY]}
+    assert mod._gate_line(rec).endswith("owner tests of the request merge: A")
+
+
+def test_an_uppercase_ascii_owner_signs_its_lowercase_name_without_a_note(world):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "INFRA")
+    message = world.mod._signed(ctx, "merge(INFRA): subject", "context")
+    assert "Agent-Name: infra" in message.splitlines() and ctx.notes == []
+
+
+def test_the_owner_grammar_note_is_written_once_per_run(world):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "two words")
+    for _ in range(2):  # a rebuild signs again
+        world.mod._signed(ctx, "merge(x): subject", "context")
+    assert len(ctx.notes) == 1, ctx.notes
+
+
+def test_the_block_parses_under_merge_log(world):
+    """merge.log=true makes `git merge -m` append a shortlog AFTER the message: without --no-log
+    the last paragraph is prose and git parses no trailer at all."""
+    _git(world.main, "config", "merge.log", "true")
+    head = world.branch({"x.txt": "x\n"})
+    world.send(head)
+
+    assert world.run("merge") == 0
+    assert _trailers(world, world.base()).get("Agent-Role") == "orchestrator"
+
+
+@pytest.mark.parametrize("owner", ["two words", "Straße", "infra_x", "a" * 33, "Kelvin"])
+def test_an_owner_outside_the_name_grammar_signs_without_agent_name(world, owner):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", owner)
+    message = world.mod._signed(ctx, "merge(x): subject", "context")
+    lines = message.splitlines()
+    assert lines[:2] == ["merge(x): subject", ""]
+    assert lines[2:] == ["Agent-Role: orchestrator", "Agent-Context: context"], message
+    assert any("outside the agent-name grammar" in n for n in ctx.notes), ctx.notes
+
+
+def test_a_multi_line_trailer_value_refuses(world):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
+    with pytest.raises(world.mod.RefusedError):
+        world.mod._signed(ctx, "merge(x): subject", "context\nAgent-Role: forged")
+
+
+def test_the_reflog_carries_the_subject_only(world):
+    head = world.branch({"x.txt": "x\n"})
+    msg_id = world.send(head)
+
+    assert world.run("merge") == 0
+    entry = _git(world.main, "reflog", "show", "-1", "--format=%gs", "refs/heads/master")
+    assert entry == f"merge_request: merge(infra): feat — request {msg_id}, item none", entry
+
+
+def test_merge_states_that_the_gate_is_the_callers(world, capsys):
+    head = world.branch({"x.txt": "x\n"})
+    msg_id = world.send(head)
+
+    assert world.run("merge") == 0
+    out = capsys.readouterr().out.splitlines()
+    i = next(n for n, ln in enumerate(out) if ln.startswith(f"merged {msg_id} as "))
+    duty = (
+        "gate: merge does not run final_gate — gating the merged result is the caller's duty; "
+        "merge itself runs only the owner tests"
+    )
+    assert out[i + 1] == (
+        f"{duty}; owner tests of the request merge: no owner tests ran (no .fabrik/merge-tests, "
+        "no touched tests/)"
+    ), out
+    assert f"evidence: {duty}\n" in world.replies(msg_id)["fleet"]

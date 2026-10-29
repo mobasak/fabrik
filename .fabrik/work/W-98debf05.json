@@ -1,9 +1,11 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-c78cdee3"
+  ],
   "created": "2026-10-19T22:20:45.637325Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "2e28c57c04903a175ab6895024960308cdb9a5d9",
   "id": "W-98debf05",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +20,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "HIGH: security, re-applying a payments role does not revoke an escalated grant or memberships (narrow vs refuse); LOW effort: one registrar function plus tests, design choice settled in its own run",
-  "status": "open",
+  "status": "done",
   "tags": [
     "security"
   ],

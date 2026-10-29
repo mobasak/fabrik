@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T11:43:19.194774Z",
+  "creator": "fleet",
+  "evidence": "c6d885fb4973c8ddbcaf37560052ac3d53289481",
+  "id": "W-2c8173fa",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure: which scaffold types emit the 5962-5964 and 7754 smoke shapes and how many /opt projects carry them; fix the emitter to remove the container WITH its anonymous volumes (rm -fv, or run with --rm and stop) on every teardown path; grader runs the emitted Makefile target against a local throwaway image with a VOLUME and counts docker volume ls before/after; never prune existing volumes (HARD STOP) — list them for the operator",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "done",
+  "title": "Scaffolded Makefile smoke target leaks anonymous docker volumes: scaffold.py:5963 emits 'docker rm -f smoke-test' without -v before each 'docker run -d --name smoke-test', so every image that declares a VOLUME (postgres-based ones) leaves an anonymous volume per smoke run in every scaffolded project (sibling of W-2786800d, 232 GB found by infra-2)"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T18:21:53.823943Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-0e27c77c",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: advisory noise on the merge owner, nobody blocked; one hook check",
+  "status": "open",
+  "title": "Stop hook MERGE REQUEST WAITING fires 3x per turn while a live 'merge_request.py merge --queue' process (coordinator, 2026-10-28) already holds every listed request; the cause should see the running queue and stand down"
+}

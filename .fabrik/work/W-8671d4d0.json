@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T04:13:47.047040Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-8671d4d0",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-docs-review",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: STATED: grounding-artifact.md:7 (included) 'Trace the touching points — the callers, callees, siblings, configs, and migrations each {{SUBJECT}} wires into' and",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-docs-review"
+}

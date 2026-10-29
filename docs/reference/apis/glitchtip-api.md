@@ -119,7 +119,7 @@ on the live app). **The driver handles this (G7):** `glitchtip.py` unconditional
 loopback-host DSN to the public `GLITCHTIP_URL` host (`_canonicalize_dsn` / `_assert_routable_dsn`,
 `glitchtip.py:98-175`, with a warning log) and raises only if the DSN is still unroutable after the
 rewrite. The service-side fix — `GLITCHTIP_DOMAIN=https://errors.vps1.ocoron.com` in the compose
-`environment:` block (`specs/infrastructure/glitchtip.yaml` / `/opt/glitchtip/compose.yaml` on vps1,
+`environment:` block (`/opt/glitchtip/compose.yaml` on vps1, mirrored at `infra/vps1/glitchtip/compose.yaml`,
 then `docker compose up -d`) — would make GlitchTip emit correct DSNs at the source; until then the
 driver's rewrite is the safety net.
 

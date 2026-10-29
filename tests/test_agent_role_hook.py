@@ -618,65 +618,73 @@ def _charter_units(text: str, *, prose_only: bool = True) -> list[str]:
     return units
 
 
-def test_every_charter_names_the_current_merge_owner() -> None:
-    """Operator 2026-10-15: agents must know their duties after any loss of context. D-874 moved
-    the merge owner from infra to the coordinator, yet kaizen.md still routed "infra for merges",
-    coordinator.md said "until it arrives infra is the merge owner" and fleet.md named no owner.
-    Every charter (all of HUB_BEATS, the owner's own included) carries one canonical sentence for
-    the ledger's owner, and no unit names another hub agent as merger — so when the MERGE OWNER
-    row moves, every charter fails until it is brought along (D-891). The canonical sentence counts only in prose (a
-    fenced or commented copy is no instruction); the stale scan reads the raw text, comments and fences
-    included, because the hook injects the charter raw (review C1, C3)."""
+# A ROLE TEMPLATE is a generic charter a role's numbered sessions fall back to (agent_role.py's
+# `<role>.md` fallback, dynamic-builders D8): fleet copies it into repos whose merge owner differs,
+# so it carries NO canonical merge-owner sentence and must name NO hub agent as merger, the owner
+# included (plan-review pass 1, A1; pass 2, A-N2).
+ROLE_TEMPLATES = {"builder"}
+
+
+def _load_mail():
     import importlib.util
 
-    owner = _ledger_merge_owner()
     spec = importlib.util.spec_from_file_location("_mail_for_roles", REPO / "scripts" / "mail.py")
     assert spec is not None and spec.loader is not None
     mail = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mail)
-    roles = tuple(mail.HUB_BEATS)
-    charters = {
-        p.stem: p.read_text(encoding="utf-8")
-        for p in REAL_AGENT_FILES
-        if p.read_text(encoding="utf-8").startswith("# Agent charter")
-    }
-    assert set(charters) == set(roles), (sorted(charters), roles)
+    return mail
+
+
+def _merge_owner_problems(
+    charters: dict[str, str], roles: tuple[str, ...], owner: str
+) -> list[str]:
+    """Every non-template charter: exactly one canonical owner sentence in prose and no unit naming
+    another hub agent as merger. Every ROLE_TEMPLATES charter: no canonical sentence is required,
+    and no unit names ANY hub agent as merger — the owner included."""
     canonical = (
         f"**Merges:** the merge owner is `{owner}` (`scripts/decisions.py --merge-owner` reads it from the "
         "ledger); a finished worktree branch reaches it with `scripts/merge_request.py request`."
     )
-    others = [r for r in roles if r != owner]
 
     def name(role: str) -> str:
         return rf"`?\b{re.escape(role)}\b`?(?:\s+agent)?"
 
     mo = r"merge[-\s]owner"
-    stale_shapes = (
-        [
-            re.compile(
-                rf"{name(o)}\s+(?:merges\s+(?:your\s+|the\s+|its\s+|every\s+|all\s+)?(?:branch(?:es)?|requests?|PRs?)\b|merges\s*[.;,)]|for\s+merges|(?:stays|is|remains)\s+(?:still\s+|now\s+)?(?:the\s+)?{mo}|"
-                rf"owns\s+(?:the\s+)?merges\b|\(the\s+{mo}\)|"
-                rf"(?:handles|does|takes|lands|runs)\s+(?:the\s+)?merges\b)",
-                re.I,
-            )
-            for o in others
-        ]
-        + [re.compile(rf"merges?\s+go(?:es)?\s+to\s+(?:the\s+)?{name(o)}", re.I) for o in others]
-        + [re.compile(rf"{name(o)},\s+the\s+{mo}", re.I) for o in others]
-        + [re.compile(rf"(?:ask|asks|tell|tells)\s+{name(o)}\s+to\s+merge\b", re.I) for o in others]
-        + [re.compile(rf"{name(o)}\s+will\s+merge\b", re.I) for o in others]
-        + [
-            re.compile(rf"merge\s+requests?\s+(?:go(?:es)?\s+)?to\s+(?:the\s+)?{name(o)}", re.I)
-            for o in others
-        ]
-        + [
-            re.compile(
-                rf"{mo}\s*(?:\(|=|:|\bis\b|\bremains\b|\bstays\b)\s*(?:still\s+)?(?:the\s+)?{name(o)}",
-                re.I,
-            )
-            for o in others
-        ]
-    )
+
+    def shapes(others: list[str]) -> list[re.Pattern[str]]:
+        return (
+            [
+                re.compile(
+                    rf"{name(o)}\s+(?:merges\s+(?:your\s+|the\s+|its\s+|every\s+|all\s+)?(?:branch(?:es)?|requests?|PRs?)\b|merges\s*[.;,)]|for\s+merges|(?:stays|is|remains)\s+(?:still\s+|now\s+)?(?:the\s+)?{mo}|"
+                    rf"owns\s+(?:the\s+)?merges\b|\(the\s+{mo}\)|"
+                    rf"(?:handles|does|takes|lands|runs)\s+(?:the\s+)?merges\b)",
+                    re.I,
+                )
+                for o in others
+            ]
+            + [
+                re.compile(rf"merges?\s+go(?:es)?\s+to\s+(?:the\s+)?{name(o)}", re.I)
+                for o in others
+            ]
+            + [re.compile(rf"{name(o)},\s+the\s+{mo}", re.I) for o in others]
+            + [
+                re.compile(rf"(?:ask|asks|tell|tells)\s+{name(o)}\s+to\s+merge\b", re.I)
+                for o in others
+            ]
+            + [re.compile(rf"{name(o)}\s+will\s+merge\b", re.I) for o in others]
+            + [
+                re.compile(rf"merge\s+requests?\s+(?:go(?:es)?\s+)?to\s+(?:the\s+)?{name(o)}", re.I)
+                for o in others
+            ]
+            + [
+                re.compile(
+                    rf"{mo}\s*(?:\(|=|:|\bis\b|\bremains\b|\bstays\b)\s*(?:still\s+)?(?:the\s+)?{name(o)}",
+                    re.I,
+                )
+                for o in others
+            ]
+        )
+
     # Accepted gaps (closing pass, measured): a table cell "| merges | infra |", "Merging is infra's job",
     # a canonical sentence only in an indented code block, and "Ask kaizen for merges of feedback rows"
     # (reads as stale - the price of catching "infra for merges"). Singular "merge" as a modifier
@@ -686,15 +694,291 @@ def test_every_charter_names_the_current_merge_owner() -> None:
     # above catch the wrong forms it was meant for ("infra is the merge owner", "infra (the merge owner)").
     problems = []
     for role, text in sorted(charters.items()):
-        n = sum(unit.count(canonical) for unit in _charter_units(text))
-        if n != 1:
-            problems.append(
-                f"{role}.md: the canonical merge-owner sentence appears {n} times in prose, want 1"
-            )
+        template = role in ROLE_TEMPLATES
+        if not template:
+            n = sum(unit.count(canonical) for unit in _charter_units(text))
+            if n != 1:
+                problems.append(
+                    f"{role}.md: the canonical merge-owner sentence appears {n} times in prose, want 1"
+                )
+        # a template is copied into repos with other owners: EVERY hub agent is "another" there
+        stale_shapes = shapes(list(roles) if template else [r for r in roles if r != owner])
         for unit in _charter_units(text, prose_only=False):
             problems += [
                 f"{role}.md names another agent as merger: {unit[:120]}"
                 for rx in stale_shapes
                 if rx.search(unit)
             ]
+    return problems
+
+
+def test_every_charter_names_the_current_merge_owner() -> None:
+    """Operator 2026-10-15: agents must know their duties after any loss of context. D-874 moved
+    the merge owner from infra to the coordinator, yet kaizen.md still routed "infra for merges",
+    coordinator.md said "until it arrives infra is the merge owner" and fleet.md named no owner.
+    Every charter (all of HUB_BEATS, the owner's own included) carries one canonical sentence for
+    the ledger's owner, and no unit names another hub agent as merger — so when the MERGE OWNER
+    row moves, every charter fails until it is brought along (D-891). The canonical sentence counts only in prose (a
+    fenced or commented copy is no instruction); the stale scan reads the raw text, comments and fences
+    included, because the hook injects the charter raw (review C1, C3). A ROLE_TEMPLATES charter
+    (builder.md) is outside the HUB_BEATS set and the canonical count, and names no merger at all."""
+    owner = _ledger_merge_owner()
+    mail = _load_mail()
+    roles = tuple(mail.HUB_BEATS)
+    charters = {
+        p.stem: p.read_text(encoding="utf-8")
+        for p in REAL_AGENT_FILES
+        if p.read_text(encoding="utf-8").startswith("# Agent charter")
+    }
+    # a numbered builder of a beat (D-1128: infra-2, infra-3) carries its beat's charter, often as a symlink to it
+    builders = {name for name in charters if name not in roles and mail.is_hub_agent(name)}
+    assert set(charters) - builders - ROLE_TEMPLATES == set(roles), (sorted(charters), roles)
+    problems = _merge_owner_problems(charters, roles, owner)
     assert not problems, "\n".join(problems)
+
+
+CHARTER_NAMES = sorted(
+    p.stem
+    for p in REAL_AGENT_FILES
+    if p.read_text(encoding="utf-8").splitlines()[:1]
+    and p.read_text(encoding="utf-8").splitlines()[0].startswith("# Agent charter")
+)
+
+
+# Charters measured AT/OVER the cap when this guard landed: name -> measured size.
+_OVER_CAP = {"coordinator": "9,927 chars / 10,000 bytes (cap is strictly under 10,000)"}
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        pytest.param(
+            n,
+            marks=pytest.mark.xfail(
+                strict=True, reason=f"over the 10,000 hook cap: {_OVER_CAP[n]}"
+            ),
+        )
+        if n in _OVER_CAP
+        else n
+        for n in CHARTER_NAMES
+    ],
+)
+def test_charter_injection_stays_under_hook_cap(name: str) -> None:
+    """Claude Code truncates hook output past 10,000 characters to a 2,000-character
+    preview (D-888), so a charter edit past the cap silently degrades; guard it in both
+    characters and UTF-8 bytes."""
+    r = _run(name)
+    assert r.returncode == 0
+    assert "AGENT ROLE" in r.stdout, f"{name}: hook injected nothing"
+    assert len(r.stdout) < 10_000, f"{name}: {len(r.stdout)} chars"
+    assert len(r.stdout.encode("utf-8")) < 10_000, f"{name}: {len(r.stdout.encode('utf-8'))} bytes"
+
+
+# ── Charters by role: the `<role>.md` fallback (dynamic-builders D8, T04) ──────────────────────────
+# Fixtures live under tmp_path; the resolver is injected through $FABRIK_DECISIONS_PY (the hub
+# convention), never by editing /opt/fabrik/scripts/decisions.py.
+
+_MARKED = "# Agent charter — {role}\n\nMandate: {role} role body.\n"
+
+
+def _role_repo(tmp_path: Path, roles: tuple[str, ...], *, ledger: str | None = None) -> Path:
+    repo = tmp_path / "repo"
+    agents = repo / "docs" / "reference" / "agents"
+    agents.mkdir(parents=True)
+    for role in roles:
+        (agents / f"{role}.md").write_text(_MARKED.format(role=role), encoding="utf-8")
+    if ledger is not None:
+        (repo / "docs" / "DECISIONS.md").write_text(ledger, encoding="utf-8")
+    return repo
+
+
+def _fallback(repo: Path, name: str, **env_extra: str) -> subprocess.CompletedProcess:
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k
+        not in (
+            "CLAUDE_AGENT",
+            "CLAUDE_SESSION_ID",
+            "CLAUDE_CODE_SESSION_ID",
+            "FABRIK_DECISIONS_PY",
+        )
+    }
+    env.update(CLAUDE_PROJECT_DIR=str(repo), CLAUDE_AGENT=name, **env_extra)
+    return subprocess.run(
+        [sys.executable, str(HOOK)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=env,
+        stdin=subprocess.DEVNULL,
+    )
+
+
+def _fake_resolver(tmp_path: Path, body: str) -> str:
+    path = tmp_path / "fake_decisions.py"
+    path.write_text(body, encoding="utf-8")
+    return str(path)
+
+
+def test_a_numbered_name_falls_back_to_its_role_charter(tmp_path: Path) -> None:
+    """BC row 1: `infra-4` with no `infra-4.md` gets `infra.md`'s body under its OWN name's header,
+    and `builder-w1a2b` gets `builder.md`'s — in a repo with no ledger (nobody declared)."""
+    repo = _role_repo(tmp_path, ("infra", "builder"))
+    r = _fallback(repo, "infra-4")
+    assert r.returncode == 0
+    assert r.stdout.startswith(
+        "## AGENT ROLE: infra-4 (charter — binding overlay on CLAUDE.md)\n"
+    ), r.stdout
+    assert "Mandate: infra role body." in r.stdout
+    assert "--- charter begin ---" in r.stdout and "--- charter end ---" in r.stdout
+    out = _fallback(repo, "builder-w1a2b").stdout
+    assert "## AGENT ROLE: builder-w1a2b" in out and "Mandate: builder role body." in out
+
+
+def test_the_hub_builder_charter_reaches_a_builder_through_the_hub_ledger() -> None:
+    """BC row 1 against the real tree: the hub's ledger declares a merge owner that is not `builder`
+    or `infra`, so `builder-w1a2b` gets the real builder.md and `infra-4` the real infra.md."""
+    r = _fallback(REPO, "builder-w1a2b")
+    assert "## AGENT ROLE: builder-w1a2b" in r.stdout, (r.stdout, r.stderr)
+    assert "# Agent charter — builder" in r.stdout
+    assert "## AGENT ROLE: infra-4" in _fallback(REPO, "infra-4").stdout
+
+
+def test_an_existing_own_file_is_never_bypassed_by_the_fallback(tmp_path: Path) -> None:
+    """BC row 2 (A10): an UNMARKED `infra-2.md` stays a silent no-op — never a fallback to the marked
+    `infra.md`; a MARKED `infra-2.md` injects itself, not its role's file."""
+    repo = _role_repo(tmp_path, ("infra",))
+    own = repo / "docs" / "reference" / "agents" / "infra-2.md"
+    own.write_text("# Notes for infra-2\n\nnot a charter\n", encoding="utf-8")
+    assert _fallback(repo, "infra-2").stdout == ""
+    own.write_text("# Agent charter — infra-2\n\nMandate: own body.\n", encoding="utf-8")
+    out = _fallback(repo, "infra-2").stdout
+    assert "Mandate: own body." in out and "infra role body" not in out
+
+
+@pytest.mark.parametrize(
+    "name", ["fabrik-lib-coordinator", "ops-coordinator", "coordinator", "-x", "infra-", "solo"]
+)
+def test_names_with_no_role_or_a_coordinator_name_never_fall_back(
+    tmp_path: Path, name: str
+) -> None:
+    """BC row 3 (A11, A12): a coordinator name (`coordinator`, `*-coordinator`, the grid's rule) and a
+    name with no `<role>-<suffix>` shape inject nothing, though every candidate role file is marked."""
+    # "" plants `.md`, the file an EMPTY role would resolve to, so `-x` is refused by the guard, not by absence
+    repo = _role_repo(tmp_path, ("fabrik-lib", "ops", "infra", "x", "solo-x", ""))
+    r = _fallback(repo, name)
+    assert r.returncode == 0 and r.stdout == "", (name, r.stdout)
+    assert (
+        "Mandate: infra role body." in _fallback(repo, "infra-4").stdout
+    )  # the control does inject
+
+
+@pytest.mark.parametrize("name", ["coordinator-2", "fabrik-lib-coordinator-3", "ops-coordinator-x"])
+def test_a_coordinator_role_never_falls_back(tmp_path: Path, name: str) -> None:
+    """Review pass 1, G1: a `<role>-<suffix>` name whose ROLE is a coordinator name (`coordinator`,
+    `*-coordinator`) never inherits the coordinator's charter. No ledger, so only this rule refuses."""
+    repo = _role_repo(
+        tmp_path, ("coordinator", "fabrik-lib-coordinator", "ops-coordinator", "infra")
+    )
+    r = _fallback(repo, name)
+    assert r.returncode == 0 and r.stdout == "", (name, r.stdout)
+    assert "Mandate: infra role body." in _fallback(repo, "infra-4").stdout  # the control
+
+
+def test_a_dangling_own_symlink_is_final_and_never_falls_back(tmp_path: Path) -> None:
+    """Review pass 1, G2: an own `infra-2.md` that is a symlink to a missing target EXISTS (lexists),
+    so the marked `infra.md` is never used for `infra-2` — a silent no-op."""
+    repo = _role_repo(tmp_path, ("infra",))
+    (repo / "docs" / "reference" / "agents" / "infra-2.md").symlink_to(tmp_path / "missing.md")
+    r = _fallback(repo, "infra-2")
+    assert r.returncode == 0 and r.stdout == "", r.stdout
+    assert "Mandate: infra role body." in _fallback(repo, "infra-4").stdout  # the control
+
+
+_LEDGER_HEAD = "| ID | When | Who | What | Why | Where |\n|---|---|---|---|---|---|\n"
+
+
+def test_the_merge_owners_role_never_falls_back_and_the_hub_resolver_decides(
+    tmp_path: Path,
+) -> None:
+    """BC row 4 (A3, pass 2): the ledger declares merge owner `Lead`; the repo ships its OWN
+    scripts/decisions.py printing `infra`, which the hook never consults — the hub's resolver
+    (the default literal, no $FABRIK_DECISIONS_PY) reads `Lead`, so `lead-2` injects nothing."""
+    ledger = (
+        _LEDGER_HEAD
+        + "| D-001 | 2026-10-28 | op | MERGE OWNER: Lead — merges here | why | where |\n"
+    )
+    repo = _role_repo(tmp_path, ("lead", "other"), ledger=ledger)
+    (repo / "scripts").mkdir()
+    (repo / "scripts" / "decisions.py").write_text("print('infra')\n", encoding="utf-8")
+    assert _fallback(repo, "lead-2").stdout == ""
+    assert (
+        "Mandate: other role body." in _fallback(repo, "other-2").stdout
+    )  # owner read, not refused
+
+
+def test_a_failing_or_hanging_resolver_refuses_the_fallback_an_empty_one_allows_it(
+    tmp_path: Path,
+) -> None:
+    """BC row 5 (A3, A13): exit 1 and a hang past the 5 s timeout refuse the fallback (fail-closed
+    for the fallback only); exit 0 with an empty stdout and exit 3 (UNDECLARED) declare nobody.
+    The hang case costs the hook's own 5 s timeout — the only knob, by the ticket."""
+    import time
+
+    repo = _role_repo(tmp_path, ("infra",), ledger=_LEDGER_HEAD)
+    cases = {
+        "import sys; sys.exit(1)\n": False,
+        "import time; time.sleep(30)\n": False,
+        "import sys; sys.exit(0)\n": True,
+        "print('UNDECLARED'); import sys; sys.exit(3)\n": True,
+        "print('Coordinator')\n": True,
+    }
+    for body, injects in cases.items():
+        resolver = _fake_resolver(tmp_path, body)
+        t0 = time.monotonic()
+        r = _fallback(repo, "infra-4", FABRIK_DECISIONS_PY=resolver)
+        assert time.monotonic() - t0 < 12, body
+        assert r.returncode == 0, body
+        assert ("Mandate: infra role body." in r.stdout) is injects, (body, r.stdout)
+    owner_is_role = _fake_resolver(tmp_path, "print('  INFRA  ')\n")
+    assert _fallback(repo, "infra-4", FABRIK_DECISIONS_PY=owner_is_role).stdout == ""
+    # the own-name path never runs the resolver: a failing one leaves `infra` fail-open
+    failing = _fake_resolver(tmp_path, "import sys; sys.exit(1)\n")
+    assert (
+        "Mandate: infra role body." in _fallback(repo, "infra", FABRIK_DECISIONS_PY=failing).stdout
+    )
+
+
+def test_a_symlinked_role_charter_outside_the_repo_is_never_read(tmp_path: Path) -> None:
+    """BC row 6: the role path gets the same realpath containment as the own-name path."""
+    repo = _role_repo(tmp_path, ())
+    outside = tmp_path / "outside.md"
+    outside.write_text("# Agent charter — infra\nSECRET-ROLE-OUTSIDE\n", encoding="utf-8")
+    (repo / "docs" / "reference" / "agents" / "infra.md").symlink_to(outside)
+    r = _fallback(repo, "infra-4")
+    assert r.returncode == 0 and "SECRET-ROLE-OUTSIDE" not in r.stdout
+
+
+def test_builder_md_is_a_marked_role_template_naming_no_merger() -> None:
+    """BC row 7 (A1, A-N2): the hub's builder.md opens with a marker the hook accepts, is a
+    ROLE_TEMPLATES member (outside HUB_BEATS and the canonical count), and the template scan
+    refuses a line naming ANY hub agent — the owner included — as merger."""
+    import importlib.util
+
+    path = AGENTS_DIR / "builder.md"
+    first = path.read_bytes().split(b"\n", 1)[0]
+    assert first == "# Agent charter — builder".encode()
+    spec = importlib.util.spec_from_file_location("_agent_role_hook", HOOK)
+    assert spec is not None and spec.loader is not None
+    hook = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(hook)
+    assert hook._has_charter_marker(first)
+    assert "builder" in ROLE_TEMPLATES
+    roles = tuple(_load_mail().HUB_BEATS)
+    owner = _ledger_merge_owner()
+    text = path.read_text(encoding="utf-8")
+    assert _merge_owner_problems({"builder": text}, roles, owner) == []
+    for merger in roles:  # the owner itself included: a template names no merger at all
+        bad = text + f"\n\nWhen you are done, {merger} merges your branch.\n"
+        assert _merge_owner_problems({"builder": bad}, roles, owner), merger

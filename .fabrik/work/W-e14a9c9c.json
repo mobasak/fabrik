@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T14:25:58.817904Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-e14a9c9c",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1342",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "grep router.py for auth.<event> strings, edit the :87 sentence and the action table rows, /fabrik-task + full review (synced pack)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "core/app-audit-log.md:87 lists the default IdP's audit events without auth.refresh_reuse_detected (grace mode, fabrik-lib D-420) and auth.passwordless_review_login — fastapi_user_auth/router.py emits both; re-state the list from the module (residue of W-ec16d1f4 review, row L-1)"
+}

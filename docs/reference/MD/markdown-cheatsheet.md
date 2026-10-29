@@ -107,7 +107,7 @@ These matter for prompt quality and RAG retrieval:
 |---|---|
 | One H1 per document | Semantic root for chunking |
 | No skipped heading levels (## → ### not ## → ####) | Preserves hierarchy |
-| Blank lines around headings, lists, code blocks | Parser boundary signals |
+| Blank lines around headings, lists, code blocks, tables | Parser boundary signals |
 | Fenced code blocks only (never indented code) | AI treats indented code inconsistently |
 | Always specify code language | Enables syntax-aware processing |
 | Meaningful link text (not "click here") | Retrieval anchor |

@@ -1,19 +1,8 @@
 ## ⚠️ Close-out feedback — PROACTIVE, and owed before you close the run record
 
-**Auto-appended to every `/fabrik-*` command. Running a command means using the machinery, which
-makes you the only witness to how it actually behaved this run.** A defect you route around silently
-dies in your context when the session ends.
+Auto-appended to every `/fabrik-*` command. Running command means using machinery: you are only witness to how it actually behaved this run; a defect you route around silently dies in your context when the session ends.
 
-**Before `command_run.py done`, TWO one-line answers are owed. First the decision line:** did this
-run MAKE or RECEIVE a decision (an operator ruling, an approval/Status flip, a retirement/adoption,
-an architecture/scope choice, "built X at Y", a rejected option worth not re-proposing)? → its row
-appended to `docs/DECISIONS.md` in this run's change — a chat-only/read-only run with no change of
-its own commits the row standalone, THE ROW IS THE CHANGE (this row is the ONE artifact a read-only
-command writes — it supersedes a "writes no artifact" clause, which governs the audit output, not
-the ledger) — classified at mint (reversible / ONE-WAY, the
-manifesto's Phase-0 triage; a ONE-WAY row grows the § Binding field block, per CLAUDE.md § the
-decision ledger) — or state `no decisions this run`. **Then the
-feedback line:**
+Before `command_run.py done`, TWO one-line answers are owed. First decision line: did this run MAKE or RECEIVE decision (an operator ruling, approval/Status flip, retirement/adoption, architecture/scope choice, "built X at Y", rejected option worth not re-proposing)? → its row appended to `docs/DECISIONS.md` in this run's change — chat-only/read-only run with no change of its own commits the row standalone, THE ROW IS THE CHANGE (this row is the ONE artifact a read-only command writes — it supersedes a "writes no artifact" clause, which governs the audit output, not the ledger) — classified at mint (reversible / ONE-WAY, manifesto's Phase-0 triage; ONE-WAY row grows § Binding field block, per CLAUDE.md § the decision ledger) — or state `no decisions this run`. Then the feedback line:
 
 > `FEEDBACK: /<command> · <wall-clock> · rounds <n> (<findings trend>) · tokens <input> input / <output> output (<n>% cached) · confusion: <what in the
 > command text was ambiguous or misleading | none> · waste: <steps, turns or tokens spent without
@@ -21,135 +10,47 @@ feedback line:**
 > would have made this run faster or more accurate | none> · filed: <mail id(s) to infra|fleet|intel|kaizen | none
 > — surfaces exercised: <what your run touched>> [· cost: <a PLAIN AMOUNT, e.g. `0.0125` or `$0.30` — prose or `10 usd` is refused, it is summed>]`
 
-**`change:` is AXIS-KEYED — lead the value with ONE axis, then a colon:**
-`change: lean: the rubric block is loaded in full and never cited — cut it to the matched rows`.
-The axis is the PROPERTY OF THE COMMAND TEXT your edit improves, not the topic of your run:
-`lean` (it loads weight the run never used) · `fast` (it stalled you — an ask it could have
-answered, a re-derivation it could have carried) · `accurate` (it told you something untrue or
-ambiguous) · `waste` (it made you spend turns or tokens that changed nothing) · `infra` (it is
-wrong about this box's machinery — paths, scripts, gates; NOT the infra BEAT of the `filed:` field)
-· `rules` (it contradicts or ignores a rule pack) · `manifesto` (it violates an operating
-principle). The one axis with no per-run key is axis 5, continuous improvement — it is read
-ACROSS runs, which is why seven keys serve eight axes.
-One axis per close — the report groups the queue by it, and a second key after a comma is not read.
-⚠️ **The close REFUSES an unkeyed or unknown-axis `change:`** (`change: make it faster` and
-`change: banana: …` both), names the seven keys, and re-keys your own value as the example.
-`change: none` is a verdict you sign and carries no key.
+`change:` is AXIS-KEYED — lead the value with ONE axis, then a colon: `change: lean: the rubric block is loaded in full and never cited — cut it to the matched rows`. The axis is the PROPERTY OF THE COMMAND TEXT your edit improves, not the topic of your run: `lean` (it loads weight the run never used) · `fast` (it stalled you — an ask it could have answered, a re-derivation it could have carried) · `accurate` (it told you something untrue or ambiguous) · `waste` (it made you spend turns or tokens that changed nothing) · `infra` (it is wrong about this box's machinery — paths, scripts, gates; NOT the infra BEAT of the `filed:` field) · `rules` (it contradicts or ignores a rule pack) · `manifesto` (it violates an operating principle). The one axis with no per-run key is axis 5, continuous improvement — it is read ACROSS runs, so seven keys serve eight axes. One axis per close — report groups queue by it; second key after comma is not read. ⚠️ The close REFUSES an unkeyed or unknown-axis `change:` (`change: make it faster` and `change: banana: …` both), names the seven keys, and re-keys your own value as the example. A close with nothing to change writes `change: none` — verdict you sign, with no key.
 
-**Two traps, both executed against the real parser.** (1) **Keep ` · `, `|`, `;` and newlines out of
-the value.** Precisely: the close splits on one of those four ONLY when a field label
-(`confusion|waste|change|filed|cost`) and a colon follow it — a bare semicolon or pipe in your prose
-is harmless — but when it does split, a ` · waste:` lands a duplicate field and REFUSES the close,
-and a ` · cost:` truncates your sentence SILENTLY and files a phantom cost. Since `waste` is both an
-axis and a field label, a `change: waste: …` value must never begin a line; a wrapped FEEDBACK line
-is the case that bites, and you cannot see where it wraps — which is why the habit is to keep all
-four characters out rather than to reason about what follows them. (2) **Never paste the
-grammar.** `_is_placeholder` strips an axis key before its `<…>` test, so a keyed template
-(`change: lean: <the ONE concrete edit …>`) is REFUSED at the close exactly like the unkeyed one —
-it was not, until 2026-09-15, and a pasted template closed cleanly the moment it was keyed. The
-report buckets any that predate the fix as `placeholder`, so they stay visible; write a verdict.
+Two traps, both executed against real parser: (1) keep ` · `, `|`, `;` and newlines out of value; close splits on one of those four ONLY when a field label (`confusion|waste|change|filed|cost`) and a colon follow it — bare semicolon or pipe in your prose is harmless — but when it does split, ` · waste:` lands duplicate field and REFUSES the close, and a ` · cost:` truncates your sentence SILENTLY and files a phantom cost. Since `waste` is both axis and field label, `change: waste: …` value must never begin a line — wrapped FEEDBACK line is case that bites, and you cannot see where it wraps — so keep all four characters out rather than reason about what follows them. (2) Never paste the grammar; `_is_placeholder` strips axis key before its `<…>` test, so keyed template (`change: lean: <the ONE concrete edit …>`) is REFUSED at the close exactly like the unkeyed one — it was not, until 2026-09-15, and a pasted template closed cleanly the moment it was keyed. The report buckets any that predate the fix as `placeholder`, so they stay visible; write a verdict.
 
-A close with nothing to change writes `change: none`, with no key. **This fragment is canonical:**
-`command_run.py`'s `_USAGE_GRAMMAR`, `docs/reference/command-run-protocol.md` and both `CLAUDE.md`
-FINAL OUTPUT blocks each hold a hand-kept twin, all four now keyed to match. They cannot be
-single-sourced — `command_run.py` is fleet-synced to ~46 repos that have no `commands/_fragments/`
-— so the drift is GRADED instead: `test_the_usage_grammar_constant_states_the_axis_key_the_fragment_mandates`
-reads this file and fails if the constant falls behind it. Reword this line and read that grader.
+This fragment is canonical: `command_run.py`'s `_USAGE_GRAMMAR`, `docs/reference/command-run-protocol.md` and both `CLAUDE.md` FINAL OUTPUT blocks hold hand-kept twins, all four keyed to match. They cannot be single-sourced — `command_run.py` is fleet-synced to ~46 repos that have no `commands/_fragments/` — so drift is GRADED instead: `test_the_usage_grammar_constant_states_the_axis_key_the_fragment_mandates` reads this file and fails if the constant falls behind it. Reword this line and read that grader.
 
-**On an expensive command a SEAT writes the line, not you.** If
-`python3 /opt/fabrik/scripts/command_feedback_report.py --observer-rank` names the command you are
-closing, dispatch ONE Sonnet seat to author the `change:` line, handing it this run's own evidence
-(the record's phases and rounds, the diff, what you actually hit) — an agent grading its own run is
-the weakest reader of it. If that script or the ledger is not readable from where you are, write the
-line yourself: the seat is an optimisation, never a gate, and it needs no dispatch stamp.
+On expensive command SEAT writes line, not you: if `python3 /opt/fabrik/scripts/command_feedback_report.py --observer-rank` names command you are closing, dispatch ONE Sonnet seat to author `change:` line, handing it this run's own evidence (the record's phases and rounds, the diff, what you actually hit) — an agent grading its own run is the weakest reader of it. If that script or ledger is not readable from where you are, write line yourself: the seat is optimisation, never a gate, and it needs no dispatch stamp.
 
-**The four labelled fields are the USAGE report (D-175, the operator's 6th ask 2026-09-07): the
-corpus is optimised from them — fewer review rounds, less confusion, fewer tokens, without losing
-function. ⚠️ Two of those three are COUNTED — `rounds <n>` and `tokens <i>/<o>`, both captured for you —
-and you get the behavior you measure (the Cobra Effect, CLAUDE.md § THE FIX DIRECTIVE item 5): a run
-shortened by closing before the quiet round, or made cheap by skipping a probe, moves both counters the
-right way while the work gets worse. They are a REPORT on the run, never its goal — the goal is the
-terminal condition, and `done --evidence` is where you prove you met it. A shorter run you cannot
-evidence is not a faster run.**
+The four labelled fields are USAGE report (D-175, the operator's 6th ask 2026-09-07): the corpus is optimised from them — fewer review rounds, less confusion, fewer tokens, without losing function. ⚠️ Two of those three are COUNTED — `rounds <n>` and `tokens <i>/<o>`, both captured for you — you get behavior you measure (the Cobra Effect, CLAUDE.md § THE FIX DIRECTIVE item 5): a run shortened by closing before quiet round, or made cheap by skipping probe, moves both counters right way while work gets worse. They are REPORT on run, never its goal — goal is terminal condition, and `done --evidence` is where you prove it. A shorter run you cannot evidence is not a faster run.
 
-**`command_run.py` REFUSES a close that lacks any of `confusion:` `waste:` `change:`
-`filed:` (or leaves one empty, or writes one twice).** The separator between fields is ` · ` (a middle dot; `|`, `;` or a newline also count) — a label only counts at a field boundary, so a value may mention another label's name in prose. Wall-clock and the round count are captured for you; write what
-you SAW: which sentence you misread, which step you repeated, what you would cut or rename. A run
-that went cleanly still says so per field (`confusion: none`), and `change: none` is a claim you
-sign — every run of a 400-line command has one edit worth naming. The close prints the finished
-`FEEDBACK:` line; paste it as the 7th line of the FINAL OUTPUT block. Every close appends a row to
-the fleet-wide ledger `~/.claude/state/command-feedback.jsonl`; `python3
-scripts/command_feedback_report.py` (hub) turns it into the per-command optimisation backlog.
+`command_run.py` REFUSES a close that lacks any of `confusion:` `waste:` `change:` `filed:` (or leaves one empty, or writes one twice); separator between fields is ` · ` (a middle dot; `|`, `;` or newline also count) — a label only counts at a field boundary, so a value may mention another label's name in prose. Wall-clock and round count are captured for you; write what you SAW: which sentence you misread, which step you repeated, what you would cut or rename. A run that went cleanly still says so per field (`confusion: none`), and `change: none` is a claim you sign — every run of a 400-line command has one edit worth naming. The close prints the finished `FEEDBACK:` line; paste it as the 7th line of the FINAL OUTPUT block. Every close appends a row to the fleet-wide ledger `~/.claude/state/command-feedback.jsonl`; `python3 scripts/command_feedback_report.py` (hub) turns it into the per-command optimisation backlog.
 
-**A "filed" claim MUST name a durable artifact — the mail id, or a COMMITTED path.** A cross-repo
-write to a hub path is not a filing (live case: "filed (5 items)" to a hub file that was never
-tracked on any branch — 4 of 5 unrecoverable). No artifact = not filed.
+A "filed" claim MUST name a durable artifact — mail id, or COMMITTED path; a cross-repo write to a hub path is not a filing (live case: "filed (5 items)" to a hub file that was never tracked on any branch — 4 of 5 unrecoverable). No artifact = not filed.
 
-**Then pass it: `done --command <name> --evidence "<proof>" --feedback "<the four fields>"`. The close
-REFUSES without it, and without the four fields** — and the TEXT is persisted and READ: the operator reviews every verdict via
-`python3 scripts/enforcement/check_feedback_duty.py --digest` (D-055 — the substance used to be
-classified into a token and discarded, which is why five operator asks produced zero visible
-reports; write the verdict as a report to a human, because it now reaches one) — — and a refused close leaves the record `running`, which the Stop hook blocks the
-turn on. ⚠️ **If your repo's `command_run.py` predates `--feedback` it will ERROR on the unknown argument
-instead of refusing** — that is a STALE VENDORED COPY, not an exemption. It happens in **sync-excluded**
-repos (fabrik-lib hit it: `01M14V7KH4`), where the box-wide command corpus you are reading is NEWER than
-the repo-local script it tells you to run — new instruction + old tool, the same trap that produced
-`error: unrecognized arguments: --feedback` on the day the refusal landed. Do NOT drop the verdict: close
-with `--evidence` so the record does not stay `running`, **state your `FEEDBACK:` line in the response**
-(it is owed to the reader, not to the parser), and file the stale-copy fact upstream so the vendored script
-gets re-synced. A verdict you spoke is information; a verdict you skipped because the parser could not take
-it is not.
+Then pass it: `done --command <name> --evidence "<proof>" --feedback "<the four fields>"`. The close REFUSES without it, and without the four fields — and TEXT is persisted and READ: the operator reviews every verdict via `python3 scripts/enforcement/check_feedback_duty.py --digest` (D-055 — the substance used to be classified into a token and discarded, which is why five operator asks produced zero visible reports; write verdict as report to human, because it now reaches one) — and a refused close leaves the record `running`, which the Stop hook blocks the turn on. ⚠️ If your repo's `command_run.py` predates `--feedback` it will ERROR on unknown argument instead of refusing — that is STALE VENDORED COPY, not an exemption. It happens in sync-excluded repos (fabrik-lib hit it: `01M14V7KH4`), where box-wide command corpus you are reading is NEWER than repo-local script it tells you to run — new instruction + old tool, the same trap that produced `error: unrecognized arguments: --feedback` on the day the refusal landed. Do NOT drop the verdict: close with `--evidence` so the record does not stay `running`, state your `FEEDBACK:` line in the response (it is owed to the reader, not to the parser), and file the stale-copy fact upstream so the vendored script gets re-synced. A verdict you spoke is information; one skipped because parser could not take it is not.
 
-⚠️ **And the trap is not limited to `--feedback` — it is the whole class: a subcommand or flag this
-corpus names that your local `command_run.py` REJECTS is a stale copy, never a licence to skip the
-step.** Measured 2026-09-10 at fabrik-lib (`01M25D3PRA766HXCHAAGSJBV9X`): the same vendored script also
-predates the dispatch accounting — `dispatch` is an `invalid choice`, and `round` has no `--seats` and
-no `--confirmed` — while every fan-out in the corpus now instructs all three. So DO the step's work and
-state its number in the response (the seats you dispatched, the CONFIRMED count that closed the round),
-close with what the parser accepts, and file the stale-copy fact. Say the two consequences out loud
-while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py`, so a sibling sizing its
-own fan-out over-allocates against a box busier than the number it read — size down and name the gap;
-and a round you cannot close with `--confirmed` cannot record D-206's exit counter, so the convergence
-verdict lives in your prose and the `--findings 0` rule still binds it.
+⚠️ And trap is not limited to `--feedback` — it is whole class: a subcommand or flag this corpus names that your local `command_run.py` REJECTS is stale copy, never a licence to skip the step; measured 2026-09-10 at fabrik-lib (`01M25D3PRA766HXCHAAGSJBV9X`): the same vendored script also predates the dispatch accounting — `dispatch` is `invalid choice`, and `round` has no `--seats` and no `--confirmed` — while every fan-out in the corpus now instructs all three. So DO step's work and state its number in response (the seats you dispatched, CONFIRMED count that closed round), close with what parser accepts, and file stale-copy fact. Say two consequences out loud while it lasts: seats you cannot stamp are INVISIBLE to `dispatch_headroom.py`, so a sibling sizing its own fan-out over-allocates against a box busier than the number it read — size down and name the gap; and a round you cannot close with `--confirmed` cannot record D-206's exit counter, so convergence verdict lives in your prose and `--findings 0` rule still binds it.
 
-This is not ceremony bolted onto the exit: it is the only moment you still hold the context
-to answer, and the duty was measurably inert for as long as it was merely written down (13 closes in
-14 days, 12 with no verdict, zero filings — with the text below already present in all 31 commands).
+This is not ceremony bolted onto the exit: it is the only moment you still hold the context to answer, and the duty was measurably inert for as long as it was merely written down (13 closes in 14 days, 12 with no verdict, zero filings — with the text below already present in all 31 commands).
 
-**"none" is a valid verdict ONLY with its surfaces named — a BARE "none" is now REFUSED by the
-parser (D-036, the operator's 5th ask made mechanical).** Write `none — surfaces exercised: <what
-your run actually touched of the machinery>`; silence and a bare "none" are byte-identical to the
-reader, and the close will not accept either. This step is MANDATORY on every run of every command —
-the record stays `running` (and the Stop hook blocks the turn) until a substantive verdict lands.
+"none" is a valid verdict ONLY with its surfaces named — BARE "none" is now REFUSED by the parser (D-036, the operator's 5th ask made mechanical); write `none — surfaces exercised: <what your run actually touched of the machinery>` — silence and bare "none" are byte-identical to reader, and close will not accept either. This step is MANDATORY on every run of every command — the record stays `running` (and the Stop hook blocks the turn) until a substantive verdict lands.
 
 ### File it when this run hit any of these
 
-- a command's instruction that was wrong, stale, impossible, or contradicted another command
-- an enforcement check that fired on a legitimate pattern (false positive) or stayed silent on a real
-  one (false negative) — both are defects, and the false positive is the more corrosive
-- a rule pack that contradicted another pack, or that never activated where it was needed
-- a script, hook, or scaffold emission that did not behave as its own docs describe
-- friction that cost you real time: an ambiguous step, a missing arg, an undocumented prerequisite
-- anything you had to WORK AROUND to finish. A workaround is allowed; an unreported workaround is not
-- ⚠️ **a later pass, a stronger method, or the operator's re-ask caught something a CONVERGED pass
-  of the same command had already stamped.** The false claim was yours; the no-op stamps that
-  SURVIVED it are the machinery's, and that half is always filed. This is the trigger agents
-  misclassify hardest — "my mistake, fixed in-run" — and it is exactly how two converged
-  /fabrik-plan-review passes carrying a false Evidence-table claim produced zero mail
-  (trade-intelligence 2026-08-29, surfaced only because the operator re-asked with a different
-  method and then pasted the result to infra BY HAND — the duty this bullet exists to replace)
-- **you misread the same tool's output more than once in a session** (a `| head`-truncated pipe, a
-  silently-failing compound grep). Twice is a tooling-discipline gap in the machinery's guidance,
-  not a personal slip — file it with the exact pipeline that misled you
+- a command's instruction that was wrong, stale, impossible, or contradicted another command.
+- an enforcement check that fired on legitimate pattern (false positive) or stayed silent on a real one (false negative) — both are defects, and the false positive is the more corrosive.
+- a rule pack that contradicted another pack, or that never activated where it was needed.
+- a script, hook, or scaffold emission that did not behave as its own docs describe.
+- friction that cost you real time: an ambiguous step, missing arg, undocumented prerequisite.
+- anything you had to WORK AROUND to finish. A workaround is allowed; unreported workaround is not.
+- ⚠️ a later pass, stronger method, or operator's re-ask caught something CONVERGED pass of the same command had already stamped; false claim was yours — no-op stamps that SURVIVED it are machinery's, and that half is always filed. This is trigger agents misclassify hardest — "my mistake, fixed in-run" — it is exactly how two converged /fabrik-plan-review passes carrying false Evidence-table claim produced zero mail (trade-intelligence 2026-08-29, surfaced only because the operator re-asked with a different method and then pasted the result to infra BY HAND — the duty this bullet exists to replace).
+- you misread same tool's output more than once in session (a `| head`-truncated pipe, a silently-failing compound grep). Twice is tooling-discipline gap in machinery's guidance, not a personal slip — file it with exact pipeline that misled you.
 
 ### Route by BEAT, never by convenience (charters: `docs/reference/agents/`)
 
 | To | Owns |
 |---|---|
-| **infra** | `commands/_sources/`, `.windsurf/rules/`, `scripts/enforcement/`, `.claude/hooks/`, the box mesh, fabrik-mail |
+| **infra** | rendering, sync and checks of `commands/` and `.windsurf/rules/`, `scripts/enforcement/`, `.claude/hooks/`, the box mesh, fabrik-mail |
 | **fleet** | `specs/services/*.yaml`, deploy/VPS/monitoring, scaffolding, `docs/PROJECT_CATALOG.md` |
 | **intel** | models, benchmarks, the flywheel, author-blind review |
-| **kaizen** | FEEDBACK verdicts, a command's or rule's WORDING, ways of working — the feedback loop (not the code behind it) |
+| **kaizen** | FEEDBACK verdicts, a command's or rule's WORDING (the hub's `commands/_sources/`, `commands/_fragments/` and `.windsurf/rules/`, per `/opt/fabrik/.fabrik/beat-owners.json`), ways of working — the feedback loop (not the code behind it) |
 
 ```bash
 python scripts/mail.py send --to fabrik --to-agent <infra|fleet|intel|kaizen> --kind finding --ack required
@@ -158,24 +59,12 @@ python scripts/mail.py send --to fabrik --to-agent <infra|fleet|intel|kaizen> --
 # ABDUCTIVE (alternatives ruled out) when WHY is inferred; INDUCTIVE/DEDUCTIVE/COUNTERFACTUAL where they carry weight
 ```
 
-Genuinely unsure who owns it ⇒ `--broadcast --ack no` rather than dropping it. **In a PROJECT repo**,
-a defect in a SYNCED file additionally follows `/fabrik-upstream` — never edit the synced copy.
+Genuinely unsure who owns it ⇒ `--broadcast --ack no` rather than dropping it. In a PROJECT repo, a defect in a SYNCED file additionally follows `/fabrik-upstream` — never edit the synced copy.
 
 ### A subagent's finding is YOURS to file
 
-Subagents are ephemeral. A `fabrik-reviewer` that notices a false-positive check, a
-`fabrik-researcher` that hits a dead reference, a pool finder that trips over a contradictory rule —
-each surfaces it in its return value and then **ceases to exist**. If you do not carry it out, it is
-gone, and the subagent cannot mail anything itself.
+Subagents are ephemeral. A `fabrik-reviewer` that notices false-positive check, `fabrik-researcher` that hits dead reference, pool finder that trips over contradictory rule — each surfaces it in its return value and then ceases to exist. If you do not carry it out, it is gone — the subagent cannot mail anything itself.
 
-So: when you adjudicate subagent output, findings about the MACHINERY (not about the code under
-review) come to you, and you file them under the routing above. They are the cheapest findings you
-will ever get — someone else already did the work of hitting the defect.
+So: when you adjudicate subagent output, findings about the MACHINERY (not about the code under review) come to you, and you file them under the routing above.
 
-**The bar is evidence, not a complaint.** One reproducible `path:line` and the command you ran beats
-a paragraph of impression. **And know which fix discharges the duty: fixing your ARTIFACT never
-does.** Correcting the false claim, the missed row, the wrong verdict heals YOUR run; the mail heals
-the COMMAND that let it survive — both are owed, always. The only fix that replaces the mail is
-fixing the MACHINERY itself (a hub agent, in-beat, in the same run — say so in the FEEDBACK line).
-A "none" verdict asserts all of the above triggers came up empty — it is a claim, and you are
-signing it.
+The bar is evidence, not a complaint: one reproducible `path:line` and command you ran beats paragraph of impression. And know which fix discharges duty: fixing your ARTIFACT never does; correcting the false claim, the missed row, the wrong verdict heals YOUR run; mail heals COMMAND that let it survive; both are owed, always. The only fix that replaces the mail is fixing the MACHINERY itself (a hub agent, in-beat, in the same run — say so in the FEEDBACK line). A "none" verdict asserts all of above triggers came up empty — it is a claim, and you are signing it.

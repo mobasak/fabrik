@@ -14,10 +14,10 @@
     "spec": ""
   },
   "next": "accept an em-dash after SKIP in _SKIP_RE and add a dashboard test for it",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — dashboard column display",
-  "status": "open",
+  "status": "dropped",
   "title": "quota_dashboard _SKIP_RE (scripts/sysadmin/quota_dashboard.py:1452) needs 'SKIP:' with a colon, so a description written 'SKIP —' (fabrik-task.md) shows its SKIP text in the Commands tab's when column"
 }

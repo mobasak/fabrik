@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T13:35:31.602859Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-0fa41133",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "tighten tests/test_hooks_headless_guard.py::_files_that_build_a_claude_p_argv so an element names claude only as the PROGRAM (a constant whose basename is claude, or a claude BIN/_ENTRYPOINT name, at the head or after timeout/env/KEY=VAL), never any substring; add as prose cases ['ls','~/.claude','-p'], ['cp', CLAUDE_MD, '-p', dst], ['git','-C','/x/claude','log','-p'], ['cp','claude.md','-p'] (Opus + Haiku seats, round 3)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "headless-spawner discovery flags a non-spawning argv that merely names a .claude path before -p: ['ls','~/.claude','-p'], ['cp', CLAUDE_MD, '-p', dst] (W-d45c790c review round 3, own-fix residue of the 'any element names claude' rule, false red, fails loud)"
+}

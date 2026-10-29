@@ -1,0 +1,26 @@
+{
+  "block_digest": "389f44e61c748d6810f3e1a2f32f35f4ace9fcc924c745a58a90d6f936c1a71e",
+  "blocked_by": [],
+  "created": "2026-10-25T08:30:36.213669Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-742c6a34",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "329460d66a8e15420bf9242279a2cbfbd3df69046885944126e9d713ac6bcfa8"
+  ],
+  "next": "",
+  "note": "operator 2026-10-25: 'api credits has nothing to do with enabling extra credits. look at what we have implemented, test them all, tell me what should be one and start using all asap' — launch the builders on the API keys; no console limit needed to start",
+  "owner": "",
+  "priority": 2,
+  "question": "Shall I launch kaizen (and infra-2) on the API keys now, so the command rewrites run today on the $200 credits instead of waiting for Monday's quota?",
+  "status": "done",
+  "title": "Shall I launch kaizen (and infra-2) on the API keys now, so the command rewrites run today on the $200 credits instead of waiting for Monday's quota?"
+}

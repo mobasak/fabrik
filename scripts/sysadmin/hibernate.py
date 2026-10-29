@@ -12,7 +12,9 @@ text, prove the box is safe to sleep, and tell a woken agent the pause is over.
                                   cannot read or parse (or any other error of its own)
   lift                            the manual override (the tick lifts otherwise): only the hub's merge owner's session
                                   or the operator's plain shell; writes lifted_at + lift_path=hub (exit 0); 1 no
-                                  pause marked; 2 a forged --proc/--home or a marker it cannot write; 3 refused
+                                  pause marked; 2 a forged --proc/--home or a marker it cannot write; 3 refused;
+                                  after a lift it prints rotation offers for the agents past the line (rotate_session
+                                  `due`, advice only)
   status [--json] [--self SID]    one table: every live agent's worktree clean and pushed, no run `running` (the
                                   caller's own run excepted), a held self-watch, no live seat, a minute cron
                                   that beat in the last 3 minutes; with a mark a header names the pause, T-3, T
@@ -54,9 +56,11 @@ a test (PYTEST_CURRENT_TEST), and the plain-shell residual stays auditable.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import fcntl
 import glob
 import hashlib
+import importlib.util
 import json
 import math
 import os
@@ -1249,6 +1253,39 @@ def _default_home() -> Path:
                 "hibernate: no passwd entry for this uid and no usable $HOME — the pause marker cannot be located"
             ) from None
         return Path(fallback)
+def _load_rotate():
+    """rotate_session, loaded at the call: it loads this module at import, so a top-level import would be circular."""
+    spec = importlib.util.spec_from_file_location(
+        "_hib_rotate_session", Path(__file__).resolve().parent / "rotate_session.py"
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError("cannot load rotate_session.py beside hibernate.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _offer_rotations(home: Path, proc: Path, opt: str) -> None:
+    """After a lift: the agents past the rotation line, as offers (W-f975fee0 slice 3). Advice only — any fault is one
+    stderr line and never fails the lift, which is the act."""
+    try:
+        rs = _load_rotate()
+        lines = [
+            f"  {r.get('repo') or '(no repo)'} {rs._line(dict(r, trigger='lift') if r['state'] == 'due' else r)}"
+            for r in rs.due(home, proc, opt=opt)
+        ]
+        if lines:
+            print(
+                "hibernate: rotation offers — run each command at that agent's next boundary (D-1123); "
+                "an unread row needs a look:\n" + "\n".join(lines)
+            )
+    # SystemExit too: rotate_session's import-time loads must not end the lift; a KeyboardInterrupt still does
+    except (Exception, SystemExit) as exc:  # noqa: BLE001 — the lift is stamped already; a missing offer is safe
+        with contextlib.suppress(Exception):
+            print(
+                f"hibernate: rotation offers unavailable — {type(exc).__name__}: {exc!r}",
+                file=sys.stderr,
+            )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1341,6 +1378,8 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
         rc, msg = lift(home, proc, a.opt)
         print(msg, file=sys.stdout if rc == 0 else sys.stderr)
+        if rc == 0:
+            _offer_rotations(home, proc, a.opt)
         return rc
     if a.verb == "woke":
         rc, msg = woke(home, proc, a.self)

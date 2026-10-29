@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T17:36:18.611889Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-d4645296",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Q623KY1BK6TGJ38W4CRKP8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "FIX LANDED — fabrik-lib rag classifier: a failed classify run no longer deletes tags (follow-up to 01M5Q3E57CY5X3WDBQ0WXPHQB9)"
+}

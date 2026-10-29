@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T05:16:33.681565Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-29978425",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "per reader: route through fabrik.env_file.parse_env or record why not (watchdog keeps its $-unresolved rule); _load_secrets: name the offset, never the byte",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Hand-rolled .env readers outside the D-1277 codec: src/fabrik/drivers/watchdog.py _env_value/_ENV_LINE (regex quote-strip, \\s# cut, no escapes) and scripts/sysadmin/emit_mcp_project_config.py _env_file_values (quotes stripped); also orchestrator _load_secrets puts the UnicodeDecodeError text (the offending byte) into its ValidationError — found by the W-f62a2cdc design critiques (Fable seat), 2026-10-27"
+}

@@ -11,6 +11,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
 from scripts.enforcement import check_plan_tickets as cpt
 
 DIRNAME = "2026-01-02-plan-1-widget"
@@ -739,7 +740,7 @@ def test_a_demoted_error_says_so_and_prints_the_full_severity_command(
     # the MIRROR of test_the_demotion_note_names_the_real_selection_reason: this fixture IS
     # lock-selected, so the reason text must say so. Without it, "always say upstream" — the same
     # defect in the opposite direction — passed the entire suite.
-    assert "via an active LOCK" in out, out[:600]
+    assert "via a mid-flight LOCK" in out, out[:600]
     assert "no lock is involved" not in out, out[:600]
     assert rc == 0, "this fix changes VISIBILITY, not severity — the demotion still stands"
 
@@ -888,7 +889,7 @@ def test_the_demotion_note_names_the_real_selection_reason(tmp_path, capsys, mon
     assert cpt.main() == 0
     out = capsys.readouterr().out
     assert "no lock is involved" in out, f"the NOTE must not blame a lock:\n{out[:500]}"
-    assert "via an active LOCK" not in out, out[:500]
+    assert "via a mid-flight LOCK" not in out, out[:500]
 
 
 def test_a_lock_only_dir_with_no_errors_prints_no_demotion_note(
@@ -3244,3 +3245,95 @@ def test_a_repo_root_spelling_never_normalises_to_empty() -> None:
     for spelling in ("./", "./.", ".//.", ".//", ".//.//."):
         assert cpt._norm_path(spelling) == ".", spelling
     assert cpt._list_paths("- .//.\n") == ["."]
+
+
+@pytest.mark.parametrize(
+    ("entry", "selects"),
+    [
+        ("src/app/schema.py", True),
+        ("./src/app/schema.py", True),
+        ("`src/app/**`", True),
+        ("src/app/**", True),
+        ("src/*/schema.py", True),
+        ("src/app/", True),
+        ("src/app/schema.py/inner", False),
+        ("src/other/**", False),
+        ("Src/App/schema.py", True),
+        ("**", True),
+    ],
+    ids=[
+        "literal",
+        "dot-slash",
+        "backticked-glob",
+        "glob",
+        "star-segment",
+        "dir",
+        "below-the-file",
+        "other-glob",
+        "case-folded",
+        "bare-double-star",
+    ],
+)
+def test_a_lock_entry_selects_its_plan_in_every_written_shape(
+    tmp_path, entry: str, selects: bool
+) -> None:
+    """W-b2bbc1f1: lock discovery normalises each owned_paths entry like the epic reader does (`_norm_glob`) and
+    tests it DIRECTIONALLY and glob-aware (`_glob_covers`): a `./`-prefixed, backticked or globbed entry selects its
+    plan (live active locks own `apps/web/scripts/phase0/**`), and an entry BELOW a changed file never does."""
+    root = _repo(tmp_path)
+    plan_dir = _build(root)
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "seed")
+    locks = root / ".fabrik" / "plan-locks"
+    locks.mkdir(parents=True)
+    (locks / f"{DIRNAME}.json").write_text(
+        json.dumps({"plan": "x", "status": "active", "owned_paths": [entry]}), encoding="utf-8"
+    )
+    (root / "src" / "app").mkdir(parents=True, exist_ok=True)
+    (root / "src" / "app" / "schema.py").write_text("seed\n", encoding="utf-8")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "track schema")
+    (root / "src" / "app" / "schema.py").write_text("changed\n", encoding="utf-8")
+    _, lock_only = cpt._discover_dirs(root)
+    assert (plan_dir.resolve() in {d.resolve() for d in lock_only}) is selects, entry
+
+
+@pytest.mark.parametrize(
+    ("status", "selects"),
+    [
+        ("active", True),
+        ("paused", True),
+        ("blocked", True),
+        ("released", False),
+        (["active"], False),
+        ({"s": 1}, False),
+    ],
+)
+def test_a_paused_lock_still_selects_its_plan(tmp_path, status: str, selects: bool) -> None:
+    """Design critique (Opus, W-b2bbc1f1): `/fabrik-execute-plan` writes `paused` on a quota pause and the plan stays
+    mid-flight — a live web-ecommerce-factory lock owned 23 paths and was never selected. A non-string status skips the
+    lock and never aborts discovery (review pass 1: a list status raised TypeError in the frozenset test)."""
+    root = _repo(tmp_path)
+    plan_dir = _build(root)
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "seed")
+    locks = root / ".fabrik" / "plan-locks"
+    locks.mkdir(parents=True)
+    (locks / f"{DIRNAME}.json").write_text(
+        json.dumps({"plan": "x", "status": status, "owned_paths": ["src/app/**"]}), encoding="utf-8"
+    )
+    (root / "src" / "app").mkdir(parents=True, exist_ok=True)
+    (root / "src" / "app" / "schema.py").write_text("seed\n", encoding="utf-8")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "track schema")
+    (root / "src" / "app" / "schema.py").write_text("changed\n", encoding="utf-8")
+    _, lock_only = cpt._discover_dirs(root)
+    assert (plan_dir.resolve() in {d.resolve() for d in lock_only}) is selects, status
+
+
+def test_the_mid_flight_statuses_match_the_lock_release_partition() -> None:
+    """`_LOCK_MID_FLIGHT` is a copy (no check imports a sibling check): it must equal check_plan_lock_release's
+    NON_TERMINAL, the writer-derived partition."""
+    from scripts.enforcement import check_plan_lock_release as cplr
+
+    assert cpt._LOCK_MID_FLIGHT == cplr.NON_TERMINAL

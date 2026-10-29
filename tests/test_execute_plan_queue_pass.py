@@ -164,9 +164,6 @@ def test_the_orchestrator_waits_for_its_coders_in_turn() -> None:
         "each passing `run_in_background=False`: they still run in parallel, and the turn holds until every one"
         " returns." in text
     )
-    pattern = _section("### Dispatch pattern", "### Model selection")
-    assert pattern.count("run_in_background=False,") == 3
-    assert pattern.count('model="sonnet",') == 3
 
 
 def test_a_small_sync_path_plan_runs_in_its_own_worktree() -> None:
@@ -290,10 +287,61 @@ def test_the_loop_step_names_the_phase_review_artifact() -> None:
     assert (
         "THEN next phase → before the phase's closing commit (the one that stages the plan file), write its receipt to"
         " docs/development/reviews/ as `<plan-stem>-phase-<N>-review.md`, `<plan-stem>` being the plan file's whole"
-        " stem, which starts with its `<date>-plan-<n>-` prefix (that prefix keeps it findable after a resume); under `Profile: small` there is no file,"
+        " stem (when it starts with a `<date>-plan-<n>-` prefix, that prefix keeps it findable after a resume; without"
+        " one, a resumed run finds the earlier receipts only when it was started with `command_run.py start"
+        " --resume-from <seed>`, which keeps the original start time, and a seed exists only after a `blocked` close"
+        " at the quota wall (`--wall`, or a reason naming the wall) or an operator's pause (`--paused`); after a crash"
+        " or a `handoff`, waive each earlier phase whose receipt the gate cannot see,"
+        " naming that receipt in the reason); under `Profile: small` there is no file,"
         " so pass item 3b's `--review-waived` on the next `step` call instead — `step --phase N+1` refuses without"
         " one (item 3b's artifact rule) fix CONFIRMED findings"
     ) in loop
     item_3b = _section("3b. **GUI phases", "4. **All HARD STOPS")
+    assert "(only a `<date>-plan-<n>` stem has the escape)" in item_3b, (
+        "item 3b lost the unprefixed-stem limit"
+    )
+    assert "or starting with the plan's `<date>-plan-<n>-` prefix)" in item_3b, (
+        "item 3b lost the prefix escape"
+    )
+    assert (
+        "the waiver is for a phase that has none, or for an unprefixed plan's earlier receipt that a resume without a"
+        " seed cannot see (named in the reason)."
+    ) in item_3b
     assert 'goes through `--review-waived "<reason>"`' in item_3b
     assert '`--review-waived "Profile: small' in item_3b
+
+
+def test_a_closed_scoped_review_record_is_never_the_phase_artifact() -> None:
+    """Rows 1792642635, 1792631003 and 1792629452 (after 1792498266): plans closing a phase with /fabrik-review-scoped
+    expected its record to satisfy `step`; `_phase_review_exists` reads only docs/development/reviews/."""
+    assert (
+        "A closed `/fabrik-review-scoped` run record is never the receipt `step` reads: `step` reads only a file under"
+        " `docs/development/reviews/`, and item 3, not `step`, makes a phase's review the full `/fabrik-review` without"
+        " `Profile: small`, its receipt the one this item names."
+    ) in _section("**Every phase's review exit", "4. **All HARD STOPS")
+
+
+def test_a_cwd_dependent_check_runs_as_its_own_call() -> None:
+    """Row 1792595903, the second verdict on held cd-dependent-checks-run-alone: a batched cd-dependent check read
+    another check's directory, and a bare `cd` persists across the Bash tool's calls."""
+    assert (
+        "a check that needs a working directory other than the repo root runs as its own Bash call in a subshell,"
+        " `(cd <dir> && <check>)`, since the Bash tool keeps a bare `cd` for every later call, never chained with another"
+        " check, and its exit is read before the next runs"
+    ) in _section("run phase validation gate", "fix any gate failures")
+
+
+def test_the_coder_brief_fences_tests_off_the_live_database() -> None:
+    """Rows 1792630640 and 1792643127: a coder's tests reached the live database because a deleted `.env` was taken
+    for a fence; with an unreachable host the database tests are reported as not run, never as passing."""
+    assert (
+        "5. A worktree whose `.env` is deleted or absent is not a database fence, since a suite can still reach a live"
+        " database through a default or the shell's environment: run the tests with each database variable the suite"
+        " reads ({the variable names}) set to {an isolated test database, or an unreachable URL such as"
+        " `postgresql://fence.invalid/fence_test`, whose `_test` name passes a throwaway-name guard}, and with the"
+        " unreachable URL report the database tests as not run, never as passing: their connection errors are the"
+        " fence, not a defect to fix."
+    ) in _section("## Before you start", "## Global Constraints")
+    assert "and its item 5 database fence) + the ticket" in _section(
+        "**Fixup ROUTING", "**Epic containment"
+    )

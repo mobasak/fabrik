@@ -4,6 +4,1682 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
+The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
+`docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.
+`agents_up.sh remove` no longer deletes an untracked file hidden by `status.showUntrackedFiles=no`. It refuses a locked
+worktree or the merge owner before it kills a pane, reads non-ASCII ignored names correctly, and caps every refusal at
+20 reasons plus an exact count. `add` refuses a caller bound outside the launcher's name grammar and a coordinator
+`--role`. Spawned panes stay on `--session-id` after whoami's `refresh()` row (master, merged in), a malformed store row
+no longer stops the launcher, and a pane's exit hint picks `--resume` or `--session-id` when it prints. `agents_bat.py`
+remembers the desktop after a partial run. The builder charter's hand-in command names `--review`, and the identity and
+rollout docs describe the verbs as built. `ruff format` cleared three files the merge gate's format check would have
+reddened.
+
+### Added — `agents_up.sh remove`: retire a builder without losing work (2026-10-29)
+`agents_spawn.py remove <repo> <name>` (W-b9ad80ae, plan T09) refuses under the repo's agents lock (exit 2, every reason in one `agents-spawn.jsonl` row) on a `running` run record for any id the name owns (registry, identity store and the tagged pane's live session), a dirty or detached worktree, unpushed commits, a tmux read that fails, or an ignored file that would be lost (caches by path segment, `remove_ignored_ok` from `.fabrik/work/config.json`, `.tmp/runs/<sid>/<run>` folders a resume seed names — read through symlinks, non-regular seeds refused). It then kills the pane, re-checks after the kill, removes the worktree (never `--force`), deletes only a branch merged into the base, drops the registry row, heals the rest and regenerates the launchers; a re-run after an interrupted remove finishes what is left. `docs/reference/repo-coordinator-rollout.md` gains "Start using it in every repo", both verbs, the grid and the tabbed `.bat`.
+
+### Fixed — rotate_session.py re-points the session registry under the repo's agents lock (2026-10-29)
+`_repoint_registry` takes `agents_spawn.lock_path`'s flock before its first read (W-b9ad80ae, plan T07), waits up to 30 s (`refused:agents lock busy`) and refuses with `refused:agents lock unavailable` when the lock cannot be resolved — a missing or broken `agents_spawn.py`, one that exits at import, a git failure — so a rotation can no longer lose an `add`/`remove` registry write, or the reverse. `REQUEST_WORST_S` now counts the wait (517 s) and `CLAIM_CUTOFF_S` drops from 50 to 20 s so the last rotation still ends inside the unit's 600 s; `fabrik-rotate.service`'s comment and `docs/workstation/hooks-index.md` say so.
+
+### Added — `agents_up.sh add` regenerates the tabbed launcher and appends the live tab (2026-10-29)
+`add`'s step 7 (W-b9ad80ae, plan T08c) runs `agents_bat.py --tabbed` (the distro derived once in this process, passed only when non-empty) and, when step 6 opened `agents-<k>` (k ≥ 2) whose `<S>+<k>` session exists and lists the new window, appends `wt.exe -w fabrik-agents new-tab --suppressApplicationTitle --title "<Repo> Agents <k>" … tmux attach -t =<S>+<k>`, titled by the repo's `/opt` entry name as the `.bat` is. Step 7 runs after `add`'s refusal handling: every launcher failure is said on stderr and `add` still exits 0.
+
+### Added — `agents_up.sh add` cold start and launch: the grid first, headroom after it settles, one pane command (2026-10-29)
+`agents_spawn.py add` now starts a missing grid with `agents_up.sh --detach` before binding (W-b9ad80ae, plan T08b): exit 0 restores every registered builder, waits until their panes read `running` (bounded by `FABRIK_AGENTS_SETTLE_S`, finite, 0 to 300, default 20, validated before anything starts) and measures headroom again before the launch; exit 3 (no builder) records the new builder and a second `--detach` starts the grid with it as the first pane, after which `add` waits for that pane's claude within the same bound and never falls through while another start is still building the grid. Otherwise a live pane of the name is adopted, or the ONE command `agents_up.sh --pane-cmd … --new` is placed through `place_pane`, its first prompt naming the coordinator and the item (also passed to a re-run's first `--detach`). `heal_registry` re-points a `.fabrik/session-agents.json` row to its live pane's session, read from Claude's session record by pid and start time as `rotate_session.py` does (never argv, which a `/clear` rotation leaves on the old id), writing only a session-id-shaped id no other name holds; a failed heal is said and never stops `add`.
+
+### Added — agents_spawn.py placement: windows of four, `<S>+<k>` overflow sessions, adoption (2026-10-29)
+`place_pane` puts a spawned builder's pane in the lowest `agents`/`agents-<k>` window with room — matched by exact name, targeted by window and pane id, split after the window's last pane in the background — or opens the lowest free name, showing `agents-<k>` in a `<S>+<k>` session grouped with `<S>` (W-b9ad80ae, plan T08a). A pane tagged `@agent <name>` whose claude (found by walking its process tree; `--session-id`, `--resume` or `-r`) runs the name's bound session is adopted; any other tagged pane refuses with its remedy. Every refusal comes before anything is created or removes what the call created: a tmux read that fails or answers nothing, a malformed `FABRIK_TMUX`, an empty session id, two windows sharing a grid name, a process tree past its bound, a session not ours grouped under `<S>`'s name. Leftover `<S>+<digits>` sessions grouped under `<S>`'s name are cleared from one session-list snapshot before a new overflow session joins the group.
+
+### Added — `agents_up.sh add`: spawn a builder (worktree, binding, item) under the repo's agents lock (2026-10-29)
+New `scripts/sysadmin/agents_spawn.py` (W-b9ad80ae, plan T06). Preflight refusals run before any write, each recorded in `~/.claude/state/agents-spawn.jsonl`: the name and its `<role>-<ordinal>` shape, a bound caller, trust, the main checkout (never a linked worktree or a subdirectory), the cap, and a 2 GB floor measured on the slice, or on the box's `MemAvailable` while the slice is cold or the start uncapped. Then the `worktree-<name>` worktree from the configured base, a fresh `whoami_agent.py --spawned` binding (reusing only an unstarted spawn of the same name), one registry row where a registry exists, and `work.py assign` on the main checkout with the caller's environment unchanged. Any failure is a recorded refusal at its step. Steps 3, 6 and 7 are seams for T08.
+
+### Added — agents_bat.py --tabbed: one generated "All Agents (tabbed).bat" (2026-10-29)
+One named wt window (`-w fabrik-agents`) with a tab per repo and per live `agents-<n>` tmux window (W-b9ad80ae, plan T05). The session is named from the repo's realpath, and each tmux read is capped at 2 s. The write runs under a flock held only for that write, and every write goes through a unique temp file. A run that wrote or confirmed a file remembers its `--desktop`. Per-repo mode now also defaults the distro to the Deck's resolver, so it works where WSL_DISTRO_NAME is unset (`--distro` overrides, `''` refuses).
+
+### Added — agents_up.sh windows of four, `<S>+<k>` overflow sessions and `--window <n>` (2026-10-28)
+Builders fill tmux windows four placed panes at a time (`agents`, `agents-2`, …), each targeted by window id; every overflow window is shown in its own `<S>+<k>` session grouped with the base, so each Windows Terminal tab attaches its own (W-b9ad80ae, plan T03). `agents_up.sh --window <n> <repo>` waits while a live builder (`@agents_up_building` = `<pid>:<start time>`) is still building, then attaches `<S>+<n>`. A launch that loses the race kills nothing; a session left grouped under the base's name by an older grid is named with the `kill-session` that frees it and no overflow session joins it (a live grid's own viewers are not stale). Closes W-1961cc42 — the non-TTY detach that landed in 208dccd76.
+
+### Added — agents_up.sh spawned launch path: `--pane-cmd`, `--session-id` starts, prompt suppression (2026-10-28)
+`agents_up.sh --pane-cmd <repo> <name> <sid> [--new] [--coordinator <n>] [--item <W-id>]` prints the one pane command a spawner places (W-b9ad80ae, plan T02); it is its own mode, decides every refusal before it writes the slice ceiling, and refuses an uncapped start unless `FABRIK_AGENTS_UNCAPPED=1`. A spawner-bound session with no transcript in any project folder launches with `--session-id` and a first prompt naming its coordinator and item; every claude call carries `--settings` suppressing the auto-mode tip and spinner tips, and every pane `CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1`. "Nothing to launch" exits 3. A pane reads `running` when any live claude runs its session id, or runs by its name in its folder. The resolver emits only UUID-shaped session ids, and a malformed `FABRIK_SPAWN_*` refuses only a launch that would build that builder's first prompt.
+
+### Added — agent_role.py role-charter fallback + generic builder charter (2026-10-28)
+When `docs/reference/agents/<name>.md` is absent (a dangling symlink counts as present), a `<role>-<suffix>` session gets `<role>.md` under its own name (W-b9ad80ae, plan T04). Never for a coordinator name or a coordinator role (`coordinator-2`), a name missing either half, or the merge owner's role, which is read through the hub's `decisions.py --merge-owner` and fails closed. The new `docs/reference/agents/builder.md` is the generic builder charter and names no merger.
+
+### Added — whoami spawner-only binding: `--spawned` with a held-lock caller proof (2026-10-28)
+`whoami_agent.py --spawned <name> --session-id <uuid> --repo <dir> --lock-fd <n>` binds a NEW session id for a spawner that holds `<common dir>/fabrik-agents.lock` (W-b9ad80ae, plan T01). The proof reads `/proc/self/fdinfo/<fd>` for an exclusive flock on the literal lock file and takes, converts or releases no lock, so a shared or POSIX holder, an unlocked copy and a symlinked lock are refused. The row carries `spawned: true` and a null pid; prefix-abbreviated flags are refused. Exits 0 written · 1 live holder · 2 refused (an unenterable `--repo` included) · 3 git could not run, or a crash. `--as`/`--who` are unchanged.
+### Fixed — the docusaurus pack no longer offers, as an alternative, a serve image its audit grades CRITICAL (2026-10-29)
+
+`.windsurf/rules/core/42-docusaurus.md` (fleet-synced) named `nginxinc/nginx-unprivileged` as "the alternative"
+serve image while its checklist and the hub audit accept only the stock `nginx:mainline-<codename>`. The serve-stage
+paragraph now says the alternative is outside the mandate and routes a project that wants it to the hub by mail.
+`tests/test_docusaurus_pack.py` pins the paragraph and runs the audit (D-1344, supersedes D-664 in part; fleet mail
+01M632SH6W).
+
+### Fixed — the rule-grounding grader's rubric re-run records no rule activation (2026-10-29)
+- `scripts/enforcement/check_rule_grounding.py` re-runs `scripts/review_rubric.py` once per
+  CONVERGED in-window plan it grades (a digest and a File Scope) to read its MATCHED set, and the
+  rubric's kaizen sensor recorded every re-run as a `rule_activation` / `rubric_injection` event
+  in the caller's stream — 5 false rows in one lean gate run on the hub's tree at the fix. The Stop
+  hook's own `--lean --check` gate runs fed the same rows, so the collector's rule_activation metric
+  counted sessions that only ran the gate (up to 63 % of the 39,632 live rubric_injection rows, an
+  upper bound, share a session and minute with a gate run). It also kept master red on
+  `tests/test_kaizen_sensor_emitters.py::test_gate_stdout_and_exit_code_are_byte_identical_without_the_emitter`.
+  The rubric's sensor now stays off when `REVIEW_RUBRIC_SENSOR_OFF` is exactly `1`, which only the
+  grader sets on its child; real rubric runs emit as before (W-5bfeb31e, D-1345). Historical rows
+  are not rewritten.
+
+### Fixed — scaffolded smoke targets remove containers with their anonymous volumes (2026-10-29)
+- `templates/scaffold/docker/Makefile.python`, `Makefile.node` and the file-worker and chrome-extension emitters in
+  `src/fabrik/scaffold.py`: every container the emitted `docker-smoke` and `clean` targets remove goes with `-v`
+  (`-fv` where forced), and the chrome-extension smoke removes a leftover container before its run and
+  its container when the run or the health check fails, and its `clean` target removes it too. A plain
+  `docker rm` or `docker rm -f` leaves the anonymous volume of an image that declares a `VOLUME`, one per smoke run
+  (W-2c8173fa, sibling of W-2786800d). `tests/test_scaffold_smoke_volumes.py` scaffolds every type and requires
+  `-v` on each emitted removal and a leading `-v` removal after each started container's run, and runs each
+  removal against a throwaway container of its own where a docker daemon answers.
+
+### Changed — builders address the coordinator by a live name, never a remembered one (2026-10-29)
+- Both contracts' Session history bullet and the four builder charter files' Escalation paragraph (fleet, infra
+  with its infra-2/infra-3 symlinks, intel, kaizen) name the order: by `SendMessage` to every `to=`
+  name the latest `work: coordinator (<role>)` prompt line prints, else (or when the line is cut short) every name
+  `mail.py who <role>` prints (`<role>` the store's distributor, else the merge owner), and only when no coordinator
+  session is live a `mail.py send --kind request --ack required --to-agent <role>` with the ask on stdin (W-9bf5a363,
+  D-1346).
+  Graded whole by `tests/test_coordinator_live_address_rule.py`.
+
+### Fixed — The kaizen log's Filed cell is refreshed by every run of the week until an analyst writes in it (2026-10-29)
+
+- `scripts/sysadmin/kaizen_collect_v2.py` kept the collector's own first `Filed (spec/mail)` value as if an analyst had typed it, so the cell froze for the rest of the ISO week. A cell that is exactly the collector's bare `N filed / N none / N unstated` is now refreshed (a dash or a golden refusal included); any text an analyst adds still wins. `docs/workstation/kaizen.md` states the rule (W-90163961, D-1347).
+
+### Changed — the review lead runs a node_modules test its seats cannot (2026-10-29)
+- `commands/_fragments/review-probe-catalogue.md` § Seat isolation: a test that needs a gitignored
+  dependency tree (`node_modules/`) runs on no seat tree (an archive or clone holds none; a link or
+  variable pointing at the live one lets the run write inside it; a copy is the barred copy of the
+  live checkout). The seat reports it unverifiable and the lead runs it when the change touches it,
+  the code it tests or the config, manifest or lockfile its run reads, in the throwaway worktree at
+  the pin's base with the pins laid over it, after an install from the lockfile that governs the
+  tree (its own or its workspace root's; the manifest alone when none does). A tree outside the
+  repo is used only by a run that writes nothing inside it, else it stays unverifiable; every tree
+  no lockfile installed is named UNPINNED (intel mail 01M640TVJY, W-9ad5860f's lead half). Ledger
+  entry `cat-a-node-harness-test-is-the-leads-to-run`, grader in `tests/test_seat_recipe_readable.py`.
+
+### Added — WSL proves its network to the Windows NAT watchdog with a heartbeat timer (2026-10-29)
+- `scripts/sysadmin/wsl_net_heartbeat.sh` + `wsl-net-heartbeat.{service,timer}` (every 60 s) and
+  `install_wsl_net_heartbeat_timer.sh` (W-960d68a8, D-1348). The operator's `WSL-NatWatchdog`
+  probed WSL with `wsl.exe -e curl`, and about one run in seven left an orphaned relay holding
+  hv_sock channels forever (W-97557e65), the cause of the daily `wsl.exe` hang. The timer runs the
+  same probe inside WSL and writes `wsl-net-ran` and `wsl-net-ok` on the Windows drive: both on
+  success, ran only on a network failure, neither on a local fault such as a missing curl. The
+  watchdog then reads whether each file changed. `docs/workstation/wsl-net-heartbeat.md` gives
+  the install, the hand-off order and the operator's exact ps1 edit. Not installed yet: it runs
+  from the main checkout after merge.
+
+### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
+- `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
+  `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`
+  (1 s cap) and listing every live name that fits the line whole, with a stale warning, when
+  several answer (W-9bf5a363,
+  D-1337). The hub coordinator's extension window gets a new auto-generated peer name at each
+  rotation, so a name kept in a builder's notes went dead (a rotate request sat 14 h). Unsafe names
+  are dropped and any error adds no line.
+
+### Fixed — the real-Postgres test fixture no longer leaks a 50 MB volume per container (2026-10-29)
+- `tests/test_app_role_real_pg.py::scratch_pg` tore its container down with `docker rm -f`, which
+  removes the running container itself and keeps the image's anonymous data volume, so every
+  container it started left one PostgreSQL 18 data volume behind (W-2786800d). It was the live
+  half of the anonymous volumes that filled the WSL disk to 97% (the PostgreSQL 16 half came from
+  an older generator that stopped on 2026-10-21). The teardown is now `docker rm -f -v`, and
+  `docker run` sits inside the `try`. `test_scratch_pg_leaves_no_anonymous_data_volume_behind`
+  guards it (red on the old teardown); it reads only "no such volume" as gone and waits out an
+  in-flight `--rm` removal. `tests/test_docusaurus_static_runtime.py` takes the same flag.
+
+### Added — the coordinator sees every builder pane waiting on an answer (2026-10-29)
+- `scripts/sysadmin/rotate_session.py::waiting`: a read-only scan of the repo's agents_up tmux grid that names each
+  builder pane on a dialog (a permission dialog, the workspace-trust prompt, an AskUserQuestion) or idle after a turn
+  that ended with a question. 1 s budget; no tmux or no server reads as no grid.
+- `scripts/work.py`: the coordinator's prompt block opens with one `work: PANE WAITING: <agent> (<pane>) — …` line per
+  such pane (`PANE SCAN FAILED` when tmux fails), and its Stop hook blocks on a `pane-waiting` subject per pane ahead
+  of every other subject, re-armed by each distinct prompt. A headless session never scans. Before this the operator
+  answered builders' terminal prompts himself. `docs/reference/agents/coordinator.md` says how to answer.
+  W-a12b03a2, D-1331.
+- `scripts/sysadmin/rotate_session.py::_undimmed`: the arguments of an extended colour (`38;5;2`, `38;2;r;g;b`) are no
+  longer read as the dim attribute, which dropped every cell after them.
+
+### Changed — the never-execute rule binds the orchestrator and every Bash agent (2026-10-29)
+- `commands/_fragments/term-coverage.md`, `commands/_fragments/term-edit.md`: round-zero rule (1) never runs a script
+  that deletes, deploys, provisions, writes outside scratch or contacts a non-local host to settle a claim, faked
+  or not; an unsettled claim is BLOCKED (code) or deleted (documents) (D-1338).
+- `commands/_sources/fabrik-review.md`, `commands/_sources/fabrik-review-scoped.md`,
+  `commands/_fragments/delegated-reads.md`: the lead's own "execute every claim" rules carry the same carve-out.
+- `commands/_agents/design-review.md`, `commands/_agents/fabrik-gui.md`: fabrik-reviewer's house-rule clause, fitted to each.
+- `commands/_fragments/subagents-core.md`: `final_gate.py --check` is a writer seat's line only; read-only seats run
+  ruff, mypy and pytest with their caches off or in scratch, every path absolute into their copy.
+- `commands/_sources/fabrik-command-improve.md`: a script that hard-codes a live path and writes there, deletes, deploys, provisions or contacts a non-local
+  host is read, never run.
+- `tests/test_never_execute_carriers.py`: pins every carrier and the rendered corpus.
+
+### Changed — /fabrik-task captures with the `command_run.py capture` verb; the after-commit review close is numbered (2026-10-29)
+
+- `commands/_sources/fabrik-task.md` phase 5 step 5 runs `python3 scripts/command_run.py capture --msg <msg> --out <durable>/commit.sha` as its own plain call once the commit exits 0, replacing the chained `subj=$(head …)` recipe a linked worktree's isolation guard refused and the separate worktree plain-calls paragraph (D-1339).
+- The full `/fabrik-review` over committed work closes as a numbered list run between step 5's ledger commit and step 6 (draft review, gate, receipt `--init` at the last captured sha, close order and receipt commit, nested review's close); phase 4 dispatches the review after phase 5 steps 1-5 by default, a sync-path run in the main checkout and a review whose receipt the D-row cites reviewing before the commit.
+- Rule ledger `commands/_rules/fabrik-task.yaml`: three entries `changed-by: D-1339`, seven new entries; `tests/test_fabrik_task_source.py` SIZE_CAP 27508 -> 27649.
+
+### Changed — Coordinators never block on a long wait; self-healing row for an unkillable worker child; /fabrik-task range-tip wording (2026-10-29)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md`, coordinator job (5): a merge, queue, test leg or API run goes to the background and the turn ends until its notification wakes it, never a foreground sleep, poll loop or long `runwait` (operator ruling D-1296, W-32ab8277); the HARD STOPS long-command row says the same.
+- `docs/reference/long-command-monitoring.md`: the key rule says every foreground wait in the doc (each `runwait` example and the multi-minute Bash `timeout`) is builder-only, and the long-suite example is marked so (infra mail 01M5YP378Z).
+- `.windsurf/rules/core/self-healing.md`: row 12, a fork-pool child left in uninterruptible kernel sleep after SIGKILL (for example a kernel netlink wedge) is held against the live-child cap, counted and logged, never replaced; its counter and wchan grouping are the project's to build; one deduplicated operator alert per episode, and the operator reboots the host (youtube mail 01M5C99YXS, W-07231796).
+- `commands/_sources/fabrik-task.md`, phases 4 and 5: check (d) takes any listed `--commit` as the receipt's range tip when only receipt and ledger commits follow it, and list order decides nothing, so never reorder the list to pass it; phase 5's stricter "LAST `--commit`" recipe stays verbatim until the lean loader can reword a ban clause (D-1336, D-1291; infra-2 mail 01M5YHHM8G).
+
+### Fixed — a review-loop pass where no finder returned anything now fails, naming the check (2026-10-29)
+- `.claude/workflows/fabrik-review-loop.js`: when every finder seat of the pass comes back null after its retry,
+  the launch throws instead of returning a ledger of dropped seats, which read like a review with gaps and was
+  answered with a re-dispatch into the same dead account. The message puts the check first
+  (`claude_rotate.py --status`, one seat transcript), then the counts, the known causes and up to three seat
+  errors. A seat that rejected keeps its error's first non-blank line in its notes and the retry log line. The
+  count is taken over every finder launched, so a slice dropped by a later stage still counts its seats. D-1340.
+- `scripts/review_loop_ledger.py read`: an ended run with no result (the all-null throw makes it `failed`)
+  prints the first non-blank line of the run file's `error` after `<status> — no result`, so the check
+  reaches the lead reading the pass file.
+
+### Fixed — backticked-path readers read a ``double`` code span instead of unpairing after it (2026-10-29)
+- Five readers paired single backticks, so one double-backtick span shifted the pairing and every later
+  token was prose or missed: `scripts/command_run.py` (`_design_paths`, the `/fabrik-task` close's
+  APPROACH/MIRROR paths, and `_doc_sync_tokens`), `scripts/mail.py` (`_cited_tokens`, the routing paths)
+  and `scripts/enforcement/check_review_coverage.py` (the receipt's Changed list and its `Hunt:` rows).
+  Each now reads a code span the way CommonMark pairs one on a single line: a run of N backticks
+  (N up to 8, which keeps the scan linear) closed by the next run of exactly N, an unclosed run left
+  literal, one space stripped from each side as CommonMark does. As before, a backslash-escaped backtick
+  still opens or closes a span, and a span across a line break is not read. `tests/test_code_span_readers.py`
+  covers each reader, holds the three copies of the pattern equal, and fails on a new one-line naive
+  single-backtick pair under `scripts/` or `.claude/hooks/`; the nine pre-existing ones are listed there against W-8183ecc2
+  (kaizen mail 01M5JTMSVY, W-f2e97f00).
+
+### Fixed — the synced-files check grades a fresh worktree instead of skipping it (2026-10-29)
+- `scripts/enforcement/check_synced_unmodified.py` used to skip and pass every linked worktree that had no `.fabrik/synced.lock` of its own, which is every worktree at birth. Such a worktree is now graded against its main checkout's lock (`synced_lock()`): the copies it holds are compared, an absent row counts as not yet received, and the red header names the borrowed lock instead of claiming an edit. A hub worktree is the source (W-c77f91c6).
+- `_main_checkout` takes command_run's identity rule (GIT_DIR, GIT_WORK_TREE, GIT_COMMON_DIR and GIT_INDEX_FILE stripped, the common dir named `.git`) and adds one of its own (the toplevel must be the project root). A bare-repo worktree or a subdirectory therefore keeps the old skip; a dangling symlink at a synced path or a parent, or a plain file where a synced directory was, reds DELETED in both modes.
+- `scripts/final_gate.py::_synced_paths` reads the same resolver, so the gate never reformats a file the check grades. Over 224 live worktrees, 2 lockless ones go red, both on genuinely stale copies.
+
+### Fixed — the scratch janitor no longer keeps run folders for a daemon born after the run (2026-10-29)
+- `scripts/scratch_sweep.py`: a same-uid `/proc` gap now keeps a run folder only when its process
+  started inside the run's own window. The window ends at the run's last activity (`run_window_end`):
+  the close, a later write, or the newest seat transcript. Before, there was no end, so the
+  document portal's `fusermount3` and gpg-agent kept 152 finished folders (77 GB of /tmp/claude-1000)
+  for as long as they lived. `/tmp` is not cleared at boot here. The `--apply` removal re-check uses the same window.
+  On the live box, the `--dead` dry run goes from 152 gap-kept and 27 consumed to 10 and 169.
+  The session-level rules are unchanged: a no-signal session holds 0.5 GB, and the 108 GB in
+  resumable sessions stays protected by the 7-day bar (D-1341, W-d1a4a8f5).
+
+### Fixed — the vps1 scoped-login script writes a keyed `.env` line at step 3d (2026-10-29)
+- `scripts/sysadmin/vps1_pg_scoped_logins.py`: `env_upsert_sh` writes `KEY=` itself and stdin carries the
+  value alone. Step 3d sent only the DSN, so `/opt/glitchtip/.env` got a line `postgresql://glitchtip:…`
+  with no key; compose read it as a key named `postgresql`, `${GLITCHTIP_DATABASE_URL}` resolved blank, and
+  the operator's 2026-10-29 run stopped at "compose config resolves 0 scoped DSN(s)" with GlitchTip still on
+  the superuser (W-c27db1f1). The upsert also keeps a line with a NUL or non-UTF-8 byte (`grep -a`) and
+  replaces `.env` only when grep exits 0 or 1. A new test drives the real `step3d_move` with each command run
+  locally on copies of the glitchtip and monitoring mirrors and a real `docker compose config`; it is red on
+  the old script with that same STOP line.
+
+### Fixed — the security-auth rule pack names the auth module's grace refresh rotation (2026-10-29)
+
+`.windsurf/rules/core/35-security-auth.md` (fleet-synced) described Pattern A's refresh rotation only by the default
+mode's `DELETE … RETURNING`, so a project agent concluded a repeated refresh must sign the user out and hand-rolled a
+grace window. The pack now names `AUTH_REFRESH_ROTATION` (`delete` by default, `grace` opt-in) and the opt-in
+`AUTH_EMAIL_CLAIM`; § Token Lifecycle says what each mode gives a retry and a replay, grace's in-window security cost
+and preconditions, and that a grace session is a token family revoked whole. Pinned by `tests/test_security_auth_pack.py`
+(D-1342, fabrik-lib request 01M4AGEK7Y, W-ec16d1f4).
+
+### Fixed — review seats save a git blob by redirect and report a node_modules test as unverifiable (2026-10-29)
+- `.claude/workflows/fabrik-review-loop.js`: `SEAT_ISOLATION` says a blob is saved with a shell `>` redirect, never
+  `--output=<file>` on `git show`, which leaves the file empty and prints the blob. `PYTEST_PINS` says a test that
+  needs a gitignored `node_modules/` (a module-not-found failure, or a skip on the missing tree) is unverifiable:
+  never selected by a `-k` filter, never a red or a pass, a ledger claim on it stays open for the lead, and a test
+  run never copies, links or points an env var at the live tree (a gate row keeps GATE_PINS's copy rule). Both reach
+  shell seats only. wef1's mail 01M5QKG9Y7; D-1343.
+- `tests/test_review_loop_workflow.py`: two prompt tests (each clause red on its own mutant, the researcher finder and
+  refuter graded to carry neither rule) and a git fact tripwire on `git show --output`.
+
+### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)
+- `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the
+  box at 96 % the hook's `SCRATCH ALARM` line landed in the stdout of every `--hook` run that passes its
+  gates (a valid session id, an `/opt` cwd, not headless or autonomous), and the three tests asserting
+  silence went red on master in every merge-test leg that runs this file (MR 01M63G10MT was refused on
+  one of them). The headless, autonomous and non-`/opt` legs now run at a 96 % reading and assert empty
+  stdout and stderr, so a gate that let the alarm through still fails.
+
+### Fixed — the coordinator's open-plan view no longer goes blank on one error (2026-10-29)
+- `scripts/work.py` `_open_plans` (shown by `work.py queue` and `triage` as `plan not executed:`):
+  an outer `except Exception` returned an empty list on any error, so a `docs_updater.py` that
+  failed to load, or one plan its parser raised on, read as "no open plans", and a plans directory
+  that could not be read did too (`Path.glob` swallows its `PermissionError`). Now a parser that
+  cannot load, or an unreadable plans directory, prints one line saying the view is unavailable,
+  and a plan the parser raises on is listed as open with the error. A repo with no plans directory
+  still lists nothing. Item W-f1412a11
+  (review B-S1 of the 2026-10-08 docs-updater plan-status receipt); tests in
+  `tests/test_docs_updater.py`.
+
+### Added — operator script that removes ocoron.com from vps1 (2026-10-29)
+- `scripts/sysadmin/vps1_ocoron_removal.py` (D-1333, D-1334, W-80a1f9fd): operator-run, dry run by default. It finds
+  the ocoron.com stack by compose project, name or Traefik route and lists its data with class, size and users, plus
+  the config lines still naming the site. `--apply` takes it down, moves `/opt/ocoron-com/compose.yaml` out of the
+  boot glob (fabrik-compose-boot.sh restarted D-121's down at the next boot) and drops its images. `--delete-volumes`
+  deletes only exact ids from that list.
+- `scripts/sysadmin/system-prompt.txt`: the vps1 sysadmin bot no longer manages ocoron-com as an application or a P0
+  service, and is told never to restore it. `--apply` refuses until this copy is on vps1 (`bash
+  scripts/sync-vps-sysadmin.sh`).
+- Graded by `tests/test_vps1_ocoron_removal.py`.
+
+### Fixed — hub mail auto-replies tell one agent from another (2026-10-29)
+- `scripts/mail.py`: in the hub's shared `fabrik` mailbox the `--auto` self-guard and rate cap key on
+  `(from, from-agent)` (W-19b57b9a, D-1329). A fleet request auto-replied by infra was held as infra's
+  own message, and every hub agent shared one rate bucket. A parent now passes when its `from-agent` and
+  the replier's agent are both hub agents and differ; the rate bucket is that agent's, with unattributed
+  messages counted in every bucket. Unknown agents, other mailboxes and callers passing none keep the old rule.
+
+### Fixed — a wide merge-test leg declares its memory ceiling, and a ceiling kill says so (2026-10-29)
+- `scripts/merge_request.py` reads `# merge-test-mem: <n>M|<n>G` from the BASE's `.fabrik/merge-tests`
+  (clamped 256M..8G) and passes it to capped_run as `--mem`; the hub declares 8G (W-e64a7b8e, D-1328).
+  fleet-docker-cpu's 244-file leg had died at capped_run's 4G default twice; one measured run peaked at 6,009 MiB.
+- An exit-137 or 124 refusal now quotes capped_run's own last verdict line ("killed at the memory ceiling
+  (…)" / "stopped at the …s time limit") on the merge, pretest, queue and base-alone paths alike (its tail
+  had been the script's last comment lines); a 137 without that line says it was a SIGKILL inside the leg.
+  A merge-test-mem line the grammar refuses is named in the leg's own verdict.
+
+### Fixed — backfill_ci.py keys on ci_local.sh and grades the SQL its replica will lint (2026-10-29)
+
+- `scripts/backfill_ci.py` decided "already has CI" from `.github/workflows/ci.yml`, which the generator stopped emitting on 2026-08-29, so a newer repo was rewritten on every `--apply`; and it wrote a `scripts/ci_local.sh` that lints every tracked `*.sql` with sqlfluff without checking that SQL first. A project with anything at `scripts/ci_local.sh` is now skipped (its row names a stale or non-fabrik-managed replica); each target's SQL is graded by the pinned sqlfluff the replica's way, and `--apply` refuses a red or unknown verdict unless `--force`, which records the verdict. An existing `.fabrik/run-pytest` or lint baseline is kept, a symlinked parent directory or dangling leaf fails the project before any write, and the exit is 1 on a refusal, failure or missing project. Graded by `tests/test_backfill_ci.py` (D-1332, W-76d3448d).
+
+### Fixed — the project audit accepts the docusaurus serve stage `nginx:mainline-<codename>` (2026-10-29)
+
+- `scripts/audit_all_projects.py` knew only the python, node and debian base shapes, so a scaffolded docusaurus project, whose final stage is the `nginx:mainline-<codename>` that `core/42-docusaurus.md` mandates (D-664), was graded critical. For a project of type `docusaurus` that serve stage is now a base on the same pinned codename (pinned, superseded one release back, otherwise noncompliant), and its fix hint names the serve stage; every other type still grades an nginx final stage noncompliant and keeps the python/node/debian hint. The noncompliant row's required text reads "A pinned Debian base". Graded by `tests/test_audit_all_projects_base_image.py`, which renders `templates/docusaurus/Dockerfile.j2` and audits it (W-cd8b8ead).
+
+### Fixed — a re-score out of the one-major class clears the item's hold behind the in-flight major (2026-10-29)
+
+- `work.py assign --impact/--effort` rewrote an item's score but never its `blocked_by`, so a major held behind the in-flight major and re-scored to a quick win stayed out of `ready` and `claim`: nine hub P1s waited 11 days behind W-ab566484. A re-score that takes a major, or an unscored `medium` item, to a scored non-major now drops every hold naming an in-flight major (triage's own predicate, now one helper, read from the main checkout as triage reads it) and prints each with its re-add command; an unreadable blocker is kept and said (W-0fe931b7, D-1327).
+
+### Fixed — docker-image deploys carry their spec's CPU limit, and every spec path holds one cpu grammar (2026-10-29)
+
+- `fabrik apply` of a `source.type: docker` spec wrote `deploy.resources.limits` with memory only, so the container ran with no CPU limit (zitadel on vps1, NanoCpus 0). `_generate_docker_compose` now emits `cpus` from `resources.cpu`, or the `Resources` default 0.5 when the spec omits it, as the template path already did (D-1326, W-f01710a0). The five docker-sourced specs change on vps1 only when the coordinator's deploy gate re-applies them.
+- `resources.cpu` must be a quoted plain decimal from 0.01 to 1024 with at most 2 decimals (`spec_loader.CPU_RE` / `cpu_in_grammar`), checked by the `Resources` model, the apply validator (which also refuses a non-mapping `resources`) and the docker emitter: compose 2.40.3 reads `0_5` as 5 CPUs, `0` as no limit and `-1` as -1 without complaint. 134 cpu values across the box's specs, templates and fixtures: 0 refused. Graded by `tests/test_docker_compose_emitter.py`.
+
+### Fixed — mobile-app scaffold lints clean out of the box and its EAS delivery workflows can run (2026-10-29)
+
+- A fresh mobile-app scaffold's `pnpm lint` exited 1 (76 errors, all antfu TOML rules on the scaffold-emitted `server/pyproject.toml`); the template now ignores `server/**` in ESLint, pins `@antfu/eslint-config ~7.7.3` with its peers (`eslint-plugin-react-refresh ^0.5.0`, `@eslint-react/eslint-plugin ^2.11.0`) and drops the duplicate direct unicorn. The eas-build-prod, eas-build-preview and new-app-version workflows used two composite actions the template never shipped; `setup-node-pnpm-install` and `eas-build` now ship (from the upstream template, Node 24, no silent APP_ENV/EXPO_TOKEN defaults, inputs passed as env vars so a release tag cannot inject shell). Graded by `tests/test_scaffold_mobile_toolchain.py` (D-1323, W-fc58e9b7).
+
+### Added — `vps1_cpu_limits.py` applies the vps1 CPU caps to the running containers and their live composes (2026-10-29)
+
+- `scripts/sysadmin/vps1_cpu_limits.py` (operator-run, dry run by default, `--apply` behind a typed `yes` per block): `docker update --cpus` for every vps1 container still unlimited, re-inspected, then the hub cap inserted under `limits.memory` in each container's own live `/opt/<dir>/compose.yaml` under an old/new-hash write, a backup and compose's own `config` before and after, restored on any mismatch or a dropped ssh. Never `up`, `restart` or recreate: an allowlist of the exact command shapes it sends. A container with another CPU setting, a label the boot does not read or a file it cannot prove is reported, not changed (D-1325).
+- `tests/test_vps1_cpu_limits.py`: 92 tests, a fake vps1 over the real write and restore shell scripts; every guard and every review fix shown red by reverting it alone (27 of 27).
+
+### Fixed — the 22 vps1 infra services with no CPU limit now declare one, and a test keeps it that way (2026-10-29)
+
+- `infra/vps1/*/compose.yaml`: `deploy.resources.limits.cpus` on postgres-main, traefik, browserless (2.0), nine burst or shared services (1.0), five steady ones (0.5) and five exporters/sidecars (0.25), sized from 7-day cAdvisor data (D-1324, W-91a4a715). Nothing changes on vps1 until the coordinator's deploy gate runs `docker update --cpus` and edits each VPS copy.
+- `tests/test_infra_vps1_cpu_limits.py`: refuses an infra/vps1 service without a plain-decimal cpus in (0, 2.0], and a compose with a duplicate key; ocoron-com is excepted until W-78649ed2. The PG18 upgrade runbook's installed compose carries postgres-main's cap too.
+
+### Changed — chrome-extension scaffold: lint plugins float on purpose, no lockfile or overrides (2026-10-29)
+
+- W-961f1958 asked for a lockfile or pnpm overrides against transitive lint drift; measured, the drift happened in 12 days and a fresh scaffold still lints clean, so neither ships (D-1322). The emission site's comment names the rule: fix the template first; a one-plugin override only for a broken plugin release, with a lift condition. W-fc58e9b7 (mobile template) carries the same rule once its lint runs green.
+
+### Fixed — the payments ingest grant no longer re-widens its role when fabrik-lib changes the grant function's signature (2026-10-29)
+
+- `grant_payments_role(lane="ingest")` now RAISES when a `payments_grant_ingest` exists in any schema but `payments_grant_ingest(pg_catalog.regrole)` does not resolve on the search path, before the legacy DROP+CREATE blocks can run; the step is recorded failed and the hub constant must follow fabrik-lib (D-1321, W-d8505af5). The rename case is W-1af44851.
+
+### Fixed — the portability export no longer ships monitoring, Backrest-hook or URL credentials (2026-10-29)
+
+- `fabrik export` copied the vps1 monitoring files (`prometheus.yml`, `alertmanager.yml`, the redis and postgres registries) into the bundle byte for byte, and its key-name redactor missed Alertmanager's `routing_key`/`service_key`/`user_key`, Slack `api_url`s, header maps, `Authorization`, URL userinfo and Backrest's `shoutrrrUrl` and hook `command`s: a replay of 13 planted credentials leaked all 13 (`src/fabrik/portability.py` invariant 1). Every SSH-pulled config (monitoring, Authelia, Backrest) now goes through one `_redact_config_text`: parsed, redacted, re-emitted, and left out with a warning when it does not parse into a mapping or a list or uses a YAML alias (an alias would copy a secret out from under its redacted key). New key patterns: `[_-]key$` plus camelCase `Key$`, `api[_-]?url$`, `headers?$`, `authoriz` (Authelia's `authorization_policy` kept), `^endpoint[_-]?params$`, `shoutrrr[_-]?url$`, `^command$`; the userinfo of any URL, in a value or a key, becomes `REDACTED`. YAML plain scalar values come back as written (`17:00`, `on`, `010`, `1.10` — PyYAML's own reading would have rewritten them for the Go parser that restores the copy), two keys that redact to one make the file omitted, and a parse failure logs only its type and line. Graders in `tests/test_portability.py::TestMonitoringRedaction`; residue (typed keys collapsing, query-string secrets, the allowlist question) is W-7fddc9cf.
+
+### Fixed — the portability export no longer ships private keys under innocuous names (2026-10-29)
+
+- `fabrik export` promised a bundle with no private keys (`src/fabrik/portability.py` invariant 3), but its redactor matched key NAMES only, so Authelia's OIDC signing key (`identity_providers.oidc.jwks[].key`) and Backrest's `multihost.identity.ed25519priv` went into the bundle verbatim, and a non-string YAML key raised and dropped the whole Authelia section. The redactor now also redacts any value or mapping key carrying a PEM/OpenSSH/PGP/SSH2 private-key armour line (four dashes and at most four label words, so the search stays linear on any input), adds `^key$`, matches private-key names as `priv(ate)?[_-]?key` and `priv$` (so Authelia's `privacy_policy` survives), redacts the value under a non-string key with a warning instead of raising, and replaces any container other than a dict or list (YAML `!!set`, `!!omap`, `!!pairs`) whole. Over-redaction it accepts: any field named exactly `key` (Authelia `server.tls.key`, a client's public jwks key). Graders in `tests/test_portability.py::TestPrivateKeyRedaction`; the raw monitoring collectors and Backrest hook URLs are follow-up W-64cf1856.
+
+### Changed — the corpus check's rule-ledger pass caches its text views: about 100 s to 33 s (2026-10-29)
+
+- `commands/command_rules.py` (W-f5a1eec9, D-1319): `losses()` re-split and re-normalised the same file and
+  section once per ledger entry, so every `assemble_commands.py --check` (the corpus pre-commit hook, the
+  gate, kaizen runs) paid about 100-120 s. `normalise`, `units` and two paragraph views are now cached by
+  their string arguments, and lint C compiles each phrase once. The output is identical to base on the live
+  corpus and on mutated renders with 1,668 and 2,777 LOSS lines; `test_the_live_corpus_has_no_loss` went
+  from 96 s to 41 s.
+- `tests/test_command_rules.py`: a cost guard (red on base), an identity test against the uncached functions,
+  a fresh-list test for `units()`, exact lint C counts, and an autouse fixture that empties the caches.
+
+### Added — New repos are born coordinator-ready (2026-10-28)
+
+`fabrik scaffold` now puts the coordinator model into a new repo's initial commit: a `MERGE OWNER: coordinator` row in `docs/DECISIONS.md`, the work store made by the hub's `work.py init` with `coordinator_mode`, `queue_floor` 1 and `autonomy` on, and a coordinator charter at `docs/reference/agents/coordinator.md` that names the repo's real path and how to launch and bind the window. Builders stay the spawn verb's (W-b9ad80ae). A failure prints one WARNING with its cause and leaves the repo as before, never breaking the scaffold. D-1305, W-a02d1c86.
+### Fixed — vps1 rotation step 3a re-owns GlitchTip's schema one object per transaction (2026-10-28)
+
+- The operator's run of `scripts/sysadmin/vps1_pg_scoped_logins.py` stopped at step 3a with "out of shared memory": the re-own of GlitchTip's log partitions ran in ONE transaction and overflowed `max_locks_per_transaction`. Step 3a now commits after every object, waits at most 5 s (`lock_timeout`) for a busy table instead of queueing GlitchTip's queries behind an ACCESS EXCLUSIVE request, skips what `glitchtip` already owns so a re-run locks only the leftovers, tolerates a partition dropped mid-run, and gets its own 1800 s ssh bound. The runbook (`docs/reference/vps1-postgres-admin-rotation-runbook.md`) quotes the same block, tested to stay identical, and its rollback row now also revokes `postgres_exporter`'s CONNECT grants. Graders run the real SQL on a local PostgreSQL 16 cluster with a 100-slot lock table.
+
+### Changed — the renderer's gate tests stop running the rule-ledger LOSS pass (2026-10-28)
+
+`tests/test_assemble_dispatch_step.py` held 1,976 s of the hub merge leg's test time, and 11 of its 89 tests held ~1,950 s of that, up to 340 s each. Every one called `check()` with the rule-ledger LOSS pass live, and that pass takes 168.9 s of a single `check()` (profiled; the render takes 0.3 s and the size measure 3.7 s). None of the 11 grades that pass. A new helper, `_gate_at`, points `check()` at the scratch trees and replaces the LOSS pass and the size measure with spies. Each spy returns an empty result and goes red unless it is handed a temp render made during that same `check()` call (never an installed tree), the repo as root and the sources as `src_dir`. Six tests use it. `tests/test_command_measure.py`'s exit-order test ran the same live pass three times (441.5 s) and now points the rule ledgers at an empty path before step 1. Measured with the same 8-group probe: all 89 tests pass in 26 s summed (9 s wall), slowest 1.6 s; the exit-order test runs in 22.1 s. `check()`'s calls to both passes stay graded in `tests/test_command_rules.py` and `tests/test_command_measure.py`, and the live corpus's LOSS and ceiling state by `test_the_live_corpus_has_no_loss` and `test_live_corpus_within_ceiling`.
+
+### Fixed — operator_setup.py's timer-link undo survives an option-like or unprintable old target (2026-10-29)
+
+- `scripts/sysadmin/operator_setup.py`: the undo line that puts a rewritten `timers.target.wants` link back is now `ln -sfn -- <old target> <link>`, so an old target beginning with `-` is no longer read by `ln` as an option (`-x` failed loudly; `--`, `-n`, `--help` silently restored nothing). An old target `str.isprintable()` rejects — not UTF-8, or holding a control, line-break or format character or a non-ASCII space — is refused at planning, since a non-UTF-8 name crashed the undo print under a strict UTF-8 stdout after the installer ran and a line break split the pasted line. The file is reformatted at the repo's 100-column ruff line length (format only). Residue: W-364653b9. W-b3192e98.
+
+### Fixed — operator_setup.py's undo puts the archive timer's link back as it was (2026-10-29)
+
+- `scripts/sysadmin/operator_setup.py`: the archive step's undo no longer runs `systemctl --user disable`, which on systemd 255 also deletes an alias the operator made to the timer. It restores only the persistent `timers.target.wants` link the installer's `enable` added or rewrote, by absolute path when the unit dir is outside HOME; a non-symlink at that path is refused at planning. The two windows in which an operator's save can still be overwritten are documented as accepted residue (`docs/workstation/operator-setup.md`). W-88173de4, D-1317.
+
+### Fixed — the Lint Ratchet is green again on master (2026-10-28)
+
+`.claude/hooks/session_orient.py:950` called `"�".encode("utf-8")` (U+FFFD), which ruff flags as UP012; that one error raised the repo-wide ruff count from 0 to 1 and turned every branch's `final_gate` Lint Ratchet red. It now calls `.encode()`, which yields the same bytes in every locale (W-82034f59).
+
+### Changed — a heavy test file runs in pieces across the merge leg's shards (2026-10-28)
+
+The hub's merge-time test leg (`scripts/merge_test_select.py`) no longer lets one file set every merge's wall time. On
+master's last 20 merges the leg's slowest shard was 1,462 s on all 20, because `tests/test_assemble_dispatch_step.py`
+(a tree grader, selected by every non-ledger change) was always placed whole. A selected file heavier than its
+selection's per-shard share and 60 s now runs as node units: each test weighed by its recorded seconds once a leg has
+recorded them, else contiguous equal-count groups. Reds, the alone confirm, the base comparison and the duration record
+resolve node units (a test the base does not collect is NEW; a base that cannot collect the file runs it whole). Simulated
+over those 20 merges with the selector's own select/balance and recorded seconds: 1,462 s → 678-929 s. Measured on a real merge (master's bb6412ec9, the hub leg run three times in a shared clone, the box loaded by review seats): master's selector 2,542 s wall (slowest shard 1,792 s); the new one 1,037 s (equal-count groups, slowest shard 1,022 s) and 1,365 s (node-weighted, shards 769-890 s; the rest of the wall is the confirm and base re-runs of master's own pre-existing reds, which vary run to run).
+W-231f4695, W-3ba57940; D-1312.
+
+### Added — Coverage tests for eight more fabrik modules, graded from the batch-5 drain branches (2026-10-28)
+
+Eight hermetic test files from the cloud drain branches (`claude/cov-*`) landed after a full `/fabrik-review` (`docs/development/reviews/2026-10-28-drain-grade-5-review.md`): deploy_validator, drivers locks, modal_provider, preflight, seo and supabase, orchestrator vultr_drill, and verify. Grading fixed the modal_provider path helper, whose class attribute shadowed `PurePath.root` and which rewrote its segments in `__new__`, where Python 3.12 ignores them. The review fixed 17 defects over three passes (confirmed 16 → 1 → 0). Graders that could not fail now fail: a health-check negative, the exempt-type set spelled out, the unreadable-file order pinned, the lock steps pinned whole. The seo timeout test now fails instead of hanging. Supabase select/order encoding, key choice and `completed_at` are asserted, the drill isolation flags (`--skip-mesh`, `--skip-services`, `--skip-local-b2-check`) are pinned, and the public-DNS gate needs an exact answer. Bugs the strict xfails pin: W-cd7799f7 (preflight whitespace output, latent), W-43c1a36a (vultr_drill `kept_for_debug` with no server), W-4cbae5ab (verify null sections). Recorded for later: W-f7855cfc (three production defects) and W-8377cd0c (coverage survivors).
+
+### Fixed — an API-key session is not sized against the plan quota (2026-10-28)
+
+`dispatch_headroom.py` printed SEATS 0 at the fleet wall, and held the floor in the drain band, for a session running on an Anthropic API key, whose seats draw the key, not the plan. It now calls the posture hook's own D-1243 predicate and skips every plan-quota cap when it answers True; a battery stamp, a second credential, a predicate that fails, or a hold with no stamp where the hook looks keep the caps (D-1303, W-3e924ccb).
+
+### Fixed — install_user_hooks.py refuses a settings shape it cannot repair instead of corrupting it (2026-10-28)
+
+`scripts/sysadmin/install_user_hooks.py` used to iterate an owned event's value, and each entry's `hooks`, as lists. A dict value kept only its keys and a string its characters, and a settings file whose top level was not a JSON object was replaced outright. Each such file is now reported as `MALFORMED <path>: <event> (<why>) — fix it by hand; not rewritten`. It counts as drift (exit 1 in `--check` and in install mode; the gate's `--check --warn` stays 0) and is never written, while the other account dirs are still installed. The `--check` summary names how many drifted files are malformed or unreadable. The `--warn` line names the hand fix, and names the installer only when a file it can repair drifted. A `NaN` timeout, which `json.loads` accepts, is now drift instead of passing `timeout < 10`. Found by fleet's deck review seat (mail 01M5HK0CH6). The non-atomic, unlocked write is filed as W-93bf0f2d.
+
+### Fixed — The hub declares a 2700 s merge-test leg (2026-10-28)
+
+The hub's merge-test leg ran past `merge_request.py`'s 1800 s default even on the base copy (exit 124),
+so every merge that selected the full suite was refused. `.fabrik/merge-tests` now carries
+`# merge-test-timeout: 2700` (read from the base only, clamped to the 3600 s budget), with its costs
+stated beside it: a rebuild after a failed CAS gets what is left of the budget (as little as ~900 s, after a first leg that used its full 2700 s), and
+`merge --queue` forks a leg only in its first 1080 s. `tests/test_merge_request_pretest.py::test_the_hub_declares_its_own_longer_leg` pins it
+(W-418c9d9f, D-1310; follow-up W-3ba57940 cuts the slow shard).
+
+### Added — Lean command program close-out: T46 receipt, board ticked, operator report (2026-10-28)
+- `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-review.md`: the plan's T46 integration receipt. All 40 commands pass the rule check (0 LOSS over 63 ledgers, 5,425 entries); rendered words 596,988 → 579,853 (97.1%). Every file closed under the D-1254 floor ruling, so the 50% goal was missed (D-1259). On the spec's full measure (render + reads), 10 commands grew through docs outside `commands/`. L1 and the standing ledger gate are live; L2 (the `remove:` field, W-a9b5e763) has not landed.
+- The plan's Ticket Board: this change ticks T01d–T46, 51 ✅ (each but T46 naming its master commit) and T05a–c 🔴 (never started before the KILL).
+- `docs/development/reviews/2026-10-28-lean-program-final-report.md`: the operator's before/after report (W-ee67bd9f).
+
+### Added — operator_setup.py writes a keepalive for git pushes to github.com (2026-10-28)
+
+A fifth step puts a comment-marked `Host github.com` block (`ServerAliveInterval 15`, `ServerAliveCountMax 4`) before the first section of `~/.ssh/config`, so a push on a dead SSH connection is dropped within a minute instead of hanging. It plans and verifies by what `ssh -G` itself resolves for `git@github.com`, keeps a keepalive that is already as tight, and refuses at planning what it cannot write or override, before any other step is written (D-1314, W-030ac2fe; `docs/workstation/operator-setup.md`).
+
+### Added — Operator one-time setup script: hooks, tab wrapper, editor key and archive timer in one reviewed run (2026-10-28)
+
+`scripts/sysadmin/operator_setup.py` (W-d6726a65, D-1311) collects the settings steps Claude Code's safety check refuses agents into one script the operator runs once: a dry run diffs every change; `--apply` backs each file up, runs the session-archive installer first, writes the rest atomically, verifies (the archive from the loaded unit), and prints undo lines. `docs/workstation/operator-setup.md`.
+
+### Fixed — seat_guard: a `<<WORD` the shell never reads as a heredoc no longer hides the lines after it (2026-10-27)
+
+`.claude/hooks/seat_guard.py`'s `_strip_heredocs` dropped every line after any `<<WORD` match, so `echo 'x <<EOF'` followed by `git -C /opt/fabrik commit -m y` on the next line passed a review seat's git-write check, and the same shape hid a coordinator's sleep loop from the D-1296 wait guard (W-223704c1, found by the Fable critique of W-e57d2481). The strip now walks the whole command with a stack of contexts and opens a body only on a marker in shell code, at top level or inside `$(…)` (where bash resets quoting): never inside `'…'`, `"…"`, `$'…'`, a comment, a backtick, `${…}` or an arithmetic `((…))` or `$[…]`, and never on a `<<<` here-string or an escaped `<`. The delimiter is the whole shell word with its quoting removed, as bash reads it (`<<E-OF` waits for `E-OF`; `<<\EOF`, `<<E'OF'` and `<<$'EOF'` wait for `EOF`). A body ends only on a line exactly equal to it (an indented or space-trailed `EOF` no longer ends it early). The walk is trusted only when it ends where bash ends — top level, nothing left open, no body pending; a walk that lost bash's place (a `case` pattern's `)`, a spelling it misreads) returns the command whole, so every line stays in the scan, the safe direction. That end-state check replaced a `case`/`esac` keyword tracker the review found wrong three rounds running. Two `case` pattern `)` can still take the walk out of bash's quoting and back with a clean end, so any `case` word left outside the heredoc bodies also voids the strip; a command with a `case` and a heredoc is scanned whole, which can only cause a false deny. A `case` spelled across a backslash-newline still escapes that check, a stated limit routed with the case-aware rework to W-0508ae26. Graders: `test_a_marker_the_shell_does_not_read_as_a_heredoc_hides_nothing` (sixteen shapes, each one hid the next line on the old code), `test_review_round_one_markers_hide_nothing`, `test_a_line_that_only_looks_like_the_terminator_keeps_the_body_data` and `test_strip_heredocs_drops_each_body_and_keeps_what_follows` (the review's shapes), `test_a_walk_that_does_not_end_where_bash_ends_strips_nothing` (the end-state check, graded directly because the hook swallows a scanner exception), `test_real_heredoc_spellings_still_hold_data` (the commit-message heredoc inside `"$(…)"` included), and a quoted-marker sleep loop in `test_coordinator_wait_guard.py`'s `LONG_WAITS`. Stated limit, in the docstring: a body is data even where bash runs it as code (an unquoted body's `$(…)`, or a heredoc fed to a shell), W-b0aab70a.
+
+### Added — Coverage tests for eight fabrik modules, graded from the batch-4 drain branches (2026-10-28)
+
+Eight hermetic test files from the cloud drain branches (`claude/cov-*`) landed after a full `/fabrik-review` (`docs/development/reviews/2026-10-28-drain-grade-4-review.md`): monitor, dev_tools, orchestrator gpu_reaper and gpu_metrics, drivers uptime_kuma, ai tracker, notifications and health_app. The review fixed ten test-quality defects across three rounds. The strict xfails now pin their exception with `raises=`. The dev_tools smoke, tracker SQL-injection and zero-cost metrics tests now fail when the code under test breaks. Each source bug a test pins as a strict xfail has its own work item: W-236ddc00, W-78950fbf, W-6272445b, W-56c7cd74 and W-db048a29. W-97ad73b7 and W-1918b8ac track the health_app and gpu_reaper findings.
+
+### Added — Coordinator wait guard: a merge owner's long foreground Bash wait is refused (2026-10-27)
+
+`.claude/hooks/seat_guard.py` now enforces D-1296 for the lead of the session bound as its repo's merge owner. A foreground Bash call is denied when its tool timeout exceeds 120 s, or when it runs a `sleep` inside a while/until/for/select loop under a timeout over 60 s. The deny tells the coordinator to re-run with `run_in_background: true` and end the turn, not block on the output. Identity comes from `quota_stop.py`, loaded by file path; every identity doubt allows. Measured first: the hub coordinator held 736 minutes of foreground waits in one day, and a plain "any sleep" rule was rejected (19 fires on coordinator sessions in 3 days, none long). W-e57d2481.
+
+### Fixed — cloud_dispatch --pick never sends a run to an account at its weekly wall (2026-10-27)
+
+`scripts/cloud_dispatch.py`'s `--pick` (and every `drain` fire) now takes only an account the rotation tick's own status picture calls `eligible` or `active`, with a fresh finite weekly reading, under its own weekly cap and session trip, and under a weekly ceiling: the new `--max-weekly <pct>` (default the picture's drain band, 85). The coolest account wins in both modes; a refusal names each account skipped and why. Before, the 2026-10-27 drain sent 3 of 6 runs to an account at 100% (all refused at $0). W-87078932, D-1300.
+
+### Fixed — five cloud-drain fixes graded: .env key grammar, image_command quoting, renderer no-mkdir, library-name shadowing, parity ownership test (2026-10-27)
+
+A `.env` key outside `[A-Za-z_][A-Za-z0-9_.-]*` is refused before any write, and the refusal never prints the key itself. A docker-image `command` is one double-quoted YAML scalar; a NUL in it is a deploy error, and the apply validator refuses a non-string value. Building a `TemplateRenderer` no longer creates directories. A project named after a library a scaffolded project pins (fastapi, httpx, boto3, packaging and the rest) is refused, and a test keeps that list in step with `scaffold.py` and the template requirement files. `verify_prod_parity`'s ownership refusal has a test. Decision D-1299; review `docs/development/reviews/2026-10-27-drain-grade-review.md`.
+
+### Fixed — headless-spawner discovery sees call, tuple and shell argv shapes, never prose (2026-10-27)
+
+`tests/test_hooks_headless_guard.py::_files_that_build_a_claude_p_argv` walked only list literals, so a
+`claude -p` spawner written as a tuple, as a process call's positional args, or as a shell string escaped
+the real-tree guard (W-d45c790c). One argv rule now covers lists, tuples and the args of a process-running
+call: an element names claude and `-p` comes after it, so `timeout 60 claude -p` and
+`os.spawnlp(mode, "claude", …)` count. `_runs_a_process` covers the `subprocess`/`os`/`pty`/`asyncio`
+spawners. An ambiguous name (`run`, `call`, `system`, the `exec`/`spawn` family) counts only on a name bound
+to its module, an alias included, or bare when imported from it. A shell string matching `claude -p` (a
+literal, an f-string's literal parts, or the left side of `+`/`%`) counts as a process call's arg or as the
+element after a shell flag (`-c`, `-lc`). Everywhere else it is prose: docstrings, messages, help tables,
+`asyncio.run`, a method or local function named `run`. The skip list now reads the path relative to the root, so a checkout
+under a directory named `tests` no longer scans nothing. The real-tree test also asserts that every known
+spawner is still found. The cloud draft of this fix (c94564cc3) matched every string constant and so parked
+that test under `xfail(strict=True)`, which would also have hidden any new spawner. This change lands
+neither, and the test passes on the real tree with no new declarations. Graders: 18 planted shapes, 16
+prose cases and one planted spawn per process-call name (18); 37 matcher mutants are each killed. Also rewords the delegated-spawner docstring
+(W-423b9f14).
+
+### Fixed — secret files never leak their bytes on a decode error; six cloud-drain coverage suites graded (2026-10-27)
+
+`_load_secrets` now names a non-UTF-8 project `.env` by path and byte offset only, and a `from_file` secret that is not valid UTF-8 is logged the same way instead of quoting its bytes. Both files are read as UTF-8 whatever the locale. New hermetic coverage tests: `fabrik.portability`, `drivers.r2`, `drivers.cloudflare`, `orchestrator.gpu_state`, `orchestrator.gpu_checkpoint` and `compose_linter`. The review hardened them: an AWS-published SigV4 known answer for R2, the production Cloudflare base URL and auth header, no dependence on `PYTHON_DOTENV_DISABLED`, and every strict xfail pinned to its exception. The bugs they pin are open items (W-d52233ba, W-a95da418, W-6f5ea7ae, W-4667fab7, W-01d5baa2, W-0c377ac0, W-01e1ce2e), and so are the review's out-of-diff findings (W-fc5aee9a, a P1 security item, plus W-d484c3e2, W-0d2a7aab, W-5763d5f8, W-3b5893f8, W-33c62ed0, W-5021b4e4, W-2525d5aa). Review `docs/development/reviews/2026-10-27-drain-grade-2-review.md`.
+
+### Fixed — A resumed, then /cleared window re-binds its own name at the quota lane (2026-10-28)
+
+- The SessionStart hook now re-records a bound session under the claude process it runs in (`scripts/whoami_agent.py::refresh`), and the lane's window test in `.claude/hooks/quota_stop.py` no longer demands a row "written this boot" (WSL's boot time drifts forward with sleep); the hold texts name the git verbs that really pass and keep `git grep` held (W-a77742db, D-1307). Windows already live need one `python3 /opt/fabrik/scripts/whoami_agent.py --as <name> --force` each.
+
+### Added — Rotation handoff file printed by the SessionStart hook (2026-10-28)
+
+- `.claude/hooks/session_orient.py --handoff-write <name>` stores a session's handoff (stdin) at `<git common dir>/fabrik-handoff/<name>.md`; on startup or `/clear` the hook prints it after ORIENT to the session `CLAUDE_AGENT` (else its whoami binding) names, within what the whole-stdout cap leaves after ORIENT, with STALE and ALREADY DELIVERED labels, never headless. Inert until a handoff is written (W-835894a6, D-1302).
+
+### Changed — /fabrik-task: worktree capture form, commit before a long review (2026-10-27)
+
+Phase 5 step 5 now gives the plain calls a linked worktree runs in place of the chained capture line, which the isolation guard refuses. Those calls fail closed on a failed commit and on none or two exact-subject matches. Phase 4 (v2) says a review that will outlive the turn is dispatched only after the build is committed, because seats out at a turn end meet the Stop hook's uncommitted-work block. Answers 7 feedback rows (W-d4b9229c).
+
+### Fixed — the API write lane settles and names every job on a stop signal (2026-10-27)
+
+`scripts/api_write.py` now handles SIGTERM, SIGHUP and SIGINT (D-1295, W-d077095a). A stopped session sends SIGTERM
+to the task's process group and SIGKILL ~1.4 s later; the runner used to die on the default action while its
+own-session `claude` children ran on unsettled. Now every running child's group is killed, the run settles
+`interrupted` (settleable from the console at once), nothing partial is pushed, a queued job reports `not started`, a
+child that finished first still pushes, lines are line-buffered so a log file keeps them, and the runner exits
+128 + signum. Graded by real group-signal tests and one grader per guard, each shown red by its own mutant
+(the review receipt lists them).
+
+### Fixed — command texts follow the worktree-own scratch root (2026-10-27)
+
+`/fabrik-task` now says a run's `SCRATCH:` folder sits under the session's own checkout and does not survive a worktree's removal. The subagents fragment drops the worktree lead's `cp` workaround, which D-1268 made unnecessary, and gains a "fix, THEN pin and dispatch the re-verifying seats" rule, because `round` reads a round as fresh once its newest stamp postdates the last confirming round (D-1288, infra mail 01M5X8W0M1).
+
+### Fixed — the /fabrik-task close accepts the receipt and ledger commits made after the reviewed tip, and no longer passes an unreviewed commit by list order (2026-10-27)
+
+`command_run.py done --command fabrik-task --review` refused a full-review receipt whenever the receipt and ledger commits (made after the reviewed code tip) were listed in the order made, and passed when the tip was listed last — which also let an unreviewed code commit through when listed before the tip (site-provisioner mail 01M4F5HTPS, W-0b900e92). `task_lane.check_review_receipt` check (d) now reads git: the range tip must be one of the listed commits, and every listed commit after it in ancestry may touch only receipts and ledgers (the close's exclusion set narrowed to `.md`/`.json`, contract and migration paths excluded); the working-tree form anchors on the listed commit containing every other.
+
+### Fixed — the scaffold-helper emitter test no longer copies the box's live API keys (2026-10-27)
+
+`test_scaffold_helper_emits_mcp_config` ran the real emitter bare, so the catalog's `${EXA_API_KEY}`,
+`${BRAVE_API_KEY}` and `${FIRECRAWL_API_KEY}` were filled from the box's roster or `/opt/fabrik/.env`: its pass
+depended on box state, and every run left live keys in pytest's tmp dirs. It now points `scaffold.FABRIK_ROOT`
+at a tmp root whose emitter is a shim. The shim loads the real emitter and aims its roster and hub `.env` at the
+test's files, then adds `--defs`. It refuses any argv but `--repo <repo>`, so a helper that dropped `--repo`
+fails instead of sweeping the live `/opt`. A new assertion checks that exa's key is the test's own.
+W-2c2f1025; a one-test hunk under intel's plan-3 lock, on the coordinator's ruling.
+
+### Fixed — a Merged-From trailer no longer vouches for a reused branch name's later work (2026-10-27)
+
+`scripts/scratch_sweep.py` read any `Merged-From: <branch>` trailer on the main checkout's branch as proof the branch
+was merged, for ever. Branch names are reused — hand merges carried `Merged-From: worktree-fleet` and
+`worktree-intel`, and two agent branches gained a wip snapshot after their squash — so four live branches with 20,
+47, 1 and 1 unmerged commits read merged, and a clean worktree on one would classify `wt-removable`. Now a merge
+commit's trailer is never read (its parents decide), and a squash's trailer vouches only when no commit of the
+branch is newer than the squash; the refusal row names the newer commits. The trailer log is read once per target
+commit per run. Live census after the fix: the 54 truly squash-merged branches still read merged, the 4 stale ones
+unmerged (W-69322546, D-1290). The rule and its edges: `docs/workstation/cleanup-automation.md`.
+
+### Fixed — a builder's pane starts where its session lives, and a window on another tree's hooks is told (2026-10-27)
+
+Claude Code keeps the folder a pane started in as the window's `CLAUDE_PROJECT_DIR`, where its hooks, settings and
+permissions load from, even after the session moves into another worktree. `scripts/sysadmin/agents_up.sh` started
+every builder in `.claude/worktrees/<name>`, so infra's window ran the hooks of `worktrees/infra` (1602 commits behind)
+and fleet's those of `worktrees/fleet` (702 behind) — why the rotation stand-down never reached infra (W-2fb8b1a1). A
+pane now starts in the one linked worktree whose project folder holds the builder's session, else `<name>` as before,
+and `scripts/sysadmin/selfwatch_check.py` prints `HOOKS LOAD FROM ANOTHER TREE` on every prompt of a window whose
+launch folder is a different linked worktree of the repo it works in (W-456aa02a, D-1284). The rule and its edge cases:
+`docs/reference/repo-coordinator-rollout.md` and `docs/workstation/hooks-index.md`.
+
+### Fixed — the rotation tick's offline path: a stale cached reading no longer re-arms the quota lane, and no tick holds the lock for hours (2026-10-27)
+
+On 2026-10-22 the internet dropped, a cached 93% outlived its 5-hour reset and re-armed the urgent-90 lane, offline
+ticks spent the whole refresh-ping budget on every run, and for seven hours no tick wrote a row or a posture
+(W-010bb0d9, D-1285). `scripts/sysadmin/claude_rotate.py` (and its byte-identical `scripts/aro-wake/` copy) now reads
+a cached window whose reset has passed as no heat for the ACTIVE account (the rows themselves are untouched, so a
+rolled standby still reads 0% to the picker), lets an obsolete reading jump the hourly ping cooldown once per roll and
+then every `ROTATE_OBSOLETE_RETRY_S` (600 s), bounds each tick with a watchdog (`ROTATE_TICK_MAX_S`, 1800 s) that
+stands down when the tick already finished and otherwise exits, freeing `rotate.lock`, and has `--status` say a hold is
+NOT IN FORCE once the tick log is stale. Follow-up W-5443db87: the quota board's tick timeout kills only `flock`.
+
+### Fixed — the MCP emitter tests no longer read the box's git ignore or template (2026-10-27)
+
+`tests/test_emit_mcp_project_config.py`'s autouse `_hermetic_git` emptied the global and system git config
+but left two ignore sources open: `core.excludesFile`'s default (`$XDG_CONFIG_HOME/git/ignore`, else
+`$HOME/.config/git/ignore`, read with no config file setting it) and the `git init` template, whose
+`info/exclude` is copied into every repo the tests make. A box-level rule for `.mcp.json` in either turned 7
+of the file's 67 tests red. The fixture now points `XDG_CONFIG_HOME` and `GIT_TEMPLATE_DIR` at empty tmp
+dirs, as `tests/test_emit_mcp_fillins.py` already did for XDG. W-f7772267 (f); a fixture-only hunk under
+intel's plan-3 lock, on the coordinator's ruling.
+
+### Fixed — a template deploy refusal is a named DeployError, not an "Unexpected error" traceback (2026-10-27)
+
+- `SSHDeployer._deploy_template` (`src/fabrik/orchestrator/deployer_ssh.py`) refuses a spec whose `template` is
+  not exactly one of the renderer's templates before rendering, and maps the renderer's `ValueError` refusals (a
+  NUL or non-UTF-8 secret or env value, a bad port — D-1269) to a `DeployError` naming the app and the key. A hub
+  defect — the version registry, an undecodable template file, a missing include partial, a template syntax or
+  undefined-attribute error — still surfaces as its own exception with its traceback. Grader:
+  `TestDeployTemplateRenderRefusal` in `tests/orchestrator/test_deployer_ssh.py` (D-1289, W-c9dcd641).
+
+### Fixed — package ssh/scp calls outside the driver no longer crash on a non-UTF-8 answer (2026-10-27)
+
+- `fabrik audit`'s ssh probe, the DR drill's ssh/scp helpers (`src/fabrik/orchestrator/vultr_drill.py`) and the
+  preflight's direct-path advisory decode remote output as the ssh driver does (UTF-8 with `surrogateescape`, exit
+  code first — D-1286), so a stray byte no longer raises `UnicodeDecodeError`, reports a successful audit probe as
+  failed, or fails a spoke drill whose bootstrap passed. The audit refuses an answer that is not valid UTF-8 by
+  name; the drill's `RC=` reader takes ASCII digits only. Grader: `tests/test_ssh_decode_outside_driver.py`
+  (D-1298, W-7ac62afc).
+
+### Fixed — a VPS answer that is not valid UTF-8 no longer crashes a redeploy (2026-10-27)
+
+`fabrik.drivers.ssh` decoded remote output with the hub's locale codec, strictly, before it read the exit code. One
+byte a person typed into a VPS `.env` therefore raised `UnicodeDecodeError`, which the deploy code's `RuntimeError`
+handlers let through: `_read_env_file` passed it on raw, and a redeploy crashed in its `GIT_SHA` update, inside its
+rollback too. The driver now reads output as UTF-8 whatever the locale, without the decode ever raising, and checks
+the exit code first. A failed command keeps its exit code and diagnostic, with any undecodable byte shown as `\xNN`.
+A successful command whose stdout is not valid UTF-8 raises `UndecodableAnswerError` (a `RuntimeError`). Its message
+names the host and none of the output, and nothing in the exception keeps the text. A `.env` read now fails as a
+named `DeployError`, and the `GIT_SHA` update fails open. A redeploy whose `docker compose up --wait` succeeded, with
+only its output unreadable, logs a warning instead of rolling back a healthy deploy. (W-5597922e, D-1286)
+
+### Fixed — a `.env` line holding a NUL byte or invalid UTF-8 is refused before anything is written (2026-10-27)
+
+The deploy's `.env` writer wrote a NUL byte raw, in any key, value or kept template text, and runc then refused the
+container, after the file was already on the VPS. A lone surrogate was written raw too, and the writer crashed
+partway through. `fabrik.env_file.format_env_line` now refuses either, checking the line it is about to write. The
+error names the key and never the value. `_write_env_files` formats `.env.owner` and `.env` before writing either,
+so a refusal leaves both files as they were and is raised as a `DeployError` naming the file. A redeploy's
+`GIT_SHA` update keeps failing open. Two more fixes came out of the review. An error message prints a key only when
+it is a plain variable name: a key read from a broken line can hold a secret. The VPS file writer now writes
+UTF-8 whatever the hub's locale, where it used to crash under `LC_ALL=C`. (W-8495d72f, D-1282)
+
+### Fixed — the hub's secrets reader reads `.env` as compose does and refuses a malformed file (2026-10-27)
+
+`SecretsManager`, which `fabrik apply` asks for a secret the environment lacks, read `<cwd>/.env` with its own
+parser: an inline ` # comment` stayed in the value (34 values measured across the hub and 22 project `.env`
+files), `\"` and `\$` stayed two characters, and an unterminated quote was read leniently, so a key
+python-dotenv had skipped was read wrong or minted over the real secret. It now uses the `.env` codec
+(`src/fabrik/env_file.py`, D-1277), returns plain literals, decodes as UTF-8 whatever the locale, and raises
+`ValidationError` on a file it cannot read — naming the file, key and line or byte offset, never a value. A
+value holding a line break logs a warning naming its key. 11 new tests in `tests/orchestrator/test_secrets.py`
+(W-f62a2cdc, D-1281).
+
+### Fixed — deployed `.env` values reach the container exactly: a secret's `$` is no longer interpolated (2026-10-27)
+
+`_format_env` never escaped `$`, so a secret `a$b` was written as `K=a$b` and docker compose delivered
+`a`, through `env_file` and `${K}` interpolation alike. A new codec, `src/fabrik/env_file.py`, now writes
+and reads every Fabrik `.env` to compose's own dotenv grammar. A spec `env:` value keeps its `$` as a
+compose interpolation; in every other value a `$` is literal, single-quoted or `\$`-escaped. The reader matches
+compose on quotes, escapes, ` #` comments and line breaks, and refuses an unterminated quote or a quote after the closing
+quote (compose refuses both) instead of writing a guess back, naming the key and line but never the value. `.env` and `.env.owner` are now
+parsed apart. The hub `from_env` reader drops surrounding quotes and stops the deploy on a malformed
+file, a `from_file` secret loses its trailing newline, and `.env.example` lines are quoted so a newline
+cannot inject a line (W-2ae286e2).
+### Added — a rules ledger can mark a line master rewrote: `superseded: D-<n>`, proven from git (2026-10-27)
+
+A lean ledger's baseline is cut at `lean-baseline-2026-10-25`; a line a later reviewed master change rewrote
+vanished from the lean text and read as LOSS (T01d-v6's catalogue L51/L54), and the only remedy was a hand
+baseline re-cut (D-1262). `commands/command_rules.py` now takes `superseded: D-<n>` on a `vanished:` line and
+proves it from git: the D-row names the source file and a one-parent commit that landed on master after the tag
+and removed the line, master's current source no longer holds it, and master's additions since the tag are in
+the ledger's own text. Every git failure is a LOSS naming its cause. W-5dc4163d, D-1283.
+
+### Fixed — compose scalars outside `environment:` deploy exactly or are refused (2026-10-27)
+
+A spec string pasted into a compose scalar outside `environment:` broke or mangled the file: python-api's
+`command: {{ image_command }}` lost everything after ` #`, `test: {{ health.test }}` printed a Python list
+repr, file-api's `PORT` sat raw inside the healthcheck item and the Traefik port label, `health.path` sat
+inside double-quoted probe items and two CMD-SHELL probes, a companion `command` wrote a non-BMP character as a
+JSON surrogate pair, and `depends.postgres` sat inside the `${DATABASE_URL:-…}` default, where a `}` closed the
+interpolation. Now `compose_str` (`src/fabrik/template_renderer.py`) quotes `image_command`, `health.test` items
+and companion `command` items; `compose_port` admits only an ASCII port 1-65535 or a `${NAME}` /
+`${NAME:-port}` interpolation; `Health.path` (`HEALTH_PATH_RE`) and `Depends.postgres` (`POSTGRES_IDENT_RE`,
+now also the postgres driver's rule) are refused at `Spec` load, and the apply-path validator refuses the same
+two plus an `image_port` that is not an integer port; both CMD-SHELL probes single-quote the URL; the
+DATABASE_URL defaults go through `compose_env`, so the env-line guard in `tests/test_compose_env_quoting.py`
+has no exemption. W-ff313a14, D-1276.
+
+### Fixed — parity-root and kaizen exposure tests no longer red only inside a merge leg (2026-10-27)
+
+- `tests/test_scaffold_deploy_contract.py`: a new `_owner_only_modes` gives each staged `health_probe/`
+  copy the modes a 022 umask gives (dirs 755, files 644), in `_flat_stage` and in B6. Before this, the
+  modes were inherited: a merge leg runs under umask 002, where the copy is group-writable, and the stub
+  rightly refuses it as "writable by others". So
+  `test_parity_root_reads_the_recipes_flat_staging_copy_beside_the_script` and both cases of
+  `test_parity_root_found_but_unusable_module_names_the_cause` were red in a merge leg and green alone.
+  The first refused kaizen's batch on 2026-10-27. B7 and B8 gain a group-writable row each, so the
+  refusal of a group-writable copy keeps a test now that no test meets it by accident.
+- `tests/test_kaizen_events.py`: the exposure tests expect the project that the `/opt/<name>` rule gives
+  this checkout. That is "fabrik" under `/opt/fabrik` and "unknown" in a merge leg's `/tmp` throwaway,
+  where two tests failed on a hardcoded "fabrik". The cache check now reads the cache it claims to
+  guard (it called `refresh=True`, which skips the cache read) and compares commits, both ways: a pinned
+  call on a warm cache is not served from it, and a pinned call does not poison it. A new
+  parametrised test proves `_project`'s rule on fixed paths. W-17fc722a; the item's load-only flakes
+  remain.
+
+### Fixed — the command assembler refuses a non-regular file at a generated name instead of hanging (2026-10-27)
+
+- `commands/assemble_commands.py`: a FIFO at a name the render writes and the gate compares (a command, a skill
+  wrapper or an agent file) blocked `render()` and `check()` forever, and a directory there crashed `check()` with
+  IsADirectoryError. The render now refuses any non-regular file at those names before its first write, and the
+  gate reports it, a symlink or a symlinked skill directory included, as one drift line and exit 1 (D-1278, W-21f88ec3).
+  Orphan positions are unchanged. An unreadable regular file there is filed as W-335d2f0e.
+
+### Changed — merge-test shards balanced by recorded per-file duration (2026-10-27)
+
+- `scripts/merge_test_select.py` assigns the merge leg's test files to its 8 shards greedy
+  longest-first by the seconds each file took in earlier merge legs, plus a 0.15 s import cost per
+  file, instead of round-robin. On 2026-10-27 the round-robin shards ran 253 to 842 s.
+- Each merge leg records what its shard run measured in
+  `<git common dir>/fabrik-merge/merge-tests-durations.txt`, shared by locked, pretest and queue legs,
+  and prints `shards planned` beside `shards measured`. With no record the split is the old
+  round-robin one. A bad record or a failed save costs only balance, never the verdict. D-1279,
+  W-c832e59f.
+
+### Fixed — `command_run.py round` refuses a blind retry instead of recording it as a second round (2026-10-27)
+
+A lead who piped `round … 2>&1 | tail -1` saw no confirmation, re-ran the call, and the record gained a
+duplicate round (34 retry-shaped pairs in 505 real runs, measured 2026-10-27 06:45 +0300); worse, a
+retried quiet round 1 printed `✅ TERMINAL VERDICT` with no closing pass run. `round` now refuses, rc 2 and nothing recorded, a call that repeats the
+last round when that round closed seats and nothing has run since — no live stamp, no newer seat
+transcript. It prints the landed round's verdict, then the refusal as the last line, and emits one
+`round_refused` event. A new seat pass is stamped first; a pass the lead ran alone types `round --seats 0`.
+The rule and its edges: `docs/reference/command-run-protocol.md` (the `round` row); the decision: D-1280.
+
+### Fixed — compose env values deploy exactly: quoted items, secrets' `$` kept literal (2026-10-27)
+
+Every templated compose `environment:` item was written as a plain YAML scalar `- KEY=value`, so a value
+deployed wrong: a `"` arrived as a literal `\"` (the old `env_escape` filter added a backslash nothing
+removed), a newline broke the list in file-api and file-worker (no filter there) and became a literal `\n`
+elsewhere, ` #` cut the value off as a comment, `: ` turned the item into a mapping, and a `$` in a secret was
+compose-interpolated (`p$ss` deployed as `p`). `src/fabrik/template_renderer.py` now has a `compose_env`
+filter (it replaces `env_escape`) that writes each item as PyYAML's ASCII double-quoted scalar and refuses a
+NUL or a lone surrogate before anything reaches the VPS, naming the key only. `render()` doubles `$` in a new
+copy of the secrets, while spec `env:` keeps `${VAR}` interpolation, which 20+ specs rely on. All 9 env loops
+and the 15 fixed `env.get` lines in the 8 compose templates use it. Measured over all 69 fleet specs: the 66 the
+renderer can render parse to identical environments before and after, so only secrets carrying those
+characters change, and they now deploy as written. Guarded by `tests/test_compose_env_quoting.py` (159 tests;
+91 red on the old code, a docker-run test reading the started container's env byte for byte, and guards that
+every templated env line goes through the filter and that only compose templates read `env`). D-row in
+`docs/DECISIONS.md` (W-80aed026). Still open, filed: other unquoted compose fields (W-ff313a14), `.env`
+`$` quoting and readers (W-2ae286e2), an invalid healthcheck `start_period` in three templates (W-3197a125).
+
+### Fixed — `--adopt` no longer stamps the scaffold template's example backlog rows as owned work (2026-10-27)
+
+`scripts/docs_updater.py --adopt` tagged an owner on every untagged row of a STRATEGIC_BACKLOG.md work table, and the
+scaffold template ships its examples (`[Feature/Refactor]`, `[System Overhaul]`, `[Small hardening/refactor]`) as live
+table rows, so 24 of the 82 stamps `--adopt` would write across the 27 fleet backlogs were those placeholders, in 12
+repos and two template generations. `classify_backlog_row` now skips a row whose `Item` cell is one bracketed phrase
+(balanced emphasis allowed); the `--check` untagged-row advisory inherits it. Re-measured: 82 → 58, the other 58
+byte-identical. The mailed defect this item carried — closed rows stamped because "no backlog uses strikethrough" — no
+longer reproduces: 22 of 23 closed rows skip today and the 23rd is live. Guarded by
+`TestTemplatePlaceholderRowsAreNeverStamped` in `tests/test_docs_updater_adopt.py` (six mutants of the guard killed;
+it reads the template from disk). W-e89d7983, D-1270.
+
+### Fixed — a spec's healthcheck `start_period` reaches its compose file, and the deploy gate refuses a null duration (2026-10-27)
+
+`Health` in `src/fabrik/spec_loader.py` had no `start_period` field and ignores unknown keys, so a spec's value was
+dropped at load. The static-site, node-api, chrome-extension and docusaurus compose templates guarded it with
+`if health`, which is true whenever a spec has a `health:` block, and rendered an empty `start_period:` (YAML null):
+`docker compose config` refused 15 of the 66 fleet specs the renderer can render. python-api fell back to 30s over
+seo's declared 10s and youtube's 20s. `Health.start_period` is now an optional field (a blank value counts as unset),
+the seven health-reading templates and the docker-source compose writer fall back to their own default only when it
+is unset, and `_validate_compose` refuses a healthcheck `interval`, `timeout`, `start_period` or `start_interval`
+that is not a non-empty string, locally before SSH. A replay over the 66 rendered specs now finds 0 failing on
+`start_period`. Duration format is still checked only by compose on the VPS (W-f1c945d7). D-1271, W-3197a125.
+
+### Fixed — the template-escape guard reads Jinja's parse tree, not a span regex (2026-10-27)
+
+`tests/test_template_renderer_no_html_escape.py` scanned `{{ }}`/`{% %}` spans with a regex, so an unbalanced `{{` in a
+comment or raw block could swallow and hide a later escape, a `}}` inside a string or dict literal ended a span early,
+and `|| e` in plain JS could read as a filter. The scan now walks the renderer environment's own parse tree: every
+`e`/`escape`/`forceescape`/`xmlattr`/`urlize` filter (pipe, `{% filter %}` and `{% set | %}` forms), a `map` that names
+an escape filter or a name known only at render time, and any `{% autoescape %}` block that is not a falsy constant.
+`tojson` stays unflagged: its JSON string escapes decode in every JSON or YAML reader. 23 probe rows; the old regex
+gets 7 of the first 12 wrong. Scoped review 4→5→0. W-27634d4e.
+
+### Fixed — the docs staleness check stops watching docs/FUNNEL.md and docs/AUTOMATION.md (2026-10-27)
+
+- `scripts/docs_updater.py::MANUAL_DOCS` drops `docs/FUNNEL.md` and `docs/AUTOMATION.md`, site-provisioner's own docs
+  at a path `check_structure.py` warns is misplaced; registering them would have made both names legal in every repo.
+  No staleness row changes today; D-1273 says why and what the drop gives up.
+- `tests/test_docs_updater.py` drops the `_MISPLACED_PENDING` exception: no watched doc may be one
+  `check_structure.check_structure()` flags, and the dropped-docs staleness test covers both docs. W-1adf4ed4.
+
+### Fixed — the docs staleness check stops watching AGENTS.md and docs/INDEX.md (2026-10-27)
+
+- `scripts/docs_updater.py::MANUAL_DOCS`, the docs whose `**Last Updated:**` header the advisory staleness check
+  reads, drops `AGENTS.md` (hub-synced, so no project can refresh it) and `docs/INDEX.md` (a path
+  `check_structure.py` already warns is misplaced). Fleet-wide that removes 51 rows nobody could clear and changes
+  no other row. The opt-out list proposed in site-provisioner's mail 01M2NJGZGV20WP is rejected; D-1272 says why.
+- `tests/test_docs_updater.py` grades the two rules: no watched doc is read-only for a project, and none is one
+  `check_structure.check_structure()` flags, except `docs/FUNNEL.md` and `docs/AUTOMATION.md`, which W-1adf4ed4
+  decides. W-da101088.
+
+### Fixed — the orphan-FIFO assembler test no longer times out inside the rule-ledger pass (2026-10-27)
+
+- `tests/test_assemble_dispatch_step.py::test_an_orphan_fifo_never_hangs_the_render_or_the_gate`: its 20 s alarm
+  wrapped `check()`'s rule-ledger LOSS pass, which takes 45-105 s on the lean corpus, so on the lean batch head the
+  alarm fired mid-ledger and `check()` exited 4, not 1 (kaizen finding; blocked batch MR 01M5X49M0S). The ledger and
+  measure passes are now spies in that test: they return their empty results and refuse an installed tree, so the
+  alarm bounds only the orphan-position reads and a pass handed the installed tree still goes red. Red on the batch
+  head before (exit 4), green after; still red with either orphan guard neutered. Filed W-21f88ec3 (a FIFO at a kept
+  name still blocks `render()`/`check()`).
+
+### Fixed — `merge --queue` lands again: full-width legs, a wall that fits a landing, no wasted legs (2026-10-27)
+
+On 2026-10-27 two hub queue runs landed nothing: every queue leg died at its 1800 s limit, the queue stopped
+at its wall with 0 landed, and legs forked for later requests held the queue lock 30 more minutes. The queue
+now runs one leg at a time at the owner script's own width (`--jobs` defaults to 1; the `FABRIK_MERGE_SHARDS=4`
+override is gone), its wall is `LANDING_WORST_S + MERGE_TEST_BUDGET_S + QUEUE_BUILD_S` = 11100 s (run it as
+`rund --timeout 11200 -- /opt/fabrik/scripts/capped_run.sh --timeout 11100 -- python3 scripts/merge_request.py
+merge --queue`), a leg forks only while it and a landing after it fit (`_leg_fits`), and no later leg forks
+beside a first request that runs its own locked leg. `merge_test_select.py`'s base ordered re-run now covers
+only reds its ordered confirm found, and no longer overwrites an alone-confirmed red's base verdict. D-1275
+(supersedes D-1224's jobs, shards and wall figures); follow-ups W-c832e59f (duration-balanced shards) and
+W-17fc722a (load-flaky tests that trigger ordered re-runs).
+
+### Fixed — scripted merge commits carry Agent Provenance Trailers, and `merge` states who gates the merged tree (2026-10-27)
+
+`scripts/merge_request.py merge` wrote one-line merge commits with no trailer block (replayed on the hub's own
+0882afb23), so no `%(trailers)` query could attribute a scripted merge (tryton-crm mail 01M3TZERFR). Both its merge
+commits, the request's and a catch-up's, now end in `Agent-Role: orchestrator`, the owner's `Agent-Name` and an
+`Agent-Context`; a multi-line value refuses, `--no-log` keeps the block parseable under `merge.log=true`, and the
+reflog keeps the subject only. `merge` runs no `final_gate` and now says so after `merged <id> as <sha>`, with the
+owner-test summary; the reply carries the duty line. Decision: D-1274.
+
+### Fixed — the template renderer no longer HTML-escapes compose files, Dockerfiles or secrets (2026-10-27)
+
+`src/fabrik/template_renderer.py` passed `select_autoescape(["yaml", "yml", "j2"])`, which matched every `*.j2` template name, so
+everything it renders for a template-sourced deploy was HTML-escaped. The seven compose templates that write each env
+value and secret into `environment:` (plus the companion-service partial) turned `&`, `<`, `>`, `'` and `"` into
+entities, so a secret `p&ss` would have deployed as `p&amp;ss`. Measured over the 66 specs the renderer can render,
+only one output differed: `specs/services/zitadel.yaml` renders `--masterkey &#34;${ZITADEL_MASTERKEY}&#34;`, but
+zitadel deploys from its docker source, which never calls this renderer, so no deployed file changes today. No template
+emits HTML, so autoescape is now off (the same choice `scaffold.py`'s docusaurus emitter already states). Guarded by
+`tests/test_template_renderer_no_html_escape.py`: 14 tests, 13 red on the old code (the template-escape scan is the
+one green, since no template escapes on its own). They also go red on any non-`False` `autoescape` (a
+`select_autoescape` callable included), on an `| e` added to the companion partial, and on a `{% filter escape %}`
+wrapped around python-api's companion include. Out of scope and filed as W-80aed026: env values are unquoted YAML scalars, so `"`,
+newlines, `$`, ` #` and `: ` still deploy wrong. W-6eb61fa0.
+
+### Fixed — MCP scope check: every row names the steps that clear it, and no unreadable path crashes it or slips past (2026-10-27)
+
+- `scripts/enforcement/check_mcp_scope.py` (W-f7772267 (k)): an unreadable `.mcp.json` failure now names its fix (delete it, then re-emit; the emitter reads the old file first). A no-ruling warning names its real cause (an unreadable project.yaml, an unparsable `type:` line, or a type the roster does not rule). Its fix puts the project.yaml step before the re-emit, since the emitter skips a repo with no ruling. Python 3.12 raises on EACCES, so a directory or link this user cannot search is now a warning naming it, never a traceback or a silent skip. A `.mcp.json` linking into such a directory is graded as present and unreadable. A deeply nested file is unreadable, never a RecursionError.
+- `scripts/sysadmin/emit_mcp_project_config.py`: `_load_defs` reads only the catalog it was given. A missing, unreadable or unparsable `--defs`, a NaN constant, an empty or wrong `mcpServers`, and an entry whose `env`, `command` or `args` has the wrong type each stop the run with a message naming the file and the entry. None of them falls back silently to `mcp_defs.json`. `_repo_type` reads a project.yaml that links into a mode-000 directory as unreadable. Graders: `tests/enforcement/test_check_mcp_scope.py`, `tests/test_emit_mcp_fillins.py`.
+
+### Fixed — MCP emitter: a wrong-shape fleet roster is no donor, an unreadable project.yaml is a named failure (2026-10-27)
+
+- `scripts/sysadmin/emit_mcp_project_config.py` (W-f7772267 (b)(g)): `_fill_credentials` treats a roster that is not an object at any level (the file, its `mcpServers`, a server entry, its `env`), or one nested too deep for `json.loads`, as no donor and falls through to the hub `.env`, where it raised `AttributeError` or `RecursionError` and took down the emitter and `check_mcp_scope`, which loads the same defs; in a repo whose `.mcp.json` git ignores, a `project.yaml` the emitter cannot read — unreadable, a directory, a dangling or looping link, a FIFO (never opened, since its read blocks) — now gives `SKIP (error: project.yaml unreadable: <why>)` and exit 1, where it gave a bare `SKIP` at exit 0 or, for a directory or a link, wrote the untyped universal set (a type the roster does not know, and a `type:` line the grammar cannot parse, now labelled `(unparsed: …)`, stay a bare policy `SKIP`). Graders in the new `tests/test_emit_mcp_fillins.py`, kept out of the plan-locked emitter test file. Part (d) — `--check` printing `+N worktree copies` it did not write — is by design: `--check` predicts the real run's verdict, as `test_an_in_repo_alias_of_a_worktree_is_counted_once` pins.
+
+### Fixed — check_mcp_scope: one warning per repo, an unreadable file fails only where a readable one could, a symlinked one names both steps (2026-10-27)
+
+- `scripts/enforcement/check_mcp_scope.py` (W-f7772267 (h)(i)(j)): a repo whose `.mcp.json` git does not ignore AND whose `project.yaml::type` the roster lacks now gets ONE warning naming both causes, and the OK line counts warned repos, not warning rows, and says the files were read rather than that each was graded; an unreadable `.mcp.json` warns instead of failing the gate wherever a readable one could only warn (an untyped repo whose file git does not ignore, a type the roster lacks, an own-agent hub-class repo such as fabrik-lib) and still fails where a ruling the hub enforces applies; a symlinked not-ignored file's fix names the plain-file step after the ignore step; a warning with no servers to name prints no empty `carries` clause. Graders in `tests/enforcement/test_check_mcp_scope.py`, each proven red against a mutant.
+
+### Fixed — claude_rotate no longer counts the backups park root as an account; the MCP-scope tests ignore the user's global git ignore (2026-10-27)
+
+- `scripts/sysadmin/claude_rotate.py::_fleet_dirs` listed `~/.claude-fleet/backups`, the park root `--merge-shared` writes to, so `--status` showed it as a pending-login account ("8 dir(s)" on this box; 7 after). It is now left out like the `active` pointer, and its byte-identical twin `scripts/aro-wake/claude_rotate.py` is copied (W-f7772267 (a)).
+- `tests/enforcement/test_check_mcp_scope.py`'s hermetic-git fixture emptied `GIT_CONFIG_GLOBAL` but left git's default excludes file, `$XDG_CONFIG_HOME/git/ignore` (else `~/.config/git/ignore`), so a box whose global ignore listed `.mcp.json` could decide the tests. The fixture now points `XDG_CONFIG_HOME` at an empty dir. The emitter test file's copy of the fixture waits on its plan lock (W-f7772267 (f)).
+- Graders: `tests/test_claude_rotate_v2.py::test_fleet_dirs_leaves_out_the_backups_park_root` and `tests/enforcement/test_check_mcp_scope.py::test_the_hermetic_fixture_blinds_git_to_the_users_global_ignore`, each watched red first.
+
+### Fixed — MCP emitter writes .mcp.json only where git ignores it, in every repo (2026-10-27)
+
+- `scripts/sysadmin/emit_mcp_project_config.py::emitter_owns` returned True for any hub-class or typed repo without asking git. So the emitter wrote filled exa, brave-search and firecrawl keys into trade-intelligence's tracked `.mcp.json`. Skip-worktree was set, so `git status` hid the change; its only commit holds placeholders, so nothing leaked. It now asks `git check-ignore` for every repo (D-1266, superseding D-1252 in part).
+- A repo whose file git does not ignore gets a ruled SKIP that names both fixes: make `.gitignore` ignore it, and `git rm --cached .mcp.json` if git tracks it. Not ignored means tracked (skip-worktree and assume-unchanged included), no rule, or a later `!`.
+- The review found three more ways credentials reached a committable file, and closed each (D-1267):
+  - Each linked worktree's copy now asks git from its own worktree: `N not ignored` is a ruled skip, `N unanswerable` fails the run.
+  - A symlinked `.mcp.json` is a ruled SKIP, never written through.
+  - Git's discovery stops at the repo's parent, so a broken `.git` dir no longer borrows an enclosing repo's answer.
+- `scripts/enforcement/check_mcp_scope.py` warns on such a repo and says a tracked copy may still hold credentials. A hub-class or typed one is still graded after the warning, as before, so a server outside its ruling stays a failure.
+- Over the 43 repos in `/opt`, one verdict changes: trade-intelligence goes from OK to SKIP until it untracks the file (W-c0d9cea5).
+
+### Added — the nightly chat backup alerts when it fails (W-36687f76, D-1265, 2026-10-27)
+`session-archive.service` failed silently: no `OnFailure=` existed, its `-` steps (sampler, pruner, rotation mail) fail
+with nothing logged, and the archiver exits 0 on a partial night. New `scripts/sysadmin/session_archive_alert.py` mails
+infra (ack required) and the coordinator (ack no): `failed`, run once by the new `session-archive-alert.service` after the
+retries are spent (`OnFailure=` + `RestartMode=direct`, which stops it firing on every retried attempt), with the unit's
+journal tail; and `check`, the unit's `ExecStopPost=-`, which on a successful run reports every step that did not exit 0
+and the archiver's subagent failures, 0 eligible transcripts, a held lock or a missing summary. `TimeoutStartSec=` ends a
+hung archiver; the installer verifies all three units, refuses any verify output and installs the alert unit first.
+Install: the coordinator re-runs `scripts/sysadmin/install_session_archive_timer.sh` from the main checkout after the merge.
+
+### Fixed — a worktree run's scratch is writable; a round of stale seats is never TERMINAL (2026-10-27)
+
+- `scripts/command_run.py start` roots a run's `SCRATCH:` folder in the checkout the session runs in — a linked
+  worktree's own `.tmp/runs/` — because a worktree-isolated session's Write tool refuses the main checkout's path
+  (W-128df814, D-1268, superseding D-836's root). Every `start` now prunes every checkout's `.tmp/runs/`, and a seed
+  whose scratch is gone says so.
+- The dispatch stamp keeps per-message `batches`; `round` records `dispatched_at` (oldest batch first) and prints
+  `⛔ NOT TERMINAL` when every seat it closed went out before the newest confirming round was recorded — fleet's
+  [4, 0, 0] wave round that read TERMINAL before its fixes were re-verified.
+
+### Fixed — the API-key write lane's child can write again: clones live under ~/.cache, not ~/.claude (2026-10-26)
+
+- `scripts/api_write.py` cloned under `~/.claude/state/api-write/`, where Claude Code denies every Write and Edit as a
+  settings path, so the first live batch's children could only read and plan (a fix round ended with a plan and no
+  commit). Clones now go under `API_WRITE_RUN_ROOT` (default `~/.cache/fabrik/api-write`, `~` expanded), and a
+  relative root, or one under a `.claude` or `.claude-*` directory (symlinks resolved, case ignored), is refused
+  before spending; a live Haiku smoke wrote, edited and pushed. The default
+  `--timeout` rises from 3600 to 10800 s, since a re-ledger round runs past an hour and a timed-out run pushes nothing
+  (W-174b8543, W-15bb59ea).
+
+### Fixed — MCP emitter no longer puts DATABASE_URL on a command line, and exits 1 when a repo fails (2026-10-26)
+
+- `scripts/sysadmin/emit_mcp_project_config.py::_uri_connects` handed the resolved `DATABASE_URL` (password included) to its psycopg probe child as `argv[1]`. Any local user could read it in `ps` and `/proc/<pid>/cmdline` while the probe ran, which is every emission for a repo whose ruled set includes postgres-pro and whose `.env` has a URL. The URI now goes over stdin, and the child decodes it as UTF-8.
+- The script exited 0 even when a repo's emission failed. It now exits 1 when any verdict is `_failed`:
+  - an exception (`SKIP (error: …)`)
+  - a worktree copy left unread or unwritten (`N unreadable`, `N unwritable`)
+  - git unable to say whether `.mcp.json` is ignored, which is where a mistyped `--repo` lands
+- A ruled SKIP, such as an unknown repo type or an untyped repo git does not ignore, still exits 0. A run over `/opt` on 2026-10-26 (43 repos) had no failing verdict (W-d095d60b, split from W-cd40f947).
+- Graders in `tests/test_emit_mcp_project_config.py`:
+  - `::test_the_uri_probe_hands_the_child_the_uri_and_never_its_argv` runs the real probe child against a stub psycopg that records its own cmdline.
+  - `::test_the_script_exits_1_when_a_repo_or_a_copy_fails_and_0_on_a_ruled_skip` runs the script as a process.
+  - `::test_failed_reads_the_verdict_only` covers which verdicts fail.
+  - Each went red on its mutant in a throwaway worktree: the probe back on argv, `__main__` ignoring the exit code, `_failed` blind to copy failures.
+
+### Fixed — The Stop hook no longer reads a numbered findings list as an operator menu; class-8 drift lines say why (D-1264, 2026-10-27)
+- `.claude/hooks/final_gate_stop.py`: the D2 menu check read a `?` anywhere after a numbered list's start as the
+  hand-off cue, so a findings list reported while review seats were out blocked the turn whenever one item asked
+  a question. A numbered list's `?` is now read after the list, unless most of its items ask or its last item
+  does; inline code inside the items is blanked first; choice words (pick, prefer, your call …) still hand off
+  from anywhere, and lettered lists keep the old rule. Over the 54 texts the hook had blocked as D2, 7 stop
+  firing, every one a findings list; no real operator menu is lost. Mail 01M5B996F3.
+- `scripts/work.py`: `status` and `sync --check` print a class-8 line with the plan's Status line (printable, at
+  most 60 characters; `unreadable (…)` or `missing (no Status: line in its first 4000 characters)` otherwise),
+  the five statuses, what check_convergence wants of an EXECUTED plan, and the archive as a superseded plan's
+  remedy. `docs/reference/work-tracking.md` says the same.
+
+### Changed — Lean program unit 01: shared-file rule ledgers, parts b and c (2026-10-25)
+
+- T01b of `docs/development/plans/2026-10-25-plan-1-lean-command-corpus/` (W-96f36043) is a recorded no-op. Its four tests hold no migratable pin on the nine shared files: each candidate is a path literal read off another file, or sits in a test function that also reads another file (D-1231).
+- T01c adds 74 entries to six of the nine ledgers under `commands/_rules/_shared/`: the researcher definition, the probe catalogue, close-chain, run-record, orient and the reviewer definition. They replace the presence pins nine tests held on those files. Opener anchors and `ordered` windows keep the researcher spans in the fetch shape or Method step the base test placed them in. Count, regex, index, looping and two-file asserts stay. The shared files are unchanged.
+- Review: `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T01c-review.md` (2 passes, 2 → 0 confirmed).
+
+### Added — Lean program unit 01: shared-file rule ledgers, part a (2026-10-25)
+
+- Nine shared-file ledgers and baselines under `commands/_rules/_shared/` were taken at unit 01's start commit (63d148626): the review probe catalogue, the no-workflow banner, run-record, orient, close-chain, close-feedback and the three seat definitions. They are T01a of `docs/development/plans/2026-10-25-plan-1-lean-command-corpus/`, W-96f36043.
+- The pins `tests/test_review_queue_pass.py` and `tests/test_review_scoped_queue_pass.py` held on those files, in test functions that read them alone, moved into the ledgers as `text`, `forbidden` and `ordered` carriers. Every assert in a test function that also reads another file stays (D-1231). The shared files are unchanged.
+- Review: `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-T01a-review.md` (5 passes, 4 → 3 → 5 → 3 → 0 confirmed).
+### Changed — Ocoron brand guide: Kalite Pusulası is a standalone brand (2026-10-26)
+
+- W-f466ec87, D-1253, an operator ruling relayed from web-ecommerce-factory. In
+  `.windsurf/rules/core/ocoron-design-system.md`, Kalite Pusulası's brand never carries the Ocoron name. Naming rule 4 now
+  covers standalone brands (Atelier Rebul and Kalite Pusulası): their product surfaces and marketing carry no Ocoron
+  branding, and rules 1-3 do not apply to them. Rule 5 and the Branded House line make the same exception. Kalite
+  Pusulası's site may name Ocoron Dış Ticaret Limited Şirketi only as the KVKK data controller on its legal page;
+  its invoices and contracts still name the entity. The Brand Map row no longer says it awaits a ruling.
+
+### Changed — rea is in every account's user-level MCP set and every git repo (W-b29a4f40, D-1252, 2026-10-26)
+- `claude_rotate.py --sync-mcp/--sync-shared` (and its aro-wake twin) takes `rea` from the catalog (`USER_CATALOG_SERVERS`
+  over `scripts/sysadmin/mcp_defs.json`) whatever the source roster holds, and writes every account dir and `~/.claude.json`
+  (through a symlink; an absent one is left absent; a broken link is a SKIP). A catalog entry that is missing, has nothing
+  to launch or carries a `${VAR}` refuses the sync at rc 2 before any write. The `active` pointer and the `backups` park
+  root are no longer synced as accounts, so a healthy sync exits 0; `--new-dir backups` is refused.
+- `emit_mcp_project_config.py` serves every git repo: an untyped one gets the universal set when `git check-ignore` says
+  its `.mcp.json` is ignored; an unknown or unreadable `type:` stays a visible SKIP; image-generation is no longer excluded.
+  `check_mcp_scope.py` reads the same ownership predicate (`emitter_owns`) and skips only a directory that is untyped,
+  not hub-class and outside git (a typed or hub directory is graded wherever it sits — the liveness canary's fixture);
+  an unreadable `project.yaml` is an unknown type, a warning, never a crash.
+- Live: 8/8 account `.claude.json` files and 44/44 /opt git repos carry `rea`; rn-kit-sandbox, image-generation and
+  fabrik-dr-store got their first `.mcp.json`.
+### Fixed — a vanished `rule:`/`duplicate-of:` label must be carried by the entries it names (D-1258) (2026-10-26)
+
+- `commands/command_rules.py`: a vanished baseline line labelled onto entries is now proven — by a lintable named entry whose baseline is that line, or else by the D-1236 lints A, B and D over the named entries' pooled phrases and sections — and each failure is a LOSS `baseline L<n> vanished as rule [ids] — lint <X>`; until now any live id passed. Graders in `tests/test_command_rules.py` (two old pins that accepted an unrelated rule label now expect the LOSS); `docs/reference/command-corpus-check.md` states the rule. W-34d76a7a.
+
+### Added — the `provenance` clause label in the rule ledgers (D-1255, D-1256) (2026-10-26)
+
+- `commands/command_rules.py`: a clause labelled `provenance` is measured by lint B without its parentheticals of ids alone (D-row, W-item, ISO date, SHA, `§` pointer); the label is refused on a ban clause and on a clause with no such parenthetical, and `summary()` prints the provenance count. See the **Ledger lints** bullet of `docs/reference/command-corpus-check.md` (W-0c38115e).
+
+### Fixed — Ocoron brand guide: the legal entity is Ocoron Dış Ticaret Limited Şirketi; Kalite Pusulası added (2026-10-26)
+
+- W-c0080a4b, D-1250, an operator order relayed from web-ecommerce-factory. In
+  `.windsurf/rules/core/ocoron-design-system.md`, rule 5 and the Brand Map named "Teknokent LLC"; both now name
+  "Ocoron Dış Ticaret Limited Şirketi". Rule 5 now says that name also goes on the legal pages: the terms of service and
+  the privacy policy, which names the KVKK data controller. The Brand Map gains Kalite Pusulası (kalitepusulasi.com) as
+  an Ocoron brand; how it fits naming rules 1-3 waits on the brand owner. `mobile-app/89-mobile-launch-checklist.md`
+  now says "a Turkish LLC in a Teknokent zone", replacing "a Turkish Teknokent LLC".
+
+### Added — the API-key write lane: disposable writers on the prepaid keys (2026-10-26)
+
+`scripts/api_write.py run` takes a cloud-dispatch brief (`--slug` + `--task-file` [+ `--base`, `--gate`], or a `--batch` of `{"slug", "task_file", "base", "gates"}`) and runs it with `claude -p --safe-mode --restricted --permission-mode dontAsk` on an API key with Read, Edit, Write, Glob and Grep only, plus `Bash(<gate>)` per exact gate string (D-1251; a glob over a command's options was shown to admit `--basetemp`, `--output` and `-F`). The runner owns git: it checks out `claude/<slug>` at `origin/<base>` in a plain local clone of the main checkout under `API_WRITE_RUN_ROOT` (default `~/.cache/fabrik/api-write`, see the Fixed entry above), and after a clean exit refuses a clone whose `.git/config` changed, commits the edits as one trailered commit with hooks and fsmonitor off, refuses a diff holding a key, and pushes the explicit refspec to the captured URL (never forced). Every outcome after the start row settles in `api-credit.jsonl` under the same $200-per-key cap (`lane: write`); the clone is deleted. `--jobs` runs a batch in parallel and `--pick` spreads it across the keys; an existing `origin` branch or a missing base refuses before spending, and a timeout kills the child's whole process group. `api_credit.py` gains `main_checkout()`, `reserve()` and a pre-flight that takes the lane's argv and tool set; its behaviour is unchanged. Docs: `docs/workstation/api-credit.md` § The write lane (D-1247, W-174b8543).
+
+### Fixed — a session on an Anthropic API key is no longer frozen by the plan-quota hold (2026-10-26)
+
+A session whose env carries `ANTHROPIC_API_KEY` and none of the credentials that could replace it
+(a plan OAuth token, `ANTHROPIC_AUTH_TOKEN`, a Bedrock/Vertex/Foundry switch) draws no plan quota,
+so the hold no longer binds it while the fleet-exhausted stamp plainly reads `walled` or
+`urgent-90`: `.claude/hooks/quota_stop.py` turns its deny into an allow (a stderr note in the
+verbose transcript), `scripts/sysadmin/quota_posture_hook.py` skips its RED deny and AMBER notice
+and replaces the prompt line's CHECKPOINT clause with one naming the exemption, and
+`.claude/hooks/final_gate_stop.py` keeps the session's Stop causes armed instead of yielding. The
+battery hold (D-898) and any unknown stamp still hold it. Today this serves a window launched by
+hand on a key; `scripts/api_credit.py` children run `--safe-mode` and never run hooks. W-effb7141.
+
+### Changed — every repo's sessions get the REA reverse-engineering tools (W-7e29c9b9, 2026-10-26)
+
+- `scripts/sysadmin/emit_mcp_project_config.py`: `rea` joins the universal set (D-1239, superseding D-1199's
+  hub-class-only grant), so every /opt repo's emitted `.mcp.json` carries it. The emitter now also refreshes
+  each linked worktree's EXISTING copy (`<repo>/.claude/worktrees/*/.mcp.json`), which `.worktreeinclude`
+  copies only at creation — none of the 214 real worktree copies had `rea` (it skips a symlinked file or
+  worktree directory: `/opt/fabrik/.claude/worktrees/fabrik-lib` points at fabrik-lib itself, and a copy it
+  cannot read is reported without blocking the rest). Re-emitted: 255 of 255 distinct files carry it
+  (41 repo roots, 214 worktree copies). `docs/workstation/mcp-roster.md` (row with the measured ~235 MB per window,
+  universal table, § REA), the quota dashboard's label and `INDEX.md` updated.
+
+### Changed — review probe catalogue: a seat's pytest run takes an allow-list of arguments, not a deny-list (2026-10-26)
+
+`commands/_fragments/review-probe-catalogue.md` § Seat isolation, bullet "A pins-only copy is not a test tree": a seat passes pytest only paths and node ids inside the staged tree, `-q`/`-v`, `-s`, `-x`, `-r<chars>`, `--tb`, `-p no:cacheprovider`, `--co` (never a result) and, in a mutant run, one `--deselect` per environment-bound test by its full node id (it matches by prefix); it sets no environment variable beyond those the recipe, term-coverage rule (4) and § Seat isolation name (a conftest may read one to skip tests, as the hub's reads `FABRIK_MERGE_CHECK`), passes no `@file` argument file, and writes no pytest config or conftest beyond the pins, their reverts and mutants and the recipe's `__file__` print. The old deny-list missed `-o pythonpath`, `-o filterwarnings`/`xfail_strict`, `--config-file`, `-p no:warnings`, `--runxfail`, `--import-mode` and `PYTHONPATH`, each shown to change the verdict or the imports on pytest 9.0.2; `-o timeout` is now barred too (the config's own timeout is the hang guard), and `--ignore` of a conftest is gone from the examples because it does not drop the conftest. The base-copy removal now reads "wherever it sits". `tests/test_seat_recipe_readable.py` re-pinned (W-47d58d2c).
+
+### Changed — cloud dispatch: a cloud run draws the account's weekly plan and is refused at its wall (2026-10-26)
+
+`docs/workstation/cloud-dispatch.md`'s billing bullet now records that cloud runs spend the account's weekly plan usage and are refused at its wall (16 lean runs, `usage_limit_reached` / `seven_day` `rejected`), so the $250 credit is not capacity on top of the plan, and the intro, `--pick`, the credit guard and `--allow-plan-usage` point at it; the credit's own drawdown stays open (D-1237, W-b00d9d72; follow-up W-87078932).
+
+### Changed — cloud dispatch: the $250 credit is spent before plan usage; expiry 2026-11-05 (2026-10-25)
+
+`docs/workstation/cloud-dispatch.md`'s billing bullet now follows the operator's claude.ai usage page (the credit is a separate pool, applied first; usage credits are overage, off), each account's `credit.expires` in `.fabrik/cloud-routines.json` moves to 2026-11-05, and the walled-account probe on can is recorded (W-b00d9d72, D-1232).
+
+### Added — the canonical D-1236 ledger lints, read per D-1238 and D-1240 (2026-10-26)
+
+- `commands/command_rules.py` gains an optional per-entry `class:` and `clauses:`, and four lints that run in the
+  command check, each a LOSS line naming the ledger, the entry and the lint. The rules are in
+  `docs/reference/command-corpus-check.md` § Rule ledger and size ceiling. The one canonical loader for the lean
+  program (W-9cd8653d, D-1245).
+
+### Fixed — the L1 size measure counts only git-tracked files, so master's --check is green again (2026-10-25)
+
+- `commands/command_measure.py` measured a named path whenever the file existed on disk, so the main checkout's
+  gitignored `data/projects.yaml` and `secrets/all-envs.env` read as new reads there and `assemble_commands.py --check`
+  refused every commit (D-1230). A path now counts only when git tracks it; a tracked symlink to an untracked target,
+  an untracked file and an ignored file never count; a tracked file missing from disk or not a file (or a tracked
+  symlink whose tracked target is) and a failing git listing are CEILING breaches; word counts still come from the working tree. The published ceilings are unchanged.
+
+### Added — Lean corpus L1: size measure, ceiling file, `--check` exit 5 and `--ratchet` (2026-10-25)
+
+- `commands/command_measure.py` measures every rendered command's own text (render, named `commands/` files, named seat
+  definitions) and its reads; `commands/_size_ceiling.json` freezes them for all 40 commands (D-1226, W-a9b5e763 slice C).
+- `assemble_commands.py --check` exits 5 on a ceiling breach, after a LOSS (4) and before drift (1); `--ratchet` lowers the
+  ceilings and prints nothing when nothing changed; a malformed ceiling file or a failed measure or write
+  under `--ratchet` is a `CEILING` line and exit 5, and the three modes are mutually exclusive. The
+  coordinator runs it after the merge queue drains, whenever `commands/` changed.
+- `command_rules.py`: `generate_unchanged()` for the light form, `changed-by` entries, an idempotent `normalise()`, inline
+  comments kept as text, and slice A's two residuals fixed.
+
+### Fixed — the test suite drops the merge leg's records override (2026-10-25)
+
+W-bce8914b. A `request --pretest` or `merge --queue` leg exports `FABRIK_MERGE_TESTS_RECORDS` to send its own
+records to a private dir, and the leg's pytest shards inherited it. Every selector test that checks a record at
+the shared path then went red inside such a leg (8 measured: 7 in `tests/test_merge_test_select.py`, one in
+`tests/test_merge_request_pretest.py`), so a branch touching the selector was refused by its own queue leg.
+`tests/conftest.py` now pops the variable at configure time, beside the `FABRIK_SSH_JUMP_*` scrub;
+`tests/test_conftest_isolation.py` runs one of those record tests with the variable exported (red on the unfixed
+base, green here) and pins that both scripts still read the name it exports.
+
+### Added — `merge_request.py merge --queue`: a queue's owner tests run outside the merge lock (2026-10-25)
+
+W-0c8c43f1 (D-1224). A queue of N merge requests used to wait N owner-test legs one after another
+under the merge lock (36-129 min in the hub on 2026-10-24). `merge --queue` builds the waiting
+requests as a stacked chain in merge order, runs each leg in parallel outside the lock (`--jobs 2`),
+records each green tree as `request --pretest` does, and lands each request through the unchanged
+locked merge, which skips its leg on the matching tree. Every `git worktree` add, remove and prune
+in the file now serialises under one lock, closing a race where a prune broke a sibling's add. Run it
+as `rund --timeout 9100 -- capped_run.sh --timeout 9000 -- python3 scripts/merge_request.py merge
+--queue` (docs/reference/multi-agent-operating-model.md).
+
+### Changed — Lean command corpus plan set converged by /fabrik-plan-review (2026-10-25)
+
+The plan set `docs/development/plans/2026-10-25-plan-1-lean-command-corpus/` is CONVERGED (D-1227) after four review passes
+(confirmed 48 → 10 → 3 → 0). Every cutting ticket now runs the reader-test run, the tests that read each cut file, with reds
+measured against the start commit. Preconditions are probed by what landed on master. T46 gained steps and goal gates. Receipt:
+`docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-plan-review.md`.
+
+### Added — Lean command corpus plan set: 45 units in 57 tickets (2026-10-25)
+
+`docs/development/plans/2026-10-25-plan-1-lean-command-corpus/` turns the converged lean-corpus spec into a
+plan set for `/fabrik-execute-plan`, in the spec's order: the `/fabrik-review-scoped` pilot, the remaining
+shared files, `/fabrik-review`, `/fabrik-task`, `/fabrik-execute-plan`, `/fabrik-command-improve`, then the
+35-command tail by hours, then the Integration receipt. The tooling stays infra-2's three merge requests
+(W-a9b5e763), and pin tests are migrated into the ledgers or kept verbatim (D-1222). Status: DRAFT, for
+`/fabrik-plan-review`.
+
+### Added — The lean program's time measure as one script, `scripts/command_time_measure.py` (2026-10-25)
+
+D-1219 makes the lean program's time budget "one pinned script (intel's method)". This is that script
+(W-487e966a, D-1228). Per command and per equal 14-day window, over every close, it reports:
+- wall-clock (median, mean, p90) and the non-done share;
+- seat-minutes, as the gap-cut union (the W-0a91bf86 table's figure) and as the sum of each seat's time;
+- rounds, wall-clock and closes per work item, runs per commit, and surface size.
+
+`--json --per-run` emits the rows behind the figures, so infra-2's nightly job (slice B) can store them before
+the seat transcripts are pruned. On the table's window the script reproduces the table's wall-clock row and both
+seat share rows. It counts commits by committer time rather than `git log --since`, which stops at the first
+older branch tip. A typed command or state the ledger never holds is refused, not read as "no runs". The fixture
+test holds 26 graders; 29 mutants of the script each turn one red.
+
+### Added — Lean command corpus design: half the text and seat time, no rule lost (2026-10-25)
+
+`docs/superpowers/specs/2026-10-25-lean-command-corpus-design.md` is CONVERGED. It went through 7 review rounds,
+with confirmed findings of 25 → 8 → 3 → 7 → 1 → 1 → 0. The Opus + Fable panel approved it as D-1217 (the
+design) and D-1219 (the time budget). It is the P0 lean program, W-96f36043, ruled by the operator as D-1216.
+
+The spec sets four things:
+- Every `/fabrik-*` command is cut to half its own text. No rule may be lost, and a sentence-diff plus a YAML
+  rule ledger prove it.
+- A full measure that counts everything a command orders read, so moving text out of the command does not count
+  as a cut.
+- Two ceilings, render and reads, that only ratchet down. The FEEDBACK form gains a required, quoted `remove:`
+  field.
+- A wall-clock and seat-minutes budget for the review-family commands, with no round cap (D-355).
+
+The order is: tooling (W-a9b5e763), a `/fabrik-review-scoped` pilot, the shared files, `/fabrik-review`, then
+the rest. The review receipt is `docs/development/reviews/2026-10-25-lean-command-corpus-spec-review.md`.
+
+### Added — Rule ledgers for the lean command program: a sentence diff and a `--check` LOSS exit (2026-10-25)
+
+- `commands/command_rules.py` is the lean program's loss check (W-a9b5e763 slice A, D-1221). It splits a
+  command's own text into heading-keyed units, diffs a rewrite against a sha-pinned baseline (an exact
+  match after normalisation, U2), and asserts every ledger under `commands/_rules/` and `_shared/`
+  through `text`, `ordered`, `forbidden` and `enforced` carriers. `losses()` never raises.
+- `assemble_commands.py --check` prints LOSS before DRIFT and exits 4 on a LOSS, else 1. The
+  corpus-check pre-commit hook passes the 4 through, so a lost rule refuses the commit.
+- `tests/test_command_rules.py` (26 tests) renders the corpus itself and drives each behaviour.
+  `docs/reference/command-corpus-check.md` § Rule ledger and size ceiling documents the grammar and the exit table.
+
+### Changed — `api_credit.py run`: finder runs get Grep and Glob, behind a keyless auth pre-flight (2026-10-25)
+
+- On Claude Code 2.1.310 `--bare` dropped the Grep and Glob tools whatever `--tools` listed, so a finder seat on a
+  prepaid API key could only Read files whose paths it was handed. The child now starts
+  `--safe-mode --restricted --tools Read,Grep,Glob`; a live Haiku finder over a full hub pin used all three for $0.02.
+- `--safe-mode` documents auth as working normally, so every run first spawns the same argv with no API key on its
+  own empty config dir and is refused (exit 2, nothing provisioned) unless the CLI reports exactly those three
+  tools, `apiKeySource` none and an error with zero cost and zero API time. A managed-settings directory refuses the
+  run. New knobs `API_CREDIT_MANAGED_DIR` and `API_CREDIT_PREFLIGHT_TIMEOUT` (docs/CONFIGURATION.md). D-1223, W-230abfd5.
+
+### Added — `merge_request.py request --pretest`: the owner merge tests run once per change, and a base may declare its leg limit (2026-10-24)
+
+- `scripts/merge_request.py request --pretest` runs the base's `.fabrik/merge-tests` on the merge the owner
+  would build (a `fabrik-pretest-` throwaway at the local base) and sends only on green, recording the merged
+  tree, the script and runner hashes and the leg's seconds in `<git common dir>/fabrik-merge/pretest/<head>.json`.
+  The merge skips its own leg when its merged tree differs from that one only in CHANGELOG.md,
+  docs/DECISIONS.md, docs/LESSONS_LEARNT.md and work items, the same `merge_request.py` wrote the record and its
+  leg ran at least a minute; anything else re-runs the leg and the reply says why. On web-ecommerce-factory's
+  last 21 merges 15 would have skipped an 18-28 min run under the serial merge lock.
+- A base's `.fabrik/merge-tests` may declare `# merge-test-timeout: <seconds>`, clamped to
+  `LEG_FLOOR_S`..`MERGE_TEST_BUDGET_S`: web-ecommerce-factory's one leg now runs past 1800 s.
+- `scripts/merge_test_select.py` writes its records under `FABRIK_MERGE_TESTS_RECORDS` when set, which a pretest
+  points at a private directory. W-1fb11ec8.
+
+### Added — `cloud_dispatch.py drain`: fire a pre-flighted batch of cloud tasks to spend the credits (2026-10-24)
+
+`scripts/cloud_dispatch.py drain --batch <file.json>` checks a whole lead-written batch before anything fires: master parity, cloud-safe paths, file sets disjoint from each other and from open cloud work, and a cap on open work. A pre-flight failure exits 8 with nothing fired. It then fires each entry through `dispatch`, stopping at the first failure, and never fires a slug twice (D-1213, W-b00d9d72; `docs/workstation/cloud-dispatch.md` § Draining a batch).
+
+### Changed — rotate-session says whether asking again can pass: exit 75 transient, 1 permanent (2026-10-25)
+
+`scripts/sysadmin/rotate_session.py request` exited 1 on every abort, so the coordinator retried a session with no identity binding yet (which only a `--force` re-bind clears) exactly as it retried a busy one. It now exits 75 when the abort clears by itself (the session in its turn, a run or seat going, the rotation in flight, tmux slow, a pane restarting or drawn without its box) and 1 only on positive evidence that an act comes first (a bad argument, a permission or choice dialog, text in the input box, two transcripts, no binding yet or one held by another window, uncommitted or unpushed work, a slash-command ending, a request the unit never claimed). The stderr line says `(transient …)` or `(permanent …)` and what to do; "no identity binding yet" names the re-bind command. A tmux timeout, which escaped as a traceback, now rows `aborted:tmux`. `docs/workstation/session-history-retention.md` names the exits. W-05021a03, D-1220.
+
+### Added — The operator's four Ocoron brand fills, with white text recorded as their override (2026-10-24)
+
+`.windsurf/rules/core/ocoron-design-system.md` (v3.2) adds `--color-brand-blue|magenta|green|orange` (#120AF1, #A50FEA, #08941F, #EA880F) and `--color-brand-fg` #FFFFFF, marketing fills that are never text, indicators or states; the white text is the operator's override (green 3.99:1, orange 2.62:1), recorded with its ratios in § Contrast table. `tests/test_ocoron_contrast_table.py` pins the ruled values and recomputes the override rows, the quoted ratios and the lowest on-surface ratio. W-79008127, D-1206.
+
+### Fixed — a merge's owner tests fit inside its documented wrapper (2026-10-24)
+
+- `scripts/merge_request.py`: one owner-test budget per invocation (`MERGE_TEST_BUDGET_S`, two full legs);
+  every leg runs at most what is left, none starts under `LEG_FLOOR_S`, and a leg that runs out the budget
+  refuses as "not a test verdict", naming `retry` (or `resume` for a catch-up), never as a red; the
+  requester's reply says to change nothing. `scripts/merge_test_select.py`: a rebuild whose only change since
+  the branch head's last green merge is in the SKIP set (ledgers, work items) re-tests nothing. The merge
+  command becomes `rund --timeout 5500 -- capped_run.sh --timeout 5400 -- python3 scripts/merge_request.py merge <id>`
+  (D-1205, W-347cd0c3). The selector's tests are exempted from the merge-check grader, which had master red.
+
+### Fixed — The close's `[· cost: …]` bracket round-trips, and an unread transcript's seat count is unknown, not 0 (2026-10-24)
+
+- `scripts/command_run.py`: `_parse_usage_feedback` no longer leaves the usage grammar's optional-field brackets in the
+  fields — `filed: … [· cost: 0.01]` stores `filed` without a trailing `[` and `cost: 0.01`, where the close used to
+  refuse `0.01]`; a `]` anywhere else (a `filed:` id `[01M…]`) is kept. `_sum_transcript_usage` reports `seats_seen`
+  as null when the transcript was never read, and the close compares only a measured seat count — an unmeasured one
+  prints `seats declared N; seen unknown (transcript not read)` instead of a false `vs seen 0` mismatch (W-256d6877,
+  D-1208). `docs/reference/command-run-protocol.md` states both.
+
+### Fixed — the quota lane lets a /clear-rotated window re-bind its own name and run `work.py next` (2026-10-24)
+
+- `.claude/hooks/quota_stop.py` (D-1209, W-cff56c52): at the urgent-90 lane a `/clear` rotation's first two steps — `python3 /opt/fabrik/scripts/whoami_agent.py --as <name> --force` and `python3 scripts/work.py next` — were held, so a rotated merge owner or P0 owner stayed parked until the lift. The lane now admits a bare `work.py next` and the re-bind in one exact shape, only to the name this window's claude process (pid + start tick) held last in this repo; any other name stays held.
+- Nine graders in `tests/test_quota_stop_hook.py`, each proven red by a named mutant (19 in all); `docs/workstation/claude-account-rotation.md` lists the two new finishing verbs.
+
+### Added — Web UI design routes to the frontend-design:frontend-design skill under a brief that outranks it (2026-10-24)
+
+- New pack `.windsurf/rules/core/63-frontend-design.md` (D-1207, operator ruling relayed in web-ecommerce-factory mail 01M5QJ3V4AN7C9CJV9B9Q8QEWB): every web UI-design act invokes the claude-plugins-official skill `frontend-design:frontend-design` (never the older `example-skills:frontend-design`); the brief — operator rulings, the frozen `docs/ui-design.md`, `docs/design-system.md` with the template's structure — always wins; the skill's AI-generated clusters are written out for readers without the skill, and a cluster finding terminates FIXED or REFUTED, never by editing a frozen contract.
+- Pointers in `/fabrik-ui-design` (Phases 1 and 5), `/fabrik-ui-design-review`, `/design-review` (command and agent), the `fabrik-gui` builder, `/fabrik-execute-plan`'s GUI phase and the saas, chrome-ext and desktop packs; `docs/reference/gui-toolchain.md` corrected (full skill name, Apache-2.0 licence, project design system, review stage).
+- New grader `tests/test_frontend_design_routing.py` (40 cases; 4 mutants killed). Matcher defect found on the way (a middle `**` reads as one segment) filed to infra, mail 01M5QKWMKM.
+
+### Added — CSS-first Tailwind usage in the design-system template; colour slots kept out of the font-size namespace (2026-10-24)
+
+- `.windsurf/rules/core/design-system-template.md` gains `## Tailwind (CSS-first) usage` (D-1202): tokens, class detection, reuse order, values and layout, tooling — every line grounded on the page it cites, executed on Tailwind 4.3.3 where the docs are silent, no version literal. Its globs now reach `.astro` files and the CSS-first theme stylesheets (27 of 28 on the box).
+- Fixed: the template's § Mapping sentence and Ocoron's CSS paragraph sent every slot into `@theme`, where `--text-primary|body|muted` compile to a font-size utility; both now route through the section (`@theme static` for namespaced slots, an `@theme inline` alias for the rest).
+- Six `CLAIMS.yaml` rows; new grader `tests/test_design_system_template_pack.py` (35 mutants killed). Residue: W-bcb4647f, W-15bc1ba1, W-dd0383f6, W-1bb62dff.
+
+### Fixed — check_phase_tests reads glob lock entries: `src/app/**` owns its subtree (2026-10-24)
+
+D-1201 (W-9fcb6ce4). The advisory phase-tests check scoped a plan window to the lock's `owned_paths` by literal
+prefix, so a glob entry owned nothing: an untested change under `src/app/**` never warned, and a test under
+`tests/**` never counted as accompaniment. A glob entry is now read as check_plan_tickets' lock discovery reads
+the same files (D-1094): `_norm_glob`, then `_glob_covers`, case-folded. Debris such as `src//**` or `src/**:12`
+is still cleaned to `src/**`, and literal entries are read as before. The /fabrik-command-improve lock bullet now
+says `_owned` matches globs. Live output is unchanged in all 7 repos with an active lock. Residue W-a6975c38.
+
+### Added — the three prepaid API credits get a capped, read-only lane: `scripts/api_credit.py` (2026-10-24)
+
+D-1198 (W-894f994f, under D-1196). `api_credit.py run` runs ONE `claude -p --bare --restricted` task on a credit key
+(`ANTHROPIC_API_KEY_CAN`/`_SARP`/`_OZGURBASAK`) with Read/Grep/Glob only, a vetted `--add-dir`, a stripped env and a
+fresh config dir; `status` reads each key's spend back; `settle` closes a crashed run. Each key is capped at $200 in a
+flocked ledger where an unknown cost counts as budget plus the model's per-call ceiling. The rule packs ai/00 and ai/50
+name the exception; ai/00's decision-model lane now cites D-555 instead of an open work item (master's
+`test_egress_wording_matches_the_work_item_state` red). First live run: sonnet, $0.0727.
+
+### Changed — Ocoron house fonts: Arya headings, IBM Plex Sans text; Tojlo keeps its stack as a declared override (2026-10-24)
+
+- The operator ruled the Ocoron fonts (W-eaa745f3): `core/ocoron-design-system.md` v3.1 sets Arya 700 for every heading
+  and IBM Plex Sans 400 and 500 for text, with Plex as the heading fallback for scripts Arya lacks and the Plex Arabic
+  and Devanagari siblings named. `saas/60-saas-ui.md` (the next/font example), `core/42-docusaurus.md`, the Ocoron
+  mobile pack and `CLAIMS.yaml` follow. The Tojlo packs keep Space Grotesk and Inter as a declared override.
+- `tests/test_ocoron_fonts.py` pins the font names across the packs and fails on any retired spelling outside the
+  Tojlo override.
+
+### Fixed — /fabrik-reverse-engineer listed among the commands with no closing pass (2026-10-24)
+
+- `scripts/command_run.py`: `NO_CLOSING_PASS` gains `fabrik-reverse-engineer`, whose source orders only a
+  `round --seats --findings` fan-out close, so its budget advisory no longer tells a run to take a closing pass
+  the command never orders. The merge test found it on `test_no_closing_pass_set_matches_the_command_sources`
+  (W-eff97ae7). The review's latent findings on that test's line-by-line rule are backlog W-6411f6d0.
+
+### Added — REA reverse-engineering MCP (hub-class) and /fabrik-reverse-engineer (2026-10-24)
+
+- `scripts/sysadmin/mcp_defs.json` gains `rea` (Reverse Engineer Anything, `rea-agents`): a stdio server launched from the pinned global install (`npm install -g --ignore-scripts rea-agents@6.7.0`), never REA's own `setup`, which would write `~/.claude.json` and a personal skill. The emitter's hub-class rule carries it to the hub and fabrik-lib only (D-1199); `docs/workstation/mcp-roster.md` § REA records install, scope, reach and update.
+- `/fabrik-reverse-engineer` (`commands/_sources/fabrik-reverse-engineer.md`, NEXT entry, dashboard slot and services row): one feature of a public website, Electron app, APK or binary → a behaviour-only spec under `docs/reference/reverse-engineering/`, in five phases (LOOK · UNDERSTAND · PLAN · BUILD · ITERATE) with Scout / Spec-Writer / Builder / Tester seats and a clean-room check.
+- `tests/test_emit_mcp_project_config.py`: the `rea` entry is a pinned absolute stdio launch (no npx, no @latest, no credential) and reaches the hub class and no scaffold type or overlay.
+
+### Fixed — master green again: the vps1 Postgres login-rotation script gets its hub-root disposition (2026-10-24)
+
+- `tests/test_hub_write_root.py` failed on master after `scripts/sysadmin/vps1_pg_scoped_logins.py` merged, because
+  that script hard-codes `/opt/fabrik` and had no `ALLOWLIST` reason (W-b4ebe9f7). It is now listed as `untracked`:
+  `main()` refuses any working directory but `/opt/fabrik`, and every local write lands in the gitignored `.env` or
+  under `backups/` (its other writes are vps1 files over ssh), so pointing it at a worktree would be wrong.
+- The script's step 3c staged the new `.env` as `/opt/fabrik/.env.tmp.<stamp>`, a name no `.gitignore` rule covers, so
+  a crash before the rename left a copy of the passwords loose in the hub checkout. It now stages under the gitignored
+  `backups/` (same filesystem, so the rename stays atomic), and a test proves a failed rename leaves nothing new in the
+  hub root.
+
+### Fixed — set-aside chat transcripts are archived, and pruned with their live names (2026-10-24)
+
+Claude Code renames a transcript it relocates over to `<session>.jsonl.superseded-<ms>`. Both retention scripts globbed `*/*.jsonl` only, which had two effects:
+- One such file (371,647 bytes) had no off-box copy.
+- Pruning a live name left its set-aside hard links holding the inode on disk, about 6 GB here once those names age out.
+
+`archive_transcripts.py` and `prune_transcripts.py` now treat the name as a MAIN name:
+- A set-aside link is archived and pruned with its live session.
+- A set-aside-only inode is archived under its own key and never pruned.
+- An `also_slugs` alias row vouches for an inode only while its primary key still names that row.
+- `--restore` refuses a session id that was pruned under two slugs, and asks for `--slug=<slug>`.
+
+D-1188, W-a2cae11b; `docs/workstation/session-history-retention.md` § Set-asides.
+### Added — the hub's own merge-time test leg: differential, name-reference selection (2026-10-24)
+
+- `.fabrik/merge-tests` runs `scripts/merge_test_select.py` in each merge's build tree (W-4e756979, D-1189). The tests it selects are those naming a changed path (file, module stem, import, specific directory) plus every `ls-files` tree grader. They run in 8 shards, each red is confirmed alone and then in its shard's order, and the leg refuses only a red that is new against the base. Master's own reds pass. Without it, `merge_request.py` ran only the tests a branch touched, and the measured red-master merges were each red by themselves. All 17 measured cause merges select their red grader. Three real merges took 487 / 1189 / 1172 s, so the coordinator runs merges in the background (`scripts/rund --timeout 2100 -- capped_run.sh --timeout 2000 -- merge_request.py merge <id>`). The leg is on for every merge by D-1186, from the merge after the one that lands it.
+
+### Changed — /fabrik-task reads the plan locks before the critique seats and re-reads its terminal before `--design` (2026-10-24)
+
+Phase 2 read the plan locks only after both critique seats had returned, so a locked path stopped the run after two seats were spent; the read now comes before the critique fragment that stamps the seats, and the pre-`--design` checklist re-runs it on every path, since a lock may be taken while the seats run. That checklist now opens by re-reading `--terminal` against design.md's TERMINAL as MEASURE and the critiques left it: ten earlier rejects had cited the `--terminal-amend` sentence and two more rows asked again. MEASURE replays a prior slice's stated reason when the design builds on it, and treats a count as no fail direction: before a no-change verdict rests on one, the inputs the grammar admits and the corpus lacks are constructed and run. D-1192 raises `SIZE_CAP` 26951 → 27508; `tests/test_fabrik_task_queue_pass.py` grades the new order and wording (W-0afeb296).
+
+### Fixed — both contracts' Session history bullet says subagent transcripts are archived (2026-10-24)
+
+`CLAUDE.md` and `templates/governance/CLAUDE.md` still filed subagent transcripts with `~/.claude/tasks` and shell snapshots as "pruned after 3 days … NEVER archived", which D-1182 (infra's W-62d2ce7d) made false: a sidechain is now archived like a main transcript and pruned only once the archive vouches for it. Both bullets carry infra's sentence and `--restore <session_id | agent-<id>>`, the form `prune_transcripts.py::_restore_match` accepts; `tests/test_session_rotation_rule.py` pins both copies and refuses the old sentence (W-a1158ea0).
+
+### Added — `review_loop_ledger.py stage` builds a review seat's test tree in one command (2026-10-24)
+
+A seat that runs pytest or imports pinned code no longer retypes the copy, chmod, overlay and launcher steps from the review-loop prompt. `stage --pins-dir <pins> --out SCRATCH/arch` copies the base copy the pin recorded (or archives its base commit), makes it writable, lays every pin over it with the recipe's link rules, checks each md5, and prints the pytest launcher filled in. The prompt's new `STAGE_VERB` points seats at it and keeps the manual recipe as the fallback. `pin --base` now records `base_copy` and `base_skipped`, and `pin --replace` without `--base` removes a stale base copy that no manifest would vouch for (W-b976638f, kaizen mail 01M5PN3806).
+
+### Fixed — /fabrik-execute-plan's commit recipes write the message to a file, never a heredoc (2026-10-24)
+
+The command showed its six commit recipes as `git commit -m "$(cat <<'EOF' … EOF)"`, the compound shape the worktree isolation check may refuse. Each now writes the message with the Write tool to a per-commit file in the session scratchpad (`<scratch>/msg-<name>`; a subagent's is `msg-phase-{X}-task-{N}`, since parallel subagents may share the scratchpad) and commits with `git commit -F`, as `docs/reference/multi-agent-operating-model.md` already ruled; the archive step's `-m` and the merge-conflict comment's `&&` follow, and step 5 says one command per call. Scoped review CONVERGED 8 → 0 over three readers (W-0e42a4dc).
+
+### Fixed — the red-master rework count no longer counts a hypothetical (2026-10-24)
+
+`scripts/sysadmin/kaizen_waste.py`'s `waste_red_master_rework` counted a hypothetical mention as a red master. A phrase whose verb is governed by a modal ("would turn", "won't go", "could've turned", "would also turn", "is going to turn") no longer counts; a modal elsewhere in the sentence, a conjunction between ("will be fine now since master is red"), and any other phrase in the same message, still do. Over origin/master's 10,887 non-merge commits (2026-10-24) the count moves 32 → 30, exactly the two hypotheticals. The metric moves to v2, a new series; breakdown rows now carry their definition version (`def`) and `kaizen_digest.py` reads only the rows matching the series it judges. Run `kaizen_waste.py --backfill` once after the merge, or the red-master chart has no limits for 14 days (W-d633d5f5).
+
+### Fixed — the governance template routes hub mail to infra for synced-file defects and the rendering, sync and checks of commands, not all command work (2026-10-24)
+
+- W-a5b90257. `templates/governance/CLAUDE.md`'s Send bullet read "`--to-agent infra` for commands/rules/enforcement/hooks/mail
+  defects" while the same sentence gave kaizen a command's or rule's wording. It now gives infra synced-file defects (the
+  rendering, sync and checks of commands/rules among them) and enforcement, hook, mail and workstation defects; the
+  upstream-proposal step addresses `<owner>` and points at that bullet. Receipt:
+  `docs/development/reviews/2026-10-24-w-a5b90257-template-routing-wording-review.md`.
+
+### Fixed — the Stop hook no longer orders a builder to start new work at a rotation boundary (2026-10-24)
+
+- W-0fae19b7, D-1197. When a session's rotate stamp is due and its own last `NEXT:` reads `none — terminal; awaiting
+  the rotation`, `.claude/hooks/final_gate_stop.py`'s coordinator cause stands down claim, owned, feedback, self,
+  doorbell and merge (and mail for a builder) instead of blocking; continue, release, commit-items and triage still
+  block. The `stood_down` kaizen event names its `reason` (`amber`, `rotation` or both). A negated, quoted, indented
+  or blockquoted footer, or an odd stamp, reads as not at the boundary. Graders: `tests/test_stop_hook_coordinator.py`;
+  review receipt `docs/development/reviews/2026-10-24-w0fae19b7-stop-hook-rotation-boundary-review.md`.
+
+### Fixed — code-span readers follow CommonMark's backslash parity, and the CHANGELOG strip pairs whole backtick runs (2026-10-24)
+
+`scripts/enforcement/_fences.py::blank_code_spans` skipped any backtick run after one backslash, so a span opened after escaped backslashes (`\\`a`) or after an escaped run longer than one (`\``a`) went unblanked for every reader of the shared span model (check_doc_links, check_doc_index, check_decisions_unique, check_convergence, docs_updater). An odd backslash run now escapes only the run's first backtick. `scripts/enforcement/check_doc_sync.py`'s CHANGELOG placeholder strip pairs whole equal backtick runs in a linear scan, so ``` ``TODO`` ``` is one quotation and a lone ``` `` ``` glues nothing. Graders in `tests/enforcement/test_fences.py` (parity, escaped runs, a markdown-it agreement fuzz over multi-line paragraphs) and `tests/test_enforcement_gate_fixes.py` (the strip's cases, a regex-oracle fuzz, a linearity ratio). (W-753040b8, D-1191)
+
+### Fixed — five hooks-index table rows no longer split their cells on a pipe inside a code span (2026-10-24)
+
+GFM splits a table cell on an unescaped `|` even inside a code span, so rows 21, 24, 98, 106 and 107 of `docs/workstation/hooks-index.md` rendered shifted cells; each such pipe is now `\|`. `tests/enforcement/test_check_hooks_index.py::_table_pipe_defects` guards it: a row whose unescaped-pipe count differs from its header's, or an unescaped pipe inside a code span, is reported, and lines inside a CommonMark-matched fence are not rows; `test_table_pipe_defects_probe_list` commits the escape variants the scoped review raised (W-7c3abd32).
+
+### Added — an operator-run script for the vps1 Postgres rotation's steps 1-3 (2026-10-24)
+
+- W-80983d8c, D-1176, D-1177. `scripts/sysadmin/vps1_pg_scoped_logins.py` runs
+  `docs/reference/vps1-postgres-admin-rotation-runbook.md` steps 1-3, gated by a typed `yes` per block. The
+  classifier refuses the fleet agent's commands on vps1, so the operator runs it. Passwords and verifiers travel only
+  on ssh stdin. A failed service move restores its files and restarts the service, and a re-run finishes a run that
+  stopped half-way. Step 4 is not in it. Graders: `tests/test_vps1_pg_scoped_logins.py`.
+
+### Fixed — review seats run pytest only on a staged tree, from a base copy (2026-10-24)
+
+- In a review of W-25f6b2a3, 3 of 4 finder seats skipped the `PIN_IMPORT`/`PYTEST_PINS` recipe and ran pytest on a copy of the pinned files with `--noconftest`. That copy holds no conftest, and the flag drops the hub's memory watchdog and alert mute. The probe catalogue's § Seat isolation now has a bullet saying a copy of the pins alone is not a test tree. A Python test runs only through pytest, on the recipe's whole archive, the lead's base copy or the clone, with no conftest or pytest config dropped or redirected; a test that cannot run that way is unverified. A brief whose seats run pytest or import pinned code takes its pin with `--base`, so each seat copies that whole commit in place of the archive steps, and the lead removes the copy once the pass is adjudicated. The rule is graded by `tests/test_seat_recipe_readable.py`. D-1187, mail 01M5MVZ2NF (W-f1191ec5).
+
+### Fixed — /fabrik-review-scoped says how to pin a surface that is already committed (2026-10-24)
+
+- Step 5's pin recipe takes `base_sha` from `git rev-parse HEAD` and pins the working tree, so a lead who committed first got a `change.diff` with only a header line. The fix rule existed only in the probe catalogue's § Seat isolation, which a docs-only brief need not load. Step 5 now quotes that catalogue clause whole, and adds two shapes the clause leaves out: a merge as the last commit counts as several, and a surface that is partly committed is pinned from the working tree with `--base`. It also says the brief's `base_sha` is the one the pin records. The rule is graded by `tests/test_review_scoped_queue_pass.py::test_a_committed_surface_is_pinned_from_its_commit_by_its_shape`. This answers feedback rows 1792829562, 1792779119 and 1792774372 (W-2a444037).
+
+### Added — subagent transcripts are archived to B2 before the pruner may delete them (2026-10-24)
+
+- `archive_transcripts.py` ships every `<slug>/<session-dir>/subagents/**/*.jsonl` (sidechains, workflow
+  sidechains, workflow journals) to `<slug>/<rel>.zst`, its rows in its own `manifest-subagents.jsonl`; a
+  sidechain that fails to archive is reported and kept while the night goes on. A new object is compressed and
+  tested beside its snapshot and renamed into place, so a failed compress never replaces the last good one.
+- `prune_transcripts.py` deletes a sidechain only when that manifest, its `.zst` and the bucket (now listed
+  `lsf -R --fast-list`) vouch for its current bytes, writes sha256 + object into its ledger row, and
+  `--restore agent-<id>` puts one back (D-1182, W-62d2ce7d). Tasks and shell snapshots stay a 3-day cliff.
+- The two unit-file graders red since the rotation mail's ExecStart now read the unit as shipped.
+
+### Fixed — a late re-bind no longer ends a rotation `partial:rebind`, inside the executor's timeout (2026-10-24)
+
+- `rotate_session.py` waits `REBIND_GRACE_S` (180 s, was 90) for the rotated agent's re-bind; the one late bind measured
+  took 98 s. Every wait a request runs is now a named constant and `REQUEST_WORST_S` (487 s) is derived from them, tmux
+  overruns included, and `execute` claims no new request after `CLAIM_CUTOFF_S` (50 s), so two requests that race past
+  the one-at-a-time check can no longer overrun the unit's 600 s TimeoutStartSec and lose a row. run_checks' git calls
+  are not counted yet (W-b728822f). D-1181 (W-b72231b8 slice 2).
+
+### Fixed — the watchdog packs say what "approved-write" means (2026-10-24)
+
+- `.windsurf/rules/core/60-watchdog.md` and `core/self-healing.md` called `drop_queue_items` and `rotate_locks` the "approved-write" lane without saying who approves it. fabrik-lib D-471 settles it: the operator approves the lane by setting its four offer conditions, and once offered, a call that passes `check_proposal` runs with no per-call approval and escalates afterwards (`agent.py` executes it inline, then escalates and arms the deadman). Both packs now say this. 60-watchdog adds D-471's stated cost: the row cap is per call, with no combined budget. self-healing's ladder checklist counts the step as a fully-autonomous layer. This was fabrik-lib mail 01M5AKSQQ3, request 5 (W-a624f951). infra's 46b0c7f63 had already rewritten the stale `scale_concurrency` and "never offered" text.
+
+### Fixed — the push ladder no longer drops already-pushed commits after a remote force-rewrite (2026-10-24)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md` § EXIT told a rejected clean-tree push to run `git pull --rebase=merges`, which "replays only YOUR unpushed commits". After a force-rewrite of the remote branch, that pull exits 0 having silently dropped the commits this clone already pushed. The ladder now runs `git fetch` and reads `git reflog show --format=%gs @{u}`. A `forced-update` above the newest `update by push` means stop and report; otherwise `git rebase --rebase-merges @{u}` then push. This is fabrik-lib's D-480 fix, adopted as D-1178 (W-a312d48c).
+- `/fabrik-execute-plan` step 7 now points at the § EXIT ladder instead of restating the old pull.
+- `tests/test_exit_push_ladder.py` runs each contract's own reflog command against throwaway repos and pins the new clauses. It was proven red on the old text.
+
+### Fixed — the drifted-box grader no longer reds on a checkout behind a fragment change or a clone with no origin/master (2026-10-24)
+
+- `tests/test_conftest_isolation.py::test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box` asserted "2 failed" outside a merge check. Its vision sibling returns early when the checkout's diff against `origin/master` touches `commands/_fragments/`, and skips with no `origin/master`. At master's 201a928a7 the grader read "1 failed, 1 passed" (W-bda62f32); in a clone with its origin removed, "1 failed, 1 skipped" (W-f661fabf). The grader now runs the same diff before and after the run and expects the matching outcome, skipping when the two differ. It matches the whole summary line, drops `PY_COLORS`/`FORCE_COLOR` from the inner env, and asserts the merge-check skip reason never appears outside a merge check before anything else. A conftest mutated to always skip is caught.
+
+### Fixed — the decision-ledger checker pairs backtick runs by length, as markdown does (2026-10-24)
+
+`scripts/enforcement/check_decisions_unique.py` read a decision row's code spans with a one-backtick pattern, so a row quoting a triple-backtick fence (D-1159) or a double-backtick span read as the wrong number of cells and was reported malformed. It now takes its spans from `blank_code_spans` in `scripts/enforcement/_fences.py`, the span reader check_doc_links and check_convergence already use, and the ledger shape test counts pipes from the same mask (W-27db8c35, D-1180). No live row changes: 0 of 2896 rows across 51 ledgers.
+
+### Fixed — check_doc_index no longer lets a code-span example hide a missing doc or index an unlisted one (2026-10-24)
+
+- `scripts/enforcement/check_doc_index.py` skips fenced and span-held INDEX.md links as `check_doc_links.py` does: both now blank fenced blocks and inline code spans first, through the new `_fences.blank_code_examples`. Read raw, a quote inside a code span could swallow a real link to a missing doc, and a span-held escaped link could index a doc that has no row (D-1183, superseding D-1179). Line endings become LF before the blanking, so a CR-only INDEX.md cannot pair two spans across a heading.
+- `scripts/enforcement/_fences.py` holds the one copy of that masking and of the fence toggle (`fence_toggle`), moved from `check_doc_links.py`; both checks fall back to the raw text where `_fences.py` is missing or lags the sync.
+- Tests: three new tests in `tests/enforcement/test_check_doc_index.py` fail on the old code, and the agreement and line-ending tests, the regression guards and the single-copy pins in `tests/enforcement/test_fences.py` were proven red by mutants. Run end to end over the 40 `/opt` repositories that carry an INDEX.md, no finding changes.
+
+### Fixed — every coordinator's contract names the live rotation verb, and the merge recipe no longer trips the worktree prompt (2026-10-23)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md` § Session history no longer tell a coordinator to `/clear` a builder by hand over `tmux send-keys` until infra's rotate-session verb lands. That verb landed under D-1143. Both copies now name `/opt/fabrik/scripts/sysadmin/agents_up.sh rotate-session <name>` (with `--compact "<focus>"`), run from the repo's main checkout, and list the six checks `rotate_session.py` runs. They also make two duties the coordinator's, never the operator's (D-1034, D-1172): fixing and re-running a refused rotation, or one whose `rotations.jsonl` outcome is anything but `ok`, and answering a builder's permission prompt. W-c553e5e0 answers the operator's "does all coordinators know how to clear now?".
+- § EXIT's ad-hoc merge recipe no longer builds `MAIN=$(git worktree list --porcelain | sed …)` for `git -C "$MAIN"`. That shape trips Claude Code's worktree-isolation prompt (D-1173). The recipe now runs `git worktree list` as its own call and uses the literal path (W-031aac71).
+- `tests/test_session_rotation_rule.py` pins the new clauses and refuses the stale ones. It was proven red on the old text.
+
+### Added — the rotation verb re-points the session registry itself (2026-10-23)
+
+- `rotate_session.py execute` now re-points `<repo>/.fabrik/session-agents.json` from the rotated agent's old session
+  id to the new one as soon as the new session is seen, before the resume prompt, so the coordinator no longer edits it
+  by hand. It writes only the checkout whose `.git` the old session's binding names, refuses every shape agents_up.sh
+  refuses, never adds an entry, keeps the mode, and never overwrites a hand edit made since its read. Each row records
+  `registry`, `resume_sent_at` and, when bound, `rebind_s`. The identity-store reader now skips a damaged line instead
+  of raising after the /clear (W-b72231b8 slice 1, D-1175; the late-bind grace is slice 2).
+
+### Fixed — the resume prompt after a /clear rotation no longer leads a builder into a permission prompt (2026-10-23)
+
+- `rotate_session.py::resume_prompt` now tells the rotated builder to read its notes, its seed and any output the
+  harness saved to a file with the Read tool, to run each command as a separate Bash call (the self-watch arm stays in
+  the background), and never to give sed, awk or head a shell variable. One Bash call of 40-47 KB, paged with
+  `sed -n '…' $f`, stopped Claude Code's worktree-isolation check for a person (intel waited 10 min). The path, which
+  resolves through a symlink into `~/.claude/projects`, was measured not to be the trigger (W-1783a9fe, D-1173).
+  Test: `tests/test_rotate_session.py::test_w1783a9fe_resume_prompt_steers_off_the_isolation_prompt`.
+
+### Changed — command-improve: handles are copied from the latest --queue output and grepped back as the whole first field (2026-10-23)
+
+- `commands/_sources/fabrik-command-improve.md` PHASE 1, beside the `ts` definition: the lead copies each handle from the latest `--queue` output (re-run first on a resumed run), never retyped or taken from a seat's report, maps a seat's row back to its line by verdict text, and before `--reject`, the trailer or `--mark-answered` takes a handle greps that output for it as a line's whole first field (`command grep -P '^\Q<ts>\E\t'`) — a truncated or wrong-line handle no longer passes. Answers `/fabrik-command-improve` feedback rows 1792765907, 1792734774, 1792707211 (recurrence of the held mark-handles-from-take-output subject); reviewed by `/fabrik-review-scoped` (6→3→3 own-fix, scope-growth stop, remainder round 0).
+
+### Fixed — check_convergence refuses when either code-span model refuses; `_fences` link tails and `<!--` read as CommonMark does (2026-10-23)
+
+- `scripts/enforcement/check_convergence.py` reads its closing-row, Board-row, ticket-Status and design-receipt rules under both its single-line span model and the shared `_fences` model, and refuses when either does; the D-497 grandfather needs both; a receipt whose two readings disagree on its route is graded on both (D-1131, D-1170). A wrapped code span holding `<!--` no longer hides a loud closing row or Board row.
+- `scripts/enforcement/_fences.py`: a link's `](…)` tail shields its backticks only when it parses as a link destination with an optional title, escapes included; a line-start `<!--` ends a paragraph, so a span no longer wraps across it.
+- check_rule_grounding and check_spec_convergence are unchanged, their CONVERGED readers pinned by `tests/test_status_readers_code_spans.py` (W-f365c610).
+
+### Changed — design-gate panel: step 2 states the checks a panel revision owes before its reviewing round (2026-10-23)
+
+- `commands/_fragments/design-gate-panel.md` step 2 (rendered into `/fabrik-spec-review`, `/fabrik-plan-review`, `/fabrik-flows-review`, `/fabrik-ui-design-review`): before the round that reviews the revision is pinned, each change sits beside the ACCEPTED concern it answers (quoted whole) and its counter-case in the artifact or its review receipt; each added or changed sentence cites a durable source (code line, decision row, an artifact section the revision neither adds nor changes, or that concern entry — never the seat's report itself) and is written whole from it, not spliced; each new name is traced through every reader, process boundaries included. Step 3's approval row carries each change with its concern and counter-case. Answers `/fabrik-spec-review` feedback rows 1792767893, 1792279737, 1792592328, 1792609741, 1792558161; reviewed by `/fabrik-review-scoped` (4→6→6 own-fix, scope-growth stop, remainder round 0; residue W-15970d2a).
+
+### Changed — review probe catalogue: a fix that narrows, widens or splits a rule's subject lists the old subject's cases before drafting (2026-10-23)
+
+- The catalogue's Sweep bullet (§ Prose and docs fixes, which `/fabrik-review-scoped` step 3 sends the lead to before a rule sentence is drafted) holds such a fix to `/fabrik-review`'s "does the new form still hold EVERY shape the form it replaces held", quoted with its "the shapes enumerated from the OLD form before the fix is drafted, never from the new one": each case no new clause covers, two now cover or only the new wording reaches is listed with where it lands or, with its reason, that it is dropped on purpose, in the fix's Pass Ledger `method:` cell (`/fabrik-review`) or the report (`/fabrik-review-scoped`) (row 1792730405, the second sighting of held fix-narrowed-input-strands-defensive-guards).
+- Twelve other queued `/fabrik-review-scoped` rows were rejected with reasons after an Opus audit. Row 1792630929 (whether a remainder round fixes or records an own-fix defect that loosens a guard) stays open: the catalogue and term-coverage.md disagree, and its Opus + Fable panel is half done (the Fable seat hit its quota limit).
+
+### Fixed — the drifted-box grader anchors on the product's own drift line, not a sibling's assertion prose (2026-10-23)
+
+- `tests/test_conftest_isolation.py::test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box` pinned the second sibling's assertion message, so 662ed84dd's rewording turned it red on clean master while the merge-check isolation it grades was sound. The inner run now prints one-line tracebacks (`--tb=line`) and the grader asserts, per sibling, an `AssertionError` line carrying the product's own `MISSING in <home>` text (`assemble_commands` drift check) — never the sibling's prose, never a bare `FAILED <id>` that an import or permission error would also satisfy (W-45433793, a0c507772; entry added by W-d3d1d924).
+
+### Changed — The mail and work prompt hooks print an unchanged block as one pointer line; the mail digest shows 3 rows under the inbox total (2026-10-23)
+
+- `.claude/hooks/mail_notify.py` and `scripts/thread_anchor.py line --hook` keep a per-session sha256 of the last full block they printed, stored after the print. On UserPromptSubmit, a byte-identical block whose last full print is under 30 minutes old prints as ONE pointer line naming the command that shows it; SessionStart (every source) always prints in full. Measured before the change, every printed copy stays in the session's context: in one infra-2 session the mail digest repeated byte-identically on 76 of 113 prompts, and one coordinator session took 748,661 chars of it over 351 prompts. A live run of the changed hook printed 768 chars full and 121 chars unchanged (W-25f6b2a3 slice 2).
+- The mail digest shows the 3 oldest unread rows (was 10). Its header now counts the inbox's message files — dot-names skipped, as `mail.py list` skips them — where it used to count the rows shown. `thread_anchor.py` never deduplicates a block that carries a rescue warning. New env var `MAIL_NOTIFY_STATE_DIR` (default `~/.claude/state/mail-notify`); the test suite pins it and `THREAD_ANCHOR_DIR` to temp dirs.
+
+### Changed — /fabrik-task: probes run under an interpreter shown to import them; MIRROR searches other checkouts' tests; phase 4 says how a review-touched path is amended (2026-10-23)
+
+- MEASURE runs every probe under an interpreter shown to import its libraries and each extra it enables, since a system `python3` may lack one (rows 1792766698, 1792734746: the system markdown_it lacked linkify; 14 of the 15 project venvs that carry markdown_it lack linkify too).
+- MIRROR's search takes every other `/opt` main checkout's tests and CI files citing a changed path, beside the vendored copies found by name (row 1792731898).
+- Phase 4: each path a review fix touches that APPROACH/MIRROR does not name has phase 2's plan-lock check run on it before the fix edits it, and gets *(v2)* `step --phase 4 --design-amend <path>` once the nested review has closed (row 1792765470). Phase 2's remedy names the current phase, because `step` sets the record's phase to the one it names: a `--phase 2` amend at phase 4 or 5 moved the run back.
+- `tests/test_fabrik_task_source.py` SIZE_CAP 26506 -> 26951 (D-1162); three graders in `tests/test_fabrik_task_queue_pass.py`. Twelve other queued rows were rejected with reasons; two needing `command_run.py` code went to infra (mail 01M5MPTMJH), and so did `task_lane.py:741`'s refusal, which still prints the `--phase 2` remedy (mail 01M5MR4C8W).
+
+### Changed — /fabrik-spec: a design that changes what existing readers read censuses them per reader kind before Phase 3 (2026-10-23)
+
+- The 1a local-claims bullet requires an executed reader census before Phase 3: a symbol, value or build script by call sites (callers followed transitively) plus name, basename and path greps; a table by its SQL statements, views, ORM models and migrations under bare and schema-qualified names; a matcher's corpus under the old pattern and the new; and a find-then-scan across repos for any subject another repo can read. Extends `/fabrik-plan-after-chat` Phase 1's reader census; W-e5769015.
+
+### Fixed — The context sensor stops reading a 1M session as 200k, so no hub session is told to rotate at birth (2026-10-23)
+
+- `scripts/sysadmin/transcript_size_check.py::_window` mapped every statusline model id without `[1m]` to a 200k window; Opus 5.5 and Fable 5.1 run 1M under the bare id on this box, so a hub session born at ~120k read "ctx 63%" and got `ROTATE-DUE` on its second prompt (and `rotate_session.py due` offered the same rotation). The window is now `ROTATE_CONTEXT_WINDOW`, else 1,000,000; the statusline cache is not read. W-25f6b2a3 slice 1, D-1165; `docs/CONFIGURATION.md`, `.env.example` and `docs/workstation/hooks-index.md` restate the mapping.
+
+### Changed — /fabrik-plan-after-chat: the ~300-line shape trigger excludes only the pasted rubric output (2026-10-23)
+
+- The monolith's ~300-line trigger counts the plan's own text, pasted code and diffs included; only the `review_rubric.py` output this command's Phase 4 pastes is not counted. Answers two feedback rows that asked it verbatim; W-0543de93.
+
+### Changed — Beat routing: a command's or rule's wording is kaizen's, its rendering and checks infra's (2026-10-23)
+
+- `CLAUDE.md` (the FEEDBACK IS RECIPROCAL beat list) and `commands/_fragments/close-feedback.md` (the Route-by-BEAT table every command renders) now match `.fabrik/beat-owners.json` (D-815, D-627): infra keeps the rendering, sync and checks of `commands/` and `.windsurf/rules/`; kaizen owns their wording.
+- `/fabrik-upstream`'s PROJECT-mode proposal mails the file's owner from that table instead of always infra; a synced file with no row, such as the project `CLAUDE.md`, goes to infra.
+- W-9be0b1c1.
+
+### Added — the coordinator can clear a builder's stuck input box before a rotation (2026-10-23)
+
+- `rotate_session.py request --stale-input discard --operator-ok "<words>"` (also via `agents_up.sh rotate-session`): text left unsent in a builder's input box blocked every rotation, and the coordinator may not type into a pane (W-ee19169d, the operator: "find a way to send clear command to your agents as coordinator"). The request records the box's text (its rows joined, whitespace collapsed). The unit clears it only while the box still reads exactly that text and the session is idle, with one fast double Escape (measured on a live Claude Code: it clears a non-empty box; C-u deletes only the current row). The Rewind menu a double Escape opens on an empty box is closed and refused. The text and the operator's words are logged on the row.
+- Check 5 now reads the whole input box, so a second line or a wrapped row is seen and a fresh box's dim placeholder counts as empty. The two new request fields are optional and written only for a discard, so an older unit still reads an ordinary request from the new verb (a discard request needs the new unit). Graded in `tests/test_rotate_session.py`.
+
+### Added — a worktree session can no longer sync or install into the venv it shares with the main checkout (2026-10-23)
+
+- `.claude/hooks/seat_guard.py` (fleet-synced PreToolUse Bash hook) now refuses, for every session, a uv or pip write whose target venv resolves to the one a linked worktree shares through its `.venv` symlink: `uv run|sync|add|remove`, `uv version --bump`, `uv venv --clear`, `uv pip install|sync|uninstall`, `pip`/`python -m pip install|uninstall`, an installer under `uv run --no-sync`, and a `-e` of a worktree path. `uv run --no-sync` and `.venv/bin/python` run on the shared venv as it is; a pin the merge owner approved passes with an inline `FABRIK_SHARED_VENV_WRITE=1`. The kill and git checks stay seat-only; their tokeniser now applies the shell's comment rule, keeps a spaced digit argument (`kill 0 > f`), unwraps by basename and parses `flock` whole. Closes trade-intelligence's report 01M3RYGETKD5HQZRBTDF3EK3EK (W-46d148b0, D-1167); pre-existing seat-check gaps the review found are W-5a828a2f.
+
+### Fixed — a pool worker is named by the agent its live window is bound to, not its worktree directory (2026-10-23)
+
+- `scripts/work.py::_workers` named every `.claude/worktrees/<dir>` tree after its directory, so infra's live window in `infra-uncapped` read as an empty worker `infra-uncapped` below the floor and the coordinator's Stop hook demanded triage every turn (W-84ad2ff1). A tree holding a live windowed `claude` is now keyed by that window's bound agent: `CLAUDE_AGENT` in its environ, else the whoami row with its pid AND pid_start. `_rekey` decides every tree's fate against the unchanged directory map, independent of /proc order: dropped (bound to the coordinator or the feedback owner, or a second window of an agent whose own tree is live), kept (unbound, ambiguous, or an unnamed window beside a named one), or renamed. Any error falls back to the directory roster. A pause under a tree's directory name still covers it in the Stop hook, the floor, triage and `queue` (`_paused_workers`). Tests: `tests/test_work_roster_agent.py`, 22 cases, every clause's mutant killed by name. Reviewed by the full `/fabrik-review`.
+
+### Fixed — a rotation's typed prompts now submit (2026-10-23)
+
+- `scripts/sysadmin/rotate_session.py` sent `Enter` right behind each `send-keys -l` paste, and the paste swallowed it: every rotated builder (infra, kaizen, infra-3) sat with the resume prompt unsent in its input line, so none re-bound (W-b92aa5cf). Each text is now pasted, `C-m` goes as its own call once the INPUT LINE shows the text's start unchanged over two captures (a ticking status line or a placeholder cannot fool it), and the input line must then hold something other than that text; otherwise the row is `typed-unsent:<step>` and nothing is re-sent. The fake tmux in `tests/test_rotate_session.py` now swallows a C-m until the paste settled, as the real pane did; reviewed by `/fabrik-review-scoped`, 6 → 1 → 0.
+
+### Changed — /fabrik-review queue pass: the gate runs capped, and a brief path is checked before dispatch (2026-10-23)
+
+- `commands/_sources/fabrik-review.md` close order step 1: every `final_gate.py` run the command makes, the pre-pin runs included, goes under `/opt/fabrik/scripts/capped_run.sh --` in the background, read after it exits; an exit 137 or 124 is no gate result and is re-run with a larger `--mem` or `--timeout`; `systemctl --user show-environment` must exit 0 before the first gate run, since capped_run runs uncapped without a user manager. Two sessions were OOM-killed in the gate's semgrep leg mid-close.
+- The Leak check bullet: no seat is dispatched until `ls -d` on each brief file and pins dir the briefs name exits 0; a re-pin goes to a NEW dir, and an earlier pass's dir (or its `.base`) is never `--replace`d.
+- Answers feedback rows 1792672781.9340029, 1792734745.9997108 and 1792711351.4661329; 11 other rows rejected with reasons (W-1a8005ef).
+
+### Added — A grader for the exit-row examples the command corpus quotes (2026-10-23)
+
+- `tests/test_exit_row_examples.py` finds every `| Pass N |` example table in `commands/_sources` and `commands/_fragments`, using `check_convergence._PASS_ROW` (numbered rows; a blank line ends a table).
+- Each table is graded with the graders' own rules: `check_review_coverage._ledger_shapes` (no refusals, every row read) and `_confirmed_quiet`, `check_convergence.QUIET_PASS` and `_closing_row_fail`.
+- Each table must also show a confirming round whose prefix the gate refuses. A floor of three tables in the three teaching files keeps the test from passing vacuously (W-cf9ec0cf).
+
+### Added — rotation offers at the lift, a nightly MB-only mail, a private request directory (2026-10-23)
+
+- `scripts/sysadmin/rotate_session.py due [--mb-only] [--mail]` lists every live agent at or past 40% of its context window or `ROTATE_ADVISE_MB` (200 MB), with its action: the exact `agents_up.sh rotate-session` command for a tmux agent, the operator's `/clear` for a window with no pane. A session it cannot read, or one past the line with no agent name, is an `unread` row. It never writes a rotation request (W-f975fee0 slice 3).
+- `hibernate.py lift` prints those rows as offers (`--trigger lift`); a fault anywhere in the offer never fails the lift. The nightly `session-archive.service` runs `due --mb-only --mail` after the pruner: one `ack: no` mail per repo mailbox, the hub's addressed to its coordinator.
+- The rotation request directory is created 0700 by `request`, `execute` and `install_rotate_unit.sh`; a symlinked one refuses in all three, and one another uid owns refuses in `request` and `execute`. `fabrik-rotate.path` drops `MakeDirectory=`, which created nothing for a glob path. `transcript_size_check._threshold_mb` now treats `ROTATE_ADVISE_MB=inf` as unset instead of raising.
+- Reinstall after the merge (main checkout): `scripts/sysadmin/install_rotate_unit.sh` and `scripts/sysadmin/install_session_archive_timer.sh`. Graded in `tests/test_rotate_session.py` and `tests/test_hibernate.py`.
+
+### Fixed — a spoke-targeted watchdog is refused instead of shipped unable to alert (2026-10-23)
+
+A spoke (`target_vps` other than vps1) got a watchdog sidecar whose alert URL is vps1's `apprise` container, which a spoke cannot reach (no mesh port; the Traefik route is 2FA-gated), and no legal spec can point it elsewhere. `InfrastructureProvisioner._provision_watchdog` now records a non-fatal refusal for a spoke target on real and dry runs alike — the app stays up, its watchdog is withheld, `fabrik apply` exits 2 — naming the remedy (`watchdog.enabled: false`, or W-5dcafaef, which mesh-publishes apprise and adds a spoke login preflight); nothing only it needs is provisioned (no `<db>_wd_ro/_wd_rw` roles in the app's .env, no analytics failure), and `fabrik plan` names the refusal for a spec that declares a spoke `target_vps` (plan has no `--target-vps`). Supersedes D-904's spoke branch. `spoke-canary`'s apply is red until one of those. W-37dda1e1, D-1153.
+
+### Fixed — check_governance_tables reads tables with one GFM walk for both rules; the template's Stage table no longer swallows the FIRST paragraph (2026-10-23)
+`scripts/enforcement/check_governance_tables.py` (W-76c49aa8, D-1159; the follow-on D-1133 recorded): its two markdown walks kept two notions of "inside a table" and disagreed with GFM — a "``` info" line read as a fence closer, a header GFM rejects still read as a table by the span rule (three findings for one by the width rule), a `|…|` run glued under a list item or blockquote read as a table GFM renders as lazy text, a pipe-led run with no delimiter width-checked, a backtick fence with a backtick in its info string silencing the rest of the file. `_tables` is the single walk now (fences by character and run length, a closer with only whitespace after it, the lazy region after a list item or blockquote ended by a blank line, heading, thematic break or fence, a table confirmed only by an equal-width delimiter) and `_overflowing_rows`/`_piped_spans` consume it with their shapes unchanged; its docstring records, each in the sentence of its fail direction and with its live count (0 over the 2 contracts + 57 packs and 0 over 50 fleet repos' 2,900 files), the shapes it still cannot read — a blockquote table, edge-less rows and a leading-pipe-only header, a list-nested table at indent 4, the prose line glued under a table row, a table inside an HTML block, D-1133's unbalanced-backtick span. On the live 59 files the walk opens 228 tables exactly where markdown_it does and both rules still report 0. The liveness canary's bad tree gains a rule-pack row with a table-escaped pipe (its clean twin none) so the audit exercises both rules, and NEUTERS gains the entry that deletes the walk's delimiter confirmation. Seven graders, each red first, plus 28 markdown_it oracle cases; the module's 19 existing tests unchanged. `templates/governance/CLAUDE.md` (W-155cf5a5, kaizen's go under its parked lock): one blank line under § Orient step 0's Stage table — GFM read the "⚠️ FIRST, ahead of every test below" paragraph as the table's tenth row in the template and its 49 fleet copies; `tests/test_governance_template_split.py` grades both contracts' Stage tables at nine rows through the same oracle.
+
+### Changed — /fabrik-review-scoped queue pass: where the lead runs a command it keeps (2026-10-23)
+
+- `commands/_fragments/review-probe-catalogue.md`, the first bullet of § Before the first pin, kept any command that writes a live store, sends, commits, deploys or reaches a host with the lead, but never said where the lead runs it.
+- The lead now runs such a command on a scratch target (a throwaway database, repo, host or account), every such command and SQL block of a runbook included. When no scratch target exists, the brief names it as not run, with why and the owner who can run it. Only a read that changes nothing (no write, lock, quota spend or triggered job) runs against its real host.
+- Graded in `tests/test_review_scoped_queue_pass.py` and `tests/test_review_queue_pass.py`. Answers 1 row; 1 was rejected as already stated, 1 stays open for the Opus + Fable panel (W-e13dee33).
+
+### Fixed — The documentation pack's blank-line rule names tables (2026-10-23)
+
+- `.windsurf/rules/core/40-documentation.md`, which is fleet-synced, asked for blank lines around headings, lists and code blocks, but not tables. Under CommonMark with tables, a paragraph line flush against a table's last row renders as one more row.
+- The pack bullet now names tables. `docs/reference/MD/markdown-cheatsheet.md` names them too, and `docs/reference/MD/ai-prompt-templates.md` § Tables gains markdownlint's MD058 (`blanks-around-tables`).
+- `tests/test_documentation_pack_blank_lines.py` runs the rendering claim with markdown-it on both sides (a paragraph line is absorbed; a heading or list item ends the table) and pins the three texts (W-696d4d7e).
+
+### Fixed — rotate-session: a worktree builder's hard-linked transcript and a lagging registry no longer block every rotation (2026-10-23)
+
+- W-477d751a (P0). `rotate_session.py`'s `_transcript` counted transcript NAMES; a worktree builder's transcript sits under its worktree project and the main checkout's as hard-linked names of one file, so every builder's `rotate-session` aborted "2 transcripts". It now counts files by inode, and a name it cannot stat fails closed.
+- Check 0 no longer requires the session registry's `status` to read idle: measured 2026-10-23, infra-2 ended 13 turns and infra-3 8 while their records read "busy" from the 06:00 resume. Check 0 is now the transcript unwritten for 30 s; the registry stays a veto only when it changed after the last turn end, and only for 300 s after that change.
+- Check 1 skips the metadata rows a resume writes after a turn end (`pr-link`, `frame-link`, `system/informational`), which refused idle resumed sessions as "mid-turn", and refuses a turn end whose time it cannot read.
+- `tests/test_hub_write_root.py` allowlists `rotate_session.py` (it only types `/opt/fabrik` paths into a pane; its writes are under `~/.claude/state`), turning master's red `test_every_hub_root_write_hit_is_converted_or_allowlisted` green.
+- Graded in `tests/test_rotate_session.py` (five new tests; ten mutants killed, one equivalent guard removed).
+
+### Added — § 1a's heavy-surface list is the 15th UNIVERSAL anchor, `heavy-surface-list` (2026-10-23)
+Hub `CLAUDE.md` § UNIVERSAL governance markers (W-4bb2166c, D-1152; fabrik-lib's 01M2TT9K70EH8MJ4G5Q2BYTJVA, their D-274 "worth doing; not done here"): the classes § Completion Contract 1a routes to the full `/fabrik-review` had no anchor, so when "a governance-sync path" joined the list (D-289) nothing could tell a sync-excluded copy — it went by mail. The new bullet anchors the span `gate/hook/enforcement, a governance-sync path, auth/schema/migrations/concurrency, >5 files, or operator-named work` — classes 2 to 6, starting after class 1's `(D-315)` parenthetical (the one place fabrik-lib legitimately expands the list) and stopping before the `lane row 1b` pointer — which § 1a already carries verbatim in the hub and the template; neither § 1a sentence changed. The index's recipe gains the template step and its "Never reword an anchor in place" paragraph gains the retire-and-replace rule the bullet relies on. `templates/governance/CLAUDE.md`'s condensed anchor line re-counts (fourteen → fifteen) and carries the span as its last entry on one physical line. Three graders in `tests/test_governance_template_split.py`, each red on the unbuilt tree: the hub declares the label with the exact span and both § 1a paragraphs carry it once outside the index; the template's count word equals the hub's bullet count, its list keeps its shape and its line carries the span; fabrik-lib's real parser (`check_governance_drift.py::declared_markers`) returns the pair (skipped by name where fabrik-lib is not checked out); the two existing index regexes accept a digit in a label, fabrik-lib's class. The first thing the anchor caught was a FORMAT divergence: fabrik-lib's § 1a bolded `**a governance-sync path**`, which its live-hub test `test_every_declared_anchor_is_present_in_our_live_rules` would have failed on; request 01M5KFNM64EHEPES92DE0DPA4B named the test and the two-character fix before the merge request, and fabrik-lib's working copy carried the span unbolded three minutes later.
+
+### Fixed — A DECISION block that misses both the session lock and the store lock at the Stop harvest is never lost (2026-10-23)
+`scripts/thread_anchor.py` (W-e64aa44a, the 2026-09-24 plan-2 review's W4-O3): the Stop-side harvest stored an accepted DECISION block in the session slot under the per-session flock (≤ 1 s, fail-open) and in the work store under the store lock (≤ 2 s, fail-open), and the prompt-time rescue read only slots — with both locks busy at one Stop the operator's question was in neither place, and the two warnings died in the hook subprocess's captured stderr (replayed on a throwaway store: no slot, no item, nothing rescued; the hub's own store shows 49 waits over 2 s in 2795 readings). Now a skipped slot write lands the block FIRST — before the store wait, so even the Stop hook's 5 s kill leaves it on disk — in a lock-free file beside the slot, `~/.claude/state/threads/<session>.pending-<digest16>.json` (the slot's `decision` shape plus `session`); the store taking the block unlinks it at once, and otherwise the next prompt's rescue reads pending files by their own glob (outside the slot scan's 50-file cap and mtime filter), creates the awaiting item with the harvesting session as creator, unlinks them once every entry is in the store, keeps them while the store is busy, and sweeps unread any file older than 7 days (mtime or `ts`), without a session, or whose name does not carry its message digest — before the store check, so a store-less repo's leftovers age out. `_save` is now a wrapper over `_write_atomic`; `_store_harvest` returns the item id. Graders B1-B12 in `tests/test_thread_anchor.py` (22 pending cases; 6 of the original 8 red on base; 16 mutants killed by name on a scratch copy, two equivalent ones recorded); the review's three rounds also made a failed slot save spool the block, scoped the answer-time drop to the files the rescue collected, and bounded the pending scan (stat first, transient read kept, oversize skipped, stale swept first); the "pending file" bullet in `docs/reference/work-tracking.md`. D-1154.
+
+### Changed — /fabrik-review-scoped queue pass: a seat's mutant run takes the mutant bullet's test set (2026-10-23)
+
+- `commands/_fragments/review-probe-catalogue.md` § Seat isolation, which every test-running seat applies whole, told seats to run tests "by exact node id". A seat that re-ran a mutant by one node id, or by a `-k` carried from an earlier brief, missed the other tests pinning the same text.
+- The seat line now hands a mutant run, or a re-run of one, to the `One mutant per clause` bullet's test set and selection rule, by pointing at that bullet rather than restating it. That carries the environment-bound deselection and all six selections.
+- Graded in `tests/test_review_scoped_queue_pass.py` (the whole bullet pinned with `==`, cut on raw lines inside § Seat isolation) and `tests/test_review_queue_pass.py`. Answers 2 rows; 16 were rejected with reasons, 1 is left open (W-a7d2f61f).
+
+### Changed — Lane row 1 of the fleet template says what "a governance-sync path" is in a project (2026-10-23)
+`templates/governance/CLAUDE.md` lane row 1 (W-955acf1f, D-1149; fabrik-lib's 01M2TT9K70EH8MJ4G5Q2BYTJVA): the row grounded its test in the hub's regex and named nothing of the project's own. It now says that `start` runs the hub's `governance-sync` filter over the declared paths wherever `.fabrik/synced.lock` exists (`command_run.py::_sync_verdict`); that a hit the lock lists (`.windsurf/rules/`, `scripts/enforcement/`, `.claude/hooks/`) is a RECEIVED copy and so is every lock path the filter misses (e.g. `CLAUDE.md`; `libs/health_probe`, from the manifest's `VENDORED_DIRS`) except the ledgers it marks `SEEDED_NOT_ENFORCED` (a project's `docs/DECISIONS.md` is its own; `PORTS.md` stays the hub registry's read-only copy, D-380) — outcome (i), never this lane; that a hit the lock does not list is a hub-only path or an orphan of a retired sync path and `start` still routes it to the lane with its full review (the orphan the census found in 38 of 49 projects is W-a64a14d9); and that a path other repos receive FROM this one declares `heavy=yes` (row 1b), as fabrik-lib does for `health-probe/`. One same-line cell; `test_the_templates_row_1_binds_its_recipient_clause_to_the_gates_own_code` pins the sixteen anchors and executes the claims against `command_run.py` (the hub filter pinned to the checkout by `FABRIK_HUB_ROOT`) and the manifest. Receipt: `docs/development/reviews/2026-10-23-w-955acf1f-lane-row-1-recipient-review.md`.
+
+### Added — `agents_up.sh rotate-session`: a session rotation typed by a user unit, never by an agent (2026-10-23)
+
+- The coordinator's verb (`scripts/sysadmin/rotate_session.py request`) checks that the agent's pane is idle at an item boundary (registry status, transcript turn end, no run record, no seat in flight, worktree clean and pushed, empty input) and writes one data-only request; the new user units `fabrik-rotate.path`/`.service` (`install_rotate_unit.sh`) re-run every check, type `/clear` (or `/compact <focus>`) and one resume prompt, verify the new session and record every outcome in `~/.claude/state/rotations.jsonl`. The auto-mode classifier refuses an agent's own `tmux send-keys` into a pane, which is why a unit types (W-f975fee0 slice 2, D-1135).
+
+### Fixed — file-worker scaffold: the live-worker check allows only the sealed smoke line it wrote (2026-10-23)
+
+`_scaffold_file_worker`'s refusal of a Makefile `docker run` that could reach a real queue matched `"docker run"` and the seal as substrings, so `docker  run`, `docker container run`, or a seal in a `#` comment or a later command all passed. `_live_docker_runs` is now an allow-list: any line whose raw text holds `docker [container] run` — however spaced, quoted, backticked, behind `sh -c`, a comment or a separator — must be exactly the sealed smoke line the scaffold wrote, or the scaffold fails; a sealed run spelled any other way is template drift and is refused too. Backslash continuations are joined both ways make can join them (nothing inserted, as a recipe line reaches the shell; one space, as make joins other lines) and either reading refuses. Not covered, as before: docker reached without that text (`$(DOCKER) run`, options before `run`, `docker compose run`, `create`+`start`, a `docker` or `run` word quoted whole or in part or escaped, such as `"docker"` or `d''ocker`) — W-b6f4b941. W-1cb0d89f.
+
+### Fixed — Session-history bullet: the ROTATE-DUE and COMPACT-DUE lines are described as shipped (2026-10-23)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md`, the Session history (D-736) bullet, after W-f975fee0 slice 1 (D-1139) shipped the context sensor:
+  - the 40% rotation trigger names the `transcript_size_check.py` hook's `ROTATE-DUE` line, no longer "once W-f975fee0 lands";
+  - the 85% mid-item `/compact` names the hook's `COMPACT-DUE` line;
+  - the "whatever its own 'run … now' says" caveat is gone, because the `ROTATE:` line no longer says "now";
+  - `agents_up.sh rotate-session` waits on W-f975fee0 slice 2 (D-1135).
+- `tests/test_session_rotation_rule.py` pins the new phrases and fails on any of the three stale ones. Asked by infra in mail 01M5JZ2TG4.
+
+### Fixed — A missing synced hook script warns on every event instead of blocking every prompt (2026-10-23)
+The fleet-synced `.claude/settings.json` ran each hook as a bare `python3 "${CLAUDE_PROJECT_DIR}/<script>"`, so a checkout without its gitignored synced copies (a linked worktree made by a bare `git worktree add`, or one whose `.worktreeinclude` copy did not fire — W-ed75e99d's two T16 probes) hit Python's `can't open file` exit 2, Claude Code's BLOCKING code: every prompt died with "UserPromptSubmit operation blocked by hook" before the agent could be told the remedy. Every bare line (11 of 13; `agent_status.py` and `seat_guard.py` were already guarded) now carries `[ -r "$f" ] || { echo "HOOK MISSING: $f — …copy the set from the main checkout, or have the hub re-run its enforcement sync…"; exit 0; }` — on stdout at exit 0 for `UserPromptSubmit`/`SessionStart`, where Claude sees it as context, and on stderr at the non-blocking exit 1 for `Stop`/`PreToolUse`, where it renders a transcript `hook error` notice (exit-0 stdout reaches nobody there) — so a damaged checkout runs without that hook and says so on every event, with a present hook's own exit code untouched (a Stop or PreToolUse block still blocks). A present but unreadable script counts as missing (`[ -r`, not `[ -f`). The remedy names no `.py`, so `check_hooks_index.py` owes no new row. Grader `tests/test_settings_hooks_missing_guard.py` runs all 13 commands against a dir holding only the settings file (red on base: 11 × rc 2), against stub hooks that exit 2 (never masked), and against a mode-000 script; `docs/reference/multi-agent-operating-model.md`'s worktree bullet names the notice. D-1148.
+
+### Changed — /fabrik-plan-review queue pass: the input grid, closed-token fields, pinned-code archives, plain seat commands, all-or-nothing fix scripts (2026-10-23)
+
+- `commands/_sources/fabrik-plan-review.md`:
+  - **Input grid.** The round-1 brief gives the seats the input classes the run enumerated as their grid, each row carrying the output from before the change (`none — new` for a path the plan adds).
+  - **Closed tokens.** A field that a hook, script or grader reads is a closed token. A prose grader checks presence only.
+  - **Pinned-code archive.** A seat that imports or runs code the plan cites builds an archive of the base SHA with the pinned files laid over it, the `PIN_IMPORT` recipe.
+  - **Script mode.** A step that runs a script names its mode, grounded against the parser.
+- `commands/_fragments/design-critique.md`: a critique seat runs one plain command per Bash call. It never uses `cd`, `&&`, a pipe or a `$VAR`.
+- `commands/_fragments/term-edit.md`: a scripted fix states how many times each old string occurs, and writes nothing unless every one matches.
+- Graded in `tests/test_plan_review_queue_pass.py`. Review receipt: `docs/development/reviews/2026-10-23-wcce27aaf-plan-review-queue-review.md`. Answers 15 feedback rows (W-cce27aaf).
+
+### Changed — /fabrik-execute-plan queue pass: the phase receipt, a coder's database fence, a cwd-dependent check (2026-10-23)
+
+- `commands/_sources/fabrik-execute-plan.md` gets three changes, all graded in `tests/test_execute_plan_queue_pass.py`:
+  - **Phase receipt.** Item 3b says a closed `/fabrik-review-scoped` run record is never the receipt `step` reads, since `step` reads only a file under `docs/development/reviews/`. Item 3, not `step`, makes a phase's review the full `/fabrik-review` without `Profile: small`.
+  - **Database fence.** The coder briefing template treats a deleted `.env` as no fence. It runs the tests with each database variable the suite reads set to an isolated test database or an unreachable `postgresql://fence.invalid/fence_test` URL, and reports database tests behind that URL as not run, never as passing.
+  - **Working directory.** The phase gate runs a check that needs a working directory other than the repo root as its own call, in a subshell.
+- The other 20 queue rows were rejected with reasons (W-2923e7c6).
+### Added — the context sensor: ROTATE-DUE and COMPACT-DUE lines at the item boundary (2026-10-23)
+
+- `scripts/sysadmin/transcript_size_check.py` (the user-level UserPromptSubmit hook) gains a second, independent check: the last main-chain usage row's context (input + cache_creation + cache_read, the status line's figure) against the session's window (`ROTATE_CONTEXT_WINDOW`, else the statusline cache's model id, else 1M) prints `ROTATE-DUE at your next item boundary … message your coordinator `rotate <agent>`` from 40% and `COMPACT-DUE mid-item … `compact <agent> <focus>`` from 85%, once per step and once per drop (a compaction re-arms it). The size line now names the item boundary and the coordinator instead of "run /clear now" (W-f975fee0 slice 1, D-1119, D-1123).
+### Changed — The shared-tree distribution sentence addresses all three of its readers; two synced checks stop telling a project or a worktree to run the sync script (2026-10-23)
+`CLAUDE.md:233` and `templates/governance/CLAUDE.md:179` (W-85e4e5e4, D-1142): the plumbing warning's close "distribute with `scripts/sync_enforcement_to_projects.py --force` yourself" was right only for a hub session in the MAIN checkout; the same sentence is read in every hub worktree (where running the script ships a mix neither tree holds, § Sync-consciousness) and in 49 synced project copies (none has the script). It now says, in ONE byte-identical text, that distributing is the hub MAIN checkout's job alone, that a hub worktree's change ships when the hub merges it, and that a project never runs the script. The template's Fabrik-synced HARD STOPS row (`:307`) drops "+ re-sync"; `scripts/enforcement/check_synced_unmodified.py`'s drift message (synced to every project) names the hub as the distributor instead of "+ re-sync"; `scripts/enforcement/check_sync_trigger_coverage.py`'s clean-path remedy names one route per PROVEN inert state — a worktree's change ships when the hub merges it; a missing or unreadable wrapper is restored from the tracked file the verdict names (`_inert_is_pwd_guarded`; the review's B-1: one line for both states told a MAIN-checkout session with a broken hook to "commit from the main checkout", and its closing pass caught the first remedy pointing at `scripts/install_post_commit_hook.sh`, which only rewrites the `.git/hooks` shims that exec the wrapper) — and never offers `--force`. Graders: `test_the_distribution_sentence_is_one_literal_text_in_both_contracts` (a literal pin in both contracts plus whole-file negatives on the retired addresses), whole-line assertions on both check messages, every spelling of re-sync refused, and `test_a_missing_wrapper_names_the_reinstall_not_the_worktree_route`. The item's second claim — the lane table's grounding pointer at template `:68` is an absolute hub path — is the ruled convention (`test_every_relative_doc_cite_in_the_template_is_a_file_projects_receive`) and stays. Receipt: `docs/development/reviews/2026-10-23-w-85e4e5e4-distribution-sentence-review.md`.
+
+### Fixed — `command_run.py round` refuses the two contradictions it can see: confirmed defects with every class clean, and a round typed while stamped seats are still in flight (2026-10-23)
+`round` (W-93a9d22a asks 1 and 3, kaizen's /fabrik-review queue pass; intel row 1792642621, infra row 1792629286): (a) `--confirmed <n>` with n > 0 while every class the ledger knows reads clean after this round's sweep is REFUSED (rc 2, nothing recorded) — a confirmed defect lives in a class, so the remedy is `--classes-new <class>` or leaving it out of `--classes-swept`; a ledger with no class at all (per-unit and classless loops) is untouched; `--classes-swept` is documented as "swept AND found clean". (b) A round whose dispatch stamp is live for this round while a background Agent launched or resumed ≤25 min ago has no hand-back notification in the session transcript is REFUSED the same way — the reader is a byte-identical copy of the Stop hook's `_seats_in_flight` (W-4c7edc74), bound by a parity test, since the hook imports nothing from the tool by design. `docs/reference/command-run-protocol.md` round row; `tests/test_command_run.py` (+8 tests incl. a parity matrix against the hook, 1 re-pointed).
+
+### Fixed — The drifted-box grader anchors each live-box sibling's red on the product's own drift line (2026-10-23)
+`tests/test_conftest_isolation.py::test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box` (W-45433793, merged as c6fb9728c; this row is W-d3d1d924): the grader pinned a sibling's assertion prose, which 662ed84dd reworded, so it went red on clean master while the merge-check isolation was sound. It now asserts, per sibling, a `--tb=line` traceback line carrying the product's `MISSING in <home>` text (`assemble_commands.agent_drift` / `check`) — not a sibling's prose and not a bare `FAILED <id>`, which an import or permission error would satisfy (both mutants dead). Scoped review 3 seats, 2→0.
+
+### Fixed — The gate's exit-4 refusal row names the gate's own TEST_DATABASE_URL remedy (2026-10-22)
+`scripts/final_gate.py`'s pytest leg (W-f46bca45, transdoc 01M171R8): when a suite REFUSES to run without `TEST_DATABASE_URL` (pytest exit 4) and the key resolved to nothing, the `pytest (SUITE REFUSED — usage error)` row now opens with the gate's own remedy — the key is read from `.env.local` (then `.env`), an `export` typed in an agent's shell does not persist into the gate, and a database name the refusal suggests is refused unless it ends `_test`, `throwaway` or `scratch` — on its own line before the suite's own quoted message, inside the display clip's head, and the key-naming `ERROR:` line(s) the 15-line tail would have dropped are quoted above the tail. The wording claims cause only when an `ERROR`/`E `-prefixed line of the refusal names the key (`_tdb_named_error_lines`); a suite that merely reads it gets a hedged line; any other refusal prints the row unchanged. The green-skip advisory and the refusal row share one helper, `_tdb_missing_hint`, and the skip sentence is now pinned by equality. `tests/test_final_gate_test_database_url.py` (+4 tests, 1 extended; 27 in the file). `docs/workflows/FINAL_GATE_WORKFLOW.md` gains the row; the gate paragraph's line cites in `CLAUDE.md` and `templates/governance/CLAUDE.md` (and `tests/test_governance_template_split.py`'s keys) move with the code. Full `/fabrik-review`: `docs/development/reviews/2026-10-22-final-gate-refusal-remedy-review.md`.
+
+### Fixed — review-probe-catalogue: a copy of the base pin tree is made writable before the pins are laid over it, and again after (2026-10-23)
+
+- `commands/_fragments/review-probe-catalogue.md` § Seat isolation: `review_loop_ledger.py pin` writes the pin and its `<pins_dir>.base` tree read-only, files and directories. A seat that copies the base tree therefore runs `chmod -R u+w <dest>` right after that copy and before laying the pins over it, and again after it, because a pin file the base lacks lands read-only. Before this, five of fourteen seats in one review hit Permission denied (mail 01M5HTCCA9 from infra-2). `tests/test_review_queue_pass.py` pins the clause.
+
+### Fixed — the QUOTA-line format sample shows the LANE clause (2026-10-22)
+
+- The sample in both CLAUDE.md twins and `quota_posture_hook.py`'s docstring listed no `band LANE` clause while the sentence above it says the line prints `band LANE on 5h` at the urgent-90 tier; the sample now carries the optional `[[ · band LANE on 5h — builders park, coordinators continue] · ⚠️ CHECKPOINT NOW …]` tail after `successor`, where the hook appends it — the LANE words only while the rotation tick is fresh, which the bands sentence now says too; `docs/workstation/hooks-index.md`'s copy of the sample matches (W-a784a444, fabrik-lib's finding). The band field itself stays GREEN, AMBER, RED or WALL.
+### Fixed — Fabrik Deck launcher pins the distro it runs in when WSL_DISTRO_NAME is unset (2026-10-23)
+
+`fabrik_deck.py launcher` and `install --desktop` no longer refuse in a code-server, tmux or unit shell, none of which carries `$WSL_DISTRO_NAME`: an omitted `--distro` is now a non-blank `$WSL_DISTRO_NAME`, else the distro the script runs in, read from `wslpath -w /` (`\\wsl.localhost\<distro>\`), and stderr says when it came from `wslpath`. Never the Windows default distro, which can be another one. An explicit `--distro` (even `''`) is untouched; an underivable one is refused naming both remedies; a desktop-less `install` never probes. W-b364b48d, D-1137.
+
+### Fixed — A payments login escalated out of band is refused on re-apply, never stripped (2026-10-23)
+
+`mint_payments_role`'s re-apply now refuses, before any ALTER and leaving the login as it is (D-1105), a payments role that is a member of any role, is granted to another role, holds a grant in another database, or owns a persistent object in its own database, or holds a grant on a shared object (another database, a tablespace, a parameter). A live session's temp table or temp function in its own database is not counted, the guard's own-database read fails closed on anything it cannot parse, and the re-apply's DO backstop refuses a membership too. The other callers of `_foreign_role_reasons` are unchanged (`escalation` defaults off), and a superuser is still refused by the re-apply's DO block (W-98debf05, D-1136).
+
+### Added — Fabrik Deck install: the board as a second unit, the profile, config.yaml and the Desktop launcher (2026-10-22)
+
+`scripts/sysadmin/fabrik_deck.py install` now writes and enables two systemd user units, `fabrik-deck-code.service` (code-server) and `fabrik-deck.service` (the board), both verified before any write; the env file gains `FABRIK_DECK_PORT=8445` and an absolute `FABRIK_DECK_STATE`; it backs up and rewrites `~/.config/code-server/config.yaml` (`bind-addr`, `auth: none`, `cert: false`, other lines kept; a new file is written 0600, an existing one keeps its mode) and applies the profile, and with `--desktop` writes the launcher; `--start` refuses a held port only for a unit that is not active. New subcommands: `profile` merges the nine non-coding settings into code-server's settings.json after a backup (a file that is not plain JSON is left alone, exit 1); `launcher` writes `Fabrik Deck.bat` (ASCII, CRLF, marker on line 2, never over a file it did not write); `up` is its WSL leg (exports the user bus, starts only stopped units whose port is free, prints the board port — none when another process holds it; with no user bus it starts nothing and exits 1). The hub path must be absolute plain characters and the browser a Windows `.exe` path; backups are taken before any write, and a settings file that already holds the Deck's values is left alone. Documented in `docs/workstation/fabrik-deck.md`, `docs/CONFIGURATION.md` and `.env.example` (W-42d1ccb5, plan 2026-10-22-plan-1-fabrik-deck Phase C, D-1121).
+
+### Added — Fabrik Deck board: one row per repo, a dot while its agent waits (2026-10-22)
+
+`scripts/sysadmin/fabrik_deck.py serve` serves the board on 127.0.0.1:`FABRIK_DECK_PORT` (default 8445): the repo catalog (git repositories directly under `/opt` plus the registry's other paths, each once, missing paths dropped, non-repositories flagged `git: false`), the waiting sessions mapped to their repo by whole path components and labelled from `.fabrik/session-agents.json`, attention files older than 24 h deleted, live updates over server-sent events, a link per repo into code-server, and browser notifications on request. GET only, a foreign Host refused 421, `frame-ancestors 'none'` on every response; a startup failure exits 2. `_parse_port` gained a default parameter. Documented in `docs/workstation/fabrik-deck.md` § Board (W-42d1ccb5, plan 2026-10-22-plan-1-fabrik-deck Phase B, D-1121).
+
+### Added — Fabrik Deck attention hook: one file per session waiting on the operator (2026-10-22)
+
+`scripts/sysadmin/fabrik_deck.py hook` writes `<state>/attention/<session_id>.json` (`{cwd, type, origin, at}`) on a waiting `Notification` (`permission_prompt`, `idle_prompt`, `elicitation_dialog`) and on `Stop`, and clears it on `UserPromptSubmit`, `SessionEnd` and a `PostToolUse` after a permission prompt; the state dir comes from `FABRIK_DECK_STATE`, else the Deck env file, else `~/.local/state/fabrik-deck`. It prints nothing on stdout and exits 0 on every path (dispatched before argparse). `install_user_hooks.py` `ENTRIES` registers it on those five events (it takes effect when `install_user_hooks.py` is run, which the plan does from the main checkout after merge); `docs/workstation/hooks-index.md` and `docs/workstation/fabrik-deck.md` document it, with a measured mean of 47 ms per `PostToolUse` call (max 116 ms) (W-42d1ccb5, plan 2026-10-22-plan-1-fabrik-deck Phase A, D-1121).
+### Changed — /fabrik-task queue pass: a terminal that rests on another party's act names the hand-off (2026-10-22)
+
+- `commands/_fragments/run-record.md`, rendered into every command that includes it (36 of the 39 that open a run record): where a run's outcome rests on an act it does not perform (a deploy, a service restart, a port another process binds, a merge by its owner), the `--terminal` names the hand-off and who performs the act, and `--evidence` says whether they had acted at the close. `tests/test_fabrik_task_queue_pass.py` pins it. The other 10 queue rows were rejected with reasons, and the two code rows were mailed to infra (W-82a196a7).
+
+### Changed — One `Agent-Role` row across the hub contract, the fleet template and the documentation pack; the pack's `Agent-Name` row points at CLAUDE.md (2026-10-23)
+`templates/governance/CLAUDE.md`, `CLAUDE.md`, `.windsurf/rules/core/40-documentation.md` (W-62e96a9f, D-1138): the three fleet-facing Agent Provenance Trailers tables disagreed — the template listed four `Agent-Role` values without `ci-fix` although `scripts/ci_fix_dispatcher.py` commits that value inside project repos, the hub's cell named one of its two writers, and the pack's `Agent-Name` row still carried the retired `infra · fleet · intel` enum against the template's write-by-hand rule. All three now carry one row text that says when `ci-fix` is written and that no other session writes it; the template's verify paragraph takes the hub's bytes; the pack's `Agent-Name` row points at `CLAUDE.md` § Agent Provenance Trailers as the owner. Two graders in `tests/test_governance_template_split.py` hold it: the hub's and the template's sections are byte-identical with the `Agent-Name` row replaced by a placeholder (the one sanctioned divergence), and every value the automation writers emit appears in all three rows. Fleet-synced: the template and the pack reach ~46 repos on the merge's post-merge sync. Full `/fabrik-review` receipt `docs/development/reviews/2026-10-23-w-62e96a9f-trailer-table-review.md`. Follow-on: W-d66bae71 (the dispatcher's headless worker and the `Agent-Name` row).
+
+### Fixed — mail.py addresses numbered hub builders (infra-2) (2026-10-22)
+
+- `--to-agent infra-2`, `route <id> --to-agent infra-2` and a reply to mail infra-2 sent were refused or mis-addressed because the hub guard knew only the five beat names; a merge request from an on-demand builder (D-1128) would merge and then fail its reply. `is_hub_agent` accepts a beat or `<beat>-<N>`; ownership-map tokens stay beats (D-1130, W-fa004224).
+
+### Changed — /fabrik-review queue pass: the lead makes each seat folder before dispatch, and obligation 3 names its one exception first (2026-10-22)
+
+- `commands/_fragments/subagents-core.md`, the seat-folder sentence: for a seat the lead briefs itself, the lead creates the folder with `mkdir -p` before the dispatching message, and the brief still has the seat run the same `mkdir -p` (a `Workflow` seat's prompt makes its own folder). `commands/_fragments/term-coverage.md`, obligation 3, now opens with its one exception: `/fabrik-review` over work whose fixes are committed during the review writes a DRAFT with `--out` and the receipt only after the last fix commit, and every other review and command creates the receipt before Pass 1. `tests/test_review_queue_pass.py` pins both. The other 27 queue rows were rejected with reasons, and the code-shaped ones were mailed to infra and intel (W-1e603dc4).
+
+### Fixed — Rule-pack code spans carry no table-escaped pipe, and the governance-table check now reads the packs (2026-10-22)
+`.windsurf/rules/` (W-80ffca68): 13 code spans in five packs (`core/10-python.md`, `core/12-node.md`, nine `details` cells of `core/app-audit-log.md`, `core/self-healing.md`, `saas/60-saas-ui.md`) carried `\|`, which GFM renders as `|` but a RAW reader — how a pack reaches an agent told to "Follow verbatim" — reads as a literal backslash-pipe: invalid Python, JS, schema literal and URL. Each row is rephrased so no span carries a pipe (the alternation moved into prose beside the span, a split into two spans, or a pointer at the pack's own prose section that already spells the form). `scripts/enforcement/check_governance_tables.py` gains a second rule — a code span inside a delimiter-confirmed table row carrying `\|` or an HTML pipe entity (the cheapest evasion, which GFM leaves literal inside a span) is an advisory finding with its own pinned remedy — and both rules now read every `.md` under `.windsurf/rules/` beside the two contracts (13 fires on the pre-fix tree, 0 after; the width rule 0 over 2096 pipe-led lines). Fleet-synced: the packs and the check reach ~46 repos on the next sync. Reviewed by the full `/fabrik-review` (4 passes, confirmed 13 → 2 → 1 → 0, the last two re-verifying the fixed set alone after the lane's scope-growth stop; receipt `docs/development/reviews/2026-10-22-w-80ffca68-rule-pack-pipe-spans-review.md`).
+
+### Added — Token-waste series in the kaizen instrument, with control charts in the daily digest (2026-10-22)
+`scripts/sysadmin/kaizen_waste.py` (W-02472911, D-1118, D-1120, D-1127) publishes six daily waste series from the existing ledgers: context and output per API call, review-seat share, quota-wall rate, context rebuilt per session rotation, and red-master fix commits. Each series has a per-agent and per-command breakdown, `--backfill` and `--rebaseline`. `kaizen_collect_v2.daily()` publishes the series lazily and fail-open. `kaizen_digest.py` reads points in day order and opens with a CONTROL section that applies frozen XmR / c-chart limits, 8-in-a-row and a 20-close floor. An upward signal prints `OUT OF CONTROL ↑`; a downward one prints `IMPROVED ↓`, to be re-baselined. A day a source cannot vouch for publishes nothing and is retried for three days; such a day is a ref not refreshed since the day ended, or a rotation transcript not yet flushed. Categories and rules are in `docs/reference/kaizen-waste-define.md`.
+
+### Changed — agents_up relaunch: attach-first, wake prompt, one parent memory ceiling, tmux 3.4 fix (2026-10-22)
+
+- `agents_up.sh` attaches to a repo's grid when one is already up and launches only when none exists (D-1108, W-e841ac37) — only a session recording a DIFFERENT root refuses; it gains `--detach` (and detaches with no terminal), resumes builders with a wake prompt that re-arms the self-watch (its `hibernate.py woke` step waits for W-6e656dac T01a), `CLAUDE_CODE_RETRY_WATCHDOG=1` and `oom_score_adj` 200, and uses `=name:` for every tmux option read and write, which tmux 3.4 needs (W-1961cc42). The per-pane MemoryMax is gone (D-1109: no memory cap per agent); the parent `fabrik-agents.slice` gets MemoryHigh = MemTotal − max(4G, floor) and MemoryMax = MemTotal − max(2G, floor − 2G), floor `FABRIK_AGENT_NONAGENT_FLOOR` (12G), the minimum margins when the floor leaves nothing, D-1075's 16G under 8G or unreadable (W-0b8a0fba). With no user manager an interactive launch now refuses (exit 2) unless `FABRIK_AGENTS_UNCAPPED=1`; `--detach` launches uncapped with a warning. `capped_run.sh` nests under `fabrik-agents-tests.slice` and waits on a MemAvailable/PSI admission band, at most half its time limit (`FABRIK_TEST_ADMIT_WAIT`, default 300 s), the seconds waited taken off the run's limit. Cherry-picked onto master from W-6e656dac's T05 (1d56acd55) ahead of the rest of that plan.
+
+### Fixed — Firecrawl proxy grader reads recrawl, retrieve and "scrapers at Firecrawl"; a reader's "read" is no fetch (2026-10-22)
+`tests/test_firecrawl_proxy_basic.py` (W-ddb716ca): `MENTION` now catches re-crawl and retrieve in every inflection and the verb-then-`at Firecrawl` form, and its 40-character far lookahead no longer counts `read`, which false-redded "Firecrawl docs are easy to read" (`read` still counts right after Firecrawl). One fixture per change, each proven red when its change is undone.
+
+### Changed — The session-rotation rule: rotate at an item boundary, the coordinator sends the keys (2026-10-22)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md`, the Session history (D-736) bullet: D-1119 and D-1123 replace "run `/clear` now" with the item-boundary rule — due at 40% of the context window or the `ROTATE:` line's size, a focused `/compact` at 85% mid-item, a builder asking its coordinator, the waiting turn's `NEXT:` the Stop hook accepts. `tests/test_session_rotation_rule.py` pins every clause in both contracts (D-1124, W-4c894cef).
+
+### Changed — The 90% lane: builders park, coordinators continue (2026-10-22)
+
+- At the fleet-exhausted stamp's `urgent-90` tier (the 5-hour window at 90% with no account to rotate to — never the weekly), `.claude/hooks/quota_stop.py` no longer lets every session spend the last points (D-306's allow-all): it runs the D-1113 lane. Only two kinds of session continue, each bound by session id in the identity store and scoped to the repo's git common dir (`CLAUDE_AGENT` is never read): the merge owner of a `coordinator_mode` repo and the owner of an open P0 item. Every other session is parked with the wall's allow-list plus the finishing verbs (`merge_request.py request`, `work.py claim|release <W-id>`, SubagentHandback, SendMessage) and a park message naming its items and the lift time. Every lane error parks the session; the lift line can never crash the hook. `final_gate_stop.py`'s urgent branch exempts the same sessions; the QUOTA line says `band LANE on 5h — builders park, coordinators continue` while the tick is fresh; the urgent-drain mail and `claude_rotate.py --status` say the lane; the contracts and workstation docs describe it, and the urgent-90 runway is nine points on the default threshold of 99 (W-18f559d9, D-1125).
+
+### Changed — /fabrik-review-scoped queue pass: a redactor runs a base differential and a URL parser names its classes (2026-10-22)
+
+- `commands/_fragments/review-probe-catalogue.md`, the Parsers hunt line: a regex redactor also runs beside the parent commit's redactor over one generated input corpus named in the brief, and the URL request-target grammar names its parser-differential classes in the round-1 brief (IDNA and numeric IPv4 hosts among them). `tests/test_review_scoped_queue_pass.py` pins it; the other 13 queue rows were rejected with reasons (W-20754b77).
+
+### Changed — /fabrik-command-improve queue pass: audit-seat reporting, pinned-span placement, rewrap, size-cap, copy-recipe and row-check rules (2026-10-21)
+
+- `commands/_sources/fabrik-command-improve.md`: the audit seat returns its report as hand-back text and quotes each line it cites verbatim; new text goes where its subject reads and a pinned span is re-anchored to cover it (D-1111, an Opus + Fable panel); a rewrap is bounded to the lengthened lines under a raw-line pin; a size-capped target is sized, or its cap raised, before the draft; the seat-rule homes name the copy recipe `BASE_PIN` and the import recipe `PIN_IMPORT`; the review seats say whether each answered row's line names its timing and venue. `tests/test_command_improve_queue_pass.py` pins them (W-6aac0ac8).
+
+### Changed — /fabrik-review queue pass: seven brief and probe rules from the feedback queue (2026-10-21)
+
+- `commands/_sources/fabrik-review.md`: the example Pass ledger names the file loop's Sonnet + Haiku seats; the leak baseline also hashes the shared repository `config` and lists its hooks. `commands/_fragments/subagents-core.md`: a fix made between round-1 waves is in the next wave's pin. `commands/_fragments/review-probe-catalogue.md`: the input class takes every arrival order of duplicate records; a seat's scratch repository is checked before its first write and runs hermetic; a measured count names what it leaves out; each slice runs a mutant per added guard. `tests/test_review_queue_pass.py` pins the six rules (W-ac1b7d77).
+
+### Fixed — plan Status reads reject a Status line hidden in a code span, and never lose a real one (2026-10-22)
+W-a7cff030 (D-1114). An example span that wrapped onto a `**Status:** DRAFT` line came before a plan's real Status, and first-match read the example. This hit check_plan_quality's spine read and its two severity reads (fail open: a quoted DRAFT downgraded checks) and check_convergence's two archived-plan reads (fail closed: a false "archived while DRAFT"). The Opus + Fable panel ruled the fix: every read matches the ORIGINAL text through `_fences.status_candidates`, skips a candidate whose key a code span hides, and takes the reader's strict branch when only hidden ones exist. Blanking spans before matching was the rejected draft: it let a stray backtick erase a real Status line. Across the fleet the parsed values are unchanged (216 tickets, 1 522 plan files). `tests/enforcement/test_status_in_code_span.py` has 13 cases; 8 of them fail on that rejected draft.
+
+### Fixed — Behavior-Contract region parsing is linear in check_phase_tests and check_test_proposal (2026-10-21)
+W-6904b41e. Both checks sliced the whole rest of the plan once per `**Behavior Contract**` label, and
+check_phase_tests also did it once per `## Behavior Contract` heading. 8 000 labels took ~5 s, and 4x the input took
+12-22x the time. They now read forward from each match: a lazy `_lines_from` keeps `str.splitlines`' boundaries, and
+the next heading is searched in place. A bold label is checked against the sorted heading spans with one bisect,
+instead of against every span (labels x headings). On 8 000 labels: 0.06 s and 0.04 s on this box. A mixed document
+of 4 000 headings and 4 000 labels went from 1.44 s to 0.03 s. Output is identical on all 488 plan files
+in the hub. `tests/enforcement/test_contract_regions_linear.py` counts copied characters, so no timing is read; its
+copy-count tests fail on the old code.
+
+### Fixed — payments pack: the fulfilment grant refuses a fingerprinted role since fabrik-lib SB-096 (2026-10-21)
+
+- `.windsurf/rules/core/85-payments-billing.md`: line 45 said the fulfilment grant does not refuse a tenant-facing role. Since fabrik-lib SB-096 it refuses PUBLIC, a SUPERUSER or BYPASSRLS role and a role holding a privilege on a payments table the lane does not grant; a tenant-facing role without one still passes and gets `purchases` INSERT and cross-org `jobs` SELECT, UPDATE, so the dedicated-login rule stands (fleet mail 01M5DYBVJT; review `docs/development/reviews/2026-10-21-payments-fulfilment-grant-wording-review.md`).
+
+### Changed — /fabrik-task: the inputs table records each input's live counts from an executed read (2026-10-21)
+
+- `commands/_sources/fabrik-task.md`: beside each input, phase 2's table records its live row count, the values those rows hold and the duplicates of any key the design cuts rows by, from an executed read of those rows; phase 2 tables each tag a parser the change adds or extends reads, quoted inside its own content too; the vendored-copy census counts `.claude/worktrees/` apart. SIZE_CAP 26238 -> 26506 (D-1103), 53 bytes cut from the `--design` once-only sentence. `tests/test_fabrik_task_queue_pass.py` pins the three rules and the cut sentence. The rest of the 41-row queue was rejected with reasons (W-be343c22).
+
+### Changed — /fabrik-review-scoped: a brief names the bound on the evidence it hands a seat (2026-10-21)
+
+- `commands/_fragments/review-probe-catalogue.md`: a measurement or proof a brief hands a seat names, up front, the bound that limits it, so the seat attacks it as bounded. `tests/test_review_scoped_queue_pass.py` pins it, and the input-class grader now compares its whole bullet by equality, so a decoy bullet carrying the anchor fails (W-d4468ce4).
+
+### Fixed — /fabrik-execute-plan: the plan-stem prefix keeps a receipt findable only when the stem has one (2026-10-21)
+
+- `commands/_sources/fabrik-execute-plan.md`: the Execution Loop no longer says every plan's stem starts with a `<date>-plan-<n>-` prefix (two live plans have none). It names an unprefixed plan's resume routes: the earlier receipts are found only on a `start --resume-from <seed>` resume, and after a crash or a `handoff` each earlier phase is waived naming its receipt, which item 3b's waiver sentence now admits. Re-pinned in `tests/test_execute_plan_queue_pass.py`.
+
+### Changed — the vendored web-tools pins Firecrawl to the basic proxy (2026-10-21)
+W-10146d20, plan 3 Phase B step 2. `libs/web_tools.py` is re-vendored from fabrik-lib main c7ab67e4 (their D-539/D-540).
+Every Firecrawl payload (sync and async scrape, crawl, search) now sends `proxy: "basic"` unless code passes another
+one: the LLM tools (`execute_web_tool`) ignore a `proxy` in a model's `arguments`, and only direct callers pass
+`firecrawl_proxy=`. Each billed call logs its caller and URL. fabrik-lib's two tests now run against the hub copy:
+`tests/test_web_tools_firecrawl_proxy.py` (71 passed, 53 red on the previous copy @8337a7f) and
+`tests/test_web_tools_firecrawl_log.py` (20 passed).
+
+### Added — fabrik-scrape: a local MCP server for research page reads (2026-10-21)
+W-10146d20, plan 3 Phase B (D-1102). `libs/web_scrape_mcp/` vendors fabrik-lib's web-scrape-mcp with the web-scrape and doc-crawl copies it needs; `scripts/sysadmin/systemd/fabrik-scrape-mcp.service` runs it sandboxed on loopback :8034; `mcp_defs.json` and the emitter's universal set register it for every repo; `scripts/scrape_ledger.py` probes it and grades a capability ledger. Not live yet: building its venv, installing the unit and re-emitting every repo's `.mcp.json` is an operator gate after merge. See `docs/reference/fabrik-scrape-mcp.md`.
+### Changed — Firecrawl calls in commands pin the basic proxy (2026-10-21)
+W-10146d20, plan 3 Phase A (D-1101). Every Firecrawl scrape or crawl instruction in `fabrik-spec`, `fabrik-spec-review`, `fabrik-plan-after-chat`, `fabrik-vision` and the `fabrik-researcher` agent now passes `proxy: "basic"`: Firecrawl's default `auto` mode retries a blocked page through stealth proxies at a higher credit price, and the own-scrape spec allows only the basic proxy until a tested slice-1d check. `tests/test_firecrawl_proxy_basic.py` guards every such instruction; a clause it refuses is reworded, and a review of any later change to a pinned clause reads it for meaning.
+### Added — plan approved: own scrape tool, slice 1a, hub side (2026-10-21)
+W-10146d20; D-1101. `docs/development/plans/2026-10-21-plan-3-own-scrape-slice-1a.md` converged over eight review passes (receipt `docs/development/reviews/2026-10-21-own-scrape-slice-1a-plan-review.md`). Phase A, pinning the basic proxy on every Firecrawl line in the command corpus, can start now; Phases B and C wait for fabrik-lib's merge of the scrape server and the web-tools call log. Nothing is built yet.
+### Added — design approved: Fabrik's own scrape tool replaces Firecrawl for research reads (2026-10-21)
+W-10146d20; D-1100 (approves D-1093's direction). The spec `docs/superpowers/specs/2026-10-21-own-scrape-tools-design.md`
+converged over 15 review passes and an Opus + Fable approval panel. Research seats will read pages through `fabrik-scrape`,
+an MCP server over fabrik-lib web-scrape, doc-crawl and pdf-extract; Firecrawl (out of credits until 2026-11-12) stays a
+fallback pinned to its basic proxy and closed until a tested check of the proxy it used. Rollout is staged: a scrape-only
+slice first (rendering off), crawl and PDF next, rendering after a vps1 redirect test. Nothing is built yet; fabrik-lib
+receives the slice-1a requests next.
+### Changed — The seven specs/infrastructure files are retired; the infra/vps1 mirrors are the only repo copy (2026-10-22)
+
+`specs/infrastructure/{apprise,authelia,browserless,glitchtip,gotenberg,meilisearch,n8n}.yaml` failed `load_spec`, no code read them, and each had drifted from the `infra/vps1/<svc>/compose.yaml` mirror of the live stack. They are deleted; their load-bearing comments (ARM64 support, the browserless v2 TOKEN and env names, the GlitchTip secret-key warning, the n8n auth note, the Authelia config pointer) now head the mirrors, with no setting changed. `docs/DEPLOYMENT_ARCHITECTURE.md` § 3.1, `PORTS.md`, `docs/CONFIGURATION.md`, `.env.example`, `infra/README.md` and six other docs name the mirrors; the unused `GLITCHTIP_SECRET_KEY`/`GLITCHTIP_REDIS_URL` lines leave `.env.example`. `tests/test_specs_all_load.py` keeps every YAML under `specs/` appliable. Spec-only settings the mirrors lack are item W-24025e50 (W-b64d9cd7, D-1097, D-1117).
+
+### Fixed — A re-applied payments role loses its settings in every database, not only its own (2026-10-22)
+
+`mint_payments_role` reset a re-applied payments role's per-database settings only in the project's database, so a setting attached out of band in any other database (for example `row_security = off`) survived every re-apply. It now walks `pg_db_role_setting` for that role and resets it in each database that holds one, skipping a database dropped in between. The unit test pins the refusal guard's and the loop's role filters; the real-Postgres test plants three settings (counted before the re-mint) and a bystander role's setting that must survive (W-3c302832, D-1115).
+
+### Added — VS Code chat-tab router: any repo's agent in one window (2026-10-21)
+
+`scripts/sysadmin/claude_tab_router.py` and the wrapper source `scripts/sysadmin/claude-agent-wrapper.sh` (the `claudeCode.claudeProcessWrapper`): a new Claude chat tab offers a picker of every repo's agents and opens the pick in that repo as that agent; a restored tab from another repo is re-rooted; anything else launches as before. Reviewed in full (/fabrik-review, 9 → 4 → 0 confirmed): a session live elsewhere is never re-rooted, live roles are matched per repo, a role-less pick drops the window's agent, `--add-dir` drops all its values, only UUID session ids reach the transcript lookup, the picker's 30 s counts from the router's start. Not installed yet — `docs/workstation/claude-tab-router.md` § Install runs after the merge (W-ea993618, D-1112).
+
+### Added — The Fabrik Deck's code-server runs as a systemd user service (2026-10-21)
+
+A WSL restart on 2026-10-21 killed the hand-started code-server and the operator could not reach the repos from Vivaldi. `scripts/sysadmin/fabrik_deck.py install` now writes `~/.config/fabrik-deck/env` (appending only missing keys, read the way systemd reads it) and `fabrik-deck-code.service` (linger, `Restart=always`, `RestartSec=10`, `StartLimitIntervalSec=0`, `RestartPreventExitStatus=2`), verifies it, reloads and enables it; `--start` also starts it when the port is free. Every check runs before the first write. `fabrik_deck.py code-server` is the unit's start: a keep-list environment and `--bind-addr 127.0.0.1:<port>`. Box doc `docs/workstation/fabrik-deck.md`; tests `tests/test_fabrik_deck.py` (W-e89a9b5b, D-1106).
+
+### Changed — /fabrik-plan-review: executed runs live in the plan and re-run before each later pin; a substituted test value names its guard (2026-10-21)
+
+- `commands/_sources/fabrik-plan-review.md`: step 2's executed runs keep their script, corpus and output in the plan's Evidence from round 1 and are re-run over the whole corpus before every later pin a fix or a folded panel change touches (the `Size: small` joint loop covers a command the spec prescribes for a consumer). The combined set hash is the orchestrator's, and a seat states the per-file hash it read against the pin's manifest. A step that edits an existing test by substituting a value names the guard it exercised. Graders in `tests/test_plan_review_queue_pass.py`.
+
+### Fixed — a panel-approved brief is no longer refused because the operator queued a prompt after it (2026-10-21)
+W-6424f2e8; D-1098. The Stop hook checks that a `PANEL APPROVED` brief quotes the two review seats' own verdicts. A prompt the operator types while the agent is busy reset those verdicts, and because such a prompt arrives in the middle of a turn, a properly backed brief written just before it was refused when the turn ended. Each brief is now checked against the verdicts that stood until the queued prompt that actually follows it — found by position, because the same prompt can be recorded more than once — so a stale copy from an earlier turn, or verdicts from before the operator's new word, can never vouch for it. A forged brief, or one relying on verdicts from before the operator's new word, is refused as before.
+
+### Changed — /fabrik-plan-after-chat: the census covers state writers and each refused test's planned edit, and every count names its command (2026-10-21)
+
+- `commands/_sources/fabrik-plan-after-chat.md`: a new mechanism's census also covers the writers of each state it reads, and each existing test a change's MIRROR refuses is listed with its planned edit. Every measured count names the command that printed it, fenced blocks are redirected from that output, and Constraints Digest quotes are read from their `file:line` at write time. A small plan's code steps are prototyped by default in throwaway worktrees of the base, and a module plan reads the module README's test recipe first. Graders in `tests/test_plan_after_chat_queue_pass.py`.
+
+### Fixed — a fresh python-api passes its own starter health tests (2026-10-21)
+
+W-7cf353e1. The emitted `tests/test_health.py` asserted `database == "configured"`, a value the emitted `/health` no
+longer returns since it pings the database for real, so every new python-api started with a red suite. The starter
+tests now swap the database driver module and pin all three outcomes (ping ok → 200, ping fails → 503, no driver →
+200 "configured (no driver)") without needing a database, and a hub test now runs the emitted suite.
+
 ### Changed — agents_up relaunch: attach-first, wake prompt, one parent memory ceiling, tmux 3.4 fix (2026-10-22)
 
 - `agents_up.sh` attaches to a repo's grid when one is already up and launches only when none exists (D-1108, W-e841ac37) — only a session recording a DIFFERENT root refuses; it gains `--detach` (and detaches with no terminal), resumes builders with a wake prompt, `CLAUDE_CODE_RETRY_WATCHDOG=1` and `oom_score_adj` 200, and uses `=name:` for every tmux option read and write, which tmux 3.4 needs (W-1961cc42). The per-pane MemoryMax is gone; the parent `fabrik-agents.slice` gets MemoryHigh = MemTotal − max(4G, floor) and MemoryMax = MemTotal − max(2G, floor − 2G), floor `FABRIK_AGENT_NONAGENT_FLOOR` (12G), the minimum margins when the floor leaves nothing, D-1075's 16G under 8G or unreadable (W-0b8a0fba). `capped_run.sh` nests under `fabrik-agents-tests.slice` and waits on a MemAvailable/PSI admission band, at most half its time limit, the seconds waited taken off the run's limit (W-6e656dac T05).
@@ -36,6 +1712,9 @@ All notable changes to this project will be documented in this file.
 ### Changed — /fabrik-review-scoped: a seat reads the pin's own change.diff, a committed fix pins with --from, and a rewrap waits for the file's pinning tests (2026-10-21)
 
 - `commands/_fragments/review-probe-catalogue.md` § Seat isolation: the diff a seat reads is the pin's own `change.diff`, and a committed fix is pinned with `--from <its last commit>` (plus `--base` when it spans several), since a working-tree pin of a committed surface prints `UNCHANGED` and `--base` alone pins the working tree. The prose rule executes each stream and input channel a sentence names; the input class names every reader of a printed command; the whole-paragraph rewrap waits for the tests that cap line length or pin raw lines, found by basename and re-run after it. Graders in `tests/test_review_scoped_queue_pass.py`.
+
+### Fixed — the plan-ticket check now finds a paused plan's lock and reads globbed lock paths (2026-10-21)
+W-b2bbc1f1; D-1094. When `check_plan_tickets` runs at the gate it looks for plans whose lock owns a changed file, so their findings show as warnings. It only counted locks marked `active`, so a plan paused at a quota wall dropped out of view, and it compared lock paths literally, so `src/app/**`, `./src/x.py` or a re-cased path owned nothing. It now counts every lock whose plan is still in flight (active, paused or blocked) and reads lock paths the way the epic check already does. These findings stay warnings, never a failure.
 
 ### Fixed — the Stop hook reads prompts and notices that Claude Code now delivers as attachments (2026-10-21)
 W-1b9ae5f2; D-1090. Claude Code 2.1.304 delivers a prompt typed while the agent is busy, and a subagent's report, as attachment rows rather than user messages. The Stop hook missed the operator's queued prompt when a decision block quoted it, and it treated a subagent's report that quoted another subagent's completion notice as that notice — ending the wait for a subagent still running. It now finds the operator's queued words, and counts a completion only from a real notice. Readers that mark where a turn ends are unchanged on purpose: a queued prompt arrives mid-turn, so ending the turn there would let a block written before it go unchecked.

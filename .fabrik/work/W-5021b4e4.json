@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T14:21:59.848723Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5021b4e4",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "compare ttl and comment like content/proxied; tests",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "cloudflare ensure_record never resets a record to auto TTL (ttl=1 compares as unchanged, src/fabrik/drivers/cloudflare.py:304-309) and a changed comment never triggers an update"
+}

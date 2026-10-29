@@ -14,10 +14,10 @@
     "spec": ""
   },
   "next": "**[infra]** **Playwright-MCP roots vs scratchpad directive contradiction** (brand-identiy `01M15PMZ3` #3): the MCP refuses the system-prompt scratchpad (`outside allowed roots`); agents work around via gitignored `.playwright-mcp/`. Either add the session scratchpad to MCP roots (settings) or sanction `.playwright-mcp/` in the fabrik-gui agent def — one of the two, documented.\n\n---",
-  "note": "migrated-digest:d3b3d3ca1311",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — workaround exists",
-  "status": "open",
+  "status": "dropped",
   "title": "**Playwright-MCP roots vs scratchpad directive contradiction** (brand-identiy `01M15PMZ3` #3): the MCP refuses the system-prompt scratchpad (`outside allowed roots`); agents work around via gitigno..."
 }

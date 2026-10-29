@@ -16,11 +16,11 @@
     "spec": ""
   },
   "next": "decide: prune templates/saas-skeleton/AGENTS.md in the fleet sync (scripts/sync_enforcement_to_projects.py) or leave the stale copies; for the VPS file, a read-only ls on the next fleet deploy pass, then rm in a maintenance step",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — retired AGENTS.md copies linger in projects; stale docs, no block",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "fleet",
     "medium"

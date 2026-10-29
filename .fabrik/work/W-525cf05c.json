@@ -19,8 +19,5 @@
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — glob admits non-ASCII digits, low risk",
   "status": "open",
-  "tags": [
-    "waits-quota"
-  ],
   "title": "claude-sound.sh (3 sites) and claude-autoresume.sh (7 sites) use the [!0-9] glob, which admits non-ASCII digits under en_US.utf8; fix as claude-selfwatch.sh was fixed (W-5279e834)"
 }

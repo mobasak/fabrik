@@ -135,7 +135,14 @@ seed's `abandoned_seats` list (`pid`, `purpose`, `brief`, `output`, optional `pr
 the wake: `still running (pid N)` (with no `procStart`, only when the process on that pid is `claude`), `finished
 (output at <path>)` or `exited, no output`. Only the last is ordered
 re-run, from its brief, because a frozen seat often finishes after the wake. One `get_chat` line names the session id
-and the pause time. The kernel's boot time is no signal on WSL, because every sleep moves it forward.
+and the pause time. The kernel's boot time is no signal on WSL, because every sleep moves it forward, and the self-watch
+still words a wake as "the fleet-quota hold LIFTED" (W-b01aa1ec), which is why agents ask `woke` instead of reading the
+wake line.
+
+After a lift, `lift` prints rotation offers: every live agent past the rotation line, with the `rotate-session …
+--trigger lift` command to run at its next boundary, and every agent it could not read as an `unread` row
+(`rotate_session.py due`, W-f975fee0 slice 3). The offer is advice — a fault in it prints one stderr line and `lift`
+still exits 0.
 
 ## The pause text
 

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T16:41:55.430079Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-423b9f14",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reword the docstring to name skip/xfail and a deleted assert as review-owned, or reject a skip/xfail decorator on the named test",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "tests/test_hooks_headless_guard.py::test_every_delegated_spawner_names_a_test_of_its_childs_env docstring says the named test's asserts are 'graded by running it' — false when the test carries a skip/xfail marker (executed: 10 passed, 1 skipped, pointer green); also a deleted flag assert and a test moved into a class are review-owned by design (W-174b8543 scoped review pass 4, recorded after the scope-growth stop)"
+}

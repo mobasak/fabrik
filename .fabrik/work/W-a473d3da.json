@@ -14,10 +14,10 @@
     "spec": ""
   },
   "next": "Run a fresh mutant hunt over .claude/hooks/final_gate_stop.py _session_authorship and _commit_files beyond the 21-mutant battery W-ea06749b shipped; rounds 3-6 of its review each found 2 own-fix grader gaps and the scope-growth stop routed further hunting here",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — grader hardening follow-up",
-  "status": "open",
+  "status": "dropped",
   "title": "Grader-power sweep of the Stop hook's commit attribution (_session_authorship/_commit_files)"
 }

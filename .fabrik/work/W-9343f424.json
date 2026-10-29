@@ -14,10 +14,10 @@
     "spec": ""
   },
   "next": "price one Sonnet refuter per slice in the COST line only (never in SEATS or the caps), with a grader; the stamp formula in fabrik-review.md can then drop '+ one refuter per slice' (kaizen wording)",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "kaizen",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: LOW — COST line omits a seat",
-  "status": "open",
+  "status": "dropped",
   "title": "dispatch_headroom --slices COST line omits the review loop's per-slice Sonnet refuter (D-672)"
 }

@@ -1,6 +1,5 @@
-"""/fabrik-plan-review feedback queue answered in one pass (D-735): the panel's ACCEPTED delta round, recorded.
-
-The rule lives in the shared design-critique fragment; the advisory it calls expected is executed against command_run.
+"""/fabrik-plan-review feedback queue answered in one pass per run (D-735): each test pins one subject's rule in the
+section of fabrik-plan-review.md, design-critique.md or term-edit.md whose reader acts on it.
 """
 
 import importlib.util
@@ -58,8 +57,6 @@ def test_the_opus_floor_and_the_half_blocked_split_are_stated() -> None:
         "SPLIT the plan: the phases BEFORE the first blocked one keep the plan's name, converge and execute; that phase and every later one move to a new `DRAFT` plan"
         in plan
     )
-    review = " ".join((ROOT / "commands" / "_sources" / "fabrik-review.md").read_text().split())
-    assert "a run `/fabrik-execute-plan` dispatches still seats its per-round Opus floor" in review
 
 
 def test_a_seat_never_executes_a_script_that_acts_outside_its_scratch() -> None:
@@ -138,20 +135,6 @@ def test_round_zero_scripts_step_references_and_mutant_predictions() -> None:
         assert rerun in text, name
 
 
-def test_a_seat_grades_its_pinned_plan_set_copy() -> None:
-    """Intel 01M55ZHTWQ (fabrik-lib 01M41A605P finding 3): a seat ran check_plan_tickets on the live set while the
-    orchestrator edited it. The sentence is asserted whole, between the clause before it and the bullet after it."""
-    text = re.sub(
-        r"\s+", " ", (ROOT / "commands" / "_sources" / "fabrik-plan-review.md").read_text()
-    )
-    assert (
-        "don't route around the gate. A seat that runs the check grades its pinned copy, never the live set the "
-        "orchestrator is editing: `--plan-dir <the copy under its scratch, keeping the dated directory name, "
-        "outside any docs/development/plans/ directory> --allow-external`, run from the repo root. - **Breadth "
-        "advisory (mechanical, at the same moment):**"
-    ) in text
-
-
 def _flat(rel: str) -> str:
     return re.sub(r"\s+", " ", (ROOT / rel).read_text())
 
@@ -201,3 +184,119 @@ def test_a_changed_predicate_runs_against_its_pinning_tests_before_the_first_pin
         " intends or a defect, and against every input shape its grammar admits beyond the plan's own cases (another"
         " schema, a column-level grant)."
     ) in _flat("commands/_sources/fabrik-plan-review.md")
+
+
+SRC_REL = "commands/_sources/fabrik-plan-review.md"
+
+
+def _span(after: str, before: str) -> str:
+    """The raw text between the ONE live copy of `after` and the next `before`. The anchor must be live (outside every
+    HTML comment), and the span is compared with its comments kept, so an exemption hidden in a comment inside the
+    span, or a rule moved into one, cannot pass."""
+    raw = (ROOT / SRC_REL).read_text(encoding="utf-8")
+    live = re.sub(r"\s+", " ", re.sub(r"<!--.*?-->", " ", raw, flags=re.S))
+    text = re.sub(r"\s+", " ", raw)
+    assert live.count(after) == 1 == text.count(after), (
+        f"anchor not unique, moved or commented out: {after!r}"
+    )
+    i = text.index(after) + len(after)
+    assert before in text[i:], f"end marker {before!r} not after {after!r}"
+    return text[i : text.index(before, i)]
+
+
+def test_a_run_lives_in_the_plan_and_is_re_run_before_each_later_pin() -> None:
+    """Rows 1792489145, 1792560450, 1792561946, 1792543087: a prototype's corpus sat in scratch, a spec's consumer CI
+    snippet went unexecuted, and a folded fix was pinned without re-running the predecessor corpus."""
+
+
+def test_only_the_orchestrator_runs_the_combined_set_hash() -> None:
+    """Row 1792583409: the set-hash recipe told seats to re-derive it, with a cd, && and pipes they may not run."""
+    assert _span("COMBINED hash — ", " `d41d8cd98f00b204e9800998ecf8427e` is the empty input") == (
+        "`(cd \"<plan-dir>\" && find . -name '*.md' -print0 | LC_ALL=C sort -z | xargs -0 md5sum) | md5sum` —"
+        " recorded per pass by the orchestrator, run from inside the set so md5sum's path column reads the same"
+        " relative `./…` wherever the set sits (a typed `<plan-dir>` puts its own spelling into every line, and the"
+        " hashes differ); a seat never runs it, since its `cd`, `&&` and pipes are shapes the seats'"
+        " one-plain-command rule bars, and states instead the per-file hash it read against the pin's"
+        " `MANIFEST.pins.md5` (the Subagents section);"
+    )
+
+
+def test_a_substituted_test_value_names_its_guard() -> None:
+    """Row 1792413935 (W-2cef0b6b, carried from /fabrik-execute-plan): a test edit that swapped a value hid that the
+    test no longer guarded its behaviour."""
+    assert _span(
+        "A plan light on test coverage must NOT converge. ", " - **Wired-consumer audit"
+    ) == (
+        "A step or ticket that edits an existing test by substituting a value (an expected literal, an input, a"
+        " threshold) names, in its own Scope (a monolith step: in the step itself) and never as a Behavior Contract"
+        " row, the guard that test exercised and the"
+        " test that still exercises it after the edit; an"
+        " unnamed one is a finding, since a substituted value can leave a test that no longer fails when its"
+        " behaviour regresses."
+    )
+
+
+def test_each_ticket_carries_the_substituted_value_rule() -> None:
+    """Round-1 review: the rule sat only in the per-phase pillar, which a plan SET's per-ticket axes never read."""
+    assert _span("- **Behavior Contract ≤8 G/W/T rows** ", ", each grounded") == (
+        "(and the Behavior Contract pillar's substituted-test-value rule holds for the ticket)"
+    )
+
+
+SRC = ROOT / "commands" / "_sources" / "fabrik-plan-review.md"
+TERM_EDIT = ROOT / "commands" / "_fragments" / "term-edit.md"
+
+
+def _live(path: Path) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"<!--.*?-->", "", path.read_text(), flags=re.S))
+
+
+def _between(text: str, start: str, end: str) -> str:
+    i = text.index(start)
+    return text[i : text.index(end, i + len(start))]
+
+
+def test_a_field_a_reader_reads_is_a_closed_token() -> None:
+    """Rows 1792654902 and 1792595691 (after held free-text-parser-to-structured-channel): prose matching kept growing
+    negation lists."""
+    item2 = _between(_live(SRC), "2. **Coverage Checklist.**", "3. **Constraints-Digest audit")
+    assert (
+        "A field a hook, script or grader the plan specifies will read is a closed token (a fixed label, an enum, a"
+        " key), probed before the first pin with its negations and look-alikes, never matched as prose; a grader the"
+        " plan puts over prose checks presence only, and what the prose means is a named review check from round 1."
+    ) in item2
+
+
+def test_a_seat_runs_pinned_code_from_an_archive_with_the_pins_laid_over_it() -> None:
+    """Rows 1792656795 and 1792642953: seats imported pinned code from the live checkout; PIN_IMPORT forbids the pins
+    dir alone on sys.path."""
+    pre = _between(_live(SRC), "**Convergence precondition (mechanical):**", "## Phase 1")
+    assert (
+        "A seat that imports or runs code the plan cites builds an archive of the base SHA with the pinned "
+        "files laid over it (the `PIN_IMPORT` recipe in `.claude/workflows/fabrik-review-loop.js`, which "
+        "`/opt/fabrik/commands/_fragments/review-probe-catalogue.md` § Seat isolation names), never imports "
+        "from the live checkout and never puts the pins dir alone on `sys.path`."
+    ) in pre
+
+
+def test_a_step_that_runs_a_script_is_grounded_against_its_parser() -> None:
+    """Row 1792643178 (after held execute-gate-recipes-round1): a step's script mode went unchecked; `--help` runs a
+    script with no parser for real, so the read comes first."""
+    phase2 = _between(_live(SRC), "## Phase 2", "## Phase 3")
+    assert (
+        "A step that runs a script names its mode (the subcommand or flags), and the review grounds that command"
+        " against the script's argument parser read at the pinned SHA, running `--help` only once that read shows the"
+        " script parses arguments; a mode the parser does not accept is a finding."
+    ) in phase2
+
+
+def test_critique_seats_run_one_plain_command_per_call() -> None:
+    """Rows 1792657810 and 1792663298: the house-rules list omitted the one-plain-command rule, so leads wrote
+    `mkdir … && cd …` into critique briefs."""
+    rules = _between(
+        _live(FRAG), "the house rules every seat brief carries:", "- its concerns, ranked"
+    )
+    assert (
+        "and one plain command per Bash call: the seat's own `mkdir -p` on its absolute folder first, then "
+        "absolute paths, never `cd`, `&&`, a pipe or a `$VAR`."
+    ) in rules

@@ -3,7 +3,7 @@
   "created": "2026-10-14T22:14:34.645653Z",
   "creator": "kaizen",
   "effort": "low",
-  "evidence": "",
+  "evidence": "cd14803e40544540526b9f2ee53d3875bdd716fa",
   "id": "W-8bbd9538",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "HIGH: kaizen wording work (D-956) — the scratch-lifecycle spec's D7 names RUN-SCRATCH as the seat-folder root in the subagents fragment; LOW effort: one fragment",
-  "status": "open",
+  "status": "done",
   "tags": [
     "kaizen",
     "wording"

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T18:25:55.743278Z",
+  "creator": "infra-2",
+  "evidence": "98e26464d153c7de1a5cebaecd959ae82c122a76",
+  "id": "W-82034f59",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "after rotation: branch off origin/master, ruff --fix the one line (behaviour identical: str.encode defaults to utf-8), hook = heavy surface so the full /fabrik-review, MR to the coordinator",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "done",
+  "tags": [
+    "next-infra-2"
+  ],
+  "title": "session_orient.py:950 UP012 on master (from 00e6e2fc1, W-835894a6): \"�\".encode(\"utf-8\") → .encode(); the one ruff error turns the repo-wide Lint Ratchet red (0 → 1) for every branch's final_gate (infra 2026-10-28, reproduced by infra-2 on origin/master)"
+}

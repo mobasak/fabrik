@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "check /opt/ai-model-catalog/engine/out/blocks/*.OPENROUTER_ROUTES.txt for eligible models and whether mail 01M3FEC47Q2KPTQZVDZVA2PHZZ was answered; then ask ai-model-catalog for a routing-doc exclude in deliver_to_fabrik.py",
-  "note": "W-7450f4b6 (2026-10-15): the generator no longer names qwen-mt-turbo; when delivery resumes and the GATEWAY_COUNTS blocks re-render, drop the parenthetical in .windsurf/rules/ai/30-language.md § Gateway coverage (\"their sweet-spot line still names Qwen-MT's frozen turbo tier — the generator's text, not this pack's\"), which the new render makes untrue.",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "intel",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — resume routing delivery",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "medium",
     "rules",

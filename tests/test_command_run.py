@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import datetime as dt
 import importlib.util
+import inspect
 import json
 import math
 import os
@@ -52,6 +53,8 @@ def _cr(
     env = {
         "PATH": "/usr/bin:/bin",
         "COMMAND_RUN_DIR": str(run_dir),
+        # never the box's real session transcript (W-93a9d22a): a test that wants one passes it
+        "COMMAND_RUN_TRANSCRIPT": str(run_dir / "no-transcript.jsonl"),
         # Never let a test emit into the operator's real event store.
         "KAIZEN_EVENTS_DIR": str(_events_dir(run_dir)),
     }
@@ -4310,7 +4313,9 @@ def test_a_stated_nonzero_confirmed_never_closes_the_loop(run_dir: Path) -> None
     made `confirmed > findings` a refusal, so this asserts the same rule on a legal row."""
     _start(run_dir)
     _cr(run_dir, "round", "--findings", "4", "--confirmed", "2", "--classes-new", "auth")
-    r = _cr(run_dir, "round", "--findings", "3", "--confirmed", "2", "--classes-swept", "auth")
+    # re-found, not swept clean: a round that confirms while sweeping everything is now REFUSED
+    # (W-93a9d22a) — the claim here is the TERMINAL banner, which a confirmed round never earns
+    r = _cr(run_dir, "round", "--findings", "3", "--confirmed", "2", "--classes-new", "auth")
     assert r.returncode == 0, r.stderr
     assert "TERMINAL" not in r.stdout, r.stdout
     assert _rec(run_dir)["rounds"][-1]["confirmed"] == 2, _rec(run_dir)["rounds"][-1]
@@ -8381,3 +8386,420 @@ def test_a_corrupt_reviewed_surfaces_value_never_wedges_a_close_or_a_start(run_d
         _start_cmd(run_dir, _PROBE, sid)
         assert _rec(run_dir, sid)["command"] == _PROBE, ("start opened no record", bad)
         _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e", sid=sid)
+
+
+# ── W-93a9d22a: `round` refuses the two contradictions it can see ───────────────────────────────
+# (a) confirmed defects with no class left open; (b) a full close while stamped seats are in flight.
+
+
+def _seat_transcript(d: Path, *lines: dict) -> Path:
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / "t.jsonl"
+    p.write_text("".join(json.dumps(ln) + "\n" for ln in lines), encoding="utf-8")
+    return p
+
+
+def _launch(agent: str, age_s: float = 0.0) -> dict:
+    """A background Agent launch line in the hook's own parsed shape (`final_gate_stop.py`
+    `_seats_in_flight`: a `user` line whose `toolUseResult.status` is `async_launched`)."""
+    ts = dt.datetime.now(dt.UTC) - dt.timedelta(seconds=age_s)
+    return {
+        "type": "user",
+        "timestamp": ts.isoformat().replace("+00:00", "Z"),
+        "toolUseResult": {"status": "async_launched", "agentId": agent},
+    }
+
+
+def _notice(agent: str) -> dict:
+    return {
+        "type": "queue-operation",
+        "operation": "enqueue",
+        "content": f"<task-notification>\n<task-id>{agent}</task-id>\n<status>completed</status>\n",
+    }
+
+
+def test_a_round_confirming_defects_with_every_class_clean_is_refused(run_dir: Path) -> None:
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "4", "--confirmed", "2", "--classes-new", "auth")
+    r = _cr(run_dir, "round", "--findings", "3", "--confirmed", "2", "--classes-swept", "auth")
+    assert r.returncode == 2, (r.stdout, r.stderr)
+    assert "REFUSED" in r.stdout and "auth" in r.stdout and "--classes-new" in r.stdout, r.stdout
+    assert len(_rec(run_dir)["rounds"]) == 1, _rec(run_dir)["rounds"]
+    r = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "3",
+        "--confirmed",
+        "2",
+        "--classes-swept",
+        "auth",
+        "--classes-new",
+        "auth",
+    )
+    assert r.returncode == 0, (r.stdout, r.stderr)
+    assert _rec(run_dir)["classes"] == {"auth": "open"}, _rec(run_dir)["classes"]
+
+
+def test_a_round_that_sweeps_while_confirming_must_open_a_class(run_dir: Path) -> None:
+    """The multi-class shape (critique O4): sweeping the confirmed class clean while another stays
+    open passed the single-class predicate and let the next round retire it — intel's complaint."""
+    _start(run_dir)
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "5",
+        "--confirmed",
+        "3",
+        "--classes-new",
+        "docs-vs-code,auth",
+    )
+    r = _cr(
+        run_dir, "round", "--findings", "2", "--confirmed", "2", "--classes-swept", "docs-vs-code"
+    )
+    assert r.returncode == 2 and len(_rec(run_dir)["rounds"]) == 1, (r.stdout, r.stderr)
+    r = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "2",
+        "--confirmed",
+        "2",
+        "--classes-swept",
+        "docs-vs-code",
+        "--classes-new",
+        "auth",
+    )
+    assert r.returncode == 0, (r.stdout, r.stderr)
+    assert _rec(run_dir)["classes"] == {"docs-vs-code": "clean", "auth": "open"}
+
+
+def test_a_classless_round_may_confirm_defects(run_dir: Path) -> None:
+    _start(run_dir)
+    r = _cr(run_dir, "round", "--findings", "5", "--confirmed", "3")
+    assert r.returncode == 0, (r.stdout, r.stderr)
+    assert _rec(run_dir)["rounds"][-1]["confirmed"] == 3
+
+
+def test_a_round_while_stamped_seats_are_in_flight_is_refused(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    _start(run_dir)
+    _cr(run_dir, "dispatch", "--seats", "2")
+    env = {
+        "COMMAND_RUN_TRANSCRIPT": str(
+            _seat_transcript(tmp_path / "a", _launch("a1"), _launch("a2"))
+        )
+    }
+    r = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "1",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "x",
+        extra_env=env,
+    )
+    assert r.returncode == 2 and "in flight" in r.stdout, (r.stdout, r.stderr)
+    assert _rec(run_dir)["rounds"] == [], _rec(run_dir)["rounds"]
+    r = _cr(run_dir, "round", "--seats", "0", "--findings", "1", "--confirmed", "0", extra_env=env)
+    assert r.returncode == 2 and "in flight" in r.stdout, (
+        r.stdout,
+        r.stderr,
+    )  # a typed zero claims nobody ran
+    assert _rec(run_dir)["rounds"] == []
+    env = {
+        "COMMAND_RUN_TRANSCRIPT": str(
+            _seat_transcript(
+                tmp_path / "b", _launch("a1"), _launch("a2"), _notice("a1"), _notice("a2")
+            )
+        )
+    }
+    r = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "1",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "x",
+        extra_env=env,
+    )
+    assert r.returncode == 0, (r.stdout, r.stderr)
+    assert len(_rec(run_dir)["rounds"]) == 1
+    _cr(
+        run_dir, "dispatch", "--seats", "1"
+    )  # a launch older than the stamp window is not in flight
+    env = {
+        "COMMAND_RUN_TRANSCRIPT": str(
+            _seat_transcript(tmp_path / "c", _launch("a3", age_s=26 * 60))
+        )
+    }
+    r = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "x",
+        extra_env=env,
+    )
+    assert r.returncode == 0, (r.stdout, r.stderr)
+    assert len(_rec(run_dir)["rounds"]) == 2
+
+
+def test_a_partial_close_is_never_refused_for_seats_in_flight(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Dispatcher mode (the round-11 partial close): several tickets stamp into one round and
+    return independently, so a `--seats k` below the stamp is typed while seats are legitimately
+    still out (critiques O3/F1)."""
+    _start(run_dir)
+    _cr(run_dir, "dispatch", "--seats", "2")
+    env = {
+        "COMMAND_RUN_TRANSCRIPT": str(
+            _seat_transcript(tmp_path / "p", _launch("a1"), _launch("a2"), _notice("a1"))
+        )
+    }
+    r = _cr(
+        run_dir,
+        "round",
+        "--seats",
+        "1",
+        "--findings",
+        "1",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "x",
+        extra_env=env,
+    )
+    assert r.returncode == 0, (r.stdout, r.stderr)
+    assert len(_rec(run_dir)["rounds"]) == 1 and _rec(run_dir)["dispatch"]["seats"] == 1, _rec(
+        run_dir
+    )["dispatch"]
+
+
+def test_an_unverifiable_seat_return_is_noted_not_refused(run_dir: Path, tmp_path: Path) -> None:
+    _start(run_dir)
+    _cr(run_dir, "dispatch", "--seats", "2")
+    env = {"COMMAND_RUN_TRANSCRIPT": str(tmp_path / "missing.jsonl")}
+    r = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "1",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "x",
+        extra_env=env,
+    )
+    assert r.returncode == 0 and "could not verify the 2 stamped seat(s)" in r.stderr, (
+        r.stdout,
+        r.stderr,
+    )
+    assert len(_rec(run_dir)["rounds"]) == 1
+
+
+def test_seats_in_flight_matches_the_stop_hook(tmp_path: Path) -> None:
+    """The tool's reader is the hook's, renamed (`_SEAT_TAIL_BYTES` already exists in the tool with
+    another value): source after the prefix strip, the four constants, the regex, and a behaviour
+    matrix through both modules — the hook imports nothing from the tool by design, so parity is
+    graded, never shared (like `_safe_sid`)."""
+    cr = _load("cr_seats_parity", _SCRIPT)
+    hook = _load("hook_seats_parity", _HOOK)
+
+    def strip(src: str) -> str:
+        return src.replace("_hook_", "_").replace("_HOOK_", "_")
+
+    for a, b in (
+        ("_hook_seats_in_flight", "_seats_in_flight"),
+        ("_hook_line_age_s", "_line_age_s"),
+    ):
+        assert strip(inspect.getsource(getattr(cr, a))) == inspect.getsource(getattr(hook, b)), a
+    assert (cr._HOOK_NOTIFY_RE.pattern, cr._HOOK_NOTIFY_RE.flags) == (
+        hook._NOTIFY_RE.pattern,
+        hook._NOTIFY_RE.flags,
+    )
+    for a, b in (
+        ("_HOOK_SEAT_STAMP_FRESH_S", "_SEAT_STAMP_FRESH_S"),
+        ("_HOOK_SEAT_TAIL_BYTES", "_SEAT_TAIL_BYTES"),
+        ("_HOOK_CLOCK_SKEW_TOLERANCE_S", "_CLOCK_SKEW_TOLERANCE_S"),
+    ):
+        assert getattr(cr, a) == getattr(hook, b), a
+    now = time.time()
+    live = {"dispatch": {"seats": 2, "round": 0, "ts": now, "released": False}, "rounds": []}
+    stamp = live["dispatch"]
+    wf = {
+        **_launch("x"),
+        "toolUseResult": {
+            "status": "async_launched",
+            "taskId": "wf1",
+            "taskType": "local_workflow",
+        },
+    }
+    resumed = {**_launch("x"), "toolUseResult": {"resumedAgentId": "a9"}}
+    att = {
+        "type": "attachment",
+        "attachment": {
+            "commandMode": "task-notification",
+            "prompt": "<task-notification><task-id>a1</task-id><status>completed</status></task-notification>",
+        },
+    }
+    cases = {
+        "launch-only": ([_launch("a1")], live),
+        "launch-notice": ([_launch("a1"), _notice("a1")], live),
+        "attachment-notice": ([_launch("a1"), att], live),
+        "workflow": ([wf], live),
+        "resumed": ([resumed], live),
+        "old-launch": ([_launch("a1", 26 * 60)], live),
+        "released": ([_launch("a1")], {"dispatch": {**stamp, "released": True}, "rounds": []}),
+        "stale-stamp": (
+            [_launch("a1")],
+            {"dispatch": {**stamp, "ts": now - 30 * 60}, "rounds": []},
+        ),
+        "other-round": ([_launch("a1")], {"dispatch": {**stamp, "round": 1}, "rounds": []}),
+    }
+    seen = set()
+    for name, (lines, rec) in cases.items():
+        p = _seat_transcript(tmp_path / name, *lines)
+        mine, theirs = cr._hook_seats_in_flight(rec, str(p)), hook._seats_in_flight(rec, str(p))
+        assert mine == theirs, (name, mine, theirs)
+        seen.add(theirs)
+    assert seen == {True, False}, seen  # the matrix exercises both verdicts
+    assert cr._hook_seats_in_flight(live, str(tmp_path / "nope.jsonl")) is False
+
+
+def test_the_classes_swept_help_says_found_clean(run_dir: Path) -> None:
+    r = _cr(run_dir, "round", "--help")
+    assert "swept AND found clean" in r.stdout, r.stdout
+
+
+def test_a_round_confirming_with_no_sweep_and_every_class_clean_is_refused(run_dir: Path) -> None:
+    """Refusal (a)'s second arm (review B-2): nothing swept this round, every ledger class already clean."""
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "2", "--confirmed", "0", "--classes-swept", "x")
+    r = _cr(run_dir, "round", "--findings", "1", "--confirmed", "1")
+    assert r.returncode == 2 and "leaves every class the ledger knows clean" in r.stdout, (
+        r.stdout,
+        r.stderr,
+    )
+    assert len(_rec(run_dir)["rounds"]) == 1
+
+
+def test_a_refused_round_prints_no_advisory_that_says_it_went_ahead(run_dir: Path) -> None:
+    """Review A-1: refusal (a) used to sit after the advisories, so a refused round first printed
+    `releasing 1 of the 2 seat(s)` / `recording 3 as typed` and only then REFUSED."""
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "4", "--confirmed", "2", "--classes-new", "auth")
+    _cr(run_dir, "dispatch", "--seats", "2")
+    r = _cr(
+        run_dir,
+        "round",
+        "--seats",
+        "3",
+        "--findings",
+        "3",
+        "--confirmed",
+        "2",
+        "--classes-swept",
+        "auth",
+    )
+    assert r.returncode == 2, (r.stdout, r.stderr)
+    assert "REFUSED" in r.stdout and "recording 3 as typed" not in r.stderr, (r.stdout, r.stderr)
+    assert "releasing" not in r.stderr, r.stderr
+    # case C (closing pass A-1 residual): no transcript, no --own-fix — the transcript NOTE
+    # ("recording as typed") and the own-fix NOTE must not precede a refusal either
+    r = _cr(run_dir, "round", "--findings", "2", "--confirmed", "2", "--classes-swept", "auth")
+    assert r.returncode == 2, (r.stdout, r.stderr)
+    assert "recording as typed" not in r.stderr and "without --own-fix" not in r.stderr, r.stderr
+    assert len(_rec(run_dir)["rounds"]) == 1
+
+
+def test_an_unreadable_transcript_is_noted_not_silently_recorded(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Review mb-1: an EXISTING but unreadable transcript passed `is_file()` and the reader's broad
+    except recorded the round with no NOTE."""
+    if os.geteuid() == 0:
+        pytest.skip("root reads a mode-000 file")
+    _start(run_dir)
+    _cr(run_dir, "dispatch", "--seats", "2")
+    p = _seat_transcript(tmp_path / "u", _launch("a1"))
+    p.chmod(0)
+    try:
+        env = {"COMMAND_RUN_TRANSCRIPT": str(p)}
+        r = _cr(
+            run_dir,
+            "round",
+            "--findings",
+            "1",
+            "--confirmed",
+            "0",
+            "--classes-swept",
+            "x",
+            extra_env=env,
+        )
+    finally:
+        p.chmod(0o600)
+    assert r.returncode == 0 and "could not verify the 2 stamped seat(s)" in r.stderr, (
+        r.stdout,
+        r.stderr,
+    )
+    assert f"transcript unreadable: {p}" in r.stderr, (
+        r.stderr
+    )  # the NOTE names the real cause (review ha-1)
+
+
+def test_the_usage_grammar_round_trips_its_optional_cost_bracket() -> None:
+    """W-256d6877: `_USAGE_GRAMMAR` prints the optional field as `[· cost: <…>]`, and the parser read
+    that shape back with the `[` inside `filed` and the `]` inside `cost` — the close then refused
+    `0.01]`. Filled from the constant itself (nested angle placeholders filled fully), the line must
+    parse clean; an opener alone closes nothing it does not own, and a `filed:` id in brackets stays."""
+    cr = _cr_module("w256")
+    filled = cr._USAGE_GRAMMAR
+    while re.search(r"<[^<>]*>", filled):
+        filled = re.sub(r"<[^<>]*>", "x", filled)
+    filled = filled.replace("change: x: x", "change: lean: cut the rubric block")
+    assert "[· cost: x]" in filled, filled
+    for tail, cost in (
+        ("[· cost: 0.01]", "0.01"),
+        ("[· cost: 0.01].", "0.01."),
+        ("[· cost: 0.01]\r\n", "0.01"),
+        ("[· cost: 0.01", "0.01"),
+    ):
+        line = filled.replace("[· cost: x]", tail)
+        fields, missing = cr._parse_usage_feedback(line)
+        assert not missing, (tail, missing)
+        assert fields["cost"] == cost, (tail, fields)
+        assert "[" not in fields["filed"] and "]" not in fields["filed"], (tail, fields)
+    base = "confusion: none · waste: none · change: none · filed: mail [01M5ABC]"
+    fields, _ = cr._parse_usage_feedback(base)
+    assert fields["filed"] == "mail [01M5ABC]", fields
+    fields, _ = cr._parse_usage_feedback(base + " [· cost: 0.01]")
+    assert fields["filed"] == "mail [01M5ABC]" and fields["cost"] == "0.01", fields
+    # a bracketed field that is NOT the last one closes too, at its own end
+    fields, _ = cr._parse_usage_feedback(
+        "waste: none · change: none · filed: x [· confusion: y] · cost: 1"
+    )
+    assert fields["filed"] == "x" and fields["confusion"] == "y" and fields["cost"] == "1", fields
+    # a bracketed field whose value ENDS in an id's own bracket keeps it: only an unbalanced `]`
+    # closes the opener (review pass 1, A-haiku-1)
+    lead = "confusion: none · waste: none · change: lean: x "
+    fields, _ = cr._parse_usage_feedback(lead + "[· filed: mail [01M5ABC]")
+    assert fields["filed"] == "mail [01M5ABC]", fields
+    fields, _ = cr._parse_usage_feedback(lead + "[· filed: mail [01M5ABC]]")
+    assert fields["filed"] == "mail [01M5ABC]", fields
+    # a newline is a separator too: a bracket opened before a wrapped label closes the same way
+    fields, _ = cr._parse_usage_feedback(base + " [\ncost: 0.01]")
+    assert fields["filed"] == "mail [01M5ABC]" and fields["cost"] == "0.01", fields
+    # a bracket with no separator is not a label boundary today and is left alone
+    fields, _ = cr._parse_usage_feedback(base + " [cost: 0.01]")
+    assert fields["filed"] == "mail [01M5ABC] [cost: 0.01]" and "cost" not in fields, fields

@@ -1,0 +1,84 @@
+# T31 receipt — /fabrik-release (light form)
+
+- Start commit: `8ac547a6139658fed456bb3f3f069596856d6316` (kaizen-lean-u01); baseline sha256 `94bbdd0b5a50e46739f998ef57ffcfa100a284b6fe955ed607c52cb0d2c7b932`.
+- Own text (`command_rules.own_text`, words): 2582 → 1604 (62.1% of baseline, a 37.9% cut). **Floor, not 50%:** 130 words are frontmatter (routing description, kept), ~190 are the two fences read by parsers/tests (Output grammar, DECISION block), and 72 live rules average 22 words each (spec U1); a further cut would drop a ban or backticked token.
+- Ledger `commands/_rules/fabrik-release.yaml`: 72 entries = 10 generated-unchanged + 62 hand-written (all reworded/shrunk under D-1236). By class (YAML comment `# class:`): ban 17, grammar 3, behavioural 5, prose 47. Vanished L-labels: rule 61, duplicate-of 3, narrative 4 (author labels — audit owed; no Sonnet/Haiku seats in this clone).
+- Uncovered clauses are recorded as `# clauses:` comments on the entry (reasons, examples, history); every NEVER/MUST/only word and backticked token of a kept rule survives; every text carrier is ≥6 normalised words and unique in the file (checked by script).
+- Pins deleted: `tests/test_release_queue_pass.py` — `test_the_certification_precondition_leads_with_the_absence_case` (its absence pin `No certification report at all` is now a `forbidden:` carrier on `rel-cert-precondition-lead`) and the three text asserts of `test_the_docs_precondition_names_what_each_check_measures` (carriers `rel-cert-precondition-lead`, `rel-docs-updater-measures-header`, `rel-docs-tiebreak`, `rel-stale-header-no-date-bump`); the `docs_updater` constant/list asserts stay (behavioural, they grade the script). Kept untouched: `test_chrome_launch_pack.py`, `test_final_gate_stop_deferral.py`, `test_gate_decision_blocks.py`, `test_check_command_corpus.py`, `test_producing_command_fragments.py`.
+- Gates: `tests/test_command_rules.py` + `tests/test_release_queue_pass.py` 33 passed, 3 skipped, LEDGER line `fabrik-release.yaml: 72 entries`, zero LOSS; `assemble_commands.py --check` exit 1 with only DIFFERS/MISSING drift (fabrik-release reports "shrank to 8974 words").
+- Reader-test set (stems + corpus-glob tests, 16 files; `test_scaffold_office_extension.py` excluded, its `dotenv` import is missing in this clone): start 15 failed / 1026 passed; end 15 failed / 1025 passed (one pin test deleted). Failure set identical (diff empty): test_check_command_corpus ×7, test_command_run ×1, test_quota_dashboard ×7 — all box-service/environment reds, pre-existing.
+- LEFT FOR THE HUB: Sonnet + Haiku audit of the 69 vanished labels and the 62 reworded entries; `commands/_size_ceiling.json` ratchet at merge; CHANGELOG/INDEX rows for the two new `commands/_rules/fabrik-release.*` files; render at merge.
+
+## Fix round 1 (claude/lean-t31-fix, W-96f36043)
+
+- Two author-blind audits (Sonnet 35 findings, Haiku 45; they overlap) checked against the baseline text. **Confirmed and fixed: all substantive ones** — restored: the Gate-2 "never perform the action yourself" ban; "the run continues — keep going"; the gauntlet-first mapping + `CLAUDE.md § Pipeline item 2`; `/opt/wpf` + date + "no release or deploy path"; "from its artifacts" + "never fall through silently"; "stale green is not evidence"; the upstream-fallback `--branches`/THIS-branch/`only … actually EMPTY`/D-026 clause, "no such statement", "store zip must be reproducible from a SHA"; `fleet_doc_audit.py`, "registry-obligated", 90 days, the git-check half; the stale-header ban clause verbatim; `/fabrik-docs-review`; the question-bar order; the parity-header anchors, `UNVERIFIED`, the stale-contract remedy, `docs/STRATEGIC_BACKLOG.md`; "trigger, don't execute"; "never assume a local Android SDK"; "approve … submission is yours", "review = days-to-weeks"; `exactly as the MOBILE path does`; "production zip", "Verify listing assets", checklist § 4; "only ever cut on a fully-PASS verdict"; "never cut a hollow version", "current tag →"; `[X.Y.Z] — date`, "set the upstream", "graduated entries as notes"; "before anything else" + classify-at-mint + "not yours to row"; "never fork" + "explicitly" + the checklist version source; waiver "specific/explicitly", `@{u}..HEAD`, "must outlive this chat"; "explicit accept"; R14 restated; `fabrik apply` in the tag line; desktop "if this surface ships regularly" + distribution note; frontmatter "before the human clicks go"; the `Every open row carries a severity (P0–P3)` sentence (was labelled narrative).
+- **Relabelled:** L41 (parity honour-bound sentence) → `rule: rel-parity-stale-version-warn` (it is now carried there); L67 ("Submission is yours.") → `rule: rel-extension-handoff`; L12 removed (sentence is back in the text). L6/L18/L22/L28/L35/L39/L46/L80 now true because their carriers hold the restored clauses.
+- **Refuted / not changed:** #35 (Sonnet, "invented" rule) — the DOCS "Otherwise … it stands" antecedent is now explicit in the restored sentence; Haiku #24 (`check_review_coverage.py`) restored with the honour-bound sentence; Haiku #38 condition restored. Wording-only drifts L25/L50/L53/L62/L63/L66 pass the stem test (no change).
+- Ledger: every changed carrier's `current`/`text` re-pointed at the new unit; `tests/test_command_rules.py` 32 passed, 3 skipped, zero LOSS; `assemble_commands.py --check` exit 1 with DIFFERS/MISSING drift only.
+- Own text words: baseline 2582 → first cut 1604 → after fix 2088.
+
+## Re-ledger round (claude/lean-t31-rl, W-96f36043)
+
+- Loader: the canonical `commands/command_rules.py` (loader-swap commit 4b4058e). Reproduced at the start: 33 own-ledger LOSS lines (34 incl. the `LOSS:` header), all in `fabrik-release.yaml`.
+- Own text (`command_rules.own_text`, words): baseline 2582 -> fix round 2088 -> now 2156 (83.5% of baseline). **The 50% goal is NOT met**; the count rose 68 words against the fix round because the canonical lint D forces back, word for word, ban spans the fix round had shortened (`never fall through silently — … proven twice)`, the `never a hardcoded origin/master: the fleet splits …` span, `only; --branches … on a shared tree) AND`, `JS-only fix … "Distribution, Updates & API Versioning"`, the `never invent a data practice") is violated by … (job-agent, 2026-08-28 …)` span), and because anchors (`deploy/submit`, `Spec/shape`, the `development|preview| production` spacing, `CLAUDE.md`, `Gate 2`) must sit in a phrase that also holds 70% of the first 8 stems.
+- LOSS before -> after: 33 -> 0 for `fabrik-release.yaml` (`assemble_commands.py --check | grep LOSS | grep -v _shared` prints no ledger line). I also ran the check with `_lintable` forced true for every entry (strict: every baseline clause B/A/D-linted, class prose C-linted): 0 LOSS in both modes.
+- Ledger: 70 entries (was 72): 15 identical to their baseline unit, 55 reworded/re-pointed; removed `rel-no-evidence-no-pass` (L5 now `duplicate-of: rel-termination-verdicts`), `rel-argument-overrides` (same unit as `u-L23`), `u-L57` (L57 `duplicate-of: rel-extension-ring-first`); added `rel-parity-honour-bound` (L41, carried again). Clause labels (real `clauses:` keys, 8 entries): narrative on `rel-pushed-and-upstream-relative` clause 5 (D-026), `rel-docs-updater-measures-header` 3, `rel-docs-behind-code-blocked` 3-4, `rel-shape-honest` 2, `rel-cut-on-pass` 2, `rel-cut-decision-row` 1-2, `rel-deploy-stays-gate-2` 1, `rel-parity-honour-bound` 2. No ban clause is labelled. Vanished labels: rule 62, duplicate-of 3, narrative 3.
+- COUNTS: entries read 70 / reworded 55 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0
+- What earlier passes fixed and I kept: every item of the fix-round list (the Gate-2 `never perform`, `keep going`, gauntlet-first mapping, `/opt/wpf`, `stale green`, upstream fallback, `fleet_doc_audit.py`, parity anchors, `UNVERIFIED`, `STRATEGIC_BACKLOG.md` pointer as the narrative half of L41, the waiver anchors, `if this surface ships regularly`, the `P0–P3` sentence). Re-checked line by line against `git show origin/kaizen-lean-u01:commands/_sources/fabrik-release.md`.
+- Cuts made: frontmatter dispatch list (restates Phase 0), `chrome-extension` "not exotic" examples, `An item without evidence is not PASS` (restates the PASS-with-evidence clause), `Continue with steps 2-5` (restates the ONLY-listable-ring clause), the "(the fallback returns the whole history …)" and "(Phase 0's own precondition … mandated act)" rationales, `a lying shape is a silently broken deploy`, `touch-on-change proved presence …`, `the release gate demands dated truth`, `this is what puts real versions next to the repo on GitHub`, `The cut is decision-shaped — "built X at vY"`, the `D-026` fleet remark.
+- Why the remaining clauses cannot shrink (reading of `_covered`, `_ban_span`; floor estimate ~1300-1400 words = 50-54% even if every glue word went):
+
+| Clause group | Why it cannot shrink |
+|---|---|
+| intro, Termination (3 ban sentences), P2/P3, waiver, unmapped type, upstream (clauses 3, 6, 7), `@{u}` fatal, question bar, store text is data, parity DRAFT, mobile ring and OTA, extension ring/skip/record-why/privacy, cut dry-run/execute/stages-only/one-identity | ban words: lint D keeps the span from the ban word to the end of its clause verbatim, parentheticals and all (the incident story in `rel-extension-unlistable-skip` clause 2, `proven twice`, the fleet-split reason) |
+| Phase 0 map, docs truth, docs tiebreak/behind-code, cert lead, parity stale, shape, compose, VPS/mobile/extension handoffs, desktop | anchors (backticked tokens, paths, numbers, `deploy/submit`, `SERVICES/RESILIENCE/CONFIGURATION/DEPLOYMENT`) sit inside one clause, so one phrase must hold all of them plus 70% of its first 8 stems; the tails that remain are operator-facing instructions (what to run, what to print), not narrative |
+| Output fences (141 words), frontmatter routing text (~95) | grammar the Stop hook / tests read; description is the trigger |
+
+- Tests: failure set at the start commit and at the end is identical in both sets run. Set 1 (13 files, `test_mobile_launch_pack.py` and `test_scaffold_office_extension.py` excluded, `pydantic` missing in this clone): 114 failed / 832 passed / 6 skipped before, 114 / 832 / 6 after (`diff` of the FAILED lists empty; `tests/test_command_rules.py::test_the_live_corpus_has_no_loss` is red at both ends from the `_shared/close-chain.yaml` LOSS only). Set 2 (corpus-glob and trigger tests, 12 files): 7 failed / 607 passed / 11 skipped before and after, FAILED lists identical (`test_check_doc_links` ×4, `test_rule_grounding` ×1, `test_command_run` ×1, `test_governance_template_split` ×1). No test pin of this command deleted or changed.
+- LEFT FOR THE HUB: (1) the author-blind audit pair on the 55 reworded entries and on the labels L16/L47/L68 (narrative), L5/L57/L61 (duplicate-of), and on L41's clause 2 (`no executable check grades this header today (… recorded deferral …)` labelled narrative; an earlier audit read it as a rule, `rel-parity-honour-bound` carries its first half); (2) whether the 50% goal should be restated for ban-heavy commands, since lint D pins the incident parenthetical and the `proven twice` aside; (3) `commands/_size_ceiling.json` ratchet, render at merge.
+
+## Fix round 2 (hub audit)
+
+Command: `fabrik-release`. Findings checked against `lean-baseline-2026-10-25:commands/_sources/fabrik-release.md`.
+
+**Confirmed and fixed (all but one):**
+- `$5` fee / listing-asset / fee hand-off in `rel-extension-unlistable-skip` — restored verbatim.
+- No-remote cut row (baseline L177: waived path, `--no-push`, row COMMITS LOCALLY, no push exists to ride) — restored; "in its own commit" (invented) removed.
+- `D-026` and "the fallback returns the whole history — that is the true answer, not 'the probe ran'" in `rel-pushed-and-upstream-relative` — restored; the `clauses: 5: narrative` label removed.
+- `docs/STRATEGIC_BACKLOG.md` deferral clause at L41 (`rel-parity-honour-bound`) — restored; `clauses: 2: narrative` removed.
+- L5 "A checklist item without evidence is not PASS" — restored in the source and carried by new entry `rel-pass-needs-evidence` (was mislabelled `duplicate-of`).
+- L57 "Continue with steps 2-5" — restored and carried by new entry `rel-extension-listable-continue` (was mislabelled `duplicate-of`).
+- `rel-extension-ring-first` examples (automation, scraping, internal enterprise tooling, remote code) — restored.
+- Sonnet lows: "in the report" and the full quoted desktop flag; "the surface's checklist below"; `(uppercase — prose "breaking" doesn't count)`; "to grep"; "(all surfaces, ...)".
+- Frontmatter `description` (Haiku #9): real — restored byte-identical to the baseline line.
+- Fresh pass 1 found two more weakenings, both fixed: the office add-in parenthetical ("ship a manifest + hosted taskpane ... hosted half") and `(operator-waived)` in the `--execute` clause.
+
+**Refuted:** Haiku #3 ("Include the printed plan in the report" is present in the after-text, `u-L75`, as the hub adjudication also found).
+
+**Own-text words:** baseline 2582 → re-ledger 2156 → now 2313 (89.6% of baseline, above the 50% floor; no per-file floor table owed).
+
+**Gates:** `tests/test_command_rules.py -rP` prints no LOSS line for `fabrik-release.yaml` (the remaining failure is `_shared` LOSS, another unit's); `assemble_commands.py --check` exits 4 with only drift. The loader files (`command_rules.py`, its test, `command-corpus-check.md`) were taken from master for the gates and left out of the commit.
+
+**Fresh passes:** 2 (separate fresh subagents; pass 1 found 2 weaker, fixed; pass 2 found nothing).
+
+COUNTS: entries read 72 / reworded 40 / weaker 0 / lost 0 / invented 0 / wrong vanished labels 0
+
+## Nits round (hub)
+
+Each item restored in `commands/_sources/fabrik-release.md` and inside its ledger entry's `text` (`fabrik-release.yaml`).
+
+- rel-extension-zip-checks "using" — restored.
+- "non-fatal" (`gh` missing) — restored.
+- "stranding a local tag on a graduated CHANGELOG" — restored (tail after "either way mid-cut").
+- "an unpushed waiver commit would block the release on its own mandated act" — restored with "Phase 0's own precondition".
+- "an unstated ring means the next run re-derives it" (L61) — restored in `rel-extension-ring-first`.
+- "not temporarily" — restored.
+- "not 'not yet done'" — restored.
+- "checklist verdicts" — restored.
+- "decision-shaped" (clause 1 of `rel-cut-decision-row`) — labelled narrative (already `clauses: 1: narrative`; it names the cut's class and carries no instruction).
+- Pronoun/passive rewordings — restored: "report it as" (as "is a BLOCKED release; report it as"), "you have printed the Gate-2 handoff block", "report that cause", "this clause kills", "in those reports".
+- Refuted, untouched: "A key doc" → "a doc"; the wordpress "out of fabrik" line.
+
+**Own-text words:** about 2313 → 2374 (rendered command 9683 → 9744, ceiling 10251).
+
+**Gates:** `tests/test_command_rules.py -rP` shows zero LOSS for `fabrik-release.yaml` (only `_shared` LOSS remains); `assemble_commands.py --check` shows only DIFFERS drift. The zero-counts self-audit was NOT a fresh subagent (none could be dispatched); the hub's author-blind audit pair covers it.

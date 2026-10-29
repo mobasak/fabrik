@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T16:13:33.822280Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "4e7f456104e03309316216e1bca23caafa3bbf5d",
+  "id": "W-9b3ee1bf",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "repair the row's cell delimiters so malformed_ids() no longer lists D-1159; run scripts/enforcement/check_decisions_unique.py",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 3,
+  "score_reason": "LOW: ledger-row wording repair, advisory check only; about one edit",
+  "status": "done",
+  "title": "Repair D-1159 in docs/DECISIONS.md: check_decisions_unique reads it as 4 cells (header 6) — escaped pipes merge cells; malformed since baseline (from 19c6a5f96, W-76c49aa8 follow-on)"
+}

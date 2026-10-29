@@ -1,3 +1,7 @@
+# n8n workflow automation — the live stack is /opt/n8n/compose.yaml on vps1; this is its mirror.
+# ARM64: supported (linux/amd64, linux/arm64).
+# n8n v1.0+ removed basic auth: the first run opens a setup wizard that creates the owner account, and
+# Authelia fronts the instance (authelia-forward@docker below).
 services:
   n8n:
     image: n8nio/n8n:latest

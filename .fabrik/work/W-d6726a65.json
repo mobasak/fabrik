@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T13:15:26.340335Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "4e499e0d83a0e519dd806d0286ed7f2b5eb2bc79",
+  "id": "W-d6726a65",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 1,
+  "score_reason": "operator 1.1: one-time steps done by the operator once, then coordinators handle the rest",
+  "status": "done",
+  "tags": [
+    "next-infra-2"
+  ],
+  "title": "Operator one-time setup script (docs/reference/operator-agent-requirements.md 1.1): collect every settings step the safety check refuses agents — install user hooks into fleet account dirs api-can and api-sarp (install_user_hooks.py --check shows every entry missing; infra 2026-10-28), the claude-agent-wrapper.sh install + claudeCode.claudeProcessWrapper setting (W-ea993618), allow rules W-835894a6/W-b9ad80ae need — into ONE reviewed script the operator runs once"
+}
