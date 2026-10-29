@@ -3617,6 +3617,103 @@ def test_force_dash_still_spares_the_analyst() -> None:
     assert merged[6] == "friction" and merged[7] == "filed", "analyst cells survive the refusal"
 
 
+# ── W-90163961: the collector's OWN Filed value is not the analyst's ─────────────────────────────
+# A bare `N filed / N none / N unstated` cell is what the collector wrote on an earlier run of the
+# week; treating it as hand-written froze week 43's count from 10-22 to 10-25. An analyst who
+# extends the value owns it, exactly as before.
+
+_BARE = "98 filed / 248 none / 0 unstated"
+_FRESH = "120 filed / 300 none / 1 unstated"
+
+
+def _row7(filed: str, friction: str = "—") -> list[str]:
+    return ["2026-10-25", "90%", "—", "—", "—", "—", friction, filed]
+
+
+def test_a_collector_written_filed_cell_is_refreshed_by_a_same_week_run() -> None:
+    from kaizen_collect_v2 import _merge_cells
+
+    merged = _merge_cells(_row7(_FRESH), _row7(_BARE, "router fix"), force_dash=False)
+    assert merged[7] == _FRESH, merged
+    assert merged[6] == "router fix", "cell 6 has no collector value: the analyst's text stays"
+
+
+@pytest.mark.parametrize("force_dash", [False, True], ids=["unmeasurable-dash", "golden-refusal"])
+def test_a_dash_or_refusal_replaces_a_collector_filed_cell(force_dash: bool) -> None:
+    """H6, as for the mechanical cells: a stale count never survives under an advanced date. An
+    analyst-extended cell still survives the refusal."""
+    from kaizen_collect_v2 import _merge_cells
+
+    dashes = ["2026-10-25"] + ["—"] * 7
+    assert _merge_cells(dashes, _row7(_BARE), force_dash)[7] == "—"
+    extended = _BARE + "; fleet mail 01X"
+    assert _merge_cells(dashes, _row7(extended), force_dash)[7] == extended
+
+
+@pytest.mark.parametrize(
+    "old",
+    [
+        _BARE + "; fleet mail 01M5JXEQQ5 (infra: same distro default)",
+        "18 filed / 15 none / 0 unstated (auto) · fleet this week: W-714ae2cf",
+        "16 filed / 73 none / 0 unstated (auto, 10-26..10-27) · fleet this week: W-4f36876c",
+        "18 filed / 15 none / 0 unstated · W-4c7edc74 (P1), W-cd73ac65",
+        _BARE + ".",
+        " · " + _BARE,
+        "098 filed / 248 none / 0 unstated",
+        "٣ filed / ١ none / ٠ unstated",
+        "98 filed / 248 none",
+        "98 filed /  248 none / 0 unstated",
+        "we saw " + _BARE + " this week",
+    ],
+    ids=[
+        "semicolon",
+        "auto-dot",
+        "auto-range",
+        "dot-items",
+        "trailing-dot",
+        "leading-dot",
+        "leading-zero",
+        "arabic-digits",
+        "two-part",
+        "double-space",
+        "inside-prose",
+    ],
+)
+def test_an_analyst_extended_filed_cell_still_wins(old: str) -> None:
+    from kaizen_collect_v2 import _merge_cells
+
+    assert _merge_cells(_row7(_FRESH), _row7(old), force_dash=False)[7] == old
+
+
+def test_the_filings_producer_cell_matches_the_collector_shape() -> None:
+    """The shape is read off the REAL producer: a change to its format fails here instead of
+    quietly re-freezing every week's count."""
+    sys.path.insert(0, str(REPO / "scripts" / "sysadmin"))
+    import kaizen_collect_v2 as kc
+    import kaizen_outcomes as ko
+
+    rows = [{"runs": {"fb_filed": 0, "fb_none": 12, "fb_unstated": 3}}, {"runs": {"fb_filed": 7}}]
+    orig = ko._window_deltas
+    try:
+        ko._window_deltas = lambda state, days: (rows, rows)
+        cell = ko.filings(days=["2026-10-25"]).cell
+    finally:
+        ko._window_deltas = orig
+    assert cell == "7 filed / 12 none / 3 unstated", cell
+    assert kc._COLLECTOR_CELL_SHAPES[7].fullmatch(cell), cell
+
+
+def test_upsert_refreshes_the_collector_filed_cell_in_the_same_week(tmp_path: Path) -> None:
+    from kaizen_collect_v2 import upsert_log_row
+
+    log = tmp_path / "log.md"
+    log.write_text(LOG_STUB, encoding="utf-8")
+    assert upsert_log_row(log, ["2026-10-22", "50%", "—", "—", "—", "—", "—", _BARE])
+    assert upsert_log_row(log, ["2026-10-25", "60%", "—", "—", "—", "—", "—", _FRESH])
+    rows = [ln for ln in log.read_text(encoding="utf-8").splitlines() if ln.startswith("| 2026-10")]
+    assert len(rows) == 1 and _FRESH in rows[0] and _BARE not in rows[0], rows
+
+
 # ── the FEEDBACK verdict, counted at the derivation layer ────────────────────────────────────────
 # Counted HERE — beside `done`/`blocked`/`done_evidenced` on the same `run_close` pass — rather than
 # by an ad-hoc reader beside the metrics, so the filing counts obey the same single-source law,
