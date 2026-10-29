@@ -11,10 +11,10 @@ All notable changes to this project will be documented in this file.
   and `scripts/enforcement/check_review_coverage.py` (the receipt's Changed list and its `Hunt:` rows).
   Each now reads a code span the way CommonMark pairs one on a single line: a run of N backticks
   (N up to 8, which keeps the scan linear) closed by the next run of exactly N, an unclosed run left
-  literal, one space stripped from each side as CommonMark does. Escaped backticks and spans across a
-  line break are still not read, as before. `tests/test_code_span_readers.py` covers each reader, holds
-  the three copies of the pattern equal, and fails on any new naive single-backtick pair under
-  `scripts/` or `.claude/hooks/`; the nine pre-existing ones are listed there against W-8183ecc2
+  literal, one space stripped from each side as CommonMark does. As before, a backslash-escaped backtick
+  still opens or closes a span, and a span across a line break is not read. `tests/test_code_span_readers.py`
+  covers each reader, holds the three copies of the pattern equal, and fails on a new one-line naive
+  single-backtick pair under `scripts/` or `.claude/hooks/`; the nine pre-existing ones are listed there against W-8183ecc2
   (kaizen mail 01M5JTMSVY, W-f2e97f00).
 
 ### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)

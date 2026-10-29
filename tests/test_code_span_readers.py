@@ -120,10 +120,11 @@ _KNOWN_NAIVE = {
 
 
 def test_no_new_reader_pairs_single_backticks_naively() -> None:
-    """The class guard: a single backtick, an optional group, then a negated-backtick class — the
-    shape that unpairs on a double span — in any line of any .py under scripts/ or .claude/hooks/
-    (archived trees excepted). A new site fails; a fixed one must leave `_KNOWN_NAIVE` too."""
-    naive = re.compile(r"`\(?\[\^`")
+    """The class guard: a single backtick, an optional group (plain, `(?:` or `(?P<name>`), then a
+    negated-backtick class — the shape that unpairs on a double span — in any line of any .py under
+    scripts/ or .claude/hooks/ (archived trees excepted). A new site fails; a fixed one must leave
+    `_KNOWN_NAIVE` too. A pattern split across lines or built by concatenation is not seen."""
+    naive = re.compile(r"`(?:\((?:\?:|\?P<\w+>)?\s*)?\[\^`")
     hits: dict[str, int] = {}
     for root in ("scripts", ".claude/hooks"):
         for p in sorted((_REPO / root).rglob("*.py")):
