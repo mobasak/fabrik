@@ -7,6 +7,12 @@
 
 **Lesson:** a removal on a fleet host must also remove what would start the stack again. That means the compose file in the boot glob (rename it out) and every autonomous actor told to keep the stack up (its prompt or config). Grep the host's boot units and the bot prompt for the stack's name before calling it gone.
 
+## Run the new output over the live population before the review, not only the fixtures (2026-10-29, W-c77f91c6)
+
+**What happened:** all eight fixture tests and nine mutants passed. Then the base and new check were run over every one of the 224 live worktrees, and the new green line printed "all 2 present" in trees that held no synced file at all. Seeded rows skip before the absent-row test, and the count was `len(lock) - not_received`. No fixture carried a seeded row, because the tmp hub had no manifest.
+
+**Lesson:** a count printed by a new mode is a claim about the population, not about the fixture. Run the new mode over the real population and read every distinct line it prints before the review starts. Then derive the count from the rows the loop actually graded, never from the total minus one category.
+
 ## A scope condition written twice hides from every single mutant (2026-10-29, W-19b57b9a)
 
 **What happened:** the hub-only self-guard first checked `self_repo == "fabrik"` on BOTH sides it compared (the parent's agent and the caller's). Deleting either check alone changed nothing, because the other one still emptied the comparison, so two mutants survived a battery that killed everything else. The tests were complete; the code made each half redundant.

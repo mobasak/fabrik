@@ -247,8 +247,8 @@ NEUTERS: dict[str, tuple[str, str]] = {
         "    if True:",
     ),
     "check_synced_unmodified": (
-        "        elif _md5(dest) != distributed_hash:",
-        "        elif False:",
+        "            if _md5(dest) != distributed_hash:",
+        "            if False:",
     ),
     "check_env_vars": ("        if r.severity == Severity.ERROR", "        if False"),
     "check_doc_index": (
