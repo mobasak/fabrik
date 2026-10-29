@@ -5787,13 +5787,15 @@ def _open_plans(main: Path) -> list[str]:
     saying so, and a plan the parser raises on is listed as open with the error, since its status is
     unknown. No plans dir is no open plan."""
     plans = main / "docs" / "development" / "plans"
-    if not plans.is_dir():
-        return []  # no plans dir, no open plan — whether or not the parser would load
     try:
+        # is_dir re-raises EACCES from an unreadable ancestor; a plain absence is no open plan,
+        # whether or not the parser would load
+        if not plans.is_dir():
+            return []
         # Path.glob swallows a PermissionError (a dir it cannot list, or one it lists but cannot stat
         # into), which read as no open plans
         if not os.access(plans, os.R_OK | os.X_OK):
-            raise PermissionError(f"{plans} is not readable and searchable")
+            raise PermissionError("not readable and searchable")  # the line names the dir
         spec = importlib.util.spec_from_file_location(
             "_work_docs_updater", Path(__file__).with_name("docs_updater.py")
         )

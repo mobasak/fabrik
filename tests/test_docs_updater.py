@@ -828,6 +828,22 @@ def test_work_open_plans_says_so_when_the_plans_dir_cannot_be_read(tmp_path, mon
         finally:
             plans.chmod(0o755)
         assert len(out) == 1 and "PermissionError" in out[0] and "unavailable" in out[0], (mode, out)
+        assert str(tmp_path) not in out[0], out  # repo-relative, as every line of the view
+
+
+def test_work_open_plans_says_so_when_an_ancestor_cannot_be_read(tmp_path, monkeypatch):
+    """W-f1412a11 review pass 3: Path.is_dir re-raises EACCES, so an unreadable docs/development
+    crashed queue and triage; it is one 'unavailable' line, since the plans cannot be known."""
+    work, repo, plans = _fake_docs_updater(
+        tmp_path, monkeypatch, "PLAN_DONE = set()\ndef parse_plan_status(path):\n    return ('DRAFT', 0, 0)\n"
+    )
+    (plans / "2026-10-02-plan-good.md").write_text("# good\n")
+    plans.parent.chmod(0)
+    try:
+        out = work._open_plans(repo)
+    finally:
+        plans.parent.chmod(0o755)
+    assert len(out) == 1 and "PermissionError" in out[0] and "unavailable" in out[0], out
 
 
 def test_work_open_plans_is_empty_without_a_plans_dir_whatever_the_parser(tmp_path, monkeypatch):
