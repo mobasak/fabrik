@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the docusaurus pack no longer offers a serve image its audit grades CRITICAL (2026-10-29)
+
+`.windsurf/rules/core/42-docusaurus.md` (fleet-synced) named `nginxinc/nginx-unprivileged` as "the alternative"
+serve image while its checklist and the hub audit accept only the stock `nginx:mainline-<codename>`. The serve-stage
+paragraph now says the alternative is outside the mandate and routes a project that wants it to the hub by mail.
+`tests/test_docusaurus_pack.py` pins the paragraph and runs the audit (D-1344, supersedes D-664 in part; fleet mail
+01M632SH6W).
+
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
   `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`
