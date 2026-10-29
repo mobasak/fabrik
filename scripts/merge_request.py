@@ -2818,6 +2818,17 @@ def _record_matches(ctx: _Ctx, el: dict, script: str, runner: str) -> bool:
     return _skip_only_diff(ctx.main, rec["tree"], f"{el['at']}^{{tree}}") == []
 
 
+def _tried_key(ctx: _Ctx, el: dict) -> tuple[str, str]:
+    """``(head, stacked tree)``: a chain rebuild makes new elements and new stacked commits, but the
+    same request on the same stack keeps its tree, so a failed leg is not forked again; one re-stacked
+    onto a changed base (an earlier request refused) has a new tree and earns a fresh queue leg. An
+    unreadable tree keys on the commit — a re-fork allowed, never a leg skipped."""
+    try:
+        return el["head"], _gitc(ctx.main, "rev-parse", f"{el['at']}^{{tree}}").strip()
+    except RefusedError:
+        return el["head"], el["at"]
+
+
 def _leg_seconds(ctx: _Ctx, el: dict, script: str, runner: str) -> float:
     """The measured seconds of the queue leg that wrote ``el``'s matching record, else 0: a record
     the requester's own ``request --pretest`` wrote (no ``queued_as`` of this element) says nothing
@@ -2832,7 +2843,10 @@ def _leg_seconds(ctx: _Ctx, el: dict, script: str, runner: str) -> float:
         return 0.0
     if not isinstance(rec, dict) or rec.get("queued_as") != el["id"]:
         return 0.0
-    return float(rec["seconds"])  # _record_matches proved it a finite number past the floor
+    seconds = rec.get("seconds")  # re-validated: the file may have been rewritten since the match
+    if isinstance(seconds, bool) or not isinstance(seconds, (int, float)):
+        return 0.0
+    return float(seconds) if math.isfinite(seconds) and seconds > 0 else 0.0
 
 
 def _run_leg(ctx: _Ctx, el: dict, runner: str) -> int:
@@ -2952,10 +2966,12 @@ def _queue(args: argparse.Namespace) -> int:
     runner = _runner_sha()  # once, before any carry can rewrite this file (Opus 9)
     fork = multiprocessing.get_context("fork")
     running: dict[str, tuple] = {}  # head -> (its leg child, its element, its script)
-    timed = 0.0  # the longest green queue leg this run timed, its recorded seconds (_leg_fits)
-    # every head a queue leg already ran for this run: a chain rebuild makes new elements (and new
-    # stacked commits), so `leg_done` alone re-forked a failed leg after every landing
-    tried: set[str] = set()
+    # the longest green queue leg this run timed, its recorded seconds, per owner script (_leg_fits):
+    # a landing that changes `.fabrik/merge-tests` starts the next script at its declared limit
+    timed: dict[str, float] = {}
+    # every (head, stacked tree) a queue leg already ran for this run (_tried_key): a chain rebuild
+    # makes new elements, so `leg_done` alone re-forked a failed leg after every landing
+    tried: set[tuple[str, str]] = set()
     landed: set[str] = set()
     rc = EXIT_OK
     with _queue_lock(ctx):
@@ -2991,7 +3007,8 @@ def _queue(args: argparse.Namespace) -> int:
                             child.join()
                             del running[head]
                             if child.exitcode == 0:
-                                timed = max(timed, _leg_seconds(ctx, leg_el, leg_script, runner))
+                                seconds = _leg_seconds(ctx, leg_el, leg_script, runner)
+                                timed[leg_script] = max(timed.get(leg_script, 0.0), seconds)
                     # a later leg forks only once the first request lands on a record (or has no
                     # tree to test): else its locked merge runs its own leg, and a queue leg
                     # beside it halves both
@@ -3006,25 +3023,26 @@ def _queue(args: argparse.Namespace) -> int:
                         if (
                             _record_matches(ctx, el, script, runner)
                             or el.get("leg_done")
-                            or el["head"] in tried
+                            or _tried_key(ctx, el) in tried
                         ):
                             continue
                         if (el is not first and not first_on_record) or not _leg_fits(
-                            started, script, timed
+                            started, script, timed.get(script, 0.0)
                         ):
                             break
                         child = fork.Process(target=_leg_child, args=(ctx, el, runner))
                         child.start()
                         running[el["head"]] = (child, el, script)
                         el["leg_done"] = True  # one leg per element per chain build
-                        tried.add(el["head"])  # and one per request per run
+                        tried.add(_tried_key(ctx, el))  # and one per request and stack per run
                     if first["at"] is None or (
                         first["head"] not in running
                         and (
                             first.get("leg_done")
-                            or first["head"] in tried  # no second queue leg: its locked one runs
+                            or _tried_key(ctx, first)
+                            in tried  # no 2nd queue leg: its locked one runs
                             or _record_matches(ctx, first, script, runner)
-                            or not _leg_fits(started, script, timed)
+                            or not _leg_fits(started, script, timed.get(script, 0.0))
                         )
                     ):
                         # ready to land: its leg is over (green, red or killed), its record is
