@@ -6,14 +6,25 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
+
+import pytest
 
 _SCRIPT = Path(__file__).resolve().parent.parent / "scripts/sysadmin/mcp_health.py"
 _spec = importlib.util.spec_from_file_location("mcp_health", _SCRIPT)
 health = importlib.util.module_from_spec(_spec)
 sys.modules["mcp_health"] = health
 _spec.loader.exec_module(health)
+
+
+@pytest.fixture(autouse=True)
+def _no_box_unit_dir(tmp_path, monkeypatch):
+    """`main()` reads the emitter's unit dir: never the box's /etc/systemd/system. An empty dir by default —
+    a test that wants units installed sets its own."""
+    monkeypatch.setenv("FABRIK_SYSTEMD_UNIT_DIR", str(tmp_path / "unit-dir-unset"))
+
 
 FAKE_OK_SERVER = (
     "import sys,json\n"
@@ -188,8 +199,6 @@ import contextlib  # noqa: E402
 import http.server  # noqa: E402
 import threading  # noqa: E402
 import time  # noqa: E402
-
-import pytest  # noqa: E402
 
 EXA_REFUSED = b'{"requestId":"r1","error":"Invalid API key","tag":"INVALID_API_KEY"}'
 FIRECRAWL_REFUSED = b'{"success":false,"error":"Unauthorized: Invalid token"}'
@@ -640,9 +649,9 @@ def test_health_names_withheld_and_stale_services(tmp_path, monkeypatch, capsys)
     out = capsys.readouterr().out
     assert (
         "MCP-HEALTH: fabrik-scrape is emitted but its unit fabrik-scrape-mcp.service is not installed"
-        " and enabled — a stale entry; re-run python3 /opt/fabrik/scripts/sysadmin/"
-        "emit_mcp_project_config.py --repo " in out
-    ), out
+        " and enabled — a stale entry; install the unit (/opt/fabrik/docs/reference/fabrik-scrape-mcp.md"
+        " § Build, install, update), or remove the entry from " in out
+    ), out  # not a git repo: the emitter would SKIP it, so a re-run is never the advice
     assert json.loads(cache.read_text())["report"] == {"fabrik-scrape": "DEAD"}
 
     (tmp_path / "fabrik" / ".mcp.json").write_text(json.dumps({"mcpServers": {}}))
@@ -651,9 +660,52 @@ def test_health_names_withheld_and_stale_services(tmp_path, monkeypatch, capsys)
     out = capsys.readouterr().out
     assert (
         "MCP-HEALTH: fabrik-scrape withheld — unit fabrik-scrape-mcp.service not installed and"
-        " enabled; install it" in out
+        " enabled; install it (/opt/fabrik/docs/reference/fabrik-scrape-mcp.md § Build, install, update),"
+        " then re-run python3 /opt/fabrik/scripts/sysadmin/emit_mcp_project_config.py --repo "
+        in out
     ), out
-    assert "fabrik-citation-verifier withheld" in out  # its unit is absent from the tmp dir too
+    assert (
+        "fabrik-citation-verifier withheld — unit fabrik-mcp-http.service not installed and enabled; install"
+        " it (/opt/fabrik/docs/workstation/MCP_HTTP_TRANSPORT.md § Operations)" in out
+    ), out  # its unit is absent from the tmp dir too
+
+
+def test_a_stale_entry_in_an_emitter_owned_file_says_re_run(tmp_path, monkeypatch, capsys):
+    """A plain, git-ignored `.mcp.json` is one the emitter rewrites, so there the advice is the re-run."""
+    monkeypatch.setenv("FABRIK_SYSTEMD_UNIT_DIR", str(tmp_path / "no-units"))
+    empty = tmp_path / "empty.gitconfig"
+    empty.write_text("")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(empty))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    repo = _hub(tmp_path, {"fabrik-scrape": {}})
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    (repo / ".gitignore").write_text(".mcp.json\n")
+    monkeypatch.setattr(health, "check", lambda *a, **k: {"fabrik-scrape": "DEAD"})
+    health.main(["--repo", str(repo)])
+    out = capsys.readouterr().out
+    assert "a stale entry; install the unit (" in out and "), or re-run python3 " in out, out
+
+
+def test_a_failed_probe_still_names_withheld_services(tmp_path, monkeypatch, capsys):
+    """`check()` raising (a corrupt `.mcp.json`) returned before the withheld lines."""
+    monkeypatch.setenv("FABRIK_SYSTEMD_UNIT_DIR", str(tmp_path / "no-units"))
+
+    def _boom(*_a, **_k):
+        raise ValueError("corrupt")
+
+    monkeypatch.setattr(health, "check", _boom)
+    assert health.main(["--repo", str(_hub(tmp_path, {}))]) == 0
+    out = capsys.readouterr().out
+    assert "probe failed open (ValueError)" in out and "fabrik-scrape withheld" in out, out
+
+
+def test_every_service_unit_names_an_install_doc_that_exists():
+    em = health._load_emitter()
+    assert set(health.INSTALL_DOCS) == set(em.SERVICE_UNITS.values())
+    for where in health.INSTALL_DOCS.values():
+        path, _, section = where.partition(" § ")
+        assert Path(path).is_file(), path
+        assert f"## {section}" in Path(path).read_text(), where
 
 
 def test_health_names_a_withheld_service_with_no_mcp_json(tmp_path, monkeypatch, capsys):
@@ -666,12 +718,16 @@ def test_health_names_a_withheld_service_with_no_mcp_json(tmp_path, monkeypatch,
 def test_health_is_silent_when_every_unit_is_enabled(tmp_path, monkeypatch, capsys):
     units = tmp_path / "units"
     (units / "multi-user.target.wants").mkdir(parents=True)
-    for unit in ("fabrik-scrape-mcp.service", "fabrik-citation-verifier-mcp.service"):
+    for unit in ("fabrik-scrape-mcp.service", "fabrik-mcp-http.service"):
         (units / unit).write_text("[Unit]\n")
         (units / "multi-user.target.wants" / unit).symlink_to(units / unit)
     monkeypatch.setenv("FABRIK_SYSTEMD_UNIT_DIR", str(units))
     assert health.main(["--repo", str(_hub(tmp_path, None))]) == 0
     assert "withheld" not in capsys.readouterr().out
+    # positive control: the same repo with one wants link gone does print, so the silence above is the guard's
+    (units / "multi-user.target.wants" / "fabrik-scrape-mcp.service").unlink()
+    health.main(["--repo", str(tmp_path / "fabrik")])
+    assert "fabrik-scrape withheld" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize("broken", ["missing", "exits"])

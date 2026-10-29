@@ -11,7 +11,9 @@ couples them).
 Derivation per repo: the universal set + per-type set (live `project.yaml::type`
 read at run time) + per-repo overlay row. The hub gets the full defs set minus
 HUB_EXCLUDE (the per-session heavy servers — operator ruling 2026-10-07); fabrik-lib keeps
-the full roster, maestro included (the same ruling).
+the full roster, maestro included (the same ruling). A loopback service MCP (`SERVICE_UNITS`) is
+withheld until its systemd unit is installed and enabled under $FABRIK_SYSTEMD_UNIT_DIR
+(default /etc/systemd/system); the verdict line names it (W-07298e38, D-1214).
 Server DEFINITIONS are read from --defs, else scripts/sysadmin/mcp_defs.json; their
 `${VAR}` credentials are filled from the active fleet roster, then the hub .env, and an
 unresolved one aborts the run naming the key (D-641) — the emitter's own prior output is
@@ -114,9 +116,11 @@ NEVER_EMIT = {"fabrik-claim-validator"}  # D-022 planned row: no MCP endpoint ex
 # Cobra: an enabled unit that fails to start still ships a dead entry; mcp_health.py reports it DEAD.
 SERVICE_UNITS = {
     "fabrik-scrape": "fabrik-scrape-mcp.service",
-    "fabrik-citation-verifier": "fabrik-citation-verifier-mcp.service",  # :8033, not the :8032 API
+    "fabrik-citation-verifier": "fabrik-mcp-http.service",  # owns :8033; fabrik-citation-verifier-mcp.service is an inactive look-alike (MCP_HTTP_TRANSPORT.md)
 }
-UNIT_DIR = Path(os.environ.get("FABRIK_SYSTEMD_UNIT_DIR", "/etc/systemd/system"))
+UNIT_DIR = Path(
+    os.environ.get("FABRIK_SYSTEMD_UNIT_DIR") or "/etc/systemd/system"
+)  # set-but-empty is unset, never cwd
 
 # a trailing comment only after whitespace, as YAML reads it (`saas-skeleton#web` is one value); [ \t] never spans lines
 _TYPE_RE = re.compile(r"^type:[ \t]*([A-Za-z0-9_-]+)(?:[ \t]+#.*)?[ \t]*$", re.M)
@@ -326,14 +330,17 @@ def _uri_connects(uri: str) -> bool | None:
 
 def _service_missing(server: str) -> str | None:
     """The unit `server` needs when it is not installed and enabled under `UNIT_DIR`, else None.
-    Enabled = a `*.wants/<unit>` entry, which `systemctl enable` writes for any `WantedBy=` target.
+    Enabled = a `*.wants/<unit>` entry that resolves (a dangling link left by a removed unit file is not
+    enabled), which `systemctl enable` writes for any `WantedBy=` target.
     Any OSError reads as missing: `is_file()` raises under an unreadable directory, and that must
     withhold the server, never skip the repo and leave a stale entry in place."""
     unit = SERVICE_UNITS.get(server)
     if unit is None:
         return None
     try:
-        ok = (UNIT_DIR / unit).is_file() and any(UNIT_DIR.glob(f"*.wants/{unit}"))
+        ok = (UNIT_DIR / unit).is_file() and any(
+            w.exists() for w in UNIT_DIR.glob(f"*.wants/{unit}")
+        )
     except OSError:
         ok = False
     return None if ok else unit
@@ -433,10 +440,11 @@ def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
             if rtype.startswith("(unreadable:")
             else "SKIP"
         )
+    # read off what derive_servers actually left out, so the note and the written file never disagree
     withheld = [
-        f"{s} (unit {u} not installed and enabled)"
+        f"{s} (unit {SERVICE_UNITS[s]} not installed and enabled)"
         for s in ruled_server_names(repo, defs) or []
-        if s in defs and (u := _service_missing(s))
+        if s in SERVICE_UNITS and s in defs and s not in NEVER_EMIT and s not in servers
     ]
     note = f" — withheld: {', '.join(withheld)}" if withheld else ""
     payload = json.dumps({"mcpServers": servers}, indent=2, sort_keys=True) + "\n"

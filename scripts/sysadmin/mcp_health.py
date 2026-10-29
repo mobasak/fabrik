@@ -316,11 +316,14 @@ HUB_EMITTER = (
 )
 
 
-def _withheld(repo: Path) -> dict[str, str]:
-    """{server: unit} for each server the emitter's ruling gives ``repo`` but withholds because its systemd
-    unit is not installed and enabled (W-07298e38). Without this line a forgotten install is invisible:
-    the withheld server is in no ``.mcp.json``, so nothing above probes it. Reads the catalog's NAMES
-    only — never the emitter's ``_load_defs``, which reads the fleet roster and raises SystemExit."""
+# where each SERVICE_UNITS unit's install procedure lives (hub-absolute: this probe runs from every repo)
+INSTALL_DOCS = {
+    "fabrik-scrape-mcp.service": "/opt/fabrik/docs/reference/fabrik-scrape-mcp.md § Build, install, update",
+    "fabrik-mcp-http.service": "/opt/fabrik/docs/workstation/MCP_HTTP_TRANSPORT.md § Operations",
+}
+
+
+def _load_emitter():
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("_mcp_health_emitter", EMITTER_PATH)
@@ -328,6 +331,15 @@ def _withheld(repo: Path) -> dict[str, str]:
         raise FileNotFoundError(EMITTER_PATH)
     em = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(em)
+    return em
+
+
+def _withheld(repo: Path) -> dict[str, str]:
+    """{server: unit} for each server the emitter's ruling gives ``repo`` but withholds because its systemd
+    unit is not installed and enabled (W-07298e38). Without this line a forgotten install is invisible:
+    the withheld server is in no ``.mcp.json``, so nothing above probes it. Reads the catalog's NAMES
+    only — never the emitter's ``_load_defs``, which reads the fleet roster and raises SystemExit."""
+    em = _load_emitter()
     defs_file = EMITTER_PATH.with_name("mcp_defs.json")
     names = {n: {} for n in json.loads(defs_file.read_text()).get("mcpServers", {})}
     ruled = em.ruled_server_names(repo.resolve(), names) or []
@@ -345,17 +357,33 @@ def _print_withheld(repo: Path) -> None:
     except (Exception, SystemExit) as exc:  # a broken sibling never breaks the probe
         print(f"mcp-health: withheld check failed open ({type(exc).__name__})")
         return
+    emit = f"python3 {HUB_EMITTER} --repo {repo.resolve()}"
     for server, unit in sorted(withheld.items()):
+        install = INSTALL_DOCS.get(unit, "/opt/fabrik/docs/workstation/mcp-roster.md")
         if server in present:
             print(
                 f"MCP-HEALTH: {server} is emitted but its unit {unit} is not installed and enabled — a"
-                f" stale entry; re-run python3 {HUB_EMITTER} --repo {repo.resolve()}, or install the unit"
+                f" stale entry; install the unit ({install}), or {_stale_remedy(repo, emit)}"
             )
         else:
             print(
                 f"MCP-HEALTH: {server} withheld — unit {unit} not installed and enabled; install it"
-                " (docs/workstation/mcp-roster.md), then re-run the emitter"
+                f" ({install}), then re-run {emit}"
             )
+
+
+def _stale_remedy(repo: Path, emit: str) -> str:
+    """The emitter rewrites only a plain, git-ignored `.mcp.json`; for any other file a re-run is a SKIP."""
+    path = repo / ".mcp.json"
+    try:
+        owned = not path.is_symlink() and _load_emitter().emitter_owns(repo.resolve()) is True
+    except (Exception, SystemExit):
+        owned = False
+    return (
+        f"re-run {emit}"
+        if owned
+        else f"remove the entry from {path} by hand (the emitter will not write it)"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -378,6 +406,7 @@ def main(argv: list[str] | None = None) -> int:
         report = check(repo, args.timeout, notes)
     except Exception as exc:  # advisory: a broken probe never blocks anyone
         print(f"mcp-health: probe failed open ({type(exc).__name__}) — no verdict")
+        _print_withheld(repo)  # a corrupt .mcp.json must not hide a withheld server too
         return 0
     if args.cache_out:
         try:

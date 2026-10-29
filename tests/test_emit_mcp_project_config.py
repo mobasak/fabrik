@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -86,7 +87,7 @@ def defs_file(tmp_path: Path) -> Path:
 
 SERVICE_UNITS = {
     "fabrik-scrape": "fabrik-scrape-mcp.service",
-    "fabrik-citation-verifier": "fabrik-citation-verifier-mcp.service",
+    "fabrik-citation-verifier": "fabrik-mcp-http.service",
 }
 
 
@@ -670,12 +671,45 @@ def test_the_hub_withholds_an_uninstalled_service_too(tmp_path, defs_file, monke
         tmp_path, monkeypatch, fabrik_scrape="absent", fabrik_citation_verifier="installed"
     )
     r = make_repo(tmp_path, "fabrik", None)
-    run(tmp_path, defs_file)
+    lines = run(tmp_path, defs_file)
     got = servers_of(r)
     assert "fabrik-scrape" not in got and "fabrik-citation-verifier" not in got
     assert "grafana" in got and "session-recall" in got
+    (line,) = [ln for ln in lines if ln.startswith("fabrik:")]
+    assert "withheld: fabrik-citation-verifier (unit fabrik-mcp-http.service" in line, line
+    assert "fabrik-scrape (unit fabrik-scrape-mcp.service" in line, line
+    names = emitter.ruled_server_names(r, emitter._load_defs(str(defs_file)))
+    assert {"fabrik-scrape", "fabrik-citation-verifier"} <= set(names)
 
 
+def test_a_dangling_wants_link_is_not_enabled(tmp_path, monkeypatch):
+    """`glob` matches a broken symlink, so a `*.wants/` link whose unit file was removed and
+    re-created elsewhere read as enabled; the link must resolve."""
+    d = _fresh_unit_dir(tmp_path, monkeypatch, fabrik_scrape="installed")
+    (d / "multi-user.target.wants" / "fabrik-scrape-mcp.service").symlink_to(d / "gone.service")
+    assert emitter._service_missing("fabrik-scrape") == "fabrik-scrape-mcp.service"
+
+
+def _reload_with_unit_dir_env(monkeypatch, value: str):
+    monkeypatch.setenv("FABRIK_SYSTEMD_UNIT_DIR", value)
+    spec = importlib.util.spec_from_file_location("emit_mcp_unit_dir_probe", _SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod.UNIT_DIR
+
+
+def test_unit_dir_is_read_from_the_environment(tmp_path, monkeypatch):
+    assert _reload_with_unit_dir_env(monkeypatch, str(tmp_path)) == tmp_path
+
+
+def test_an_empty_unit_dir_env_falls_back_to_etc_never_cwd(monkeypatch):
+    """`Path("")` is `.`: a set-but-empty variable would have graded the cwd's unit files."""
+    assert _reload_with_unit_dir_env(monkeypatch, "") == Path("/etc/systemd/system")
+
+
+@pytest.mark.skipif(
+    hasattr(os, "geteuid") and os.geteuid() == 0, reason="chmod 0 does not stop root"
+)
 def test_an_unreadable_unit_dir_withholds_not_skips(tmp_path, defs_file, monkeypatch):
     """`Path.is_file()` raises PermissionError under an unreadable directory; unwrapped it would escape to
     main's `SKIP (unreadable …)` and leave a stale file carrying the dead entry in place."""
@@ -702,6 +736,33 @@ def test_a_withheld_service_stays_ruled(tmp_path, defs_file, monkeypatch):
     assert "fabrik-scrape" not in emitter.derive_servers(r, defs)
 
 
+def _is_local_ip(host: str) -> bool:
+    """Any loopback address (127.0.0.0/8, ::1) or the unspecified one (0.0.0.0, ::), which a client
+    connect reaches this box through too; a hostname other than `localhost` is not this box's."""
+    import ipaddress
+
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return ip.is_loopback or ip.is_unspecified
+
+
+@pytest.mark.parametrize(
+    "host, local",
+    [
+        ("127.0.0.1", True),
+        ("127.0.0.2", True),
+        ("::1", True),
+        ("0.0.0.0", True),
+        ("10.99.0.1", False),
+        ("example.com", False),
+    ],
+)
+def test_the_loopback_matcher_covers_every_local_spelling(host, local):
+    assert _is_local_ip(host) is local
+
+
 def test_every_loopback_http_def_names_its_unit():
     """The next loopback service MCP must not skip the guard: every catalog entry served on this box's
     loopback names the systemd unit that serves it."""
@@ -709,7 +770,7 @@ def test_every_loopback_http_def_names_its_unit():
 
     for name, entry in json.loads(CATALOG.read_text())["mcpServers"].items():
         host = urlparse(entry.get("url") or "").hostname
-        if host in ("127.0.0.1", "localhost", "::1"):
+        if host and (host == "localhost" or _is_local_ip(host)):
             assert name in emitter.SERVICE_UNITS, (
                 f"{name} serves {entry['url']} with no SERVICE_UNITS row"
             )

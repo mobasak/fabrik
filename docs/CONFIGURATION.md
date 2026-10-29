@@ -431,10 +431,14 @@ As of 2026-09-02 it carries the full AI-supplier set, each **validated live befo
 - `FABRIK_SCRAPE_MCP_URL` — the MCP endpoint `scripts/scrape_ledger.py` grades a ledger against when no `--server`
   is given. Default `http://127.0.0.1:8034/mcp`, the loopback service `fabrik-scrape-mcp.service` runs once installed. Set it only to
   grade a server on another port, such as a scratch copy. See `docs/reference/fabrik-scrape-mcp.md`.
+
+### Loopback MCP unit directory — `FABRIK_SYSTEMD_UNIT_DIR`
+
 - `FABRIK_SYSTEMD_UNIT_DIR` — where `scripts/sysadmin/emit_mcp_project_config.py` (and `mcp_health.py` through it)
-  looks for the systemd units that serve the loopback MCPs (`SERVICE_UNITS`: an entry is emitted only once its unit
-  file is there AND a `*.wants/<unit>` link says it is enabled). Default `/etc/systemd/system`. A test seam: set it
-  only to point a test at a tmp directory (W-07298e38).
+  looks for the systemd units that serve every loopback MCP in `SERVICE_UNITS` (fabrik-scrape, fabrik-citation-verifier):
+  an entry is emitted only once its unit file is there AND a `*.wants/<unit>` link resolves. Default
+  `/etc/systemd/system`; an empty value reads as unset. Read from the process environment, never from `.env`. A test
+  seam: set it only to point a test at a tmp directory (W-07298e38).
 
 ### Subagent flywheel — `SUBAGENT_RUNS_DSN` / `SUBAGENT_PROJECT` (hub-injected; do NOT hand-set the DSN)
 

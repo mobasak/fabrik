@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed — A loopback service MCP is emitted only once its systemd unit is installed and enabled (2026-10-24)
 
 - `fabrik-scrape` reached the hub `.mcp.json` with no server behind it, so every hub session started with a dead :8034. `scripts/sysadmin/emit_mcp_project_config.py` now withholds a `SERVICE_UNITS` server whose unit is not installed and enabled under `FABRIK_SYSTEMD_UNIT_DIR` (default `/etc/systemd/system`) and names it in its verdict line; `scripts/sysadmin/mcp_health.py` names a withheld server and a stale entry, so a forgotten install stays visible (W-07298e38, D-1214).
+
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
   `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`
