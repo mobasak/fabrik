@@ -29,18 +29,16 @@ _RM = re.compile(
     r"(?:container\s+)?(?:rm|down)\b[^;&|\n]*"
 )
 _RUN_NAME = re.compile(r"\bdocker\s+run\b[^\n]*?--name[\s=]+(\S+)")
-
-
-def _lines(text: str) -> list[str]:
-    """The text's lines with each shell comment cut off (make hands a recipe's `#` to the shell)."""
-    return [ln.split("#", 1)[0] for ln in text.splitlines()]
-
-
+# a recipe line whose LEADING command removes a container (after `@`/`-` and an optional `docker stop N &&`):
+# a removal behind `||`, `if … then` or another command runs only on some path, so it does not count
+_LEADING_RM = re.compile(
+    r"^\t[@+-]*\s*(?:docker\s+stop\s+\S+\s*&&\s*)?(docker\s+(?:container\s+)?rm\b[^;&|]*)"
+)
 _KEEPS_VOLUMES = re.compile(r"-[a-z]*v[a-z]*|--volumes")
 
 
 def _flags_drop_volumes(cmd: str) -> bool:
-    return any(_KEEPS_VOLUMES.fullmatch(t) for t in cmd.split("#", 1)[0].split())
+    return any(_KEEPS_VOLUMES.fullmatch(t) for t in cmd.split())
 
 
 @pytest.fixture(scope="module")
@@ -66,10 +64,7 @@ def makefiles(tmp_path_factory: pytest.TempPathFactory) -> dict[str, str]:
 
 def _removals(makefiles: dict[str, str]) -> list[tuple[str, str]]:
     return [
-        (where, m.group(0).strip())
-        for where, text in makefiles.items()
-        for ln in _lines(text)
-        for m in _RM.finditer(ln)
+        (where, m.group(0).strip()) for where, text in makefiles.items() for m in _RM.finditer(text)
     ]
 
 
@@ -81,7 +76,7 @@ def test_every_container_removal_takes_its_anonymous_volumes(makefiles):
 def _recipes(text: str) -> list[list[str]]:
     """Each rule's recipe lines (tab-led), split at every non-tab line."""
     blocks: list[list[str]] = [[]]
-    for line in _lines(text):
+    for line in text.splitlines():
         if line.startswith("\t"):
             blocks[-1].append(line)
         elif blocks[-1]:
@@ -90,21 +85,19 @@ def _recipes(text: str) -> list[list[str]]:
 
 
 def test_every_started_container_is_removed_with_its_volumes_by_its_own_recipe(makefiles):
-    # after the line that starts a container, its recipe removes it with its volumes on the success path — a
-    # removal only in `clean`, before the run or inside a `|| (…)` failure branch leaves each smoke run's
-    # container and volume behind
+    # after the line that starts a container, a line of its recipe LEADS with removing it with its volumes — a
+    # removal only in `clean`, before the run or on a failure branch leaves each smoke run's container and volume
+    # behind
     started, bare = set(), []
     for where, text in makefiles.items():
         for recipe in _recipes(text):
             for name in {n for ln in recipe for n in _RUN_NAME.findall(ln)}:
                 started.add(where.split(":")[0])
                 run_at = max(i for i, ln in enumerate(recipe) if name in _RUN_NAME.findall(ln))
+                leading = [_LEADING_RM.match(ln) for ln in recipe[run_at + 1 :]]
                 ok = any(
-                    _flags_drop_volumes(m.group(0))
-                    and name in [t.rstrip(")") for t in re.split(r"[\s;]+", m.group(0))]
-                    and "||" not in ln[: m.start()]
-                    for ln in recipe[run_at + 1 :]
-                    for m in _RM.finditer(ln)
+                    m and _flags_drop_volumes(m.group(1)) and name in m.group(1).split()
+                    for m in leading
                 )
                 if not ok:
                     bare.append((where, name))
