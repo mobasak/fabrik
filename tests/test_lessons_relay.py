@@ -138,7 +138,11 @@ def test_fences_nesting_and_copies_are_not_rows(tmp_path):
     _add_hub_lesson(
         tmp_path,
         "# Lesson 3: fenced\n\n```bash\n# not a heading\n```\n\n~~~\n## nor this\n~~~\n\n"
-        "## 2. The Problem\n\nnested, folded into Lesson 3\n\n",
+        "## 2. The Problem\n\nnested, folded into Lesson 3\n\n"
+        # an info-string fence line never CLOSES (CommonMark): the bare ``` after `x` does, so
+        # Lesson 4 is outside any fence; the trailing ``` is a stray opener, read as text
+        "```markdown\n# in the example\n```python\nx\n```\n\n# Lesson 4: after the example\n\n"
+        "```\n\n",
     )
     # a second repo gains a byte-identical copy of the proj AFCL entry: not a new lesson
     (tmp_path / "opt" / "copy").mkdir()
@@ -149,7 +153,10 @@ def test_fences_nesting_and_copies_are_not_rows(tmp_path):
     assert r.returncode == 0, r.stderr
     body = _sends(tmp_path)[0]["body"]
     rows = [line for line in body.splitlines() if line.startswith("- [ ] ")]
-    assert rows == ["- [ ] hub/docs/LESSONS_LEARNT.md:3 · Lesson 3: fenced"], body
+    assert rows == [
+        "- [ ] hub/docs/LESSONS_LEARNT.md:3 · Lesson 3: fenced",
+        "- [ ] hub/docs/LESSONS_LEARNT.md:23 · Lesson 4: after the example",
+    ], body
     # the folded `## 2. The Problem` advanced with its row: no orphan row on the next run
     again = _run(tmp_path)
     assert again.returncode == 0 and again.stdout == "", again.stdout
