@@ -2495,6 +2495,21 @@ def test_t10_f1_a_refresh_row_after_the_spawned_row_still_launches_session_id(
     assert f"claude -n b2 --resume {B2} --settings" in runs["b2"], runs["b2"]
 
 
+@pytest.mark.parametrize("bad", [["x"], {"n": 1}, None, 7])
+def test_t10_f18_a_spawned_row_with_a_non_string_name_never_breaks_the_resolver(
+    tmp_path: Path, bad: object
+) -> None:
+    """T10 F18: a hand-edited or corrupted `spawned: true` row whose name is not a string is skipped, never a crash that
+    exits 2 for every builder; b2's own spawned row still launches `--session-id`."""
+    repo, store, scope = _spawn_repo(tmp_path)
+    rows = [json.loads(ln) for ln in store.read_text(encoding="utf-8").splitlines()]
+    odd = {"session_id": NEW1, "name": bad, "toplevel": scope, "spawned": True}
+    store = _store(tmp_path, [*rows, odd], "odd.jsonl")
+    out = _run("--print", str(repo), home=_home(tmp_path), AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert f"claude -n b2 --session-id {B2} --settings" in _runs(out.stdout)["b2"], out.stdout
+
+
 def test_t10_f14_a_spawned_panes_hint_picks_its_flag_when_printed(tmp_path: Path) -> None:
     """T10 F14: the kept-shell hint and the "already running" message of a spawned pane name `--session-id` while no
     project folder holds the session's transcript and `--resume` once one does — decided when PRINTED, not at launch."""

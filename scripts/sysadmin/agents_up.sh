@@ -296,7 +296,7 @@ for r in rows:
     if r.get("toplevel") != scope or not isinstance(sid, str) or not SID.fullmatch(sid):
         continue
     last_in_scope[sid] = r
-    if r.get("spawned") is True:
+    if r.get("spawned") is True and isinstance(name, str):  # T10 F18: a non-string name is unhashable — skip it
         spawned_in_scope.add((sid, name))
     if isinstance(name, str) and owner.get(sid) == name:
         binding[name] = (sid, at_of(r))
