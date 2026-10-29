@@ -1,0 +1,15 @@
+# WSL network heartbeat for the Windows NAT watchdog (docs/workstation/wsl-net-heartbeat.md, W-960d68a8).
+# Installed by scripts/sysadmin/install_wsl_net_heartbeat_timer.sh into ~/.config/systemd/user/.
+[Unit]
+Description=Touch the WSL network heartbeat files the Windows NAT watchdog reads
+
+[Service]
+Type=oneshot
+# Through bash, not the script directly: verify refuses a direct ExecStart= of a file the main checkout
+# lacks (rc 1, "is not executable"), so the installer checks the script's existence itself.
+ExecStart=/usr/bin/bash /opt/fabrik/scripts/sysadmin/wsl_net_heartbeat.sh
+# Bounds a slow curl or DNS (curl itself stops at 5 s). A 9p write stuck in D state outlives it; the
+# timer then skips while the unit deactivates, wsl-net-ran stops changing, and the watchdog reads the
+# heartbeat as broken, never as a dead network.
+TimeoutStartSec=30
+Nice=10
