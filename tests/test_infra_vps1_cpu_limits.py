@@ -161,30 +161,49 @@ def compose_problems(text: str, ceiling: float = MAX_CPUS) -> dict[str, str]:
     return problems
 
 
-def _composes(root: Path = INFRA) -> list[Path]:
-    # Every host directory (vps1, vps2, … — a new spoke is picked up) and every compose spelling at any
-    # depth and any case (compose.yml, docker-compose.yaml, Compose.yaml, a nested stack). A compose
-    # outside a vps* directory is not graded here; test_the_population_spans_every_host refuses one.
-    return sorted(
-        path
-        for host in root.glob("vps*")
-        if host.is_dir()
-        for path in host.rglob("*")
-        if path.is_file()
+def _is_compose(path: Path) -> bool:
+    # Any compose spelling in any case (compose.yml, docker-compose.yaml, Compose.YML) — the boundary is a
+    # .yml/.yaml file named for compose; a `stack.yml` or a `.j2` template is outside it by design.
+    return (
+        path.is_file()
         and "compose" in path.name.lower()
         and path.suffix.lower() in {".yml", ".yaml"}
     )
 
 
+def _composes(root: Path = INFRA) -> list[Path]:
+    # Every host directory (vps1, vps2, … — a new spoke is picked up), at any depth. A compose outside a
+    # vps* directory is not graded here; `_ungraded` names it and the population test refuses it.
+    return sorted(
+        p for host in root.glob("vps*") if host.is_dir() for p in host.rglob("*") if _is_compose(p)
+    )
+
+
+def _ungraded(root: Path = INFRA) -> list[str]:
+    """Every compose under `root` that `_composes` does not grade (one outside every vps* directory)."""
+    graded = set(_composes(root))
+    return sorted(
+        p.relative_to(root).as_posix()
+        for p in root.rglob("*")
+        if _is_compose(p) and p not in graded
+    )
+
+
 def test_every_compose_spelling_on_every_host_is_in_the_population(tmp_path: Path) -> None:
-    """Given stacks named compose.yml, docker-compose.yaml and a nested compose.yaml on two hosts, and a
-    compose outside any host directory, when the population is collected, then exactly the host ones are
-    graded."""
-    names = ["vps1/a/compose.yml", "vps1/b/docker-compose.yaml", "vps7/c/d/compose.yaml"]
+    """Given stacks named compose.yml, docker-compose.yaml, Compose.YML and a nested compose.yaml on two
+    hosts, and a compose outside any host directory, when the population is collected, then exactly the host
+    ones are graded and the stray one is named as ungraded."""
+    names = [
+        "vps1/a/compose.yml",
+        "vps1/b/docker-compose.yaml",
+        "vps2/e/Compose.YML",
+        "vps7/c/d/compose.yaml",
+    ]
     for name in [*names, "shared/compose.yaml"]:
         (tmp_path / name).parent.mkdir(parents=True)
         (tmp_path / name).write_text("services: {}\n")
     assert [p.relative_to(tmp_path).as_posix() for p in _composes(tmp_path)] == names
+    assert _ungraded(tmp_path) == ["shared/compose.yaml"]
 
 
 def test_the_population_spans_every_host() -> None:
@@ -192,12 +211,7 @@ def test_the_population_spans_every_host() -> None:
     (a moved directory must not turn every assertion below into a pass over nothing), every host is in
     HOST_CPUS, and no compose under infra/ sits outside the graded population."""
     population = _composes()
-    everywhere = sorted(
-        p
-        for p in INFRA.rglob("*")
-        if p.is_file() and "compose" in p.name.lower() and p.suffix.lower() in {".yml", ".yaml"}
-    )
-    assert everywhere == population, "a compose under infra/ sits outside every vps* host directory"
+    assert _ungraded() == [], "a compose under infra/ sits outside every vps* host directory"
     hosts: dict[str, int] = {}
     for path in population:
         host = path.relative_to(INFRA).parts[0]
@@ -385,18 +399,52 @@ def test_a_real_compose_with_a_limit_line_removed_is_refused(
     assert compose_problems(stripped) == {service: problem}
 
 
+_UNSIZED = "no deploy.resources.limits.memory; no deploy.resources.limits.cpus"
+
+
+def exception_drift(text: str, services: frozenset[str]) -> str | None:
+    """Why an excepted compose no longer matches its exception, or None: its service set must be exactly
+    `services` and every one of them must still lack BOTH limits — a half-sized service is graded, not
+    excused."""
+    doc = yaml.safe_load(text)
+    if set(doc["services"]) != services:
+        return "services changed — re-size or re-scope"
+    if compose_problems(text) != dict.fromkeys(services, _UNSIZED):
+        return "declares a limit on some service — drop or narrow the exception"
+    return None
+
+
 def test_exception_is_exact_and_expires() -> None:
-    """Given each exception, when its file is read, then the file exists, its service set is exactly
-    the excepted one, and every excepted service still lacks BOTH limits — so the exception neither covers
-    a new service nor outlives a partial fix (a half-sized service is graded, not excused)."""
+    """Given each exception, when its file is read, then the file exists and matches its exception exactly
+    — so the exception neither covers a new service nor outlives a partial fix."""
     for (rel, services), item in EXCEPTIONS.items():
         path = INFRA / rel
         assert path.is_file(), f"{rel} is gone — drop its exception ({item})"
-        doc = yaml.safe_load(path.read_text())
-        assert set(doc["services"]) == services, (
-            f"{rel} services changed — re-size or re-scope ({item})"
+        assert exception_drift(path.read_text(), services) is None, (
+            f"{rel}: {exception_drift(path.read_text(), services)} ({item})"
         )
-        unsized = "no deploy.resources.limits.memory; no deploy.resources.limits.cpus"
-        assert compose_problems(path.read_text()) == dict.fromkeys(services, unsized), (
-            f"{rel} now declares a limit on some service — drop or narrow its exception ({item})"
-        )
+
+
+@pytest.mark.parametrize(
+    ("b_limits", "drift"),
+    [
+        ("{}", None),
+        ("{memory: 64M}", "declares a limit"),
+        ("{cpus: '0.5'}", "declares a limit"),
+        ("{memory: 64M, cpus: '0.5'}", "declares a limit"),
+    ],
+)
+def test_a_half_sized_excepted_service_ends_the_exception(b_limits: str, drift: str | None) -> None:
+    """Given an excepted two-service compose, when one service gains a memory limit, a cpus limit or both,
+    then the exception drifts (a partial fix is never excused); with neither, it still holds."""
+    text = (
+        f"services:\n  a:\n    image: x\n  b:\n    deploy: {{resources: {{limits: {b_limits}}}}}\n"
+    )
+    found = exception_drift(text, frozenset({"a", "b"}))
+    assert (found is None) if drift is None else (found is not None and found.startswith(drift))
+
+
+def test_a_new_service_in_an_excepted_compose_ends_the_exception() -> None:
+    """Given an excepted compose that gains a service, when checked, then the exception drifts."""
+    text = "services:\n  a:\n    image: x\n  c:\n    image: y\n"
+    assert exception_drift(text, frozenset({"a"})) == "services changed — re-size or re-scope"
