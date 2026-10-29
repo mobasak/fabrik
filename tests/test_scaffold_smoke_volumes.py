@@ -24,8 +24,18 @@ from fabrik.scaffold import SCAFFOLD_TYPES, create_project
 
 _ROOT = Path(__file__).resolve().parent.parent
 # a container removal or a compose teardown; `rmi` (an image) is not one
-_RM = re.compile(r"\bdocker(?:-compose|\s+compose)?\s+(?:container\s+)?(?:rm|down)\b[^;&|\n]*")
-_RUN_NAME = re.compile(r"\bdocker\s+run\b[^\n]*?--name\s+(\S+)")
+_RM = re.compile(
+    r"\bdocker(?:-compose|\s+compose)?\s+(?:(?:-f|--file|-p|--project-name)[\s=]+\S+\s+)*"
+    r"(?:container\s+)?(?:rm|down)\b[^;&|\n]*"
+)
+_RUN_NAME = re.compile(r"\bdocker\s+run\b[^\n]*?--name[\s=]+(\S+)")
+
+
+def _lines(text: str) -> list[str]:
+    """The text's lines with each shell comment cut off (make hands a recipe's `#` to the shell)."""
+    return [ln.split("#", 1)[0] for ln in text.splitlines()]
+
+
 _KEEPS_VOLUMES = re.compile(r"-[a-z]*v[a-z]*|--volumes")
 
 
@@ -56,7 +66,10 @@ def makefiles(tmp_path_factory: pytest.TempPathFactory) -> dict[str, str]:
 
 def _removals(makefiles: dict[str, str]) -> list[tuple[str, str]]:
     return [
-        (where, m.group(0).strip()) for where, text in makefiles.items() for m in _RM.finditer(text)
+        (where, m.group(0).strip())
+        for where, text in makefiles.items()
+        for ln in _lines(text)
+        for m in _RM.finditer(ln)
     ]
 
 
@@ -68,7 +81,7 @@ def test_every_container_removal_takes_its_anonymous_volumes(makefiles):
 def _recipes(text: str) -> list[list[str]]:
     """Each rule's recipe lines (tab-led), split at every non-tab line."""
     blocks: list[list[str]] = [[]]
-    for line in text.splitlines():
+    for line in _lines(text):
         if line.startswith("\t"):
             blocks[-1].append(line)
         elif blocks[-1]:
@@ -77,20 +90,24 @@ def _recipes(text: str) -> list[list[str]]:
 
 
 def test_every_started_container_is_removed_with_its_volumes_by_its_own_recipe(makefiles):
-    # in the recipe that starts a container, the last line naming it removes it with its volumes — a removal
-    # only in `clean` or before the run leaves each smoke run's container and volume behind until then
+    # after the line that starts a container, its recipe removes it with its volumes on the success path — a
+    # removal only in `clean`, before the run or inside a `|| (…)` failure branch leaves each smoke run's
+    # container and volume behind
     started, bare = set(), []
     for where, text in makefiles.items():
         for recipe in _recipes(text):
             for name in {n for ln in recipe for n in _RUN_NAME.findall(ln)}:
                 started.add(where.split(":")[0])
-                last = [ln for ln in recipe if name in ln.split()][-1]
+                run_at = max(i for i, ln in enumerate(recipe) if name in _RUN_NAME.findall(ln))
                 ok = any(
-                    _flags_drop_volumes(m.group(0)) and name in m.group(0).split()
-                    for m in _RM.finditer(last)
+                    _flags_drop_volumes(m.group(0))
+                    and name in [t.rstrip(")") for t in re.split(r"[\s;]+", m.group(0))]
+                    and "||" not in ln[: m.start()]
+                    for ln in recipe[run_at + 1 :]
+                    for m in _RM.finditer(ln)
                 )
                 if not ok:
-                    bare.append((where, name, last.strip()))
+                    bare.append((where, name))
     # the population this guards: the python, node, file-worker and chrome-extension smoke targets
     assert started >= {"python-api", "node-api", "file-worker", "chrome-extension"}, started
     assert bare == []
@@ -130,8 +147,9 @@ def test_each_emitted_removal_leaves_no_anonymous_volume(makefiles):
             if not any(re.fullmatch(r"-[a-z]*f[a-z]*|--force", t) for t in argv[2:]):
                 assert not _docker("stop", "-t", "0", probe).returncode
             assert not subprocess.run(argv, capture_output=True, timeout=60).returncode
-            assert _docker("volume", "inspect", mine[0]).returncode, (
-                f"{cmd!r} left volume {mine[0]}"
+            gone = _docker("volume", "inspect", mine[0])
+            assert gone.returncode and "no such volume" in gone.stderr.lower(), (
+                f"{cmd!r} left volume {mine[0]}: {gone.stderr.strip()}"
             )
         finally:
             _docker("rm", "-fv", probe)  # this test's own container only
