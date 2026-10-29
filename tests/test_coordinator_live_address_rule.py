@@ -23,21 +23,23 @@ BUILDER_FILES = {"fleet.md", "infra.md", "intel.md", "kaizen.md"}
 ESCALATION = "goes to the coordinator by `SendMessage`, naming"
 
 CONTRACT_SENTENCE = (
-    "messages its coordinator `rotate <name>` and waits for the keys, sending the request to every `to=` name the "
-    "latest `work: coordinator (<role>)` line of its prompt block prints (one may be stale when several are listed), "
-    "else to every name `python3 scripts/mail.py who <role>` prints (`<role>` is the role that line names, the "
-    "`distributor` in `.fabrik/work/config.json`), else, when neither names a live session, by `python3 "
-    "scripts/mail.py send --to <this repo> --kind request --to-agent <role>`, and never to a session name kept in "
-    "its notes, since the coordinator's session name changes when it rotates ({cite}); the coordinator — for whom "
-    "the ask is not a work item —"
+    "messages its coordinator `rotate <name>` and waits for the keys, sending it by `SendMessage` to every `to=` name "
+    "the latest `work: coordinator (<role>)` line of its prompt block prints (one may be stale when several are "
+    "listed), else, or when that line ends `… and <n> more`, to every name `python3 scripts/mail.py who <role>` "
+    "prints (`<role>` is the role that line names: the `distributor` in `.fabrik/work/config.json`, else the name "
+    "`python3 /opt/fabrik/scripts/decisions.py --merge-owner .` prints), and only when neither names a live session "
+    "by `python3 scripts/mail.py send --to <this repo> --kind request --ack required --to-agent <role>` with the ask "
+    "as its body on stdin — never to a session name kept in its notes, since the coordinator's session name changes "
+    "when it rotates ({cite}); the coordinator — for whom the ask is not a work item —"
 )
 CHARTER_SENTENCE = (
-    "the coordinator decides what it can and boards the rest. Address the coordinator by every `to=` name the latest "
-    "`work: coordinator (coordinator)` line of your prompt block prints (one may be stale when several are listed), "
-    "else by every name `python3 scripts/mail.py who coordinator` prints, else, when neither names a live session, "
-    "by `python3 scripts/mail.py send --to fabrik --kind request --to-agent coordinator`, and never by a session "
-    "name kept in your notes, since the coordinator's session name changes when it rotates (D-1337). A permission "
-    "prompt you hit"
+    "the coordinator decides what it can and boards the rest. Send each one by `SendMessage` to every `to=` name the "
+    "latest `work: coordinator (coordinator)` line of your prompt block prints (one may be stale when several are "
+    "listed), else, or when that line ends `… and <n> more`, to every name `python3 scripts/mail.py who "
+    "coordinator` prints, and only when neither names a live session by `python3 scripts/mail.py send --to fabrik "
+    "--kind request --ack required --to-agent coordinator` with the message as its body on stdin — never to a "
+    "session name kept in your notes, since the coordinator's session name changes when it rotates (D-1337). A "
+    "permission prompt you hit"
 )
 
 
@@ -65,6 +67,8 @@ def test_the_named_resolvers_exist() -> None:
     assert 'head = f"work: coordinator ({role}) → SendMessage "' in work
     assert 'role = str(_read_config(main).get("distributor") or "").strip()' in work
     assert '"who", agent],' in work
+    assert 'rest = f" … and {len(names) - shown} more" if shown < len(names) else ""' in work
+    assert '"--merge-owner"' in (REPO / "scripts" / "decisions.py").read_text(encoding="utf-8")
     mail = (REPO / "scripts" / "mail.py").read_text(encoding="utf-8")
     assert 'add_parser(\n        "who", help="read-only: the live session name(s) of an agent in THIS repo' in mail
     assert '"request"' in mail.split("KINDS = frozenset(", 1)[1].split(")", 1)[0]
