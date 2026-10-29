@@ -488,7 +488,7 @@ def test_a_non_symlink_at_the_timer_link_path_is_refused(tmp_path):
     assert _digest(home) == before, "something was written"
 
 
-@pytest.mark.parametrize("old", [b"\xff-bad.timer", b"two\nlines.timer"])
+@pytest.mark.parametrize("old", [b"\xff-bad.timer", b"two\nlines.timer", b"a\rb.timer", b"a\x1b[2Kb.timer"])
 def test_a_timer_link_whose_undo_cannot_print_on_one_line_is_refused(tmp_path, old):
     # a non-UTF-8 target crashed the undo print under a strict UTF-8 stdout after the installer ran, losing every
     # undo line; a newline split the one `ln` line in two
