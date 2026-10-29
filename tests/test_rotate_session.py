@@ -1667,11 +1667,13 @@ def test_w1e0f4229_a_slow_exiting_tmux_never_moves_the_fake_clock(world, monkeyp
 
 
 def _clock_patches(src: str) -> list[int]:
-    """The lines of `src` that patch the `time` module or `rs.time` (W-1e0f4229 review). Read as a syntax tree, so a
-    call ruff wraps is still one call and a comment quoting one is none: a `setattr`, `patch` or `patch.object` whose
-    target (first argument, `target=` or `obj=`) is `time`, an `import time as <alias>`, `sys.modules["time"]`,
-    `rs.time` or a `"time.<name>"` string; or an assignment to an attribute of any of them. Out of scope by design:
-    other files, and `setattr(rs, "time", …)`, which is `_rs_time`'s own line."""
+    """The lines of `src` that patch the `time` module (W-1e0f4229 review). Read as a syntax tree, so a call ruff
+    wraps is still one call and a comment quoting one is none. The clock is `time`, a name bound to it (`import time
+    as t`, `t = time`), any `<module>.time` attribute (`rs.time`, `rs.hib.time`, `subprocess.time` — each loaded
+    module's `time` IS the global module), `sys.modules["time"]` or a `"time.<name>"` string. Refused: a `setattr`,
+    `patch` or `patch.object` whose target (first argument, `target=` or `obj=`) is the clock, and an assignment to
+    an attribute of it. Out of scope by design: other files, and swapping `rs.time` itself (`setattr(rs, "time", …)`
+    or `rs.time = …`), which is `_rs_time`'s own move."""
     tree = ast.parse(src)
     names = {"time"} | {
         a.asname
@@ -1685,16 +1687,29 @@ def _clock_patches(src: str) -> list[int]:
         if isinstance(node, ast.Name):
             return node.id in names
         if isinstance(node, ast.Attribute):
+            return node.attr == "time"
+        if isinstance(node, ast.Subscript):  # sys.modules["time"], nothing else keyed "time"
             return (
-                node.attr == "time" and isinstance(node.value, ast.Name) and node.value.id == "rs"
+                isinstance(node.slice, ast.Constant)
+                and node.slice.value == "time"
+                and isinstance(node.value, ast.Attribute)
+                and node.value.attr == "modules"
+                and isinstance(node.value.value, ast.Name)
+                and node.value.value.id == "sys"
             )
-        if isinstance(node, ast.Subscript):  # sys.modules["time"]
-            return isinstance(node.slice, ast.Constant) and node.slice.value == "time"
         return (
             isinstance(node, ast.Constant)
             and isinstance(node.value, str)
             and node.value.startswith("time.")
         )
+
+    grew = True
+    while grew:  # `t = time`, then `u = t`: a name assigned from the clock is the clock
+        before = len(names)
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Assign) and clock(n.value):
+                names |= {t.id for t in n.targets if isinstance(t, ast.Name)}
+        grew = len(names) > before
 
     hits = []
     for node in ast.walk(tree):
@@ -1727,7 +1742,13 @@ def _clock_patches(src: str) -> list[int]:
         ('mock.patch.object(time, "sleep")', True),
         ("time.sleep = f", True),
         ("rs.time.sleep = f", True),
+        ('monkeypatch.setattr(rs.hib.time, "sleep", f)', True),  # hibernate's `time` is the global
+        ('monkeypatch.setattr(AS.time, "sleep", f)', True),
+        ('clock_mod = time\nmonkeypatch.setattr(clock_mod, "sleep", f)', True),
+        ('a = time\nb = a\nmonkeypatch.setattr(b, "sleep", f)', True),
         ('monkeypatch.setattr(rs, "time", proxy)', False),  # _rs_time's own line
+        ("rs.time = proxy", False),  # the same swap, written as an assignment
+        ('monkeypatch.setattr(d["time"], "sleep", f)', False),  # only sys.modules["time"]
         ('# never monkeypatch.setattr(time, "sleep", f) here', False),
         ('"""a docstring quoting monkeypatch.setattr(time, "sleep", f)"""', False),
         ('monkeypatch.setattr(rs, "IDLE_S", 0)', False),
