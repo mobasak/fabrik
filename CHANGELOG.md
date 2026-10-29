@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — spoke backrest and traefik declare memory and CPU limits; the infra grader reads every host (2026-10-29)
+`infra/vps2|vps3/backrest` gain `cpus: '1.0'` and `infra/vps2|vps3/traefik` gain `memory: 256M` + `cpus: '2.0'`
+(it had no limit at all). `tests/test_infra_vps1_cpu_limits.py` now grades every `infra/vps*/` host, adds a
+plain-size memory grade, and caps cpus at min(2.0, half the host) from a per-host CPU table. The live step is the
+coordinator's operator gate (`docker update` per spoke, then the live compose lines). D-1357, W-1e9cd280.
+
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
 `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.

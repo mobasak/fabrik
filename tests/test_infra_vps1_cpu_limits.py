@@ -25,10 +25,18 @@ import yaml
 
 REPO = Path(__file__).resolve().parents[1]
 INFRA = REPO / "infra"
-# vps1 has 6 CPUs (count(node_cpu_seconds_total{mode="idle"}) on node-exporter:9100, 2026-10-29), the
-# spokes 4 each; D-1324's protection is that no single container takes more than 2 of a host's CPUs, so
-# a cap above 2.0 — up to a whole-host `6`, which limits nothing — is refused on every host.
+# CPUs per host: count by (instance) (node_cpu_seconds_total{mode="idle"}) on the hub Prometheus,
+# 2026-10-29 — node-exporter:9100 6, 10.99.0.2:9100 (vps2) 4, 10.99.0.3:9100 (vps3) 4. A host directory
+# missing here fails the population test, never grades open.
+HOST_CPUS = {"vps1": 6, "vps2": 4, "vps3": 4}
+# D-1324's protection is that no single container takes more than 2 CPUs, and never more than half its
+# host — so a whole-host cap (`6` on vps1, `2.0` on a 2-CPU host), which limits nothing, is refused.
 MAX_CPUS = 2.0
+
+
+def host_max_cpus(host: str) -> float:
+    """The cpus ceiling on `host`: 2.0, or half the host when that is smaller."""
+    return min(MAX_CPUS, HOST_CPUS[host] / 2)
 
 # (file relative to infra/, exact service set) -> the item that removes the exception.
 EXCEPTIONS: dict[tuple[str, frozenset[str]], str] = {
@@ -44,8 +52,8 @@ _DECIMAL = re.compile(r"[0-9]+(\.[0-9]+)?")
 _MEMORY = re.compile(r"[1-9][0-9]*[MG]")
 
 
-def cpu_limit_problem(value: object) -> str | None:
-    """Return why `value` is not a usable `deploy.resources.limits.cpus`, or None when it is."""
+def cpu_limit_problem(value: object, ceiling: float = MAX_CPUS) -> str | None:
+    """Return why `value` is not a usable `deploy.resources.limits.cpus` under `ceiling`, or None."""
     if value is None:
         return "no deploy.resources.limits.cpus"
     if isinstance(value, bool):
@@ -54,8 +62,8 @@ def cpu_limit_problem(value: object) -> str | None:
         number = float(value)
     else:
         return f"cpus {value!r} is not a plain decimal"
-    if not 0 < number <= MAX_CPUS:
-        return f"cpus {value!r} is outside 0 < cpus <= {MAX_CPUS}"
+    if not 0 < number <= ceiling:
+        return f"cpus {value!r} is outside 0 < cpus <= {ceiling}"
     return None
 
 
@@ -121,7 +129,7 @@ def _limit_scalar(service: yaml.Node, limit: str) -> object:
     return node.value
 
 
-def compose_problems(text: str) -> dict[str, str]:
+def compose_problems(text: str, ceiling: float = MAX_CPUS) -> dict[str, str]:
     """Map each service of one compose text to its limit problems (services with none are omitted)."""
     root = yaml.compose(text, Loader=yaml.SafeLoader)
     duplicate = _duplicate_key(root) if root is not None else None
@@ -136,7 +144,7 @@ def compose_problems(text: str) -> dict[str, str]:
             problem
             for problem in (
                 memory_limit_problem(_limit_scalar(service, "memory")),
-                cpu_limit_problem(_limit_scalar(service, "cpus")),
+                cpu_limit_problem(_limit_scalar(service, "cpus"), ceiling),
             )
             if problem
         ]
@@ -178,6 +186,22 @@ def test_the_population_spans_every_host() -> None:
     assert hosts.get("vps1", 0) >= 16
     assert hosts.get("vps2", 0) >= 3
     assert hosts.get("vps3", 0) >= 3
+    assert set(hosts) <= set(HOST_CPUS), f"add {sorted(set(hosts) - set(HOST_CPUS))} to HOST_CPUS"
+
+
+@pytest.mark.parametrize(("host", "ceiling"), [("vps1", 2.0), ("vps2", 2.0), ("vps3", 2.0)])
+def test_each_host_ceiling_is_two_or_half_the_host(host: str, ceiling: float) -> None:
+    """Given each known host, when its cpus ceiling is derived, then it is 2.0 or half its CPUs if smaller."""
+    assert host_max_cpus(host) == ceiling
+
+
+def test_a_small_host_refuses_a_whole_host_cap(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Given a 2-CPU host, when a service declares cpus 2.0 (the whole host), then it is refused, and 1.0
+    passes — the ceiling is half the host there, not D-1324's flat 2.0."""
+    monkeypatch.setitem(HOST_CPUS, "vps9", 2)
+    text = "services:\n  a:\n    deploy: {resources: {limits: {memory: 64M, cpus: '%s'}}}\n"
+    assert compose_problems(text % "2.0", host_max_cpus("vps9")) == {"a": "cpus '2.0' is outside 0 < cpus <= 1.0"}
+    assert compose_problems(text % "1.0", host_max_cpus("vps9")) == {}
 
 
 def test_every_infra_service_declares_memory_and_cpu_limits() -> None:
@@ -189,7 +213,7 @@ def test_every_infra_service_declares_memory_and_cpu_limits() -> None:
         rel = path.relative_to(INFRA).as_posix()
         if rel in excepted:
             continue
-        problems = compose_problems(path.read_text())
+        problems = compose_problems(path.read_text(), host_max_cpus(rel.split("/")[0]))
         if problems:
             failures[rel] = problems
     assert failures == {}
