@@ -5331,7 +5331,8 @@ def prompt_block(repo: Path | str, session: str) -> str:
                 lines.append(_fit_ids("work: your claims on items not in this tree — ", elsewhere))
             lines.extend(_on_it_lines(shown, session))
             builder = _builder(root, session)
-            if builder:
+            # a headless session keeps only its own claim lines (below), so it never pays the lookup
+            if builder and not _print_mode():
                 address = _coordinator_address_line(root)
                 if address:
                     lines.append(address)

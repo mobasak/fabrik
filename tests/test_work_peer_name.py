@@ -148,6 +148,14 @@ def test_no_line_for_the_coordinator_outside_mode_or_with_no_live_window(tmp_pat
     assert _peer_lines(none_live) == [], none_live
 
 
+def test_a_headless_builder_gets_no_line_and_pays_no_lookup(tmp_path, monkeypatch):
+    main, w1 = _make(tmp_path, monkeypatch, mode=True)
+    w = _work()
+    monkeypatch.setattr(w, "_print_mode", lambda: True)
+    block, calls = _block(w, w1, ["fabrik-a5"], monkeypatch)
+    assert _peer_lines(block) == [] and calls == [], (block, calls)
+
+
 def test_no_line_in_a_repo_outside_coordinator_mode(tmp_path, monkeypatch):
     main, w1 = _make(tmp_path, monkeypatch, mode=False)
     w = _work()
