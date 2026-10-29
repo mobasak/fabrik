@@ -57,6 +57,9 @@ def _run(
         "SCRATCH_SWEEP_NOW": str(NOW),
         # never the live hub's worktrees — the janitor pass (W-18e66a92) reads this seam
         "SCRATCH_SWEEP_JANITOR_REPO": "",
+        # never the live disk — past 85 % the hook's SCRATCH ALARM line lands in every `--hook`
+        # stdout and reds the tests that assert silence (three of them at 96 %, 2026-10-29)
+        "SCRATCH_SWEEP_DISK_USED_PCT": "10",
     }
     e.update(env or {})
     return subprocess.run(
