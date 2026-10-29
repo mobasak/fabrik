@@ -80,6 +80,15 @@ def test_immutable_caching_is_scoped_to_hashed_assets() -> None:
         assert "location /assets/" in enclosing, lines[i]
 
 
+UNPRIVILEGED_SENTENCE = (
+    "`nginxinc/nginx-unprivileged` (every process as uid 101) is outside this mandate: the checklist "
+    "below and the hub's project audit (`/opt/fabrik/scripts/audit_all_projects.py`, hub-only) accept "
+    "only the stock image named above and grade the unprivileged image CRITICAL, so a project wanting "
+    "it asks the hub to change this pack and the audit together (`python scripts/mail.py send --to "
+    "fabrik --to-agent fleet --kind request`) — never its own Dockerfile alone."
+)
+
+
 def test_the_serve_image_choice_is_stated() -> None:
     """The stock image is the mandate and nginx-unprivileged is outside it (fleet 01M632SH6W).
 
@@ -89,14 +98,8 @@ def test_the_serve_image_choice_is_stated() -> None:
     alternative, so a widened audit turns this red and the pack follows it.
     """
     para = next(ln for ln in _pack().splitlines() if "nginx-unprivileged" in ln)
-    for needed in (
-        "deliberate",
-        "is outside this mandate",
-        "the checklist below",
-        "--to-agent fleet --kind request",
-        "never its own Dockerfile alone",
-    ):
-        assert needed in para, needed
+    assert "The stock image is the deliberate choice" in para
+    assert para.endswith(UNPRIVILEGED_SENTENCE), "the alternative's sentence is pinned whole"
     cited = re.search(r"`/opt/fabrik/(scripts/[\w./-]+\.py)`", para)
     assert cited, "the paragraph cites the hub audit by path"
     audit_path = ROOT / cited.group(1)
@@ -106,10 +109,8 @@ def test_the_serve_image_choice_is_stated() -> None:
     spec.loader.exec_module(audit)
     codename = audit._pinned_codename()
     assert audit._base_status(f"nginx:mainline-{codename}", "docusaurus") == "pinned"
-    assert (
-        audit._base_status(f"nginxinc/nginx-unprivileged:mainline-{codename}", "docusaurus")
-        != "pinned"
-    )
+    unprivileged = f"nginxinc/nginx-unprivileged:mainline-{codename}"
+    assert audit._base_status(unprivileged, "docusaurus") == "noncompliant"  # graded critical
 
 
 def test_command_sources_name_no_codename_the_registry_left() -> None:
