@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T21:38:21.179698Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f561e6ad",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "fleet's hook finding during the D-1367 pause; warns through after 3 tries, nobody blocked",
+  "status": "open",
+  "title": "Stop hook UNREVIEWED SPONTANEOUS WORK should treat a blocked --paused review record as covering its surface until resume (fleet 2026-10-30 on W-1614db25: a paused review blocks every turn end)"
+}
