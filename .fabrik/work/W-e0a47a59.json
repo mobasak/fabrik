@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T05:04:07.629910Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-e0a47a59",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide per spec: move the limits to resources.memory/cpu or delete them (a local source runs its own compose); then consider extra=forbid on Resources with a census",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Six local-source hub specs (job-agent, proposal-creator, seo, trading-core, translator, triggered-content-orchestration) declare resources.limits.{memory,cpus}, which Resources drops silently (no extra=forbid), so cli and plan show memory 256M / cpu 0.5 that nothing applies (found by the W-f01710a0 review, Haiku seat, 2026-10-29)"
+}

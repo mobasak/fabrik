@@ -13,6 +13,12 @@
 
 **Lesson:** when a write exists only because of a field's value (here, a hold that exists because the item is high/high), the verb that changes that value owns ending the write too. Find that verb and make it clear what it wrote, reading the same predicate the writer used (triage's in-flight test), not a looser one. A looser "any major" rule would also have dropped real prerequisites.
 
+## Six convenient values are not evidence for "every value" (2026-10-29, W-f01710a0)
+
+**What happened:** a review fix for the docker cpu grammar wrote into a docstring that the daemon stores every grammar value exactly, citing a probe of six values (0.01, 0.02, 0.07, 0.1, 0.29, 1.5), all exact. An Opus seat modelled compose's 32-bit read and predicted 0.13 → NanoCpus 129999992; the daemon then stored exactly that, and 2.15 and 3.33 were off too. Two review rounds went to one sentence.
+
+**Lesson:** before a fix states a property of a whole input space, generate the space (here 102,400 two-decimal strings) or find a model that predicts which members fail, and probe the ones the model says fail, never only the round numbers at hand. A claim that cannot be checked that way is narrowed to the values actually executed, or deleted.
+
 ## An exact-signature probe is not a call-resolvability probe (2026-10-29, W-d8505af5)
 
 **What happened:** the design for the payments ingest guard said that the exact grant function plus another overload would take the `module` path, because `to_regprocedure('payments_grant_ingest(pg_catalog.regrole)')` resolves the exact one. Both critique seats ran it on PostgreSQL 16: when the other overload has a DEFAULT, the one-argument `PERFORM` raises 42725 `is not unique`. The state still fails closed, but the design table was wrong, and the draft had no test for it (one was added before the build).
