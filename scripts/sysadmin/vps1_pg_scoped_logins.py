@@ -235,7 +235,7 @@ def env_upsert_sh(key: str) -> str:
     """
     return (
         "set -e; umask 077; touch .env; chmod 600 .env; t=$(mktemp ./.env.XXXXXX); trap 'rm -f \"$t\"' EXIT; "
-        f"rc=0; LC_ALL=C grep -av '^{key}=' .env > \"$t\" || rc=$?; [ \"$rc\" -le 1 ]; "
+        f'rc=0; LC_ALL=C grep -av \'^{key}=\' .env > "$t" || rc=$?; [ "$rc" -le 1 ]; '
         f"printf '%s=' {key} >> \"$t\"; "
         'cat >> "$t"; cat "$t" > .env; rm -f "$t"'
     )
