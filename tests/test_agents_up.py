@@ -6,6 +6,7 @@ fake `ps` on the launcher's own PATH (`$HOME/.local/bin`) stands in for the live
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import pty
@@ -3271,3 +3272,188 @@ def test_a_live_grids_viewer_session_is_not_stale_and_does_not_block_window_n(
     assert group and sc.one(f"{sc.S}+2", "#{session_group}") == group, out.stderr
     assert sc.one(f"{sc.S}+2", "#{window_name}") == "agents-2"
     assert out.returncode == 0, out.stderr
+
+
+# --- W-e38f8ee7: `--pane-cmd … --into <folder> --from <old sid> --replacing <pid>` (rotate-session --move's launch) ---
+
+MOVED = "8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e8e"
+
+
+def _move_repo(tmp: Path) -> tuple[Path, Path, Path]:
+    """`_bound_repo` (b2, b3 in their own trees) plus `b2-work`, the linked worktree b2 now works in; b2's session B2
+    is filed under its own tree, where the grid starts it. Returns (root, store, home)."""
+    repo, store = _bound_repo(tmp)
+    _worktree(repo, "b2-work")
+    home = _home(tmp, transcripts=((_wt(repo, "b2"), B2), (_wt(repo, "b3"), B3)))
+    return repo, store, home
+
+
+def _move_args(
+    repo: Path, name: str = "b2", sid: str = MOVED, into: str = "b2-work", old: str = B2
+) -> list[str]:
+    return [
+        "--pane-cmd",
+        str(repo),
+        name,
+        sid,
+        "--into",
+        into,
+        "--from",
+        old,
+        "--replacing",
+        "4242",
+    ]
+
+
+def _live_claude(home: Path, pid: int, cwd: Path, args: str) -> None:
+    """One claude process as `named_running` sees it: a fake `ps` line and a /proc/<pid>/cwd under FABRIK_PROC_ROOT."""
+    d = home / "proc" / str(pid)
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "cwd").symlink_to(cwd)
+    (home / ".local" / "bin" / "ps").write_text(
+        f'#!/bin/sh\n[ "$*" = "-ww -C claude -o pid=,args=" ] || exit 1\necho \'{pid} {args}\'\n',
+        encoding="utf-8",
+    )
+
+
+def test_pane_cmd_into_prints_a_fresh_launch_with_the_move_prompt(tmp_path: Path) -> None:
+    """W-e38f8ee7 B6: `--pane-cmd … --into` prints ONE pane command that starts a FRESH `--session-id <sid>` claude, and
+    its wake is the move prompt: the folder and the new id, then rotate_session.resume_prompt's text with the id
+    filled in (the two copies are pinned equal). The replaced claude (`--replacing`, here running `-n b2` in the target
+    folder, as fleet's was) never makes it `running`; the kept shell's hint names `--session-id` while no transcript
+    exists. Executed by /bin/sh against a fake claude."""
+    repo, store, home = _move_repo(tmp_path)
+    _live_claude(home, 4242, _wt(repo, "b2-work"), f"claude -n b2 --resume {B2}")
+    _fake_claude(home)
+    out = _run(*_move_args(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    assert len(out.stdout.splitlines()) == 1, out.stdout
+    inner = _inner("run b2 " + out.stdout.strip())
+    assert f"claude -n b2 --session-id {MOVED} --settings '{SETTINGS}' '" in inner, inner
+    assert "is already running elsewhere" not in inner, inner
+    assert "--resume" not in inner.split("; rc=")[0], inner
+    args = _argv(home, out.stdout.strip())
+    assert args[:5] == ["-n", "b2", "--session-id", MOVED, "--settings"] and len(args) == 7, args
+    prompt = args[6]
+    head = (
+        f"You were moved by agents_up into .claude/worktrees/b2-work as a fresh session {MOVED}, "
+        "so your hooks load from the tree you work in. "
+    )
+    assert prompt.startswith(head), prompt
+    spec = importlib.util.spec_from_file_location(
+        "_rs_parity", ROOT / "scripts" / "sysadmin" / "rotate_session.py"
+    )
+    rs = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rs)
+    want = (
+        rs.resume_prompt("b2")
+        .replace("<your session id>", MOVED)
+        .replace(
+            "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh",
+            f'bash "{ROOT}/scripts/sysadmin/selfwatch_arm.sh"',
+        )
+        .replace(
+            "python3 /opt/fabrik/scripts/whoami_agent.py",
+            f'python3 "{ROOT}/scripts/whoami_agent.py"',
+        )
+    )
+    # the checkout's paths are double-quoted, as first_prompt's are, so a path with a space stays one word (pass 1, B1)
+    assert prompt[len(head) :] == want, (prompt[len(head) :], want)
+    said = _hint("run b2 " + out.stdout.strip(), tmp_path)
+    assert f"claude -n b2 --session-id {MOVED}" in said, said
+    # the same valid launch with one flag given twice is refused, never silently the last value (pass 1, B5)
+    for flag, value in (("--into", "b2-work"), ("--from", B2), ("--replacing", "4242")):
+        twice = _run(*_move_args(repo), flag, value, home=home, AGENT_IDENTITY_FILE=str(store))
+        assert twice.returncode == 2 and twice.stdout == "", (flag, twice.stdout)
+        assert f"{flag} is given once" in twice.stderr, (flag, twice.stderr)
+
+
+def test_pane_cmd_into_refusals(tmp_path: Path) -> None:
+    """W-e38f8ee7 B7: every `--pane-cmd --into` refusal exits 2 and prints nothing — a known id or one with a
+    transcript, a name the resolver does not give, a `--from` that is not the chosen session, a folder that is no
+    linked worktree in place, a coordinator's tree or another builder's, ANOTHER live `claude -n <name>` in the folder
+    (the `--replacing` pid excepted), and the flag combinations."""
+    repo, store, home = _move_repo(tmp_path)
+    env = {"AGENT_IDENTITY_FILE": str(store)}
+    _worktree(repo, "coordinator")
+    (repo / ".claude" / "worktrees" / "plain").mkdir()
+    _transcript(home, tmp_path / "anywhere", NEW2)
+    for args, reason in (
+        (_move_args(repo, sid=NEW2), f"{NEW2} has a transcript — not a fresh session"),
+        (
+            _move_args(repo, sid=B3),
+            f"{B3} is a session this repo already knows — not a fresh session",
+        ),
+        (_move_args(repo, name="b9"), "b9 is not a builder the resolver gives"),
+        (_move_args(repo, old=B3), f"b2's session is {B2}, not {B3}"),
+        (
+            _move_args(repo, into="plain"),
+            "plain: .claude/worktrees/plain is no longer a linked git worktree in place",
+        ),
+        (
+            _move_args(repo, into="nope"),
+            "nope: .claude/worktrees/nope is no longer a linked git worktree in place",
+        ),
+        (_move_args(repo, into="coordinator"), "coordinator is the coordinator's tree"),
+        (_move_args(repo, into="b3"), "b3 is b3's tree"),
+        (_move_args(repo, into="Bad"), "'Bad' is not a worktree folder name"),
+    ):
+        bad = _run(*args, home=home, **env)
+        assert bad.returncode == 2 and bad.stdout == "", (args, bad.stdout, bad.stderr)
+        assert reason in bad.stderr, (args, bad.stderr)
+    # another claude by the same name already works in the folder: refused; the replaced pid alone is not (B6)
+    _live_claude(home, 4243, _wt(repo, "b2-work"), f"claude -n b2 --resume {DEV1}")
+    bad = _run(*_move_args(repo), home=home, **env)
+    assert bad.returncode == 2 and bad.stdout == "", bad.stdout
+    assert (
+        "another claude -n b2 (pid 4243) already runs in .claude/worktrees/b2-work" in bad.stderr
+    ), bad.stderr
+    # the three flags come together, and never with --new/--coordinator/--item
+    base = ["--pane-cmd", str(repo), "b2", MOVED]
+    for argv in (
+        [*base, "--into", "b2-work"],
+        [*base, "--into", "b2-work", "--from", B2],
+        [*base, "--from", B2, "--replacing", "4242"],
+        [*_move_args(repo), "--new"],
+        [*_move_args(repo), "--item", "W-1a2b3c4d"],
+        [*_move_args(repo), "--coordinator", "c"],
+        [*base, "--into", "b2-work", "--from", B2, "--replacing", "x1"],
+        [*base, "--into", "b2-work", "--from", "not-a-uuid", "--replacing", "1"],
+    ):
+        bad = _run(*argv, home=home, **env)
+        assert bad.returncode == 2 and bad.stdout == "", (argv, bad.stdout, bad.stderr)
+
+
+def test_pane_cmd_into_refuses_the_owner_a_shared_folder_and_a_foreign_pid(tmp_path: Path) -> None:
+    """W-e38f8ee7 review pass 1 (B2, B3, B4): `--into` refuses the merge owner's tree (the resolver drops the owner, so
+    only the owner check sees it), a folder another builder's session resolved to (not its own-named tree), and a
+    `--replacing` pid that is not a running `claude -n <name>` — a wrong pid would otherwise disarm the refusal of a
+    second same-named claude in the folder."""
+    # the merge owner: b3 is declared owner, so it is no builder and `--into b3` meets the owner check alone
+    repo, store, home = _move_repo(tmp_path / "own")
+    _ledger(repo, "b3")
+    _live_claude(home, 4242, _wt(repo, "b2"), f"claude -n b2 --resume {B2}")
+    bad = _run(*_move_args(repo, into="b3"), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert bad.returncode == 2 and bad.stdout == "", bad.stdout
+    assert "b3 is the coordinator's tree (the merge owner)" in bad.stderr, bad.stderr
+    # b3's session lives in b2-work, so b3's resolved folder is b2-work: never b2's to move into
+    repo, store = _bound_repo(tmp_path / "shared")
+    _worktree(repo, "b2-work")
+    home = _home(
+        tmp_path / "shared", transcripts=((_wt(repo, "b2"), B2), (_wt(repo, "b2-work"), B3))
+    )
+    bad = _run(*_move_args(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert bad.returncode == 2 and bad.stdout == "", bad.stdout
+    assert "b2-work is b3's tree" in bad.stderr, bad.stderr
+    # the replaced pid must be this builder's claude: another name, or no such process, refuses
+    repo, store, home = _move_repo(tmp_path / "pid")
+    for args in (f"claude -n b3 --resume {B3}", None):
+        if args:
+            _live_claude(home, 4242, _wt(repo, "b3"), args)
+        else:
+            (home / ".local" / "bin" / "ps").write_text(
+                '#!/bin/sh\n[ "$*" = "-ww -C claude -o pid=,args=" ] || exit 1\n', encoding="utf-8"
+            )
+        bad = _run(*_move_args(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+        assert bad.returncode == 2 and bad.stdout == "", (args, bad.stdout)
+        assert "--replacing 4242 is not a running claude -n b2" in bad.stderr, (args, bad.stderr)

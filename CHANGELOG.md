@@ -12,6 +12,20 @@ A merge-leg red that is green alone used to re-run its whole shard in order (~50
 whole shard again on the base. The recording plugin now cuts such a run one test past its last red, with every
 shard file still collected; the replayed glitchtip leg would have saved ~480 s of 1,644 s (W-c80361e4, D-1360).
 
+### Added — `rotate-session --move`: relaunch a builder's pane in the worktree it works in (2026-10-29)
+A builder that moves into another linked worktree keeps loading hooks, settings and permissions from the folder its pane
+started in, and its session stays filed there, so neither a /clear nor a relaunch could move it (W-e38f8ee7, D-1355).
+- **New verb:** `agents_up.sh rotate-session <name> --move` is a rotation at the same item boundary into the worktree
+  the session's `cwd` sits in.
+- **How it runs:** the fabrik-rotate unit gets the pane command from the new `agents_up.sh --pane-cmd … --into
+  <folder> --from <old sid> --replacing <old pid>` first, then re-runs every check and re-reads the box and transcript
+  just before the kill. It then runs `tmux respawn-pane -k -c <folder>` with a fresh `--session-id` launch whose first
+  turn is the move prompt, reaps the old claude by pid, re-points the registry and waits for the re-bind.
+- **Rows:** `mode: move`, `into`, `old_exit`; new outcomes `refused:launch`, `partial:respawn` and `partial:launch`.
+- **Tests:** `tests/test_rotate_session.py` (6 new) and `tests/test_agents_up.py` (3 new). The build's 10 guard mutants
+  are killed, and so are 9 of the full review's 10 fix mutants; the tenth (the quoted checkout path) is shown by its
+  grader failing on the unfixed commit.
+
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
 `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.

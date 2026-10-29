@@ -323,9 +323,13 @@ absent or still being built, and with no window `agents-<k>` says so and attache
   git worktree in place under `.claude/worktrees/` (it holds a `.git` file, and no part of its path is a symlink): the
   one whose claude project folder holds the builder's session, else `.claude/worktrees/<name>` (W-456aa02a). Claude Code
   keeps the folder a pane STARTED in as the window's `CLAUDE_PROJECT_DIR` — where its hooks, settings and permissions
-  load from — after the session moves into another worktree, and files the transcript under the folder it works in;
-  so infra's pane, started by name in `worktrees/infra` while infra worked in `infra-uncapped`, ran a tree 1602 commits
-  behind for days. A candidate folder must be an agent name (`[a-z0-9][a-z0-9-]{0,31}`); another builder's own-named
+  load from — after the session moves into another worktree, and keeps filing the transcript under that start folder
+  (fleet's dea63b0f, working in `fleet-backfill-ci`, sat only under `fleet-brand-fix` and the main checkout, measured
+  2026-10-29), so a relaunch resumes it in the same stale folder; infra's pane, started by name in `worktrees/infra`
+  while infra worked in `infra-uncapped`, ran a tree 1602 commits behind for days. The remedy is `agents_up.sh
+  rotate-session <name> --move` (W-e38f8ee7): at an item boundary the pane is respawned with a FRESH session started in
+  the worktree the builder works in (`docs/workstation/session-history-retention.md`), and the next grid start finds
+  it filed there. A candidate folder must be an agent name (`[a-z0-9][a-z0-9-]{0,31}`); another builder's own-named
   tree and the coordinator's trees (a coordinator name, the declared merge owner) are never taken; a session in several worktrees, or two builders found in one, keep `<name>` (said on stderr,
   the launch continues); a found `agent-*` tree (Claude Code's subagent trees) is flagged. A name with no own worktree
   takes a found folder only where the repo declares its merge owner, and is dropped before its registry rows are read
