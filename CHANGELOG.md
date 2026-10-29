@@ -61,6 +61,17 @@ All notable changes to this project will be documented in this file.
 - `.windsurf/rules/core/self-healing.md`: row 12, a fork-pool child left in uninterruptible kernel sleep after SIGKILL (for example a kernel netlink wedge) is held against the live-child cap, counted and logged, never replaced; its counter and wchan grouping are the project's to build; one deduplicated operator alert per episode, and the operator reboots the host (youtube mail 01M5C99YXS, W-07231796).
 - `commands/_sources/fabrik-task.md`, phases 4 and 5: check (d) takes any listed `--commit` as the receipt's range tip when only receipt and ledger commits follow it, and list order decides nothing, so never reorder the list to pass it; phase 5's stricter "LAST `--commit`" recipe stays verbatim until the lean loader can reword a ban clause (D-1336, D-1291; infra-2 mail 01M5YHHM8G).
 
+### Fixed — a review-loop pass where no finder returned anything now fails, naming the check (2026-10-29)
+- `.claude/workflows/fabrik-review-loop.js`: when every finder seat of the pass comes back null after its retry,
+  the launch throws instead of returning a ledger of dropped seats, which read like a review with gaps and was
+  answered with a re-dispatch into the same dead account. The message puts the check first
+  (`claude_rotate.py --status`, one seat transcript), then the counts, the known causes and up to three seat
+  errors. A seat that rejected keeps its error's first non-blank line in its notes and the retry log line. The
+  count is taken over every finder launched, so a slice dropped by a later stage still counts its seats. D-1340.
+- `scripts/review_loop_ledger.py read`: an ended run with no result (the all-null throw makes it `failed`)
+  prints the first non-blank line of the run file's `error` after `<status> — no result`, so the check
+  reaches the lead reading the pass file.
+
 ### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)
 - `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the
   box at 96 % the hook's `SCRATCH ALARM` line landed in the stdout of every `--hook` run that passes its

@@ -55,7 +55,9 @@
 //   slice file in files_read) }],
 //   gaps, raised, distinct, overlap, estimate_unseen, candidates: [..], recorded: [..] (candidates on a
 //   `recorded: true` ledger claim, never refuted), verdicts: [..], refuter: { retried, failed,
-//   unanswered, reason }, closable, open: [..] }], dropped_seats (failed finders), failed_refuters }
+//   unanswered, reason }, closable, open: [..] }], dropped_seats (failed finders), failed_refuters } — or THROWS,
+//   returning nothing, when no finder of the pass returned anything even after its retry (W-b36e2a4a): the
+//   message names the counts, any seat errors, the known causes and the check before a relaunch
 
 export const meta = {
   name: 'fabrik-review-loop',
@@ -481,22 +483,53 @@ async function refuteSlice(r0) {
 // same model and agent, after the first ends — the refuter retry's shape, so it never exceeds the dispatch stamp —
 // under its own label and scratch dir, so a dead seat's half-built arch/ never poisons it. A second null is the
 // failed seat it always was. One helper holds the call, so every finder names its model and effort.
-function findCall(s, m, retry) {
-  return agent(finderPrompt(s, m, retry), {
-    label: `find:${s.name}:${m}${retry ? ':retry' : ''}`,
-    phase: 'Find',
-    schema: FINDINGS,
-    model: m,
-    effort: 'medium',
-    agentType: s.agentType,
-  }).catch(() => null)
+// A rejection's text, as one line: the first NON-BLANK line of its message (a message opening with a newline keeps
+// its cause), an object as JSON, an Error with an empty message by its name — and it NEVER throws, so findCall
+// never rejects (a throwing `message` getter, a cycle or a BigInt reads as unreadable, never `[object Object]`).
+// Review passes 1 and 3: A-S3 A-H2 A-H10 A-H11 A-H12.
+function firstLine(e) {
+  let text
+  try {
+    const raw = e && typeof e === 'object' && 'message' in e ? e.message : e
+    text = raw && typeof raw === 'object' ? JSON.stringify(raw) : String(raw ?? '')
+    if (!text.trim() && e && typeof e === 'object') text = String(e)
+  } catch {
+    text = 'an error whose text could not be read'
+  }
+  const line = String(text ?? '').split('\n').map((l) => l.trim()).find(Boolean) || ''
+  return line.slice(0, 300)
 }
+// feedback row 1790707386: a call resolves to `{ r, error }` — a REJECTION's text is kept as `error`, which
+// `.catch(() => null)` threw away, and the leading `Promise.resolve().then` also catches the agent call throwing
+// before it returns a promise (a spent budget, an unsatisfiable schema). A seat that died on a terminal API error (a disabled
+// subscription) resolves null with NO text — the runtime keeps the cause in the seat transcript only — so
+// `error` stays '' there.
+function findCall(s, m, retry) {
+  return Promise.resolve()
+    .then(() =>
+      agent(finderPrompt(s, m, retry), {
+        label: `find:${s.name}:${m}${retry ? ':retry' : ''}`,
+        phase: 'Find',
+        schema: FINDINGS,
+        model: m,
+        effort: 'medium',
+        agentType: s.agentType,
+      })
+    )
+    .then((r) => ({ r, error: '' }), (e) => ({ r: null, error: firstLine(e) }))
+}
+// every finder LAUNCHED, recorded as it settles — the all-null test below reads this, never the slices a later
+// stage left standing (both design critiques: a survivors-only count read "nothing was reviewed" while two finders
+// had read their files in a slice whose union stage then threw)
+const finderOutcomes = []
 async function findWithRetry(s, m) {
   const first = await findCall(s, m, false)
-  if (first) return first
-  const again = await findCall(s, m, true)
-  log(`find:${s.name}:${m} null — retried: ${again ? 'recovered' : 'STILL NULL'}`)
-  return again
+  const again = first.r ? null : await findCall(s, m, true)
+  const r = first.r || (again && again.r) || null
+  const error = r ? '' : again.error || first.error
+  if (again) log(`find:${s.name}:${m} null — retried: ${r ? 'recovered' : 'STILL NULL'}${error ? `: ${error}` : ''}`)
+  finderOutcomes.push({ slice: s.name, model: m, returned: !!r, error })
+  return { r, error }
 }
 // 01M4Q4D8VP: a seat that returned no coverage statement, no candidate and no ledger row brought nothing back —
 // failed, not a clean 0. No coverage statement: the notes, every MACHINERY line removed, are empty, a PLACEHOLDER,
@@ -521,8 +554,11 @@ const results = await pipeline(
       // a seat whose files_read credits NO slice file reviewed nothing: it is DROPPED, not quiet, on every pass —
       // its partner's reads would otherwise hide it from the gap check (01M4C00TSS: a seat answered a relayed
       // operator turn instead). Every array is normalised, so a missing or mistyped field never throws below.
-      seats: rs.map((r, i) => {
-        const arr = (x) => (Array.isArray(x) ? x : [])
+      seats: rs.map((x, i) => {
+        // a thunk that threw is null in parallel()'s result, so `x` itself may be null
+        const r = x && x.r
+        const error = (x && x.error) || ''
+        const arr = (v) => (Array.isArray(v) ? v : [])
         const read = arr(r && r.files_read)
         const credited = s.files.some((f) => read.some((e) => readsFile(e, f)))
         const empty = !!r && broughtNothing(r)
@@ -533,7 +569,7 @@ const results = await pipeline(
           candidates: arr(r && r.candidates),
           ledger_status: arr(r && r.ledger_status),
           notes: !r
-            ? 'SEAT FAILED (null result, after one retry)'
+            ? `SEAT FAILED (null result, after one retry)${error ? `: ${error}` : ''}`
             : !credited
               ? `SEAT FAILED (read no slice file): ${r.notes || ''}`
               : empty
@@ -550,6 +586,21 @@ const results = await pipeline(
 const slices = results.filter(Boolean)
 const droppedSlices = args.slices.length - slices.length
 if (droppedSlices) log(`DROPPED ${droppedSlices} of ${args.slices.length} slices (a stage threw) — those slices are UNVERIFIED`)
+// feedback row 1790707386 (W-b36e2a4a): when NO finder launched returned anything, even after its retry, nothing
+// was reviewed — the pass fails instead of returning an all-dropped ledger, which reads as failed seats and is
+// answered with a re-dispatch into the same dead account. The causes are LISTED, never asserted: of the 5
+// all-null runs among 2416 completed on the box (2026-10-29), 2 carry the disabled-subscription text in their
+// seat transcripts. The script cannot name the account (no filesystem, no env); the message names the command.
+if (finderOutcomes.length && finderOutcomes.every((o) => !o.returned)) {
+  const errors = [...new Set(finderOutcomes.map((o) => o.error).filter(Boolean))]
+  const named = errors.length ? `; seat errors: ${errors.slice(0, 3).join(' | ')}${errors.length > 3 ? ` (+${errors.length - 3} more)` : ''}` : ''
+  // the check comes right after the verdict: `review_loop_ledger.py read` prints this message's first line cut at
+  // 300 characters, and the check is what the lead needs before a relaunch (review pass 1, B-S1); the seat
+  // errors, of unbounded count, come last
+  throw new Error(
+    `every finder seat returned nothing, even after its retry — nothing was reviewed, no ledger is returned. Before relaunching run python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status and read one seat transcript under this run's subagents/workflows/<runId>/ folder. ${finderOutcomes.length} finder seat(s) over ${args.slices.length} slice(s)${droppedSlices ? `, ${droppedSlices} slice(s) also dropped by a throwing stage` : ''}. Known causes: the account lost subscription access ("Your organization has disabled Claude subscription access"), a spent quota or budget, a killed session, a script error (a seat error names it)${named}`
+  )
+}
 const droppedSeats = slices.reduce((n, r) => n + r.seats.filter((s) => s.failed).length, 0)
 const unverified = slices.reduce((n, r) => n + r.verdicts.filter((v) => v.verdict === 'unverified').length, 0)
 const failedRefuters = slices.filter((r) => r.refuter.failed).length
