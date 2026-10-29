@@ -1623,17 +1623,25 @@ def test_every_shell_seat_prompt_carries_the_worktree_safe_recipe() -> None:
             assert needed in prompt, needed
 
 
-def _researcher_finder_prompt() -> str:
-    """The rendered finder prompt of a shell-less fabrik-researcher slice."""
+def _researcher_prompts() -> tuple[str, str]:
+    """The rendered finder and refuter prompts of a shell-less fabrik-researcher slice (a candidate makes the
+    refuter run; review B-sonnet-1: the refuter carries its own shell ternary, so it is graded too)."""
     args = dict(_ARGS)
     args["slices"] = [
         {"name": "X", "files": ["a.py"], "models": ["sonnet"], "agent": "fabrik-researcher"}
     ]
     _, _, prompts = _harness(
         args,
-        {"find:X:sonnet": {"files_read": ["a.py"], "notes": "read the slice", "candidates": []}},
+        {
+            "find:X:sonnet": {
+                "files_read": ["a.py"],
+                "notes": "read the slice",
+                "candidates": [_cand("X-S1", 3)],
+            },
+            "refute:X": {"verdicts": []},
+        },
     )
-    return prompts["find:X:sonnet"]
+    return prompts["find:X:sonnet"], prompts["refute:X"]
 
 
 def test_every_shell_seat_is_told_to_redirect_git_show_never_output() -> None:
@@ -1644,7 +1652,8 @@ def test_every_shell_seat_is_told_to_redirect_git_show_never_output() -> None:
         assert "That redirect is a shell `>` (`git show <sha>:<path> > SCRATCH/<file>`)" in prompt
         assert "never `--output=<file>` on `git show`" in prompt
         assert "on a blob it writes an empty file and sends the blob to stdout" in prompt
-    assert "--output=" not in _researcher_finder_prompt()
+    for researcher in _researcher_prompts():
+        assert "--output=" not in researcher
 
 
 def test_every_shell_seat_is_told_how_to_report_a_test_needing_node_modules() -> None:
@@ -1654,12 +1663,20 @@ def test_every_shell_seat_is_told_how_to_report_a_test_needing_node_modules() ->
     for prompt in _shell_seat_prompts():
         assert "A gitignored dependency tree — `node_modules/` above all, at the root or nested — is in no commit" in prompt
         assert "`ERR_MODULE_NOT_FOUND`" in prompt and "a test that SKIPS because a `node_modules` is missing" in prompt
-        assert "never a red of the change and never a pass" in prompt
-        assert "Select only the node ids you run" in prompt and "never `-k`" in prompt
-        assert "one `--deselect` per such test by its full node id" in prompt
-        assert "name each one unverifiable against the pins" in prompt
-        assert "never copy or link the live `node_modules` into SCRATCH or point an env var at it" in prompt
-    assert "node_modules" not in _researcher_finder_prompt()
+        assert "never a red of the change and never a pass: name each one unverifiable against the pins" in prompt
+        assert "whether you knew it before the run or found it in the run's output" in prompt
+        # review A-haiku-3: a seat must never write DEFECT_ABSENT for a check it could not run
+        assert 'gets no ledger_status row — write "unverified: gitignored dependency"' in prompt
+        assert "the claim stays open for the lead, as for the never-execute rule" in prompt
+        assert "never a `-k` filter" in prompt and "one `--deselect` per such test by its full node id" in prompt
+        assert "For a test run never copy or link the live `node_modules` into SCRATCH or point an env var at it" in prompt
+        # review A-sonnet-2: GATE_PINS copies every gitignored path a gate row reads, so the ban is scoped to tests
+        assert "a gate row that reads one keeps GATE_PINS's copy rule below." in prompt
+        assert prompt.index("For a test run never copy") < prompt.index("Copy every gitignored path a gate row reads")
+        # review A-sonnet-1: the insert once glued its closing parenthesis to the next sentence
+        assert "copy rule below. A test that reads git HISTORY" in prompt
+    for researcher in _researcher_prompts():
+        assert "node_modules" not in researcher
 
 
 def test_git_show_output_writes_an_empty_file_for_a_blob_and_the_object_for_a_commit(tmp_path: Path) -> None:
