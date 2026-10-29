@@ -87,8 +87,16 @@ def test_borrowed_lock_reds_a_stale_copy(tmp_path, hub, monkeypatch, capsys):
 
 
 def test_borrowed_lock_skips_absent_rows(tmp_path, hub, monkeypatch, capsys):
+    # a seeded row is exempt, never counted as a file present and matching
+    (hub / "scripts").mkdir()
+    (hub / "scripts/fabrik_synced_manifest.py").write_text(
+        'SEEDED_NOT_ENFORCED = {"PORTS.md"}\nRETIRED_VENDORED_DIRS = ()\n'
+    )
     main = _repo(tmp_path / "main", {"rules/a.md": "same\n"})
-    _lock(main, {"rules/a.md": _md5("same\n"), "rules/never-copied.md": _md5("x\n")})
+    _lock(
+        main,
+        {"rules/a.md": _md5("same\n"), "rules/never-copied.md": _md5("x\n"), "PORTS.md": "0"},
+    )
     wt = _worktree(main, tmp_path / "wt")
     rc, out = _run(_load(monkeypatch, hub), wt, monkeypatch, capsys)
     assert rc == 0, out

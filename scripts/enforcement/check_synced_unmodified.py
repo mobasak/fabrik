@@ -295,6 +295,7 @@ def main() -> int:
     drifted: list[str] = []
     changed: list[str] = []  # differs or deleted — the stale-worktree remedy's subjects
     not_received = 0  # a borrowed lock's rows this worktree never held
+    graded = 0  # rows compared byte for byte (seeded, retired and not-received rows excluded)
     for rel, distributed_hash in lock.items():
         if rel in seeded:
             continue
@@ -312,9 +313,11 @@ def main() -> int:
         elif not dest.exists():
             drifted.append(f"{rel} — DELETED locally (a Fabrik-synced file must exist)")
             changed.append(rel)
-        elif _md5(dest) != distributed_hash:
-            drifted.append(rel)
-            changed.append(rel)
+        else:
+            graded += 1
+            if _md5(dest) != distributed_hash:
+                drifted.append(rel)
+                changed.append(rel)
 
     if drifted and borrowed:
         # This worktree never had its own lock, so a fresh copy older than the main checkout's
@@ -367,7 +370,7 @@ def main() -> int:
 
     if borrowed:
         print(
-            f"✓ all {len(lock) - not_received} Fabrik-synced files present match the main "
+            f"✓ all {graded} Fabrik-synced files present match the main "
             f"checkout's lock ({lock_path}); {not_received} not yet received"
         )
         return 0
