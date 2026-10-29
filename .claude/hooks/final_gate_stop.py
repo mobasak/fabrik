@@ -4364,13 +4364,20 @@ def _panel_problem(
 _Cut = tuple[str, int] | None
 
 
-def _turn_texts(transcript_path: str) -> tuple[list[tuple[str, _Cut]], tuple[str, _Cut] | None]:
+def _turn_texts(
+    transcript_path: str,
+) -> tuple[list[tuple[str, _Cut]], tuple[tuple[str, ...], _Cut] | None]:
     """This turn's assistant text blocks in the 2 MB tail (newest entry first, an entry's blocks in order), each
     with the nearest operator prompt QUEUED after it as (uuid, its copy count from the end) — the positional handle
-    `_panel_problem(stop_at=)` resolves, immune to re-written copies — plus the newest text-bearing entry as (its
-    blocks joined by newlines, its cut), the one text the hook's final message can be (`_final_cut`)."""
+    `_panel_problem(stop_at=)` resolves, immune to re-written copies — plus the newest TEXT, the one the hook's final
+    message can be (`_final_cut`): (its spellings, the newest text-bearing entry's cut). The spellings are that
+    entry's last non-empty block, the entry's blocks joined, and the whole message's — Claude Code writes one
+    message's blocks as several entries sharing `message.id`, and the payload's message may be any of them."""
     texts: list[tuple[str, _Cut]] = []
-    newest: tuple[str, _Cut] | None = None
+    newest: tuple[tuple[str, ...], _Cut] | None = None
+    newest_id: object = None
+    message_blocks: list[str] = []  # the newest message's text blocks, in order
+    spans_entries = False  # the newest message's text sits in more than one entry
     cut: _Cut = None
     copies: dict[str, int] = {}
     for line in reversed(_tail_lines(transcript_path) or []):
@@ -4393,7 +4400,8 @@ def _turn_texts(transcript_path: str) -> tuple[list[tuple[str, _Cut]], tuple[str
                 copies[entry["uuid"]] = copies.get(entry["uuid"], 0) + 1
                 cut = (entry["uuid"], copies[entry["uuid"]])
             continue
-        content = (entry.get("message") or {}).get("content")
+        msg = entry.get("message")
+        content = msg.get("content") if isinstance(msg, dict) else None
         if entry.get("type") == "assistant" and isinstance(content, list):
             blocks = [
                 str(b.get("text") or "")
@@ -4401,18 +4409,28 @@ def _turn_texts(transcript_path: str) -> tuple[list[tuple[str, _Cut]], tuple[str
                 if isinstance(b, dict) and b.get("type") == "text"
             ]
             texts.extend((t, cut) for t in blocks)
+            mid = msg.get("id") if isinstance(msg, dict) else None
             if newest is None and "\n".join(blocks).strip():
-                newest = ("\n".join(blocks), cut)
+                last = next(t for t in reversed(blocks) if t.strip())
+                newest, newest_id, message_blocks = ((last, "\n".join(blocks)), cut), mid, blocks
+            elif newest is not None and isinstance(mid, str) and mid == newest_id:
+                # an earlier entry of the newest message: its blocks join the message's spelling
+                message_blocks = blocks + message_blocks
+                spans_entries = True
+    if newest is not None and spans_entries:
+        newest = ((*newest[0], "\n".join(message_blocks)), newest[1])
     return texts, newest
 
 
-def _final_cut(newest: tuple[str, _Cut] | None, final_text: str) -> _Cut:
-    """The hook passes the turn's last assistant text: when it IS the newest walked entry (its blocks joined), it
-    keeps that entry's cut-off — otherwise a brief or block before a trailing queued prompt is judged with none
-    (W-6424f2e8 Fable critique). Equality, never containment: when the final entry is not flushed yet, an earlier
-    short block the final text contains ("Noted.") would lend a cut from before a queued prompt (W-573ddaa1, both
-    critiques). No match keeps no cut — fail-closed."""
-    if newest is None or not newest[0].strip() or newest[0].strip() != final_text.strip():
+def _final_cut(newest: tuple[tuple[str, ...], _Cut] | None, final_text: str) -> _Cut:
+    """The hook passes the turn's last assistant text: when it IS the newest walked text — the newest entry's last
+    block, its blocks joined, or the whole newest message's, whitespace-folded (`_norm_ws`, so a join by blank lines
+    or an empty block still matches) — it keeps that entry's cut-off; otherwise a brief or block before a trailing
+    queued prompt is judged with none (W-6424f2e8 Fable critique). Equality, never containment: when the final entry
+    is not flushed yet, an earlier short block the final text contains ("Noted.") would lend a cut from before a
+    queued prompt (W-573ddaa1, both critiques). No match keeps no cut — fail-closed."""
+    want = _norm_ws(final_text)
+    if newest is None or not want or not any(_norm_ws(s) == want for s in newest[0]):
         return None
     return newest[1]
 

@@ -863,7 +863,7 @@ def test_a_queued_prompt_written_twice_in_the_turn_keeps_the_verdicts_before_it(
 
 def test_a_multi_block_final_message_keeps_its_cut_off(tmp_path, panel_mode):
     """Review pass 1 (W-6424f2e8): the hook's final_text joins the last entry's text blocks, so it equals no single
-    walked block — it takes the cut-off of the newest block it contains."""
+    walked block — it takes the cut-off of the newest entry it equals (W-573ddaa1: equality, never containment)."""
     brief = _BRIEF.format(panel=_approve_line())
     last = json.dumps(
         {
@@ -1043,12 +1043,16 @@ def test_an_unflushed_final_message_never_borrows_an_earlier_blocks_cut_off(tmp_
 
 def test_a_json_row_that_is_not_an_object_is_skipped(tmp_path, panel_mode):
     """W-573ddaa1 design critique (Opus): `_panel_problem` called `.get` on every parsed row, so a bare JSON list
-    row (`["user"]`) raised AttributeError and the panel check fell to the caller's fail-open."""
+    row (`["user"]`) raised AttributeError and the panel check fell to the caller's fail-open. Review pass 1: the
+    tail walk `_turn_texts` (which `parse_decision_block` now reads) keeps only rows carrying `"type"`, so a list row
+    holding it, and an assistant row whose `message` is not an object, must be skipped there too."""
     rows = (
         _user("pick a retention window for the purge job"),
         _dispatch("opus"),
         _dispatch("fable"),
         '["user"]',
+        '[{"type": "user"}]',
+        json.dumps({"type": "assistant", "message": "not an object"}),
         _result("t-opus", f"verdict: {OPUS}."),
         _result("t-fable", f"verdict: {FABLE}."),
     )
@@ -1057,3 +1061,63 @@ def test_a_json_row_that_is_not_an_object_is_skipped(tmp_path, panel_mode):
         True,
         "underivable",
     )
+    assert hook._panel_brief_problem(tr, "") == ""
+
+
+def test_a_queued_row_with_no_uuid_always_resets(tmp_path, panel_mode):
+    """W-573ddaa1 review pass 1 (B-S1): only a STRING uuid joins the seen-set — a queued operator row with none is a
+    new word every time, so verdicts before the second uuid-less prompt never back a brief after it."""
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _queued_prompt("first queued question"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _queued_prompt("a second queued question"),
+        _said(_BRIEF.format(panel=_approve_line())),
+    )
+    assert "since the operator's last message" in hook._panel_brief_problem(tr, "")
+
+
+def _said_as(text: str, message_id: str) -> str:
+    return json.dumps(
+        {
+            "type": "assistant",
+            "message": {"id": message_id, "content": [{"type": "text", "text": text}]},
+        }
+    )
+
+
+def test_a_final_message_written_as_several_entries_keeps_its_cut_off(tmp_path, panel_mode):
+    """W-573ddaa1 review pass 1 (A-S1, A-S3): Claude Code writes one message's text blocks as several entries sharing
+    `message.id`, and the hook's final text may be the whole message, a blank-line join of it, or its last block;
+    each spelling takes the newest entry's cut-off. An earlier message's text never does."""
+    brief = _BRIEF.format(panel=_approve_line())
+    seats = (
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+    )
+    tr = _transcript(
+        tmp_path,
+        *seats,
+        _said_as("Done.", "msg-1"),
+        _said_as(brief, "msg-1"),
+        _queued_with_uuid("also fix the typo", "q-1"),
+    )
+    for final in ("Done.\n" + brief, "Done.\n\n" + brief, brief):
+        assert hook._panel_brief_problem(tr, final) == "", final
+    # a text from an EARLIER message, plus the newest one's, is not the newest message
+    tr = _transcript(
+        tmp_path,
+        *seats,
+        _said_as("Done.", "msg-0"),
+        _said_as(brief, "msg-1"),
+        _queued_with_uuid("also fix the typo", "q-1"),
+    )
+    assert hook._panel_brief_problem(tr, brief) == ""
+    assert hook._final_cut(hook._turn_texts(tr)[1], "Done.\n" + brief) is None
