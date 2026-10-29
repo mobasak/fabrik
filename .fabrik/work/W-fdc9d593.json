@@ -19,5 +19,5 @@
   "tags": [
     "deploy"
   ],
-  "title": "Under correlated load postgres-main and traefik compete for vps1 CPU at the default weight (sum of caps 21.5 on 6 CPUs) — decide whether cpu_shares above 1024 should give the shared critical path priority, from a contention measurement"
+  "title": "Under correlated load postgres-main and traefik compete for vps1 CPU at the default weight (the caps are ceilings whose sum exceeds the 6 CPUs) — decide whether cpu_shares above 1024 should give the shared critical path priority, from a contention measurement"
 }

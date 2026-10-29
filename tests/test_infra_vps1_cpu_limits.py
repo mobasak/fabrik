@@ -7,8 +7,9 @@ enforced at deploy time by `deployer_ssh._validate_compose()`, but `infra/vps1/`
 (cAdvisor, 2026-10-29). The tier values are the decision row's table, not pinned here a second time.
 
 The grammar is strict and fails closed: PyYAML reads `yes` as a bool (float() gives 1.0) and `0_5` as
-int 5, while compose rejects both — a lenient float() would grade a file GREEN that the VPS cannot
-apply. Parses YAML only; never touches a live host.
+int 5. docker compose 2.40.3 refuses `yes` but reads `0_5`, quoted or bare, as 5 CPUs — so a lenient
+float() would grade GREEN a file the VPS cannot apply, or one whose typo grants ten times the cap.
+Parses YAML only; never touches a live host.
 """
 
 from __future__ import annotations
@@ -122,8 +123,20 @@ def compose_problems(text: str) -> dict[str, str]:
     return problems
 
 
-def _composes() -> list[Path]:
-    return sorted(INFRA_VPS1.glob("*/compose.yaml"))
+def _composes(root: Path = INFRA_VPS1) -> list[Path]:
+    # Every compose spelling at any depth (compose.yml, docker-compose.yaml, a nested stack), so a stack
+    # added under another name is graded rather than silently skipped.
+    return sorted(p for p in root.rglob("*.y*ml") if "compose" in p.name)
+
+
+def test_every_compose_spelling_is_in_the_population(tmp_path: Path) -> None:
+    """Given stacks named compose.yml, docker-compose.yaml and a nested compose.yaml, when the
+    population is collected, then all three are graded."""
+    names = ["a/compose.yml", "b/docker-compose.yaml", "c/d/compose.yaml"]
+    for name in names:
+        (tmp_path / name).parent.mkdir(parents=True)
+        (tmp_path / name).write_text("services: {}\n")
+    assert [p.relative_to(tmp_path).as_posix() for p in _composes(tmp_path)] == names
 
 
 def test_the_population_is_not_empty() -> None:
@@ -201,9 +214,9 @@ def test_a_duplicate_key_fails_the_file(text: str) -> None:
     assert problems["<file>"].startswith("duplicate key")
 
 
-def test_yaml_spellings_reach_the_grader_as_compose_would_refuse_them() -> None:
-    """Given compose text, when PyYAML parses a bare `yes` or `0_5`, then the grader still refuses
-    the service and names it."""
+def test_yaml_spellings_are_graded_on_their_scalar_text() -> None:
+    """Given compose text, when PyYAML parses a bare `yes` (compose refuses it) or `0_5` (compose reads
+    it as 5 CPUs), then the grader still refuses the service and names it."""
     text = (
         "services:\n  a:\n    deploy: {resources: {limits: {memory: 64M, cpus: yes}}}\n"
         "  b:\n    deploy: {resources: {limits: {memory: 64M, cpus: 0_5}}}\n"
@@ -211,7 +224,22 @@ def test_yaml_spellings_reach_the_grader_as_compose_would_refuse_them() -> None:
         "  d:\n    image: x\n"
     )
     assert set(compose_problems(text)) == {"a", "b", "c", "d"}
+
+
+def test_a_file_without_a_services_mapping_fails() -> None:
+    """Given a YAML file with no `services:` mapping, when graded, then the file itself fails."""
     assert compose_problems("x: 1\n") == {"<file>": "no services mapping"}
+
+
+def test_a_real_compose_with_its_cpus_line_removed_is_refused() -> None:
+    """Given a real block-style infra/vps1 compose, when its `cpus:` line is deleted, then the grader
+    names that service — so the real-file scan is not green only because it reads nothing."""
+    path = INFRA_VPS1 / "gatus" / "compose.yaml"
+    text = path.read_text()
+    assert compose_problems(text) == {}
+    stripped = "".join(line for line in text.splitlines(keepends=True) if "cpus:" not in line)
+    assert stripped != text
+    assert compose_problems(stripped) == {"gatus": "no deploy.resources.limits.cpus"}
 
 
 def test_exception_is_exact_and_expires() -> None:
