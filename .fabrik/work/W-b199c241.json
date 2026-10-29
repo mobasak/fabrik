@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T06:41:35.961318Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b199c241",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "stub _capability_probe in the tests that do not test it (a CLI on PATH is never reached from the suite); red-first by putting a failing claude stub first on PATH",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "tests/test_claude_fleet.py spawns the REAL claude CLI: the tick's stale-reading refresh calls claude_rotate._capability_probe, which the fixture _no_real_capability_probe (tests/test_claude_fleet.py:50) leaves unstubbed on purpose; seen 2026-10-29 in a merge leg as many live 'claude -p ok --output-format json --max-turns 1 --tools ' node processes (~190 MiB each, CLAUDE_CONFIG_DIR under pytest tmp) in every shard, e.g. test_a_parked_account_with_no_weekly_reading_is_still_never_picked, test_posture_is_still_written_when_the_active_account_has_no_reading — memory and wall time in every hub leg, and a real network/auth attempt from a test"
+}

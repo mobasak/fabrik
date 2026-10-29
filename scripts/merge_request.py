@@ -161,12 +161,15 @@ def _capped_run() -> str:
     )
 
 
-def _capped(argv: list[str], timeout: int) -> list[str]:
+def _capped(argv: list[str], timeout: int, mem: str | None = None) -> list[str]:
     """``argv`` under the box's capped runner — a cgroup memory ceiling and a time limit, so a
-    runaway owner test is a red, never a host outage (W-162398ef). No runner → ``argv`` as is."""
+    runaway owner test is a red, never a host outage (W-162398ef). ``mem`` (the base's declared
+    ceiling, ``_declared_mem``) is passed as ``--mem``; without it the runner's own default holds.
+    No runner → ``argv`` as is."""
     runner = _capped_run()
     if os.access(runner, os.X_OK):
-        return [runner, "--timeout", str(int(timeout)), "--", *argv]
+        flags = ["--timeout", str(int(timeout)), *(["--mem", mem] if mem else [])]
+        return [runner, *flags, "--", *argv]
     print(
         f"merge_request: WARNING — {runner} is missing; owner tests run UNCAPPED (no memory ceiling)",
         file=sys.stderr,
@@ -553,6 +556,25 @@ LEG_FLOOR_S = 60  # under a minute left, no leg starts: a stub run tells nothing
 # still bound the run; a longer leg leaves less of the budget for a rebuild (W-1fb11ec8, wef's ~5240-test
 # leg past 1800 s on 2026-10-24).
 _LEG_DECL_RE = re.compile(r"(?m)^#[ \t]*merge-test-timeout:[ \t]*([0-9]+)[ \t\r]*$")
+# The same for the leg's MEMORY ceiling (W-e64a7b8e): a leg runs in ONE capped_run scope, and the hub's
+# runs 8 pytest shards in it — a 244-file selection measured 6,009 MiB, past capped_run's 4G default, and
+# died at exit 137. `# merge-test-mem: <n>M|<n>G` on a line of its own, read from the BASE only, the
+# first such line read, clamped to [LEG_MEM_FLOOR_MIB, LEG_MEM_MAX_MIB]. The MAX is capped_run.sh's
+# slice total (FABRIK_TEST_SLICE_MAX, 12G) minus one run at its default (FABRIK_TEST_MEM_MAX, 4G): one
+# leg at the ceiling leaves room for one default-sized sibling (two legs at it can exceed the slice) —
+# revisit it when either default changes. The floor mirrors LEG_FLOOR_S: a tiny value is clamped up,
+# never ignored, and the 137 refusal then names it. Cobra (D-253): the cheapest way past "legs fit" is a
+# larger declared value; the MAX bounds it, and a leg past it is still a named ceiling kill.
+_LEG_MEM_RE = re.compile(r"(?m)^#[ \t]*merge-test-mem:[ \t]*([0-9]+)([MG])[ \t\r]*$")
+LEG_MEM_FLOOR_MIB = 256
+LEG_MEM_MAX_MIB = 8192
+# capped_run.sh's own verdict lines for a kill at the ceiling and at the time limit (capped_run.sh:160,
+# :163); each ends with " — " and the whole argv, which for a script leg is the multi-line script
+_CEILING_KILL = "capped_run: killed at the memory ceiling ("
+_TIME_KILL = "capped_run: stopped at the "
+# a line that LOOKS like the declaration (any value) — the grammar refused it when _LEG_MEM_RE did not
+# match; prose that merely names the header is not one
+_LEG_MEM_LIKE_RE = re.compile(r"(?m)^[ \t]*#[ \t]*merge-test-mem[ \t]*:")
 PUSH_TIMEOUT_S = 600
 SYNC_TIMEOUT_S = 900
 EXIT_OK = 0
@@ -617,6 +639,9 @@ class _Ctx:
         self.test_deadline = time.monotonic() + MERGE_TEST_BUDGET_S
         self.leg_limit = TEST_TIMEOUT_S
         self.full_leg = TEST_TIMEOUT_S  # a full leg: TEST_TIMEOUT_S, or the base's declared one
+        self.leg_mem: str | None = (
+            None  # the base's declared memory ceiling, or capped_run's default
+        )
         self.pretesting = False  # `request --pretest`: never skip on a pretest record
 
 
@@ -629,6 +654,30 @@ def _declared_leg(script: str) -> int:
     if len(digits) > 9:  # past any budget, and int() refuses a string over 4300 digits
         return MERGE_TEST_BUDGET_S
     return max(LEG_FLOOR_S, min(int(digits), MERGE_TEST_BUDGET_S))
+
+
+def _declared_mem(script: str) -> str | None:
+    """The base script's ``# merge-test-mem:`` value in MiB (``"<n>M"``), clamped; None without
+    one, so capped_run's own default holds."""
+    m = _LEG_MEM_RE.search(script)
+    if not m:
+        return None
+    digits = m.group(1).lstrip("0") or "0"
+    if len(digits) > 9:  # past any ceiling, and int() refuses a string over 4300 digits
+        return f"{LEG_MEM_MAX_MIB}M"
+    mib = int(digits) * (1024 if m.group(2) == "G" else 1)
+    return f"{max(LEG_MEM_FLOOR_MIB, min(mib, LEG_MEM_MAX_MIB))}M"
+
+
+def _mem_lines_ignored(script: str) -> bool:
+    """Whether a line shaped like the declaration (``# merge-test-mem:`` and any value) fails the
+    grammar — before a valid one too, which then wins silently unless this says so."""
+    for m in _LEG_MEM_LIKE_RE.finditer(script):
+        end = script.find("\n", m.start())
+        line = script[m.start() : len(script) if end < 0 else end + 1]
+        if not _LEG_MEM_RE.match(line):
+            return True
+    return False
 
 
 def _leg_timeout(ctx: _Ctx) -> int:
@@ -1366,6 +1415,14 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
         ctx.notes.append(note)
     script = _base_merge_tests(ctx, old)
     ctx.full_leg = _declared_leg(script)
+    ctx.leg_mem = _declared_mem(script)
+    # said in the leg's own verdict, so the merge reply, a pretest and a queue child all carry it
+    mem_note = (
+        "; NOTE: the base's .fabrik/merge-tests has a merge-test-mem line outside the grammar "
+        "(`# merge-test-mem: <n>M|<n>G` alone on its line) — ignored, capped_run's default ceiling holds"
+        if _mem_lines_ignored(script)
+        else ""
+    )
     touched: list[str] = []
     if not script:
         touched = [
@@ -1402,17 +1459,22 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
     if run.returncode == 124 and shortened and time.monotonic() - t0 >= ctx.leg_limit:
         raise BudgetSpentError(spent.format(ctx.leg_limit))  # no base_old: no base-alone run
     if run.returncode != 0:
-        tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-3:])
+        verdict = _capped_verdict(run.returncode, run.stderr)
+        tail = verdict or " ".join((run.stdout + run.stderr).strip().splitlines()[-3:])
         why = f"; NOTE: {note}" if note else ""
-        red = RefusedError(f"owner tests red ({label}, exit {run.returncode}): {tail}{why}")
+        red = RefusedError(
+            f"owner tests red ({label}, exit {run.returncode}): {tail}{why}{mem_note}"
+        )
         red.base_old = old  # type: ignore[attr-defined]
         red.base_alone = {"script": script, "touched": touched}  # type: ignore[attr-defined]
         if run.returncode in _KILLED_EXITS:
+            # callers wrap this in their own "(…)" and the verdict carries one: no third level
             red.base_alone_skip = (  # type: ignore[attr-defined]
-                f"the merged run timed out or was killed (exit {run.returncode})"
+                f"the merged run timed out or was killed, exit {run.returncode}"
+                + (f" — {verdict}" if verdict else "")
             )
         raise red
-    return f"{label}: green{ignored}"
+    return f"{label}: green{ignored}{mem_note}"
 
 
 # --- request --pretest: the owner tests run ONCE per change (W-1fb11ec8) ----------------------
@@ -1629,6 +1691,24 @@ def _sweep_pretests(ctx: _Ctx, base_tip: str = "") -> None:
 _KILLED_EXITS = (124, 137)
 
 
+def _capped_verdict(rc: int, stderr: str) -> str:
+    """capped_run's own verdict for a killed leg, cut before its " — <argv>" part (the argv of a
+    script leg is the multi-line script, which would otherwise fill a 3-line tail): for 137 its
+    ``killed at the memory ceiling (<mem> per run, <max> for <slice>)`` line, for 124 its ``stopped at
+    the <n>s time limit`` line — the LAST such line, since capped_run prints its own after the leg
+    ends and a nested run may print one earlier (W-e64a7b8e). A 137 with none is a SIGKILL inside the
+    leg, said so; any other case, or a 124 with none, is "" and the caller keeps its tail."""
+    prefix = {137: _CEILING_KILL, 124: _TIME_KILL}.get(rc)
+    if prefix is None:
+        return ""
+    for line in reversed(stderr.splitlines()):
+        if line.startswith(prefix):
+            return line.split(" — ", 1)[0].rstrip()
+    if rc == 137:
+        return "a SIGKILL inside the leg; capped_run reported no memory-ceiling kill"
+    return ""
+
+
 def _base_merge_tests(ctx: _Ctx, old: str) -> str:
     """The base's ``.fabrik/merge-tests``, or "" when the base has none."""
     res = _run(["git", "show", f"{old}:.fabrik/merge-tests"], GIT_TIMEOUT_S, cwd=ctx.main)
@@ -1649,7 +1729,7 @@ def _run_owner_leg(
         env = {**os.environ, **_MERGE_CHECK_ENV, "PYTHONPATH": pythonpath}
         argv, label = ["sh", "-e", "-c", script], ".fabrik/merge-tests (base copy)"
         # the outer bound only catches a runner that itself hangs; the runner stops the tests first
-        return _run(_capped(argv, limit), limit + 60, cwd=wt, env=env), label
+        return _run(_capped(argv, limit, ctx.leg_mem), limit + 60, cwd=wt, env=env), label
     venv = ctx.main / ".venv" / "bin" / "python"
     py = str(venv) if os.access(venv, os.X_OK) else sys.executable
     label = f"pytest {' '.join(touched)} under {py}"
@@ -1692,7 +1772,9 @@ def _base_alone(ctx: _Ctx, rec: dict, old: str, red: RefusedError) -> str:
             "; on base alone (one run): green — the failure needs the branch's change (or is flaky)"
         )
     if run.returncode in _KILLED_EXITS:
-        return f"; on base alone: not checked (the base run timed out or was killed, exit {run.returncode})"
+        verdict = _capped_verdict(run.returncode, run.stderr)
+        said = f"exit {run.returncode}: {verdict}" if verdict else f"exit {run.returncode}"
+        return f"; on base alone: not checked (the base run timed out or was killed, {said})"
     tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-3:])
     said = f"exit {run.returncode}: {tail}" if tail else f"exit {run.returncode}"
     return (
