@@ -3,7 +3,7 @@
   "created": "2026-10-23T05:01:26.884665Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "b7aadd8118d25f4c03444c3aeb939e203924f64c",
   "id": "W-84ad2ff1",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra-3",
   "priority": 1,
   "score_reason": "the floor rung mis-counts a live builder as a missing worker and blocks the coordinator's turn end each time; one name resolution in work.py plus a grader",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fold-w-b9ad80ae",
     "queued"

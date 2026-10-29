@@ -3158,14 +3158,28 @@ def _synced_paths() -> set[str]:
     hub's) rewrites them and self-fails that check, and the project can't legally edit
     them anyway. Empty in the hub (/opt/fabrik): there they ARE the source and get
     linted/formatted like any other file. In a consumer, read from the per-project
-    lock (.fabrik/synced.lock) — the same source check_synced_unmodified trusts. Any
+    lock (.fabrik/synced.lock) — the same source check_synced_unmodified trusts, through its own
+    `synced_lock` (a lockless linked worktree borrows its main checkout's lock, W-c77f91c6), so
+    the two never disagree; that module failing to load falls back to the own lock. Any
     failure → empty (fail-open: lint normally rather than silently skip everything).
     """
     try:
         if _is_hub():
             return set()
-        lock = PROJECT_ROOT / ".fabrik" / "synced.lock"
-        if not lock.exists():
+        lock: Path | None = PROJECT_ROOT / ".fabrik" / "synced.lock"
+        try:
+            import importlib.util
+
+            path = Path(__file__).resolve().parent / "enforcement" / "check_synced_unmodified.py"
+            spec = importlib.util.spec_from_file_location("_check_synced_unmodified", path)
+            if spec is None or spec.loader is None:
+                raise ImportError(path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            lock = module.synced_lock(PROJECT_ROOT)[0]
+        except Exception:
+            pass
+        if lock is None or not lock.exists():
             return set()
         import json
 

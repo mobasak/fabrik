@@ -399,6 +399,7 @@ ALLOWLIST: dict[str, str] = {
     # ── no-write: comment, read-only reference, test fixture, or already __file__-derived ──
     "docs/reference/research/2026-09-23-stop-compaction/mine.py": "no-write: dated one-off research artifact, loads final_gate_stop.py by absolute path to inspect it, does not write a tracked hub file",
     "scripts/.scratch/test_env_consolidation.py": "no-write: dead scratch test (last touched 2026-05-25), force-tracked despite scripts/.scratch/ being gitignored",
+    ".claude/hooks/agent_role.py": "no-write: runs $FABRIK_DECISIONS_PY, else /opt/fabrik/scripts/decisions.py, --merge-owner read-only, only to refuse a merge owner's role-charter fallback",
     "scripts/docs_updater.py": "no-write: the literal `/opt/fabrik/scripts/decisions.py` is the hub id allocator it RUNS (`$FABRIK_DECISIONS_PY` overrides it); the ledger that run appends is the cwd repo's (`PROJECT_ROOT = Path.cwd()`), never the literal",
     "scripts/enforcement/check_doc_links.py": "no-write: `/opt/fabrik/` is a READ-side prefix check classifying a doc link, not a write target",
     "scripts/enforcement/check_structure.py": "no-write: the matched lines are a COMMENT describing the pattern, no FABRIK_ROOT usage of its own",

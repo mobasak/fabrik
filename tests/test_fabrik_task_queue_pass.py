@@ -47,16 +47,55 @@ def test_the_third_review_question_excludes_an_equivalent_implementation() -> No
     assert "the declaration said did not exist" not in phase4
 
 
-def test_the_receipt_range_tip_is_the_last_commit() -> None:
-    """S5 (receipt close): task_lane.py check (d) refuses unless the range tip is the LAST --commit."""
+def test_the_receipt_range_tip_is_the_last_commit_and_check_d_is_looser() -> None:
+    """S5 (receipt close): the lane's recipe makes the tip the LAST --commit (a ban clause the lean
+    ledger keeps verbatim); D-1291's check (d) takes any listed commit that only receipts and ledgers
+    follow, so the text says never to reorder the list (D-1336)."""
     close = _section("## Phase 5", "## UPGRADE")
     assert "Its range tip must be the LAST `--commit` (`task_lane.py` check (d))" in close
+    assert (
+        "Check (d)'s range form itself is looser than this LAST rule: it takes any listed commit as the tip when every"
+        " other listed commit that is not its git ancestor carries only receipts and ledgers, and list"
+        " order decides nothing, so never reorder the `--commit` list to pass it." in close
+    )
+    phase4 = _section("## Phase 4", "## Phase 5")
+    assert "that commit its `--range` tip" not in phase4
+    assert "its `--range` tip one of the `--commit` values" in phase4
     assert "never captured or passed to `--commit`" in close
     # review_receipt.py requires --changed and --out/--scope; the tip is the last captured sha (round 1).
     assert (
         "--changed <every path in base..that sha> --scope <slug> --range <base>..<that sha>"
         in close
     )
+
+
+def test_review_after_commit_is_the_default_and_its_close_is_numbered() -> None:
+    """D-1339 (W-b21ced51): rows asked phase 4 to say up front that the review runs after the build commit (the Stop
+    hook blocks an uncommitted tree while seats run) and phase 5 to number the after-commit close; review round 1 added
+    the two runs that still review BEFORE the commit, the commit's exit 0 before `capture`, and the list's place
+    between steps 5 and 6. Model boundary: the wording of those rules in this source; a synonym re-introducing the
+    old condition is outside it (D-785). Mutants: restore the outlive-the-turn condition, drop an exception, drop the
+    exit-0 rule, or swap two numbered steps."""
+    phase4 = _section("## Phase 4", "## Phase 5")
+    assert "the review is dispatched AFTER phase 5 steps 1-5 by default" in phase4
+    assert "outlive" not in phase4 and "only after the build is committed" not in phase4
+    assert (
+        "two must: a sync-path run in main checkout and a review whose receipt the D-row cites (phase 5's `--restamp` form)"
+        in phase4
+    )
+    close = _section("## Phase 5", "## UPGRADE")
+    assert "`capture` runs only once the commit exits 0;" in close
+    steps = [
+        "closes in this order, between step 5's ledger commit and step 6:",
+        "1. Run full `/fabrik-review` (skipping its own `--init`)",
+        "2. Run `final_gate.py --check --json` BEFORE item 3's `--init`",
+        "3. After last sha in `commit.sha`, `review_receipt.py --init --lane",
+        "4. Carry draft's rows into it",
+        "5. Close the nested review's record, then step 6's `done`",
+        "Check (d)'s range form itself is looser than this LAST rule",
+    ]
+    at = [close.index(s) for s in steps]
+    assert at == sorted(at), "the after-commit close steps are out of order"
 
 
 def test_critique_is_not_rerun_on_the_folded_version() -> None:
@@ -71,9 +110,8 @@ def test_size_declares_operator_named_work_as_heavy() -> None:
         "## SIZE", "## Phase 1"
     )
 
-
-    # row 1792287653 (recurring held re-make-receipt-before-the-d-row-cites-it): the range tip is phase 5's last
-    # commit, so a D-row the receipt cites is already in it — phase 5's own recipe commits the receipt alone after it
+    # row 1792287653 (recurring held re-make-receipt-before-the-d-row-cites-it): the receipt is made after the ledger
+    # commit, so a D-row the receipt cites is already in its range; the receipt commit itself follows alone (D-1336)
 
 
 def test_phase_three_formats_the_declared_paths_only() -> None:
@@ -93,16 +131,15 @@ def test_design_tabulates_its_inputs_and_the_close_captures_by_subject() -> None
     design = _section("## Phase 2", "## Phase 3")
     assert "up to that call" not in design
     close = _section("## Phase 5", "## UPGRADE")
-    # the subject comes from the -F message file (a pasted one would run its backticks); the grep finds a
-    # candidate; the exact %s comparison refuses a body-quoting sibling, a prefix and a miss
+    # the subject comes from the -F message file (a pasted one would run its backticks); D-1339: the capture is
+    # command_run.py's own verb, run as a plain call (its find-by-subject and exact %s check are tested in
+    # test_command_run_lane_v2.py's test_capture_*), never the chained shell recipe a worktree guard refuses
     assert "trailers via -F <msg>," in close
     assert (
-        '&& subj=$(head -n1 <msg>) && sha=$(git log -1 --format=%H -F --grep "$subj") && [ -n "$sha" ] \\'
-        in close
-    )
-    assert (
-        '&& [ "$(git log -1 --format=%s "$sha")" = "$subj" ] && echo "$sha" >> <durable>/commit.sha || exit 1'
+        "mkdir -p <durable> <your § EXIT commit: pathspecs, trailers via -F <msg>, private-index for shared-append"
+        " files> python3 scripts/command_run.py capture --msg <msg> --out <durable>/commit.sha"
     ) in close
+    assert "subj=$(head" not in close and "&& echo" not in close
     assert '"<your subject>"' not in close
     assert "rev-parse -q --verify HEAD" not in close
     assert (
@@ -164,4 +201,3 @@ def test_measure_runs_each_probe_under_an_interpreter_shown_to_import_it() -> No
         "an independent parser for a parsed format (every probe run under an interpreter shown to import its"
         " libraries and each extra it enables: a system `python3` may lack one)"
     ) in _section("## Phase 1", "## Phase 2")
-

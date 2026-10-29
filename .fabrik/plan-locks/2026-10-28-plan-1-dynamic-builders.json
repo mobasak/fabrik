@@ -1,0 +1,37 @@
+{
+  "plan": "docs/development/plans/2026-10-28-plan-1-dynamic-builders/2026-10-28-plan-1-dynamic-builders.md",
+  "owned_paths": [
+    "scripts/whoami_agent.py",
+    "tests/test_whoami_agent.py",
+    "docs/workstation/agent-identity.md",
+    "scripts/sysadmin/agents_up.sh",
+    "tests/test_agents_up.py",
+    ".claude/hooks/agent_role.py",
+    "tests/test_agent_role_hook.py",
+    "tests/test_hub_write_root.py",
+    "docs/reference/agents/builder.md",
+    "docs/workstation/hooks-index.md",
+    "scripts/sysadmin/agents_bat.py",
+    "tests/test_agents_bat.py",
+    "scripts/sysadmin/agents_spawn.py",
+    "tests/test_agents_spawn.py",
+    "scripts/sysadmin/rotate_session.py",
+    "tests/test_rotate_session.py",
+    "docs/workstation/session-history-retention.md",
+    "docs/reference/repo-coordinator-rollout.md",
+    "docs/reference/operator-agent-requirements.md"
+  ],
+  "branch": "infra-3-dynamic-builders",
+  "started_at": "2026-10-28T21:37:00+03:00",
+  "status": "active",
+  "baseline_commit": "8a981474a49a49f4734ab1ffe9d967703bd09826",
+  "baseline_gate": {
+    "tier": "final_gate.py --lean --check --json",
+    "status": "success",
+    "red_checks": []
+  },
+  "shared_with": {
+    "docs/workstation/hooks-index.md": "2026-10-22-plan-1-fabrik-deck (fleet): the agent_role.py row only, cleared by the lock owner (D-1309)"
+  },
+  "tickets": {}
+}

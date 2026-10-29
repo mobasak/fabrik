@@ -177,7 +177,8 @@ re-runs every check, types `/clear <agent>-<date>` (or `/compact <focus>`) — e
 call once the input line shows that text unchanged over two captures, then the input line must hold something other
 than that text (empty, a placeholder, a dialog) (an Enter sent right behind the paste was swallowed, W-b92aa5cf) —
 waits for the registry's new session id, re-points the repo's `.fabrik/session-agents.json` entry from the old
-session id to the new one itself (W-b72231b8, D-1175: only for the checkout the old session's binding names; a file
+session id to the new one itself under the repo's agents lock (`refused:agents lock busy` after 30 s; `refused:agents
+lock unavailable` when the lock cannot be resolved) (W-b72231b8, D-1175: only for the checkout the old session's binding names; a file
 agents_up.sh would refuse, a missing entry or a hand edit since its read is left alone, and the state is rowed as
 `registry`), then types one resume prompt — re-arm the self-watch (a /clear may kill or orphan background shells), re-bind with
 `python3 /opt/fabrik/scripts/whoami_agent.py --as <agent> --force`, read only the memory notes, `work.py next` and
@@ -189,9 +190,10 @@ person — W-1783a9fe, D-1173) — and records every outcome (`ok`, `refused:<ch
 the send). The re-bind wait is `REBIND_GRACE_S` (180 s, W-b72231b8 slice 2; the one late bind measured took 98 s); a
 bind later than that rows `partial:rebind`. While it waits the executor holds its lock, so another rotation asked in that
 window is refused `aborted:pending` — the coordinator asks again; nothing retries it. The verb's exit says whether asking again can pass (W-05021a03): **75** when the abort clears by itself — the session still in its turn, a run record or seat still going, the rotation in flight, tmux slow, a pane restarting or drawn without its input box — and **1** only on positive evidence that an act comes first: a bad argument or trigger, the request directory's ownership, a dialog's numbered option on the prompt row (answer it), text in the input box (clear it or ask with `--stale-input discard`, which refuses a box over 1000 characters), two transcripts for the session, no identity binding yet (the reason names the `whoami_agent.py --as <agent> --force` to send) or one held by another window, uncommitted or unpushed work, a slash-command ending (send one prompt), or a request the path unit never claimed (`install_rotate_unit.sh --check`). Its stderr line says `(transient …)` or `(permanent …)`. A crash also exits 1, and argparse's usage error, or a run outside any repository, exits 2, so anything but 75 is read, never retried blindly. Every wait the script itself runs
-is a named constant and `REQUEST_WORST_S` (487 s) is derived from them, and `execute` claims no new request after
-`CLAIM_CUTOFF_S` (50 s), so the last rotation it starts ends inside the unit's 600 s timeout — except that the git calls
-`run_checks` makes (60 s timeout each) are not counted yet (W-b728822f). A request left unclaimed waits for the path
+is a named constant and `REQUEST_WORST_S` (517 s, the agents-lock wait included) is derived from them, and `execute`
+claims no new request after `CLAIM_CUTOFF_S` (20 s), so the last rotation it starts ends inside the unit's 600 s
+timeout — except that the git calls `run_checks` makes (60 s timeout each) and the one that resolves the agents lock's
+path are not counted yet (W-b728822f). A request left unclaimed waits for the path
 unit's next start, which almost always rows it `stale` (it is then older than 60 s). Nothing is queued or retried: keys typed mid-turn would
 queue. Install the units once from the main checkout with `scripts/sysadmin/install_rotate_unit.sh` (`--check`
 reports). The previous session stays resumable and is archived that night.

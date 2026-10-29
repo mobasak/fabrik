@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T17:41:21.665620Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-eb700f57",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M641B375QMYS8G8HSD5QXGN8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: intel-w9ad5860f"
+}

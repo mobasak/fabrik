@@ -5,7 +5,7 @@
   "created": "2026-10-21T16:51:26.906200Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "828ea07d23e1e4ac00db06d58786bfb42d0809aa",
   "id": "W-1961cc42",
   "impact": "high",
   "kind": "task",
@@ -20,7 +20,7 @@
   "owner": "infra-3",
   "priority": 1,
   "score_reason": "a bug in the boot sweep's launcher (HIGH: bug + every repo); one script, one session",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fold-w-b9ad80ae"
   ],

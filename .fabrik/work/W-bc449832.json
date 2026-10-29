@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T14:08:40.935574Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-bc449832",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make the two backup cp calls umask 077 / chmod 600; grader: _Fake asserts the backup command sets the mode; operator: check existing *.backup.* modes on vps1 /opt/glitchtip and /opt/monitoring",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "vps1_pg_scoped_logins.py step 3d keeps compose.yaml/.env *.backup.<stamp> copies at the originals' modes (cp -p, no umask) holding a DSN with its password — set 0600 on the backups (review residue A-N1 of W-c27db1f1)"
+}

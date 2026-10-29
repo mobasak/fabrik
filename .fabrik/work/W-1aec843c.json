@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T16:34:29.303426Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-1aec843c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-10-28-plan-1-dynamic-builders/2026-10-28-plan-1-dynamic-builders.md",
+    "spec": ""
+  },
+  "next": "make bind_spawned use os.path.realpath(repo) (or check isdir/access on the given string, abspath only in messages), with a grader for A/link/.. where link -> B/c",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "whoami_agent.py --spawned: --repo is normalised with os.path.abspath, which collapses '..' as text while the kernel follows a symlink first (A/link/.. names A to the code, B to a cd); use realpath or check the string as given (wave-1 review of W-b9ad80ae, pass 4, N3 — residue past the scope-growth stop)"
+}

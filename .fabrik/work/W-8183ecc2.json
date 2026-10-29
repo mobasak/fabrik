@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T13:26:01.519164Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8183ecc2",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "per site: is it a token reader? if yes switch to the shared _CODE_SPAN pattern and drop it from KNOWN; if no, record why it keeps the narrow form",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Nine pre-existing naive single-backtick pair regexes (`([^`]+)` shape) unpair after a ``double`` span: doc_reconcile.py:172, review_rubric.py:148, final_gate_stop.py:3208/3232/3306, check_traycer_chain.py:52, _fences.py:38, kilo-benchmarks test_autocommit_freshness_wiring.py:208 (found by the W-f2e97f00 review; tests/test_code_span_readers.py lists them as KNOWN)"
+}

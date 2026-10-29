@@ -297,13 +297,19 @@ globalThis.pipeline = async (items, ...stages) =>
   Promise.all(items.map(async (item, i) => {{ try {{ let v = item; for (const s of stages) v = await s(v, item, i); return v; }} catch (e) {{ console.error('STAGE THREW: ' + e); return null; }} }}));
 const prompts = {{}};
 const optsBy = {{}};
-globalThis.agent = async (prompt, opts) => {{
+globalThis.agent = (prompt, opts) => {{
   console.error('AGENT CALLED ' + opts.label);
   prompts[opts.label] = prompt;
   optsBy[opts.label] = {{ model: opts.model, agentType: opts.agentType, effort: opts.effort }};
-  // a canned value of "THROW" makes the seat reject, as a transport or auth error may (W-b36e2a4a)
-  if (results[opts.label] === 'THROW') throw new Error('seat ' + opts.label + ' rejected');
-  return Object.hasOwn(results, opts.label) ? results[opts.label] : null;
+  // "SYNC_THROW" throws before any promise exists, as agent() does on a spent budget or an unsatisfiable schema
+  // (the runtime reference); "THROW" makes the seat reject, as a transport or auth error may (W-b36e2a4a)
+  if (results[opts.label] === 'SYNC_THROW') throw new Error('seat ' + opts.label + ' threw at the call');
+  return (async () => {{
+    if (results[opts.label] === 'THROW') throw new Error('seat ' + opts.label + ' rejected');
+    // "THROW_UNREADABLE" rejects with a value whose `message` getter itself throws (review pass 3, A-H12)
+    if (results[opts.label] === 'THROW_UNREADABLE') throw {{ get message() {{ throw new Error('boom'); }} }};
+    return Object.hasOwn(results, opts.label) ? results[opts.label] : null;
+  }})();
 }};
 (async () => {{ {src} }})().then((out) => console.log(JSON.stringify({{ out, prompts, optsBy }})));
 """
@@ -492,6 +498,9 @@ _FULL_READ = {
     "candidates": [],
 }
 _LEDGER_ROW = [{"id": "S-S1", "file": "a.py", "line": 3, "claim": "off by one"}]
+# W-b36e2a4a: a pass where NO finder returned anything throws, so a test that only reads prompts, the log or the
+# argument handling keeps one seat that returned but read nothing — failed, never null — and gets its ledger back
+_ONE_RETURNED = {"find:S:sonnet": {"files_read": [], "candidates": [], "notes": ""}}
 # Seven shapes of a finder that reviewed nothing (01M4C00TSS): `(pass, seat result, the returned files_read count)`.
 _READ_NOTHING = {
     "empty list": (1, {"files_read": [], "notes": "No, I have not stopped.", "candidates": []}, 0),
@@ -635,7 +644,7 @@ def test_a_later_pass_prompt_defines_its_ledger_status_on_the_defect_and_every_s
             "ledger": [{"id": "S-S1", "file": "a.py", "line": 3, "claim": "off by one"}],
         }
     ]
-    _, _, prompts = _harness(args, {})
+    _, _, prompts = _harness(args, _ONE_RETURNED)
     finder = prompts["find:S:sonnet"]
     # W-729416b3 (mail 01M48MQ2HS): the label names the DEFECT, not the claim's truth — a Haiku seat read a
     # re-verified claim as "true" and labelled 11 then 14 of 14-16 fixed defects STILL_TRUE with the definition
@@ -695,7 +704,7 @@ def test_a_ledger_row_is_an_object_with_a_claim_or_a_plain_claim_and_anything_el
             ],
         }
     ]
-    _, _, prompts = _harness(args, {})
+    _, _, prompts = _harness(args, _ONE_RETURNED)
     finder = prompts["find:S:sonnet"]
     assert "undefined" not in finder, "a ledger row rendered as undefined"
     assert (
@@ -1623,6 +1632,87 @@ def test_every_shell_seat_prompt_carries_the_worktree_safe_recipe() -> None:
             assert needed in prompt, needed
 
 
+def _researcher_prompts() -> tuple[str, str]:
+    """The rendered finder and refuter prompts of a shell-less fabrik-researcher slice (a candidate makes the
+    refuter run; review B-sonnet-1: the refuter carries its own shell ternary, so it is graded too)."""
+    args = dict(_ARGS)
+    args["slices"] = [
+        {"name": "X", "files": ["a.py"], "models": ["sonnet"], "agent": "fabrik-researcher"}
+    ]
+    _, _, prompts = _harness(
+        args,
+        {
+            "find:X:sonnet": {
+                "files_read": ["a.py"],
+                "notes": "read the slice",
+                "candidates": [_cand("X-S1", 3)],
+            },
+            "refute:X": {"verdicts": []},
+        },
+    )
+    return prompts["find:X:sonnet"], prompts["refute:X"]
+
+
+def test_every_shell_seat_is_told_to_redirect_git_show_never_output() -> None:
+    """W-9ad5860f (wef1, mail 01M5QKG9Y7): a seat saved a blob with `git show <sha>:<path> --output=<file>`,
+    which leaves the file empty and prints the blob, and read nothing back. The fact sits beside the
+    large-output redirect rule in SEAT_ISOLATION, which only shell seats receive."""
+    for prompt in _shell_seat_prompts():
+        assert "That redirect is a shell `>` (`git show <sha>:<path> > SCRATCH/<file>`)" in prompt
+        assert "never `--output=<file>` on `git show`" in prompt
+        assert "on a blob it writes an empty file and sends the blob to stdout" in prompt
+    for researcher in _researcher_prompts():
+        assert "--output=" not in researcher
+
+
+def test_every_shell_seat_is_told_how_to_report_a_test_needing_node_modules() -> None:
+    """W-9ad5860f (wef1, mail 01M5QKG9Y7): an archive or clone of a commit holds no gitignored `node_modules/`, so
+    276 node-harness tests failed as environment noise a broad `-k` did not cover, and another skips on the missing
+    tree. Both shell prompts say such a test is unverifiable, never selected, never run on the live tree."""
+    for prompt in _shell_seat_prompts():
+        assert "A gitignored dependency tree — `node_modules/` above all, at the root or nested — is in no commit" in prompt
+        assert "`ERR_MODULE_NOT_FOUND`" in prompt and "a test that SKIPS because a `node_modules` is missing" in prompt
+        assert "never a red of the change and never a pass: name each one unverifiable against the pins" in prompt
+        assert "whether you knew it before the run or found it in the run's output" in prompt
+        # review A-haiku-3: a seat must never write DEFECT_ABSENT for a check it could not run
+        assert 'gets no ledger_status row — write "unverified: gitignored dependency"' in prompt
+        assert "the claim stays open for the lead, as for the never-execute rule" in prompt
+        assert "never a `-k` filter" in prompt and "one `--deselect` per such test by its full node id" in prompt
+        assert "For a test run never copy or link the live `node_modules` into SCRATCH or point an env var at it" in prompt
+        # review A-sonnet-2: GATE_PINS copies every gitignored path a gate row reads, so the ban is scoped to tests
+        assert "a gate row that reads one keeps GATE_PINS's copy rule below." in prompt
+        assert prompt.index("For a test run never copy") < prompt.index("Copy every gitignored path a gate row reads")
+        # review A-sonnet-1: the insert once glued its closing parenthesis to the next sentence
+        assert "copy rule below. A test that reads git HISTORY" in prompt
+    for researcher in _researcher_prompts():
+        assert "node_modules" not in researcher
+
+
+def test_git_show_output_writes_an_empty_file_for_a_blob_and_the_object_for_a_commit(tmp_path: Path) -> None:
+    """A FACT tripwire for the SEAT_ISOLATION sentence, on this box's git: `--output` on a blob leaves the file
+    empty and prints the blob, while on a commit it writes the file. A red means git changed — revise the prompt
+    sentence, never delete this test. The commit-form contrast keeps it from passing on a git that writes nothing."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "f.txt").write_text("blob body\n", encoding="utf-8")
+    env = {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null", "PATH": "/usr/bin:/bin"}
+    for argv in (["init", "-q"], ["add", "-A"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "b"]):
+        subprocess.run(["git", *argv], cwd=repo, check=True, env=env, capture_output=True)
+
+    def show(obj: str, out: Path) -> str:
+        done = subprocess.run(
+            ["git", "show", obj, f"--output={out}"], cwd=repo, env=env, capture_output=True, text=True
+        )
+        assert done.returncode == 0, done.stderr
+        return done.stdout
+
+    blob_out, commit_out = tmp_path / "blob.out", tmp_path / "commit.out"
+    assert show("HEAD:f.txt", blob_out) == "blob body\n"
+    assert blob_out.read_bytes() == b"", "git now honours --output for a blob: revise the SEAT_ISOLATION sentence"
+    assert show("HEAD", commit_out) == ""
+    assert b"blob body" in commit_out.read_bytes()
+
+
 def test_the_finder_and_refuter_share_one_import_recipe() -> None:
     """The recipe was one 1729-character string written out twice; a fix to one copy left the other mandating
     the refused shapes. One constant now feeds both prompts."""
@@ -1970,7 +2060,7 @@ def test_a_slice_file_matches_its_pin_under_the_normalisation_pin_uses() -> None
             "slices": [{"name": "S", "files": [typed]}],
             "pin_manifest": {"a/b.py": "0" * 32},
         }
-        out, _, _ = _harness(args, {})
+        out, _, _ = _harness(args, _ONE_RETURNED)
         assert out["pinned"] is True, typed
     args = {
         **_ARGS,
@@ -2002,7 +2092,7 @@ def test_a_matched_slice_file_is_handed_to_the_seats_as_pin_named_it() -> None:
             "slices": [{"name": "S", "files": [typed]}],
             "pin_manifest": {"a/b.py": "0" * 32},
         }
-        out, _, prompts = _harness(args, {})
+        out, _, prompts = _harness(args, _ONE_RETURNED)
         assert out["slices"][0]["files"] == ["a/b.py"], (typed, out["slices"][0]["files"])
         assert (
             "/p/a/b.py" in prompts["find:S:sonnet"]
@@ -2188,7 +2278,7 @@ def test_the_launch_logs_its_dispatch_count_before_any_seat() -> None:
             {"name": "T", "files": ["c.py"], "priority": "p", "models": ["opus"]},
         ],
     }
-    _, log, _ = _harness(args, {})
+    _, log, _ = _harness(args, _ONE_RETURNED)
     line = "DISPATCH: 3 finder seat(s) over 2 slice(s) + up to 2 refuter(s) = stamp 5"
     assert line in log, log
     assert log.index(line) < log.index("AGENT CALLED"), log
@@ -2230,7 +2320,7 @@ def test_a_relative_scratch_or_pins_dir_is_refused_before_any_seat() -> None:
             key,
             err[-400:],
         )
-    out, _ = _run_ledger({**_ARGS, "base_pin_dir": ""}, {})
+    out, _ = _run_ledger({**_ARGS, "base_pin_dir": ""}, _ONE_RETURNED)
     assert out is not None, "an empty base_pin_dir means none, never a refusal"
 
 
@@ -2307,6 +2397,132 @@ def test_a_throwing_finder_is_reseated_too() -> None:
     assert out["dropped_slices"] == 0 and "retried: STILL NULL" in log, log
 
 
+def _seat(out: dict, model: str, slice_i: int = 0) -> dict:
+    return [s for s in out["slices"][slice_i]["seats"] if s["model"] == model][0]
+
+
+def test_a_rejecting_finder_keeps_its_error_text() -> None:
+    """feedback row 1790707386 (W-b36e2a4a): `.catch(() => null)` threw a rejection's text away, so a failed seat
+    said only `null result`. The first line of the retry's error — else the first call's, when the retry came back
+    null with no text — follows the failed seat's notes and the retry log line; a null with no text adds nothing,
+    and the returned seat's shape is unchanged."""
+    out, log, _ = _harness(
+        _ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku": "THROW", "find:S:haiku:retry": "THROW"}
+    )
+    haiku = _seat(out, "haiku")
+    assert haiku["failed"] is True and haiku["notes"] == (
+        "SEAT FAILED (null result, after one retry): seat find:S:haiku:retry rejected"
+    ), haiku
+    assert "find:S:haiku null — retried: STILL NULL: seat find:S:haiku:retry rejected" in log, log
+    assert sorted(haiku) == sorted(_seat(out, "sonnet")), sorted(haiku)
+    out, _, _ = _harness(_ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku": "THROW"})
+    assert _seat(out, "haiku")["notes"].endswith("after one retry): seat find:S:haiku rejected"), out
+    out, log, _ = _harness(_ARGS, {"find:S:sonnet": _FULL_READ})
+    assert _seat(out, "haiku")["notes"] == "SEAT FAILED (null result, after one retry)", out
+    assert "retried: STILL NULL\n" in log + "\n" and "STILL NULL:" not in log, log
+
+
+def test_a_finder_that_throws_at_the_call_is_retried_and_keeps_its_text() -> None:
+    """Review pass 1, A-S1: agent() can THROW at the call, before any promise exists (a spent budget, an
+    unsatisfiable schema — the runtime reference), which `.then`/`.catch` on its promise never see; the call is
+    wrapped so the seat is retried and its text kept, never lost to a null parallel() thunk. Two throws in a row
+    still leave a failed seat in an ordinary ledger, with its slice kept."""
+    once = {"find:S:sonnet": _FULL_READ, "find:S:haiku": "SYNC_THROW", "find:S:haiku:retry": _FULL_READ}
+    out, log, prompts = _harness(_ARGS, once)
+    assert "find:S:haiku:retry" in prompts and "find:S:haiku null — retried: recovered" in log, log
+    twice = {"find:S:sonnet": _FULL_READ, "find:S:haiku": "SYNC_THROW", "find:S:haiku:retry": "SYNC_THROW"}
+    out, log, _ = _harness(_ARGS, twice)
+    assert out["dropped_slices"] == 0 and _seat(out, "haiku")["notes"] == (
+        "SEAT FAILED (null result, after one retry): seat find:S:haiku:retry threw at the call"
+    ), out
+
+
+def test_the_kept_error_is_the_first_non_blank_line_of_any_rejection() -> None:
+    """Review passes 1 and 3, A-S3 A-H2 A-H10 A-H11 A-H12: a message that opens with a newline lost its cause
+    (`split('\\n')[0]` is empty), a plain-object rejection read `[object Object]`, an Error with an empty message lost
+    its name, a cycle still read `[object Object]`, and a throwing `message` getter made the helper itself throw. The
+    first non-blank line is kept, an object as JSON, an empty Error by its name, and nothing ever throws."""
+    src = _script()
+    start = src.index("function firstLine(e)")
+    body = src[start : src.index("\n}\n", start) + 2]
+    calls = (
+        "[firstLine(new Error('\\n  cause here\\nstack')), firstLine({code: 1}), firstLine(undefined),"
+        " firstLine('x'.repeat(400)).length, firstLine(new Error('one\\ntwo')), firstLine(new TypeError()),"
+        " firstLine((() => { const c = {}; c.self = c; return c })()),"
+        " firstLine({ get message() { throw new Error('boom') } })]"
+    )
+    probe = body + f"\nconsole.log(JSON.stringify({calls}))"
+    proc = subprocess.run(
+        ["node", "--input-type=module", "-e", probe],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        stdin=subprocess.DEVNULL,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    unreadable = "an error whose text could not be read"
+    expected = ["cause here", '{"code":1}', "", 300, "one", "TypeError", unreadable, unreadable]
+    assert json.loads(proc.stdout) == expected, proc.stdout
+    # end to end: a seat rejecting with an unreadable value stays a failed seat; its slice is never dropped
+    out, _, _ = _harness(
+        _ARGS,
+        {"find:S:sonnet": _FULL_READ, "find:S:haiku": "THROW_UNREADABLE", "find:S:haiku:retry": "THROW_UNREADABLE"},
+    )
+    assert out["dropped_slices"] == 0 and _seat(out, "haiku")["notes"].endswith(unreadable), out
+
+
+def test_every_finder_null_fails_the_launch() -> None:
+    """feedback row 1790707386 (W-b36e2a4a): a pass whose every finder came back null — two of the five such runs on
+    the box died on a disabled subscription — returned an all-dropped ledger that read like failed seats, which the
+    lead re-dispatches into the same dead account. It now throws AFTER each seat's retry, listing the causes and the
+    check, with at most three distinct seat errors and a count of the rest."""
+    _, err, _ = _harness(_ARGS, {}, expect_fail=True)
+    assert "AGENT CALLED find:S:haiku:retry" in err and "AGENT CALLED find:S:sonnet:retry" in err, err
+    line = [x for x in err.splitlines() if x.startswith("Error: every finder seat returned nothing")]
+    assert line and "2 finder seat(s) over 1 slice(s)" in line[0] and "nothing was reviewed" in line[0], err[-800:]
+    assert "disabled Claude subscription access" in line[0] and "seat errors" not in line[0], line
+    # review pass 1, B-S1: `review_loop_ledger.py read` prints the run file's `error` (this line, "Error: " included)
+    # cut at 300 characters — the check before a relaunch must survive that cut
+    check = "claude_rotate.py --status"
+    assert check in line[0][:300], (line[0].find(check), len(line[0]))
+    four = {
+        **_ARGS,
+        "slices": [
+            {"name": "S", "files": ["a.py"], "priority": "p"},
+            {"name": "T", "files": ["b.py"], "priority": "p", "models": ["opus", "sonnet"]},
+        ],
+    }
+    labels = ["find:S:sonnet", "find:S:haiku", "find:T:opus", "find:T:sonnet"]
+    _, err, _ = _harness(
+        four, {lab + suf: "THROW" for lab in labels for suf in ("", ":retry")}, expect_fail=True
+    )
+    line = [x for x in err.splitlines() if "every finder seat returned nothing" in x][0]
+    assert "4 finder seat(s) over 2 slice(s)" in line, line
+    assert line.count(":retry rejected") == 3 and "(+1 more)" in line, line
+
+
+def test_one_returned_finder_keeps_the_ledger() -> None:
+    """W-b36e2a4a: only a pass where NO finder returned anything fails, counted as each finder settles. A seat that
+    returned but read nothing is failed, never null, so it keeps the ordinary ledger; so does a pass whose returned
+    seats sit in a slice a LATER stage dropped (both design critiques: a survivors-only count read 'nothing was
+    reviewed' while two finders had read their files)."""
+    out, _ = _run_ledger(_ARGS, _ONE_RETURNED)
+    assert out["dropped_seats"] == 2 and out["closable"] is False, out
+    two = {
+        **_ARGS,
+        "slices": [
+            {"name": "S", "files": ["a.py"], "priority": "p"},
+            {"name": "T", "files": ["b.py"], "priority": "p"},
+        ],
+    }
+    out, _ = _run_ledger(two, {"find:T:haiku": {**_FULL_READ, "files_read": ["b.py"]}})
+    assert out["dropped_seats"] == 3 and len(out["slices"]) == 2, out
+    # slice S's union stage throws on a null candidate (its seats returned); every seat of slice T is null
+    out, log = _run_ledger(two, _two_finders([None]))
+    assert out["dropped_slices"] == 1 and "every finder seat returned nothing" not in log, log
+
+
 def test_a_ledger_pass_reexecutes_every_claim_and_keeps_recorded_recorded() -> None:
     """01M4PPW8D8 Q1 (the Opus + Fable panel agreed): a quiet round 1's closing pass re-executes every claim of the
     seat's ledger, an earlier refutation included. Enforced, not only said: an echoed NOW_FALSE with no command or
@@ -2316,7 +2532,7 @@ def test_a_ledger_pass_reexecutes_every_claim_and_keeps_recorded_recorded() -> N
         "pass": 2,
         "slices": [{**_ARGS["slices"][0], "models": ["sonnet"], "ledger": _LEDGER_ROW}],
     }
-    _, _, prompts = _harness(led, {})
+    _, _, prompts = _harness(led, _ONE_RETURNED)
     p = prompts["find:S:sonnet"]
     assert "EVERY claim in YOUR ledger is re-executed, an earlier refutation included" in p
     assert "a claim refuted in an earlier pass and NOT in your ledger is closed (D-206)" in p

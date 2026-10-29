@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T13:34:03.982513Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-ed781e7a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-28-dynamic-builders-design.md"
+  },
+  "next": "design the tmux status-format / pane-border source (agent name -> claimed item via work.py, ctx % from the rotate-advised stamps, band from the QUOTA posture) after W-b9ad80ae lands",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "A status line per tmux agent tab showing each pane's work item, context % and quota band (operator requirements 3.15, coordinator suggestion; out of scope of W-b9ad80ae's spawn/retire spec)"
+}
