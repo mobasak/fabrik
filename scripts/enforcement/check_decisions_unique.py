@@ -97,6 +97,15 @@ class _Ledger(NamedTuple):
     rows: list[_Row]
 
 
+def _opens_table(lines: list[str], i: int) -> bool:
+    """Line `i` is a delimiter under a header row with the SAME cell count — GFM renders no table
+    when the counts differ (markdown-it, executed: 6/7, 6/3 and 3/6 render none), so neither may
+    this checker (review pass 1, A-haiku-2: a mismatched pair hid the rows under it)."""
+    if not (i and _DELIMITER.match(lines[i].strip()) and _HEADER_ROW.match(lines[i - 1].strip())):
+        return False
+    return len(_cells(lines[i - 1])) == len(_cells(lines[i]))
+
+
 def _parse(text: str) -> _Ledger:
     """The one population every leg reads (W-c25fd20f).
 
@@ -129,20 +138,17 @@ def _parse(text: str) -> _Ledger:
     blank = list(text)
     for block in _fences.fence_blocks(text):
         held = text[block.start : block.end].split("\n")
-        if any(
-            _DELIMITER.match(ln.strip()) and k and _HEADER_ROW.match(held[k - 1].strip())
-            for k, ln in enumerate(held)
-        ):
+        if any(_opens_table(held, k) for k in range(len(held))):
             continue  # this block would swallow a whole table: its rows count (fail closed)
         for i in range(block.start, block.end):
             if blank[i] != "\n":
                 blank[i] = " "
     lines = "".join(blank).split("\n")
     tables: list[tuple[int, int, int]] = []  # (delimiter index, body end, D-rows in the body)
-    for i, ln in enumerate(lines):
+    for i in range(len(lines)):
         if tables and i < tables[-1][1]:
             continue  # a delimiter-shaped line inside a body is a row of that table
-        if _DELIMITER.match(ln.strip()) and i and _HEADER_ROW.match(lines[i - 1].strip()):
+        if _opens_table(lines, i):
             end = i + 1
             while end < len(lines) and _BODY.match(lines[end]):
                 end += 1
@@ -287,8 +293,8 @@ def check_row_shape(text: str) -> None:
     """ADVISORY row-integrity ratchet over the SET of malformed ids. Never touches the exit code.
 
     ⚠ This check has been BLOCKING since 2026-09-04 for duplicates and stray rows, so this leg must
-    print and return nothing: 79 rows across 49 ledgers are malformed today and a blocking day one
-    would red every repo at once. Promotion follows the same WARN-first sequencing D-057 documents.
+    print and return nothing: 79 rows across 49 ledgers were malformed when it landed (98 across 4 of
+    51 on 2026-10-29), and a blocking day one would red every repo at once. Promotion follows the same WARN-first sequencing D-057 documents.
 
     The baseline stores the SET OF IDS, not a count. An aggregate count is defeated by three moves,
     all built and executed against a baseline of malformed=1 / total=4 — and the cheapest is not the
@@ -307,7 +313,7 @@ def check_row_shape(text: str) -> None:
         print(
             f"⚠ decision-shape: seeding baseline with {len(now)} malformed row(s) — advisory, "
             f"nothing blocked. Write {_SHAPE_BASELINE} with "
-            f'{{"malformed_ids": {sorted(now)}}} to arm the ratchet.'
+            f'{{"malformed_ids": {json.dumps(sorted(now))}}} to arm the ratchet.'
         )
         return
     present = {i for _, i in _all_row_ids(text)}
@@ -397,7 +403,7 @@ def main() -> int:
     if dups:
         print(
             f"✗ {len(dups)} duplicate decision id(s) — citations of these ids now "
-            f"resolve to two rows each"
+            f"resolve to more than one row each"
         )
     if stray:
         print(

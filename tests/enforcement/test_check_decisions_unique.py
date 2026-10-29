@@ -356,7 +356,14 @@ def test_the_shape_ratchet_reports_each_state(tmp_path, monkeypatch, capsys):
 
     _mod.check_row_shape(_SHAPE_HEAD + _row("D-001") + short)  # no baseline: seeds, blocks nothing
     out = capsys.readouterr().out
-    assert "seeding baseline with 1 malformed row(s)" in out and "['D-002']" in out
+    assert "seeding baseline with 1 malformed row(s)" in out
+    # review pass 1, A-haiku-8: the line it tells the operator to write must parse — a Python list
+    # repr (`['D-002']`) is no JSON, so the copied baseline never armed the ratchet
+    import json
+    import re
+
+    seed = re.search(r"(\{\"malformed_ids\": .*\}) to arm", out).group(1)
+    assert json.loads(seed) == {"malformed_ids": ["D-002"]}
 
     base.write_text('{"malformed_ids": ["D-002"]}')
     _mod.check_row_shape(_SHAPE_HEAD + _row("D-001") + short)
@@ -651,6 +658,30 @@ def test_the_table_reading_legs_read_the_ledger_rows_only():
     text = "| D-9 | short |\n\n" + _SHAPE_HEAD + _row("D-1")
     assert _mod.malformed_ids(text) == {}
     assert _mod._all_row_ids(text) == [(5, "D-1")]
+
+
+def test_a_header_and_delimiter_of_different_widths_are_no_table():
+    """Review pass 1, A-haiku-2: GFM renders no table when the counts differ (markdown-it renders
+    none for 6/7, 6/3 and 3/6), so the rows under such a pair are no ledger table's."""
+    for head in (
+        "| a | b | c | d | e | f |\n|---|---|---|\n",
+        "| a | b | c |\n|---|---|---|---|\n",
+    ):
+        text = head + _row("D-1") + "\n" + _row("D-2")
+        assert _mod._parse(text).header is None, head
+        assert find_rows_outside_the_table(text) == []
+    assert _mod._parse(_SHAPE_HEAD + _row("D-1")).header is not None
+
+
+def test_a_triple_is_not_called_two_rows(tmp_path, monkeypatch, capsys):
+    """Review pass 1, A-haiku-7: the summary said "two rows each" beside "appears 3x"."""
+    ledger = tmp_path / "docs" / "DECISIONS.md"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text(_SHAPE_HEAD + _row("D-1") + _row("D-1") + _row("D-1"))
+    monkeypatch.setattr(_mod, "LEDGER", ledger)
+    assert _mod.main() == 1
+    out = capsys.readouterr().out
+    assert "appears 3x" in out and "two rows" not in out
 
 
 def test_an_id_of_any_length_is_keyed_without_int():
