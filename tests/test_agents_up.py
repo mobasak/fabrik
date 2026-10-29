@@ -2505,7 +2505,9 @@ def test_t10_f14_a_spawned_panes_hint_picks_its_flag_when_printed(tmp_path: Path
     assert f"[b2 exited — run: claude -n b2 --session-id {B2} (after a /clear" in _hint(
         run, tmp_path
     )
-    _transcript(home, tmp_path / "where" / "it ran", B2)  # the same launched pane: its claude wrote a transcript
+    _transcript(
+        home, tmp_path / "where" / "it ran", B2
+    )  # the same launched pane: its claude wrote a transcript
     assert f"[b2 exited — run: claude -n b2 --resume {B2} (after a /clear" in _hint(run, tmp_path)
     home2 = _home(tmp_path / "r", ps_lines=f"claude --session-id {B2}")
     out = _run("--print", str(repo), home=home2, AGENT_IDENTITY_FILE=str(store))

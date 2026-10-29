@@ -737,7 +737,9 @@ def test_t10_f13_a_partial_run_that_wrote_its_file_remembers_the_desktop(
     out = _run("--opt", str(opt), "--desktop", str(desk), *extra)
     assert out.returncode == 2, out.stderr
     assert (desk / "Good Agents.bat").is_file(), list(desk.iterdir())
-    if cause == "unsafe-repo":  # the follow-up run is a clean one: only the remembered desktop is under test
+    if (
+        cause == "unsafe-repo"
+    ):  # the follow-up run is a clean one: only the remembered desktop is under test
         (opt / "bad name" / ".fabrik" / "session-agents.json").unlink()
         (opt / "bad name" / ".fabrik").rmdir()
         (opt / "bad name").rmdir()

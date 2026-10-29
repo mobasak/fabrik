@@ -504,7 +504,9 @@ def preflight(ctx: Spawn) -> None:
     ctx.coordinator = who.stdout.strip() if who.returncode == 0 else ""
     if not ctx.coordinator:
         raise RefusedError("add needs a bound coordinator — run whoami_agent.py --as <name>")
-    if not NAME_RE.fullmatch(ctx.coordinator):  # T10 F2: whoami's grammar is wider than the launcher's
+    if not NAME_RE.fullmatch(
+        ctx.coordinator
+    ):  # T10 F2: whoami's grammar is wider than the launcher's
         raise RefusedError(
             f"the caller is bound as {ctx.coordinator!r}: whoami accepts it ([a-z0-9-]{{1,32}}) but agents_up.sh's "
             "name grammar ([a-z0-9][a-z0-9-]{0,31}) does not — re-bind with whoami_agent.py --as <name>"

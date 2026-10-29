@@ -582,7 +582,13 @@ def _live_row(box: Box, name: str) -> None:
         ("caller's own name", "builder-1", (), "self", "the caller's own name"),
         ("caller outside NAME_RE", "builder-1", (), "lead", "agents_up.sh's name grammar"),
         ("coordinator role", "coordinator-1", ("--role", "coordinator"), "coord", "coordinator"),
-        ("coordinator role suffix", "x-coordinator-1", ("--role", "x-coordinator"), "coord", "role"),
+        (
+            "coordinator role suffix",
+            "x-coordinator-1",
+            ("--role", "x-coordinator"),
+            "coord",
+            "role",
+        ),
     ],
 )
 def test_preflight_refuses_with_no_trace_and_one_record(
@@ -671,7 +677,10 @@ def test_a_symlinked_or_trailing_slash_root_names_the_same_trusted_repo(
         ("builder-a1", ()),
         ("builder-a2", ()),
         ("reviewer-1", ("--role", "reviewer")),
-        ("infra-9", ("--role", "infra")),  # T10 F3: an infra-N builder on the infra charter (D-1128)
+        (
+            "infra-9",
+            ("--role", "infra"),
+        ),  # T10 F3: an infra-N builder on the infra charter (D-1128)
         ("coordinators-1", ("--role", "coordinators")),  # not a coordinator name
     ],
 )
@@ -3544,9 +3553,7 @@ def test_t10_f7_a_non_ascii_or_quoted_ignored_name_under_an_ok_prefix_is_let_go(
 ) -> None:
     """T10 F7: `ls-files` C-quotes such a name without `-z`; the prefix must judge the real path."""
     top = fname.split("/")[0]
-    box, g, mod = _rm_box(
-        tmp_path, monkeypatch, request, exclude=EXCLUDE + top + "\n", ok=[top]
-    )
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request, exclude=EXCLUDE + top + "\n", ok=[top])
     _mk(box.wt(B1) / fname)
     assert mod.main(["remove", str(box.repo), B1]) == 0, box.refusals()
     out = capsys.readouterr().out
