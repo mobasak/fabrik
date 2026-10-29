@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `agents_up.sh remove`: retire a builder without losing work (2026-10-29)
+`agents_spawn.py remove <repo> <name>` (W-b9ad80ae, plan T09) refuses under the repo's agents lock (exit 2, every reason in one `agents-spawn.jsonl` row) on a `running` run record for any id the name owns (registry, identity store and the tagged pane's live session), a dirty or detached worktree, unpushed commits, a tmux read that fails, or an ignored file that would be lost (caches by path segment, `remove_ignored_ok` from `.fabrik/work/config.json`, `.tmp/runs/<sid>/<run>` folders a resume seed names — read through symlinks, non-regular seeds refused). It then kills the pane, re-checks after the kill, removes the worktree (never `--force`), deletes only a branch merged into the base, drops the registry row, heals the rest and regenerates the launchers; a re-run after an interrupted remove finishes what is left. `docs/reference/repo-coordinator-rollout.md` gains "Start using it in every repo", both verbs, the grid and the tabbed `.bat`.
+
 ### Fixed — rotate_session.py re-points the session registry under the repo's agents lock (2026-10-29)
 `_repoint_registry` takes `agents_spawn.lock_path`'s flock before its first read (W-b9ad80ae, plan T07), waits up to 30 s (`refused:agents lock busy`) and refuses with `refused:agents lock unavailable` when the lock cannot be resolved — a missing or broken `agents_spawn.py`, one that exits at import, a git failure — so a rotation can no longer lose an `add`/`remove` registry write, or the reverse. `REQUEST_WORST_S` now counts the wait (517 s) and `CLAIM_CUTOFF_S` drops from 50 to 20 s so the last rotation still ends inside the unit's 600 s; `fabrik-rotate.service`'s comment and `docs/workstation/hooks-index.md` say so.
 

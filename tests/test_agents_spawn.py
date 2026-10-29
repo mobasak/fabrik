@@ -2968,3 +2968,540 @@ def test_f11_the_next_click_is_promised_only_when_a_bat_was_written(
     assert "tab not appended" in err, err
     promised = "the .bat opens it at the next click" in err
     assert promised == (bat in ("written", "current")), (bat, err)
+
+
+# ---- T09: remove (spec § The delta D7, D4's remove half, D9) ----------------------------------------------------
+
+B1 = "builder-1"
+SID_B1 = "aaaaaaaa-1111-4222-8333-444444444444"
+# a tmux that answers "no server" (the grid is down) — the subprocess-dispatch test's stand-in
+FAKE_TMUX_NO_SERVER = '#!/bin/sh\necho "no server running on /tmp/tmux-0/none" >&2\nexit 1\n'
+
+
+def _rm_box(
+    tmp_path: Path, monkeypatch, request=None, *, exclude: str = "", ok: list | None = None
+):
+    """A Box whose registry holds builder-1 and builder-2, builder-1's worktree on `worktree-builder-1` at master's
+    tip, ignore patterns in the common dir's info/exclude (shared by every worktree) and, with `request`, a scratch tmux
+    server (no grid until the test builds one)."""
+    box = Box(tmp_path, registry={SID_B1: B1, OTHER_SID: "builder-2"})
+    if ok is not None:
+        cfg_path = box.repo / ".fabrik" / "work" / "config.json"
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        cfg["remove_ignored_ok"] = ok
+        cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
+    (Path(box.scope) / "info").mkdir(exist_ok=True)
+    (Path(box.scope) / "info" / "exclude").write_text(exclude, encoding="utf-8")
+    _git(
+        box.repo,
+        "worktree",
+        "add",
+        "-q",
+        "-b",
+        f"worktree-{B1}",
+        f".claude/worktrees/{B1}",
+        "master",
+    )
+    g, mod = _inproc(box, monkeypatch, request, tmp_path)
+    return box, g, mod
+
+
+def _branch(box: Box, name: str = f"worktree-{B1}") -> bool:
+    return _git_rc(box.repo, "rev-parse", "--verify", "--quiet", f"refs/heads/{name}") == 0
+
+
+def _rm_rows(box: Box) -> list[dict]:
+    return [r for r in box.refusals() if r.get("verb") == "remove"]
+
+
+def _runs_dir(box: Box) -> Path:
+    """command_run.py's state dir as the code reads it: $COMMAND_RUN_DIR (the root conftest isolates it), else HOME's."""
+    raw = os.environ.get("COMMAND_RUN_DIR")
+    return Path(raw) if raw else box.home / ".claude" / "state" / "command-runs"
+
+
+def _running(box: Box, sid: str, state: str = "running") -> Path:
+    path = _runs_dir(box) / f"{sid}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"state": state, "command": "fabrik-task"}), encoding="utf-8")
+    return path
+
+
+def _commit_in(wt: Path, fname: str = "work.txt") -> None:
+    (wt / fname).write_text("work\n", encoding="utf-8")
+    _git(wt, "add", fname)
+    _git(wt, "commit", "-q", "-m", "work")
+
+
+def _origin(box: Box, tmp_path: Path) -> None:
+    bare = tmp_path / "origin.git"
+    _git(tmp_path, "init", "-q", "--bare", str(bare))
+    _git(box.repo, "remote", "add", "origin", str(bare))
+
+
+def _refused_keeping(box: Box, g, mod, capsys, *needles: str) -> dict:
+    before = g.snapshot()
+    reg = _registry(box)
+    assert mod.main(["remove", str(box.repo), B1]) == 2
+    err = capsys.readouterr().err
+    (row,) = _rm_rows(box)
+    for needle in needles:
+        assert needle in row["reason"], (needle, row)
+        assert needle in err, (needle, err)
+    assert box.wt(B1).is_dir() and _branch(box)
+    assert g.snapshot() == before and _registry(box) == reg
+    return row
+
+
+@pytest.mark.parametrize(
+    "cause", ["running-after-rebind", "dirty", "detached", "git-fails", "dirty-and-detached"]
+)
+def test_t09_r1_a_running_record_a_dirty_tree_a_detached_head_or_a_failing_git_refuses_keeping_all(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, cause: str
+) -> None:
+    """D7: every doubt refuses — exit 2, ONE remove row naming every cause, the worktree, pane and registry intact."""
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request)
+    g.base(panes=2, tags=(B1, "builder-2"))
+    wt = box.wt(B1)
+    needles: list[str] = []
+    if cause == "running-after-rebind":
+        _row(
+            box, NEW_SID, B1
+        )  # after a /clear + re-bind the live id is the binding's, not the registry's
+        _running(box, SID_B1, state="closed")
+        _running(box, NEW_SID)
+        needles = [NEW_SID, "running"]
+    if cause in ("dirty", "dirty-and-detached"):
+        (wt / "half-done.txt").write_text("x\n", encoding="utf-8")
+        needles.append("is not clean")
+    if cause in ("detached", "dirty-and-detached"):
+        _git(wt, "checkout", "-q", "--detach")
+        needles.append("detached HEAD")
+    if cause == "git-fails":
+        failing = tmp_path / "failbin"
+        failing.mkdir()
+        (failing / "git").write_text(
+            f'#!/bin/sh\n[ "$3" = status ] && {{ echo "fatal: index broken" >&2; exit 128; }}\n'
+            f'exec {REAL_GIT} "$@"\n',
+            encoding="utf-8",
+        )
+        (failing / "git").chmod(0o755)
+        assert os.access(failing / "git", os.X_OK)
+        monkeypatch.setenv("PATH", f"{failing}:{os.environ['PATH']}")
+        assert shutil.which("git") == str(failing / "git")  # the failing fake is first
+        needles = ["git status failed", "index broken"]
+    row = _refused_keeping(box, g, mod, capsys, *needles)
+    assert row["step"] == 1
+
+
+@pytest.mark.parametrize("shape", ["never-pushed", "no-commits"])
+def test_t09_r2_commits_on_a_never_pushed_branch_refuse_until_pushed_and_no_commits_retire(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, shape: str
+) -> None:
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request)
+    wt = box.wt(B1)
+    if shape == "no-commits":  # nothing beyond the base and no upstream: retireable without a push
+        assert mod.main(["remove", str(box.repo), B1]) == 0, box.refusals()
+        assert not wt.exists() and not _branch(box) and not box.refusals()
+        return
+    _commit_in(wt)
+    assert mod.main(["remove", str(box.repo), B1]) == 2
+    (row,) = _rm_rows(box)
+    assert "never pushed" in row["reason"] and "1 commit(s) beyond master" in row["reason"], row
+    assert wt.is_dir() and _branch(box)
+    _origin(box, tmp_path)
+    _git(wt, "push", "-q", "-u", "origin", f"worktree-{B1}")
+    _commit_in(wt, "more.txt")  # pushed once, then a commit the upstream lacks: still refuses
+    assert mod.main(["remove", str(box.repo), B1]) == 2
+    assert "not pushed to its upstream" in _rm_rows(box)[-1]["reason"], _rm_rows(box)
+    _git(wt, "push", "-q")
+    capsys.readouterr()
+    assert mod.main(["remove", str(box.repo), B1]) == 0, box.refusals()
+    out = capsys.readouterr().out
+    assert not wt.exists()
+    assert _branch(box), "an unmerged (pushed) branch is kept"
+    assert f"branch worktree-{B1} is not merged into master; kept" in out, out
+
+
+EXCLUDE = (
+    ".tmp/\n.venv/\n__pycache__/\n.pytest_cache/\n.mypy_cache/\n.ruff_cache/\nnode_modules/\n.env\n"
+)
+EXCLUDE += ".claude/scheduled_tasks.lock\nlogs/\n"
+
+
+def _mk(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("x\n", encoding="utf-8")
+    return path
+
+
+@pytest.mark.parametrize("seed", ["named", "none"])
+def test_t09_r3_a_run_folder_a_seed_names_refuses_and_otherwise_goes_with_the_caches(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, seed: str
+) -> None:
+    """W-14219e6f point 5: the scan is by PATH — a seed another session wrote names a folder inside this worktree."""
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request, exclude=EXCLUDE)
+    wt = box.wt(B1)
+    run = wt / ".tmp" / "runs" / OTHER_SID / "x"
+    _mk(run / "measure.md")
+    _mk(wt / ".venv" / "bin" / "python")
+    _mk(wt / "scripts" / "__pycache__" / "a.pyc")
+    if seed == "named":
+        seeds = _runs_dir(box) / "seeds"
+        seeds.mkdir(parents=True, exist_ok=True)
+        (seeds / f"{OTHER_SID}-abc.json").write_text(
+            json.dumps({"scratch": str(run)}), encoding="utf-8"
+        )
+        _refused_keeping(box, g, mod, capsys, "named by the resume seed", str(run))
+        assert (run / "measure.md").is_file()
+        return
+    assert mod.main(["remove", str(box.repo), B1]) == 0, box.refusals()
+    out = capsys.readouterr().out.splitlines()
+    assert not wt.exists()
+    let_go = [ln[len("let go: ") :].rstrip("/") for ln in out if ln.startswith("let go: ")]
+    for path in (run, wt / ".venv", wt / "scripts" / "__pycache__"):
+        assert str(path) in let_go, (path, out)
+
+
+def test_t09_r3_an_unknown_ignored_file_refuses_named(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys
+) -> None:
+    """Panel PF1 counter-case: an ignored file on no list (a `.env` copy) refuses, named — even beside listed ones."""
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request, exclude=EXCLUDE, ok=["logs/"])
+    _mk(box.wt(B1) / ".env")
+    _mk(box.wt(B1) / "logs" / "a.log")
+    _refused_keeping(box, g, mod, capsys, str(box.wt(B1) / ".env"), "would be lost")
+
+
+@pytest.mark.parametrize(
+    "files",
+    [
+        (
+            "scripts/__pycache__/a.pyc",
+            ".pytest_cache/v/x",
+            ".claude/scheduled_tasks.lock",
+            "logs/run.log",
+        ),
+        ("x/.pytest_cache/v/x", "tests/__pycache__/t.pyc"),
+        ("node_modules/a/index.js", ".mypy_cache/3.12/x.json", ".ruff_cache/0.5/y"),
+        (".tmp/notes.txt", ".tmp/runs/" + OTHER_SID + "/r1/f"),
+        (".venv/lib/x.py",),
+    ],
+)
+def test_t09_r3_a_worktree_that_ran_pytest_and_hosted_a_session_retires_listing_each_let_go(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, files: tuple
+) -> None:
+    """Five legitimate ignored sets: cache trees by path segment anywhere, `remove_ignored_ok` prefixes, `.tmp/` split
+    into its walked `runs/` and the rest judged by the list."""
+    ok = [".claude/scheduled_tasks.lock", "logs/", ".tmp/"]
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request, exclude=EXCLUDE, ok=ok)
+    wt = box.wt(B1)
+    for f in files:
+        _mk(wt / f)
+    assert mod.main(["remove", str(box.repo), B1]) == 0, box.refusals()
+    out = capsys.readouterr().out
+    assert not wt.exists() and not box.refusals()
+    let_go = [
+        ln[len("let go: ") :].rstrip("/") for ln in out.splitlines() if ln.startswith("let go: ")
+    ]
+    for f in files:
+        assert any(str(wt / f) == p or str(wt / f).startswith(p + "/") for p in let_go), (f, let_go)
+
+
+@pytest.mark.parametrize("merged", [True, False])
+def test_t09_r4_the_last_pane_of_agents_2_goes_with_its_session_worktree_branch_row_and_launchers(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, merged: bool
+) -> None:
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request)
+    wt = box.wt(B1)
+    if not merged:
+        _origin(box, tmp_path)
+        _commit_in(wt)
+        _git(wt, "push", "-q", "-u", "origin", f"worktree-{B1}")
+    g.base(panes=4, tags=("builder-2", "builder-3", "builder-4", "builder-5"))
+    g.window("agents-2", 1, (B1,))
+    g.ok("new-session", "-d", "-t", f"={g.S}", "-s", f"{g.S}+2")
+    transcript = _mk(box.home / ".claude" / "projects" / "-x-shop" / f"{SID_B1}.jsonl")
+    (box.home / "git.log").unlink(missing_ok=True)
+    assert mod.main(["remove", str(box.repo), B1]) == 0, box.refusals()
+    assert g.tags() == sorted(f"agents builder-{i}" for i in range(2, 6)), g.tags()
+    assert g.sessions() == [g.S], g.sessions()
+    assert not wt.exists()
+    git_log = (box.home / "git.log").read_text(encoding="utf-8").splitlines()
+    removes = [ln for ln in git_log if "worktree remove" in ln]
+    assert removes == [f"-C {box.repo} worktree remove .claude/worktrees/{B1}"], removes
+    assert _branch(box) is not merged
+    assert _registry(box) == {OTHER_SID: "builder-2"}
+    assert _logged(box, "agents-bat") == [["--tabbed", "--distro", "Test-Distro"]]
+    assert _logged(box, "wt") == []  # remove opens no tab
+    assert transcript.read_text(encoding="utf-8") == "x\n"
+    assert (box.repo / "docs" / "reference" / "agents" / "builder.md").is_file()
+
+
+def test_t09_r5_the_last_pane_of_agents_with_agents_2_live_leaves_a_live_current_window_and_add_places(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request)
+    g.base(panes=1, tags=(B1,))
+    wid2 = g.window("agents-2", 2, ("builder-2", "builder-3"))
+    g.ok("new-session", "-d", "-t", f"={g.S}", "-s", f"{g.S}+2")
+    assert mod.main(["remove", str(box.repo), B1]) == 0, box.refusals()
+    assert g.windows() == ["agents-2 2"], g.windows()
+    assert g.one(g.S, "#{window_id}") == wid2
+    assert g.sessions() == [g.S, f"{g.S}+2"]  # the overflow session of a window still alive stays
+    res = g.place("builder-6")
+    assert res.window_id == wid2 and g.windows() == ["agents-2 3"], (res, g.windows())
+
+
+@pytest.mark.parametrize("mode", ["error", "empty"])
+def test_t09_r6_a_tmux_read_that_errors_or_answers_nothing_while_the_grid_is_up_refuses(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, mode: str
+) -> None:
+    """D9: never read as "every builder gone" — nothing is removed."""
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request)
+    g.base(panes=2, tags=(B1, "builder-2"))
+    body = 'echo "server exited unexpectedly" >&2; exit 1' if mode == "error" else "exit 0"
+    wrapper = tmp_path / f"tmux-{mode}"
+    wrapper.write_text(
+        f'#!/bin/sh\nif [ "$1" = list-panes ]; then {body}; fi\nexec {g.real} -L {g.server} "$@"\n',
+        encoding="utf-8",
+    )
+    wrapper.chmod(0o755)
+    monkeypatch.setenv("FABRIK_TMUX", str(wrapper))
+    _refused_keeping(box, g, mod, capsys, "tmux read failed — not removing")
+
+
+def test_t09_r7_a_resumed_remove_finishes_what_is_left_and_still_refuses_a_running_record(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request)
+    g.base(panes=2, tags=(B1, "builder-2"))
+    _git(
+        box.repo, "worktree", "remove", f".claude/worktrees/{B1}"
+    )  # the interrupted run got this far
+    record = _running(box, SID_B1)
+    assert mod.main(["remove", str(box.repo), B1]) == 2
+    assert "running" in _rm_rows(box)[-1]["reason"] and _registry(box)[SID_B1] == B1
+    assert "agents builder-1" in g.tags()
+    record.unlink()
+    assert mod.main(["remove", str(box.repo), B1]) == 0, box.refusals()
+    assert g.tags() == ["agents builder-2"], g.tags()
+    assert _registry(box) == {OTHER_SID: "builder-2"}
+    assert not _branch(box)  # worktree-<name>, merged into master
+    assert _logged(box, "agents-bat") == [["--tabbed", "--distro", "Test-Distro"]]
+    n = len(box.refusals())
+    assert mod.main(["remove", str(box.repo), "builder-9"]) == 2
+    assert len(box.refusals()) == n + 1
+    assert "no such builder builder-9 in" in _rm_rows(box)[-1]["reason"]
+
+
+def test_t09_r8_the_names_run_folders_in_another_checkout_are_listed_kept_and_untouched(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys
+) -> None:
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request)
+    _git(
+        box.repo,
+        "worktree",
+        "add",
+        "-q",
+        "-b",
+        "worktree-other",
+        ".claude/worktrees/other",
+        "master",
+    )
+    kept = [
+        _mk(box.repo / ".tmp" / "runs" / SID_B1 / "r1" / "f").parent,
+        _mk(box.wt("other") / ".tmp" / "runs" / SID_B1 / "r2" / "f").parent,
+    ]
+    _mk(box.repo / ".tmp" / "runs" / OTHER_SID / "r3" / "f")  # another name's folder: not listed
+    assert mod.main(["remove", str(box.repo), B1]) == 0, box.refusals()
+    out = capsys.readouterr().out.splitlines()
+    assert sorted(ln for ln in out if ln.startswith("kept: ")) == sorted(
+        f"kept: {p}" for p in kept
+    ), out
+    assert all((p / "f").is_file() for p in kept)
+
+
+def test_t09_the_dispatch_reaches_remove_and_its_refusal_is_one_row(tmp_path: Path) -> None:
+    box = Box(tmp_path, registry={})
+    (box.bin / "no-server-tmux").write_text(FAKE_TMUX_NO_SERVER, encoding="utf-8")
+    (box.bin / "no-server-tmux").chmod(0o755)
+    assert os.access(box.bin / "no-server-tmux", os.X_OK)
+    out = subprocess.run(
+        ["bash", str(UP), "remove", str(box.repo), "builder-9"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=box.env(FABRIK_TMUX=str(box.bin / "no-server-tmux")),
+    )
+    assert out.returncode == 2, out.stderr
+    assert "no such builder builder-9" in out.stderr, out.stderr
+    (row,) = box.refusals()
+    assert row["verb"] == "remove" and row["step"] == 1, row
+
+
+# ---- T09 pass-1 review fixes --------------------------------------------------------------------------------------
+
+
+def _seed_dir(box: Box) -> Path:
+    seeds = _runs_dir(box) / "seeds"
+    seeds.mkdir(parents=True, exist_ok=True)
+    return seeds
+
+
+@pytest.mark.parametrize("link", ["to-a-seed", "dangling"])
+def test_t09_f1_a_symlinked_seed_is_read_and_a_dangling_one_refuses_named(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, link: str
+) -> None:
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request, exclude=EXCLUDE)
+    run = _mk(box.wt(B1) / ".tmp" / "runs" / OTHER_SID / "r1" / "f").parent
+    seeds = _seed_dir(box)
+    target = tmp_path / "elsewhere" / "seed.json"
+    if link == "to-a-seed":
+        _mk(target).write_text(json.dumps({"scratch": str(run)}), encoding="utf-8")
+    (seeds / "linked.json").symlink_to(target)
+    needle = "linked.json"
+    row = _refused_keeping(box, g, mod, capsys, needle)
+    if link == "to-a-seed":
+        assert "named by" in row["reason"], row
+    assert (run / "f").is_file()
+
+
+@pytest.mark.parametrize(
+    "text,refuses",
+    [
+        (f"RUN-SCRATCH: .tmp/runs/{OTHER_SID}/r1\n", True),
+        (f'{{"scratch": "./.tmp/runs/{OTHER_SID}/r1/measure.md"}}', True),
+        (f"RUN-SCRATCH: .tmp/runs/{OTHER_SID}/r10\n", False),
+        (f"RUN-SCRATCH: .tmp/runs/{OTHER_SID}/r1x\n", False),
+        (f"x.tmp/runs/{OTHER_SID}/r1\n", False),
+        # pass-2 P1: one tail match — markdown forms, the repo-root-relative form, and (accepted over-refusal) the
+        # same <sid>/<run> under another checkout
+        (f"see `.tmp/runs/{OTHER_SID}/r1` for the pins\n", True),
+        (f"see `/abs/where/.tmp/runs/{OTHER_SID}/r1`\n", True),
+        (f"the scratch is .tmp/runs/{OTHER_SID}/r1.\n", True),
+        (f"(.tmp/runs/{OTHER_SID}/r1)\n", True),
+        (f"SCRATCH: .claude/worktrees/{B1}/.tmp/runs/{OTHER_SID}/r1\n", True),
+        (f"/opt/elsewhere/.tmp/runs/{OTHER_SID}/r1\n", True),
+    ],
+)
+def test_t09_f2_a_worktree_relative_seed_mention_refuses_on_a_boundary(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, text: str, refuses: bool
+) -> None:
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request, exclude=EXCLUDE)
+    run = _mk(box.wt(B1) / ".tmp" / "runs" / OTHER_SID / "r1" / "f").parent
+    (_seed_dir(box) / "s.md").write_text(text, encoding="utf-8")
+    if refuses:
+        _refused_keeping(box, g, mod, capsys, "named by", str(run))
+        return
+    assert mod.main(["remove", str(box.repo), B1]) == 0, box.refusals()
+    assert not box.wt(B1).exists()
+
+
+def test_t09_f3_a_resume_whose_worktree_dir_is_gone_but_still_registered_retires(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request)
+    shutil.rmtree(box.wt(B1))  # git's admin entry for it is still registered
+    assert f"{box.wt(B1)}" in _git(box.repo, "worktree", "list", "--porcelain")
+    assert mod.main(["remove", str(box.repo), B1]) == 0, box.refusals()
+    assert not _branch(box)
+    assert _registry(box) == {OTHER_SID: "builder-2"}
+    assert f"{box.wt(B1)}" not in _git(box.repo, "worktree", "list", "--porcelain")
+
+
+@pytest.mark.parametrize("record", ["matches", "none"])
+def test_t09_f4_a_rotated_but_unhealed_builder_is_checked_under_its_live_id(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, record: str
+) -> None:
+    """Registry and store name the OLD id; the pane's claude (after a /clear) runs NEW with a running record."""
+    box = Box(tmp_path, registry={OLD: B1})
+    (Path(box.scope) / "info").mkdir(exist_ok=True)
+    (Path(box.scope) / "info" / "exclude").write_text(EXCLUDE, encoding="utf-8")
+    _git(
+        box.repo,
+        "worktree",
+        "add",
+        "-q",
+        "-b",
+        f"worktree-{B1}",
+        f".claude/worktrees/{B1}",
+        "master",
+    )
+    g, mod = _inproc(box, monkeypatch, request, tmp_path)
+    proc = tmp_path / "proc"
+    proc.mkdir()
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(proc))
+    _row(box, OLD, B1)
+    g.base(panes=1, tags=(B1,))
+    pid = _claude_under(proc, _pane_pids(g)[B1], ["claude", "-n", B1, "--resume", OLD])
+    run = _mk(box.wt(B1) / ".tmp" / "runs" / NEW_SID / "r1" / "f").parent
+    if record == "matches":
+        _record(box, pid, NEW_SID)
+        _running(box, NEW_SID)
+        needles = [NEW_SID, "running"]
+    else:  # a claude whose live id cannot be read: refuse, never guess
+        needles = [f"claude pid {pid}", "cannot be read"]
+    _refused_keeping(box, g, mod, capsys, *needles)
+    assert (run / "f").is_file()
+
+
+@pytest.mark.parametrize("late", ["env-local", "seed-named-run"])
+def test_t09_f5_an_ignored_file_written_before_the_kill_refuses_at_step_3(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, late: str
+) -> None:
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request, exclude=EXCLUDE + ".env.local\n")
+    g.base(panes=2, tags=(B1, "builder-2"))
+    wt = box.wt(B1)
+    real = mod._drop_pane
+    late_path = wt / ".env.local"
+
+    def drop_then_write(sess, pane):  # the dying builder's last write lands after the checks
+        real(sess, pane)
+        if late == "env-local":
+            _mk(late_path)
+        else:
+            run = _mk(wt / ".tmp" / "runs" / OTHER_SID / "late" / "f").parent
+            (_seed_dir(box) / "late.json").write_text(
+                json.dumps({"scratch": str(run)}), encoding="utf-8"
+            )
+
+    monkeypatch.setattr(mod, "_drop_pane", drop_then_write)
+    assert mod.main(["remove", str(box.repo), B1]) == 2
+    (row,) = _rm_rows(box)
+    assert row["step"] == 3, row
+    want = str(late_path) if late == "env-local" else "named by"
+    assert want in row["reason"], row
+    assert wt.is_dir() and _branch(box) and _registry(box)[SID_B1] == B1
+
+
+@pytest.mark.parametrize("shape", ["fifo", "link-to-fifo"])
+def test_t09_p2_a_non_regular_seed_refuses_named_and_never_hangs(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, shape: str
+) -> None:
+    """Pass-2 P2: a FIFO read blocks for ever with no writer — under the agents lock. It must refuse, named, at once."""
+    import threading
+
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request, exclude=EXCLUDE)
+    _mk(box.wt(B1) / ".tmp" / "runs" / OTHER_SID / "r1" / "f")
+    seeds = _seed_dir(box)
+    fifo = seeds / "pipe" if shape == "fifo" else tmp_path / "pipe"
+    os.mkfifo(fifo)
+    named = fifo if shape == "fifo" else seeds / "linked"
+    if shape == "link-to-fifo":
+        named.symlink_to(fifo)
+    result: list[int] = []
+    t = threading.Thread(
+        target=lambda: result.append(mod.main(["remove", str(box.repo), B1])), daemon=True
+    )
+    t.start()
+    t.join(timeout=20)
+    if t.is_alive():  # unblock the hung read so the suite can finish, then fail
+        with open(fifo, "w", encoding="utf-8"):
+            pass
+        t.join(timeout=10)
+        pytest.fail("remove hung on a FIFO seed")
+    assert result == [2], result
+    (row,) = _rm_rows(box)
+    assert str(named) in row["reason"] and "not a regular file" in row["reason"], row
+    assert box.wt(B1).is_dir()

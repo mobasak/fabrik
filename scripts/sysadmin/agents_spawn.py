@@ -26,6 +26,10 @@ failing step leaves the earlier ones and says which step to re-run. Every refusa
 `{"at", "repo", "name", "step", "reason"}` to `~/.claude/state/agents-spawn.jsonl` (a state record beside
 `rotations.jsonl`, never a logfile).
 
+`agents_up.sh remove <repo> <name>` (T09, spec D7) retires a builder under the same lock — see `remove()`: every
+check that would lose work refuses (all named in one row carrying `"verb": "remove"`), then the pane, the worktree
+(never --force), the branch (only an ancestor of the base), the registry row, and the launchers outside the lock.
+
 COBRA (D-253): the cheapest way to pass the preflight without its outcome is FABRIK_AGENTS_UNCAPPED=1 left in a
 profile — it also skips the headroom floor, since no slice exists to measure — so every run that uses it says so on
 stderr; and a coordinator could hand-edit the trust entry, which is the operator's own act either way.
@@ -44,13 +48,14 @@ import os
 import re
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
 import time
 import uuid
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 # the checkout this runs from — its scripts/ are the tools
@@ -145,9 +150,12 @@ def spawn_log_path() -> Path:
     return Path.home() / ".claude" / "state" / "agents-spawn.jsonl"
 
 
-def record_refusal(repo: str, name: str, step: int, reason: str) -> None:
+def record_refusal(repo: str, name: str, step: int, reason: str, verb: str = "") -> None:
+    """One JSON line; a `remove` refusal also carries `"verb": "remove"` (an `add` row keeps its five keys)."""
     path = spawn_log_path()
     row = {"at": int(time.time()), "repo": repo, "name": name, "step": step, "reason": reason}
+    if verb:
+        row["verb"] = verb
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as fh:
@@ -1784,14 +1792,561 @@ def add(argv: list[str]) -> int:
     return 0
 
 
-def main(argv: list[str]) -> int:
-    if not argv or argv[0] != "add":
+# ---- remove (T09) -------------------------------------------------------------------------------------------------
+# Spec § The delta D7, D4's remove half, D9's guard. Under the repo's agents lock: (1) the checks — every failing one
+# named in ONE refusal; (2) the pane; (3) `git worktree remove` (never --force); (4) the branch, deleted only when an
+# ancestor of the base; (5) the registry row and the heal; then, unlocked, the launchers (add's step 7).
+# COBRA (D-253): the cheapest way past the ignored-file check without its outcome is a `remove_ignored_ok` entry that
+# lets everything go (`/`, `.`) — the coordinator's store edit, reviewed like any config change; every path let go is
+# printed, so a too-wide entry shows on the first run.
+
+REGENERABLE = (
+    ".venv",
+    "node_modules",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+)
+_PLAIN_SID_RE = re.compile(
+    r"[A-Za-z0-9_-]+"
+)  # a record filename command_run.py::_safe_sid leaves unchanged
+
+
+def _command_runs_dir() -> Path:
+    """command_run.py::_state_dir — `$COMMAND_RUN_DIR`, else `~/.claude/state/command-runs`."""
+    raw = os.environ.get("COMMAND_RUN_DIR")
+    return Path(raw) if raw else Path.home() / ".claude" / "state" / "command-runs"
+
+
+def _base_ref(root: str, base: str) -> str:
+    for ref in (f"refs/heads/{base}", f"refs/remotes/origin/{base}"):
+        if _git(root, "rev-parse", "--verify", "--quiet", ref + "^{commit}").returncode == 0:
+            return ref
+    raise RefusedError(f"the base branch {base!r} has no local or origin ref in {root}")
+
+
+def _owned_ids(root: str, scope: str, name: str, reg: dict | None) -> list[str]:
+    """Every session id the name owns: its registry rows AND every id the identity store binds to it in scope."""
+    ids = [sid for sid, n in (reg or {}).items() if n == name]
+    for row in _store_rows():
+        sid = row.get("session_id")
+        if (
+            row.get("name") == name
+            and row.get("toplevel") == scope
+            and isinstance(sid, str)
+            and sid
+        ):
+            ids.append(sid)
+    return list(dict.fromkeys(ids))
+
+
+def _running_failures(ids: list[str]) -> list[str]:
+    fails = []
+    state = _command_runs_dir()
+    for sid in ids:
+        if not _PLAIN_SID_RE.fullmatch(sid):
+            fails.append(
+                f"session id {sid!r} has no plain run-record name — check its record by hand"
+            )
+            continue
+        path = state / f"{sid}.json"
+        try:
+            rec = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            continue
+        except (OSError, ValueError) as exc:
+            fails.append(f"the run record {path} cannot be read ({exc})")
+            continue
+        if isinstance(rec, dict) and "running" in (rec.get("state"), rec.get("status")):
+            fails.append(f"session {sid} has a run record running ({path}) — let it close first")
+    return fails
+
+
+def _grid_state(sess: str) -> bool:
+    """True when `<S>` is up, False when tmux answers that no server or no such session exists; anything else (a tmux
+    that cannot run, an error it does not explain) refuses — never read as "the grid is down"."""
+    out = _tmux("list-sessions", "-F", "#{session_name}")
+    if out.returncode == 0:
+        return sess in out.stdout.splitlines()
+    err = out.stderr.strip()
+    if "no server running" in err or ("error connecting to" in err and "No such file" in err):
+        return False
+    raise RefusedError(f"tmux read failed — not removing (list-sessions: {err or out.returncode})")
+
+
+def _ok_prefixes(root: str) -> list[str]:
+    """`remove_ignored_ok` from `<root>/.fabrik/work/config.json` (path prefixes); absent is []; malformed refuses."""
+    path = os.path.join(root, ".fabrik", "work", "config.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            cfg = json.load(fh)
+    except FileNotFoundError:
+        return []
+    except (OSError, ValueError) as exc:
+        raise RefusedError(f"{path} cannot be read ({exc})") from None
+    raw = cfg.get("remove_ignored_ok", []) if isinstance(cfg, dict) else None
+    if not isinstance(raw, list) or not all(isinstance(p, str) and p.strip("/") for p in raw):
+        raise RefusedError(f"{path}: remove_ignored_ok must be a list of path prefixes")
+    return raw
+
+
+def _prefix_ok(rel: str, prefixes: list[str]) -> bool:
+    bare = rel.rstrip("/")
+    for p in prefixes:
+        q = p.rstrip("/")
+        if bare == q or bare.startswith(q + "/"):
+            return True
+    return False
+
+
+def _seed_texts() -> list[tuple[str, str]]:
+    """(path, text) of every seed under `<state>/seeds/`; a symlinked seed is read through its link (pass-1 F1). A seed
+    that is dangling, unreadable or not a regular file (a FIFO, or a link to one, would block a read for ever under the
+    agents lock — pass-2 P2) refuses, every one named. Opened O_NONBLOCK and checked with fstat on the open descriptor,
+    so a file swapped for a FIFO after the listing still never blocks. A real directory there is no seed and is skipped."""
+    seeds = _command_runs_dir() / "seeds"
+    if not os.path.lexists(seeds):
+        return []
+    texts = []
+    bad = []
+    try:
+        entries = sorted(os.scandir(seeds), key=lambda e: e.name)
+    except OSError as exc:
+        raise RefusedError(f"the resume seeds in {seeds} cannot be listed ({exc})") from None
+    for entry in entries:
+        if entry.is_dir(follow_symlinks=False):
+            continue
+        try:
+            fd = os.open(entry.path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
+        except OSError as exc:
+            bad.append(f"the resume seed {entry.path} cannot be read ({exc})")
+            continue
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                bad.append(f"the resume seed {entry.path} is not a regular file — not reading it")
+                continue
+            with os.fdopen(fd, "rb", closefd=False) as fh:
+                texts.append((entry.path, fh.read().decode("utf-8", errors="replace")))
+        except OSError as exc:
+            bad.append(f"the resume seed {entry.path} cannot be read ({exc})")
+        finally:
+            os.close(fd)
+    if bad:
+        raise RefusedError("; ".join(bad))
+    return texts
+
+
+# pass-2 P1: ONE tail match, `.tmp/runs/<sid>/<run>`, whatever leads it (an absolute path, the repo-root-relative
+# `.claude/worktrees/<name>/…`, `./`, a backtick or a quote): the character before `.tmp` is not a name character
+# (`x.tmp` does not match), and the run name is not continued (`r1` never matches inside `r10` or `r1x`; `r1.`,
+# `r1/f` and a backtick after it do). It also matches the same <sid>/<run> under ANOTHER checkout — over-refusal is
+# the safe direction.
+_SEED_START = r"(?<![A-Za-z0-9_.-])"
+_SEED_END = r"(?![A-Za-z0-9_-])"
+
+
+def _named_by_seed(folder: str, wt: str, texts: list[tuple[str, str]]) -> str:
+    """The first seed naming `folder` by its `.tmp/runs/<sid>/<run>` tail on a boundary; "" when none does."""
+    pat = re.compile(_SEED_START + re.escape(os.path.relpath(folder, wt)) + _SEED_END)
+    for path, text in texts:
+        if pat.search(text):
+            return path
+    return ""
+
+
+def _walk_runs(wt: str, let_go: list[str], fails: list[str], texts: list[tuple[str, str]]) -> None:
+    """`.tmp/runs/<sid>/<run>`, two levels by os.scandir (command_run.py's layout): a run folder a seed names refuses,
+    any other is let go; a symlink or a file where a folder belongs refuses, named."""
+    runs = os.path.join(wt, ".tmp", "runs")
+    if os.path.islink(runs) or not os.path.isdir(runs):
+        if os.path.lexists(runs):
+            fails.append(f"ignored {runs} is not a plain directory")
+        return
+    try:
+        for sid_dir in sorted(os.scandir(runs), key=lambda e: e.name):
+            if not sid_dir.is_dir(follow_symlinks=False):
+                fails.append(f"ignored {sid_dir.path} would be lost")
+                continue
+            for run in sorted(os.scandir(sid_dir.path), key=lambda e: e.name):
+                if not run.is_dir(follow_symlinks=False):
+                    fails.append(f"ignored {run.path} would be lost")
+                elif seed := _named_by_seed(run.path, wt, texts):
+                    fails.append(
+                        f"the run folder {run.path} is named by the resume seed {seed} — keep it until that run resumes"
+                    )
+                else:
+                    let_go.append(run.path)
+    except OSError as exc:
+        fails.append(f"{runs} cannot be read ({exc})")
+
+
+def _ignored_failures(wt: str, root: str, let_go: list[str]) -> list[str]:
+    """D7 + panel PF1: the ignored files `git worktree remove` would delete unasked, classified."""
+    out = _git(wt, "ls-files", "--others", "--ignored", "--exclude-standard", "--directory")
+    if out.returncode != 0:
+        return [f"git ls-files --ignored failed in {wt}: {out.stderr.strip() or out.returncode}"]
+    fails: list[str] = []
+    prefixes = _ok_prefixes(root)
+    try:
+        texts = _seed_texts()
+    except RefusedError as exc:
+        fails.append(exc.reason)
+        texts = []
+    walk_runs = False
+
+    def judge(rel: str) -> None:
+        if any(seg in REGENERABLE for seg in rel.rstrip("/").split("/")) or _prefix_ok(
+            rel, prefixes
+        ):
+            let_go.append(os.path.join(wt, rel))
+        elif rel.endswith("/"):
+            # `--directory` collapses a directory holding ONLY ignored paths (a `tests/` of nothing but
+            # `__pycache__/`) to one entry: judge what it holds, never the collapsed name
+            try:
+                children = sorted(os.scandir(os.path.join(wt, rel)), key=lambda e: e.name)
+            except OSError as exc:
+                fails.append(f"{os.path.join(wt, rel)} cannot be read ({exc})")
+                return
+            for child in children:
+                judge(rel + child.name + ("/" if child.is_dir(follow_symlinks=False) else ""))
+        else:
+            fails.append(
+                f"ignored {os.path.join(wt, rel)} would be lost — delete or keep it by hand"
+            )
+
+    for rel in out.stdout.splitlines():
+        if not rel:
+            continue
+        bare = rel.rstrip("/")
+        if bare == ".tmp":
+            tmp = os.path.join(wt, ".tmp")
+            try:
+                children = sorted(os.scandir(tmp), key=lambda e: e.name)
+            except OSError as exc:
+                fails.append(f"{tmp} cannot be read ({exc})")
+                continue
+            for child in children:
+                if child.name == "runs":
+                    walk_runs = True
+                else:
+                    judge(
+                        f".tmp/{child.name}" + ("/" if child.is_dir(follow_symlinks=False) else "")
+                    )
+        elif bare == ".tmp/runs" or bare.startswith(".tmp/runs/"):
+            walk_runs = True
+        else:
+            judge(rel)
+    if walk_runs:
+        _walk_runs(wt, let_go, fails, texts)
+    return fails
+
+
+def _kept_elsewhere(root: str, wt: str, ids: list[str]) -> list[str]:
+    """D6: the name's run folders under ANOTHER checkout's `.tmp/runs/<sid>/` — listed, never touched."""
+    out = _git(root, "worktree", "list", "--porcelain")
+    if out.returncode != 0:
+        raise RefusedError(f"git worktree list failed: {out.stderr.strip() or out.returncode}")
+    kept = []
+    for line in out.stdout.splitlines():
+        if not line.startswith("worktree "):
+            continue
+        tree = line[len("worktree ") :]
+        if os.path.realpath(tree) == os.path.realpath(wt):
+            continue
+        for sid in ids:
+            d = os.path.join(tree, ".tmp", "runs", sid)
+            if os.path.isdir(d) and not os.path.islink(d):
+                with contextlib.suppress(OSError):
+                    kept += [e.path for e in sorted(os.scandir(d), key=lambda e: e.name)]
+    return kept
+
+
+@dataclass
+class Removal:
+    present: bool = False
+    branch: str = ""
+    base: str = ""
+    base_ref: str = ""
+    let_go: list[str] = field(default_factory=list)
+    kept: list[str] = field(default_factory=list)
+
+
+def _check_removal(ctx: Spawn, wt: str, ids: list[str], tagged: list) -> Removal:
+    """(1): every check; all failures collected into ONE refusal. A worktree already gone (a resumed remove) skips the
+    worktree checks; the run-record check still applies, and the name must have a registry row, an in-scope binding
+    (both are in `ids`) or a tagged pane."""
+    rm = Removal(present=os.path.lexists(wt))
+    if not rm.present and not (ids or tagged):
+        raise RefusedError(f"no such builder {ctx.name} in {ctx.root}")
+    fails = _running_failures(ids)
+    if rm.present:
+        if not _in_place(wt):
+            fails.append(f"{wt} is not a linked git worktree")
+        else:
+            status = _git(wt, "status", "--porcelain")
+            if status.returncode != 0:
+                fails.append(
+                    f"git status failed in {wt}: {status.stderr.strip() or status.returncode}"
+                )
+            elif status.stdout.strip():
+                fails.append(
+                    f"{wt} is not clean (git status --porcelain: {status.stdout.strip().splitlines()[0]} …)"
+                )
+            head = _git(wt, "symbolic-ref", "-q", "HEAD")
+            ref = head.stdout.strip()
+            if head.returncode == 1:
+                fails.append(
+                    f"{wt} has a detached HEAD — its commits sit on no branch; check out a branch first"
+                )
+            elif head.returncode != 0 or not ref.startswith("refs/heads/"):
+                fails.append(
+                    f"git symbolic-ref HEAD failed in {wt}: {head.stderr.strip() or head.returncode}"
+                )
+            else:
+                rm.branch = ref[len("refs/heads/") :]
+            try:
+                rm.base = resolve_base(ctx.root)
+                rm.base_ref = _base_ref(ctx.root, rm.base)
+            except RefusedError as exc:
+                fails.append(exc.reason)
+            if rm.branch and rm.base_ref:
+                ahead = _git(wt, "rev-list", f"{rm.base_ref}..HEAD")
+                if ahead.returncode != 0:
+                    fails.append(
+                        f"git rev-list {rm.base}..HEAD failed: {ahead.stderr.strip() or ahead.returncode}"
+                    )
+                elif ahead.stdout.strip():
+                    n = len(ahead.stdout.split())
+                    up = _git(wt, "rev-list", "@{u}..HEAD")
+                    if up.returncode != 0:
+                        fails.append(
+                            f"{rm.branch} has {n} commit(s) beyond {rm.base} and no upstream (never pushed) — push it"
+                        )
+                    elif up.stdout.strip():
+                        fails.append(
+                            f"{rm.branch} has {len(up.stdout.split())} commit(s) not pushed to its upstream — push it"
+                        )
+            fails += _ignored_failures(wt, ctx.root, rm.let_go)
+    try:
+        rm.kept = _kept_elsewhere(ctx.root, wt, ids)
+    except RefusedError as exc:
+        fails.append(exc.reason)
+    if fails:
+        raise RefusedError("; ".join(fails))
+    return rm
+
+
+def _drop_pane(sess: str, pane: _Pane) -> None:
+    """(2): kill the pane; re-lay its window when it still exists, else kill that window's overflow session `<S>+<k>`
+    (tmux removed the window itself, D4)."""
+    gone = _tmux("kill-pane", "-t", pane.pane_id)
+    if gone.returncode != 0:
+        raise RefusedError(
+            f"tmux kill-pane -t {pane.pane_id} failed: {gone.stderr.strip() or gone.returncode}", 2
+        )
+    still = _tmux("display-message", "-p", "-t", pane.window_id, "#{window_id}")
+    if still.returncode == 0 and still.stdout.strip() == pane.window_id:
+        if _tmux("select-layout", "-t", pane.window_id, "even-horizontal").returncode != 0:
+            print(f"agents_spawn: could not re-lay window {pane.window_name}", file=sys.stderr)
+        return
+    k = _window_k(pane.window_name)
+    if k is not None and k >= 2 and _has_session(f"{sess}+{k}"):
+        killed = _tmux("kill-session", "-t", f"={sess}+{k}")
+        if killed.returncode != 0:
+            print(
+                f"agents_spawn: could not kill the emptied window's session {sess}+{k} "
+                f"({killed.stderr.strip() or killed.returncode})",
+                file=sys.stderr,
+            )
+
+
+def _drop_branch(root: str, branch: str, base: str, base_ref: str) -> None:
+    """(4): `git branch -D` ONLY after `merge-base --is-ancestor <branch> <base>` succeeds; an unmerged one is kept."""
+    if not branch or branch == base:
+        return
+    if _git(root, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}").returncode != 0:
+        return
+    merged = _git(root, "merge-base", "--is-ancestor", f"refs/heads/{branch}", base_ref)
+    if merged.returncode == 1:
+        print(f"agents_spawn: branch {branch} is not merged into {base}; kept")
+        return
+    if merged.returncode != 0:
+        raise RefusedError(
+            f"git merge-base --is-ancestor {branch} {base} failed: {merged.stderr.strip()}", 4
+        )
+    gone = _git(root, "branch", "-D", branch)
+    if gone.returncode != 0:
+        raise RefusedError(f"could not delete the merged branch {branch}: {gone.stderr.strip()}", 4)
+    print(f"agents_spawn: branch {branch} (merged into {base}) deleted")
+
+
+def _drop_rows(root: str, sess: str, name: str) -> None:
+    """(5): the name's rows dropped (only where a registry exists), then heal_registry for the rest (a failed live read
+    or heal is said, never a refusal: the builder is already gone)."""
+    reg = _read_registry(root)
+    if reg is not None and name in reg.values():
+        _replace_registry(root, {sid: n for sid, n in reg.items() if n != name})
+    try:
+        if _grid_state(sess):
+            heal_registry(root, live_panes(sess))
+    except (RefusedError, OSError) as exc:
+        reason = exc.reason if isinstance(exc, RefusedError) else str(exc)
+        print(f"agents_spawn: remove — registry heal skipped: {reason}", file=sys.stderr)
+
+
+def _pane_live_ids(pane: _Pane) -> list[str]:
+    """Pass-1 F4: every session the tagged pane's claude processes run NOW (heal_registry's reads: the walk, then each
+    claude's session record by pid + start time), plus any id in their argv — so a rotation the registry has not caught
+    up with is still checked under its live id. A claude whose live id cannot be read refuses, named; nothing is
+    written."""
+    ids = []
+    unread = []
+    for pid, argv_sid in _claude_procs(pane.pane_id, pane.pane_pid, None):
+        live = _live_session_id(pid)
+        if not live:
+            unread.append(str(pid))
+            continue
+        ids.append(live)
+        if argv_sid:
+            ids.append(argv_sid)
+    if unread:
+        raise RefusedError(
+            f"claude pid {', '.join(unread)} in pane {pane.pane_id} runs a session whose live id cannot be read "
+            "(no session record matches its pid and start time) — not removing"
+        )
+    return ids
+
+
+def remove(argv: list[str]) -> int:
+    ap = argparse.ArgumentParser(prog="agents_up.sh remove", allow_abbrev=False)
+    ap.add_argument("repo")
+    ap.add_argument("name")
+    args = ap.parse_args(argv)
+    root = os.path.realpath(args.repo)
+    ctx = Spawn(root=root, name=args.name, role="", item=None, argv=list(argv))
+    ctx.entry = os.path.basename(os.path.abspath(args.repo))
+    step = 1
+    rm = Removal()
+    try:
+        if not os.path.isdir(root):
+            raise RefusedError(f"{args.repo} is not a directory")
+        if not NAME_RE.fullmatch(ctx.name):
+            raise RefusedError(f"{ctx.name!r} is not an agent name ([a-z0-9][a-z0-9-]{{0,31}})")
+        if _coordinator_name(ctx.name):
+            raise RefusedError(f"{ctx.name!r} is a coordinator name — remove retires builders only")
+        ctx.scope = git_common_dir(root)
+        if not _is_main_checkout(root):
+            raise RefusedError(f"{root} is not the repo's main checkout — pass the main checkout")
+        with agents_lock(root):
+            wt = _worktree_dir(ctx)
+            sess = session_name(root)
+            reg = _read_registry(root)
+            ids = _owned_ids(root, ctx.scope, ctx.name, reg)
+            try:
+                panes = live_panes(sess) if _grid_state(sess) else []
+            except PlacementRefusedError as exc:
+                raise RefusedError(exc.reason.replace("not placing", "not removing")) from None
+            tagged = [p for p in panes if p.agent == ctx.name]
+            if len(tagged) > 1:
+                raise RefusedError(
+                    f"{len(tagged)} panes are tagged {ctx.name} ({', '.join(p.pane_id for p in tagged)}) — fix by hand"
+                )
+            if tagged:
+                ids = list(dict.fromkeys([*ids, *_pane_live_ids(tagged[0])]))
+            rm = _check_removal(ctx, wt, ids, tagged)
+            step = 2
+            if tagged:
+                _drop_pane(sess, tagged[0])
+            step = 3
+            if rm.present:
+                # pass-1 F5: the builder may have written until its pane died — classify again over the same ids,
+                # and print `let go:` from this final classification only
+                final: list[str] = []
+                late = _running_failures(ids) + _ignored_failures(wt, root, final)
+                if late:
+                    raise RefusedError(
+                        "after the pane was killed: "
+                        + "; ".join(late)
+                        + " — re-run remove once settled",
+                        3,
+                    )
+                for path in final:
+                    print(f"let go: {path}")
+            else:
+                # pass-1 F3: the worktree dir is gone but git may still register it, which would refuse the branch
+                # delete for ever; prune only drops entries whose directory is gone
+                pruned = _git(root, "worktree", "prune")
+                if pruned.returncode != 0:
+                    raise RefusedError(
+                        f"git worktree prune failed: {pruned.stderr.strip() or pruned.returncode}",
+                        3,
+                    )
+            if rm.present:
+                out = _git(
+                    root,
+                    "worktree",
+                    "remove",
+                    os.path.join(".claude", "worktrees", ctx.name),
+                    timeout=120,
+                )
+                if out.returncode != 0:
+                    raise RefusedError(
+                        f"git worktree remove failed: {out.stderr.strip() or out.returncode}", 3
+                    )
+            step = 4
+            branch = (
+                rm.branch or f"worktree-{ctx.name}"
+            )  # a resume knows only the spec's own branch name
+            if (
+                not rm.base_ref
+                and _git(
+                    root, "rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"
+                ).returncode
+                == 0
+            ):
+                rm.base = resolve_base(root)
+                rm.base_ref = _base_ref(root, rm.base)
+            if rm.base_ref:
+                _drop_branch(root, branch, rm.base, rm.base_ref)
+            step = 5
+            _drop_rows(root, sess, ctx.name)
+    except Exception as raised:  # noqa: BLE001 — every failure is a recorded refusal at its step, never a traceback
+        refusal = (
+            raised
+            if isinstance(raised, RefusedError)
+            else RefusedError(f"{type(raised).__name__}: {raised}", step)
+        )
+        refusal.step = step
+        record_refusal(root, ctx.name, step, refusal.reason, verb="remove")
+        print(f"agents_spawn: {refusal.reason}", file=sys.stderr)
         print(
-            "usage: agents_spawn.py add <repo> <name> [--role <role>] [--item <W-id>]",
+            f"remove stopped at step {step} ({ctx.name}) — re-run: agents_up.sh remove {' '.join(ctx.argv)}",
             file=sys.stderr,
         )
         return 2
-    return add(argv[1:])
+    try:
+        regenerate_launchers(ctx)
+    except Exception as failed:  # noqa: BLE001 — a launcher failure never undoes a finished remove
+        _say7(
+            f"the launchers failed ({type(failed).__name__}: {failed}); "
+            "the .bat is regenerated at the next add or remove"
+        )
+    for path in rm.kept:
+        print(f"kept: {path}")
+    print(f"agents_spawn: {ctx.name} removed from {root} (charter and transcript kept)")
+    return 0
+
+
+def main(argv: list[str]) -> int:
+    if not argv or argv[0] not in ("add", "remove"):
+        print(
+            "usage: agents_spawn.py add <repo> <name> [--role <role>] [--item <W-id>]\n"
+            "       agents_spawn.py remove <repo> <name>",
+            file=sys.stderr,
+        )
+        return 2
+    return add(argv[1:]) if argv[0] == "add" else remove(argv[1:])
 
 
 if __name__ == "__main__":

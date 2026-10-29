@@ -66,7 +66,7 @@ Intake: 20 items — 19 IN, 1 OUT-OF-SCOPE (I4, already done), 0 ASK.
 | T08b | agents_spawn.py cold start + launch | T02, T08a | ⛓️ | ✅ | acceptance commit `feat(agents): T08b` (wave-6 receipt `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-T08b-review.md`) |
 | T07 | rotate_session registry lock | T06, T08b | ⚡ | ✅ | acceptance commit `feat(agents): T07 + T08c` (wave-7 receipt `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-T07-review.md`) |
 | T08c | agents_spawn.py launchers + live tab | T05, T08b | ⛓️ | ✅ | acceptance commit `feat(agents): T07 + T08c` (wave-7 receipt `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-T07-review.md`) |
-| T09 | agents_spawn.py remove + docs | T08c | ⛓️ | ⬜ | |
+| T09 | agents_spawn.py remove + docs | T08c | ⛓️ | ✅ | acceptance commit `feat(agents): T09` (wave-8 receipt `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-T09-review.md`) |
 | T10 | Integration: pre-merge gates + receipt + MR | T04, T07, T09 | ⛓️ | ⬜ | |
 
 ## Merge Order

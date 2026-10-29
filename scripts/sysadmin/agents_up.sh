@@ -101,6 +101,12 @@ if [ "${1:-}" = "add" ]; then
   shift
   exec python3 "$(cd "$(dirname "$0")" && pwd)/agents_spawn.py" add "$@"
 fi
+# `agents_up.sh remove <repo> <name>` (W-b9ad80ae D7): the retire verb — agents_spawn.py checks nothing would be lost,
+# then kills the pane, removes the worktree and drops the registry row under the same lock. Dispatched the same way.
+if [ "${1:-}" = "remove" ]; then
+  shift
+  exec python3 "$(cd "$(dirname "$0")" && pwd)/agents_spawn.py" remove "$@"
+fi
 
 print=0
 detach=0

@@ -194,8 +194,101 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 /opt/fabrik/scripts/sysadmin/agents_up.sh --print /opt/<repo>  # show the grid it would build; launches nothing
 ```
 
-The launcher builds one tmux session per repo, named after the repo's folder (every character other than
-`[A-Za-z0-9_-]` becomes `-`), with one window, `agents`, and one pane per builder in name order:
+### Start using it in every repo
+
+What the operator types ONCE, from WSL, then double-clicks:
+
+```bash
+python3 /opt/fabrik/scripts/sysadmin/agents_bat.py --tabbed \
+  --desktop "/mnt/c/Users/user/OneDrive - Tojlo Solutions LLC/Desktop"   # writes "All Agents (tabbed).bat", remembers the desktop
+```
+
+The first run remembers that folder in `~/.config/fabrik/agents-desktop`. A hand-written `All Agents (tabbed).bat`
+already on the desktop is refused (exit 2) until it is named once with `--replace "All Agents (tabbed).bat"`. Then
+double-click `All Agents (tabbed).bat`: one Windows Terminal window (`fabrik-agents`) with a tab per repo, which
+starts that repo's grid when it is down, and a tab per extra window of a grid that is up.
+
+What EACH COORDINATOR does from then on, with nothing left for the operator:
+
+```bash
+/opt/fabrik/scripts/sysadmin/agents_up.sh add /opt/<repo> <name> [--role <role>] [--item <W-id>]  # spawn a builder
+/opt/fabrik/scripts/sysadmin/agents_up.sh remove /opt/<repo> <name>                                # retire it
+/opt/fabrik/scripts/sysadmin/agents_up.sh /opt/<repo>                                              # open the grid
+```
+
+The coordinator spawns at an item boundary when the ready items it would assign outnumber its idle builders and the
+band is GREEN with no LANE, and retires a builder at the boundary where its item closed and its queue is empty
+(§ Spawning and retiring builders). Every `add` and every `remove` regenerates `All Agents (tabbed).bat` on the
+remembered desktop by itself; running `python3 /opt/fabrik/scripts/sysadmin/agents_bat.py --tabbed` with no
+`--desktop` is the same regeneration by hand.
+
+### Spawning and retiring builders (`add`, `remove`)
+
+Both verbs are the coordinator's, run against the repo's MAIN checkout (a linked worktree or a subdirectory refuses),
+and both exit 0 done or 2 refused. Every refusal names each reason on stderr and appends ONE JSON line
+`{"at", "repo", "name", "step", "reason"}` to `~/.claude/state/agents-spawn.jsonl` (a `remove` row adds
+`"verb": "remove"`); the coordinator reads its refusals there. Each verb holds the repo's agents lock — `flock` on
+`<git common dir>/fabrik-agents.lock`, shared by every worktree and by `rotate_session.py`'s registry re-point — while
+it changes anything, so two verbs, or a verb and a rotation, never interleave. A re-run completes what a failed run
+left.
+
+`agents_up.sh add <repo> <name> [--role <role>] [--item <W-id>]` (`--role` defaults to `builder`; the name must read
+`<role>-<suffix>` and `docs/reference/agents/<role>.md` must be a marked charter) refuses before any write when the
+name is a coordinator's or the merge owner's, already bound to a live session in the repo, the caller is not bound
+(`whoami_agent.py --as <name>`), the root is not trusted, the start would run uncapped (unless
+`FABRIK_AGENTS_UNCAPPED=1`, said at every use), or `fabrik-agents.slice` has under 2 GB headroom. Then it makes
+`.claude/worktrees/<name>` on `worktree-<name>` from the base branch (`base_branch` in `.fabrik/work/config.json`, else
+origin's HEAD), starts the whole grid first when no tmux session exists, binds a fresh session id
+(`whoami_agent.py --spawned`), assigns `--item` on the main checkout with `work.py assign` (the coordinator commits
+the store change in its own store commit; `add` never commits), measures the headroom again after a cold start, and
+places the one pane. A builder whose `work.py next` is empty messages its coordinator. Then, outside the lock, it
+regenerates the launchers: `agents_bat.py --tabbed`, plus a live `wt.exe -w fabrik-agents new-tab` attaching the new
+window's session when the pane opened a new window `agents-<k>`. A launcher failure is said and `add` still exits 0.
+
+`agents_up.sh remove <repo> <name>` never loses work, and every doubt refuses. It refuses, naming every failing
+check at once, unless all hold:
+
+- no run record `running` (`~/.claude/state/command-runs/<sid>.json`) under any session id the name owns — its
+  registry rows and every id the identity store binds to it in the repo, so a re-bind after `/clear` counts;
+- the worktree is clean (`git status --porcelain` prints nothing) and on a branch (a detached HEAD refuses; any
+  branch name, so builders older than `add` retire the same way);
+- its work is safe: no commit beyond the base branch, or an upstream with nothing unpushed (a never-pushed branch with
+  commits refuses);
+- no ignored file would be lost — `git worktree remove` deletes them unasked. The dependency and cache trees
+  (`.venv`, `node_modules`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`, by path segment anywhere)
+  and the path prefixes the repo lists as `remove_ignored_ok` in `.fabrik/work/config.json` are let go;
+  `.tmp/runs/<sid>/<run>` folders are walked one by one and each refuses while any resume seed under
+  `~/.claude/state/command-runs/seeds/` names a path inside it, whichever session wrote it, and is let go otherwise;
+  everything else refuses, named, for the coordinator to delete or keep by hand. Each path let go is printed
+  `let go: <path>`;
+- the tmux read answers: an error, or nothing while the grid is up, refuses and removes nothing;
+- the name is a builder at all: with its worktree already gone, it still needs a registry row, a binding or a tagged
+  pane, else `no such builder <name> in <repo>`.
+
+Then, in order: it kills the pane tagged `@agent <name>`, re-lays its window `even-horizontal` (or, when that was the
+window's last pane, kills the window's overflow session `<S>+<k>`; tmux has already removed the window), runs
+`git worktree remove` (never `--force`), deletes the branch with `git branch -D` only after `git merge-base
+--is-ancestor <branch> <base>` (an unmerged branch is kept and said), drops the name's rows from
+`.fabrik/session-agents.json` where one exists, re-points the other builders' rows to their live sessions, and
+regenerates the launchers as `add` does. A `remove` interrupted after the worktree went is re-run the same way: it
+skips the worktree checks and finishes the rest. The name's run folders under ANOTHER checkout's
+`.tmp/runs/<sid>/` are listed `kept: <path>` and never touched. The charter and the transcript stay; the nightly
+archive takes the transcript to B2 and it stays searchable in session-recall.
+
+The usual trigger for `remove` is the builder's own `done — retire me` message (`docs/reference/agents/builder.md`,
+the generic builder charter `agent_role.py` falls back to for a `<role>-<suffix>` name with no charter of its own);
+`remove` needs no message to work.
+
+### The grid
+
+The launcher builds one tmux session `<S>` per repo, named after the repo's folder (every character other than
+`[A-Za-z0-9_-]` becomes `-`), with four panes per window: `agents` holds the first four builders, `agents-2` the
+next four, and so on. A new builder joins the lowest window with room; when none has room it opens the lowest free
+`agents-<k>` in the background, and an emptied window simply ceases (nothing assumes `agents` exists). Each window
+`agents-<k>` (k >= 2) is shown in its own tmux session `<S>+<k>`, grouped with `<S>`, so a separate terminal tab can
+attach it (`+` is outside the base-name alphabet, so such a session is this repo's by construction);
+`agents_up.sh --window <k> <repo>` attaches it, waiting up to 120 s (`FABRIK_AGENTS_WINDOW_WAIT_S`) while the grid is
+absent or still being built, and with no window `agents-<k>` says so and attaches `<S>`. One pane per builder:
 
 - The builders are the registry's names when the repo has a `.fabrik/session-agents.json`, and otherwise every name
   bound in the repo's git scope in the identity store (W-89474fc1). The coordinator gets no pane: a name `coordinator`
@@ -214,7 +307,8 @@ The launcher builds one tmux session per repo, named after the repo's folder (ev
   the launch continues); a found `agent-*` tree (Claude Code's subagent trees) is flagged. A name with no own worktree
   takes a found folder only where the repo declares its merge owner, and is dropped before its registry rows are read
   when no candidate holds one of its sessions. A name with no folder at all gets no pane, said on
-  stderr, and a repo left with no builder refuses (exit 2). The main checkout is the coordinator's, and a builder
+  stderr, and a repo left with no builder launches nothing and exits 3 ("nothing to launch", told apart from a
+  refusal, which exits 2). The main checkout is the coordinator's, and a builder
   resumed there would edit main's tree and read main's `CLAUDE.md` (W-6c7c3292).
 - Every pane runs whole — claude, its exit hint and the shell it keeps — in its own `systemd-run --user --scope` in
   `fabrik-agents.slice`, with `MemorySwapMax=0` and `TasksMax` (`FABRIK_AGENT_TASKS_MAX`, default 1024) and no
@@ -279,7 +373,7 @@ Each row of the registry is checked before it reaches a shell command, and one b
 - a name must match `[a-z0-9][a-z0-9-]{0,31}`;
 - no session id may appear twice;
 - no name may hold two session ids;
-- the file must name at least one builder.
+- the file must name at least one builder (a registry naming only the coordinator exits 3, nothing to launch).
 
 The registry is box-local state (gitignored) that names a repo's builders; each builder's SESSION comes from the
 identity store `whoami_agent.py` keeps (W-66e2f6a7), read the way whoami reads it:
@@ -320,10 +414,22 @@ python3 /opt/fabrik/scripts/sysadmin/agents_bat.py \
   --desktop "/mnt/c/Users/user/OneDrive - Tojlo Solutions LLC/Desktop"  # write them to the operator's desktop
 ```
 
+`--tabbed` writes ONE `All Agents (tabbed).bat` instead (W-b9ad80ae D5): a named Windows Terminal window
+(`wt.exe -M -w fabrik-agents`) with, per repo, a first tab running `agents_up.sh /opt/<repo>` (attach-or-launch) and
+one tab per live window `agents-<k>` (k >= 2) running `agents_up.sh --window <k> /opt/<repo>`. A run with `--desktop`
+that wrote its file remembers the folder in `~/.config/fabrik/agents-desktop`; a `--tabbed` run without `--desktop`
+writes there (with nothing remembered it prints the text and says so, exit 0). Every regeneration holds
+`~/.config/fabrik/agents-desktop.lock` (one box-wide lock, 30 s at most) and writes through a unique temp file and a
+rename. `add` and `remove` run it after every change, so a click always opens the live set; Windows Terminal cannot
+list or close tabs, so a retired builder's pane simply disappears from its tab and an emptied tab shows the closed
+attach until the next click (§ Start using it in every repo).
+
 It writes only under `--desktop`, because the desktop is outside every repo. A desktop file it did not write — the
 hand-made launchers from before — is left untouched (exit 2) until it is named once with
 `--replace "<Repo> Agents.bat"`; a file it wrote is rewritten when its text changes and left alone otherwise. The WSL
-distro comes from `--distro`, else `$WSL_DISTRO_NAME`.
+distro comes from `--distro`, else a non-blank `$WSL_DISTRO_NAME`, else the distro this shell runs in, read from
+`wslpath -w /` (`fabrik_deck.py::_default_distro`), so a run from tmux, systemd or code-server, where the variable
+is unset, still names this distro; `--distro ""` and an underivable distro refuse.
 
 Each .bat is self-contained and needs no hand-made Windows Terminal profile. `wt.exe` has no font-size option, so the
 .bat writes a Windows Terminal JSON fragment, `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\Fabrik\<repo>.json`,
