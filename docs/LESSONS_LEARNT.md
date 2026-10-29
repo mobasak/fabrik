@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## An exact-signature probe is not a call-resolvability probe (2026-10-29, W-d8505af5)
+
+**What happened:** the design for the payments ingest guard said that the exact grant function plus another overload would take the `module` path, because `to_regprocedure('payments_grant_ingest(pg_catalog.regrole)')` resolves the exact one. Both critique seats ran it on PostgreSQL 16: when the other overload has a DEFAULT, the one-argument `PERFORM` raises 42725 `is not unique`. The state still fails closed, but the design table was wrong, and the draft had no test for it (one was added before the build).
+
+**Lesson:** a lookup that names the full signature (`to_regprocedure`) answers "does this exact function exist", never "will a call with these arguments pick it". When a guard keys on the first and the code then calls the function, table the overload-with-defaults state and run it on a real server.
+
 ## An identity check on a corpus that produces nothing proves nothing (2026-10-29, W-f5a1eec9)
 
 **What happened:** to speed up `losses()`, the first probe compared the cached build's output with base over the live corpus and printed `identical True`. The live corpus produces zero LOSS lines, so the check only showed that an empty list stayed empty. The planned identity test also compared the build with itself (cold cache against warm cache). Both critique seats caught it. The real differential ran base and build over mutated renders that produce 1,668 and 2,777 LOSS lines.

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the payments ingest grant no longer re-widens its role when fabrik-lib changes the grant function's signature (2026-10-29)
+
+- `grant_payments_role(lane="ingest")` now RAISES when a `payments_grant_ingest` exists in any schema but `payments_grant_ingest(pg_catalog.regrole)` does not resolve on the search path, before the legacy DROP+CREATE blocks can run; the step is recorded failed and the hub constant must follow fabrik-lib (D-1321, W-d8505af5). The rename case is W-1af44851.
+
 ### Fixed — the portability export no longer ships monitoring, Backrest-hook or URL credentials (2026-10-29)
 
 - `fabrik export` copied the vps1 monitoring files (`prometheus.yml`, `alertmanager.yml`, the redis and postgres registries) into the bundle byte for byte, and its key-name redactor missed Alertmanager's `routing_key`/`service_key`/`user_key`, Slack `api_url`s, header maps, `Authorization`, URL userinfo and Backrest's `shoutrrrUrl` and hook `command`s: a replay of 13 planted credentials leaked all 13 (`src/fabrik/portability.py` invariant 1). Every SSH-pulled config (monitoring, Authelia, Backrest) now goes through one `_redact_config_text`: parsed, redacted, re-emitted, and left out with a warning when it does not parse into a mapping or a list or uses a YAML alias (an alias would copy a secret out from under its redacted key). New key patterns: `[_-]key$` plus camelCase `Key$`, `api[_-]?url$`, `headers?$`, `authoriz` (Authelia's `authorization_policy` kept), `^endpoint[_-]?params$`, `shoutrrr[_-]?url$`, `^command$`; the userinfo of any URL, in a value or a key, becomes `REDACTED`. YAML plain scalar values come back as written (`17:00`, `on`, `010`, `1.10` — PyYAML's own reading would have rewritten them for the Go parser that restores the copy), two keys that redact to one make the file omitted, and a parse failure logs only its type and line. Graders in `tests/test_portability.py::TestMonitoringRedaction`; residue (typed keys collapsing, query-string secrets, the allowlist question) is W-7fddc9cf.
