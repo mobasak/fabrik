@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T16:29:44.929077Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-9e067e18",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure a walk bounded at the last ALLOWED Stop (stop_hook_summary row with empty hookErrors): what a warn-through Stop records, and whether panel mode was on at that Stop; replay on the 155 real briefs (W-573ddaa1 measure.md); build only if it fixes the 1 without newly refusing any",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "hooks"
+  ],
+  "title": "final_gate_stop.py _panel_brief_problem reads only the 2 MB tail: a PANEL APPROVED brief written more than 2 MB before the next Stop is never judged (fail-open; 1 of 155 real briefs, transcript 8a498855, 31 MB). W-573ddaa1 built and dropped a whole-file re-walk: it re-judges briefs earlier Stops already judged (3 real old briefs newly refused, sticky across [SCHEDULED TASK] turns) and costs up to 6.9 s per Stop on a 696 MB transcript"
+}
