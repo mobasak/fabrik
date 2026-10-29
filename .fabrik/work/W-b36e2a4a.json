@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "capture each finder's error text in fabrik-review-loop.js (agent().catch), retry a null finder once on the same model, and throw naming the error when every seat failed with the same subscription-disabled message",
+  "next": "done — built as D-1340: the launch throws when NO finder returned anything after its retry (the disabled-subscription text never reaches the script, so it is not matched); the folded scheduling rows moved to W-bc394d0b; residue W-62791872",
   "note": "2026-10-14 intel: the re-seat half is BUILT in de9c47081 (D-829): a finder that returns null or throws is re-seated once on the same model, inside the stamp. Still open here: (1) fail fast when every seat failed with the same subscription-disabled error (a null result carries no error text, so the script needs agent().catch to keep it); (2) rows folded in from kaizen's D-735 triage (mail 01M4PNBVJ1): waves when a partition exceeds the box cap (1791062753, 1791241353), a per-seat time box re-dispatching a seat silent past 2x its box (1791034481), and accepting a slice verified at the same md5 in an earlier batch (01M4PVPY8J row 1791029742).",
   "owner": "intel",
   "priority": 1,

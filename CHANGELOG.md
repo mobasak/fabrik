@@ -11,8 +11,9 @@ All notable changes to this project will be documented in this file.
   (`claude_rotate.py --status`, one seat transcript), then the counts, the known causes and up to three seat
   errors. A seat that rejected keeps its error's first non-blank line in its notes and the retry log line. The
   count is taken over every finder launched, so a slice dropped by a later stage still counts its seats. D-1340.
-- `scripts/review_loop_ledger.py read`: a failed run prints the first non-blank line of the run file's `error`
-  after `failed — no result`, so the check reaches the lead reading the pass file.
+- `scripts/review_loop_ledger.py read`: an ended run with no result (the all-null throw makes it `failed`)
+  prints the first non-blank line of the run file's `error` after `<status> — no result`, so the check
+  reaches the lead reading the pass file.
 
 ### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)
 - `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the
