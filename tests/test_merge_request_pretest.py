@@ -545,6 +545,19 @@ def test_an_ignored_mem_line_is_named(world):
     assert _runner_flags(log) == ["--timeout 1800"]
 
 
+def test_prose_naming_the_header_is_not_called_ignored(world):
+    """The merge itself reads the declaration shape, not the word: a comment that names the header
+    adds no note to the reply."""
+    _mem_runner(world)
+    _counting_tests(world, "# a leg may declare merge-test-mem in its base (D-1328)\nexit 0\n")
+    msg_id = world.send(_branch(world))
+
+    assert world.run("merge") == 0
+
+    reply = world.replies(msg_id)["fleet"]
+    assert _IGNORED not in reply, reply
+
+
 def test_a_pretest_names_an_ignored_mem_line(world, monkeypatch, capsys):
     """`request --pretest` (and so a `merge --queue` child, through the same `_pretest_leg`) prints
     the leg's verdict, which carries the note."""
