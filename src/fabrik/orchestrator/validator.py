@@ -21,7 +21,13 @@ import yaml
 
 from fabrik.config import FABRIK_ROOT
 from fabrik.orchestrator.exceptions import ValidationError
-from fabrik.spec_loader import HEALTH_PATH_RE, POSTGRES_IDENT_RE, merge_template_defaults
+from fabrik.spec_loader import (
+    CPU_GRAMMAR_MESSAGE,
+    HEALTH_PATH_RE,
+    POSTGRES_IDENT_RE,
+    cpu_in_grammar,
+    merge_template_defaults,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -374,6 +380,14 @@ class SpecValidator:
             raise ValidationError(
                 "source.image_command must be a string", field="source.image_command"
             )
+        # `resources.cpu` reaches compose as `cpus` on both deploy paths, and compose reads "0_5" as 5 CPUs and
+        # "0" as no limit — the `Resources` grammar, checked here on the raw dict (W-f01710a0).
+        if "resources" in spec:
+            resources = spec["resources"]
+            if not isinstance(resources, dict):
+                raise ValidationError("resources must be a mapping", field="resources")
+            if "cpu" in resources and not cpu_in_grammar(resources["cpu"]):
+                raise ValidationError(CPU_GRAMMAR_MESSAGE, field="resources.cpu")
 
         logger.info("Spec validated: %s", spec["name"])
         return warnings

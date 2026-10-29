@@ -5,6 +5,7 @@ This module is the single source of truth for spec file schema.
 All spec files are validated against Pydantic models before use.
 """
 
+import math
 import re
 from enum import Enum
 from pathlib import Path
@@ -20,6 +21,26 @@ HEALTH_PATH_RE = re.compile(r"/[A-Za-z0-9._~%/!&()*+,;=:@?-]*")
 character that would break where the path is pasted — `'` (the single-quoted URL in the CMD-SHELL
 probes), `"` and `\\` (the double-quoted YAML items), `$` (compose interpolation), `#`, a backtick, braces
 and whitespace. `&`, `;` and parentheses are admitted, so both shell probes single-quote the URL."""
+
+CPU_RE = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?")
+"""A ``resources.cpu`` value (fullmatch, W-f01710a0): a plain ASCII decimal. Compose 2.40.3 reads ``0_5`` as 5
+CPUs, ``0`` as no limit and ``-1`` as -1 without complaint, so the template path, the apply validator and the
+docker-image emitter all refuse anything else through :func:`cpu_in_grammar`."""
+
+CPU_GRAMMAR_MESSAGE = (
+    "resources.cpu must be a quoted plain decimal CPU count of at least 0.01, e.g. '0.5'"
+)
+
+
+def cpu_in_grammar(value: object) -> bool:
+    """True for a str in :data:`CPU_RE` that is finite and at least 0.01 (Docker's minimum). No upper bound:
+    Docker refuses more CPUs than the host has at ``up``. A YAML float (a bare ``0.5``) is refused, as the
+    ``str`` field always did on the Spec path."""
+    if not isinstance(value, str) or not CPU_RE.fullmatch(value):
+        return False
+    number = float(value)
+    return math.isfinite(number) and number >= 0.01
+
 
 POSTGRES_IDENT_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")
 """PostgreSQL identifier validation — the registrar's rule (``drivers/postgres.py`` imports it).
@@ -145,6 +166,14 @@ class Resources(BaseModel):
 
     memory: str = "256M"
     cpu: str = "0.5"
+
+    @field_validator("cpu", mode="before")
+    @classmethod
+    def _cpu_in_grammar(cls, v: object) -> object:
+        # Before the str check, so a float, bool or None gets this message rather than pydantic's type error.
+        if not cpu_in_grammar(v):
+            raise ValueError(CPU_GRAMMAR_MESSAGE)
+        return v
 
 
 class Health(BaseModel):
