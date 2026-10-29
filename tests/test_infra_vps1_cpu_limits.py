@@ -38,6 +38,7 @@ def host_max_cpus(host: str) -> float:
     """The cpus ceiling on `host`: 2.0, or half the host when that is smaller."""
     return min(MAX_CPUS, HOST_CPUS[host] / 2)
 
+
 # (file relative to infra/, exact service set) -> the item that removes the exception.
 EXCEPTIONS: dict[tuple[str, frozenset[str]], str] = {
     (
@@ -200,7 +201,9 @@ def test_a_small_host_refuses_a_whole_host_cap(monkeypatch: pytest.MonkeyPatch) 
     passes — the ceiling is half the host there, not D-1324's flat 2.0."""
     monkeypatch.setitem(HOST_CPUS, "vps9", 2)
     text = "services:\n  a:\n    deploy: {resources: {limits: {memory: 64M, cpus: '%s'}}}\n"
-    assert compose_problems(text % "2.0", host_max_cpus("vps9")) == {"a": "cpus '2.0' is outside 0 < cpus <= 1.0"}
+    assert compose_problems(text % "2.0", host_max_cpus("vps9")) == {
+        "a": "cpus '2.0' is outside 0 < cpus <= 1.0"
+    }
     assert compose_problems(text % "1.0", host_max_cpus("vps9")) == {}
 
 
@@ -258,7 +261,23 @@ def test_good_cpu_values_are_accepted(value: object) -> None:
 
 @pytest.mark.parametrize(
     "value",
-    [None, True, 256, "", "0M", "064M", "256", "256m", "1g", "512Mi", "512MB", " 64M", "64M ", "1.5G", [1]],
+    [
+        None,
+        True,
+        256,
+        "",
+        "0M",
+        "064M",
+        "256",
+        "256m",
+        "1g",
+        "512Mi",
+        "512MB",
+        " 64M",
+        "64M ",
+        "1.5G",
+        [1],
+    ],
 )
 def test_bad_memory_values_are_refused(value: object) -> None:
     """Given a memory value that is absent, a boolean, a bare number, zero, zero-padded, lower-case, a
@@ -332,7 +351,9 @@ def test_a_file_without_a_services_mapping_fails() -> None:
         ("vps3/traefik/compose.yaml", "traefik", "memory:", "no deploy.resources.limits.memory"),
     ],
 )
-def test_a_real_compose_with_a_limit_line_removed_is_refused(rel: str, service: str, marker: str, problem: str) -> None:
+def test_a_real_compose_with_a_limit_line_removed_is_refused(
+    rel: str, service: str, marker: str, problem: str
+) -> None:
     """Given a real block-style infra compose (the hub and a spoke), when its `cpus:` or `memory:` line is
     deleted, then the grader names that service — so the real-file scan is not green only because it reads
     nothing."""
