@@ -1,0 +1,13 @@
+# Every minute: the Windows NAT watchdog checks every $Interval (120 s), so each of its checks sees at
+# least one heartbeat. AccuracySec=5s: the default 1 min accuracy would let a gap reach ~2 min.
+[Unit]
+Description=WSL network heartbeat, every minute
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+AccuracySec=5s
+Unit=wsl-net-heartbeat.service
+
+[Install]
+WantedBy=timers.target

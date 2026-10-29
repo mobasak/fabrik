@@ -27,6 +27,12 @@
 
 **What happened:** T02's blocking probe launched one claude on a private tmux server to prove the `--settings` suppression. It took four launches: `capture-pane -t =probe-1` fails on tmux 3.4 ("can't find pane"), and a 60 s wait found no transcript, because a fresh worktree's first turn spends about 57 s in SessionStart hooks.
 **Lesson:** target tmux panes as `=<session>:`, never a bare `=<session>`; a probe that waits for a new session's transcript waits 150 s, not 60. The wave's review then found that a validation moved "before the first side effect" also has to stay off paths that make no side effect at all: decide where a refusal belongs by which paths build the thing it guards.
+## Close the rare side of a classifier, never the common one (2026-10-29, W-960d68a8)
+
+**What happened:** the heartbeat sorts curl's exit code into "local fault" and "network failure", and the two sides send the Windows watchdog opposite ways: one toasts, the other restarts the WSL adapter. Review round 1 fixed a misread by listing the network codes and calling everything else local. Round 2 then showed real outages producing unlisted codes (18 for a body cut short, 1 for a middlebox's non-HTTP answer, 8 for a bad header), each read as "local fault", so the watchdog would pause through a real outage.
+
+**Lesson:** when a classifier's two answers lead to different actions, write out the side whose members you can name completely (here the handful of codes a fixed `http://` GET can fail with locally), and let the open-ended side be the default. Then mutate every executable member across the line, one at a time, and check that a grader goes red for each.
+
 ## On this fleet a `compose down` is not a removal (2026-10-29, W-80a1f9fd)
 
 **What happened:** D-121 took the ocoron-com stack down with `docker compose down`, and the stack was found running again weeks later. `fabrik-compose-boot.sh` runs `up -d` on every `/opt/*/compose.yaml` at each boot, and D-121 had left the file in place. A second reviver was waiting too: the vps1 sysadmin bot's prompt still ranked the stack P0 and gave it "full autonomous management".
