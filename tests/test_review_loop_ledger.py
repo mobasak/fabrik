@@ -1456,6 +1456,10 @@ def test_a_failed_run_prints_its_error(tmp_path: Path) -> None:
     assert json.loads(out.read_text())["workflow"]["error"] == msg[:300]
     r = _tool("read", str(_session_run(tmp_path / "k", {"status": "killed"})))
     assert "workflow: killed — no result: every seat without one is NO RESULT\n" in r.stdout, r.stdout
+    # review pass 1, B-S2: a message opening with a blank line keeps its first non-blank line
+    blank_first = {"status": "failed", "error": "\n  \r\nreal cause\nat x"}
+    r = _tool("read", str(_session_run(tmp_path / "b", blank_first)))
+    assert "NO RESULT — real cause\n" in r.stdout, r.stdout
 
 
 def test_read_outside_the_harness_layout_checks_no_workflow(tmp_path: Path) -> None:

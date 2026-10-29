@@ -297,13 +297,17 @@ globalThis.pipeline = async (items, ...stages) =>
   Promise.all(items.map(async (item, i) => {{ try {{ let v = item; for (const s of stages) v = await s(v, item, i); return v; }} catch (e) {{ console.error('STAGE THREW: ' + e); return null; }} }}));
 const prompts = {{}};
 const optsBy = {{}};
-globalThis.agent = async (prompt, opts) => {{
+globalThis.agent = (prompt, opts) => {{
   console.error('AGENT CALLED ' + opts.label);
   prompts[opts.label] = prompt;
   optsBy[opts.label] = {{ model: opts.model, agentType: opts.agentType, effort: opts.effort }};
-  // a canned value of "THROW" makes the seat reject, as a transport or auth error may (W-b36e2a4a)
-  if (results[opts.label] === 'THROW') throw new Error('seat ' + opts.label + ' rejected');
-  return Object.hasOwn(results, opts.label) ? results[opts.label] : null;
+  // "SYNC_THROW" throws before any promise exists, as agent() does on a spent budget or an unsatisfiable schema
+  // (the runtime reference); "THROW" makes the seat reject, as a transport or auth error may (W-b36e2a4a)
+  if (results[opts.label] === 'SYNC_THROW') throw new Error('seat ' + opts.label + ' threw at the call');
+  return (async () => {{
+    if (results[opts.label] === 'THROW') throw new Error('seat ' + opts.label + ' rejected');
+    return Object.hasOwn(results, opts.label) ? results[opts.label] : null;
+  }})();
 }};
 (async () => {{ {src} }})().then((out) => console.log(JSON.stringify({{ out, prompts, optsBy }})));
 """
@@ -2335,6 +2339,44 @@ def test_a_rejecting_finder_keeps_its_error_text() -> None:
     assert "retried: STILL NULL\n" in log + "\n" and "STILL NULL:" not in log, log
 
 
+def test_a_finder_that_throws_at_the_call_is_retried_and_keeps_its_text() -> None:
+    """Review pass 1, A-S1: agent() can THROW at the call, before any promise exists (a spent budget, an
+    unsatisfiable schema — the runtime reference), which `.then`/`.catch` on its promise never see; the call is
+    wrapped so the seat is retried and its text kept, never lost to a null parallel() thunk. Two throws in a row
+    still leave a failed seat in an ordinary ledger, with its slice kept."""
+    once = {"find:S:sonnet": _FULL_READ, "find:S:haiku": "SYNC_THROW", "find:S:haiku:retry": _FULL_READ}
+    out, log, prompts = _harness(_ARGS, once)
+    assert "find:S:haiku:retry" in prompts and "find:S:haiku null — retried: recovered" in log, log
+    twice = {"find:S:sonnet": _FULL_READ, "find:S:haiku": "SYNC_THROW", "find:S:haiku:retry": "SYNC_THROW"}
+    out, log, _ = _harness(_ARGS, twice)
+    assert out["dropped_slices"] == 0 and _seat(out, "haiku")["notes"] == (
+        "SEAT FAILED (null result, after one retry): seat find:S:haiku:retry threw at the call"
+    ), out
+
+
+def test_the_kept_error_is_the_first_non_blank_line_of_any_rejection() -> None:
+    """Review pass 1, A-S3 A-H2: a message that opens with a newline lost its cause (`split('\\n')[0]` is empty), and
+    a plain-object rejection read `[object Object]`. The first non-blank line is kept, and an object as JSON."""
+    src = _script()
+    start = src.index("function firstLine(e)")
+    body = src[start : src.index("\n}\n", start) + 2]
+    calls = (
+        "[firstLine(new Error('\\n  cause here\\nstack')), firstLine({code: 1}), firstLine(undefined),"
+        " firstLine('x'.repeat(400)).length, firstLine(new Error('one\\ntwo'))]"
+    )
+    probe = body + f"\nconsole.log(JSON.stringify({calls}))"
+    proc = subprocess.run(
+        ["node", "--input-type=module", "-e", probe],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        stdin=subprocess.DEVNULL,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert json.loads(proc.stdout) == ["cause here", '{"code":1}', "", 300, "one"], proc.stdout
+
+
 def test_every_finder_null_fails_the_launch() -> None:
     """feedback row 1790707386 (W-b36e2a4a): a pass whose every finder came back null — two of the five such runs on
     the box died on a disabled subscription — returned an all-dropped ledger that read like failed seats, which the
@@ -2342,10 +2384,13 @@ def test_every_finder_null_fails_the_launch() -> None:
     check, with at most three distinct seat errors and a count of the rest."""
     _, err, _ = _harness(_ARGS, {}, expect_fail=True)
     assert "AGENT CALLED find:S:haiku:retry" in err and "AGENT CALLED find:S:sonnet:retry" in err, err
-    line = [x for x in err.splitlines() if "every finder seat returned nothing" in x]
-    assert line and "(2 finder seat(s) over 1 slice(s))" in line[0] and "nothing was reviewed" in line[0], err[-800:]
-    assert "disabled Claude subscription access" in line[0] and "claude_rotate.py --status" in line[0], line
-    assert "seat errors" not in line[0], line
+    line = [x for x in err.splitlines() if x.startswith("Error: every finder seat returned nothing")]
+    assert line and "2 finder seat(s) over 1 slice(s)" in line[0] and "nothing was reviewed" in line[0], err[-800:]
+    assert "disabled Claude subscription access" in line[0] and "seat errors" not in line[0], line
+    # review pass 1, B-S1: `review_loop_ledger.py read` prints the run file's `error` (this line, "Error: " included)
+    # cut at 300 characters — the check before a relaunch must survive that cut
+    check = "claude_rotate.py --status"
+    assert check in line[0][:300], (line[0].find(check), len(line[0]))
     four = {
         **_ARGS,
         "slices": [
@@ -2358,7 +2403,7 @@ def test_every_finder_null_fails_the_launch() -> None:
         four, {lab + suf: "THROW" for lab in labels for suf in ("", ":retry")}, expect_fail=True
     )
     line = [x for x in err.splitlines() if "every finder seat returned nothing" in x][0]
-    assert "(4 finder seat(s) over 2 slice(s))" in line, line
+    assert "4 finder seat(s) over 2 slice(s)" in line, line
     assert line.count(":retry rejected") == 3 and "(+1 more)" in line, line
 
 

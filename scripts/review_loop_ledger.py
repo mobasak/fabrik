@@ -211,9 +211,17 @@ def workflow_state(run: Path) -> dict | None:
     res = doc.get("result")
     if not isinstance(res, dict):
         # W-b36e2a4a: a run that THREW (the review loop does when no finder returned anything) keeps its message
-        # in `error`; its first line is the cause the lead must read before relaunching
-        error = str(doc.get("error") or "").split("\n")[0].strip()[:300]
-        return {"status": status, "wait": False, "run_file": str(f), "result": False, "error": error}
+        # in `error`; its first NON-BLANK line is the cause and the check the lead reads before relaunching
+        # (review pass 1, B-S2: a message opening with a newline printed nothing)
+        lines = (ln.strip() for ln in str(doc.get("error") or "").splitlines())
+        error = next((ln for ln in lines if ln), "")[:300]
+        return {
+            "status": status,
+            "wait": False,
+            "run_file": str(f),
+            "result": False,
+            "error": error,
+        }
     slices = []
     for s in res.get("slices") or []:
         if not isinstance(s, dict):
@@ -1227,13 +1235,17 @@ def _check_out(out: Path, pins_dir: Path) -> Path:
     and symlinked parents resolved, so no spelling reaches the pins dir or a work tree around them (review pass 1)."""
     if not out.is_absolute():
         raise PinError(f"--out {out} is relative: name an absolute path under your scratch dir")
-    if os.path.lexists(out):  # before any resolving: a link AT --out (even dangling) is never followed
+    if os.path.lexists(
+        out
+    ):  # before any resolving: a link AT --out (even dangling) is never followed
         raise PinError(f"{out} already exists — stage builds a NEW tree")
     out = Path(os.path.realpath(out.parent)) / out.name
     if out.name != "arch":
         raise PinError(f"--out {out} must end in /arch: the recipe's later steps name SCRATCH/arch")
     if any(c in str(out) for c in "'\"\\") or any(c.isspace() for c in str(out)):
-        raise PinError(f"--out {out!r} holds a quote, a backslash or whitespace, which break the printed launcher")
+        raise PinError(
+            f"--out {out!r} holds a quote, a backslash or whitespace, which break the printed launcher"
+        )
     if os.path.lexists(out):
         raise PinError(f"{out} already exists — stage builds a NEW tree")
     scratch = out.parent
@@ -1246,14 +1258,23 @@ def _check_out(out: Path, pins_dir: Path) -> Path:
     if out.is_relative_to(home):
         raise PinError(f"--out {out} is under the home directory {home}")
     top = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"], cwd=scratch, capture_output=True, text=True, check=False
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=scratch,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if top.returncode == 0:
         ign = subprocess.run(
-            ["git", "check-ignore", "-q", str(out)], cwd=top.stdout.strip(), capture_output=True, check=False
+            ["git", "check-ignore", "-q", str(out)],
+            cwd=top.stdout.strip(),
+            capture_output=True,
+            check=False,
         )
         if ign.returncode != 0:
-            raise PinError(f"--out {out} is inside the work tree {top.stdout.strip()} and not ignored")
+            raise PinError(
+                f"--out {out} is inside the work tree {top.stdout.strip()} and not ignored"
+            )
     for side in ("home", "tmp"):
         if os.path.lexists(scratch / side) and not (scratch / side).is_dir():
             raise PinError(f"{scratch / side} exists and is not a directory")
@@ -1313,7 +1334,9 @@ def _overlay(arch: Path, rel: str, data: bytes) -> None:
         if cur.is_symlink():
             target = cur.resolve()
             if not target.is_relative_to(real) or not target.is_dir():
-                raise PinError(f"cannot overlay {rel}: {cur} is a link leaving the staged tree, or dangling")
+                raise PinError(
+                    f"cannot overlay {rel}: {cur} is a link leaving the staged tree, or dangling"
+                )
         elif cur.exists() and not cur.is_dir():
             cur.unlink()
         cur.mkdir(exist_ok=True)
@@ -1337,7 +1360,9 @@ def stage(pins_dir: Path, out: Path) -> dict:
     base_dir = Path(f"{pins_dir}.base")
     recorded = isinstance(base_sha, str) and doc.get("base_copy") == base_sha and base_dir.is_dir()
     if not recorded and not isinstance(base_sha, str):
-        raise PinError(f"{pins_dir}/MANIFEST.json records no base_sha and no base copy: nothing to stage from")
+        raise PinError(
+            f"{pins_dir}/MANIFEST.json records no base_sha and no base copy: nothing to stage from"
+        )
     scratch = out.parent
     for side in ("home", "tmp"):
         (scratch / side).mkdir(exist_ok=True)
@@ -1359,7 +1384,11 @@ def stage(pins_dir: Path, out: Path) -> dict:
         _writable(out)
         for f, b in blobs.items():
             _overlay(out, f, b)
-        bad = [f for f, b in blobs.items() if _md5(out / f) != hashlib.md5(b, usedforsecurity=False).hexdigest()]
+        bad = [
+            f
+            for f, b in blobs.items()
+            if _md5(out / f) != hashlib.md5(b, usedforsecurity=False).hexdigest()
+        ]
         if bad:
             raise PinError(f"md5 mismatch after the overlay: {', '.join(bad)}")
     except (PinError, OSError, tarfile.TarError, subprocess.CalledProcessError) as exc:
@@ -1367,7 +1396,11 @@ def stage(pins_dir: Path, out: Path) -> dict:
             _unlock_and_remove(out)
         if isinstance(exc, PinError):
             raise
-        detail = exc.stderr.decode(errors="replace").strip() if isinstance(exc, subprocess.CalledProcessError) else exc
+        detail = (
+            exc.stderr.decode(errors="replace").strip()
+            if isinstance(exc, subprocess.CalledProcessError)
+            else exc
+        )
         raise PinError(f"cannot stage {out}: {detail}") from exc
     venv = root / ".venv" / "bin" / "python"
     python = str(venv) if venv.is_file() else sys.executable

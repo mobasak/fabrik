@@ -487,7 +487,20 @@ async function refuteSlice(r0) {
 // `.catch(() => null)` threw away, and the leading `Promise.resolve().then` catches a throw while the prompt is
 // built too. A seat that died on a terminal API error (a disabled subscription) resolves null with NO text — the
 // runtime keeps the cause in the seat transcript only — so `error` stays '' there.
-const firstLine = (e) => String((e && e.message) || e || '').split('\n')[0].trim().slice(0, 300)
+// the first NON-BLANK line, so a message opening with a newline keeps its cause; a plain-object rejection is
+// shown as JSON, never `[object Object]` (review pass 1, A-S3 A-H2)
+function firstLine(e) {
+  let raw = e && typeof e === 'object' && 'message' in e ? e.message : e
+  if (raw && typeof raw === 'object') {
+    try {
+      raw = JSON.stringify(raw)
+    } catch {
+      raw = Object.prototype.toString.call(raw)
+    }
+  }
+  const line = String(raw ?? '').split('\n').map((l) => l.trim()).find(Boolean) || ''
+  return line.slice(0, 300)
+}
 function findCall(s, m, retry) {
   return Promise.resolve()
     .then(() =>
@@ -578,8 +591,11 @@ if (droppedSlices) log(`DROPPED ${droppedSlices} of ${args.slices.length} slices
 if (finderOutcomes.length && finderOutcomes.every((o) => !o.returned)) {
   const errors = [...new Set(finderOutcomes.map((o) => o.error).filter(Boolean))]
   const named = errors.length ? `; seat errors: ${errors.slice(0, 3).join(' | ')}${errors.length > 3 ? ` (+${errors.length - 3} more)` : ''}` : ''
+  // the check comes right after the verdict: `review_loop_ledger.py read` prints this message's first line cut at
+  // 300 characters, and the check is what the lead needs before a relaunch (review pass 1, B-S1); the seat
+  // errors, of unbounded count, come last
   throw new Error(
-    `every finder seat returned nothing, even after its retry (${finderOutcomes.length} finder seat(s) over ${args.slices.length} slice(s)${droppedSlices ? `, ${droppedSlices} slice(s) also dropped by a throwing stage` : ''}) — nothing was reviewed and no ledger is returned${named}. Known causes: the account lost subscription access ("Your organization has disabled Claude subscription access"), a spent quota, a killed session, a script error (a seat error above names it). Before relaunching, read one seat transcript under this run's subagents/workflows/<runId>/ folder and run python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status`
+    `every finder seat returned nothing, even after its retry — nothing was reviewed, no ledger is returned. Before relaunching run python3 /opt/fabrik/scripts/sysadmin/claude_rotate.py --status and read one seat transcript under this run's subagents/workflows/<runId>/ folder. ${finderOutcomes.length} finder seat(s) over ${args.slices.length} slice(s)${droppedSlices ? `, ${droppedSlices} slice(s) also dropped by a throwing stage` : ''}. Known causes: the account lost subscription access ("Your organization has disabled Claude subscription access"), a spent quota or budget, a killed session, a script error (a seat error names it)${named}`
   )
 }
 const droppedSeats = slices.reduce((n, r) => n + r.seats.filter((s) => s.failed).length, 0)
