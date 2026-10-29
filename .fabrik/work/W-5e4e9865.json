@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T19:00:31.406510Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-5e4e9865",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M644A015508W1M22Z8SE0DS7",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: infra-kaizen-emitter-red"
+}
