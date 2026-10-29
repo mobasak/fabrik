@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — builders address the coordinator by a live name, never a remembered one (2026-10-29)
+- Both contracts' Session history bullet and the four builder charter files' Escalation paragraph (fleet, infra
+  with its infra-2/infra-3 symlinks, intel, kaizen) name the order: every `to=` name the latest
+  `work: coordinator (<role>)` prompt line prints, else every name `mail.py who <role>` prints, else a
+  `mail.py send --kind request --to-agent <role>` when no coordinator session is live (W-9bf5a363, D-1346).
+  Graded whole by `tests/test_coordinator_live_address_rule.py`.
+
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
   `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`

@@ -508,7 +508,12 @@ session-recall — structured rows beat lexical transcripts.
   command typed for you: once a rotation is due, start no new item, so the item in hand closing is the boundary;
   mid-item at 85% of the window, which the hook's `COMPACT-DUE` line reports, the coordinator sends a focused
   `/compact` instead. No agent can type a slash command into its own prompt: at the boundary a builder
-  messages its coordinator `rotate <name>` and waits for the keys; the coordinator — for whom the ask is not a work
+  messages its coordinator `rotate <name>` and waits for the keys, sending the request to every `to=` name the latest
+  `work: coordinator (<role>)` line of its prompt block prints (one may be stale when several are listed), else to
+  every name `python3 scripts/mail.py who <role>` prints (`<role>` is the role that line names, the `distributor` in
+  `.fabrik/work/config.json`), else, when neither names a live session, by `python3 scripts/mail.py send --to <this
+  repo> --kind request --to-agent <role>`, and never to a session name kept in its notes, since the coordinator's
+  session name changes when it rotates (D-1337); the coordinator — for whom the ask is not a work
   item — rotates that pane only when it is at its prompt with an empty input line, else aborts, never queues
   — with `/opt/fabrik/scripts/sysadmin/agents_up.sh rotate-session <name>` (`--compact "<focus>"` for the focused
   `/compact`) run from the repo's main checkout, never by hand over tmux (D-1143, D-1172). The verb refuses unless
