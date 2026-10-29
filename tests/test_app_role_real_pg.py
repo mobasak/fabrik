@@ -134,17 +134,17 @@ def scratch_pg() -> Iterator[ScratchPg]:
             pytest.fail(f"docker pull {_IMAGE} failed: {pulled.stderr.strip()}")
     name = f"fabrik-t02-pg-{uuid.uuid4().hex[:10]}"
     su_pw = "".join(secrets.choice(string.ascii_letters + string.digits) for _ in range(32))
-    started = subprocess.run(
-        ["docker", "run", "-d", "--rm", "--name", name, "-e", "POSTGRES_PASSWORD", _IMAGE],
-        capture_output=True,
-        text=True,
-        timeout=120,
-        check=False,
-        env={**os.environ, "POSTGRES_PASSWORD": su_pw},
-    )
-    if started.returncode != 0:
-        pytest.fail(f"docker run {_IMAGE} failed: {started.stderr.strip()}")
     try:
+        started = subprocess.run(
+            ["docker", "run", "-d", "--rm", "--name", name, "-e", "POSTGRES_PASSWORD", _IMAGE],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+            env={**os.environ, "POSTGRES_PASSWORD": su_pw},
+        )
+        if started.returncode != 0:
+            pytest.fail(f"docker run {_IMAGE} failed: {started.stderr.strip()}")
         deadline = time.monotonic() + _READY_TIMEOUT_S
         while True:
             # -h 127.0.0.1: the init-phase server listens on the socket only, so a
@@ -162,9 +162,9 @@ def scratch_pg() -> Iterator[ScratchPg]:
             time.sleep(0.5)
         yield ScratchPg(name)
     finally:
-        # -v: the image's anonymous data volume goes with the container. Without it this
-        # `rm -f` races `--rm`'s own removal, and whenever it wins the volume is kept
-        # (W-2786800d: 4,171 kept volumes, 232 GB, filled the WSL disk).
+        # -v: the image's anonymous data volume goes with the container. A plain `rm -f`
+        # removes the running container itself and keeps that volume; `--rm` would have
+        # removed it only on the container's own exit (W-2786800d).
         subprocess.run(
             ["docker", "rm", "-f", "-v", name], capture_output=True, check=False, timeout=120
         )
@@ -673,12 +673,26 @@ def test_scratch_pg_leaves_no_anonymous_data_volume_behind() -> None:
             check=True,
         ).stdout.split()
     assert mounts, "the premise: postgres:18.6-alpine mounts an anonymous data volume"
-    left = [
-        v
-        for v in mounts
-        if subprocess.run(
-            ["docker", "volume", "inspect", v], capture_output=True, timeout=60, check=False
-        ).returncode
-        == 0
-    ]
+
+    def _present(volume: str) -> bool:
+        # Only "no such volume" means gone; a daemon or permission error must not read as gone.
+        res = subprocess.run(
+            ["docker", "volume", "inspect", volume],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+        if res.returncode == 0:
+            return True
+        if "no such volume" in res.stderr.lower():
+            return False
+        pytest.fail(f"docker volume inspect {volume} failed: {res.stderr.strip()}")
+
+    # A removal `--rm` started first deletes the volume a moment AFTER the teardown returns.
+    deadline = time.monotonic() + 15
+    left = [v for v in mounts if _present(v)]
+    while left and time.monotonic() < deadline:
+        time.sleep(0.5)
+        left = [v for v in left if _present(v)]
     assert not left, f"scratch_pg left its data volume(s) behind: {left}"

@@ -6,12 +6,13 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — the real-Postgres test fixture no longer leaks a 50 MB volume per container (2026-10-29)
 - `tests/test_app_role_real_pg.py::scratch_pg` tore its container down with `docker rm -f`, which
-  raced the container's own `--rm` removal; whenever it won, the image's anonymous data volume was
-  kept (W-2786800d). 4,171 such volumes (232 GB) built up from 2026-09-24 and filled the WSL disk
-  to 97%. The teardown is now `docker rm -f -v`, guarded by
-  `test_scratch_pg_leaves_no_anonymous_data_volume_behind` (red on the old teardown).
-  `tests/test_docusaurus_static_runtime.py` takes the same flag. The kept volumes are removed only
-  on the operator's word, as an explicit list.
+  removes the running container itself and keeps the image's anonymous data volume, so every
+  container it started left one PostgreSQL 18 data volume behind (W-2786800d). It was the live
+  half of the anonymous volumes that filled the WSL disk to 97% (the PostgreSQL 16 half came from
+  an older generator that stopped on 2026-10-21). The teardown is now `docker rm -f -v`, and
+  `docker run` sits inside the `try`. `test_scratch_pg_leaves_no_anonymous_data_volume_behind`
+  guards it (red on the old teardown); it reads only "no such volume" as gone and waits out an
+  in-flight `--rm` removal. `tests/test_docusaurus_static_runtime.py` takes the same flag.
 
 ### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)
 - `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the
