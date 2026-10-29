@@ -1591,7 +1591,8 @@ def _generate_docker_compose(
     resources = spec.get("resources", {})
     memory = resources.get("memory", "256M") if isinstance(resources, dict) else "256M"
     # The CPU limit was dropped here, so a docker-sourced service ran unlimited (W-f01710a0). An absent cpu takes
-    # the `Resources` default, as the template path's `Spec` does; the raw dict is held to the same grammar.
+    # the `Resources` default, as the template path's `Spec` does, and the cpu is held to the same grammar. A
+    # non-mapping `resources` defaults both values here, as memory always did; apply's validator refuses it first.
     default_cpu = Resources.model_fields["cpu"].default
     cpu = resources.get("cpu", default_cpu) if isinstance(resources, dict) else default_cpu
     if not cpu_in_grammar(cpu):

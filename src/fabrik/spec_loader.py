@@ -5,7 +5,6 @@ This module is the single source of truth for spec file schema.
 All spec files are validated against Pydantic models before use.
 """
 
-import math
 import re
 from enum import Enum
 from pathlib import Path
@@ -22,24 +21,27 @@ character that would break where the path is pasted — `'` (the single-quoted U
 probes), `"` and `\\` (the double-quoted YAML items), `$` (compose interpolation), `#`, a backtick, braces
 and whitespace. `&`, `;` and parentheses are admitted, so both shell probes single-quote the URL."""
 
-CPU_RE = re.compile(r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)?")
-"""A ``resources.cpu`` value (fullmatch, W-f01710a0): a plain ASCII decimal. Compose 2.40.3 reads ``0_5`` as 5
-CPUs, ``0`` as no limit and ``-1`` as -1 without complaint, so the template path, the apply validator and the
-docker-image emitter all refuse anything else through :func:`cpu_in_grammar`."""
+CPU_RE = re.compile(r"(?:0|[1-9][0-9]{0,3})(?:\.[0-9]{1,2})?")
+"""A ``resources.cpu`` value (fullmatch, W-f01710a0): a plain ASCII decimal of at most 4 integer and 2 fraction
+digits. Compose 2.40.3 reads ``0_5`` as 5 CPUs, ``0`` as no limit and ``-1`` as -1 without complaint, so the
+template path, the apply validator and the docker-image emitter all refuse anything else through
+:func:`cpu_in_grammar`. Two decimals is the daemon floor's step (0.01), and compose reads ``cpus`` as a 32-bit
+float (``0.123456789`` comes back ``0.12345679``), which holds a value of this grammar exactly."""
 
 CPU_GRAMMAR_MESSAGE = (
-    "resources.cpu must be a quoted plain decimal CPU count of at least 0.01, e.g. '0.5'"
+    "resources.cpu must be a quoted plain decimal CPU count from 0.01 to 1024 "
+    "with at most 2 decimals, e.g. '0.5'"
 )
 
 
 def cpu_in_grammar(value: object) -> bool:
-    """True for a str in :data:`CPU_RE` that is finite and at least 0.01 (Docker's minimum). No upper bound:
-    Docker refuses more CPUs than the host has at ``up``. A YAML float (a bare ``0.5``) is refused, as the
-    ``str`` field always did on the Spec path."""
+    """True for a str in :data:`CPU_RE` from 0.01 to 1024. The floor is the Docker daemon's ("Range of CPUs
+    is from 0.01 to N", N its CPU count). The 1024 ceiling only refuses absurd values: compose parses ``cpus``
+    before the daemon sees it, and reads a 300-digit value as +Inf. A YAML float (a bare ``0.5``) is refused,
+    as the ``str`` field always did on the Spec path."""
     if not isinstance(value, str) or not CPU_RE.fullmatch(value):
         return False
-    number = float(value)
-    return math.isfinite(number) and number >= 0.01
+    return 0.01 <= float(value) <= 1024
 
 
 POSTGRES_IDENT_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")

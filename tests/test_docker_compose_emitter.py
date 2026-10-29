@@ -78,10 +78,17 @@ def test_no_command_and_wget_healthcheck_when_neither_set() -> None:
 
 # resources.cpu (W-f01710a0): the emitter wrote only memory, so a docker-sourced service ran with no CPU limit.
 # Compose 2.40.3 also reads "0_5" as 5 CPUs, "0" as no limit and "-1" as -1, so the emitter, the apply validator
-# and the `Resources` model (the template path) hold one grammar: a quoted plain decimal, finite, at least 0.01
-# (Docker's minimum). The good values are the box's census plus the floor.
-_GOOD_CPUS = ["0.5", "1.0", "0.1", "4.0", "2", "0.25", "0.01"]
+# and the `Resources` model (the template path) hold one grammar: a quoted plain decimal from 0.01 (the Docker
+# daemon's floor) to 1024 with at most 2 decimals. The good values are every value the box's specs carry ("0.5",
+# "1.0", "0.1", "4.0", "1", "2") plus the grammar's edges, each read back by compose as the same number.
+_GOOD_CPUS = ["0.5", "1.0", "0.1", "4.0", "1", "2", "0.01", "0.25", "1023.99", "1024", "1024.00"]
 _BAD_CPUS = [
+    "1024.01",
+    "1025",
+    "10000",
+    "0.125",
+    "0.123456789",
+    "1" + "0" * 30,
     "7_7",
     "0",
     "0.0",
@@ -113,9 +120,14 @@ def _message() -> str:
 
 
 def _compose_cpus(compose: str, tmp_path: Path) -> float | None:
-    """The CPU limit compose itself reads from the emitted file (`docker compose config`), never a text match."""
+    """The CPU limit compose itself reads from the emitted file (`docker compose config`); on a box without docker,
+    the quoted `cpus` the YAML holds, so the behaviour is still graded there rather than skipped."""
+    import yaml
+
+    parsed = yaml.safe_load(compose)["services"]["zitadel"]["deploy"]["resources"]["limits"]
+    assert isinstance(parsed.get("cpus"), str), "no quoted cpus under deploy.resources.limits"
     if shutil.which("docker") is None:
-        pytest.skip("docker compose is not installed")
+        return float(parsed["cpus"])
     path = tmp_path / "compose.yaml"
     path.write_text(compose.replace("    env_file: .env\n", ""))  # no .env beside it in tmp
     out = subprocess.run(

@@ -380,8 +380,10 @@ class SpecValidator:
             raise ValidationError(
                 "source.image_command must be a string", field="source.image_command"
             )
-        # `resources.cpu` reaches compose as `cpus` on both deploy paths, and compose reads "0_5" as 5 CPUs and
-        # "0" as no limit — the `Resources` grammar, checked here on the raw dict (W-f01710a0).
+        # `resources.cpu` reaches compose as `cpus` on the template and docker-image paths, and compose reads
+        # "0_5" as 5 CPUs and "0" as no limit — the `Resources` grammar, checked here on the raw dict
+        # (W-f01710a0). A git or local source runs its own compose and ignores the value; it is held to the
+        # grammar anyway, as its `Spec` is (`Resources`), so one spec never passes one reader and fails another.
         if "resources" in spec:
             resources = spec["resources"]
             if not isinstance(resources, dict):
