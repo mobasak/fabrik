@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-29T16:56:20.907215Z",
   "creator": "infra",
-  "evidence": "ISO W43 tally (UTC days 2026-10-19..25, box-wide ~/.claude/state/events): python3 -I .tmp/runs/2120abbd-8311-45a8-9e5f-feb656f7bcc2/fabrik-review-scoped-2026-10-29T19-57-47-0300/stop_tally_w43.py coordinator — coordinator 878 blocked / 146 warned_through (all with empty action) / 98 stood_down; code read at d2dcbc885",
+  "evidence": "Measured 2026-10-29 over every ~/.claude/state/events/*.jsonl line with event==stop_block and ts[:10] in [2026-10-19, 2026-10-26) (ISO W43, UTC, box-wide), grouped by cause x outcome x action: cause coordinator = 878 blocked / 146 warned_through (all 146 with no action) / 98 stood_down; no coordinator event carries an fp or subject key; hook lines read at commit d2dcbc885",
   "id": "W-dc65dae2",
   "kind": "backlog",
   "legacy": false,
@@ -11,10 +11,10 @@
     "plan": "",
     "spec": ""
   },
-  "next": "record the blocked item's fingerprint on BOTH coordinator events: keep the fp beside _COORD_LAST_ACTION where it is set (final_gate_stop.py:2752 and :2805), emit subject=<fp> and action= on the blocked event (:5507-5513) and on the warned_through event (:5521-5523), plus attempt=CAP on warned_through like every other cause; grader asserts both emitted rows carry them; full /fabrik-review (synced hook); then re-tally W44 by subject",
+  "next": "record the blocked item's fingerprint on BOTH coordinator events: keep the fp beside _COORD_LAST_ACTION where it is set (final_gate_stop.py:2752 and :2805), emit subject=<fp> and action= on the blocked event (:5507-5513) and on the warned_through event (:5521-5523), plus attempt= on both (attempt=CAP on warned_through; on blocked, the attempt returned out of _coordinator_ladder and _coordinator_duty) like every other cause; grader asserts both emitted rows carry them; full /fabrik-review (synced hook); then re-tally W44 by subject",
   "note": "",
   "owner": "",
   "priority": 2,
   "status": "open",
-  "title": "Kaizen W43: no coordinator Stop event records the item it blocked on — the blocked event carries only action= (.claude/hooks/final_gate_stop.py:5512) and the warned_through event not even that (:5521-5523), so which item 146 warned-through events of ISO W43 gave up on is recoverable only by joining each session's earlier blocked rows"
+  "title": "Kaizen W43: no coordinator Stop event records the item it blocked on — the blocked event carries only action= (.claude/hooks/final_gate_stop.py:5512) and the warned_through event not even that (:5521-5523), so for the 146 warned-through events of ISO W43 the action is recoverable only by joining each session's earlier blocked rows, and the item from no event at all"
 }
