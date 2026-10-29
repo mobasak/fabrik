@@ -957,15 +957,36 @@ def _fm_hops(fm: dict) -> int:
         return 0
 
 
+def _fm_agent(fm: dict) -> str:
+    """A message's `from-agent`, or "" unless it is a hub agent (a beat or `<beat>-<N>`).
+
+    The one rule the hub mailbox's guards trust an agent by — the reply addressing in `send`
+    trusts a parent's from-agent by the same `is_hub_agent` test (W-19b57b9a). Everything else
+    (absent, blank, `.`, `infra.`, a free-form project role) reads as UNATTRIBUTED, which the
+    self-guard holds on and the rate count puts in every bucket — the closed direction both ways."""
+    value = str(fm.get("from-agent", "") or "").strip()
+    return value if is_hub_agent(value) else ""
+
+
 def _recent_from_count(
-    repo: str, sender: str, window_s: int, now_ts: float, root: Path | None = None
+    repo: str,
+    sender: str,
+    window_s: int,
+    now_ts: float,
+    root: Path | None = None,
+    *,
+    agent: str = "",
 ) -> int:
     """Messages from ``sender`` in ``repo``'s inbox+archive younger than the
     window. The mailbox IS the state (zero-infra, 12F-VI) — the digest walk
     pattern but READ-ONLY: a malformed file is SKIPPED, never quarantined
     (digest owns that repair); an unreadable file is skipped; age == window is
     OUT of the window. In practice is_dir() + glob swallow most dir errors —
-    the caller's OSError fail-soft remains as defense-in-depth, not a hot path."""
+    the caller's OSError fail-soft remains as defense-in-depth, not a hot path.
+
+    ``agent`` (the hub mailbox's per-agent bucket, W-19b57b9a) narrows the count to messages whose
+    `_fm_agent` is that agent OR unattributed: an unattributed message counts in EVERY bucket, so
+    the split can only over-count it. "" counts every message from ``sender`` (the repo bucket)."""
     base = (root or _mail_root()) / repo
     total = 0
     for sub in ("inbox", "archive"):
@@ -989,6 +1010,8 @@ def _recent_from_count(
                 continue
             if fm is None or fm.get("from") != sender:
                 continue
+            if agent and _fm_agent(fm) not in (agent, ""):
+                continue
             ts = _ts_epoch(fm.get("ts", ""))
             if ts is None:
                 continue  # unparseable ts → not counted (under-count = fail-soft)
@@ -999,12 +1022,29 @@ def _recent_from_count(
 
 
 def should_auto_reply(
-    parent_fm: dict, self_repo: str, *, now_ts: float | None = None, root: Path | None = None
+    parent_fm: dict,
+    self_repo: str,
+    *,
+    now_ts: float | None = None,
+    root: Path | None = None,
+    self_agent: str = "",
 ) -> tuple[bool, str]:
     """The four loop-safety guards, evaluated against the PARENT being replied
     to. Order: self → terminal-kind → hop-cap → rate-cap → ALLOW; first trip
     wins and names the reason. Fail-soft: an uncomputable rate count ALLOWs
-    with a stderr note (a loop is lower-risk than a wedged channel)."""
+    with a stderr note (a loop is lower-risk than a wedged channel).
+
+    ``self_agent`` is the replier's agent. In the hub's shared mailbox — keyed on the LITERAL
+    "fabrik", as the addressing guard is — every agent's mail is `from: fabrik`, so the repo alone
+    held every intra-hub reply as "your own" and put every agent in one rate bucket (W-19b57b9a).
+    There a parent from the same mailbox passes the self-guard only when both sides are hub agents
+    and differ, and its rate bucket is its agent's. Anything else — an unknown or non-hub agent on
+    either side, another mailbox, a caller passing none — keeps the repo rule exactly.
+
+    ⚠️ COBRA (D-253), stated: `from-agent` is self-attested like `--from` (the circuit-breaker
+    note in docs/reference/fabrik-mail.md), so a wrapper that rotates CLAUDE_AGENT across hub
+    names splits its bucket — bounded by the hub agent grammar, and a loop is still broken by the
+    terminal-kind guard (an auto-reply is a `reply`) and the hop cap."""
     _safe_name(self_repo, "repo")  # L9: keep the traversal guard on this public entry
     sender = str(parent_fm.get("from", "") or "").strip()
     if not sender:
@@ -1015,11 +1055,23 @@ def should_auto_reply(
             False,
             "HOLD: parent has no from — the self-guard and rate cap cannot attribute it",
         )
+    bucket = ""  # the rate bucket's agent; "" = the repo-wide bucket
     if sender == self_repo:
-        return (
-            False,
-            f"self-guard: parent is from {self_repo} itself — never auto-reply to your own message",
-        )
+        hub = self_repo == "fabrik"
+        theirs = _fm_agent(parent_fm)
+        mine = self_agent if is_hub_agent(self_agent) else ""
+        if not (hub and theirs and mine and theirs != mine):
+            who = (
+                f" (parent from-agent {theirs or 'unknown'}, yours {mine or 'unknown'})"
+                if hub
+                else ""
+            )
+            return (
+                False,
+                f"self-guard: parent is from {self_repo} itself{who} — never auto-reply to "
+                "your own message",
+            )
+        bucket = theirs
     # R2: key on the KIND, never the ack proxy — --ack is a free override, so
     # a reply minted with ack:required would otherwise beget replies forever.
     if parent_fm.get("kind", "") not in ("request", "upstream-feedback") or (
@@ -1045,6 +1097,7 @@ def should_auto_reply(
             _env_cap("FABRIK_MAIL_RATE_WINDOW_S", RATE_WINDOW_S, minimum=1),
             now_ts,
             root,
+            agent=bucket,
         )
     except OSError as exc:
         print(f"mail.py: rate count unavailable ({exc!r}) — fail-soft ALLOW", file=sys.stderr)
@@ -1055,7 +1108,8 @@ def should_auto_reply(
     rate_cap = _env_cap("FABRIK_MAIL_RATE_CAP", RATE_CAP)
     if recent >= rate_cap:
         return False, (
-            f"rate cap: {recent} message(s) from {sender} within the window >= {rate_cap} — "
+            f"rate cap: {recent} message(s) from {sender}{f'/{bucket}' if bucket else ''} within "
+            f"the window >= {rate_cap} — "
             "circuit-broken; surface to the operator"
         )
     return True, "ALLOW"
@@ -1373,6 +1427,9 @@ def send(
             parent_unreadable = True  # C2: EXISTS but unreadable ≠ missing
         parent = _parse(parent_raw) if parent_raw is not None else None
     hops = (_fm_hops(parent) + 1) if parent is not None else 0
+    # Resolved ONCE: the self-guard below and this message's own `from-agent:` must name the same
+    # agent, or a session could fail to recognise its own tag (W-19b57b9a).
+    sender_role = _sender_role()
     if auto:
         if not re:
             raise MailRefusedError(
@@ -1397,7 +1454,7 @@ def send(
                 file=sys.stderr,
             )
         else:
-            ok, reason = should_auto_reply(parent, frm)
+            ok, reason = should_auto_reply(parent, frm, self_agent=sender_role)
             if not ok:
                 raise MailHoldError(f"auto-reply HOLD — {reason}")
     if level == "low":
@@ -1546,7 +1603,7 @@ def send(
         body,
         hops=hops,
         agent=to_agent,
-        from_agent=_sender_role(),
+        from_agent=sender_role,
         extra=tuple(routed),
     )
     return _publish(_mail_root() / to / "inbox", mid, content)
@@ -3238,7 +3295,7 @@ def main(argv: list[str] | None = None) -> int:
             if parent_fm is None:
                 print("HOLD: parent exists but is unparseable — guards cannot be evaluated")
                 return 3
-            ok, reason = should_auto_reply(parent_fm, repo)
+            ok, reason = should_auto_reply(parent_fm, repo, self_agent=_sender_role())
             print("ALLOW" if ok else f"HOLD: {reason}")
             return 0 if ok else 3
     except MailHoldError as exc:

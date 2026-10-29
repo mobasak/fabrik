@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A scope condition written twice hides from every single mutant (2026-10-29, W-19b57b9a)
+
+**What happened:** the hub-only self-guard first checked `self_repo == "fabrik"` on BOTH sides it compared (the parent's agent and the caller's). Deleting either check alone changed nothing, because the other one still emptied the comparison, so two mutants survived a battery that killed everything else. The tests were complete; the code made each half redundant.
+
+**Lesson:** a scope test that gates a decision belongs in ONE place, joined into the decision itself (`if not (hub and …)`), never repeated on each input. A survivor whose deletion "should" matter is a sign of duplicated logic before it is a sign of a missing test, so restructure first, then re-run the battery.
+
 ## A hold written for a reason must end when the reason does (2026-10-29, W-0fe931b7)
 
 **What happened:** the one-major rule holds every other major with `assign --blocked-by <the in-flight major>`. A later re-score turned nine of those majors into quick wins, but `blocked_by` carries no reason and the re-score never looked at it, so the items sat unclaimable for 11 days while their priority said P1.

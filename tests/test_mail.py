@@ -870,6 +870,133 @@ def test_should_reply_cli_exit_codes(env, capsys):
     assert rc == 3 and "HOLD" in capsys.readouterr().out
 
 
+# --- W-19b57b9a: in the hub mailbox the guards key on (from, from-agent) ----------------------
+# Every hub agent's mail is `from: fabrik`, so before this the self-guard held EVERY intra-hub
+# --auto reply as "your own message" and every agent shared one rate bucket. The caller's agent is
+# stubbed through `mail._caller_agent`: whoami falls back to the session binding store, so an unset
+# CLAUDE_AGENT alone would still resolve the runner's own agent inside a Claude session.
+def _mint_agent(
+    env, frm, to, agent, ts="2026-08-22T11:30:00+00:00", kind="request", ack="required"
+):
+    """`_mint` plus a `from-agent:` line (none when `agent` is None)."""
+    mid = _mint(env, frm, to, kind, ack, ts=ts)
+    if agent is not None:
+        p = env["mail_root"] / to / "inbox" / f"{mid}.md"
+        text = p.read_text(encoding="utf-8")
+        p.write_text(
+            text.replace(f"from: {frm}\n", f"from: {frm}\nfrom-agent: {agent}\n", 1),
+            encoding="utf-8",
+        )
+    return mid
+
+
+def _hub_parent(agent, frm="fabrik"):
+    fm = {"from": frm, "kind": "request", "ack": "required", "hops": "0"}
+    if agent is not None:
+        fm["from-agent"] = agent
+    return fm
+
+
+def test_self_guard_passes_a_sibling_agents_parent(env):
+    """A fleet request in the shared hub mailbox, auto-replied by infra, is not infra's own message."""
+    for parent_agent, me in (("fleet", "infra"), ("infra-2", "infra"), ("coordinator", "kaizen")):
+        ok, reason = mail.should_auto_reply(_hub_parent(parent_agent), "fabrik", self_agent=me)
+        assert ok, (parent_agent, me, reason)
+
+
+def test_self_guard_holds_your_own_agents_parent(env):
+    for parent_agent in ("infra", " infra "):
+        ok, reason = mail.should_auto_reply(_hub_parent(parent_agent), "fabrik", self_agent="infra")
+        assert not ok and "self-guard" in reason, (parent_agent, reason)
+
+
+def test_self_guard_holds_when_an_agent_is_unknown(env):
+    """No from-agent, a non-hub one, or a caller that is no hub agent cannot tell the two apart: HOLD."""
+    parents = (None, "", "   ", ".", "..", "infra.", "Infra", "FLEET", "wef1", "a b", "infra-0")
+    for parent_agent in parents:
+        ok, reason = mail.should_auto_reply(_hub_parent(parent_agent), "fabrik", self_agent="infra")
+        assert not ok and "self-guard" in reason, (parent_agent, reason)
+    for me in ("", "Infra", "wef1", ".."):
+        ok, reason = mail.should_auto_reply(_hub_parent("fleet"), "fabrik", self_agent=me)
+        assert not ok and "self-guard" in reason, (me, reason)
+    ok, reason = mail.should_auto_reply(_hub_parent("fleet"), "fabrik")  # no self_agent at all
+    assert not ok and "self-guard" in reason
+
+
+def test_intra_mailbox_rate_bucket_is_per_agent(env):
+    now_ts = mail.datetime.fromisoformat("2026-08-22T12:00:00+00:00").timestamp()
+    for _ in range(5):
+        _mint_agent(env, "fabrik", "fabrik", "kaizen")
+    # five kaizen messages never count against a fleet parent...
+    ok, reason = mail.should_auto_reply(
+        _hub_parent("fleet"), "fabrik", now_ts=now_ts, self_agent="infra"
+    )
+    assert ok, reason
+    # ...but they do against a kaizen parent
+    ok, reason = mail.should_auto_reply(
+        _hub_parent("kaizen"), "fabrik", now_ts=now_ts, self_agent="infra"
+    )
+    assert not ok and "rate" in reason, reason
+    # unattributed hub messages count in EVERY bucket: 3 fleet + one from-agent the hub grammar
+    # refuses (unattributed, never its own bucket) stay under the cap; one more unattributed reaches it
+    for _ in range(3):
+        _mint_agent(env, "fabrik", "fabrik", "fleet")
+    _mint_agent(env, "fabrik", "fabrik", "infra.")
+    ok, _ = mail.should_auto_reply(
+        _hub_parent("fleet"), "fabrik", now_ts=now_ts, self_agent="infra"
+    )
+    assert ok
+    _mint_agent(env, "fabrik", "fabrik", None)
+    ok, reason = mail.should_auto_reply(
+        _hub_parent("fleet"), "fabrik", now_ts=now_ts, self_agent="infra"
+    )
+    assert not ok and "rate" in reason, reason
+    assert mail._recent_from_count("fabrik", "fabrik", 3600, now_ts, agent="fleet") == 5
+    assert mail._recent_from_count("fabrik", "fabrik", 3600, now_ts) == 10  # the repo-wide count
+
+
+def test_other_mailboxes_keep_the_repo_rule(env):
+    """A project mailbox self-guards on the repo alone, and a cross-repo sender's bucket ignores
+    from-agent — the per-agent rule is the hub mailbox's only."""
+    ok, reason = mail.should_auto_reply(
+        _hub_parent("fleet", frm="proj"), "proj", self_agent="infra"
+    )
+    assert not ok and "self-guard" in reason, reason
+    now_ts = mail.datetime.fromisoformat("2026-08-22T12:00:00+00:00").timestamp()
+    for agent in ("fleet", "intel", "kaizen", "infra-2", None):
+        _mint_agent(env, "alpha", "fabrik", agent)
+    ok, reason = mail.should_auto_reply(
+        _hub_parent("fleet", frm="alpha"), "fabrik", now_ts=now_ts, self_agent="infra"
+    )
+    assert not ok and "rate" in reason, reason
+
+
+def test_auto_paths_pass_the_callers_agent(env, monkeypatch, capsys):
+    """`send --auto` and `should-reply` hand the caller's agent to the guards: a sibling's request
+    ALLOWs on both, and the same request read by its own author HOLDs on both."""
+    seen: list[str] = []
+    real = mail.should_auto_reply
+
+    def _recorder(parent_fm, self_repo, **kw):
+        seen.append(kw.get("self_agent", "<none>"))
+        return real(parent_fm, self_repo, **kw)
+
+    monkeypatch.setattr(mail, "should_auto_reply", _recorder)
+    monkeypatch.setattr(mail, "_caller_agent", lambda: "infra")
+    pid = _mint_agent(env, "fabrik", "fabrik", "fleet", ts=mail.datetime.now(mail.UTC).isoformat())
+    rc = mail.main(["should-reply", pid, "--repo", "fabrik"])
+    assert rc == 0 and "ALLOW" in capsys.readouterr().out
+    out = mail.send("fabrik", "reply", "x", frm="fabrik", re=pid, auto=True, to_agent="fleet")
+    assert out.is_file()
+    assert mail._parse(out.read_text(encoding="utf-8")).get("from-agent") == "infra"
+    monkeypatch.setattr(mail, "_caller_agent", lambda: "fleet")
+    rc = mail.main(["should-reply", pid, "--repo", "fabrik"])
+    assert rc == 3 and "self-guard" in capsys.readouterr().out
+    with pytest.raises(mail.MailHoldError, match="self-guard"):
+        mail.send("fabrik", "reply", "x", frm="fabrik", re=pid, auto=True, to_agent="fleet")
+    assert seen == ["infra", "infra", "fleet", "fleet"], seen
+
+
 # --- boundary-review fix wave (R1..R11) -------------------------------------
 def test_prose_re_never_breaks_a_send(env):
     """R1 (HIGH): legacy threads carry prose re: values (live store proof:

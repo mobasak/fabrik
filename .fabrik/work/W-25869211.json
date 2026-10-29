@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T08:05:35.677170Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-25869211",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "pass CLAUDE_AGENT=kaizen (or the collector's own name) in the env of the mail.py send at scripts/sysadmin/kaizen_collect_v2.py:~2608, with a test that the minted request carries from-agent",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "kaizen_collect_v2.py's daily-collection requests carry no from-agent (cron, no CLAUDE_AGENT), so after W-19b57b9a they still HOLD as self under --auto: 18 of the 25 replyable hub parents in 7 days"
+}
