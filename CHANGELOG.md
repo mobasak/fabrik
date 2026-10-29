@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — chrome-extension scaffold: lint plugins float on purpose, no lockfile or overrides (2026-10-29)
+
+- W-961f1958 asked for a lockfile or pnpm overrides against transitive lint drift; measured, the drift happened in 12 days and a fresh scaffold still lints clean, so neither ships (D-1322). The emission site's comment names the rule: fix the template first; a one-plugin override only for a broken plugin release, with a lift condition. W-fc58e9b7 (mobile template) carries the same rule once its lint runs green.
+
 ### Fixed — the payments ingest grant no longer re-widens its role when fabrik-lib changes the grant function's signature (2026-10-29)
 
 - `grant_payments_role(lane="ingest")` now RAISES when a `payments_grant_ingest` exists in any schema but `payments_grant_ingest(pg_catalog.regrole)` does not resolve on the search path, before the legacy DROP+CREATE blocks can run; the step is recorded failed and the hub constant must follow fabrik-lib (D-1321, W-d8505af5). The rename case is W-1af44851.

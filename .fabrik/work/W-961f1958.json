@@ -3,7 +3,7 @@
   "created": "2026-10-17T14:06:31.487336Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "b4046f44eebf3a02c2f426f6bcefaa781b6f7e5a",
   "id": "W-961f1958",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 re-score 2026-10-18: MEDIUM — scaffold lint can go red on fresh scaffold; no live failure today",
-  "status": "open",
+  "status": "done",
   "tags": [
     "medium"
   ],
