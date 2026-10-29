@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T19:58:53.602080Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-99e68bc2",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M64H34W3BD6X85J5WPKNQWCZ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: .windsurf/rules/core/design-system-template.md line 1519 gives two different blocks for the same alias shape. Its rule \"A namespaced slot whose value is a `var()` goes in `@theme static inline`\" covers `--color-surface-0: var(--surface-0)` (a `--color-*` name, a `var()` value), yet the same li"
+}
