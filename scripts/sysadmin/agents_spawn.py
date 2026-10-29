@@ -82,6 +82,8 @@ class Spawn:
     base: str = ""
     sid: str = ""
     scope: str = ""
+    # step 3's outcome: "" the grid was up, "up" the cold start restored it (exit 0), "empty" no builder (exit 3)
+    cold: str = ""
 
 
 def _git_env() -> dict[str, str]:
@@ -489,26 +491,40 @@ def preflight(ctx: Spawn) -> None:
         )
     _read_registry(root)
     ctx.base = resolve_base(root)
-    if _capped():
-        room, what = headroom()
-    elif os.environ.get("FABRIK_AGENTS_UNCAPPED") == "1":
-        print(
-            "agents_spawn: FABRIK_AGENTS_UNCAPPED=1 — the builder runs UNCAPPED (no user manager)",
-            file=sys.stderr,
-        )
-        room, what = box_available_bytes(), "the box's MemAvailable (no slice: uncapped)"
-    else:
+    check_headroom(1)
+
+
+def check_headroom(step: int, after: str = "") -> None:
+    """The headroom floor at `step`: the slice when capped, the box's MemAvailable under FABRIK_AGENTS_UNCAPPED=1 (said),
+    else a refusal. Under 2 GB refuses. `after` names what ran first (T08b's second measure, after the cold start)."""
+    try:
+        if _capped():
+            room, what = headroom()
+        elif os.environ.get("FABRIK_AGENTS_UNCAPPED") == "1":
+            print(
+                "agents_spawn: FABRIK_AGENTS_UNCAPPED=1 — the builder runs UNCAPPED (no user manager)",
+                file=sys.stderr,
+            )
+            room, what = box_available_bytes(), "the box's MemAvailable (no slice: uncapped)"
+        else:
+            room, what = -1, ""
+    except RefusedError as exc:
+        raise RefusedError(exc.reason, step) from None
+    if not what:
         raise RefusedError(
             "no systemd-run on PATH, or no systemd user manager answers — the builder would run uncapped; "
-            "set FABRIK_AGENTS_UNCAPPED=1 to start it anyway"
+            "set FABRIK_AGENTS_UNCAPPED=1 to start it anyway",
+            step,
         )
-    if what != SLICE:
+    if what != SLICE or after:
         print(
-            f"agents_spawn: headroom measured on {what}: {room / 1024**3:.1f} GB", file=sys.stderr
+            f"agents_spawn: headroom measured on {what}{after}: {room / 1024**3:.1f} GB",
+            file=sys.stderr,
         )
     if room < HEADROOM_FLOOR:
         raise RefusedError(
-            f"{what} has {room / 1024**3:.1f} GB headroom, under the 2 GB floor — retire a builder first"
+            f"{what} has {room / 1024**3:.1f} GB headroom{after}, under the 2 GB floor — retire a builder first",
+            step,
         )
 
 
@@ -562,8 +578,108 @@ def make_worktree(ctx: Spawn) -> None:
         raise RefusedError(f"git worktree add failed: {made.stderr.strip() or made.returncode}", 2)
 
 
+# ---- step 3: the cold start (T08b) --------------------------------------------------------------------------------
+# Spec § The delta D2 (3), D4's cold start, W-14219e6f points 1 and 7. agents_up.sh takes no lock, so calling it while
+# the agents lock is held cannot deadlock. COBRA (D-253): the cheapest way to "settle" without the outcome is to stop
+# waiting at once — so the wait only ends early on every restored pane reading `running`, and whatever it ends on, the
+# headroom is measured again before the launch (step 6); the settle wait itself refuses nothing.
+
+AGENTS_UP_TIMEOUT_S = 300
+SETTLE_POLL_S = 0.25
+SPAWN_VARS = ("FABRIK_SPAWN_NAME", "FABRIK_SPAWN_COORDINATOR", "FABRIK_SPAWN_ITEM")
+
+
+def session_name(root: str) -> str:
+    """agents_up.sh's `<S>`: the root's basename, every character outside [A-Za-z0-9_-] replaced by `-`."""
+    return re.sub(r"[^A-Za-z0-9_-]", "-", os.path.basename(root))
+
+
+def _agents_up_path() -> str:
+    """agents_up.sh — FABRIK_AGENTS_UP (tests run a fake), else this checkout's."""
+    return os.environ.get("FABRIK_AGENTS_UP") or str(HUB / "scripts" / "sysadmin" / "agents_up.sh")
+
+
+def _agents_up(step: int, *args: str, spawn: dict[str, str] | None = None):
+    """Run agents_up.sh with `args`. The FABRIK_SPAWN_* variables are the caller's to set for THIS call only (`spawn`);
+    any the environment carries are dropped, so a stale one never reaches another verb's first prompt."""
+    env = {k: v for k, v in os.environ.items() if k not in SPAWN_VARS}
+    env.update(spawn or {})
+    try:
+        return subprocess.run(
+            [_agents_up_path(), *args],
+            capture_output=True,
+            text=True,
+            timeout=AGENTS_UP_TIMEOUT_S,
+            check=False,
+            env=env,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise RefusedError(
+            f"agents_up.sh {args[0]} could not run: {type(exc).__name__}: {exc}", step
+        ) from None
+
+
+def _settle_s() -> float:
+    raw = os.environ.get("FABRIK_AGENTS_SETTLE_S") or "20"
+    try:
+        value = float(raw)
+    except ValueError:
+        raise RefusedError(f"FABRIK_AGENTS_SETTLE_S={raw!r} is not a number of seconds", 3) from None
+    if not value >= 0:  # also refuses nan
+        raise RefusedError(f"FABRIK_AGENTS_SETTLE_S={raw!r} is not a number of seconds", 3)
+    return value
+
+
+def _all_running(root: str) -> bool:
+    """`agents_up.sh --print <root>`: every `pane <name> <sid> <dir> <status>` line reads `running` (no builder at all,
+    exit 3, is settled too). A failed or unreadable report is not settled — the wait goes on to its bound."""
+    out = _agents_up(3, "--print", root)
+    if out.returncode == 3:
+        return True
+    if out.returncode != 0:
+        return False
+    states = [ln.split()[-1] for ln in out.stdout.splitlines() if ln.startswith("pane ")]
+    return all(s == "running" for s in states)
+
+
+def _settle(root: str) -> None:
+    """PF4: wait until every restored pane reads `running`, or FABRIK_AGENTS_SETTLE_S (20) seconds elapse."""
+    deadline = time.monotonic() + _settle_s()
+    while not _all_running(root):
+        left = deadline - time.monotonic()
+        if left <= 0:
+            print(
+                "agents_spawn: step 3 — the restored panes did not all read running in time; measuring anyway",
+                file=sys.stderr,
+            )
+            return
+        time.sleep(min(SETTLE_POLL_S, left))
+
+
 def cold_start(ctx: Spawn) -> None:
-    """D2 (3), D4 — T08b: start the whole grid first when the repo has no tmux session. Nothing yet."""
+    """D2 (3), D4: when the repo has no tmux session, `agents_up.sh --detach <root>` first. Exit 0 restored every
+    registered builder (wait for them to settle; step 6 measures again); exit 3 had no builder and started nothing
+    (step 6 runs --detach again once the binding exists); any other exit stops `add` here with its stderr."""
+    sess = session_name(ctx.root)
+    try:
+        up = _has_session(sess)
+    except RefusedError as exc:  # FABRIK_TMUX is not a command
+        raise RefusedError(exc.reason, 3) from None
+    if up:
+        return
+    out = _agents_up(3, "--detach", ctx.root)
+    if out.returncode == 0:
+        ctx.cold = "up"
+        print(f"agents_spawn: step 3 — no {sess} session: the grid was started with its builders")
+        _settle(ctx.root)
+    elif out.returncode == 3:
+        ctx.cold = "empty"
+        print(f"agents_spawn: step 3 — no {sess} session and no builder: {ctx.name} will start it")
+    else:
+        raise RefusedError(
+            f"agents_up.sh --detach exited {out.returncode}: {out.stderr.strip() or '(no stderr)'}",
+            3,
+        )
 
 
 def _bound_sid(ctx: Spawn) -> str:
@@ -593,7 +709,12 @@ def _write_registry_row(ctx: Spawn) -> None:
     # exactly one row for the name, the bound session's: a stale `{old: name}` row would resume a dead session
     reg = {sid: n for sid, n in reg.items() if n != ctx.name}
     reg[ctx.sid] = ctx.name
-    path = _registry_path(ctx.root)
+    _replace_registry(ctx.root, reg)
+
+
+def _replace_registry(root: str, reg: dict) -> None:
+    """Write `reg` as the registry by an atomic replace in its own directory, keeping the file's mode."""
+    path = _registry_path(root)
     try:
         mode = os.stat(path).st_mode & 0o7777
     except OSError:
@@ -1144,8 +1265,89 @@ def place_pane(root: str, sess: str, name: str, uuid: str, worktree: str, cmd: s
     return PlaceResult(wid, pane, new_k, False)
 
 
+def heal_registry(root: str, panes: list[_Pane]) -> None:
+    """PF3: re-point each `.fabrik/session-agents.json` row whose name has ONE live pane (tagged `@agent <name>`) whose
+    claude runs ONE session id other than the row's — a rotation that could not take the agents lock left the row on
+    the old id. PRECONDITION: the caller holds the repo's agents lock (`add` step 6; T09's verbs). No registry file:
+    nothing is touched. A name with no pane, two panes, no claude, two different ids, or a tree too large to read keeps
+    its row (said on stderr where a pane was seen). One atomic replace, only when a row changed."""
+    reg = _read_registry(root)
+    if reg is None:
+        return
+    healed = dict(reg)
+    for name in sorted(set(reg.values())):
+        tagged = [p for p in panes if p.agent == name]
+        if len(tagged) != 1:
+            continue
+        rows = [sid for sid, n in reg.items() if n == name]
+        try:
+            sids = _claude_sids(tagged[0].pane_id, tagged[0].pane_pid, rows[0])
+        except RefusedError as exc:
+            print(f"agents_spawn: registry row for {name} kept ({exc.reason})", file=sys.stderr)
+            continue
+        live = {s for s in sids if s}
+        if len(live) != 1 or live & set(rows):
+            continue
+        new = live.pop()
+        healed = {sid: n for sid, n in healed.items() if n != name}
+        healed[new] = name
+        print(
+            f"agents_spawn: registry row for {name} re-pointed {', '.join(rows)} -> {new} (its live pane's session)",
+            file=sys.stderr,
+        )
+    if healed != reg:
+        _replace_registry(root, healed)
+
+
 def place_and_launch(ctx: Spawn) -> None:
-    """D2 (6), D3, D4 — T08a/T08b: place the pane and launch `agents_up.sh --pane-cmd … --new`. Nothing yet."""
+    """D2 (6), D1, D4. After a cold start that found no builder, `agents_up.sh --detach` AGAIN makes the grid with this
+    builder as its first pane (it now resolves: binding and worktree in place, no transcript) — DONE, no place_pane.
+    Otherwise: the live read, adoption (a live pane of the name running its bound session is kept, whatever the
+    resolver would now say), the registry heal; then — after a cold start that restored the grid — headroom again;
+    then the ONE pane command `agents_up.sh --pane-cmd <root> <name> <sid> --new` handed to place_pane unchanged."""
+    root, name = ctx.root, ctx.name
+    facts = {"--coordinator": ctx.coordinator}
+    if ctx.item:
+        facts["--item"] = ctx.item
+    if ctx.cold == "empty":
+        spawn = {"FABRIK_SPAWN_NAME": name, "FABRIK_SPAWN_COORDINATOR": ctx.coordinator}
+        if ctx.item:
+            spawn["FABRIK_SPAWN_ITEM"] = ctx.item
+        out = _agents_up(6, "--detach", root, spawn=spawn)
+        if out.returncode != 0:
+            raise RefusedError(
+                f"agents_up.sh --detach (the grid's first pane, {name}) exited {out.returncode}: "
+                f"{out.stderr.strip() or '(no stderr)'}",
+                6,
+            )
+        print(f"agents_spawn: step 6 — the grid was started with {name} as its first pane")
+        return
+    sess = session_name(root)
+    panes = live_panes(sess)
+    adopted = _adopt(panes, name, ctx.sid)
+    try:
+        heal_registry(root, panes)
+    except (RefusedError, OSError) as exc:
+        reason = exc.reason if isinstance(exc, RefusedError) else str(exc)
+        raise RefusedError(f"the registry could not be healed: {reason}", 6) from None
+    if adopted is not None:
+        print(f"agents_spawn: step 6 — {name}'s live pane {adopted.pane_id} is adopted")
+        return
+    if ctx.cold == "up":
+        check_headroom(6, " after the cold start")
+    args = ["--pane-cmd", root, name, ctx.sid, "--new"]
+    for flag, value in facts.items():
+        args += [flag, value]
+    out = _agents_up(6, *args)
+    cmd = out.stdout.rstrip("\n")
+    if out.returncode != 0 or not cmd or "\n" in cmd:
+        raise RefusedError(
+            f"agents_up.sh --pane-cmd exited {out.returncode}: "
+            f"{out.stderr.strip() or ('(no stderr)' if out.returncode else 'no single command line')}",
+            6,
+        )
+    placed = place_pane(root, sess, name, ctx.sid, _worktree_dir(ctx), cmd)
+    print(f"agents_spawn: step 6 — {name} launched in pane {placed.pane_id} ({placed.window_id})")
 
 
 def regenerate_launchers(ctx: Spawn) -> None:
