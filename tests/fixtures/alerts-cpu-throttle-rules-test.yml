@@ -37,6 +37,39 @@ tests:
         values: "0+600x40"
       - series: 'container_cpu_cfs_throttled_periods_total{name="calm", instance="cadvisor:8080"}'
         values: "0+120x40"
+      # edgethr: 10 periods/s, 30% throttled — just over the threshold: fires (a threshold raised
+      # to 0.30 or more goes red)
+      - series: 'container_cpu_cfs_periods_total{name="edgethr", instance="cadvisor:8080"}'
+        values: "0+600x40"
+      - series: 'container_cpu_cfs_throttled_periods_total{name="edgethr", instance="cadvisor:8080"}'
+        values: "0+180x40"
+      # edgeactive: 1.2 periods/s, half throttled — just over the floor: fires (a floor raised to
+      # 1.2 or more goes red)
+      - series: 'container_cpu_cfs_periods_total{name="edgeactive", instance="cadvisor:8080"}'
+        values: "0+72x40"
+      - series: 'container_cpu_cfs_throttled_periods_total{name="edgeactive", instance="cadvisor:8080"}'
+        values: "0+36x40"
+      # edgefloor: 0.98 periods/s, half throttled — just under the floor: silent (a floor lowered
+      # to 0.95 or less goes red)
+      - series: 'container_cpu_cfs_periods_total{name="edgefloor", instance="cadvisor:8080"}'
+        values: "0+59x40"
+      - series: 'container_cpu_cfs_throttled_periods_total{name="edgefloor", instance="cadvisor:8080"}'
+        values: "0+30x40"
+      # an unnamed cgroup (no `name` label — not a container): silent (dropping name!="" goes red)
+      - series: 'container_cpu_cfs_periods_total{instance="cadvisor:8080", id="/system.slice"}'
+        values: "0+600x40"
+      - series: 'container_cpu_cfs_throttled_periods_total{instance="cadvisor:8080", id="/system.slice"}'
+        values: "0+300x40"
+      # mixed: one name, an idle id throttled 86% at 0.12 periods/s beside a busy id never
+      # throttled — silent (an `and on(instance, name)` lets the idle id borrow the busy one's rate)
+      - series: 'container_cpu_cfs_periods_total{name="mixed", instance="cadvisor:8080", id="/docker-idle"}'
+        values: "0+7x40"
+      - series: 'container_cpu_cfs_throttled_periods_total{name="mixed", instance="cadvisor:8080", id="/docker-idle"}'
+        values: "0+6x40"
+      - series: 'container_cpu_cfs_periods_total{name="mixed", instance="cadvisor:8080", id="/docker-busy"}'
+        values: "0+600x40"
+      - series: 'container_cpu_cfs_throttled_periods_total{name="mixed", instance="cadvisor:8080", id="/docker-busy"}'
+        values: "0x40"
       # recreated: two container ids under one name, both busy — evaluates (no many-to-many error)
       # and fires once per id
       - series: 'container_cpu_cfs_periods_total{name="recreated", instance="cadvisor:8080", id="/docker-old"}'
@@ -85,7 +118,16 @@ tests:
               summary: "Container recreated CPU-throttled in 50% of periods"
               description: "Container recreated was throttled in more than 25% of its CFS periods for 15 minutes while running at least 1 period per second — its CPU cap is too low for its load."
               value: "0.5"
-      # the spike's throttling ended at 20m; by 35m it has never been sustained 15m — still silent
+          - exp_labels:
+              severity: warning
+              name: edgethr
+              instance: cadvisor:8080
+            exp_annotations:
+              summary: "Container edgethr CPU-throttled in 30% of periods"
+              description: "Container edgethr was throttled in more than 25% of its CFS periods for 15 minutes while running at least 1 period per second — its CPU cap is too low for its load."
+              value: "0.3"
+      # the spike's throttling ended at 20m; by 35m it has never been sustained 15m — still silent;
+      # edgeactive, whose 1.2/s clears the floor only once a full 5m window sits above it, fires by now
       - eval_time: 35m
         alertname: ContainerCPUThrottled
         exp_alerts:
@@ -117,4 +159,20 @@ tests:
             exp_annotations:
               summary: "Container recreated CPU-throttled in 50% of periods"
               description: "Container recreated was throttled in more than 25% of its CFS periods for 15 minutes while running at least 1 period per second — its CPU cap is too low for its load."
+              value: "0.5"
+          - exp_labels:
+              severity: warning
+              name: edgethr
+              instance: cadvisor:8080
+            exp_annotations:
+              summary: "Container edgethr CPU-throttled in 30% of periods"
+              description: "Container edgethr was throttled in more than 25% of its CFS periods for 15 minutes while running at least 1 period per second — its CPU cap is too low for its load."
+              value: "0.3"
+          - exp_labels:
+              severity: warning
+              name: edgeactive
+              instance: cadvisor:8080
+            exp_annotations:
+              summary: "Container edgeactive CPU-throttled in 50% of periods"
+              description: "Container edgeactive was throttled in more than 25% of its CFS periods for 15 minutes while running at least 1 period per second — its CPU cap is too low for its load."
               value: "0.5"

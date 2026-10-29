@@ -82,6 +82,14 @@ with open(CALLS, "a") as fh:
 d = load()
 
 if a[0] == "ps":
+    # FAKE_DOCKER_PS_FAIL_FROM=n: the n-th `ps` call and every later one fail as a dead daemon does
+    # (nothing on stdout, exit 1), so the first listing and a re-listing can fail independently.
+    fail_from = int(os.environ.get("FAKE_DOCKER_PS_FAIL_FROM") or 0)
+    with open(CALLS) as fh:
+        nth = sum(1 for ln in fh if ln.startswith("ps"))
+    if fail_from and nth >= fail_from:
+        print("Cannot connect to the Docker daemon", file=sys.stderr)
+        sys.exit(1)
     for name, (cid, _m, _c) in d.items():
         print(cid)
     sys.exit(0)
@@ -103,6 +111,10 @@ if a[0] == "inspect":
             # removed between `ps -aq` and this read: the daemon answers as it does for any id
             del d[name]; save(d)
             print(f"error: no such object: {ref}", file=sys.stderr)
+            sys.exit(1)
+        if fmt == CPU_FMT and name == os.environ.get("FAKE_DOCKER_CPU_FAIL", ""):
+            # the read fails but the container is still there (a daemon hiccup)
+            print("error during connect", file=sys.stderr)
             sys.exit(1)
         print({"{{.HostConfig.Memory}}": str(mem),
                CPU_FMT: cpu,
@@ -166,7 +178,14 @@ def env(tmp_path):
 
     write_state(LIVE_TODAY)
 
-    def run(*args, update_error: str = "", update_warning: str = "", vanish: str = ""):
+    def run(
+        *args,
+        update_error: str = "",
+        update_warning: str = "",
+        vanish: str = "",
+        cpu_fail: str = "",
+        ps_fail_from: int = 0,
+    ):
         e = dict(os.environ)
         e["PATH"] = f"{bindir}:{os.environ['PATH']}"
         e["FAKE_DOCKER_STATE"] = str(state)
@@ -174,6 +193,8 @@ def env(tmp_path):
         e["FAKE_DOCKER_UPDATE_ERROR"] = update_error
         e["FAKE_DOCKER_UPDATE_WARNING"] = update_warning
         e["FAKE_DOCKER_VANISH"] = vanish
+        e["FAKE_DOCKER_CPU_FAIL"] = cpu_fail
+        e["FAKE_DOCKER_PS_FAIL_FROM"] = str(ps_fail_from)
         return subprocess.run(
             ["bash", str(SCRIPT), *args], capture_output=True, text=True, env=e, timeout=20
         )
@@ -308,16 +329,41 @@ def test_either_cpu_mechanism_counts_as_capped(env, cpu, capped):
     assert ("grafana" in r.stdout.split("--- containers with no CPU limit")[1]) is not capped
 
 
-@pytest.mark.parametrize("cpu", ["garbage", "1e9 0", "0 0 0", "x y"])
+def _cid(name: str) -> str:
+    """The fake's container id for `name` (write_state numbers LIVE_TODAY's order)."""
+    return f"c{list(LIVE_TODAY).index(name):012d}"
+
+
+def _row(stdout: str, tag: str, cid: str) -> bool:
+    """True when one output line carries both the tag and that container's id."""
+    return any(tag in ln and cid in ln for ln in stdout.splitlines())
+
+
+@pytest.mark.parametrize(
+    "cpu", ["garbage", "1e9 0", "0 0 0", "x y", "9223372036854775808 0", "0 99999999999999999999"]
+)
 @pytest.mark.parametrize("mode", [(), ("--apply",), ("--check",)])
 def test_an_unreadable_cpu_read_fails_the_run(env, cpu, mode):
-    """FAIL CLOSED: a read that is not two integers is never taken as capped, in any mode."""
+    """FAIL CLOSED: a read that is not two integers of at most 18 digits is never taken as capped,
+    in any mode — a 2^63 value makes `[ -le ]` error, which `|| continue` used to count as capped."""
     env.write_state({**_capped_today(), "loki": (512 * MIB, cpu)})
 
     r = env.run(*mode)
 
     assert r.returncode == 1, f"an unreadable CPU read exited clean:\n{r.stdout}"
-    assert "UNREADABLE" in r.stdout and "loki" in r.stdout
+    assert _row(r.stdout, "UNREADABLE", _cid("loki")), r.stdout
+
+
+def test_a_failed_cpu_read_on_a_listed_container_is_unreadable(env):
+    """The read fails (empty stdout, exit 1) while the container is still listed: that is a daemon
+    hiccup, not a removal — UNREADABLE and exit 1, never GONE."""
+    env.write_state(_capped_today())
+
+    r = env.run("--check", cpu_fail="loki")
+
+    assert r.returncode == 1, r.stdout
+    assert _row(r.stdout, "UNREADABLE", _cid("loki")), r.stdout
+    assert "GONE" not in r.stdout
 
 
 def test_a_container_removed_mid_run_is_gone_not_a_failure(env):
@@ -328,8 +374,31 @@ def test_a_container_removed_mid_run_is_gone_not_a_failure(env):
     r = env.run("--check", vanish="grafana")
 
     assert r.returncode == 0, r.stdout
-    assert "GONE" in r.stdout and "grafana" in r.stdout
+    assert _row(r.stdout, "GONE", _cid("grafana")), r.stdout
     assert "UNREADABLE" not in r.stdout
+
+
+def test_a_failed_relisting_is_unreadable_not_gone(env):
+    """The CPU read fails AND the re-listing that would prove the container gone fails too: nothing
+    proves it gone, so it is UNREADABLE. (The listing is captured and its exit code read; piped
+    into `grep -q` under pipefail, a failed or SIGPIPE'd `ps` read as "not listed".)"""
+    env.write_state(_capped_today())
+
+    r = env.run("--check", cpu_fail="loki", ps_fail_from=2)
+
+    assert r.returncode == 1, r.stdout
+    assert _row(r.stdout, "UNREADABLE", _cid("loki")), r.stdout
+    assert "GONE" not in r.stdout
+
+
+@pytest.mark.parametrize("mode", [(), ("--apply",), ("--check",)])
+def test_a_failed_container_listing_fails_the_run(env, mode):
+    """A dead daemon makes `ps -aq` print nothing and exit nonzero — the same output as "no
+    containers" — so both sections would report a clean bill of health. It fails every mode."""
+    r = env.run(*mode, ps_fail_from=1)
+
+    assert r.returncode == 1, f"a failed listing exited clean:\n{r.stdout}"
+    assert "UNREADABLE container listing" in r.stdout
 
 
 def test_no_mode_mutates_cpu(env):

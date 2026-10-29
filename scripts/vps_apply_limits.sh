@@ -153,10 +153,18 @@ done <<< "$(echo "$CEILINGS" | sed 's/#.*//' | grep -v '^[[:space:]]*$')"
 # check reading only the running set reports green while an unbounded container
 # waits to start. Today both counts are 32, which is exactly why the narrower
 # query would have been easy to write and never notice.
+# ONE listing for both sections, its exit code read: a dead daemon or a failed sudo makes
+# `ps -aq` print nothing and exit nonzero — identical to "no containers" — and both loops below
+# would then report a clean bill of health. That is a failure, in every mode.
+if ! ids=$($D ps -aq); then
+  echo
+  echo "  UNREADABLE container listing — \`docker ps -aq\` failed; nothing below was checked"
+  failed=$(( failed + 1 )); ids=""
+fi
 echo
 echo "--- unbounded containers (HostConfig.Memory == 0, all defined) ---"
 unbounded=0
-for id in $($D ps -aq); do
+for id in $ids; do
   [ "$($D inspect -f '{{.HostConfig.Memory}}' "$id")" = "0" ] || continue
   n=$($D inspect -f '{{.Name}}' "$id"); n="${n#/}"
   case " $managed " in
@@ -175,15 +183,19 @@ done
 # cap — a -1 quota means unlimited (scripts/sysadmin/vps1_cpu_limits.py reads `0 -1` as DIFFERS
 # and will not touch it; this check reports it uncapped, for the operator). Applying CPU caps is
 # vps1_cpu_limits.py's job (D-1325); nothing below mutates.
-# FAIL CLOSED: a read that is not exactly two integers is UNREADABLE and fails the run in every
-# mode — except an id that has left `ps -aq` since the listing (removed mid-run), which is GONE.
+# FAIL CLOSED: a read that is not exactly two integers of at most 18 digits (so `[ -le ]` can
+# never error past them: 2^63 makes it fail, and `|| continue` would count that as capped) is
+# UNREADABLE and fails the run in every mode — except an id that a SUCCESSFUL re-listing no
+# longer holds (removed mid-run), which is GONE. A re-listing that itself fails is UNREADABLE:
+# the listing is captured and its exit code read, never piped into `grep -q`, whose early exit
+# under pipefail would make a still-listed id read as gone.
 echo
 echo "--- containers with no CPU limit (NanoCpus and CpuQuota both <= 0, all defined) ---"
 nocpu=0
-for id in $($D ps -aq); do
+for id in $ids; do
   read -r nano quota extra <<< "$($D inspect -f '{{.HostConfig.NanoCpus}} {{.HostConfig.CpuQuota}}' "$id" 2>/dev/null)"
-  if [[ ! "$nano" =~ ^-?[0-9]+$ || ! "$quota" =~ ^-?[0-9]+$ || -n "$extra" ]]; then
-    if ! $D ps -aq | grep -qx "$id"; then
+  if [[ ! "$nano" =~ ^-?[0-9]{1,18}$ || ! "$quota" =~ ^-?[0-9]{1,18}$ || -n "$extra" ]]; then
+    if relist=$($D ps -aq) && ! grep -qx "$id" <<< "$relist"; then
       printf '  GONE      %-24s removed since the listing — not counted\n' "$id"
       continue
     fi
@@ -197,7 +209,7 @@ for id in $($D ps -aq); do
 done
 [ "$nocpu" -eq 0 ] && echo "  none — every defined container has a CPU cap"
 
-total=$($D ps -aq | wc -l)
+total=$(wc -w <<< "$ids")
 echo
 echo "=== $unbounded of $total containers unbounded · no-cpu=$nocpu · set=$applied raised=$raised ok=$ok missing=$missing failed=$failed ==="
 

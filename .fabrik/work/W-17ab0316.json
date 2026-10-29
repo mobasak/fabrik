@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T20:06:58.474920Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-17ab0316",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1361",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "after fleet-cpu-verify merges: update the table and both counts from docs/reference/health-monitoring.md (current), commit once after the full /fabrik-review the sync path owes",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "docs",
+    "fleet"
+  ],
+  "title": "agents-fabrik.md § Alert Rules is stale (a governance-sync path): it says 13 total, alerts.yml 12 + fabrik-drift.yml 1, ContainerHighMemory for 5m; the files hold 16 (13 + 3), ContainerHighMemory is 15m on the working set, and W-fc701b31 adds ContainerCPUThrottled (warning, >25% throttled for 15m while >1 period/s) — left unedited there so the CPU change stays off the sync surface"
+}

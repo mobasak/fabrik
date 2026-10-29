@@ -38,11 +38,10 @@ def test_the_throttle_rule_has_its_floor_and_window():
         'rate(container_cpu_cfs_throttled_periods_total{name!=""}[5m]) '
         '/ rate(container_cpu_cfs_periods_total{name!=""}[5m]) > 0.25'
     ) in expr, expr
-    assert (
-        'and on(instance, name) rate(container_cpu_cfs_periods_total{name!=""}[5m]) > 1' in expr
-    ), expr
-    assert "/ on(" not in expr, (
-        "an on() division fails evaluation for a recreated container's two ids"
+    assert '> 0.25 and rate(container_cpu_cfs_periods_total{name!=""}[5m]) > 1' in expr, expr
+    assert " on(" not in expr, (
+        "an on() division fails a recreated container's two ids; an on() `and` lets an idle id "
+        "borrow a busy sibling's period rate"
     )
     assert rule["for"] == "15m"
     assert rule["labels"] == {"severity": "warning"}
