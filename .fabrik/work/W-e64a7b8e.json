@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T05:55:54.071548Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-e64a7b8e",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: blocks merges (any branch touching a widely-imported module); LOW effort: mirror the D-1310 timeout header",
+  "status": "open",
+  "title": "Wide hub merge-test legs die at exit 137: merge_request._capped (scripts/merge_request.py:162) passes only --timeout, so the leg runs under capped_run.sh's default 4G memory; fleet's fleet-docker-cpu (touches src/fabrik/spec_loader.py, so 244 test files selected) was refused twice, merge and pretest. Let .fabrik/merge-tests declare a memory ceiling the way it declares '# merge-test-timeout:' (read from the base only, like D-1310), or shard the wide leg"
+}
