@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the Promtail-to-Alloy branch brought up to master, and its switch runbook made safe to re-run (2026-10-29)
+
+`fleet-alloy` was 6,156 commits behind master; master is merged in (W-86850d3d) and a full /fabrik-review of the
+merged branch against master fixed what the merge left behind:
+- `docs/operations/promtail-to-alloy-runbook.md`: step (a) first proves the live compose file is master's mirror
+  (live copies are hand-edited, D-1324) and keeps the first backup on a retry; the rollback moves the backup back,
+  so none outlives it; the D3 check diffs against `origin/master`; an ORPHAN line (a live-only Gatus file a push
+  never touches) no longer stops the window; the infra mail names files instead of line numbers master had moved.
+- The `alloy` job is five lines longer than the `promtail-spokes` job it replaced: three pushgateway cites moved
+  from `prometheus.yml:126` to `:131`.
+- Spokes push to the hub's Loki at `10.99.0.1:3100`, not `loki:3100`; README, the vps1 postgres rotation runbook
+  and the ocoron removal script name the shipper after the switch.
+- `tests/test_alloy_runbook.py`: the D3 test requires the three-file pass condition (it passed with it deleted).
+Receipt: `docs/development/reviews/2026-10-29-alloy-master-merge-review.md`. Master-side stale prose: W-ede94e4e.
+
 ### Fixed — bootstrap step 11 fails a crash-looping Alloy; the switch runbook covers a retry after rollback (2026-10-08)
 
 The D7 whole-plan validation of plan 2026-10-08-plan-1 found that step 11's liveness check passed a crash-looping Alloy.

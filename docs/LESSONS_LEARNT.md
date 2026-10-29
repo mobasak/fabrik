@@ -1,6 +1,16 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A long-lived branch's merge drifts where git sees no conflict (2026-10-29, W-86850d3d)
+
+- **Merging master into a 6,156-behind branch resolved cleanly line by line and still left the branch wrong.**
+  The branch's new `alloy` job was five lines longer than the job it replaced, so every `prometheus.yml:<n>`
+  cite after it moved; master had meanwhile started hand-editing live compose files (D-1324), which made the
+  runbook's "the mirror IS the live file" an untested claim; and deleting conflict-marker lines with `sed`
+  removed the blank line that separated the two sides' blocks.
+- **Rule:** after a long-lived merge, review the merged branch against master as a fresh diff, sweep every
+  line-number cite into a file the branch lengthened, and re-read each conflict join.
+
 ## A container in its restart backoff reads as running, and a liveness check is only as long as its gap (2026-10-08)
 
 The D7 review of the Promtail → Alloy plan (receipt `docs/development/reviews/2026-10-08-plan-1-promtail-to-alloy-review.md`)
