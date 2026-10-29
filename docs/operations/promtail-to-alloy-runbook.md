@@ -84,16 +84,17 @@ for n in 1 2 3 4 5; do ssh "$S" "sudo docker exec alloy-canary sh -c 'echo alloy
 
 ### (a) Keep the old file, place the new files
 
-First prove the live compose file is master's mirror, because this step replaces it and live copies are
-hand-edited (D-1324): a line only the live file holds would be lost, and the rollback's `.pre-alloy` copy would
-hold it without anyone having seen it. Read-only.
+First prove that the file the rollback will restore equals master's mirror, because this step replaces the live
+compose file and live copies are hand-edited (D-1324). That file is `compose.yaml.pre-alloy` once a backup exists
+(a re-run of this step after the new file was placed) and the live `compose.yaml` before. Read-only.
 
 ```bash
-ssh "$S" 'sudo cat /opt/monitoring-agent/compose.yaml' | diff - <(git show "origin/master:infra/$H/monitoring-agent/compose.yaml") && echo MIRROR
+ssh "$S" 'cd /opt/monitoring-agent && if sudo test -e compose.yaml.pre-alloy; then sudo cat compose.yaml.pre-alloy; else sudo cat compose.yaml; fi' | diff - <(git show "origin/master:infra/$H/monitoring-agent/compose.yaml") && echo MIRROR
 ```
 
-Pass condition: `MIRROR`. **STOP on any diff line:** carry it into `infra/$H/monitoring-agent/compose.yaml` and the
-spoke template on master, merge master into `fleet-alloy`, and re-run this check.
+Pass condition: `MIRROR`. **STOP on any diff line**, make the two one, and re-run this check: a line only the
+host holds goes into `infra/$H/monitoring-agent/compose.yaml` and the spoke template on master, then master is
+merged into `fleet-alloy`; a line only master holds goes onto the host by the tool that owns it.
 
 ```bash
 R=$(mktemp -d)
@@ -220,11 +221,13 @@ for n in 1 2 3 4 5; do ssh "$S" "sudo docker exec alloy-canary sh -c 'echo alloy
 First the same read-only mirror check as § 1 (a), against the hub mirror:
 
 ```bash
-ssh vps 'sudo cat /opt/monitoring/compose.yaml' | diff - <(git show origin/master:infra/vps1/monitoring/compose.yaml) && echo MIRROR
+ssh vps 'cd /opt/monitoring && if sudo test -e compose.yaml.pre-alloy; then sudo cat compose.yaml.pre-alloy; else sudo cat compose.yaml; fi' | diff - <(git show origin/master:infra/vps1/monitoring/compose.yaml) && echo MIRROR
 ```
 
-Pass condition: `MIRROR`. **STOP on any diff line:** carry it into `infra/vps1/monitoring/compose.yaml` on master,
-merge master into `fleet-alloy`, and re-run this check.
+Pass condition: `MIRROR`. **STOP on any diff line**, make the two one, and re-run this check: a line only vps1
+holds goes into `infra/vps1/monitoring/compose.yaml` on master, then master is merged into `fleet-alloy`; a line only
+master holds goes onto vps1 by the tool that owns it (the `cpus:` lines by `scripts/sysadmin/vps1_cpu_limits.py`,
+D-1325).
 
 ```bash
 scp -q infra/vps1/monitoring/compose.yaml vps:/tmp/compose.yaml
@@ -321,13 +324,14 @@ for h in vps3 vps2 vps; do ssh "$h" 'sudo docker rm -f alloy-canary'; done
 ## 4. Rollback
 
 Per host, in reverse order of the switch (spec § The delta › D6): restore the previous compose file and run
-`up -d --remove-orphans`, which starts Promtail and removes the alloy container as an orphan.
+`up -d --remove-orphans`, which starts Promtail and removes the alloy container as an orphan. The restore is a
+move, so no backup outlives the rollback and a later window's step (a) takes a fresh one.
 
 ```bash
 # spoke (H=vps3 or vps2)
-ssh "$S" 'cd /opt/monitoring-agent && sudo cp compose.yaml.pre-alloy compose.yaml && sudo docker compose up -d --remove-orphans'
+ssh "$S" 'cd /opt/monitoring-agent && sudo mv compose.yaml.pre-alloy compose.yaml && sudo docker compose up -d --remove-orphans'
 # hub
-ssh vps 'cd /opt/monitoring && sudo cp compose.yaml.pre-alloy compose.yaml && sudo docker compose up -d --remove-orphans'
+ssh vps 'cd /opt/monitoring && sudo mv compose.yaml.pre-alloy compose.yaml && sudo docker compose up -d --remove-orphans'
 ```
 
 Never roll back by stopping Alloy and starting Promtail with the new file in place: the boot reconciler's plain

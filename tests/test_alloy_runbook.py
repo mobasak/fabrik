@@ -152,7 +152,9 @@ def test_hub_d3_checks_sit_between_a_and_b_as_stop_conditions() -> None:
     chk = _child(hub, "D3 read-only checks")
     # origin/master, the ref the preflight's fetch refreshes — a stale local master hides master's
     # newer watcher changes from the check while the push still reverts them.
-    assert "git diff --stat origin/master HEAD -- configs/prometheus configs/gatus" in chk.all_fences()
+    assert (
+        "git diff --stat origin/master HEAD -- configs/prometheus configs/gatus" in chk.all_fences()
+    )
     assert "master...HEAD" not in chk.all_fences(), "the check must be two-dot"
     for script in ("sync_prometheus_to_vps.sh --diff", "sync_gatus_to_vps.sh --diff"):
         assert f"FABRIK_ROOT={WORKTREE} bash scripts/{script}" in chk.all_fences()
@@ -206,7 +208,9 @@ def test_v6_markers_pre_switch_and_exactly_once() -> None:
     battery = _child(host, "(d)").all_prose()
     assert "exactly once" in battery and "2 minutes" in battery
     canary = _h2("0. Preflight").all_fences()
-    run_line = next(line for line in canary.splitlines() if "docker run -d --name alloy-canary" in line)
+    run_line = next(
+        line for line in canary.splitlines() if "docker run -d --name alloy-canary" in line
+    )
     assert "--rm" not in run_line
     # D7 RUNBOOK-S3: a canary left by a rolled-back window is cleared before the run.
     assert run_line.index("docker rm -f alloy-canary") < run_line.index("docker run -d")
@@ -220,7 +224,8 @@ def test_rollback_restores_the_file_and_never_stop_starts() -> None:
     fences = rb.all_fences()
     assert (
         fences.count(
-            "cp compose.yaml.pre-alloy compose.yaml && sudo docker compose up -d --remove-orphans"
+            # a move: no backup outlives the rollback, so a later window's step (a) takes a fresh one
+            "mv compose.yaml.pre-alloy compose.yaml && sudo docker compose up -d --remove-orphans"
         )
         == 2
     )
@@ -230,7 +235,11 @@ def test_rollback_restores_the_file_and_never_stop_starts() -> None:
     # D7 INFRA-O1: the rollback keeps alloy-data; the runbook names both volumes and the
     # operator's word before a later roll-forward.
     prose = " ".join(rb.all_prose().split())
-    for needle in ("monitoring_alloy-data", "monitoring-agent_alloy-data", "on the operator's word"):
+    for needle in (
+        "monitoring_alloy-data",
+        "monitoring-agent_alloy-data",
+        "on the operator's word",
+    ):
         assert needle in prose, needle
 
 
