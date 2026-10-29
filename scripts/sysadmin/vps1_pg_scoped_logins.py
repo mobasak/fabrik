@@ -19,9 +19,11 @@ D-1177 conditions, all enforced below:
 2. No cleartext password or verifier in argv, an env var, an echo or the output: both travel only on ssh stdin.
    The pg_authid assert compares sha256 digests, so only the ALTER ROLE statement carries the verifier — the same
    statement psql's `\\password` sends.
-3. SQL goes on stdin to `psql -X -v ON_ERROR_STOP=1`, never `-c`. Two files on vps1 carry a password: the login
-   probe's pgpass (umask 077, removed, then `test ! -e`) and step 3d's temp copy of a service's .env (umask 077,
-   removed on exit).
+3. SQL goes on stdin to `psql -X -v ON_ERROR_STOP=1`, never `-c`. The temp files on vps1 that hold a password —
+   the login probe's pgpass (then `test ! -e`) and step 3d's working copy of a service's .env — are umask 077 and
+   removed. Step 3d's `*.backup.<stamp>` copies of compose.yaml and .env (`cp -p`, original modes) are kept beside
+   the originals: a fresh service's compose.yaml backup holds the superuser DSN, a moved one's .env backup the
+   previous run's scoped DSN.
 4. Per role: assert the stored verifier, then one real TCP login on the scram host line — and a wrong password
    that must be refused, so the login proves a password was checked.
 
