@@ -227,10 +227,11 @@ id and `@agent` tag, and a FRESH `claude -n <agent> --session-id <new id>` start
 first turn — the resume prompt above, prefixed with where it now starts — so no key is typed. The old claude (that pid
 and start time, a zombie counting as exited) gets 10 s to exit, then SIGTERM and 5 s, then SIGKILL and 2 s (`old_exit:
 gone|term|kill|survived`; its detached children are not reaped). A respawn whose tmux call fails or times out rows
-`partial:respawn` and reaps nothing, since it cannot tell whether the old claude was replaced. The unit waits for the new session's record (`partial:launch` without one), re-points the
-registry and waits for the re-bind as above; the row carries `mode: move` and `into`, and `predecessor_row` reads false
-because `whoami_agent.py` records a predecessor only for a re-bind inside the same process, and a move starts a new one. The move's waits are `MOVE_WORST_S`, under `REQUEST_WORST_S`. The next grid start
-finds the new session filed under the folder and starts the pane there.
+`partial:respawn` and reaps nothing, since it cannot tell whether the old claude was replaced. The unit waits for the
+new session's record (`partial:launch` without one), re-points the registry and waits for the re-bind as above; the row
+carries `mode: move` and `into`, and `predecessor_row` reads false because `whoami_agent.py` records a predecessor only
+for a re-bind inside the same process, and a move starts a new one. The move's waits are `MOVE_WORST_S`, under
+`REQUEST_WORST_S`. The next grid start finds the new session filed under the folder and starts the pane there.
 
 Nothing types a rotation unasked, but two listings offer them (W-f975fee0 slice 3): `rotate_session.py due
 [--mb-only] [--mail]` lists every live agent at or past 40% of its context window or `ROTATE_ADVISE_MB`, the caller

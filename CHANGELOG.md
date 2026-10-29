@@ -13,9 +13,10 @@ started in, and its session stays filed there, so neither a /clear nor a relaunc
   <folder> --from <old sid> --replacing <old pid>` first, then re-runs every check and re-reads the box and transcript
   just before the kill. It then runs `tmux respawn-pane -k -c <folder>` with a fresh `--session-id` launch whose first
   turn is the move prompt, reaps the old claude by pid, re-points the registry and waits for the re-bind.
-- **Rows:** `mode: move`, `into`, `old_exit`; new outcomes `refused:launch` and `partial:launch`.
-- **Tests:** `tests/test_rotate_session.py` (5 new) and `tests/test_agents_up.py` (2 new). All 10 mutants of the new
-  guards are killed.
+- **Rows:** `mode: move`, `into`, `old_exit`; new outcomes `refused:launch`, `partial:respawn` and `partial:launch`.
+- **Tests:** `tests/test_rotate_session.py` (6 new) and `tests/test_agents_up.py` (3 new). The build's 10 guard mutants
+  are killed, and so are 9 of the full review's 10 fix mutants; the tenth (the quoted checkout path) is shown by its
+  grader failing on the unfixed commit.
 
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
