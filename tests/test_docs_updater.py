@@ -772,6 +772,47 @@ def test_work_open_plans_reads_the_shared_done_set(tmp_path):
     assert not any("plan-a" in line for line in out), out
 
 
+def _fake_docs_updater(tmp_path, monkeypatch, source):
+    """Point work._open_plans at a stand-in docs_updater.py (it loads the file beside work.py)."""
+    import work
+
+    fake = tmp_path / "fake-scripts"
+    fake.mkdir()
+    (fake / "docs_updater.py").write_text(source)
+    monkeypatch.setattr(work, "__file__", str(fake / "work.py"))
+    plans = tmp_path / "repo" / "docs" / "development" / "plans"
+    plans.mkdir(parents=True)
+    return work, tmp_path / "repo", plans
+
+
+def test_work_open_plans_survives_one_plan_the_parser_raises_on(tmp_path, monkeypatch):
+    """W-f1412a11 (review B-S1): an error parsing ONE plan emptied the whole view through the outer
+    `except Exception`; the other open plans stay listed and the failing one is listed as open."""
+    work, repo, plans = _fake_docs_updater(
+        tmp_path,
+        monkeypatch,
+        "PLAN_DONE = {'EXECUTED'}\n"
+        "def parse_plan_status(path):\n"
+        "    if 'bad' in path.name:\n"
+        "        raise ValueError('boom')\n"
+        "    return ('APPROVED', 0, 0)\n",
+    )
+    (plans / "2026-10-01-plan-bad.md").write_text("# bad\n")
+    (plans / "2026-10-02-plan-good.md").write_text("# good\n")
+    out = work._open_plans(repo)
+    assert any("plan-good" in line and "APPROVED" in line for line in out), out
+    assert any("plan-bad" in line and "ValueError" in line for line in out), out
+
+
+def test_work_open_plans_says_so_when_the_parser_cannot_load(tmp_path, monkeypatch):
+    """W-f1412a11: a docs_updater.py that fails to import read as 'no open plans'; the view now
+    names the failure instead of returning an empty list."""
+    work, repo, plans = _fake_docs_updater(tmp_path, monkeypatch, "raise RuntimeError('broken')\n")
+    (plans / "2026-10-02-plan-good.md").write_text("# good\n")
+    out = work._open_plans(repo)
+    assert out and "RuntimeError" in out[0] and "unavailable" in out[0], out
+
+
 class TestLinkCheckReadsCommonMarkLinks:
     """W-f11e740e: check_link_integrity read links with its own `\\[..\\]\\(([^)]+)\\)` regex, so a
     titled or <angle> link to a live doc was reported broken and an escaped or paren name was

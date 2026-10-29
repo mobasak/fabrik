@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the coordinator's open-plan view no longer goes blank on one error (2026-10-29)
+- `scripts/work.py` `_open_plans` (shown by `work.py queue` and `triage` as `plan not executed:`):
+  an outer `except Exception` returned an empty list on any error, so one plan the status parser
+  raised on, or a `docs_updater.py` that failed to load, read as "no open plans". A plan the parser
+  raises on is now listed as open with the error, and a parser that cannot load prints one line
+  saying the view is unavailable. Unreadable files are still skipped, as before. Item W-f1412a11
+  (review B-S1 of the 2026-10-08 docs-updater plan-status receipt); tests in
+  `tests/test_docs_updater.py`.
+
 ### Fixed — hub mail auto-replies tell one agent from another (2026-10-29)
 - `scripts/mail.py`: in the hub's shared `fabrik` mailbox the `--auto` self-guard and rate cap key on
   `(from, from-agent)` (W-19b57b9a, D-1329). A fleet request auto-replied by infra was held as infra's
