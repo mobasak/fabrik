@@ -3,7 +3,7 @@
   "created": "2026-10-20T23:27:15.683374Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "70068eec5839534d0a2e1c99b7caf527098b6484",
   "id": "W-7646cd93",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "another repo's request: exa/firecrawl tier-2 research arms fail for native seats (Cloudflare 403); research MCPs are intel's beat",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m5agypd6w2j0fag23tqf1v0n"
   ],
