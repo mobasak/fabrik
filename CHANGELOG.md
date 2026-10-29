@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — scaffolded smoke targets remove containers with their anonymous volumes (2026-10-29)
+- `templates/scaffold/docker/Makefile.python`, `Makefile.node` and the file-worker and chrome-extension emitters in
+  `src/fabrik/scaffold.py`: every container the emitted `docker-smoke` and `clean` targets remove goes with `-v`
+  (`-fv` where forced), and the chrome-extension smoke removes a leftover container before its run and
+  its container when the run or the health check fails, and its `clean` target removes it too. A plain
+  `docker rm` or `docker rm -f` leaves the anonymous volume of an image that declares a `VOLUME`, one per smoke run
+  (W-2c8173fa, sibling of W-2786800d). `tests/test_scaffold_smoke_volumes.py` scaffolds every type and requires
+  `-v` on each emitted removal and a leading `-v` removal after each started container's run, and runs each
+  removal against a throwaway container of its own where a docker daemon answers.
+
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
   `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`

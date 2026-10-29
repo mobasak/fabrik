@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T14:33:50.874074Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-ece4c2fc",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one fabrik-mail per repo (cross-repo: each repo's agent edits its own Makefile) citing the W-2c8173fa template change and the measured leak (rm/rm -f leave the anonymous volume, -v/-fv do not); never prune existing volumes — list them for the operator",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "Brief the 10 /opt projects whose Makefile still runs 'docker rm smoke-test' without -v (candle, fabrik-claim-validator, gmail-account-creator, job-agent, longephedia-vault, seo, session-recall, trade-intelligence, tryton-crm, whatsapp-agent) to add -v, after W-2c8173fa merges"
+}
