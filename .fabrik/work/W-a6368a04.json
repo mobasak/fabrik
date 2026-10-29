@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T05:04:07.069359Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-a6368a04",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add a MEMORY_RE beside CPU_RE (compose's byte-size grammar), check it in Resources, the apply validator and the emitter (quoted), red-first test; census every spec's memory first",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "deploy"
+  ],
+  "title": "_generate_docker_compose writes resources.memory unquoted and unvalidated from the raw spec dict (deployer_ssh.py, f'memory: {memory}'), and nothing on the apply path checks its grammar: a multi-line or YAML-special memory value can inject keys into the docker-source compose, and a typo reaches compose as given (found by the W-f01710a0 review, Opus seat, 2026-10-29)"
+}

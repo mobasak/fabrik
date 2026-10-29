@@ -3,7 +3,7 @@
   "created": "2026-10-29T02:47:41.223440Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "111e15303506051ba9f074ac5c15967572183075",
   "id": "W-f01710a0",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "HIGH: fabrik apply silently drops resources.cpu for docker-source specs (a bug, every such deploy); LOW effort: one driver path",
-  "status": "open",
+  "status": "done",
   "tags": [
     "deploy"
   ],
