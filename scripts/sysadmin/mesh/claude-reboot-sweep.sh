@@ -1,22 +1,30 @@
 #!/usr/bin/env bash
-# claude-reboot-sweep.sh — resume-mesh Layer 4: bring AUTONOMOUS sessions back after a reboot.
+# AFTER-EDIT: docs/workstation/hooks-index.md
+# claude-reboot-sweep.sh — resume-mesh Layer 4: after a boot, bring the BUILDERS back and tell the operator
+# about every other session the boot cut mid-work. It RESUMES NOTHING with `claude -p` (W-6e656dac T04, spec L4).
 #
-# Plan: docs/development/plans/2026-08-10-plan-1-quota-health.md (Phase D)
+# Plan: docs/development/plans/2026-08-10-plan-1-quota-health.md (Phase D); the builder leg and the end of the
+# `claude -p` resume: docs/development/plans/2026-10-21-plan-1-hibernate-full-guarantee/ (T04). Tracked home:
+# /opt/fabrik/scripts/sysadmin/mesh/; the live ~/.claude/bin copy is installed by scripts/sysadmin/install_mesh.sh.
 # Operator problem it solves (verbatim): "if i restart the machine, i go each chat window one by
 # one and type a command."
 #
-# Eligibility is deliberately narrow — a marker AND real mid-work state:
-#   * marker  — `<sid>.autonomous`, written by the ORIENT hook only when the LAUNCHER exported
-#               CLAUDE_MESH_AUTONOMOUS=1. Interactive panes never set it, so they are
-#               structurally excluded (resuming a chat you are mid-thought in would fork it).
-#   * mid-work — the decider's own verdict is `busy-*`, OR an `errparked` death record stands.
-#               A cleanly-parked session had nothing in flight; waking it would be noise.
+# Leg A — AUTONOMOUS markers (`<sid>.autonomous`, written by the ORIENT hook only when the launcher exported
+# CLAUDE_MESH_AUTONOMOUS=1): each marker is CONSUMED with one log line saying whether its disposable worker was
+# cut mid-work (the decider's `busy-*`/`stalled-api-error*` verdict, or a standing `errparked` record) — never
+# resumed: a `claude -p --resume` of a session that is also open in a pane runs one session in two processes and
+# forks it, and the old re-export of CLAUDE_MESH_AUTONOMOUS=1 re-marked the resumed session on every boot.
+# Ordering matters: the sid's PRE-REBOOT `.reviving` is cleared FIRST — its mtime predates the boot, so the
+# decider would read it as a dead reviver and invite a second writer.
 #
-# Ordering matters: the sid's PRE-REBOOT `.reviving` is cleared FIRST — its mtime predates the
-# boot, so the decider would read it as a dead reviver and invite a second writer.
-# Starts are spaced (MESH_START_SPACING) so a box with many autonomous sessions does not stampede
-# the API at boot. Markers are consumed exactly once; an ineligible marker is consumed too (the
-# session it described is gone).
+# Builder leg — on a fresh boot, wait up to MESH_BUS_WAIT (120 s) for the user bus, then for every repo
+# `agents_bat.py --list` prints read its grid's `pane <name> <sid> <folder> <status>` lines (`agents_up.sh
+# --print`), record each sid in <lockdir>/.boot-relaunched and build the grid with `agents_up.sh --detach` (cron
+# has no terminal); a bus that never answers is noted `uncapped-boot` and the grids are built anyway (agents_up's
+# boot path launches uncapped with D-1075's warning), so builders always come back.
+#
+# Leg B — one resume-by-hand notice per OTHER session the boot cut mid-work (see below); never for a sid in
+# .boot-relaunched or one Leg A consumed.
 set -u
 
 # CRON REALITY (review findings): cron gives a minimal environment — HOME may be unset
@@ -37,7 +45,8 @@ locks="${CLAUDE_SOUND_LOCKDIR:-/tmp/claude-sound-locks-$(id -u)}"
 # still honored (transition + fixtures) — state-dir copy wins on a sid collision.
 state="${MESH_STATE_DIR:-$HOME/.claude/state/autonomous}"
 decider="${MESH_DECIDER_CMD:-$HOME/.claude/bin/claude-stop-decider.py}"
-spacing="${MESH_START_SPACING:-15}"
+agents_bat="${MESH_AGENTS_BAT:-/opt/fabrik/scripts/sysadmin/agents_bat.py}"
+agents_up="${MESH_AGENTS_UP:-/opt/fabrik/scripts/sysadmin/agents_up.sh}"
 max_age="${MESH_SWEEP_MAX_AGE:-604800}"   # a marker older than a week is stale history
 log="${MESH_SWEEP_LOG:-$HOME/.claude/sound-debug.log}"
 
@@ -47,17 +56,8 @@ note() {  # one line per decision — the sweep must never be a silent black box
 }
 
 command -v python3 >/dev/null 2>&1 || { note "abort-no-python3" "PATH=$PATH"; exit 0; }
-# Never claim a resume we cannot perform: without `claude` the MARKER leg is a no-op and
-# must say so LOUDLY (review finding). But Leg B (cut-session notify) needs only curl +
-# python3 — a dangling claude symlink must not silence the operator's Telegram on the very
-# incident class it exists for (closer F7): skip Leg A, keep Leg B.
-have_claude=1
-if ! command -v claude >/dev/null 2>&1; then
-  note "no-claude" "PATH=$PATH — marker leg SKIPPED (markers kept); notify leg continues"
-  have_claude=0
-fi
-# Self-lock (review F3): @reboot is not flocked and persistent markers make a concurrent
-# sweep (cron-daemon restart, manual run) a double-`--resume` — the second-writer failure.
+# Self-lock (review F3): @reboot is not flocked, and a concurrent sweep (cron-daemon restart, manual
+# run) would double-build the grids and double-notify — the second-writer failure.
 # The state dir is defaulted-and-created FIRST: a box where no writer ever ran has none,
 # and a failed `exec 9>` would otherwise abort the whole sweep.
 mkdir -p -m 700 "$state" 2>/dev/null || true
@@ -67,7 +67,7 @@ else
   # No flock binary, or the lock file is unopenable (ro/full state dir): degrade to the
   # pre-2026-08-13 unlocked behavior — but LOUDLY (review finding: a silent degrade hides
   # the exact window the lock exists for). The mv-claim still bounds the damage to one
-  # spawn per marker.
+  # consume per marker.
   note "flock-unavailable" "sweeping unlocked — $state/.sweep.lock unopenable or no flock"
 fi
 
@@ -98,7 +98,7 @@ fi
 # Gather markers from BOTH dirs into one list (review F2/F4: the old in-loop
 # `[ -e ] || break` aborts on the first unmatched glob — a naive two-glob union would
 # silently skip the legacy dir whenever the state dir is empty). State-dir copy wins a
-# sid collision; the legacy twin is removed at claim time so exactly one resume spawns.
+# sid collision; the legacy twin is removed at claim time so each sid is consumed once.
 markers=()
 for m in "$state"/*.autonomous; do
   [ -e "$m" ] && markers+=("$m")
@@ -116,8 +116,7 @@ fi
 
 now=$(date +%s)
 swept=0
-spawned_sids=" "
-[ "$have_claude" = "1" ] || markers=()
+consumed_sids=" "
 for marker in "${markers[@]}"; do
   # ONE read: three separate parses could see three different states if the marker were
   # rewritten mid-loop, and cost 3 interpreter starts per session (review finding).
@@ -203,30 +202,81 @@ except Exception:
     continue
   fi
 
-  # Space the starts so a many-session box does not stampede the API at boot.
-  [ "$swept" -gt 0 ] && sleep "$spacing"
-  # ATOMIC claim BEFORE the start (review F5/F6): `rm -f` can never be a claim — it
-  # succeeds on an already-deleted file (two racing sweeps would both "consume") and a
-  # swallowed rm failure on an unremovable PERSISTENT marker would re-resume the same
-  # session on every boot forever. `mv` is atomic per marker: exactly one claimant wins,
-  # and a failed claim (ro dir, full disk) skips the spawn instead of looping it.
+  # ATOMIC claim (review F5/F6): `rm -f` can never be a claim — it succeeds on an already-deleted
+  # file (two racing sweeps would both "consume") and a swallowed rm failure on an unremovable
+  # PERSISTENT marker would come back on every boot. `mv` is atomic per marker: exactly one claimant
+  # wins, and a failed claim (ro dir, full disk) is said and retried next boot.
   if ! mv "$marker" "$marker.claimed" 2>/dev/null; then
-    note "consume-failed" "sess=${safe:0:8} — marker unclaimable, spawn refused"
+    note "consume-failed" "sess=${safe:0:8} — marker unclaimable, kept for the next boot"
     continue
   fi
   rm -f "$locks/$safe.autonomous" "$state/$safe.autonomous" 2>/dev/null || true  # twin copy
-  ( exec 9>&-   # closer F3: the child must NOT inherit the sweep lock — a resumed
-                # session can live for hours, and an inherited fd 9 would make every
-                # later sweep skip-concurrent for that whole lifetime
-    cd "${cwd:-$HOME}" 2>/dev/null || cd "$HOME"
-    CLAUDE_SOUND_NO_REVIVE=1 CLAUDE_MESH_HEADLESS=1 CLAUDE_MESH_AUTONOMOUS=1 \
-      claude -p --resume "$sid" "continue" >/dev/null 2>&1 ) &
-  spawned_sids="$spawned_sids$sid "
-  swept=$(( swept + 1 ))
   rm -f "$marker.claimed" 2>/dev/null || true
-  note "resume-spawned" "sess=${safe:0:8} why=$reason"  # spawned, not proven — the
-  # resumed session's own mesh (markers, revivers, ring) owns its outcome from here
+  # CONSUMED, never resumed (W-6e656dac T04, spec L4): `claude -p --resume` forks a session a pane may
+  # also hold, and its CLAUDE_MESH_AUTONOMOUS=1 re-export re-marked the session every boot. The worker
+  # was disposable; the line says it was cut mid-work, and Leg B below sends no notice for it.
+  consumed_sids="$consumed_sids$sid "
+  swept=$(( swept + 1 ))
+  note "autonomous-consumed" "sess=${safe:0:8} why=$reason — a disposable worker cut mid-work; never resumed"
 done
+
+# ── Builder leg (W-6e656dac T04, spec L4, Interface G): on a FRESH boot (the same two signals as Leg B's
+# gate, computed here), bring every registered repo's builders back in a DETACHED tmux grid — the boot has
+# no terminal. The repos are the ones `agents_bat.py --list` prints (the registry the .bat launchers are
+# generated from, with no `--print` probe, so a bus that is not answering yet cannot empty it); each grid's
+# `pane` lines are read first and their sids recorded in <lockdir>/.boot-relaunched, which Leg B skips —
+# telling the operator to resume by hand a session agents_up just relaunched is the two-writer failure.
+fresh_window="${MESH_SWEEP_FRESH_WINDOW:-900}"
+legb_fresh=0
+[ "$lockdir_missing" = "1" ] && legb_fresh=1
+[ $(( $(date +%s) - boot )) -lt "$fresh_window" ] && legb_fresh=1
+relaunched_file="$locks/.boot-relaunched"
+if [ "$legb_fresh" = "1" ]; then
+  : > "$relaunched_file" 2>/dev/null || true  # this boot's list; the last boot's is history
+  if [ ! -f "$agents_bat" ] || [ ! -f "$agents_up" ]; then
+    note "no-agents-bat" "$agents_bat or $agents_up missing — builder leg SKIPPED"
+  else
+    repos=$(timeout 60 python3 "$agents_bat" --list 2>/dev/null || true)
+    if [ -z "$repos" ]; then
+      note "builders-none" "agents_bat.py --list printed no repo"
+    else
+      # the user bus: agents_up asks the same question (`systemctl --user show-environment`) to cap the
+      # panes, and a boot reaches this line before the user manager answers
+      if [ -z "${XDG_RUNTIME_DIR:-}" ] && [ -S "/run/user/$(id -u)/bus" ]; then
+        export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+      fi
+      bus_wait="${MESH_BUS_WAIT:-120}"
+      case "$bus_wait" in ''|*[!0123456789]*) bus_wait=120 ;; esac
+      bus_poll="${MESH_BUS_POLL:-5}"
+      case "$bus_poll" in ''|*[!0123456789]*|0) bus_poll=5 ;; esac
+      bus_t0=$(date +%s)
+      until systemctl --user show-environment >/dev/null 2>&1 </dev/null; do
+        if [ $(( $(date +%s) - bus_t0 )) -ge "$bus_wait" ]; then
+          note "uncapped-boot" "no user bus within ${bus_wait}s — agents_up --detach launches the panes UNCAPPED (D-1075's warning)"
+          break
+        fi
+        sleep "$bus_poll"
+      done
+      while IFS= read -r repo; do
+        case "$repo" in /*) ;; *) continue ;; esac
+        # fd 9 closed: a grid's tmux server lives for days, and an inherited sweep lock would make
+        # every later sweep skip-concurrent for that whole lifetime (closer F3)
+        timeout 60 bash "$agents_up" --print "$repo" </dev/null 2>/dev/null 9>&- \
+          | awk '$1 == "pane" && $3 ~ /^[A-Za-z0-9_-]+$/ {print $3}' >> "$relaunched_file" 2>/dev/null
+        # its output goes to a FILE, never a `$( )` pipe: the grid's tmux server (or anything else the
+        # launch leaves running) holding the pipe's write end would hang the sweep for its lifetime
+        outf="$state/.builder-grid.out"
+        timeout 300 bash "$agents_up" --detach "$repo" </dev/null >"$outf" 2>&1 9>&-
+        rc=$?
+        note "builder-grid" "repo=$repo rc=$rc $(tail -n 1 "$outf" 2>/dev/null | cut -c1-200)"
+        rm -f "$outf" 2>/dev/null
+      done <<EOF_REPOS
+$repos
+EOF_REPOS
+    fi
+  fi
+fi
+relaunched=" $(tr '\n' ' ' < "$relaunched_file" 2>/dev/null) "
 
 # ── Leg B: cut-mid-work NOTIFY for every session — interactive panes included (plan
 # 2026-08-13-plan-1; the 2026-08-13 standby incident's population was ALL interactive,
@@ -247,11 +297,7 @@ sound="$HOME/.claude/bin/claude-sound.sh"
 # RACES — any session hook recreates /tmp/claude-sound-locks-* during the crontab's
 # `sleep 120`, which would silently kill Leg B on exactly the incident class; uptime is
 # race-immune): the VM booted within MESH_SWEEP_FRESH_WINDOW seconds, OR the lock dir was
-# genuinely absent when we looked.
-fresh_window="${MESH_SWEEP_FRESH_WINDOW:-900}"
-legb_fresh=0
-[ "$lockdir_missing" = "1" ] && legb_fresh=1
-[ $(( $(date +%s) - boot )) -lt "$fresh_window" ] && legb_fresh=1
+# genuinely absent when we looked (`legb_fresh`, computed before the builder leg, which shares it).
 if [ -f "$sound" ] && [ "$legb_fresh" = "1" ]; then
   cut_found=0
   # sidecar exclusion (closer F1/F2): subagent transcripts are not resumable sessions and
@@ -263,9 +309,12 @@ if [ -f "$sound" ] && [ "$legb_fresh" = "1" ]; then
   while IFS= read -r tp; do
     [ -n "$tp" ] && [ -f "$tp" ] || continue
     sid=$(basename "$tp" .jsonl)
-    case "$spawned_sids" in *" $sid "*) continue ;; esac  # closer F6: Leg A just resumed
-                # this sid headlessly — telling the operator to ALSO resume it by hand is
-                # the two-writer failure the mesh exists to prevent
+    case "$consumed_sids" in *" $sid "*) continue ;; esac  # closer F6: Leg A consumed this
+                # disposable worker's marker — it is never resumed, by the sweep or by hand
+    case "$relaunched" in *" $sid "*)  # the builder leg relaunched it in its grid — a by-hand
+      note "skip-relaunched" "sess=${sid:0:8} — the builder leg relaunched it"  # resume is the two-writer failure
+      continue ;;
+    esac
     safe=$(printf '%s' "$sid" | tr -c 'A-Za-z0-9_-' '_' | head -c 64)
     stamp="$state/notified-$safe"
     if [ -f "$stamp" ] && [ "$(( now - $(stat -c %Y "$stamp" 2>/dev/null || echo 0) ))" -lt 86400 ]; then
@@ -321,5 +370,5 @@ EOF_SCAN
   [ "$cut_found" -gt 0 ] && note "vm-cut" "boot=$boot cut-mid-work=$cut_found notified"
 fi
 
-note "sweep-done" "spawned=$swept"
+note "sweep-done" "consumed=$swept"
 exit 0

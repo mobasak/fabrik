@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
+# AFTER-EDIT: docs/workstation/hooks-index.md
 # claude-selfwatch.sh <session_id> — resume-mesh Layer 2b (interactive pane self-watch).
+# Tracked home: /opt/fabrik/scripts/sysadmin/mesh/ (W-6e656dac T04); the live copy in ~/.claude/bin is installed
+# from it by scripts/sysadmin/install_mesh.sh, never hand-edited. `.holdlifted` field 2: (none) quota · battery ·
+# hibernate (the hibernate pause lifted, its line names the marker's lift_path) · resume (the box resumed from sleep).
 # Armed BY THE AGENT via the ORIENT order in every session: Monitor(persistent: true, command: "bash ~/.claude/bin/claude-selfwatch.sh <sid>", description: "resume-mesh self-watch").
 # Zero API cost while silent. Consumes TWO files: `.errparked` (a death, below) and `.holdlifted` (the relief wake — the LIFT branch; plan 2026-09-07-plan-1-relief-wake, D-178).
 # A marker already present at ARM time is history — the arming session is alive by
@@ -39,36 +43,85 @@ fi
 rm -f "$marker" "$lift" 2>/dev/null || true  # pre-arm history: never fire into the live arming session
 
 qcmd="${MESH_QUOTA_CMD:-$HOME/.claude/bin/claude-quota.py}"
+# W-5279e834 (D-897): a RESUME into a network or API that drops again dies with no watch left, so the
+# death wake — and the hibernate/resume wake (W-6e656dac T04) — need MESH_UP_STREAK CONSECUTIVE answers. A
+# MESH_UP_STREAK outside 1..99 (garbage, zero, huge) falls back to 3 — never a gate that runs no probe at all.
+up_streak="${MESH_UP_STREAK:-3}"
+# an allowlist: 1..99 only — spelled-out digit sets, never `[1-9]`: a glob RANGE collates by
+# locale, and under UTF-8 it admits non-ASCII digits (٣) that `[ -lt ]` cannot read
+case "$up_streak" in [123456789]|[123456789][0123456789]) ;; *) up_streak=3 ;; esac
+# net_gate <answers> <file to keep fresh, or ''>: returns 0 after that many CONSECUTIVE API answers (ANY HTTP
+# response = up; one failed probe restarts the count), 1 once the network has been down MESH_CEILING seconds
+# counted from $death. Each probe `touch -c`es the file, so a > 2 h outage cannot let the decider's 2-h lock-dir
+# prune take it (`-c` never re-creates one the decider cleared).
+net_gate() {
+  local need="$1" keep="$2" streak=0
+  while [ "$streak" -lt "$need" ]; do
+    [ -n "$keep" ] && touch -c "$keep" 2>/dev/null
+    if curl -s -o /dev/null --max-time 5 https://api.anthropic.com; then
+      streak=$(( streak + 1 ))
+    else
+      streak=0
+      [ $(( $(date +%s) - death )) -ge "${MESH_CEILING:-1800}" ] && return 1
+    fi
+    [ "$streak" -ge "$need" ] || sleep "${MESH_POLL:-10}"
+  done
+  return 0
+}
+# lift_why: the marker's lift_path (Interface M — $ROTATE_STATE_DIR/hibernate.json, else <passwd home>/.claude/
+# state/hibernate.json, $HOME only when the uid has no passwd entry), `unknown` on any error or a value that is
+# not a plain word
+lift_why() {
+  local w
+  w=$(python3 -c 'import json,os,pwd
+try:
+    try: h = pwd.getpwuid(os.getuid()).pw_dir
+    except KeyError: h = os.path.expanduser("~")
+    v = json.load(open(os.path.join(os.environ.get("ROTATE_STATE_DIR") or os.path.join(h, ".claude", "state"), "hibernate.json"))).get("lift_path")
+    print(v if isinstance(v, str) else "unknown")
+except Exception: print("unknown")' 2>/dev/null)
+  case "$w" in ''|*[!A-Za-z0-9_-]*) w=unknown ;; esac
+  printf '%s' "$w"
+}
 while :; do
   while [ ! -f "$marker" ] && [ ! -f "$lift" ]; do sleep "${MESH_POLL:-10}"; [ "$locks/$safe.selfwatch.lock" -ef /proc/$$/fd/9 ] || { printf 'self-watch for %s: its lock file vanished (the Stop decider prunes lock-dir files older than 2h by mtime — fixed 2026-09-07 — or a manual rm); this watch EXITS so the tick and the arm nag see the truth — re-arm it\n' "$safe"; exit 0; }; done  # orphan guard (heavy review R1)
   if [ ! -f "$marker" ] && [ -f "$lift" ]; then
-    # The LIFT branch: no backoff (nothing to heal), no jitter (one fleet-wide event for a
-    # handful of panes, not a storm); the same connectivity gate as a death — `death` is the
-    # gate's ceiling clock (`set -u`: it must be set here), the LIFT epoch stays in `lift_at`
-    # so the line names when the hold went, not when the wake landed. On the ceiling the file
-    # stays and the cycle restarts (W9's shape); a death marker arriving meanwhile wins the
-    # next poll and the lift follows it on the iteration after.
-    lift_at=$(awk '{print $1; exit}' "$lift" 2>/dev/null || true)
-    case "$lift_at" in ''|*[!0123456789]*) lift_at=$(date +%s) ;; esac
-    # field 2 names the hold (W-83a8ee68): `battery` for the battery hold's lift; a quota lift
-    # writes one field, and anything else reads as the quota's
-    lift_kind=$(awk '{print $2; exit}' "$lift" 2>/dev/null || true)
-    case "$lift_kind" in
-      battery) lift_what='the battery hold LIFTED at %s (mains power is back)' ;;
-      *) lift_what='the fleet-quota hold LIFTED at %s (the rotation tick saw relief)' ;;
+    # The LIFT branch: no backoff (nothing to heal). Field 2 names the hold: `battery` (W-83a8ee68),
+    # `hibernate` (the hibernate pause lifted) or `resume` (the box resumed from sleep — W-6e656dac T04,
+    # W-b01aa1ec); a quota lift writes one field, and anything else reads as the quota's. A quota or battery
+    # lift is one probe and no jitter (a handful of panes, not a storm); a hibernate or resume wake reaches
+    # EVERY paused agent at once off a network that just came back, so it takes the death branch's
+    # MESH_UP_STREAK answers and storm jitter (spec L3, D-897). `death` is the gate's ceiling clock (`set
+    # -u`: it must be set here). On the ceiling the file stays and the cycle restarts (W9's shape); a death
+    # marker arriving meanwhile wins the next poll and the lift follows it on the iteration after.
+    case "$(awk '{print $2; exit}' "$lift" 2>/dev/null || true)" in
+      hibernate|resume) need=$up_streak; jitter=1 ;;
+      *) need=1; jitter=0 ;;
     esac
     death=$(date +%s)
-    ceiling_hit=0
-    until curl -s -o /dev/null --max-time 5 https://api.anthropic.com; do
-      [ $(( $(date +%s) - death )) -ge "${MESH_CEILING:-1800}" ] && { ceiling_hit=1; break; }
-      sleep "${MESH_POLL:-10}"
-    done
-    [ "$ceiling_hit" = "1" ] && continue
+    net_gate "$need" "$lift" || continue
+    [ "$jitter" = "1" ] && sleep "$(( RANDOM % ( ${MESH_JITTER_MAX:-45} + 1 ) ))"
     [ -f "$lift" ] || continue  # consumed or cleaned meanwhile (a fresh arm) — keep watching
+    # read the file AFTER the gate (routed I13): a hibernate lift's fan-out replaces a pending `resume` wake
+    # while the gate waits, and the line must carry the replacing kind and its epoch — the LIFT epoch, so
+    # the line names when the hold went, not when the wake landed
+    lift_at=$(awk '{print $1; exit}' "$lift" 2>/dev/null || true)
+    case "$lift_at" in ''|*[!0123456789]*) lift_at=$(date +%s) ;; esac
+    lift_kind=$(awk '{print $2; exit}' "$lift" 2>/dev/null || true)
     rm -f "$lift" 2>/dev/null || true  # consume: one wake per lift
-    # shellcheck disable=SC2059 — lift_what is one of the two fixed formats chosen above
-    printf "RESUME: $lift_what" "$(date -d @"$lift_at" +%H:%M)"
-    printf '. If you stopped for it, resume the run you closed BLOCKED — its record (`python3 scripts/command_run.py line`) and `python3 scripts/thread_anchor.py line --session %s` carry where you left off; if you are mid-task, ignore this line — this self-watch STAYS ARMED (do NOT re-arm; a duplicate arm exits at once)\n' "$sid"
+    at=$(date -d @"$lift_at" +%H:%M)
+    case "$lift_kind" in
+      hibernate)
+        printf 'RESUME: the hibernate pause ended at %s (%s) — run python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke --self %s and resume your item from its seed' "$at" "$(lift_why)" "$sid" ;;
+      resume)
+        printf 'RESUME: the box RESUMED from sleep at %s. If you stopped for it, resume the run you closed BLOCKED — its record (`python3 scripts/command_run.py line`) and `python3 scripts/thread_anchor.py line --session %s` carry where you left off; if you are mid-task, ignore this line' "$at" "$sid" ;;
+      battery)
+        printf 'RESUME: the battery hold LIFTED at %s (mains power is back). If you stopped for it, resume the run you closed BLOCKED — its record (`python3 scripts/command_run.py line`) and `python3 scripts/thread_anchor.py line --session %s` carry where you left off; if you are mid-task, ignore this line' "$at" "$sid" ;;
+      *)
+        printf 'RESUME: the fleet-quota hold LIFTED at %s (the rotation tick saw relief). If you stopped for it, resume the run you closed BLOCKED — its record (`python3 scripts/command_run.py line`) and `python3 scripts/thread_anchor.py line --session %s` carry where you left off; if you are mid-task, ignore this line' "$at" "$sid" ;;
+    esac
+    # every RESUME line ends in this clause: selfwatch_arm.sh cuts the line at it (scripts/sysadmin/selfwatch_arm.sh)
+    printf ' — this self-watch STAYS ARMED (do NOT re-arm; a duplicate arm exits at once)\n'
     continue
   fi
   err=$(awk '{print $1; exit}' "$marker" 2>/dev/null || echo unknown)
@@ -131,27 +184,10 @@ while :; do
   # exits on a dead network; it fires the moment the network returns.
   # W-5279e834 (D-897): the RESUME needs MESH_UP_STREAK CONSECUTIVE answers — a restore
   # often flaps, and a wake into a network that drops again dies with no watch left (the
-  # arm is one wake per arm, D-356); and each poll keeps the death record fresh (`touch -c`
-  # never re-creates one the decider cleared; the sliced backoff above touches it too), so a
-  # > 2 h outage or quota wait cannot let the decider's 2-h lock-dir prune take it. A MESH_UP_STREAK
-  # outside 1..99 (garbage, zero, huge) falls back to 3 — never a gate that runs no probe at all.
-  up_streak="${MESH_UP_STREAK:-3}"
-  # an allowlist: 1..99 only — spelled-out digit sets, never `[1-9]`: a glob RANGE collates by
-  # locale, and under UTF-8 it admits non-ASCII digits (٣) that `[ -lt ]` cannot read
-  case "$up_streak" in [123456789]|[123456789][0123456789]) ;; *) up_streak=3 ;; esac
-  ceiling_hit=0
-  streak=0
-  while [ "$streak" -lt "$up_streak" ]; do
-    touch -c "$marker" 2>/dev/null || true
-    if curl -s -o /dev/null --max-time 5 https://api.anthropic.com; then
-      streak=$(( streak + 1 ))
-    else
-      streak=0
-      [ $(( $(date +%s) - death )) -ge "${MESH_CEILING:-1800}" ] && { ceiling_hit=1; break; }
-    fi
-    [ "$streak" -ge "$up_streak" ] || sleep "${MESH_POLL:-10}"
-  done
-  [ "$ceiling_hit" = "1" ] && continue
+  # arm is one wake per arm, D-356); and each poll keeps the death record fresh (the sliced
+  # backoff above touches it too), so a > 2 h outage or quota wait cannot let the decider's
+  # 2-h lock-dir prune take it (net_gate, above).
+  net_gate "$up_streak" "$marker" || continue
 
   sleep "$(( RANDOM % ( ${MESH_JITTER_MAX:-45} + 1 ) ))"  # share the storm jitter
   # Post-wait re-check (mirror of the autoresume per-attempt survival check): the

@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
+# AFTER-EDIT: docs/workstation/hooks-index.md
 # Resume-mesh fixture harness (plan 2026-08-09-plan-2). Self-contained sandbox:
 # copies claude-sound.sh + claude-stop-decider.py into a tmp HOME, shims
 # claude_rotate.py / claude / curl / notify via PATH, overrides the lock dir via
 # CLAUDE_SOUND_LOCKDIR — never touches the real log, locks, or sounds.
 # Exit 0 = all green. Sections: A (layer-1), B (revivers incl. spawn gate),
-# W (selfwatch), C (telegram), D (waker-loss timer bridge).
+# W (selfwatch), C (telegram), D (waker-loss timer bridge), R/RS (reboot sweep — its builder leg
+# against stubbed tmux, systemctl, agents_up.sh and agents_bat.py). Tracked home:
+# /opt/fabrik/scripts/sysadmin/mesh/ — run it there with MESH_TEST_SRC="$PWD/scripts/sysadmin/mesh".
 set -u
 
 SRC="${MESH_TEST_SRC:-$HOME/.claude/bin}"  # MESH_TEST_SRC: run the suite on pinned or mutant copies (review W-5279e834)
