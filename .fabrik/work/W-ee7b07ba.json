@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T21:15:59.435119Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-ee7b07ba",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "size grafana's memory limit from its working-set history (or add hysteresis), then delete or fix the NodeDown inhibit; found by W-6e623087 MEASURE/critique",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet",
+    "monitoring"
+  ],
+  "title": "ContainerHighMemory flaps on grafana: 2381 firing episodes in 7 days on vps1 (sum by (alertname)(changes(ALERTS_FOR_STATE[7d])+1), 2026-10-30) — grafana's working set sits at its 85% limit line; and the inhibit rule at configs/alertmanager/alertmanager.yml:93-97 names NodeDown, which no rule defines (dead rule)"
+}

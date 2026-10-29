@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T21:15:57.770287Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-6efab6dc",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "scope the rule to containers that should run (e.g. a compose project label, or exclude containers whose last state was a clean exit), measured against the 7-day ALERTS corpus; found by W-6e623087 MEASURE",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet",
+    "monitoring"
+  ],
+  "title": "ContainerDown (configs/prometheus/rules/alerts.yml:8-9, severity critical) fires on every deliberately removed container: time() - container_last_seen > 120 holds while cAdvisor keeps the series, so 30+ of the 42 ContainerDown names in 7 days on vps1 are docker random names of removed build/smoke containers (epic_cerf, zen_wu, ...)"
+}

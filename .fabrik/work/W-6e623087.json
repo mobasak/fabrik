@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "measure on vps1's alertmanager (amtool alert query) which label the live container alerts carry, then group_by name (or instance,name) with an amtool config routes test",
+  "next": "UPGRADED to the spec chain 2026-10-30 (lane row 4, tradeoffs): the per-container split vs per-alertname digest for the human Telegram stream, and whether only the aro-wake route gets identity groups, is notification-volume policy (ContainerDown 104 episodes/7d over 42 names would become ~208 Telegram messages/week). Seed with both critiques, measurements and the accepted concerns (Telegram .CommonLabels.container -> name, groupKey[:120] truncation, aggregation-scoped census grader draft): .tmp/runs/91f86469-3254-4744-8e41-4c4a937bc7fc/fabrik-task-2026-10-30T00-06-47-0300/design.md in worktree fleet-backfill-ci; next: coordinator re-scores — /fabrik-spec from that seed, or drop",
   "note": "",
   "owner": "",
   "priority": 2,

@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T21:15:54.518428Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-2d664ff5",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read aro-wake logs on vps1 for the failure cause (claude call? auth?), fix it, and make the SLI rule fire on zero successes (e.g. or on() vector(0) for the numerator); found by W-6e623087 MEASURE",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet",
+    "monitoring"
+  ],
+  "title": "aro-wake fails 100%: vps1 Prometheus shows 645 of 645 alertmanager wake requests status=failure in 7 days (vps1 625, vps2 6, vps3 14; sum by (host,source,status)(increase(aro_wake_requests_total[7d])) 2026-10-30), and AroWakeLowSuccessRate (configs/prometheus/rules/alerts.yml:172) cannot fire because with no status=success series its ratio is empty — the AI triage path is silently dead"
+}
