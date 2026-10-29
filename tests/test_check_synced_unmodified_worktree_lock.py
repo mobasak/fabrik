@@ -78,7 +78,11 @@ def test_borrowed_lock_reds_a_stale_copy(tmp_path, hub, monkeypatch, capsys):
     rc, out = _run(_load(monkeypatch, hub), wt, monkeypatch, capsys)
     assert rc == 1, out
     assert "   - rules/a.md" in out
-    assert str(main / ".fabrik/synced.lock") in out
+    assert (
+        f"differ from the main checkout's lock ({main / '.fabrik/synced.lock'}; 0 not yet received)"
+        in out
+    )
+    assert "You edited a synced copy" not in out
     assert f"cp {main / 'rules/a.md'} rules/a.md" in out
 
 
@@ -89,8 +93,10 @@ def test_borrowed_lock_skips_absent_rows(tmp_path, hub, monkeypatch, capsys):
     rc, out = _run(_load(monkeypatch, hub), wt, monkeypatch, capsys)
     assert rc == 0, out
     assert "DELETED" not in out
-    assert str(main / ".fabrik/synced.lock") in out
-    assert "1 not yet received" in out
+    assert (
+        f"✓ all 1 Fabrik-synced files present match the main checkout's lock "
+        f"({main / '.fabrik/synced.lock'}); 1 not yet received"
+    ) in out
 
 
 def test_own_lock_still_reds_a_deletion(tmp_path, hub, monkeypatch, capsys):
@@ -102,14 +108,44 @@ def test_own_lock_still_reds_a_deletion(tmp_path, hub, monkeypatch, capsys):
     assert "rules/gone.md — DELETED locally" in out
 
 
-def test_no_lock_anywhere_still_skips(tmp_path, hub, monkeypatch, capsys):
+def test_no_borrowable_lock_still_skips(tmp_path, hub, monkeypatch, capsys):
+    stale = {"rules/a.md": _md5("other\n")}  # any lock borrowed here would red
     main = _repo(tmp_path / "main", {"rules/a.md": "same\n"})
     wt = _worktree(main, tmp_path / "wt")
+    # a bare repo's worktree: the git dir's parent is no checkout, even when it holds a lock
+    bare_parent = tmp_path / "bareparent"
+    bare_parent.mkdir()
+    subprocess.run(
+        [*GIT, "clone", "-q", "--bare", str(main), str(bare_parent / "b.git")], check=True
+    )
+    _lock(bare_parent, stale)
+    bare_wt = tmp_path / "barewt"
+    subprocess.run(
+        [*GIT, "-C", str(bare_parent / "b.git"), "worktree", "add", "-q", str(bare_wt), "HEAD"],
+        check=True,
+    )
     module = _load(monkeypatch, hub)
-    for root in (main, wt):
+    for root in (main, wt, bare_wt):
         rc, out = _run(module, root, monkeypatch, capsys)
-        assert rc == 0, out
-        assert "synced-files check skipped" in out
+        assert rc == 0, (root, out)
+        assert "synced-files check skipped" in out, (root, out)
+    # a worktree SUBDIRECTORY whose main checkout has a lock: the root is not the worktree
+    _lock(main, stale)
+    rc, out = _run(module, wt / "rules", monkeypatch, capsys)
+    assert rc == 0, out
+    assert "synced-files check skipped" in out
+
+
+def test_an_exported_git_dir_never_picks_the_lock(tmp_path, hub, monkeypatch, capsys):
+    main = _repo(tmp_path / "main", {"rules/a.md": "same\n"})
+    _lock(main, {"rules/a.md": _md5("same\n")})
+    wt = _worktree(main, tmp_path / "wt")
+    other = _repo(tmp_path / "other", {"rules/a.md": "same\n"})
+    monkeypatch.setenv("GIT_DIR", str(other / ".git"))  # a hook or wrapper's leftover
+    monkeypatch.setenv("GIT_WORK_TREE", str(other))
+    rc, out = _run(_load(monkeypatch, hub), wt, monkeypatch, capsys)
+    assert rc == 0, out
+    assert "present match the main checkout's lock" in out
 
 
 def test_hub_worktree_is_the_source(tmp_path, monkeypatch, capsys):
@@ -129,3 +165,18 @@ def test_unreadable_borrowed_lock_skips(tmp_path, hub, monkeypatch, capsys):
     assert rc == 0, out
     assert "unreadable" in out
     assert str(main / ".fabrik/synced.lock") in out
+
+
+def test_final_gate_excludes_borrowed_synced_paths(tmp_path, monkeypatch):
+    """The gate's lint/auto-fix exclusion reads the same lock the check grades against, so a
+    re-copied synced file in a lockless worktree is never reformatted into a fresh red."""
+    sys.path.insert(0, str(CHECK.parents[1]))
+    try:
+        import final_gate
+    finally:
+        sys.path.pop(0)
+    main = _repo(tmp_path / "main", {"scripts/x.py": "x = 1\n"})
+    _lock(main, {"scripts/x.py": _md5("x = 1\n")})
+    wt = _worktree(main, tmp_path / "wt")
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", wt)
+    assert final_gate._synced_paths() == {"scripts/x.py"}

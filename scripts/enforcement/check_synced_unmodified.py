@@ -15,8 +15,11 @@ never flagged — which permanently kills the recurring false positive where upd
 governance file on the hub red-flagged every project that hadn't re-synced yet. Only a
 genuine local edit — a file differing from the hash it was distributed with — fails.
 
-No lock yet (a project not re-synced since the lock was introduced) → skip gracefully; the
-next sync writes it and the check activates. Self-exempt inside ``/opt/fabrik`` (the source).
+No lock yet in a LINKED WORKTREE (it is born without one) → graded against the main checkout's
+lock, the rows the worktree holds only (an absent row was never received; ``synced_lock``). No
+lock anywhere (a project not re-synced since the lock was introduced) → skip gracefully; the
+next sync writes it and the check activates. Self-exempt inside ``/opt/fabrik`` (the source) and
+its worktrees.
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import os
 import shlex
 import subprocess
 import sys
@@ -188,10 +192,18 @@ def _manifest_lists() -> tuple[set[str], tuple[str, ...]]:
         raise ManifestError(f"{path} failed to load or answer: {name}: {detail}") from e
 
 
+_GIT_ENV_OVERRIDES = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE")
+
+
 def _main_checkout(project_root: Path) -> Path | None:
-    """The main checkout when `project_root` is a LINKED worktree (its git-dir differs from the
-    shared git-common-dir), else None. A submodule has a `.git` FILE too, so the file's shape is
-    never the test. Any git failure reads as "not a linked worktree"."""
+    """The main checkout when `project_root` IS a LINKED worktree's root (its git-dir differs from
+    the shared git-common-dir), else None. A submodule has a `.git` FILE too, so the file's shape is
+    never the test. command_run.py's `_main_checkout` identity rule (W-c77f91c6): git runs with the
+    caller's GIT_DIR/GIT_WORK_TREE stripped (a hook's leftover would answer for another repo), the
+    common dir must be named `.git` (a bare or --separate-git-dir repo's parent is no checkout),
+    and the toplevel must be `project_root` (a subdirectory is not the worktree). Any git failure
+    reads as "not a linked worktree"."""
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_ENV_OVERRIDES}
     try:
         out = subprocess.run(
             [
@@ -202,19 +214,51 @@ def _main_checkout(project_root: Path) -> Path | None:
                 "--path-format=absolute",
                 "--git-dir",
                 "--git-common-dir",
+                "--show-toplevel",
             ],
             capture_output=True,
             text=True,
             check=False,
             timeout=30,
+            env=env,
         )
     except (OSError, subprocess.SubprocessError):
         return None
     lines = out.stdout.splitlines()
-    if out.returncode != 0 or len(lines) < 2:
+    if out.returncode != 0 or len(lines) < 3:
         return None
     git_dir, common = Path(lines[0]).resolve(), Path(lines[1]).resolve()
-    return None if git_dir == common else common.parent
+    if git_dir == common or common.name != ".git":
+        return None
+    if Path(lines[2]).resolve() != project_root.resolve():
+        return None
+    return common.parent
+
+
+def synced_lock(project_root: Path) -> tuple[Path | None, bool, str]:
+    """(the lock to grade `project_root` against, borrowed?, why there is none).
+
+    The project's own `.fabrik/synced.lock` when it has one. A LINKED worktree is born without
+    one (the `.worktreeinclude` copy carries this check but not the lock; the sync copies the main
+    checkout's lock in on its next run, and only under `.claude/worktrees/`), so it borrows its
+    MAIN checkout's lock — never the live hub or git HEAD, which re-introduce the version-skew
+    false positive. The hub's own worktrees are the source. `final_gate._synced_paths` reads this
+    too, so the gate never reformats a file this check grades. Cobra (D-253): deleting a
+    worktree's own lock to dodge the strict rule lands here, where absent rows still go unflagged
+    but every present copy is graded — tighter than the skip it replaced."""
+    own = project_root / LOCK_REL
+    if own.exists():
+        return own, False, ""
+    main_checkout = _main_checkout(project_root)
+    if main_checkout is not None and main_checkout == FABRIK_ROOT.resolve():
+        return None, False, "(source repo worktree — synced-files check skipped)"
+    if main_checkout is None or not (main_checkout / LOCK_REL).exists():
+        return (
+            None,
+            False,
+            f"(no {LOCK_REL} — project not yet re-synced; synced-files check skipped)",
+        )
+    return main_checkout / LOCK_REL, True, ""
 
 
 def main() -> int:
@@ -228,16 +272,14 @@ def main() -> int:
         print("(source repo — synced-files check skipped)")
         return 0
 
-    lock_path = project_root / LOCK_REL
-    if not lock_path.exists():
-        # Not re-synced since the lock was introduced. Comparing against anything else
-        # (live hub / git HEAD) re-introduces the version-skew false positive, so skip.
-        print(f"(no {LOCK_REL} — project not yet re-synced; synced-files check skipped)")
+    lock_path, borrowed, why = synced_lock(project_root)
+    if lock_path is None:
+        print(why)
         return 0
     try:
         lock: dict[str, str] = json.loads(lock_path.read_text())
-    except Exception as e:  # pragma: no cover - defensive
-        print(f"({LOCK_REL} unreadable: {e} — skipped)")
+    except Exception as e:
+        print(f"({lock_path if borrowed else LOCK_REL} unreadable: {e} — skipped)")
         return 0
 
     try:
@@ -252,6 +294,7 @@ def main() -> int:
     retired = tuple((d[0] if isinstance(d, tuple) else d).rstrip("/") + "/" for d in retired_dirs)
     drifted: list[str] = []
     changed: list[str] = []  # differs or deleted — the stale-worktree remedy's subjects
+    not_received = 0  # a borrowed lock's rows this worktree never held
     for rel, distributed_hash in lock.items():
         if rel in seeded:
             continue
@@ -264,14 +307,26 @@ def main() -> int:
         # that is absent or cannot be examined) degrades to the old behaviour with no special case — verified, not assumed.
         if rel.startswith(retired):
             continue
-        if not dest.exists():
+        if not dest.exists() and borrowed:
+            not_received += 1
+        elif not dest.exists():
             drifted.append(f"{rel} — DELETED locally (a Fabrik-synced file must exist)")
             changed.append(rel)
         elif _md5(dest) != distributed_hash:
             drifted.append(rel)
             changed.append(rel)
 
-    if drifted:
+    if drifted and borrowed:
+        # This worktree never had its own lock, so a fresh copy older than the main checkout's
+        # last sync is the likelier cause than an edit — the header must not claim an edit.
+        print(
+            f"❌ Fabrik-synced files differ from the main checkout's lock ({lock_path}; "
+            f"{not_received} not yet received) — a copy older than the main checkout's last "
+            "sync, or a local edit:"
+        )
+        for rel in sorted(drifted):
+            print(f"   - {rel}")
+    elif drifted:
         print(
             "❌ Fabrik-synced files modified locally — these are CENTRALLY MANAGED and are "
             "overwritten on every sync:"
@@ -282,6 +337,7 @@ def main() -> int:
         print("You edited a synced copy (it differs from what was distributed to this")
         print("project). Revert it (the next sync restores it), or, if the change is right for")
         print("ALL projects, edit /opt/fabrik/<path>: the hub distributes it. Never fork here.")
+    if drifted:
         manifest = FABRIK_ROOT / MANIFEST_REL
         # `is False`, never falsy: a manifest that cannot be examined (None) is "cannot tell". A
         # clean False means every stat on the way resolved, so `exists()` below cannot raise.
@@ -309,6 +365,12 @@ def main() -> int:
                     )
         return 1
 
+    if borrowed:
+        print(
+            f"✓ all {len(lock) - not_received} Fabrik-synced files present match the main "
+            f"checkout's lock ({lock_path}); {not_received} not yet received"
+        )
+        return 0
     print(f"✓ all {len(lock)} Fabrik-synced files match what was distributed ({LOCK_REL})")
     return 0
 
