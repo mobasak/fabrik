@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T09:49:05.564229Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-364653b9",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one small fix: add the Co/Cn clause in both places; decide (2) and (3) with a one-line test or a recorded by-design",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "next-infra-2"
+  ],
+  "title": "operator_setup.py W-b3192e98 review residue (recorded after the scope-growth stop): (1) the docstring (_link_undo) and docs/workstation/operator-setup.md list the classes str.isprintable() refuses but omit private-use (Co) and unassigned (Cn) code points — add 'or a private-use or unassigned code point' (both pass-4 seats, executed U+E000/U+0378); (2) a relative or dash-leading $HOME makes the printed cp -p backup path relative to the paste cwd (pass 1 S3-4, contrived: the passwd-home check); (3) the timer undo line is a planning-time snapshot, not re-checked at apply (pass 1 seat-2 note)"
+}
