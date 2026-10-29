@@ -602,8 +602,8 @@ _MAP_REL = Path(".fabrik") / "beat-owners.json"
 _LIB_MAP_REL = Path(".fabrik") / "module-owners.json"
 MAP_SWITCHES = ("auto_address", "fabrik_lib_address")
 _ROUTING_CAP = 200  # a header value, never a paragraph
-# a CommonMark code span — N backticks closed by EXACTLY N (a naive pair unpairs after ``x``, W-f2e97f00)
-_CODE_SPAN = _re.compile(r"(?<!`)(`+)(?!`)([^\n]+?)(?<!`)\1(?!`)")
+# a CommonMark code span — N backticks closed by EXACTLY N, N <= 8 (scripts/command_run.py::_CODE_SPAN)
+_CODE_SPAN = _re.compile(r"(?<!`)(`{1,8})(?!`)([^\n]+?)(?<!`)\1(?!`)")
 _PATH_LINE = _re.compile(r"(?<![\w.~/-])((?:/|[\w.-]+/)[\w./-]*[\w-])(?::\d+(?:-\d+)?)")
 _LINE_SUFFIX = _re.compile(r":\d+(?:-\d+)?$")
 

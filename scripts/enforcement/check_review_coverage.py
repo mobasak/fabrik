@@ -3221,8 +3221,8 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
 _CHANGED_LINE = re.compile(
     r"\*\*Changed:\*\*(.*?)(?=\n(?![ \t]*(?:\*{0,2}`|(?:\d+[.)]|[-*+]|>+)[ \t]*\*{0,2}`))|\Z)", re.S
 )
-# a CommonMark code span — N backticks closed by EXACTLY N (a naive pair unpairs after ``x``, W-f2e97f00)
-_CODE_SPAN = re.compile(r"(?<!`)(`+)(?!`)([^\n]+?)(?<!`)\1(?!`)")
+# a CommonMark code span — N backticks closed by EXACTLY N, N <= 8 (scripts/command_run.py::_CODE_SPAN)
+_CODE_SPAN = re.compile(r"(?<!`)(`{1,8})(?!`)([^\n]+?)(?<!`)\1(?!`)")
 _TOKEN_SHAPE = re.compile(r"^[\w.+/~-]+$")  # what a path is made of — never a symbol, a flag, prose
 # a pytest node id — EVERYTHING after the first `::` (rounds 6–9 grew a bracket grammar one
 # alphabet at a time and each cut lost a shape; a param is any string pytest was given, so the
@@ -3293,7 +3293,7 @@ def _is_path_token(tok: str) -> bool:
     return not re.fullmatch(r"\d+(?:\.\d+)*", tok)  # a count or a version
 
 
-_HUNT_ROW = re.compile(r"Hunt:\s*(`+)(?!`)([^\n]+?)(?<!`)\1(?!`)")
+_HUNT_ROW = re.compile(r"Hunt:\s*(`{1,8})(?!`)([^\n]+?)(?<!`)\1(?!`)")
 
 
 def _hunt_gaps(text: str) -> list[str]:

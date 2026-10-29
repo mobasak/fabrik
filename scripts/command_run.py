@@ -5315,9 +5315,12 @@ _TASK_LEDGER_EXCL = (
 _TASK_REVIEWS_DIR = "docs/development/reviews/"
 
 # A CommonMark code span: a run of N backticks closed by the next run of EXACTLY N. A naive
-# single-backtick pair unpaired every later token after one ``double`` span (W-f2e97f00);
-# tests/test_code_span_readers.py keeps that pattern out of every reader.
-_CODE_SPAN = re.compile(r"(?<!`)(`+)(?!`)([^\n]+?)(?<!`)\1(?!`)")
+# single-backtick pair unpaired every later token after one ``double`` span (W-f2e97f00). N is
+# capped at 8 so an unclosed run rescans its line at most once per length (an uncapped N was
+# quadratic: 7 s on one 500 KB line); a run of 9+ stays literal. The same pattern sits in
+# scripts/mail.py and scripts/enforcement/check_review_coverage.py, held equal by
+# tests/test_code_span_readers.py.
+_CODE_SPAN = re.compile(r"(?<!`)(`{1,8})(?!`)([^\n]+?)(?<!`)\1(?!`)")
 
 
 def _code_spans(text: str) -> list[str]:

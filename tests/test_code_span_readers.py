@@ -1,4 +1,4 @@
-"""Every reader that harvests backticked tokens reads a CommonMark code span, never a naive pair.
+"""The backticked-token readers read a same-line code span (N <= 8 backticks), never a naive pair.
 
 kaizen 01M5JTMSVY (W-f2e97f00): `_design_paths` paired single backticks, so one double-backtick
 span (``a`b``) in a design's APPROACH shifted the pairing and every later path was misread — the
@@ -11,6 +11,7 @@ from __future__ import annotations
 import importlib.util
 import re
 import sys
+import time
 from pathlib import Path
 
 _REPO = Path(__file__).resolve().parent.parent
@@ -62,15 +63,78 @@ def test_a_lone_backtick_run_stays_literal() -> None:
     ]
 
 
-def test_no_reader_pairs_single_backticks_naively() -> None:
-    """The class guard: `([^`]…)` between two single backticks is the pattern that unpairs on a
-    double span. A reader of backticked tokens uses the run-length pattern instead."""
-    naive = re.compile(r"""compile\(\s*r?["']`\(\[\^`""")
-    hits = [
-        f"{p.relative_to(_REPO)}:{n}"
-        for root in ("scripts", ".claude/hooks")
-        for p in sorted((_REPO / root).rglob("*.py"))
-        for n, line in enumerate(p.read_text(encoding="utf-8", errors="replace").splitlines(), 1)
-        if naive.search(line)
+def test_one_space_each_side_is_stripped() -> None:
+    """CommonMark strips one space from each side of a span that carries one on both sides, so a
+    path written `` scripts/x.py `` is the path, not the path with spaces."""
+    cr = _load("cr_code_span_strip", "scripts/command_run.py")
+    assert cr._design_paths("APPROACH: `` scripts/x.py `` and `` `y` ``\n") == [
+        "scripts/x.py",
+        "`y`",
     ]
-    assert hits == [], hits
+    assert cr._code_spans("` ` and `  `") == [" ", "  "]  # all spaces: kept whole
+
+
+def test_a_run_of_nine_stays_literal() -> None:
+    cr = _load("cr_code_span_nine", "scripts/command_run.py")
+    nine = "`" * 9
+    assert cr._code_spans(f"{nine}a{nine} `x.py`") == ["x.py"]
+    assert cr._code_spans(f"{'`' * 8}a{'`' * 8}") == ["a"]
+
+
+def test_the_three_copies_are_one_pattern() -> None:
+    """Each script loads standalone in a synced project, so the pattern is copied, never imported;
+    the copies must not drift."""
+    pats = {
+        rel: _load(f"pat_{i}", rel)._CODE_SPAN.pattern
+        for i, rel in enumerate(
+            (
+                "scripts/command_run.py",
+                "scripts/mail.py",
+                "scripts/enforcement/check_review_coverage.py",
+            )
+        )
+    }
+    assert len(set(pats.values())) == 1, pats
+
+
+def test_an_unclosed_run_per_length_never_goes_quadratic() -> None:
+    """Every run length from 1 to 800 opened once and never closed, on one 321 KB line: an uncapped
+    run length rescanned the line once per length (2.98 s measured); the cap of 8 keeps it linear."""
+    cr = _load("cr_code_span_cost", "scripts/command_run.py")
+    line = "".join("`" * k + "a " for k in range(1, 801))
+    t = time.perf_counter()
+    cr._code_spans(line)
+    assert time.perf_counter() - t < 0.5
+
+
+# Pre-existing naive pairs, each a path and how many of its lines carry one. W-8183ecc2 decides per
+# site whether it is a token reader to switch to `_CODE_SPAN`; a site fixed or added changes this set.
+_KNOWN_NAIVE = {
+    ".claude/hooks/final_gate_stop.py": 3,
+    "scripts/doc_reconcile.py": 1,
+    "scripts/enforcement/_fences.py": 2,
+    "scripts/enforcement/check_traycer_chain.py": 1,
+    "scripts/kilo-benchmarks/tests/test_autocommit_freshness_wiring.py": 1,
+    "scripts/review_rubric.py": 1,
+}
+
+
+def test_no_new_reader_pairs_single_backticks_naively() -> None:
+    """The class guard: a single backtick, an optional group, then a negated-backtick class — the
+    shape that unpairs on a double span — in any line of any .py under scripts/ or .claude/hooks/
+    (archived trees excepted). A new site fails; a fixed one must leave `_KNOWN_NAIVE` too."""
+    naive = re.compile(r"`\(?\[\^`")
+    hits: dict[str, int] = {}
+    for root in ("scripts", ".claude/hooks"):
+        for p in sorted((_REPO / root).rglob("*.py")):
+            rel = p.relative_to(_REPO).as_posix()
+            if not p.is_file() or "/archived/" in rel or "/.archive/" in rel:
+                continue
+            n = sum(
+                1
+                for ln in p.read_text(encoding="utf-8", errors="replace").splitlines()
+                if naive.search(ln)
+            )
+            if n:
+                hits[rel] = n
+    assert hits == _KNOWN_NAIVE
