@@ -145,14 +145,14 @@ def test_env_upsert_replaces_the_key_keeps_the_rest_and_fixes_a_missing_newline(
     env = tmp_path / ".env"
     env.write_text(f"A=1\n{GT_KEY}=old\nB=2")  # no final newline
     env.chmod(0o644)
-    _upsert(tmp_path, GT_KEY, f"{GT_KEY}=new\n")
+    _upsert(tmp_path, GT_KEY, "new\n")
     assert env.read_text() == f"A=1\nB=2\n{GT_KEY}=new\n"
     assert stat.S_IMODE(env.stat().st_mode) == 0o600
     assert not list(tmp_path.glob(".env.*"))  # the mktemp file is gone
 
 
 def test_env_upsert_creates_a_missing_env_mode_0600(tmp_path):
-    _upsert(tmp_path, EX_KEY, f"{EX_KEY}=v\n")
+    _upsert(tmp_path, EX_KEY, "v\n")
     env = tmp_path / ".env"
     assert env.read_text() == f"{EX_KEY}=v\n" and stat.S_IMODE(env.stat().st_mode) == 0o600
 
@@ -237,6 +237,45 @@ def test_no_secret_reaches_any_remote_command_line(monkeypatch):
     pws = {"glitchtip": "GTSECRETGTSECRET", "postgres_exporter": "EXSECRETEXSECRET"}
     m.step3d_move(pws, {"glitchtip": "fresh", "postgres_exporter": "fresh"})
     assert fake.calls and not any(s in c for c in fake.calls for s in pws.values())
+
+
+def test_step3d_moves_both_mirrors_onto_their_scoped_logins_under_real_compose(monkeypatch, tmp_path):
+    """step3d_move's own commands, run locally on copies of the mirrors; only `compose up` is stubbed.
+
+    _Fake hard-codes the rendered config, so it passed while the .env line had no key (W-c27db1f1).
+    """
+    if shutil.which("docker") is None or subprocess.run(
+        ["docker", "compose", "version"], capture_output=True
+    ).returncode:
+        pytest.skip("docker compose is not installed")
+    dirs = {}
+    for _role, _db, cdir, *_ in m.SERVICES:
+        d = tmp_path / Path(cdir).name
+        d.mkdir()
+        shutil.copy(ROOT / "infra" / "vps1" / Path(cdir).name / "compose.yaml", d / "compose.yaml")
+        (d / ".env").write_text("UNRELATED=1\n")
+        dirs[cdir] = str(d)
+    ups = []
+
+    def local(cmd, stdin=None, host=None, timeout=300):
+        if "compose up -d" in cmd:
+            ups.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+        for cdir, d in dirs.items():
+            cmd = cmd.replace(f"cd {cdir} ", f"cd {d} ")
+        r = subprocess.run(
+            ["sh", "-c", cmd.replace("sudo ", "")], input=stdin, capture_output=True, text=True
+        )
+        return subprocess.CompletedProcess(cmd, r.returncode, r.stdout, r.stderr)
+
+    monkeypatch.setattr(m, "run", local)
+    monkeypatch.setattr(m, "gate", lambda *a: None)
+    pws = {"glitchtip": "G" * 32, "postgres_exporter": "E" * 32}
+    m.step3d_move(pws, {"glitchtip": "fresh", "postgres_exporter": "fresh"})
+    assert len(ups) == 2
+    for role, _db, cdir, key, old, _count, _svcs in m.SERVICES:
+        env = (Path(dirs[cdir]) / ".env").read_text().splitlines()
+        assert env == ["UNRELATED=1", f"{key}={m.scoped_dsn(old, role, pws[role])}"]
 
 
 def test_scoped_count_checks_role_and_database():
