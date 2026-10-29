@@ -11,7 +11,9 @@ D-1364). Every git repo under /opt is now listed, each with its coordinator: the
 `coordinator` labelled `(no owner row)` where the ledger declares none. A missing ledger or a failed lookup offers no
 coordinator row. The `decisions.py --merge-owner` lookups run on 8 threads with a 5 s timeout each and stop 3 s before
 the picker's deadline, so one hung lookup no longer costs the whole picker (`hibernate.merge_owner` gains a `timeout`
-keyword and the `DECLARES_NONE` constant). 5 new tests; `docs/workstation/claude-tab-router.md` updated.
+keyword and the `DECLARES_NONE` constant). Registry repo keys are normalised, so `/opt/x/` and `/opt/x` are one
+repo. 7 new tests (28 in the file, 21 before); `docs/workstation/claude-tab-router.md` updated. Full `/fabrik-review`
+3 rounds (2 → 3 → 0 confirmed); residue W-e9386861, W-449dfa54.
 
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
