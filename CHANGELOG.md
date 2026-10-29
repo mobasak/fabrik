@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the security-auth rule pack names the auth module's grace refresh rotation (2026-10-29)
+
+`.windsurf/rules/core/35-security-auth.md` (fleet-synced) described Pattern A's refresh rotation only by the default
+mode's `DELETE … RETURNING`, so a project agent concluded a repeated refresh must sign the user out and hand-rolled a
+grace window. The pack now names `AUTH_REFRESH_ROTATION` (`delete` by default, `grace` opt-in) and the opt-in
+`AUTH_EMAIL_CLAIM`; § Token Lifecycle says what each mode gives a retry and a replay, grace's in-window security cost
+and preconditions, and that a grace session is a token family revoked whole. Pinned by `tests/test_security_auth_pack.py`
+(D-1342, fabrik-lib request 01M4AGEK7Y, W-ec16d1f4).
+
 ### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)
 - `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the
   box at 96 % the hook's `SCRATCH ALARM` line landed in the stdout of every `--hook` run that passes its
