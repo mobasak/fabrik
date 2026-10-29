@@ -1796,9 +1796,11 @@ def add(argv: list[str]) -> int:
 # Spec § The delta D7, D4's remove half, D9's guard. Under the repo's agents lock: (1) the checks — every failing one
 # named in ONE refusal; (2) the pane; (3) `git worktree remove` (never --force); (4) the branch, deleted only when an
 # ancestor of the base; (5) the registry row and the heal; then, unlocked, the launchers (add's step 7).
-# COBRA (D-253): the cheapest way past the ignored-file check without its outcome is a `remove_ignored_ok` entry that
-# lets everything go (`/`, `.`) — the coordinator's store edit, reviewed like any config change; every path let go is
-# printed, so a too-wide entry shows on the first run.
+# COBRA (D-253): the cheapest way past the ignored-file check without its outcome is a too-wide `remove_ignored_ok`
+# entry — a top-level directory such as `data/`, or one entry per ignored name — the coordinator's store edit, reviewed
+# like any config change; every path let go is printed, so a too-wide entry shows on the first run. (`/` cannot be
+# that entry: `_ok_prefixes` refuses an entry that is only slashes as malformed. `.` lets nothing go: `_prefix_ok`
+# matches `.` or `./…`, and `ls-files` never prints a path in that form.)
 
 REGENERABLE = (
     ".venv",
@@ -1808,6 +1810,7 @@ REGENERABLE = (
     ".mypy_cache",
     ".ruff_cache",
 )
+LOST_NAMED = 20  # T10 F8: the lost files one refusal names before it counts the rest
 _PLAIN_SID_RE = re.compile(
     r"[A-Za-z0-9_-]+"
 )  # a record filename command_run.py::_safe_sid leaves unchanged
@@ -1982,8 +1985,9 @@ def _walk_runs(wt: str, let_go: list[str], fails: list[str], texts: list[tuple[s
 
 
 def _ignored_failures(wt: str, root: str, let_go: list[str]) -> list[str]:
-    """D7 + panel PF1: the ignored files `git worktree remove` would delete unasked, classified."""
-    out = _git(wt, "ls-files", "--others", "--ignored", "--exclude-standard", "--directory")
+    """D7 + panel PF1: the ignored files `git worktree remove` would delete unasked, classified. `-z` (T10 F7): without
+    it git C-quotes a non-ASCII or control-character name, and the quoted form matches no prefix and no file."""
+    out = _git(wt, "ls-files", "-z", "--others", "--ignored", "--exclude-standard", "--directory")
     if out.returncode != 0:
         return [f"git ls-files --ignored failed in {wt}: {out.stderr.strip() or out.returncode}"]
     fails: list[str] = []
@@ -1994,6 +1998,7 @@ def _ignored_failures(wt: str, root: str, let_go: list[str]) -> list[str]:
         fails.append(exc.reason)
         texts = []
     walk_runs = False
+    lost: list[str] = []
 
     def judge(rel: str) -> None:
         if any(seg in REGENERABLE for seg in rel.rstrip("/").split("/")) or _prefix_ok(
@@ -2011,11 +2016,9 @@ def _ignored_failures(wt: str, root: str, let_go: list[str]) -> list[str]:
             for child in children:
                 judge(rel + child.name + ("/" if child.is_dir(follow_symlinks=False) else ""))
         else:
-            fails.append(
-                f"ignored {os.path.join(wt, rel)} would be lost — delete or keep it by hand"
-            )
+            lost.append(os.path.join(wt, rel))
 
-    for rel in out.stdout.splitlines():
+    for rel in out.stdout.split("\0"):
         if not rel:
             continue
         bare = rel.rstrip("/")
@@ -2037,21 +2040,52 @@ def _ignored_failures(wt: str, root: str, let_go: list[str]) -> list[str]:
             walk_runs = True
         else:
             judge(rel)
+    if lost:
+        # T10 F8: a large tree names its first LOST_NAMED files and counts the rest exactly — never every file into
+        # stderr and the refusal row
+        named = ", ".join(lost[:LOST_NAMED])
+        more = (
+            f" … and {len(lost) - LOST_NAMED} more ({len(lost)} files)"
+            if len(lost) > LOST_NAMED
+            else ""
+        )
+        fails.append(f"ignored {named}{more} would be lost — delete or keep it by hand")
     if walk_runs:
         _walk_runs(wt, let_go, fails, texts)
     return fails
 
 
-def _kept_elsewhere(root: str, wt: str, ids: list[str]) -> list[str]:
-    """D6: the name's run folders under ANOTHER checkout's `.tmp/runs/<sid>/` — listed, never touched."""
-    out = _git(root, "worktree", "list", "--porcelain")
+def _worktree_records(root: str) -> list[list[str]]:
+    """`git worktree list --porcelain -z`, one list of attribute lines per worktree (`-z`, T10 F7: a path is never
+    quoted); its first line is `worktree <path>`."""
+    out = _git(root, "worktree", "list", "--porcelain", "-z")
     if out.returncode != 0:
         raise RefusedError(f"git worktree list failed: {out.stderr.strip() or out.returncode}")
-    kept = []
-    for line in out.stdout.splitlines():
-        if not line.startswith("worktree "):
+    records: list[list[str]] = [[]]
+    for field_ in out.stdout.split("\0"):
+        if field_:
+            records[-1].append(field_)
+        elif records[-1]:
+            records.append([])
+    return [r for r in records if r and r[0].startswith("worktree ")]
+
+
+def _lock_reason(root: str, wt: str) -> str | None:
+    """T10 F10: None when `wt` is not locked; else its lock reason ("" when it gave none)."""
+    for rec in _worktree_records(root):
+        if os.path.realpath(rec[0][len("worktree ") :]) != os.path.realpath(wt):
             continue
-        tree = line[len("worktree ") :]
+        for line in rec[1:]:
+            if line == "locked" or line.startswith("locked "):
+                return line[len("locked ") :]
+    return None
+
+
+def _kept_elsewhere(root: str, wt: str, ids: list[str]) -> list[str]:
+    """D6: the name's run folders under ANOTHER checkout's `.tmp/runs/<sid>/` — listed, never touched."""
+    kept = []
+    for rec in _worktree_records(root):
+        tree = rec[0][len("worktree ") :]
         if os.path.realpath(tree) == os.path.realpath(wt):
             continue
         for sid in ids:
@@ -2084,6 +2118,16 @@ def _check_removal(ctx: Spawn, wt: str, ids: list[str], tagged: list) -> Removal
         if not _in_place(wt):
             fails.append(f"{wt} is not a linked git worktree")
         else:
+            try:
+                locked = _lock_reason(ctx.root, wt)
+            except RefusedError as exc:
+                fails.append(exc.reason)
+            else:
+                if locked is not None:
+                    why = f" ({locked})" if locked else ""
+                    fails.append(
+                        f"{wt} is locked{why} — `git worktree unlock` it first, or keep it"
+                    )
             # T10 F6: explicit flags — a user's `status.showUntrackedFiles=no` (or `ignoreSubmodules`) must never read
             # an untracked file or a dirty submodule as clean, which `git worktree remove` would then delete
             status = _git(
@@ -2239,6 +2283,10 @@ def remove(argv: list[str]) -> int:
             raise RefusedError(f"{ctx.name!r} is not an agent name ([a-z0-9][a-z0-9-]{{0,31}})")
         if _coordinator_name(ctx.name):
             raise RefusedError(f"{ctx.name!r} is a coordinator name — remove retires builders only")
+        if _merge_owner(root) == ctx.name:  # T10 F9: add's refusal, mirrored
+            raise RefusedError(
+                f"{ctx.name!r} is the repo's merge owner (its coordinator) — remove retires builders only"
+            )
         ctx.scope = git_common_dir(root)
         if not _is_main_checkout(root):
             raise RefusedError(f"{root} is not the repo's main checkout — pass the main checkout")
@@ -2249,15 +2297,15 @@ def remove(argv: list[str]) -> int:
             ids = _owned_ids(root, ctx.scope, ctx.name, reg)
             try:
                 panes = live_panes(sess) if _grid_state(sess) else []
+                tagged = [p for p in panes if p.agent == ctx.name]
+                if len(tagged) > 1:
+                    raise RefusedError(
+                        f"{len(tagged)} panes are tagged {ctx.name} ({', '.join(p.pane_id for p in tagged)}) — fix by hand"
+                    )
+                if tagged:  # T10 F11: the process walk's refusals are placement's wording too
+                    ids = list(dict.fromkeys([*ids, *_pane_live_ids(tagged[0])]))
             except PlacementRefusedError as exc:
                 raise RefusedError(exc.reason.replace("not placing", "not removing")) from None
-            tagged = [p for p in panes if p.agent == ctx.name]
-            if len(tagged) > 1:
-                raise RefusedError(
-                    f"{len(tagged)} panes are tagged {ctx.name} ({', '.join(p.pane_id for p in tagged)}) — fix by hand"
-                )
-            if tagged:
-                ids = list(dict.fromkeys([*ids, *_pane_live_ids(tagged[0])]))
             rm = _check_removal(ctx, wt, ids, tagged)
             step = 2
             if tagged:

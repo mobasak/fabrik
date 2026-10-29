@@ -3519,6 +3519,83 @@ def test_t10_f6_an_untracked_file_written_after_the_kill_survives_the_worktree_r
     assert late.read_text(encoding="utf-8") == "x\n" and _branch(box)
 
 
+@pytest.mark.parametrize("fname", ["café.cache", "naïve dir/x.bin", "tab\there.log"])
+def test_t10_f7_a_non_ascii_or_quoted_ignored_name_under_an_ok_prefix_is_let_go(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, fname: str
+) -> None:
+    """T10 F7: `ls-files` C-quotes such a name without `-z`; the prefix must judge the real path."""
+    top = fname.split("/")[0]
+    box, g, mod = _rm_box(
+        tmp_path, monkeypatch, request, exclude=EXCLUDE + top + "\n", ok=[top]
+    )
+    _mk(box.wt(B1) / fname)
+    assert mod.main(["remove", str(box.repo), B1]) == 0, box.refusals()
+    out = capsys.readouterr().out
+    assert f"let go: {box.wt(B1) / top}" in out, out
+
+
+def test_t10_f8_a_large_ignored_tree_names_twenty_and_counts_the_rest(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys
+) -> None:
+    """T10 F8: one refusal names the first 20 lost files and the exact count of the rest — never every file."""
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request, exclude=EXCLUDE + "data/\n")
+    for i in range(45):
+        _mk(box.wt(B1) / "data" / f"f{i:03d}.bin")
+    row = _refused_keeping(box, g, mod, capsys, "would be lost", "… and 25 more", "(45 files)")
+    named = [i for i in range(45) if f"f{i:03d}.bin" in row["reason"]]
+    assert named == list(range(20)), named
+    assert len(row["reason"]) < 4000, len(row["reason"])
+
+
+def test_t10_f8_a_few_lost_files_are_each_named_without_a_count(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys
+) -> None:
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request, exclude=EXCLUDE)
+    _mk(box.wt(B1) / ".env")
+    _mk(box.wt(B1) / "logs" / "a.log")
+    row = _refused_keeping(
+        box, g, mod, capsys, str(box.wt(B1) / ".env"), str(box.wt(B1) / "logs" / "a.log")
+    )
+    assert "more" not in row["reason"], row
+
+
+def test_t10_f9_remove_refuses_the_repos_merge_owner(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys
+) -> None:
+    """T10 F9: `add` refuses the merge owner; so does `remove`, before any check runs."""
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request)
+    g.base(panes=2, tags=(B1, "builder-2"))
+    (box.repo / "docs" / "DECISIONS.md").write_text(
+        "| ID | When | Who | What | Why | Where |\n|---|---|---|---|---|---|\n"
+        f"| D-001 | 2026-10-20 | operator | MERGE OWNER: {B1} | the coordinator | here |\n",
+        encoding="utf-8",
+    )
+    row = _refused_keeping(box, g, mod, capsys, "merge owner", "remove retires builders only")
+    assert row["step"] == 1
+
+
+def test_t10_f10_a_locked_worktree_refuses_at_step_one_keeping_the_pane(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys
+) -> None:
+    """T10 F10a: a `git worktree lock` refuses in the checks, before the pane is killed."""
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request)
+    g.base(panes=2, tags=(B1, "builder-2"))
+    _git(box.repo, "worktree", "lock", "--reason", "kept on purpose", str(box.wt(B1)))
+    row = _refused_keeping(box, g, mod, capsys, "is locked", "kept on purpose")
+    assert row["step"] == 1
+
+
+def test_t10_f11_a_live_id_walk_refusal_says_not_removing(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys
+) -> None:
+    """T10 F11: a refusal raised by the pane's process walk names remove's verb, never `not placing`."""
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request)
+    g.base(panes=2, tags=(B1, "builder-2"))
+    monkeypatch.setattr(mod, "_PROC_WALK_MAX", 0)
+    row = _refused_keeping(box, g, mod, capsys, "too large to read", "not removing")
+    assert "not placing" not in row["reason"], row
+
+
 @pytest.mark.parametrize("shape", ["fifo", "link-to-fifo"])
 def test_t09_p2_a_non_regular_seed_refuses_named_and_never_hangs(
     tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, shape: str
