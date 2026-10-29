@@ -162,7 +162,7 @@ def _compose_with(healthcheck: dict[str, object]) -> str:
                     "container_name": "app",
                     "platform": "linux/amd64",
                     "restart": "unless-stopped",
-                    "deploy": {"resources": {"limits": {"memory": "256M"}}},
+                    "deploy": {"resources": {"limits": {"memory": "256M", "cpus": "0.5"}}},
                     "networks": ["fabrik"],
                     "healthcheck": {"test": ["CMD", "true"], **healthcheck},
                 }
