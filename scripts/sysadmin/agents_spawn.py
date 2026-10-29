@@ -1821,7 +1821,19 @@ REGENERABLE = (
     ".mypy_cache",
     ".ruff_cache",
 )
-LOST_NAMED = 20  # T10 F8: the lost files one refusal names before it counts the rest
+LOST_NAMED = 20  # T10 F8/F16: the failures one remove refusal names before it counts the rest
+
+
+def _bounded(fails: list[str]) -> str:
+    """T10 F16: THE one place a remove refusal's failure list is joined — the first LOST_NAMED reasons, then
+    "… and N more (M in all)", so no failure list (lost files, seed-named run folders, any future one) can write an
+    unbounded line into stderr and the refusal row."""
+    head = "; ".join(fails[:LOST_NAMED])
+    if len(fails) <= LOST_NAMED:
+        return head
+    return f"{head}; … and {len(fails) - LOST_NAMED} more ({len(fails)} in all)"
+
+
 _PLAIN_SID_RE = re.compile(
     r"[A-Za-z0-9_-]+"
 )  # a record filename command_run.py::_safe_sid leaves unchanged
@@ -2009,7 +2021,7 @@ def _ignored_failures(wt: str, root: str, let_go: list[str]) -> list[str]:
         fails.append(exc.reason)
         texts = []
     walk_runs = False
-    lost: list[str] = []
+    lost: list[str] = []  # one failure each; `_bounded` caps the joined refusal
 
     def judge(rel: str) -> None:
         if any(seg in REGENERABLE for seg in rel.rstrip("/").split("/")) or _prefix_ok(
@@ -2051,16 +2063,7 @@ def _ignored_failures(wt: str, root: str, let_go: list[str]) -> list[str]:
             walk_runs = True
         else:
             judge(rel)
-    if lost:
-        # T10 F8: a large tree names its first LOST_NAMED files and counts the rest exactly — never every file into
-        # stderr and the refusal row
-        named = ", ".join(lost[:LOST_NAMED])
-        more = (
-            f" … and {len(lost) - LOST_NAMED} more ({len(lost)} files)"
-            if len(lost) > LOST_NAMED
-            else ""
-        )
-        fails.append(f"ignored {named}{more} would be lost — delete or keep it by hand")
+    fails += [f"ignored {p} would be lost — delete or keep it by hand" for p in lost]
     if walk_runs:
         _walk_runs(wt, let_go, fails, texts)
     return fails
@@ -2192,7 +2195,7 @@ def _check_removal(ctx: Spawn, wt: str, ids: list[str], tagged: list) -> Removal
     except RefusedError as exc:
         fails.append(exc.reason)
     if fails:
-        raise RefusedError("; ".join(fails))
+        raise RefusedError(_bounded(fails))
     return rm
 
 
@@ -2330,7 +2333,7 @@ def remove(argv: list[str]) -> int:
                 if late:
                     raise RefusedError(
                         "after the pane was killed: "
-                        + "; ".join(late)
+                        + _bounded(late)
                         + " — re-run remove once settled",
                         3,
                     )

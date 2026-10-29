@@ -256,8 +256,9 @@ left.
 
 `agents_up.sh add <repo> <name> [--role <role>] [--item <W-id>]` (`--role` defaults to `builder`; the name must read
 `<role>-<suffix>` and `docs/reference/agents/<role>.md` must be a marked charter) refuses before any write when the
-name is a coordinator's or the merge owner's, already bound to a live session in the repo, the caller is not bound
-(`whoami_agent.py --as <name>`), the root is not trusted, the start would run uncapped (unless
+name is a coordinator's or the merge owner's, the `--role` is itself a coordinator name, the name is already bound to
+a live session in the repo, the caller is not bound (`whoami_agent.py --as <name>`) or is bound under a name outside
+agents_up.sh's name grammar (`[a-z0-9][a-z0-9-]{0,31}`), the root is not trusted, the start would run uncapped (unless
 `FABRIK_AGENTS_UNCAPPED=1`, said at every use), or `fabrik-agents.slice` has under 2 GB headroom. Then it makes
 `.claude/worktrees/<name>` on `worktree-<name>` from the base branch (`base_branch` in `.fabrik/work/config.json`, else
 origin's HEAD), starts the whole grid first when no tmux session exists, binds a fresh session id

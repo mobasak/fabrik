@@ -3567,10 +3567,28 @@ def test_t10_f8_a_large_ignored_tree_names_twenty_and_counts_the_rest(
     box, g, mod = _rm_box(tmp_path, monkeypatch, request, exclude=EXCLUDE + "data/\n")
     for i in range(45):
         _mk(box.wt(B1) / "data" / f"f{i:03d}.bin")
-    row = _refused_keeping(box, g, mod, capsys, "would be lost", "… and 25 more", "(45 files)")
+    row = _refused_keeping(box, g, mod, capsys, "would be lost", "… and 25 more", "(45 in all)")
     named = [i for i in range(45) if f"f{i:03d}.bin" in row["reason"]]
     assert named == list(range(20)), named
     assert len(row["reason"]) < 4000, len(row["reason"])
+
+
+def test_t10_f16_five_hundred_seed_named_run_folders_make_one_bounded_refusal(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys
+) -> None:
+    """T10 F16: every failure list is capped where the refusal is joined — `_walk_runs`' seed-named folders included."""
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request, exclude=EXCLUDE)
+    runs = box.wt(B1) / ".tmp" / "runs" / OTHER_SID
+    names = [f"r{i:03d}" for i in range(500)]
+    for n in names:
+        _mk(runs / n / "f")
+    (_seed_dir(box) / "all.md").write_text(
+        "\n".join(f".tmp/runs/{OTHER_SID}/{n}" for n in names), encoding="utf-8"
+    )
+    row = _refused_keeping(box, g, mod, capsys, "named by the resume seed", "… and 480 more")
+    assert "(500 in all)" in row["reason"], row["reason"][-300:]
+    assert [n for n in names if f"/{n} is named" in row["reason"]] == names[:20]
+    assert len(row["reason"]) < 8000, len(row["reason"])
 
 
 def test_t10_f8_a_few_lost_files_are_each_named_without_a_count(
