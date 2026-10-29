@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T21:09:01.302231Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-913f113c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M648XFBWX2P34FC9BXYZD3H2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "branch: w-960d68a8-wsl-net-heartbeat"
+}
