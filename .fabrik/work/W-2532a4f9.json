@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T16:32:41.427231Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-2532a4f9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M640EMNR12MA2FSH5SEHF193",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: w-d1a4a8f5-janitor-gap"
+}

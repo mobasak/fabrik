@@ -1,6 +1,20 @@
 # Fabrik — Features
 
-**Last Updated:** 2026-10-17
+**Last Updated:** 2026-10-29
+
+## Dynamic builders — a coordinator spawns and retires its own builders (✅ Built, 2026-10-29; live proof at merge)
+
+Plan `docs/development/plans/2026-10-28-plan-1-dynamic-builders/` (spec `docs/superpowers/specs/2026-10-28-dynamic-builders-design.md`, W-b9ad80ae; whole-plan review `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`). Box-local; the full behaviour is in `docs/reference/repo-coordinator-rollout.md` § Launching a repo's builders. The plan reaches `EXECUTED` when the coordinator's post-merge live proof passes.
+
+| Feature | Description | Endpoint / Module |
+|---|---|---|
+| Spawn | `add <repo> <name>` makes the builder's worktree from the base branch, binds a fresh session id, assigns `--item`, and places one pane in the repo's grid — under the repo's agents lock, every refusal recorded. | `agents_up.sh add` · `scripts/sysadmin/agents_spawn.py` |
+| Retire | `remove <repo> <name>` refuses while anything could be lost (a running run, a dirty or unpushed branch, an ignored file outside the let-go list, a held resume seed), then kills the pane, removes the worktree and its merged branch, and drops the registry rows. | `agents_up.sh remove` · `agents_spawn.py` |
+| Spawned binding | `whoami_agent.py --spawned` binds a NEW session id only for a caller holding the repo's agents lock. | `scripts/whoami_agent.py` |
+| Placement | Four panes per window; overflow goes to `agents-<k>` windows reached through grouped sessions `<S>+<k>`, so each Windows Terminal tab shows one window. | `scripts/sysadmin/agents_up.sh` |
+| Builder charter | A `<role>-<suffix>` name with no charter of its own gets the generic `builder.md`, which sends every question to the coordinator. | `.claude/hooks/agent_role.py` · `docs/reference/agents/builder.md` |
+| Launcher | `All Agents (tabbed).bat` is regenerated on the remembered desktop by every `add` and `remove`, with a tab per repo and per extra window. | `scripts/sysadmin/agents_bat.py --tabbed` |
+| Rotation | A rotation re-points the builder's registry row to its new session under the same lock. | `scripts/sysadmin/rotate_session.py` |
 
 ## The command centre — the box's quota and work board on one page layer (✅ Shipped, 2026-10-17)
 

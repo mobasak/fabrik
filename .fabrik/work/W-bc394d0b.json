@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T11:51:37.140178Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-bc394d0b",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure each row first: the Workflow runtime already queues agent() calls past its concurrency cap (so the waves row may already hold), and agent() takes no timeout option (so a per-seat time box cannot live in the script); refute or build each, one decision per row",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "MEDIUM: review-loop seat scheduling refinement split from W-b36e2a4a, nobody blocked; effort low: one script",
+  "status": "open",
+  "tags": [
+    "medium",
+    "review-loop"
+  ],
+  "title": "review-loop seat scheduling rows split from W-b36e2a4a (kaizen D-735 triage, mail 01M4PNBVJ1): waves when a partition exceeds the box cap (rows 1791062753, 1791241353), a per-seat time box re-dispatching a seat silent past 2x its box (1791034481), accepting a slice verified at the same md5 in an earlier batch (01M4PVPY8J row 1791029742)"
+}

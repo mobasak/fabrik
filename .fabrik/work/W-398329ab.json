@@ -1,0 +1,26 @@
+{
+  "block_digest": "21c39ce2888492ea5e34202b68339d4a6128a3f61a56f84a24a3c3337a1b34ed",
+  "blocked_by": [],
+  "created": "2026-10-29T16:50:57.541219Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-398329ab",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "6459c5647c441053b0df2c251c5bd167d2d6db5f6cd5f4be9fb6e3d8e11ef85b"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "May you run the Promtail-to-Alloy log-shipping switch on vps3, then vps2, then vps1, following `docs/operations/promtail-to-alloy-runbook.md` from `/opt/fabrik/.claude/worktrees/fleet-alloy`?",
+  "status": "awaiting-operator",
+  "title": "May you run the Promtail-to-Alloy log-shipping switch on vps3, then vps2, then vps1, following `docs/operations/promtail-to-alloy-runbook.md` from `/opt/fabrik/.claude/worktrees/fleet-alloy`?"
+}

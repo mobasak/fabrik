@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AFTER-EDIT: docs/reference/repo-coordinator-rollout.md | tests/test_agents_up.py
-# agents_up.sh [--print] [--detach] <repo> — open a repo's builder agents side by side in one tmux window (D-1031). Also: agents_up.sh rotate-session <name> [--compact FOCUS] [--trigger T] (W-f975fee0).
+# agents_up.sh [--print] [--detach] <repo> — open a repo's builder agents side by side, four per tmux window (D-1031). Also: agents_up.sh --window <n> <repo>. Also: agents_up.sh rotate-session <name> [--compact FOCUS] [--trigger T] (W-f975fee0).
 #
 # Every repo's launcher (W-66e2f6a7 retired ~/bin/hub-up). The builders come from the repo's own registry,
 # <repo>/.fabrik/session-agents.json ({"<session id>": "<agent name>"}), when it has one, and otherwise from the identity
@@ -14,11 +14,20 @@
 # worktree whose claude project folder holds the builder's session (W-456aa02a: Claude Code keeps the folder a pane
 # STARTED in as its CLAUDE_PROJECT_DIR — hooks, settings, permissions — after the session moves into another worktree,
 # so a pane started by name ran a stale tree's hooks), else `<name>`; a name with neither gets no pane (said on stderr),
-# and no builder left refuses (exit 2). It resumes the agent's EXISTING session, and closing the terminal leaves them running. --print reports
+# and no builder left refuses (exit 3, nothing to launch). It resumes the agent's EXISTING session, and closing the terminal leaves them running. --print reports
 # the grid and launches nothing: a `session <name>` line, a `slice <name> MemoryHigh=<v> MemoryMax=<v>` line, then per
 # builder `pane <name> <sid> <folder> <status>`, `cap <name> <TasksMax>` (or `cap <name> uncapped`) and `run <name>
 # <command>`. --detach builds the grid (or finds it up) and never attaches (the boot sweep and cron have no terminal);
 # a caller with no terminal on stdin/stdout detaches the same way and says so (W-1961cc42).
+#
+# Window layout (W-b9ad80ae D4): four panes per window — `agents` holds the first four builders, `agents-2` the next four,
+# `agents-3` the next, and so on (a pane that cannot be created is said and the next builder takes its slot). Each
+# overflow window `agents-<k>` is shown in its own tmux session `<S>+<k>`, grouped with the base session `<S>`, so a
+# separate terminal tab can attach it; `+` is outside the base-name alphabet, so such a session is this repo's by
+# construction. A new grid start, once its own session exists, kills every stale `<S>+<k>`, and makes no overflow session while another stale session holds the group name `<S>` (it says which, and the kill-session that frees it). `agents_up.sh --window <n> <repo>` (n >= 2) waits
+# (FABRIK_AGENTS_WINDOW_WAIT_S, 120 s) while the grid is absent or a live builder is still building it
+# (`@agents_up_building` holds that builder's `<pid>:<start time>`), then attaches `=<S>+<n>`; with no window `agents-<n>` it says so and
+# attaches `=<S>` and creates nothing (it kills a stale `<S>+<n>` left for the vanished window).
 #
 # Every pane runs WHOLE — claude, its exit hint and the shell it keeps — in its own `systemd-run --user --scope` in
 # fabrik-agents.slice, with MemorySwapMax=0 and TasksMax ($FABRIK_AGENT_TASKS_MAX, 1024) and NO MemoryMax of its own
@@ -36,6 +45,18 @@
 # FABRIK_AGENTS_UNCAPPED=1 left in a profile; the test stub records the systemd-run argv the pane really runs, and the
 # override is said on stderr at every launch that uses it.
 #
+# Exit codes: 0 done; 2 a refusal (a malformed registry row, an unreadable ledger or identity store, a refused ceiling, a
+# worktree gone before launch); 3 NOTHING TO LAUNCH — a registry naming only a coordinator, or bindings with no builder
+# worktree (W-b9ad80ae D4) — so a caller can tell an empty repo from a refusal.
+#
+# Every claude call carries --settings '{"skillOverrides":{"auto-mode-setup":"off"},"spinnerTipsEnabled":false}' and every pane's
+# env CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1: no "Teach auto mode" dialog, no spinner tips, no survey (probed live on
+# claude 2.1.312; spec D3). A spawner-bound session (T01's `whoami_agent.py --spawned` row, `spawned: true`) with no
+# transcript in ANY project folder launches `claude -n <name> --session-id <sid> --settings … "<first prompt>"` instead
+# of --resume (the resolver's 4th field). `agents_up.sh --pane-cmd <repo> <name> <sid> [--new] [--coordinator <name>]
+# [--item <W-id>]` prints that one pane command (the same cmd_of the grid runs) and launches nothing; FABRIK_SPAWN_NAME /
+# _COORDINATOR / _ITEM name the coordinator and item in the first prompt of a builder a --detach start launches.
+#
 # Names and session ids reach a shell command string, so the registry is validated first: a session id must be a
 # lowercase UUID, a name must match [a-z0-9][a-z0-9-]{0,31} and no key may repeat; one bad row refuses the whole launch
 # (exit 2) rather than silently leaving a builder out or resuming a stale session.
@@ -52,7 +73,8 @@
 # two panes — the coordinator's sessions included.
 #
 # A pane's status is `running` when a claude process already resumes that session — `--resume <sid>`, `-r <sid>` (a
-# terminal) or `--resume=<sid>` (the VS Code extension) — and that pane only says so, because two processes on one
+# terminal) or `--resume=<sid>` (the VS Code extension) — or runs `-n <name>` with its cwd in the pane's folder (a
+# --session-id launch carries no --resume), and that pane only says so, because two processes on one
 # session id fuse the transcript and the hooks; `no-transcript` when no transcript for the session sits under the
 # project folder of the folder the pane starts in (claude resumes by that folder), which the pane still tries;
 # otherwise `ok`.
@@ -73,18 +95,85 @@ if [ "${1:-}" = "rotate-session" ]; then
   shift
   exec python3 "$(cd "$(dirname "$0")" && pwd)/rotate_session.py" request "$@"
 fi
+# `agents_up.sh add <repo> <name> [--role <role>] [--item <W-id>]` (W-b9ad80ae D1, D2): the coordinator's spawn verb —
+# agents_spawn.py makes the builder's worktree, binding and item under the repo's agents lock. Dispatched the same way.
+if [ "${1:-}" = "add" ]; then
+  shift
+  exec python3 "$(cd "$(dirname "$0")" && pwd)/agents_spawn.py" add "$@"
+fi
+# `agents_up.sh remove <repo> <name>` (W-b9ad80ae D7): the retire verb — agents_spawn.py checks nothing would be lost,
+# then kills the pane, removes the worktree and drops the registry row under the same lock. Dispatched the same way.
+if [ "${1:-}" = "remove" ]; then
+  shift
+  exec python3 "$(cd "$(dirname "$0")" && pwd)/agents_spawn.py" remove "$@"
+fi
 
 print=0
 detach=0
+panecmd=0
+winn=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --print) print=1; shift ;;
     --detach) detach=1; shift ;;
+    --pane-cmd) panecmd=1; shift ;;
+    --window)
+      if [ -n "$winn" ]; then echo "usage: agents_up.sh --window <n> <repo>   (--window is given once)" >&2; exit 2; fi
+      # n is an integer >= 2: window 1 is `agents` itself, attached by a plain launch (W-b9ad80ae D5)
+      if [ $# -lt 2 ] || ! [[ "$2" =~ ^[0-9]{1,6}$ ]] || [ "$((10#$2))" -lt 2 ]; then
+        echo "usage: agents_up.sh --window <n> <repo>   (n is an integer, 2 or more)" >&2
+        exit 2
+      fi
+      winn="$((10#$2))"; shift 2 ;;
     *) break ;;
   esac
 done
+if [ -n "$winn" ] && { [ "$print" = 1 ] || [ "$detach" = 1 ] || [ "$panecmd" = 1 ]; }; then
+  echo "agents_up: --window is its own mode: it takes none of --print, --detach and --pane-cmd" >&2
+  exit 2
+fi
+# the name a pane may carry, and the ids a first prompt may name (all reach a shell command string)
+NAME_RE='^[a-z0-9][a-z0-9-]{0,31}$'
+SID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+ITEM_RE='^W-[0-9a-f]{8}$'
+bad_arg() { echo "agents_up: $1" >&2; exit 2; }
+# the first prompt's coordinator and item sentences name ONE builder (W-b9ad80ae PO1, PO2): --pane-cmd's flags, or the
+# FABRIK_SPAWN_* variables a caller that cannot pass flags (a cold start through --detach) sets. check_spawn_vars (over
+# the resolved set, only the new=1 row FABRIK_SPAWN_NAME names) runs at exactly three places, each where a first prompt
+# can be built and before that path's first output line or side effect: the top of the --print block, the new-grid branch
+# (before slice_ceiling and the first tmux call) and --pane-cmd (before slice_ceiling). Never on the grid-already-up
+# attach path, which builds no pane: a stale malformed variable stops nothing else.
+SP_NAME="${FABRIK_SPAWN_NAME:-}"
+SP_COORD="${FABRIK_SPAWN_COORDINATOR:-}"
+SP_ITEM="${FABRIK_SPAWN_ITEM:-}"
+pane_new=0
+if [ "$panecmd" = 1 ]; then
+  [ "$print" = 0 ] && [ "$detach" = 0 ] || bad_arg "--pane-cmd is its own mode: it takes neither --print nor --detach"
+  usage="usage: agents_up.sh --pane-cmd <repo> <name> <sid> [--new] [--coordinator <name>] [--item <W-id>]"
+  [ $# -ge 3 ] || bad_arg "$usage"
+  pane_repo="$1" SP_NAME="$2" pane_sid="$3"
+  shift 3
+  SP_COORD="" SP_ITEM=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --new) pane_new=1; shift ;;
+      --coordinator)
+        [ $# -ge 2 ] || bad_arg "$usage"
+        [[ "$2" =~ $NAME_RE ]] || bad_arg "the coordinator '$2' is not an agent name ([a-z0-9][a-z0-9-]{0,31})"
+        SP_COORD="$2"; shift 2 ;;
+      --item)
+        [ $# -ge 2 ] || bad_arg "$usage"
+        [[ "$2" =~ $ITEM_RE ]] || bad_arg "the item '$2' is not a work item id (W- and 8 lowercase hex)"
+        SP_ITEM="$2"; shift 2 ;;
+      *) bad_arg "$usage" ;;
+    esac
+  done
+  [[ "$SP_NAME" =~ $NAME_RE ]] || bad_arg "'$SP_NAME' is not an agent name ([a-z0-9][a-z0-9-]{0,31})"
+  [[ "$pane_sid" =~ $SID_RE ]] || bad_arg "'$pane_sid' is not a session id (a lowercase UUID)"
+  set -- "$pane_repo"
+fi
 if [ $# -ne 1 ] || [ -z "$1" ]; then
-  echo "usage: agents_up.sh [--print] [--detach] <repo>" >&2
+  echo "usage: agents_up.sh [--print] [--detach] <repo>   |   agents_up.sh --window <n> <repo>" >&2
   exit 2
 fi
 if [ ! -d "$1" ]; then
@@ -93,6 +182,7 @@ if [ ! -d "$1" ]; then
 fi
 ROOT="$(cd -- "$1" && pwd -P)" || exit 2
 SELF="$(cd -- "$(dirname -- "$0")" && pwd -P)/$(basename -- "$0")"
+HUB="$(cd -- "$(dirname -- "$SELF")/../.." && pwd -P)"  # the checkout this launcher runs from: its scripts/ are the panes' tools
 REG="$ROOT/.fabrik/session-agents.json"
 
 # The repo's coordinator by its own ledger: exit 0 prints a name, 3 is UNDECLARED; a ledger that is absent declares
@@ -108,14 +198,15 @@ if [ -f "$ROOT/docs/DECISIONS.md" ]; then
   esac
 fi
 
-# "agent <name> <sid> <folder>" per builder (the worktree its pane starts in), name-ordered, then "known <sid>" for every session the registry or the store gives
+# "agent <name> <sid> <folder> <new>" per builder (the worktree its pane starts in; <new> is 1 for a spawner-bound session
+# with no transcript anywhere, which launches with --session-id), name-ordered, then "known <sid>" for every session the registry or the store gives
 # this repo (the newer-transcript warning skips those); any malformed registry row refuses the launch. The scope query
 # runs with git's own location variables unset, so a GIT_DIR inherited from a hook or an IDE cannot redirect it.
 SCOPE="$(env -u GIT_DIR -u GIT_COMMON_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || SCOPE=""
 STORE="${AGENT_IDENTITY_FILE:-$HOME/.claude/state/agent-identity.jsonl}"
 case "$STORE" in /*) ;; *) STORE="$PWD/$STORE" ;; esac
 RESOLVED="$(python3 - "$REG" "$SCOPE" "$STORE" "$ROOT" "$CLAUDE_CONFIG_DIR" "$OWNER" <<'PY'
-import json, os, re, sys
+import glob, json, os, re, sys
 
 SID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,31}")
@@ -124,6 +215,10 @@ reg_path, scope, store, root, config, merge_owner = sys.argv[1:7]
 
 def note(msg):
     print(f"agents_up: {msg}", file=sys.stderr)
+
+def die(msg, code=2):  # exit 3 is "nothing to launch" (an empty repo); every other refusal exits 2
+    print(msg, file=sys.stderr)
+    sys.exit(code)
 
 def coordinator(name):
     return name == "coordinator" or name.endswith("-coordinator")
@@ -146,7 +241,7 @@ if has_reg:
     if not isinstance(reg, dict):
         sys.exit(f"agents_up: {reg_path} must be an object of session id -> agent name")
 elif not scope:
-    sys.exit(f"agents_up: {root} has no registry ({reg_path}) and no git scope to read its whoami bindings from — nothing to launch")
+    die(f"agents_up: {root} has no registry ({reg_path}) and no git scope to read its whoami bindings from — nothing to launch")
 ids, coord_ids = {}, set()  # builder name -> its registry session ids (file order); the coordinator's ids
 for sid, name in reg.items():
     if not SID.fullmatch(sid):
@@ -158,7 +253,7 @@ for sid, name in reg.items():
         continue
     ids.setdefault(name, []).append(sid)
 if has_reg and not ids:
-    sys.exit(f"agents_up: {reg_path} names no builder (the coordinator gets no pane)")
+    die(f"agents_up: {reg_path} names no builder (the coordinator gets no pane)", 3)
 
 def at_of(row):  # whoami_agent.py::_at — never raises; an uncoercible time is 0
     try:
@@ -170,6 +265,8 @@ rows = []  # whoami_agent.py::_rows — every parseable row with a session id, f
 if not scope:
     note(f"{root} has no git scope — the identity store is not read; the registry's ids stand")
 elif os.path.lexists(store) and not os.path.isfile(store):
+    if not has_reg:  # the store is the only source of builders here: reading none would look like an empty repo
+        die(f"agents_up: the identity store {store} cannot be read (not a regular file) — refusing rather than reading no builders")
     note(f"the identity store {store} is not a regular file — the registry's ids stand")
 elif os.path.isfile(store):
     try:
@@ -182,6 +279,8 @@ elif os.path.isfile(store):
                 if isinstance(r, dict) and r.get("session_id"):
                     rows.append(r)
     except OSError as exc:
+        if not has_reg:
+            die(f"agents_up: the identity store {store} cannot be read ({exc.strerror or exc}) — refusing rather than reading no builders")
         note(f"the identity store {store} could not be read ({exc.strerror or exc}) — the registry's ids stand")
         rows = []
 owner = {}  # session id -> the name on its LAST row anywhere in the store (whoami_agent.py::resolve_agent_name)
@@ -190,10 +289,15 @@ for r in rows:
     if WHOAMI_NAME.fullmatch(name):
         owner[sid] = name
 binding = {}  # builder name -> (sid, at) of the LAST line naming it in this scope whose session it still owns
+last_in_scope = {}  # session id -> the LAST row naming it in this scope (it must still name the builder, for <new>)
+spawned_in_scope = set()  # (session id, name) of every `spawned: true` row in this scope (T10 F1)
 for r in rows:
     sid, name = r.get("session_id"), r.get("name")
     if r.get("toplevel") != scope or not isinstance(sid, str) or not SID.fullmatch(sid):
         continue
+    last_in_scope[sid] = r
+    if r.get("spawned") is True and isinstance(name, str):  # T10 F18: a non-string name is unhashable — skip it
+        spawned_in_scope.add((sid, name))
     if isinstance(name, str) and owner.get(sid) == name:
         binding[name] = (sid, at_of(r))
 if not has_reg:  # no registry: the builders are the names bound in this repo's scope
@@ -319,14 +423,32 @@ for name in sorted(folder):
         flag = " — a Claude Code subagent tree, which Claude Code may remove" if folder[name].startswith("agent-") else ""
         note(f"{name}: starts in .claude/worktrees/{folder[name]}, where its session {chosen[name]} lives{flag}")
 if not chosen:
-    sys.exit(f"agents_up: {root} has no builder with its own worktree — nothing to launch (the coordinator gets no pane)")
+    die(f"agents_up: {root} has no builder with its own worktree — nothing to launch (the coordinator gets no pane)", 3)
+
+def fresh(name, sid):  # 1: a spawner-bound session that no project folder has a transcript of
+    # spawner-bound: ANY row here binds it to the name `spawned: true` AND its LAST row here still names the builder —
+    # never the last row's flag alone, since whoami's refresh() appends an unflagged row at every SessionStart (T10 F1)
+    r = last_in_scope.get(sid)
+    if not r or r.get("name") != name or (sid, name) not in spawned_in_scope:
+        return 0
+    # ANY project folder, wider than active_at's walk: a session that moved anywhere is never given --session-id on a used id
+    return 0 if glob.glob(os.path.join(glob.escape(config), "projects", "*", sid + ".jsonl")) else 1
+
 for name in sorted(chosen):
-    print("agent", name, chosen[name], folder[name])
+    print("agent", name, chosen[name], folder[name], fresh(name, chosen[name]))
 for sid in sorted(set(reg) | {str(r.get("session_id")) for r in rows}):
-    print("known", sid)
+    if SID.fullmatch(sid):  # a newline in a store row's id would forge an `agent` line below
+        print("known", sid)
 PY
-)" || exit 2
+)"
+# 3 = nothing to launch (a registry naming no builder, bindings with no worktree); every other refusal is 2
+case $? in 0) ;; 3) exit 3 ;; *) exit 2 ;; esac
 AGENTS="$(printf '%s\n' "$RESOLVED" | sed -n 's/^agent //p')"
+# each agent line reaches a shell command string: re-check its shape here, whatever the resolver printed
+AGENT_RE="^[a-z0-9][a-z0-9-]{0,31} [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12} [a-z0-9][a-z0-9-]{0,31} [01]$"
+while IFS= read -r line; do
+  [[ "$line" =~ $AGENT_RE ]] || { echo "agents_up: the resolver printed a malformed builder line — not launching" >&2; exit 2; }
+done <<< "$AGENTS"
 KNOWN="$(printf '%s\n' "$RESOLVED" | sed -n 's/^known //p')"
 
 # tmux reads `.`, `:` and glob characters in a target, so the session name keeps [A-Za-z0-9_-] only
@@ -334,7 +456,8 @@ base="$(basename "$ROOT")"
 S="${base//[^A-Za-z0-9_-]/-}"
 W=agents
 # -ww: never cut at the terminal width — a VS Code process line runs to ~420 characters and `--resume=` sits past 280
-RUNNING="$(ps -ww -C claude -o args= 2>/dev/null)"
+# pid= leads each line: a pane started by name carries no --resume, so the process is matched by its -n <name> AND its cwd
+RUNNING="$(ps -ww -C claude -o pid=,args= 2>/dev/null)"
 
 # The builder's worktree, a linked git worktree in place: a `.git` FILE inside (the shape `git worktree add` makes, so
 # neither a folder left behind by `git worktree remove` nor a nested clone) and a physical path exactly
@@ -435,11 +558,24 @@ newer_unbound() {  # $1 = name, $2 = session id, $3 = the folder its pane starts
   base="$(basename -- "$newest" .jsonl)"
   [ "$base" = "$2" ] && return 0
   printf '%s\n' "$KNOWN" | /usr/bin/grep -qxF -- "$base" && return 0
-  echo "agents_up: $1: a newer session $base is in $proj — if it is $1's, run there: python3 /opt/fabrik/scripts/whoami_agent.py --as $1 --force" >&2
+  echo "agents_up: $1: a newer session $base is in $proj — if it is $1's, run there: python3 \"$HUB/scripts/whoami_agent.py\" --as $1 --force" >&2
 }
 
-status_of() {  # $1 = session id, $2 = the folder its pane starts in
-  if printf '%s\n' "$RUNNING" | /usr/bin/grep -qE -- "(--resume[= ]|-r )$1( |\$)"; then
+# a claude process started by NAME (`-n <name>`, no --resume: a spawned pane's --session-id launch) in the pane's folder
+# or below it is the same builder running; `-n infra` never matches `-n infra-2`, which grep -w would (`-` is a boundary)
+named_running() {  # $1 = name, $2 = the folder its pane starts in
+  local pid args cwd
+  while read -r pid args; do
+    [[ "$pid" =~ ^[0-9]+$ ]] || continue
+    [[ " $args " == *" -n $1 "* || " $args " == *" --name $1 "* || " $args " == *" --name=$1 "* ]] || continue
+    cwd="$(readlink "$PROC_ROOT/$pid/cwd" 2>/dev/null)"
+    case "$cwd" in "$2" | "$2"/*) return 0 ;; esac
+  done <<< "$RUNNING"
+  return 1
+}
+
+status_of() {  # $1 = session id, $2 = the folder its pane starts in, $3 = the builder's name
+  if printf '%s\n' "$RUNNING" | /usr/bin/grep -qE -- "(^| )(--resume[= ]|-r |--session-id[= ])$1( |\$)" || named_running "$3" "$2"; then
     echo running
   elif [ ! -f "$(proj_of "$2")/$1.jsonl" ]; then
     echo no-transcript
@@ -452,13 +588,37 @@ squote() {  # $1 as ONE POSIX single-quoted word, read alike by every pane shell
   printf "'%s'" "${1//\'/\'\\\'\'}"
 }
 
-cmd_of() {  # $1 = name, $2 = session id, $3 = status; name and id are validated above
+# The suppression (spec D3, probed live 2026-10-28 on claude 2.1.312: no "Teach auto mode" dialog, spinner tips off):
+# one constant, on EVERY claude call this script builds, beside CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1 in every pane's env
+SETTINGS_JSON='{"skillOverrides":{"auto-mode-setup":"off"},"spinnerTipsEnabled":false}'
+
+spawn_vars_ok() {  # $1 = name, $2 = new: the FABRIK_SPAWN_* values matter only to the new builder they name
+  [ "$2" = 1 ] && [ "$1" = "$SP_NAME" ] || return 0
+  [ -z "$SP_COORD" ] || [[ "$SP_COORD" =~ $NAME_RE ]] || bad_arg "FABRIK_SPAWN_COORDINATOR '$SP_COORD' is not an agent name ([a-z0-9][a-z0-9-]{0,31})"
+  [ -z "$SP_ITEM" ] || [[ "$SP_ITEM" =~ $ITEM_RE ]] || bad_arg "FABRIK_SPAWN_ITEM '$SP_ITEM' is not a work item id (W- and 8 lowercase hex)"
+}
+
+check_spawn_vars() {  # the whole resolved set; see the call sites in the header comment
+  local name sid folder new
+  while read -r name sid folder new; do spawn_vars_ok "$name" "$new"; done <<< "$AGENTS"
+}
+
+first_prompt() {  # $1 = name, $2 = session id: a spawned builder's first turn, ONE line, nothing in it for a shell to read
+  local coord item
+  coord="the repo's merge owner (\`decisions.py --merge-owner\`)"
+  [ "$1" = "$SP_NAME" ] && [ -n "$SP_COORD" ] && coord="$SP_COORD"
+  item=""
+  [ "$1" = "$SP_NAME" ] && [ -n "$SP_ITEM" ] && item=" Your item is $SP_ITEM."
+  printf '%s' "You were started by agents_up as $1 (\$CLAUDE_AGENT), session $2, in your own worktree. First arm your self-watch: run bash \"$HUB/scripts/sysadmin/selfwatch_arm.sh\" $2 in the background. Then re-bind: run python3 \"$HUB/scripts/whoami_agent.py\" --as $1 --force. Then read your charter (the SessionStart hook printed it; else docs/reference/agents/builder.md). Your coordinator is $coord.$item Run python3 scripts/work.py next and claim your item; when next shows nothing, message your coordinator and wait. Merge the repo's base branch only when the store or your coordinator says your item is committed there, then claim it. \"Every question goes to your coordinator by SendMessage - never to the operator.\""
+}
+
+cmd_of() {  # $1 = name, $2 = session id, $3 = status, $4 = new (1: --session-id launch); name and id are validated above
   # HOME..LANG are read by the pane's own shell at run time (single-quoted here); the rest are fixed now. PATH is
   # fixed ONCE: a capped pane's outer `env -i` sets it, and the commands inside the scope read it back at run time
   # (`PATH="$PATH"`) — three fixed copies of a WSL PATH (4 KB here) brought a pane command to ~14 KB, near the size
   # tmux takes in one message (review round 1).
   local env base inner path_now
-  base='env -i HOME="$HOME" USER="$USER" LOGNAME="$LOGNAME" SHELL="$SHELL" TERM="$TERM" LANG="${LANG:-C.UTF-8}" CLAUDE_CODE_RETRY_WATCHDOG=1'
+  base='env -i HOME="$HOME" USER="$USER" LOGNAME="$LOGNAME" SHELL="$SHELL" TERM="$TERM" LANG="${LANG:-C.UTF-8}" CLAUDE_CODE_RETRY_WATCHDOG=1 CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1'
   path_now="$(printf 'PATH=%q' "$PATH")"
   env="$base $(printf 'CLAUDE_CONFIG_DIR=%q CLAUDE_QUOTA_HOME=%q' "$CLAUDE_CONFIG_DIR" "$CLAUDE_QUOTA_HOME") CLAUDE_AGENT=$1"
   # the store the launcher read: the panes' whoami must write the same one, or the next launch never sees the re-bind
@@ -475,23 +635,36 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status; name and id are validated
   fi
   # the pane keeps a CLEAN shell after claude exits (or instead of it), so a crash never closes the pane and the
   # resume hint it prints runs with the pane's own environment, never the server's
+  # a session with no transcript cannot be resumed: its hint and message name --session-id. For a spawned pane (new=1)
+  # the flag is picked when the text is PRINTED (T10 F14): `--resume` once any project folder holds the session's
+  # transcript (fresh()'s glob), else `--session-id` — a launch-time flag goes stale the moment claude writes one
+  local flag=--resume
+  [ "${4:-0}" = 1 ] && flag="\$(for t in $(squote "$CLAUDE_CONFIG_DIR")/projects/*/$2.jsonl; do [ -e \"\$t\" ] && { echo --resume; exit; }; done; echo --session-id)"
   if [ "$3" = running ]; then
-    inner="echo \"[$1 is already running elsewhere (session $2) — close it there, then run: claude -n $1 --resume $2]\"; exec $penv bash -l"
+    inner="echo \"[$1 is already running elsewhere (session $2) — close it there, then run: claude -n $1 $flag $2]\"; exec $penv bash -l"
   else
     # the paths are %q-escaped so the printed command pastes back safely, and the whole hint is single-quoted (POSIX,
     # read alike by every pane shell and locale) for the pane's printf, so a `$(...)`, a backtick or a `$NAME` in a
     # folder name is printed, never run or expanded
+    # (a spawned pane's flag is the one unquoted `"$(…)"` between two quoted halves, run when the hint prints)
     local hint
-    hint="[$1 exited — run: claude -n $1 --resume $2 (after a /clear: whoami_agent.py --as $1 --force, then $(printf %q "$SELF") $(printf %q "$ROOT"))]"
+    hint="$(squote "[$1 exited — run: claude -n $1 ")\"$flag\"$(squote " $2 (after a /clear: whoami_agent.py --as $1 --force, then $(printf %q "$SELF") $(printf %q "$ROOT"))]")"
     # the relaunch's first turn (L4): re-arm the self-watch (background tasks are not restored), then `woke`, resuming
     # only on exit 0 — so a daily relaunch outside any pause just carries on. No --permission-mode: the session's own
     # settings (permissions.defaultMode) decide. oom_score_adj 200 (raising needs no privilege) ranks a builder pane
     # above the coordinators in the kernel's OOM order.
-    local wake
-    wake="You were relaunched by agents_up. First re-arm your self-watch: run bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh $2 in the background. Then carry on as usual."
+    local wake claude
+    if [ "${4:-0}" = 1 ]; then
+      # a spawner-bound session with no transcript yet: --resume of it would drop to the kept shell
+      wake="$(first_prompt "$1" "$2")"
+      claude="claude -n $1 --session-id $2"
+    else
+      wake="You were relaunched by agents_up. First re-arm your self-watch: run bash \"$HUB/scripts/sysadmin/selfwatch_arm.sh\" $2 in the background. Then carry on as usual."
+      claude="claude -n $1 --resume $2"
+    fi
     # the `hibernate.py woke --self` step joins this prompt with W-6e656dac T01a: master's woke still answers 0 on
     # any past lift and prints no seed, so ordering it here would send every relaunched builder after a seed
-    inner="echo 200 > /proc/self/oom_score_adj 2>/dev/null; $penv claude -n $1 --resume $2 \"$wake\"; rc=\$?; echo; [ \"\$rc\" = 137 ] && printf '%s\\n' $(squote "$killed"); printf '%s\\n' $(squote "$hint"); exec $penv bash -l"
+    inner="echo 200 > /proc/self/oom_score_adj 2>/dev/null; $penv $claude --settings $(squote "$SETTINGS_JSON") $(squote "$wake"); rc=\$?; echo; [ \"\$rc\" = 137 ] && printf '%s\\n' $(squote "$killed"); printf '%s\\n' $hint; exec $penv bash -l"
   fi
   if [ "$CAPPED" = 1 ]; then
     # the WHOLE pane in one scope, so the shell it keeps — and whatever is re-run there — stays inside the cap; a
@@ -509,16 +682,17 @@ cap_of() {  # $1 = name
 }
 
 if [ "$print" = 1 ]; then
+  check_spawn_vars
   echo "session $S"
   [ "$CAPPED" = 1 ] && echo "slice $SLICE MemoryHigh=$SLICE_HIGH MemoryMax=$SLICE_MAX"
-  while read -r name sid folder; do
+  while read -r name sid folder new; do
     dir="$(dir_of "$folder")"
     [ -n "$dir" ] || continue
-    st="$(status_of "$sid" "$dir")"
+    st="$(status_of "$sid" "$dir" "$name")"
     newer_unbound "$name" "$sid" "$dir"
     echo "pane $name $sid $dir $st"
     cap_of "$name"
-    echo "run $name $(cmd_of "$name" "$sid" "$st")"
+    echo "run $name $(cmd_of "$name" "$sid" "$st" "$new")"
   done <<< "$AGENTS"
   exit 0
 fi
@@ -538,6 +712,34 @@ slice_ceiling() {
   echo "agents_up: the user manager refused the $SLICE ceiling (MemoryHigh=$SLICE_HIGH MemoryMax=$SLICE_MAX) — not launching" >&2
   exit 2
 }
+
+# --pane-cmd: the one command the grid would run for ONE builder, through the same resolver and cmd_of, so a pane the
+# spawner launches differs from a relaunched one only in its session flag and prompt. --new asserts the resolver's own
+# <new> (a spawner-bound session with no transcript anywhere); nothing prints on a refusal.
+if [ "$panecmd" = 1 ]; then
+  found=0
+  pane_line=""
+  while read -r name sid folder new; do
+    [ "$name" = "$SP_NAME" ] && [ "$sid" = "$pane_sid" ] || continue
+    found=1
+    if [ "$pane_new" = 1 ] && [ "$new" != 1 ]; then
+      if compgen -G "$CLAUDE_CONFIG_DIR/projects/*/$sid.jsonl" >/dev/null; then
+        bad_arg "$sid has a transcript — not a new session"
+      fi
+      bad_arg "$sid is not a spawner-bound session"
+    fi
+    dir="$(dir_of "$folder")"
+    [ -n "$dir" ] || exit 2
+    st="$(status_of "$sid" "$dir" "$name")"
+    pane_line="$(cmd_of "$name" "$sid" "$st" "$new")"
+  done <<< "$AGENTS"
+  [ "$found" = 1 ] || bad_arg "$SP_NAME with session $pane_sid is not a builder the resolver gives $ROOT"
+  # the same cap rules as the grid, last: a refused request never writes the slice property
+  check_spawn_vars
+  slice_ceiling
+  printf '%s\n' "$pane_line"
+  exit 0
+fi
 
 # tmux 3.4 answers `no such session: =<name>` to an OPTION command (show-options / set-option) given the bare exact
 # target `=<name>` while has-session, list-panes and attach accept it (measured on a scratch `tmux -L` server, W-1961cc42);
@@ -585,22 +787,140 @@ adoptable() {  # every pane of the session carries an @agent that names one of t
   done <<< "$panes"
 }
 
-if tmux has-session -t "=$S" 2>/dev/null; then
-  owned_here || exit 2
-  echo "agents_up: the $S grid is already up — leaving it as it is; a registry change takes effect after: tmux kill-session -t =$S" >&2
-else
+
+# --- windows of four and the grouped overflow sessions (W-b9ad80ae D4, D5) ---------------------------------------------
+# A grid holds four panes per window: `agents`, then `agents-2`, `agents-3`, ... Every window this script creates is
+# captured by its id (`-P -F '#{window_id}'`), never found again by name: tmux resolves a window NAME target loosely, so
+# with only `agents-2` present both `-t =s:agents` and `-t =s:=agents` select `agents-2`. An existing window is found by
+# an EXACT name match over list-windows. The overflow window `agents-<k>` is shown in its own session `<S>+<k>`, grouped
+# with `<S>` (`new-session -t`), so each Windows Terminal tab attaches its own session. `+` is outside the base-name
+# alphabet [A-Za-z0-9_-], so `<S>+<k>` is this repo's by construction and can never be another repo's base session.
+PER_WINDOW=4
+tmux_group() {  # $1 = session name: its group, empty when it has none (a session is grouped once a member joins it)
+  tmux display-message -p -t "=$1:" '#{session_group}' 2>/dev/null
+}
+find_window() {  # $1 = exact window name: its id, or nothing
+  # the id never holds a space, so the WHOLE rest of the line is the name: a window renamed `agents-2 old` is not `agents-2`
+  # (tmux prints a tab in a format as `\011`, so a tab cannot be the separator)
+  tmux list-windows -t "=$S" -F '#{window_id} #{window_name}' 2>/dev/null |
+    awk -v n="$1" '{ i = index($0, " "); if (substr($0, i + 1) == n) { print substr($0, 1, i - 1); exit } }'
+}
+proc_start() {  # $1 = pid: field 22 of /proc/<pid>/stat (the process's start time), empty when it is not there
+  local s
+  s="$(cat "/proc/$1/stat" 2>/dev/null)" || return 0
+  s="${s##*) }"  # the comm field may hold spaces and parentheses: fields resume after its LAST `) `
+  # shellcheck disable=SC2086
+  set -- $s
+  printf '%s' "${20:-}"
+}
+# `@agents_up_building` holds `<pid>:<start time>` of the builder. It counts only while that PID is alive AND its start
+# time is still the stored one: a builder SIGKILLed mid-build never runs its EXIT trap, and a later process that takes the
+# PID must not read as a builder. Anything malformed (empty, `0`, `0123`, a bare PID) reads "not building".
+building_live() {  # $1 = the option's value
+  local pid st
+  [[ "$1" =~ ^([1-9][0-9]*):([0-9]+)$ ]] || return 1
+  pid="${BASH_REMATCH[1]}" st="${BASH_REMATCH[2]}"
+  kill -0 "$pid" 2>/dev/null || return 1
+  [ "$(proc_start "$pid")" = "$st" ]
+}
+# A stale member of an old group keeps old windows and claude processes alive (a member survives the killing of its base)
+# and, grouped under the name <S>, would be JOINED by the first `new-session -t =<S>` — dragging <S> into the old group,
+# where the next change on the stale side replaces the grid's windows. stale_group_members is READ-ONLY: every session other
+# than <S> and than a `<S>+<digits>` whose group is <S>. Such a session is NOT ours to kill (it may be another repo's or the
+# operator's). The split is on the LAST `|~|`: a session name may hold one, <S> cannot.
+stale_group_members() {
+  local n g line
+  # only while <S> itself is ungrouped (a new base beside an old group): once <S> is in its group, that group is its own and
+  # a viewer or hand-made member of it is live, not stale
+  [ -z "$(tmux_group "$S")" ] || return 0
+  while IFS= read -r line; do
+    n="${line%|~|*}" g="${line##*|~|}"
+    [ "$n" != "$S" ] || continue
+    [[ "$n" == "$S+"* && "${n#"$S+"}" =~ ^[0-9]+$ ]] && continue
+    [ "$g" = "$S" ] && printf '%s\n' "$n"
+  done < <(tmux list-sessions -F '#{session_name}|~|#{session_group}' 2>/dev/null)
+  return 0
+}
+# After THIS launch's own new-session (so a launch that lost the race kills nothing): a leftover `<S>+<digits>` is killed;
+# any stale member (above) is said, naming the kill that frees the group, and no overflow session is made.
+clear_stale_group() {
+  local n
+  while IFS= read -r n; do tmux kill-session -t "=$n" >/dev/null 2>&1; done < <(overflow_sessions)
+  stale_members="$(stale_group_members)"
+  while IFS= read -r n; do
+    [ -n "$n" ] || continue
+    echo "agents_up: the tmux session $n is still grouped under the name $S (left by an older grid) — not creating overflow sessions; free the group with: tmux kill-session -t =$n" >&2
+    grouped_stale=1
+  done <<< "$stale_members"
+}
+overflow_sessions() {  # every session named <S>+<digits>
+  local n
+  while IFS= read -r n; do
+    [[ "$n" == "$S+"* && "${n#"$S+"}" =~ ^[0-9]+$ ]] && printf '%s\n' "$n"
+  done < <(tmux list-sessions -F '#{session_name}' 2>/dev/null)
+  return 0
+}
+ensure_overflow() {  # $1 = k, $2 = the id of window agents-<k>: <S>+<k> in <S>'s group, its current window agents-<k>
+  local name="$S+$1" base og m created=0
+  if tmux has-session -t "=$name" 2>/dev/null; then
+    og="$(tmux_group "$name")"
+    base="$(tmux_group "$S")"  # read AFTER og: a concurrent run that groups <S> in between must not get its session killed
+    if [ -z "$og" ] || [ "$og" != "$base" ]; then tmux kill-session -t "=$name" >/dev/null 2>&1; fi
+  fi
+  if ! tmux has-session -t "=$name" 2>/dev/null; then
+    # never `new-session -t =<S>` while a stale session holds the group name <S>: it would join that group
+    while IFS= read -r m; do
+      [ -n "$m" ] || continue
+      echo "agents_up: the tmux session $m is still grouped under the name $S (left by an older grid) — not creating $name; free the group with: tmux kill-session -t =$m" >&2
+      created=-1
+    done < <(stale_group_members)
+    [ "$created" = -1 ] && return 1
+    if tmux new-session -d -t "=$S" -s "$name"; then
+      created=1
+    else
+      # a second --window run created it first: use it when it is grouped with <S>
+      base="$(tmux_group "$S")"
+      og="$(tmux_group "$name")"
+      if [ -z "$og" ] || [ "$og" != "$base" ]; then
+        echo "agents_up: could not create the tmux session $name for window agents-$1" >&2
+        return 1
+      fi
+    fi
+  fi
+  # the session must really show window $2
+  if ! tmux list-windows -t "=$name" -F '#{window_id}' 2>/dev/null | /usr/bin/grep -qxF -- "$2" ||
+    ! tmux select-window -t "=$name:$2" >/dev/null 2>&1; then
+    echo "agents_up: the tmux session $name shows other windows than window agents-$1 ($2) — not using it" >&2
+    [ "$created" = 1 ] && tmux kill-session -t "=$name" >/dev/null 2>&1
+    return 1
+  fi
+}
+kill_hint() {  # the relaunch hint: the base session and every overflow session
+  local h="tmux kill-session -t =$S" n
+  while IFS= read -r n; do [ -n "$n" ] && h="$h; tmux kill-session -t =$n"; done < <(overflow_sessions)
+  printf '%s' "$h"
+}
+
+# The new grid. For four builders or fewer it is one window `agents`, even-horizontal, @agent on each pane. `@agents_up_building`
+# holds this process's PID from the new-session (chained with `\;` in the SAME tmux invocation, before the root is
+# recorded) to the end, so a `--window` poll never sees the session without it; it is unset at the end AND by an EXIT trap,
+# and counts only while the PID is alive. Cobra (D-253): the cheapest way past it is a flag that never clears — the PID
+# test makes a builder that died mid-build read "not building".
+start_grid() {
+  local name sid folder new dir st cmd out wid pid k placed=0 raced=0 pane0="" grouped_stale=0 stale_members=""
+  local bflag="$$:$(proc_start "$$")"
+  local -a wins=()
+  check_spawn_vars
   slice_ceiling
-  first=1
-  raced=0
-  while read -r name sid folder; do
+  while read -r name sid folder new; do
     dir="$(dir_of "$folder")"
     [ -n "$dir" ] || continue
-    st="$(status_of "$sid" "$dir")"
+    st="$(status_of "$sid" "$dir" "$name")"
     newer_unbound "$name" "$sid" "$dir"
-    [ "$st" = no-transcript ] && echo "agents_up: $name: no transcript for session $sid under $(proj_of "$dir") — the pane will try anyway" >&2
-    cmd="$(cmd_of "$name" "$sid" "$st")"
-    if [ "$first" = 1 ]; then
-      if ! tmux new-session -d -s "$S" -n "$W" -c "$dir" -x 240 -y 60 "$cmd"; then
+    [ "$st" = no-transcript ] && [ "$new" != 1 ] && echo "agents_up: $name: no transcript for session $sid under $(proj_of "$dir") — the pane will try anyway" >&2
+    cmd="$(cmd_of "$name" "$sid" "$st" "$new")"
+    if [ "$placed" = 0 ]; then
+      if ! out="$(tmux new-session -d -s "$S" -n "$W" -c "$dir" -x 240 -y 60 -P -F '#{window_id} #{pane_id}' "$cmd" \; set-option -t "=$S:" @agents_up_building "$bflag")"; then
         # a second launch racing this one built the grid first: attach to it (if it is this repo's) rather than fail
         if tmux has-session -t "=$S" 2>/dev/null; then
           owned_here || exit 2
@@ -609,29 +929,108 @@ else
         fi
         exit 1
       fi
+      trap 'tmux set-option -t "=$S:" -u @agents_up_building >/dev/null 2>&1' EXIT
+      read -r wid pid <<< "$out"
+      if ! [[ "$wid" =~ ^@[0-9]+$ && "$pid" =~ ^%[0-9]+$ ]]; then
+        echo "agents_up: tmux gave no window and pane id for $S's first pane ('$out') — not continuing" >&2
+        exit 1
+      fi
+      wins+=("$wid")
+      pane0="$pid"
+      clear_stale_group
       tmux set-option -t "=$S:" @agents_up_root "$ROOT" >/dev/null ||
         echo "agents_up: could not record the root on $S — a relaunch cannot confirm this grid is this repo's and will attach it with a warning" >&2
-      first=0
-    elif ! tmux split-window -t "=$S:$W" -c "$dir" "$cmd"; then
-      echo "agents_up: no room for $name's pane — open it by hand: $cmd" >&2
-      continue
+    elif [ $((placed % PER_WINDOW)) = 0 ]; then
+      k=$((placed / PER_WINDOW + 1))
+      out="$(tmux new-window -d -t "=$S:" -n "agents-$k" -c "$dir" -P -F '#{window_id} #{pane_id}' "$cmd")" || out=""
+      read -r wid pid <<< "$out"
+      if ! [[ "$wid" =~ ^@[0-9]+$ && "$pid" =~ ^%[0-9]+$ ]]; then
+        echo "agents_up: no room for $name's pane — open it by hand: $cmd" >&2
+        continue
+      fi
+      wins+=("$wid")
+    else
+      wid="${wins[$((${#wins[@]} - 1))]}"
+      pid="$(tmux split-window -t "$wid" -c "$dir" -P -F '#{pane_id}' "$cmd")" || pid=""
+      if ! [[ "$pid" =~ ^%[0-9]+$ ]]; then
+        echo "agents_up: no room for $name's pane — open it by hand: $cmd" >&2
+        continue
+      fi
     fi
-    tmux select-layout -t "=$S:$W" even-horizontal >/dev/null
-    tmux set -p -t "=$S:$W" @agent "$name"
+    wid="${wins[$((${#wins[@]} - 1))]}"
+    tmux select-layout -t "$wid" even-horizontal >/dev/null
+    tmux set -p -t "$pid" @agent "$name"
+    placed=$((placed + 1))
   done <<< "$AGENTS"
+  # every resolved worktree went away between the resolve and here: no session was made, so there is nothing to select or attach
+  if [ "$placed" = 0 ] && [ "$raced" = 0 ]; then
+    echo "agents_up: every builder's worktree went away between resolve and launch — nothing launched" >&2
+    exit 2
+  fi
   # a launch that lost the race leaves the other launch's grid as that launch arranges it
-  [ "$raced" = 1 ] || tmux select-pane -t "=$S:$W.0"
+  [ "$raced" = 1 ] && return 0
+  for ((k = 2; k <= ${#wins[@]}; k++)); do
+    if [ "$grouped_stale" = 1 ]; then
+      echo "agents_up: window agents-$k stays in $S — free the group first (the kill-session above), then: $SELF --window $k $ROOT" >&2
+    else
+      ensure_overflow "$k" "${wins[$((k - 1))]}" || echo "agents_up: window agents-$k stays in $S (attach it with: $SELF --window $k $ROOT)" >&2
+    fi
+  done
+  # <S>'s own current window is tab 1's `agents`, whatever the overflow sessions selected
+  tmux select-window -t "=$S:${wins[0]}" >/dev/null
+  tmux select-pane -t "$pane0"
+  tmux set-option -t "=$S:" -u @agents_up_building >/dev/null 2>&1
+  trap - EXIT
+}
+
+# --window <n> <repo>: attach the session showing window agents-<n>. Waits (every 2 s, up to FABRIK_AGENTS_WINDOW_WAIT_S,
+# 120) while the grid is absent or a LIVE builder is still building it; a flag whose PID is dead, or no flag, is a grid
+# that is not being built.
+window_mode() {
+  local wait_s="${FABRIK_AGENTS_WINDOW_WAIT_S:-120}" waited=0 b wid
+  [[ "$wait_s" =~ ^[0-9]{1,6}$ ]] || bad_arg "bad FABRIK_AGENTS_WINDOW_WAIT_S '$wait_s' (whole seconds)"
+  while :; do
+    if tmux has-session -t "=$S" 2>/dev/null; then
+      b="$(tmux show-options -t "=$S:" -v @agents_up_building 2>/dev/null)"
+      building_live "$b" || break
+    fi
+    if [ "$waited" -ge "$((10#$wait_s))" ]; then
+      echo "agents_up: the $S grid was not ready within $wait_s s" >&2
+      exit 2
+    fi
+    sleep 2
+    waited=$((waited + 2))
+  done
+  owned_here || exit 2
+  wid="$(find_window "agents-$winn")"
+  if [ -n "$wid" ]; then
+    ensure_overflow "$winn" "$wid" || exit 2
+    ATT="$S+$winn"
+  else
+    echo "agents_up: the $S grid has no window agents-$winn now — showing its current window" >&2
+    if tmux has-session -t "=$S+$winn" 2>/dev/null; then tmux kill-session -t "=$S+$winn" >/dev/null 2>&1; fi
+  fi
+}
+
+ATT="$S"
+if [ -n "$winn" ]; then
+  window_mode
+elif tmux has-session -t "=$S" 2>/dev/null; then
+  owned_here || exit 2
+  echo "agents_up: the $S grid is already up — leaving it as it is; a registry change takes effect after: $(kill_hint)" >&2
+else
+  start_grid
 fi
 tmux source-file "$HOME/.tmux.conf" 2>/dev/null
 # --detach (the boot sweep, cron: no terminal) stops here; so does any caller with no terminal, which says so
 if [ "$detach" = 1 ]; then
-  echo "agents_up: --detach — the $S grid is up, not attaching (attach with: tmux attach -t =$S)" >&2
+  echo "agents_up: --detach — the $S grid is up, not attaching (attach with: tmux attach -t =$ATT)" >&2
   exit 0
 fi
 # run from inside tmux (a hub pane), attaching would nest; switch the client instead
-[ -n "${TMUX:-}" ] && exec tmux switch-client -t "=$S"
+[ -n "${TMUX:-}" ] && exec tmux switch-client -t "=$ATT"
 if [ ! -t 0 ] || [ ! -t 1 ]; then
-  echo "agents_up: no terminal on stdin/stdout, so there is nothing to attach — the $S grid is up and left detached (attach with: tmux attach -t =$S)" >&2
+  echo "agents_up: no terminal on stdin/stdout, so there is nothing to attach — the $S grid is up and left detached (attach with: tmux attach -t =$ATT)" >&2
   exit 0
 fi
-exec tmux attach -t "=$S"
+exec tmux attach -t "=$ATT"

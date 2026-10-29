@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T15:01:56.276058Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-5bec3f02",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M63QZK9SJBNWY26KB9G4ZQ8H",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Wording ask — builders address the coordinator by the prompt line's live address, never a name from their notes (W-9bf5a363)"
+}

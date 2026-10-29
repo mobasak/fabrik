@@ -15,7 +15,7 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra-3",
+  "owner": "infra",
   "priority": 0,
   "score_reason": "URGENT: the operator says unacceptable, and every agent's throughput depends on it; infra-3 built the merge-test leg (D-1186/D-1189/D-1205); B, C and D are its machinery, and A (a lane rule) may split off",
   "status": "open",

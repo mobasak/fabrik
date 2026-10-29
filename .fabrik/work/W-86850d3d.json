@@ -3,7 +3,7 @@
   "created": "2026-10-21T19:01:05.077631Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "381d034ea2897e6cf369adb087d6d54ffefa2a66",
   "id": "W-86850d3d",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "prerequisite for the panel-approved Promtail-to-Alloy window (W-3247bfdd): merge master into fleet-alloy (3,955 behind) + re-run the alloy tests and the D7 review; one fleet session",
-  "status": "open",
+  "status": "done",
   "tags": [
     "medium"
   ],

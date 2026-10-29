@@ -1,6 +1,33 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## Measure the bytes per class before choosing which rule to loosen (2026-10-29, W-d1a4a8f5)
+
+**What happened:** the janitor item named a session-level class first: 362 "unclassified" sessions with no live or death signal. The first design loosened two session rules for it, a 48 h dead bar and "no transcript is a death signal". A test the build would have broken pinned the 7 d bar for weekly-quota resumes. A `du` per dry-run row then showed that the no-signal class held 0.5 GB. The 108 GB under that label sat in resumable sessions, and the removable bytes (77 GB) were run folders that a gap rule with no end kept alive. That gap rule was the one D-878 had declared safe because "/tmp is cleared at boot", and 74 of 652 session dirs predated the boot.
+
+**Lesson:** before loosening a keep rule, size each class it governs (`du` per classified row, overlaps named), and replay the candidate rule on the live table. A class that leads by ROW count can be empty by BYTES. A residual a past decision called bounded ("until the next boot") is a claim to re-measure, not a fact to inherit.
+
+## A fake that returns the consumer's answer cannot see the producer's defect (2026-10-29, W-c27db1f1)
+
+**What happened:** `vps1_pg_scoped_logins.py` passed a full review and its own test file, then stopped on its first live step-3d run: the `.env` line it wrote had no key. The unit tests fed `env_upsert_sh` a `KEY=value` line the real caller never sent, and the step-3d tests ran through a fake ssh whose `docker compose config` returned the two scoped DSNs whatever the files said.
+
+**Lesson:** when a step writes a file and the next step reads it back through a real parser, test the pair with that parser. Run the step's own commands on a copy and let the real reader (here `docker compose config`) decide; a fake reader hands back the answer the test expects and proves nothing about the writer. Feed the writer exactly what its caller builds, never a line written for the test.
+
+## "Nothing to lose" must pass `--untracked-files=all` — git's clean checks obey the user's config (2026-10-29, W-b9ad80ae T10)
+
+**What happened:** the dynamic-builders whole-plan review found that `agents_up.sh remove` read a worktree as clean with `git status --porcelain`, which honours `status.showUntrackedFiles=no`; `git worktree remove` makes the same check internally, so under that config an untracked source file passed both and was deleted at rc 0 (reproduced in scratch). Every per-ticket review had missed it, and so had the green gate, whose static tier was skipped as "diff-sensed" because only markdown was uncommitted.
+**Lesson:** a check that decides "nothing would be lost" passes `--untracked-files=all` (and `--ignore-submodules=none`), and the destructive git call itself runs with `-c status.showUntrackedFiles=all`, or a user's config turns it into a silent delete. A green `final_gate --check` with `skipped_checks: ['static tier']` says nothing about lint, types or format: run ruff, ruff format and mypy by hand on the plan's files before calling a whole plan green.
+
+## A fix's own wording is the next round's surface: three review rounds on one "main checkout" rule (2026-10-29, W-b9ad80ae T05+T06)
+
+**What happened:** the wave-4 review confirmed 14 defects in round 1, then 3 and 2 more, every one of the later five in the previous round's fixes. `add` first accepted a linked worktree, then refused a legitimate main checkout whose `.git` is a `gitdir:` file (`dirname(common dir)` is not the checkout there), then named the git dir as "the main checkout" in its refusal hint. A module loaded by file path with a `@dataclass` also had to be put in `sys.modules` before `exec_module`, or annotation resolution crashes.
+**Lesson:** when a fix derives a path ("the main checkout"), probe it on every repo shape git allows — separate git dir, `gitdir:` file, submodule, bare repo with worktrees — before the next round does, and print a path in a message only after checking it is what the message calls it. Register a file-loaded module in `sys.modules` before running it.
+
+## A live claude probe on tmux 3.4 needs `=name:` targets and a 150 s wait (2026-10-28, W-b9ad80ae T02)
+
+**What happened:** T02's blocking probe launched one claude on a private tmux server to prove the `--settings` suppression. It took four launches: `capture-pane -t =probe-1` fails on tmux 3.4 ("can't find pane"), and a 60 s wait found no transcript, because a fresh worktree's first turn spends about 57 s in SessionStart hooks.
+**Lesson:** target tmux panes as `=<session>:`, never a bare `=<session>`; a probe that waits for a new session's transcript waits 150 s, not 60. The wave's review then found that a validation moved "before the first side effect" also has to stay off paths that make no side effect at all: decide where a refusal belongs by which paths build the thing it guards.
+
 ## A unit's name is not the unit that serves the port (2026-10-29, W-07298e38)
 
 **What happened:** the emitter guard mapped fabrik-citation-verifier to `fabrik-citation-verifier-mcp.service`, an enabled unit with the right name that stays inactive, because `fabrik-mcp-http.service` owns :8033 (`docs/workstation/MCP_HTTP_TRANSPORT.md` says so). Two Opus + Fable critiques and six review seats read past it; the guard passed because the look-alike was enabled. Deleting the look-alike would have withheld a live server from every repo.
@@ -12,6 +39,12 @@
 **What happened:** D-121 took the ocoron-com stack down with `docker compose down`, and the stack was found running again weeks later. `fabrik-compose-boot.sh` runs `up -d` on every `/opt/*/compose.yaml` at each boot, and D-121 had left the file in place. A second reviver was waiting too: the vps1 sysadmin bot's prompt still ranked the stack P0 and gave it "full autonomous management".
 
 **Lesson:** a removal on a fleet host must also remove what would start the stack again. That means the compose file in the boot glob (rename it out) and every autonomous actor told to keep the stack up (its prompt or config). Grep the host's boot units and the bot prompt for the stack's name before calling it gone.
+
+## Run the new output over the live population before the review, not only the fixtures (2026-10-29, W-c77f91c6)
+
+**What happened:** all eight fixture tests and nine mutants passed. Then the base and new check were run over every one of the 224 live worktrees, and the new green line printed "all 2 present" in trees that held no synced file at all. Seeded rows skip before the absent-row test, and the count was `len(lock) - not_received`. No fixture carried a seeded row, because the tmp hub had no manifest.
+
+**Lesson:** a count printed by a new mode is a claim about the population, not about the fixture. Run the new mode over the real population and read every distinct line it prints before the review starts. Then derive the count from the rows the loop actually graded, never from the total minus one category.
 
 ## A scope condition written twice hides from every single mutant (2026-10-29, W-19b57b9a)
 

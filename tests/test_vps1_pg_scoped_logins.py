@@ -145,14 +145,48 @@ def test_env_upsert_replaces_the_key_keeps_the_rest_and_fixes_a_missing_newline(
     env = tmp_path / ".env"
     env.write_text(f"A=1\n{GT_KEY}=old\nB=2")  # no final newline
     env.chmod(0o644)
-    _upsert(tmp_path, GT_KEY, f"{GT_KEY}=new\n")
+    _upsert(tmp_path, GT_KEY, "new\n")
     assert env.read_text() == f"A=1\nB=2\n{GT_KEY}=new\n"
     assert stat.S_IMODE(env.stat().st_mode) == 0o600
     assert not list(tmp_path.glob(".env.*"))  # the mktemp file is gone
 
 
+@pytest.mark.parametrize("odd", [b"caf\xe9", b"x\x00y"])
+def test_env_upsert_keeps_a_line_with_a_non_utf8_byte_under_a_utf8_locale(tmp_path, odd):
+    env = tmp_path / ".env"
+    env.write_bytes(b"A=" + odd + b"\nB=2\n" + f"{GT_KEY}=old\n".encode())
+    subprocess.run(
+        ["sh", "-c", m.env_upsert_sh(GT_KEY)],
+        input=b"new\n",
+        cwd=tmp_path,
+        check=True,
+        env=dict(os.environ, LC_ALL="C.UTF-8"),
+    )
+    assert env.read_bytes() == b"A=" + odd + b"\nB=2\n" + f"{GT_KEY}=new\n".encode()
+
+
+def test_env_upsert_leaves_env_untouched_when_grep_fails(tmp_path):
+    shim = tmp_path / "bin"
+    shim.mkdir()
+    (shim / "grep").write_text("#!/bin/sh\necho partial\nexit 2\n")
+    (shim / "grep").chmod(0o755)
+    work = tmp_path / "w"
+    work.mkdir()
+    (work / ".env").write_text("A=1\nB=2\n")
+    r = subprocess.run(
+        ["sh", "-c", m.env_upsert_sh(GT_KEY)],
+        input="new\n",
+        text=True,
+        cwd=work,
+        env=dict(os.environ, PATH=f"{shim}:{os.environ['PATH']}"),
+    )
+    assert r.returncode != 0
+    assert (work / ".env").read_text() == "A=1\nB=2\n"
+    assert [p.name for p in work.iterdir()] == [".env"]
+
+
 def test_env_upsert_creates_a_missing_env_mode_0600(tmp_path):
-    _upsert(tmp_path, EX_KEY, f"{EX_KEY}=v\n")
+    _upsert(tmp_path, EX_KEY, "v\n")
     env = tmp_path / ".env"
     assert env.read_text() == f"{EX_KEY}=v\n" and stat.S_IMODE(env.stat().st_mode) == 0o600
 
@@ -177,10 +211,12 @@ class _Fake:
 
     def __init__(self, fail_on: str):
         self.calls: list[str] = []
+        self.stdins: list[str | None] = []
         self.fail_on = fail_on
 
     def __call__(self, cmd, stdin=None, host=None, timeout=300):
         self.calls.append(cmd)
+        self.stdins.append(stdin)
         failed = self.fail_on in cmd and not any(self.fail_on in c for c in self.calls[:-1])
         out = ""
         if "compose config" in cmd:
@@ -237,6 +273,68 @@ def test_no_secret_reaches_any_remote_command_line(monkeypatch):
     pws = {"glitchtip": "GTSECRETGTSECRET", "postgres_exporter": "EXSECRETEXSECRET"}
     m.step3d_move(pws, {"glitchtip": "fresh", "postgres_exporter": "fresh"})
     assert fake.calls and not any(s in c for c in fake.calls for s in pws.values())
+
+
+def test_step3d_feeds_the_upsert_the_bare_scoped_dsn(monkeypatch):
+    """The docker-free half of the W-c27db1f1 guard: env_upsert_sh writes `KEY=`, so its stdin is the value alone."""
+    fake = _move(monkeypatch, "never-matches", "fresh")
+    sent = [s for c, s in zip(fake.calls, fake.stdins, strict=True) if "sudo sh -c" in c]
+    pws = {"glitchtip": "p", "postgres_exporter": "q"}
+    assert sent == [
+        m.scoped_dsn(old, role, pws[role]) + "\n" for role, _d, _c, _k, old, *_ in m.SERVICES
+    ]
+
+
+@pytest.mark.parametrize("state", ["fresh", "moved"])
+def test_step3d_moves_both_mirrors_onto_their_scoped_logins_under_real_compose(
+    monkeypatch, tmp_path, state
+):
+    """step3d_move's own commands, run locally on copies of the mirrors; only `compose up` is stubbed.
+
+    _Fake hard-codes the rendered config, so it passed while the .env line had no key (W-c27db1f1).
+    `moved` starts from an earlier run's files: compose.yaml already on ${KEY}, .env holding an old KEY line.
+    """
+    if (
+        shutil.which("docker") is None
+        or subprocess.run(["docker", "compose", "version"], capture_output=True).returncode
+    ):
+        pytest.skip("docker compose is not installed")
+    dirs = {}
+    for _role, _db, cdir, key, old, *_ in m.SERVICES:
+        d = tmp_path / Path(cdir).name
+        d.mkdir()
+        shutil.copy(ROOT / "infra" / "vps1" / Path(cdir).name / "compose.yaml", d / "compose.yaml")
+        (d / ".env").write_text("UNRELATED=1\n")
+        if state == "moved":
+            subprocess.run(["sed", "-i", m.sed_expr(old, key), "compose.yaml"], cwd=d, check=True)
+            (d / ".env").write_text(
+                f"{key}=postgresql://stale:stale@postgres-main:5432/x\nUNRELATED=1\n"
+            )
+        dirs[cdir] = str(d)
+    ups = []
+
+    def local(cmd, stdin=None, host=None, timeout=300):
+        if "compose up -d" in cmd:
+            ups.append(cmd)
+            return subprocess.CompletedProcess(cmd, 0, "", "")
+        for cdir, d in dirs.items():
+            cmd = cmd.replace(f"cd {cdir} ", f"cd {d} ")
+        r = subprocess.run(
+            ["sh", "-c", cmd.replace("sudo ", "")], input=stdin, capture_output=True, text=True
+        )
+        return subprocess.CompletedProcess(cmd, r.returncode, r.stdout, r.stderr)
+
+    monkeypatch.setattr(m, "run", local)
+    monkeypatch.setattr(m, "gate", lambda *a: None)
+    pws = {"glitchtip": "G" * 32, "postgres_exporter": "E" * 32}
+    m.step3d_move(pws, {"glitchtip": state, "postgres_exporter": state})
+    assert ups == [
+        f"cd {cdir} && sudo docker compose up -d {' '.join(svcs)}"
+        for *_, cdir, _k, _o, _n, svcs in m.SERVICES
+    ]
+    for role, _db, cdir, key, old, _count, _svcs in m.SERVICES:
+        env = (Path(dirs[cdir]) / ".env").read_text().splitlines()
+        assert env == ["UNRELATED=1", f"{key}={m.scoped_dsn(old, role, pws[role])}"]
 
 
 def test_scoped_count_checks_role_and_database():

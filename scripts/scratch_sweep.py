@@ -557,13 +557,20 @@ def _created_for(folder: Path, owner: dict | None) -> object:
     return created
 
 
-def gap_keeps(starts: list[float | None], created: object, now: float) -> bool:
-    """Does a same-uid `/proc` gap keep a run folder? Only a gap process that STARTED at or after
-    the folder's marker was written (less the clock margin): a process already running before the
-    run began cannot be one of its writers, and this box carries three such daemons permanently
-    (sd-pam, gpg-agent, a setuid fusermount3), which kept every folder for ever under the spec's
-    bare "a non-empty gaps list". Any unknown — a start, or a missing, non-numeric, non-finite or
-    future `created` — keeps (the split panel's interim ruling; the decision row names both verdicts).
+def gap_keeps(
+    starts: list[float | None], created: object, now: float, *, end: object = None
+) -> bool:
+    """Does a same-uid `/proc` gap keep a run folder? Only a gap process that STARTED inside the
+    run's own window — at or after the folder's marker was written, and (given `end`, the run's last
+    activity from `run_window_end`) no later than that end, both less/plus the clock margin. A process
+    already running before the run began cannot be one of its writers, and neither can one born after
+    the run's last activity: this box carries such daemons permanently (sd-pam, gpg-agent, the
+    document portal's setuid fusermount3), which kept every folder for ever under the spec's bare "a
+    non-empty gaps list", and — with no end — every folder older than the daemon (W-d1a4a8f5: 152
+    folders, 77 GB; /tmp is not cleared at boot here, so "until the next boot" bounded nothing, which
+    supersedes D-878's rejection of the end bound). Any unknown — a start, or a missing, non-numeric,
+    non-finite or future `created` — keeps (the split panel's interim ruling; the decision row names
+    both verdicts); an unusable `end`, or none, is no end at all — today's start-only rule.
 
     Cobra (D-253): an EARLIER `created` makes every gap read newer and so keeps more; the cheap way
     to make this keep nothing is to move `created` LATER than the run's true start — to the present,
@@ -571,16 +578,104 @@ def gap_keeps(starts: list[float | None], created: object, now: float) -> bool:
     in (true start, now + margin] is indistinguishable from a younger run or clock skew, so this rule
     cannot see it; the writers that heal a marker therefore stamp the run's true start (D-902).
     Dropping `created`, or making it NaN, a bool or text, KEEPS; a test pins each case (W-a39d4c86
-    corrected the direction this note first named).
+    corrected the direction this note first named). The END's cobra mirrors it: an end moved EARLIER
+    keeps less, so `run_window_end` answers None (no end) on every doubt rather than a guess. Residual
+    (an over-removal, recorded in the W-d1a4a8f5 row): a non-dumpable process that is not one of the
+    run's seats, started more than the margin after the run's last activity, still writing into the
+    folder only in place, loses it once the grace has passed.
     """
     if not starts:
         return False
     if not _usable_time(created) or created > now + GAP_CLOCK_MARGIN_S:
         return True
+    last = end if _usable_time(end) else None
     # `s + margin >= created`, not `s >= created - margin`: a huge int `created` is only ever COMPARED
-    # (exact for any size), never converted to a float by arithmetic (OverflowError)
+    # (exact for any size), never converted to a float by arithmetic (OverflowError) — and the same
+    # for the end: `s - margin <= end`, never `end + margin`
     # an unusable start (None, or NaN from a NaN boot time) is an UNKNOWN start: INV-1 doubt keeps
-    return any(not _usable_time(s) or s + GAP_CLOCK_MARGIN_S >= created for s in starts)
+    return any(
+        not _usable_time(s)
+        or (s + GAP_CLOCK_MARGIN_S >= created and (last is None or s - GAP_CLOCK_MARGIN_S <= last))
+        for s in starts
+    )
+
+
+def _run_sids(owner: dict | None, dir_sid: str) -> tuple[str, ...]:
+    """The sessions whose seats may have written into a run folder: its marker's `sid` (the session
+    that RAN it) when that is a non-empty string, and the directory's sid. Both count — under D4
+    (`check_sid=False`) a marker naming another session is still judged, and its directory's seats
+    are as live as the marker's (W-d1a4a8f5 review, Opus C3 / Haiku 2)."""
+    sid = (owner or {}).get("sid")
+    if isinstance(sid, str) and sid and sid != dir_sid:
+        return (sid, dir_sid)
+    return (dir_sid,)
+
+
+def _newest_seat_write(sids: tuple[str, ...], tx_dirs: list[Path] | None) -> float | None:
+    """The newest `subagents/agent-*.jsonl` mtime of any of ``sids`` under the transcript roots —
+    the glob `_seat_write_after_close` reads, with root and sid ESCAPED so a `[` or `*` in either
+    is a literal and never a pattern that silently matches nothing (review, Sonnet C2). An OSError
+    propagates: the caller's doubt."""
+    newest: float | None = None
+    for root in transcript_dirs() if tx_dirs is None else tx_dirs:
+        for sid in sids:
+            pattern = os.path.join(globmod.escape(str(root)), "*", globmod.escape(sid))
+            for path in globmod.glob(os.path.join(pattern, "subagents", "agent-*.jsonl")):
+                mt = os.stat(path).st_mtime
+                newest = mt if newest is None else max(newest, mt)
+    return newest
+
+
+def run_window_end(
+    folder: Path,
+    owner: dict | None,
+    sids: tuple[str, ...],
+    tx_dirs: list[Path] | None,
+    now: float,
+) -> float | None:
+    """The run's last activity — the END of the window a `/proc` gap must have started in to keep
+    the folder (W-d1a4a8f5). None on any doubt, which `gap_keeps` reads as no end (today's rule):
+    - `.trash-*`: its own ctime — the rename that made it, never the marker's `created` (the START);
+    - `done` with a close the marker vouches for (D-900): the close, or a later top-level write
+      (`_written_after_close`);
+    - `running` / `resumable`: the marker's mtime, its heartbeat — which moves only at the run's
+      events, never while a seat works;
+    - for both live states, raised to the newest seat transcript of any of ``sids``: a seat that acts
+      moves its own transcript, which the folder's mtime does not see when the seat writes in place.
+    No answer, either, for an end further ahead of `now` than the clock margin (a clock jump or a
+    `touch -d` would stretch the window to that date), an end before the marker's own `created` less
+    the margin (an inverted window), or a close no float holds.
+    Residuals (an over-removal, recorded in D-1341): a close clobbered back to near `created`, which
+    D-900's vouch still believes, ends the window there; and a run whose seats' transcripts are gone
+    (the D-736 pruner removes them locally after 3 days) ends at its close — the 36 h grace, counted
+    from the close when the seats cannot be read, is then the only cover for a late writer."""
+    try:
+        if folder.name.startswith(TRASH_PREFIX):
+            last = folder.lstat().st_ctime
+        elif not isinstance(owner, dict):
+            return None
+        else:
+            state = owner.get("state")
+            if state == "done":
+                if not _done_close_is_vouched(owner, now):
+                    return None
+                closed = float(owner["closed_at"])
+                last = max(closed, _written_after_close(folder, closed, now) or closed)
+            elif state in ("running", "resumable"):
+                last = (folder / OWNER_NAME).stat().st_mtime
+            else:
+                return None
+            seats = _newest_seat_write(sids, tx_dirs)
+            if seats is not None:
+                last = max(last, seats)
+    except (OSError, OverflowError, ValueError):
+        return None
+    if not math.isfinite(last) or last > now + GAP_CLOCK_MARGIN_S:
+        return None
+    created = owner.get("created") if isinstance(owner, dict) else None
+    if _usable_time(created) and last + GAP_CLOCK_MARGIN_S < created:
+        return None  # compared, never converted: a huge int `created` is exact
+    return last
 
 
 # the mint's key is `<command>-<started_at>-<6 hex>` (P4); `started_at` is `%Y-%m-%dT%H:%M:%S%z`
@@ -882,7 +977,9 @@ def judge_run_folder(
     is_held = p in held or os.path.realpath(p) in held
     owner = read_owner(folder)
     created = _created_for(folder, owner)
-    gap = gap_keeps(gaps, created, now)
+    # the window costs a transcript glob per folder: read it only when there is a gap to judge
+    end = run_window_end(folder, owner, _run_sids(owner, sid), tx_dirs, now) if gaps else None
+    gap = gap_keeps(gaps, created, now, end=end)
     if folder.name.startswith(TRASH_PREFIX):
         # already judged CONSUMED before the crash that left it — only a holder can keep it now
         facts = RunFacts("done", 0.0, 0.0, True, is_held, gap, probe_ok, False, False, True, False)
@@ -1029,6 +1126,7 @@ def apply_run_rows(rows: list[Row], out=None, proc_root: Path | None = None) -> 
         print("REFUSED — the /proc holder probe went unreadable; no run folder removed", file=out)
         return 0
     starts_now = gap_starts(gaps_now, proc_root)
+    tx_now = transcript_dirs() if starts_now else None  # once, not per folder (review, Sonnet C3)
     removed = 0
     for r in rows:
         if r.cls != "consumed":
@@ -1052,7 +1150,13 @@ def apply_run_rows(rows: list[Row], out=None, proc_root: Path | None = None) -> 
             print(f"KEPT {r.path} — written into since its close (W-9f3f097c)", file=out)
             continue
         created = _created_for(path, owner)
-        if gap_keeps(starts_now, created, _now()):
+        # the SAME window the judge used, recomputed from what the folder holds now — the unbounded
+        # form here would re-keep every folder a late daemon no longer keeps (W-d1a4a8f5)
+        end = None
+        if starts_now:
+            sids = _run_sids(owner, path.parent.parent.name)
+            end = run_window_end(path, owner, sids, tx_now, _now())
+        if gap_keeps(starts_now, created, _now(), end=end):
             print(f"KEPT {r.path} — an unreadable process appeared since classification", file=out)
             continue
         trash = path
