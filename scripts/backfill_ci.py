@@ -6,11 +6,14 @@ ratchet (src/fabrik/ci_scaffold.py), so this also seeds `.fabrik/lint-baseline.j
 project's CURRENT ruff count. Result: the replica lands GREEN (debt tolerated, growth blocked)
 instead of flooding red on legacy lint debt.
 
-A project that already has `scripts/ci_local.sh` is skipped, never rewritten; its row says when
+A project with anything at `scripts/ci_local.sh` is skipped, never rewritten; its row says when
 that file is stale (no sqlfluff step, no `.fabrik/run-pytest`) or not fabrik-managed. The replica
-also lints every tracked `*.sql` with sqlfluff, with no ratchet, so each target's SQL is linted
-first with the pinned sqlfluff: `--apply` refuses a `red` or `unknown` verdict unless `--force`,
-and a forced row records the verdict it went past. An existing `.fabrik/run-pytest` is kept.
+also lints every tracked `*.sql` with sqlfluff, with no ratchet, so each target's SQL is graded
+first by the pinned sqlfluff when this interpreter carries it (else the verdict is `unknown`):
+`--apply` refuses a `red` or `unknown` verdict unless `--force`, and a forced row records the
+verdict it went past. An existing `.fabrik/run-pytest` or lint baseline is kept, nothing is
+written through a symlink, `scripts/ci_local.sh` is written last, and the exit is 1 when
+`--apply` refused or failed any project.
 
 Per-project config is grounded, not guessed:
   needs_database  ← the hub spec's shape.needs_database if a spec exists, else an uncommented
@@ -20,7 +23,7 @@ Per-project config is grounded, not guessed:
 
 Usage:
   python scripts/backfill_ci.py <project> [<project> ...]   # DRY-RUN (default): report only
-  python scripts/backfill_ci.py <project> --apply           # write the 2 files + seed baseline
+  python scripts/backfill_ci.py <project> --apply           # write the CI files + seed baseline
                                                             #   (working tree only; NO git)
   python scripts/backfill_ci.py <project> --apply --force   # ... past a red/unknown sqlfluff
 Commit is deliberately left to the caller (per-repo agent, or an explicit review) — this tool
@@ -30,6 +33,7 @@ never commits or pushes across repos.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -70,6 +74,8 @@ WEB_TYPES = {"saas-skeleton", "saas"}
 SQLFLUFF_PYTHON = sys.executable
 SQLFLUFF_TIMEOUT_S = 180
 RUN_PYTEST = ".fabrik/run-pytest"
+BASELINE = ".fabrik/lint-baseline.json"
+CI_LOCAL = "scripts/ci_local.sh"
 
 
 def _tracked_sql(proj: Path) -> list[str] | None:
@@ -84,21 +90,26 @@ def _tracked_sql(proj: Path) -> list[str] | None:
 
 
 def _sqlfluff_verdict(proj: Path, files: list[str] | None) -> str:
-    """`-` · `clean` · `red N` (N = violations) · `unknown (<why>)`, from the pinned sqlfluff run
-    the way the replica runs it: postgres dialect, relative paths, cwd = the project."""
+    """`-` · `clean` · `red N` · `unknown (<why>)`, from the pinned sqlfluff run the way the
+    replica runs it: postgres dialect, relative paths, cwd = the project. N counts the violations
+    that fail the run — a rule the project configures as a warning (`"warning": true` in the JSON)
+    is printed by the replica but does not red it."""
     if files is None:
         return "unknown (no git)"
     if not files:
         return "-"
+    text = {"text": True, "encoding": "utf-8", "errors": "replace"}
     try:
         v = subprocess.run(
             [SQLFLUFF_PYTHON, "-m", "sqlfluff", "--version"],
             capture_output=True,
-            text=True,
             check=False,
             timeout=60,
+            **text,
         )
-    except (OSError, subprocess.TimeoutExpired):
+    except subprocess.TimeoutExpired:
+        return "unknown (timeout)"
+    except OSError:
         return "unknown (no sqlfluff)"
     words = (v.stdout or "").split()
     if v.returncode != 0 or not words:
@@ -111,31 +122,39 @@ def _sqlfluff_verdict(proj: Path, files: list[str] | None) -> str:
             + files,
             cwd=proj,
             capture_output=True,
-            text=True,
             check=False,
             timeout=SQLFLUFF_TIMEOUT_S,
+            **text,
         )
     except subprocess.TimeoutExpired:
         return "unknown (timeout)"
-    except OSError:
-        return "unknown (no sqlfluff)"
+    except OSError as e:  # E2BIG on a file list too long for one exec, among others
+        return f"unknown (lint not run: {e.strerror or type(e).__name__})"
     if r.returncode == 0:
         return "clean"
     if r.returncode != 1:
         return f"unknown (lint failed, rc {r.returncode})"
     try:
-        n = sum(len(f.get("violations") or []) for f in json.loads(r.stdout))
+        n = sum(
+            1
+            for f in json.loads(r.stdout)
+            for v in (f.get("violations") or [])
+            if not v.get("warning")
+        )
     except (ValueError, TypeError, AttributeError):
         return "unknown (unreadable lint output)"
     return f"red {n}"
 
 
 def _ci_local_state(proj: Path) -> str | None:
-    """None when the project has no `scripts/ci_local.sh` (a backfill target); otherwise the
-    skip's ACTION text, naming a stale or non-fabrik-managed file."""
-    path = proj / "scripts" / "ci_local.sh"
-    if not path.is_file():
+    """None when nothing at all is at `scripts/ci_local.sh` (a backfill target); otherwise the
+    skip's ACTION text. A symlink (dangling or not), a directory or any other non-regular entry
+    is skipped as not fabrik-managed, so the write never follows it."""
+    path = proj / CI_LOCAL
+    if not os.path.lexists(path):
         return None
+    if path.is_symlink() or not path.is_file():
+        return "already has CI (not fabrik-managed)"
     text = path.read_text(encoding="utf-8", errors="replace")
     lines = text.splitlines()
     if len(lines) < 2 or "# fabrik-managed" not in lines[1]:
@@ -235,7 +254,7 @@ def plan(name: str) -> dict:
         "sql": "?" if sql is None else str(len(sql)),
         # A skipped project is never linted: nothing is written there, so its verdict decides nothing.
         "sqlfluff": "n/a" if ci_state is not None else _sqlfluff_verdict(proj, sql),
-        "baseline_exists": (proj / ".fabrik/lint-baseline.json").exists(),
+        "baseline_exists": os.path.lexists(proj / BASELINE),
     }
 
 
@@ -246,22 +265,23 @@ def _refused(p: dict) -> bool:
 def apply(name: str, p: dict) -> list[str]:
     proj = OPT / name
     cfg = CiConfig(needs_database=p["needs_db"], needs_web=p["needs_web"], db_extensions=p["exts"])
+    files = dict(ci_files(cfg))
+    # Seed the ratchet baseline at the current count so the replica lands GREEN.
+    if p["ruff"] is not None:
+        files[BASELINE] = json.dumps({"ruff_errors": p["ruff"]}) + "\n"
+    # scripts/ci_local.sh goes LAST: its presence is what marks the project done, so a write that
+    # fails part-way leaves no ci_local.sh and the next run retries the whole backfill.
+    order = sorted(files, key=lambda rel: rel == CI_LOCAL)
     written = []
-    for rel, content in ci_files(cfg).items():
+    for rel in order:
         dest = proj / rel
-        if rel == RUN_PYTEST and dest.exists():
-            continue  # its presence is the signal; a hand-written one carries its reason
+        if os.path.lexists(dest):
+            continue  # an existing marker or baseline is the project's own; a symlink is never followed
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(content, encoding="utf-8")
+        dest.write_text(files[rel], encoding="utf-8")
         if dest.suffix == ".sh":
             dest.chmod(0o755)
         written.append(rel)
-    # Seed the ratchet baseline at the current count so CI lands GREEN.
-    if p["ruff"] is not None:
-        bl = proj / ".fabrik" / "lint-baseline.json"
-        bl.parent.mkdir(parents=True, exist_ok=True)
-        bl.write_text(json.dumps({"ruff_errors": p["ruff"]}) + "\n", encoding="utf-8")
-        written.append(".fabrik/lint-baseline.json")
     return written
 
 
@@ -275,49 +295,64 @@ def main() -> int:
     _assert_ruff_matches_pin()
     print(
         f"{'PROJECT':<30}{'TYPE':<14}{'DB':>3}{'WEB':>4}{'PGV':>4}{'RUFF':>6}{'SQL':>5}  "
-        f"{'SQLFLUFF':<24}{'CI?':<5}ACTION"
+        f"{'SQLFLUFF':<24}  {'CI?':<5}ACTION"
     )
     print("-" * 112)
-    refused = []
+    refused: list[str] = []
+    failed: list[str] = []
     for name in args:
-        p = plan(name)
-        if p.get("error"):
-            print(f"{name:<30}{p['error']}")
+        try:
+            p = plan(name)
+            if p.get("error"):
+                print(f"{name:<30}{p['error']}")
+                continue
+            act = _action(name, p, do_apply=do_apply, force=force)
+        except OSError as e:  # one unwritable project never stops the rest of the batch
+            print(f"{name:<30}FAILED ({type(e).__name__}: {e.strerror or e})")
+            failed.append(name)
             continue
-        pgv = "y" if p["exts"] else "-"
-        seeded = f"+baseline@{p['ruff']}" if p["ruff"] is not None else "(no ruff)"
-        if p["has_ci"]:
-            act = p["ci_state"]
-        elif _refused(p) and not force:
-            act = (
-                f"REFUSED (sqlfluff {p['sqlfluff']}; --force overrides)"
-                if do_apply
-                else f"would REFUSE (sqlfluff {p['sqlfluff']}; --force overrides)"
-            )
+        if act.startswith(("REFUSED", "would REFUSE")):
             refused.append(name)
-        elif do_apply:
-            forced = f" (forced past sqlfluff {p['sqlfluff']})" if _refused(p) else ""
-            act = f"WROTE {seeded}{forced}"
-            apply(name, p)
-        else:
-            act = f"would seed baseline@{p['ruff']}"
+        pgv = "y" if p["exts"] else "-"
         print(
             f"{name:<30}{p['type']:<14}{'y' if p['needs_db'] else '-':>3}"
             f"{'y' if p['needs_web'] else '-':>4}{pgv:>4}{str(p['ruff']):>6}{p['sql']:>5}  "
-            f"{p['sqlfluff']:<24}{'yes' if p['has_ci'] else 'NO':<5}{act}"
+            f"{p['sqlfluff']:<24}  {'yes' if p['has_ci'] else 'NO':<5}{act}"
         )
     if refused:
         print(
             f"\n{'REFUSED' if do_apply else 'WOULD REFUSE'}: {', '.join(refused)} — the replica "
-            f"lints every tracked *.sql with sqlfluff "
-            f"{SQLFLUFF_VERSION} on every run and has no ratchet, so a red or unknown verdict would "
-            "hand the project a red replica. Get a verdict by hand in the project, then fix the "
-            "SQL or re-run with --force:\n"
-            f"  uvx sqlfluff=={SQLFLUFF_VERSION} lint --dialect postgres $(git ls-files -- '*.sql')"
+            f"lints every tracked *.sql with sqlfluff {SQLFLUFF_VERSION} on every run and has no "
+            "ratchet: a red verdict means its first run reds, and an unknown one means this "
+            "interpreter could not tell. Get a verdict by hand in the project, then fix the SQL "
+            "or re-run with --force:\n"
+            f"  git ls-files -z -- '*.sql' | xargs -0 uvx sqlfluff=={SQLFLUFF_VERSION} lint "
+            "--dialect postgres"
         )
     if not do_apply:
         print("\n(DRY-RUN — nothing written. Re-run with --apply to write files + seed baselines.)")
-    return 0
+    return 1 if do_apply and (refused or failed) else 0
+
+
+def _action(name: str, p: dict, *, do_apply: bool, force: bool) -> str:
+    """The row's ACTION for one project; with `do_apply` it performs the write it names."""
+    if p["has_ci"]:
+        return p["ci_state"]
+    if _refused(p) and not force:
+        verb = "REFUSED" if do_apply else "would REFUSE"
+        return f"{verb} (sqlfluff {p['sqlfluff']}; --force overrides)"
+    forced = f" (forced past sqlfluff {p['sqlfluff']})" if _refused(p) else ""
+    if not do_apply:
+        seed = "keep its baseline" if p["baseline_exists"] else f"seed baseline@{p['ruff']}"
+        return f"would {seed}{forced}"
+    written = apply(name, p)
+    if BASELINE in written:
+        seeded = f"+baseline@{p['ruff']}"
+    elif p["baseline_exists"]:
+        seeded = "(kept its baseline)"
+    else:
+        seeded = "(no ruff)"
+    return f"WROTE {seeded}{forced}"
 
 
 if __name__ == "__main__":

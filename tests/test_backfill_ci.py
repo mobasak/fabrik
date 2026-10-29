@@ -47,6 +47,8 @@ case "$mode" in
   clean) echo '[{"filepath": "a.sql", "violations": []}]'; exit 0 ;;
   red) echo '[{"filepath": "a.sql", "violations": [{"code": "L1"}, {"code": "L2"}]}, {"filepath": "b.sql", "violations": [{"code": "L3"}]}]'; exit 1 ;;
   badjson) echo 'not json'; exit 1 ;;
+  warned) echo '[{"filepath": "a.sql", "violations": [{"code": "LT01", "warning": true}, {"code": "CP01", "warning": false}]}]'; exit 1 ;;
+  nonutf8) printf '\377\376' >&2; echo '[]'; exit 0 ;;
   usage) echo 'usage error' >&2; exit 2 ;;
   slow) sleep 5; exit 0 ;;
 esac
@@ -88,15 +90,23 @@ def _managed_ci_local(bf, *, with_sqlfluff: bool = True) -> str:
     return body + (bf.SQLFLUFF_STEP + "\n" if with_sqlfluff else "")
 
 
-def _main(bf, monkeypatch, capsys, *argv: str) -> str:
+def _main(bf, monkeypatch, capsys, *argv: str, rc: int = 0) -> str:
     monkeypatch.setattr(sys, "argv", ["backfill_ci.py", *argv])
-    assert bf.main() == 0
+    assert bf.main() == rc
     return capsys.readouterr().out
 
 
 def _row(out: str, name: str) -> str:
     (line,) = [ln for ln in out.splitlines() if ln.startswith(name + " ")]
     return line
+
+
+def _cells(row: str) -> dict[str, str]:
+    """The row's RUFF, SQL and SQLFLUFF cells, read by the column widths main() prints."""
+    tail = row[30 + 14 + 3 + 4 + 4 :]
+    # A verdict wider than its column must still end before the CI? cell: two spaces separate them.
+    verdict = tail[13:].split("  ")[0].strip()
+    return {"ruff": tail[:6].strip(), "sql": tail[6:11].strip(), "sqlfluff": verdict}
 
 
 # ── 1. the skip guard keys on scripts/ci_local.sh ─────────────────────────────────────────────
@@ -119,6 +129,11 @@ def _row(out: str, name: str) -> str:
             "already has CI (stale: no sqlfluff step, no .fabrik/run-pytest)",
         ),
         ({"scripts/ci_local.sh": "#!/bin/sh\necho mine\n"}, "already has CI (not fabrik-managed)"),
+        (  # the header must be line 2, as the generator writes it — not anywhere in the file
+            {"scripts/ci_local.sh": "#!/bin/sh\necho mine\n# fabrik-managed — copied\n"},
+            "already has CI (not fabrik-managed)",
+        ),
+        ({"scripts/ci_local.sh": "# fabrik-managed\n"}, "already has CI (not fabrik-managed)"),
     ],
 )
 def test_ci_local_sh_marks_the_repo_backfilled(bf, monkeypatch, capsys, files, action):
@@ -164,9 +179,18 @@ def test_dry_run_row_shows_sql_and_verdict(bf, monkeypatch, capsys, mode, sql, v
     _repo(bf, "p", files)
     monkeypatch.setenv("FAKE_SQLFLUFF", mode)
     row = _row(_main(bf, monkeypatch, capsys, "p"), "p")
-    assert f" {sql} " in row and verdict in row
-    assert ("would REFUSE" in row) is refuses
-    assert "--force overrides" in row if refuses else "would seed baseline" in row
+    assert _cells(row) == {"ruff": "0", "sql": str(sql), "sqlfluff": verdict}
+    if refuses:
+        assert row.endswith(f"would REFUSE (sqlfluff {verdict}; --force overrides)")
+    else:
+        assert row.endswith("would seed baseline@0")
+
+
+def test_a_forced_dry_run_says_what_it_would_force_past(bf, monkeypatch, capsys):
+    _repo(bf, "p", {"db/schema.sql": "select 1;\n"})
+    monkeypatch.setenv("FAKE_SQLFLUFF", "red")
+    row = _row(_main(bf, monkeypatch, capsys, "p", "--force"), "p")
+    assert row.endswith("would seed baseline@0 (forced past sqlfluff red 3)")
 
 
 # ── 4. --apply refuses red and unknown ─────────────────────────────────────────────────────
@@ -176,11 +200,12 @@ def test_dry_run_row_shows_sql_and_verdict(bf, monkeypatch, capsys, mode, sql, v
 def test_apply_refuses_a_red_or_unknown_verdict(bf, monkeypatch, capsys, mode):
     proj = _repo(bf, "p", {"db/schema.sql": "select 1;\n"})
     monkeypatch.setenv("FAKE_SQLFLUFF", mode)
-    out = _main(bf, monkeypatch, capsys, "p", "--apply")
-    assert "REFUSED" in _row(out, "p")
+    out = _main(bf, monkeypatch, capsys, "p", "--apply", rc=1)
+    verdict = _cells(_row(out, "p"))["sqlfluff"]
+    assert _row(out, "p").endswith(f"REFUSED (sqlfluff {verdict}; --force overrides)")
     assert not (proj / "scripts").exists() and not (proj / ".fabrik").exists()
-    assert f"uvx sqlfluff=={bf.SQLFLUFF_VERSION} lint --dialect postgres" in out
-    assert "--force" in out
+    cmd = f"git ls-files -z -- '*.sql' | xargs -0 uvx sqlfluff=={bf.SQLFLUFF_VERSION} lint"
+    assert cmd in out and "--dialect postgres" in out
 
 
 # ── 5. --force writes and records what it forced past ──────────────────────────────────────
@@ -193,8 +218,9 @@ def test_force_writes_and_records_the_verdict(bf, monkeypatch, capsys, mode, ver
     proj = _repo(bf, "p", {"db/schema.sql": "select 1;\n"})
     monkeypatch.setenv("FAKE_SQLFLUFF", mode)
     row = _row(_main(bf, monkeypatch, capsys, "p", "--apply", "--force"), "p")
-    assert "WROTE" in row and f"forced past sqlfluff {verdict}" in row
+    assert row.endswith(f"WROTE +baseline@0 (forced past sqlfluff {verdict})")
     assert (proj / "scripts/ci_local.sh").exists()
+    assert json.loads((proj / ".fabrik/lint-baseline.json").read_text()) == {"ruff_errors": 0}
 
 
 # ── 6. the verdict grammar ─────────────────────────────────────────────────────────────────
@@ -210,6 +236,8 @@ def test_force_writes_and_records_the_verdict(bf, monkeypatch, capsys, mode, ver
         ("badjson", "unknown (unreadable lint output)"),
         ("usage", "unknown (lint failed, rc 2)"),
         ("slow", "unknown (timeout)"),
+        ("warned", "red 1"),  # a rule the project configures as a warning does not red the run
+        ("nonutf8", "clean"),  # undecodable output never crashes the run
     ],
 )
 def test_the_sqlfluff_verdict_grammar(bf, monkeypatch, mode, verdict):
@@ -247,6 +275,76 @@ def test_apply_keeps_an_existing_run_pytest_marker(bf, monkeypatch, capsys):
     _main(bf, monkeypatch, capsys, "p", "--apply")
     assert (proj / ".fabrik/run-pytest").read_text(encoding="utf-8") == reason
     assert (proj / "scripts/ci_local.sh").exists()
+
+
+def test_apply_keeps_an_existing_lint_baseline(bf, monkeypatch, capsys, tmp_path):
+    hand = '{"ruff_errors": 0, "ruff_version": "0.15.12"}\n'
+    proj = _repo(bf, "p", {".fabrik/lint-baseline.json": hand})
+    monkeypatch.setattr(bf, "_ruff_count", lambda p: 57)
+    dry = _row(_main(bf, monkeypatch, capsys, "p"), "p")
+    assert dry.endswith("would keep its baseline")
+    row = _row(_main(bf, monkeypatch, capsys, "p", "--apply"), "p")
+    assert row.endswith("WROTE (kept its baseline)")
+    assert (proj / ".fabrik/lint-baseline.json").read_text(encoding="utf-8") == hand
+
+
+# ── write safety: nothing is written through a symlink, and a failed write is retried ──────
+
+
+def test_a_symlink_or_directory_at_ci_local_sh_is_skipped(bf, monkeypatch, capsys, tmp_path):
+    outside = tmp_path / "outside-ci.sh"
+    proj = _repo(bf, "p", {"README.md": "x\n"})
+    (proj / "scripts").mkdir()
+    (proj / "scripts/ci_local.sh").symlink_to(outside)  # dangling
+    q = _repo(bf, "q", {"README.md": "x\n"})
+    (q / "scripts/ci_local.sh").mkdir(parents=True)
+    out = _main(bf, monkeypatch, capsys, "p", "q", "--apply")
+    assert _row(out, "p").endswith("already has CI (not fabrik-managed)")
+    assert _row(out, "q").endswith("already has CI (not fabrik-managed)")
+    assert not outside.exists()
+
+
+def test_a_symlinked_marker_is_never_written_through(bf, monkeypatch, capsys, tmp_path):
+    outside = tmp_path / "outside-marker"
+    proj = _repo(bf, "p", {"README.md": "x\n"})
+    (proj / ".fabrik").mkdir()
+    (proj / ".fabrik/run-pytest").symlink_to(outside)  # dangling
+    _main(bf, monkeypatch, capsys, "p", "--apply")
+    assert not outside.exists()
+    assert (proj / "scripts/ci_local.sh").exists()
+
+
+def test_a_failed_write_leaves_no_ci_local_sh_and_the_batch_goes_on(bf, monkeypatch, capsys):
+    bad = _repo(bf, "bad", {".fabrik": "a file where a directory must go\n"})
+    good = _repo(bf, "good", {"README.md": "x\n"})
+    out = _main(bf, monkeypatch, capsys, "bad", "good", "--apply", rc=1)
+    assert _row(out, "bad").startswith("bad") and "FAILED" in _row(out, "bad")
+    assert not (bad / "scripts/ci_local.sh").exists()  # written last, so the next run retries
+    assert "WROTE" in _row(out, "good") and (good / "scripts/ci_local.sh").exists()
+
+
+def test_an_argv_the_os_refuses_reads_unknown_not_missing_sqlfluff(bf, monkeypatch):
+    proj = _repo(bf, "p", {"db/a.sql": "select 1;\n"})
+    real_run = subprocess.run
+
+    def run(cmd, *a, **k):
+        if "lint" in cmd:
+            raise OSError(7, "Argument list too long")
+        return real_run(cmd, *a, **k)
+
+    monkeypatch.setattr(bf.subprocess, "run", run)
+    got = bf._sqlfluff_verdict(proj, bf._tracked_sql(proj))
+    assert got == "unknown (lint not run: Argument list too long)"
+
+
+def test_a_version_probe_that_hangs_reads_timeout(bf, monkeypatch):
+    proj = _repo(bf, "p", {"db/a.sql": "select 1;\n"})
+
+    def run(cmd, *a, **k):
+        raise subprocess.TimeoutExpired(cmd, 60)
+
+    monkeypatch.setattr(bf.subprocess, "run", run)
+    assert bf._sqlfluff_verdict(proj, ["db/a.sql"]) == "unknown (timeout)"
 
 
 def test_the_lint_summary_is_valid_json_for_the_fake(bf):
