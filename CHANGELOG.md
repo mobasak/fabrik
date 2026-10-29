@@ -13,7 +13,8 @@ All notable changes to this project will be documented in this file.
 - `commands/_agents/design-review.md`, `commands/_agents/fabrik-gui.md`: fabrik-reviewer's house-rule clause, fitted to each.
 - `commands/_fragments/subagents-core.md`: `final_gate.py --check` is a writer seat's line only; read-only seats run
   ruff, mypy and pytest with their caches off or in scratch, every path absolute into their copy.
-- `commands/_sources/fabrik-command-improve.md`: a script that hard-codes a live path and writes, deletes or deploys is read, never run.
+- `commands/_sources/fabrik-command-improve.md`: a script that hard-codes a live path and writes there, deletes, deploys, provisions or contacts a non-local
+  host is read, never run.
 - `tests/test_never_execute_carriers.py`: pins every carrier and the rendered corpus.
 
 ### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)

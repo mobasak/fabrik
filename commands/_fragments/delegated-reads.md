@@ -6,6 +6,6 @@ every claim anchored `path:line`; a question with several parts is numbered in t
 to answer the parts in order, each within its named share of that ~2 k, so a truncated return loses the tail,
 not the middle, and a part the return never reaches is asked again, never read as empty. A Haiku seat pays from
 ~10 k tokens. The lead re-reads only the anchored lines it will cite, and EXECUTES every claim it writes into the
-artifact: a summary is navigation, never evidence. In executing a claim, a script that deletes, deploys, provisions, writes outside scratch or contacts a non-local host is never run, faked or not, unless running it is the act the command itself exists to perform (a deploy, a live verify): a claim only such a run settles is deleted or reworded to what the script's lines say.
+artifact: a summary is navigation, never evidence. In executing a claim, a script that deletes, deploys, provisions, writes outside scratch or contacts a non-local host is never run to settle a claim, faked or not (a read-only probe — an HTTP status GET, a gate run in the run's own checkout — and a step the command's own text orders, such as a deploy command's deploy, are not such a script): a claim only such a run settles is deleted or reworded to what the script's lines say.
 Cobra: the cheapest way to satisfy this is a summary with no anchors — a claim without its `path:line` is
 re-read by the lead, never cited.
