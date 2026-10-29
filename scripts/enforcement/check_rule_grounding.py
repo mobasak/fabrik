@@ -41,6 +41,7 @@ ADVISORY BY CONTRACT. Registered `warn_only=True` and **always exits 0** — fin
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -207,6 +208,8 @@ def _matched_packs(root: Path, scope_paths: list[str]) -> tuple[list[str] | None
             capture_output=True,
             text=True,
             cwd=str(root),
+            # A grader's re-run is no rule activation: the rubric's sensor stays off (W-5bfeb31e).
+            env={**os.environ, "REVIEW_RUBRIC_SENSOR_OFF": "1"},
             timeout=120,
         )
     except Exception as exc:
