@@ -842,3 +842,39 @@ def test_write_uses_a_unique_temp_name(tmp_path: Path) -> None:
     assert mod._write(desk / "Aaa Agents.bat", mod.bat_text("aaa", "U1"), replace=False) == 0
     assert stale.read_bytes() == b"someone else's"
     assert sorted(p.name for p in desk.iterdir()) == ["Aaa Agents.bat", "Aaa Agents.bat.tmp"]
+
+
+# --- --list (W-6e656dac T04, Interface G): the boot sweep's repo list --------------------------------------------
+def test_list_prints_every_registered_repo_without_the_probe(tmp_path: Path) -> None:
+    """`--list` prints the absolute path of every repo with a registry or a .claude/worktrees folder, one per line,
+    sorted — WITHOUT asking agents_up.sh (a bus that does not answer yet at boot must never empty it), with no distro
+    to resolve, and writing nothing."""
+    opt = _opt(tmp_path, "reg", bare=("bound", "plain"))
+    (opt / "bound" / ".claude" / "worktrees").mkdir(parents=True)
+    probe = tmp_path / "probe-ran"
+    up = tmp_path / "refusing_up.sh"
+    up.write_text(f'#!/bin/sh\ntouch "{probe}"\nexit 2\n', encoding="utf-8")
+    before = sorted(p for p in tmp_path.rglob("*"))
+    rel = os.path.relpath(opt, tmp_path)
+    out = _run("--list", "--opt", rel, distro=None, up=str(up), cwd=tmp_path)
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.splitlines() == [str(opt / "bound"), str(opt / "reg")], out.stdout
+    assert all(os.path.isabs(ln) for ln in out.stdout.splitlines())
+    assert not probe.exists(), "--list ran the agents_up.sh --print probe"
+    assert sorted(p for p in tmp_path.rglob("*")) == before
+
+
+def test_list_takes_no_write_mode(tmp_path: Path) -> None:
+    """`--list` is its own mode: with --desktop or --tabbed it is refused (exit 2), never half of both."""
+    opt = _opt(tmp_path, "reg")
+    desk = tmp_path / "desk"
+    desk.mkdir()
+    for extra in (("--desktop", str(desk)), ("--tabbed",)):
+        out = _run("--list", "--opt", str(opt), *extra)
+        assert out.returncode == 2 and "--list" in out.stderr and "Traceback" not in out.stderr, out.stderr
+        assert list(desk.iterdir()) == []
+
+
+def test_list_of_a_missing_opt_is_refused(tmp_path: Path) -> None:
+    out = _run("--list", "--opt", str(tmp_path / "nowhere"))
+    assert out.returncode == 2 and "is not a folder" in out.stderr and out.stdout == "", out.stderr
