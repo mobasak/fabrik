@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T17:49:35.818793Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c80361e4",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure the confirm phase per leg (alone / ordered / base seconds) on 3 real legs; options: re-run only the flaky node in its shard's prefix order, cache base verdicts per base sha, fix the standing master reds",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "merge leg confirm phase costs 2x its shards: one flaky red re-runs its whole shard in order (~500 s), standing master reds re-run alone and on the base every leg (W-1fb11ec8 measure: glitchtip leg 1,645 s wall, shards 475-528 s; test_capped_run::test_merge_owner_tests_run_inside_a_capped_scope flaky under load; test_check_doc_links live tree + 6 test_mail_escalate reds standing)"
+}

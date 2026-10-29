@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — merge leg: a review receipt selects tests by its file name only (2026-10-29)
+`scripts/merge_test_select.py` keys a changed `docs/development/reviews/*.md` receipt by its file name alone instead of its directory (W-1fb11ec8, D-1356): over 58 merges the leg's serial selection drops 9.0 %, every selection a subset of today's, 17 of 17 measured red-master catches kept. Importer-closure narrowing was measured and rejected (D-1356); the leg's confirm phase, about two thirds of a measured leg, is W-c80361e4.
+
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
 `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.
