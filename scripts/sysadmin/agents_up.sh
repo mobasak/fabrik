@@ -289,12 +289,15 @@ for r in rows:
     if WHOAMI_NAME.fullmatch(name):
         owner[sid] = name
 binding = {}  # builder name -> (sid, at) of the LAST line naming it in this scope whose session it still owns
-last_in_scope = {}  # session id -> the LAST row naming it in this scope (its `spawned` flag decides <new>)
+last_in_scope = {}  # session id -> the LAST row naming it in this scope (it must still name the builder, for <new>)
+spawned_in_scope = set()  # (session id, name) of every `spawned: true` row in this scope (T10 F1)
 for r in rows:
     sid, name = r.get("session_id"), r.get("name")
     if r.get("toplevel") != scope or not isinstance(sid, str) or not SID.fullmatch(sid):
         continue
     last_in_scope[sid] = r
+    if r.get("spawned") is True:
+        spawned_in_scope.add((sid, name))
     if isinstance(name, str) and owner.get(sid) == name:
         binding[name] = (sid, at_of(r))
 if not has_reg:  # no registry: the builders are the names bound in this repo's scope
@@ -422,9 +425,11 @@ for name in sorted(folder):
 if not chosen:
     die(f"agents_up: {root} has no builder with its own worktree — nothing to launch (the coordinator gets no pane)", 3)
 
-def fresh(name, sid):  # 1: a spawner-bound session (`spawned: true` on its LAST row here) that no project folder has a transcript of
+def fresh(name, sid):  # 1: a spawner-bound session that no project folder has a transcript of
+    # spawner-bound: ANY row here binds it to the name `spawned: true` AND its LAST row here still names the builder —
+    # never the last row's flag alone, since whoami's refresh() appends an unflagged row at every SessionStart (T10 F1)
     r = last_in_scope.get(sid)
-    if not r or r.get("name") != name or r.get("spawned") is not True:
+    if not r or r.get("name") != name or (sid, name) not in spawned_in_scope:
         return 0
     # ANY project folder, wider than active_at's walk: a session that moved anywhere is never given --session-id on a used id
     return 0 if glob.glob(os.path.join(glob.escape(config), "projects", "*", sid + ".jsonl")) else 1
@@ -630,17 +635,20 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status, $4 = new (1: --session-id
   fi
   # the pane keeps a CLEAN shell after claude exits (or instead of it), so a crash never closes the pane and the
   # resume hint it prints runs with the pane's own environment, never the server's
-  # a session with no transcript cannot be resumed: its hint and message name --session-id
+  # a session with no transcript cannot be resumed: its hint and message name --session-id. For a spawned pane (new=1)
+  # the flag is picked when the text is PRINTED (T10 F14): `--resume` once any project folder holds the session's
+  # transcript (fresh()'s glob), else `--session-id` — a launch-time flag goes stale the moment claude writes one
   local flag=--resume
-  [ "${4:-0}" = 1 ] && flag=--session-id
+  [ "${4:-0}" = 1 ] && flag="\$(for t in $(squote "$CLAUDE_CONFIG_DIR")/projects/*/$2.jsonl; do [ -e \"\$t\" ] && { echo --resume; exit; }; done; echo --session-id)"
   if [ "$3" = running ]; then
     inner="echo \"[$1 is already running elsewhere (session $2) — close it there, then run: claude -n $1 $flag $2]\"; exec $penv bash -l"
   else
     # the paths are %q-escaped so the printed command pastes back safely, and the whole hint is single-quoted (POSIX,
     # read alike by every pane shell and locale) for the pane's printf, so a `$(...)`, a backtick or a `$NAME` in a
     # folder name is printed, never run or expanded
+    # (a spawned pane's flag is the one unquoted `"$(…)"` between two quoted halves, run when the hint prints)
     local hint
-    hint="[$1 exited — run: claude -n $1 $flag $2 (after a /clear: whoami_agent.py --as $1 --force, then $(printf %q "$SELF") $(printf %q "$ROOT"))]"
+    hint="$(squote "[$1 exited — run: claude -n $1 ")\"$flag\"$(squote " $2 (after a /clear: whoami_agent.py --as $1 --force, then $(printf %q "$SELF") $(printf %q "$ROOT"))]")"
     # the relaunch's first turn (L4): re-arm the self-watch (background tasks are not restored), then `woke`, resuming
     # only on exit 0 — so a daily relaunch outside any pause just carries on. No --permission-mode: the session's own
     # settings (permissions.defaultMode) decide. oom_score_adj 200 (raising needs no privilege) ranks a builder pane
@@ -656,7 +664,7 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status, $4 = new (1: --session-id
     fi
     # the `hibernate.py woke --self` step joins this prompt with W-6e656dac T01a: master's woke still answers 0 on
     # any past lift and prints no seed, so ordering it here would send every relaunched builder after a seed
-    inner="echo 200 > /proc/self/oom_score_adj 2>/dev/null; $penv $claude --settings $(squote "$SETTINGS_JSON") $(squote "$wake"); rc=\$?; echo; [ \"\$rc\" = 137 ] && printf '%s\\n' $(squote "$killed"); printf '%s\\n' $(squote "$hint"); exec $penv bash -l"
+    inner="echo 200 > /proc/self/oom_score_adj 2>/dev/null; $penv $claude --settings $(squote "$SETTINGS_JSON") $(squote "$wake"); rc=\$?; echo; [ \"\$rc\" = 137 ] && printf '%s\\n' $(squote "$killed"); printf '%s\\n' $hint; exec $penv bash -l"
   fi
   if [ "$CAPPED" = 1 ]; then
     # the WHOLE pane in one scope, so the shell it keeps — and whatever is re-run there — stays inside the cap; a

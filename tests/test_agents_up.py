@@ -1938,14 +1938,19 @@ def test_a_spawned_builder_with_no_transcript_launches_with_session_id(tmp_path:
     runs = _runs(out.stdout)
     assert f"claude -n b2 --resume {B2} --settings" in runs["b2"], runs["b2"]
     assert f"--session-id {B3}" in runs["b3"], runs["b3"]  # the other builder is unaffected
-    # the builder's own re-bind is the LAST row (no `spawned`, a pid): the next launch resumes
+    # the builder's own re-bind is the LAST row (no `spawned`, a pid): still spawner-bound (T10 F1 — the spawned row
+    # binds it, the last row still names b3), so the transcript alone decides: none yet → --session-id, one → resume
     rows = [json.loads(ln) for ln in store.read_text(encoding="utf-8").splitlines()]
     rebound = _store(tmp_path, [*rows, _bind(B3, "b3", scope, NOW + 5)], "rebound.jsonl")
-    out = _run("--print", str(repo), home=_home(tmp_path / "h2"), AGENT_IDENTITY_FILE=str(rebound))
+    h2 = _home(tmp_path / "h2")
+    out = _run("--print", str(repo), home=h2, AGENT_IDENTITY_FILE=str(rebound))
     runs = _runs(out.stdout)
-    assert f"--session-id {B2}" in runs["b2"] and f"claude -n b3 --resume {B3}" in runs["b3"], (
+    assert f"--session-id {B2}" in runs["b2"] and f"claude -n b3 --session-id {B3}" in runs["b3"], (
         out.stdout
     )
+    _transcript(h2, _wt(repo, "b3"), B3)
+    runs = _runs(_run("--print", str(repo), home=h2, AGENT_IDENTITY_FILE=str(rebound)).stdout)
+    assert f"claude -n b3 --resume {B3}" in runs["b3"], runs["b3"]
     # a binding with no `spawned` flag (every ordinary builder) never takes --session-id, transcript or not
     plain_repo, plain_store, _ = _spawn_repo(tmp_path / "plain", spawned=False)
     out = _run(
@@ -2328,7 +2333,10 @@ def test_a_new_sessions_hint_and_running_message_say_session_id(tmp_path: Path) 
     home2 = _home(tmp_path / "r", ps_lines=f"claude --session-id {B2}")
     out = _run("--print", str(repo), home=home2, AGENT_IDENTITY_FILE=str(store))
     run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run b2 "))
-    assert f"close it there, then run: claude -n b2 --session-id {B2}]" in _inner(run), run
+    said = subprocess.run(  # the message is decided when printed (T10 F14): run it
+        ["sh", "-c", _inner(run).split("; exec ")[0]], capture_output=True, text=True, timeout=30
+    ).stdout
+    assert f"close it there, then run: claude -n b2 --session-id {B2}]" in said, (said, run)
     plain, pstore, _ = _spawn_repo(tmp_path / "plain", spawned=False)
     out = _run(
         "--print", str(plain), home=_home(tmp_path / "plain"), AGENT_IDENTITY_FILE=str(pstore)
@@ -2460,6 +2468,64 @@ def test_a_sid_whose_last_row_names_another_builder_resumes(tmp_path: Path) -> N
     assert "--session-id" not in out.stdout and f"claude -n b2 --resume {B2}" in out.stdout, (
         out.stdout
     )
+
+
+def _refreshed(tmp: Path, store: Path, scope: str, sid: str, name: str) -> Path:
+    """The store plus the row master's `whoami_agent.refresh()` appends at a SessionStart: same sid, name and scope,
+    a pid, `refresh: true`, no `spawned`."""
+    rows = [json.loads(ln) for ln in store.read_text(encoding="utf-8").splitlines()]
+    row = {**_bind(sid, name, scope, NOW + 5), "force": False, "unlocked": False, "refresh": True}
+    return _store(tmp, [*rows, row], "refreshed.jsonl")
+
+
+def test_t10_f1_a_refresh_row_after_the_spawned_row_still_launches_session_id(
+    tmp_path: Path,
+) -> None:
+    """T10 F1: a claude that died after SessionStart (refresh row written) and before its first transcript write is
+    relaunched `--session-id`, never `--resume` of a session with no transcript; once the transcript exists, resume."""
+    repo, store, scope = _spawn_repo(tmp_path)
+    store = _refreshed(tmp_path, store, scope, B2, "b2")
+    home = _home(tmp_path)
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    assert out.returncode == 0, out.stderr
+    runs = _runs(out.stdout)
+    assert f"claude -n b2 --session-id {B2} --settings" in runs["b2"], runs["b2"]
+    _transcript(home, tmp_path / "anywhere", B2)
+    runs = _runs(_run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store)).stdout)
+    assert f"claude -n b2 --resume {B2} --settings" in runs["b2"], runs["b2"]
+
+
+def test_t10_f14_a_spawned_panes_hint_picks_its_flag_when_printed(tmp_path: Path) -> None:
+    """T10 F14: the kept-shell hint and the "already running" message of a spawned pane name `--session-id` while no
+    project folder holds the session's transcript and `--resume` once one does — decided when PRINTED, not at launch."""
+    repo, store, _ = _spawn_repo(tmp_path)
+    home = _home(tmp_path)
+    out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
+    run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run b2 "))
+    assert f"[b2 exited — run: claude -n b2 --session-id {B2} (after a /clear" in _hint(
+        run, tmp_path
+    )
+    _transcript(home, tmp_path / "where" / "it ran", B2)  # the same launched pane: its claude wrote a transcript
+    assert f"[b2 exited — run: claude -n b2 --resume {B2} (after a /clear" in _hint(run, tmp_path)
+    home2 = _home(tmp_path / "r", ps_lines=f"claude --session-id {B2}")
+    out = _run("--print", str(repo), home=home2, AGENT_IDENTITY_FILE=str(store))
+    run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run b2 "))
+    said = [
+        subprocess.run(
+            [shell, "-c", _inner(run).split("; exec ")[0]],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env={"PATH": "/usr/bin:/bin", "LANG": "C"},
+        ).stdout
+        for shell in ("bash", "sh")
+    ]
+    assert said[0] == said[1] and f"then run: claude -n b2 --session-id {B2}]" in said[0], said
+    _transcript(home2, tmp_path / "elsewhere", B2)
+    again = subprocess.run(
+        ["sh", "-c", _inner(run).split("; exec ")[0]], capture_output=True, text=True, timeout=30
+    ).stdout
+    assert f"then run: claude -n b2 --resume {B2}]" in again, again
 
 
 @pytest.mark.skipif(os.geteuid() == 0, reason="root reads a mode-0 file")
