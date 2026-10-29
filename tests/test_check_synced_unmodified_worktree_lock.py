@@ -4,8 +4,10 @@ A worktree is born without `.fabrik/synced.lock` (Claude Code copies the `.workt
 set, which carries the check but not the lock; the sync copies the main checkout's lock in on
 its next run). Until then the check used to skip and read green. It now grades the worktree
 against the MAIN checkout's lock, present files only. Real git repos and `git worktree add`
-under tmp_path; the module runs in-process with FABRIK_ROOT pointed at a tmp hub that has no
-manifest, so the live /opt/fabrik never answers for the fixture.
+under tmp_path; the check runs in-process with FABRIK_ROOT pointed at a tmp hub (no manifest
+unless a test writes one), so the live /opt/fabrik manifest never answers for the fixture. The
+final_gate tests load the real check unpatched; they read only the lock's keys, never the
+manifest.
 """
 
 from __future__ import annotations
@@ -73,13 +75,14 @@ def hub(tmp_path: Path) -> Path:
 def test_borrowed_lock_reds_a_stale_copy(tmp_path, hub, monkeypatch, capsys):
     main = _repo(tmp_path / "main", {"rules/a.md": "old\n"})
     (main / "rules/a.md").write_text("new\n")  # the sync refreshed main, the commit lags
-    _lock(main, {"rules/a.md": _md5("new\n")})
+    _lock(main, {"rules/a.md": _md5("new\n"), "rules/never-copied.md": _md5("x\n")})
     wt = _worktree(main, tmp_path / "wt")
     rc, out = _run(_load(monkeypatch, hub), wt, monkeypatch, capsys)
     assert rc == 1, out
     assert "   - rules/a.md" in out
+    assert "never-copied" not in out
     assert (
-        f"differ from the main checkout's lock ({main / '.fabrik/synced.lock'}; 0 not yet received)"
+        f"differ from the main checkout's lock ({main / '.fabrik/synced.lock'}; 1 not yet received)"
         in out
     )
     assert "You edited a synced copy" not in out
@@ -144,16 +147,24 @@ def test_no_borrowable_lock_still_skips(tmp_path, hub, monkeypatch, capsys):
     assert "synced-files check skipped" in out
 
 
-def test_an_exported_git_dir_never_picks_the_lock(tmp_path, hub, monkeypatch, capsys):
+@pytest.mark.parametrize("var", ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"])
+def test_an_exported_git_env_var_never_picks_the_lock(tmp_path, hub, monkeypatch, capsys, var):
+    """A hook or wrapper's leftover GIT_* value names another repo; the lock is still the main's."""
     main = _repo(tmp_path / "main", {"rules/a.md": "same\n"})
     _lock(main, {"rules/a.md": _md5("same\n")})
     wt = _worktree(main, tmp_path / "wt")
     other = _repo(tmp_path / "other", {"rules/a.md": "same\n"})
-    monkeypatch.setenv("GIT_DIR", str(other / ".git"))  # a hook or wrapper's leftover
-    monkeypatch.setenv("GIT_WORK_TREE", str(other))
+    _lock(other, {"rules/a.md": _md5("other\n")})  # borrowing this one would red
+    values = {
+        "GIT_DIR": other / ".git",
+        "GIT_WORK_TREE": other,
+        "GIT_COMMON_DIR": other / ".git",
+        "GIT_INDEX_FILE": other / ".git/index",
+    }
+    monkeypatch.setenv(var, str(values[var]))
     rc, out = _run(_load(monkeypatch, hub), wt, monkeypatch, capsys)
     assert rc == 0, out
-    assert "present match the main checkout's lock" in out
+    assert f"present match the main checkout's lock ({main / '.fabrik/synced.lock'})" in out
 
 
 def test_hub_worktree_is_the_source(tmp_path, monkeypatch, capsys):
@@ -188,3 +199,66 @@ def test_final_gate_excludes_borrowed_synced_paths(tmp_path, monkeypatch):
     wt = _worktree(main, tmp_path / "wt")
     monkeypatch.setattr(final_gate, "PROJECT_ROOT", wt)
     assert final_gate._synced_paths() == {"scripts/x.py"}
+
+
+def test_a_dangling_symlink_is_present_not_unreceived(tmp_path, hub, monkeypatch, capsys):
+    """A path the worktree holds as a dangling symlink was received and broken, not never received:
+    the borrowed lock reds it DELETED exactly as an own lock does."""
+    main = _repo(tmp_path / "main", {"rules/a.md": "same\n"})
+    _lock(main, {"rules/a.md": _md5("same\n")})
+    wt = _worktree(main, tmp_path / "wt")
+    (wt / "rules/a.md").unlink()
+    (wt / "rules/a.md").symlink_to(tmp_path / "nowhere")
+    rc, out = _run(_load(monkeypatch, hub), wt, monkeypatch, capsys)
+    assert rc == 1, out
+    assert "rules/a.md — DELETED locally" in out
+
+
+def test_a_borrowed_red_asks_git_for_the_main_checkout_once(tmp_path, hub, monkeypatch, capsys):
+    """The borrowed header and the `cp` remedy name ONE main checkout: the remedy reuses the one
+    the lock was borrowed from instead of asking git a second time."""
+    main = _repo(tmp_path / "main", {"rules/a.md": "same\n"})
+    _lock(main, {"rules/a.md": _md5("other\n")})
+    wt = _worktree(main, tmp_path / "wt")
+    module = _load(monkeypatch, hub)
+    calls: list[Path] = []
+    real = module._main_checkout
+    monkeypatch.setattr(module, "_main_checkout", lambda root: calls.append(root) or real(root))
+    rc, out = _run(module, wt, monkeypatch, capsys)
+    assert rc == 1, out
+    assert "Re-copy it:" in out
+    assert len(calls) == 1, calls
+
+
+def test_a_retired_dir_stays_exempt_under_a_borrowed_lock(tmp_path, hub, monkeypatch, capsys):
+    (hub / "scripts").mkdir()
+    (hub / "scripts/fabrik_synced_manifest.py").write_text(
+        'SEEDED_NOT_ENFORCED = set()\nRETIRED_VENDORED_DIRS = ("libs/old/",)\n'
+    )
+    main = _repo(tmp_path / "main", {"libs/old/x.py": "mine\n", "rules/a.md": "same\n"})
+    _lock(main, {"libs/old/x.py": _md5("as distributed\n"), "rules/a.md": _md5("same\n")})
+    wt = _worktree(main, tmp_path / "wt")
+    rc, out = _run(_load(monkeypatch, hub), wt, monkeypatch, capsys)
+    assert rc == 0, out
+    assert "✓ all 1 Fabrik-synced files present" in out
+
+
+def test_final_gate_falls_back_to_the_own_lock_when_the_check_cannot_load(tmp_path, monkeypatch):
+    sys.path.insert(0, str(CHECK.parents[1]))
+    try:
+        import final_gate
+    finally:
+        sys.path.pop(0)
+    main = _repo(tmp_path / "main", {"scripts/x.py": "x = 1\n"})
+    _lock(main, {"scripts/x.py": _md5("x = 1\n")})
+    wt = _worktree(main, tmp_path / "wt")
+    _lock(wt, {"scripts/own.py": _md5("y\n")})
+
+    def refuse(*_a, **_k):
+        raise ImportError("the check moved")
+
+    monkeypatch.setattr(importlib.util, "spec_from_file_location", refuse)
+    monkeypatch.setattr(final_gate, "PROJECT_ROOT", wt)
+    assert final_gate._synced_paths() == {"scripts/own.py"}
+    (wt / ".fabrik/synced.lock").unlink()
+    assert final_gate._synced_paths() == set()

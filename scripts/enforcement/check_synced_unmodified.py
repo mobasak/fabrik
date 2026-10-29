@@ -308,7 +308,9 @@ def main() -> int:
         # that is absent or cannot be examined) degrades to the old behaviour with no special case — verified, not assumed.
         if rel.startswith(retired):
             continue
-        if not dest.exists() and borrowed:
+        # `lexists`, never `exists`: a dangling symlink was received and broken, so it reds DELETED
+        # below exactly as under an own lock — only a path with no entry at all was never received.
+        if borrowed and not os.path.lexists(dest):
             not_received += 1
         elif not dest.exists():
             drifted.append(f"{rel} — DELETED locally (a Fabrik-synced file must exist)")
@@ -349,7 +351,9 @@ def main() -> int:
             print(f"⚠ The hub manifest {manifest} is missing, so the seeded and retired")
             print("exemptions could not be applied: a hub-side move, not a project edit, may be")
             print("the cause of some rows above — report it to /opt/fabrik (infra).")
-        main_checkout = _main_checkout(project_root)
+        # A borrowed lock already names its main checkout (`<main>/.fabrik/synced.lock`); asking
+        # git again could name another one, so the header and the remedy would disagree.
+        main_checkout = lock_path.parent.parent if borrowed else _main_checkout(project_root)
         if main_checkout is not None and changed:
             # W-800579be: in a linked worktree the copy may be STALE instead — the sync never
             # overwrites a worktree file it cannot prove it wrote, while the main checkout's
