@@ -8,6 +8,7 @@ scripted tmux, a fake /proc tree, a registry, an identity store, a transcript an
 
 from __future__ import annotations
 
+import ast
 import importlib.util
 import inspect
 import json
@@ -1665,13 +1666,84 @@ def test_w1e0f4229_a_slow_exiting_tmux_never_moves_the_fake_clock(world, monkeyp
     assert rs.time is not time and time.sleep is _REAL_SLEEP
 
 
+def _clock_patches(src: str) -> list[int]:
+    """The lines of `src` that patch the `time` module or `rs.time` (W-1e0f4229 review). Read as a syntax tree, so a
+    call ruff wraps is still one call and a comment quoting one is none: a `setattr`, `patch` or `patch.object` whose
+    target (first argument, `target=` or `obj=`) is `time`, an `import time as <alias>`, `sys.modules["time"]`,
+    `rs.time` or a `"time.<name>"` string; or an assignment to an attribute of any of them. Out of scope by design:
+    other files, and `setattr(rs, "time", …)`, which is `_rs_time`'s own line."""
+    tree = ast.parse(src)
+    names = {"time"} | {
+        a.asname
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Import)
+        for a in n.names
+        if a.name == "time" and a.asname
+    }
+
+    def clock(node) -> bool:
+        if isinstance(node, ast.Name):
+            return node.id in names
+        if isinstance(node, ast.Attribute):
+            return (
+                node.attr == "time" and isinstance(node.value, ast.Name) and node.value.id == "rs"
+            )
+        if isinstance(node, ast.Subscript):  # sys.modules["time"]
+            return isinstance(node.slice, ast.Constant) and node.slice.value == "time"
+        return (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and node.value.startswith("time.")
+        )
+
+    hits = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            func = node.func
+            name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+            targets = list(node.args[:1]) + [
+                k.value for k in node.keywords if k.arg in ("target", "obj")
+            ]
+            if name in ("setattr", "patch", "object") and any(clock(t) for t in targets):
+                hits.append(node.lineno)
+        elif isinstance(node, (ast.Assign, ast.AugAssign, ast.AnnAssign)):
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            if any(isinstance(t, ast.Attribute) and clock(t.value) for t in targets):
+                hits.append(node.lineno)
+    return sorted(hits)
+
+
+@pytest.mark.parametrize(
+    "line, refused",
+    [
+        ('monkeypatch.setattr(time, "sleep", f)', True),
+        ('monkeypatch.setattr(rs.time, "sleep", f)', True),
+        ('monkeypatch.setattr(\n    time, "sleep", lambda s: None\n)', True),  # ruff-wrapped
+        ('monkeypatch.setattr(target=time, name="sleep", value=f)', True),
+        ('monkeypatch.setattr("time.sleep", f)', True),
+        ('import time as _clock\nmonkeypatch.setattr(_clock, "sleep", f)', True),
+        ('monkeypatch.setattr(sys.modules["time"], "sleep", f)', True),
+        ('mock.patch("time.sleep")', True),
+        ('mock.patch.object(time, "sleep")', True),
+        ("time.sleep = f", True),
+        ("rs.time.sleep = f", True),
+        ('monkeypatch.setattr(rs, "time", proxy)', False),  # _rs_time's own line
+        ('# never monkeypatch.setattr(time, "sleep", f) here', False),
+        ('"""a docstring quoting monkeypatch.setattr(time, "sleep", f)"""', False),
+        ('monkeypatch.setattr(rs, "IDLE_S", 0)', False),
+        ("time.sleep(0.5)", False),
+    ],
+)
+def test_w1e0f4229_the_clock_patch_scan_sees_every_shape(line, refused):
+    """The scan's probe list, both directions (W-1e0f4229 review pass 2: a line regex missed a wrapped call, an alias,
+    a keyword, `sys.modules`, `mock.patch` and a direct assignment, and refused a comment)."""
+    assert bool(_clock_patches(line)) is refused, line
+
+
 def test_w1e0f4229_no_test_patches_the_global_time_module():
-    """W-1e0f4229 review: the drift test above grades `_rs_time` only, so a later test patching `time` around it
-    (a monkeypatch of the `time` module or of `rs.time`, by object or by dotted string) would bring the drift back with
-    that test green. `_rs_time` is the one patch site this file may hold."""
-    src = Path(__file__).read_text(encoding="utf-8")
-    patches = re.compile(r"setattr\(\s*(?:rs\.time|time)\s*,|setattr\(\s*[\"']time\.")
-    hits = [n for n, line in enumerate(src.splitlines(), 1) if patches.search(line)]
+    """W-1e0f4229 review: the drift test above grades `_rs_time` only, so a later test patching `time` around it would
+    bring the drift back with that test green. `_rs_time` is the one patch site this file may hold."""
+    hits = _clock_patches(Path(__file__).read_text(encoding="utf-8"))
     assert hits == [], (
         f"patch rotate_session's clock through _rs_time, never the global module: lines {hits}"
     )
