@@ -60,6 +60,133 @@ item = json.loads(path.read_text(encoding="utf-8"))
 item["owner"] = args[3]
 path.write_text(json.dumps(item), encoding="utf-8")
 """
+# T08b: the agents_up.sh stand-in behind FABRIK_AGENTS_UP. It logs every call (argv, the FABRIK_SPAWN_* it saw, which
+# names were bound and which worktrees existed then) to $HOME/agents-up.log and answers from $HOME/agents-up.json:
+#   detach        rc per successive --detach call, the last repeating (default: 0 when FABRIK_SPAWN_NAME is set, else 3)
+#   grid          tags: on a --detach that exits 0 with no session yet, make <S> on $FABRIK_TMUX, one pane per tag; the
+#                 tag FABRIK_SPAWN_NAME names runs a process named claude carrying `--session-id <its bound id>`
+#   building      the `@agents_up_building` value the grid's --detach leaves on <S> (another start still building it)
+#   claude_after  the stub grid's pane is a shell whose claude child appears this many seconds on ("never": not at all)
+#   print_sleep   seconds each --print takes
+#   detach_current  memory.current written into $FABRIK_AGENTS_CGROUP_DIR after a --detach exiting 0
+#   builders      the names --print reports, `ok` until running_after seconds past the first --print, then `running`
+#   print_grow    bytes added to memory.current on every --print
+#   pane_cmd      {"rc", "out", "err"} for --pane-cmd (default rc 0, "sleep 600")
+FAKE_UP = (
+    f"#!{sys.executable}\n"
+    + r"""import json, os, shlex, subprocess, sys, time
+from pathlib import Path
+home = Path(os.environ["HOME"])
+argv = sys.argv[1:]
+scn_path = home / "agents-up.json"
+scn = json.loads(scn_path.read_text(encoding="utf-8")) if scn_path.is_file() else {}
+log = home / "agents-up.log"
+past = [json.loads(ln) for ln in log.read_text(encoding="utf-8").splitlines()] if log.is_file() else []
+store = Path(os.environ["AGENT_IDENTITY_FILE"])
+rows = [json.loads(ln) for ln in store.read_text(encoding="utf-8").splitlines() if ln.strip()] if store.is_file() else []
+root = argv[1] if len(argv) > 1 else ""
+wts = Path(root) / ".claude" / "worktrees"
+entry = {
+    "argv": argv,
+    "spawn": {k: v for k, v in os.environ.items() if k.startswith("FABRIK_SPAWN_")},
+    "bound": [r.get("name") for r in rows],
+    "worktrees": sorted(p.name for p in wts.iterdir()) if wts.is_dir() else [],
+    "t": time.monotonic(),
+}
+with log.open("a", encoding="utf-8") as fh:
+    fh.write(json.dumps(entry) + "\n")
+cg = os.environ.get("FABRIK_AGENTS_CGROUP_DIR")
+
+def bump(value=None, grow=0):
+    cur = Path(cg) / "memory.current"
+    now = int(cur.read_text(encoding="utf-8")) if value is None else value
+    cur.write_text(str(now + grow) + "\n", encoding="utf-8")
+
+mode = argv[0]
+if mode == "--detach":
+    n = sum(1 for e in past if e["argv"][0] == "--detach")
+    if "detach" in scn:
+        rc = scn["detach"][min(n, len(scn["detach"]) - 1)]
+    else:  # no grid comes up: no builder (3), unless the spawner named the new one (0)
+        rc = 0 if os.environ.get("FABRIK_SPAWN_NAME") else 3
+    if rc == 0 and "grid" in scn:
+        tmux = shlex.split(os.environ["FABRIK_TMUX"])
+        if subprocess.run([*tmux, "has-session", "-t", "=shop"], capture_output=True).returncode != 0:
+            for i, tag in enumerate(scn["grid"]):
+                cmd = "sleep 600"
+                if tag == os.environ.get("FABRIK_SPAWN_NAME"):  # T02: the new builder starts --session-id <its bound id>
+                    sid = [r["session_id"] for r in rows if r.get("name") == tag][-1]
+                    # `; :` keeps bash from exec-ing sleep in its place (the claude-named argv must stay)
+                    cmd = f"bash -c \"exec -a claude bash -c 'sleep 600; :' claude -n {tag} --session-id {sid}\""
+                if i == 0:
+                    verb = ["new-session", "-d", "-s", "shop", "-n", "agents", "-x", "240", "-y", "60"]
+                else:
+                    verb = ["split-window", "-d", "-t", "=shop:"]
+                pane = subprocess.run([*tmux, *verb, "-P", "-F", "#{pane_id}", cmd], capture_output=True, text=True, check=True).stdout.strip()
+                subprocess.run([*tmux, "select-layout", "-t", "=shop:", "even-horizontal"], check=True)
+                subprocess.run([*tmux, "set", "-p", "-t", pane, "@agent", tag], check=True)
+            if "building" in scn:  # another start still building the grid (agents_up.sh's `<pid>:<start time>`)
+                subprocess.run([*tmux, "set-option", "-t", "=shop:", "@agents_up_building", scn["building"]], check=True)
+    spawned = os.environ.get("FABRIK_SPAWN_NAME")
+    if rc == 0 and "grid" not in scn and spawned and os.environ["FABRIK_TMUX"].endswith("fake-tmux"):
+        # the Box's stub grid: one pane tagged with the new builder, its claude in the fake /proc (T02's --session-id)
+        sid = [r["session_id"] for r in rows if r.get("name") == spawned][-1]
+        (home / "fake-grid").write_text(f"@1\tagents\t%1\t4242\t{spawned}\n", encoding="utf-8")
+        p = Path(os.environ["FABRIK_PROC_ROOT"])
+        (p / "4242" / "task" / "4242").mkdir(parents=True, exist_ok=True)
+        (p / "4242" / "task" / "4242" / "children").write_text("", encoding="utf-8")
+        claude = b"\0".join(a.encode() for a in ["claude", "-n", spawned, "--session-id", sid]) + b"\0"
+        later = scn.get("claude_after")
+        if later is None:
+            (p / "4242" / "cmdline").write_bytes(claude)
+        else:  # a capped pane: the shell first; its claude child 4243 appears `later` seconds on ("never": not at all)
+            (p / "4242" / "cmdline").write_bytes(b"sh\0")
+            if later != "never":
+                (p / "4243" / "task" / "4243").mkdir(parents=True, exist_ok=True)
+                (p / "4243" / "task" / "4243" / "children").write_text("", encoding="utf-8")
+                (p / "4243" / "cmdline").write_bytes(claude)
+                writer = (
+                    "import sys, time; time.sleep(float(sys.argv[1])); "
+                    "open(sys.argv[2], 'w').write('4243 ')"
+                )
+                subprocess.Popen(
+                    [sys.executable, "-c", writer, str(later), str(p / "4242" / "task" / "4242" / "children")],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
+                )
+    if rc == 0 and "detach_current" in scn:
+        bump(scn["detach_current"])
+    sys.exit(rc)
+if mode == "--print":
+    time.sleep(scn.get("print_sleep", 0))
+    if "print_grow" in scn:
+        bump(grow=scn["print_grow"])
+    prints = [e for e in past if e["argv"][0] == "--print"]
+    first = prints[0]["t"] if prints else entry["t"]
+    state = "running" if entry["t"] - first >= scn.get("running_after", 0) else "ok"
+    print("session shop")
+    for name in scn.get("builders", []):
+        print(f"pane {name} 00000000-0000-4000-8000-000000000000 /x/{name} {state}")
+    with (home / "print-states.log").open("a", encoding="utf-8") as fh:
+        fh.write(state + "\n")
+    sys.exit(0)
+if mode == "--pane-cmd":
+    pc = scn.get("pane_cmd", {})
+    sys.stdout.write(pc.get("out", "sleep 600\n"))
+    sys.stderr.write(pc.get("err", ""))
+    sys.exit(pc.get("rc", 0))
+sys.exit(9)
+"""
+)
+# the Box's default tmux: no grid until the fake agents_up.sh writes $HOME/fake-grid (one list-panes line), then
+# has-session answers yes and list-panes prints it; every other call fails
+FAKE_TMUX_DOWN = """#!/bin/sh
+grid="$HOME/fake-grid"
+case "$1" in
+  has-session) [ -f "$grid" ] ;;
+  list-panes) [ -f "$grid" ] && cat "$grid" ;;
+  *) exit 1 ;;
+esac
+"""
 
 
 def _load():
@@ -110,6 +237,8 @@ class Box:
             ("systemctl", FAKE_SYSTEMCTL),
             ("systemd-run", FAKE_SYSTEMD_RUN),
             ("git", FAKE_GIT),
+            ("fake-agents-up", FAKE_UP),
+            ("fake-tmux", FAKE_TMUX_DOWN),
         ):
             (self.bin / tool).write_text(text, encoding="utf-8")
             (self.bin / tool).chmod(0o755)
@@ -184,6 +313,9 @@ class Box:
             "FABRIK_AGENTS_CGROUP_DIR": str(self.cg),
             "FABRIK_AGENTS_MEMINFO": str(self.meminfo_path),
             "CLAUDE_AGENT": "coordinator",
+            "FABRIK_AGENTS_UP": str(self.bin / "fake-agents-up"),
+            "FABRIK_TMUX": str(self.bin / "fake-tmux"),
+            "FABRIK_PROC_ROOT": str(self.home / "proc"),
         }
         env.update(extra)
         return {k: v for k, v in env.items() if v is not None}
@@ -1691,3 +1823,704 @@ def test_q3_a_failed_create_with_unconfirmed_groups_is_said_and_leaves_nothing(
     assert res.new_window_k == 2
     assert f"could not create the tmux session {g.S}+2" in capsys.readouterr().err
     assert g.sessions() == [g.S], g.sessions()
+
+
+# --- W-b9ad80ae T08b: the cold start, the second headroom measure, the launch -------------------------------------
+# `add` runs in-process with the Box's environment, the fake agents_up.sh behind FABRIK_AGENTS_UP and — where a grid is
+# needed — a scratch `tmux -L` server behind FABRIK_TMUX (the fake builds the restored grid there). State is asserted: the
+# fake's recorded argv/env, the store, the registry, the worktree, the scratch server's panes and tags.
+
+NEW_SID = "12345678-aaaa-4bbb-8ccc-dddddddddddd"
+
+
+def _scenario(box: Box, **scn) -> None:
+    (box.home / "agents-up.json").write_text(json.dumps(scn), encoding="utf-8")
+
+
+def _calls(box: Box, mode: str | None = None) -> list[dict]:
+    log = box.home / "agents-up.log"
+    if not log.is_file():
+        return []
+    rows = [json.loads(ln) for ln in log.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    return [r for r in rows if mode is None or r["argv"][0] == mode]
+
+
+def _inproc(box: Box, monkeypatch, request=None, tmp_path=None, **extra: str):
+    """Set the Box's environment in this process; with `request`, also a scratch tmux server (returns the _Grid)."""
+    for k, v in box.env(**extra).items():
+        monkeypatch.setenv(k, v)
+    if request is None:
+        return None, _load()
+    g = _Grid(tmp_path, request, monkeypatch)
+    return g, g.mod
+
+
+def _registry(box: Box) -> dict:
+    return json.loads((box.repo / ".fabrik" / "session-agents.json").read_text(encoding="utf-8"))
+
+
+def test_b1_a_cold_start_restores_the_grid_first_and_a_low_second_measure_refuses_keeping_steps_1_to_5(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    box = Box(tmp_path, registry={OLD: "builder-1", OTHER_SID: "builder-2"})
+    g, mod = _inproc(box, monkeypatch, request, tmp_path)
+    # the restored grid takes the room: 31 - (37.5 - 8) = 1.5 GB after it (19 GB at the preflight)
+    _scenario(
+        box,
+        detach=[0],
+        grid=["builder-1", "builder-2"],
+        detach_current=int(37.5 * GIB),
+        builders=["builder-1", "builder-2"],
+    )
+    assert mod.main(["add", str(box.repo), "builder-3"]) == 2
+    detaches = _calls(box, "--detach")
+    assert len(detaches) == 1 and detaches[0]["argv"] == ["--detach", str(box.repo)], detaches
+    assert "builder-3" not in detaches[0]["bound"], detaches  # both back BEFORE b-3 was recorded
+    assert _calls(box, "--print"), "the settle wait read the restored panes"
+    assert not _calls(box, "--pane-cmd")  # refused before the launch
+    recs = box.refusals()
+    assert len(recs) == 1 and recs[0]["step"] == 6, recs
+    assert (
+        "under the 2 GB floor" in recs[0]["reason"] and "after the cold start" in recs[0]["reason"]
+    )
+    assert (box.wt("builder-3") / ".git").is_file()
+    rows = [r for r in box.rows() if r["name"] == "builder-3"]
+    assert len(rows) == 1 and rows[0]["spawned"] is True, rows
+    assert _registry(box).get(rows[0]["session_id"]) == "builder-3"
+    assert g.tags() == ["agents builder-1", "agents builder-2"], g.tags()
+
+
+def test_b2_no_session_and_no_builder_starts_the_grid_with_the_new_builder_and_skips_place_pane(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    box = Box(tmp_path, registry={})
+    g, mod = _inproc(box, monkeypatch, request, tmp_path)
+    monkeypatch.delenv(
+        "FABRIK_PROC_ROOT"
+    )  # the pane's claude-named process is real: read the real /proc
+    # the second --detach makes the grid: builder-1 its first pane, a claude carrying --session-id <its bound id>
+    _scenario(box, detach=[3, 0], grid=["builder-1"])
+
+    def no_place(*a, **kw):
+        raise AssertionError("place_pane must not be called")
+
+    monkeypatch.setattr(mod, "place_pane", no_place)
+    assert mod.main(["add", str(box.repo), "builder-1", "--item", ITEM]) == 0
+    first, second = _calls(box, "--detach")
+    assert first["spawn"] == {} and "builder-1" not in first["bound"], first
+    assert second["argv"] == ["--detach", str(box.repo)]
+    assert second["spawn"] == {
+        "FABRIK_SPAWN_NAME": "builder-1",
+        "FABRIK_SPAWN_COORDINATOR": "coordinator",
+        "FABRIK_SPAWN_ITEM": ITEM,
+    }, second
+    # the second --detach resolves it: binding and worktree in place, never started (T02 launches --session-id)
+    assert "builder-1" in second["bound"] and "builder-1" in second["worktrees"], second
+    rows = [r for r in box.rows() if r["name"] == "builder-1"]
+    assert rows[0]["spawned"] is True and rows[0]["pid"] is None
+    assert not _calls(box, "--pane-cmd") and not _calls(box, "--print")
+    assert not box.refusals()
+    assert g.tags() == ["agents builder-1"], g.tags()
+
+
+def test_b2_a_second_detach_that_fails_stops_at_step_six(tmp_path: Path, monkeypatch) -> None:
+    box = Box(tmp_path, registry={})
+    _, mod = _inproc(box, monkeypatch)
+    _scenario(box, detach=[3, 3])
+    assert mod.main(["add", str(box.repo), "builder-1"]) == 2
+    recs = box.refusals()
+    assert len(recs) == 1 and recs[0]["step"] == 6 and "exited 3" in recs[0]["reason"], recs
+
+
+@pytest.mark.parametrize("rc", [1, 2, 4])
+def test_b2_a_first_detach_failing_otherwise_stops_at_step_three(
+    tmp_path: Path, monkeypatch, capsys, rc: int
+) -> None:
+    box = Box(tmp_path, registry={})
+    _, mod = _inproc(box, monkeypatch)
+    _scenario(box, detach=[rc])
+    assert mod.main(["add", str(box.repo), "builder-1"]) == 2
+    recs = box.refusals()
+    assert len(recs) == 1 and recs[0]["step"] == 3 and f"exited {rc}" in recs[0]["reason"], recs
+    assert not [r for r in box.rows() if r["name"] == "builder-1"]  # step 4 never ran
+    assert "add stopped at step 3" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(("settle", "label"), [("10", "settles"), ("1", "times-out")])
+def test_b3_the_second_measure_follows_the_settle_and_reads_the_grown_value(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, settle: str, label: str
+) -> None:
+    box = Box(tmp_path, registry={OLD: "builder-1", OTHER_SID: "builder-2"})
+    g, mod = _inproc(box, monkeypatch, request, tmp_path, FABRIK_AGENTS_SETTLE_S=settle)
+    _scenario(
+        box,
+        detach=[0],
+        grid=["builder-1", "builder-2"],
+        builders=["builder-1", "builder-2"],
+        running_after=2,
+        print_grow=GIB,
+    )
+    assert mod.main(["add", str(box.repo), "builder-3"]) == 0
+    prints = _calls(box, "--print")
+    launch = _calls(box, "--pane-cmd")[0]
+    states = (box.home / "print-states.log").read_text(encoding="utf-8").split()
+    waited = launch["t"] - prints[0]["t"]
+    if label == "settles":
+        assert states[-1] == "running" and states[:-1] == ["ok"] * (len(states) - 1), states
+        assert 2 <= waited < 10, waited
+    else:
+        assert set(states) == {"ok"}, states
+        assert waited >= 1, waited  # the bound, not the panes, ended the wait
+    # 19 GB at the preflight, one GB less per --print: the measure saw the value after the LAST one
+    grown = 19 - len(prints)
+    err = capsys.readouterr().err
+    assert f"fabrik-agents.slice after the cold start: {grown:.1f} GB" in err, err
+    assert ("did not all read running in time" in err) == (label == "times-out"), err
+    assert "agents builder-3" in g.tags()
+
+
+def _grid_up(g: _Grid, *tags: str) -> None:
+    g.base(panes=len(tags), tags=tags)
+
+
+@pytest.mark.parametrize("item", [ITEM, None])
+def test_b4_the_launch_names_the_callers_coordinator_and_the_item(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, item: str | None
+) -> None:
+    box = Box(tmp_path, registry={})
+    cfg = box.repo / ".fabrik" / "work" / "config.json"
+    cfg.write_text(
+        json.dumps({"distributor": "coord-a", "base_branch": "master"}), encoding="utf-8"
+    )
+    g, mod = _inproc(box, monkeypatch, request, tmp_path, CLAUDE_AGENT="coord-a")
+    _grid_up(g, "builder-1")
+    args = ["add", str(box.repo), "builder-4"] + (["--item", item] if item else [])
+    assert mod.main(args) == 0
+    (call,) = _calls(box, "--pane-cmd")
+    sid = next(r["session_id"] for r in box.rows() if r["name"] == "builder-4")
+    want = ["--pane-cmd", str(box.repo), "builder-4", sid, "--new", "--coordinator", "coord-a"]
+    assert call["argv"] == want + (["--item", item] if item else []), call
+    assert call["spawn"] == {}, call
+    assert "agents builder-4" in g.tags()  # the no-item launch starts too
+
+
+def test_b4_the_cold_start_branch_passes_the_same_facts_by_variable(
+    tmp_path: Path, monkeypatch
+) -> None:
+    box = Box(tmp_path, registry={})
+    cfg = box.repo / ".fabrik" / "work" / "config.json"
+    cfg.write_text(
+        json.dumps({"distributor": "coord-a", "base_branch": "master"}), encoding="utf-8"
+    )
+    # a stale variable in the caller's environment never reaches the first --detach
+    _, mod = _inproc(box, monkeypatch, CLAUDE_AGENT="coord-a", FABRIK_SPAWN_NAME="builder-9")
+    assert mod.main(["add", str(box.repo), "builder-4"]) == 0
+    first, second = _calls(box, "--detach")
+    assert first["spawn"] == {}, first
+    assert second["spawn"] == {
+        "FABRIK_SPAWN_NAME": "builder-4",
+        "FABRIK_SPAWN_COORDINATOR": "coord-a",
+    }, second
+
+
+START = "777"  # the claude's start time in its fake /proc/<pid>/stat (field 22)
+
+
+def _stat(proc: Path, pid: int, start: str = START) -> None:
+    """`/proc/<pid>/stat` with `start` as field 22 (hibernate._proc_start: the 20th field after the `)`)."""
+    (proc / str(pid)).mkdir(parents=True, exist_ok=True)
+    fields = ["S"] + ["1"] * 18 + [start] + ["0"] * 6
+    (proc / str(pid) / "stat").write_text(f"{pid} (claude) {' '.join(fields)}\n", encoding="utf-8")
+
+
+def _record(box: Box, pid: int, sid: str, start: str = START, where: str = ".claude") -> None:
+    """A claude session record (`<home>/.claude*/sessions/*.json`, `pid` + `procStart` + `sessionId`)."""
+    d = box.home / where / "sessions"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{pid}.json").write_text(
+        json.dumps({"pid": pid, "procStart": start, "sessionId": sid}), encoding="utf-8"
+    )
+
+
+def _pane_pids(g: _Grid) -> dict[str, int]:
+    out = g.lines("list-panes", "-s", "-t", f"={g.S}", "-F", "#{@agent} #{pane_pid}")
+    return {a: int(p) for a, p in (ln.split() for ln in out)}
+
+
+def _claude_under(proc: Path, pp: int, argv: list[str], start: str = START) -> int:
+    """The pane's shell `pp` with ONE claude child `pp + 1` running `argv`; returns the claude's pid."""
+    _fake_proc(proc, {pp: [pp + 1], pp + 1: []}, {pp: ["sh"], pp + 1: argv})
+    _stat(proc, pp + 1, start)
+    return pp + 1
+
+
+def _heal_grid(tmp_path, request, monkeypatch, registry, *tags):
+    box = Box(tmp_path, registry=registry)
+    g, mod = _inproc(box, monkeypatch, request, tmp_path)
+    _grid_up(g, *tags)
+    proc = tmp_path / "proc"
+    proc.mkdir()
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(proc))
+    return box, g, mod, proc
+
+
+def test_b5_f8_a_row_behind_its_live_session_record_is_re_pointed(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    """PF3, F8: a rotation /clears the SAME claude, so its argv keeps the old id; the session record (pid + start
+    time) holds the live one, as rotate_session.py reads it."""
+    box, g, mod, proc = _heal_grid(
+        tmp_path,
+        request,
+        monkeypatch,
+        {OLD: "builder-2", OTHER_SID: "builder-1"},
+        "builder-1",
+        "builder-2",
+    )
+    pids = _pane_pids(g)
+    c1 = _claude_under(
+        proc, pids["builder-1"], ["claude", "-n", "builder-1", "--resume", OTHER_SID]
+    )
+    c2 = _claude_under(proc, pids["builder-2"], ["claude", "-n", "builder-2", "--resume", OLD])
+    _record(box, c1, OTHER_SID)
+    _record(
+        box, c2, NEW_SID, where=".claude-fleet/acct-b"
+    )  # a fleet account's records are read too
+    assert mod.main(["add", str(box.repo), "builder-4"]) == 0
+    sid4 = next(r["session_id"] for r in box.rows() if r["name"] == "builder-4")
+    assert _registry(box) == {NEW_SID: "builder-2", OTHER_SID: "builder-1", sid4: "builder-4"}
+
+
+def test_b5_f8_a_successful_rotation_is_never_reverted(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    """F8: the row already names the record's new id while the argv still carries the old one — nothing changes."""
+    box, g, mod, proc = _heal_grid(
+        tmp_path, request, monkeypatch, {NEW_SID: "builder-2"}, "builder-2"
+    )
+    c2 = _claude_under(proc, _pane_pids(g)["builder-2"], ["claude", "--resume", OLD])
+    _record(box, c2, NEW_SID)
+    path = box.repo / ".fabrik" / "session-agents.json"
+    before = path.stat()
+    mod.heal_registry(str(box.repo), mod.live_panes(g.S))
+    after = path.stat()
+    assert (before.st_ino, before.st_mtime_ns) == (after.st_ino, after.st_mtime_ns)
+    assert _registry(box) == {NEW_SID: "builder-2"}
+
+
+@pytest.mark.parametrize("shape", ["no-record", "start-mismatch", "other-pid", "no-stat"])
+def test_b5_f8_no_matching_record_keeps_the_row(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, shape: str
+) -> None:
+    box, g, mod, proc = _heal_grid(tmp_path, request, monkeypatch, {OLD: "builder-2"}, "builder-2")
+    c2 = _claude_under(proc, _pane_pids(g)["builder-2"], ["claude", "--resume", NEW_SID])
+    if shape == "start-mismatch":
+        _record(box, c2, NEW_SID, start="999")
+    elif shape == "other-pid":
+        _record(box, c2 + 50, NEW_SID)
+    elif shape == "no-stat":
+        _record(box, c2, NEW_SID)
+        (proc / str(c2) / "stat").unlink()
+    mod.heal_registry(str(box.repo), mod.live_panes(g.S))
+    assert _registry(box) == {OLD: "builder-2"}
+    assert "registry row for builder-2 kept" in capsys.readouterr().err
+
+
+def test_b5_f1_an_id_another_name_holds_keeps_both_rows(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys
+) -> None:
+    box, g, mod, proc = _heal_grid(
+        tmp_path, request, monkeypatch, {OLD: "builder-2", NEW_SID: "builder-1"}, "builder-2"
+    )
+    c2 = _claude_under(proc, _pane_pids(g)["builder-2"], ["claude", "--resume", NEW_SID])
+    _record(box, c2, NEW_SID)
+    mod.heal_registry(str(box.repo), mod.live_panes(g.S))
+    assert _registry(box) == {OLD: "builder-2", NEW_SID: "builder-1"}
+    err = capsys.readouterr().err
+    assert "builder-2 kept" in err and "builder-1" in err, err
+
+
+@pytest.mark.parametrize("sid", ["not-a-session", NEW_SID.upper(), NEW_SID + "x", ""])
+def test_b5_f2_a_record_id_that_is_not_a_session_id_is_never_written(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, sid: str
+) -> None:
+    box, g, mod, proc = _heal_grid(tmp_path, request, monkeypatch, {OLD: "builder-2"}, "builder-2")
+    c2 = _claude_under(proc, _pane_pids(g)["builder-2"], ["claude", f"--resume={sid}"])
+    _record(box, c2, sid)
+    mod.heal_registry(str(box.repo), mod.live_panes(g.S))
+    assert _registry(box) == {OLD: "builder-2"}
+
+
+def test_b5_heal_registry_touches_nothing_without_a_file_or_with_two_live_ids(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    box, g, mod, proc = _heal_grid(tmp_path, request, monkeypatch, None, "builder-2")
+    pp = _pane_pids(g)["builder-2"]
+    c2 = _claude_under(proc, pp, ["claude", "--resume", NEW_SID])
+    _record(box, c2, NEW_SID)
+    panes = mod.live_panes(g.S)
+    mod.heal_registry(str(box.repo), panes)
+    reg_path = box.repo / ".fabrik" / "session-agents.json"
+    assert not reg_path.exists()
+    # two claudes under the pane whose records name two different ids: the row is kept
+    reg_path.write_text(json.dumps({OLD: "builder-2"}), encoding="utf-8")
+    _fake_proc(
+        proc,
+        {pp: [pp + 1, pp + 2], pp + 1: [], pp + 2: []},
+        {pp: ["sh"], pp + 1: ["claude"], pp + 2: ["claude"]},
+    )
+    _stat(proc, pp + 2)
+    _record(box, pp + 2, OTHER_SID)
+    mod.heal_registry(str(box.repo), panes)
+    assert json.loads(reg_path.read_text(encoding="utf-8")) == {OLD: "builder-2"}
+
+
+def test_b5_f11_a_failed_heal_is_said_and_the_launch_goes_on(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys
+) -> None:
+    box = Box(tmp_path, registry={})
+    g, mod = _inproc(box, monkeypatch, request, tmp_path)
+    _grid_up(g, "builder-1")
+
+    def broken(root, panes):
+        raise mod.RefusedError("the registry is not a valid registry (boom)")
+
+    monkeypatch.setattr(mod, "heal_registry", broken)
+    assert mod.main(["add", str(box.repo), "builder-4"]) == 0
+    assert "agents builder-4" in g.tags() and not box.refusals()
+    assert "registry heal skipped" in capsys.readouterr().err
+
+
+# ---- review pass 1: the cold start and the settle wait ------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "why"),
+    [
+        ("abc", "is not a number of seconds"),
+        ("-1", "is negative — 0 to 300 seconds"),
+        ("nan", "is not a finite number of seconds (0 to 300)"),
+        ("inf", "is not a finite number of seconds (0 to 300)"),
+        ("1e999", "is not a finite number of seconds (0 to 300)"),
+        ("301", "at most 300"),
+    ],
+)
+def test_f6_f9_a_bad_settle_bound_refuses_at_step_three_before_any_detach(
+    tmp_path: Path, monkeypatch, value: str, why: str
+) -> None:
+    box = Box(tmp_path, registry={})
+    _, mod = _inproc(box, monkeypatch, FABRIK_AGENTS_SETTLE_S=value)
+    assert mod.main(["add", str(box.repo), "builder-1"]) == 2
+    recs = box.refusals()
+    assert len(recs) == 1 and recs[0]["step"] == 3 and why in recs[0]["reason"], recs
+    assert not _calls(box, "--detach")
+    assert not [r for r in box.rows() if r["name"] == "builder-1"]
+
+
+@pytest.mark.parametrize("value", ["0", "2.5", "300", " 20 ", ""])
+def test_f6_legitimate_settle_bounds_pass(tmp_path: Path, monkeypatch, value: str) -> None:
+    box = Box(tmp_path, registry={})
+    _, mod = _inproc(box, monkeypatch, FABRIK_AGENTS_SETTLE_S=value)
+    assert mod.main(["add", str(box.repo), "builder-1"]) == 0, box.refusals()
+
+
+def test_f5_a_print_that_cannot_run_is_not_settled_and_add_goes_on(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys
+) -> None:
+    box = Box(tmp_path, registry={OLD: "builder-1"})
+    g, mod = _inproc(box, monkeypatch, request, tmp_path, FABRIK_AGENTS_SETTLE_S="1")
+    _scenario(box, detach=[0], grid=["builder-1"], builders=["builder-1"])
+    real = mod._agents_up
+
+    def fake(step, *args, **kw):
+        if args[0] == "--print":
+            raise mod.RefusedError("agents_up.sh --print could not run: OSError: boom", step)
+        return real(step, *args, **kw)
+
+    monkeypatch.setattr(mod, "_agents_up", fake)
+    assert mod.main(["add", str(box.repo), "builder-3"]) == 0, box.refusals()
+    assert "agents builder-3" in g.tags()
+    assert "did not all read running in time" in capsys.readouterr().err
+
+
+def test_f5_a_slow_print_never_overruns_the_bound_by_more_than_a_poll(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    box = Box(tmp_path, registry={OLD: "builder-1"})
+    g, mod = _inproc(box, monkeypatch, request, tmp_path, FABRIK_AGENTS_SETTLE_S="1")
+    _scenario(box, detach=[0], grid=["builder-1"], builders=["builder-1"], print_sleep=5)
+    t0 = time.monotonic()
+    assert mod.main(["add", str(box.repo), "builder-3"]) == 0, box.refusals()
+    detach_t = _calls(box, "--detach")[0]["t"]
+    launch_t = _calls(box, "--pane-cmd")[0]["t"]
+    assert launch_t - detach_t < 1 + mod.SETTLE_POLL_S + 1.0, launch_t - detach_t
+    assert time.monotonic() - t0 < 30
+
+
+def test_f10_a_rerun_with_an_unstarted_binding_passes_the_facts_to_the_first_detach(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    box = Box(tmp_path, registry={})
+    _row(box, SID, "builder-1", spawned=True)  # a first add bound it and stopped before its pane
+    _, mod = _inproc(box, monkeypatch, request=None)
+    # the restored grid (the Box's stub) holds builder-1's pane, started --session-id SID: step 6 adopts it
+    _scenario(box, detach=[0], builders=[])
+    assert mod.main(["add", str(box.repo), "builder-1", "--item", ITEM]) == 0, box.refusals()
+    (first,) = _calls(box, "--detach")
+    assert first["spawn"] == {
+        "FABRIK_SPAWN_NAME": "builder-1",
+        "FABRIK_SPAWN_COORDINATOR": "coordinator",
+        "FABRIK_SPAWN_ITEM": ITEM,
+    }, first
+    assert not _calls(box, "--pane-cmd") and not box.refusals()
+    assert "builder-1's live pane %1 is adopted" in capsys.readouterr().out
+
+
+def test_f10_a_first_add_passes_no_facts_to_the_first_detach(tmp_path: Path, monkeypatch) -> None:
+    box = Box(tmp_path, registry={})
+    _row(
+        box, SID, "builder-1"
+    )  # an --as row (not spawned): a fresh id is minted, nothing to restore
+    _, mod = _inproc(box, monkeypatch)
+    assert mod.main(["add", str(box.repo), "builder-1"]) == 0
+    assert _calls(box, "--detach")[0]["spawn"] == {}
+
+
+# ---- review pass 1: the no-builder second --detach, the pane command --------------------------------------------
+
+
+def test_f3_a_second_detach_that_brought_up_a_grid_without_the_builder_falls_through_to_the_launch(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    """F3: --detach also exits 0 when another --detach raced it and the grid was already up — never a silent success."""
+    box = Box(tmp_path, registry={})
+    g, mod = _inproc(box, monkeypatch, request, tmp_path)
+    _scenario(box, detach=[3, 0], grid=["builder-9"])
+    assert mod.main(["add", str(box.repo), "builder-1"]) == 0, box.refusals()
+    sid = next(r["session_id"] for r in box.rows() if r["name"] == "builder-1")
+    (call,) = _calls(box, "--pane-cmd")
+    assert call["argv"][:5] == ["--pane-cmd", str(box.repo), "builder-1", sid, "--new"], call
+    assert g.tags() == ["agents builder-1", "agents builder-9"], g.tags()
+
+
+@pytest.mark.parametrize(
+    ("out", "ok"),
+    [("sleep 600\n\n", False), ("sleep 600\nsleep 1\n", False), ("\n", False), ("sleep 600", True)],
+)
+def test_f7_the_pane_command_is_exactly_one_line(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, out: str, ok: bool
+) -> None:
+    box = Box(tmp_path, registry={})
+    g, mod = _inproc(box, monkeypatch, request, tmp_path)
+    _grid_up(g, "builder-1")
+    _scenario(box, pane_cmd={"rc": 0, "out": out})
+    rc = mod.main(["add", str(box.repo), "builder-4"])
+    if ok:
+        assert rc == 0 and "agents builder-4" in g.tags()
+    else:
+        recs = box.refusals()
+        assert rc == 2 and len(recs) == 1 and recs[0]["step"] == 6, recs
+        assert "no single command line" in recs[0]["reason"], recs
+        assert g.tags() == ["agents builder-1"]
+
+
+def test_b6_a_grid_up_launches_the_pane_cmd_output_unchanged_even_horizontal_and_tagged(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    box = Box(tmp_path, registry={})
+    g, mod = _inproc(box, monkeypatch, request, tmp_path)
+    _grid_up(g, "builder-1", "builder-2")
+    line = "sleep 601 ; : 'a b' \"c\" $HOME"
+    _scenario(box, pane_cmd={"rc": 0, "out": line + "\n"})
+    seen: list[tuple] = []
+    real = mod.place_pane
+
+    def spy(*a):
+        seen.append(a)
+        return real(*a)
+
+    monkeypatch.setattr(mod, "place_pane", spy)
+    assert mod.main(["add", str(box.repo), "builder-4"]) == 0
+    assert not _calls(box, "--detach")  # the grid was up: no cold start
+    sid = next(r["session_id"] for r in box.rows() if r["name"] == "builder-4")
+    assert seen == [(str(box.repo), "shop", "builder-4", sid, str(box.wt("builder-4")), line)], seen
+    pane = g.ok(
+        "list-panes", "-s", "-t", f"={g.S}", "-f", "#{==:#{@agent},builder-4}", "-F", "#{pane_id}"
+    )
+    assert pane and g.ok("display-message", "-p", "-t", pane, "#{pane_current_path}") == str(
+        box.wt("builder-4")
+    )
+    wid = g.ok("display-message", "-p", "-t", pane, "#{window_id}")
+    widths = g.lines("list-panes", "-t", wid, "-F", "#{pane_top} #{pane_height}")
+    assert len({w.split()[0] for w in widths}) == 1, (
+        widths
+    )  # side by side: one row, even-horizontal
+    assert g.tags() == ["agents builder-1", "agents builder-2", "agents builder-4"]
+
+
+def test_b7_a_refusing_pane_cmd_stops_at_step_six_and_creates_no_pane(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys
+) -> None:
+    box = Box(tmp_path, registry={})
+    g, mod = _inproc(box, monkeypatch, request, tmp_path)
+    _grid_up(g, "builder-1")
+    _scenario(
+        box,
+        pane_cmd={"rc": 2, "out": "", "err": "agents_up: X has a transcript — not a new session\n"},
+    )
+    before = g.snapshot()
+    assert mod.main(["add", str(box.repo), "builder-4"]) == 2
+    err = capsys.readouterr().err
+    assert (
+        "agents_up: X has a transcript — not a new session" in err
+        and "add stopped at step 6" in err
+    )
+    recs = box.refusals()
+    assert len(recs) == 1 and recs[0]["step"] == 6 and "has a transcript" in recs[0]["reason"], recs
+    assert g.snapshot() == before
+
+
+def test_b8_a_live_pane_of_the_name_is_adopted_and_pane_cmd_never_runs(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys
+) -> None:
+    box = Box(tmp_path, registry={})
+    _row(box, SID, "builder-4", spawned=True)  # an earlier add bound it; step 4 keeps it
+    g, mod = _inproc(box, monkeypatch, request, tmp_path)
+    _grid_up(g, "builder-1", "builder-4")
+    pane, pp = g.ok(
+        "list-panes",
+        "-s",
+        "-t",
+        f"={g.S}",
+        "-f",
+        "#{==:#{@agent},builder-4}",
+        "-F",
+        "#{pane_id} #{pane_pid}",
+    ).split()
+    proc = tmp_path / "proc"
+    _fake_proc(
+        proc,
+        {int(pp): [int(pp) + 1], int(pp) + 1: []},
+        {int(pp): ["sh"], int(pp) + 1: ["claude", "-n", "builder-4", "--session-id", SID]},
+    )
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(proc))
+    _scenario(
+        box, pane_cmd={"rc": 2, "out": "", "err": "agents_up: refused\n"}
+    )  # the resolver now refuses
+    before = g.snapshot()
+    assert mod.main(["add", str(box.repo), "builder-4"]) == 0
+    assert not _calls(box, "--pane-cmd")
+    assert g.snapshot() == before and not box.refusals()
+    assert f"builder-4's live pane {pane} is adopted" in capsys.readouterr().out
+
+
+# --- T08b review pass 2: the no-builder branch after the second --detach -------------------------------------------
+
+
+def test_p1_the_new_panes_claude_starting_late_is_waited_for_and_adopted(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """P1: a capped pane is still `sh → systemd-run → bash -c` when --detach returns; its claude is waited for."""
+    box = Box(tmp_path, registry={})
+    _, mod = _inproc(box, monkeypatch, FABRIK_AGENTS_SETTLE_S="10")
+    _scenario(box, claude_after=0.5)
+    t0 = time.monotonic()
+    assert mod.main(["add", str(box.repo), "builder-1"]) == 0, box.refusals()
+    assert time.monotonic() - t0 < 10
+    assert len(_calls(box, "--detach")) == 2 and not _calls(box, "--pane-cmd")
+    assert not box.refusals()
+    assert "the grid was started with builder-1 as its first pane" in capsys.readouterr().out
+
+
+def test_p1_a_claude_that_never_starts_refuses_at_the_bound(tmp_path: Path, monkeypatch) -> None:
+    box = Box(tmp_path, registry={})
+    _, mod = _inproc(box, monkeypatch, FABRIK_AGENTS_SETTLE_S="1")
+    _scenario(box, claude_after="never")
+    t0 = time.monotonic()
+    assert mod.main(["add", str(box.repo), "builder-1"]) == 2
+    assert time.monotonic() - t0 >= 1
+    recs = box.refusals()
+    assert len(recs) == 1 and recs[0]["step"] == 6, recs
+    want = "builder-1's new pane started no claude within the settle bound (1 s) — re-run add once it starts"
+    assert recs[0]["reason"] == want, recs
+    assert "respawn" not in recs[0]["reason"], recs
+    assert not _calls(box, "--pane-cmd")
+
+
+def test_p1_a_pane_running_another_session_refuses_at_once(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    """P1's guard: only a pane with NO claude yet is waited for; a different session is never adopted or waited on."""
+    box = Box(tmp_path, registry={})
+    g, mod = _inproc(box, monkeypatch, request, tmp_path, FABRIK_AGENTS_SETTLE_S="10")
+    monkeypatch.delenv("FABRIK_PROC_ROOT")
+    _scenario(box, detach=[3, 0], grid=["builder-1"])
+    # the pane the grid makes runs claude with the bound id; re-bind the name to ANOTHER id before step 6 reads it
+    real_launch = mod.place_and_launch
+
+    def launch(ctx):
+        ctx.sid = OTHER_SID
+        return real_launch(ctx)
+
+    monkeypatch.setattr(mod, "place_and_launch", launch)
+    t0 = time.monotonic()
+    assert mod.main(["add", str(box.repo), "builder-1"]) == 2
+    assert time.monotonic() - t0 < 5
+    recs = box.refusals()
+    assert len(recs) == 1 and recs[0]["step"] == 6 and OTHER_SID in recs[0]["reason"], recs
+    assert not _calls(box, "--pane-cmd")
+
+
+def test_q1_a_grid_up_pane_with_no_claude_keeps_the_respawn_advice(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    """Q1's other half: outside the no-builder path, `_adopt`'s text (the respawn remedy) is unchanged."""
+    box = Box(tmp_path, registry={})
+    _row(box, SID, "builder-4", spawned=True)
+    g, mod = _inproc(box, monkeypatch, request, tmp_path)
+    _grid_up(g, "builder-1", "builder-4")  # builder-4's pane runs a plain sleep: no claude
+    assert mod.main(["add", str(box.repo), "builder-4"]) == 2
+    (rec,) = box.refusals()
+    assert (
+        rec["step"] == 6 and "runs no claude — respawn it (`tmux respawn-pane -k" in rec["reason"]
+    ), rec
+
+
+def _proc_start_of(pid: int) -> str:
+    return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19]
+
+
+def _dead_pid() -> int:
+    p = subprocess.Popen(["true"])
+    p.wait()
+    return p.pid
+
+
+@pytest.mark.parametrize("who", ["live", "dead", "reused-pid", "malformed"])
+def test_p2_a_grid_another_start_is_still_building_is_never_fallen_through(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, who: str
+) -> None:
+    """P2: the second --detach exits 0 while another agents_up.sh still builds the grid (its `@agents_up_building`
+    names a live pid with that pid's start time): wait to the bound, then refuse — never a second launch. A dead pid, a
+    pid whose start time is another process's, or a malformed value reads "not building" and the launch goes on."""
+    box = Box(tmp_path, registry={})
+    g, mod = _inproc(box, monkeypatch, request, tmp_path, FABRIK_AGENTS_SETTLE_S="1")
+    value = {
+        "live": f"{os.getpid()}:{_proc_start_of(os.getpid())}",
+        "dead": f"{_dead_pid()}:12345",
+        "reused-pid": f"{os.getpid()}:1",
+        "malformed": f"{os.getpid()}",
+    }[who]
+    _scenario(box, detach=[3, 0], grid=["builder-9"], building=value)
+    rc = mod.main(["add", str(box.repo), "builder-1"])
+    if who == "live":
+        assert rc == 2
+        recs = box.refusals()
+        assert len(recs) == 1 and recs[0]["step"] == 6, recs
+        assert "another start is building the shop grid — re-run add" in recs[0]["reason"], recs
+        assert not _calls(box, "--pane-cmd")
+        assert g.tags() == ["agents builder-9"], g.tags()
+    else:
+        assert rc == 0, box.refusals()
+        assert len(_calls(box, "--pane-cmd")) == 1
+        assert g.tags() == ["agents builder-1", "agents builder-9"], g.tags()
