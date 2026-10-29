@@ -3015,6 +3015,9 @@ def _queue(args: argparse.Namespace) -> int:
                     first_on_record = first["at"] is None or _record_matches(
                         ctx, first, script, runner
                     )
+                    # one budget answer per poll, read by the fork gate AND the landing test, so
+                    # the two can never disagree about whether a leg still fits (review r1 B2)
+                    fits = _leg_fits(started, script, timed.get(script, 0.0))
                     for el in chain:
                         if len(running) >= jobs:
                             break
@@ -3026,9 +3029,7 @@ def _queue(args: argparse.Namespace) -> int:
                             or _tried_key(ctx, el) in tried
                         ):
                             continue
-                        if (el is not first and not first_on_record) or not _leg_fits(
-                            started, script, timed.get(script, 0.0)
-                        ):
+                        if (el is not first and not first_on_record) or not fits:
                             break
                         child = fork.Process(target=_leg_child, args=(ctx, el, runner))
                         child.start()
@@ -3042,7 +3043,7 @@ def _queue(args: argparse.Namespace) -> int:
                             or _tried_key(ctx, first)
                             in tried  # no 2nd queue leg: its locked one runs
                             or _record_matches(ctx, first, script, runner)
-                            or not _leg_fits(started, script, timed.get(script, 0.0))
+                            or not fits
                         )
                     ):
                         # ready to land: its leg is over (green, red or killed), its record is
