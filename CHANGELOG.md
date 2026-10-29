@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the review loop queues a pass's seats under `max_seats` (2026-10-29)
+- `.claude/workflows/fabrik-review-loop.js`: an optional `max_seats` caps the seats running at once, so a
+  partition larger than the seat stamp runs as one pass instead of a trimmed or hand-split one; an invalid value
+  stops the launch; the `DISPATCH:` line appends the cap. A refuter whose agent call throws at the call is retried
+  instead of dropping its slice. `firstLine` reads a non-Error rejection with a blank message as JSON, never
+  `[object Object]`. `docs/reference/review-loop-workflow.md`: the `max_seats` row; `box_minutes` is the brief's
+  box, enforced by nothing (D-1354; W-bc394d0b, W-62791872).
+
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
   `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`
