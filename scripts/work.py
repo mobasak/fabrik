@@ -5969,12 +5969,11 @@ def _stop_action(tree: Path, session: str) -> dict:
     # path that subject is the single action, its own fingerprint unchanged)
     behind = result.get("candidates")
     if behind is None:
-        act = result.get("action")
-        behind = (
-            [{"action": act, "fp": result.get("fp") or act, "text": result.get("text", "")}]
-            if act
-            else []
-        )
+        behind = []
+        if result.get("action"):  # the classic subject, copied whole — never a new action name
+            subject = {k: result.get(k) or "" for k in ("action", "fp", "text")}
+            subject["fp"] = subject["fp"] or subject["action"]
+            behind = [subject]
     cands = [*panes, *[c for c in behind if c.get("fp") not in {p["fp"] for p in panes}]]
     return {**result, **panes[0], "candidates": cands[:AUTONOMY_MAX_CANDIDATES]}
 
