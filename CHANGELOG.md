@@ -7,7 +7,8 @@ All notable changes to this project will be documented in this file.
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
   `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`
-  (1 s cap) and listing every live name, with a stale warning, when several answer (W-9bf5a363,
+  (1 s cap) and listing every live name that fits the line whole, with a stale warning, when
+  several answer (W-9bf5a363,
   D-1337). The hub coordinator's extension window gets a new auto-generated peer name at each
   rotation, so a name kept in a builder's notes went dead (a rotate request sat 14 h). Unsafe names
   are dropped and any error adds no line.

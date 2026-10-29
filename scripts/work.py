@@ -5225,18 +5225,20 @@ _PEER_NAME_RE = re.compile(r"[A-Za-z0-9._-]{1,64}")
 
 
 def _coordinator_address_line(tree: Path) -> str:
-    """One line naming every live session of the repo's distributor, or "" when none is live or
-    bound, a name is unsafe to print, or anything fails (fail open: no line is today's behaviour).
-    Printed on every builder prompt, never only on drift: its text changes exactly when the
-    address does, so the prompt hook's unchanged-block dedup re-shows it at each rotation. Several
-    live names are all listed — an old window still open answers too, and choosing one could pick
-    the stale one. COBRA (D-253): the cheapest way to "have the line" is printing the role name
-    unresolved, which is the very address that failed; the names here come only from the live
-    registry, never from the store."""
+    """One line naming the live sessions of the repo's distributor, or "" when none is live or
+    bound within the resolver's cap, the role is not an agent name, a name is unsafe to print, or
+    anything fails (fail open: no line is today's behaviour). Computed on every builder prompt,
+    never only on drift: its text changes exactly when the address does, so the prompt hook's
+    unchanged-block dedup re-shows it at each rotation. Several live names are all listed — an old
+    window still open answers too, and choosing one could pick the stale one — as many WHOLE names
+    as fit in LINE_MAX, the rest counted, so `_clip` never cuts an address. COBRA (D-253): the
+    cheapest way to "have the line" is printing the role name unresolved, which is the very address
+    that failed; the names here come only from the live registry, never from the store."""
     try:
         main = _worktrees(tree)[0].resolve()
         role = str(_read_config(main).get("distributor") or "").strip()
-        if not role:
+        # NAME_RULE admits a leading `-`, which mail.py's argv would read as an option
+        if not _valid_name(role) or role.startswith("-"):
             return ""
         names = [
             n
@@ -5247,10 +5249,14 @@ def _coordinator_address_line(tree: Path) -> str:
         return ""
     if not names:
         return ""
+    head = f"work: coordinator ({role}) → SendMessage "
     stale = " (several windows answer for it — one may be stale)" if len(names) > 1 else ""
-    return (
-        f"work: coordinator ({role}) → SendMessage " + " · ".join(f"to={n}" for n in names) + stale
-    )
+    for shown in range(len(names), 0, -1):
+        rest = f" … and {len(names) - shown} more" if shown < len(names) else ""
+        line = head + " · ".join(f"to={n}" for n in names[:shown]) + rest + stale
+        if len(line) <= LINE_MAX:
+            return line
+    return ""  # unreachable: one name ≤ 64 characters always fits
 
 
 def prompt_block(repo: Path | str, session: str) -> str:
