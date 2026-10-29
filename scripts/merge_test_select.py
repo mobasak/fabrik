@@ -860,7 +860,8 @@ def differential(
             if err is not None and not isinstance(err, Exception):
                 raise err from back  # an interrupt stays an interrupt; the restore failure rides along
             raise LegError(f"{err!r}; then {back}" if err else str(back)) from err
-    new, old = [], []
+    new: list[tuple] = []
+    old: list[tuple] = []
     for key, msg in sorted(confirmed.items()):
         was = on_base.get(key)
         (old if was is not None and normalise(was) == normalise(msg) else new).append((key, msg))

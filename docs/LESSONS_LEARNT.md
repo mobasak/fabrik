@@ -8147,3 +8147,8 @@ document.
 **What happened:** W-a12b03a2 planned to reuse rotate_session's `_dialog` ("already tested") to spot builder panes waiting on a dialog. Its fixtures were three hand-written lines (`Allow?\n❯ 1. Yes\n  2. No`). One critique seat argued that real dialogs are bordered; neither seat could open one. A throwaway Haiku session in a scratch tmux session showed the real shapes on Claude Code v2.1.312: no dialog is bordered, but `_dialog` misses two of the three — the workspace-trust prompt (its options are not numbered) and an AskUserQuestion whose wrapped option descriptions put the next option four rows away.
 **Why:** a parser of another program's screen is only as good as the screens its fixtures came from; hand-written fixtures encode the author's memory of the UI, and every reviewer reading them inherits that memory.
 **How to apply:** before relying on a screen parser, produce the real screen it parses in a disposable session (your own scratch tmux session; never a live agent's pane) and run the parser on it; keep the captures out of the repo — another session's screen is not yours to commit — and write fixtures that reproduce the measured row shapes.
+
+## 2026-10-29 — a plain `trylast` hook is not "last" (W-c80361e4)
+pluggy runs a later-registered trylast impl AFTER an earlier one, so a `-p` plugin's trylast
+`pytest_collection_modifyitems` runs before a conftest's trylast reorder. A cut placed there read a
+polluted red green. Act on the final item order with `wrapper=True` and work after `yield`.

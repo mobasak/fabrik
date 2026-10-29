@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — merge leg: an ordered re-run stops one test past the reds it verifies (2026-10-29)
+A merge-leg red that is green alone used to re-run its whole shard in order (~500 s) and, when red there, the
+whole shard again on the base. The recording plugin now cuts such a run one test past its last red, with every
+shard file still collected; the replayed glitchtip leg would have saved ~480 s of 1,644 s (W-c80361e4, D-1360).
+
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
 `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.
