@@ -3293,7 +3293,7 @@ def _is_path_token(tok: str) -> bool:
     return not re.fullmatch(r"\d+(?:\.\d+)*", tok)  # a count or a version
 
 
-_HUNT_ROW = re.compile(r"Hunt:\s*(`{1,8})(?!`)([^\n]+?)(?<!`)\1(?!`)")
+_HUNT_ROW = re.compile(r"Hunt:\s*" + _CODE_SPAN.pattern)  # built from it, never a second copy
 
 
 def _hunt_gaps(text: str) -> list[str]:
