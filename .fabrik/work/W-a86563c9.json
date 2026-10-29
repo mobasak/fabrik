@@ -19,5 +19,8 @@
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — carry never-execute seat rule into execute rules",
   "status": "open",
+  "tags": [
+    "waits-lean-plan-lock"
+  ],
   "title": "Never-execute seat rule: carry it to the orchestrator's execute rules, the other Bash agents and the scratch-repo verb rule"
 }
