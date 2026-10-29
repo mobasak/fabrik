@@ -576,6 +576,13 @@ def _live_row(box: Box, name: str) -> None:
         ("double hyphen", "builder--", (), None, "needs an ordinal after 'builder-'"),
         ("uncapped low box", "builder-1", (), "uncapped-low", "under the 2 GB floor"),
         ("cold slice low box", "builder-1", (), "cold-low", "under the 2 GB floor"),
+        # T10 F4: the remaining refusal classes, F2's and F3's included
+        ("malformed item", "builder-1", ("--item", "W-xyz"), None, "is not a work item id"),
+        ("malformed role", "builder-1", ("--role", "Bad_Role"), None, "--role 'Bad_Role'"),
+        ("caller's own name", "builder-1", (), "self", "the caller's own name"),
+        ("caller outside NAME_RE", "builder-1", (), "lead", "agents_up.sh's name grammar"),
+        ("coordinator role", "coordinator-1", ("--role", "coordinator"), "coord", "coordinator"),
+        ("coordinator role suffix", "x-coordinator-1", ("--role", "x-coordinator"), "coord", "role"),
     ],
 )
 def test_preflight_refuses_with_no_trace_and_one_record(
@@ -608,6 +615,15 @@ def test_preflight_refuses_with_no_trace_and_one_record(
         env = box.env(FABRIK_AGENTS_CGROUP_DIR=None)
     elif setup == "unbound":
         env = box.env(CLAUDE_AGENT=None)
+    elif setup == "self":
+        env = box.env(CLAUDE_AGENT=name)
+    elif setup == "lead":  # legal to whoami ([a-z0-9-]{1,32}), not to agents_up.sh's NAME_RE
+        env = box.env(CLAUDE_AGENT="-lead")
+    elif setup == "coord":  # a charter that passes, so only the coordinator-role check can refuse
+        role = args[1]
+        (box.repo / "docs" / "reference" / "agents" / f"{role}.md").write_text(
+            "# Agent charter\n", encoding="utf-8"
+        )
     elif setup == "unmarked":
         (box.repo / "docs" / "reference" / "agents" / "reviewer.md").write_text(
             "# Reviewer notes\n", encoding="utf-8"
@@ -655,13 +671,16 @@ def test_a_symlinked_or_trailing_slash_root_names_the_same_trusted_repo(
         ("builder-a1", ()),
         ("builder-a2", ()),
         ("reviewer-1", ("--role", "reviewer")),
+        ("infra-9", ("--role", "infra")),  # T10 F3: an infra-N builder on the infra charter (D-1128)
+        ("coordinators-1", ("--role", "coordinators")),  # not a coordinator name
     ],
 )
 def test_legitimate_names_and_roles_pass(tmp_path: Path, name: str, args: tuple) -> None:
     box = Box(tmp_path)
-    (box.repo / "docs" / "reference" / "agents" / "reviewer.md").write_text(
-        "# Agent charter\n", encoding="utf-8"
-    )
+    for role in ("reviewer", "infra", "coordinators"):
+        (box.repo / "docs" / "reference" / "agents" / f"{role}.md").write_text(
+            "# Agent charter\n", encoding="utf-8"
+        )
     out = _spawn(box, str(box.repo), name, *args)
     assert out.returncode == 0, out.stderr
     assert (box.wt(name) / ".git").is_file() and not box.refusals()

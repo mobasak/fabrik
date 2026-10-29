@@ -467,6 +467,10 @@ def preflight(ctx: Spawn) -> None:
         raise RefusedError(f"{name!r} is not an agent name ([a-z0-9][a-z0-9-]{{0,31}})")
     if not NAME_RE.fullmatch(role):
         raise RefusedError(f"--role {role!r} is not an agent name ([a-z0-9][a-z0-9-]{{0,31}})")
+    if _coordinator_name(role):  # T10 F3: a builder pane never runs under a coordinator charter
+        raise RefusedError(
+            f"--role {role!r} is a coordinator role — a coordinator gets no builder pane"
+        )
     if ctx.item is not None and not ITEM_RE.fullmatch(ctx.item):
         raise RefusedError(f"--item {ctx.item!r} is not a work item id (W- and 8 lowercase hex)")
     charter = os.path.join(root, "docs", "reference", "agents", f"{role}.md")
@@ -500,6 +504,11 @@ def preflight(ctx: Spawn) -> None:
     ctx.coordinator = who.stdout.strip() if who.returncode == 0 else ""
     if not ctx.coordinator:
         raise RefusedError("add needs a bound coordinator — run whoami_agent.py --as <name>")
+    if not NAME_RE.fullmatch(ctx.coordinator):  # T10 F2: whoami's grammar is wider than the launcher's
+        raise RefusedError(
+            f"the caller is bound as {ctx.coordinator!r}: whoami accepts it ([a-z0-9-]{{1,32}}) but agents_up.sh's "
+            "name grammar ([a-z0-9][a-z0-9-]{0,31}) does not — re-bind with whoami_agent.py --as <name>"
+        )
     if ctx.coordinator == name:
         raise RefusedError(f"{name!r} is the caller's own name")
     for row in _store_rows():
