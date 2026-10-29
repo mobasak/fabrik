@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A seat probing the UNFIXED form of an option-injection bug writes outside its scratch (2026-10-29, W-b3192e98)
+
+**What happened:** to prove `ln -sfn -- <old> <link>` against `ln -sfn <old> <link>`, the review seats ran the old form over targets like `--`, `-n`, `-v` and `--target-directory=/tmp`. The defect they were measuring did exactly what it does: `ln` took the target as an option and the link name as the source, creating `session-archive.timer` in the seat's cwd, one symlink in `/tmp`, and another (`l`) in the live worktree, all at exit 0.
+
+**Lesson:** when a brief asks seats to execute the unfixed form of an argument-injection defect, the defect's own side effect is a write to wherever the cwd or an injected option points. Say in the brief: `cd` into the seat folder first in every call, never pass `-t`/`--target-directory=`, and the lead runs the leak check (`git status`, the named out-of-tree paths) after the pass returns — here that check is what found the worktree stray.
+
 ## Probe a guard on COMBINED states, not each state alone (2026-10-29, W-88173de4)
 
 **What happened:** a design probe showed that an alias alone reads `indirect` and is deleted by `systemctl disable`, so the design refused every `is-enabled` word but four measured ones, and two design critiques passed it. A review reader combined two states, an alias plus a runtime enable: the word read `enabled-runtime`, inside the allow-list, and the alias was still deleted.

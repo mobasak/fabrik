@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — operator_setup.py's timer-link undo survives an option-like or unprintable old target (2026-10-29)
+
+- `scripts/sysadmin/operator_setup.py`: the undo line that puts a rewritten `timers.target.wants` link back is now `ln -sfn -- <old target> <link>`, so an old target beginning with `-` is no longer read by `ln` as an option (`-x` failed loudly; `--`, `-n`, `--help` silently restored nothing). An old target `str.isprintable()` rejects — not UTF-8, or holding a control, line-break or format character or a non-ASCII space — is refused at planning, since a non-UTF-8 name crashed the undo print under a strict UTF-8 stdout after the installer ran and a line break split the pasted line. The file is reformatted at the repo's 100-column ruff line length (format only). Residue: W-364653b9. W-b3192e98.
+
 ### Fixed — operator_setup.py's undo puts the archive timer's link back as it was (2026-10-29)
 
 - `scripts/sysadmin/operator_setup.py`: the archive step's undo no longer runs `systemctl --user disable`, which on systemd 255 also deletes an alias the operator made to the timer. It restores only the persistent `timers.target.wants` link the installer's `enable` added or rewrote, by absolute path when the unit dir is outside HOME; a non-symlink at that path is refused at planning. The two windows in which an operator's save can still be overwritten are documented as accepted residue (`docs/workstation/operator-setup.md`). W-88173de4, D-1317.
