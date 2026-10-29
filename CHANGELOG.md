@@ -6,10 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### Changed — the review lead runs a node_modules test its seats cannot (2026-10-29)
 - `commands/_fragments/review-probe-catalogue.md` § Seat isolation: a test that needs a gitignored
-  dependency tree (`node_modules/`) runs on no seat tree (an archive or clone holds none; a copy,
-  link or variable pointing at the live one lets the run write inside it). The seat reports it
-  unverifiable and the lead runs it in the throwaway worktree after a lockfile install, when the
-  change touches it or the code it tests (intel mail 01M640TVJY, W-9ad5860f's lead half). Ledger
+  dependency tree (`node_modules/`) runs on no seat tree (an archive or clone holds none; a link or
+  variable pointing at the live one lets the run write inside it; a copy is the barred copy of the
+  live checkout). The seat reports it unverifiable and the lead runs it when the change touches it,
+  the code it tests or the config, manifest or lockfile its run reads, in the throwaway worktree at
+  the pin's base with the pins laid over it, after a lockfile install (a tree outside the repo or
+  with no lockfile is named UNPINNED) (intel mail 01M640TVJY, W-9ad5860f's lead half). Ledger
   entry `cat-a-node-harness-test-is-the-leads-to-run`, grader in `tests/test_seat_recipe_readable.py`.
 
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)

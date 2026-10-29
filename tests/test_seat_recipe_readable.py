@@ -50,9 +50,12 @@ def test_named_base_copy_mechanism_exists() -> None:
 
 NODE_HARNESS = (
     "A test that needs a gitignored dependency tree (`node_modules/`) runs on no seat tree: an archive or a clone"
-    " holds none, and a copy of the live one, a link to it or a variable pointing at it lets the run write inside it;"
-    " so a seat reports that test unverifiable and never runs it, and the lead runs it in CLAUDE.md's throwaway"
-    " worktree, after an install from that tree's own lockfile, when the change touches it or the code it tests."
+    " holds none, a link to the live one or a variable pointing at it lets the run write inside it, and a copy of"
+    " it is a copy of the live checkout, which this section bars; so a seat reports that test unverifiable and"
+    " never runs it, and the lead runs it when the change touches it, the code it tests, or the config, manifest"
+    " or lockfile its run reads, in CLAUDE.md's throwaway worktree at the pin's `base_sha` with the pins laid over"
+    " it, after an install from that tree's own lockfile (none for a tree outside the repo or one the repo has no"
+    " lockfile for: the lead then names the tree the run read UNPINNED)."
 )
 
 
