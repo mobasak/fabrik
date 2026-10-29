@@ -1181,11 +1181,21 @@ def test_the_lean_tier_names_the_checks_it_never_ran(monkeypatch: pytest.MonkeyP
     assert "final_gate.py --json" in text and "merge request" in text, text
 
 
-def test_the_lean_tier_carries_no_pytest_row(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("changed", [set(), {"scripts/x.py"}, {"src/a.py"}, {"tests/t.py"}])
+@pytest.mark.parametrize("fix_all", [False, True])
+def test_the_lean_tier_carries_no_pytest_row(
+    monkeypatch: pytest.MonkeyPatch, changed: set[str], fix_all: bool
+) -> None:
     """Both contracts' GATE row says `--lean` carries NO pytest row (cite `:1543`). That return now
-    calls `_lean_not_run_row()`, which the line-cite grader never reads, so a renamed constant or a
-    row added above the return would make the sentence false with the cite still green."""
-    names = [r[0] for r in _static_rows(monkeypatch, 1)]
+    calls `_lean_not_run_row()`, whose body the line-cite grader never reads, so a changed
+    `LEAN_NOT_RUN_ROW` value, or a pytest row inserted above the return without moving it, would
+    make the sentence false with the cite still green. Every diff shape that reaches the return."""
+    monkeypatch.setattr(fg, "run_cmd", lambda cmd, **kw: (0, ""))
+    monkeypatch.setattr(fg, "get_writable_files", lambda: set(changed))
+    monkeypatch.setattr(fg, "_changed_python", lambda scope: sorted(scope))
+    rows = fg.run_static_checks(tier=1, changed_files=set(changed), fix_all=fix_all)
+    names = [r[0] for r in rows]
+    assert fg.LEAN_NOT_RUN_ROW in names, names  # the premise: this shape reached the :1543 return
     assert not [n for n in names if n.startswith("pytest")], names
 
 
