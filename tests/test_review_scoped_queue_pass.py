@@ -398,12 +398,13 @@ def test_a_remainder_round_reverts_a_regression_and_records_every_other_own_fix_
     line said the opposite ("fixed when it is defect of fixed set"). term-coverage, review-scoped step 5 and the
     catalogue carry the exception whole, each pinned with the text that follows it so an appended contradiction
     fails; term-edit carries none, since its reviews execute no input and D-1184 names no term-edit home. Mutants:
-    restore the catalogue's old clause, drop or append to the exception in any home, drop the "in short" carve-out,
+    restore the catalogue's old clause, drop or append to the exception in any home or the catalogue bullet, drop the "in short" carve-out,
     or add the exception to term-edit."""
     frag = ROOT / "commands" / "_fragments"
     exception = (
-        "The one exception is a regression: an input the code as it stood before the review's first fix handled"
-        " correctly and the current code handles wrongly, in either direction (now accepting what it rejected, or"
+        "The one exception is a regression: an input that, run on the code as it stood before the review's first fix"
+        " (the commit round 1 reviewed) and on the current code, the first handles correctly and the second wrongly,"
+        " in either direction (now accepting what it rejected, or"
         " rejecting what it accepted); the lead reverts the review's own hunk whose revert restores the old verdict,"
         " counts the revert in that round's `--confirmed`, so a further remainder round follows, and routes the"
         " defect that hunk answered to the backlog row."
@@ -425,8 +426,10 @@ def test_a_remainder_round_reverts_a_regression_and_records_every_other_own_fix_
     cat = _norm(CAT)
     assert (
         "it never fixes a RECORDED candidate; fixed-set defect a re-verify finds still present is fixed again; other"
-        " finding it raises is recorded onto routed backlog row, except regression (an input the code before the"
-        " review's first fix handled correctly and the current code handles wrongly, in either direction), whose hunk"
-        " the lead reverts, counting the revert in `--confirmed`; premise-refuted verdict" in cat
+        " finding it raises is recorded onto routed backlog row, except regression (an input that, run on the code"
+        " before the review's first fix and on the current code, the first handles correctly and the second wrongly,"
+        " in either direction), whose hunk the lead reverts, counting the revert in `--confirmed`; premise-refuted"
+        " verdict" in cat
     )
+    assert "so the riskiest keeps both finders. - Route-up and close:" in cat
     assert "fixed when it is defect of fixed set" not in cat

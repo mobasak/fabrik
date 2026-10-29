@@ -374,10 +374,11 @@ name UNPINNED.
   `unverified` naming surface, and lead executes it; run files reader names, not every grep hit.
 - Remainder rounds: a remainder round names classes its fixed set re-sweeps; it never fixes a RECORDED candidate;
   fixed-set defect a re-verify finds still present is fixed again; other finding it raises is recorded onto routed
-  backlog row, except regression (an input the code before the review's first fix handled correctly and the current
-  code handles wrongly, in either direction), whose hunk the lead reverts, counting the revert in `--confirmed`;
-  premise-refuted verdict is re-probed under later reader's rule; slice trim left with one finder gets its second next
-  wave, or, when cap is known before round 1, merge two low-risk slices so the riskiest keeps both finders.
+  backlog row, except regression (an input that, run on the code before the review's first fix and on the current
+  code, the first handles correctly and the second wrongly, in either direction), whose hunk the lead reverts,
+  counting the revert in `--confirmed`; premise-refuted verdict is re-probed under later reader's rule; slice trim
+  left with one finder gets its second next wave, or, when cap is known before round 1, merge two low-risk slices so
+  the riskiest keeps both finders.
 - Route-up and close: a fix that adds file re-applies step 1's count; critical finding on published contract routes up
   at once; artifacts review itself created go to follow-up loop; RECORDED residue whose surface is another beat's is
   mailed at close; shared-ledger hunks land before closing pass; completion gate runs before terminal round is recorded,
