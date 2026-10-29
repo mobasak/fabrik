@@ -307,7 +307,8 @@ absent or still being built, and with no window `agents-<k>` says so and attache
   the launch continues); a found `agent-*` tree (Claude Code's subagent trees) is flagged. A name with no own worktree
   takes a found folder only where the repo declares its merge owner, and is dropped before its registry rows are read
   when no candidate holds one of its sessions. A name with no folder at all gets no pane, said on
-  stderr, and a repo left with no builder refuses (exit 2). The main checkout is the coordinator's, and a builder
+  stderr, and a repo left with no builder launches nothing and exits 3 ("nothing to launch", told apart from a
+  refusal, which exits 2). The main checkout is the coordinator's, and a builder
   resumed there would edit main's tree and read main's `CLAUDE.md` (W-6c7c3292).
 - Every pane runs whole — claude, its exit hint and the shell it keeps — in its own `systemd-run --user --scope` in
   `fabrik-agents.slice`, with `MemorySwapMax=0` and `TasksMax` (`FABRIK_AGENT_TASKS_MAX`, default 1024) and no
@@ -372,7 +373,7 @@ Each row of the registry is checked before it reaches a shell command, and one b
 - a name must match `[a-z0-9][a-z0-9-]{0,31}`;
 - no session id may appear twice;
 - no name may hold two session ids;
-- the file must name at least one builder.
+- the file must name at least one builder (a registry naming only the coordinator exits 3, nothing to launch).
 
 The registry is box-local state (gitignored) that names a repo's builders; each builder's SESSION comes from the
 identity store `whoami_agent.py` keeps (W-66e2f6a7), read the way whoami reads it:
@@ -426,7 +427,9 @@ attach until the next click (§ Start using it in every repo).
 It writes only under `--desktop`, because the desktop is outside every repo. A desktop file it did not write — the
 hand-made launchers from before — is left untouched (exit 2) until it is named once with
 `--replace "<Repo> Agents.bat"`; a file it wrote is rewritten when its text changes and left alone otherwise. The WSL
-distro comes from `--distro`, else `$WSL_DISTRO_NAME`.
+distro comes from `--distro`, else a non-blank `$WSL_DISTRO_NAME`, else the distro this shell runs in, read from
+`wslpath -w /` (`fabrik_deck.py::_default_distro`), so a run from tmux, systemd or code-server, where the variable
+is unset, still names this distro; `--distro ""` and an underivable distro refuse.
 
 Each .bat is self-contained and needs no hand-made Windows Terminal profile. `wt.exe` has no font-size option, so the
 .bat writes a Windows Terminal JSON fragment, `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\Fabrik\<repo>.json`,

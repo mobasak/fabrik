@@ -3152,7 +3152,7 @@ def test_t09_r3_a_run_folder_a_seed_names_refuses_and_otherwise_goes_with_the_ca
         (seeds / f"{OTHER_SID}-abc.json").write_text(
             json.dumps({"scratch": str(run)}), encoding="utf-8"
         )
-        _refused_keeping(box, g, mod, capsys, "named by a resume seed", str(run))
+        _refused_keeping(box, g, mod, capsys, "named by the resume seed", str(run))
         assert (run / "measure.md").is_file()
         return
     assert mod.main(["remove", str(box.repo), B1]) == 0, box.refusals()
@@ -3338,3 +3338,130 @@ def test_t09_the_dispatch_reaches_remove_and_its_refusal_is_one_row(tmp_path: Pa
     assert "no such builder builder-9" in out.stderr, out.stderr
     (row,) = box.refusals()
     assert row["verb"] == "remove" and row["step"] == 1, row
+
+
+# ---- T09 pass-1 review fixes --------------------------------------------------------------------------------------
+
+
+def _seed_dir(box: Box) -> Path:
+    seeds = _runs_dir(box) / "seeds"
+    seeds.mkdir(parents=True, exist_ok=True)
+    return seeds
+
+
+@pytest.mark.parametrize("link", ["to-a-seed", "dangling"])
+def test_t09_f1_a_symlinked_seed_is_read_and_a_dangling_one_refuses_named(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, link: str
+) -> None:
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request, exclude=EXCLUDE)
+    run = _mk(box.wt(B1) / ".tmp" / "runs" / OTHER_SID / "r1" / "f").parent
+    seeds = _seed_dir(box)
+    target = tmp_path / "elsewhere" / "seed.json"
+    if link == "to-a-seed":
+        _mk(target).write_text(json.dumps({"scratch": str(run)}), encoding="utf-8")
+    (seeds / "linked.json").symlink_to(target)
+    needle = "linked.json"
+    row = _refused_keeping(box, g, mod, capsys, needle)
+    if link == "to-a-seed":
+        assert "named by" in row["reason"], row
+    assert (run / "f").is_file()
+
+
+@pytest.mark.parametrize(
+    "text,refuses",
+    [
+        (f"RUN-SCRATCH: .tmp/runs/{OTHER_SID}/r1\n", True),
+        (f'{{"scratch": "./.tmp/runs/{OTHER_SID}/r1/measure.md"}}', True),
+        (f"RUN-SCRATCH: .tmp/runs/{OTHER_SID}/r10\n", False),
+        (f"x.tmp/runs/{OTHER_SID}/r1\n", False),
+        (f"/opt/elsewhere/.tmp/runs/{OTHER_SID}/r1\n", False),
+    ],
+)
+def test_t09_f2_a_worktree_relative_seed_mention_refuses_on_a_boundary(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, text: str, refuses: bool
+) -> None:
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request, exclude=EXCLUDE)
+    run = _mk(box.wt(B1) / ".tmp" / "runs" / OTHER_SID / "r1" / "f").parent
+    (_seed_dir(box) / "s.md").write_text(text, encoding="utf-8")
+    if refuses:
+        _refused_keeping(box, g, mod, capsys, "named by", str(run))
+        return
+    assert mod.main(["remove", str(box.repo), B1]) == 0, box.refusals()
+    assert not box.wt(B1).exists()
+
+
+def test_t09_f3_a_resume_whose_worktree_dir_is_gone_but_still_registered_retires(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request)
+    shutil.rmtree(box.wt(B1))  # git's admin entry for it is still registered
+    assert f"{box.wt(B1)}" in _git(box.repo, "worktree", "list", "--porcelain")
+    assert mod.main(["remove", str(box.repo), B1]) == 0, box.refusals()
+    assert not _branch(box)
+    assert _registry(box) == {OTHER_SID: "builder-2"}
+    assert f"{box.wt(B1)}" not in _git(box.repo, "worktree", "list", "--porcelain")
+
+
+@pytest.mark.parametrize("record", ["matches", "none"])
+def test_t09_f4_a_rotated_but_unhealed_builder_is_checked_under_its_live_id(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, record: str
+) -> None:
+    """Registry and store name the OLD id; the pane's claude (after a /clear) runs NEW with a running record."""
+    box = Box(tmp_path, registry={OLD: B1})
+    (Path(box.scope) / "info").mkdir(exist_ok=True)
+    (Path(box.scope) / "info" / "exclude").write_text(EXCLUDE, encoding="utf-8")
+    _git(
+        box.repo,
+        "worktree",
+        "add",
+        "-q",
+        "-b",
+        f"worktree-{B1}",
+        f".claude/worktrees/{B1}",
+        "master",
+    )
+    g, mod = _inproc(box, monkeypatch, request, tmp_path)
+    proc = tmp_path / "proc"
+    proc.mkdir()
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(proc))
+    _row(box, OLD, B1)
+    g.base(panes=1, tags=(B1,))
+    pid = _claude_under(proc, _pane_pids(g)[B1], ["claude", "-n", B1, "--resume", OLD])
+    run = _mk(box.wt(B1) / ".tmp" / "runs" / NEW_SID / "r1" / "f").parent
+    if record == "matches":
+        _record(box, pid, NEW_SID)
+        _running(box, NEW_SID)
+        needles = [NEW_SID, "running"]
+    else:  # a claude whose live id cannot be read: refuse, never guess
+        needles = [f"claude pid {pid}", "cannot be read"]
+    _refused_keeping(box, g, mod, capsys, *needles)
+    assert (run / "f").is_file()
+
+
+@pytest.mark.parametrize("late", ["env-local", "seed-named-run"])
+def test_t09_f5_an_ignored_file_written_before_the_kill_refuses_at_step_3(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, late: str
+) -> None:
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request, exclude=EXCLUDE + ".env.local\n")
+    g.base(panes=2, tags=(B1, "builder-2"))
+    wt = box.wt(B1)
+    real = mod._drop_pane
+    late_path = wt / ".env.local"
+
+    def drop_then_write(sess, pane):  # the dying builder's last write lands after the checks
+        real(sess, pane)
+        if late == "env-local":
+            _mk(late_path)
+        else:
+            run = _mk(wt / ".tmp" / "runs" / OTHER_SID / "late" / "f").parent
+            (_seed_dir(box) / "late.json").write_text(
+                json.dumps({"scratch": str(run)}), encoding="utf-8"
+            )
+
+    monkeypatch.setattr(mod, "_drop_pane", drop_then_write)
+    assert mod.main(["remove", str(box.repo), B1]) == 2
+    (row,) = _rm_rows(box)
+    assert row["step"] == 3, row
+    want = str(late_path) if late == "env-local" else "named by"
+    assert want in row["reason"], row
+    assert wt.is_dir() and _branch(box) and _registry(box)[SID_B1] == B1

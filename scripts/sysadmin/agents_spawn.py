@@ -1899,9 +1899,11 @@ def _prefix_ok(rel: str, prefixes: list[str]) -> bool:
     return False
 
 
-def _seed_texts() -> list[str]:
+def _seed_texts() -> list[tuple[str, str]]:
+    """(path, text) of every seed under `<state>/seeds/`; a symlinked seed is read through its link (pass-1 F1), and
+    one that is dangling or unreadable refuses, named. A real directory there is no seed and is skipped."""
     seeds = _command_runs_dir() / "seeds"
-    if not seeds.exists():
+    if not os.path.lexists(seeds):
         return []
     texts = []
     try:
@@ -1909,20 +1911,38 @@ def _seed_texts() -> list[str]:
     except OSError as exc:
         raise RefusedError(f"the resume seeds in {seeds} cannot be listed ({exc})") from None
     for entry in entries:
-        if entry.is_file(follow_symlinks=False):
-            try:
-                texts.append(Path(entry.path).read_text(encoding="utf-8", errors="replace"))
-            except OSError as exc:
-                raise RefusedError(f"the resume seed {entry.path} cannot be read ({exc})") from None
+        if entry.is_dir(follow_symlinks=False):
+            continue
+        try:
+            texts.append(
+                (entry.path, Path(entry.path).read_text(encoding="utf-8", errors="replace"))
+            )
+        except OSError as exc:
+            raise RefusedError(f"the resume seed {entry.path} cannot be read ({exc})") from None
     return texts
 
 
-def _named_by_seed(folder: str, texts: list[str]) -> bool:
-    pat = re.compile(re.escape(folder) + r"(?=$|[/\"'\s,\]}])")
-    return any(pat.search(t) for t in texts)
+_SEED_END = r"(?=$|[/\"'\s,\]}):;])"  # `r1` never matches inside `r10`
+_SEED_START = (
+    r"(?<![^\s\"'=:,\[{(<])"  # `x.tmp/runs/…` and another checkout's `/…/.tmp/runs/…` never match
+)
 
 
-def _walk_runs(wt: str, let_go: list[str], fails: list[str], texts: list[str]) -> None:
+def _named_by_seed(folder: str, wt: str, texts: list[tuple[str, str]]) -> str:
+    """The first seed naming `folder` — by its absolute path, or (pass-1 F2) by its worktree-relative form
+    `.tmp/runs/<sid>/<run>` (optionally `./`-led) on a boundary; "" when none does."""
+    rel = os.path.relpath(folder, wt)
+    pats = (
+        re.compile(re.escape(folder) + _SEED_END),
+        re.compile(_SEED_START + r"(?:\./)?" + re.escape(rel) + _SEED_END),
+    )
+    for path, text in texts:
+        if any(p.search(text) for p in pats):
+            return path
+    return ""
+
+
+def _walk_runs(wt: str, let_go: list[str], fails: list[str], texts: list[tuple[str, str]]) -> None:
     """`.tmp/runs/<sid>/<run>`, two levels by os.scandir (command_run.py's layout): a run folder a seed names refuses,
     any other is let go; a symlink or a file where a folder belongs refuses, named."""
     runs = os.path.join(wt, ".tmp", "runs")
@@ -1938,9 +1958,9 @@ def _walk_runs(wt: str, let_go: list[str], fails: list[str], texts: list[str]) -
             for run in sorted(os.scandir(sid_dir.path), key=lambda e: e.name):
                 if not run.is_dir(follow_symlinks=False):
                     fails.append(f"ignored {run.path} would be lost")
-                elif _named_by_seed(run.path, texts):
+                elif seed := _named_by_seed(run.path, wt, texts):
                     fails.append(
-                        f"the run folder {run.path} is named by a resume seed — keep it until that run resumes"
+                        f"the run folder {run.path} is named by the resume seed {seed} — keep it until that run resumes"
                     )
                 else:
                     let_go.append(run.path)
@@ -1955,7 +1975,11 @@ def _ignored_failures(wt: str, root: str, let_go: list[str]) -> list[str]:
         return [f"git ls-files --ignored failed in {wt}: {out.stderr.strip() or out.returncode}"]
     fails: list[str] = []
     prefixes = _ok_prefixes(root)
-    texts = _seed_texts()
+    try:
+        texts = _seed_texts()
+    except RefusedError as exc:
+        fails.append(exc.reason)
+        texts = []
     walk_runs = False
 
     def judge(rel: str) -> None:
@@ -2158,6 +2182,29 @@ def _drop_rows(root: str, sess: str, name: str) -> None:
         print(f"agents_spawn: remove — registry heal skipped: {reason}", file=sys.stderr)
 
 
+def _pane_live_ids(pane: _Pane) -> list[str]:
+    """Pass-1 F4: every session the tagged pane's claude processes run NOW (heal_registry's reads: the walk, then each
+    claude's session record by pid + start time), plus any id in their argv — so a rotation the registry has not caught
+    up with is still checked under its live id. A claude whose live id cannot be read refuses, named; nothing is
+    written."""
+    ids = []
+    unread = []
+    for pid, argv_sid in _claude_procs(pane.pane_id, pane.pane_pid, None):
+        live = _live_session_id(pid)
+        if not live:
+            unread.append(str(pid))
+            continue
+        ids.append(live)
+        if argv_sid:
+            ids.append(argv_sid)
+    if unread:
+        raise RefusedError(
+            f"claude pid {', '.join(unread)} in pane {pane.pane_id} runs a session whose live id cannot be read "
+            "(no session record matches its pid and start time) — not removing"
+        )
+    return ids
+
+
 def remove(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(prog="agents_up.sh remove", allow_abbrev=False)
     ap.add_argument("repo")
@@ -2192,13 +2239,36 @@ def remove(argv: list[str]) -> int:
                 raise RefusedError(
                     f"{len(tagged)} panes are tagged {ctx.name} ({', '.join(p.pane_id for p in tagged)}) — fix by hand"
                 )
+            if tagged:
+                ids = list(dict.fromkeys([*ids, *_pane_live_ids(tagged[0])]))
             rm = _check_removal(ctx, wt, ids, tagged)
-            for path in rm.let_go:
-                print(f"let go: {path}")
             step = 2
             if tagged:
                 _drop_pane(sess, tagged[0])
             step = 3
+            if rm.present:
+                # pass-1 F5: the builder may have written until its pane died — classify again over the same ids,
+                # and print `let go:` from this final classification only
+                final: list[str] = []
+                late = _running_failures(ids) + _ignored_failures(wt, root, final)
+                if late:
+                    raise RefusedError(
+                        "after the pane was killed: "
+                        + "; ".join(late)
+                        + " — re-run remove once settled",
+                        3,
+                    )
+                for path in final:
+                    print(f"let go: {path}")
+            else:
+                # pass-1 F3: the worktree dir is gone but git may still register it, which would refuse the branch
+                # delete for ever; prune only drops entries whose directory is gone
+                pruned = _git(root, "worktree", "prune")
+                if pruned.returncode != 0:
+                    raise RefusedError(
+                        f"git worktree prune failed: {pruned.stderr.strip() or pruned.returncode}",
+                        3,
+                    )
             if rm.present:
                 out = _git(
                     root,
