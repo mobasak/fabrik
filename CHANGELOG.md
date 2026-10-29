@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the decision-ledger gate reads one ledger table, and the mail digest counts what it shows (2026-10-29)
+- `scripts/enforcement/check_decisions_unique.py` (W-c25fd20f, D-1353): every leg reads one
+  population. The ledger table is the table holding the most D-rows. A fake table no longer hides
+  a stray, and a row after the table or indented outside it is reported where it sits. An indented
+  duplicate inside a table is found, and a fenced example is not a row. `D-1`, `D-001` and an
+  annotated `D-1 (amended)` cell are one id. A run from `docs/` (or under a hook's `GIT_DIR`) grades
+  the repo's ledger, and a short header no longer crashes before the blocking lines print. Every
+  leg's verdict is unchanged on all 298 ledgers on the box.
+- `.claude/hooks/mail_notify.py` (W-f3039837): the digest's rows and its unread total read one file
+  list. A dot-named file and a directory named like a message are in neither, as in `mail.py list`.
+
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
   `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`

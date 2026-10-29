@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## When two critics disagree about what a format means, run the format's own reader (2026-10-29, W-c25fd20f)
+
+**What happened:** the two design critiques of the decision-ledger checker disagreed about where a markdown table ends. Opus said a tab-indented row stays in the table, so ending the body there would red the rows below it as strays. Fable said that line ends the table. Folding Opus's reading into the draft had already flipped one grader. Rendering eight edge cases with markdown-it (GFM tables, in the repo's venv) settled it in one run: a tab or 4-space line ends the table, a row with no leading pipe continues it, and a 1-space-indented row above the table is no row. Separately, the tie-break reason in the docstring ("the ledger appends at its foot") was false for the hub, which writes new rows on top. A measurement kept the rule: the ledger table closes its file in 293 of 293 ledgers.
+
+**Lesson:** when a check's verdict depends on what a format MEANS, the oracle is that format's real parser, run on the disputed inputs, never either reviewer's reading. Fold a critique concern only after that run. And a rule's stated REASON is a claim of its own: re-measure it even when the rule survives.
+
 ## Measure the bytes per class before choosing which rule to loosen (2026-10-29, W-d1a4a8f5)
 
 **What happened:** the janitor item named a session-level class first: 362 "unclassified" sessions with no live or death signal. The first design loosened two session rules for it, a 48 h dead bar and "no transcript is a death signal". A test the build would have broken pinned the 7 d bar for weekly-quota resumes. A `du` per dry-run row then showed that the no-signal class held 0.5 GB. The 108 GB under that label sat in resumable sessions, and the removable bytes (77 GB) were run folders that a gap rule with no end kept alive. That gap rule was the one D-878 had declared safe because "/tmp is cleared at boot", and 74 of 652 session dirs predated the boot.

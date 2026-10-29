@@ -85,8 +85,9 @@ def _parse(text: str) -> _Ledger:
     that would silence every leg (fail closed — such a block's rows count). A table is a confirmed
     delimiter (a `_DELIMITER` line directly under a `_HEADER_ROW`, outside any earlier table's
     body) plus the `_BODY` lines below it. THE LEDGER TABLE is the one holding the most D-rows, at
-    least one, ties to the LAST (the ledger appends at its foot): keying on the first delimiter let
-    a header and delimiter typed above a stray row hide it.
+    least one, ties to the LAST (the ledger table closes its file: 293 of the 293 ledgers holding
+    one, 2026-10-29, whichever end new rows are written at): keying on the first delimiter let a
+    header and delimiter typed above a stray row hide it.
 
     A D-row-shaped line is read by where it sits: in any table body it is a row (duplicates read
     it); outside every table, unindented it is a row too, indented 1-3 spaces it is prose to the

@@ -385,7 +385,7 @@ def test_a_stray_row_in_a_fake_table_above_the_ledger_is_reported():
         + _row("D-002")
     )
     assert find_rows_outside_the_table(fake) == [(3, "D-999")]
-    # a tie goes to the LAST table — the ledger appends at its foot
+    # a tie goes to the LAST table — the ledger table closes its file (293 of 293 ledgers)
     tie = "| a | b |\n|---|---|\n" + _row("D-999") + "\n" + _SHAPE_HEAD + _row("D-001")
     assert find_rows_outside_the_table(tie) == [(3, "D-999")]
     # a row after the table, past a blank line, renders as a paragraph: it is outside too
