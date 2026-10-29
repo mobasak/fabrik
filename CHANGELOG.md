@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — enforcement tests grade the tree they sit in, and a grader keeps it so (2026-10-30)
+- Ten tests under `tests/enforcement/` found the script they grade by the hub checkout's absolute
+  path, so run from a hub worktree they graded the main checkout and passed over a broken branch.
+  Each now derives its tree from `Path(__file__).resolve().parents[2]`;
+  `test_check_decisions_unique.py` refuses a subject module from another tree at collection;
+  `test_plan_shape_gates.py` keeps the inherited `PYTHONPATH` behind this tree.
+- New `tests/enforcement/test_enforcement_tests_hermetic.py` refuses a hub-path literal in that
+  folder unless it is data marked `# hub-path-data: <reason>` and not used to locate code (a
+  `cwd=`/`PYTHONPATH=`, a path, import or spawn call, an assignment). The marker survives
+  `ruff format`. D-1365. (W-a00defb5)
+
 ### Fixed — two decision-ledger tests grade the tree under test, not /opt/fabrik (2026-10-29)
 - `tests/enforcement/test_check_decisions_unique.py`: `test_the_live_hub_ledger_has_no_stray_rows`
   and `test_the_cobra_path_is_written_down_where_the_next_reader_finds_it` read hardcoded

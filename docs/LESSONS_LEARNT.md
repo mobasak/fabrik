@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A marker comment is only as stable as the formatter lets it be (2026-10-30, W-a00defb5)
+
+**What happened:** the design marked data literals with a trailing `# hub-path-data:` comment and checked it on the literal's own line, reasoning that E501 is ignored in this repo. Both critique seats ran `ruff format` on the marked files: it wrapped 7 of the 8 lines and moved the comment to the closing bracket, so the grader would have refused the very literals it was meant to accept. Ignoring a lint rule does not stop the formatter. A second gap came out while building: accepting a marker on "the line above" let one trailing comment mark the next statement as well.
+
+**Lesson:** a marker that a check keys on has to survive every tool that rewrites the file — run the formatter on a marked fixture and grade the output, as a test. Key the marker to the statement (any of its lines, or a comment line of its own above it), never to one physical line, and read it from the tokenizer, so a marker typed inside a string does not count.
+
 ## When two critics disagree about what a format means, run the format's own reader (2026-10-29, W-c25fd20f)
 
 **What happened:** the two design critiques of the decision-ledger checker disagreed about where a markdown table ends. Opus said a tab-indented row stays in the table, so ending the body there would red the rows below it as strays. Fable said that line ends the table. Folding Opus's reading into the draft had already flipped one grader. Rendering eight edge cases with markdown-it (GFM tables, in the repo's venv) settled it in one run: a tab or 4-space line ends the table, a row with no leading pipe continues it, and a 1-space-indented row above the table is no table row to the renderer (the checker now reports it as a stray). The review then found the rule still incomplete — a heading, quote, list item, fence or HTML block also ends the table — and settled that the same way, over 39 shapes. Separately, the tie-break reason in the docstring ("the ledger appends at its foot") was false for the hub, which writes new rows on top. A measurement kept the rule: the ledger table closes its file in each of the 293 ledgers that hold one.

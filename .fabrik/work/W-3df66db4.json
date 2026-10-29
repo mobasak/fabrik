@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T21:05:25.971872Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-3df66db4",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1365",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "replay the foreign-cwd importlib run per file (W-a00defb5 build.md Behaviour 2 recipe); give each red one the same collection-time ImportError, or decide one shared guard with a session-end loaded-module audit (Opus critique, D-1365 rejected-as-rival)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "4 more tests under tests/enforcement/ import scripts.* as a package (test_check_plan_tickets.py, test_fences.py, test_plan_shape_gates.py, test_plan_tickets_epic_scope.py): under --import-mode=importlib --noconftest from another cwd they grade that cwd's tree, as test_check_decisions_unique.py did before its ImportError guard (W-a00defb5)"
+}
