@@ -3,7 +3,7 @@
   "created": "2026-10-29T11:11:59.422094Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "415b9c56877fdaa6e841a20b73068f9f91458bcd",
   "id": "W-2786800d",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra-2",
   "priority": 0,
   "score_reason": "URGENT: disk 97% blocks every agent and merge soon; reds master's tests now",
-  "status": "open",
+  "status": "done",
   "tags": [
     "waits-merge-01m63sz08k"
   ],
