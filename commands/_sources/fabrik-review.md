@@ -66,6 +66,8 @@ python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lo
 
 If an argument was given, treat it as the review target: `$ARGUMENTS` (a path, a PR number, or a git range). Otherwise get the diff under review with `git diff @{upstream}...HEAD` (fall back to `git diff main...HEAD`, then `git diff HEAD~1`); if there are uncommitted changes or the range is empty, also run `git diff HEAD` and include the working tree.
 
+A review whose seats will still be out at a turn end is ordered to commit its fixes mid-review — the Stop hook's uncommitted-work block stands down for the running review's `--surface` only while no seat is in flight (`_review_exempts_commit` in `.claude/hooks/final_gate_stop.py`) — so it takes the committed-fix form of the Termination contract's Persist obligation from Pass 1.
+
 ⚠️ **A FINDER GIVEN A SHA MUST NOT READ THE LIVE TREE — it is probably dirty, and not with your changes.** **When you hand a finder a sha, materialise that sha:**
 
 ```
