@@ -246,9 +246,10 @@ remembered desktop by itself; running `python3 /opt/fabrik/scripts/sysadmin/agen
 ### Spawning and retiring builders (`add`, `remove`)
 
 Both verbs are the coordinator's, run against the repo's MAIN checkout (a linked worktree or a subdirectory refuses),
-and both exit 0 done or 2 refused. Every refusal names each reason on stderr and appends ONE JSON line
-`{"at", "repo", "name", "step", "reason"}` to `~/.claude/state/agents-spawn.jsonl` (a `remove` row adds
-`"verb": "remove"`); the coordinator reads its refusals there. Each verb holds the repo's agents lock — `flock` on
+and both exit 0 done or 2 refused. Every refusal once the arguments parse names each reason on stderr and
+appends ONE JSON line `{"at", "repo", "name", "step", "reason"}` to `~/.claude/state/agents-spawn.jsonl` (a
+`remove` row adds `"verb": "remove"`); the coordinator reads its refusals there. A usage error (a missing operand,
+an unknown flag or verb) prints the usage and exits 2 with no row. Each verb holds the repo's agents lock — `flock` on
 `<git common dir>/fabrik-agents.lock`, shared by every worktree and by `rotate_session.py`'s registry re-point — while
 it changes anything, so two verbs, or a verb and a rotation, never interleave. A re-run completes what a failed run
 left.

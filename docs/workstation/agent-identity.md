@@ -36,9 +36,9 @@ CLAUDE_AGENT=agent-2 claude -n agent-2-<repo>
 
 Both are valid; the env var always wins over a binding, so a named launch never needs the command.
 
-**A session that does not exist yet — the spawner-only binding** (dynamic builders, W-b9ad80ae). It is
-built for the spawner the plan adds next, `agents_spawn.py add` (its T06): that command will mint a
-fresh session id for the builder it is about to launch and record it, before the pane exists, with:
+**A session that does not exist yet — the spawner-only binding** (dynamic builders, W-b9ad80ae). It
+serves the spawner, `agents_spawn.py add` (`agents_up.sh add`): that command mints a fresh session id
+for the builder it is about to launch and records it, before the pane exists, with:
 
 ```bash
 python3 /opt/fabrik/scripts/whoami_agent.py --spawned b-1 --session-id <fresh uuid> --repo <repo> --lock-fd <n>
@@ -59,7 +59,7 @@ The proof only reads; it never takes, converts or releases a lock. An earlier ve
 unlocked copy take the lock and pass, and the check changed the caller's own lock, upgrading a shared
 holder or dropping it.
 
-The spawner is to hold that lock across the whole `add` and pass the descriptor with
+The spawner holds that lock across the whole `add` and passes the descriptor with
 `subprocess.run(..., pass_fds=(fd,))`. The id must be a lowercase UUID that no row the store still
 holds carries (the 30-day trim can drop an old row), so the call cannot re-name a session the store
 knows. `--session-id`, `--repo` and `--lock-fd` are refused without `--spawned`, `--spawned` is
@@ -77,11 +77,11 @@ The row carries `"spawned": true` with `pid` and `pid_start` null, and no `prede
 stamping the caller's process would make the spawner the holder of the builder's name. ⚠️ **The
 null-pid gap:** a row with no pid is not a holder, so until the builder re-binds itself on its first
 turn (`--as <name>`, which writes its own pid) nothing in the store reserves the name. The spawner's
-own live-session preflight and the agents lock are to cover `add` itself. The cheapest bypass is a
+own live-session preflight and the agents lock cover `add` itself. The cheapest bypass is a
 caller that takes the agents lock itself. That is accepted, because the lock is hub tooling's alone,
-and the row it writes is marked `spawned` and reserves nothing. Nothing takes the lock at this commit;
-the plan adds its two takers, `agents_spawn.py add` (T06) and the registry re-point in
-`rotate_session.py` (T07).
+and the row it writes is marked `spawned` and reserves nothing. The lock's takers are
+`agents_spawn.py add` and `remove` (`agents_up.sh add|remove`) and `rotate_session.py`'s registry
+re-point.
 
 ## How it resolves
 

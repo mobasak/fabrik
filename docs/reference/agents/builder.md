@@ -19,7 +19,8 @@ hand it in and be retired.
 - **Every question goes to your coordinator** by `SendMessage` — a design doubt, a permission prompt, a Claude
   Code UI prompt — never to the operator (D-1301).
 - **Hand in by request.** Commit and push before you are retired, and request the merge with
-  `python3 scripts/merge_request.py request`, which finds the repo's merge owner itself.
+  `python3 scripts/merge_request.py request --review <the closing run record or review receipt> [--item <W-id>]`,
+  which finds the repo's merge owner itself.
 - **Resume points live in the run seed.** Write where you stopped into the item's run record
   (`python3 scripts/command_run.py handoff|blocked`), never into personal memory.
 - **You are disposable.** Once your merge request lands and `next` is empty, `SendMessage` your coordinator
