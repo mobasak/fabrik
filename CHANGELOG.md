@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — mobile-app scaffold lints clean out of the box and its EAS delivery workflows can run (2026-10-29)
+
+- A fresh mobile-app scaffold's `pnpm lint` exited 1 (76 errors, all antfu TOML rules on the scaffold-emitted `server/pyproject.toml`); the template now ignores `server/**` in ESLint, pins `@antfu/eslint-config ~7.7.3` with its peers (`eslint-plugin-react-refresh ^0.5.0`, `@eslint-react/eslint-plugin ^2.11.0`) and drops the duplicate direct unicorn. The eas-build-prod, eas-build-preview and new-app-version workflows used two composite actions the template never shipped; `setup-node-pnpm-install` and `eas-build` now ship (from the upstream template, Node 24, no silent APP_ENV/EXPO_TOKEN defaults, inputs passed as env vars so a release tag cannot inject shell). Graded by `tests/test_scaffold_mobile_toolchain.py` (D-1323, W-fc58e9b7).
+
 ### Changed — chrome-extension scaffold: lint plugins float on purpose, no lockfile or overrides (2026-10-29)
 
 - W-961f1958 asked for a lockfile or pnpm overrides against transitive lint drift; measured, the drift happened in 12 days and a fresh scaffold still lints clean, so neither ships (D-1322). The emission site's comment names the rule: fix the template first; a one-plugin override only for a broken plugin release, with a lift condition. W-fc58e9b7 (mobile template) carries the same rule once its lint runs green.
