@@ -704,8 +704,15 @@ def test_every_service_unit_names_an_install_doc_that_exists():
     assert set(health.INSTALL_DOCS) == set(em.SERVICE_UNITS.values())
     for where in health.INSTALL_DOCS.values():
         path, _, section = where.partition(" § ")
-        assert Path(path).is_file(), path
-        assert f"## {section}" in Path(path).read_text(), where
+        # the printed path is hub-absolute; grade the copy in THIS tree (a branch's doc, not the main checkout's)
+        local = Path(__file__).resolve().parent.parent / Path(path).relative_to("/opt/fabrik")
+        assert local.is_file(), path
+        text = local.read_text()
+        assert f"\n## {section}\n" in text, where
+        body = text.split(f"\n## {section}\n", 1)[1].split("\n## ", 1)[0]
+        unit = next(u for u, w in health.INSTALL_DOCS.items() if w == where)
+        # a heading alone proved nothing (review pass 2): the section must carry the enable step for ITS unit
+        assert "systemctl enable" in body and unit.removesuffix(".service") in body, where
 
 
 def test_health_names_a_withheld_service_with_no_mcp_json(tmp_path, monkeypatch, capsys):
