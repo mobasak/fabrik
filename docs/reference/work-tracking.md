@@ -208,9 +208,10 @@ claimed, `open` or `blocked` — it prints the slot holder), and plans at most o
 run. A high/high item held behind another in-flight one with `assign --blocked-by` waits rather
 than flies: triage prints it as `major held: <id> behind <id>`; one waiting on anything else (a
 prerequisite task, an unknown id) still holds the slot. That hold exists only because of the item's
-class — a major, or an unscored high-effort MEDIUM carrying only the `medium` tag — so a re-score
-that leaves the item scored and not a major drops every hold behind an in-flight major (high/high,
-owned or claimed, `open` or `blocked`, not closed — triage's own test) and prints `one-major hold
+class — a major, or an unscored item tagged `medium` (the high-effort MEDIUM, which takes the tag
+instead of a score) — so a re-score that leaves the item scored and not a major drops every hold
+behind an in-flight major (high/high, owned or claimed, `open` or `blocked`, not closed — triage's
+own test, read from the main checkout as triage reads it) and prints `one-major hold
 cleared: … re-add it: work.py assign <id> --blocked-by <dep>` for each, since `blocked_by` cannot
 say whether a hold was also a real prerequisite (W-0fe931b7). It keeps a hold this call names in
 `--blocked-by`, one it removes with `--unblock` (no line), one behind anything else, and one whose

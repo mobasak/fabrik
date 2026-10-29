@@ -11,6 +11,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -1134,6 +1135,65 @@ def test_a_rescore_keeps_an_unreadable_hold_and_says_so(tmp_path):
     assert r.returncode == 0, r.stderr
     assert _items(repo)[held]["blocked_by"] == 5
     assert f"one-major hold kept: {held} still waits on 5" in r.stderr, r.stderr
+
+
+def test_a_half_score_or_a_scored_medium_keeps_its_hold(tmp_path):
+    """Review pass 1 (B1, B2): the clear needs the item SCORED after the call, and IN the class
+    before it — an unscored `medium` item given only --impact is still unscored, and a quick win
+    that also carries the `medium` tag was never in the class."""
+    env, repo, flying, _ = _held_behind_the_major(tmp_path)
+    medium = _add(repo, env, "task", "a high-effort medium")
+    r = run(["assign", medium, "--tag", "medium", "--blocked-by", flying], env, repo)
+    assert r.returncode == 0, r.stderr
+    r = run(["assign", medium, "--impact", "low", "--why", "r"], env, repo)
+    assert r.returncode == 0 and "hold cleared" not in r.stderr, r.stderr
+    assert _items(repo)[medium]["blocked_by"] == [flying]
+    quick = _add(repo, env, "task", "a quick win that also carries the medium tag")
+    assert _score(repo, env, quick, "high", "low").returncode == 0
+    r = run(["assign", quick, "--tag", "medium", "--blocked-by", flying], env, repo)
+    assert r.returncode == 0, r.stderr
+    r = _score(repo, env, quick, "low", "low")
+    assert r.returncode == 0 and "hold cleared" not in r.stderr, r.stderr
+    assert _items(repo)[quick]["blocked_by"] == [flying]
+
+
+def test_the_clear_reads_the_blocker_as_triage_does(tmp_path):
+    """Review pass 1 (B3): a live claim puts an unowned major in flight, so the hold behind it
+    clears; a closed marker takes an owned major out of flight, so the hold behind it stays."""
+    env, repo, flying, held = _held_behind_the_major(tmp_path)
+    claimed = _add(repo, env, "task", "a major nobody owns, claimed")
+    assert _score(repo, env, claimed, "high", "high").returncode == 0
+    assert run(["claim", claimed, "--session", SID], env, repo).returncode == 0
+    assert run(["assign", held, "--blocked-by", claimed], env, repo).returncode == 0
+    closed = repo / ".git" / "fabrik-work" / "closed"
+    closed.mkdir(parents=True, exist_ok=True)
+    (closed / f"{flying}.json").write_text(json.dumps({"at": time.time()}) + "\n", encoding="utf-8")
+    r = _score(repo, env, held, "high", "low")
+    assert r.returncode == 0, r.stderr
+    assert _items(repo)[held]["blocked_by"] == [flying], r.stderr
+    assert f"no longer waits on major {claimed}" in r.stderr, r.stderr
+    assert f"waits on major {flying}" not in r.stderr, r.stderr
+
+
+def test_a_builder_tree_reads_the_blocker_from_the_main_checkout(tmp_path):
+    """Review pass 1 (C4): a builder's branch holds an older copy of the in-flight major, made
+    before the coordinator assigned it on the main checkout; triage reads main, and so does the
+    clear, so a re-score in the builder tree drops the hold."""
+    env, repo, _ = _setup(tmp_path)
+    flying = _add(repo, env, "task", "the major in flight")
+    held = _add(repo, env, "task", "a major held behind it")
+    for item in (flying, held):
+        assert _score(repo, env, item, "high", "high").returncode == 0
+    assert run(["assign", held, "--blocked-by", flying], env, repo).returncode == 0
+    _commit_store(repo, env)
+    tree = repo / ".claude" / "worktrees" / "w1"
+    _git(repo, env, "worktree", "add", "-q", "-b", "w-w1", str(tree))
+    _assign(repo, env, flying, "w9")  # on main only: the builder's copy stays unowned
+    assert not _items(tree)[flying].get("owner")
+    r = _score(tree, env, held, "high", "low")
+    assert r.returncode == 0, r.stderr
+    assert _items(tree)[held]["blocked_by"] == [], r.stderr
+    assert f"no longer waits on major {flying}" in r.stderr, r.stderr
 
 
 def test_a_stale_builder_tree_agrees_with_its_doorbell(tmp_path):

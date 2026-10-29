@@ -3409,7 +3409,8 @@ def _in_flight_major(item: dict, live: dict, closed: set[str]) -> bool:
 
 def _in_one_major_hold_class(item: dict) -> bool:
     """An item the one-major rule holds `--blocked-by` the in-flight major (coordinator charter
-    step 4): a major, or an unscored high-effort MEDIUM, which carries only the `medium` tag."""
+    step 4): a major, or an unscored item tagged `medium` — the charter's high-effort MEDIUM, which
+    takes the tag instead of a score (low impact with high effort is refused as a time sink)."""
     return _is_major(item) or (not _scored(item) and "medium" in _tags(item))
 
 
@@ -3417,20 +3418,24 @@ def _clear_one_major_holds(repo: Path, item: dict, keep: set[str]) -> list[str]:
     """Drop from `item["blocked_by"]` (in place) every id naming an in-flight major, the hold the
     one-major rule wrote, and return the stderr lines (W-0fe931b7). The caller runs it only when a
     re-score takes the item out of that rule's class. `keep` (this call's --blocked-by/--unblock)
-    is the caller's own. Each blocker is read alone: an unreadable one keeps its hold, said aloud.
-    COBRA: the cheapest way to satisfy "no stuck quick win" is to clear every hold on a re-score;
-    this clears only the in-flight-major ones, and a real prerequisite lost here is named with its
-    re-add command, since `blocked_by` cannot say why a hold was set."""
-    live, closed = _live_claims(repo), _closed_ids(repo)
+    is the caller's own. The blocker, its claims and closed markers are read as `triage` reads them,
+    from the MAIN checkout (a builder tree's copy may be stale), and from this tree only for a
+    blocker the main checkout lacks. Each blocker is read alone: an unreadable one keeps its hold,
+    said aloud. COBRA: the cheapest way to satisfy "no stuck quick win" is to clear every hold on a
+    re-score; this clears only the in-flight-major ones, and a real prerequisite lost here is named
+    with its re-add command, since `blocked_by` cannot say why a hold was set."""
+    main = _worktrees(repo)[0].resolve()
+    live, closed = _live_claims(main), _closed_ids(main)
     held, kept, lines = _dep_ids(item), [], []
     for dep in held:
         try:
-            blocker = None if dep in keep else _read_item_any(repo, dep)[0]
+            blocker = None if dep in keep else _read_blocker(main, repo, dep)
         except WorkError:
             kept.append(dep)
             lines.append(
-                f"one-major hold kept: {item['id']} still waits on {dep}, not readable here — "
-                f"merge the main checkout and re-score, or work.py assign {item['id']} --unblock {dep}"
+                f"one-major hold kept: {item['id']} still waits on {dep}, which is no readable item "
+                f"here or on the main checkout — if it should not hold it: "
+                f"work.py assign {item['id']} --unblock {dep}"
             )
             continue
         if blocker is not None and _in_flight_major(blocker, live, closed):
@@ -3443,6 +3448,17 @@ def _clear_one_major_holds(repo: Path, item: dict, keep: set[str]) -> list[str]:
     if len(kept) < len(held):  # a hold that clears nothing stays exactly as stored
         item["blocked_by"] = kept
     return lines
+
+
+def _read_blocker(main: Path, repo: Path, dep: str) -> dict:
+    """`dep` as the main checkout stores it, else as this tree does (a blocker made on this branch
+    and not yet merged); WorkError when neither holds a readable item."""
+    try:
+        return _read_item(main, dep)
+    except WorkError:
+        if main == repo.resolve():
+            raise
+        return _read_item(repo, dep)
 
 
 def _dep_ids(item: dict) -> list[str]:

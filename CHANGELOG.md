@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — a re-score out of the one-major class clears the item's hold behind the in-flight major (2026-10-29)
 
-- `work.py assign --impact/--effort` rewrote an item's score but never its `blocked_by`, so a major held behind the in-flight major and re-scored to a quick win stayed out of `ready` and `claim`: nine hub P1s waited 11 days behind W-ab566484. A re-score that takes a major, or an unscored `medium` item, to a scored non-major now drops every hold naming an in-flight major (triage's own predicate, now one helper) and prints each with its re-add command; an unreadable blocker is kept and said (W-0fe931b7, D-1327).
+- `work.py assign --impact/--effort` rewrote an item's score but never its `blocked_by`, so a major held behind the in-flight major and re-scored to a quick win stayed out of `ready` and `claim`: nine hub P1s waited 11 days behind W-ab566484. A re-score that takes a major, or an unscored `medium` item, to a scored non-major now drops every hold naming an in-flight major (triage's own predicate, now one helper, read from the main checkout as triage reads it) and prints each with its re-add command; an unreadable blocker is kept and said (W-0fe931b7, D-1327).
 
 ### Fixed — mobile-app scaffold lints clean out of the box and its EAS delivery workflows can run (2026-10-29)
 
