@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed — the docusaurus pack no longer offers a serve image its audit grades CRITICAL (2026-10-29)
+### Fixed — the docusaurus pack no longer offers, as an alternative, a serve image its audit grades CRITICAL (2026-10-29)
 
 `.windsurf/rules/core/42-docusaurus.md` (fleet-synced) named `nginxinc/nginx-unprivileged` as "the alternative"
 serve image while its checklist and the hub audit accept only the stock `nginx:mainline-<codename>`. The serve-stage
