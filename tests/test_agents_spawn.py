@@ -848,3 +848,846 @@ def test_the_registry_keeps_its_mode(tmp_path: Path, mode: int) -> None:
     out = _spawn(box, str(box.repo), "builder-1")
     assert out.returncode == 0, out.stderr
     assert (reg.stat().st_mode & 0o777) == mode
+
+
+# --- W-b9ad80ae T08a: the live read, placement into windows of four, the overflow sessions, adoption ---------------
+# These run `place_pane` in-process against a SCRATCH `tmux -L <unique>` server (never the default socket), reached
+# through the FABRIK_TMUX seam, and assert the server's STATE — windows, panes, sessions, groups, tags. Every pane runs a
+# harmless `sleep`, never claude; adoption reads a fake /proc tree behind FABRIK_PROC_ROOT, keyed on the REAL pane_pid.
+
+SID = "0b1e2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
+OTHER_SID = "ffffffff-eeee-4ddd-8ccc-bbbbbbbbbbbb"
+SLEEP = "sleep 600"
+
+
+class _Grid:
+    """A scratch tmux server; `S` is the repo's base session name. Killed in teardown, its socket file removed."""
+
+    def __init__(self, tmp_path: Path, request: pytest.FixtureRequest, monkeypatch) -> None:
+        self.real = shutil.which("tmux") or ""
+        if not self.real:
+            pytest.skip("no tmux on this box")
+        self.server = f"t08a-{os.getpid()}-{abs(hash(str(tmp_path))) % 10**8}"
+        self.tmp = tmp_path
+        self.S = "shop"
+        self.wt = tmp_path / "wt"
+        self.wt.mkdir()
+        request.addfinalizer(self.close)
+        monkeypatch.setenv("FABRIK_TMUX", f"{self.real} -L {self.server}")
+        monkeypatch.delenv("TMUX", raising=False)
+        self.mod = _load()
+
+    def close(self) -> None:
+        killed = self.tmux("kill-server")
+        sock = Path(os.environ.get("TMUX_TMPDIR", "/tmp")) / f"tmux-{os.getuid()}" / self.server
+        if killed.returncode == 0 or self.tmux("list-sessions").returncode != 0:
+            sock.unlink(missing_ok=True)
+
+    def tmux(self, *a: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [self.real, "-L", self.server, *a], capture_output=True, text=True, timeout=20
+        )
+
+    def ok(self, *a: str) -> str:
+        out = self.tmux(*a)
+        assert out.returncode == 0, (a, out.stderr)
+        return out.stdout.strip()
+
+    def lines(self, *a: str) -> list[str]:
+        return self.tmux(*a).stdout.splitlines()
+
+    # -- building a grid by hand --
+    def base(self, window: str = "agents", panes: int = 1, tags: tuple[str, ...] = ()) -> str:
+        """Create <S> with one window `window` of `panes` panes; returns the window id."""
+        wid = self.ok(
+            "new-session",
+            "-d",
+            "-s",
+            self.S,
+            "-n",
+            window,
+            "-x",
+            "240",
+            "-y",
+            "60",
+            "-P",
+            "-F",
+            "#{window_id}",
+            SLEEP,
+        )
+        self.fill(wid, panes, tags)
+        return wid
+
+    def window(self, name: str, panes: int, tags: tuple[str, ...] = ()) -> str:
+        wid = self.ok(
+            "new-window", "-d", "-t", f"={self.S}:", "-n", name, "-P", "-F", "#{window_id}", SLEEP
+        )
+        self.fill(wid, panes, tags)
+        return wid
+
+    def fill(self, wid: str, panes: int, tags: tuple[str, ...] = ()) -> None:
+        for _ in range(panes - int(self.panes_of(wid))):
+            self.ok("split-window", "-d", "-t", wid, SLEEP)
+            self.ok("select-layout", "-t", wid, "even-horizontal")
+        for pid, tag in zip(
+            self.lines("list-panes", "-t", wid, "-F", "#{pane_id}"), tags, strict=False
+        ):
+            self.ok("set", "-p", "-t", pid, "@agent", tag)
+
+    # -- reading the state --
+    def panes_of(self, wid: str) -> str:
+        return self.ok("display-message", "-p", "-t", wid, "#{window_panes}")
+
+    def windows(self) -> list[str]:
+        return self.lines(
+            "list-windows", "-t", f"={self.S}", "-F", "#{window_name} #{window_panes}"
+        )
+
+    def sessions(self) -> list[str]:
+        return sorted(self.lines("list-sessions", "-F", "#{session_name}"))
+
+    def one(self, session: str, fmt: str) -> str:
+        return self.tmux("display-message", "-p", "-t", f"={session}:", fmt).stdout.strip()
+
+    def tags(self) -> list[str]:
+        return sorted(
+            self.lines("list-panes", "-s", "-t", f"={self.S}", "-F", "#{window_name} #{@agent}")
+        )
+
+    def snapshot(self) -> tuple:
+        return (
+            self.sessions(),
+            self.windows(),
+            self.lines(
+                "list-panes", "-a", "-F", "#{session_name} #{window_id} #{pane_id} #{@agent}"
+            ),
+        )
+
+    def place(self, name: str, sid: str = SID):
+        return self.mod.place_pane("/r/shop", self.S, name, sid, str(self.wt), SLEEP)
+
+
+def test_a_failing_or_empty_tmux_read_refuses_and_creates_nothing(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    """D9, C4: an error, or nothing while has-session says the grid is up, is never read as an empty grid."""
+    g = _Grid(tmp_path, request, monkeypatch)
+    g.base(panes=4, tags=("dev1", "dev2", "dev3", "dev4"))
+    before = g.snapshot()
+    for mode, body in (
+        ("error", 'echo "server exited unexpectedly" >&2; exit 1'),
+        ("empty", "exit 0"),
+    ):
+        wrapper = tmp_path / f"tmux-{mode}"
+        wrapper.write_text(
+            "#!/bin/sh\n"
+            f'if [ "$1" = list-panes ]; then {body}; fi\n'
+            f'exec {g.real} -L {g.server} "$@"\n',
+            encoding="utf-8",
+        )
+        wrapper.chmod(0o755)
+        monkeypatch.setenv("FABRIK_TMUX", str(wrapper))
+        with pytest.raises(g.mod.PlacementRefused) as exc:
+            g.place("dev5")
+        assert "tmux read failed — not placing" in exc.value.reason, (mode, exc.value.reason)
+        assert isinstance(exc.value, g.mod.RefusedError) and exc.value.step == 6
+        assert g.snapshot() == before, mode
+
+
+def test_a_fifth_builder_opens_agents_2_with_its_grouped_session_and_leaves_tab_1(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    """D4, W-14219e6f point 11: `agents-2` in the background, `<S>+2` grouping a still-ungrouped `<S>`."""
+    g = _Grid(tmp_path, request, monkeypatch)
+    first = g.base(panes=4, tags=("dev1", "dev2", "dev3", "dev4"))
+    assert g.one(g.S, "#{session_group}") == ""
+    res = g.place("dev5")
+    assert g.windows() == ["agents 4", "agents-2 1"], g.windows()
+    wid2 = g.ok(
+        "list-windows", "-t", f"={g.S}", "-f", "#{==:#{window_name},agents-2}", "-F", "#{window_id}"
+    )
+    assert (res.window_id, res.new_window_k, res.adopted) == (wid2, 2, False), res
+    assert (
+        g.ok("display-message", "-p", "-t", res.pane_id, "#{window_id} #{@agent}") == f"{wid2} dev5"
+    )
+    assert g.sessions() == [g.S, f"{g.S}+2"], g.sessions()
+    group = g.one(g.S, "#{session_group}")
+    assert group and g.one(f"{g.S}+2", "#{session_group}") == group
+    assert g.one(f"{g.S}+2", "#{window_id}") == wid2  # the overflow session shows agents-2
+    assert g.one(g.S, "#{window_id}") == first  # tab 1 still shows agents
+
+
+def test_no_agents_and_a_full_agents_2_recreates_agents_as_the_current_window(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    """W-14219e6f point 8, C2: the re-created first window becomes `<S>`'s current one."""
+    g = _Grid(tmp_path, request, monkeypatch)
+    g.base(window="agents-2", panes=4, tags=("dev5", "dev6", "dev7", "dev8"))
+    res = g.place("dev1")
+    assert sorted(g.windows()) == ["agents 1", "agents-2 4"], g.windows()
+    assert (res.new_window_k, res.adopted) == (1, False), res
+    assert g.one(g.S, "#{window_id} #{window_name}") == f"{res.window_id} agents"
+    assert g.sessions() == [g.S], g.sessions()  # `agents` gets no overflow session
+    assert "agents dev1" in g.tags()
+
+
+def test_no_agents_and_agents_2_with_room_joins_agents_2(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    """C2, B12: the lowest window WITH ROOM wins before `agents` is re-created; the target is the window id."""
+    g = _Grid(tmp_path, request, monkeypatch)
+    wid2 = g.base(window="agents-2", panes=3, tags=("dev5", "dev6", "dev7"))
+    res = g.place("dev8")
+    assert g.windows() == ["agents-2 4"], g.windows()
+    assert (res.window_id, res.new_window_k, res.adopted) == (wid2, None, False), res
+    assert g.tags() == ["agents-2 dev5", "agents-2 dev6", "agents-2 dev7", "agents-2 dev8"]
+
+
+def test_overflow_sessions_are_reused_only_when_in_the_base_group(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    """Pass-2 class rewrite: a stale `<S>+2` (an old killed base's group) and a `<S>+4` with no group are killed and
+    re-created in `<S>`'s group; `<S>+3`, already in it, is reused."""
+    g = _Grid(tmp_path, request, monkeypatch)
+    # <S>+2 grouped with an old base that is then killed: its group keeps the old base's name
+    g.ok("new-session", "-d", "-s", "oldshop", SLEEP)
+    g.ok("new-session", "-d", "-t", "=oldshop", "-s", f"{g.S}+2")
+    g.ok("kill-session", "-t", "=oldshop")
+    assert g.one(f"{g.S}+2", "#{session_group}") == "oldshop"
+    g.base(panes=4, tags=("dev1", "dev2", "dev3", "dev4"))
+    g.ok("new-session", "-d", "-t", f"={g.S}", "-s", f"{g.S}+3")
+    g.ok("new-session", "-d", "-s", f"{g.S}+4", SLEEP)
+    assert g.one(f"{g.S}+4", "#{session_group}") == ""
+    ids = {k: g.one(f"{g.S}+{k}", "#{session_id}") for k in (2, 3, 4)}
+    group = g.one(g.S, "#{session_group}")
+    assert group
+    for k in (2, 3, 4):
+        res = g.place(f"dev{4 * k - 3}")
+        assert res.new_window_k == k, res
+        g.fill(res.window_id, 4)
+        assert g.one(f"{g.S}+{k}", "#{session_group}") == group, k
+        assert g.one(f"{g.S}+{k}", "#{window_id}") == res.window_id, k
+    now = {k: g.one(f"{g.S}+{k}", "#{session_id}") for k in (2, 3, 4)}
+    assert now[3] == ids[3], "the member already in <S>'s group is reused"
+    assert now[2] != ids[2] and now[4] != ids[4], (ids, now)
+    assert g.sessions() == sorted([g.S, f"{g.S}+2", f"{g.S}+3", f"{g.S}+4"]), g.sessions()
+
+
+def test_another_repos_dash_session_is_untouched(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    """`+` is outside the base-name alphabet: `<S>-2` is another repo's base session and is never used or killed."""
+    g = _Grid(tmp_path, request, monkeypatch)
+    g.ok("new-session", "-d", "-s", f"{g.S}-2", "-n", "agents", SLEEP)
+    theirs = g.ok(
+        "list-panes", "-s", "-t", f"={g.S}-2", "-F", "#{session_id} #{window_id} #{pane_id}"
+    )
+    g.base(panes=4, tags=("dev1", "dev2", "dev3", "dev4"))
+    g.place("dev5")
+    assert g.sessions() == sorted([g.S, f"{g.S}+2", f"{g.S}-2"]), g.sessions()
+    assert (
+        g.ok("list-panes", "-s", "-t", f"={g.S}-2", "-F", "#{session_id} #{window_id} #{pane_id}")
+        == theirs
+    )
+    assert g.one(f"{g.S}-2", "#{session_group}") == ""
+
+
+def test_a_stale_member_of_a_group_named_s_refuses_the_overflow_and_creates_nothing(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    """T03's refusal mirrored: while `<S>` is ungrouped, a session joined to a group NAMED `<S>` would drag `<S>` into
+    it on `new-session -t =<S>` — refuse naming it, kill nothing that is not ours."""
+    g = _Grid(tmp_path, request, monkeypatch)
+    g.ok("new-session", "-d", "-s", g.S, SLEEP)
+    g.ok("new-session", "-d", "-t", f"={g.S}", "-s", "viewer")
+    g.ok("kill-session", "-t", f"={g.S}")
+    g.base(panes=4, tags=("dev1", "dev2", "dev3", "dev4"))
+    assert g.one(g.S, "#{session_group}") == "" and g.one("viewer", "#{session_group}") == g.S
+    before = g.snapshot()
+    with pytest.raises(g.mod.PlacementRefused) as exc:
+        g.place("dev5")
+    assert "viewer" in exc.value.reason and "kill-session -t =viewer" in exc.value.reason, (
+        exc.value.reason
+    )
+    assert g.snapshot() == before
+
+
+def _fake_proc(
+    root: Path, chain: dict[int, list[int]], cmdlines: dict[int, list[str]], tids=None
+) -> None:
+    """`<root>/<pid>/task/<tid>/children` and `<root>/<pid>/cmdline` (NUL-separated). `tids` maps a pid to the
+    thread a child is listed under (default: the pid itself)."""
+    for pid, kids in chain.items():
+        by_tid: dict[int, list[int]] = {}
+        for kid in kids:
+            by_tid.setdefault((tids or {}).get(kid, pid), []).append(kid)
+        by_tid.setdefault(pid, [])
+        for tid, ks in by_tid.items():
+            d = root / str(pid) / "task" / str(tid)
+            d.mkdir(parents=True, exist_ok=True)
+            (d / "children").write_text(
+                " ".join(map(str, ks)) + (" " if ks else ""), encoding="utf-8"
+            )
+    for pid, argv in cmdlines.items():
+        (root / str(pid)).mkdir(parents=True, exist_ok=True)
+        (root / str(pid) / "cmdline").write_bytes(b"\0".join(a.encode() for a in argv) + b"\0")
+
+
+def _tagged(g: _Grid, name: str = "b-1") -> tuple[str, int]:
+    g.base(panes=2, tags=("dev1", name))
+    pane, pid = g.ok(
+        "list-panes",
+        "-s",
+        "-t",
+        f"={g.S}",
+        "-f",
+        f"#{{==:#{{@agent}},{name}}}",
+        "-F",
+        "#{pane_id} #{pane_pid}",
+    ).split()
+    return pane, int(pid)
+
+
+@pytest.mark.parametrize(
+    "shape",
+    ["capped-resume", "session-id", "resume-equals", "short-r", "uncapped-child", "other-thread"],
+)
+def test_a_tagged_pane_running_the_bound_session_is_adopted(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, shape: str
+) -> None:
+    """D2, C1: the tag AND the claude descendant's `--resume`/`--session-id` id adopt the pane; no pane is added."""
+    g = _Grid(tmp_path, request, monkeypatch)
+    pane, pp = _tagged(g)
+    proc = tmp_path / "proc"
+    claude = ["claude", "-n", "b-1", "--resume", SID, "--settings", "{}", "carry on"]
+    if shape == "session-id":
+        claude = ["/home/u/.local/bin/claude", "-n", "b-1", "--session-id", SID, "first turn"]
+    elif shape == "resume-equals":
+        claude = ["claude", f"--resume={SID}"]
+    elif shape == "short-r":  # F2: agents_up.sh::status_of reads `-r <id>` too
+        claude = ["claude", "-n", "b-1", "-r", SID]
+    if shape == "uncapped-child":
+        _fake_proc(proc, {pp: [pp + 1], pp + 1: []}, {pp: ["sh", "-c", "x"], pp + 1: claude})
+    else:
+        # the capped chain: the pane's shell → systemd-run --scope → bash -c → claude
+        _fake_proc(
+            proc,
+            {pp: [pp + 1], pp + 1: [pp + 2], pp + 2: [pp + 3], pp + 3: []},
+            {
+                pp: ["sh", "-c", "env -i systemd-run ..."],
+                pp + 1: [
+                    "systemd-run",
+                    "--user",
+                    "--scope",
+                    "--",
+                    "bash",
+                    "-c",
+                    f"claude --resume {OTHER_SID}",
+                ],
+                pp + 2: ["bash", "-c", f"claude -n b-1 --resume {OTHER_SID}"],
+                pp + 3: claude,
+            },
+            tids={pp + 3: pp + 7} if shape == "other-thread" else None,
+        )
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(proc))
+    before = g.snapshot()
+    res = g.place("b-1")
+    assert res.adopted is True and res.pane_id == pane and res.new_window_k is None, res
+    assert g.snapshot() == before
+
+
+@pytest.mark.parametrize("shape", ["no-claude", "shell-only", "other-id"])
+def test_a_tagged_pane_without_the_bound_claude_refuses(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, shape: str
+) -> None:
+    """C1, C4: a kept shell names the respawn remedy; another session id names both ids; nothing is added."""
+    g = _Grid(tmp_path, request, monkeypatch)
+    pane, pp = _tagged(g)
+    proc = tmp_path / "proc"
+    if shape == "no-claude":  # the claude exited: the scope's bash kept a login shell
+        _fake_proc(
+            proc,
+            {pp: [pp + 1], pp + 1: [pp + 2], pp + 2: []},
+            {pp: ["sh"], pp + 1: ["systemd-run", "--scope"], pp + 2: ["bash", "-l"]},
+        )
+    elif shape == "shell-only":  # no children file content at all
+        _fake_proc(proc, {pp: []}, {pp: ["bash", "-l"]})
+    else:
+        _fake_proc(
+            proc,
+            {pp: [pp + 1], pp + 1: []},
+            {pp: ["sh"], pp + 1: ["claude", "-n", "b-1", "--resume", OTHER_SID]},
+        )
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(proc))
+    before = g.snapshot()
+    with pytest.raises(g.mod.PlacementRefused) as exc:
+        g.place("b-1")
+    reason = exc.value.reason
+    if shape == "other-id":
+        assert SID in reason and OTHER_SID in reason, reason
+    else:
+        assert "runs no claude" in reason and f"tmux respawn-pane -k -t {pane}" in reason, reason
+    assert g.snapshot() == before
+
+
+def test_a_seventh_builder_after_a_six_builder_grid_is_agents_2s_third_pane(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    """IF3: the grid T03 builds for six (agents 4, agents-2 2, `<S>+2` grouped) takes a seventh in agents-2 by id."""
+    g = _Grid(tmp_path, request, monkeypatch)
+    first = g.base(panes=4, tags=("dev1", "dev2", "dev3", "dev4"))
+    wid2 = g.window("agents-2", 2, ("dev5", "dev6"))
+    g.ok("new-session", "-d", "-t", f"={g.S}", "-s", f"{g.S}+2")
+    g.ok("select-window", "-t", f"={g.S}+2:{wid2}")
+    plus2 = g.one(f"{g.S}+2", "#{session_id}")
+    res = g.place("dev7")
+    assert (res.window_id, res.new_window_k) == (wid2, None), res
+    assert g.windows() == ["agents 4", "agents-2 3"], g.windows()
+    assert g.lines("list-panes", "-t", wid2, "-F", "#{@agent}")[2] == "dev7"
+    assert g.one(f"{g.S}+2", "#{session_id}") == plus2 and g.one(g.S, "#{window_id}") == first
+
+
+# --- T08a review pass 1 ----------------------------------------------------------------------------------------------
+
+
+def _wrap(g: _Grid, label: str, body: str) -> None:
+    """Point FABRIK_TMUX at a wrapper around the scratch server; `body` runs first and may exit or exec."""
+    wrapper = g.tmp / f"tmux-{label}"
+    wrapper.write_text(
+        f'#!/bin/sh\nREAL="{g.real} -L {g.server}"\n{body}\nexec $REAL "$@"\n', encoding="utf-8"
+    )
+    wrapper.chmod(0o755)
+    os.environ["FABRIK_TMUX"] = str(wrapper)  # monkeypatch.setenv in _Grid restores it
+
+
+def _full(g: _Grid) -> str:
+    return g.base(panes=4, tags=("dev1", "dev2", "dev3", "dev4"))
+
+
+@pytest.mark.parametrize("value", ["tmux -L 'unbalanced", "   "])
+def test_f1_a_fabrik_tmux_that_is_not_a_command_refuses(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, value: str
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    _full(g)
+    before = g.snapshot()
+    monkeypatch.setenv("FABRIK_TMUX", value)
+    with pytest.raises(g.mod.PlacementRefused) as exc:
+        g.place("dev5")
+    assert exc.value.reason.startswith("FABRIK_TMUX is not a command:"), exc.value.reason
+    assert g.snapshot() == before
+
+
+def test_f7_a_sid_flag_with_no_value_is_no_id(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    _pane, pp = _tagged(g)
+    proc = tmp_path / "proc"
+    _fake_proc(
+        proc,
+        {pp: [pp + 1], pp + 1: []},
+        {pp: ["sh"], pp + 1: ["claude", "--resume", "--settings", "{}"]},
+    )
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(proc))
+    with pytest.raises(g.mod.PlacementRefused) as exc:
+        g.place("b-1")
+    assert "(no session id)" in exc.value.reason and "--settings" not in exc.value.reason, (
+        exc.value.reason
+    )
+
+
+def test_f6_a_cmdline_without_a_trailing_nul_keeps_its_last_argument(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    pane, pp = _tagged(g)
+    proc = tmp_path / "proc"
+    _fake_proc(proc, {pp: [pp + 1], pp + 1: []}, {pp: ["sh"]})
+    (proc / str(pp + 1)).mkdir(parents=True, exist_ok=True)
+    (proc / str(pp + 1) / "cmdline").write_bytes(f"claude\0--resume\0{SID}".encode())
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(proc))
+    res = g.place("b-1")
+    assert res.adopted and res.pane_id == pane, res
+
+
+def test_f9_a_process_tree_past_the_walk_bound_refuses(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    pane, pp = _tagged(g)
+    proc = tmp_path / "proc"
+    _fake_proc(
+        proc,
+        {pp: [pp + 1], pp + 1: [pp + 2], pp + 2: [pp + 3], pp + 3: []},
+        {pp: ["sh"], pp + 1: ["sd"], pp + 2: ["bash"], pp + 3: ["claude", "--resume", SID]},
+    )
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(proc))
+    monkeypatch.setattr(g.mod, "_PROC_WALK_MAX", 2)
+    with pytest.raises(g.mod.PlacementRefused) as exc:
+        g.place("b-1")
+    assert f"process tree of pane {pane} is too large to read" in exc.value.reason, exc.value.reason
+
+
+def test_f12_an_empty_session_id_refuses_before_any_read(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    _full(g)
+    log = tmp_path / "calls.log"
+    _wrap(g, "log", f'echo "$*" >> "{log}"')
+    before = g.snapshot()
+    with pytest.raises(g.mod.PlacementRefused):
+        g.place("dev5", sid="")
+    assert not log.exists(), log.read_text(encoding="utf-8")
+    assert g.snapshot() == before
+
+
+def test_f3_a_leftover_overflow_session_is_killed_before_the_group_is_joined(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    """An old base killed left `<S>+3` in a group NAMED `<S>`; `new-session -t =<S>` would join it and give `<S>` the
+    old grid's windows. While `<S>` is ungrouped every `<S>+<digits>` is a leftover: killed first."""
+    g = _Grid(tmp_path, request, monkeypatch)
+    g.ok("new-session", "-d", "-s", g.S, "-n", "oldwin", SLEEP)
+    g.ok("new-session", "-d", "-t", f"={g.S}", "-s", f"{g.S}+3")
+    g.ok("kill-session", "-t", f"={g.S}")
+    _full(g)
+    assert g.one(g.S, "#{session_group}") == "" and g.one(f"{g.S}+3", "#{session_group}") == g.S
+    res = g.place("dev5")
+    assert g.sessions() == [g.S, f"{g.S}+2"], g.sessions()
+    assert g.windows() == ["agents 4", "agents-2 1"], g.windows()  # never the old grid's `oldwin`
+    group = g.one(g.S, "#{session_group}")
+    assert group and g.one(f"{g.S}+2", "#{session_group}") == group
+    assert g.one(f"{g.S}+2", "#{window_id}") == res.window_id
+
+
+def test_f8_a_superscript_digit_session_is_not_an_overflow_session(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    g.ok("new-session", "-d", "-s", f"{g.S}+²", SLEEP)
+    _full(g)
+    g.place("dev5")
+    assert f"{g.S}+²" in g.sessions(), g.sessions()
+
+
+def test_f11_a_failed_list_sessions_refuses_and_creates_nothing(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    _full(g)
+    _wrap(g, "nols", '[ "$1" = list-sessions ] && { echo "lost server" >&2; exit 1; }')
+    before = g.snapshot()
+    with pytest.raises(g.mod.PlacementRefused) as exc:
+        g.place("dev5")
+    assert "tmux read failed" in exc.value.reason and "list-sessions" in exc.value.reason
+    assert "lost server" in exc.value.reason, (
+        exc.value.reason
+    )  # Q2: the rc check, not a missing-<S> read
+    assert g.snapshot() == before
+
+
+def test_f4_an_overflow_session_showing_other_windows_is_not_left_behind(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    _full(g)
+    # tmux makes the session but not in <S>'s group: it shows its own window, never agents-2
+    _wrap(g, "ungrouped", f'[ "$1" = new-session ] && exec $REAL new-session -d -s "$6" {SLEEP}')
+    res = g.place("dev5")
+    assert f"{g.S}+2" not in g.sessions(), g.sessions()
+    assert g.windows() == ["agents 4", "agents-2 1"] and res.new_window_k == 2
+    assert "shows other windows than window agents-2" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("where", ["split", "new-window"])
+def test_f5_a_failed_tag_removes_the_new_pane_and_refuses(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, where: str
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    if where == "split":
+        g.base(panes=2, tags=("dev1", "dev2"))
+    else:
+        _full(g)
+    _wrap(g, "noset", '[ "$1" = set ] && { echo "set refused" >&2; exit 1; }')
+    before = g.snapshot()
+    with pytest.raises(g.mod.PlacementRefused) as exc:
+        g.place("dev5")
+    assert "could not tag" in exc.value.reason, exc.value.reason
+    assert g.snapshot() == before
+
+
+def test_f10_two_windows_sharing_a_name_refuse_naming_both(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    _full(g)
+    a = g.window("agents-2", 1, ("dev5",))
+    b = g.window("agents-2", 1, ("dev6",))
+    before = g.snapshot()
+    with pytest.raises(g.mod.PlacementRefused) as exc:
+        g.place("dev7")
+    assert a in exc.value.reason and b in exc.value.reason, exc.value.reason
+    assert g.snapshot() == before
+
+
+def test_t1_two_panes_tagged_with_the_name_refuse_naming_both(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    g.base(panes=3, tags=("b-1", "dev2", "b-1"))
+    ids = g.lines(
+        "list-panes", "-s", "-t", f"={g.S}", "-f", "#{==:#{@agent},b-1}", "-F", "#{pane_id}"
+    )
+    assert len(ids) == 2
+    before = g.snapshot()
+    with pytest.raises(g.mod.PlacementRefused) as exc:
+        g.place("b-1")
+    assert all(i in exc.value.reason for i in ids), exc.value.reason
+    assert g.snapshot() == before
+
+
+def test_t2_decoy_window_names_are_never_grid_windows(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    _full(g)
+    decoys = ("agents-2 old", "agents-02", "agents-1", "agents-0", "agentsx", "agents-")
+    for d in decoys:
+        g.window(d, 1)
+    res = g.place("dev5")
+    assert res.new_window_k == 2, res
+    assert (
+        g.ok("display-message", "-p", "-t", res.window_id, "#{window_name} #{window_panes}")
+        == "agents-2 1"
+    )
+    counts = dict(w.rsplit(" ", 1) for w in g.windows())
+    assert all(counts[d] == "1" for d in decoys), counts
+
+
+def test_t2_agents_10_with_room_is_joined_when_lower_windows_are_full_or_absent(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    _full(g)
+    w10 = g.window("agents-10", 1, ("dev9",))
+    res = g.place("dev5")
+    assert (res.window_id, res.new_window_k) == (w10, None), res
+    assert g.windows() == ["agents 4", "agents-10 2"], g.windows()
+
+
+def test_t3_a_split_moves_neither_the_active_pane_nor_the_current_window(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    wid = g.base(panes=2, tags=("dev1", "dev2"))
+    other = g.window("notes", 1)
+    active = g.ok("display-message", "-p", "-t", wid, "#{pane_id}")
+    current = g.one(g.S, "#{window_id}")
+    assert current == wid and other != wid
+    res = g.place("dev3")
+    assert res.window_id == wid and res.pane_id != active
+    assert g.ok("display-message", "-p", "-t", wid, "#{pane_id}") == active
+    assert g.one(g.S, "#{window_id}") == current
+
+
+@pytest.mark.parametrize("panes", [1, 3])
+def test_t4_the_placed_window_is_laid_out_even_horizontal(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, panes: int
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    wid = g.base(panes=panes)
+    g.place("dev9")
+    placed = g.ok("display-message", "-p", "-t", wid, "#{window_layout}")
+    g.ok("select-layout", "-t", wid, "even-horizontal")
+    assert g.ok("display-message", "-p", "-t", wid, "#{window_layout}") == placed
+
+
+def test_t5_the_lowest_window_with_room_wins(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    first = g.base(panes=2)
+    g.window("agents-2", 2)
+    res = g.place("dev9")
+    assert res.window_id == first and g.windows() == ["agents 3", "agents-2 2"], (res, g.windows())
+    (tmp_path / "only3").mkdir()
+    h = _Grid(tmp_path / "only3", request, monkeypatch)
+    w3 = h.base(window="agents-3", panes=2)
+    res = h.place("dev9")
+    assert (res.window_id, res.new_window_k) == (w3, None) and h.windows() == ["agents-3 3"], (
+        h.windows()
+    )
+
+
+# --- T08a review pass 2 ----------------------------------------------------------------------------------------------
+
+
+def _sid_of_session(g: _Grid, name: str) -> str:
+    return g.one(name, "#{session_id}")
+
+
+def test_p1_a_stale_member_refuses_before_any_leftover_is_killed(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    g.ok("new-session", "-d", "-s", g.S, "-n", "oldwin", SLEEP)
+    g.ok("new-session", "-d", "-t", f"={g.S}", "-s", f"{g.S}+3")
+    g.ok("new-session", "-d", "-t", f"={g.S}", "-s", "viewer")
+    g.ok("kill-session", "-t", f"={g.S}")
+    _full(g)
+    before = g.snapshot()
+    with pytest.raises(g.mod.PlacementRefused) as exc:
+        g.place("dev5")
+    assert "viewer" in exc.value.reason and "kill-session -t =viewer" in exc.value.reason
+    assert g.snapshot() == before  # <S>+3 and viewer both still there, nothing created
+
+
+def test_p2_overflow_named_sessions_outside_the_group_named_s_are_untouched(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    g.ok("new-session", "-d", "-s", f"{g.S}+7", SLEEP)  # ungrouped, running a process
+    g.ok("new-session", "-d", "-s", "elsewhere", SLEEP)
+    g.ok("new-session", "-d", "-t", "=elsewhere", "-s", f"{g.S}+8")  # grouped under another name
+    _full(g)
+    ids = {n: _sid_of_session(g, n) for n in (f"{g.S}+7", f"{g.S}+8")}
+    res = g.place("dev5")
+    assert {n: _sid_of_session(g, n) for n in ids} == ids
+    assert g.one(f"{g.S}+8", "#{session_group}") == "elsewhere"
+    group = g.one(g.S, "#{session_group}")
+    assert group and g.one(f"{g.S}+2", "#{window_id}") == res.window_id
+
+
+def test_p3_the_stale_decision_reads_one_snapshot(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    _full(g)
+    log = tmp_path / "calls.log"
+    _wrap(g, "log", f'echo "$*" >> "{log}"')
+    g.place("dev5")
+    calls = log.read_text(encoding="utf-8").splitlines()
+    upto = calls[: next(i for i, c in enumerate(calls) if c.startswith("new-window"))]
+    assert sum(c.startswith("list-sessions") for c in upto) == 1, upto
+    assert not any(c.startswith("display-message") for c in upto), upto
+
+
+def test_p3_a_grouped_base_kills_nothing(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    _full(g)
+    g.ok("new-session", "-d", "-t", f"={g.S}", "-s", f"{g.S}+9")  # a live member of <S>'s group
+    ids = _sid_of_session(g, f"{g.S}+9")
+    g.place("dev5")
+    assert _sid_of_session(g, f"{g.S}+9") == ids and f"{g.S}+2" in g.sessions(), g.sessions()
+
+
+def test_p4_a_failed_group_read_never_kills_the_overflow_session(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    _full(g)
+    g.ok("new-session", "-d", "-t", f"={g.S}", "-s", f"{g.S}+2")
+    ids = _sid_of_session(g, f"{g.S}+2")
+    _wrap(g, "nobase", f'[ "$1" = display-message ] && [ "$4" = "={g.S}:" ] && exit 1')
+    g.place("dev5")
+    assert _sid_of_session(g, f"{g.S}+2") == ids
+    assert "stays in" in capsys.readouterr().err
+
+
+def test_p5_a_snapshot_without_s_refuses(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    _full(g)
+    _wrap(
+        g,
+        "nobase",
+        f'[ "$1" = list-sessions ] && {{ $REAL "$@" | grep -v "^{g.S}|~|"; exit 0; }}',
+    )
+    before = g.snapshot()
+    with pytest.raises(g.mod.PlacementRefused) as exc:
+        g.place("dev5")
+    assert f"no session {g.S} in list-sessions" in exc.value.reason, exc.value.reason
+    assert g.snapshot() == before
+
+
+def test_p6_the_walk_stops_at_the_bound_claude(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    pane, pp = _tagged(g)
+    proc = tmp_path / "proc"
+    kids = [pp + 2 + i for i in range(8)] + [pp + 1]  # the claude is the first walked
+    chain = {pp: kids, **{k: [] for k in kids}}
+    cmds = {pp: ["sh"], pp + 1: ["claude", "--resume", SID], **{k: ["sleep"] for k in kids[:-1]}}
+    _fake_proc(proc, chain, cmds)
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(proc))
+    monkeypatch.setattr(g.mod, "_PROC_WALK_MAX", 3)
+    res = g.place("b-1")
+    assert res.adopted and res.pane_id == pane, res
+
+
+# --- T08a review pass 3 ----------------------------------------------------------------------------------------------
+
+
+def _patch_tmux(g: _Grid, monkeypatch, fake) -> None:
+    """Patch `_tmux` in-process: `fake(args)` returns a CompletedProcess or None to run the real call."""
+    real = g.mod._tmux
+
+    def patched(*args: str):
+        out = fake(args)
+        return real(*args) if out is None else out
+
+    monkeypatch.setattr(g.mod, "_tmux", patched)
+
+
+def test_q1_a_failed_leftover_kill_refuses_and_creates_nothing(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    g.ok("new-session", "-d", "-s", g.S, "-n", "oldwin", SLEEP)
+    g.ok("new-session", "-d", "-t", f"={g.S}", "-s", f"{g.S}+3")
+    g.ok("kill-session", "-t", f"={g.S}")
+    _full(g)
+    _patch_tmux(
+        g,
+        monkeypatch,
+        lambda a: (
+            subprocess.CompletedProcess(a, 1, "", "kill refused")
+            if a[0] == "kill-session"
+            else None
+        ),
+    )
+    before = g.snapshot()
+    with pytest.raises(g.mod.PlacementRefused) as exc:
+        g.place("dev5")
+    assert f"{g.S}+3" in exc.value.reason and "kill refused" in exc.value.reason, exc.value.reason
+    assert g.snapshot() == before
+    assert g.one(g.S, "#{session_group}") == ""
+
+
+@pytest.mark.parametrize("reads", ["failed", "empty"])
+def test_q3_a_failed_create_with_unconfirmed_groups_is_said_and_leaves_nothing(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, reads: str
+) -> None:
+    g = _Grid(tmp_path, request, monkeypatch)
+    _full(g)
+
+    def fake(a):
+        if a[0] == "new-session":
+            return subprocess.CompletedProcess(a, 1, "", "create refused")
+        if a[0] == "display-message" and a[-1] == "#{session_group}":
+            if reads == "failed":
+                return subprocess.CompletedProcess(a, 1, "", "read refused")
+            return subprocess.CompletedProcess(a, 0, "\n", "")
+        return None
+
+    _patch_tmux(g, monkeypatch, fake)
+    res = g.place("dev5")
+    assert res.new_window_k == 2
+    assert f"could not create the tmux session {g.S}+2" in capsys.readouterr().err
+    assert g.sessions() == [g.S], g.sessions()

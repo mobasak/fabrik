@@ -62,7 +62,7 @@ Intake: 20 items — 19 IN, 1 OUT-OF-SCOPE (I4, already done), 0 ASK.
 | T03 | agents_up.sh placement + --window | T02 | ⛓️ | ✅ | acceptance commit `feat(agents): T03` (wave-3 receipt `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-T03-review.md`) |
 | T05 | agents_bat.py --tabbed | T03 | ⛓️ | ✅ | acceptance commit `feat(agents): T05+T06` (wave-4 receipt `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-T05-review.md`) |
 | T06 | agents_spawn.py add part 1 | T01, T03 | ⛓️ | ✅ | acceptance commit `feat(agents): T05+T06` (wave-4 receipt `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-T05-review.md`) |
-| T08a | agents_spawn.py placement + adoption | T06 | ⛓️ | ⬜ | |
+| T08a | agents_spawn.py placement + adoption | T06 | ⛓️ | ✅ | acceptance commit `feat(agents): T08a` (wave-5 receipt `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-T08a-review.md`) |
 | T08b | agents_spawn.py cold start + launch | T02, T08a | ⛓️ | ⬜ | |
 | T07 | rotate_session registry lock | T06, T08b | ⚡ | ⬜ | |
 | T08c | agents_spawn.py launchers + live tab | T05, T08b | ⛓️ | ⬜ | |

@@ -36,6 +36,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -692,6 +693,455 @@ def assign_item(ctx: Spawn) -> None:
         f"{ctx.item} is assigned on {ctx.root}; it reaches {ctx.name}'s tree after your store commit "
         "(`work.py commit-items`) merges"
     )
+
+
+# ---- step 6: placement (T08a) -------------------------------------------------------------------------------------
+# Spec § The delta D4 (placement), D9 (the live read), D2 (adoption); the grid's other writer is agents_up.sh's
+# "windows of four and the grouped overflow sessions" block, whose rules this mirrors: windows `agents`, `agents-<k>`
+# (k >= 2) of at most four panes, found by an EXACT name match over a read and targeted by `#{window_id}` only (tmux
+# resolves a window NAME target loosely: with only `agents-2` present `-t =s:agents` selects it); the overflow window
+# `agents-<k>` is shown in its own session `<S>+<k>`, grouped with `<S>`; every session target is the exact `=` form.
+# COBRA (D-253): the cheapest way to "place" without the outcome is to read a failed tmux call as an empty grid and open
+# a window beside a live one — so a read that errors or answers nothing refuses, and nothing is created on a refusal.
+
+PER_WINDOW = 4
+TMUX_TIMEOUT_S = 20
+_WINDOW_RE = re.compile(r"agents(?:-([2-9]|[1-9][0-9]+))?")
+_DIGITS_RE = re.compile(r"[0-9]+")  # the shell's ^[0-9]+$ — never str.isdigit(), which takes `²`
+_SID_LONG = ("--session-id", "--resume")  # also read as `--flag=<id>`
+_SID_FLAGS = (*_SID_LONG, "-r")  # agents_up.sh::status_of's running test
+_PROC_WALK_MAX = 4096
+
+
+class PlacementRefusedError(RefusedError):
+    """A placement refusal: step 6, nothing created."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason, 6)
+
+
+PlacementRefused = PlacementRefusedError  # the name T08b and T09 import (plan IF7)
+
+
+@dataclass
+class PlaceResult:
+    window_id: str
+    pane_id: str
+    # 1 = `agents` was (re-)created, k = `agents-<k>` was opened, None = an existing window
+    new_window_k: int | None
+    adopted: bool
+
+
+@dataclass
+class _Pane:
+    window_id: str
+    window_name: str
+    pane_id: str
+    pane_pid: int
+    agent: str
+
+
+def _digits(text: str) -> bool:
+    return _DIGITS_RE.fullmatch(text) is not None
+
+
+def _tmux_argv() -> list[str]:
+    """The tmux command: FABRIK_TMUX (a command prefix, e.g. `tmux -L <scratch>` in tests), else `tmux`. A value that is
+    not a command (an unbalanced quote, only whitespace) refuses — never a traceback, never a tmux verb run as the
+    program."""
+    raw = os.environ.get("FABRIK_TMUX") or "tmux"
+    try:
+        argv = shlex.split(raw)
+    except ValueError as exc:
+        raise PlacementRefusedError(f"FABRIK_TMUX is not a command: {raw!r} ({exc})") from None
+    if not argv:
+        raise PlacementRefusedError(f"FABRIK_TMUX is not a command: {raw!r} (it names no program)")
+    return argv
+
+
+def _tmux(*args: str) -> subprocess.CompletedProcess[str]:
+    argv = _tmux_argv()
+    try:
+        return subprocess.run(
+            [*argv, *args],
+            capture_output=True,
+            text=True,
+            timeout=TMUX_TIMEOUT_S,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return subprocess.CompletedProcess(args, 1, "", f"{type(exc).__name__}: {exc}")
+
+
+def _tmux_ok(what: str, *args: str) -> str:
+    """Run a tmux write; its failure is a refusal naming `what`."""
+    out = _tmux(*args)
+    if out.returncode != 0:
+        raise PlacementRefusedError(f"tmux {what} failed: {out.stderr.strip() or out.returncode}")
+    return out.stdout.strip()
+
+
+def _has_session(name: str) -> bool:
+    return _tmux("has-session", "-t", f"={name}").returncode == 0
+
+
+def _group(session: str) -> str | None:
+    """The session's group: "" when it has none, None when the READ failed — never a failure read as "ungrouped" (the
+    `=<name>:` form: option/format reads refuse the bare `=<name>`)."""
+    out = _tmux("display-message", "-p", "-t", f"={session}:", "#{session_group}")
+    return out.stdout.strip() if out.returncode == 0 else None
+
+
+def live_panes(sess: str) -> list[_Pane]:
+    """D9's live read: `list-panes -s -t =<S>` — the base session only, one line per pane (a grouped window is listed
+    once, never once per member). Tab-separated: tmux prints a tab INSIDE a value as `\\011`, so only the separators
+    are tabs. An error, an empty answer or a malformed line refuses; it is never read as an empty grid."""
+    fmt = "\t".join(("#{window_id}", "#{window_name}", "#{pane_id}", "#{pane_pid}", "#{@agent}"))
+    out = _tmux("list-panes", "-s", "-t", f"={sess}", "-F", fmt)
+    if out.returncode != 0:
+        raise PlacementRefusedError(
+            f"tmux read failed — not placing (list-panes -s -t ={sess}: {out.stderr.strip() or out.returncode})"
+        )
+    panes = []
+    for line in out.stdout.splitlines():
+        parts = line.split("\t")
+        if (
+            len(parts) != 5
+            or not re.fullmatch(r"@[0-9]+", parts[0])
+            or not re.fullmatch(r"%[0-9]+", parts[2])
+            or not _digits(parts[3])
+        ):
+            raise PlacementRefusedError(
+                f"tmux read failed — not placing (an unreadable pane line {line!r})"
+            )
+        panes.append(_Pane(parts[0], parts[1], parts[2], int(parts[3]), parts[4]))
+    if not panes:
+        up = "the grid is up" if _has_session(sess) else f"no session {sess}"
+        raise PlacementRefusedError(
+            f"tmux read failed — not placing (list-panes answered nothing; {up})"
+        )
+    return panes
+
+
+# -- adoption ---------------------------------------------------------------------------------------------------------
+
+
+def _proc_root() -> Path:
+    return Path(os.environ.get("FABRIK_PROC_ROOT") or "/proc")
+
+
+def _children(proc: Path, pid: int) -> list[int]:
+    """Every child of every thread of `pid` (the kernel's `/proc/<pid>/task/<tid>/children`)."""
+    kids: list[int] = []
+    try:
+        tasks = sorted((proc / str(pid) / "task").iterdir())
+    except OSError:
+        return kids
+    for task in tasks:
+        try:
+            text = (task / "children").read_text(encoding="utf-8")
+        except OSError:
+            continue
+        kids.extend(int(t) for t in text.split() if _digits(t))
+    return kids
+
+
+def _argv(proc: Path, pid: int) -> list[str]:
+    """`/proc/<pid>/cmdline` split on NUL; only ONE trailing empty element is dropped, and only when the bytes end in
+    NUL — a cmdline without one (a process that rewrote its argv) keeps its last argument."""
+    try:
+        raw = (proc / str(pid) / "cmdline").read_bytes()
+    except OSError:
+        return []
+    if not raw:
+        return []
+    parts = raw.split(b"\0")
+    if raw.endswith(b"\0"):
+        parts = parts[:-1]
+    return [a.decode("utf-8", "replace") for a in parts]
+
+
+def _sid_of(argv: list[str]) -> str:
+    """A claude argv's session id: the value after `--session-id`/`--resume`/`-r`, or `--session-id=`/`--resume=`'s;
+    a flag with no value (absent, or the next token is another option) gives no id and the scan goes on."""
+    for i, arg in enumerate(argv[1:], start=1):
+        if arg in _SID_FLAGS:
+            nxt = argv[i + 1] if i + 1 < len(argv) else ""
+            if nxt and not nxt.startswith("-"):
+                return nxt
+            continue
+        flag, eq, value = arg.partition("=")
+        if eq and flag in _SID_LONG and value:
+            return value
+    return ""
+
+
+def _claude_sids(pane_id: str, pane_pid: int, want: str) -> list[str]:
+    """The session id of every claude process under `pane_pid` (itself included), walked RECURSIVELY: a capped pane is
+    the pane's shell → systemd-run --scope → bash -c → claude, an uncapped one shell → claude. A claude is a process
+    whose argv[0] is `claude` (any directory); "" stands for a claude carrying no id. The walk stops as soon as a claude
+    carrying `want` is found; a tree larger than the walk's bound without it refuses: a partial walk could miss the
+    claude and read as "runs no claude"."""
+    proc = _proc_root()
+    sids: list[str] = []
+    seen: set[int] = set()
+    stack = [pane_pid]
+    while stack:
+        pid = stack.pop()
+        if pid in seen:
+            continue
+        if len(seen) >= _PROC_WALK_MAX:
+            raise PlacementRefusedError(
+                f"the process tree of pane {pane_id} is too large to read (over {_PROC_WALK_MAX}) — not placing"
+            )
+        seen.add(pid)
+        argv = _argv(proc, pid)
+        if argv and os.path.basename(argv[0]) == "claude":
+            sids.append(_sid_of(argv))
+            if sids[-1] == want:
+                return sids
+        stack.extend(_children(proc, pid))
+    return sids
+
+
+def _adopt(panes: list[_Pane], name: str, sid: str) -> PlaceResult | None:
+    """D2, C1: a pane tagged `@agent <name>` whose claude runs the name's bound session is adopted; a tagged pane
+    without it refuses (never a second pane for the name)."""
+    tagged = [p for p in panes if p.agent == name]
+    if not tagged:
+        return None
+    if len(tagged) > 1:
+        ids = ", ".join(p.pane_id for p in tagged)
+        raise PlacementRefusedError(
+            f"{len(tagged)} panes are tagged @agent {name} ({ids}) — remove all but one"
+        )
+    pane = tagged[0]
+    sids = _claude_sids(pane.pane_id, pane.pane_pid, sid)
+    if sid in sids:
+        return PlaceResult(pane.window_id, pane.pane_id, None, True)
+    if not sids:
+        raise PlacementRefusedError(
+            f"{name}'s pane runs no claude — respawn it (`tmux respawn-pane -k -t {pane.pane_id}`) or remove it"
+        )
+    others = ", ".join(s or "(no session id)" for s in sids)
+    raise PlacementRefusedError(
+        f"{name}'s pane {pane.pane_id} runs claude with session {others}, not {name}'s bound session {sid} — "
+        f"respawn it (`tmux respawn-pane -k -t {pane.pane_id}`) or remove it"
+    )
+
+
+# -- the overflow sessions --------------------------------------------------------------------------------------------
+
+
+def _is_overflow(sess: str, candidate: str) -> bool:
+    """`<S>+<digits>` — ours by construction: `+` is outside the base-name alphabet."""
+    return candidate.startswith(f"{sess}+") and _digits(candidate[len(sess) + 1 :])
+
+
+# The decision and the kill list below come from ONE list-sessions snapshot, so no second read can disagree with the
+# first. The window between that snapshot and the kill stays open to a concurrent agents_up.sh writer; it closes only
+# when agents_up.sh's grid writers take the same agents lock (recorded in W-53f246f3, outside T08a).
+def _clear_stale_group(sess: str, k: int) -> None:
+    """Before any `new-session -t =<S>` (agents_up.sh::clear_stale_group), only while `<S>` is UNGROUPED: a session in
+    a group NAMED `<S>` would be joined by that new-session and drag `<S>` into its windows. Of those, a `<S>+<digits>`
+    is a leftover of an older grid (ours by construction) and is killed; any OTHER is not ours and refuses, naming it,
+    BEFORE anything is killed. An `<S>+<k>` that is ungrouped or grouped under another name is never touched. A failed
+    read, or a snapshot without `<S>`, refuses."""
+    out = _tmux("list-sessions", "-F", "#{session_name}|~|#{session_group}")
+    if out.returncode != 0:
+        raise PlacementRefusedError(
+            f"tmux read failed — not placing (list-sessions: {out.stderr.strip() or out.returncode})"
+        )
+    groups: dict[str, str] = {}
+    for line in out.stdout.splitlines():
+        session, _, group = line.rpartition(
+            "|~|"
+        )  # the LAST `|~|`: a name may hold one, <S> cannot
+        groups[session] = group
+    if sess not in groups:
+        raise PlacementRefusedError(
+            f"tmux read failed — not placing (no session {sess} in list-sessions)"
+        )
+    if groups[sess]:
+        return
+    in_s = [n for n, g in groups.items() if n != sess and g == sess]
+    leftovers = [n for n in in_s if _is_overflow(sess, n)]
+    stale = [n for n in in_s if not _is_overflow(sess, n)]
+    if stale:
+        frees = "; ".join(f"tmux kill-session -t ={m}" for m in stale)
+        also = (
+            f" (and the leftovers {', '.join(leftovers)} would then be cleared)"
+            if leftovers
+            else ""
+        )
+        raise PlacementRefusedError(
+            f"the tmux session(s) {', '.join(stale)} are still grouped under the name {sess} (left by an older grid) — "
+            f"not opening agents-{k}; free the group with: {frees}{also}"
+        )
+    for n in leftovers:
+        killed = _tmux("kill-session", "-t", f"={n}")
+        if killed.returncode != 0:  # it would still be joined: refuse, nothing is created yet
+            raise PlacementRefusedError(
+                f"could not kill the leftover tmux session {n} ({killed.stderr.strip() or killed.returncode}) — "
+                f"not opening agents-{k}"
+            )
+
+
+def _ensure_overflow(sess: str, k: int, window_id: str) -> None:
+    """agents_up.sh::ensure_overflow. The one rule (T03 invariant 4): reuse `<S>+<k>` only when it exists AND its group
+    is non-empty AND equals `<S>`'s; otherwise kill it (when present) and `new-session -d -t =<S> -s <S>+<k>` (a failed
+    create is accepted only when the session now exists in `<S>`'s group). Then the session must LIST the window and
+    select it; else it is killed when this call made it. Every failure comes AFTER the pane exists, so it is said on
+    stderr (agents_up.sh's "stays in <S>"), never raised."""
+    name = f"{sess}+{k}"
+    stays = f"it stays in {sess}"
+    created = False
+    if _has_session(name):
+        own = _group(name)
+        base = _group(sess)  # read AFTER own, as agents_up.sh does
+        if own is None or base is None:  # a failed read decides nothing, and never kills
+            print(
+                f"agents_spawn: could not read the groups of {name} and {sess} — not touching {name}; {stays}",
+                file=sys.stderr,
+            )
+            return
+        if not own or own != base:
+            _tmux("kill-session", "-t", f"={name}")
+    if not _has_session(name):
+        made = _tmux("new-session", "-d", "-t", f"={sess}", "-s", name)
+        if made.returncode == 0:
+            created = True
+        else:
+            own, base = _group(name), _group(sess)
+            if not own or own != base:  # None (a failed read) or "" never accepts
+                print(
+                    f"agents_spawn: could not create the tmux session {name} for window agents-{k} "
+                    f"({made.stderr.strip() or made.returncode}) — it stays in {sess}",
+                    file=sys.stderr,
+                )
+                return
+    listed = _tmux("list-windows", "-t", f"={name}", "-F", "#{window_id}")
+    if (
+        listed.returncode != 0
+        or window_id not in listed.stdout.split()
+        or _tmux("select-window", "-t", f"={name}:{window_id}").returncode != 0
+    ):
+        print(
+            f"agents_spawn: the tmux session {name} shows other windows than window agents-{k} ({window_id}) — "
+            f"not using it; it stays in {sess}",
+            file=sys.stderr,
+        )
+        if created:
+            _tmux("kill-session", "-t", f"={name}")
+
+
+# -- placement --------------------------------------------------------------------------------------------------------
+
+
+def _window_k(name: str) -> int | None:
+    """1 for `agents`, k for `agents-<k>` (k >= 2, no leading zero), None for any other name (exact match)."""
+    m = _WINDOW_RE.fullmatch(name)
+    if not m:
+        return None
+    return int(m.group(1)) if m.group(1) else 1
+
+
+def _undo(pane: str, wid: str, made_window: bool) -> None:
+    """Remove what this call created after a later step failed, so a re-run never finds an untagged builder: the pane
+    (a window whose last pane goes with it), or the created window when only its id was readable."""
+    if re.fullmatch(r"%[0-9]+", pane):
+        _tmux("kill-pane", "-t", pane)
+    elif made_window and re.fullmatch(r"@[0-9]+", wid):
+        _tmux("kill-window", "-t", wid)
+
+
+def place_pane(root: str, sess: str, name: str, uuid: str, worktree: str, cmd: str) -> PlaceResult:
+    """D4: put `name`'s pane (running `cmd` in `worktree`) into `<S>` — or adopt the tagged pane already running its
+    bound session `uuid` (D2). The lowest existing window with room (order `agents`, `agents-2`, …) takes it, split
+    after its LAST pane; only when none has room is the lowest free name opened in the background. Every window target
+    is a `#{window_id}`. `<S>`'s current window moves only when `agents` itself was re-created (W-14219e6f point 8).
+    `root` names the repo in messages; the grid must already be up (T08b's cold start). Every refusal comes before
+    anything is created, or removes what this call created first."""
+    if not uuid:
+        raise PlacementRefusedError(f"no session id bound to {name} — not placing")
+    panes = live_panes(sess)
+    adopted = _adopt(panes, name, uuid)
+    if adopted is not None:
+        return adopted
+    windows: dict[str, list[_Pane]] = {}
+    for p in panes:
+        windows.setdefault(p.window_id, []).append(p)
+    by_k: dict[int, str] = {}
+    for wid, ps in windows.items():
+        k = _window_k(ps[0].window_name)
+        if k is None:
+            continue
+        if k in by_k:  # spec D4: a target by a name two windows share fails
+            raise PlacementRefusedError(
+                f"two windows of {sess} are named {ps[0].window_name} ({by_k[k]}, {wid}) — rename or close one"
+            )
+        by_k[k] = wid
+    for k in sorted(by_k):
+        wid = by_k[k]
+        if len(windows[wid]) < PER_WINDOW:
+            last = windows[wid][-1].pane_id
+            pane = _tmux_ok(
+                f"split-window in {sess}'s window {wid}",
+                "split-window",
+                "-d",
+                "-t",
+                last,
+                "-c",
+                worktree,
+                "-P",
+                "-F",
+                "#{pane_id}",
+                cmd,
+            )
+            new_k = None
+            break
+    else:
+        new_k = next(k for k in range(1, len(by_k) + 2) if k not in by_k)
+        wname = "agents" if new_k == 1 else f"agents-{new_k}"
+        if new_k > 1:
+            _clear_stale_group(sess, new_k)  # before anything is created
+        made = _tmux_ok(
+            f"new-window {wname} in {sess}",
+            "new-window",
+            "-d",
+            "-t",
+            f"={sess}:",
+            "-n",
+            wname,
+            "-P",
+            "-F",
+            "#{window_id} #{pane_id}",
+            "-c",
+            worktree,
+            cmd,
+        )
+        wid, _, pane = made.partition(" ")
+    if not re.fullmatch(r"%[0-9]+", pane) or not re.fullmatch(r"@[0-9]+", wid):
+        _undo(pane, wid, new_k is not None)
+        raise PlacementRefusedError(
+            f"tmux gave no window and pane id for {name}'s pane ({wid!r} {pane!r}) in {root}"
+        )
+    _tmux("select-layout", "-t", wid, "even-horizontal")
+    tagged = _tmux("set", "-p", "-t", pane, "@agent", name)
+    if tagged.returncode != 0:
+        _undo(pane, wid, new_k is not None)
+        raise PlacementRefusedError(
+            f"tmux could not tag {name}'s pane {pane} ({tagged.stderr.strip() or tagged.returncode}) — removed it"
+        )
+    if new_k == 1:
+        if _tmux("select-window", "-t", f"={sess}:{wid}").returncode != 0:
+            print(
+                f"agents_spawn: could not make the re-created window agents ({wid}) {sess}'s current window",
+                file=sys.stderr,
+            )
+    elif new_k is not None:
+        _ensure_overflow(sess, new_k, wid)
+    return PlaceResult(wid, pane, new_k, False)
 
 
 def place_and_launch(ctx: Spawn) -> None:
