@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T14:14:26.410373Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-1e0f4229",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Find the timing race (fake clock vs a real wait or subprocess) in the late-bind grace path; fix the test or the code; prove with 30 isolated runs at 0 failures",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "Flaky test: test_wb72231b8_a_late_bind_inside_the_grace_rows_ok fails about 1-2 in 8 isolated runs (tests/test_rotate_session.py), on master's code before W-b9ad80ae T07 too"
+}
