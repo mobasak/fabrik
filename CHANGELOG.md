@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — docker-image deploys carry their spec's CPU limit, and every spec path holds one cpu grammar (2026-10-29)
+
+- `fabrik apply` of a `source.type: docker` spec wrote `deploy.resources.limits` with memory only, so the container ran with no CPU limit (zitadel on vps1, NanoCpus 0). `_generate_docker_compose` now emits `cpus` from `resources.cpu`, or the `Resources` default 0.5 when the spec omits it, as the template path already did (D-1326, W-f01710a0). The five docker-sourced specs change on vps1 only when the coordinator's deploy gate re-applies them.
+- `resources.cpu` must be a quoted plain decimal from 0.01 to 1024 with at most 2 decimals (`spec_loader.CPU_RE` / `cpu_in_grammar`), checked by the `Resources` model, the apply validator (which also refuses a non-mapping `resources`) and the docker emitter: compose 2.40.3 reads `0_5` as 5 CPUs, `0` as no limit and `-1` as -1 without complaint. 134 cpu values across the box's specs, templates and fixtures: 0 refused. Graded by `tests/test_docker_compose_emitter.py`.
+
 ### Fixed — mobile-app scaffold lints clean out of the box and its EAS delivery workflows can run (2026-10-29)
 
 - A fresh mobile-app scaffold's `pnpm lint` exited 1 (76 errors, all antfu TOML rules on the scaffold-emitted `server/pyproject.toml`); the template now ignores `server/**` in ESLint, pins `@antfu/eslint-config ~7.7.3` with its peers (`eslint-plugin-react-refresh ^0.5.0`, `@eslint-react/eslint-plugin ^2.11.0`) and drops the duplicate direct unicorn. The eas-build-prod, eas-build-preview and new-app-version workflows used two composite actions the template never shipped; `setup-node-pnpm-install` and `eas-build` now ship (from the upstream template, Node 24, no silent APP_ENV/EXPO_TOKEN defaults, inputs passed as env vars so a release tag cannot inject shell). Graded by `tests/test_scaffold_mobile_toolchain.py` (D-1323, W-fc58e9b7).
