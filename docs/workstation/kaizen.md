@@ -318,8 +318,10 @@ its reason, the digest acked (`ack: required`) once its rows are answered. Its c
 `~/.claude/state/lessons-relay.json`: `--seed` records every current entry and sends nothing (the backlog is
 kaizen's one-time triage; it refuses an existing cursor without `--force`); no cursor, or one that does not parse,
 exits 1 and sends nothing. A heading inside a code block opened with an info string (` ```bash `) is not an entry; a
-bare fence line is read as text, because the legacy scaffold template leaves a stray bare opener in 27 of 84 files and
-strict parsing paired it with a later lesson's code block and hid that lesson. A mail stays under 60 KiB (mail.py
+bare fence line is read as text, and so is a tagged opener whose block holds another tagged opener as long before its
+closer, because the legacy scaffold template leaves a stray opener in 27 of 84 files and strict parsing paired it with
+a later lesson's code block and hid that lesson. The chosen direction: a misread block shows a code comment as a row
+kaizen rejects, never hides a lesson. A mail stays under 60 KiB (mail.py
 refuses over 64 KiB); `--dry-run` prints the digest.
 
 The same job carries two more riders: `scripts/sysadmin/rules_currency_watch.py` (mails infra when a pack's

@@ -35,10 +35,13 @@ nothing is new.
 
 Stated limits: a renamed heading reads as a new entry; editing an old section under a REPEATED
 heading re-sends it, while a uniquely-headed section rewritten in place — even with a wholly new
-lesson under the old heading — is never re-sent; a bare-fenced code block's ``# comment`` lines
-read as headings (noise kaizen rejects, never a lost lesson); a corrupt cursor, or a cursor save
-that fails after a send (the next run re-sends that batch), stops with a stderr line in the cron
-log only; the relay takes no lock of its own (the cron arm runs it under ``flock``).
+lesson under the old heading — is never re-sent; a bare-fenced or stray-tagged code block's
+``# comment`` lines read as headings, and a new lesson below such a line in the same run folds into
+its row (named by path:line, so kaizen reading the row reads the lesson too); a corrupt cursor, a
+cursor save that fails after a send, or a send that times out after mail.py wrote (the next run
+re-sends that batch) stops with a stderr line in the cron log only; a hand-written empty cursor is
+read as "everything is new"; the relay takes no lock of its own (the cron arm runs it under
+``flock``).
 COBRA (D-253): the cheapest way to satisfy "rows answered" is a reject without reading the file;
 the row carries the path:line so a reject can cite what it read — the audit is kaizen's.
 """
@@ -73,27 +76,42 @@ def _fenced(lines: list[str]) -> set[int]:
     a bare fence line is text. CommonMark lets a bare ``` open too, but a stray one — the legacy
     scaffold template leaves one in 27 of 84 live files — then paired with the first bare fence of
     a lesson appended later, hiding that lesson and reading its shell comments as headings
-    (review round 1, W-d6ebcc04). Measured over the 84 live files: this rule hides 0 headings the
-    strict rule shows, and shows 199 it hid, one of them a code comment (fabrik's line 7740). An
-    opener with no closer before end of file fences nothing."""
+    (review round 1, W-d6ebcc04). Measured over the 84 live files (2026-10-30): this rule hides 0
+    headings the strict rule shows; it reads 2,906 entries against the strict rule's 2,351, every
+    one added a template or lesson heading but one code comment (fabrik's line 7740). An
+    opener with no closer before end of file fences nothing, and neither does one whose block
+    holds another tagged opener of the same char and length before its closer: such fences cannot nest,
+    so the outer one is a stray (a never-closed ```markdown paired with a later lesson's ```bash
+    closer and hid that lesson — review round 2). A tag holding a backtick is no opener
+    (CommonMark). The fail direction is chosen: a misread block shows a heading-shaped code line
+    as a row kaizen rejects, never hides a lesson."""
     fenced: set[int] = set()
     i = 0
     while i < len(lines):
-        m = _FENCE.match(lines[i])
-        if not m or not m.group(2).strip():
+        j = _closer(lines, i)
+        if j is None:
             i += 1
-            continue
-        fence = m.group(1)
-        for j in range(i + 1, len(lines)):
-            c = _FENCE.match(lines[j])
-            if c and c.group(1)[0] == fence[0] and len(c.group(1)) >= len(fence):
-                if not c.group(2).strip():
-                    fenced.update(range(i, j + 1))
-                    i = j + 1
-                    break
         else:
-            i += 1
+            fenced.update(range(i, j + 1))
+            i = j + 1
     return fenced
+
+
+def _closer(lines: list[str], i: int) -> int | None:
+    """The index of the line closing a block opened at line i, or None when line i opens none."""
+    m = _FENCE.match(lines[i])
+    tag = m.group(2).strip() if m else ""
+    if not m or not tag or (m.group(1)[0] == "`" and "`" in tag):
+        return None
+    fence = m.group(1)
+    for j in range(i + 1, len(lines)):
+        c = _FENCE.match(lines[j])
+        if not c or c.group(1)[0] != fence[0] or len(c.group(1)) < len(fence):
+            continue  # a shorter fence is content: ````markdown may hold a ```python block
+        if c.group(2).strip():
+            return None  # a second tagged opener as long: line i is a stray
+        return j
+    return None
 
 
 def _entries(rel: str, text: str) -> list[dict]:
@@ -207,7 +225,8 @@ def _save(path: Path, keys: set[str], hashes: set[str]) -> None:
 
 def _scanner() -> Callable[[str], str | None] | None:
     """mail.py's own send-time secret refusal, so one heading cannot refuse every digest for good.
-    (Its bare ack-line refusal cannot fire on a row: every row opens with `- [ ] `.)"""
+    (Its bare ack-line refusal cannot fire on a row: every row is one line, by ``_one_line``,
+    opening with `- [ ] `.)"""
     path = Path(__file__).resolve().parents[1] / "mail.py"
     try:
         spec = importlib.util.spec_from_file_location("_lessons_relay_mail", path)
@@ -229,14 +248,21 @@ def _cut(text: str, limit: int) -> str:
     return raw.decode("utf-8", errors="ignore") + "…"
 
 
+def _one_line(text: str) -> str:
+    """text with every break str.splitlines() honours made a space: mail.py splits a body that
+    way, so a U+2028 in a heading put `acked-by:` at a line start and mail.py refused every
+    digest for good (review round 2)."""
+    return " ".join(text.splitlines())
+
+
 def _row(entries: list[dict], e: dict, scan: Callable[[str], str | None] | None) -> str:
-    where = f"- [ ] {e['rel']}:{e['line']} · "
+    where = _one_line(f"- [ ] {e['rel']}:{e['line']} · ")
     if scan is None:
         return where + "(heading withheld: mail.py scanners unavailable)"
     head = e["head"]
     if e["repeated"] and e["parent"] is not None:
         head = f"{entries[e['parent']]['head']} › {head}"
-    row = where + _cut(head, HEADING_MAX)
+    row = where + _cut(_one_line(head), HEADING_MAX)
     if scan(row) == "high":
         row = where + "(heading withheld: mail.py would refuse it)"
     return row
@@ -344,14 +370,13 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1  # cursor NOT advanced — the batch retries on the next run
     held = {m for n in rows[len(batch) :] for m in _subtree(entries, n)}
-    # A held entry's hash stays unseen even when a sent or known twin shares it: recorded, the
-    # twin's hash would mark the held entry seen and it would never be sent (review round 1).
-    held_hashes = {entries[m]["hash"] for m in held}
+    # A held entry whose content a sent row carries is then seen, and never sent: that is the
+    # cross-repo copy rule, the content reached kaizen once. Withholding the shared hash instead
+    # re-sent the original every run, a repeated heading being judged by hash (review round 2).
     for n, e in enumerate(entries):
         if n not in held:  # sent rows, their folded children, and everything already known
             keys.add(e["key"])
-            if e["hash"] not in held_hashes:
-                hashes.add(e["hash"])
+            hashes.add(e["hash"])
     try:
         _save(cursor, keys, hashes)
     except OSError as exc:

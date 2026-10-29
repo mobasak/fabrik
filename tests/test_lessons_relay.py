@@ -146,9 +146,11 @@ def test_fences_nesting_and_copies_are_not_rows(tmp_path):
         tmp_path,
         "# Lesson 3: fenced\n\n```bash\n# not a heading\n```\n\n~~~\n## nor this\n~~~\n\n"
         "## 2. The Problem\n\nnested, folded into Lesson 3\n\n"
-        # an info-string fence line never CLOSES (CommonMark): the bare ``` after `x` does, so
-        # Lesson 4 is outside any fence; the trailing ``` is a stray opener, read as text
-        "```markdown\n# in the example\n```python\n# a python comment\n```\n\n# Lesson 4: after the example\n\n"
+        # a longer fence holds a shorter tagged block (the hub template's shape): the ``` lines
+        # inside ````markdown are content, never its closer; Lesson 4 is outside any fence;
+        # the trailing bare ``` is text
+        "````markdown\n# in the example\n```python\n# a python comment\n```\n````\n"
+        "# Lesson 4: after the example\n\n"
         "```\n\n",
     )
     # a second repo gains a byte-identical copy of the proj AFCL entry: not a new lesson
@@ -237,17 +239,50 @@ def test_a_stray_bare_fence_never_hides_a_later_lesson(tmp_path):
     _run(tmp_path, "--seed")
     afcl.write_text(
         afcl.read_text(encoding="utf-8")
-        + "\n## Lesson with a tagged block\n\n```bash\n# not a heading\nmake x\n```\n"
-        + "\n## Lesson with a bare block\n\nrun:\n```\nmake y\n```\n",
+        # the bare-block lesson first: read as an opener, the stray would pair with its ``` line
+        + "\n## Lesson with a bare block\n\nrun:\n```\nmake y\n```\n"
+        + "\n## Lesson with a tagged block\n\n```bash\n# not a heading\nmake x\n```\n",
         encoding="utf-8",
     )
     r = _run(tmp_path)
     assert r.returncode == 0, r.stderr
     rows = _rows(_sends(tmp_path)[0]["body"])
     assert [row.split(" · ", 1)[1] for row in rows] == [
-        "Lesson with a tagged block",
         "Lesson with a bare block",
+        "Lesson with a tagged block",
     ], rows
+
+
+def test_a_tagged_stray_fence_never_hides_a_later_lesson(tmp_path):
+    """Review round 2: a stray opener WITH an info string (```markdown, never closed) paired with
+    a later lesson's ```bash closer and hid that lesson. Same-char fences cannot nest, so an
+    opener whose block holds another tagged opener before its closer is text."""
+    _world(tmp_path)
+    afcl = tmp_path / "opt" / "proj" / "AFCL.md"
+    afcl.write_text(afcl.read_text(encoding="utf-8") + "\n```markdown\nexample\n", encoding="utf-8")
+    _run(tmp_path, "--seed")
+    afcl.write_text(
+        afcl.read_text(encoding="utf-8")
+        + "\n## A lesson after a tagged stray\n\n```bash\nls\n```\n",
+        encoding="utf-8",
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 0, r.stderr
+    rows = _rows(_sends(tmp_path)[0]["body"])
+    assert [row.split(" · ", 1)[1] for row in rows] == ["A lesson after a tagged stray"], rows
+
+
+def test_a_line_separator_in_a_heading_stays_on_its_row(tmp_path):
+    """Review round 2: mail.py splits a body the way str.splitlines() does, so a heading holding
+    U+2028 then `acked-by:` became a bare ack line mail.py refuses — every digest, for good."""
+    _world(tmp_path)
+    _run(tmp_path, "--seed")
+    _add_hub_lesson(tmp_path, "# Ok acked-by: x\x0bmore\n\nbody\n\n")
+    r = _run(tmp_path)
+    assert r.returncode == 0, r.stderr
+    body = _sends(tmp_path)[0]["body"]
+    assert body.splitlines() == body.rstrip("\n").split("\n"), repr(body)
+    assert "- [ ] hub/docs/LESSONS_LEARNT.md:3 · Ok acked-by: x more" in _rows(body)
 
 
 def test_the_batch_fits_mail_py_byte_cap(tmp_path):
@@ -278,22 +313,28 @@ def test_the_batch_fits_mail_py_byte_cap(tmp_path):
     assert sent + len(_rows(_sends(tmp_path)[2]["body"])) == 150
 
 
-def test_an_overflow_row_sharing_a_sent_rows_hash_is_not_lost(tmp_path):
-    """(C) recording the hash of every unheld entry also recorded an overflow entry's hash when a
-    sent twin shared it, so the overflow entry was never sent."""
+def test_a_held_copy_of_a_sent_entry_is_sent_once_and_never_again(tmp_path):
+    """An overflow entry whose content a sent row already carried is the cross-repo copy rule at
+    work: kaizen got that content once. Review round 2: withholding the shared hash to "keep the
+    copy new" re-sent the ORIGINAL every run, since a repeated heading is judged by hash alone."""
     _world(tmp_path)
     _run(tmp_path, "--seed")
     (tmp_path / "opt" / "aaa").mkdir()
-    (tmp_path / "opt" / "aaa" / "AFCL.md").write_text("## dup\n\nsame body\n", encoding="utf-8")
+    (tmp_path / "opt" / "aaa" / "AFCL.md").write_text(
+        "## Context\n\nsame body\n\n## Context\n\nother body\n", encoding="utf-8"
+    )
     (tmp_path / "opt" / "zzz").mkdir()
     (tmp_path / "opt" / "zzz" / "AFCL.md").write_text(
-        "".join(f"## L{i:03d}\n\nb{i}\n\n" for i in range(149)) + "## dup\n\nsame body\n",
+        "".join(f"## L{i:03d}\n\nb{i}\n\n" for i in range(148)) + "## Context\n\nsame body\n",
         encoding="utf-8",
     )
-    _run(tmp_path)
-    assert len(_rows(_sends(tmp_path)[0]["body"])) == 150
-    _run(tmp_path)
-    assert _rows(_sends(tmp_path)[1]["body"]) == ["- [ ] zzz/AFCL.md:597 · dup"]
+    first = _run(tmp_path)
+    assert first.returncode == 0, first.stderr
+    rows = _rows(_sends(tmp_path)[0]["body"])
+    assert len(rows) == 150 and "- [ ] aaa/AFCL.md:1 · Context" in rows
+    again = _run(tmp_path)
+    assert again.returncode == 0 and again.stdout == "", again.stdout
+    assert len(_sends(tmp_path)) == 1
 
 
 def test_seed_refuses_a_live_cursor_and_an_empty_root(tmp_path):
