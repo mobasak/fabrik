@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T13:36:46.207476Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-2aab397f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M63SN9VWH45FD4RMM35VZHQD",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "branch: kaizen-wording-1029"
+}
