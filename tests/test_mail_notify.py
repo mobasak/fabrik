@@ -199,6 +199,13 @@ def test_a_dot_named_file_is_neither_a_row_nor_in_more(tmp_path):
     assert lines[-1].startswith("+1 more")  # 4 messages, 3 rows: the dot-name is not counted
 
 
+def test_a_directory_named_like_a_message_is_not_counted(monkeypatch, capsys, mailbox):
+    """`mail.py list` skips an entry it cannot read, so a directory named `x.md` was in the header
+    total and never in the rows — the same rows-versus-total disagreement as the dot-name."""
+    (mailbox / "01ZZDIR.md").mkdir()
+    assert _prompt(monkeypatch, capsys).startswith("## 📬 fabrik-mail — 5 unread in testrepo")
+
+
 def test_the_conftest_pins_both_prompt_digest_stores_outside_home():
     home_state = str(Path.home() / ".claude" / "state")
     for var in ("MAIL_NOTIFY_STATE_DIR", "THREAD_ANCHOR_DIR"):

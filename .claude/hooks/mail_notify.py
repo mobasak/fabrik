@@ -130,8 +130,9 @@ def _map_marker(fm: dict) -> str:
 
 def _message_files(inbox: Path) -> list[Path]:
     """Every message file `mail.py list` reads, oldest first: pathlib's glob matches dot-names
-    (an editor swap), which `list` skips, so the rows and the header total filter them here."""
-    return sorted(f for f in inbox.glob("*.md") if not f.name.startswith("."))
+    (an editor swap) and directories, which `list` skips, so the rows and the header total filter
+    them here."""
+    return sorted(f for f in inbox.glob("*.md") if not f.name.startswith(".") and f.is_file())
 
 
 def _summaries(inbox: Path, cap: int = _FLOOD_CAP) -> list[str]:
