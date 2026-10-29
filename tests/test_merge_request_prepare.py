@@ -593,6 +593,61 @@ def test_leg_seconds_reads_only_the_queue_legs_own_record(world, monkeypatch):
     assert mod._leg_seconds(ctx, el, "", "") == 0.0  # another element's queue leg
     path.write_text(json.dumps({"head": el["head"], "seconds": 99, "queued_as": el["id"]}))
     assert mod._leg_seconds(ctx, el, "", "") == 99.0
+    # a record rewritten between the match and this read never raises in the queue parent (r1 A5)
+    for bad in ("99", True, None, -5, float("inf")):
+        path.write_text(json.dumps({"head": el["head"], "seconds": bad, "queued_as": el["id"]}))
+        assert mod._leg_seconds(ctx, el, "", "") == 0.0, bad
+    path.write_text(json.dumps({"head": el["head"], "queued_as": el["id"]}))
+    assert mod._leg_seconds(ctx, el, "", "") == 0.0
+
+
+def test_queue_times_each_owner_script_apart(world, monkeypatch):
+    """One changes `.fabrik/merge-tests`: once it lands, the next fork reads the NEW script, whose
+    legs nobody has timed, so it is budgeted at the declared limit (review r1 A2)."""
+    _leg_log(world, sleep=1.2)
+    old = world.read(".fabrik/merge-tests")
+    h1, b1 = _new_branch(world, "one", {".fabrik/merge-tests": old + "# owner tests, revised\n"})
+    sends = [world.send(h1, branch=b1)]
+    for i in range(2):
+        h, b = _new_branch(world, f"s{i}", {f"s{i}.txt": f"{i}\n"})
+        sends.append(world.send(h, branch=b))
+    calls: list[tuple[str, float]] = []
+    real = world.mod._leg_fits
+
+    def spy(started, script, timed=0.0):
+        calls.append((script, timed))
+        return real(started, script, timed)
+
+    monkeypatch.setattr(world.mod, "_leg_fits", spy)
+
+    assert _queue(world) == 0
+
+    revised = [t for s, t in calls if s != old]
+    assert revised, calls  # a fork was checked against the revised script
+    assert all(t == 0.0 for t in revised), calls  # never with the old script's timing
+    assert all(_record(world, m)["outcome"] == "merged" for m in sends)
+
+
+def test_queue_reforks_a_request_restacked_after_a_refusal(world, monkeypatch):
+    """One's queue leg is green but its landing is refused: two, tested stacked on one, is rebuilt onto
+    the base with a NEW tree and earns a fresh queue leg — never a leg inside the lock (review r1 A1)."""
+    log = _kind_log(world)
+    h1, b1 = _new_branch(world, "one", {"a.txt": "a\n"})
+    h2, b2 = _new_branch(world, "two", {"b.txt": "b\n"})
+    m1, m2 = world.send(h1, branch=b1), world.send(h2, branch=b2)
+    real_land = world.mod._land
+
+    def refuse_one(msg_id):
+        return world.mod.EXIT_REFUSED if msg_id == m1 else real_land(msg_id)
+
+    monkeypatch.setattr(world.mod, "_land", refuse_one)
+
+    assert _queue(world) == world.mod.EXIT_REFUSED
+
+    rows = [(h, k) for h, k, _, _ in _kinds(log)]
+    assert rows.count((h2, "queue")) == 2, rows  # once stacked on one, once on the base
+    assert (h2, "locked") not in rows, rows
+    assert _record(world, m2)["outcome"] == "merged" and _skipped(world, m2)
 
 
 def test_queue_never_reforks_a_tried_leg(world):
