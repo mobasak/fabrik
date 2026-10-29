@@ -22,8 +22,7 @@ D-1177 conditions, all enforced below:
 3. SQL goes on stdin to `psql -X -v ON_ERROR_STOP=1`, never `-c`. The temp files on vps1 that hold a password —
    the login probe's pgpass (then `test ! -e`) and step 3d's working copy of a service's .env — are umask 077 and
    removed. Step 3d's `*.backup.<stamp>` copies of compose.yaml and .env (`cp -p`, original modes) are kept beside
-   the originals: a fresh service's compose.yaml backup holds the superuser DSN, a moved one's .env backup the
-   previous run's scoped DSN.
+   the originals and can hold a DSN with its password.
 4. Per role: assert the stored verifier, then one real TCP login on the scram host line — and a wrong password
    that must be refused, so the login proves a password was checked.
 
