@@ -743,20 +743,23 @@ def test_the_sync_runs_outside_the_merge_lock(world, monkeypatch):
 
 def test_a_debt_owed_during_a_sync_is_covered_by_one_more_run(world, monkeypatch):
     _hub(world, monkeypatch)
-    # the first sync owes once more while it runs (as a later landing would); the runner's next
-    # turn covers that debt, and no third sync runs
+    # the first sync owes once more while it runs (as a later landing would); the SAME runner's
+    # next turn covers that debt (each sync records its runner's pid — a drain rerun would be a
+    # second runner), and no third sync runs
     _fake_sync(
         world,
         monkeypatch,
         "first = not marker.exists()\n"
-        "with open(marker, 'a') as f: f.write('x')\n"
+        "with open(marker, 'a') as f: f.write(f'{os.getppid()}\\n')\n"
         "if first:\n"
         "    with open(state / 'sync-owed.log', 'a') as f: f.write('owed during the sync\\n')\n",
     )
     _sync_landing(world)
 
     assert world.run("merge") == 0
-    assert world.sync_marker.read_text() == "xx"
+    runners = world.sync_marker.read_text().split()
+    assert len(runners) == 2, runners
+    assert runners[0] == runners[1], f"the debt was covered by a second runner: {runners}"
 
 
 def test_a_failed_sync_stays_owed_and_the_next_kick_retries_it(world, monkeypatch, capsys):
@@ -814,9 +817,10 @@ def test_a_sync_orphaned_by_a_killed_runner_keeps_the_sync_lock(world, monkeypat
     _sync_landing(world)
 
     assert world.run("merge") == 0
-    for _ in range(50):
-        if world.sync_marker.exists():
-            break
+    end = time.monotonic() + 30  # the orphan writes after its runner's drain has returned
+    while time.monotonic() < end and not (
+        world.sync_marker.exists() and world.sync_marker.read_text()
+    ):
         time.sleep(0.1)
     assert world.sync_marker.read_text() == "held"
 
@@ -834,6 +838,58 @@ def test_a_debt_owed_after_the_runner_exits_gets_one_more_runner(world, monkeypa
     err = capsys.readouterr().err
     assert "sync: ran" in err
     assert "FAILED" not in err
+
+
+def test_a_sync_that_cannot_be_owed_is_reported_and_the_landing_still_replies(world, monkeypatch):
+    state = _hub(world, monkeypatch)
+    (state / "sync-owed.log").mkdir(parents=True)  # the owed line cannot be written
+    msg_id = _sync_landing(world)
+
+    assert world.run("merge") == 0
+    reply = world.replies(msg_id)["fleet"]
+    assert "sync: FAILED to owe (" in reply
+    assert "run scripts/sync_enforcement_to_projects.py --force" in reply
+
+
+def test_a_drain_that_cannot_read_its_state_keeps_the_exit_code(world, monkeypatch, capsys):
+    state = _hub(world, monkeypatch)
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "sync-owed.log").write_text("owed\n")
+    done = subprocess.Popen([sys.executable, "-c", "pass"])
+    done.wait()
+    world.mod._SYNC_RUN.update(proc=done, state=state, main=world.main)
+    state.chmod(0)
+    try:
+        assert world.run("merge") == 0  # nothing waits in the inbox: the verb's own exit is 0
+    finally:
+        state.chmod(0o755)
+    assert "merge_request: sync: unknown (" in capsys.readouterr().err
+
+
+def test_a_refused_verb_still_drains_its_sync(world, monkeypatch, capsys):
+    state = _hub(world, monkeypatch)
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "sync-owed.log").write_text("owed\n")
+    (state / "sync-done").write_text(f"{(state / 'sync-owed.log').stat().st_size}\n")
+    done = subprocess.Popen([sys.executable, "-c", "pass"])  # this run's runner, covered
+    world.mod._SYNC_RUN.update(proc=done, state=state, main=world.main)
+
+    assert world.run("resume", "01NOSUCHREQUEST000000000000") == 1  # REFUSED
+    assert "merge_request: sync: ran" in capsys.readouterr().err
+
+
+def test_a_sync_past_the_drain_bound_is_reported_still_running(world, monkeypatch, capsys):
+    _hub(world, monkeypatch)
+    monkeypatch.setattr(world.mod, "SYNC_TIMEOUT_S", 1)  # the drain's bound (this process only)
+    _fake_sync(world, monkeypatch, "time.sleep(4)\nmarker.write_text('done')\n")
+    _sync_landing(world)
+
+    assert world.run("merge") == 0
+    assert "merge_request: sync: still running in the background (pid " in capsys.readouterr().err
+    end = time.monotonic() + 30  # let the runner finish inside the test
+    while time.monotonic() < end and not world.sync_marker.exists():
+        time.sleep(0.1)
+    assert world.sync_marker.read_text() == "done"
 
 
 def test_a_debt_left_by_a_killed_run_runs_at_the_next_landing(world, monkeypatch):

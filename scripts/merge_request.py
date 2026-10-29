@@ -2014,9 +2014,12 @@ def _sync(ctx: _Ctx, rec: dict) -> str:
             hits = [p for p in files if rx.search(p)]
             line = "sync: no governance-sync path merged — none owed"
     state = ctx.records
-    if hits:
-        _owe_sync(state, f"{merge} {len(hits)} path(s), request {rec['id']}")
-    kicked = _kick_sync(ctx.main, state)
+    try:
+        if hits:
+            _owe_sync(state, f"{merge} {len(hits)} path(s), request {rec['id']}")
+        kicked = _kick_sync(ctx.main, state)
+    except OSError as exc:  # the push already landed: a sync we cannot owe is reported, not raised
+        return f"sync: FAILED to owe ({exc}) — run scripts/sync_enforcement_to_projects.py --force"
     if not hits:
         return line if kicked is None else f"{line}; {kicked}"
     line = (
@@ -2076,8 +2079,8 @@ def _sync_status(state: Path) -> dict:
 
 def _write_atomic(path: Path, text: str) -> None:
     tmp = path.with_name(f".{path.name}.{os.getpid()}")
-    tmp.write_text(text, encoding="utf-8")
     try:
+        tmp.write_text(text, encoding="utf-8")
         os.replace(tmp, path)
     except OSError:
         tmp.unlink(missing_ok=True)
@@ -2161,7 +2164,7 @@ def _sync_once(argv: list[str], state: Path, lock_fd: int) -> tuple[int, str]:
 
 
 def _sync_runner(state: Path, argv: list[str]) -> int:
-    """``sync-runner`` (hidden; started by ``_kick_sync``): hold SYNC_LOCK, sync until the owed
+    """``sync-runner`` (internal, listed by ``--help``; started by ``_kick_sync``): hold SYNC_LOCK, sync until the owed
     log is covered. Exit 0 covered · 1 a sync failed · 3 the lock stayed held past its wait."""
     state.mkdir(parents=True, exist_ok=True)
     fd = os.open(state / SYNC_LOCK, os.O_RDWR | os.O_CREAT, 0o644)
@@ -3621,7 +3624,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"merge_request: PARTIAL — {exc}", file=sys.stderr)
         return EXIT_PARTIAL
     finally:
-        _drain_sync()  # the merge lock is released by now; a PARTIAL or REFUSED run drains too
+        # the merge lock is released by now; a PARTIAL or REFUSED run drains too, and a drain that
+        # cannot read its state never replaces the verb's exit code
+        try:
+            _drain_sync()
+        except OSError as exc:
+            print(
+                f"merge_request: sync: unknown ({exc}) — the debt stays owed; run "
+                "scripts/sync_enforcement_to_projects.py --force if no merge run follows",
+                file=sys.stderr,
+            )
 
 
 if __name__ == "__main__":
