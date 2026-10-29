@@ -389,3 +389,34 @@ def test_a_probed_count_is_never_replaced_by_a_seats_re_derivation() -> None:
             "never re-derived by a finder" not in text and "never re-derived by a seat" not in text
         )
 
+
+
+def test_a_remainder_round_reverts_a_regression_and_records_every_other_own_fix_defect() -> None:
+    """Rows 1792630929, 1793230542 and 1793036308, settled by D-1184: a remainder round RECORDS a defect in the
+    review's own fixes, and fixes one only when one input executed on round 1's pin and on the current pin gets
+    opposite verdicts, by reverting that hunk. The catalogue's Loop bookkeeping line said the opposite ("fixed when it
+    is defect of fixed set"); each of the four homes now carries the exception whole. Mutants: restore the catalogue's
+    old clause, drop the exception from any home, or drop the revert from the review-scoped sentence's count."""
+    frag = ROOT / "commands" / "_fragments"
+    exception = (
+        "The one exception is a regression: when one input executed on round 1's pin and on the current pin gets"
+        " opposite verdicts, the remainder round reverts the hunk that changed it and routes that hunk's original"
+        " defect to the backlog row."
+    )
+    for name in ("term-coverage.md", "term-edit.md"):
+        text = re.sub(r"\s+", " ", (frag / name).read_text())
+        assert (
+            "onto the routed backlog row and never re-arms this stop. " + exception in text
+        ), name
+    assert (
+        "and never re-arms the stop. The one exception is a regression: when one input executed on round 1's pin"
+        " and on the current pin gets opposite verdicts, that round reverts the hunk that changed it, counts the"
+        " revert in its `--confirmed` and routes that hunk's original defect to the backlog row." in _norm(SRC)
+    )
+    cat = _norm(CAT)
+    assert (
+        "it never fixes a RECORDED candidate; fixed-set fix that fails its re-verify is fixed again; other finding it"
+        " raises is recorded onto routed backlog row, except regression (one input with opposite verdicts on round"
+        " 1's pin and current pin), whose hunk is reverted;" in cat
+    )
+    assert "fixed when it is defect of fixed set" not in cat
