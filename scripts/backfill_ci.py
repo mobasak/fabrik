@@ -11,9 +11,10 @@ that file is stale (no sqlfluff step, no `.fabrik/run-pytest`) or not fabrik-man
 also lints every tracked `*.sql` with sqlfluff, with no ratchet, so each target's SQL is graded
 first by the pinned sqlfluff when this interpreter carries it (else the verdict is `unknown`):
 `--apply` refuses a `red` or `unknown` verdict unless `--force`, and a forced row records the
-verdict it went past. An existing `.fabrik/run-pytest` or lint baseline is kept, nothing is
-written through a symlink, `scripts/ci_local.sh` is written last, and the exit is 1 when
-`--apply` refused or failed any project.
+verdict it went past. An existing `.fabrik/run-pytest` or lint baseline is kept; a symlink on
+any path it would write (a parent directory included) fails that project before anything is
+written; each file goes in through a temp file and a rename, `scripts/ci_local.sh` last; and the
+exit is 1 when `--apply` refused, failed or could not find any project.
 
 Per-project config is grounded, not guessed:
   needs_database  ← the hub spec's shape.needs_database if a spec exists, else an uncommented
@@ -269,6 +270,13 @@ def apply(name: str, p: dict) -> list[str]:
     # Seed the ratchet baseline at the current count so the replica lands GREEN.
     if p["ruff"] is not None:
         files[BASELINE] = json.dumps({"ruff_errors": p["ruff"]}) + "\n"
+    # A symlink anywhere on a path we would write (a parent directory or the file itself, dangling
+    # or not) fails the project before anything is written: following it writes outside the
+    # project, and skipping it leaves a marker the gate reads as absent.
+    for rel in files:
+        link = _symlink_on(proj, rel)
+        if link:
+            raise OSError(f"symlink at {link}")
     # scripts/ci_local.sh goes LAST: its presence is what marks the project done, so a write that
     # fails part-way leaves no ci_local.sh and the next run retries the whole backfill.
     order = sorted(files, key=lambda rel: rel == CI_LOCAL)
@@ -276,13 +284,30 @@ def apply(name: str, p: dict) -> list[str]:
     for rel in order:
         dest = proj / rel
         if os.path.lexists(dest):
-            continue  # an existing marker or baseline is the project's own; a symlink is never followed
+            continue  # an existing marker or baseline is the project's own
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(files[rel], encoding="utf-8")
-        if dest.suffix == ".sh":
-            dest.chmod(0o755)
+        # Written to a sibling temp file, made executable, then renamed into place: a failed
+        # write or chmod never leaves a half-made file at the real path.
+        tmp = dest.with_name(f".{dest.name}.backfill-tmp")
+        try:
+            tmp.write_text(files[rel], encoding="utf-8")
+            if dest.suffix == ".sh":
+                tmp.chmod(0o755)
+            os.replace(tmp, dest)
+        finally:
+            tmp.unlink(missing_ok=True)
         written.append(rel)
     return written
+
+
+def _symlink_on(proj: Path, rel: str) -> str | None:
+    """The first symlink among `proj/rel`'s components below the project, as a relative path."""
+    cur = proj
+    for part in Path(rel).parts:
+        cur = cur / part
+        if cur.is_symlink():
+            return str(cur.relative_to(proj))
+    return None
 
 
 def main() -> int:
@@ -305,6 +330,7 @@ def main() -> int:
             p = plan(name)
             if p.get("error"):
                 print(f"{name:<30}{p['error']}")
+                failed.append(name)  # a mistyped project under --apply is a failure, not a pass
                 continue
             act = _action(name, p, do_apply=do_apply, force=force)
         except OSError as e:  # one unwritable project never stops the rest of the batch
@@ -343,7 +369,12 @@ def _action(name: str, p: dict, *, do_apply: bool, force: bool) -> str:
         return f"{verb} (sqlfluff {p['sqlfluff']}; --force overrides)"
     forced = f" (forced past sqlfluff {p['sqlfluff']})" if _refused(p) else ""
     if not do_apply:
-        seed = "keep its baseline" if p["baseline_exists"] else f"seed baseline@{p['ruff']}"
+        if p["baseline_exists"]:
+            seed = "keep its baseline"
+        elif p["ruff"] is None:
+            seed = "write (no ruff)"
+        else:
+            seed = f"seed baseline@{p['ruff']}"
         return f"would {seed}{forced}"
     written = apply(name, p)
     if BASELINE in written:

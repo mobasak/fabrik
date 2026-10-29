@@ -304,14 +304,62 @@ def test_a_symlink_or_directory_at_ci_local_sh_is_skipped(bf, monkeypatch, capsy
     assert not outside.exists()
 
 
-def test_a_symlinked_marker_is_never_written_through(bf, monkeypatch, capsys, tmp_path):
+def test_a_symlinked_marker_fails_the_project_before_any_write(bf, monkeypatch, capsys, tmp_path):
+    """Following it writes outside; skipping it leaves a marker the gate's `.exists()` reads as
+    absent — so the project fails, loudly, with nothing written."""
     outside = tmp_path / "outside-marker"
     proj = _repo(bf, "p", {"README.md": "x\n"})
     (proj / ".fabrik").mkdir()
     (proj / ".fabrik/run-pytest").symlink_to(outside)  # dangling
-    _main(bf, monkeypatch, capsys, "p", "--apply")
+    out = _main(bf, monkeypatch, capsys, "p", "--apply", rc=1)
+    assert _row(out, "p").endswith("FAILED (OSError: symlink at .fabrik/run-pytest)")
     assert not outside.exists()
-    assert (proj / "scripts/ci_local.sh").exists()
+    assert not (proj / "scripts").exists()
+
+
+@pytest.mark.parametrize("linked", ["scripts", ".fabrik"])
+def test_a_symlinked_parent_directory_fails_the_project(bf, monkeypatch, capsys, tmp_path, linked):
+    outside = tmp_path / "outside-dir"
+    outside.mkdir()
+    proj = _repo(bf, "p", {"README.md": "x\n"})
+    (proj / linked).symlink_to(outside)
+    out = _main(bf, monkeypatch, capsys, "p", "--apply", rc=1)
+    assert _row(out, "p").endswith(f"FAILED (OSError: symlink at {linked})")
+    assert list(outside.iterdir()) == []
+
+
+def test_a_failed_chmod_leaves_no_ci_local_sh(bf, monkeypatch, capsys):
+    proj = _repo(bf, "p", {"README.md": "x\n"})
+    real_chmod = Path.chmod
+
+    def chmod(self, mode, *a, **k):
+        if self.name.endswith(".backfill-tmp"):
+            raise PermissionError(1, "Operation not permitted")
+        return real_chmod(self, mode, *a, **k)
+
+    monkeypatch.setattr(Path, "chmod", chmod)
+    out = _main(bf, monkeypatch, capsys, "p", "--apply", rc=1)
+    assert "FAILED (PermissionError" in _row(out, "p")
+    assert not (proj / "scripts/ci_local.sh").exists()
+    assert sorted(p.name for p in (proj / "scripts").iterdir()) == []  # no temp file left
+
+
+def test_a_project_that_is_not_found_fails_an_apply(bf, monkeypatch, capsys):
+    out = _main(bf, monkeypatch, capsys, "nosuch", "--apply", rc=1)
+    assert _row(out, "nosuch").endswith("not found")
+    _main(bf, monkeypatch, capsys, "nosuch")  # a dry run still exits 0
+
+
+def test_a_dry_run_with_no_ruff_count_says_so(bf, monkeypatch, capsys):
+    _repo(bf, "p", {"README.md": "x\n"})
+    monkeypatch.setattr(bf, "_ruff_count", lambda p: None)
+    assert _row(_main(bf, monkeypatch, capsys, "p"), "p").endswith("would write (no ruff)")
+
+
+def test_a_sqlfluff_interpreter_that_cannot_start_reads_no_sqlfluff(bf, monkeypatch):
+    proj = _repo(bf, "p", {"db/a.sql": "select 1;\n"})
+    monkeypatch.setattr(bf, "SQLFLUFF_PYTHON", str(bf.TMP / "no-such-python"))
+    assert bf._sqlfluff_verdict(proj, bf._tracked_sql(proj)) == "unknown (no sqlfluff)"
 
 
 def test_a_failed_write_leaves_no_ci_local_sh_and_the_batch_goes_on(bf, monkeypatch, capsys):
