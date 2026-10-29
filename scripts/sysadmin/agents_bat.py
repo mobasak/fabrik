@@ -10,10 +10,10 @@ ignored and a down session, a failed or timed-out (2 s) read gives the repo its 
 from the repo's physical path, as agents_up.sh does. In BOTH modes the distro defaults to the Deck's resolver
 (fabrik_deck.py `_default_distro`, once per run); --distro overrides and '' is refused. The slow `agents_up.sh
 --print` per repo runs OUTSIDE the lock; under flock on ~/.config/fabrik/agents-desktop.lock (30 s at most, then exit
-2) only the tmux window reads and the write happen. A run with --desktop D that wrote its file(s) remembers D's
-absolute path in ~/.config/fabrik/agents-desktop; a --tabbed run without --desktop writes there, or, when nothing is
-remembered or the folder is gone, prints with a stderr note (exit 0). Every write goes through a unique temp file and
-a rename.
+2) only the tmux window reads and the write happen. A run with --desktop D that wrote or found current any of its
+file(s) remembers D's absolute path, whatever its exit code, in ~/.config/fabrik/agents-desktop; a --tabbed run
+without --desktop writes there, or, when nothing is remembered or the folder is gone, prints with a stderr note (exit
+0). Every write goes through a unique temp file and a rename.
 
 For every repo directly under --opt (default /opt) whose grid `agents_up.sh --print <repo>` accepts — it exits 0 and
 lists at least one pane — it makes the desktop launcher the operator double-clicks to open that repo's agents_up.sh
@@ -369,11 +369,11 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     _CONFIRMED.clear()
     rc = _run(args)
-    # a run that found no repo (a mistyped --opt) exits 0 but wrote or confirmed nothing: it remembers nothing
-    if rc == 0 and args.desktop and _CONFIRMED:
-        _remember(
-            Path(args.desktop)
-        )  # only a run that wrote its file(s) moves the remembered desktop
+    # only a run that wrote or confirmed its file(s) moves the remembered desktop, whatever its rc (T10 F13: one skipped
+    # unsafe repo or an unmatched --replace exits 2 yet wrote the rest); a run that found no repo (a mistyped --opt)
+    # and a refused one confirmed nothing, so they remember nothing
+    if args.desktop and _CONFIRMED:
+        _remember(Path(args.desktop))
     return rc
 
 

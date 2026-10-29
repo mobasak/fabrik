@@ -724,6 +724,28 @@ def test_a_run_that_wrote_nothing_keeps_the_remembered_desktop(tmp_path: Path) -
     assert (d2 / TABBED).is_file()
 
 
+@pytest.mark.parametrize("cause", ["unsafe-repo", "unmatched-replace"])
+def test_t10_f13_a_partial_run_that_wrote_its_file_remembers_the_desktop(
+    tmp_path: Path, cause: str
+) -> None:
+    """T10 F13: a --desktop run that wrote a file but exits 2 for another reason (an unsafe repo name skipped, a
+    --replace naming no target) still remembers the desktop, so later add/remove regenerations have a target."""
+    opt = _opt(tmp_path, "good", *(["bad name"] if cause == "unsafe-repo" else []))
+    desk = tmp_path / "desk"
+    desk.mkdir()
+    extra = ["--replace", "Nothing Here.bat"] if cause == "unmatched-replace" else []
+    out = _run("--opt", str(opt), "--desktop", str(desk), *extra)
+    assert out.returncode == 2, out.stderr
+    assert (desk / "Good Agents.bat").is_file(), list(desk.iterdir())
+    if cause == "unsafe-repo":  # the follow-up run is a clean one: only the remembered desktop is under test
+        (opt / "bad name" / ".fabrik" / "session-agents.json").unlink()
+        (opt / "bad name" / ".fabrik").rmdir()
+        (opt / "bad name").rmdir()
+    tm = _fake_tmux(tmp_path)
+    assert _run("--opt", str(opt), "--tabbed", **tm).returncode == 0
+    assert (desk / TABBED).is_file(), list(desk.iterdir())
+
+
 def test_confirmed_files_do_not_leak_between_main_calls(tmp_path: Path, monkeypatch) -> None:
     """P2: `main` resets what the run confirmed, so a second in-process call that finds no repo does not inherit the
     first call's confirmation and move the remembered desktop."""
