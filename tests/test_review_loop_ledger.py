@@ -1441,6 +1441,23 @@ def test_read_names_a_run_file_that_is_not_final(tmp_path: Path) -> None:
     assert r.returncode == 5 and "running — not ended" in r.stdout, r.stdout
 
 
+def test_a_failed_run_prints_its_error(tmp_path: Path) -> None:
+    """W-b36e2a4a (both design critiques): the review-loop workflow now THROWS when no finder returned anything,
+    naming the causes, and the harness keeps the message in the run file's `error` — which `read` dropped, so the
+    lead who reads the pass into a file (fabrik-review.md) saw only `failed — no result`. Its first line, at most
+    300 characters, follows that line and lands in the --out file; a run with no error prints the line as before."""
+    msg = "Error: every finder seat returned nothing, even after its retry" + "x" * 400
+    run = _session_run(tmp_path / "f", {"status": "failed", "error": msg + "\n    at workflow.js:590:9"})
+    out = tmp_path / "f.json"
+    r = _tool("read", str(run), "--out", str(out))
+    assert r.returncode == 0, (r.returncode, r.stdout, r.stderr)
+    line = [x for x in r.stdout.splitlines() if x.startswith("workflow: failed — no result")]
+    assert line and line[0].endswith(" — " + msg[:300]), r.stdout
+    assert json.loads(out.read_text())["workflow"]["error"] == msg[:300]
+    r = _tool("read", str(_session_run(tmp_path / "k", {"status": "killed"})))
+    assert "workflow: killed — no result: every seat without one is NO RESULT\n" in r.stdout, r.stdout
+
+
 def test_read_outside_the_harness_layout_checks_no_workflow(tmp_path: Path) -> None:
     r = _tool("read", str(_run_dir(tmp_path)))
     assert r.returncode == 0 and "workflow: NOT CHECKED" in r.stdout, r.stdout

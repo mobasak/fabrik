@@ -15,7 +15,9 @@ file, not its scrollback. So:
         Workflow API has no per-agent timeout, so an overrun is only ever visible here (`OVER BOX`; one refuter
         ran 59 minutes against a 12-minute box on 2026-09-23). A seat with no result row is `NO RESULT` — or
         `RUNNING` while the workflow's run file is absent (`workflow_state`: the read then exits 5), and an ended
-        run's own failures print as SLICE DROPPED / REFUTER FAILED / SEAT FAILED. Each seat also keeps its
+        run's own failures print as SLICE DROPPED / REFUTER FAILED / SEAT FAILED, and an ended run with no result
+        prints the first line of the run file's `error` (a review loop whose every finder came back null throws,
+        W-b36e2a4a). Each seat also keeps its
         `notes` (every result's non-blank string note: its coverage statement and MACHINERY block) and its
         `files_read` (every result's non-blank string entries, trimmed and deduplicated), so a lead resuming from
         FILE still has what the close-out feedback is built from.
@@ -208,7 +210,10 @@ def workflow_state(run: Path) -> dict | None:
         return {"status": status, "wait": True, "run_file": str(f), "idle_min": _idle_minutes(run)}
     res = doc.get("result")
     if not isinstance(res, dict):
-        return {"status": status, "wait": False, "run_file": str(f), "result": False}
+        # W-b36e2a4a: a run that THREW (the review loop does when no finder returned anything) keeps its message
+        # in `error`; its first line is the cause the lead must read before relaunching
+        error = str(doc.get("error") or "").split("\n")[0].strip()[:300]
+        return {"status": status, "wait": False, "run_file": str(f), "result": False, "error": error}
     slices = []
     for s in res.get("slices") or []:
         if not isinstance(s, dict):
@@ -563,7 +568,8 @@ def _print_workflow(wf: dict | None, run: Path) -> None:
             f"workflow: {state}; adjudicate nothing, wait for the workflow's notification and read again{idle_s}"
         )
     elif not wf.get("result"):
-        print(f"workflow: {st} — no result: every seat without one is NO RESULT")
+        err = f" — {wf['error']}" if wf.get("error") else ""
+        print(f"workflow: {st} — no result: every seat without one is NO RESULT{err}")
     else:
         print(
             f"workflow: {st} · {'closable' if wf.get('closable') else 'NOT closable'} · "
