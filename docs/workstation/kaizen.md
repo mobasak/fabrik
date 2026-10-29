@@ -316,9 +316,11 @@ W-682f1189) mails kaizen ONE digest of the entries written into any repo's `docs
 <heading>`, at most 150 a mail (the rest arrive next run), each answered by a command or rule edit or a reject with
 its reason, the digest acked (`ack: required`) once its rows are answered. Its cursor is
 `~/.claude/state/lessons-relay.json`: `--seed` records every current entry and sends nothing (the backlog is
-kaizen's one-time triage); no cursor, or one that does not parse, exits 1 and sends nothing. A heading inside fenced
-code is not an entry, but a fence opener with no closer before end of file is read as text — the legacy scaffold
-template ends in one, and strict parsing hid every lesson appended after it. `--dry-run` prints the digest.
+kaizen's one-time triage; it refuses an existing cursor without `--force`); no cursor, or one that does not parse,
+exits 1 and sends nothing. A heading inside a code block opened with an info string (` ```bash `) is not an entry; a
+bare fence line is read as text, because the legacy scaffold template leaves a stray bare opener in 27 of 84 files and
+strict parsing paired it with a later lesson's code block and hid that lesson. A mail stays under 60 KiB (mail.py
+refuses over 64 KiB); `--dry-run` prints the digest.
 
 The same job carries two more riders: `scripts/sysadmin/rules_currency_watch.py` (mails infra when a pack's
 pinned runtime falls behind) and `scripts/sysadmin/vps_script_drift.py` (W-c792a205 — mails fleet when a VPS is

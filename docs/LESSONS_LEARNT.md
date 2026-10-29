@@ -5,7 +5,9 @@
 
 **What happened:** the lessons reader's design parsed fenced code the CommonMark way, so a fence closes only on a bare closer. Run against all 84 live files, the parser left 27 of them inside an open fence at end of file. The legacy scaffold template's seventh fence line opens a block that nothing closes, so 171 real lesson headings sat inside "code". A lesson appended there, which is the normal place to add one, would never have reached kaizen, and nothing would have said so. Both design critics found the same fault from the same probe, and so did the author's own seed run.
 
-**Lesson:** before relying on a parser for a human-written format, run it over every live file and count what it drops per file against a naive count. The spec's behaviour on a malformed input is often the dangerous one: here it failed silently, and a stray opener read as text costs only a little noise. Pick the fail direction on purpose, and grade it with a mutant that brings the strict rule back.
+The first fix treated an opener still open at end of file as text. The review then showed that the stray also paired with the first bare fence of a lesson appended later. That hid the lesson, and in one case made the lesson's shell comment the row that was sent. A stray opener cannot be told apart from a real one by position. The rule that held was to fence only blocks whose opener has a language tag. Over the 84 files it shows 199 hidden headings and hides none the strict rule showed; one of the 199 is a code comment.
+
+**Lesson:** before relying on a parser for a human-written format, run it over every live file and count what it drops per file against a naive count, and test the fix against content appended AFTER the malformed part, not just the file as it is today. The spec's behaviour on a malformed input is often the dangerous one: here it failed silently, while reading a bare fence as text costs one noise row in the whole corpus. Pick the fail direction on purpose, and grade it with a mutant that brings the strict rule back.
 
 ## Measure the bytes per class before choosing which rule to loosen (2026-10-29, W-d1a4a8f5)
 

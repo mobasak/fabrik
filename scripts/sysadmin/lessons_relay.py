@@ -20,21 +20,25 @@ unseen — so a scaffold-identical copy in another repo is not re-sent — AND e
 (the hub's ``## 1. Context`` x34 cannot name an entry, so its hash does). A new heading whose nearest
 enclosing heading is itself sent this run folds into that row.
 
-A fence opener with no closer before end of file is TEXT, not a fence: the legacy scaffold template
-ends in one (27 of 84 live files on 2026-10-29), and CommonMark-strict parsing hid every lesson
-appended after it.
+Only a fence opener with an info string (```bash) fences; a bare fence line is text (``_fenced``
+says why: the legacy scaffold template leaves a stray bare opener in 27 of 84 live files).
 
 The cursor is ``~/.claude/state/lessons-relay.json``. ``--seed`` records every current entry and
-sends nothing (the 2,522-entry backlog is kaizen's one-time triage, never the queue); NO cursor
-without ``--seed``, or a cursor that does not parse → exit 1, nothing sent, never a silent reseed.
-At most ``CAP`` rows per mail, a row's folded children always with it; the cursor advances for the
-rows sent, and only after ``mail.py send`` exits 0, so a failure or the overflow arrives on the
-next run. Each row is screened with mail.py's own refusal checks first and a refusable heading is
-withheld, so one heading cannot block the channel. Quiet when nothing is new.
+sends nothing (the backlog is kaizen's one-time triage, never the queue); it refuses an existing
+cursor without ``--force`` and a root holding no entry. NO cursor, or one that does not parse →
+exit 1, nothing sent, never a silent reseed. At most ``CAP`` rows and ``BODY_MAX`` bytes per mail,
+a row's folded children always with it; the cursor advances for the rows sent, and only after
+``mail.py send`` exits 0 within 120 s, so a failure or the overflow arrives on the next run. Each
+row is screened with mail.py's own secret check first and a refusable heading is withheld (every
+heading, when that check cannot be imported), so one heading cannot block the channel. Quiet when
+nothing is new.
 
 Stated limits: a renamed heading reads as a new entry; editing an old section under a REPEATED
-heading re-sends it; a lesson inside a mis-nested but CLOSED fence is invisible (GitHub renders it
-as code too); a corrupt cursor stops the relay with a stderr line in the cron log only.
+heading re-sends it, while a uniquely-headed section rewritten in place — even with a wholly new
+lesson under the old heading — is never re-sent; a bare-fenced code block's ``# comment`` lines
+read as headings (noise kaizen rejects, never a lost lesson); a corrupt cursor, or a cursor save
+that fails after a send (the next run re-sends that batch), stops with a stderr line in the cron
+log only; the relay takes no lock of its own (the cron arm runs it under ``flock``).
 COBRA (D-253): the cheapest way to satisfy "rows answered" is a reject without reading the file;
 the row carries the path:line so a reject can cite what it read — the audit is kaizen's.
 """
@@ -56,40 +60,47 @@ CURSOR = Path.home() / ".claude" / "state" / "lessons-relay.json"
 MAIL = Path("/opt/fabrik/scripts/mail.py")
 ROOT = Path("/opt")
 FILES = ("docs/LESSONS_LEARNT.md", "docs/lessons-learnt.md", "AFCL.md")
-CAP = 150  # rows per mail: 150 x (path + 200-char heading) stays far under mail.py's 64 KiB
-HEADING_MAX = 200
+CAP = 150  # rows per mail
+BODY_MAX = 60 * 1024  # body bytes per mail: mail.py refuses over 64 KiB of UTF-8 (its MAX_BODY)
+HEADING_MAX = 200  # heading bytes per row, so a multi-byte heading cannot exhaust BODY_MAX
 _HEADING = re.compile(r"^ {0,3}(#{1,3})[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$")
-_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 
 
 def _fenced(lines: list[str]) -> set[int]:
-    """Line indices inside fenced code. A fence still open at end of file is a stray opener
-    (tojlo-mail's line 140 hid every later lesson), so it fences nothing and the scan resumes
-    on the line after it."""
+    """Line indices inside fenced code. Only an opener with an info string (```bash,
+    ````markdown) opens a block, closed by the next bare fence of the same char at least as long;
+    a bare fence line is text. CommonMark lets a bare ``` open too, but a stray one — the legacy
+    scaffold template leaves one in 27 of 84 live files — then paired with the first bare fence of
+    a lesson appended later, hiding that lesson and reading its shell comments as headings
+    (review round 1, W-d6ebcc04). Measured over the 84 live files: this rule hides 0 headings the
+    strict rule shows, and shows 199 it hid, one of them a code comment (fabrik's line 7740). An
+    opener with no closer before end of file fences nothing."""
     fenced: set[int] = set()
     i = 0
     while i < len(lines):
         m = _FENCE.match(lines[i])
-        if not m:
+        if not m or not m.group(2).strip():
             i += 1
             continue
         fence = m.group(1)
         for j in range(i + 1, len(lines)):
             c = _FENCE.match(lines[j])
             if c and c.group(1)[0] == fence[0] and len(c.group(1)) >= len(fence):
-                if not lines[j].strip()[len(c.group(1)) :].strip():
+                if not c.group(2).strip():
                     fenced.update(range(i, j + 1))
                     i = j + 1
                     break
         else:
-            fenced.add(i)
             i += 1
     return fenced
 
 
 def _entries(rel: str, text: str) -> list[dict]:
     """Every level 1-3 heading outside fences: key, hash, line, level, text, parent index."""
-    lines = text.splitlines()
+    # "\n" only: splitlines() also splits on \f, \x1c-\x1e, \x85 and U+2028/9, which shifted a
+    # row's :line off the line an editor shows (read_text has already folded \r\n and \r).
+    lines = text.split("\n")
     fenced = _fenced(lines)
     heads: list[tuple[int, int, str]] = []  # (line index, level, text)
     for i, line in enumerate(lines):
@@ -134,7 +145,7 @@ def collect(root: Path) -> tuple[list[dict], int]:
             if not f.is_file():
                 continue
             try:
-                text = f.read_text(encoding="utf-8", errors="replace")
+                text = f.read_text(encoding="utf-8-sig", errors="replace")  # a BOM hid line 1
             except OSError as exc:
                 print(f"lessons_relay: skipped {f}: {exc}", file=sys.stderr)
                 continue
@@ -194,30 +205,40 @@ def _save(path: Path, keys: set[str], hashes: set[str]) -> None:
     tmp.replace(path)
 
 
-def _scanners() -> tuple[Callable[[str], str | None], Callable[[str], bool]] | None:
-    """mail.py's own send-time refusals, so one heading cannot refuse every digest for good."""
+def _scanner() -> Callable[[str], str | None] | None:
+    """mail.py's own send-time secret refusal, so one heading cannot refuse every digest for good.
+    (Its bare ack-line refusal cannot fire on a row: every row opens with `- [ ] `.)"""
     path = Path(__file__).resolve().parents[1] / "mail.py"
     try:
         spec = importlib.util.spec_from_file_location("_lessons_relay_mail", path)
         if spec is None or spec.loader is None:
-            return None
+            raise ImportError(f"no loader for {path}")
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        return mod._secret_level, mod._body_has_bare_ack_line
-    except Exception as exc:  # any import failure leaves the send's own check in place
+        return mod._secret_level  # type: ignore[no-any-return]
+    except Exception as exc:  # any import failure: every heading is withheld (_row)
         print(f"lessons_relay: mail.py scanners unavailable ({exc})", file=sys.stderr)
         return None
 
 
-def _row(entries: list[dict], e: dict, scan: tuple | None) -> str:
+def _cut(text: str, limit: int) -> str:
+    """text cut to at most limit UTF-8 bytes, an ellipsis marking a cut."""
+    if len(text.encode("utf-8")) <= limit:
+        return text
+    raw = text.encode("utf-8")[: limit - len("…".encode())]
+    return raw.decode("utf-8", errors="ignore") + "…"
+
+
+def _row(entries: list[dict], e: dict, scan: Callable[[str], str | None] | None) -> str:
+    where = f"- [ ] {e['rel']}:{e['line']} · "
+    if scan is None:
+        return where + "(heading withheld: mail.py scanners unavailable)"
     head = e["head"]
     if e["repeated"] and e["parent"] is not None:
         head = f"{entries[e['parent']]['head']} › {head}"
-    if len(head) > HEADING_MAX:
-        head = head[: HEADING_MAX - 1] + "…"
-    row = f"- [ ] {e['rel']}:{e['line']} · {head}"
-    if scan is not None and (scan[0](row) == "high" or scan[1](row)):
-        row = f"- [ ] {e['rel']}:{e['line']} · (heading withheld: mail.py would refuse it)"
+    row = where + _cut(head, HEADING_MAX)
+    if scan(row) == "high":
+        row = where + "(heading withheld: mail.py would refuse it)"
     return row
 
 
@@ -227,12 +248,27 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--cursor", default="", help=f"cursor file (default {CURSOR})")
     ap.add_argument("--mail", default=str(MAIL), help=f"mail.py to send with (default {MAIL})")
     ap.add_argument("--seed", action="store_true", help="record every current entry, send nothing")
+    ap.add_argument(
+        "--force", action="store_true", help="with --seed: replace an existing cursor (unsent lost)"
+    )
     ap.add_argument("--dry-run", action="store_true", help="print the digest, send nothing")
     args = ap.parse_args(argv)
     cursor = Path(args.cursor) if args.cursor else CURSOR
     entries, files = collect(Path(args.root))
 
     if args.seed:
+        # A re-seed records every unsent and overflow entry as seen; a seed of nothing writes a
+        # valid empty cursor that the next run reads as "the whole backlog is new".
+        if cursor.exists() and not args.force:
+            print(
+                f"lessons_relay: cursor {cursor} exists — a re-seed drops every entry not yet"
+                " sent; pass --force to replace it; nothing written",
+                file=sys.stderr,
+            )
+            return 1
+        if not entries:
+            print(f"lessons_relay: 0 entries under {args.root} — nothing seeded", file=sys.stderr)
+            return 1
         _save(cursor, {e["key"] for e in entries}, {e["hash"] for e in entries})
         print(f"lessons_relay: seeded {len(entries)} entries from {files} file(s) — nothing sent")
         return 0
@@ -252,54 +288,79 @@ def main(argv: list[str] | None = None) -> int:
     rows = _rows(entries, keys, hashes)
     if not rows:
         return 0
-    batch = rows[:CAP]
-    scan = _scanners()
+    scan = _scanner()
     day = dt.date.today().isoformat()
-    lines = [
-        f"Subject: LESSONS relay — {len(batch)} of {len(rows)} new lesson/AFCL entries "
-        f"({files} files read)",
-        "",
-        f"WHAT: {len(batch)} of {len(rows)} new entries in a repo's docs/LESSONS_LEARNT.md,"
-        " docs/lessons-learnt.md or AFCL.md since the last run, one row each (sub-headings fold"
-        " into their entry).",
-        f"WHERE: {files} files under the repos' parent dir; each row is <repo>/<file>:<line>.",
-        f"WHEN: written before {day}.",
-        "WHO: lessons_relay.py (infra, W-d6ebcc04) -> kaizen, the feedback loop's owner (D-627).",
-        "WHY: a lesson that never reaches the command or rule it implicates repeats.",
-        "HOW: read each entry at its path:line, answer its row with the command or rule edit it"
-        " calls for, or a reject with its reason (already covered, fixed, model-obsolete,"
-        " repo-local); ack this mail once every row is answered.",
-        "SYSTEMIC: learning written into a lessons file reached no reader before this relay.",
-        "",
-        *(_row(entries, entries[n], scan) for n in batch),
-        "",
-    ]
-    if len(rows) > len(batch):
-        lines.append(f"{len(rows) - len(batch)} more arrive on the next run.")
-    body = "\n".join(lines)
+    texts = [_row(entries, entries[n], scan) for n in rows[:CAP]]
+
+    def _body(k: int) -> str:
+        lines = [
+            f"Subject: LESSONS relay — {k} of {len(rows)} new lesson/AFCL entries "
+            f"({files} files read)",
+            "",
+            f"WHAT: {k} of {len(rows)} new entries in a repo's docs/LESSONS_LEARNT.md,"
+            " docs/lessons-learnt.md or AFCL.md since the last run, one row each (sub-headings"
+            " fold into their entry).",
+            f"WHERE: {files} files under the repos' parent dir; each row is <repo>/<file>:<line>.",
+            f"WHEN: written before {day}.",
+            "WHO: lessons_relay.py (infra, W-d6ebcc04) -> kaizen, the feedback loop's owner"
+            " (D-627).",
+            "WHY: a lesson that never reaches the command or rule it implicates repeats.",
+            "HOW: read each entry at its path:line, answer its row with the command or rule edit"
+            " it calls for, or a reject with its reason (already covered, fixed, model-obsolete,"
+            " repo-local); ack this mail once every row is answered.",
+            "SYSTEMIC: learning written into a lessons file reached no reader before this relay.",
+            "",
+            *texts[:k],
+            "",
+        ]
+        if len(rows) > k:
+            lines.append(f"{len(rows) - k} more arrive on the next run.")
+        return "\n".join(lines)
+
+    k = len(texts)
+    while k > 1 and len(_body(k).encode("utf-8")) > BODY_MAX:
+        k -= 1
+    batch, body = rows[:k], _body(k)
     if args.dry_run:
         print(body)
         return 0
 
     cmd = [sys.executable, args.mail, "send", "--to", "fabrik", "--to-agent", "kaizen"]
-    proc = subprocess.run(
-        [*cmd, "--kind", "request", "--ack", "required"],
-        input=body,
-        text=True,
-        capture_output=True,
-    )
+    try:
+        proc = subprocess.run(
+            [*cmd, "--kind", "request", "--ack", "required"],
+            input=body,
+            text=True,
+            capture_output=True,
+            timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        print("lessons_relay: mail send timed out after 120 s — nothing recorded", file=sys.stderr)
+        return 1
     if proc.returncode != 0:
         print(
             f"lessons_relay: mail send failed rc={proc.returncode}: {proc.stderr.strip()[:200]}",
             file=sys.stderr,
         )
         return 1  # cursor NOT advanced — the batch retries on the next run
-    held = {m for n in rows[CAP:] for m in _subtree(entries, n)}
+    held = {m for n in rows[len(batch) :] for m in _subtree(entries, n)}
+    # A held entry's hash stays unseen even when a sent or known twin shares it: recorded, the
+    # twin's hash would mark the held entry seen and it would never be sent (review round 1).
+    held_hashes = {entries[m]["hash"] for m in held}
     for n, e in enumerate(entries):
         if n not in held:  # sent rows, their folded children, and everything already known
             keys.add(e["key"])
-            hashes.add(e["hash"])
-    _save(cursor, keys, hashes)
+            if e["hash"] not in held_hashes:
+                hashes.add(e["hash"])
+    try:
+        _save(cursor, keys, hashes)
+    except OSError as exc:
+        print(
+            f"lessons_relay: SENT {len(batch)} row(s) but the cursor {cursor} was not saved"
+            f" ({exc}) — the next run re-sends them",
+            file=sys.stderr,
+        )
+        return 1
     print(f"lessons_relay: sent {len(batch)} of {len(rows)} new entries -> fabrik/kaizen")
     return 0
 

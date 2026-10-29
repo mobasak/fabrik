@@ -450,6 +450,17 @@ def test_catchup_runs_the_lessons_rider(tmp_path):
     assert calls.index("feedback_relay.py") < calls.index("lessons_relay.py")
 
 
+def test_a_failing_lessons_rider_never_unstamps_the_collector(tmp_path):
+    env, state = _catchup_env(tmp_path, collector_rc=0)
+    stub = tmp_path / "root" / "scripts" / "sysadmin" / "lessons_relay.py"
+    stub.write_text("import sys\nsys.exit(1)\n")
+    r = subprocess.run(
+        ["bash", str(CATCHUP), "kaizen_collect_v2.py"], env=env, capture_output=True, text=True
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert (state / "daily-kaizen_collect_v2.py.stamp").exists()
+
+
 def test_drift_rider_daily_stamp(tmp_path):
     env, state = _catchup_env(tmp_path, collector_rc=1)
     for _ in range(2):
