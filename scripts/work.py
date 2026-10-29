@@ -5972,17 +5972,16 @@ def _stop_action(tree: Path, session: str) -> dict:
         return none
     # FIRST on every path, a pause or a held claim included (W-a12b03a2): answering a builder's waiting pane starts no
     # work; a blind scan adds nothing here (the prompt block reports it), so a broken tmux never blocks a Stop
-    panes = [
-        {"action": "pane-waiting", "fp": p["fp"], "text": _pane_text(p) + "."}
-        for p in _panes_waiting(tree, agent)[0]
-    ]
+    found, blind = _panes_waiting(tree, agent)
+    panes = [{"action": "pane-waiting", "fp": p["fp"], "text": _pane_text(p) + "."} for p in found]
     result = _stop_subject(tree, main, session, agent, is_worker, workers, coordinator, none)
-    if not panes and (not _scans_panes(tree) or "candidates" in result):
+    if not panes and (not blind or "candidates" in result):
         return result
-    # The coordinator always gets a ladder, so the hook moves on to the subject behind a pane after CAP blocks (on the
-    # classic path that subject is the single action, its fingerprint unchanged) and keeps ONE attempt map: the hook's
-    # single-action path would overwrite the ladder's map on the first Stop no pane waited (a scan blip), re-arming an
-    # exhausted pane subject (W-a12b03a2 review).
+    # A ladder while a pane waits, so the hook moves on to the subject behind it after CAP blocks (on the classic path
+    # that subject is the single action, its fingerprint unchanged), and while the scan is BLIND, so a tmux blip never
+    # swaps the ladder's attempt map for the single-action state and re-arms an exhausted pane subject. A clean scan
+    # that finds no pane returns the classic result untouched: its idle reset (the hook unlinks the state on a null
+    # action) still re-arms a subject that comes back (W-a12b03a2 review, rounds 1 and 2).
     behind = result.get("candidates")
     if behind is None:
         behind = []

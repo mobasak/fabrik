@@ -464,6 +464,12 @@ def test_a_new_turn_below_the_turn_end_is_not_waiting_but_a_seat_notice_is():
     assert rs._waiting_on(_idle(["● Keep it?"], below=("❯ go on",))) is None
     seat = _idle(["● Keep it?"], below=('● Agent "Review seat 3 opus" finished · 57s',))
     assert rs._waiting_on(seat)[0] == "question"
+    done = _idle(
+        ["● Keep it?"], below=('● Background command "Run tests" completed (exit code 0)',)
+    )
+    assert (
+        rs._waiting_on(done)[0] == "question"
+    )  # a background job's notice is not a new turn (round 2)
 
 
 def test_the_same_prompt_keeps_its_fingerprint():
@@ -562,10 +568,12 @@ def test_a_headless_coordinator_session_never_runs_tmux(tmux, tmp_path):
     assert not (tmp_path / "tmux.json.caps").exists()
 
 
-def test_a_classic_coordinator_keeps_one_ladder_when_no_pane_waits(tmux, tmp_path):
+def test_a_classic_coordinator_keeps_its_reset_and_a_blind_scan_keeps_the_ladder(tmux, tmp_path):
     env = _env(tmp_path)
     repo, _ = _coordinator_repo(tmp_path, env, autonomy=False)
     tmux(panes=[], screens={})
-    assert "candidates" in _stop(env, repo)  # never the single-action shape that overwrites the map
+    # a clean scan with no pane: the classic single-action shape, whose null action resets the hook's state
+    assert "candidates" not in _stop(env, repo)
     tmux(rc=1, err="server exited unexpectedly")
-    assert "candidates" in _stop(env, repo)  # a scan blip keeps the shape too
+    # a blind scan: a ladder, so a blip never swaps the hook's attempt map for the single-action state
+    assert "candidates" in _stop(env, repo)

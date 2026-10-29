@@ -763,7 +763,7 @@ _ASKS = re.compile(
 # result rows (`⎿  …`): what the agent RAN, never what it asks; a message that opens `foo(bar) …?` stays text
 _TOOL_ROW = re.compile(r"^(?:●\s*(?:[A-Z][\w.:-]*|mcp__[\w.:-]+)\(.*\)$|⎿)")
 # activity below a turn end that is not a new turn: a seat's completion notice (measured live, idle pane)
-_IDLE_NOTICE = re.compile(r'^●\s*Agent ".*" (?:finished|completed)')
+_IDLE_NOTICE = re.compile(r'^●\s*[A-Z][\w ]*"[^"]*"\s+(?:finished|completed|failed)\b')
 # the turn-end row up to its `done <time>`: a trailing note (`· 1 shell still running`) changes without a new turn
 _TURN_ID = re.compile(r"^.*?·\s*done\s+[^·]*")
 _NO_GRID = ("no server running on", "error connecting to")
