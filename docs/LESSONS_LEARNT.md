@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A unit's name is not the unit that serves the port (2026-10-29, W-07298e38)
+
+**What happened:** the emitter guard mapped fabrik-citation-verifier to `fabrik-citation-verifier-mcp.service`, an enabled unit with the right name that stays inactive, because `fabrik-mcp-http.service` owns :8033 (`docs/workstation/MCP_HTTP_TRANSPORT.md` says so). Two Opus + Fable critiques and six review seats read past it; the guard passed because the look-alike was enabled. Deleting the look-alike would have withheld a live server from every repo.
+
+**Lesson:** before a test pins a service-to-unit mapping, read the live listener (`ss -ltnp` on the port, then `systemctl show -p MainPID <unit>`). A matching name and an enabled link prove nothing about which unit serves the port.
+
 ## On this fleet a `compose down` is not a removal (2026-10-29, W-80a1f9fd)
 
 **What happened:** D-121 took the ocoron-com stack down with `docker compose down`, and the stack was found running again weeks later. `fabrik-compose-boot.sh` runs `up -d` on every `/opt/*/compose.yaml` at each boot, and D-121 had left the file in place. A second reviver was waiting too: the vps1 sysadmin bot's prompt still ranked the stack P0 and gave it "full autonomous management".
