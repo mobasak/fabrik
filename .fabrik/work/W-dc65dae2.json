@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T16:56:20.907215Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-dc65dae2",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "pass action=(_COORD_LAST_ACTION or [''])[0] on the warned_through emit, grader on the emitted row, full /fabrik-review (synced hook); then re-tally W44 by action",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Kaizen W43: the Stop hook's coordinator warned_through event records no subject (.claude/hooks/final_gate_stop.py:5521-5523 emits cause+outcome only; the blocked path at :5512 records action=) — 158 of W43's 1,201 coordinator events are unresolved 3-attempt episodes nobody can attribute"
+}
