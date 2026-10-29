@@ -13,6 +13,16 @@ All notable changes to this project will be documented in this file.
   rotation, so a name kept in a builder's notes went dead (a rotate request sat 14 h). Unsafe names
   are dropped and any error adds no line.
 
+### Fixed — the real-Postgres test fixture no longer leaks a 50 MB volume per container (2026-10-29)
+- `tests/test_app_role_real_pg.py::scratch_pg` tore its container down with `docker rm -f`, which
+  removes the running container itself and keeps the image's anonymous data volume, so every
+  container it started left one PostgreSQL 18 data volume behind (W-2786800d). It was the live
+  half of the anonymous volumes that filled the WSL disk to 97% (the PostgreSQL 16 half came from
+  an older generator that stopped on 2026-10-21). The teardown is now `docker rm -f -v`, and
+  `docker run` sits inside the `try`. `test_scratch_pg_leaves_no_anonymous_data_volume_behind`
+  guards it (red on the old teardown); it reads only "no such volume" as gone and waits out an
+  in-flight `--rm` removal. `tests/test_docusaurus_static_runtime.py` takes the same flag.
+
 ### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)
 - `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the
   box at 96 % the hook's `SCRATCH ALARM` line landed in the stdout of every `--hook` run that passes its
