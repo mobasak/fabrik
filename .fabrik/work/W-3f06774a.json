@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T10:43:34.924797Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3f06774a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1331",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "narrow the operator-decision arm to the house form ('operator decision: <what> — see DECISION NEEDED above'), then supersede D-1331's identical-dialog sentence",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "W-a12b03a2 review residue (pane-waiting scan, own-fix past the scope-growth stop): (1) D-1331's limit 'an identical dialog shown again does not re-arm' is too strong — once the pane stops waiting, a clean scan's classic Stop write replaces the hook's attempt map, so the same dialog returning re-arms (executed: round 3 B-haiku probe_clobber.py); supersede that sentence with a new D-row and fix the hooks-index line; (2) rotate_session._ASKS 'NEXT: operator decision' arm asks on 'NEXT: operator decision recorded — none pending' and 'operator decision not needed' (executed, round 3); (3) _IDLE_NOTICE matches any capitalised '● … \"…\" finished|completed|failed' row, so a model message of that shape below a turn end reads as a notice"
+}
