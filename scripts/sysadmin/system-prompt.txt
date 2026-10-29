@@ -134,9 +134,11 @@ Classification governs what you may act on autonomously.
 4. APPLICATION (watchdog-test, watchdog-test-watchdog,
    any tenant deployed via `fabrik apply`)
    → FULL AUTONOMOUS MANAGEMENT. Act first, report after.
-   The ocoron.com website is NOT on this host (D-1333: it is hosted on
-   Cloudflare). Never start, restore or `up` its old stack in /opt/ocoron-com
-   or a compose.yaml.removed-* file there; report anything of it you find.
+   The ocoron.com website is leaving this host (D-1333: it moves to
+   Cloudflare; the operator removes the old stack). Never start, restart,
+   restore or `up` its old stack in /opt/ocoron-com or a
+   compose.yaml.removed-* file there, even if it crashes or alerts; report
+   anything of it you find.
 
 **Per-project watchdog sidecar deconfliction (2026-06-04):**
 Before acting on any APPLICATION-class container, check if a per-project
@@ -242,7 +244,7 @@ When multiple issues occur simultaneously, handle highest criticality first:
 | P3 (monitoring) | prometheus, loki, grafana, gatus, alertmanager | Observability — losing these blinds you |
 | P4 (utility) | meilisearch, gotenberg, browserless, n8n, apprise, backrest | Nice to have, not critical path |
 
-When you get multiple alerts, triage by tier. P0 before P1 before P2.
+When you get multiple alerts, triage by tier. P1 before P2 before P3.
 </incident_playbooks>
 
 <shift_notes>

@@ -50,12 +50,20 @@ CONFIG_ROOTS = (
 )
 # GNU grep ERE: the apex or www host, or the stack's own name; never another service's *.ocoron.com host or an
 # @ocoron.com address (cases pinned in tests/test_vps1_ocoron_removal.py)
-SITE_ERE = r"(^|[^A-Za-z0-9.@-])(www\.)?ocoron\.com($|[^A-Za-z0-9.-])|ocoron-com([^A-Za-z0-9.]|$)"
+SITE_ERE = (
+    r"(^|[^A-Za-z0-9.@-])(www\.)?ocoron\.com($|[^A-Za-z0-9.-]|\.($|[^A-Za-z0-9-]))"
+    r"|ocoron-com([^A-Za-z0-9.]|$)"
+)
 KNOWN_BENIGN = (
     "the Gatus status-page title, the promtail drop filter for the backup container and an Authelia session cookie "
     "domain match by design"
 )
-_HOST_RULE = re.compile(r"Host\(\s*`(www\.)?ocoron\.com`")
+# a Traefik rule naming the site anywhere in a Host(...) argument list; hosts match case-insensitively
+_HOST_RULE = re.compile(r"Host\([^)]*`(www\.)?ocoron\.com`", re.IGNORECASE)
+# a container named for the stack: compose's `<project>-<service>-<n>` or a `_` form, never ocoron-community-…
+_STACK_NAME = re.compile(r"ocoron-com[-_]")
+_PROJECT_LABEL = "com.docker.compose.project"
+_CONFIG_LABEL = "com.docker.compose.project.config_files"
 _HEX64 = re.compile(r"[0-9a-f]{64}")
 _IMAGE_ID = re.compile(r"sha256:[0-9a-f]{64}")
 _NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}")
@@ -120,6 +128,13 @@ def allowed(cmd: str) -> bool:
             and a[5:] == ["--format", "{{.Name}}"]
         )
         or a == ["docker", "volume", "ls", "--format", "{{.Name}}"]
+        or (
+            len(a) == 7
+            and a[:4] == ["docker", "volume", "ls", "--filter"]
+            and a[4].startswith("label=com.docker.compose.project=")
+            and _name(a[4].partition("project=")[2])
+            and a[5:] == ["--format", "{{.Name}}"]
+        )
         or a == ["docker", "info", "--format", "{{.DockerRootDir}}"]
         or (
             a[:3] == ["docker", "volume", "inspect"] and len(a) > 3 and all(_name(x) for x in a[3:])
@@ -131,7 +146,13 @@ def allowed(cmd: str) -> bool:
             and _data_path(a[1])
             and a[2:] == ["-maxdepth", "2", "-printf", "%y %P\n"]
         )
-        or a in (["test", "-f", COMPOSE], ["test", "-d", DATA_DIR], ["uptime", "-s"])
+        or a
+        in (
+            ["test", "-f", COMPOSE],
+            ["test", "-d", DATA_DIR],
+            ["test", "-L", DATA_DIR],
+            ["uptime", "-s"],
+        )
         or a == ["grep", "-rnIoE", SITE_ERE, *CONFIG_ROOTS]
         or a == ["grep", "-cE", "ocoron-com-", PROMPT]
         or (
@@ -169,8 +190,8 @@ def run(cmd: str, timeout: int = 180) -> subprocess.CompletedProcess[str]:
     return r
 
 
-def must(cmd: str) -> str:
-    r = run(cmd)
+def must(cmd: str, timeout: int = 180) -> str:
+    r = run(cmd, timeout)
     if r.returncode != 0:
         raise StopError(f"rc {r.returncode} from {cmd}: {r.stderr.strip() or 'no message'}")
     return r.stdout
@@ -208,15 +229,22 @@ def _containers() -> list[dict]:
     bad = [i for i in ids if not _HEX64.fullmatch(i)]
     if bad:
         raise StopError(f"docker ps printed an id that is not 64 hex: {bad[0]!r}")
-    # inspect exits 1 when a container vanished between the two calls but still prints the rest: stdout counts
-    out = run(sudo("docker", "inspect", "--type", "container", *ids)).stdout
+    r = run(sudo("docker", "inspect", "--type", "container", *ids))
     try:
-        records = json.loads(out)
+        records = json.loads(r.stdout)
     except json.JSONDecodeError:
         raise StopError("docker inspect printed no JSON") from None
     if not isinstance(records, list):
         raise StopError("docker inspect did not print a JSON list")
-    return [r for r in records if isinstance(r, dict)]
+    records = [x for x in records if isinstance(x, dict)]
+    # inspect exits 1 and prints the rest when a container vanished between the two calls: a short read is never
+    # taken as "those containers are gone" — re-run instead
+    if len(records) != len(ids):
+        raise StopError(
+            f"docker inspect returned {len(records)} of {len(ids)} containers (rc {r.returncode}): "
+            "the container list changed while it was read — re-run"
+        )
+    return records
 
 
 def _labels(record: dict) -> dict:
@@ -224,12 +252,15 @@ def _labels(record: dict) -> dict:
     return labels if isinstance(labels, dict) else {}
 
 
+def _cname(record: dict) -> str:
+    return str(record.get("Name", "")).lstrip("/")
+
+
 def in_stack(record: dict) -> bool:
     labels = _labels(record)
-    name = str(record.get("Name", "")).lstrip("/")
     return (
-        labels.get("com.docker.compose.project") == PROJECT
-        or name.startswith(PROJECT)
+        labels.get(_PROJECT_LABEL) == PROJECT
+        or bool(_STACK_NAME.match(_cname(record)))
         or any(
             k.startswith("traefik.http.routers.") and _HOST_RULE.search(str(v))
             for k, v in labels.items()
@@ -238,7 +269,8 @@ def in_stack(record: dict) -> bool:
 
 
 def users_of(records: list[dict], volume: str | None = None, path: str | None = None) -> list[str]:
-    """Containers (any project, stopped included) mounting the named volume, or anything at or below path."""
+    """Containers (any project, stopped included) mounting the named volume, or anything at or below path. A bind
+    of a PARENT (Backrest's /opt, a monitor's /) reads the host, not this data, and is no user."""
     found = []
     for r in records:
         for m in r.get("Mounts") or []:
@@ -248,7 +280,7 @@ def users_of(records: list[dict], volume: str | None = None, path: str | None = 
             if (volume is not None and m.get("Type") == "volume" and m.get("Name") == volume) or (
                 path is not None and (src == path or src.startswith(path + "/"))
             ):
-                found.append(str(r.get("Name", "")).lstrip("/"))
+                found.append(_cname(r))
                 break
     return sorted(found)
 
@@ -261,47 +293,67 @@ def _size(path: str) -> str:
 def _class(path: str) -> tuple[str, list[str]]:
     r = run(sudo("find", path, "-maxdepth", "2", "-printf", "%y %P\n"))
     if r.returncode != 0:
-        return "UNREADABLE", [r.stderr.strip()[:200]]
+        return "UNREADABLE", [r.stderr.strip()[:200] or f"find rc {r.returncode}"]
     return classify(r.stdout)
 
 
-def inventory() -> dict:
-    """Everything the run decides on, read-only."""
+def _by_label(kind: str, project: str) -> list[str]:
+    return must(
+        sudo(
+            "docker",
+            kind,
+            "ls",
+            "--filter",
+            f"label={_PROJECT_LABEL}={project}",
+            "--format",
+            "{{.Name}}",
+        )
+    ).split()
+
+
+def inventory(known_projects: tuple[str, ...] = ()) -> dict:
+    """Everything the run decides on, read-only. known_projects carries the projects an earlier read found, so a
+    project whose containers are gone is still searched for networks and volumes."""
     records = _containers()
     stack = [r for r in records if in_stack(r)]
-    projects = sorted({_labels(r).get("com.docker.compose.project", "") for r in stack} - {""})
-    unlabelled = sorted(
-        str(r.get("Name", "")).lstrip("/")
-        for r in stack
-        if not _labels(r).get("com.docker.compose.project")
-    )
+    unlabelled = sorted(_cname(r) for r in stack if not _labels(r).get(_PROJECT_LABEL))
+    projects = sorted({_labels(r).get(_PROJECT_LABEL, "") for r in stack} - {""})
     bad = [p for p in projects if not _name(p)]
     if bad:
         raise StopError(
             f"a stack container carries a project label this script cannot name: {bad[0]!r}"
         )
-    networks = []
-    for p in projects or [PROJECT]:
-        networks += must(
-            sudo(
-                "docker",
-                "network",
-                "ls",
-                "--filter",
-                f"label=com.docker.compose.project={p}",
-                "--format",
-                "{{.Name}}",
-            )
-        ).split()
+    # a project is the stack's only when every one of its containers is: down on a mixed project stops the rest
+    mixed = []
+    for p in projects:
+        others = sorted(
+            _cname(r) for r in records if _labels(r).get(_PROJECT_LABEL) == p and not in_stack(r)
+        )
+        if others:
+            mixed.append(f"{p} (also runs {', '.join(others)})")
+    # the compose file each stack container was created from: the rename moves only /opt/ocoron-com/compose.yaml
+    foreign = sorted(
+        {
+            f.strip()
+            for r in stack
+            for f in str(_labels(r).get(_CONFIG_LABEL, "")).split(",")
+            if f.strip() and f.strip() != COMPOSE
+        }
+    )
+    searched = sorted(set(projects) | {PROJECT} | set(known_projects))
+    networks: dict[str, list[str]] = {p: _by_label("network", p) for p in searched}
     stack_mounts = {
         m.get("Name")
         for r in stack
         for m in r.get("Mounts") or []
         if isinstance(m, dict) and m.get("Type") == "volume"
     }
+    labelled = {v for p in searched for v in _by_label("volume", p)}
     names = must(sudo("docker", "volume", "ls", "--format", "{{.Name}}")).split()
     volume_names = sorted(
-        n for n in names if _name(n) and (n.startswith(PROJECT + "_") or n in stack_mounts)
+        n
+        for n in names
+        if _name(n) and (n.startswith(PROJECT + "_") or n in stack_mounts or n in labelled)
     )
     volumes = []
     if volume_names:
@@ -316,28 +368,29 @@ def inventory() -> dict:
         for v in volume_names:
             mount = str((meta.get(v) or {}).get("Mountpoint", ""))
             if mount != f"{root}/volumes/{v}/_data" or not _data_path(mount):
-                volumes.append(
-                    {
-                        "id": v,
-                        "class": "UNREADABLE",
-                        "signs": [f"mountpoint {mount!r}"],
-                        "size": "UNREADABLE",
-                        "users": users_of(records, volume=v),
-                    }
-                )
-                continue
-            cls, signs = _class(mount)
+                cls, signs, size = "UNREADABLE", [f"mountpoint {mount!r}"], "UNREADABLE"
+            else:
+                (cls, signs), size = _class(mount), _size(mount)
             volumes.append(
                 {
                     "id": v,
                     "class": cls,
                     "signs": signs,
-                    "size": _size(mount),
+                    "size": size,
                     "users": users_of(records, volume=v),
                 }
             )
     data_dir = None
-    if run(sudo("test", "-d", DATA_DIR)).returncode == 0:
+    if run(sudo("test", "-L", DATA_DIR)).returncode == 0:
+        # find and rm stop at a symlink, so its target is neither classified nor deleted here
+        data_dir = {
+            "id": DATA_DIR,
+            "class": "UNREADABLE",
+            "signs": ["a symlink — not followed"],
+            "size": "UNREADABLE",
+            "users": users_of(records, path=DATA_DIR),
+        }
+    elif run(sudo("test", "-d", DATA_DIR)).returncode == 0:
         cls, signs = _class(DATA_DIR)
         data_dir = {
             "id": DATA_DIR,
@@ -352,7 +405,7 @@ def inventory() -> dict:
     return {
         "stack": [
             {
-                "name": str(r.get("Name", "")).lstrip("/"),
+                "name": _cname(r),
                 "state": (r.get("State") or {}).get("Status"),
                 "created": r.get("Created"),
                 "image": r.get("Image"),
@@ -360,13 +413,19 @@ def inventory() -> dict:
             for r in stack
         ],
         "projects": projects,
+        "searched": searched,
+        "mixed": mixed,
+        "foreign_files": foreign,
         "unlabelled": unlabelled,
-        "networks": networks,
+        "network_map": networks,
+        "networks": [n for p in searched for n in networks[p]],
         "volumes": volumes,
         "data_dir": data_dir,
         "in_boot_glob": glob_rc == 0,
         "refs": [ln.strip() for ln in refs.stdout.splitlines() if ln.strip()],
-        "refs_unreadable": refs.returncode > 1 and refs.stderr.strip(),
+        "refs_unreadable": (refs.stderr.strip() or f"grep rc {refs.returncode}")
+        if refs.returncode > 1
+        else "",
         "prompt": prompt.stdout.strip() if prompt.returncode in (0, 1) else "UNREADABLE",
         "booted": run(sudo("uptime", "-s")).stdout.strip(),
     }
@@ -382,6 +441,10 @@ def report(inv: dict) -> None:
             f"  not in a compose project (this script cannot take them down): {', '.join(inv['unlabelled'])}"
         )
     print(f"projects: {', '.join(inv['projects']) or 'none'}")
+    for m in inv["mixed"]:
+        print(f"  MIXED project — a down would stop more than the stack: {m}")
+    for f in inv["foreign_files"]:
+        print(f"  created from another compose file (not moved by this script): {f}")
     print(f"networks ({len(inv['networks'])}): {', '.join(inv['networks']) or 'none'}")
     print(
         f"{COMPOSE} in the boot glob: {'YES — the next reboot starts the stack' if inv['in_boot_glob'] else 'no'}"
@@ -416,6 +479,50 @@ def gate(title: str, plan: str) -> None:
         raise StopError(f"not confirmed: {title} — nothing in this block ran")
 
 
+def _take_down(inv: dict) -> None:
+    """The gated block. Every step's failure says the steps before it ran."""
+    images = sorted({c["image"] for c in inv["stack"] if c["image"]})
+    projects = sorted(set(inv["projects"]) | {p for p, nets in inv["network_map"].items() if nets})
+    downs = [sudo("docker", "compose", "-p", p, "down") for p in projects]
+    gate(
+        "take the ocoron-com stack down",
+        "\n".join(
+            [
+                *downs,
+                f"move {COMPOSE} aside to compose.yaml.removed-{STAMP} (out of the boot glob)",
+                *(
+                    f"docker image rm {i} (refused by docker while anything uses it)"
+                    for i in images
+                ),
+                "while Cloudflare's ocoron.com record still points at vps1, the site turns into a Traefik 404 now",
+            ]
+        ),
+    )
+    done: list[str] = []
+    try:
+        for cmd in downs:
+            print(must(cmd, timeout=600) or f"ok: {cmd}")
+            done.append(cmd)
+        r = run(sudo("sh", "-c", RENAME_SH, "sh", COMPOSE, STAMP))
+        if r.returncode == 4:
+            print(f"{COMPOSE}: already aside")
+        elif r.returncode != 0:
+            raise StopError(f"rename refused: {r.stderr.strip() or f'rc {r.returncode}'}")
+        else:
+            print(f"moved aside: {r.stdout.strip()}")
+        for image in images:
+            ri = run(sudo("docker", "image", "rm", image))
+            print(
+                f"image {image}: {'removed' if ri.returncode == 0 else 'kept — ' + ri.stderr.strip()[:200]}"
+            )
+    except StopError as exc:
+        state = f"downs that ran: {', '.join(done) or 'none'}"
+        raise StopError(
+            f"{exc} — {state}; if a down ran, the stack is DOWN but {COMPOSE} may still be in the boot glob and the "
+            "next reboot restores it: run the dry run to see what is left"
+        ) from None
+
+
 def apply() -> None:
     inv = inventory()
     report(inv)
@@ -430,49 +537,27 @@ def apply() -> None:
             f"stack containers outside any compose project: {', '.join(inv['unlabelled'])} — remove "
             "them by hand, then re-run"
         )
+    if inv["mixed"]:
+        raise StopError(
+            f"a compose project runs both stack and other containers: {'; '.join(inv['mixed'])} — a down would "
+            "stop the others too; take the stack's containers out by hand, then re-run"
+        )
+    if inv["foreign_files"]:
+        raise StopError(
+            f"stack containers were created from {', '.join(inv['foreign_files'])}, which this script does not "
+            "move out of the boot glob — move it by hand, then re-run"
+        )
     if not inv["stack"] and not inv["networks"] and not inv["in_boot_glob"]:
         print(
             "\nnothing to take down: no stack container, no network, compose.yaml not in the boot glob"
         )
     else:
-        images = sorted({c["image"] for c in inv["stack"] if c["image"]})
-        downs = [sudo("docker", "compose", "-p", p, "down") for p in inv["projects"]]
-        gate(
-            "take the ocoron-com stack down",
-            "\n".join(
-                [
-                    *downs,
-                    f"move {COMPOSE} aside to compose.yaml.removed-{STAMP} (out of the boot glob)",
-                    *(
-                        f"docker image rm {i} (refused by docker while anything uses it)"
-                        for i in images
-                    ),
-                    "while Cloudflare's ocoron.com record still points at vps1, the site turns into a Traefik 404 now",
-                ]
-            ),
-        )
-        for cmd in downs:
-            print(must(cmd) or f"ok: {cmd}")
-        r = run(sudo("sh", "-c", RENAME_SH, "sh", COMPOSE, STAMP))
-        if r.returncode == 4:
-            print(f"{COMPOSE}: already aside")
-        elif r.returncode != 0:
-            raise StopError(
-                f"the stack is DOWN but {COMPOSE} is still in the boot glob — the next reboot restores "
-                f"it; move it out of /opt/*/compose.yaml by hand: {r.stderr.strip() or f'rc {r.returncode}'}"
-            )
-        else:
-            print(f"moved aside: {r.stdout.strip()}")
-        for image in images:
-            ri = run(sudo("docker", "image", "rm", image))
-            print(
-                f"image {image}: {'removed' if ri.returncode == 0 else 'kept — ' + ri.stderr.strip()[:200]}"
-            )
-    after = inventory()
+        _take_down(inv)
+    after = inventory(tuple(inv["searched"]))
     left = [c["name"] for c in after["stack"]] + after["networks"]
     if left or after["in_boot_glob"]:
         raise StopError(
-            f"still present after the down: {', '.join(left) or COMPOSE + ' in the boot glob'}"
+            f"still present after the down: {', '.join(left + ([COMPOSE + ' in the boot glob'] if after['in_boot_glob'] else []))}"
         )
     ids = [d["id"] for d in after["volumes"]] + (
         [after["data_dir"]["id"]] if after["data_dir"] else []
@@ -502,6 +587,12 @@ def delete_volumes(ids: list[str]) -> None:
     used = [f"{i} (used by {', '.join(known[i]['users'])})" for i in wanted if known[i]["users"]]
     if used:
         raise StopError(f"still in use, nothing deleted: {'; '.join(used)}")
+    unclassified = [i for i in wanted if known[i]["class"] == "UNREADABLE"]
+    if unclassified:
+        raise StopError(
+            f"not classified (the HARD STOP deletes only data whose content was read), nothing deleted: "
+            f"{', '.join(unclassified)}"
+        )
     lines = []
     for i in wanted:
         lines.append(f"{i}  class {known[i]['class']}  size {known[i]['size']}")
@@ -509,7 +600,9 @@ def delete_volumes(ids: list[str]) -> None:
         r = run(sudo("grep", "-rlIF", "--", i, *CONFIG_ROOTS))
         lines += [f"    WARN still named in: {path}" for path in r.stdout.split()]
         if r.returncode > 1:
-            lines.append(f"    WARN config search UNREADABLE: {r.stderr.strip()[:200]}")
+            lines.append(
+                f"    WARN config search UNREADABLE: {r.stderr.strip()[:200] or f'grep rc {r.returncode}'}"
+            )
     gate("delete data — cannot be undone", "\n".join(lines))
     failed = []
     for i in wanted:

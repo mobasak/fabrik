@@ -120,6 +120,15 @@ class FakeVps:
         self.down_rc = 0
         self.rename_rc = 0
         self.leave_after_down: list[int] = []
+        self.keep_networks = False  # the down leaves its project's network behind
+        self.volume_labels: dict[str, str] = {}  # volume -> compose project label
+        self.mountpoints: dict[str, str] = {}  # volume -> a Mountpoint other than the default
+        self.inspect_drop = (
+            0  # inspect returns this many fewer records, rc 1 (a container vanished)
+        )
+        self.data_dir_symlink = False
+        self.delete_rc = 0
+        self.image_rm_err = ""
 
     def _r(self, rc: int, out: str = "", err: str = "") -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess([], rc, out, err)
@@ -135,10 +144,20 @@ class FakeVps:
         if a == ["docker", "ps", "-aq", "--no-trunc"]:
             return self._r(0, "".join(c["Id"] + "\n" for c in self.containers))
         if a[:4] == ["docker", "inspect", "--type", "container"]:
-            return self._r(0, json.dumps([c for c in self.containers if c["Id"] in a[4:]]))
+            found = [c for c in self.containers if c["Id"] in a[4:]]
+            if self.inspect_drop:
+                return self._r(
+                    1, json.dumps(found[self.inspect_drop :]), "Error: No such container"
+                )
+            return self._r(0, json.dumps(found))
         if a[:3] == ["docker", "network", "ls"]:
             return self._r(
                 0, "".join(n + "\n" for n in self.networks.get(a[4].partition("project=")[2], []))
+            )
+        if a[:4] == ["docker", "volume", "ls", "--filter"]:
+            project = a[4].partition("project=")[2]
+            return self._r(
+                0, "".join(v + "\n" for v, p in self.volume_labels.items() if p == project)
             )
         if a == ["docker", "volume", "ls", "--format", "{{.Name}}"]:
             return self._r(0, "".join(v + "\n" for v in self.volumes))
@@ -148,7 +167,13 @@ class FakeVps:
             return self._r(
                 0,
                 json.dumps(
-                    [{"Name": v, "Mountpoint": f"{ROOTDIR}/volumes/{v}/_data"} for v in a[3:]]
+                    [
+                        {
+                            "Name": v,
+                            "Mountpoint": self.mountpoints.get(v, f"{ROOTDIR}/volumes/{v}/_data"),
+                        }
+                        for v in a[3:]
+                    ]
                 ),
             )
         if a[:2] == ["du", "-sb"]:
@@ -157,7 +182,11 @@ class FakeVps:
             if a[1] == m.DATA_DIR:
                 return self._r(0, "d \n" + (self.data_dir or ""))
             name = a[1].split("/")[-2]
+            if name not in self.volumes:
+                return self._r(1, "", f"find: '{a[1]}': No such file or directory")
             return self._r(0, "d \n" + self.volumes[name])
+        if a == ["test", "-L", m.DATA_DIR]:
+            return self._r(0 if self.data_dir_symlink else 1)
         if a == ["test", "-d", m.DATA_DIR]:
             return self._r(0 if self.data_dir is not None else 1)
         if a == ["test", "-f", m.COMPOSE]:
@@ -180,20 +209,28 @@ class FakeVps:
                 if c["Config"]["Labels"].get("com.docker.compose.project") != a[3]
                 or int(c["Id"], 16) in self.leave_after_down
             ]
-            self.networks.pop(a[3], None)
+            if not self.keep_networks:
+                self.networks.pop(a[3], None)
             return self._r(0)
         if a[:2] == ["sh", "-c"]:
+            if self.rename_rc == 4:
+                return self._r(4)
             if self.rename_rc:
                 return self._r(self.rename_rc, "", "not a regular file")
             self.compose = False
             return self._r(0, m.COMPOSE + ".removed-x\n")
         if a[:3] == ["docker", "image", "rm"]:
             used = any(c["Image"] == a[3] for c in self.containers)
-            return self._r(1 if used else 0, "", "image is being used" if used else "")
+            err = "image is being used" if used else self.image_rm_err
+            return self._r(1 if err else 0, "", err)
         if a[:3] == ["docker", "volume", "rm"]:
+            if self.delete_rc:
+                return self._r(self.delete_rc, "", "volume is in use")
             self.volumes.pop(a[3])
             return self._r(0)
         if a[:2] == ["rm", "-rf"]:
+            if self.delete_rc:
+                return self._r(self.delete_rc, "", "Device or resource busy")
             self.data_dir = None
             return self._r(0)
         raise AssertionError(f"the fake has no answer for an allowlisted shape: {cmd}")
@@ -258,12 +295,21 @@ def test_dry_run_reads_only_and_prints_the_inventory(
         ["du", "-sb", "/var/lib/docker/volumes/../../etc/_data"],
         ["find", "/", "-maxdepth", "2", "-printf", "%y %P\n"],
         ["grep", "-rlIF", "--", "x;reboot", *m.CONFIG_ROOTS],
+        ["grep", "-rlIF", "--", "/opt", *m.CONFIG_ROOTS],
+        ["docker", "image", "rm", "wordpress:6"],
+        ["docker", "inspect", "--type", "container", "not-hex"],
+        ["docker", "volume", "rm", "ocoron-com_db_data", "n8n_data"],
+        ["find", m.DATA_DIR, "-maxdepth", "2", "-delete"],
+        ["du", "-sb", "/var/lib/docker/volumes/ocoron-com_db_data"],
+        ["docker", "compose", "-p", "-rf", "down"],
+        ["docker", "volume", "ls", "--filter", "label=x=y", "--format", "{{.Name}}"],
+        ["test", "-L", "/opt"],
     ],
 )
 def test_allowlist_refuses_unlisted_shapes(argv: list[str]) -> None:
-    """Given a mutating spelling the script never sends, when checked, then it is refused (with and without sudo)."""
+    """Given a mutating or widened spelling the script never sends, when checked as the root command it would be,
+    then it is refused."""
     assert not m.allowed(shlex.join(["sudo", "-n", *argv]))
-    assert not m.allowed(shlex.join(argv))
 
 
 def test_allowlist_refuses_a_glued_second_command_and_takes_its_own_shapes() -> None:
@@ -295,6 +341,10 @@ def test_allowlist_refuses_a_glued_second_command_and_takes_its_own_shapes() -> 
         ("notocoron.com", False),
         ("ocoron.company", False),
         ("ocoron.com.tr", False),
+        ("server ocoron.com.;", True),
+        ("ocoron.com.", True),
+        ("ocoron.com.br", False),
+        ("ocoron-community-bot", False),
     ],
 )
 def test_site_ere_matches_the_site_only(tmp_path: Path, line: str, hit: bool) -> None:
@@ -363,9 +413,9 @@ def test_apply_says_down_but_in_the_glob_when_the_rename_is_refused(
     vps.rename_rc = 5
     _answer(monkeypatch, "yes")
     assert m.main(["--apply"]) == 1
-    assert (
-        "DOWN but /opt/ocoron-com/compose.yaml is still in the boot glob" in capsys.readouterr().err
-    )
+    err = capsys.readouterr().err
+    assert "rename refused: not a regular file" in err
+    assert "the stack is DOWN but /opt/ocoron-com/compose.yaml may still be in the boot glob" in err
 
 
 def test_apply_stops_when_a_container_survives_the_down(
@@ -551,3 +601,263 @@ def test_grep_rc2_keeps_its_hits_beside_unreadable(
     out = capsys.readouterr().out
     assert "/opt/backrest/config/config.json:12:ocoron-com_" in out
     assert "UNREADABLE: grep: /etc/logrotate.d: Permission denied" in out
+
+
+# pass 1 of the /fabrik-review (W-80a1f9fd): one test per confirmed finding
+
+
+def test_stack_identity_needs_the_name_separator_or_the_label_or_the_route(vps: FakeVps) -> None:
+    """A-1 (name half): a name like ocoron-community-bot is not the stack; each identity branch counts alone."""
+    vps.containers = [
+        _container(10, "ocoron-community-bot", "community", IMG["wp"], []),
+        _container(11, "ocoron-com-web-1", None, IMG["wp"], []),
+        _container(12, "web-1", "ocoron-com", IMG["db"], []),
+        _container(13, "edge-1", "edge", IMG["nginx"], [], route="Host(`a.example`, `OCORON.com`)"),
+    ]
+    stack = {c["Name"].lstrip("/") for c in vps.containers if m.in_stack(c)}
+    assert stack == {"ocoron-com-web-1", "web-1", "edge-1"}
+
+
+def test_apply_stops_on_a_mixed_project_before_any_down(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A-1: a stack container in a project that also runs other containers stops --apply before the gate."""
+    vps.containers.append(_container(14, "edge-proxy", "ocoron-site", IMG["nginx"], []))
+    _answer(monkeypatch)
+    assert m.main(["--apply"]) == 1
+    assert _mutations(vps) == []
+    assert "ocoron-site (also runs edge-proxy)" in capsys.readouterr().err
+
+
+def test_apply_stops_on_a_container_from_another_compose_file(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A-8: a stack container created from a compose file the rename does not move stops --apply."""
+    vps.containers[0]["Config"]["Labels"]["com.docker.compose.project.config_files"] = (
+        "/opt/other/compose.yaml"
+    )
+    _answer(monkeypatch)
+    assert m.main(["--apply"]) == 1
+    assert _mutations(vps) == []
+    assert "/opt/other/compose.yaml" in capsys.readouterr().err
+
+
+def test_apply_stops_on_an_unlabelled_stack_container(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B-4: a stack container outside any compose project stops --apply before any down."""
+    vps.containers.append(_container(15, "ocoron-com-stray", None, IMG["wp"], []))
+    _answer(monkeypatch)
+    assert m.main(["--apply"]) == 1
+    assert _mutations(vps) == []
+    assert "outside any compose project: ocoron-com-stray" in capsys.readouterr().err
+
+
+def test_apply_downs_an_orphan_network_and_rechecks_every_project(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A-2: with no container left, a leftover project network is downed; a network that survives stops the run."""
+    vps.containers = [c for c in vps.containers if c["Name"] == "/n8n"]
+    vps.networks = {"ocoron-com": ["ocoron-com_default"]}
+    _answer(monkeypatch, "yes")
+    assert m.main(["--apply"]) == 0
+    assert m.sudo("docker", "compose", "-p", "ocoron-com", "down") in vps.sent
+    vps2 = FakeVps()
+    monkeypatch.setattr(m.subprocess, "run", vps2)
+    vps2.keep_networks = True
+    _answer(monkeypatch, "yes")
+    assert m.main(["--apply"]) == 1
+    assert "still present after the down: ocoron-com_ocoron-com-internal, ocoron-site_default" in (
+        capsys.readouterr().err
+    )
+
+
+def test_apply_stops_when_the_file_is_still_in_the_glob_after_an_ok_rename(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B-3 and B-7: rename rc 4 (already aside) while test -f still finds the file stops the run; rc 4 itself is
+    reported as already aside."""
+    vps.rename_rc = 4
+    _answer(monkeypatch, "yes")
+    assert m.main(["--apply"]) == 1
+    captured = capsys.readouterr()
+    assert "compose.yaml: already aside" in captured.out
+    assert (
+        "still present after the down: /opt/ocoron-com/compose.yaml in the boot glob"
+        in captured.err
+    )
+
+
+def test_apply_with_nothing_left_runs_no_gate(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B-7: a second --apply after a clean removal asks nothing and sends nothing mutating."""
+    vps.containers = [c for c in vps.containers if c["Name"] == "/n8n"]
+    vps.networks = {}
+    vps.compose = False
+    _answer(monkeypatch)
+    assert m.main(["--apply"]) == 0
+    assert _mutations(vps) == []
+    assert "nothing to take down" in capsys.readouterr().out
+
+
+def test_apply_says_what_ran_when_a_later_step_fails(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A-4: an ssh failure at the rename, after the downs ran, says the stack may be down and still in the glob."""
+    vps.rc[m.RENAME_SH.splitlines()[0]] = 255
+    _answer(monkeypatch, "yes")
+    assert m.main(["--apply"]) == 1
+    err = capsys.readouterr().err
+    assert "ssh failed (rc 255)" in err
+    assert "downs that ran: " + m.sudo("docker", "compose", "-p", "ocoron-com", "down") in err
+    assert "may still be in the boot glob" in err
+
+
+def test_apply_reports_a_kept_image_and_orders_rename_before_images(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B-5, B-11: images go after the rename, and an image docker refuses is reported as kept."""
+    vps.image_rm_err = "conflict: unable to remove repository reference"
+    _answer(monkeypatch, "yes")
+    assert m.main(["--apply"]) == 0
+    rename = next(i for i, c in enumerate(vps.sent) if m.RENAME_SH.splitlines()[0] in c)
+    assert all(i > rename for i, c in enumerate(vps.sent) if " image rm " in c)
+    assert f"image {IMG['wp']}: kept — conflict" in capsys.readouterr().out
+
+
+def test_a_volume_named_otherwise_is_found_by_its_project_label_after_the_down(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A-3, B-5: a stack volume whose name lacks the ocoron-com_ prefix stays in the data list after the down."""
+    vps.volumes["ocoron_db"] = "f ibdata1\n"
+    vps.volume_labels["ocoron_db"] = "ocoron-com"
+    _answer(monkeypatch, "yes")
+    assert m.main(["--apply"]) == 0
+    assert "ocoron_db" in capsys.readouterr().out.split("--delete-volumes")[-1]
+
+
+def test_a_volume_mounted_by_a_stack_container_is_listed_whatever_its_name(
+    vps: FakeVps, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B-5: a stack container's volume with no ocoron-com_ prefix and no project label is still data to list."""
+    vps.volumes["wpdata"] = "f wp-config.php\n"
+    vps.containers[0]["Mounts"].append(_vol("wpdata", "/srv"))
+    assert m.main([]) == 0
+    assert "wpdata  class wordpress" in capsys.readouterr().out
+
+
+def test_the_quoted_rename_command_runs_as_rename_sh_under_a_real_shell(tmp_path: Path) -> None:
+    """B-13: the exact remote string the script sends (minus sudo -n) moves the file through a real `sh -c`."""
+    f = tmp_path / "compose.yaml"
+    f.write_text("services: {}\n")
+    remote = shlex.split(m.sudo("sh", "-c", m.RENAME_SH, "sh", str(f), "S"))[2:]
+    r = subprocess.run(["sh", "-c", shlex.join(remote)], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
+    assert not f.exists() and (tmp_path / "compose.yaml.removed-S").read_text() == "services: {}\n"
+
+
+def test_a_partial_inspect_read_stops_instead_of_reading_none(
+    vps: FakeVps, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A-6: inspect rc 1 with fewer records than ids is a STOP, never a smaller stack."""
+    vps.inspect_drop = 1
+    assert m.main([]) == 1
+    assert "returned 4 of 5 containers" in capsys.readouterr().err
+
+
+def test_users_count_a_volume_mount_by_another_container(
+    removed: FakeVps, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """B-5: a stopped non-stack container mounting a stack volume makes it used."""
+    holder = _container(
+        16, "holder", "other", "sha256:" + "f" * 64, [_vol("ocoron-com_redis_data")]
+    )
+    holder["State"] = {"Status": "exited"}
+    removed.containers.append(holder)
+    _answer(monkeypatch)
+    assert m.main(["--delete-volumes", "ocoron-com_redis_data"]) == 1
+    assert _mutations(removed) == []
+
+
+def test_delete_volumes_runs_nothing_without_yes(
+    removed: FakeVps, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """B-1: the delete gate's no, wrong case, empty and EOF answers delete nothing."""
+    for answer in ("no", "YES", ""):
+        _answer(monkeypatch, answer)
+        assert m.main(["--delete-volumes", "ocoron-com_db_data"]) == 1
+
+    def eof(_prompt: str = "") -> str:
+        raise EOFError
+
+    monkeypatch.setattr("builtins.input", eof)
+    assert m.main(["--delete-volumes", "ocoron-com_db_data"]) == 1
+    assert _mutations(removed) == []
+
+
+def test_delete_volumes_exits_1_when_a_delete_fails(
+    removed: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B-2: a refused volume rm prints FAILED and exits 1."""
+    removed.delete_rc = 1
+    _answer(monkeypatch, "yes")
+    assert m.main(["--delete-volumes", "ocoron-com_backup_data"]) == 1
+    captured = capsys.readouterr()
+    assert "ocoron-com_backup_data: FAILED — volume is in use" in captured.out
+    assert "not deleted: ocoron-com_backup_data" in captured.err
+
+
+def test_delete_volumes_refuses_unclassified_data(
+    removed: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A-9, B-6: a foreign mountpoint or a symlinked data dir is UNREADABLE and never deleted."""
+    removed.mountpoints["ocoron-com_db_data"] = "/mnt/elsewhere/_data"
+    removed.data_dir_symlink = True
+    _answer(monkeypatch)
+    assert m.main(["--delete-volumes", "ocoron-com_db_data", "/opt/ocoron-com"]) == 1
+    assert _mutations(removed) == []
+    captured = capsys.readouterr()
+    assert "ocoron-com_db_data  class UNREADABLE" in captured.out
+    assert "/opt/ocoron-com  class UNREADABLE" in captured.out
+    assert "not classified" in captured.err
+
+
+def test_delete_volumes_names_its_boot_glob_refusal(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B-9: with the stack gone but compose.yaml still in the glob, the refusal names the glob."""
+    vps.containers = [c for c in vps.containers if c["Name"] == "/n8n"]
+    vps.networks = {}
+    _answer(monkeypatch)
+    assert m.main(["--delete-volumes", "ocoron-com_backup_data"]) == 1
+    assert "is in the boot glob, so a reboot would recreate the volumes" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "exc", [subprocess.TimeoutExpired(cmd="ssh", timeout=1), OSError("no ssh")]
+)
+def test_a_timeout_or_missing_ssh_stops(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], exc: Exception
+) -> None:
+    """B-8: a timeout or an ssh that cannot start is a STOP with its reason, never a traceback."""
+
+    def boom(*_a: object, **_kw: object) -> subprocess.CompletedProcess[str]:
+        raise exc
+
+    monkeypatch.setattr(m.subprocess, "run", boom)
+    assert m.main([]) == 1
+    assert (
+        "timed out after" if isinstance(exc, subprocess.TimeoutExpired) else "could not start ssh"
+    ) in (capsys.readouterr().err)
+
+
+def test_an_unreadable_grep_with_empty_stderr_still_reads_unreadable(
+    vps: FakeVps, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A-7: grep rc 2 with no stderr is printed as UNREADABLE, never as none."""
+    vps.rc["grep -rnIoE"] = 2
+    real = vps._r
+    vps._r = lambda rc, out="", err="": real(rc, out, "" if rc == 2 else err)  # type: ignore[method-assign]
+    assert m.main([]) == 0
+    assert "UNREADABLE: grep rc 2" in capsys.readouterr().out
