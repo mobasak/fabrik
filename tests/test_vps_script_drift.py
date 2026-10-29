@@ -409,6 +409,7 @@ def _catchup_env(tmp: Path, collector_rc: int, drift_rc: int = 1) -> tuple[dict,
         ("kaizen_coroner.py", 0),
         ("kaizen_collect_v2.py", collector_rc),
         ("feedback_relay.py", 0),
+        ("lessons_relay.py", 0),
         ("rules_currency_watch.py", 0),
         ("vps_script_drift.py", drift_rc),
     ):
@@ -435,6 +436,18 @@ def test_collector_failure_withholds_stamp(tmp_path):
     assert not (state / "daily-kaizen_collect_v2.py.stamp").exists()
     calls = (tmp_path / "calls.log").read_text().split()
     assert "feedback_relay.py" in calls  # riders still run
+
+
+def test_catchup_runs_the_lessons_rider(tmp_path):
+    # W-d6ebcc04: the lessons/AFCL reader rides the same arm, after the feedback relay.
+    env, _state = _catchup_env(tmp_path, collector_rc=0)
+    r = subprocess.run(
+        ["bash", str(CATCHUP), "kaizen_collect_v2.py"], env=env, capture_output=True, text=True
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    calls = (tmp_path / "calls.log").read_text().split()
+    assert "lessons_relay.py" in calls
+    assert calls.index("feedback_relay.py") < calls.index("lessons_relay.py")
 
 
 def test_drift_rider_daily_stamp(tmp_path):

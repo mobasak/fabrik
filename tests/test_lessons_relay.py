@@ -14,7 +14,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 RELAY = ROOT / "scripts" / "sysadmin" / "lessons_relay.py"
-CATCHUP = ROOT / "scripts" / "sysadmin" / "weekly_catchup.sh"
 
 HUB_LESSONS = """# Lessons Learnt
 
@@ -79,28 +78,39 @@ def _cursor(tmp: Path) -> Path:
 def _add_hub_lesson(tmp: Path, text: str) -> None:
     f = tmp / "opt" / "hub" / "docs" / "LESSONS_LEARNT.md"
     body = f.read_text(encoding="utf-8")
-    f.write_text(body.replace("# Lessons Learnt\n\n", "# Lessons Learnt\n\n" + text, 1), encoding="utf-8")
+    f.write_text(
+        body.replace("# Lessons Learnt\n\n", "# Lessons Learnt\n\n" + text, 1), encoding="utf-8"
+    )
 
 
 def test_first_run_seeds_without_sending(tmp_path):
     _world(tmp_path)
-    r = _run(tmp_path)
+    refused = _run(tmp_path)  # no cursor and no --seed: loud, never a silent reseed
+    assert refused.returncode == 1
+    assert "--seed" in refused.stderr
+    assert not _cursor(tmp_path).exists()
+    r = _run(tmp_path, "--seed")
     assert r.returncode == 0, r.stderr
     assert _sends(tmp_path) == []
     assert _cursor(tmp_path).is_file()
     assert "seeded" in r.stdout and "from 2 file(s)" in r.stdout, r.stdout
+    assert _run(tmp_path).stdout == ""  # nothing new after the seed
 
 
 def test_new_entry_is_sent_once(tmp_path):
     _world(tmp_path)
-    _run(tmp_path)
+    _run(tmp_path, "--seed")
     _add_hub_lesson(tmp_path, "# Lesson 3: a fresh one\n\n## 1. Context\n\nnew context\n\n")
     r = _run(tmp_path)
     assert r.returncode == 0, r.stderr
     sends = _sends(tmp_path)
     assert len(sends) == 1
     argv, body = sends[0]["argv"], sends[0]["body"]
-    assert argv[:1] == ["send"] and "--to-agent" in argv and argv[argv.index("--to-agent") + 1] == "kaizen"
+    assert (
+        argv[:1] == ["send"]
+        and "--to-agent" in argv
+        and argv[argv.index("--to-agent") + 1] == "kaizen"
+    )
     rows = [line for line in body.splitlines() if line.startswith("- [ ] ")]
     assert rows == ["- [ ] hub/docs/LESSONS_LEARNT.md:3 · Lesson 3: a fresh one"], body
     assert "1 of 1 new" in body
@@ -111,7 +121,7 @@ def test_new_entry_is_sent_once(tmp_path):
 
 def test_send_failure_keeps_the_cursor(tmp_path):
     _world(tmp_path)
-    _run(tmp_path)
+    _run(tmp_path, "--seed")
     before = _cursor(tmp_path).read_bytes()
     _add_hub_lesson(tmp_path, "# Lesson 3: a fresh one\n\nx\n\n")
     failed = _run(tmp_path, rc=1)
@@ -124,7 +134,7 @@ def test_send_failure_keeps_the_cursor(tmp_path):
 
 def test_fences_nesting_and_copies_are_not_rows(tmp_path):
     _world(tmp_path)
-    _run(tmp_path)
+    _run(tmp_path, "--seed")
     _add_hub_lesson(
         tmp_path,
         "# Lesson 3: fenced\n\n```bash\n# not a heading\n```\n\n~~~\n## nor this\n~~~\n\n"
@@ -140,11 +150,40 @@ def test_fences_nesting_and_copies_are_not_rows(tmp_path):
     body = _sends(tmp_path)[0]["body"]
     rows = [line for line in body.splitlines() if line.startswith("- [ ] ")]
     assert rows == ["- [ ] hub/docs/LESSONS_LEARNT.md:3 · Lesson 3: fenced"], body
+    # the folded `## 2. The Problem` advanced with its row: no orphan row on the next run
+    again = _run(tmp_path)
+    assert again.returncode == 0 and again.stdout == "", again.stdout
+    assert len(_sends(tmp_path)) == 1
+
+
+def test_unclosed_fence_and_poison_heading(tmp_path):
+    """The legacy scaffold ends in an opener with no closer (27 of 84 live files): a lesson
+    appended after it is a row. A heading mail.py's secret scanner would refuse goes out
+    withheld instead of refusing the whole digest."""
+    _world(tmp_path)
+    afcl = tmp_path / "opt" / "proj" / "AFCL.md"
+    afcl.write_text(
+        afcl.read_text(encoding="utf-8") + "\n```markdown\nexample\n```python\nx\n```\n\n```\n",
+        encoding="utf-8",
+    )
+    _run(tmp_path, "--seed")
+    afcl.write_text(
+        afcl.read_text(encoding="utf-8")
+        + "\n## after the stray fence\n\nreal\n\n## GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789\n\nx\n",
+        encoding="utf-8",
+    )
+    r = _run(tmp_path)
+    assert r.returncode == 0, r.stderr
+    body = _sends(tmp_path)[0]["body"]
+    rows = [line for line in body.splitlines() if line.startswith("- [ ] ")]
+    assert len(rows) == 2, body
+    assert rows[0].endswith("· after the stray fence"), rows
+    assert "ghp_" not in body and "withheld" in rows[1], rows
 
 
 def test_overflow_rolls_to_the_next_run(tmp_path):
     _world(tmp_path)
-    _run(tmp_path)
+    _run(tmp_path, "--seed")
     _add_hub_lesson(tmp_path, "".join(f"# Lesson {100 + i}: bulk\n\nb{i}\n\n" for i in range(160)))
     first = _run(tmp_path)
     assert first.returncode == 0, first.stderr
@@ -168,32 +207,3 @@ def test_corrupt_cursor_refuses(tmp_path):
     assert "cursor" in r.stderr
     assert cur.read_text(encoding="utf-8") == "{not json"
     assert _sends(tmp_path) == []
-
-
-def test_catchup_runs_the_lessons_rider(tmp_path):
-    root = tmp_path / "root"
-    sysadmin = root / "scripts" / "sysadmin"
-    sysadmin.mkdir(parents=True)
-    log = tmp_path / "calls.log"
-    for name in (
-        "kaizen_coroner.py",
-        "kaizen_collect_v2.py",
-        "feedback_relay.py",
-        "lessons_relay.py",
-        "rules_currency_watch.py",
-        "vps_script_drift.py",
-    ):
-        (sysadmin / name).write_text(
-            f"import sys\nopen({str(log)!r}, 'a').write({name!r} + '\\n')\nsys.exit(0)\n"
-        )
-    home = tmp_path / "home"
-    home.mkdir()
-    env = dict(os.environ)
-    env.update({"HOME": str(home), "FABRIK_ROOT": str(root), "FABRIK_PY": sys.executable})
-    r = subprocess.run(
-        ["bash", str(CATCHUP), "kaizen_collect_v2.py"], env=env, capture_output=True, text=True
-    )
-    assert r.returncode == 0, r.stdout + r.stderr
-    calls = log.read_text().split()
-    assert "lessons_relay.py" in calls
-    assert calls.index("feedback_relay.py") < calls.index("lessons_relay.py")

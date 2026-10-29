@@ -109,6 +109,10 @@ case "$JOB" in
         # them — the operator does not read dashboards. Watermarked inside the relay,
         # so double-runs are no-ops; a relay failure never unstamps the collector.
         "$PY" "$ROOT/scripts/sysadmin/feedback_relay.py" || true
+        # RIDER (W-d6ebcc04, non-fatal): mail kaizen one digest of the LESSONS_LEARNT / AFCL
+        # entries written in any repo since the last run. Cursor-keyed inside the relay, so a
+        # re-run sends nothing twice; a relay failure never unstamps the collector.
+        "$PY" "$ROOT/scripts/sysadmin/lessons_relay.py" || true
         # RIDER (rules pass 2026-09-01, non-fatal): version-pin tripwire — mails infra
         # when a rules pack pins a python/node version the world has moved past
         # (the answer to "what happens in one year"). Watermarked per upstream
