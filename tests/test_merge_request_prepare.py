@@ -478,3 +478,84 @@ def test_queue_forks_no_leg_beside_a_locked_leg(world):
     assert all(q[2] >= locked1[0][3] for q in queue2), rows  # two's leg forked after one's ended
     assert _record(world, m1)["outcome"] == "merged" and _record(world, m2)["outcome"] == "merged"
     assert _skipped(world, m2)
+
+
+# W-1fb11ec8 slice 3: a later leg's USEFULNESS is budgeted on the longest green leg this run timed
+# (697 s live on 2026-10-30), its SAFETY still on the declared limit — the old rule closed the fork
+# window at 1080 s of the hub's 11100 s wall, so the third request on ran its leg inside the lock.
+HUB = "# merge-test-timeout: 2700\n"
+
+
+def test_leg_fits_budgets_the_longest_timed_leg(world):
+    mod = world.mod
+    now = mod.time.monotonic()
+    old_edge = mod.QUEUE_WALL_S - mod.LANDING_WORST_S - mod._declared_leg(HUB) - mod.LEG_OVERHEAD_S
+    assert old_edge == 1080  # the window measured on the hub tonight
+    late = old_edge + 600  # past the old window
+    assert not mod._leg_fits(now - late, HUB)  # nothing timed: today's rule
+    assert mod._leg_fits(now - late, HUB, 697.0)  # a 697 s green leg leaves a landing after it
+    timed_edge = mod.QUEUE_WALL_S - mod.LANDING_WORST_S - 697 - mod.LEG_OVERHEAD_S
+    assert mod._leg_fits(now - timed_edge + 1, HUB, 697.0)
+    assert not mod._leg_fits(now - timed_edge - 1, HUB, 697.0)  # no landing could follow it
+
+
+def test_leg_fits_keeps_the_declared_wall_bound(world):
+    """However short the timed legs, a leg forked at the last moment `_leg_fits` allows and running
+    its whole DECLARED limit still ends inside the wall, so the capped_run wrapper never kills a leg
+    the queue then joins: a landing's worst case outweighs the longest leg any base may declare."""
+    mod = world.mod
+    longest = "# merge-test-timeout: 999999\n"
+    declared = mod._declared_leg(longest) + mod.LEG_OVERHEAD_S
+    assert declared < mod.LANDING_WORST_S
+    now = mod.time.monotonic()
+    for timed in (0.0, 1.0, 697.0):
+        last = max(  # the latest elapsed second at which it still forks
+            s for s in range(0, mod.QUEUE_WALL_S + 1, 5) if mod._leg_fits(now - s, longest, timed)
+        )
+        assert last + declared <= mod.QUEUE_WALL_S, (timed, last)
+
+
+def _spy_fits(world, monkeypatch) -> list[float]:
+    """Wrap `_leg_fits` so a test reads the `timed` budget `_queue` passed at every call."""
+    seen: list[float] = []
+    real = world.mod._leg_fits
+
+    def spy(started, script, timed=0.0):
+        seen.append(timed)
+        return real(started, script, timed)
+
+    monkeypatch.setattr(world.mod, "_leg_fits", spy)
+    return seen
+
+
+def test_queue_times_only_green_legs(world, monkeypatch):
+    """A queue leg that ends on a matching record raises the budget to its wall-clock; one that leaves
+    no record (red, killed, timed out) never does, so a fast failure cannot open the window."""
+    _leg_log(world, sleep=0.3)
+    sends = []
+    for i in range(3):
+        h, b = _new_branch(world, f"g{i}", {f"g{i}.txt": f"{i}\n"})
+        sends.append(world.send(h, branch=b))
+    seen = _spy_fits(world, monkeypatch)
+
+    assert _queue(world) == 0
+
+    assert seen and seen[0] == 0.0  # the first fork is budgeted on the declared limit
+    assert max(seen) >= 0.3, seen  # a green leg's seconds reached the budget
+    assert all(_record(world, m)["outcome"] == "merged" for m in sends)
+
+
+def test_queue_never_times_a_leg_without_a_record(world, monkeypatch):
+    """One's queue leg exits 124 (no record): the fork check for two, after one's leg was joined, still
+    reads a zero budget."""
+    log = _kind_log(world, fail_queue_on="slow.txt")
+    h1, b1 = _new_branch(world, "one", {"slow.txt": "x\n"})
+    h2, b2 = _new_branch(world, "two", {"b.txt": "b\n"})
+    m1, m2 = world.send(h1, branch=b1), world.send(h2, branch=b2)
+    seen = _spy_fits(world, monkeypatch)
+
+    assert _queue(world) == 0
+
+    assert any(h == h2 and k == "queue" for h, k, _, _ in _kinds(log))  # two's fork was checked
+    assert len(seen) >= 2 and all(t == 0.0 for t in seen), seen
+    assert _record(world, m1)["outcome"] == "merged" and _record(world, m2)["outcome"] == "merged"
