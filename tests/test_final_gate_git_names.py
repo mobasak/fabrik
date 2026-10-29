@@ -148,6 +148,11 @@ def test_a_stream_whose_reconfigure_fails_never_stops_the_gate(monkeypatch):
         def reconfigure(self):
             raise ValueError("refused at lookup")
 
+    class _LookupMissing(io.StringIO):
+        @property
+        def reconfigure(self):
+            raise AttributeError("missing at lookup")
+
     class _ReachedParseArgsError(Exception):
         pass
 
@@ -158,7 +163,7 @@ def test_a_stream_whose_reconfigure_fails_never_stops_the_gate(monkeypatch):
     for out, err in (
         (_Inner(), _Refuses()),
         (io.StringIO(), _Inner()),
-        (_LookupRefuses(), io.StringIO()),
+        (_LookupRefuses(), _LookupMissing()),
     ):
         monkeypatch.setattr(sys, "stdout", out)
         monkeypatch.setattr(sys, "stderr", err)
