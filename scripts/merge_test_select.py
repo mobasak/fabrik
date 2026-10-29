@@ -6,7 +6,8 @@ Without an owner command ``merge_request.py`` runs only the ``tests/`` files a b
 repo-wide grader the branch broke but never edited (the hub-write-root search, the contract's line
 cites, a command's byte cap) ran nowhere until master was red: 29 red-master fixes in 25 days, the
 measured branches each red ALONE before they merged. This runs, in the merge's build tree, every
-test file that names a path the merge changed — by file name, module stem or directory — plus every
+test file that names a path the merge changed — by file name, module stem or directory; a review
+receipt by its file name only (RECEIPT) — plus every
 tree grader (a test running ``git ls-files``), in parallel shards, and refuses only a NEW red: one
 failing on the merge that passes on the base, is absent there, or fails there with another crash
 line. Master is not green on the full suite (16 ids red in a merge-shaped throwaway, 2026-10-24),
@@ -62,6 +63,10 @@ DURATIONS_FILE = "merge-tests-durations.txt"
 SKIP = re.compile(
     r"(CHANGELOG\.md|docs/DECISIONS\.md|INDEX\.md|docs/LESSONS_LEARNT\.md|\.fabrik/work/.*)"
 )
+# a review receipt rides almost every branch, and only a test that names its FILE reads one (W-1fb11ec8:
+# its directory keys selected ~25 files per merge, none of them a reader); it stays out of SKIP, so a
+# receipt still runs the tree graders and still counts as a change to the green-record re-test skip
+RECEIPT = re.compile(r"docs/development/reviews/[^/]*\.md")
 TEST_FILE = re.compile(r"tests/(?:.*/)?test_[^/]*\.py")
 # a directory spelled as a path segment in a test ("commands" / "_sources") selects only when its
 # name is specific; these four are named by most of the suite
@@ -172,7 +177,9 @@ def select(changed: list[str], tests: dict[str, str]) -> list[str]:
     mods: set[str] = set()
     picked = {p for p in changed if p in tests}
     for p in changed:
-        if not SKIP.fullmatch(p):
+        if RECEIPT.fullmatch(p):
+            keys.add(Path(p).name)
+        elif not SKIP.fullmatch(p):
             keys |= keys_for(p)
             mods |= import_patterns(p)
     bounded = re.compile("|".join(sorted(mods))) if mods else None

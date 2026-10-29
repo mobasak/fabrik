@@ -130,6 +130,26 @@ def test_ledgers_are_not_keys():
     assert mts.select(["tests/test_x.py"], {"tests/test_x.py": ""}) == ["tests/test_x.py"]
 
 
+def test_review_receipt_is_keyed_by_its_file_name():
+    # W-1fb11ec8: a receipt rides almost every branch; its directory keys selected ~25 files that never read it
+    receipt = "docs/development/reviews/2026-10-29-w-x-review.md"
+    tests = {
+        "tests/test_named.py": 'ROOT / "docs/development/reviews/2026-10-29-w-x-review.md"',
+        "tests/test_dir.py": 'ROOT / "docs/development/reviews/"',
+        "tests/test_quoted.py": 'ROOT / "docs" / "development" / "reviews"',
+        "tests/test_stem.py": "2026-10-29-w-x-review",
+        "tests/test_tree.py": "git ls-files",
+    }
+    # its file name and the tree graders, never its directory or its stem alone
+    assert mts.select([receipt], tests) == ["tests/test_named.py", "tests/test_tree.py"]
+    # an archived receipt (one level deeper) keeps every key, its directory included
+    archived = "docs/development/reviews/archived/2026-01-01-old-review.md"
+    tests["tests/test_archived.py"] = 'ROOT / "docs/development/reviews/archived/"'
+    assert "tests/test_archived.py" in mts.select([archived], tests)
+    # the green-record skip still treats a receipt as code-bearing: SKIP is unchanged
+    assert not mts.SKIP.fullmatch(receipt)
+
+
 # --- the leg on real repos -----------------------------------------------------------------------
 
 

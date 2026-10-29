@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A cheap selector's saving can be the edges it cannot see (2026-10-29, W-1fb11ec8)
+
+**What happened:** an import-closure selector replayed 17 of 17 past catches and cut the merge leg's selection 26 %. Two critique seats named the import edges it could not resolve (relative imports, sys.path-rooted packages, literal `"x.py"` loads); resolving them made one modified script's closure ~120 scripts and the selection larger than the rule it replaced.
+
+**Lesson:** when a narrowing rule saves cost on a replay set, measure it again with every edge class the real tree uses resolved — a replay set of past catches cannot show the catches a blind graph loses, and the saving may be exactly those losses. Measure the leg's phases too before choosing what to cut: here the shards were a third of the wall and the confirm phase the rest.
+
 ## Measure the bytes per class before choosing which rule to loosen (2026-10-29, W-d1a4a8f5)
 
 **What happened:** the janitor item named a session-level class first: 362 "unclassified" sessions with no live or death signal. The first design loosened two session rules for it, a 48 h dead bar and "no transcript is a death signal". A test the build would have broken pinned the 7 d bar for weekly-quota resumes. A `du` per dry-run row then showed that the no-signal class held 0.5 GB. The 108 GB under that label sat in resumable sessions, and the removable bytes (77 GB) were run folders that a gap rule with no end kept alive. That gap rule was the one D-878 had declared safe because "/tmp is cleared at boot", and 74 of 652 session dirs predated the boot.
