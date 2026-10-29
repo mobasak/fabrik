@@ -136,6 +136,15 @@ paragraph now says the alternative is outside the mandate and routes a project t
 - `.claude/hooks/mail_notify.py` (W-f3039837): the digest's rows and its unread total read one file
   list. A dot-named file and a directory named like a message are in neither, as in `mail.py list`.
 
+### Fixed — the Stop hook's panel check holds across a prompt queued mid-turn (2026-10-29)
+- `.claude/hooks/final_gate_stop.py`: a queued prompt's row that Claude Code re-writes with the same uuid no
+  longer clears the seats' verdicts; a DECISION block written before a queued prompt is judged on the verdicts
+  held up to that prompt, as a `PANEL APPROVED` brief already was; the final message takes a cut-off only when
+  it equals the newest walked text, closing a borrowed cut-off the first build opened; a non-object JSON row no
+  longer crashes the panel check (W-573ddaa1, D-1349). A brief more than 2 MB before the next Stop stays unread (1
+  of 155 real briefs) — follow-up W-9e067e18; a re-written operator `user` row still resets the panel's verdicts —
+  follow-up W-432e07dc.
+
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
   `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`

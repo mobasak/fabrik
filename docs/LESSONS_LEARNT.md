@@ -8175,3 +8175,9 @@ design critique caught the first form, review pass 1 the second).
 runs after every impl inside it — no form of that hook is guaranteed to see the final order.
 **How to apply:** act on the final item order in `pytest_collection_finish`, which runs after every modifyitems impl,
 and grade it against a conftest reorder in each hook form (plain trylast, wrapper, tryfirst wrapper).
+
+## A residue measured against the wrong boundary nearly shipped a costly fix — measure against the event that judges it (2026-10-29)
+
+**What happened:** W-573ddaa1's census counted `PANEL APPROVED` briefs sitting more than 2 MB before their turn's end (39 of 155) as briefs the Stop hook's 2 MB tail never reads, and a whole-file re-walk was built for them. A brief is judged at the NEXT Stop, not at the operator's next prompt; measured that way (`stop_hook_summary` rows), 154 of 155 had been read and only 1 had not. Replayed on the real long turns, the re-walk re-judged briefs earlier Stops had already judged, newly refused 3 of them and cost up to 6.9 s per Stop, so it was dropped.
+**Why:** "turn end" was a proxy for "the Stop that reads it"; in long autonomous turns Stops happen far more often than operator prompts, so the proxy inflated the count 39-fold.
+**How to apply:** before sizing a fix for a "never read" or "never judged" gap, find the event that does the reading (here the Stop's own summary row) and measure the distance to it; replay the candidate fix on the real cases, comparing base and build verdicts, before trusting it.
