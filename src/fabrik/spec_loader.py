@@ -26,7 +26,8 @@ CPU_RE = re.compile(r"(?:0|[1-9][0-9]{0,3})(?:\.[0-9]{1,2})?")
 digits. Compose 2.40.3 reads ``0_5`` as 5 CPUs, ``0`` as no limit and ``-1`` as -1 without complaint, so the
 template path, the apply validator and the docker-image emitter all refuse anything else through
 :func:`cpu_in_grammar`. Two decimals is the daemon floor's step (0.01), and compose reads ``cpus`` as a 32-bit
-float (``0.123456789`` comes back ``0.12345679``), which holds a value of this grammar exactly."""
+float (``0.123456789`` comes back ``0.12345679``) yet reads a value of this grammar back as the same number, and
+the daemon stores it exactly (``0.01`` -> NanoCpus 10000000, Docker 29.1.3)."""
 
 CPU_GRAMMAR_MESSAGE = (
     "resources.cpu must be a quoted plain decimal CPU count from 0.01 to 1024 "
