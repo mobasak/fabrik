@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
+The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
+`docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.
+`agents_up.sh remove` no longer deletes an untracked file hidden by `status.showUntrackedFiles=no`. It refuses a locked
+worktree or the merge owner before it kills a pane, reads non-ASCII ignored names correctly, and caps every refusal at
+20 reasons plus an exact count. `add` refuses a caller bound outside the launcher's name grammar and a coordinator
+`--role`. Spawned panes stay on `--session-id` after whoami's `refresh()` row (master, merged in), a malformed store row
+no longer stops the launcher, and a pane's exit hint picks `--resume` or `--session-id` when it prints. `agents_bat.py`
+remembers the desktop after a partial run. The builder charter's hand-in command names `--review`, and the identity and
+rollout docs describe the verbs as built. `ruff format` cleared three files the merge gate's format check would have
+reddened.
+
 ### Added — `agents_up.sh remove`: retire a builder without losing work (2026-10-29)
 `agents_spawn.py remove <repo> <name>` (W-b9ad80ae, plan T09) refuses under the repo's agents lock (exit 2, every reason in one `agents-spawn.jsonl` row) on a `running` run record for any id the name owns (registry, identity store and the tagged pane's live session), a dirty or detached worktree, unpushed commits, a tmux read that fails, or an ignored file that would be lost (caches by path segment, `remove_ignored_ok` from `.fabrik/work/config.json`, `.tmp/runs/<sid>/<run>` folders a resume seed names — read through symlinks, non-regular seeds refused). It then kills the pane, re-checks after the kill, removes the worktree (never `--force`), deletes only a branch merged into the base, drops the registry row, heals the rest and regenerates the launchers; a re-run after an interrupted remove finishes what is left. `docs/reference/repo-coordinator-rollout.md` gains "Start using it in every repo", both verbs, the grid and the tabbed `.bat`.
 

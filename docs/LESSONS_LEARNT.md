@@ -1,6 +1,11 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## "Nothing to lose" must pass `--untracked-files=all` — git's clean checks obey the user's config (2026-10-29, W-b9ad80ae T10)
+
+**What happened:** the dynamic-builders whole-plan review found that `agents_up.sh remove` read a worktree as clean with `git status --porcelain`, which honours `status.showUntrackedFiles=no`; `git worktree remove` makes the same check internally, so under that config an untracked source file passed both and was deleted at rc 0 (reproduced in scratch). Every per-ticket review had missed it, and so had the green gate, whose static tier was skipped as "diff-sensed" because only markdown was uncommitted.
+**Lesson:** a check that decides "nothing would be lost" passes `--untracked-files=all` (and `--ignore-submodules=none`), and the destructive git call itself runs with `-c status.showUntrackedFiles=all`, or a user's config turns it into a silent delete. A green `final_gate --check` with `skipped_checks: ['static tier']` says nothing about lint, types or format: run ruff, ruff format and mypy by hand on the plan's files before calling a whole plan green.
+
 ## A fix's own wording is the next round's surface: three review rounds on one "main checkout" rule (2026-10-29, W-b9ad80ae T05+T06)
 
 **What happened:** the wave-4 review confirmed 14 defects in round 1, then 3 and 2 more, every one of the later five in the previous round's fixes. `add` first accepted a linked worktree, then refused a legitimate main checkout whose `.git` is a `gitdir:` file (`dirname(common dir)` is not the checkout there), then named the git dir as "the main checkout" in its refusal hint. A module loaded by file path with a `@dataclass` also had to be put in `sys.modules` before `exec_module`, or annotation resolution crashes.
