@@ -110,8 +110,8 @@ def test_size_declares_operator_named_work_as_heavy() -> None:
         "## SIZE", "## Phase 1"
     )
 
-    # row 1792287653 (recurring held re-make-receipt-before-the-d-row-cites-it): the range tip is phase 5's last
-    # commit, so a D-row the receipt cites is already in it — phase 5's own recipe commits the receipt alone after it
+    # row 1792287653 (recurring held re-make-receipt-before-the-d-row-cites-it): the receipt is made after the ledger
+    # commit, so a D-row the receipt cites is already in its range; the receipt commit itself follows alone (D-1336)
 
 
 def test_phase_three_formats_the_declared_paths_only() -> None:
