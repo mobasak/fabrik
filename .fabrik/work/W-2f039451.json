@@ -16,11 +16,11 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "duplicate of W-04fadfd3 (mail 01M64CSW26's own item)",
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "HIGH: rule update; effort low: two pack lines",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "mail-01m64csw26"
   ],

@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: .windsurf/rules/core/design-system-template.md line 1519 gives two different blocks for the same alias shape. Its rule \"A namespaced slot whose value is a `var()` goes in `@theme static inline`\" covers `--color-surface-0: var(--surface-0)` (a `--color-*` name, a `var()` value), yet the same li"
 }

@@ -16,11 +16,11 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "duplicate of W-dbb525de (mail 01M64EC41S's own item)",
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "HIGH: rule update; effort low: one clause in two fragments",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "mail-01m64ec41s"
   ],

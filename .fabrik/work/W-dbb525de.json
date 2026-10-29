@@ -1,5 +1,7 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-bc394d0b"
+  ],
   "created": "2026-10-29T19:15:26.288410Z",
   "creator": "kaizen",
   "evidence": "",
