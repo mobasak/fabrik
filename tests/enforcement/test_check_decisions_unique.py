@@ -653,12 +653,14 @@ def test_the_table_reading_legs_read_the_ledger_rows_only():
     assert _mod._all_row_ids(text) == [(5, "D-1")]
 
 
-def test_an_id_too_long_to_be_one_is_no_id():
+def test_an_id_of_any_length_is_keyed_without_int():
     """Review pass 1, A-sonnet-2: `int()` refuses over 4,300 digits, so one such cell crashed the run
-    before any line printed; a non-ASCII digit is no id digit either."""
-    huge = "| D-" + "9" * 5000 + " | a |\n"
-    assert find_duplicates(_SHAPE_HEAD + huge + huge) == {}
+    before any line printed. Pass 1's first fix capped ids at 9 digits, which made a 10-digit id
+    invisible (C-haiku-1: the old checker caught its duplicate) — the key needs no `int()` at all.
+    A non-ASCII digit is no id digit."""
+    huge = "D-" + "9" * 5000
+    assert find_duplicates(_SHAPE_HEAD + _row(huge) + _row(huge)) == {huge: 2}
+    ten = "D-1234567890"
+    assert find_duplicates(_SHAPE_HEAD + _row(ten) + _row(ten)) == {ten: 2}
+    assert find_duplicates(_SHAPE_HEAD + _row("D-0") + _row("D-000")) == {"D-0": 2}
     assert find_duplicates(_SHAPE_HEAD + "| D-١ | a |\n| D-١ | b |\n") == {}
-    assert find_duplicates(_SHAPE_HEAD + _row("D-999999999") + _row("D-999999999")) == {
-        "D-999999999": 2
-    }

@@ -51,10 +51,17 @@ import _fences  # noqa: E402  (same-dir sibling, synced fleet-wide)
 LEDGER = Path("docs/DECISIONS.md")
 # A row: a pipe, then an id cell that OPENS with D-<digits> — text after the id inside the cell
 # (`| D-12 (amended) |`) is allowed, while `D-1x`, `D-1.5`, `D-1-2` and `D-1/2` are no id
-# (W-c25fd20f gap 7). The number is 1-9 ASCII digits: `int()` refuses a string over 4,300 digits,
-# which crashed the run before any line printed, and `\d` also takes non-ASCII digits. Its leading
-# whitespace is read by `_parse`.
-_ROW = re.compile(r"^([ \t]*)\|[ \t]*\**(D-([0-9]{1,9}))(?![\w./-])")
+# (W-c25fd20f gap 7). The number is ASCII digits of any length (`\d` also takes non-ASCII digits),
+# keyed by `_key` with no `int()` — which refuses a string over 4,300 digits and crashed the run
+# before any line printed. Its leading whitespace is read by `_parse`.
+_ROW = re.compile(r"^([ \t]*)\|[ \t]*\**(D-([0-9]+))(?![\w./-])")
+
+
+def _key(digits: str) -> str:
+    """The id's number without its leading zeros: `D-1` and `D-001` are one id."""
+    return digits.lstrip("0") or "0"
+
+
 # A table body goes on while a line is indented at most 3 spaces, is not blank, holds a pipe and
 # starts no other block — GFM's rule (markdown-it, executed 2026-10-29 over 39 shapes): a row with
 # no leading pipe continues the table; a tab or a 4-space indent (an indented code block), a
@@ -78,7 +85,7 @@ _INDENTED_CODE = re.compile(r"^(?: {4}| {0,3}\t)")
 class _Row(NamedTuple):
     lineno: int  # 1-based, in the ledger as written
     did: str  # the id as written: `D-001`
-    key: int  # the id's number: `D-1` and `D-001` are one id
+    key: str  # the id's number, `_key`: `D-1` and `D-001` are one id
     in_ledger: bool  # inside the ledger table's body
     counted: bool  # a row the duplicate leg reads: unindented, or in any table body
     line: str
@@ -112,9 +119,11 @@ def _parse(text: str) -> _Ledger:
     duplicates are still read line by line.
 
     Measured before it decided anything (2026-10-29, 298 ledgers — the 51 /opt/*/docs/DECISIONS.md
-    plus 247 worktree copies, 111,692 rows): 0 rows outside one ledger table, 0 in fences, 0
-    indented, 0 annotated id cells, 0 ids whose number repeats under another spelling; every leg's
-    verdict on all 298 is unchanged.
+    plus 247 worktree copies; the row count moves as they grow): of the 293 holding a ledger table,
+    0 rows outside it; 0 rows in fences, 0 indented, 0 annotated id cells, 0 ids whose number
+    repeats under another spelling; every leg's verdict on all 298 is unchanged. The other 5 —
+    fabrik-lib's ledger and 4 worktree copies of it — have a header with no delimiter under it, so
+    no table: their duplicates are still read, and no row of theirs is ever a stray.
     """
     text = text.replace("\r\n", "\n")
     blank = list(text)
@@ -150,12 +159,12 @@ def _parse(text: str) -> _Ledger:
             continue  # an indented code block: an example, like a fence
         inside = ledger is not None and ledger[0] < k < ledger[1]
         counted = in_table or not m.group(1)
-        rows.append(_Row(k + 1, m.group(2), int(m.group(3)), inside, counted, ln))
+        rows.append(_Row(k + 1, m.group(2), _key(m.group(3)), inside, counted, ln))
     return _Ledger(lines[ledger[0] - 1] if ledger else None, ledger[0] if ledger else 0, rows)
 
 
 def find_duplicates(text: str) -> dict[str, int]:
-    first: dict[int, str] = {}  # the first spelling seen names the id
+    first: dict[str, str] = {}  # the first spelling seen names the id
     ids = [first.setdefault(r.key, r.did) for r in _parse(text).rows if r.counted]
     return {i: n for i, n in Counter(ids).items() if n > 1}
 
@@ -373,12 +382,12 @@ def main() -> int:
             "and no reader finds it. Move it into the ledger table's body (this is a placement fix, "
             "not a content edit: the row's cells are immutable)"
         )
-    spellings: dict[int, list[str]] = {}
+    spellings: dict[str, list[str]] = {}
     for r in _parse(text).rows:
         if r.counted and r.did not in spellings.setdefault(r.key, []):
             spellings[r.key].append(r.did)
     for i, n in sorted(dups.items()):
-        written = spellings.get(int(i[2:]), [i])
+        written = spellings.get(_key(i[2:]), [i])
         also = f" (written {' and '.join(written)})" if len(written) > 1 else ""
         print(
             f"✗ docs/DECISIONS.md id {i} appears {n}x{also} — rows are addressable by id; "
