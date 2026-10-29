@@ -7,11 +7,11 @@
   "kind": "task",
   "legacy": false,
   "links": {
-    "decision": "",
+    "decision": "D-1356",
     "plan": "",
     "spec": ""
   },
-  "next": "measure the confirm phase per leg (alone / ordered / base seconds) on 3 real legs; options: re-run only the flaky node in its shard's prefix order, cache base verdicts per base sha, fix the standing master reds",
+  "next": "measure the confirm phase per leg (alone / ordered / base seconds) on 3 real legs AND the box load each ran under (coordinator 2026-10-29 21:10: loadavg ~57, final_gate's Project Structure check timed out at 120 s on a 3-line doc change while merge-queue legs ran beside builders' seats); options: re-run only the flaky node in its shard's prefix order, cache base verdicts per base sha, fix the standing master reds, admit a leg only under a load ceiling",
   "note": "",
   "owner": "",
   "priority": 2,
