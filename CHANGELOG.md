@@ -8,6 +8,11 @@ All notable changes to this project will be documented in this file.
 
 - A fresh mobile-app scaffold's `pnpm lint` exited 1 (76 errors, all antfu TOML rules on the scaffold-emitted `server/pyproject.toml`); the template now ignores `server/**` in ESLint, pins `@antfu/eslint-config ~7.7.3` with its peers (`eslint-plugin-react-refresh ^0.5.0`, `@eslint-react/eslint-plugin ^2.11.0`) and drops the duplicate direct unicorn. The eas-build-prod, eas-build-preview and new-app-version workflows used two composite actions the template never shipped; `setup-node-pnpm-install` and `eas-build` now ship (from the upstream template, Node 24, no silent APP_ENV/EXPO_TOKEN defaults, inputs passed as env vars so a release tag cannot inject shell). Graded by `tests/test_scaffold_mobile_toolchain.py` (D-1323, W-fc58e9b7).
 
+### Added — `vps1_cpu_limits.py` applies the vps1 CPU caps to the running containers and their live composes (2026-10-29)
+
+- `scripts/sysadmin/vps1_cpu_limits.py` (operator-run, dry run by default, `--apply` behind a typed `yes` per block): `docker update --cpus` for every vps1 container still unlimited, re-inspected, then the hub cap inserted under `limits.memory` in each container's own live `/opt/<dir>/compose.yaml` under an old/new-hash write, a backup and compose's own `config` before and after, restored on any mismatch or a dropped ssh. Never `up`, `restart` or recreate: an allowlist of the exact command shapes it sends. A container with another CPU setting, a label the boot does not read or a file it cannot prove is reported, not changed (D-1325).
+- `tests/test_vps1_cpu_limits.py`: 92 tests, a fake vps1 over the real write and restore shell scripts; every guard and every review fix shown red by reverting it alone (27 of 27).
+
 ### Fixed — the 22 vps1 infra services with no CPU limit now declare one, and a test keeps it that way (2026-10-29)
 
 - `infra/vps1/*/compose.yaml`: `deploy.resources.limits.cpus` on postgres-main, traefik, browserless (2.0), nine burst or shared services (1.0), five steady ones (0.5) and five exporters/sidecars (0.25), sized from 7-day cAdvisor data (D-1324, W-91a4a715). Nothing changes on vps1 until the coordinator's deploy gate runs `docker update --cpus` and edits each VPS copy.
