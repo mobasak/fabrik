@@ -197,7 +197,7 @@ mkdir -p <durable>
 python3 scripts/command_run.py capture --msg <msg> --out <durable>/commit.sha
 ```
 
-`capture` runs only once the commit exits 0; it takes the newest commit whose message holds `<msg>`'s subject and appends its sha only when that commit's own subject is exactly `<msg>`'s, else exits 1 appending nothing, which stops the close; every run commit — the build's, the ledgers', each a review fix makes — is captured this way.
+`capture` runs only once the commit exits 0; it takes the newest commit whose message holds the first line of `<msg>`'s subject and appends its sha only when that commit's own subject is exactly `<msg>`'s, else exits 1 appending nothing, which stops the close; every run commit — the build's, the ledgers', each a review fix makes — is captured this way.
 
 6. § EXIT's push ladder (never `--force`), then close — capture file, not post-ladder `HEAD` read, is what names YOUR commit:
 

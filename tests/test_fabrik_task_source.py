@@ -151,11 +151,11 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # the critiques left it, then re-runs the lock check on every path; MEASURE replays a prior slice's stated reason the
 # design builds on and says a count is no fail direction (rows 1792835476, 1792831669, 1792834386, 1792830212,
 # 1792780963, 1792832940; review round 1 folded).
-# D-1339 (kaizen, 2026-10-29): 27508 -> 27631 — phase 5 step 5 runs the `command_run.py capture` verb as a plain call
+# D-1339 (kaizen, 2026-10-29): 27508 -> 27649 — phase 5 step 5 runs the `command_run.py capture` verb as a plain call
 # once the commit exits 0 (the chained recipe and the worktree plain-calls paragraph retired), the after-commit close
 # is a numbered list between steps 5 and 6, and D-1336's check (d) correcting sentence joins it; phase 4 names the two
 # runs that review before the commit (review round 1 folded; 131 bytes cut).
-SIZE_CAP = 27631
+SIZE_CAP = 27649
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")

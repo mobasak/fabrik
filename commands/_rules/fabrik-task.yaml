@@ -582,9 +582,9 @@ entries:
 - id: ft-close-capture-verb
   # class: prose
   section: '## Phase 5 — CLOSE, in this order'
-  current: '`capture` runs only once the commit exits 0; it takes the newest commit whose message holds `<msg>`''s subject and appends its sha only when that commit''s own subject is exactly `<msg>`''s, else exits 1 appending nothing, which stops the close; every run commit — the build''s, the ledgers'', each a review fix makes — is captured this way'
+  current: '`capture` runs only once the commit exits 0; it takes the newest commit whose message holds the first line of `<msg>`''s subject and appends its sha only when that commit''s own subject is exactly `<msg>`''s, else exits 1 appending nothing, which stops the close; every run commit — the build''s, the ledgers'', each a review fix makes — is captured this way'
   text:
-  - '`capture` runs only once the commit exits 0; it takes the newest commit whose message holds `<msg>`''s subject and appends its sha only when that commit''s own subject is exactly `<msg>`''s, else exits 1 appending nothing, which stops the close; every run commit — the build''s, the ledgers'', each a review fix makes — is captured this way'
+  - '`capture` runs only once the commit exits 0; it takes the newest commit whose message holds the first line of `<msg>`''s subject and appends its sha only when that commit''s own subject is exactly `<msg>`''s, else exits 1 appending nothing, which stops the close; every run commit — the build''s, the ledgers'', each a review fix makes — is captured this way'
 - id: ft-close-push-then-close
   # class: ban
   section: '## Phase 5 — CLOSE, in this order'
