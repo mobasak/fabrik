@@ -7,15 +7,15 @@ workflows `uses:` two local composite actions the template had never shipped. St
 in the default suite; one `needs_network` test (deselected by default, run with
 `-m needs_network`) installs, lints and type-checks a fresh scaffold.
 
-The cheap way past the input-contract test is to delete a workflow's `with:` key instead of
-declaring it; that is caught by the needs_network run only if the key mattered, so the test also
-pins each APP_ENV a workflow passes to the `build:<env>:<platform>` scripts the action calls.
+The cheap way past the input-contract test is to give a required input a default, so a workflow
+that drops it still passes: the test refuses a required input that carries one, and resolves every
+eas-build step's APP_ENV to one of the three profiles that have `build:<env>:<platform>` scripts.
 """
 
 from __future__ import annotations
 
 import json
-import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -27,9 +27,10 @@ from fabrik.scaffold import create_project
 
 FABRIK_ROOT = Path("/opt/fabrik")
 pytestmark = pytest.mark.skipif(
-    not FABRIK_ROOT.exists() or os.getenv("CI") == "true",
+    not FABRIK_ROOT.exists(),
     reason="Requires the full fabrik environment at /opt/fabrik (templates dir)",
 )
+APP_ENVS = ("development", "preview", "production")
 
 
 @pytest.fixture(scope="module")
@@ -49,8 +50,10 @@ def _local_action_steps(app: Path) -> list[tuple[str, str, dict]]:
     """(workflow file, action name, with-mapping) for every `uses: ./.github/actions/<name>` step."""
     steps = []
     for wf in sorted((app / ".github" / "workflows").glob("*.yml")):
-        doc = yaml.safe_load(wf.read_text())
+        doc = yaml.safe_load(wf.read_text()) or {}
         for job in (doc.get("jobs") or {}).values():
+            # a job-level `uses: ./…` is a local reusable workflow, which this walk does not resolve
+            assert not str(job.get("uses", "")).startswith("./"), f"{wf.name}: job-level local uses"
             for step in job.get("steps") or []:
                 uses = step.get("uses", "")
                 if uses.startswith("./"):
@@ -73,7 +76,12 @@ def test_lint_toolchain_ranges(app: Path) -> None:
 
 
 def test_eslint_config_ignores_server(app: Path) -> None:
-    assert "'server/**'," in (app / "eslint.config.mjs").read_text()
+    # a live (uncommented) entry inside the `ignores: [ … ]` array, not the string anywhere
+    ignores = re.search(
+        r"^\s*ignores:\s*\[(.*?)^\s*\],", (app / "eslint.config.mjs").read_text(), re.M | re.S
+    )
+    assert ignores, "eslint.config.mjs has no ignores array"
+    assert re.search(r"^\s*'server/\*\*',\s*$", ignores.group(1), re.M)
 
 
 def test_local_actions_resolve(app: Path) -> None:
@@ -98,9 +106,13 @@ def test_local_action_inputs_match(app: Path) -> None:
             f"{wf}: {name} gets undeclared inputs {set(with_) - set(inputs)}"
         )
         for key, spec in inputs.items():
-            if spec.get("required") and "default" not in spec:
+            if spec.get("required"):
+                # GitHub does not enforce `required` on a composite action: a default would let a
+                # workflow that drops the input run on it silently
+                assert "default" not in spec, f"{name}: required input {key} carries a default"
                 assert key in with_, f"{wf}: {name} requires {key}"
-        if "APP_ENV" in with_:
+        if "APP_ENV" in inputs:
+            assert with_.get("APP_ENV") in APP_ENVS, f"{wf}: APP_ENV {with_.get('APP_ENV')!r}"
             for platform in ("android", "ios"):
                 assert f"build:{with_['APP_ENV']}:{platform}" in scripts, f"{wf}: no build script"
 
@@ -110,6 +122,9 @@ def test_local_action_inputs_match(app: Path) -> None:
     reason="requires the node/pnpm toolchain",
 )
 @pytest.mark.needs_network
+@pytest.mark.timeout(
+    2400
+)  # the three commands' own budgets; the INI's 600 s would cut a cold install
 def test_mobile_scaffold_installs_lints_and_typechecks(app: Path) -> None:
     for cmd, timeout in (
         (["pnpm", "install"], 1200),
