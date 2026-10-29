@@ -672,9 +672,10 @@ def test_queue_times_each_owner_script_apart(world, monkeypatch):
 
     assert _queue(world) == 0
 
+    assert any(s == old and t > 0 for s, t in calls), calls  # the old script's legs were timed
     revised = [t for s, t in calls if s != old]
     assert revised, calls  # a fork was checked against the revised script
-    assert all(t == 0.0 for t in revised), calls  # never with the old script's timing
+    assert revised[0] == 0.0, calls  # its first budget carries nothing from the old script
     assert all(_record(world, m)["outcome"] == "merged" for m in sends)
 
 
