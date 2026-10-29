@@ -106,6 +106,35 @@ def _opens_table(lines: list[str], i: int) -> bool:
     return len(_cells(lines[i - 1])) == len(_cells(lines[i]))
 
 
+def _blanked_lines(text: str) -> list[str]:
+    """The ledger's lines, CRLF read as LF, every fenced block blanked except one holding a table
+    (see `_parse`); line numbers do not move."""
+    text = text.replace("\r\n", "\n")
+    blank = list(text)
+    for block in _fences.fence_blocks(text):
+        held = text[block.start : block.end].split("\n")
+        if any(_opens_table(held, k) for k in range(len(held))):
+            continue  # this block would swallow a whole table: its rows count (fail closed)
+        for i in range(block.start, block.end):
+            if blank[i] != "\n":
+                blank[i] = " "
+    return "".join(blank).split("\n")
+
+
+def _tables(lines: list[str]) -> list[tuple[int, int, int]]:
+    """Every confirmed table: (delimiter index, body end, D-rows in the body), in file order."""
+    tables: list[tuple[int, int, int]] = []
+    for i in range(len(lines)):
+        if tables and i < tables[-1][1]:
+            continue  # a delimiter-shaped line inside a body is a row of that table
+        if _opens_table(lines, i):
+            end = i + 1
+            while end < len(lines) and _BODY.match(lines[end]):
+                end += 1
+            tables.append((i, end, sum(1 for k in range(i + 1, end) if _ROW.match(lines[k]))))
+    return tables
+
+
 def _parse(text: str) -> _Ledger:
     """The one population every leg reads (W-c25fd20f).
 
@@ -134,25 +163,8 @@ def _parse(text: str) -> _Ledger:
     fabrik-lib's ledger and 4 worktree copies of it — have a header with no delimiter under it, so
     no table: their duplicates are still read, and no row of theirs is ever a stray.
     """
-    text = text.replace("\r\n", "\n")
-    blank = list(text)
-    for block in _fences.fence_blocks(text):
-        held = text[block.start : block.end].split("\n")
-        if any(_opens_table(held, k) for k in range(len(held))):
-            continue  # this block would swallow a whole table: its rows count (fail closed)
-        for i in range(block.start, block.end):
-            if blank[i] != "\n":
-                blank[i] = " "
-    lines = "".join(blank).split("\n")
-    tables: list[tuple[int, int, int]] = []  # (delimiter index, body end, D-rows in the body)
-    for i in range(len(lines)):
-        if tables and i < tables[-1][1]:
-            continue  # a delimiter-shaped line inside a body is a row of that table
-        if _opens_table(lines, i):
-            end = i + 1
-            while end < len(lines) and _BODY.match(lines[end]):
-                end += 1
-            tables.append((i, end, sum(1 for k in range(i + 1, end) if _ROW.match(lines[k]))))
+    lines = _blanked_lines(text)
+    tables = _tables(lines)
     held = [t for t in tables if t[2]]
     ledger = max(held, key=lambda t: (t[2], t[0])) if held else None
     rows: list[_Row] = []
@@ -218,6 +230,26 @@ def find_rows_outside_the_table(text: str) -> list[tuple[int, str]]:
 
 
 _SHAPE_BASELINE = Path(__file__).resolve().parents[2] / ".fabrik" / "decision-shape-baseline.json"
+
+
+def find_mismatched_tables(text: str) -> list[int]:
+    """Line numbers of each delimiter-shaped line under a header row of a DIFFERENT cell count.
+
+    GFM renders no table there (`_opens_table`), so every D-row under it is shown to no reader —
+    and with no table the stray leg has nothing to be outside of, so a mistyped delimiter would
+    otherwise switch the stray check off for the whole ledger (closing pass, A-haiku N-1). A ledger
+    with no delimiter at all (fabrik-lib's) is not this shape. Fenced blocks are skipped as `_parse`
+    skips them; 0 of the 298 ledgers on the box held one on 2026-10-29."""
+    lines = _blanked_lines(text)
+    tables = _tables(lines)
+    return [
+        i + 1
+        for i in range(1, len(lines))
+        if _DELIMITER.match(lines[i].strip())
+        and _HEADER_ROW.match(lines[i - 1].strip())
+        and not _opens_table(lines, i)
+        and not any(t[0] < i < t[1] for t in tables)  # a dashed row inside a table body
+    ]
 
 
 def _all_row_ids(text: str) -> list[tuple[int, str]]:
@@ -293,8 +325,9 @@ def check_row_shape(text: str) -> None:
     """ADVISORY row-integrity ratchet over the SET of malformed ids. Never touches the exit code.
 
     ⚠ This check has been BLOCKING since 2026-09-04 for duplicates and stray rows, so this leg must
-    print and return nothing: 79 rows across 49 ledgers were malformed when it landed (98 across 4 of
-    51 on 2026-10-29), and a blocking day one would red every repo at once. Promotion follows the same WARN-first sequencing D-057 documents.
+    print and return nothing: 79 rows across 49 ledgers were malformed when it landed (98 across
+    4 of 51 on 2026-10-29), and a blocking day one would red every repo at once. Promotion follows
+    the same WARN-first sequencing D-057 documents.
 
     The baseline stores the SET OF IDS, not a count. An aggregate count is defeated by three moves,
     all built and executed against a baseline of malformed=1 / total=4 — and the cheapest is not the
@@ -376,7 +409,14 @@ def main() -> int:
     text = ledger.read_text(encoding="utf-8")
     dups = find_duplicates(text)
     stray = find_rows_outside_the_table(text)
+    mismatched = find_mismatched_tables(text)
     head = _parse(text).header_lineno
+    for lineno in mismatched:
+        print(
+            f"✗ docs/DECISIONS.md:{lineno} a table delimiter whose cell count differs from its "
+            "header's — no renderer shows this table, so none of its rows is found. Give the "
+            "delimiter one `---` cell per header cell"
+        )
     for lineno, did in stray:
         where = (
             "sits ABOVE the table delimiter — it is outside the table"
@@ -384,9 +424,9 @@ def main() -> int:
             else "sits outside the ledger table (after it, or in another table)"
         )
         print(
-            f"✗ docs/DECISIONS.md:{lineno} row {did} {where}, so no renderer shows it in the ledger "
-            "and no reader finds it. Move it into the ledger table's body (this is a placement fix, "
-            "not a content edit: the row's cells are immutable)"
+            f"✗ docs/DECISIONS.md:{lineno} row {did} {where}, so no renderer shows it in the "
+            "ledger and no reader finds it. Move it into the ledger table's body (this is a "
+            "placement fix, not a content edit: the row's cells are immutable)"
         )
     spellings: dict[str, list[str]] = {}
     for r in _parse(text).rows:
@@ -413,7 +453,7 @@ def main() -> int:
     # ADVISORY — prints only, never reaches the exit code; after the blocking lines, so an advisory
     # failure can no longer hide them (W-c25fd20f gap 6)
     check_row_shape(text)
-    return 1 if (dups or stray) else 0
+    return 1 if (dups or stray or mismatched) else 0
 
 
 if __name__ == "__main__":

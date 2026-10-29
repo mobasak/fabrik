@@ -681,6 +681,32 @@ def test_a_header_and_delimiter_of_different_widths_are_no_table():
     assert find_duplicates(_SHAPE_HEAD + _row("D-1") + "\n" + fenced) == {}
 
 
+def test_a_mistyped_delimiter_reds_instead_of_silencing_the_stray_leg(
+    tmp_path, monkeypatch, capsys
+):
+    """Closing pass, A-haiku N-1: with the width rule a mistyped delimiter left NO table, so the
+    stray leg went quiet for the whole ledger while no renderer showed any of its rows."""
+    ledger = tmp_path / "docs" / "DECISIONS.md"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text(
+        "| id | when | who | what | why | where |\n|---|---|---|\n"
+        + _row("D-1")
+        + "\n"
+        + _row("D-2")
+    )
+    monkeypatch.setattr(_mod, "LEDGER", ledger)
+    assert _mod.main() == 1
+    out = capsys.readouterr().out
+    assert "DECISIONS.md:2 a table delimiter whose cell count differs" in out
+    # a dashed row INSIDE a real table body is a row, never a near-miss table (no false red)
+    inside = _SHAPE_HEAD + _row("D-1") + "| --- | --- |\n" + _row("D-2")
+    assert _mod.find_mismatched_tables(inside) == []
+    assert _mod.find_mismatched_tables(_SHAPE_HEAD + _row("D-1")) == []
+    # nor one quoted in a fenced example
+    fenced = "```\n| a | b | c |\n|---|---|\n```\n"
+    assert _mod.find_mismatched_tables(_SHAPE_HEAD + _row("D-1") + "\n" + fenced) == []
+
+
 def test_a_triple_is_not_called_two_rows(tmp_path, monkeypatch, capsys):
     """Review pass 1, A-haiku-7: the summary said "two rows each" beside "appears 3x"."""
     ledger = tmp_path / "docs" / "DECISIONS.md"

@@ -7,7 +7,8 @@ All notable changes to this project will be documented in this file.
 ### Fixed — the decision-ledger gate reads one ledger table, and the mail digest counts what it shows (2026-10-29)
 - `scripts/enforcement/check_decisions_unique.py` (W-c25fd20f, D-1353): every leg reads one
   population. The ledger table is the table holding the most D-rows, and a table ends where a GFM
-  renderer ends it (a heading, quote, list item, fence or HTML block ends it). A fake table no longer hides
+  renderer ends it (a heading, quote, list item, fence or HTML block ends it). A header and
+  delimiter of different widths render no table, and that is reported. A fake table no longer hides
   a stray, and a row after the table or indented outside it is reported where it sits. An indented
   duplicate inside a table is found, and a fenced example is not a row. `D-1`, `D-001` and an
   annotated `D-1 (amended)` cell are one id. A run from `docs/` (or under a hook's `GIT_DIR`) grades
