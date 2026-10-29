@@ -926,3 +926,91 @@ def test_fresh_verdicts_between_two_copies_back_a_brief_after_them(tmp_path, pan
         _queued_with_uuid("re-review the spec", "q-1"),
     )
     assert hook._panel_brief_problem(tr, "") == ""
+
+
+# ── W-573ddaa1: three residues of the W-6424f2e8 cut-off ──
+
+
+def test_a_queued_row_re_written_in_the_turn_keeps_the_verdicts_after_its_first_copy(
+    tmp_path, panel_mode
+):
+    """W-573ddaa1 (1): Claude Code re-writes a queued row with the same uuid; a copy re-written in the SAME turn is
+    not a new word from the operator, so it must not clear the verdicts the seats returned after the first copy."""
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _queued_with_uuid("also check the lock file", "q-1"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _queued_with_uuid("also check the lock file", "q-1"),
+        _said(_BRIEF.format(panel=_approve_line())),
+    )
+    assert hook._panel_brief_problem(tr, "") == ""
+    # a copy of that uuid from an EARLIER turn is not this turn's first copy: the in-turn copy still resets
+    stale = _transcript(
+        tmp_path,
+        _user("an earlier question"),
+        _queued_with_uuid("an earlier prompt", "q-1"),
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _queued_with_uuid("an earlier prompt", "q-1"),
+        _said(_BRIEF.format(panel=_approve_line())),
+    )
+    assert "since the operator's last message" in hook._panel_brief_problem(stale, "")
+
+
+def test_a_decision_block_before_a_queued_prompt_reads_the_verdicts_before_it(tmp_path, panel_mode):
+    """W-573ddaa1 (2): a DECISION block written before an operator prompt queued mid-turn, with no text after that
+    prompt, is judged against the verdicts held up to the prompt — the reset used to refuse a backed panel."""
+    block = _block(PANEL)
+    rows = (
+        _user("pick a retention window for the purge job"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"verdict: {OPUS}."),
+        _result("t-fable", f"verdict: {FABLE}."),
+        _said(block),
+        _queued_with_uuid("and tell me the cost", "q-1"),
+    )
+    tr = _transcript(tmp_path, *rows)
+    assert hook.parse_decision_block(block, run_live=False, transcript_path=tr) == (
+        True,
+        "underivable",
+    )
+    # the design-approval gate's panel takes the same cut-off
+    gate = _block(
+        PANEL, ground="gate", why=f"gate — design approval of {_SPEC}; searched: {_SPEC}"
+    ).replace("Pick the retention window?", f"Do you approve the design {_SPEC}?")
+    tr = _transcript(tmp_path, *rows[:5], _said(gate), rows[6])
+    assert hook.parse_decision_block(gate, run_live=False, transcript_path=tr) == (True, "gate")
+    # a block written AFTER the queued prompt still needs verdicts given after it
+    tr = _transcript(tmp_path, *rows[:5], rows[6], _said(block))
+    ok, why = hook.parse_decision_block(block, run_live=False, transcript_path=tr)
+    assert not ok and "since the operator's last message" in why
+
+
+def test_a_brief_older_than_the_tail_is_still_judged(tmp_path, panel_mode, monkeypatch):
+    """W-573ddaa1 (3): a turn longer than the bounded tail read still has its early PANEL APPROVED brief judged —
+    the tail walk used to stop at the slice's edge and judge nothing."""
+    monkeypatch.setattr(hook, "_TAIL_READ_BYTES", 4096)
+    # ~22 KB of tool results after the brief
+    pad = [_result("t-other", "x" * 500) for _ in range(40)]
+    forged = _BRIEF.format(panel='opus="nobody said it" fable="nobody said this" → both-approve')
+    tr = _transcript(tmp_path, _user("go"), _said(forged), *pad)
+    assert hook._panel_brief_problem(tr, "")
+    backed = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _said(_BRIEF.format(panel=_approve_line())),
+        *pad,
+    )
+    assert hook._panel_brief_problem(backed, "") == ""
