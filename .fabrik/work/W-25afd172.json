@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "core/42-docusaurus.md names nginxinc/nginx-unprivileged as \"the alternative\" serve image, but its own checklist and the project audit accept only nginx:mainline-<codename>"
 }
