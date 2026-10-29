@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — kaizen reads every repo's LESSONS_LEARNT and AFCL incrementally (2026-10-29)
+`scripts/sysadmin/lessons_relay.py` rides the daily kaizen collector after the feedback relay and
+mails kaizen one digest of the entries written into any repo's `docs/LESSONS_LEARNT.md`,
+`docs/lessons-learnt.md` or `AFCL.md` since its cursor. Each entry gets one pointer row (path, line
+and heading), which kaizen answers with a command or rule edit, or rejects with a reason. `--seed`
+records the 2,522-entry backlog without sending it. A code fence that never closes no longer hides
+the lessons after it: 27 of 84 files end in one. A heading that mail.py would refuse is withheld,
+so one heading cannot block the digest (W-d6ebcc04, D-1362).
+
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
 `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.

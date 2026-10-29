@@ -310,6 +310,16 @@ The digest is informational (`ack: no`): kaizen reads the ledger directly and is
 `scripts/sysadmin/feedback_watch_arm.sh` when a queue rises, so the digest is the day's audit trail. Watermarked
 (`~/.claude/state/feedback-relay.watermark`), at-most-once per verdict, non-fatal to the collector.
 
+A second reader rides the same job right after it: `scripts/sysadmin/lessons_relay.py` (W-d6ebcc04, for
+W-682f1189) mails kaizen ONE digest of the entries written into any repo's `docs/LESSONS_LEARNT.md`,
+`docs/lessons-learnt.md` or `AFCL.md` since its last run — a pointer row per entry, `- [ ] <repo>/<file>:<line> ·
+<heading>`, at most 150 a mail (the rest arrive next run), each answered by a command or rule edit or a reject with
+its reason, the digest acked (`ack: required`) once its rows are answered. Its cursor is
+`~/.claude/state/lessons-relay.json`: `--seed` records every current entry and sends nothing (the backlog is
+kaizen's one-time triage); no cursor, or one that does not parse, exits 1 and sends nothing. A heading inside fenced
+code is not an entry, but a fence opener with no closer before end of file is read as text — the legacy scaffold
+template ends in one, and strict parsing hid every lesson appended after it. `--dry-run` prints the digest.
+
 The same job carries two more riders: `scripts/sysadmin/rules_currency_watch.py` (mails infra when a pack's
 pinned runtime falls behind) and `scripts/sysadmin/vps_script_drift.py` (W-c792a205 — mails fleet when a VPS is
 not running the hub's committed scripts; its own daily stamp, so a retrying collector never runs it hourly,
@@ -404,5 +414,6 @@ means updating this page in the same change. This list is generated from those h
 - `scripts/sysadmin/kaizen_collect_v2.py`
 - `scripts/sysadmin/kaizen_digest.py`
 - `scripts/sysadmin/kaizen_waste.py`
+- `scripts/sysadmin/lessons_relay.py`
 - `scripts/sysadmin/vps_script_drift.py`
 <!-- END related-scripts -->

@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A parser for hand-written markdown is proven on the live corpus, not on the spec (2026-10-29, W-d6ebcc04)
+
+**What happened:** the lessons reader's design parsed fenced code the CommonMark way, so a fence closes only on a bare closer. Run against all 84 live files, the parser left 27 of them inside an open fence at end of file. The legacy scaffold template's seventh fence line opens a block that nothing closes, so 171 real lesson headings sat inside "code". A lesson appended there, which is the normal place to add one, would never have reached kaizen, and nothing would have said so. Both design critics found the same fault from the same probe, and so did the author's own seed run.
+
+**Lesson:** before relying on a parser for a human-written format, run it over every live file and count what it drops per file against a naive count. The spec's behaviour on a malformed input is often the dangerous one: here it failed silently, and a stray opener read as text costs only a little noise. Pick the fail direction on purpose, and grade it with a mutant that brings the strict rule back.
+
 ## Measure the bytes per class before choosing which rule to loosen (2026-10-29, W-d1a4a8f5)
 
 **What happened:** the janitor item named a session-level class first: 362 "unclassified" sessions with no live or death signal. The first design loosened two session rules for it, a 48 h dead bar and "no transcript is a death signal". A test the build would have broken pinned the 7 d bar for weekly-quota resumes. A `du` per dry-run row then showed that the no-signal class held 0.5 GB. The 108 GB under that label sat in resumable sessions, and the removable bytes (77 GB) were run folders that a gap rule with no end kept alive. That gap rule was the one D-878 had declared safe because "/tmp is cleared at boot", and 74 of 652 session dirs predated the boot.
