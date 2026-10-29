@@ -404,6 +404,20 @@ def test_a_failed_container_listing_fails_the_run(env, mode):
     assert r.stdout.count("not checked — the container listing failed") == 2, r.stdout
 
 
+def test_a_healthy_listing_reports_none_even_with_the_flag_in_the_environment(env, monkeypatch):
+    """The failed-listing flag is the script's own: one inherited from the caller's environment must
+    not turn a healthy run's verdict into "not checked" — both sections print their clean line."""
+    monkeypatch.setenv("unlisted", "1")
+    env.write_state(_capped_today())
+
+    r = env.run("--check")
+
+    assert r.returncode == 0, r.stdout
+    assert "not checked" not in r.stdout, r.stdout
+    assert "none — every defined container has a memory ceiling" in r.stdout
+    assert "none — every defined container has a CPU cap" in r.stdout
+
+
 def test_no_mode_mutates_cpu(env):
     """CPU caps are applied by scripts/sysadmin/vps1_cpu_limits.py (D-1325); this script only
     reports them, so no call it makes may carry a CPU flag."""

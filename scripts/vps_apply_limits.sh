@@ -76,6 +76,7 @@ redis-main            640    # 5.2 MiB   — it FORKS; see below
 
 managed=""
 applied=0; raised=0; ok=0; missing=0; failed=0
+unlisted=""   # set when `docker ps -aq` fails; reset here so a caller's environment cannot set it
 
 echo "=== vps memory ceilings — mode: $MODE ==="
 
