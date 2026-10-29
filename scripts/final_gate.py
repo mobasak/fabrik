@@ -1342,21 +1342,25 @@ def _run_pytest_suite() -> tuple[str, bool, str]:
                     + channel,
                 )
         lines = out.splitlines()
-        tail_lines = lines[-15:]
+        tail_at = max(0, len(lines) - 15)
+        tail_lines = lines[tail_at:]
         # The tail has already lost the suite's headline (transdoc's refusal names the key on
         # line 1 of 31): quote the FIRST key-naming line with its paragraph (to the next blank
         # line, at most 4 lines — a wrapped sentence, never a fragment) above the tail, so the
         # row never says "its message names the key" over a quote that does not show it
         # (review A-3, A-X-1). One paragraph by design: a later key-naming line is in the tail
-        # or behind the `\u2026`.
+        # or behind the `\u2026`. Paragraph and tail meet by POSITION, never by text: the `\u2026`
+        # marks only lines actually elided between them, and a paragraph line that merely
+        # repeats a tail line's text does not end the paragraph (W-a58bacb5).
         above: list[str] = []
-        if named and named[0] not in tail_lines:
-            start = lines.index(named[0])
-            for ln in lines[start : start + 4]:
-                if not ln.strip() or ln in tail_lines:
+        start = lines.index(named[0]) if named else tail_at
+        if start < tail_at:
+            for ln in lines[start : min(start + 4, tail_at)]:
+                if not ln.strip():
                     break
                 above.append(ln)
-        quoted = "\n".join(above + (["\u2026"] if above else []) + tail_lines)
+        gap = bool(above) and start + len(above) < tail_at
+        quoted = "\n".join(above + (["\u2026"] if gap else []) + tail_lines)
         if named:
             follows = (
                 "The suite's own message follows (its export remedy is for a shell; the gate's "

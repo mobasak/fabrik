@@ -370,6 +370,32 @@ def test_a_refusing_db_suite_is_told_the_gates_own_env_file_remedy(refusing_proj
     assert name == "pytest" and "from .env.local" in text, (name, text)  # the refusal is gone
 
 
+@pytest.mark.parametrize("size", range(14, 24))
+def test_the_elision_mark_appears_only_when_lines_are_elided(refusing_project, size):
+    # W-a58bacb5: the `…` between the quoted paragraph and the tail is printed by POSITION —
+    # only when at least one output line sits between them. One size in this range puts the
+    # paragraph's last line right before the tail's first; whatever pytest prints after the
+    # message, some size does.
+    body = [f"{KEY} is not set; the suite needs a real Postgres"]
+    body += [f"cont {n}" for n in range(1, size)]
+    (refusing_project / "tests" / "conftest.py").write_text(
+        REFUSING_CONFTEST.replace(repr(chr(10).join(REFUSAL_LINES)), repr(chr(10).join(body))),
+        encoding="utf-8",
+    )
+    _, ok, text = _row()
+    assert not ok, text
+    quoted = _quote(text).lstrip("\n").splitlines()
+    if not quoted[0].startswith("ERROR: "):
+        return  # the headline is in the tail itself: nothing is quoted above it
+    if "…" in quoted:
+        cut = quoted.index("…")
+        last, nxt = quoted[cut - 1], quoted[cut + 1]
+        n_last = 0 if last.startswith("ERROR: ") else int(last.split()[-1])
+        assert nxt != f"cont {n_last + 1}", quoted  # a `…` over a gap of zero lines
+    else:
+        assert "cont 1" in quoted and "cont 4" in quoted, quoted  # contiguous: no gap to mark
+
+
 def test_the_remedy_survives_a_row_long_enough_to_be_clipped(refusing_project):
     padded = REFUSAL_LINES[:1] + [f"padding line {n} " + "x" * 200 for n in range(30)]
     (refusing_project / "tests" / "conftest.py").write_text(
