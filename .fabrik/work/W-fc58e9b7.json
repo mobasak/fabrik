@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "run the mobile template pnpm install + lint once under a cgroup memory cap, then choose the eslint-config line (7.7.x or 9.x), align the peers, and add or drop the missing action",
+  "next": "run the mobile template pnpm install + lint once under a cgroup memory cap, then choose the eslint-config line (7.7.x or 9.x), align the peers, and add or drop the missing action; transitive plugin drift follows D-1322 (no lockfile, no overrides; a red on an unchanged template = fix the template)",
   "note": "",
   "owner": "fleet",
   "priority": 3,
