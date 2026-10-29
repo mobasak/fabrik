@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T12:08:24.748217Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-1000efbd",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M63KNEQEM0ZBS9V8NGY0T903",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "branch: w-f1412a11-open-plans-errors"
+}
