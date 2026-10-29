@@ -130,6 +130,36 @@ def test_the_gate_prints_a_non_utf8_name_without_crashing(tmp_path):
     assert "UnicodeEncodeError" not in err and "Traceback" not in err, err[-2000:]
 
 
+def test_a_stream_whose_reconfigure_fails_never_stops_the_gate(monkeypatch):
+    """W-f42efcc2 review: the escape is best-effort — a reconfigure that raises from inside (a proxy
+    stream forwarding to a missing attribute) or refuses (ValueError) is skipped, never a start-up crash."""
+    import io
+
+    class _Inner(io.StringIO):
+        def reconfigure(self, **kw):
+            return self._absent.reconfigure(**kw)  # AttributeError from INSIDE the method
+
+    class _Refuses(io.StringIO):
+        def reconfigure(self, **kw):
+            raise ValueError("refused")
+
+    class _ReachedParseArgsError(Exception):
+        pass
+
+    def _stop():
+        raise _ReachedParseArgsError
+
+    monkeypatch.setattr(final_gate, "parse_args", _stop)
+    for out, err in ((_Inner(), _Refuses()), (io.StringIO(), _Inner())):
+        monkeypatch.setattr(sys, "stdout", out)
+        monkeypatch.setattr(sys, "stderr", err)
+        try:
+            final_gate.main()
+        except _ReachedParseArgsError:
+            continue
+        raise AssertionError("main() returned before parse_args")
+
+
 def test_a_git_failure_names_the_sqlfluff_leg_not_run(monkeypatch):
     """Review round 2 (A-O5): `or []` would turn a git failure into a green '(no .sql files)'."""
     real = final_gate._git_names

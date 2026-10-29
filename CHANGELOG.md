@@ -6,9 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — the completion gate type-checks clean again: `final_gate.py`'s stream escape no longer trips mypy (2026-10-29)
 - `scripts/final_gate.py` `main()`: `sys.stdout`/`sys.stderr` are typed `TextIO`, which declares no
-  `reconfigure`, so mypy reported `union-attr` at the call and every gate run on master carried a red mypy row.
-  The method is now looked up with `getattr` and skipped when absent, so a replaced stream behaves as before
-  (the old `except AttributeError` path) and a real one still escapes unencodable names (W-f42efcc2).
+  `reconfigure`, so mypy reported `union-attr` at the call (master red, W-f42efcc2). The method is now looked
+  up with `getattr`: a stream without it is skipped, a `reconfigure` that raises `AttributeError` or
+  `ValueError` is still swallowed as before, and a real stream still escapes unencodable names. New test
+  `test_a_stream_whose_reconfigure_fails_never_stops_the_gate` drives `main()` over the failing shapes.
 
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries

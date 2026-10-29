@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T15:35:29.485362Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-080253f7",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "apply W-f42efcc2's getattr form (scripts/final_gate.py main()) at the 5 sites; mypy the 3 files red then green; hooks are synced — full review",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Latent mypy red (same class as W-f42efcc2): sys.stdout/stdin.reconfigure union-attr at .claude/hooks/session_orient.py:1034,1037 · .claude/hooks/mail_notify.py:217,218 · scripts/enforcement/check_plan_lock_release.py:481 — the gate's mypy leg reds on the next edit of any of them"
+}
