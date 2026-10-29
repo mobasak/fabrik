@@ -5790,7 +5790,10 @@ def _open_plans(main: Path) -> list[str]:
     if not plans.is_dir():
         return []  # no plans dir, no open plan — whether or not the parser would load
     try:
-        os.listdir(plans)  # Path.glob swallows a PermissionError, which read as no open plans
+        # Path.glob swallows a PermissionError (a dir it cannot list, or one it lists but cannot stat
+        # into), which read as no open plans
+        if not os.access(plans, os.R_OK | os.X_OK):
+            raise PermissionError(f"{plans} is not readable and searchable")
         spec = importlib.util.spec_from_file_location(
             "_work_docs_updater", Path(__file__).with_name("docs_updater.py")
         )
