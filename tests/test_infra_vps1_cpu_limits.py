@@ -54,8 +54,9 @@ def cpu_limit_problem(value: object) -> str | None:
 
 
 def _duplicate_key(node: yaml.Node, seen: set[int] | None = None) -> str | None:
-    """The first mapping key that occurs twice anywhere in the document. PyYAML keeps one silently and
-    `_child` reads the first, while compose refuses the file — so a duplicate is a file-level failure."""
+    """The first mapping key compose would refuse anywhere in the document: one that occurs twice (PyYAML
+    keeps one silently and `_child` reads the first) or a mapping/sequence used as a key (compose's
+    "invalid map key", even once) — either is a file-level failure."""
     seen = set() if seen is None else seen
     if id(node) in seen:
         return None
@@ -63,12 +64,11 @@ def _duplicate_key(node: yaml.Node, seen: set[int] | None = None) -> str | None:
     if isinstance(node, yaml.MappingNode):
         keys: set[str] = set()
         for key_node, value_node in node.value:
-            if isinstance(key_node, yaml.ScalarNode):
-                if key_node.value in keys:
-                    return (
-                        f"duplicate key {key_node.value!r} at line {key_node.start_mark.line + 1}"
-                    )
-                keys.add(key_node.value)
+            if not isinstance(key_node, yaml.ScalarNode):
+                return f"non-scalar key at line {key_node.start_mark.line + 1}"
+            if key_node.value in keys:
+                return f"duplicate key {key_node.value!r} at line {key_node.start_mark.line + 1}"
+            keys.add(key_node.value)
             found = _duplicate_key(value_node, seen)
             if found:
                 return found
@@ -212,6 +212,18 @@ def test_a_duplicate_key_fails_the_file(text: str) -> None:
     problems = compose_problems(text)
     assert list(problems) == ["<file>"]
     assert problems["<file>"].startswith("duplicate key")
+
+
+@pytest.mark.parametrize("key", ["[k]", "{k: 1}"])
+def test_a_non_scalar_key_fails_the_file(key: str) -> None:
+    """Given a compose with a sequence or mapping used as a key — once (compose: "invalid map key") or
+    twice — when graded, then the file fails, though its cpus line is valid."""
+    once = f"services:\n  a:\n    deploy: {{resources: {{limits: {{cpus: '1'}}}}}}\n    {key}: v\n"
+    twice = once + f"    {key}: w\n"
+    for text in (once, twice):
+        problems = compose_problems(text)
+        assert list(problems) == ["<file>"]
+        assert problems["<file>"].startswith("non-scalar key")
 
 
 def test_yaml_spellings_are_graded_on_their_scalar_text() -> None:
