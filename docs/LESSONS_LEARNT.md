@@ -1,6 +1,11 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A fix's own wording is the next round's surface: three review rounds on one "main checkout" rule (2026-10-29, W-b9ad80ae T05+T06)
+
+**What happened:** the wave-4 review confirmed 14 defects in round 1, then 3 and 2 more, every one of the later five in the previous round's fixes. `add` first accepted a linked worktree, then refused a legitimate main checkout whose `.git` is a `gitdir:` file (`dirname(common dir)` is not the checkout there), then named the git dir as "the main checkout" in its refusal hint. A module loaded by file path with a `@dataclass` also had to be put in `sys.modules` before `exec_module`, or annotation resolution crashes.
+**Lesson:** when a fix derives a path ("the main checkout"), probe it on every repo shape git allows — separate git dir, `gitdir:` file, submodule, bare repo with worktrees — before the next round does, and print a path in a message only after checking it is what the message calls it. Register a file-loaded module in `sys.modules` before running it.
+
 ## A live claude probe on tmux 3.4 needs `=name:` targets and a 150 s wait (2026-10-28, W-b9ad80ae T02)
 
 **What happened:** T02's blocking probe launched one claude on a private tmux server to prove the `--settings` suppression. It took four launches: `capture-pane -t =probe-1` fails on tmux 3.4 ("can't find pane"), and a 60 s wait found no transcript, because a fresh worktree's first turn spends about 57 s in SessionStart hooks.

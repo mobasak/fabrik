@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — `agents_up.sh add`: spawn a builder (worktree, binding, item) under the repo's agents lock (2026-10-29)
+New `scripts/sysadmin/agents_spawn.py` (W-b9ad80ae, plan T06). Preflight refusals run before any write, each recorded in `~/.claude/state/agents-spawn.jsonl`: the name and its `<role>-<ordinal>` shape, a bound caller, trust, the main checkout (never a linked worktree or a subdirectory), the cap, and a 2 GB floor measured on the slice, or on the box's `MemAvailable` while the slice is cold or the start uncapped. Then the `worktree-<name>` worktree from the configured base, a fresh `whoami_agent.py --spawned` binding (reusing only an unstarted spawn of the same name), one registry row where a registry exists, and `work.py assign` on the main checkout with the caller's environment unchanged. Any failure is a recorded refusal at its step. Steps 3, 6 and 7 are seams for T08.
+
+### Added — agents_bat.py --tabbed: one generated "All Agents (tabbed).bat" (2026-10-29)
+One named wt window (`-w fabrik-agents`) with a tab per repo and per live `agents-<n>` tmux window (W-b9ad80ae, plan T05). The session is named from the repo's realpath, and each tmux read is capped at 2 s. The write runs under a flock held only for that write, and every write goes through a unique temp file. A run that wrote or confirmed a file remembers its `--desktop`. Per-repo mode now also defaults the distro to the Deck's resolver, so it works where WSL_DISTRO_NAME is unset (`--distro` overrides, `''` refuses).
+
 ### Added — agents_up.sh windows of four, `<S>+<k>` overflow sessions and `--window <n>` (2026-10-28)
 Builders fill tmux windows four placed panes at a time (`agents`, `agents-2`, …), each targeted by window id; every overflow window is shown in its own `<S>+<k>` session grouped with the base, so each Windows Terminal tab attaches its own (W-b9ad80ae, plan T03). `agents_up.sh --window <n> <repo>` waits while a live builder (`@agents_up_building` = `<pid>:<start time>`) is still building, then attaches `<S>+<n>`. A launch that loses the race kills nothing; a session left grouped under the base's name by an older grid is named with the `kill-session` that frees it and no overflow session joins it (a live grid's own viewers are not stale). Closes W-1961cc42 — the non-TTY detach that landed in 208dccd76.
 

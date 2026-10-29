@@ -95,6 +95,12 @@ if [ "${1:-}" = "rotate-session" ]; then
   shift
   exec python3 "$(cd "$(dirname "$0")" && pwd)/rotate_session.py" request "$@"
 fi
+# `agents_up.sh add <repo> <name> [--role <role>] [--item <W-id>]` (W-b9ad80ae D1, D2): the coordinator's spawn verb —
+# agents_spawn.py makes the builder's worktree, binding and item under the repo's agents lock. Dispatched the same way.
+if [ "${1:-}" = "add" ]; then
+  shift
+  exec python3 "$(cd "$(dirname "$0")" && pwd)/agents_spawn.py" add "$@"
+fi
 
 print=0
 detach=0

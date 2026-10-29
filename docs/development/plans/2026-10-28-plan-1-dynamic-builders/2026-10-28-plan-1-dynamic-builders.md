@@ -60,8 +60,8 @@ Intake: 20 items — 19 IN, 1 OUT-OF-SCOPE (I4, already done), 0 ASK.
 | T04 | Charters by role + builder.md | — | ⚡ | ✅ | acceptance commit `feat(agents): T04` (wave-1 receipt `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-T01-review.md`) |
 | T02 | agents_up.sh launch path | T01 | ⛓️ | ✅ | acceptance commit `feat(agents): T02` (wave-2 receipt `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-T02-review.md`) |
 | T03 | agents_up.sh placement + --window | T02 | ⛓️ | ✅ | acceptance commit `feat(agents): T03` (wave-3 receipt `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-T03-review.md`) |
-| T05 | agents_bat.py --tabbed | T03 | ⛓️ | ⬜ | |
-| T06 | agents_spawn.py add part 1 | T01, T03 | ⛓️ | ⬜ | |
+| T05 | agents_bat.py --tabbed | T03 | ⛓️ | ✅ | acceptance commit `feat(agents): T05+T06` (wave-4 receipt `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-T05-review.md`) |
+| T06 | agents_spawn.py add part 1 | T01, T03 | ⛓️ | ✅ | acceptance commit `feat(agents): T05+T06` (wave-4 receipt `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-T05-review.md`) |
 | T08a | agents_spawn.py placement + adoption | T06 | ⛓️ | ⬜ | |
 | T08b | agents_spawn.py cold start + launch | T02, T08a | ⛓️ | ⬜ | |
 | T07 | rotate_session registry lock | T06, T08b | ⚡ | ⬜ | |
