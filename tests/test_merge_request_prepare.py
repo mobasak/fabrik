@@ -494,9 +494,12 @@ def test_leg_fits_budgets_the_longest_timed_leg(world):
     late = old_edge + 600  # past the old window
     assert not mod._leg_fits(now - late, HUB)  # nothing timed: today's rule
     assert mod._leg_fits(now - late, HUB, 697.0)  # a 697 s green leg leaves a landing after it
-    timed_edge = mod.QUEUE_WALL_S - mod.LANDING_WORST_S - 697 - mod.LEG_OVERHEAD_S
+    # budgeted at 1.5 x the timed leg: hub legs under load spread ~30 % (D-1312)
+    timed_edge = mod.QUEUE_WALL_S - mod.LANDING_WORST_S - 1.5 * 697 - mod.LEG_OVERHEAD_S
     assert mod._leg_fits(now - timed_edge + 1, HUB, 697.0)
     assert not mod._leg_fits(now - timed_edge - 1, HUB, 697.0)  # no landing could follow it
+    # never budgeted above the declared limit, however long a timed leg was
+    assert mod._leg_fits(now, HUB, 2600.0) == mod._leg_fits(now, HUB)
 
 
 def test_leg_fits_keeps_the_declared_wall_bound(world):
@@ -531,17 +534,28 @@ def _spy_fits(world, monkeypatch) -> list[float]:
 def test_queue_times_only_green_legs(world, monkeypatch):
     """A queue leg that ends on a matching record raises the budget to its wall-clock; one that leaves
     no record (red, killed, timed out) never does, so a fast failure cannot open the window."""
-    _leg_log(world, sleep=0.3)
-    sends = []
+    _leg_log(world, sleep=1.2)  # a record keeps whole seconds: 1
+    sends, heads = [], []
     for i in range(3):
         h, b = _new_branch(world, f"g{i}", {f"g{i}.txt": f"{i}\n"})
         sends.append(world.send(h, branch=b))
+        heads.append(h)
     seen = _spy_fits(world, monkeypatch)
+    recorded: list[float] = []
+    real_matches = world.mod._record_matches
+
+    def keep(ctx, el, script, runner):
+        ok = real_matches(ctx, el, script, runner)
+        if ok:  # the seconds the matching record holds, as `_queue` reads them
+            recorded.append(json.loads(_pretest_record(world, el["head"]).read_text())["seconds"])
+        return ok
+
+    monkeypatch.setattr(world.mod, "_record_matches", keep)
 
     assert _queue(world) == 0
 
     assert seen and seen[0] == 0.0  # the first fork is budgeted on the declared limit
-    assert max(seen) >= 0.3, seen  # a green leg's seconds reached the budget
+    assert recorded and max(seen) in recorded, (seen, recorded)  # the leg's own seconds, not a clock
     assert all(_record(world, m)["outcome"] == "merged" for m in sends)
 
 
@@ -558,4 +572,20 @@ def test_queue_never_times_a_leg_without_a_record(world, monkeypatch):
 
     assert any(h == h2 and k == "queue" for h, k, _, _ in _kinds(log))  # two's fork was checked
     assert len(seen) >= 2 and all(t == 0.0 for t in seen), seen
+    assert _record(world, m1)["outcome"] == "merged" and _record(world, m2)["outcome"] == "merged"
+
+
+def test_queue_never_reforks_a_tried_leg(world):
+    """Two's queue leg exits 124: after one lands the chain is rebuilt with new elements, and two is
+    not forked again — its locked merge runs its leg (Opus critique: three legs for one request)."""
+    log = _kind_log(world, fail_queue_on="slow.txt")
+    h1, b1 = _new_branch(world, "one", {"a.txt": "a\n"})
+    h2, b2 = _new_branch(world, "two", {"slow.txt": "x\n"})
+    m1, m2 = world.send(h1, branch=b1), world.send(h2, branch=b2)
+
+    assert _queue(world) == 0
+
+    rows = [(h, k) for h, k, _, _ in _kinds(log)]
+    assert rows.count((h2, "queue")) == 1, rows
+    assert rows.count((h2, "locked")) == 1, rows
     assert _record(world, m1)["outcome"] == "merged" and _record(world, m2)["outcome"] == "merged"
