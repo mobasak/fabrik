@@ -166,20 +166,23 @@ def test_a_changed_function_signature_fails_the_step_without_the_legacy_grant() 
         assert not _can(s, f"has_table_privilege('{ROLE}', 'webhook_events', 'INSERT')")
 
 
-def test_a_same_named_function_off_the_search_path_leaves_the_legacy_path() -> None:
-    """The guard reads only the session's search_path, the set ``to_regprocedure`` resolves: a
-    ``payments_grant_ingest`` in a schema off that path is invisible to both, so a pre-migration
-    install keeps its legacy grant instead of failing on a function the hub could never call."""
+def test_the_grant_function_in_a_schema_off_the_search_path_fails_the_step() -> None:
+    """fabrik-lib's function installed in another schema is a migrated install, not a
+    pre-migration one: ``to_regprocedure`` cannot see it, so without the guard the legacy block
+    would re-widen the role on the public tables. The guard matches the name in every schema."""
     schema = _schema()
     with scratch_pg() as s:
         _database(s, schema, with_fn=False)
         _in_db(
             s,
             "CREATE SCHEMA offpath;\n"
-            "CREATE FUNCTION offpath.payments_grant_ingest(r pg_catalog.regrole, extra text "
-            "DEFAULT '') RETURNS void LANGUAGE sql AS $$ SELECT $$;",
+            "CREATE FUNCTION offpath.payments_grant_ingest(r pg_catalog.regrole) "
+            "RETURNS void LANGUAGE sql AS $$ SELECT $$;",
         )
-        assert _apply(s) == "legacy"
+        with pytest.raises(RuntimeError, match="the signature the hub calls"):
+            _apply(s)
+        assert _policy_roles(s, "customers") == "other_reader"
+        assert not _can(s, f"has_table_privilege('{ROLE}', 'customers', 'SELECT')")
 
 
 def test_an_ambiguous_overload_fails_the_step_without_the_legacy_grant() -> None:

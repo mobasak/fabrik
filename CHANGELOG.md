@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — the payments ingest grant no longer re-widens its role when fabrik-lib changes the grant function's signature (2026-10-29)
 
-- `grant_payments_role(lane="ingest")` now RAISES when a `payments_grant_ingest` exists on the search path but not as `payments_grant_ingest(pg_catalog.regrole)`, before the legacy DROP+CREATE blocks can run; the step is recorded failed and the hub constant must follow fabrik-lib (D-1321, W-d8505af5). The rename case is W-1af44851.
+- `grant_payments_role(lane="ingest")` now RAISES when a `payments_grant_ingest` exists in any schema but `payments_grant_ingest(pg_catalog.regrole)` does not resolve on the search path, before the legacy DROP+CREATE blocks can run; the step is recorded failed and the hub constant must follow fabrik-lib (D-1321, W-d8505af5). The rename case is W-1af44851.
 
 ### Fixed — the portability export no longer ships monitoring, Backrest-hook or URL credentials (2026-10-29)
 
