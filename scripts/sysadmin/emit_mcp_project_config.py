@@ -114,13 +114,14 @@ NEVER_EMIT = {"fabrik-claim-validator"}  # D-022 planned row: no MCP endpoint ex
 # session. Unit state, never a port probe — a probe would strip a merely restarting server from every
 # repo until the next emit. Every loopback url in mcp_defs.json needs a row here (a test enforces it).
 # Cobra: an enabled unit that fails to start still ships a dead entry; mcp_health.py reports it DEAD.
+# fabrik-mcp-http.service owns :8033; fabrik-citation-verifier-mcp.service is an enabled look-alike that
+# stays inactive (docs/workstation/MCP_HTTP_TRANSPORT.md) — read the unit serving the port, never its name.
 SERVICE_UNITS = {
     "fabrik-scrape": "fabrik-scrape-mcp.service",
-    "fabrik-citation-verifier": "fabrik-mcp-http.service",  # owns :8033; fabrik-citation-verifier-mcp.service is an inactive look-alike (MCP_HTTP_TRANSPORT.md)
+    "fabrik-citation-verifier": "fabrik-mcp-http.service",
 }
-UNIT_DIR = Path(
-    os.environ.get("FABRIK_SYSTEMD_UNIT_DIR") or "/etc/systemd/system"
-)  # set-but-empty is unset, never cwd
+# a set-but-empty variable reads as unset: `Path("")` is the cwd
+UNIT_DIR = Path(os.environ.get("FABRIK_SYSTEMD_UNIT_DIR") or "/etc/systemd/system")
 
 # a trailing comment only after whitespace, as YAML reads it (`saas-skeleton#web` is one value); [ \t] never spans lines
 _TYPE_RE = re.compile(r"^type:[ \t]*([A-Za-z0-9_-]+)(?:[ \t]+#.*)?[ \t]*$", re.M)
