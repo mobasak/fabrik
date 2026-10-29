@@ -2084,7 +2084,11 @@ def _check_removal(ctx: Spawn, wt: str, ids: list[str], tagged: list) -> Removal
         if not _in_place(wt):
             fails.append(f"{wt} is not a linked git worktree")
         else:
-            status = _git(wt, "status", "--porcelain")
+            # T10 F6: explicit flags — a user's `status.showUntrackedFiles=no` (or `ignoreSubmodules`) must never read
+            # an untracked file or a dirty submodule as clean, which `git worktree remove` would then delete
+            status = _git(
+                wt, "status", "--porcelain", "--untracked-files=all", "--ignore-submodules=none"
+            )
             if status.returncode != 0:
                 fails.append(
                     f"git status failed in {wt}: {status.stderr.strip() or status.returncode}"
@@ -2283,8 +2287,12 @@ def remove(argv: list[str]) -> int:
                         3,
                     )
             if rm.present:
+                # T10 F6: git's own clean check runs `git status` under the user's config — force untracked files
+                # visible, so a file the dying builder wrote after step 1's check still refuses here
                 out = _git(
                     root,
+                    "-c",
+                    "status.showUntrackedFiles=all",
                     "worktree",
                     "remove",
                     os.path.join(".claude", "worktrees", ctx.name),

@@ -3229,7 +3229,9 @@ def test_t09_r4_the_last_pane_of_agents_2_goes_with_its_session_worktree_branch_
     assert not wt.exists()
     git_log = (box.home / "git.log").read_text(encoding="utf-8").splitlines()
     removes = [ln for ln in git_log if "worktree remove" in ln]
-    assert removes == [f"-C {box.repo} worktree remove .claude/worktrees/{B1}"], removes
+    assert removes == [
+        f"-C {box.repo} -c status.showUntrackedFiles=all worktree remove .claude/worktrees/{B1}"
+    ], removes
     assert _branch(box) is not merged
     assert _registry(box) == {OTHER_SID: "builder-2"}
     assert _logged(box, "agents-bat") == [["--tabbed", "--distro", "Test-Distro"]]
@@ -3473,6 +3475,48 @@ def test_t09_f5_an_ignored_file_written_before_the_kill_refuses_at_step_3(
     want = str(late_path) if late == "env-local" else "named by"
     assert want in row["reason"], row
     assert wt.is_dir() and _branch(box) and _registry(box)[SID_B1] == B1
+
+
+def _hide_untracked(tmp_path: Path, monkeypatch) -> None:
+    """The user's global git config hides untracked files from a bare `git status --porcelain`."""
+    cfg = tmp_path / "gitconfig-hide-untracked"
+    cfg.write_text("[status]\n\tshowUntrackedFiles = no\n", encoding="utf-8")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(cfg))
+
+
+@pytest.mark.parametrize("where", ["top", "nested"])
+def test_t10_f6_an_untracked_file_under_show_untracked_no_refuses_and_survives(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, where: str
+) -> None:
+    """T10 F6 (work loss): `status.showUntrackedFiles=no` must not read an untracked file as clean."""
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request)
+    _hide_untracked(tmp_path, monkeypatch)
+    g.base(panes=2, tags=(B1, "builder-2"))
+    keep = _mk(box.wt(B1) / ("notes.txt" if where == "top" else "new/deep/notes.txt"))
+    row = _refused_keeping(box, g, mod, capsys, "is not clean")
+    assert row["step"] == 1
+    assert keep.read_text(encoding="utf-8") == "x\n"
+
+
+def test_t10_f6_an_untracked_file_written_after_the_kill_survives_the_worktree_remove(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch
+) -> None:
+    """T10 F6 sweep: the step-3 `git worktree remove` itself refuses an untracked file the dying builder wrote late."""
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request)
+    _hide_untracked(tmp_path, monkeypatch)
+    g.base(panes=2, tags=(B1, "builder-2"))
+    late = box.wt(B1) / "late.txt"
+    real = mod._drop_pane
+
+    def drop_then_write(sess, pane):
+        real(sess, pane)
+        _mk(late)
+
+    monkeypatch.setattr(mod, "_drop_pane", drop_then_write)
+    assert mod.main(["remove", str(box.repo), B1]) == 2
+    (row,) = _rm_rows(box)
+    assert row["step"] == 3 and "worktree remove failed" in row["reason"], row
+    assert late.read_text(encoding="utf-8") == "x\n" and _branch(box)
 
 
 @pytest.mark.parametrize("shape", ["fifo", "link-to-fifo"])
