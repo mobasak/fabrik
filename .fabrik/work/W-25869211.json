@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-29T08:05:35.677170Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-25869211",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "pass CLAUDE_AGENT=kaizen (or the collector's own name) in the env of the mail.py send at scripts/sysadmin/kaizen_collect_v2.py:~2608, with a test that the minted request carries from-agent",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: the collector's daily requests HOLD under --auto (no loss, a manual reply), nobody blocked; one header in the collector",
   "status": "open",
   "tags": [
     "infra"
