@@ -3373,8 +3373,16 @@ def test_t09_f1_a_symlinked_seed_is_read_and_a_dangling_one_refuses_named(
         (f"RUN-SCRATCH: .tmp/runs/{OTHER_SID}/r1\n", True),
         (f'{{"scratch": "./.tmp/runs/{OTHER_SID}/r1/measure.md"}}', True),
         (f"RUN-SCRATCH: .tmp/runs/{OTHER_SID}/r10\n", False),
+        (f"RUN-SCRATCH: .tmp/runs/{OTHER_SID}/r1x\n", False),
         (f"x.tmp/runs/{OTHER_SID}/r1\n", False),
-        (f"/opt/elsewhere/.tmp/runs/{OTHER_SID}/r1\n", False),
+        # pass-2 P1: one tail match — markdown forms, the repo-root-relative form, and (accepted over-refusal) the
+        # same <sid>/<run> under another checkout
+        (f"see `.tmp/runs/{OTHER_SID}/r1` for the pins\n", True),
+        (f"see `/abs/where/.tmp/runs/{OTHER_SID}/r1`\n", True),
+        (f"the scratch is .tmp/runs/{OTHER_SID}/r1.\n", True),
+        (f"(.tmp/runs/{OTHER_SID}/r1)\n", True),
+        (f"SCRATCH: .claude/worktrees/{B1}/.tmp/runs/{OTHER_SID}/r1\n", True),
+        (f"/opt/elsewhere/.tmp/runs/{OTHER_SID}/r1\n", True),
     ],
 )
 def test_t09_f2_a_worktree_relative_seed_mention_refuses_on_a_boundary(
@@ -3465,3 +3473,35 @@ def test_t09_f5_an_ignored_file_written_before_the_kill_refuses_at_step_3(
     want = str(late_path) if late == "env-local" else "named by"
     assert want in row["reason"], row
     assert wt.is_dir() and _branch(box) and _registry(box)[SID_B1] == B1
+
+
+@pytest.mark.parametrize("shape", ["fifo", "link-to-fifo"])
+def test_t09_p2_a_non_regular_seed_refuses_named_and_never_hangs(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, shape: str
+) -> None:
+    """Pass-2 P2: a FIFO read blocks for ever with no writer — under the agents lock. It must refuse, named, at once."""
+    import threading
+
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request, exclude=EXCLUDE)
+    _mk(box.wt(B1) / ".tmp" / "runs" / OTHER_SID / "r1" / "f")
+    seeds = _seed_dir(box)
+    fifo = seeds / "pipe" if shape == "fifo" else tmp_path / "pipe"
+    os.mkfifo(fifo)
+    named = fifo if shape == "fifo" else seeds / "linked"
+    if shape == "link-to-fifo":
+        named.symlink_to(fifo)
+    result: list[int] = []
+    t = threading.Thread(
+        target=lambda: result.append(mod.main(["remove", str(box.repo), B1])), daemon=True
+    )
+    t.start()
+    t.join(timeout=20)
+    if t.is_alive():  # unblock the hung read so the suite can finish, then fail
+        with open(fifo, "w", encoding="utf-8"):
+            pass
+        t.join(timeout=10)
+        pytest.fail("remove hung on a FIFO seed")
+    assert result == [2], result
+    (row,) = _rm_rows(box)
+    assert str(named) in row["reason"] and "not a regular file" in row["reason"], row
+    assert box.wt(B1).is_dir()

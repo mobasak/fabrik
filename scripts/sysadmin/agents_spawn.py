@@ -48,6 +48,7 @@ import os
 import re
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -1900,12 +1901,15 @@ def _prefix_ok(rel: str, prefixes: list[str]) -> bool:
 
 
 def _seed_texts() -> list[tuple[str, str]]:
-    """(path, text) of every seed under `<state>/seeds/`; a symlinked seed is read through its link (pass-1 F1), and
-    one that is dangling or unreadable refuses, named. A real directory there is no seed and is skipped."""
+    """(path, text) of every seed under `<state>/seeds/`; a symlinked seed is read through its link (pass-1 F1). A seed
+    that is dangling, unreadable or not a regular file (a FIFO, or a link to one, would block a read for ever under the
+    agents lock — pass-2 P2) refuses, every one named. Opened O_NONBLOCK and checked with fstat on the open descriptor,
+    so a file swapped for a FIFO after the listing still never blocks. A real directory there is no seed and is skipped."""
     seeds = _command_runs_dir() / "seeds"
     if not os.path.lexists(seeds):
         return []
     texts = []
+    bad = []
     try:
         entries = sorted(os.scandir(seeds), key=lambda e: e.name)
     except OSError as exc:
@@ -1914,30 +1918,39 @@ def _seed_texts() -> list[tuple[str, str]]:
         if entry.is_dir(follow_symlinks=False):
             continue
         try:
-            texts.append(
-                (entry.path, Path(entry.path).read_text(encoding="utf-8", errors="replace"))
-            )
+            fd = os.open(entry.path, os.O_RDONLY | os.O_NONBLOCK | os.O_CLOEXEC)
         except OSError as exc:
-            raise RefusedError(f"the resume seed {entry.path} cannot be read ({exc})") from None
+            bad.append(f"the resume seed {entry.path} cannot be read ({exc})")
+            continue
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                bad.append(f"the resume seed {entry.path} is not a regular file — not reading it")
+                continue
+            with os.fdopen(fd, "rb", closefd=False) as fh:
+                texts.append((entry.path, fh.read().decode("utf-8", errors="replace")))
+        except OSError as exc:
+            bad.append(f"the resume seed {entry.path} cannot be read ({exc})")
+        finally:
+            os.close(fd)
+    if bad:
+        raise RefusedError("; ".join(bad))
     return texts
 
 
-_SEED_END = r"(?=$|[/\"'\s,\]}):;])"  # `r1` never matches inside `r10`
-_SEED_START = (
-    r"(?<![^\s\"'=:,\[{(<])"  # `x.tmp/runs/…` and another checkout's `/…/.tmp/runs/…` never match
-)
+# pass-2 P1: ONE tail match, `.tmp/runs/<sid>/<run>`, whatever leads it (an absolute path, the repo-root-relative
+# `.claude/worktrees/<name>/…`, `./`, a backtick or a quote): the character before `.tmp` is not a name character
+# (`x.tmp` does not match), and the run name is not continued (`r1` never matches inside `r10` or `r1x`; `r1.`,
+# `r1/f` and a backtick after it do). It also matches the same <sid>/<run> under ANOTHER checkout — over-refusal is
+# the safe direction.
+_SEED_START = r"(?<![A-Za-z0-9_.-])"
+_SEED_END = r"(?![A-Za-z0-9_-])"
 
 
 def _named_by_seed(folder: str, wt: str, texts: list[tuple[str, str]]) -> str:
-    """The first seed naming `folder` — by its absolute path, or (pass-1 F2) by its worktree-relative form
-    `.tmp/runs/<sid>/<run>` (optionally `./`-led) on a boundary; "" when none does."""
-    rel = os.path.relpath(folder, wt)
-    pats = (
-        re.compile(re.escape(folder) + _SEED_END),
-        re.compile(_SEED_START + r"(?:\./)?" + re.escape(rel) + _SEED_END),
-    )
+    """The first seed naming `folder` by its `.tmp/runs/<sid>/<run>` tail on a boundary; "" when none does."""
+    pat = re.compile(_SEED_START + re.escape(os.path.relpath(folder, wt)) + _SEED_END)
     for path, text in texts:
-        if any(p.search(text) for p in pats):
+        if pat.search(text):
             return path
     return ""
 
