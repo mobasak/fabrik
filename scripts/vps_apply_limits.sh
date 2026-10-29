@@ -19,9 +19,11 @@
 #   * NEVER LOWERS. A target at or below the live ceiling is a no-op, not a call.
 #     The old script would have cut prometheus from 1.5GiB to 1g.
 #   * DRY RUN BY DEFAULT. Mutating requires an explicit --apply.
-#   * MEMORY ONLY. The old script passed --cpus for loki/glitchtip, which are
-#     live-unlimited today — proof those calls never landed. CPU ceilings are a
-#     separate, out-of-scope decision (STRATEGIC_BACKLOG, 2026-09-04 row).
+#   * MUTATES MEMORY ONLY. The old script passed --cpus for loki/glitchtip, which were
+#     live-unlimited — proof those calls never landed. CPU caps are applied by
+#     scripts/sysadmin/vps1_cpu_limits.py (D-1324, D-1325); this script only VERIFIES
+#     them (W-fc701b31): every defined container with no CPU cap is listed, and --check
+#     fails on one.
 #   * NO NETWORK MUTATION. The old script disconnected/reconnected containers on
 #     the `coolify` network, renamed to `fabrik` on 2026-05-31; the three UUID
 #     container prefixes it targeted no longer exist and all three services now
@@ -33,8 +35,10 @@
 # USAGE (runs ON the VPS; pipe it in — it depends on nothing from the hub)
 #   ssh vps 'bash -s'            < scripts/vps_apply_limits.sh   # dry run (default)
 #   ssh vps 'bash -s -- --apply' < scripts/vps_apply_limits.sh   # mutate
-#   ssh vps 'bash -s -- --check' < scripts/vps_apply_limits.sh   # exit 1 if any
-#                                                                # container is unbounded
+#   ssh vps 'bash -s -- --check' < scripts/vps_apply_limits.sh   # exit 1 if any container has
+#                                                                # no memory ceiling or no CPU cap
+#   Every mode exits 1 on a failed update or an UNREADABLE limit read (memory or CPU); a
+#   container removed mid-run is reported GONE and does not fail it.
 
 set -uo pipefail
 
@@ -164,10 +168,39 @@ for id in $($D ps -aq); do
 done
 [ "$unbounded" -eq 0 ] && echo "  none — every defined container has a memory ceiling"
 
+# ── Every DEFINED container with no CPU cap — VERIFY only (W-fc701b31) ──────────
+# Its own loop: the memory loop above `continue`s past every BOUNDED container, so a CPU read
+# there would see none of them (0 of vps1's 39). Either Docker mechanism is a cap: `--cpus` sets
+# NanoCpus, `--cpu-quota` sets CpuQuota (a quota-only container reads `0 50000`). Both <= 0 is no
+# cap — a -1 quota means unlimited (scripts/sysadmin/vps1_cpu_limits.py reads `0 -1` as DIFFERS
+# and will not touch it; this check reports it uncapped, for the operator). Applying CPU caps is
+# vps1_cpu_limits.py's job (D-1325); nothing below mutates.
+# FAIL CLOSED: a read that is not exactly two integers is UNREADABLE and fails the run in every
+# mode — except an id that has left `ps -aq` since the listing (removed mid-run), which is GONE.
+echo
+echo "--- containers with no CPU limit (NanoCpus and CpuQuota both <= 0, all defined) ---"
+nocpu=0
+for id in $($D ps -aq); do
+  read -r nano quota extra <<< "$($D inspect -f '{{.HostConfig.NanoCpus}} {{.HostConfig.CpuQuota}}' "$id" 2>/dev/null)"
+  if [[ ! "$nano" =~ ^-?[0-9]+$ || ! "$quota" =~ ^-?[0-9]+$ || -n "$extra" ]]; then
+    if ! $D ps -aq | grep -qx "$id"; then
+      printf '  GONE      %-24s removed since the listing — not counted\n' "$id"
+      continue
+    fi
+    printf '  UNREADABLE %-23s cpu read returned %s — counted failed\n' "$id" "${nano:-<empty>} ${quota} ${extra}"
+    failed=$(( failed + 1 )); continue
+  fi
+  [ "$nano" -le 0 ] && [ "$quota" -le 0 ] || continue
+  n=$($D inspect -f '{{.Name}}' "$id"); n="${n#/}"
+  printf '  ⚠️  %-24s no CPU cap (NanoCpus %s, CpuQuota %s)\n' "$n" "$nano" "$quota"
+  nocpu=$(( nocpu + 1 ))
+done
+[ "$nocpu" -eq 0 ] && echo "  none — every defined container has a CPU cap"
+
 total=$($D ps -aq | wc -l)
 echo
-echo "=== $unbounded of $total containers unbounded · set=$applied raised=$raised ok=$ok missing=$missing failed=$failed ==="
+echo "=== $unbounded of $total containers unbounded · no-cpu=$nocpu · set=$applied raised=$raised ok=$ok missing=$missing failed=$failed ==="
 
 [ "$failed" -gt 0 ] && exit 1
-[ "$MODE" = check ] && [ "$unbounded" -gt 0 ] && exit 1
+[ "$MODE" = check ] && { [ "$unbounded" -gt 0 ] || [ "$nocpu" -gt 0 ]; } && exit 1
 exit 0

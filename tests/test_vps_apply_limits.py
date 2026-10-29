@@ -63,16 +63,18 @@ def load():
     for line in open(STATE):
         line = line.strip()
         if line:
-            name, cid, mem = line.split()
+            name, cid, mem, *cpu = line.split(maxsplit=3)
             # mem stays a STRING: the harness must be able to represent an UNREADABLE limit
             # (the exact input that used to defeat the never-lower guard), not crash on it.
-            out[name] = [cid, mem]
+            # cpu is the literal `NanoCpus CpuQuota` inspect output; a fixture that names none is
+            # CPU-capped, so every memory-only test keeps its meaning.
+            out[name] = [cid, mem, cpu[0] if cpu else "1000000000 0"]
     return out
 
 def save(d):
     with open(STATE, "w") as fh:
-        for name, (cid, mem) in d.items():
-            fh.write(f"{name} {cid} {mem}\n")
+        for name, (cid, mem, cpu) in d.items():
+            fh.write(f"{name} {cid} {mem} {cpu}\n")
 
 a = sys.argv[1:]
 with open(CALLS, "a") as fh:
@@ -80,21 +82,30 @@ with open(CALLS, "a") as fh:
 d = load()
 
 if a[0] == "ps":
-    for name, (cid, _m) in d.items():
+    for name, (cid, _m, _c) in d.items():
         print(cid)
     sys.exit(0)
+
+CPU_FMT = "{{.HostConfig.NanoCpus}} {{.HostConfig.CpuQuota}}"
 
 if a[0] == "inspect":
     if a[1] == "-f":
         fmt, ref = a[2], a[3]
         hit = None
-        for name, (cid, mem) in d.items():
+        for name, (cid, mem, cpu) in d.items():
             if ref in (name, cid):
-                hit = (name, cid, mem); break
+                hit = (name, cid, mem, cpu); break
         if hit is None:
+            print(f"error: no such object: {ref}", file=sys.stderr)
             sys.exit(1)
-        name, cid, mem = hit
+        name, cid, mem, cpu = hit
+        if fmt == CPU_FMT and name == os.environ.get("FAKE_DOCKER_VANISH", ""):
+            # removed between `ps -aq` and this read: the daemon answers as it does for any id
+            del d[name]; save(d)
+            print(f"error: no such object: {ref}", file=sys.stderr)
+            sys.exit(1)
         print({"{{.HostConfig.Memory}}": str(mem),
+               CPU_FMT: cpu,
                "{{.Name}}": "/" + name,
                "{{.Id}}": cid}[fmt])
         sys.exit(0)
@@ -146,19 +157,23 @@ def env(tmp_path):
     calls.write_text("")
 
     def write_state(mapping):
-        state.write_text(
-            "".join(f"{n} c{i:012d} {m}\n" for i, (n, m) in enumerate(mapping.items()))
-        )
+        # a value is the memory limit, or (memory, "<NanoCpus> <CpuQuota>") to set the CPU read
+        rows = []
+        for i, (n, v) in enumerate(mapping.items()):
+            m, cpu = v if isinstance(v, tuple) else (v, "1000000000 0")
+            rows.append(f"{n} c{i:012d} {m} {cpu}\n")
+        state.write_text("".join(rows))
 
     write_state(LIVE_TODAY)
 
-    def run(*args, update_error: str = "", update_warning: str = ""):
+    def run(*args, update_error: str = "", update_warning: str = "", vanish: str = ""):
         e = dict(os.environ)
         e["PATH"] = f"{bindir}:{os.environ['PATH']}"
         e["FAKE_DOCKER_STATE"] = str(state)
         e["FAKE_DOCKER_CALLS"] = str(calls)
         e["FAKE_DOCKER_UPDATE_ERROR"] = update_error
         e["FAKE_DOCKER_UPDATE_WARNING"] = update_warning
+        e["FAKE_DOCKER_VANISH"] = vanish
         return subprocess.run(
             ["bash", str(SCRIPT), *args], capture_output=True, text=True, env=e, timeout=20
         )
@@ -250,6 +265,82 @@ def test_check_mode_fails_while_anything_is_unbounded(env):
     green = env.run("--check")
     assert green.returncode == 0, green.stdout
     assert "every defined container has a memory ceiling" in green.stdout
+
+
+def _capped_today():
+    """LIVE_TODAY after a full memory pass — so a CPU finding is the only thing that can fail."""
+    return {n: (m or 256 * MIB) for n, m in LIVE_TODAY.items()}
+
+
+def test_check_fails_on_a_container_with_no_cpu_limit(env):
+    """W-fc701b31. A container recreated without its `cpus:` line, or one that arrived off the
+    apply path, ran unnoticed: --check read HostConfig.Memory only. The no-CPU container here HAS
+    a memory ceiling, because the memory section skips every bounded container — a CPU read placed
+    in that loop would see none of them (0 of vps1's 39)."""
+    env.write_state({**_capped_today(), "prometheus": (1536 * MIB, "0 0")})
+
+    r = env.run("--check")
+
+    assert r.returncode == 1, f"--check passed with an uncapped container:\n{r.stdout}"
+    section = r.stdout.split("--- containers with no CPU limit")[1]
+    assert "prometheus" in section, r.stdout
+    assert "no-cpu=1" in r.stdout
+
+
+@pytest.mark.parametrize(
+    ("cpu", "capped"),
+    [
+        ("0 50000", True),
+        ("1000000000 0", True),
+        ("500000000 25000", True),
+        ("0 0", False),
+        ("0 -1", False),
+    ],
+)
+def test_either_cpu_mechanism_counts_as_capped(env, cpu, capped):
+    """`--cpus` sets NanoCpus and `--cpu-quota` sets CpuQuota (a quota-only container read
+    `0 50000`, Docker 29.1.3): either is a cap. A `-1` quota means unlimited, so it is not."""
+    env.write_state({**_capped_today(), "grafana": (256 * MIB, cpu)})
+
+    r = env.run("--check")
+
+    assert (r.returncode == 0) is capped, r.stdout
+    assert ("grafana" in r.stdout.split("--- containers with no CPU limit")[1]) is not capped
+
+
+@pytest.mark.parametrize("cpu", ["garbage", "1e9 0", "0 0 0", "x y"])
+@pytest.mark.parametrize("mode", [(), ("--apply",), ("--check",)])
+def test_an_unreadable_cpu_read_fails_the_run(env, cpu, mode):
+    """FAIL CLOSED: a read that is not two integers is never taken as capped, in any mode."""
+    env.write_state({**_capped_today(), "loki": (512 * MIB, cpu)})
+
+    r = env.run(*mode)
+
+    assert r.returncode == 1, f"an unreadable CPU read exited clean:\n{r.stdout}"
+    assert "UNREADABLE" in r.stdout and "loki" in r.stdout
+
+
+def test_a_container_removed_mid_run_is_gone_not_a_failure(env):
+    """A container listed by `ps -aq` and removed before its CPU read is GONE: the run stays green
+    rather than failing on ordinary churn."""
+    env.write_state(_capped_today())
+
+    r = env.run("--check", vanish="grafana")
+
+    assert r.returncode == 0, r.stdout
+    assert "GONE" in r.stdout and "grafana" in r.stdout
+    assert "UNREADABLE" not in r.stdout
+
+
+def test_no_mode_mutates_cpu(env):
+    """CPU caps are applied by scripts/sysadmin/vps1_cpu_limits.py (D-1325); this script only
+    reports them, so no call it makes may carry a CPU flag."""
+    env.write_state({**LIVE_TODAY, "prometheus": (1536 * MIB, "0 0")})
+
+    for mode in ((), ("--apply",), ("--check",)):
+        env.run(*mode)
+
+    assert not [u for u in env.updates() if "--cpu" in u], env.updates()
 
 
 def test_it_counts_defined_containers_not_running_ones(env):

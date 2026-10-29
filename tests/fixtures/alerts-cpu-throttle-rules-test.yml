@@ -1,0 +1,120 @@
+# promtool rule unit tests for ContainerCPUThrottled in configs/prometheus/rules/alerts.yml
+# (W-fc701b31). Run with the Prometheus image vps1 runs — services.prometheus.image in
+# infra/vps1/monitoring/compose.yaml (tests/test_alert_cpu_throttle_rule.py reads it from there):
+#   docker run --rm -v "$PWD/configs/prometheus/rules:/r:ro" -v "$PWD/tests/fixtures:/t:ro" \
+#     --entrypoint promtool <that image> test rules /t/alerts-cpu-throttle-rules-test.yml
+# Counters advance once a minute, so `+600` per sample is 10 CFS periods per second.
+rule_files:
+  - /r/alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  - interval: 1m
+    input_series:
+      # busy: 10 periods/s, half throttled, all 40 minutes; carries cAdvisor's extra labels
+      - series: 'container_cpu_cfs_periods_total{name="busy", instance="cadvisor:8080", id="/docker-a", image="x:1", container_label_com_docker_compose_project="p"}'
+        values: "0+600x40"
+      - series: 'container_cpu_cfs_throttled_periods_total{name="busy", instance="cadvisor:8080", id="/docker-a", image="x:1", container_label_com_docker_compose_project="p"}'
+        values: "0+300x40"
+      # idle: 0.12 periods/s at 83% throttled — below the activity floor, silent
+      - series: 'container_cpu_cfs_periods_total{name="idle", instance="cadvisor:8080"}'
+        values: "0+7x40"
+      - series: 'container_cpu_cfs_throttled_periods_total{name="idle", instance="cadvisor:8080"}'
+        values: "0+6x40"
+      # lowduty: 0.9 periods/s at 96% throttled, sustained — trytond-worker's class, out of reach by design
+      - series: 'container_cpu_cfs_periods_total{name="lowduty", instance="cadvisor:8080"}'
+        values: "0+54x40"
+      - series: 'container_cpu_cfs_throttled_periods_total{name="lowduty", instance="cadvisor:8080"}'
+        values: "0+52x40"
+      # spike: 10 periods/s throughout, half throttled for 10 minutes (minutes 10-20) only — silent
+      - series: 'container_cpu_cfs_periods_total{name="spike", instance="cadvisor:8080"}'
+        values: "0+600x40"
+      - series: 'container_cpu_cfs_throttled_periods_total{name="spike", instance="cadvisor:8080"}'
+        values: "0x10 0+300x10 3000x20"
+      # calm: 10 periods/s, 20% throttled — under the 25% threshold, silent
+      - series: 'container_cpu_cfs_periods_total{name="calm", instance="cadvisor:8080"}'
+        values: "0+600x40"
+      - series: 'container_cpu_cfs_throttled_periods_total{name="calm", instance="cadvisor:8080"}'
+        values: "0+120x40"
+      # recreated: two container ids under one name, both busy — evaluates (no many-to-many error)
+      # and fires once per id
+      - series: 'container_cpu_cfs_periods_total{name="recreated", instance="cadvisor:8080", id="/docker-old"}'
+        values: "0+600x40"
+      - series: 'container_cpu_cfs_throttled_periods_total{name="recreated", instance="cadvisor:8080", id="/docker-old"}'
+        values: "0+300x40"
+      - series: 'container_cpu_cfs_periods_total{name="recreated", instance="cadvisor:8080", id="/docker-new"}'
+        values: "0+600x40"
+      - series: 'container_cpu_cfs_throttled_periods_total{name="recreated", instance="cadvisor:8080", id="/docker-new"}'
+        values: "0+300x40"
+    alert_rule_test:
+      # the expression is first true at 1m (a 5m rate needs two samples), so 15m is still pending
+      - eval_time: 15m
+        alertname: ContainerCPUThrottled
+        exp_alerts: []
+      # and 16m fires — the edge pinned from both sides; only the sustained, active ones
+      - eval_time: 16m
+        alertname: ContainerCPUThrottled
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              name: busy
+              instance: cadvisor:8080
+              id: /docker-a
+              image: "x:1"
+              container_label_com_docker_compose_project: p
+            exp_annotations:
+              summary: "Container busy CPU-throttled in 50% of periods"
+              description: "Container busy was throttled in more than 25% of its CFS periods for 15 minutes while running at least 1 period per second — its CPU cap is too low for its load."
+              value: "0.5"
+          - exp_labels:
+              severity: warning
+              name: recreated
+              instance: cadvisor:8080
+              id: /docker-old
+            exp_annotations:
+              summary: "Container recreated CPU-throttled in 50% of periods"
+              description: "Container recreated was throttled in more than 25% of its CFS periods for 15 minutes while running at least 1 period per second — its CPU cap is too low for its load."
+              value: "0.5"
+          - exp_labels:
+              severity: warning
+              name: recreated
+              instance: cadvisor:8080
+              id: /docker-new
+            exp_annotations:
+              summary: "Container recreated CPU-throttled in 50% of periods"
+              description: "Container recreated was throttled in more than 25% of its CFS periods for 15 minutes while running at least 1 period per second — its CPU cap is too low for its load."
+              value: "0.5"
+      # the spike's throttling ended at 20m; by 35m it has never been sustained 15m — still silent
+      - eval_time: 35m
+        alertname: ContainerCPUThrottled
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              name: busy
+              instance: cadvisor:8080
+              id: /docker-a
+              image: "x:1"
+              container_label_com_docker_compose_project: p
+            exp_annotations:
+              summary: "Container busy CPU-throttled in 50% of periods"
+              description: "Container busy was throttled in more than 25% of its CFS periods for 15 minutes while running at least 1 period per second — its CPU cap is too low for its load."
+              value: "0.5"
+          - exp_labels:
+              severity: warning
+              name: recreated
+              instance: cadvisor:8080
+              id: /docker-old
+            exp_annotations:
+              summary: "Container recreated CPU-throttled in 50% of periods"
+              description: "Container recreated was throttled in more than 25% of its CFS periods for 15 minutes while running at least 1 period per second — its CPU cap is too low for its load."
+              value: "0.5"
+          - exp_labels:
+              severity: warning
+              name: recreated
+              instance: cadvisor:8080
+              id: /docker-new
+            exp_annotations:
+              summary: "Container recreated CPU-throttled in 50% of periods"
+              description: "Container recreated was throttled in more than 25% of its CFS periods for 15 minutes while running at least 1 period per second — its CPU cap is too low for its load."
+              value: "0.5"
