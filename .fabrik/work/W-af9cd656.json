@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T17:14:27.160043Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-af9cd656",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M64AE48HK3XSNHGC2VW9Z05E",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "branch: infra-3-dynamic-builders"
+}
