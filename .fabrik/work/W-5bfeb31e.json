@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T14:18:10.972910Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-5bfeb31e",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: master red (a bug every gate run meets); effort low: one test/emitter fix",
+  "status": "open",
+  "title": "MASTER RED: tests/test_kaizen_sensor_emitters.py::test_gate_stdout_and_exit_code_are_byte_identical_without_the_emitter fails on master alone ('an absent emitter must not create a store', :198) — flagged pre-existing by the merge queue on 01M63SN9VW 2026-10-29, reproduced by kaizen; emitters from infra's 5f1860352/830b7741d, recent final_gate changes infra-3's b9d9653ad/fca012fed"
+}
