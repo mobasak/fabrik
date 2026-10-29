@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T16:56:53.764274Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-36216a57",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one /fabrik-command-improve fabrik-review-scoped edit to commands/_sources/fabrik-review-scoped.md step 5 after verifying with pin --from 30a480446",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "fabrik-review-scoped step 5: a merge commit that brings master into the branch still diffs master's changes under 'counts as several' — name the branch-side basis (<merge>^2 is master's side; choose the commit before the fix on the branch), found by the 2026-10-29 subagents-core PIN review (R2)"
+}

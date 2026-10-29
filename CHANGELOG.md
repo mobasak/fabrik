@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the PIN paragraph names what a pin's change.diff runs from (2026-10-29)
+- `commands/_fragments/subagents-core.md` PIN paragraph: `change.diff` runs from the pin's basis
+  (`--base` when given, else `HEAD` for a working-tree pin, `<ref>^` for `--from <ref>`), and a
+  basis that already holds the change prints every file `UNCHANGED` and a one-line diff. A surface
+  committed before its pin is pinned, its `--base` chosen and its base SHA taken as the pin's
+  `base_sha` (not a fresh `git rev-parse HEAD`) by the probe catalogue's § Seat isolation, a merge
+  or part-committed surface by `/fabrik-review-scoped` step 5. Answers five /fabrik-review
+  feedback rows that hit an empty change.diff (W-a015312a).
+
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
   `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`
