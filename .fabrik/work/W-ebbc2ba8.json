@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T17:42:40.800274Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-ebbc2ba8",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1352",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "call _assert_deployed_compose_valid before _compose_up in inject_env, red-first test",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "deploy",
+    "fleet"
+  ],
+  "title": "SSHDeployer.inject_env re-ups the stack (_compose_up, deployer_ssh.py ~:520-526) with no _validate_compose — a door around every compose invariant incl. memory and cpus (D-1352 not-closed list; found by W-43c850b1's critiques)"
+}

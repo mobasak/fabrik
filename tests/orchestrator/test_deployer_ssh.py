@@ -271,6 +271,7 @@ class TestValidateCompose:
             "      resources:\n"
             "        limits:\n"
             "          memory: 256M\n"
+            "          cpus: '0.5'\n"
             "    networks:\n"
             "      - fabrik\n"
             "networks:\n"
@@ -280,6 +281,73 @@ class TestValidateCompose:
 
     def test_valid_compose_passes(self):
         assert _validate_compose(self._valid_compose()) == []
+
+    def _with_limits(self, limits_yaml: str) -> str:
+        """The valid compose with its `limits:` block replaced by *limits_yaml* (W-43c850b1)."""
+        base = self._valid_compose()
+        block = "        limits:\n          memory: 256M\n          cpus: '0.5'\n"
+        assert base.count(block) == 1, "the fixture's limits block moved: nothing would be injected"
+        return base.replace(block, "        limits:" + limits_yaml)
+
+    def test_missing_cpus_is_refused(self):
+        """W-43c850b1: 30-ops.md:187 mandates cpus beside memory; a service without one is refused
+        by name."""
+        errors = _validate_compose(self._with_limits("\n          memory: 256M\n"))
+        assert errors == [
+            "Service 'web': missing 'deploy.resources.limits.cpus' (a quoted decimal, "
+            "e.g. cpus: '0.5'; a service-level cpus: is not read)"
+        ], errors
+
+    @pytest.mark.parametrize(
+        "limits_yaml",
+        [" [memory, cpus]\n", " 'memory cpus'\n", " 5\n", " true\n", " 0.5\n", "\n"],
+        ids=["list", "str", "int", "bool", "float", "null"],
+    )
+    def test_a_non_mapping_limits_is_refused_as_missing_both(self, limits_yaml):
+        """A limits that is not a mapping holds no limit: it is refused as missing memory AND
+        missing cpus — never a TypeError, which would escape the git redeploy's
+        (DeployError, ssh-failure) handler and skip its reset to the old commit (:572)."""
+        errors = _validate_compose(self._with_limits(limits_yaml))
+        joined = "\n".join(errors)
+        assert "Service 'web': missing 'deploy.resources.limits.memory'" in joined, errors
+        assert "Service 'web': missing 'deploy.resources.limits.cpus'" in joined, errors
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "0.5",
+            "2",
+            "'0_5'",
+            "'0'",
+            "'-1'",
+            "'1025'",
+            "'0.123'",
+            "' 0.5'",
+            "null",
+            "''",
+            "'${CPU:-0.5}'",
+        ],
+    )
+    def test_out_of_grammar_cpus_is_refused(self, value):
+        """A YAML float or int, compose's silent misreads ('0_5' is 5 CPUs, '0' no limit) and
+        anything outside spec_loader.cpu_in_grammar are refused; the value is never echoed."""
+        errors = _validate_compose(
+            self._with_limits(f"\n          memory: 256M\n          cpus: {value}\n")
+        )
+        cpu_errors = [e for e in errors if "limits.cpus" in e]
+        assert cpu_errors == [
+            "Service 'web': deploy.resources.limits.cpus must be a quoted plain decimal CPU count "
+            "from 0.01 to 1024 with at most 2 decimals, e.g. '0.5'"
+        ], errors
+
+    @pytest.mark.parametrize("value", ["'0.5'", '"1.0"', "'4'", "'0.25'", "'0.01'", "'1024'"])
+    def test_in_grammar_cpus_passes(self, value):
+        assert (
+            _validate_compose(
+                self._with_limits(f"\n          memory: 256M\n          cpus: {value}\n")
+            )
+            == []
+        )
 
     def test_invalid_yaml(self):
         errors = _validate_compose("{{invalid yaml")
@@ -877,6 +945,24 @@ class TestSSHDeployerRedeploy:
         assert not any("compose build" in c or "compose up" in c for c in cmds), cmds
         persist.assert_not_called()
 
+    def test_git_redeploy_resets_on_a_pulled_compose_without_cpus(self):
+        """W-43c850b1: a pulled compose that drops its cpus line refuses like a memory violation
+        (D-937) — reset to the old commit, nothing built or upped."""
+        old = "c" * 40
+        no_cpus = _VALID_LOCAL_COMPOSE.replace("          cpus: '0.5'\n", "")
+        assert no_cpus != _VALID_LOCAL_COMPOSE
+        with (
+            self._compose(no_cpus),
+            patch("fabrik.drivers.ssh.ssh", side_effect=[old + "\n", "", ""]) as mock_ssh,
+            pytest.raises(
+                DeployError, match=r"(?s)Compose validation failed for my-app.*limits\.cpus"
+            ),
+        ):
+            SSHDeployer().redeploy("my-app", source_type="git")
+        cmds = [c.args[0] for c in mock_ssh.call_args_list]
+        assert cmds[2] == f"cd /opt/my-app && sudo git reset --hard {old}", cmds
+        assert not any("compose build" in c or "compose up" in c for c in cmds), cmds
+
     def test_git_redeploy_resets_on_a_read_timeout_and_names_a_failed_reset(self):
         """A timed-out compose read still resets the checkout; a reset that fails is reported as
         a DeployError naming both errors — never the bare ssh error, never a silent skip."""
@@ -1176,6 +1262,7 @@ _VALID_GIT_COMPOSE = (
     "      resources:\n"
     "        limits:\n"
     "          memory: 256M\n"
+    "          cpus: '0.5'\n"
     "    networks:\n"
     "      - fabrik\n"
     "networks:\n"
@@ -1436,6 +1523,7 @@ _VALID_LOCAL_COMPOSE = (
     "      resources:\n"
     "        limits:\n"
     "          memory: 256M\n"
+    "          cpus: '0.5'\n"
     "    networks: [fabrik]\n"
     "networks:\n"
     "  fabrik:\n"
@@ -1466,6 +1554,21 @@ class TestDeployLocal:
 
         mock_write.assert_called_once()
         assert mock_write.call_args[0][0] == "/opt/my-app"
+
+    def test_local_apply_refuses_a_compose_without_cpus(self):
+        """W-43c850b1: the local apply reads the compose and refuses a service with no CPU limit
+        before any write or up (3 of the 5 known cpus-less repos are local sources)."""
+        ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "/opt/my-app"}})
+        no_cpus = _VALID_LOCAL_COMPOSE.replace("          cpus: '0.5'\n", "")
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write,
+            pytest.raises(DeployError, match=r"missing 'deploy\.resources\.limits\.cpus'"),
+        ):
+            mock_ssh.side_effect = ["exists", no_cpus]
+            SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
+        mock_write.assert_not_called()
+        assert mock_ssh.call_count == 2, mock_ssh.call_args_list
 
     def test_local_source_off_opt_keeps_registrar_injected_keys(self):
         """W-7ec31807: ``find_existing`` probes ``/opt/<name>`` only, so a local source living

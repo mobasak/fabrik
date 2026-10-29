@@ -152,6 +152,16 @@ paragraph now says the alternative is outside the mandate and routes a project t
   `burn 5h` rate; seats are sized to it and never skipped, and those that cannot fit wait for the lane's park and
   resume (D-1350; 8 feedback rows).
 
+### Fixed — every deploy path refuses a compose service with no CPU limit (2026-10-29)
+- `src/fabrik/orchestrator/deployer_ssh.py::_validate_compose` now refuses a service whose
+  `deploy.resources.limits` lacks `cpus`, or holds a value outside `spec_loader.cpu_in_grammar`, the same way
+  it refuses a missing memory limit: on the four apply paths, the git redeploy (which resets to the old
+  commit), the non-git redeploy and restart (D-1352, W-43c850b1). A `limits` that is not a mapping is
+  refused as missing memory and cpus: a null or scalar one used to raise TypeError past the git redeploy's
+  reset, and a list or string one used to pass the memory check (`"memory" in` a list or string matches). calendar-orchestration-engine newly refuses until it adds the line (four more
+  projects already refuse for lacking any limits); each gets a request mail. The five docker apps deployed
+  before D-1326 pick the line up at their re-apply.
+
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
   `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`

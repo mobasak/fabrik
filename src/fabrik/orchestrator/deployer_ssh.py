@@ -1374,8 +1374,26 @@ def _validate_compose(content: str) -> list[str]:
         deploy = svc_config.get("deploy", {})
         resources = deploy.get("resources", {}) if isinstance(deploy, dict) else {}
         limits = resources.get("limits", {}) if isinstance(resources, dict) else {}
+        # A non-mapping limits (null, a scalar, a list, a string) holds no limit: read it as empty,
+        # so both checks refuse it as missing — never a TypeError, which escapes the git redeploy's
+        # (DeployError, ssh-failure) handler and skips its reset (W-43c850b1).
+        if not isinstance(limits, dict):
+            limits = {}
         if "memory" not in limits:
             errors.append(f"Service '{svc_name}': missing 'deploy.resources.limits.memory'")
+        # deploy.resources.limits.cpus (W-43c850b1, 30-ops.md:187): only the compose line holds a
+        # cap — a recreate drops one set by `docker update --cpus`.
+        cpus = limits.get("cpus")
+        if "cpus" not in limits:
+            errors.append(
+                f"Service '{svc_name}': missing 'deploy.resources.limits.cpus' (a quoted decimal, "
+                "e.g. cpus: '0.5'; a service-level cpus: is not read)"
+            )
+        elif not cpu_in_grammar(cpus):  # the value is never echoed, as D-1326's messages
+            errors.append(
+                f"Service '{svc_name}': deploy.resources.limits.cpus must be a quoted plain decimal "
+                "CPU count from 0.01 to 1024 with at most 2 decimals, e.g. '0.5'"
+            )
 
         # No ports: section
         if "ports" in svc_config:
