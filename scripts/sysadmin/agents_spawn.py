@@ -472,9 +472,8 @@ def _bound_sid(ctx: Spawn) -> str:
 
 def _write_registry_row(ctx: Spawn) -> None:
     reg = _read_registry(ctx.root)
-    if (
-        reg is None
-    ):  # a repo with no registry gets NO file: the resolver would then read only registry names
+    # a repo with no registry gets NO file: the resolver would then read only registry names (agents_up.sh)
+    if reg is None:
         return
     if ctx.name in reg.values():
         return
@@ -600,19 +599,32 @@ def add(argv: list[str]) -> int:
     args = ap.parse_args(argv)
     root = os.path.realpath(args.repo)
     ctx = Spawn(root=root, name=args.name, role=args.role, item=args.item, argv=list(argv))
+    step = 1
     try:
         if not os.path.isdir(root):
             raise RefusedError(f"{args.repo} is not a directory")
         ctx.scope = git_common_dir(root)
         with agents_lock(root) as fd:
             preflight(ctx)
+            step = 2
             make_worktree(ctx)
+            step = 3
             cold_start(ctx)
+            step = 4
             bind(ctx, fd)
+            step = 5
             assign_item(ctx)
+            step = 6
             place_and_launch(ctx)
+        step = 7
         regenerate_launchers(ctx)  # unlocked: the desktop lock alone (panel PF3)
-    except RefusedError as exc:
+    except (RefusedError, OSError, subprocess.SubprocessError) as raised:
+        # a tool that hung or could not run is a refusal at the step it stopped, never a traceback
+        exc = (
+            raised
+            if isinstance(raised, RefusedError)
+            else RefusedError(f"{type(raised).__name__}: {raised}", step)
+        )
         record_refusal(root, ctx.name, exc.step, exc.reason)
         print(f"agents_spawn: {exc.reason}", file=sys.stderr)
         print(
