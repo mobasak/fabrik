@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "validate the resolved compose (docker compose config on the target, or refuse include/extends), guard non-mapping limits, and parse volumes per service for the mount check; red-first in tests/orchestrator/test_deployer_ssh.py",
+  "next": "UPGRADED to the spec chain 2026-10-29 (tradeoffs: hand compose-grammar parser vs validating docker compose config output; all 3 review seats). /fabrik-spec seeded with .tmp/runs/4c1e43cd-7e2e-4132-ac4a-5fc70af8e40c/fabrik-task-2026-10-29T03-47-54-0300/design.md (## RESUME there); built work on branch fleet-compose-validate-gaps f87d2c38e, unmerged; fold W-01d14ca1",
   "note": "",
   "owner": "fleet",
   "priority": 3,
