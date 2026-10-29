@@ -399,6 +399,9 @@ def test_a_failed_container_listing_fails_the_run(env, mode):
 
     assert r.returncode == 1, f"a failed listing exited clean:\n{r.stdout}"
     assert "UNREADABLE container listing" in r.stdout
+    # nor may either section then print a clean bill of health for containers it never read
+    assert "none —" not in r.stdout, r.stdout
+    assert r.stdout.count("not checked — the container listing failed") == 2, r.stdout
 
 
 def test_no_mode_mutates_cpu(env):

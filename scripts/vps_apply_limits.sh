@@ -37,8 +37,9 @@
 #   ssh vps 'bash -s -- --apply' < scripts/vps_apply_limits.sh   # mutate
 #   ssh vps 'bash -s -- --check' < scripts/vps_apply_limits.sh   # exit 1 if any container has
 #                                                                # no memory ceiling or no CPU cap
-#   Every mode exits 1 on a failed update or an UNREADABLE limit read (memory or CPU); a
-#   container removed mid-run is reported GONE and does not fail it.
+#   Every mode exits 1 on a failed update, an UNREADABLE limit read (memory or CPU) or a failed
+#   container listing (`docker ps -aq`); a container removed mid-run is reported GONE and does
+#   not fail it.
 
 set -uo pipefail
 
@@ -159,7 +160,7 @@ done <<< "$(echo "$CEILINGS" | sed 's/#.*//' | grep -v '^[[:space:]]*$')"
 if ! ids=$($D ps -aq); then
   echo
   echo "  UNREADABLE container listing — \`docker ps -aq\` failed; nothing below was checked"
-  failed=$(( failed + 1 )); ids=""
+  failed=$(( failed + 1 )); ids=""; unlisted=1
 fi
 echo
 echo "--- unbounded containers (HostConfig.Memory == 0, all defined) ---"
@@ -174,7 +175,8 @@ for id in $ids; do
   printf '  ⚠️  %-24s %s\n' "$n" "$tag"
   unbounded=$(( unbounded + 1 ))
 done
-[ "$unbounded" -eq 0 ] && echo "  none — every defined container has a memory ceiling"
+[ -n "${unlisted:-}" ] && echo "  not checked — the container listing failed"
+[ -z "${unlisted:-}" ] && [ "$unbounded" -eq 0 ] && echo "  none — every defined container has a memory ceiling"
 
 # ── Every DEFINED container with no CPU cap — VERIFY only (W-fc701b31) ──────────
 # Its own loop: the memory loop above `continue`s past every BOUNDED container, so a CPU read
@@ -207,7 +209,8 @@ for id in $ids; do
   printf '  ⚠️  %-24s no CPU cap (NanoCpus %s, CpuQuota %s)\n' "$n" "$nano" "$quota"
   nocpu=$(( nocpu + 1 ))
 done
-[ "$nocpu" -eq 0 ] && echo "  none — every defined container has a CPU cap"
+[ -n "${unlisted:-}" ] && echo "  not checked — the container listing failed"
+[ -z "${unlisted:-}" ] && [ "$nocpu" -eq 0 ] && echo "  none — every defined container has a CPU cap"
 
 total=$(wc -w <<< "$ids")
 echo
