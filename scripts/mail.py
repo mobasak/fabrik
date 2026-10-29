@@ -1427,8 +1427,9 @@ def send(
             parent_unreadable = True  # C2: EXISTS but unreadable ≠ missing
         parent = _parse(parent_raw) if parent_raw is not None else None
     hops = (_fm_hops(parent) + 1) if parent is not None else 0
-    # Resolved ONCE: the self-guard below and this message's own `from-agent:` must name the same
-    # agent, or a session could fail to recognise its own tag (W-19b57b9a).
+    # Resolved ONCE for the whole send: the --auto self-guard, the module map's never-the-sender
+    # test and this message's own `from-agent:` name the same agent, or a session could fail to
+    # recognise its own tag (W-19b57b9a).
     sender_role = _sender_role()
     if auto:
         if not re:
@@ -1583,7 +1584,7 @@ def send(
         except Exception:  # noqa: BLE001 — fail-open by contract (spec D3e)
             lib = _NO_ROUTING
         # never the sender itself: a module's author citing its own module asks someone else
-        if lib.owner and _SAFE_NAME.fullmatch(lib.owner) and lib.owner != _sender_role():
+        if lib.owner and _SAFE_NAME.fullmatch(lib.owner) and lib.owner != sender_role:
             to_agent = lib.owner
             routed.append(_routed_line("map", "", lib.owner, f"module map ({lib.reason})"))
     # AFTER every refusal, BEFORE minting: a hint must never change whether a
