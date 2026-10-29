@@ -7757,8 +7757,6 @@ docker-smoke: docker-build
 \t@sleep 5
 \t@curl -f http://localhost:$(PORT)/health || (docker logs $(PROJECT_NAME)-test; docker rm -fv $(PROJECT_NAME)-test; exit 1)
 \t@echo "✅ Health check passed"
-\t@docker stop $(PROJECT_NAME)-test
-\t@docker rm -v $(PROJECT_NAME)-test
 \t@echo "✅ Smoke test completed"
 
 # Clean build artifacts
