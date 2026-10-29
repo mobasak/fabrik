@@ -507,7 +507,7 @@ environment:
   LOG_LEVEL: ${LOG_LEVEL:-info}
 
 resources:
-  cpu: 1
+  cpu: "1.0"
   memory: 512M
 
 healthcheck:

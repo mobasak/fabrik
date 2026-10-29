@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T11:31:46.729019Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-41fbce45",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 1,
+  "score_reason": "HIGH: the operator's terminal hangs daily; LOW effort: one timer in an existing script",
+  "status": "open",
+  "title": "WSL terminal hang fix 1 (W-1d9ba411 verdict, proven by A2: drop_caches=2+compact took Normal order-7 518->667): in scripts/sysadmin/agent_memory.sh (owner of /etc/sysctl.d/99-fabrik-agent-memory.conf) add a root systemd timer that every 10 min runs drop_caches=2 + compact_memory=1 only when Normal-zone free order>=7 blocks fall below a floor, and raise min_free_kbytes there; reviewed /fabrik-task; operator then runs sudo /opt/fabrik/scripts/sysadmin/agent_memory.sh install once"
+}
