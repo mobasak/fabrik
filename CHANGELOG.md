@@ -5,11 +5,12 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)
-- `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the box at 96 % the hook's `SCRATCH ALARM` line
-  landed in the stdout of every `--hook` run from an `/opt` cwd, and the three tests asserting silence
-  went red on master in every merge-test leg that runs this file (MR 01M63G10MT was refused on one of
-  them). The headless, autonomous and non-`/opt` legs now run at a 96 % reading, so a gate that let the
-  alarm through still fails.
+- `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the
+  box at 96 % the hook's `SCRATCH ALARM` line landed in the stdout of every `--hook` run that passes its
+  gates (a valid session id, an `/opt` cwd, not headless or autonomous), and the three tests asserting
+  silence went red on master in every merge-test leg that runs this file (MR 01M63G10MT was refused on
+  one of them). The headless, autonomous and non-`/opt` legs now run at a 96 % reading and assert empty
+  stdout and stderr, so a gate that let the alarm through still fails.
 
 ### Fixed — hub mail auto-replies tell one agent from another (2026-10-29)
 - `scripts/mail.py`: in the hub's shared `fabrik` mailbox the `--auto` self-guard and rate cap key on

@@ -58,7 +58,8 @@ def _run(
         # never the live hub's worktrees — the janitor pass (W-18e66a92) reads this seam
         "SCRATCH_SWEEP_JANITOR_REPO": "",
         # never the live disk — past 85 % the hook's SCRATCH ALARM line lands in the stdout of
-        # every `--hook` run that passes its gates (an `/opt` cwd, not headless or autonomous) and
+        # every `--hook` run that passes its gates (a valid session id, an `/opt` cwd, not headless
+        # or autonomous) and
         # reds the tests that assert silence (three of them at 96 %, 2026-10-29)
         "SCRATCH_SWEEP_DISK_USED_PCT": "10",
     }
@@ -1338,9 +1339,11 @@ def test_hook_line_fires_only_with_candidates_and_never_blocks(scratch: Path) ->
     for gate, value in (("CLAUDE_MESH_HEADLESS", "1"), ("CLAUDE_MESH_AUTONOMOUS", "1")):
         gated = _hook(scratch, **{gate: value}, **full)
         assert gated.returncode == 0 and gated.stdout == "", f"{gate} must silence it"
+        assert gated.stderr == "", f"{gate} must silence stderr too: {gated.stderr!r}"
 
     outside = _hook(scratch, cwd="/home/somewhere", **full)
     assert outside.returncode == 0 and outside.stdout == "", "a non-/opt cwd is silent"
+    assert outside.stderr == "", f"a non-/opt cwd is silent on stderr too: {outside.stderr!r}"
 
 
 def test_the_hook_line_reprints_only_when_the_candidate_count_grows(scratch: Path) -> None:
