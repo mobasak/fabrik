@@ -389,7 +389,8 @@ def _link_undo(home: Path, dest: Path) -> str | None:
     deletes an operator's alias to the unit (alias + enabled-runtime reads `enabled-runtime`), while restoring that one
     link restores indirect, static, enabled-runtime, disabled and a /run mask alike — and `enable` REWRITES a link at
     that path that points elsewhere, so its old target is kept. A non-symlink at the path is refused, and so is an
-    old target the undo cannot print as one line (not UTF-8, or holding a control or line-break character)."""
+    old target `str.isprintable()` rejects, which the undo may not print or paste as one line: not UTF-8, or holding a
+    control, line-break or format character, or a space other than the ASCII space (a tab and a no-break space too)."""
     link = dest / "timers.target.wants" / ARCHIVE_TIMER
     try:
         target = _rel(home, link)
@@ -403,8 +404,9 @@ def _link_undo(home: Path, dest: Path) -> str | None:
     if os.path.realpath(link) == os.path.realpath(dest / ARCHIVE_TIMER):
         return None
     old = os.readlink(link)
-    # False for a non-UTF-8 name (a lone surrogate a strict UTF-8 stdout cannot print), and for every control or
-    # line-break character (\n \r VT FF ESC DEL U+0085 U+2028 …) that splits or rewrites the pasted line; a tab too
+    # False for a non-UTF-8 name (a lone surrogate a strict UTF-8 stdout cannot print), for every control or
+    # line-break character (\n \r VT FF ESC DEL U+0085 U+2028 …) that splits or rewrites the pasted line, and for
+    # a format character or a non-ASCII space (a bidi override can rewrite the line as shown); safe-side refusals
     if not old.isprintable():
         raise PlanError(f"{link} cannot be printed as one undo line — refused; change it by hand")
     return f"ln -sfn -- {shlex.quote(old)} {target}"  # `--`: an old target may begin with "-"
