@@ -328,6 +328,37 @@ def test_a_symlinked_parent_directory_fails_the_project(bf, monkeypatch, capsys,
     assert list(outside.iterdir()) == []
 
 
+def test_a_dry_run_names_the_symlink_the_apply_will_fail_on(bf, monkeypatch, capsys, tmp_path):
+    proj = _repo(bf, "p", {"README.md": "x\n"})
+    (proj / ".fabrik").mkdir()
+    (proj / ".fabrik/run-pytest").symlink_to(tmp_path / "gone")  # dangling
+    row = _row(_main(bf, monkeypatch, capsys, "p"), "p")
+    assert row.endswith("would FAIL (symlink at .fabrik/run-pytest)")
+
+
+def test_a_live_symlinked_baseline_inside_the_project_is_kept(bf, monkeypatch, capsys):
+    proj = _repo(bf, "p", {"shared/baseline.json": '{"ruff_errors": 4}\n'})
+    (proj / ".fabrik").mkdir()
+    (proj / ".fabrik/lint-baseline.json").symlink_to(proj / "shared/baseline.json")
+    assert _row(_main(bf, monkeypatch, capsys, "p"), "p").endswith("would keep its baseline")
+    row = _row(_main(bf, monkeypatch, capsys, "p", "--apply"), "p")
+    assert row.endswith("WROTE (kept its baseline)")
+    assert (proj / ".fabrik/lint-baseline.json").is_symlink()
+    assert (proj / "shared/baseline.json").read_text(encoding="utf-8") == '{"ruff_errors": 4}\n'
+
+
+def test_a_leftover_temp_symlink_is_never_followed(bf, monkeypatch, capsys, tmp_path):
+    victim = tmp_path / "victim"
+    victim.write_text("keep\n", encoding="utf-8")
+    proj = _repo(bf, "p", {"README.md": "x\n"})
+    (proj / "scripts").mkdir()
+    (proj / "scripts/.ci_local.sh.backfill-tmp").symlink_to(victim)
+    _main(bf, monkeypatch, capsys, "p", "--apply")
+    assert victim.read_text(encoding="utf-8") == "keep\n"
+    ci_local = proj / "scripts/ci_local.sh"
+    assert ci_local.is_file() and not ci_local.is_symlink()
+
+
 def test_a_failed_chmod_leaves_no_ci_local_sh(bf, monkeypatch, capsys):
     proj = _repo(bf, "p", {"README.md": "x\n"})
     real_chmod = Path.chmod

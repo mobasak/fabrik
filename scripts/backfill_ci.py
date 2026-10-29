@@ -11,9 +11,10 @@ that file is stale (no sqlfluff step, no `.fabrik/run-pytest`) or not fabrik-man
 also lints every tracked `*.sql` with sqlfluff, with no ratchet, so each target's SQL is graded
 first by the pinned sqlfluff when this interpreter carries it (else the verdict is `unknown`):
 `--apply` refuses a `red` or `unknown` verdict unless `--force`, and a forced row records the
-verdict it went past. An existing `.fabrik/run-pytest` or lint baseline is kept; a symlink on
-any path it would write (a parent directory included) fails that project before anything is
-written; each file goes in through a temp file and a rename, `scripts/ci_local.sh` last; and the
+verdict it went past. An existing `.fabrik/run-pytest` or lint baseline is kept (a live symlink
+there included); a symlinked parent directory of a file it writes, or a dangling symlink at one,
+fails that project before anything is written, and a dry run says so; each file goes in through
+a fresh temp file and a rename, `scripts/ci_local.sh` last; and the
 exit is 1 when `--apply` refused, failed or could not find any project.
 
 Per-project config is grounded, not guessed:
@@ -256,6 +257,7 @@ def plan(name: str) -> dict:
         # A skipped project is never linted: nothing is written there, so its verdict decides nothing.
         "sqlfluff": "n/a" if ci_state is not None else _sqlfluff_verdict(proj, sql),
         "baseline_exists": os.path.lexists(proj / BASELINE),
+        "blocker": None if ci_state is not None else _write_blocker(proj),
     }
 
 
@@ -270,13 +272,9 @@ def apply(name: str, p: dict) -> list[str]:
     # Seed the ratchet baseline at the current count so the replica lands GREEN.
     if p["ruff"] is not None:
         files[BASELINE] = json.dumps({"ruff_errors": p["ruff"]}) + "\n"
-    # A symlink anywhere on a path we would write (a parent directory or the file itself, dangling
-    # or not) fails the project before anything is written: following it writes outside the
-    # project, and skipping it leaves a marker the gate reads as absent.
-    for rel in files:
-        link = _symlink_on(proj, rel)
-        if link:
-            raise OSError(f"symlink at {link}")
+    blocker = _write_blocker(proj)
+    if blocker:
+        raise OSError(f"symlink at {blocker}")
     # scripts/ci_local.sh goes LAST: its presence is what marks the project done, so a write that
     # fails part-way leaves no ci_local.sh and the next run retries the whole backfill.
     order = sorted(files, key=lambda rel: rel == CI_LOCAL)
@@ -289,6 +287,8 @@ def apply(name: str, p: dict) -> list[str]:
         # Written to a sibling temp file, made executable, then renamed into place: a failed
         # write or chmod never leaves a half-made file at the real path.
         tmp = dest.with_name(f".{dest.name}.backfill-tmp")
+        if os.path.lexists(tmp):
+            tmp.unlink()  # a leftover (a symlink included: unlink removes the link, never its target)
         try:
             tmp.write_text(files[rel], encoding="utf-8")
             if dest.suffix == ".sh":
@@ -300,13 +300,19 @@ def apply(name: str, p: dict) -> list[str]:
     return written
 
 
-def _symlink_on(proj: Path, rel: str) -> str | None:
-    """The first symlink among `proj/rel`'s components below the project, as a relative path."""
-    cur = proj
-    for part in Path(rel).parts:
-        cur = cur / part
-        if cur.is_symlink():
-            return str(cur.relative_to(proj))
+def _write_blocker(proj: Path) -> str | None:
+    """The first symlink that would make a backfill write outside the project or leave a marker
+    the gate reads as absent: a symlinked parent directory of any file it writes, or a dangling
+    symlink at one of those files. A live symlink at a file is the project's own and is kept."""
+    for rel in (RUN_PYTEST, BASELINE, CI_LOCAL):
+        cur = proj
+        for part in Path(rel).parts[:-1]:
+            cur = cur / part
+            if cur.is_symlink():
+                return str(cur.relative_to(proj))
+        leaf = proj / rel
+        if leaf.is_symlink() and not leaf.exists():
+            return rel
     return None
 
 
@@ -369,6 +375,8 @@ def _action(name: str, p: dict, *, do_apply: bool, force: bool) -> str:
         return f"{verb} (sqlfluff {p['sqlfluff']}; --force overrides)"
     forced = f" (forced past sqlfluff {p['sqlfluff']})" if _refused(p) else ""
     if not do_apply:
+        if p["blocker"]:  # the dry run says what the apply will do: fail on this symlink
+            return f"would FAIL (symlink at {p['blocker']})"
         if p["baseline_exists"]:
             seed = "keep its baseline"
         elif p["ruff"] is None:
