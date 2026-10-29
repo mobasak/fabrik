@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T02:37:09.507641Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-0264b5b3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M62R8E1G9FJYEVE71KDVHSAA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: fleet-mobile-toolchain"
+}
