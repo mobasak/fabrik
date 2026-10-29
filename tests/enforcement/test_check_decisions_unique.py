@@ -581,3 +581,84 @@ def test_a_ledger_in_the_cwd_wins_over_the_enclosing_repo(tmp_path, monkeypatch)
     (fixture / "docs" / "DECISIONS.md").write_text(_SHAPE_HEAD + _row("D-1"))
     monkeypatch.chdir(fixture)
     assert main() == 0
+
+
+# What markdown-it (GFM tables) does with each line placed between a ledger row and the next row:
+# True = the next row is still in the table (review pass 1, A-sonnet-1; executed 2026-10-29).
+_RENDER_CONTINUES = {
+    "# h | x": False,
+    "#h | x": True,
+    "> q | x": False,
+    "  > q | x": False,
+    "- li | x": False,
+    "* * * | x": False,
+    "1. a | x": False,
+    "1) a | x": False,
+    "```| x": False,
+    "~~~ | x": False,
+    "<div> | x": False,
+    "<DIV> | x": False,
+    "</p> | x": False,
+    "<!-- c --> | x": False,
+    "<?php | x": False,
+    "---|x": True,
+    "-x | y": True,
+    "12a | b": True,
+    "<span> | x": True,
+    "<a | b": True,
+    "D-9 | no lead pipe |": True,
+}
+
+
+@pytest.mark.parametrize("line", sorted(_RENDER_CONTINUES))
+def test_a_line_that_starts_another_block_ends_the_table(line):
+    """Review pass 1, A-sonnet-1: any piped line continued the body, so a row after a heading, a
+    quote, a list item, a fence or an HTML block — outside the rendered table — passed as a row."""
+    text = _SHAPE_HEAD + _row("D-1") + line + "\n" + _row("D-2")
+    expected = [] if _RENDER_CONTINUES[line] else [(5, "D-2")]
+    assert find_rows_outside_the_table(text) == expected
+
+
+def test_the_render_table_matches_markdown_it():
+    """The expectations above are the renderer's, not the checker's — re-read where it is installed."""
+    markdown_it = pytest.importorskip("markdown_it")
+    md = markdown_it.MarkdownIt("commonmark").enable("table")
+    for line, continues in _RENDER_CONTINUES.items():
+        html = md.render(_SHAPE_HEAD + _row("D-1") + line + "\n" + _row("D-2"))
+        assert ("<td>D-2</td>" in html) is continues, line
+
+
+def test_the_blocking_lines_print_before_the_advisory_leg(tmp_path, monkeypatch, capsys):
+    """Review pass 1, B-sonnet-1: gap 6's fix moved the advisory ratchet AFTER the ✗ lines, so a
+    failure in it can no longer hide them — nothing graded that order."""
+    ledger = tmp_path / "docs" / "DECISIONS.md"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text(_SHAPE_HEAD + _row("D-1") + _row("D-1"))
+    monkeypatch.setattr(_mod, "LEDGER", ledger)
+
+    def boom(text):
+        raise RuntimeError("advisory leg failed")
+
+    monkeypatch.setattr(_mod, "check_row_shape", boom)
+    with pytest.raises(RuntimeError):
+        _mod.main()
+    assert "D-1 appears 2x" in capsys.readouterr().out
+
+
+def test_the_table_reading_legs_read_the_ledger_rows_only():
+    """Review pass 1, B-sonnet-2/3: a stray row is the stray leg's — the shape ratchet neither
+    grades it as malformed nor counts it as present (a deleted ledger row must still read ABSENT)."""
+    text = "| D-9 | short |\n\n" + _SHAPE_HEAD + _row("D-1")
+    assert _mod.malformed_ids(text) == {}
+    assert _mod._all_row_ids(text) == [(5, "D-1")]
+
+
+def test_an_id_too_long_to_be_one_is_no_id():
+    """Review pass 1, A-sonnet-2: `int()` refuses over 4,300 digits, so one such cell crashed the run
+    before any line printed; a non-ASCII digit is no id digit either."""
+    huge = "| D-" + "9" * 5000 + " | a |\n"
+    assert find_duplicates(_SHAPE_HEAD + huge + huge) == {}
+    assert find_duplicates(_SHAPE_HEAD + "| D-١ | a |\n| D-١ | b |\n") == {}
+    assert find_duplicates(_SHAPE_HEAD + _row("D-999999999") + _row("D-999999999")) == {
+        "D-999999999": 2
+    }

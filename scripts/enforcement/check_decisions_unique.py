@@ -51,12 +51,27 @@ import _fences  # noqa: E402  (same-dir sibling, synced fleet-wide)
 LEDGER = Path("docs/DECISIONS.md")
 # A row: a pipe, then an id cell that OPENS with D-<digits> — text after the id inside the cell
 # (`| D-12 (amended) |`) is allowed, while `D-1x`, `D-1.5`, `D-1-2` and `D-1/2` are no id
-# (W-c25fd20f gap 7). Its leading whitespace is read by `_parse`.
-_ROW = re.compile(r"^([ \t]*)\|[ \t]*\**(D-(\d+))(?![\w./-])")
-# A table body goes on while a line is indented at most 3 spaces, is not blank and holds a pipe —
-# GFM's rule (markdown-it, executed 2026-10-29): a row with no leading pipe continues the table, a
-# tab or a 4-space indent ends it (that line is an indented code block).
-_BODY = re.compile(r"^ {0,3}(?=\S).*\|")
+# (W-c25fd20f gap 7). The number is 1-9 ASCII digits: `int()` refuses a string over 4,300 digits,
+# which crashed the run before any line printed, and `\d` also takes non-ASCII digits. Its leading
+# whitespace is read by `_parse`.
+_ROW = re.compile(r"^([ \t]*)\|[ \t]*\**(D-([0-9]{1,9}))(?![\w./-])")
+# A table body goes on while a line is indented at most 3 spaces, is not blank, holds a pipe and
+# starts no other block — GFM's rule (markdown-it, executed 2026-10-29 over 39 shapes): a row with
+# no leading pipe continues the table; a tab or a 4-space indent (an indented code block), a
+# heading, a quote, a list item, a fence or an HTML block of CommonMark types 1-6 ends it. Type 7
+# (any other tag, `<span>`) cannot interrupt, so it continues the table.
+_HTML_BLOCK_TAGS = (
+    "address|article|aside|base|basefont|blockquote|body|caption|center|col|colgroup|dd|details|"
+    "dialog|dir|div|dl|dt|fieldset|figcaption|figure|footer|form|frame|frameset|h1|h2|h3|h4|h5|h6|"
+    "head|header|hr|html|iframe|legend|li|link|main|menu|menuitem|nav|noframes|ol|optgroup|option|"
+    "p|param|search|section|summary|table|tbody|td|tfoot|th|thead|title|tr|track|ul"
+)
+_BLOCK_START = (
+    r"#{1,6}(?:[ \t]|$)|>|[-*+](?:[ \t]|$)|[0-9]{1,9}[.)](?:[ \t]|$)|```|~~~"
+    r"|<(?:script|pre|style|textarea)(?:[ \t>]|$)|<!--|<\?|<![A-Za-z]|<!\[CDATA\["
+    rf"|</?(?:{_HTML_BLOCK_TAGS})(?:[ \t/>]|$)"
+)
+_BODY = re.compile(rf"^ {{0,3}}(?!{_BLOCK_START})(?=\S).*\|", re.IGNORECASE)
 _INDENTED_CODE = re.compile(r"^(?: {4}| {0,3}\t)")
 
 
