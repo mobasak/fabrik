@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import fcntl
+import hashlib
 import importlib.util
 import json
 import math
@@ -738,6 +739,174 @@ def _dialog(screen: str) -> bool:
         return False
     near = rows[max(0, at[-1] - 3) : at[-1]] + rows[at[-1] + 1 : at[-1] + 4]
     return any(re.match(r"\d+\.\s", r) for r in near)
+
+
+# ── waiting: the coordinator's PANE WAITING scan (W-a12b03a2) ─────────────────────────────────────────────────────────
+#
+# Read-only. Shapes measured on Claude Code v2.1.312 (a throwaway session, 2026-10-29): every dialog — a permission
+# dialog, the workspace-trust prompt (un-numbered options), an AskUserQuestion whose options wrap 4+ rows apart — is
+# drawn without the input box and ends on a footer row; `_dialog` alone knows only the first. An idle turn ends on a
+# `✻ <Verb> for <n>s · done <time>` row; `✻ Waiting for N background agents` is an agent working on its own seats.
+# Fail direction: a screen nobody drew yet (a renamed footer, no `· done` row) is a QUIET miss; a tmux that answers
+# wrongly RAISES, so the caller reports a blind scan instead of reading it as "nobody waits".
+_FOOTER = re.compile(r"Esc to cancel|Enter to confirm|Enter to select")
+_TURN_END = re.compile(r"^\S\s+\S+ for \d+[hms]\b.*·\s*done\b")
+_SPINNER = re.compile(r"…\s*\(|Waiting for \d+ background")
+_FOOTER_ROW = re.compile(r"(?:RUN|STATE|NEXT):")
+_ASKS = re.compile(r"DECISION NEEDED|awaiting your reply", re.I)
+_NO_GRID = ("no server running on", "error connecting to")
+WAITING_LINE_MAX = 160
+
+
+def _plain(screen: str) -> list[str]:
+    return [_undimmed(r).rstrip() for r in screen.splitlines()]
+
+
+def _asks(text: str) -> bool:
+    return text.rstrip("*_`)\"'”’ ").endswith("?") or bool(_ASKS.search(text))
+
+
+def _dialog_waiting(rows: list[str], numbered: bool) -> tuple[str, str, str] | None:
+    text = [i for i, r in enumerate(rows) if r.strip()]
+    if not numbered and not any(_FOOTER.search(rows[i]) for i in text[-3:]):
+        return None
+    at = [i for i, r in enumerate(rows) if r.lstrip().startswith("❯")]
+    if not at:
+        return None
+    opt = at[-1]
+    top = max((i for i in range(opt) if rows[i].strip().startswith("─")), default=-1)
+    block = [r.strip().lstrip("│").strip() for r in rows[top + 1 : opt]]
+    asked = [r for r in block if "?" in r]
+    near = [r for r in block if r and not r.startswith("╌")]
+    line = asked[-1] if asked else (near[-1] if near else "a dialog is open")
+    body = "\n".join(r.strip() for r in rows[top + 1 :] if r.strip())
+    return "dialog", line, body
+
+
+def _question_waiting(rows: list[str]) -> tuple[str, str, str] | None:
+    starts = [
+        i
+        for i, r in enumerate(rows)
+        if i > 0 and r.lstrip().startswith("❯") and rows[i - 1].strip().startswith("─")
+    ]
+    if not starts:
+        return None
+    rule = starts[-1] - 1
+    ends = [i for i in range(rule) if _TURN_END.match(rows[i].strip())]
+    if not ends or any(_SPINNER.search(rows[i]) for i in range(ends[-1] + 1, rule)):
+        return None
+    end = ends[-1]
+    tail = [r.strip().removeprefix("●").strip() for r in rows[:end]]
+    while tail and not tail[-1]:
+        tail.pop()
+    # The message tail: its last paragraph, and when that paragraph opens with the RUN/STATE/NEXT footer, the footer's
+    # entries (a label row plus its wrapped continuations) and the paragraph above the blank row before it.
+    paras: list[list[str]] = []
+    for _ in range(2):
+        start = len(tail)
+        while start > 0 and tail[start - 1]:
+            start -= 1
+        block, tail = tail[start:], tail[: max(0, start - 1)]
+        if not block:
+            break
+        lead = next((k for k, r in enumerate(block) if _FOOTER_ROW.match(r)), None)
+        if lead is None:
+            paras.append(block)
+            break
+        for row in block[lead:]:
+            if _FOOTER_ROW.match(row) or not paras:
+                paras.append([row])
+            else:
+                paras[-1].append(row)
+        if lead:
+            paras.append(block[:lead])
+            break
+    for para in sorted(
+        paras, key=lambda p: bool(_FOOTER_ROW.match(p[0]))
+    ):  # the message's own paragraph first
+        joined = " ".join(" ".join(para).split())
+        if joined and _asks(joined):
+            return "question", joined, joined + "\n" + rows[end].strip()
+    return None
+
+
+def _waiting_on(screen: str) -> tuple[str, str, str] | None:
+    """(kind, line, body) when the screen waits on an answer: `dialog` — no input box drawn and a dialog footer (or
+    `_dialog`'s numbered option) — or `question` — an empty box under a `· done` turn end, no spinner below it, whose
+    message tail (the RUN/STATE/NEXT footer rows and the paragraph above them) asks. `body` keys the fingerprint: the
+    dialog's rows (its command), or the question plus the turn-end row (its time). None otherwise."""
+    box = _box(screen)
+    rows = _plain(screen)
+    if box is None:
+        return _dialog_waiting(rows, _dialog(screen))
+    return _question_waiting(rows) if box == "" else None
+
+
+def _grid_tmux(deadline: float, *args: str) -> str | None:
+    """One tmux call inside the scan's shared deadline: stdout, None when no grid exists (no tmux, no server), and a
+    RuntimeError for every other failure — a timeout, a spent budget or an answer that is not a grid."""
+    left = deadline - time.monotonic()
+    if left <= 0:
+        raise RuntimeError("pane scan budget spent")
+    try:
+        r = subprocess.run(
+            [os.environ.get("ROTATE_TMUX", "tmux"), *args],
+            capture_output=True,
+            text=True,
+            timeout=max(0.1, left),
+        )
+    except FileNotFoundError:
+        return None
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"tmux {args[0]} timed out") from exc
+    if r.returncode != 0:
+        if r.stderr.strip().startswith(_NO_GRID):
+            return None
+        raise RuntimeError(f"tmux {args[0]} rc {r.returncode}: {r.stderr.strip()[:200]}")
+    return r.stdout
+
+
+def waiting(repo: str, exclude: str = "", budget: float = 1.0) -> list[dict]:
+    """Every builder pane in `repo`'s agents_up grid waiting on an answer, as {agent, pane, kind, line, fp}. A pane
+    counts when its session or session group is `slug(repo)`, it carries an `@agent` other than `exclude`, and its
+    working directory is not `repo` itself (the coordinator's own pane); each pane once, by id. [] when no grid exists;
+    RuntimeError when tmux fails otherwise or the shared `budget` (seconds) runs out."""
+    deadline = time.monotonic() + budget
+    fmt = "#{pane_id}\t#{session_name}\t#{session_group}\t#{@agent}\t#{pane_current_path}"
+    out = _grid_tmux(deadline, "list-panes", "-a", "-F", fmt)
+    if out is None:
+        return []
+    home, grid = Path(repo).resolve(), slug(repo)
+    panes: dict[str, str] = {}
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) != 5:
+            continue
+        pane, session, group, agent, path = parts
+        if (group or session) != grid or not agent or agent == exclude or pane in panes:
+            continue
+        with contextlib.suppress(OSError):
+            if path and Path(path).resolve() == home:
+                continue
+        panes[pane] = agent
+    found = []
+    for pane, agent in panes.items():
+        screen = _grid_tmux(deadline, "capture-pane", "-p", "-e", "-t", pane)
+        hit = _waiting_on(screen or "")
+        if hit is None:
+            continue
+        kind, line, body = hit
+        digest = hashlib.sha1(f"{kind}\n{body}".encode()).hexdigest()[:12]
+        found.append(
+            {
+                "agent": agent,
+                "pane": pane,
+                "kind": kind,
+                "line": line[:WAITING_LINE_MAX],
+                "fp": f"pane:{agent}:{digest}",
+            }
+        )
+    return found
 
 
 # ── request ───────────────────────────────────────────────────────────────────────────────────────────────────────
