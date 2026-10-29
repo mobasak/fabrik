@@ -19,8 +19,9 @@ D-1177 conditions, all enforced below:
 2. No cleartext password or verifier in argv, an env var, an echo or the output: both travel only on ssh stdin.
    The pg_authid assert compares sha256 digests, so only the ALTER ROLE statement carries the verifier — the same
    statement psql's `\\password` sends.
-3. SQL goes on stdin to `psql -X -v ON_ERROR_STOP=1`, never `-c`. The one staged file (the login probe's pgpass)
-   is umask 077, removed, then `test ! -e`.
+3. SQL goes on stdin to `psql -X -v ON_ERROR_STOP=1`, never `-c`. Two files on vps1 carry a password: the login
+   probe's pgpass (umask 077, removed, then `test ! -e`) and step 3d's temp copy of a service's .env (umask 077,
+   removed on exit).
 4. Per role: assert the stored verifier, then one real TCP login on the scram host line — and a wrong password
    that must be refused, so the login proves a password was checked.
 
@@ -229,10 +230,12 @@ def env_upsert_sh(key: str) -> str:
     The sh writes `KEY=` itself, so stdin carries the value alone: a bare DSN line is read by compose as a key
     named `postgresql` and leaves KEY unset (W-c27db1f1). key is a SERVICES constant, never a secret.
     `grep -v` ends every line it prints with a newline, so a .env whose last line has none is mended by the copy.
+    `-a` under LC_ALL=C keeps a line with a non-UTF-8 byte (grep would call the file binary and drop lines at rc 0),
+    and only grep's rc 0 or 1 lets the copy replace .env.
     """
     return (
         "set -e; umask 077; touch .env; chmod 600 .env; t=$(mktemp ./.env.XXXXXX); trap 'rm -f \"$t\"' EXIT; "
-        f"grep -v '^{key}=' .env > \"$t\" || true; "
+        f"rc=0; LC_ALL=C grep -av '^{key}=' .env > \"$t\" || rc=$?; [ \"$rc\" -le 1 ]; "
         f"printf '%s=' {key} >> \"$t\"; "
         'cat >> "$t"; cat "$t" > .env; rm -f "$t"'
     )

@@ -151,6 +151,19 @@ def test_env_upsert_replaces_the_key_keeps_the_rest_and_fixes_a_missing_newline(
     assert not list(tmp_path.glob(".env.*"))  # the mktemp file is gone
 
 
+def test_env_upsert_keeps_a_line_with_a_non_utf8_byte_under_a_utf8_locale(tmp_path):
+    env = tmp_path / ".env"
+    env.write_bytes(b"A=caf\xe9\nB=2\n" + f"{GT_KEY}=old\n".encode())
+    subprocess.run(
+        ["sh", "-c", m.env_upsert_sh(GT_KEY)],
+        input=b"new\n",
+        cwd=tmp_path,
+        check=True,
+        env=dict(os.environ, LC_ALL="C.UTF-8"),
+    )
+    assert env.read_bytes() == b"A=caf\xe9\nB=2\n" + f"{GT_KEY}=new\n".encode()
+
+
 def test_env_upsert_creates_a_missing_env_mode_0600(tmp_path):
     _upsert(tmp_path, EX_KEY, "v\n")
     env = tmp_path / ".env"
@@ -239,21 +252,26 @@ def test_no_secret_reaches_any_remote_command_line(monkeypatch):
     assert fake.calls and not any(s in c for c in fake.calls for s in pws.values())
 
 
-def test_step3d_moves_both_mirrors_onto_their_scoped_logins_under_real_compose(monkeypatch, tmp_path):
+@pytest.mark.parametrize("state", ["fresh", "moved"])
+def test_step3d_moves_both_mirrors_onto_their_scoped_logins_under_real_compose(monkeypatch, tmp_path, state):
     """step3d_move's own commands, run locally on copies of the mirrors; only `compose up` is stubbed.
 
     _Fake hard-codes the rendered config, so it passed while the .env line had no key (W-c27db1f1).
+    `moved` starts from an earlier run's files: compose.yaml already on ${KEY}, .env holding an old KEY line.
     """
     if shutil.which("docker") is None or subprocess.run(
         ["docker", "compose", "version"], capture_output=True
     ).returncode:
         pytest.skip("docker compose is not installed")
     dirs = {}
-    for _role, _db, cdir, *_ in m.SERVICES:
+    for _role, _db, cdir, key, old, *_ in m.SERVICES:
         d = tmp_path / Path(cdir).name
         d.mkdir()
         shutil.copy(ROOT / "infra" / "vps1" / Path(cdir).name / "compose.yaml", d / "compose.yaml")
         (d / ".env").write_text("UNRELATED=1\n")
+        if state == "moved":
+            subprocess.run(["sed", "-i", m.sed_expr(old, key), "compose.yaml"], cwd=d, check=True)
+            (d / ".env").write_text(f"{key}=postgresql://stale:stale@postgres-main:5432/x\nUNRELATED=1\n")
         dirs[cdir] = str(d)
     ups = []
 
@@ -271,8 +289,8 @@ def test_step3d_moves_both_mirrors_onto_their_scoped_logins_under_real_compose(m
     monkeypatch.setattr(m, "run", local)
     monkeypatch.setattr(m, "gate", lambda *a: None)
     pws = {"glitchtip": "G" * 32, "postgres_exporter": "E" * 32}
-    m.step3d_move(pws, {"glitchtip": "fresh", "postgres_exporter": "fresh"})
-    assert len(ups) == 2
+    m.step3d_move(pws, {"glitchtip": state, "postgres_exporter": state})
+    assert ups == [f"cd {cdir} && sudo docker compose up -d {' '.join(svcs)}" for *_, cdir, _k, _o, _n, svcs in m.SERVICES]
     for role, _db, cdir, key, old, _count, _svcs in m.SERVICES:
         env = (Path(dirs[cdir]) / ".env").read_text().splitlines()
         assert env == ["UNRELATED=1", f"{key}={m.scoped_dsn(old, role, pws[role])}"]
