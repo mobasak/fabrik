@@ -240,7 +240,8 @@ import or directory; a review receipt under `docs/development/reviews/` by its f
 per-file seconds each merge leg records in `<git common dir>/fabrik-merge/merge-tests-durations.txt`
 (no record: the round-robin split, W-c832e59f); it refuses a red that
 is new against the base (green, absent, or failing with another crash line there) and a run it
-could not finish, never one of master's own reds; outside a merge check it never checks out or
+could not finish, never one of master's own reds; a red green alone is re-run in its shard's order
+only up to one test past it, every shard file still collected, and so on the base (W-c80361e4); outside a merge check it never checks out or
 cleans the worktree and compares nothing; a rebuild of a branch head whose last green merge differs
 from it only in the selector's SKIP set — ledgers and work items — re-tests nothing, W-347cd0c3), (d) a CAS
 of the local base (up to three rebuilds; every owner-test leg of one invocation, rebuilds and the

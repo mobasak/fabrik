@@ -7,6 +7,11 @@ All notable changes to this project will be documented in this file.
 ### Changed — merge leg: a review receipt selects tests by its file name only (2026-10-29)
 `scripts/merge_test_select.py` keys a changed `docs/development/reviews/*.md` receipt by its file name alone instead of its directory (W-1fb11ec8, D-1356): over the 59 coordinator merges since 2026-10-28 12:00 the leg's serial selection drops 8.2 %, every selection a subset of today's, 17 of 17 measured red-master catches kept. Importer-closure narrowing was measured and rejected (D-1356); the leg's confirm phase, about two thirds of a measured leg, is W-c80361e4.
 
+### Changed — merge leg: an ordered re-run stops one test past the reds it verifies (2026-10-29)
+A merge-leg red that is green alone used to re-run its whole shard in order (~500 s) and, when red there, the
+whole shard again on the base. The recording plugin now cuts such a run one test past its last red, with every
+shard file still collected; the replayed glitchtip leg would have saved ~480 s of 1,644 s (W-c80361e4, D-1360).
+
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
 `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.

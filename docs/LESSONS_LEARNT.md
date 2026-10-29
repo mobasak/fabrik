@@ -8159,3 +8159,13 @@ document.
 **What happened:** W-a12b03a2 planned to reuse rotate_session's `_dialog` ("already tested") to spot builder panes waiting on a dialog. Its fixtures were three hand-written lines (`Allow?\n❯ 1. Yes\n  2. No`). One critique seat argued that real dialogs are bordered; neither seat could open one. A throwaway Haiku session in a scratch tmux session showed the real shapes on Claude Code v2.1.312: no dialog is bordered, but `_dialog` misses two of the three — the workspace-trust prompt (its options are not numbered) and an AskUserQuestion whose wrapped option descriptions put the next option four rows away.
 **Why:** a parser of another program's screen is only as good as the screens its fixtures came from; hand-written fixtures encode the author's memory of the UI, and every reviewer reading them inherits that memory.
 **How to apply:** before relying on a screen parser, produce the real screen it parses in a disposable session (your own scratch tmux session; never a live agent's pane) and run the parser on it; keep the captures out of the repo — another session's screen is not yours to commit — and write fixtures that reproduce the measured row shapes.
+
+## No `pytest_collection_modifyitems` impl is "last" (2026-10-29, W-c80361e4)
+
+**What happened:** the merge leg's ordered-run cut was first a `trylast` `pytest_collection_modifyitems`, then a
+`wrapper=True, trylast=True` one; each read a polluted red green under a conftest that reordered items later (the
+design critique caught the first form, review pass 1 the second).
+**Why:** pluggy runs a later-registered trylast impl AFTER an earlier one, and a wrapper that reorders after `yield`
+runs after every impl inside it — no form of that hook is guaranteed to see the final order.
+**How to apply:** act on the final item order in `pytest_collection_finish`, which runs after every modifyitems impl,
+and grade it against a conftest reorder in each hook form (plain trylast, wrapper, tryfirst wrapper).
