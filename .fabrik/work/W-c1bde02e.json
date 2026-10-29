@@ -11,10 +11,10 @@
     "plan": "",
     "spec": ""
   },
-  "next": "classify each literal subject vs data (census.py in the W-a00defb5 run scratch), re-anchor the subject ones on Path(__file__), then decide by fire rate whether test_enforcement_tests_hermetic.py's rule widens to tests/",
+  "next": "re-run the census by calling refusals() from tests/enforcement/test_enforcement_tests_hermetic.py over every tests/**/*.py outside tests/enforcement/, classify each hit subject vs data, re-anchor the subject ones on Path(__file__).resolve(), then decide by fire rate whether the grader's folder widens to tests/",
   "note": "",
   "owner": "",
   "priority": 3,
   "status": "open",
-  "title": "178 hub-path literals in 65 test files outside tests/enforcement/ (AST census 2026-10-30, W-a00defb5 measure item 6): some may locate their subject by /opt/fabrik and grade the main checkout from a worktree, as the 10 enforcement tests did; many are fixture data (test_vps_script_drift.py 22, test_sync_trigger_coverage.py 22)"
+  "title": "178 hub-path literals in 65 test files outside tests/enforcement/ (AST census 2026-10-30, W-a00defb5: str constants matching ^/+opt/+fabrik(?![\\w.-]), start-anchored as test_enforcement_tests_hermetic.py's rule; 643 files scanned): some may locate their subject by /opt/fabrik and grade the main checkout from a worktree, as the 10 enforcement tests did; many are fixture data (test_vps_script_drift.py 22, test_sync_trigger_coverage.py 22)"
 }

@@ -3,9 +3,9 @@
 
 ## A marker comment is only as stable as the formatter lets it be (2026-10-30, W-a00defb5)
 
-**What happened:** the design marked data literals with a trailing `# hub-path-data:` comment and checked it on the literal's own line, reasoning that E501 is ignored in this repo. Both critique seats ran `ruff format` on the marked files: it wrapped 7 of the 8 lines and moved the comment to the closing bracket, so the grader would have refused the very literals it was meant to accept. Ignoring a lint rule does not stop the formatter. A second gap came out while building: accepting a marker on "the line above" let one trailing comment mark the next statement as well.
+**What happened:** the design marked data literals with a trailing `# hub-path-data:` comment and checked it on the literal's own line, reasoning that E501 is ignored in this repo. Both critique seats ran `ruff format` on the marked files (Opus saw 3 files reformatted, Fable counted 7 of the 8 lines): it moved the comment to the closing bracket, so the grader would have refused the very literals it was meant to accept. Ignoring a lint rule does not stop the formatter. A second gap came out while building: accepting a marker on "the line above" let one trailing comment mark the next statement as well.
 
-**Lesson:** a marker that a check keys on has to survive every tool that rewrites the file — run the formatter on a marked fixture and grade the output, as a test. Key the marker to the statement (any of its lines, or a comment line of its own above it), never to one physical line, and read it from the tokenizer, so a marker typed inside a string does not count.
+**Lesson:** a marker that a check keys on has to survive every tool that rewrites the file — run the formatter on a marked fixture and grade the output, as a test. Key the marker to the statement (any of its lines — a compound statement's header only — or a comment line of its own above it), never to one physical line, and read it from the tokenizer, so a marker typed inside a string does not count.
 
 ## When two critics disagree about what a format means, run the format's own reader (2026-10-29, W-c25fd20f)
 

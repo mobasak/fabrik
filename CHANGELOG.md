@@ -11,9 +11,10 @@ All notable changes to this project will be documented in this file.
   `test_check_decisions_unique.py` refuses a subject module from another tree at collection;
   `test_plan_shape_gates.py` keeps the inherited `PYTHONPATH` behind this tree.
 - New `tests/enforcement/test_enforcement_tests_hermetic.py` refuses a hub-path literal in that
-  folder unless it is data marked `# hub-path-data: <reason>` and not used to locate code (a
-  `cwd=`/`PYTHONPATH=`, a path, import or spawn call, an assignment). The marker survives
-  `ruff format`. D-1365. (W-a00defb5)
+  folder unless it is data marked `# hub-path-data: <reason>` whose statement locates no code: no
+  path, import, file-system or spawn call, no `cwd=`, no `PYTHONPATH`, and the literal not handed on
+  under a name (assigned, a default, a return, a `parametrize` value). The marker survives
+  `ruff format`; an unparsable or undecodable file is refused, not skipped. D-1365. (W-a00defb5)
 
 ### Fixed — two decision-ledger tests grade the tree under test, not /opt/fabrik (2026-10-29)
 - `tests/enforcement/test_check_decisions_unique.py`: `test_the_live_hub_ledger_has_no_stray_rows`

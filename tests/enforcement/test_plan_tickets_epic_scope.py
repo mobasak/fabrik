@@ -178,7 +178,9 @@ def _build(
 def _run(
     plan_dir: Path, root: Path, *, script: Path | None = None, as_json: bool = True
 ) -> subprocess.CompletedProcess[str]:
-    env = {**os.environ, "PYTHONPATH": str(REPO)}
+    # this tree first, keeping the <tree>/src the root conftest puts first (W-a00defb5)
+    inherited = os.environ.get("PYTHONPATH", "")
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join(p for p in (str(REPO), inherited) if p)}
     cmd = [
         sys.executable,
         str(script or CHECK),
