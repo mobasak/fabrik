@@ -1623,6 +1623,70 @@ def test_every_shell_seat_prompt_carries_the_worktree_safe_recipe() -> None:
             assert needed in prompt, needed
 
 
+def _researcher_finder_prompt() -> str:
+    """The rendered finder prompt of a shell-less fabrik-researcher slice."""
+    args = dict(_ARGS)
+    args["slices"] = [
+        {"name": "X", "files": ["a.py"], "models": ["sonnet"], "agent": "fabrik-researcher"}
+    ]
+    _, _, prompts = _harness(
+        args,
+        {"find:X:sonnet": {"files_read": ["a.py"], "notes": "read the slice", "candidates": []}},
+    )
+    return prompts["find:X:sonnet"]
+
+
+def test_every_shell_seat_is_told_to_redirect_git_show_never_output() -> None:
+    """W-9ad5860f (wef1, mail 01M5QKG9Y7): a seat saved a blob with `git show <sha>:<path> --output=<file>`,
+    which leaves the file empty and prints the blob, and read nothing back. The fact sits beside the
+    large-output redirect rule in SEAT_ISOLATION, which only shell seats receive."""
+    for prompt in _shell_seat_prompts():
+        assert "That redirect is a shell `>` (`git show <sha>:<path> > SCRATCH/<file>`)" in prompt
+        assert "never `--output=<file>` on `git show`" in prompt
+        assert "on a blob it writes an empty file and sends the blob to stdout" in prompt
+    assert "--output=" not in _researcher_finder_prompt()
+
+
+def test_every_shell_seat_is_told_how_to_report_a_test_needing_node_modules() -> None:
+    """W-9ad5860f (wef1, mail 01M5QKG9Y7): an archive or clone of a commit holds no gitignored `node_modules/`, so
+    276 node-harness tests failed as environment noise a broad `-k` did not cover, and another skips on the missing
+    tree. Both shell prompts say such a test is unverifiable, never selected, never run on the live tree."""
+    for prompt in _shell_seat_prompts():
+        assert "A gitignored dependency tree — `node_modules/` above all, at the root or nested — is in no commit" in prompt
+        assert "`ERR_MODULE_NOT_FOUND`" in prompt and "a test that SKIPS because a `node_modules` is missing" in prompt
+        assert "never a red of the change and never a pass" in prompt
+        assert "Select only the node ids you run" in prompt and "never `-k`" in prompt
+        assert "one `--deselect` per such test by its full node id" in prompt
+        assert "name each one unverifiable against the pins" in prompt
+        assert "never copy or link the live `node_modules` into SCRATCH or point an env var at it" in prompt
+    assert "node_modules" not in _researcher_finder_prompt()
+
+
+def test_git_show_output_writes_an_empty_file_for_a_blob_and_the_object_for_a_commit(tmp_path: Path) -> None:
+    """A FACT tripwire for the SEAT_ISOLATION sentence, on this box's git: `--output` on a blob leaves the file
+    empty and prints the blob, while on a commit it writes the file. A red means git changed — revise the prompt
+    sentence, never delete this test. The commit-form contrast keeps it from passing on a git that writes nothing."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "f.txt").write_text("blob body\n", encoding="utf-8")
+    env = {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null", "PATH": "/usr/bin:/bin"}
+    for argv in (["init", "-q"], ["add", "-A"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "b"]):
+        subprocess.run(["git", *argv], cwd=repo, check=True, env=env, capture_output=True)
+
+    def show(obj: str, out: Path) -> str:
+        done = subprocess.run(
+            ["git", "show", obj, f"--output={out}"], cwd=repo, env=env, capture_output=True, text=True
+        )
+        assert done.returncode == 0, done.stderr
+        return done.stdout
+
+    blob_out, commit_out = tmp_path / "blob.out", tmp_path / "commit.out"
+    assert show("HEAD:f.txt", blob_out) == "blob body\n"
+    assert blob_out.read_bytes() == b"", "git now honours --output for a blob: revise the SEAT_ISOLATION sentence"
+    assert show("HEAD", commit_out) == ""
+    assert b"blob body" in commit_out.read_bytes()
+
+
 def test_the_finder_and_refuter_share_one_import_recipe() -> None:
     """The recipe was one 1729-character string written out twice; a fix to one copy left the other mandating
     the refused shapes. One constant now feeds both prompts."""
