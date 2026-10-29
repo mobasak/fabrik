@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
+- `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
+  `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`
+  (1 s cap) and listing every live name that fits the line whole, with a stale warning, when
+  several answer (W-9bf5a363,
+  D-1337). The hub coordinator's extension window gets a new auto-generated peer name at each
+  rotation, so a name kept in a builder's notes went dead (a rotate request sat 14 h). Unsafe names
+  are dropped and any error adds no line.
+
 ### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)
 - `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the
   box at 96 % the hook's `SCRATCH ALARM` line landed in the stdout of every `--hook` run that passes its

@@ -343,6 +343,13 @@ D4, D6):
   `work: your claims on items not in this tree — <ids>` for any claim `ready` cannot list; one `on it:`
   line per OTHER session holding a live claim, so every live claim in the repo is counted for every
   session — `work: on it: <session short id> (<agent or "unnamed">) — W-xxxx, W-yyyy`;
+  for a BUILDER in a coordinator-mode repo, the coordinator's live peer address —
+  `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved every prompt through
+  `mail.py who` (1 s cap), every live name that fits the 300-character line listed whole (the rest
+  counted, `… and N more`) with `(several windows answer for it — one may be stale)` when more than
+  one answers, no line when none answers within the cap or the store's distributor is not an agent
+  name, and none in a headless session, which keeps only its own claim lines (W-9bf5a363: an
+  extension coordinator's peer name changes at each rotation, and a name kept in notes goes dead);
   and the ready count.
 - **`status`'s distributor lines (D4).** `UNOWNED` — open items with no owner (a `next` item is never
   counted; it is nobody's to own); `CLAIMS` — one line per session holding a live claim, flagged `— over
