@@ -223,8 +223,10 @@ consumed will be done so"*. `classify_run_folder` is the ONE function that answe
   end bound is W-d1a4a8f5: this box always carries daemons whose `/fd` no one can read — gpg-agent, the
   document portal's setuid `fusermount3` — and without an end one started mid-uptime kept every older
   folder, 152 of them / 77 GB on 2026-10-29, while `/tmp` is NOT cleared at boot here; a zombie is no gap.
-  Residual: a non-seat process started after the run's last activity that still writes into the folder
-  only in place loses it once the grace has passed);
+  Residuals: a non-seat process started after the run's last activity that still writes into the folder
+  only in place loses it once the grace has passed; a close clobbered back to near `created`, which the
+  D-900 vouch still believes, ends the window there; and a run whose seat transcripts the 3-day local
+  pruner removed ends at its close);
   a holder probe that did not complete; a `.keep`; a registered worktree it cannot remove; no
   readable marker; a marker naming another session (D3 only).
 - **CONSUMED, removed walk-free** (INV-2): `done` past its grace, or `running` in a dead session with
