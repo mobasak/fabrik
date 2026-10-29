@@ -855,5 +855,5 @@ def test_real_build_serves_the_static_site(tmp_path: Path) -> None:
         assert headers.get("cache-control") == "public, max-age=31536000, immutable", headers
         assert headers.get("content-encoding") == "gzip", headers
     finally:
-        _docker("rm", "-f", name)
+        _docker("rm", "-f", "-v", name)  # -v: no anonymous volume outlives the container
         _docker("rmi", "-f", tag)

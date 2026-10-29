@@ -162,7 +162,12 @@ def scratch_pg() -> Iterator[ScratchPg]:
             time.sleep(0.5)
         yield ScratchPg(name)
     finally:
-        subprocess.run(["docker", "rm", "-f", name], capture_output=True, check=False, timeout=120)
+        # -v: the image's anonymous data volume goes with the container. Without it this
+        # `rm -f` races `--rm`'s own removal, and whenever it wins the volume is kept
+        # (W-2786800d: 4,171 kept volumes, 232 GB, filled the WSL disk).
+        subprocess.run(
+            ["docker", "rm", "-f", "-v", name], capture_output=True, check=False, timeout=120
+        )
 
 
 # ── The legacy fixture both rows share ─────────────────────────────────────
@@ -653,3 +658,27 @@ def test_o11_docker_unavailable_fails_when_real_pg_is_required(monkeypatch) -> N
     with pytest.raises(pytest.skip.Exception, match="docker"):
         with scratch_pg():
             pass
+
+
+def test_scratch_pg_leaves_no_anonymous_data_volume_behind() -> None:
+    """W-2786800d: the image declares VOLUME, so every container gets an anonymous data volume.
+    The teardown's `docker rm -f` raced `--rm`'s own removal and, winning, kept that volume — 4,171
+    of them (232 GB) filled the WSL disk to 97%. The volume must be gone once the context exits."""
+    with scratch_pg() as s:
+        mounts = subprocess.run(
+            ["docker", "inspect", "-f", "{{range .Mounts}}{{.Name}} {{end}}", s.container],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=True,
+        ).stdout.split()
+    assert mounts, "the premise: postgres:18.6-alpine mounts an anonymous data volume"
+    left = [
+        v
+        for v in mounts
+        if subprocess.run(
+            ["docker", "volume", "inspect", v], capture_output=True, timeout=60, check=False
+        ).returncode
+        == 0
+    ]
+    assert not left, f"scratch_pg left its data volume(s) behind: {left}"
