@@ -602,7 +602,8 @@ _MAP_REL = Path(".fabrik") / "beat-owners.json"
 _LIB_MAP_REL = Path(".fabrik") / "module-owners.json"
 MAP_SWITCHES = ("auto_address", "fabrik_lib_address")
 _ROUTING_CAP = 200  # a header value, never a paragraph
-_BACKTICKED = _re.compile(r"`([^`\n]+)`")
+# a CommonMark code span — N backticks closed by EXACTLY N (a naive pair unpairs after ``x``, W-f2e97f00)
+_CODE_SPAN = _re.compile(r"(?<!`)(`+)(?!`)([^\n]+?)(?<!`)\1(?!`)")
 _PATH_LINE = _re.compile(r"(?<![\w.~/-])((?:/|[\w.-]+/)[\w./-]*[\w-])(?::\d+(?:-\d+)?)")
 _LINE_SUFFIX = _re.compile(r":\d+(?:-\d+)?$")
 
@@ -733,7 +734,8 @@ def _cited_tokens(text: str) -> list[str]:
     """Backticked tokens and `path:line` tokens, each with any `:line[-line]` suffix
     stripped, in order of appearance, de-duplicated."""
     seen: dict[str, None] = {}
-    for tok in [*_BACKTICKED.findall(text), *_PATH_LINE.findall(text)]:
+    spans = [m.group(2) for m in _CODE_SPAN.finditer(text)]
+    for tok in [*spans, *_PATH_LINE.findall(text)]:
         tok = _LINE_SUFFIX.sub("", tok.strip())
         if tok:
             seen.setdefault(tok, None)

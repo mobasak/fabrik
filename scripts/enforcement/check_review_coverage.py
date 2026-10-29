@@ -3221,7 +3221,8 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
 _CHANGED_LINE = re.compile(
     r"\*\*Changed:\*\*(.*?)(?=\n(?![ \t]*(?:\*{0,2}`|(?:\d+[.)]|[-*+]|>+)[ \t]*\*{0,2}`))|\Z)", re.S
 )
-_BACKTICKED = re.compile(r"`([^`\n]+)`")
+# a CommonMark code span — N backticks closed by EXACTLY N (a naive pair unpairs after ``x``, W-f2e97f00)
+_CODE_SPAN = re.compile(r"(?<!`)(`+)(?!`)([^\n]+?)(?<!`)\1(?!`)")
 _TOKEN_SHAPE = re.compile(r"^[\w.+/~-]+$")  # what a path is made of — never a symbol, a flag, prose
 # a pytest node id — EVERYTHING after the first `::` (rounds 6–9 grew a bracket grammar one
 # alphabet at a time and each cut lost a shape; a param is any string pytest was given, so the
@@ -3292,7 +3293,7 @@ def _is_path_token(tok: str) -> bool:
     return not re.fullmatch(r"\d+(?:\.\d+)*", tok)  # a count or a version
 
 
-_HUNT_ROW = re.compile(r"Hunt:\s*`([^`\n]+)`")
+_HUNT_ROW = re.compile(r"Hunt:\s*(`+)(?!`)([^\n]+?)(?<!`)\1(?!`)")
 
 
 def _hunt_gaps(text: str) -> list[str]:
@@ -3316,10 +3317,10 @@ def _hunt_gaps(text: str) -> list[str]:
 
     changed = [
         (_LOCATION_SUFFIX.sub("", c.strip()), _key(c))
-        for c in _BACKTICKED.findall(m.group(1))
+        for c in (s.group(2) for s in _CODE_SPAN.finditer(m.group(1)))
         if _is_path_token(c.strip())
     ]
-    hunted = {_key(h) for h in _HUNT_ROW.findall(stripped)}
+    hunted = {_key(h.group(2)) for h in _HUNT_ROW.finditer(stripped)}
     return [
         f"Changed path `{c}` has no `Hunt:` row — the checklist grades only the rows that exist, "
         "so a file never claimed is never hunted (add the row, then adjudicate it)"

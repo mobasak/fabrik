@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — backticked-path readers read a ``double`` code span instead of unpairing after it (2026-10-29)
+- Four readers paired single backticks, so one double-backtick span shifted the pairing and every later
+  token was prose or missed: `scripts/command_run.py` (`_design_paths`, the `/fabrik-task` close's
+  APPROACH/MIRROR paths, and `_doc_sync_tokens`), `scripts/mail.py` (`_cited_tokens`, the routing paths)
+  and `scripts/enforcement/check_review_coverage.py` (the receipt's Changed list and its `Hunt:` rows).
+  Each now reads a CommonMark code span: a run of N backticks closed by the next run of exactly N, an
+  unclosed run left literal. `tests/test_code_span_readers.py` covers each reader and fails if the
+  naive pattern comes back under `scripts/` or `.claude/hooks/` (kaizen mail 01M5JTMSVY, W-f2e97f00).
+
 ### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)
 - `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the
   box at 96 % the hook's `SCRATCH ALARM` line landed in the stdout of every `--hook` run that passes its

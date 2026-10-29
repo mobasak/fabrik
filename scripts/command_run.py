@@ -5314,7 +5314,22 @@ _TASK_LEDGER_EXCL = (
 # and unstamped `oversized_mini` records (D-789).
 _TASK_REVIEWS_DIR = "docs/development/reviews/"
 
-_TASK_BACKTICKED = re.compile(r"`([^`]+)`")
+# A CommonMark code span: a run of N backticks closed by the next run of EXACTLY N. A naive
+# single-backtick pair unpaired every later token after one ``double`` span (W-f2e97f00);
+# tests/test_code_span_readers.py keeps that pattern out of every reader.
+_CODE_SPAN = re.compile(r"(?<!`)(`+)(?!`)([^\n]+?)(?<!`)\1(?!`)")
+
+
+def _code_spans(text: str) -> list[str]:
+    """The code spans of ``text`` in order, one space stripped from each side when both carry
+    one and the span is not all spaces (CommonMark); an unclosed run stays literal text."""
+    out = []
+    for m in _CODE_SPAN.finditer(text):
+        s = m.group(2)
+        out.append(s[1:-1] if s[0] == s[-1] == " " and s.strip() else s)
+    return out
+
+
 # Root-level destinations the Doc Sync Matrix names WITHOUT a slash. A harvested token with no
 # `/` and not in this set is prose (see `_doc_sync_tokens`).
 _TASK_ROOT_DESTINATIONS = frozenset({".env.example", "CHANGELOG.md", "INDEX.md", "PORTS.md"})
@@ -5352,7 +5367,7 @@ def _doc_sync_tokens(text: str) -> set[str]:
         cells = ln.split("|")
         if len(cells) < 4:  # not a two-column row; the `|---|---|` separator included
             continue
-        for tok in _TASK_BACKTICKED.findall(cells[2]):
+        for tok in _code_spans(cells[2]):
             if not tok.endswith(_TASK_DOC_SUFFIXES):
                 continue
             # ⚠️ A destination carries a `/` or is a known ROOT name; a bare token with neither is
@@ -5799,7 +5814,6 @@ _DESIGN_LABEL = re.compile(
 _DESIGN_HEADING = re.compile(r"^#{1,6}[ \t]", re.MULTILINE)
 _BEHAVIOURS_HEADING = re.compile(r"^#{2,6}[ \t]+Behaviou?rs\b[^\n]*$", re.MULTILINE | re.IGNORECASE)
 _LIST_ITEM = re.compile(r"^[ \t]{0,3}(?:[-*+]|\d+[.)])[ \t]+\S", re.MULTILINE)
-_BACKTICKED = re.compile(r"`([^`\n]+)`")
 
 
 def _design_paths(text: str) -> list[str]:
@@ -5813,7 +5827,7 @@ def _design_paths(text: str) -> list[str]:
         if label not in ("APPROACH", "MIRROR"):
             continue
         end = next((s for s in stops if s > pos), len(text))
-        out += _BACKTICKED.findall(text[pos:end])
+        out += _code_spans(text[pos:end])
     return list(dict.fromkeys(out))
 
 
