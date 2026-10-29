@@ -17,7 +17,9 @@ coordinator's verb; `agents_up.sh add` dispatches here. Every `add` for one repo
     (6) place + launch — adoption, the registry heal, headroom again after a cold start, then the one pane command
                          `agents_up.sh --pane-cmd … --new` placed by `place_pane` (or the second `--detach`)
     — the lock is released —
-    (7) the launchers  — T08c, under the desktop lock only
+    (7) the launchers  — `agents_bat.py --tabbed` (it takes the desktop lock), and when step 6 opened `agents-<k>`
+                         (k >= 2) a live `wt.exe -w fabrik-agents new-tab` attaching `=<S>+<k>`; every failure here is
+                         said on stderr and `add` still exits 0 (spec § Lifecycle)
 
 Each step checks its own artifact first and skips when it is there, so a re-run completes what a failed run left; a
 failing step leaves the earlier ones and says which step to re-run. Every refusal exits 2 and appends one JSON line
@@ -90,6 +92,8 @@ class Spawn:
     cold: str = ""
     # the settle bound step 3 validated (FABRIK_AGENTS_SETTLE_S); step 6's no-builder waits reuse it
     settle: float = 0.0
+    # step 6's PlaceResult.new_window_k (None: no window opened — a split, an adoption, a cold-start grid); step 7 reads it
+    new_window_k: int | None = None
 
 
 def _git_env() -> dict[str, str]:
@@ -1535,11 +1539,157 @@ def place_and_launch(ctx: Spawn) -> None:
             6,
         )
     placed = place_pane(root, sess, name, ctx.sid, _worktree_dir(ctx), cmd)
+    ctx.new_window_k = placed.new_window_k
     print(f"agents_spawn: step 6 — {name} launched in pane {placed.pane_id} ({placed.window_id})")
 
 
+# ---- step 7: the launchers (T08c) -------------------------------------------------------------------------------
+# Spec D5 + § Lifecycle's degradation rule: the .bat is the source of truth at every click, so nothing here can fail
+# `add` — a generator that fails, a desktop never remembered, a wt.exe missing or failing, a distro that cannot be
+# derived: each is SAID on stderr and step 7 returns; the next add/remove regenerates the .bat.
+
+WT_WINDOW = "fabrik-agents"  # agents_bat.py::WINDOW — the named Windows Terminal window the tabbed .bat opens
+WT_GLOB = "/mnt/c/Users/*/AppData/Local/Microsoft/WindowsApps/wt.exe"
+WT_TIMEOUT_S = 30.0
+# agents_bat.py asks agents_up.sh --print once per /opt repo, outside its desktop lock
+LAUNCHER_TIMEOUT_S = 300
+
+_deck: object = None
+
+
+def _load_deck():
+    """fabrik_deck.py loaded by path, once (agents_bat.py::_load_deck): `_default_distro`, the ONE distro resolver."""
+    global _deck
+    if _deck is None:
+        spec = importlib.util.spec_from_file_location(
+            "fabrik_deck_for_agents_spawn", Path(__file__).with_name("fabrik_deck.py")
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _deck = mod
+    return _deck
+
+
+def _agents_bat_path() -> str:
+    """agents_bat.py — FABRIK_AGENTS_BAT (tests run a fake or a wrapper), else the one beside this script."""
+    return os.environ.get("FABRIK_AGENTS_BAT") or str(Path(__file__).with_name("agents_bat.py"))
+
+
+def _wt_exe() -> tuple[str, str]:
+    """(wt.exe, '') or ('', why none): $FABRIK_WT_EXE, else `wt.exe` on PATH, else the single WT_GLOB match."""
+    env = os.environ.get("FABRIK_WT_EXE")
+    if env:
+        return env, ""
+    found = shutil.which("wt.exe")
+    if found:
+        return found, ""
+    matches = sorted(glob.glob(WT_GLOB))
+    if len(matches) == 1:
+        return matches[0], ""
+    if not matches:
+        return "", f"wt.exe not found ($FABRIK_WT_EXE unset, not on PATH, no {WT_GLOB})"
+    return "", f"wt.exe is ambiguous: {len(matches)} matches of {WT_GLOB}"
+
+
+def _say7(text: str) -> None:
+    print(f"agents_spawn: step 7 — {text}", file=sys.stderr)
+
+
+def _run_agents_bat(distro: str) -> None:
+    """`agents_bat.py --tabbed [--distro D]` (no --desktop: the remembered folder). Its stderr notes ("no desktop
+    remembered", a refusal) and its own status lines reach the caller; the .bat text it prints when no desktop is
+    remembered does not."""
+    args = [sys.executable, _agents_bat_path(), "--tabbed"]
+    if distro:
+        args += ["--distro", distro]
+    try:
+        out = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=LAUNCHER_TIMEOUT_S,
+            check=False,
+            stdin=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        _say7(
+            f"agents_bat.py --tabbed could not run ({type(exc).__name__}: {exc}); "
+            "the .bat is regenerated at the next add or remove"
+        )
+        return
+    for line in out.stdout.splitlines():
+        if line.startswith("agents_bat:"):
+            print(line)
+    if out.stderr:
+        sys.stderr.write(out.stderr if out.stderr.endswith("\n") else out.stderr + "\n")
+    if out.returncode != 0:
+        _say7(
+            f"agents_bat.py --tabbed exited {out.returncode}; the .bat is regenerated at the next add or remove"
+        )
+
+
+def _append_tab(ctx: Spawn, k: int, distro: str) -> None:
+    """D5's live tab: `wt.exe -w fabrik-agents new-tab … tmux attach -t =<S>+<k>` (the overflow session, T03)."""
+    if not distro:
+        _say7("no WSL distro could be derived — tab not appended")
+        return
+    wt, why = _wt_exe()
+    if not wt:
+        _say7(f"{why} — tab not appended; the .bat opens it at the next click")
+        return
+    repo = os.path.basename(ctx.root)
+    title = f"{repo[:1].upper()}{repo[1:]} Agents {k}"  # agents_bat.py::tabbed_text's title for window k
+    argv = [
+        wt,
+        "-w",
+        WT_WINDOW,
+        "new-tab",
+        "--title",
+        title,
+        "wsl.exe",
+        "--distribution",
+        distro,
+        "--exec",
+        "tmux",
+        "attach",
+        "-t",
+        f"={session_name(ctx.root)}+{k}",
+    ]
+    try:
+        out = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=WT_TIMEOUT_S,
+            check=False,
+            stdin=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        _say7(f"wt.exe ({wt}) could not run ({type(exc).__name__}: {exc}) — tab not appended")
+        return
+    if out.returncode != 0:
+        _say7(
+            f"wt.exe ({wt}) exited {out.returncode}: {out.stderr.strip() or '(no stderr)'} — tab not appended"
+        )
+        return
+    print(f'agents_spawn: step 7 — tab "{title}" appended to the {WT_WINDOW} window')
+
+
 def regenerate_launchers(ctx: Spawn) -> None:
-    """D2 (7), D5 — T08c: regenerate the launchers under the desktop lock, never the agents lock. Nothing yet."""
+    """D2 (7), D5 — outside the agents lock (agents_bat.py takes the desktop lock itself, panel PF3). The distro is
+    derived ONCE (C8) and passed to agents_bat.py only when non-empty; the live tab is appended only when step 6 opened
+    an overflow window `agents-<k>` (k >= 2) — a re-created `agents` (k = 1) is the .bat's first tab, `<S>` itself.
+    Never raises: every failure is said, and `add` still exits 0."""
+    try:
+        distro = _load_deck()._default_distro()
+    except Exception as exc:  # noqa: BLE001 — the resolver's failure is a said '' distro, never a refusal
+        _say7(f"the distro resolver failed ({type(exc).__name__}: {exc})")
+        distro = ""
+    _run_agents_bat(distro)
+    if ctx.new_window_k is not None and ctx.new_window_k >= 2:
+        _append_tab(ctx, ctx.new_window_k, distro)
 
 
 # ---- the verb -----------------------------------------------------------------------------------------------------

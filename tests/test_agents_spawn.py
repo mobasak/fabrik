@@ -177,6 +177,21 @@ if mode == "--pane-cmd":
 sys.exit(9)
 """
 )
+# T08c: the agents_bat.py and wt.exe stand-ins behind FABRIK_AGENTS_BAT / FABRIK_WT_EXE. Each appends its argv (one JSON
+# list per call) to $HOME/<name>.log and exits with $HOME/<name>.rc (default 0), so no add ever regenerates a real
+# desktop or opens a real Windows Terminal tab.
+FAKE_LOGGER = (
+    f"#!{sys.executable}\n"
+    + r"""import json, os, sys
+from pathlib import Path
+home = Path(os.environ["HOME"])
+me = Path(sys.argv[0]).name
+with (home / f"{me}.log").open("a", encoding="utf-8") as fh:
+    fh.write(json.dumps(sys.argv[1:]) + "\n")
+rc = home / f"{me}.rc"
+sys.exit(int(rc.read_text(encoding="utf-8")) if rc.is_file() else 0)
+"""
+)
 # the Box's default tmux: no grid until the fake agents_up.sh writes $HOME/fake-grid (one list-panes line), then
 # has-session answers yes and list-panes prints it; every other call fails
 FAKE_TMUX_DOWN = """#!/bin/sh
@@ -239,6 +254,8 @@ class Box:
             ("git", FAKE_GIT),
             ("fake-agents-up", FAKE_UP),
             ("fake-tmux", FAKE_TMUX_DOWN),
+            ("agents-bat", FAKE_LOGGER),
+            ("wt", FAKE_LOGGER),
         ):
             (self.bin / tool).write_text(text, encoding="utf-8")
             (self.bin / tool).chmod(0o755)
@@ -316,6 +333,9 @@ class Box:
             "FABRIK_AGENTS_UP": str(self.bin / "fake-agents-up"),
             "FABRIK_TMUX": str(self.bin / "fake-tmux"),
             "FABRIK_PROC_ROOT": str(self.home / "proc"),
+            "FABRIK_AGENTS_BAT": str(self.bin / "agents-bat"),
+            "FABRIK_WT_EXE": str(self.bin / "wt"),
+            "WSL_DISTRO_NAME": "Test-Distro",
         }
         env.update(extra)
         return {k: v for k, v in env.items() if v is not None}
@@ -2524,3 +2544,258 @@ def test_p2_a_grid_another_start_is_still_building_is_never_fallen_through(
         assert rc == 0, box.refusals()
         assert len(_calls(box, "--pane-cmd")) == 1
         assert g.tags() == ["agents builder-1", "agents builder-9"], g.tags()
+
+
+# --- W-b9ad80ae T08c: step 7 — the launchers regenerated, the live tab appended ----------------------------------
+# `agents_bat.py` and `wt.exe` are the Box's logging fakes (FABRIK_AGENTS_BAT, FABRIK_WT_EXE) unless a row swaps in the
+# REAL generator (behind a wrapper that pins --opt to tmp_path and its tmux reads to the scratch server). State is
+# asserted: the argv each fake recorded, the .bat file's bytes, stderr.
+
+BAT = ROOT / "scripts" / "sysadmin" / "agents_bat.py"
+TAB_TITLE = "Shop Agents 2"
+
+
+def _logged(box: Box, fake: str) -> list[list[str]]:
+    log = box.home / f"{fake}.log"
+    if not log.is_file():
+        return []
+    return [json.loads(ln) for ln in log.read_text(encoding="utf-8").splitlines() if ln.strip()]
+
+
+def _wt_argv(wt: str, distro: str = "Test-Distro") -> list[str]:
+    return [
+        "-w",
+        "fabrik-agents",
+        "new-tab",
+        "--title",
+        TAB_TITLE,
+        "wsl.exe",
+        "--distribution",
+        distro,
+        "--exec",
+        "tmux",
+        "attach",
+        "-t",
+        "=shop+2",
+    ]
+
+
+def _add_fifth(box: Box, g: _Grid, mod) -> int:
+    """A full in-process `add` of a fifth builder into a four-pane grid: step 6 opens `agents-2` (k = 2)."""
+    _grid_up(g, "b-1", "b-2", "b-3", "b-4")
+    rc = mod.main(["add", str(box.repo), "builder-5"])
+    assert [w.split()[0] for w in g.windows()] == ["agents", "agents-2"], g.windows()
+    return rc
+
+
+def _ctx(box: Box, mod, k: int | None = 2):
+    return mod.Spawn(
+        root=str(box.repo), name="b-5", role="builder", item=None, argv=[], new_window_k=k
+    )
+
+
+def _no_wt_anywhere(box: Box, monkeypatch, mod, tmp_path: Path) -> None:
+    """wt.exe resolves nowhere: FABRIK_WT_EXE unset, PATH holding no wt.exe, the WindowsApps glob matching nothing."""
+    monkeypatch.delenv("FABRIK_WT_EXE", raising=False)
+    monkeypatch.setenv("PATH", f"{box.bin}:/usr/bin:/bin")
+    assert shutil.which("wt.exe") is None
+    monkeypatch.setattr(mod, "WT_GLOB", str(tmp_path / "Users" / "*" / "wt.exe"))
+
+
+@pytest.mark.parametrize("wt", ["present", "absent"])
+def test_c1_a_new_window_appends_its_live_tab_and_a_missing_wt_exe_still_exits_0(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, wt: str
+) -> None:
+    """Spec D5 + § Lifecycle: step 6 opened agents-2, so wt.exe gets the tab attaching `=<S>+2`; with no wt.exe the
+    add says so and exits 0 (the .bat is still regenerated)."""
+    box = Box(tmp_path, registry={})
+    g, mod = _inproc(box, monkeypatch, request, tmp_path)
+    if wt == "absent":
+        monkeypatch.setenv("FABRIK_WT_EXE", str(tmp_path / "no-such" / "wt.exe"))
+    assert _add_fifth(box, g, mod) == 0, box.refusals()
+    err = capsys.readouterr().err
+    assert _logged(box, "agents-bat") == [["--tabbed", "--distro", "Test-Distro"]]
+    if wt == "present":
+        assert _logged(box, "wt") == [_wt_argv("wt")]
+    else:
+        assert _logged(box, "wt") == []
+        assert "wt.exe" in err and "tab not appended" in err, err
+    assert not box.refusals()
+
+
+@pytest.mark.parametrize("k", [None, 1])
+def test_c1_no_new_overflow_window_appends_no_tab(tmp_path: Path, monkeypatch, k) -> None:
+    """A split, an adoption or a cold-start grid (k None), or a re-created `agents` (k 1, shown by the .bat's first tab
+    as `<S>` itself), appends nothing; the .bat is still regenerated."""
+    box = Box(tmp_path)
+    _, mod = _inproc(box, monkeypatch)
+    mod.regenerate_launchers(_ctx(box, mod, k))
+    assert _logged(box, "wt") == []
+    assert _logged(box, "agents-bat") == [["--tabbed", "--distro", "Test-Distro"]]
+
+
+@pytest.mark.parametrize("how", ["env-missing", "nowhere", "two-globbed", "fails", "times-out"])
+def test_c1_a_wt_exe_that_is_missing_or_failing_is_said_and_never_raises(
+    tmp_path: Path, monkeypatch, capsys, how: str
+) -> None:
+    box = Box(tmp_path)
+    _, mod = _inproc(box, monkeypatch)
+    if how == "env-missing":
+        monkeypatch.setenv("FABRIK_WT_EXE", str(tmp_path / "gone" / "wt.exe"))
+    elif how in ("nowhere", "two-globbed"):
+        _no_wt_anywhere(box, monkeypatch, mod, tmp_path)
+        if how == "two-globbed":
+            for user in ("a", "b"):
+                p = tmp_path / "Users" / user / "wt.exe"
+                p.parent.mkdir(parents=True)
+                p.write_text(FAKE_LOGGER, encoding="utf-8")
+                p.chmod(0o755)
+    elif how == "fails":
+        (box.home / "wt.rc").write_text("1", encoding="utf-8")
+    else:
+        slow = box.bin / "slow-wt"
+        slow.write_text("#!/bin/sh\nsleep 5\n", encoding="utf-8")
+        slow.chmod(0o755)
+        monkeypatch.setenv("FABRIK_WT_EXE", str(slow))
+        monkeypatch.setattr(mod, "WT_TIMEOUT_S", 0.5)
+    mod.regenerate_launchers(_ctx(box, mod))  # never raises: add's except would turn it into exit 2
+    err = capsys.readouterr().err
+    assert "tab not appended" in err and "wt.exe" in err, err
+    assert _logged(box, "agents-bat") == [["--tabbed", "--distro", "Test-Distro"]]
+    if how == "two-globbed":
+        assert "2 matches" in err, err
+        assert not (tmp_path / "Users" / "a" / "wt.exe.log").exists()
+
+
+@pytest.mark.parametrize("where", ["path", "glob"])
+def test_c1_wt_exe_resolves_from_path_then_the_single_glob_match(
+    tmp_path: Path, monkeypatch, where: str
+) -> None:
+    box = Box(tmp_path)
+    _, mod = _inproc(box, monkeypatch)
+    _no_wt_anywhere(box, monkeypatch, mod, tmp_path)
+    if where == "path":
+        found = tmp_path / "winpath" / "wt.exe"
+        monkeypatch.setenv("PATH", f"{found.parent}:{box.bin}:/usr/bin:/bin")
+    else:
+        found = tmp_path / "Users" / "someone" / "wt.exe"
+    found.parent.mkdir(parents=True)
+    found.write_text(FAKE_LOGGER, encoding="utf-8")
+    found.chmod(0o755)
+    mod.regenerate_launchers(_ctx(box, mod))
+    assert _logged(box, "wt.exe") == [_wt_argv("wt.exe")]
+
+
+def _failing_wslpath(box: Box, monkeypatch, mod) -> object:
+    """WSL_DISTRO_NAME unset and `wslpath` exiting 1: the Deck's resolver returns ''. Returns the loaded deck."""
+    monkeypatch.delenv("WSL_DISTRO_NAME", raising=False)
+    fake = box.bin / "wslpath"
+    fake.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    fake.chmod(0o755)
+    deck = mod._load_deck()
+    monkeypatch.setattr(deck, "WSLPATH", str(fake))  # fabrik_deck.py calls it by absolute path
+    return deck
+
+
+@pytest.mark.parametrize("distro", ["", "Ubuntu-24.04", "Test-Distro"])
+def test_c2_the_distro_is_derived_once_and_passed_only_when_non_empty(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, distro: str
+) -> None:
+    """Plan-review C8, panel PF5: one `_default_distro()` per add; '' skips the tab with the no-distro note and calls
+    agents_bat.py without --distro; a value reaches both agents_bat.py and the tab."""
+    box = Box(tmp_path, registry={})
+    g, mod = _inproc(box, monkeypatch, request, tmp_path)
+    if distro:
+        monkeypatch.setenv("WSL_DISTRO_NAME", distro)
+        deck = mod._load_deck()
+    else:
+        deck = _failing_wslpath(box, monkeypatch, mod)
+    calls: list[str] = []
+    real = deck._default_distro
+
+    def counted() -> str:
+        calls.append("x")
+        return real()
+
+    monkeypatch.setattr(deck, "_default_distro", counted)
+    assert _add_fifth(box, g, mod) == 0, box.refusals()
+    err = capsys.readouterr().err
+    assert len(calls) == 1, calls
+    if distro:
+        assert _logged(box, "agents-bat") == [["--tabbed", "--distro", distro]]
+        assert _logged(box, "wt") == [_wt_argv("wt", distro)]
+    else:
+        assert _logged(box, "agents-bat") == [["--tabbed"]]
+        assert _logged(box, "wt") == []
+        assert "no WSL distro could be derived — tab not appended" in err, err
+
+
+def _real_generator(g: _Grid, tmp_path: Path, monkeypatch) -> Path:
+    """FABRIK_AGENTS_BAT → the REAL agents_bat.py, run with --opt tmp_path (only the Box's repo `shop` qualifies), its
+    `--print` question answered by a stub, and its `tmux list-windows` sent to the scratch server."""
+    shim = tmp_path / "shim"
+    shim.mkdir()
+    (shim / "tmux").write_text(f'#!/bin/sh\nexec {g.real} -L {g.server} "$@"\n', encoding="utf-8")
+    (shim / "tmux").chmod(0o755)
+    up = shim / "print-up.sh"
+    up.write_text("echo session shop\necho pane b-1 x /x running\n", encoding="utf-8")
+    wrapper = shim / "agents-bat-real.py"
+    wrapper.write_text(
+        "import os, runpy, sys\n"
+        f"os.environ['PATH'] = {str(shim)!r} + ':' + os.environ['PATH']\n"
+        f"os.environ['AGENTS_UP_BIN'] = {str(up)!r}\n"
+        f"sys.argv = [{str(BAT)!r}, *sys.argv[1:], '--opt', {str(tmp_path)!r}]\n"
+        f"runpy.run_path({str(BAT)!r}, run_name='__main__')\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("FABRIK_AGENTS_BAT", str(wrapper))
+    spec = importlib.util.spec_from_file_location("agents_bat_for_spawn_test", BAT)
+    assert spec and spec.loader
+    bat = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bat)
+    return bat
+
+
+@pytest.mark.parametrize("desktop", ["remembered", "none"])
+def test_c3_the_remembered_desktops_tabbed_bat_lists_the_new_window_and_no_desktop_still_exits_0(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, desktop: str
+) -> None:
+    """Spec D5: the real generator rewrites `All Agents (tabbed).bat` in the remembered folder with the new window's tab;
+    with nothing remembered the add says so (agents_bat's note) and exits 0."""
+    box = Box(tmp_path, registry={})
+    g, mod = _inproc(box, monkeypatch, request, tmp_path)
+    bat = _real_generator(g, tmp_path, monkeypatch)
+    desk = tmp_path / "desktop"
+    desk.mkdir()
+    if desktop == "remembered":
+        cfg = box.home / ".config" / "fabrik"
+        cfg.mkdir(parents=True)
+        (cfg / "agents-desktop").write_text(f"{desk}\n", encoding="utf-8")
+    assert _add_fifth(box, g, mod) == 0, box.refusals()
+    out, err = capsys.readouterr()
+    target = desk / "All Agents (tabbed).bat"
+    if desktop == "remembered":
+        want = bat.tabbed_text(["shop"], {"shop": [2]}, "Test-Distro")
+        assert target.read_bytes() == want.encode("ascii")
+        assert f'--title "{TAB_TITLE}"' in want and "--window 2 /opt/shop" in want
+        assert f"agents_bat: wrote {target}" in out, out
+    else:
+        assert not target.exists()
+        assert "no desktop remembered" in err, err
+        assert "@echo off" not in out  # the printed .bat is not add's output
+
+
+@pytest.mark.parametrize("how", ["exit-2", "cannot-run"])
+def test_c3_a_failing_generator_is_said_and_add_exits_0(
+    tmp_path: Path, monkeypatch, capsys, how: str
+) -> None:
+    box = Box(tmp_path)
+    _, mod = _inproc(box, monkeypatch)
+    if how == "exit-2":
+        (box.home / "agents-bat.rc").write_text("2", encoding="utf-8")
+    else:
+        monkeypatch.setenv("FABRIK_AGENTS_BAT", str(tmp_path / "gone.py"))
+    mod.regenerate_launchers(_ctx(box, mod))
+    err = capsys.readouterr().err
+    assert "agents_bat.py --tabbed" in err and "regenerated at the next" in err, err
+    assert _logged(box, "wt") == [_wt_argv("wt")]  # the live tab does not depend on the .bat
