@@ -206,7 +206,9 @@ python3 scripts/merge_request.py merge --queue [--jobs 1] [--max 4]
 #      base, Sk request k merged onto S(k-1)) in pretest throwaways, runs each leg OUTSIDE the merge
 #      lock in a forked child (at most --jobs at once, default 1, each at the owner script's own
 #      width; a later leg forks only once the first request lands on a record or has no tree to
-#      test, and only while it and a landing after it fit the wall — W-d5d1d394), records
+#      test, and only while it and a landing after it fit the wall — W-d5d1d394; the leg is budgeted
+#      at the longest green leg the run already timed, at its declared limit until one is —
+#      W-1fb11ec8), records
 #      each green tree as --pretest does, then lands each request in order through the unchanged
 #      locked `merge <id>`, which skips its leg on the matching tree. A request that will not build
 #      is skipped and the chain continues; after each landing the rest is rebuilt on the new base and

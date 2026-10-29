@@ -2892,12 +2892,19 @@ def _land(msg_id: str) -> int:
             time.sleep(QUEUE_POLL_S)
 
 
-def _leg_fits(started: float, script: str) -> bool:
-    """A leg forked now may run its whole limit (``_declared_leg``) plus LEG_OVERHEAD_S — its
-    setup (an estimate: no deadline bounds it) and the leg's 60 s outer bound — and still be
-    followed by a worst-case landing; else the leg cannot lead to a landing this run, and the
-    wall return would only wait on it."""
-    leg = _declared_leg(script) + LEG_OVERHEAD_S
+def _leg_fits(started: float, script: str, timed: float = 0.0) -> bool:
+    """A leg forked now, plus LEG_OVERHEAD_S — its setup (an estimate: no deadline bounds it) and
+    the leg's 60 s outer bound — can still be followed by a worst-case landing; else the leg cannot
+    lead to a landing this run, and the wall return would only wait on it. The leg is budgeted at
+    ``timed``, the longest green leg this run already timed (W-1fb11ec8: 697 s live against the
+    hub's declared 2700 s, which closed the window at 1080 s of the 11100 s wall), and at its whole
+    limit (``_declared_leg``) while nothing is timed. Either way the leg itself ends inside the wall:
+    one forked at the last moment that runs its whole limit ends by ``QUEUE_WALL_S -
+    LANDING_WORST_S + limit``, and a landing's worst case outweighs any limit a base may declare
+    (MERGE_TEST_BUDGET_S). A leg longer than every one timed only finishes too late to land this
+    run: the return waits on it, and its record serves the next run on the same base."""
+    limit = _declared_leg(script)
+    leg = (min(timed, limit) if timed > 0 else limit) + LEG_OVERHEAD_S
     return time.monotonic() - started + leg + LANDING_WORST_S <= QUEUE_WALL_S
 
 
@@ -2921,7 +2928,8 @@ def _queue(args: argparse.Namespace) -> int:
     started = time.monotonic()
     runner = _runner_sha()  # once, before any carry can rewrite this file (Opus 9)
     fork = multiprocessing.get_context("fork")
-    running: dict[str, object] = {}  # head -> its leg child
+    running: dict[str, tuple] = {}  # head -> (its leg child, forked at, its element, its script)
+    timed = 0.0  # the longest leg this run forked that ended on a matching record (_leg_fits)
     landed: set[str] = set()
     rc = EXIT_OK
     with _queue_lock(ctx):
@@ -2952,10 +2960,14 @@ def _queue(args: argparse.Namespace) -> int:
                     continue  # the base moved while the chain was built: build it again
                 first = chain[0]
                 while True:
-                    for head, child in list(running.items()):
+                    for head, (child, forked, leg_el, leg_script) in list(running.items()):
                         if not child.is_alive():
                             child.join()
                             del running[head]
+                            # only a green leg is timed: a red, killed or timed-out one leaves no
+                            # matching record, and its seconds would open the window too wide
+                            if _record_matches(ctx, leg_el, leg_script, runner):
+                                timed = max(timed, time.monotonic() - forked)
                     # a later leg forks only once the first request lands on a record (or has no
                     # tree to test): else its locked merge runs its own leg, and a queue leg
                     # beside it halves both
@@ -2970,19 +2982,19 @@ def _queue(args: argparse.Namespace) -> int:
                         if _record_matches(ctx, el, script, runner) or el.get("leg_done"):
                             continue
                         if (el is not first and not first_on_record) or not _leg_fits(
-                            started, script
+                            started, script, timed
                         ):
                             break
                         child = fork.Process(target=_leg_child, args=(ctx, el, runner))
                         child.start()
-                        running[el["head"]] = child
+                        running[el["head"]] = (child, time.monotonic(), el, script)
                         el["leg_done"] = True  # one leg per element per chain build
                     if first["at"] is None or (
                         first["head"] not in running
                         and (
                             first.get("leg_done")
                             or _record_matches(ctx, first, script, runner)
-                            or not _leg_fits(started, script)
+                            or not _leg_fits(started, script, timed)
                         )
                     ):
                         # ready to land: its leg is over (green, red or killed), its record is
@@ -3000,7 +3012,7 @@ def _queue(args: argparse.Namespace) -> int:
                 # every later element was built on a tip that may not have landed: the next pass
                 # rebuilds the chain on the new base and reuses each record that still matches
         finally:
-            for child in running.values():
+            for child, *_ in running.values():
                 child.join()  # a stale leg finishes; its record names a tree that never lands
 
 
