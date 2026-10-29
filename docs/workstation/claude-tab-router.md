@@ -18,7 +18,7 @@ A small window, **"Claude — open which agent in this tab?"**, lists:
 | `Plain chat in <folder> — as today` (default) | the tab runs exactly as before the router existed |
 | `Resume <role> (<repo>) — last <date>` | the role's newest session, in that session's own folder (a builder's worktree included), with `CLAUDE_AGENT=<role>` |
 | `New session as <role> in <repo>` | a fresh chat in that repo, bound to the role |
-| `New session as coordinator in <repo> (no owner row)` | the same, for a repo whose ledger declares no merge owner yet: the default coordinator name (D-1305's plain `coordinator`); the session is then told to adopt, and once the repo has its `MERGE OWNER:` row the picker offers that name instead |
+| `New session as coordinator in <repo> (no owner row)` | the same, for a repo whose ledger declares no merge owner yet: the default coordinator name (D-1305's plain `coordinator`); once the repo has its `MERGE OWNER:` row the picker offers that name instead. The router itself does not ask anyone to adopt: the SessionStart hook does (`.claude/hooks/session_orient.py` `_model_line`), in a main checkout that has `scripts/docs_updater.py`, when the repo is the hub or has fewer than 2 live sessions |
 | `New session in <repo>` | a fresh chat in that repo, no role |
 | `<role> (<repo>) — live elsewhere (pid N)` | listed, **refused**: that role already runs in another process (one process per session id — coordinator ruling 2026-10-21); the tab runs plain |
 | `<role> (<repo>) — cannot bind` | a registered name `whoami_agent.py` would not accept |

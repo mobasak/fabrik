@@ -537,13 +537,13 @@ def test_a_hung_lookup_costs_only_its_own_row(r, box, monkeypatch):
     slow = _git(box.repo("slow", owner="s1"))
     fast = _git(box.repo("fast", owner="f1"))
     release = threading.Event()
-    real = r.hibernate.merge_owner
 
     def fake(repo, **kw):
         if repo == slow:
             release.wait(20)
             return "s1", "late"
-        return real(repo, **kw)
+        # no subprocess: a loaded box cannot push it past the budget
+        return "f1", "the ledger's merge owner"
 
     monkeypatch.setattr(r.hibernate, "merge_owner", fake)
     # the router's own deadline function, never the global clock (W-1e0f4229): 5 s from now, so the
@@ -560,6 +560,23 @@ def test_a_hung_lookup_costs_only_its_own_row(r, box, monkeypatch):
     assert not _role_rows(rows, slow)
     assert [x["role"] for x in _role_rows(rows, fast)] == ["f1"]
     assert "New session in slow" in [x["label"] for x in rows]
+
+
+def test_a_git_file_lists_the_repo_once_beside_its_known_agents(r, box):
+    """A `.git` FILE (a linked layout) lists the repo, and a repo found both by a registry and by its git entry
+    appears once: one "New session in" row and one coordinator row."""
+    linked = box.repo("linked", owner="lk1")
+    (Path(linked) / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    _agents(linked, {SID_YT: "builder"})
+    alone = box.repo("alone", owner="al1")  # no registry knows it: only its `.git` file lists it
+    (Path(alone) / ".git").write_text("gitdir: /elsewhere\n", encoding="utf-8")
+    rows = r.entries(box.home, box.proc, str(box.opt))
+    assert [x["label"] for x in rows].count("New session in linked") == 1
+    assert "New session as al1 in alone" in [x["label"] for x in rows]
+    assert [x["role"] for x in rows if x["repo"] == linked and x["kind"] == r.NEW_ROLE] == [
+        "builder",
+        "lk1",
+    ]
 
 
 def test_merge_owner_timeout_keyword(r, box, monkeypatch):
