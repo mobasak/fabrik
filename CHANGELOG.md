@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — hub mail auto-replies tell one agent from another (2026-10-29)
+- `scripts/mail.py`: in the hub's shared `fabrik` mailbox the `--auto` self-guard and rate cap key on
+  `(from, from-agent)` (W-19b57b9a, D-1329). A fleet request auto-replied by infra was held as infra's
+  own message, and every hub agent shared one rate bucket. A parent now passes when its `from-agent` and
+  the replier's agent are both hub agents and differ; the rate bucket is that agent's, with unattributed
+  messages counted in every bucket. Unknown agents, other mailboxes and callers passing none keep the old rule.
+
 ### Fixed — a wide merge-test leg declares its memory ceiling, and a ceiling kill says so (2026-10-29)
 - `scripts/merge_request.py` reads `# merge-test-mem: <n>M|<n>G` from the BASE's `.fabrik/merge-tests`
   (clamped 256M..8G) and passes it to capped_run as `--mem`; the hub declares 8G (W-e64a7b8e, D-1328).
