@@ -133,21 +133,21 @@ entries:
   class: prose
   file: render
   baseline: Any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") → run `python3 $H woke`
-  current: 'On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`: exit 0 (the box slept, or the hub lifted the pause) means resume the SAME item from its seed without being told again; exit 1 says why to stay put (no wake yet, or you already resumed)'
+  current: 'On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`: exit 0 (the hub lifted the pause) means resume the SAME item from its seed without being told again; exit 1 says why to stay put (no wake yet, or you already resumed)'
   text:
   - On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`
 - id: hib-resume-same
   class: prose
   file: render
   baseline: 'Exit 0 means the box slept (or the hub lifted the pause): resume the SAME item from its seed without being told again'
-  current: 'On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`: exit 0 (the box slept, or the hub lifted the pause) means resume the SAME item from its seed without being told again; exit 1 says why to stay put (no wake yet, or you already resumed)'
+  current: 'On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`: exit 0 (the hub lifted the pause) means resume the SAME item from its seed without being told again; exit 1 says why to stay put (no wake yet, or you already resumed)'
   text:
-  - exit 0 (the box slept, or the hub lifted the pause) means resume the SAME item from its seed without being told again
+  - exit 0 (the hub lifted the pause) means resume the SAME item from its seed without being told again
 - id: hib-exit-1-stay
   class: prose
   file: render
   baseline: Exit 1 says why to stay put (no wake yet, or you already resumed)
-  current: 'On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`: exit 0 (the box slept, or the hub lifted the pause) means resume the SAME item from its seed without being told again; exit 1 says why to stay put (no wake yet, or you already resumed)'
+  current: 'On any wake line (the self-watch may still word a sleep as "the fleet-quota hold LIFTED") run `python3 $H woke`: exit 0 (the hub lifted the pause) means resume the SAME item from its seed without being told again; exit 1 says why to stay put (no wake yet, or you already resumed)'
   text:
   - exit 1 says why to stay put (no wake yet, or you already resumed)
 - id: hib-lift
