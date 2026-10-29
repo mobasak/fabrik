@@ -216,3 +216,37 @@ def test_section_cites_sources_and_carries_no_version() -> None:
         section,
     )
     assert not found, f"version literals in the section: {found}"
+
+
+# mail 01M64H34W3BD6X85J5WPKNQWCZ: the `static inline` rule for a namespaced `var()` slot read as binding the `@theme
+# inline` alias example beside it. The sentence is pinned WHOLE (a clause pin let a widened rule through), and the rule
+# and its alias example must stay on one bullet line. Cheapest way past: keep the sentence and move the example's block —
+# the same-line check reds on that; an alias moved into another pack's `@theme static` block reds the scan below.
+ALIAS_SENTENCE = (
+    "That alias is not a slot: a slot is a name § Token slots or the project's `docs/design-system.md` lists "
+    "(the template lists `--surface-0`, not `--color-surface-0`), so the `@theme static inline` rule never binds the "
+    "alias — `static` would also write `--color-surface-0: var(--surface-0)` under `:root, :host` (executed), while "
+    "hand-written CSS references the slot (`var(--surface-0)`), never the alias, which `@theme inline` emits as no "
+    "variable at all (executed); a listed slot whose value is a `var()`, such as `--color-danger: var(--red-600)`, stays "
+    "in `@theme static inline`."
+)
+_ALIAS_DECL = re.compile(r"--color-(?:surface-\d+|text-[\w-]+)\s*:\s*var\(")
+
+
+def test_alias_of_a_root_slot_stays_in_theme_inline() -> None:
+    section = _section()
+    assert ALIAS_SENTENCE in " ".join(section.split())
+    line = next(ln for ln in section.splitlines() if "`--color-surface-0: var(--surface-0)` →" in ln)
+    assert "goes in `@theme static inline`" in line and "with an `@theme inline` alias:" in line, line
+
+
+def _static_theme_blocks(text: str) -> list[str]:
+    return [b for m, b in zip(re.finditer(r"@theme\b([\w \t-]*)\{", text, re.IGNORECASE), _theme_blocks(text)) if "static" in m.group(1).lower()]
+
+
+def test_no_alias_in_a_static_theme_block() -> None:
+    assert _static_theme_blocks("@theme static inline {\n  --color-surface-0: var(--surface-0);\n}")  # the scan sees one
+    assert _ALIAS_DECL.search(_static_theme_blocks("@theme static inline { --color-surface-0: var(--surface-0); }")[0])
+    for pack in sorted(RULES.rglob("*.md")):
+        for block in _static_theme_blocks(pack.read_text(encoding="utf-8")):
+            assert not _ALIAS_DECL.search(block), (pack.name, block[:160])
