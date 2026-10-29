@@ -48,9 +48,13 @@ EXCEPTIONS: dict[tuple[str, frozenset[str]], str] = {
 }
 
 _DECIMAL = re.compile(r"[0-9]+(\.[0-9]+)?")
-# The only memory spelling these composes use (census of all 33 values, 2026-10-29: 64M..3G). Compose
-# accepts more (`1g`, `512mb`, a bare byte count); this grade is stricter on purpose and fails closed.
-_MEMORY = re.compile(r"[1-9][0-9]*[MG]")
+# The only memory spelling these composes use (census of every `memory:` value under infra/, 35 on
+# 2026-10-29: 64M..3G). Compose accepts more (`1g`, `512mb`, a bare byte count); this grade is stricter on
+# purpose and fails closed.
+_MEMORY = re.compile(r"([1-9][0-9]*)([MG])")
+# The daemon refuses less: `docker create --memory 4m` → "Minimum memory limit allowed is 6MB" (Docker
+# 29.1.3, 2026-10-29), so a `4M` typo would grade green and fail at the next recreate.
+_MIN_MEMORY_M = 6
 
 
 def cpu_limit_problem(value: object, ceiling: float = MAX_CPUS) -> str | None:
@@ -72,9 +76,12 @@ def memory_limit_problem(value: object) -> str | None:
     """Return why `value` is not a usable `deploy.resources.limits.memory`, or None when it is."""
     if value is None:
         return "no deploy.resources.limits.memory"
-    if isinstance(value, str) and _MEMORY.fullmatch(value):
-        return None
-    return f"memory {value!r} is not a plain size like 256M or 2G"
+    match = _MEMORY.fullmatch(value) if isinstance(value, str) else None
+    if match is None:
+        return f"memory {value!r} is not a plain size like 256M or 2G"
+    if match.group(2) == "M" and int(match.group(1)) < _MIN_MEMORY_M:
+        return f"memory {value!r} is below Docker's {_MIN_MEMORY_M}M minimum"
+    return None
 
 
 def _duplicate_key(node: yaml.Node, seen: set[int] | None = None) -> str | None:
@@ -156,13 +163,16 @@ def compose_problems(text: str, ceiling: float = MAX_CPUS) -> dict[str, str]:
 
 def _composes(root: Path = INFRA) -> list[Path]:
     # Every host directory (vps1, vps2, … — a new spoke is picked up) and every compose spelling at any
-    # depth (compose.yml, docker-compose.yaml, a nested stack), so nothing added is silently skipped.
+    # depth and any case (compose.yml, docker-compose.yaml, Compose.yaml, a nested stack). A compose
+    # outside a vps* directory is not graded here; test_the_population_spans_every_host refuses one.
     return sorted(
         path
         for host in root.glob("vps*")
         if host.is_dir()
-        for path in host.rglob("*.y*ml")
-        if "compose" in path.name
+        for path in host.rglob("*")
+        if path.is_file()
+        and "compose" in path.name.lower()
+        and path.suffix.lower() in {".yml", ".yaml"}
     )
 
 
@@ -179,9 +189,17 @@ def test_every_compose_spelling_on_every_host_is_in_the_population(tmp_path: Pat
 
 def test_the_population_spans_every_host() -> None:
     """Given the repo, when infra/ is globbed, then vps1 holds its 16 stack composes and each spoke its 3
-    (a moved directory must not turn every assertion below into a pass over nothing)."""
+    (a moved directory must not turn every assertion below into a pass over nothing), every host is in
+    HOST_CPUS, and no compose under infra/ sits outside the graded population."""
+    population = _composes()
+    everywhere = sorted(
+        p
+        for p in INFRA.rglob("*")
+        if p.is_file() and "compose" in p.name.lower() and p.suffix.lower() in {".yml", ".yaml"}
+    )
+    assert everywhere == population, "a compose under infra/ sits outside every vps* host directory"
     hosts: dict[str, int] = {}
-    for path in _composes():
+    for path in population:
         host = path.relative_to(INFRA).parts[0]
         hosts[host] = hosts.get(host, 0) + 1
     assert hosts.get("vps1", 0) >= 16
@@ -276,18 +294,21 @@ def test_good_cpu_values_are_accepted(value: object) -> None:
         " 64M",
         "64M ",
         "1.5G",
+        "1M",
+        "5M",
         [1],
     ],
 )
 def test_bad_memory_values_are_refused(value: object) -> None:
     """Given a memory value that is absent, a boolean, a bare number, zero, zero-padded, lower-case, a
-    two-letter or binary unit, padded or fractional, or a sequence, when graded, then it is refused."""
+    two-letter or binary unit, padded or fractional, below Docker's 6M minimum, or a sequence, when graded,
+    then it is refused."""
     assert memory_limit_problem(value) is not None
 
 
-@pytest.mark.parametrize("value", ["64M", "256M", "1536M", "2G", "3G"])
+@pytest.mark.parametrize("value", ["6M", "64M", "256M", "1536M", "1G", "2G", "3G"])
 def test_good_memory_values_are_accepted(value: object) -> None:
-    """Given a plain positive whole number of M or G, when graded, then it passes."""
+    """Given a plain whole number of M (6 or more) or G, when graded, then it passes."""
     assert memory_limit_problem(value) is None
 
 
@@ -366,8 +387,8 @@ def test_a_real_compose_with_a_limit_line_removed_is_refused(
 
 def test_exception_is_exact_and_expires() -> None:
     """Given each exception, when its file is read, then the file exists, its service set is exactly
-    the excepted one, and every excepted service still lacks its limits — so the exception neither covers
-    a new service nor outlives its fix."""
+    the excepted one, and every excepted service still lacks BOTH limits — so the exception neither covers
+    a new service nor outlives a partial fix (a half-sized service is graded, not excused)."""
     for (rel, services), item in EXCEPTIONS.items():
         path = INFRA / rel
         assert path.is_file(), f"{rel} is gone — drop its exception ({item})"
@@ -375,6 +396,7 @@ def test_exception_is_exact_and_expires() -> None:
         assert set(doc["services"]) == services, (
             f"{rel} services changed — re-size or re-scope ({item})"
         )
-        assert set(compose_problems(path.read_text())) == services, (
-            f"{rel} now declares limits on some service — drop or narrow its exception ({item})"
+        unsized = "no deploy.resources.limits.memory; no deploy.resources.limits.cpus"
+        assert compose_problems(path.read_text()) == dict.fromkeys(services, unsized), (
+            f"{rel} now declares a limit on some service — drop or narrow its exception ({item})"
         )
