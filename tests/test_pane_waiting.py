@@ -301,7 +301,9 @@ def test_tmux_failure_modes(tmux, tmp_path, monkeypatch):
         panes=[_row("%5", "fabrik", "fabrik", "infra-2", "/x")],
         screens={"%5": WRITE_DIALOG},
     )
-    with pytest.raises(RuntimeError):  # the shared budget is spent on the second call
+    with pytest.raises(
+        RuntimeError, match="timed out"
+    ):  # the second call times out on what is left
         rs.waiting(main, budget=0.8)
     tmux(panes=[_row("%5", "fabrik", "fabrik", "infra-2", "/x")], screens={"%5": WRITE_DIALOG})
     with pytest.raises(RuntimeError, match="budget spent"):  # a spent budget starts no call at all
@@ -392,7 +394,7 @@ def test_prompt_block_pane_lines(tmux, tmp_path):
     tmux(panes=[_row("%5", "grid", "", "infra-2", str(wt))], screens={"%5": WRITE_DIALOG})
     lines = _prompt(env, repo).splitlines()
     assert lines[0].startswith(
-        "work: PANE WAITING: infra-2 (%5) — dialog: Do you want to create hello.txt? — "
+        'work: PANE WAITING: infra-2 (%5) — dialog: "Do you want to create hello.txt?" — '
     )
     assert "tmux send-keys -t %5" in lines[0]
     assert not any(
@@ -421,3 +423,136 @@ def test_stop_action_pane_rung(tmux, tmp_path, autonomy):
     assert _stop(env, wt).get("action") != "pane-waiting"  # a builder is never handed it
     tmux(rc=1, err="server exited unexpectedly")
     assert _stop(env, repo).get("action") != "pane-waiting"  # a blind scan never blocks
+
+
+# ── review round 1 regressions (W-a12b03a2) ────────────────────────────────────────────────────────────────────────
+
+
+def test_a_marker_asks_only_where_it_opens_and_tool_rows_never_ask():
+    def footer(next_value: str) -> str:
+        return _idle(["● Done.", "", "  STATE: x", f"  NEXT: {next_value}"])
+
+    # a footer that NAMES a marker in passing waits on nothing
+    assert (
+        rs._waiting_on(footer("none — terminal (no DECISION NEEDED, not awaiting your reply)"))
+        is None
+    )
+    assert rs._waiting_on(footer("none — terminal; no decision needed from you")) is None
+    assert rs._waiting_on(footer("awaiting your reply"))[0] == "question"
+    heading = _idle(["● DECISION NEEDED (ground: gate)", "  - Question: deploy now"])
+    assert rs._waiting_on(heading)[0] == "question"
+    # what the agent RAN is not what it asks: a tool call and its result rows
+    assert rs._waiting_on(_idle(["● Bash(ls)", "  ⎿  what is this?"])) is None
+    assert rs._waiting_on(_idle(["● Keep it?", "", "● Bash(ls)", "  ⎿  done"]))[1] == "Keep it?"
+
+
+def test_a_new_turn_below_the_turn_end_is_not_waiting_but_a_seat_notice_is():
+    assert rs._waiting_on(_idle(["● Keep it?"], below=("● Read(foo)",))) is None
+    assert rs._waiting_on(_idle(["● Keep it?"], below=("❯ go on",))) is None
+    seat = _idle(["● Keep it?"], below=('● Agent "Review seat 3 opus" finished · 57s',))
+    assert rs._waiting_on(seat)[0] == "question"
+
+
+def test_the_same_prompt_keeps_its_fingerprint():
+    moved = WRITE_DIALOG.replace(" ❯ 1. Yes", "   1. Yes").replace("   3. No", " ❯ 3. No")
+    assert rs._waiting_on(WRITE_DIALOG)[2] == rs._waiting_on(moved)[2]  # arrowing between options
+    two = _idle(
+        ["● Keep it?"], turn_end="✻ Worked for 11s · done 12:30 PM · 2 shells still running"
+    )
+    one = _idle(["● Keep it?"], turn_end="✻ Worked for 11s · done 12:30 PM · 1 shell still running")
+    assert rs._waiting_on(two)[2] == rs._waiting_on(one)[2]  # a background shell ending
+    later = _idle(["● Keep it?"], turn_end="✻ Worked for 11s · done 12:41 PM")
+    assert rs._waiting_on(later)[2] != rs._waiting_on(one)[2]  # a new turn asking again
+
+
+def test_an_extended_colour_is_never_read_as_dim():
+    assert rs._undimmed("\x1b[38;5;2m❯ 1. Yes\x1b[0m") == "❯ 1. Yes"  # colour index 2
+    assert rs._undimmed("\x1b[38;2;215;119;87m❯ 1. Yes\x1b[39m") == "❯ 1. Yes"  # truecolor
+    assert rs._undimmed("\x1b[48;5;2;1mbold\x1b[0m") == "bold"
+    assert rs._undimmed("\x1b[2m 362 \x1b[0mdef x") == "def x"  # a real dim cell still drops
+    coloured = WRITE_DIALOG.replace(" ❯ 1. Yes", "\x1b[38;2;215;119;87m ❯ 1. Yes\x1b[39m")
+    assert rs._waiting_on(coloured)[0] == "dialog"
+
+
+RAW_TMUX = """#!/usr/bin/env python3
+import os, sys
+a = sys.argv[1:]
+if a[0] == "list-panes":
+    sys.stdout.write("%5\\tfabrik\\t\\tinfra-2\\t/x/a\\n%6\\tfabrik\\t\\tintel\\t/x/b\\n%7\\tfabrik\\t\\tfleet\\t/x/c\\n")
+elif a[-1] == "%5":
+    sys.stdout.buffer.write(b"\\xff\\xfe binary output\\n")
+elif a[-1] == "%6":
+    sys.stderr.write("can't find pane: %6\\n")
+    sys.exit(1)
+else:
+    sys.stdout.write(os.environ["SCREEN"])
+"""
+
+
+def test_one_pane_that_is_gone_or_shows_binary_does_not_blind_the_scan(tmp_path, monkeypatch):
+    exe = tmp_path / "tmux"
+    exe.write_text(RAW_TMUX, encoding="utf-8")
+    exe.chmod(0o755)
+    monkeypatch.setenv("ROTATE_TMUX", str(exe))
+    monkeypatch.setenv("SCREEN", WRITE_DIALOG)
+    got = rs.waiting(str(tmp_path / "fabrik"))
+    assert [(g["agent"], g["kind"]) for g in got] == [("fleet", "dialog")]
+    exe.chmod(0o644)  # a tmux that cannot be run is an OS error, reported as a failed scan
+    with pytest.raises(RuntimeError):
+        rs.waiting(str(tmp_path / "fabrik"))
+
+
+def _work_module():
+    spec_w = importlib.util.spec_from_file_location("work_pw", WORK)
+    mod = importlib.util.module_from_spec(spec_w)
+    sys.modules["work_pw"] = mod
+    spec_w.loader.exec_module(mod)
+    return mod
+
+
+def test_the_line_quotes_the_prompt_and_fits_with_the_longest_name():
+    w = _work_module()
+    p = {"agent": "a" * 32, "pane": "%99999", "kind": "question", "line": 'say "yes" ' + "x" * 200}
+    line = "work: " + w._pane_text(p)
+    assert len(line) <= w.LINE_MAX, len(line)  # never clipped: the reply verbs survive
+    assert line.endswith("(approve only what you read, D-1034)")
+    assert ": \"say 'yes' " in line  # quoted as data; its own quotes cannot close the quote
+
+
+def test_only_a_coordinator_main_checkout_scans(tmux, tmp_path, monkeypatch):
+    env = _env(tmp_path)
+    repo, wt = _coordinator_repo(tmp_path, env, autonomy=False)
+    w = _work_module()
+    monkeypatch.delenv("FABRIK_HEADLESS", raising=False)
+    monkeypatch.delenv("CLAUDE_MESH_HEADLESS", raising=False)
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    assert w._scans_panes(repo) is True
+    assert (
+        w._scans_panes(wt) is False
+    )  # a linked worktree, even with coordinator_mode in its config
+    monkeypatch.setenv("FABRIK_HEADLESS", "1")
+    assert w._scans_panes(repo) is False  # a headless session answers nobody's pane
+    monkeypatch.delenv("FABRIK_HEADLESS")
+    cfg = repo / ".fabrik" / "work" / "config.json"
+    data = json.loads(cfg.read_text(encoding="utf-8"))
+    data["coordinator_mode"] = False
+    cfg.write_text(json.dumps(data), encoding="utf-8")
+    assert w._scans_panes(repo) is False
+
+
+def test_a_headless_coordinator_session_never_runs_tmux(tmux, tmp_path):
+    env = {**_env(tmp_path), "FABRIK_HEADLESS": "1"}
+    repo, wt = _coordinator_repo(tmp_path, env, autonomy=True)
+    tmux(panes=[_row("%5", "grid", "", "infra-2", str(wt))], screens={"%5": WRITE_DIALOG})
+    _prompt(env, repo)
+    _stop(env, repo)
+    assert not (tmp_path / "tmux.json.caps").exists()
+
+
+def test_a_classic_coordinator_keeps_one_ladder_when_no_pane_waits(tmux, tmp_path):
+    env = _env(tmp_path)
+    repo, _ = _coordinator_repo(tmp_path, env, autonomy=False)
+    tmux(panes=[], screens={})
+    assert "candidates" in _stop(env, repo)  # never the single-action shape that overwrites the map
+    tmux(rc=1, err="server exited unexpectedly")
+    assert "candidates" in _stop(env, repo)  # a scan blip keeps the shape too

@@ -753,8 +753,17 @@ _FOOTER = re.compile(r"Esc to cancel|Enter to confirm|Enter to select")
 _TURN_END = re.compile(r"^\S\s+\S+ for \d+[hms]\b.*·\s*done\b")
 _SPINNER = re.compile(r"…\s*\(|Waiting for \d+ background")
 _FOOTER_ROW = re.compile(r"(?:RUN|STATE|NEXT):")
-_ASKS = re.compile(r"DECISION NEEDED|awaiting your reply", re.I)
+# the two house markers of a turn that waits on its reader — only where they OPEN the paragraph (a DECISION block's
+# heading, a NEXT: whose value is the wait), so a footer that names them in passing ("no DECISION NEEDED") never asks
+_ASKS = re.compile(r"(?:DECISION NEEDED\b|NEXT:\s*awaiting your reply\b)", re.I)
+# a tool call (`● Bash(ls)`) and its result rows (`⎿  …`): what the agent RAN, never what it asks
+_TOOL_ROW = re.compile(r"^(?:●\s*[A-Za-z_][\w.:-]*\(|⎿)")
+# activity below a turn end that is not a new turn: a seat's completion notice (measured live, idle pane)
+_IDLE_NOTICE = re.compile(r'^●\s*Agent ".*" (?:finished|completed)')
+# the turn-end row up to its `done <time>`: a trailing note (`· 1 shell still running`) changes without a new turn
+_TURN_ID = re.compile(r"^.*?·\s*done\s+[^·]*")
 _NO_GRID = ("no server running on", "error connecting to")
+_PANE_GONE = "can't find pane"
 WAITING_LINE_MAX = 160
 
 
@@ -763,7 +772,7 @@ def _plain(screen: str) -> list[str]:
 
 
 def _asks(text: str) -> bool:
-    return text.rstrip("*_`)\"'”’ ").endswith("?") or bool(_ASKS.search(text))
+    return text.rstrip("*_`)\"'”’ ").endswith("?") or bool(_ASKS.match(text))
 
 
 def _dialog_waiting(rows: list[str], numbered: bool) -> tuple[str, str, str] | None:
@@ -779,7 +788,8 @@ def _dialog_waiting(rows: list[str], numbered: bool) -> tuple[str, str, str] | N
     asked = [r for r in block if "?" in r]
     near = [r for r in block if r and not r.startswith("╌")]
     line = asked[-1] if asked else (near[-1] if near else "a dialog is open")
-    body = "\n".join(r.strip() for r in rows[top + 1 :] if r.strip())
+    # the cursor marker is dropped: arrowing between options is the same prompt, the same fingerprint
+    body = "\n".join(r.replace("❯", " ").strip() for r in rows[top + 1 :] if r.strip())
     return "dialog", line, body
 
 
@@ -793,10 +803,22 @@ def _question_waiting(rows: list[str]) -> tuple[str, str, str] | None:
         return None
     rule = starts[-1] - 1
     ends = [i for i in range(rule) if _TURN_END.match(rows[i].strip())]
-    if not ends or any(_SPINNER.search(rows[i]) for i in range(ends[-1] + 1, rule)):
+    if not ends:
         return None
     end = ends[-1]
-    tail = [r.strip().removeprefix("●").strip() for r in rows[:end]]
+    for row in (r.strip() for r in rows[end + 1 : rule]):
+        # a spinner, a new prompt or a new tool call below the turn end is a new turn under way
+        if (
+            _SPINNER.search(row)
+            or row.startswith("❯")
+            or (row.startswith("●") and not _IDLE_NOTICE.match(row))
+        ):
+            return None
+    # tool rows leave the tail as blank rows, so they also end the paragraph above them
+    tail = [
+        "" if _TOOL_ROW.match(r.strip()) else r.strip().removeprefix("●").strip()
+        for r in rows[:end]
+    ]
     while tail and not tail[-1]:
         tail.pop()
     # The message tail: its last paragraph, and when that paragraph opens with the RUN/STATE/NEXT footer, the footer's
@@ -826,15 +848,22 @@ def _question_waiting(rows: list[str]) -> tuple[str, str, str] | None:
     ):  # the message's own paragraph first
         joined = " ".join(" ".join(para).split())
         if joined and _asks(joined):
-            return "question", joined, joined + "\n" + rows[end].strip()
+            turn = _TURN_ID.match(rows[end].strip())
+            return (
+                "question",
+                joined,
+                joined + "\n" + (turn.group(0).strip() if turn else rows[end].strip()),
+            )
     return None
 
 
 def _waiting_on(screen: str) -> tuple[str, str, str] | None:
     """(kind, line, body) when the screen waits on an answer: `dialog` — no input box drawn and a dialog footer (or
-    `_dialog`'s numbered option) — or `question` — an empty box under a `· done` turn end, no spinner below it, whose
-    message tail (the RUN/STATE/NEXT footer rows and the paragraph above them) asks. `body` keys the fingerprint: the
-    dialog's rows (its command), or the question plus the turn-end row (its time). None otherwise."""
+    `_dialog`'s numbered option) — or `question` — an empty box under a `· done` turn end with no new turn below it
+    (a spinner, a prompt row, a tool call), whose message tail (the RUN/STATE/NEXT footer entries and the paragraph
+    above them, tool rows excluded) ends in `?` or opens with a DECISION NEEDED / `NEXT: awaiting your reply` marker.
+    `body` keys the fingerprint: the dialog's rows (its command, the cursor dropped), or the question plus the turn-end
+    row up to its `done <time>`. An identical dialog shown twice is the same fingerprint (stated limit, D-1331)."""
     box = _box(screen)
     rows = _plain(screen)
     if box is None:
@@ -843,8 +872,10 @@ def _waiting_on(screen: str) -> tuple[str, str, str] | None:
 
 
 def _grid_tmux(deadline: float, *args: str) -> str | None:
-    """One tmux call inside the scan's shared deadline: stdout, None when no grid exists (no tmux, no server), and a
-    RuntimeError for every other failure — a timeout, a spent budget or an answer that is not a grid."""
+    """One tmux call inside the scan's shared deadline: stdout (bytes decoded with replacement, so a pane showing binary
+    is still read), None when no grid exists (no tmux binary, no server) or, for a capture, when the pane closed after
+    the listing, and a RuntimeError for every other failure — a timeout, a spent budget, an OS error running tmux, or
+    an answer that is not a grid."""
     left = deadline - time.monotonic()
     if left <= 0:
         raise RuntimeError("pane scan budget spent")
@@ -852,18 +883,20 @@ def _grid_tmux(deadline: float, *args: str) -> str | None:
         r = subprocess.run(
             [os.environ.get("ROTATE_TMUX", "tmux"), *args],
             capture_output=True,
-            text=True,
             timeout=max(0.1, left),
         )
     except FileNotFoundError:
         return None
     except subprocess.TimeoutExpired as exc:
         raise RuntimeError(f"tmux {args[0]} timed out") from exc
+    except OSError as exc:
+        raise RuntimeError(f"tmux {args[0]}: {exc}") from exc
+    err = r.stderr.decode("utf-8", "replace").strip()
     if r.returncode != 0:
-        if r.stderr.strip().startswith(_NO_GRID):
+        if err.startswith(_NO_GRID) or (args[0] == "capture-pane" and err.startswith(_PANE_GONE)):
             return None
-        raise RuntimeError(f"tmux {args[0]} rc {r.returncode}: {r.stderr.strip()[:200]}")
-    return r.stdout
+        raise RuntimeError(f"tmux {args[0]} rc {r.returncode}: {err[:200]}")
+    return r.stdout.decode("utf-8", "replace")
 
 
 def waiting(repo: str, exclude: str = "", budget: float = 1.0) -> list[dict]:
@@ -892,7 +925,9 @@ def waiting(repo: str, exclude: str = "", budget: float = 1.0) -> list[dict]:
     found = []
     for pane, agent in panes.items():
         screen = _grid_tmux(deadline, "capture-pane", "-p", "-e", "-t", pane)
-        hit = _waiting_on(screen or "")
+        if screen is None:  # the pane closed after the listing: it waits on nothing
+            continue
+        hit = _waiting_on(screen)
         if hit is None:
             continue
         kind, line, body = hit
@@ -1096,7 +1131,9 @@ _ESC = re.compile(
 def _undimmed(row: str) -> str:
     """The row's text WITHOUT its dim cells (SGR 2 — Claude Code's placeholder, measured), every escape dropped. SGR is
     walked as a terminal does: dim turns on with a 2 in any parameter list and off only with 0, 22 or an empty list —
-    any other code (a colour, bold, inverse) leaves it as it was (review r1: a lazy regex ended the dim run at `39m`)."""
+    any other code (a colour, bold, inverse) leaves it as it was (review r1: a lazy regex ended the dim run at `39m`).
+    An extended colour's own arguments (`38;5;<n>`, `38;2;<r>;<g>;<b>`, likewise 48 and 58) are skipped, so the `2` of
+    a truecolor sequence or of colour index 2 is never read as dim (W-a12b03a2 review: it dropped a dialog's `❯` row)."""
     out, dim, pos = [], False, 0
     for m in _ESC.finditer(row):
         if not dim:
@@ -1105,11 +1142,17 @@ def _undimmed(row: str) -> str:
         seq = m.group(0)
         if seq.startswith("\x1b[") and seq.endswith("m"):
             params = [p.split(":")[0] for p in seq[2:-1].split(";")] if len(seq) > 3 else [""]
-            for p in params:
+            k = 0
+            while k < len(params):
+                p = params[k]
+                if p in ("38", "48", "58") and k + 1 < len(params) and ":" not in seq:
+                    k += {"5": 3, "2": 5}.get(params[k + 1], 1)  # the selector and its arguments
+                    continue
                 if p in ("", "0", "22"):
                     dim = False
                 elif p == "2":
                     dim = True
+                k += 1
     if not dim:
         out.append(row[pos:])
     return "".join(out)

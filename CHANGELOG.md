@@ -10,8 +10,11 @@ All notable changes to this project will be documented in this file.
   that ended with a question. 1 s budget; no tmux or no server reads as no grid.
 - `scripts/work.py`: the coordinator's prompt block opens with one `work: PANE WAITING: <agent> (<pane>) — …` line per
   such pane (`PANE SCAN FAILED` when tmux fails), and its Stop hook blocks on a `pane-waiting` subject per pane ahead
-  of every other subject, re-armed by each new prompt. Before this the operator answered builders' terminal prompts
-  himself. `docs/reference/agents/coordinator.md` says how to answer. W-a12b03a2, D-1331.
+  of every other subject, re-armed by each distinct prompt. A headless session never scans. Before this the operator
+  answered builders' terminal prompts himself. `docs/reference/agents/coordinator.md` says how to answer.
+  W-a12b03a2, D-1331.
+- `scripts/sysadmin/rotate_session.py::_undimmed`: the arguments of an extended colour (`38;5;2`, `38;2;r;g;b`) are no
+  longer read as the dim attribute, which dropped every cell after them.
 
 ### Fixed — hub mail auto-replies tell one agent from another (2026-10-29)
 - `scripts/mail.py`: in the hub's shared `fabrik` mailbox the `--auto` self-guard and rate cap key on
