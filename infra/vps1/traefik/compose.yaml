@@ -24,6 +24,7 @@ services:
       resources:
         limits:
           memory: 256M
+          cpus: '2.0'
 
 networks:
   fabrik:

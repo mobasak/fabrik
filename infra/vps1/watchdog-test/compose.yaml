@@ -9,6 +9,7 @@ services:
       resources:
         limits:
           memory: 64M
+          cpus: '0.25'
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:80/ || exit 1"]
       interval: 30s

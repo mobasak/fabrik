@@ -3,7 +3,7 @@
   "created": "2026-10-17T21:58:16.659384Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "1361fe002a7f1945f618471881da8e9a152861d7",
   "id": "W-91a4a715",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 3,
   "score_reason": "D-958 MEDIUM: real value, nobody blocked; host load 0.1 on 6 CPUs",
-  "status": "open",
+  "status": "done",
   "tags": [
     "deploy",
     "medium"

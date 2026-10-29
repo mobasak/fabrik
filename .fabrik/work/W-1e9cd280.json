@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T02:55:29.836867Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-1e9cd280",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "size from the spokes' cAdvisor data, add cpus, widen tests/test_infra_vps1_cpu_limits.py to infra/vps*/ with per-host CPU counts",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "deploy"
+  ],
+  "title": "Spoke composes infra/vps2/backrest and infra/vps3/backrest declare no CPU limit (4-CPU hosts); the infra/vps1 CPU grader does not read infra/vps2|vps3"
+}
