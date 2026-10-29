@@ -1370,7 +1370,11 @@ def test_refresh_records_a_resumed_session_under_its_new_process(store, monkeypa
     rows = m._rows(store)
     assert len(rows) == 2
     new = rows[-1]
-    assert (new["session_id"], new["name"], new["toplevel"]) == ("sid-alpha", "agent-2", m._toplevel())
+    assert (new["session_id"], new["name"], new["toplevel"]) == (
+        "sid-alpha",
+        "agent-2",
+        m._toplevel(),
+    )
     assert (new["pid"], new["pid_start"]) == (pid, start)
     assert new["refresh"] is True and new["force"] is False and new["unlocked"] is False
     assert m.resolve_agent_name() == "agent-2"
@@ -1490,7 +1494,10 @@ def test_refresh_leaves_a_session_live_in_another_process_alone(store, monkeypat
     _own_process(m, monkeypatch)
     other = os.getppid()
     store.write_text(
-        _bound_elsewhere(m, pid=other, start=m._pid_start(other)) + "\n" + _bound_elsewhere(m) + "\n",
+        _bound_elsewhere(m, pid=other, start=m._pid_start(other))
+        + "\n"
+        + _bound_elsewhere(m)
+        + "\n",
         encoding="utf-8",
     )
     before = store.read_bytes()
@@ -1504,7 +1511,9 @@ def test_refresh_is_not_blocked_by_this_windows_own_row_in_another_repo(store, m
     m = _mod()
     pid, start = _own_process(m, monkeypatch)
     store.write_text(
-        _bound_elsewhere(m) + "\n" + _holder(m, pid, start, sid="sid-alpha").replace(
+        _bound_elsewhere(m)
+        + "\n"
+        + _holder(m, pid, start, sid="sid-alpha").replace(
             json.dumps(m._toplevel()), json.dumps("/elsewhere/.git")
         )
         + "\n",
@@ -1538,7 +1547,9 @@ def test_refresh_with_no_store_creates_nothing(tmp_path, monkeypatch):
     assert not (tmp_path / "state").exists()
 
 
-def test_refresh_matches_the_scope_by_realpath_and_never_by_an_empty_one(store, monkeypatch, tmp_path):
+def test_refresh_matches_the_scope_by_realpath_and_never_by_an_empty_one(
+    store, monkeypatch, tmp_path
+):
     """Review round 1 (A-sonnet-1, A-haiku-2): the hook passes a realpath'd common dir while `bind`
     stored git's string — a symlinked spelling of the same repo is the same scope, and the new row
     keeps the binding's own spelling; an empty scope is never this one, even where the store holds

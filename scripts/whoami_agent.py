@@ -712,7 +712,9 @@ def refresh(top: str | None = None) -> str:
                 return (
                     _as_int(r.get("pid")) == me_pid
                     and _as_int(r.get("pid_start")) == me_start
-                    and not (isinstance(t, str) and os.path.isabs(t) and os.path.realpath(t) == want)
+                    and not (
+                        isinstance(t, str) and os.path.isabs(t) and os.path.realpath(t) == want
+                    )
                 )
 
             # a live process on ANY row of the sid — another window, or this one already recorded

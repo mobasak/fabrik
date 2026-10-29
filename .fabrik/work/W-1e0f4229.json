@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "Find the timing race (fake clock vs a real wait or subprocess) in the late-bind grace path; fix the test or the code; prove with 30 isolated runs at 0 failures",
+  "next": "Find the timing race (fake clock vs a real wait or subprocess) in the late-bind grace path; fix the test or the code; prove with 30 isolated runs at 0 failures. Sibling test_wb72231b8_no_bind_waits_the_whole_grace_then_rows_partial failed the same way under load (load 27, 2026-10-29 T10 seam run: outcome typed-unsent:send instead of partial:rebind) and passed alone 23/23 — same family, fix both.",
   "note": "",
   "owner": "",
   "priority": 3,
