@@ -4173,7 +4173,8 @@ def _panel_problem(
     a brief written before a prompt queued mid-turn is not judged after that prompt cleared the verdicts.
     The position, not the uuid alone, names the row — Claude Code re-writes a queued row with the same uuid
     (across compactions, sometimes twice in a turn), and a copy before the brief must reset while the copy
-    right after it is the cut."""
+    right after it is the cut. Only a uuid's FIRST copy resets the stores: a re-written copy is not a new word,
+    so verdicts returned after the first copy survive it (W-573ddaa1)."""
     if re.match(r"\s*unavailable\b", panel, re.I):
         if (_coord_band(transcript_path) or "") in _COORD_QUIET_BANDS:
             return ""
@@ -4226,8 +4227,9 @@ def _panel_problem(
     seats: dict[str, str] = {}
     by_seat: dict[str, list[str]] = {}
     snapshots: list[tuple] = []  # the stores just before EACH queued row carrying `stop_at`'s uuid
-    # queued-row uuids seen since the operator's last prompt: a copy Claude Code re-writes with the same uuid
-    # later in the turn is not a new word, so it never clears the verdicts after the first copy (W-573ddaa1)
+    # queued-row uuids already seen anywhere in the file: a copy Claude Code re-writes with the same uuid (across
+    # compactions, later in the turn or in a later turn — 0 of 4,537 real copies carried different text) is not a
+    # new word, so it never clears the verdicts after the first copy (W-573ddaa1)
     queued_seen: set[str] = set()
     try:
         with open(transcript_path, encoding="utf-8", errors="replace") as fh:
@@ -4238,6 +4240,8 @@ def _panel_problem(
                     entry = json.loads(line)
                 except Exception:
                     continue
+                if not isinstance(entry, dict):
+                    continue  # a JSON row that is not an object (a bare list) is no entry
                 if entry.get("type") == "attachment":
                     # Claude Code 2.1.304 delivers a seat's hand-back as an `attachment` row
                     # (`attachment.type` queued_command) whose `attachment.origin` names the seat —
@@ -4286,7 +4290,6 @@ def _panel_problem(
                     said, seats, by_seat = {"opus": [], "fable": []}, {}, {}
                     # the line stores too, or a both-approve brief reads pre-operator verdicts
                     said_lines, by_seat_lines = {"opus": [], "fable": []}, {}
-                    queued_seen = set()
                     continue
                 content = (entry.get("message") or {}).get("content")
                 text = _row_text(content)
@@ -4358,19 +4361,30 @@ def _panel_problem(
     return ""
 
 
-def _walk_turn(entries) -> tuple[list[tuple[str, tuple[str, int] | None]], bool]:
-    """This turn's assistant text blocks from ``entries`` (newest first), each with the nearest queued operator
-    prompt AFTER it as (uuid, its copy count from the end) — the positional handle `_panel_problem(stop_at=)`
-    resolves, immune to re-written copies — and whether the walk met the operator's last row."""
-    texts: list[tuple[str, tuple[str, int] | None]] = []
-    cut: tuple[str, int] | None = None
+_Cut = tuple[str, int] | None
+
+
+def _turn_texts(transcript_path: str) -> tuple[list[tuple[str, _Cut]], tuple[str, _Cut] | None]:
+    """This turn's assistant text blocks in the 2 MB tail (newest entry first, an entry's blocks in order), each
+    with the nearest operator prompt QUEUED after it as (uuid, its copy count from the end) — the positional handle
+    `_panel_problem(stop_at=)` resolves, immune to re-written copies — plus the newest text-bearing entry as (its
+    blocks joined by newlines, its cut), the one text the hook's final message can be (`_final_cut`)."""
+    texts: list[tuple[str, _Cut]] = []
+    newest: tuple[str, _Cut] | None = None
+    cut: _Cut = None
     copies: dict[str, int] = {}
-    for entry in entries:
+    for line in reversed(_tail_lines(transcript_path) or []):
+        if '"type"' not in line:
+            continue
+        try:
+            entry = json.loads(line)
+        except Exception:
+            continue
         if not isinstance(entry, dict):
             continue
         if entry.get("type") == "user":
             if _operator_text(entry):
-                return texts, True
+                break
             continue
         if entry.get("type") == "attachment":
             if _queued_operator_prompt(entry.get("attachment")) and isinstance(
@@ -4381,71 +4395,26 @@ def _walk_turn(entries) -> tuple[list[tuple[str, tuple[str, int] | None]], bool]
             continue
         content = (entry.get("message") or {}).get("content")
         if entry.get("type") == "assistant" and isinstance(content, list):
-            texts.extend(
-                (str(b.get("text") or ""), cut)
+            blocks = [
+                str(b.get("text") or "")
                 for b in content
                 if isinstance(b, dict) and b.get("type") == "text"
-            )
-    return texts, False
+            ]
+            texts.extend((t, cut) for t in blocks)
+            if newest is None and "\n".join(blocks).strip():
+                newest = ("\n".join(blocks), cut)
+    return texts, newest
 
 
-def _parsed_rows(lines):
-    for line in lines:
-        if '"type"' not in line:
-            continue
-        try:
-            yield json.loads(line)
-        except Exception:
-            continue
-
-
-def _turn_texts(transcript_path: str) -> list[tuple[str, tuple[str, int] | None]]:
-    """`_walk_turn` over the 2 MB tail; when that walk never meets the operator's row and the file is larger than
-    the tail, over the WHOLE file instead (W-573ddaa1: a brief older than the tail was never judged). The full read
-    streams forward and keeps, since the last operator row, only what the walk reads: assistant text blocks and
-    queued operator rows."""
-    texts, met = _walk_turn(_parsed_rows(reversed(_tail_lines(transcript_path) or [])))
-    try:
-        if met or os.path.getsize(transcript_path) <= _TAIL_READ_BYTES:
-            return texts
-        kept: list[dict] = []
-        with open(transcript_path, encoding="utf-8", errors="replace") as fh:
-            for entry in _parsed_rows(fh):
-                if not isinstance(entry, dict):
-                    continue
-                kind = entry.get("type")
-                if kind == "user":
-                    if _operator_text(entry):
-                        kept = []
-                elif kind == "attachment":
-                    if _queued_operator_prompt(entry.get("attachment")):
-                        kept.append(
-                            {
-                                "type": "attachment",
-                                "uuid": entry.get("uuid"),
-                                "attachment": entry["attachment"],
-                            }
-                        )
-                elif kind == "assistant":
-                    content = (entry.get("message") or {}).get("content")
-                    if isinstance(content, list):
-                        blocks = [
-                            b for b in content if isinstance(b, dict) and b.get("type") == "text"
-                        ]
-                        if blocks:
-                            kept.append({"type": "assistant", "message": {"content": blocks}})
-    except OSError:
-        return texts
-    return _walk_turn(reversed(kept))[0]
-
-
-def _final_cut(
-    texts: list[tuple[str, tuple[str, int] | None]], final_text: str
-) -> tuple[str, int] | None:
-    """The hook passes the turn's last assistant text: when it is a walked text, it keeps that text's cut-off
-    (otherwise a brief or block before a trailing queued prompt is judged with none — Fable critique). final_text
-    joins the last entry's text blocks; walked texts are newest-first, one per block."""
-    return next((c for t, c in texts if t.strip() and t.strip() in final_text), None)
+def _final_cut(newest: tuple[str, _Cut] | None, final_text: str) -> _Cut:
+    """The hook passes the turn's last assistant text: when it IS the newest walked entry (its blocks joined), it
+    keeps that entry's cut-off — otherwise a brief or block before a trailing queued prompt is judged with none
+    (W-6424f2e8 Fable critique). Equality, never containment: when the final entry is not flushed yet, an earlier
+    short block the final text contains ("Noted.") would lend a cut from before a queued prompt (W-573ddaa1, both
+    critiques). No match keeps no cut — fail-closed."""
+    if newest is None or not newest[0].strip() or newest[0].strip() != final_text.strip():
+        return None
+    return newest[1]
 
 
 def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
@@ -4455,9 +4424,9 @@ def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
     the next design stage, so the final message alone would miss it. Each text is judged against the
     verdicts held before the first operator prompt QUEUED after it (W-6424f2e8): a queued prompt lands
     mid-turn, so a brief written before it is this turn's and its seats' verdicts still back it."""
-    texts = _turn_texts(transcript_path)
+    texts, newest = _turn_texts(transcript_path)
     if final_text:
-        texts.insert(0, (final_text, _final_cut(texts, final_text)))
+        texts.insert(0, (final_text, _final_cut(newest, final_text)))
     for text, text_cut in texts:
         fences = _fence_spans(text)
         heads = [
@@ -4485,7 +4454,7 @@ def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
 def _block_cut(transcript_path: str, text: str) -> tuple[str, int] | None:
     """The DECISION block's own cut-off: the nearest operator prompt queued after the walked text it is, so a
     block written before a prompt queued mid-turn reads the verdicts held up to that prompt (W-573ddaa1)."""
-    return _final_cut(_turn_texts(transcript_path), text) if transcript_path else None
+    return _final_cut(_turn_texts(transcript_path)[1], text) if transcript_path else None
 
 
 def parse_decision_block(text: str, *, run_live: bool, transcript_path: str) -> tuple[bool, str]:

@@ -928,14 +928,13 @@ def test_fresh_verdicts_between_two_copies_back_a_brief_after_them(tmp_path, pan
     assert hook._panel_brief_problem(tr, "") == ""
 
 
-# ── W-573ddaa1: three residues of the W-6424f2e8 cut-off ──
+# ── W-573ddaa1: residues of the W-6424f2e8 cut-off ──
 
 
-def test_a_queued_row_re_written_in_the_turn_keeps_the_verdicts_after_its_first_copy(
-    tmp_path, panel_mode
-):
-    """W-573ddaa1 (1): Claude Code re-writes a queued row with the same uuid; a copy re-written in the SAME turn is
-    not a new word from the operator, so it must not clear the verdicts the seats returned after the first copy."""
+def test_a_re_written_queued_row_keeps_the_verdicts_after_its_first_copy(tmp_path, panel_mode):
+    """W-573ddaa1 (1): Claude Code re-writes a queued row with the same uuid (0 of 4,537 real copies carried other
+    text); a re-written copy is not a new word from the operator, so it must not clear the verdicts the seats returned
+    after the first copy — in the same turn, and when the copy lands in a LATER turn (the 8 real cases measured)."""
     tr = _transcript(
         tmp_path,
         _user("go"),
@@ -948,8 +947,7 @@ def test_a_queued_row_re_written_in_the_turn_keeps_the_verdicts_after_its_first_
         _said(_BRIEF.format(panel=_approve_line())),
     )
     assert hook._panel_brief_problem(tr, "") == ""
-    # a copy of that uuid from an EARLIER turn is not this turn's first copy: the in-turn copy still resets
-    stale = _transcript(
+    later_turn = _transcript(
         tmp_path,
         _user("an earlier question"),
         _queued_with_uuid("an earlier prompt", "q-1"),
@@ -961,7 +959,19 @@ def test_a_queued_row_re_written_in_the_turn_keeps_the_verdicts_after_its_first_
         _queued_with_uuid("an earlier prompt", "q-1"),
         _said(_BRIEF.format(panel=_approve_line())),
     )
-    assert "since the operator's last message" in hook._panel_brief_problem(stale, "")
+    assert hook._panel_brief_problem(later_turn, "") == ""
+    # a NEW uuid still resets: verdicts before the operator's new queued word never back a brief after it
+    fresh = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _queued_with_uuid("a new question", "q-2"),
+        _said(_BRIEF.format(panel=_approve_line())),
+    )
+    assert "since the operator's last message" in hook._panel_brief_problem(fresh, "")
 
 
 def test_a_decision_block_before_a_queued_prompt_reads_the_verdicts_before_it(tmp_path, panel_mode):
@@ -994,23 +1004,56 @@ def test_a_decision_block_before_a_queued_prompt_reads_the_verdicts_before_it(tm
     assert not ok and "since the operator's last message" in why
 
 
-def test_a_brief_older_than_the_tail_is_still_judged(tmp_path, panel_mode, monkeypatch):
-    """W-573ddaa1 (3): a turn longer than the bounded tail read still has its early PANEL APPROVED brief judged —
-    the tail walk used to stop at the slice's edge and judge nothing."""
-    monkeypatch.setattr(hook, "_TAIL_READ_BYTES", 4096)
-    # ~22 KB of tool results after the brief
-    pad = [_result("t-other", "x" * 500) for _ in range(40)]
-    forged = _BRIEF.format(panel='opus="nobody said it" fable="nobody said this" → both-approve')
-    tr = _transcript(tmp_path, _user("go"), _said(forged), *pad)
-    assert hook._panel_brief_problem(tr, "")
-    backed = _transcript(
+def test_an_unflushed_final_message_never_borrows_an_earlier_blocks_cut_off(tmp_path, panel_mode):
+    """W-573ddaa1 design critiques (Fable and Opus): when the Stop fires before the final entry is flushed, the hook's
+    text is the payload's message and the newest walked entry is not it; an earlier short block the text CONTAINS
+    (as its first line or its last) must not lend its cut-off, or a block written after a queued prompt is judged on
+    the verdicts held before that prompt."""
+    seats = (
+        _user("pick a retention window for the purge job"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"verdict: {OPUS}."),
+        _result("t-fable", f"verdict: {FABLE}."),
+    )
+    block = _block(PANEL)
+    for earlier, unflushed in (
+        ("Noted.", "Noted. " + block),  # Fable's probe
+        ("Analysis done.", block),  # Opus's probe: `_block` opens with this line
+        ("NEXT: operator decision — see DECISION NEEDED above", block),  # the block's own last line
+    ):
+        tr = _transcript(
+            tmp_path, *seats, _said(earlier), _queued_with_uuid("and the cost?", "q-1")
+        )
+        ok, why = hook.parse_decision_block(unflushed, run_live=False, transcript_path=tr)
+        assert not ok and "since the operator's last message" in why, earlier
+    brief = _BRIEF.format(panel=_approve_line())
+    tr = _transcript(
         tmp_path,
         _user("go"),
         _dispatch("opus"),
         _dispatch("fable"),
         _result("t-opus", f"{_V_OPUS}\nno concern."),
         _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
-        _said(_BRIEF.format(panel=_approve_line())),
-        *pad,
+        _said("PANEL APPROVED"),
+        _queued_with_uuid("and the cost?", "q-1"),
     )
-    assert hook._panel_brief_problem(backed, "") == ""
+    assert "since the operator's last message" in hook._panel_brief_problem(tr, brief)
+
+
+def test_a_json_row_that_is_not_an_object_is_skipped(tmp_path, panel_mode):
+    """W-573ddaa1 design critique (Opus): `_panel_problem` called `.get` on every parsed row, so a bare JSON list
+    row (`["user"]`) raised AttributeError and the panel check fell to the caller's fail-open."""
+    rows = (
+        _user("pick a retention window for the purge job"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        '["user"]',
+        _result("t-opus", f"verdict: {OPUS}."),
+        _result("t-fable", f"verdict: {FABLE}."),
+    )
+    tr = _transcript(tmp_path, *rows)
+    assert hook.parse_decision_block(_block(PANEL), run_live=False, transcript_path=tr) == (
+        True,
+        "underivable",
+    )
