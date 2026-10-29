@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "W-682f1189 — build the incremental AFCL / LESSONS_LEARNT reader (cursor + verdict-shaped rows into kaizen's queue)"
 }
