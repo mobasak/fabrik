@@ -173,7 +173,9 @@ def test_a_stray_row_reds_the_gate(tmp_path, monkeypatch, capsys):
     )
 
 
-_TREE = Path(_mod.__file__).resolve().parents[2]  # the checkout under test, never /opt/fabrik
+# The tree this test file sits in, read off the test's own path: `_mod.__file__` names whichever
+# tree `scripts` resolved from, which is the cwd's under --import-mode=importlib or --noconftest.
+_TREE = Path(__file__).resolve().parents[2]
 
 
 def test_the_live_hub_ledger_has_no_stray_rows():
@@ -215,7 +217,9 @@ def test_the_cobra_path_is_written_down_where_the_next_reader_finds_it():
     """FIX DIRECTIVE 5: for every gate introduced, the cheapest way to satisfy it WITHOUT the
     outcome is recorded in the same change. The measured-fire-rate half was done when this landed;
     this half was skipped and the review caught it."""
-    src = Path(_mod.__file__).read_text(encoding="utf-8")  # the module under test (W-72878aa4)
+    src = (_TREE / "scripts" / "enforcement" / "check_decisions_unique.py").read_text(
+        encoding="utf-8"
+    )  # this tree's checker (W-72878aa4)
     body = src.split("def find_rows_outside_the_table")[1].split('"""')[1]
     assert "cobra-effect" in body and "cheapest" in body.lower(), body[-400:]
 

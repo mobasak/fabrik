@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T19:55:13.375307Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-a00defb5",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "re-point each at Path(__file__).resolve().parents[2] or the imported module's __file__, red-prove one per file in a throwaway worktree; then a grader that refuses a new '/opt/fabrik' literal in tests/enforcement/",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "next-infra-2"
+  ],
+  "title": "11 tests under tests/enforcement/ hardcode /opt/fabrik paths, so from a worktree they grade the main checkout, not the branch (same class as W-72878aa4's two): test_check_vendored_drift.py:8/:101, test_validate_conventions.py:14, test_cert_dispositions.py:10, test_mega_validation_reports.py:20, test_plan_tickets_epic_scope.py:1022, test_check_doc_sprawl_newfile.py:17, test_check_env_vars_docker_exec.py:7, test_check_env_vars_shared_default.py:17, test_check_doc_sync_route_detector.py:16, test_plan_shape_gates.py:581 (Haiku seat, scoped review 2026-10-29)"
+}
