@@ -480,9 +480,11 @@ entries:
   # class: prose
   section: '## Phase 4 — REVIEW'
   baseline: A full `/fabrik-review` over committed work runs after phase 5 step 5 on a draft in `<durable>`, its receipt made once, after the last `--commit` (the ledger commit or a later fix), that commit its `--range` tip, and committed alone; a receipt the D-row cites is made before that commit instead (`--restamp`, phase 5); a scoped one needs none
-  current: Full `/fabrik-review` over committed work runs after phase 5 step 5 on draft in `<durable>`, its receipt made once, after last `--commit` (the ledger commit or a later fix), that commit its `--range` tip, and committed alone; receipt D-row cites is made before that commit instead (`--restamp`, phase 5); scoped one needs none
+  current: Full `/fabrik-review` over committed work runs after phase 5 step 5 on draft in `<durable>`, its receipt made once, after last `--commit` (the ledger commit or a later fix), its `--range` tip one of the `--commit` values that only receipt and ledger commits follow (check (d)), and committed alone; receipt D-row cites is made before that commit instead (`--restamp`, phase 5); scoped one needs none
+  changed-by:
+  - D-1336
   text:
-  - Full `/fabrik-review` over committed work runs after phase 5 step 5 on draft in `<durable>`, its receipt made once, after last `--commit` (the ledger commit or a later fix), that commit its `--range` tip, and committed alone; receipt D-row cites is made before that commit instead (`--restamp`, phase 5); scoped one needs none
+  - Full `/fabrik-review` over committed work runs after phase 5 step 5 on draft in `<durable>`, its receipt made once, after last `--commit` (the ledger commit or a later fix), its `--range` tip one of the `--commit` values that only receipt and ledger commits follow (check (d)), and committed alone; receipt D-row cites is made before that commit instead (`--restamp`, phase 5); scoped one needs none
 - id: ft-review-seat-questions
   # class: ban
   section: '## Phase 4 — REVIEW'
@@ -580,9 +582,9 @@ entries:
 - id: ft-close-capture-verb
   # class: prose
   section: '## Phase 5 — CLOSE, in this order'
-  current: '`capture` finds the newest commit whose message holds `<msg>`''s subject, appends its sha when that commit''s own subject is exactly `<msg>`''s, and exits 1 appending nothing otherwise; every run commit — the build''s, the ledgers'', each a review fix makes — is captured this way'
+  current: '`capture` runs only once the commit exits 0; it appends the sha of the newest commit whose subject is exactly `<msg>`''s, and otherwise exits 1 appending nothing, which stops the close; every run commit — the build''s, the ledgers'', each a review fix makes — is captured this way'
   text:
-  - '`capture` finds the newest commit whose message holds `<msg>`''s subject, appends its sha when that commit''s own subject is exactly `<msg>`''s, and exits 1 appending nothing otherwise; every run commit — the build''s, the ledgers'', each a review fix makes — is captured this way'
+  - '`capture` runs only once the commit exits 0; it appends the sha of the newest commit whose subject is exactly `<msg>`''s, and otherwise exits 1 appending nothing, which stops the close; every run commit — the build''s, the ledgers'', each a review fix makes — is captured this way'
 - id: ft-close-push-then-close
   # class: ban
   section: '## Phase 5 — CLOSE, in this order'
@@ -622,7 +624,7 @@ entries:
   # class: ban
   section: '## Phase 5 — CLOSE, in this order'
   baseline: 'Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5''s capture line so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one; `/fabrik-review`''s committed-fix form (a sync-path run in the main checkout, which `done` holds to one commit, reviews BEFORE that commit instead; the `--restamp` form below): run the full `/fabrik-review` (skipping its own `--init`) with its rows in a draft, `review_receipt.py --init --lane --range <base>..HEAD --changed <paths> --out <durable>/<slug>-receipt-draft.md`, until its closing pass; then, after the last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug> --range <base>..<that sha>`; the Surface line it writes is what check (d) reads; run `final_gate.py --check --json` BEFORE that `--init`, so a fix the gate forces is a run commit that lands first; carry the draft''s rows into it (a rubric class the draft lacked is a hunt still owed), run `/fabrik-review`''s close ORDER on it (the gate while IN-PROGRESS, embedded, flipped to `Status: CONVERGED`, re-run), then commit that receipt alone (outside D7''s one-commit sync-path rule) and push it; never captured or passed to `--commit`'
-  current: 'Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5''s capture line so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one, committed alone and never captured or passed to `--commit`; a full `/fabrik-review` over committed work — that form, `/fabrik-review`''s committed-fix form — closes in this order, after step 5''s ledger commit:'
+  current: 'Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5''s capture line so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one, committed alone and never captured or passed to `--commit`; a full `/fabrik-review` over committed work (that form, `/fabrik-review`''s committed-fix form) closes in this order, between step 5''s ledger commit and step 6:'
   changed-by:
   - D-1339
   clauses:
@@ -632,7 +634,7 @@ entries:
     5: {duplicate-of: ft-close-after-commit-gate}
     6: {duplicate-of: ft-close-after-commit-close-order}
   text:
-  - 'Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5''s capture line so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one, committed alone and never captured or passed to `--commit`; a full `/fabrik-review` over committed work — that form, `/fabrik-review`''s committed-fix form — closes in this order, after step 5''s ledger commit:'
+  - 'Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5''s capture line so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one, committed alone and never captured or passed to `--commit`; a full `/fabrik-review` over committed work (that form, `/fabrik-review`''s committed-fix form) closes in this order, between step 5''s ledger commit and step 6:'
 - id: ft-close-after-commit-review
   # class: prose
   section: '## Phase 5 — CLOSE, in this order'
@@ -648,9 +650,9 @@ entries:
 - id: ft-close-after-commit-gate
   # class: prose
   section: '## Phase 5 — CLOSE, in this order'
-  current: 'Run `final_gate.py --check --json` BEFORE step 3''s `--init`, so fix gate forces is run commit that lands, captured, first'
+  current: 'Run `final_gate.py --check --json` BEFORE item 3''s `--init`, so fix gate forces is run commit that lands, captured, first'
   text:
-  - 'Run `final_gate.py --check --json` BEFORE step 3''s `--init`, so fix gate forces is run commit that lands, captured, first'
+  - 'Run `final_gate.py --check --json` BEFORE item 3''s `--init`, so fix gate forces is run commit that lands, captured, first'
 - id: ft-close-after-commit-receipt
   # class: prose
   section: '## Phase 5 — CLOSE, in this order'

@@ -169,9 +169,9 @@ Test that writes live store pins it to tmp root: the hub's `tests/conftest.py` p
 
 Invoke review phase 0 already picked — at v1 always `/fabrik-review-scoped` (v1 sync/heavy surface never reaches the lane — it routes right-now instead); *(v2)* `/fabrik-review-scoped`, or full `/fabrik-review` for sync, heavy, migration or >5-file surface (D2, D7) — unchanged, never from memory; nested here, its own scope-growth stop fires at FIRST own-fix-only round, not the third (D8), still closing only on a confirmed-zero pass.
 
-Full `/fabrik-review` over committed work runs after phase 5 step 5 on draft in `<durable>`, its receipt made once, after last `--commit` (the ledger commit or a later fix), that commit its `--range` tip, and committed alone; receipt D-row cites is made before that commit instead (`--restamp`, phase 5); scoped one needs none.
+Full `/fabrik-review` over committed work runs after phase 5 step 5 on draft in `<durable>`, its receipt made once, after last `--commit` (the ledger commit or a later fix), its `--range` tip one of the `--commit` values that only receipt and ledger commits follow (check (d)), and committed alone; receipt D-row cites is made before that commit instead (`--restamp`, phase 5); scoped one needs none.
 
-*(v2)* Seats still out at a turn end meet the Stop hook's uncommitted-work block (three times, then it warns through), so the review is dispatched AFTER phase 5 steps 1-5 by default — every run commit captured as step 5 says — a full `/fabrik-review` then taking the after-commit `--range` form phase 5 numbers; a review that finishes inside the turn may still run BEFORE commit, and a sync-path run in main checkout must (phase 5).
+*(v2)* Seats still out at a turn end meet the Stop hook's uncommitted-work block (three times, then it warns through), so the review is dispatched AFTER phase 5 steps 1-5 by default, a full `/fabrik-review` then taking the after-commit `--range` form phase 5 numbers; a review that finishes inside the turn may still run BEFORE commit, and two must: a sync-path run in main checkout and a review whose receipt the D-row cites (phase 5's `--restamp` form).
 
 Give its seat briefs phase-2 `design.md` path and phase-0 declaration, plus three questions: *does change ESCAPE declared files? did it add mechanism declaration said `no` to? can you name second approach whose merits build cannot settle (an equivalent implementation is not one)?* `yes` to first or third is that seat's UPGRADE verdict — take it; `yes` to second corrects D-row (name mechanism there), never the lane (D-315).
 
@@ -197,7 +197,7 @@ mkdir -p <durable>
 python3 scripts/command_run.py capture --msg <msg> --out <durable>/commit.sha
 ```
 
-`capture` finds the newest commit whose message holds `<msg>`'s subject, appends its sha when that commit's own subject is exactly `<msg>`'s, and exits 1 appending nothing otherwise; every run commit — the build's, the ledgers', each a review fix makes — is captured this way.
+`capture` runs only once the commit exits 0; it appends the sha of the newest commit whose subject is exactly `<msg>`'s, and otherwise exits 1 appending nothing, which stops the close; every run commit — the build's, the ledgers', each a review fix makes — is captured this way.
 
 6. § EXIT's push ladder (never `--force`), then close — capture file, not post-ladder `HEAD` read, is what names YOUR commit:
 
@@ -213,13 +213,15 @@ Close re-measures every commit: at v1 undeclared path is RECORDED as `oversized_
 
 *(v2)* contract or new-source hit found only here REFUSES `done` and `handoff` too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none.
 
-Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5's capture line so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one, committed alone and never captured or passed to `--commit`; a full `/fabrik-review` over committed work — that form, `/fabrik-review`'s committed-fix form — closes in this order, after step 5's ledger commit:
+Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5's capture line so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one, committed alone and never captured or passed to `--commit`; a full `/fabrik-review` over committed work (that form, `/fabrik-review`'s committed-fix form) closes in this order, between step 5's ledger commit and step 6:
 
 1. Run full `/fabrik-review` (skipping its own `--init`) with its rows in draft, `review_receipt.py --init --lane --range <base>..HEAD --changed <paths> --out <durable>/<slug>-receipt-draft.md`, until its closing pass — a sync-path run in main checkout, which `done` holds to one commit, takes the `--restamp` form below instead.
-2. Run `final_gate.py --check --json` BEFORE step 3's `--init`, so fix gate forces is run commit that lands, captured, first.
+2. Run `final_gate.py --check --json` BEFORE item 3's `--init`, so fix gate forces is run commit that lands, captured, first.
 3. After last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug> --range <base>..<that sha>` — Surface line it writes is what check (d) reads.
 4. Carry draft's rows into it (rubric class draft lacked is hunt still owed), run `/fabrik-review`'s close ORDER on it (gate while IN-PROGRESS, embedded, flipped to `Status: CONVERGED`, re-run), then commit that receipt alone (outside D7's one-commit sync-path rule) and push it.
 5. Close the nested review's record, then step 6's `done`.
+
+Check (d)'s range form itself is looser than this LAST rule: it takes any listed commit as the tip when every other listed commit that is not its git ancestor carries only receipts and ledgers, and list order decides nothing, so never reorder the `--commit` list to pass it.
 
 Or review BEFORE commit: `--init` without `--range`, then `review_receipt.py --restamp <receipt>` after review's last fix — receipt rides in that commit and (d) re-hashes its paths (W-ebbedc88).
 

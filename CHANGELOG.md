@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — Coordinators never block on a long wait; self-healing row for an unkillable worker child; /fabrik-task range-tip wording (2026-10-29)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md`, coordinator job (5): a merge, queue, test leg or API run goes to the background and the turn ends until its notification wakes it, never a foreground sleep, poll loop or long `runwait` (operator ruling D-1296, W-32ab8277); the HARD STOPS long-command row says the same.
+- `docs/reference/long-command-monitoring.md`: the key rule says every foreground wait in the doc (each `runwait` example and the multi-minute Bash `timeout`) is builder-only, and the long-suite example is marked so (infra mail 01M5YP378Z).
+- `.windsurf/rules/core/self-healing.md`: row 12, a fork-pool child left in uninterruptible kernel sleep after SIGKILL (for example a kernel netlink wedge) is held against the live-child cap, counted and logged, never replaced; its counter and wchan grouping are the project's to build; one deduplicated operator alert per episode, and the operator reboots the host (youtube mail 01M5C99YXS, W-07231796).
+- `commands/_sources/fabrik-task.md`, phases 4 and 5: check (d) takes any listed `--commit` as the receipt's range tip when only receipt and ledger commits follow it, and list order decides nothing, so never reorder the list to pass it; phase 5's stricter "LAST `--commit`" recipe stays verbatim until the lean loader can reword a ban clause (D-1336, D-1291; infra-2 mail 01M5YHHM8G).
+
 ### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)
 - `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the
   box at 96 % the hook's `SCRATCH ALARM` line landed in the stdout of every `--hook` run that passes its

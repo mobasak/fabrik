@@ -1037,7 +1037,11 @@ def test_the_documented_multi_commit_close_parses_as_separate_shas(tmp_path: Pat
 
     root = Path(__file__).resolve().parents[1]
     src = (root / "commands/_sources/fabrik-task.md").read_text(encoding="utf-8")
-    assert "command_run.py capture --msg <msg> --out <durable>/commit.sha" in src, "the capture must append (D-1339)"
+    # D-1339: the text names the capture verb (a prose pin); that the verb APPENDS is executed by
+    # test_capture_appends_the_sha_found_by_subject_never_head above, and the --commit expansion below
+    assert "command_run.py capture --msg <msg> --out <durable>/commit.sha" in src, (
+        "the close must name the capture verb"
+    )
     m = _re.search(r"--commit (\$\(cat <durable>[^)]*\))", src)
     assert m, "the done line must expand the capture file UNQUOTED"
     cap = tmp_path / "commit.sha"
