@@ -440,8 +440,9 @@ def test_a_137_refusal_names_the_memory_ceiling(world, script, ceiling):
     assert world.run("merge") != 0
 
     reason = world.record(msg_id)["reason"]
-    assert f"exit 137): {_KILL.format(ceiling)}" in reason, reason
-    assert "a comment line" not in reason, reason  # the tail is the verdict, not the script
+    # the verdict ends where capped_run's " — <argv>" begins: no script text follows it
+    assert f"exit 137): {_KILL.format(ceiling)};" in reason, reason
+    assert "a comment line" not in reason and " — sh " not in reason, reason
 
 
 def test_a_bare_137_is_not_called_a_ceiling_kill(world):
