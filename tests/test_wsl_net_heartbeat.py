@@ -41,6 +41,17 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             time.sleep(8)  # past the script's curl -m 5
             self.send_response(200)
             self.end_headers()
+        elif self.path == "/partial":  # the link drops mid-body: curl 18
+            self.send_response(200)
+            self.send_header("Content-Length", "100")
+            self.end_headers()
+            self.wfile.write(b"0123456789")
+            self.close_connection = True
+        elif self.path == "/empty":  # closed with no reply at all: curl 52
+            self.close_connection = True
+        elif self.path == "/garbage":  # a middlebox's non-HTTP answer: curl 1 (HTTP/0.9 refused)
+            self.wfile.write(b"not http\r\n")
+            self.close_connection = True
         else:
             self.send_response(404)
             self.end_headers()
@@ -118,14 +129,21 @@ def test_a_reachable_probe_refreshes_both_files(tmp_path: Path, server: str, pat
         )
 
 
-@pytest.mark.parametrize("case", ["refused", "http-404", "timeout"])
+@pytest.mark.parametrize(
+    "case", ["refused", "http-404", "timeout", "dns", "partial-body", "empty-reply", "non-http"]
+)
 def test_an_unreachable_probe_refreshes_only_the_ran_file(
     tmp_path: Path, server: str, case: str
 ) -> None:
+    # every way the network can fail is an outage: only a short list of LOCAL faults is not
     url = {
-        "refused": f"http://127.0.0.1:{_closed_port()}/",
-        "http-404": server + "/missing",
-        "timeout": server + "/slow",
+        "refused": f"http://127.0.0.1:{_closed_port()}/",  # curl 7
+        "http-404": server + "/missing",  # 22
+        "timeout": server + "/slow",  # 28
+        "dns": "http://nonexistent.invalid/",  # 6 (RFC 6761: .invalid never resolves)
+        "partial-body": server + "/partial",  # 18
+        "empty-reply": server + "/empty",  # 52
+        "non-http": server + "/garbage",  # 1
     }[case]
     beat = tmp_path / "beat"
     _aged(beat)
@@ -182,6 +200,9 @@ def test_an_unwritable_heartbeat_dir_fails_the_run(tmp_path: Path, server: str) 
     (beat / "wsl-net-ok").symlink_to(tmp_path / "no" / "such" / "target")
     r = _run(beat, server + "/ok")
     assert r.returncode != 0, "a failed ok write fails the run"
+    assert (beat / "wsl-net-ran").stat().st_mtime == OLD, (
+        "ran must not move when ok cannot be written: ran moved + ok still reads as 'no network'"
+    )
 
     beat = tmp_path / "ro"
     _aged(beat)

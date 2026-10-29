@@ -19,14 +19,16 @@ why a new `wsl.exe` session eventually cannot get its 512 KB ring and hangs with
   `curl -q -sSf -m 5 -o /dev/null http://www.msftconnecttest.com/connecttest.txt`, the same success
   rule as the old probe (any HTTP status below 400; `-q` ignores a user's `~/.curlrc`), then sorts
   curl's exit code three ways:
-  1. **0** (the probe fetched): touches both `C:\Users\user\hotel-wifi\wsl-net-ran` and `wsl-net-ok`.
-  2. **a network failure** (curl exit 5, 6, 7, 22, 28, 35, 52, 55 or 56): touches only `wsl-net-ran`,
-     writes curl's reason to the journal, and exits 0. An outage is not a fault, so the unit is not
-     marked failed every minute of one.
-  3. **anything else** (a malformed URL, curl missing, an option error): a local fault that an adapter
-     restart cannot cure. Neither file moves and the run exits 1, so the watchdog reads the heartbeat
-     as broken, never as "no network".
-- A failed write exits nonzero too.
+  1. **0** (the probe fetched): touches `wsl-net-ok`, then `C:\Users\user\hotel-wifi\wsl-net-ran`.
+  2. **a local fault** that an adapter restart cannot cure (curl exit 2, 3, 4, 23, 26, 27 or 43, or
+     the shell's 126/127 when curl cannot run): neither file moves and the run exits 1, so the
+     watchdog reads the heartbeat as broken, never as "no network".
+  3. **anything else** is the network failing (refused, DNS, timeout, a reply cut short, HTTP 400 or
+     above, a middlebox's non-HTTP answer): touches only `wsl-net-ran`, writes curl's reason to the
+     journal, and exits 0. An outage is not a fault, so the unit is not marked failed every minute of
+     one.
+- A failed write exits nonzero too. `wsl-net-ok` is written before `wsl-net-ran`, so a failed ok
+  write leaves both still and reads as a broken heartbeat, never as "no network".
 - `/mnt/c` is a 9p mount, not the NAT network, so `wsl-net-ran` keeps changing while the NAT is dead.
 
 Check it: `systemctl --user list-timers wsl-net-heartbeat.timer` and

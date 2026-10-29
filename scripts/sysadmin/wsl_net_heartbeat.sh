@@ -11,11 +11,15 @@
 # and ok still means "no network" (it may restart the WSL adapter); ran still means "the heartbeat
 # is broken" (it only toasts).
 #
-# So curl's exit code is sorted three ways. 0 → both files. A network code → ran only, curl's reason
-# to the journal, exit 0 (an outage is not a fault, so the unit is not failed every minute of one).
-# Anything else — a malformed URL (3), curl missing (127), an option error — is a LOCAL fault an
-# adapter restart cannot cure: neither file moves and the run exits 1. `-q` (it must come first)
-# keeps a user's ~/.curlrc out of the probe. A failed write exits nonzero too.
+# So curl's exit code is sorted three ways. 0 → ok, then ran. A LOCAL fault an adapter restart cannot
+# cure → neither file, exit 1. Every other code is the network failing (refused, DNS, timeout, a reply
+# cut short, HTTP >= 400, a middlebox's non-HTTP answer…) → ran only, curl's reason to the journal,
+# exit 0 (an outage is not a fault, so the unit is not failed every minute of one). The local list is
+# short and closed because the probe URL is a fixed http:// address: curl(1) EXIT CODES 2 (init
+# failed), 3 (malformed URL), 4 (feature not built in), 23 (write error), 26 (read error), 27 (out of
+# memory), 43 (internal error), and the shell's 126/127 (curl not runnable or missing). `-q` (it must
+# come first) keeps a user's ~/.curlrc out of the probe. A failed write exits nonzero, and ok is
+# written before ran, so a failed ok write leaves ran still ("broken"), never "no network".
 set -euo pipefail
 
 dir="${WSL_NET_HEARTBEAT_DIR:-/mnt/c/Users/user/hotel-wifi}"
@@ -25,16 +29,15 @@ rc=0
 said="$(curl -q -sSf -m 5 -o /dev/null -- "$url" 2>&1)" || rc=$?
 case "$rc" in
   0)
-    touch -- "$dir/wsl-net-ran" "$dir/wsl-net-ok"
-    ;;
-  # couldn't resolve proxy/host, couldn't connect, HTTP >= 400, timeout, TLS connect, empty reply,
-  # send error, receive error — curl(1) EXIT CODES
-  5 | 6 | 7 | 22 | 28 | 35 | 52 | 55 | 56)
-    printf '%s\n' "$said" >&2
+    touch -- "$dir/wsl-net-ok"
     touch -- "$dir/wsl-net-ran"
     ;;
-  *)
+  2 | 3 | 4 | 23 | 26 | 27 | 43 | 126 | 127)
     printf 'wsl_net_heartbeat: curl exited %s, a local fault, not an outage: %s\n' "$rc" "$said" >&2
     exit 1
+    ;;
+  *)
+    printf '%s\n' "$said" >&2
+    touch -- "$dir/wsl-net-ran"
     ;;
 esac
