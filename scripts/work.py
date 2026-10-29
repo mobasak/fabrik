@@ -5802,11 +5802,12 @@ def _open_plans(main: Path) -> list[str]:
     # Sets are matched as `_iter_plan_spines` matches them; top-level files keep the wider
     # `*.md` glob, so an undated plan this view always listed is not dropped
     try:
-        spines = [d / f"{d.name}.md" for d in plans.glob("*/") if _PLAN_DIR_NAME_RE.match(d.name)]
-        paths = sorted([*plans.glob("*.md"), *spines])
+        if plans.is_dir():
+            os.listdir(plans)  # Path.glob swallows a PermissionError, which read as no open plans
     except OSError as exc:
         return [f"{plans.relative_to(main).as_posix()} (open-plan view unavailable: {exc!r})"]
-    for path in paths:
+    spines = [d / f"{d.name}.md" for d in plans.glob("*/") if _PLAN_DIR_NAME_RE.match(d.name)]
+    for path in sorted([*plans.glob("*.md"), *spines]):
         rel = path.relative_to(main).as_posix()
         # one unreadable plan is skipped, never the whole view (review round 1)
         try:

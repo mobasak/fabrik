@@ -810,7 +810,22 @@ def test_work_open_plans_says_so_when_the_parser_cannot_load(tmp_path, monkeypat
     work, repo, plans = _fake_docs_updater(tmp_path, monkeypatch, "raise RuntimeError('broken')\n")
     (plans / "2026-10-02-plan-good.md").write_text("# good\n")
     out = work._open_plans(repo)
-    assert out and "RuntimeError" in out[0] and "unavailable" in out[0], out
+    assert len(out) == 1 and "RuntimeError" in out[0] and "unavailable" in out[0], out
+
+
+def test_work_open_plans_says_so_when_the_plans_dir_cannot_be_read(tmp_path, monkeypatch):
+    """W-f1412a11 review: Path.glob swallows a PermissionError, so an unreadable plans dir read as
+    'no open plans'; the view now names it as unavailable."""
+    work, repo, plans = _fake_docs_updater(
+        tmp_path, monkeypatch, "PLAN_DONE = set()\ndef parse_plan_status(path):\n    return ('DRAFT', 0, 0)\n"
+    )
+    (plans / "2026-10-02-plan-good.md").write_text("# good\n")
+    plans.chmod(0)
+    try:
+        out = work._open_plans(repo)
+    finally:
+        plans.chmod(0o755)
+    assert len(out) == 1 and "PermissionError" in out[0] and "unavailable" in out[0], out
 
 
 class TestLinkCheckReadsCommonMarkLinks:

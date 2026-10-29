@@ -8,8 +8,10 @@ All notable changes to this project will be documented in this file.
 - `scripts/work.py` `_open_plans` (shown by `work.py queue` and `triage` as `plan not executed:`):
   an outer `except Exception` returned an empty list on any error, so one plan the status parser
   raised on, or a `docs_updater.py` that failed to load, read as "no open plans". A plan the parser
-  raises on is now listed as open with the error, and a parser that cannot load prints one line
-  saying the view is unavailable. Unreadable files are still skipped, as before. Item W-f1412a11
+  raises on is now listed as open with the error, and a parser that cannot load, or a plans
+  directory that cannot be read, prints one line saying the view is unavailable (`Path.glob`
+  swallows that directory's `PermissionError`, so it read as no open plans too). An unreadable
+  plan file is still skipped, as before. Item W-f1412a11
   (review B-S1 of the 2026-10-08 docs-updater plan-status receipt); tests in
   `tests/test_docs_updater.py`.
 
