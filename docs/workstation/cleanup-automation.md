@@ -216,9 +216,15 @@ consumed will be done so"*. `classify_run_folder` is the ONE function that answe
   unreadable or future time is doubt counted from the close, never a keep until that date —
   a write that only modifies an existing file, or lands inside an existing subfolder, is not seen, and
   a cleanup inside the folder after its close keeps it 36 h); a holder (fd or cwd)
-  inside; a same-uid `/proc` gap whose process started after the marker was written, or whose start is
-  unknown (D-877 — this box always carries three such daemons that started at boot, so "any gap keeps"
-  would keep everything; a zombie is no gap; that ruling is the operator's, interim until they rule);
+  inside; a same-uid `/proc` gap whose process started INSIDE the run's own window — after the marker
+  was written and no later than the run's last activity (its vouched close, a top-level write after it,
+  or the newest seat transcript; a `running`/`resumable` marker's heartbeat; a `.trash-*`'s rename),
+  each with a 5-minute clock margin — or whose start, or the window's end, is unknown (D-877, D-878; the
+  end bound is W-d1a4a8f5: this box always carries daemons whose `/fd` no one can read — gpg-agent, the
+  document portal's setuid `fusermount3` — and without an end one started mid-uptime kept every older
+  folder, 152 of them / 77 GB on 2026-10-29, while `/tmp` is NOT cleared at boot here; a zombie is no gap.
+  Residual: a non-seat process started after the run's last activity that still writes into the folder
+  only in place loses it once the grace has passed);
   a holder probe that did not complete; a `.keep`; a registered worktree it cannot remove; no
   readable marker; a marker naming another session (D3 only).
 - **CONSUMED, removed walk-free** (INV-2): `done` past its grace, or `running` in a dead session with

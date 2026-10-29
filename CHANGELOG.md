@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the scratch janitor no longer keeps run folders for a daemon born after the run (2026-10-29)
+- `scripts/scratch_sweep.py`: a same-uid `/proc` gap now keeps a run folder only when its process
+  started inside the run's own window. The window ends at the run's last activity (`run_window_end`):
+  the close, a later write, or the newest seat transcript. Before, there was no end, so the
+  document portal's `fusermount3` and gpg-agent kept 152 finished folders (77 GB of /tmp/claude-1000)
+  for as long as they lived. `/tmp` is not cleared at boot here. The `--apply` removal re-check uses the same window.
+  On the live box, the `--dead` dry run goes from 152 gap-kept and 27 consumed to 10 and 169.
+  The session-level rules are unchanged: a no-signal session holds 0.5 GB, and the 108 GB in
+  resumable sessions stays protected by the 7-day bar (D-1341, W-d1a4a8f5).
+
 ### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)
 - `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the
   box at 96 % the hook's `SCRATCH ALARM` line landed in the stdout of every `--hook` run that passes its
