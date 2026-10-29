@@ -19,6 +19,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -723,7 +724,7 @@ def test_the_sync_runs_outside_the_merge_lock(world, monkeypatch):
         world,
         monkeypatch,
         "fd = os.open(state.parent / 'fabrik-merge.lock', os.O_RDWR | os.O_CREAT)\n"
-        "end = time.monotonic() + 8\n"
+        "end = time.monotonic() + 60\n"
         "got = 'held'\n"
         "while time.monotonic() < end:\n"
         "    try:\n"
@@ -760,13 +761,15 @@ def test_a_debt_owed_during_a_sync_is_covered_by_one_more_run(world, monkeypatch
 
 def test_a_failed_sync_stays_owed_and_the_next_kick_retries_it(world, monkeypatch, capsys):
     state = _hub(world, monkeypatch)
-    _fake_sync(world, monkeypatch, "print('step one'); print('boom'); sys.exit(1)\n")
+    # exit 3, not 1: the runner itself exits 1 on any failed sync, so the sync's own code must
+    # still reach the line the merge owner reads
+    _fake_sync(world, monkeypatch, "print('step one'); print('boom'); sys.exit(3)\n")
     _sync_landing(world)
 
     assert world.run("merge") == 0  # a sync's failure never changed the merge's exit
     err = capsys.readouterr().err
     assert (
-        "sync: FAILED (exit 1: step one boom) — run scripts/sync_enforcement_to_projects.py --force"
+        "sync: FAILED (exit 3: step one boom) — run scripts/sync_enforcement_to_projects.py --force"
         in err
     )
     assert not (state / "sync-done").exists()
@@ -775,7 +778,7 @@ def test_a_failed_sync_stays_owed_and_the_next_kick_retries_it(world, monkeypatc
     msg_id = world.send(world.branch({"notes.txt": "a landing that owes no sync\n"}))
     assert world.run("merge") == 0
     assert world.sync_marker.read_text() == "retried"
-    assert "the last background sync FAILED (exit 1)" in world.replies(msg_id)["fleet"]
+    assert "the last background sync FAILED (exit 3)" in world.replies(msg_id)["fleet"]
 
 
 def test_a_runner_crash_is_printed_with_its_reason_not_a_stale_status(world, monkeypatch, capsys):
@@ -789,6 +792,48 @@ def test_a_runner_crash_is_printed_with_its_reason_not_a_stale_status(world, mon
     err = capsys.readouterr().err
     assert "sync: FAILED (exit 70: runner crashed: IsADirectoryError" in err
     assert "sync: ran" not in err
+    assert not list(state.glob(".sync-done.*")), "the failed write left its temp file"
+
+
+def test_a_sync_orphaned_by_a_killed_runner_keeps_the_sync_lock(world, monkeypatch):
+    _hub(world, monkeypatch)
+    # the sync kills its runner, then asks whether the sync lock is still held — by itself
+    _fake_sync(
+        world,
+        monkeypatch,
+        "import signal\n"
+        "os.kill(os.getppid(), signal.SIGKILL)\n"
+        "time.sleep(0.5)\n"
+        "fd = os.open(state / 'sync.lock', os.O_RDWR)\n"
+        "try:\n"
+        "    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)\n"
+        "    marker.write_text('free')\n"
+        "except BlockingIOError:\n"
+        "    marker.write_text('held')\n",
+    )
+    _sync_landing(world)
+
+    assert world.run("merge") == 0
+    for _ in range(50):
+        if world.sync_marker.exists():
+            break
+        time.sleep(0.1)
+    assert world.sync_marker.read_text() == "held"
+
+
+def test_a_debt_owed_after_the_runner_exits_gets_one_more_runner(world, monkeypatch, capsys):
+    state = _hub(world, monkeypatch)
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "sync-owed.log").write_text("owed after the runner's last check\n")
+    _fake_sync(world, monkeypatch, "marker.write_text('x')\n")
+    done = subprocess.Popen([sys.executable, "-c", "pass"])  # a runner that exited 0, debt open
+    world.mod._SYNC_RUN.update(proc=done, state=state, main=world.main)
+
+    world.mod._drain_sync()
+    assert world.sync_marker.read_text() == "x"
+    err = capsys.readouterr().err
+    assert "sync: ran" in err
+    assert "FAILED" not in err
 
 
 def test_a_debt_left_by_a_killed_run_runs_at_the_next_landing(world, monkeypatch):
@@ -803,19 +848,23 @@ def test_a_debt_left_by_a_killed_run_runs_at_the_next_landing(world, monkeypatch
 
 def test_a_runner_waits_for_a_held_sync_lock_then_runs(world, monkeypatch):
     import threading
-    import time
 
     state = _hub(world, monkeypatch)
-    _fake_sync(world, monkeypatch, "marker.write_text(repr(time.time()))\n")
+    _fake_sync(world, monkeypatch, "marker.write_text('ran')\n")
     _sync_landing(world)
     state.mkdir(parents=True, exist_ok=True)
     fd = os.open(state / "sync.lock", os.O_RDWR | os.O_CREAT, 0o644)
     fcntl.flock(fd, fcntl.LOCK_EX)  # another process's sync holds it
-    released: list[float] = []
+    synced_while_held: list[bool] = []
 
     def release() -> None:
+        # hold until this landing owed its sync (or 30 s), then 2 s more: a sync that ran while
+        # the lock was held has written the marker by now
+        end = time.monotonic() + 30
+        while not (state / "sync-owed.log").exists() and time.monotonic() < end:
+            time.sleep(0.1)
         time.sleep(2)
-        released.append(time.time())
+        synced_while_held.append(world.sync_marker.exists())
         os.close(fd)
 
     t = threading.Thread(target=release)
@@ -824,7 +873,8 @@ def test_a_runner_waits_for_a_held_sync_lock_then_runs(world, monkeypatch):
         assert world.run("merge") == 0
     finally:
         t.join()
-    assert float(world.sync_marker.read_text()) >= released[0]
+    assert synced_while_held == [False]
+    assert world.sync_marker.read_text() == "ran"
 
 
 def test_no_sync_is_owed_outside_the_hub(world, monkeypatch):

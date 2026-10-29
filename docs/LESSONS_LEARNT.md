@@ -3,7 +3,7 @@
 
 ## Time a lock's tail from the timestamps its steps already leave (2026-10-30, W-4f4ac600)
 
-**What happened:** a merge lock was held ~4.3 min after each merge commit and the item named five suspect steps. A live sampler had started after the landing and saw none of it; the shared reflogs (`master` for the CAS, `origin/master` for the push) and the mail store's mtimes (reply, ack) split the window in one read: carry + push 6 s, sync 251 s, reply + ack 1 s, and two no-sync landings closed the case as controls.
+**What happened:** a merge lock was held ~4.3 min after a merge commit that owed the governance sync, and the item named five suspect steps. A live sampler had started after the landing and saw none of it; the shared reflogs (`master` for the CAS, `origin/master` for the push) and the mail store's mtimes (reply, ack) split the window in one read: carry + push 6 s, sync 251 s, reply + ack 1 s, and two no-sync landings closed the case as controls.
 
 **Lesson:** before instrumenting a slow serial path, list the durable side effects each step writes (a ref move, a file, a mail) and read their times; a step with no timestamp is the gap to instrument, not the whole path. Then compare with a run that skipped the suspect step.
 

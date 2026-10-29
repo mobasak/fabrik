@@ -257,8 +257,8 @@ refused with capped_run's own last verdict line, on the merge and the pretest al
 overwritten; a path that changed is kept and listed in the reply — (f) a fast-forward push, (g) the
 hub's governance sync, OWED and run by a background `sync-runner` outside the merge lock (its own
 `<git common dir>/fabrik-merge/sync.lock`; a debt stays in `sync-owed.log` until a sync that started
-after it succeeds; the run's end waits for it and prints `sync: ran` or `sync: FAILED … --force`,
-W-4f4ac600), and (h) the reply to requester and distributor, then `mail.py ack done
+after it succeeds; the run's end waits for it, `SYNC_TIMEOUT_S` in all, and prints `sync: ran`,
+`sync: FAILED … --force` or `sync: still running in the background`, W-4f4ac600), and (h) the reply to requester and distributor, then `mail.py ack done
 --merge-sha`. Every merge commit it writes, a catch-up's included, ends in one Agent Provenance
 Trailer block — `Agent-Role: orchestrator`, the owner's `Agent-Name` (left out, with a note, when the
 owner is outside the agent-name grammar) and an `Agent-Context` (the request's names the branch,
