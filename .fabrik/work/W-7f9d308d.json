@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "final_gate_stop.py sixth cause: on 2026-10-19 sid 8a498855 was blocked for W-d90fe030's files, reviewed to CONVERGED under sid 7e6fef18 (its record: covered 20:43:35-21:35:13, reviewed_surfaces W-d90fe030); read the prior sid's covered windows and reviewed_surfaces when the transcript carries its turns",
-  "note": "",
+  "note": "duplicate of W-9d1ba25c (folded in): infra measured 2026-10-29 that the 'carried transcript' shape does not occur (0 of 1,376 transcripts in 10 days); the blocking edits were in the new window under 7e6fef18's still-running record, which is W-9d1ba25c's 4th symptom",
   "owner": "infra",
   "priority": 1,
   "score_reason": "break on agents: a resumed window's Stop hook falsely blocks reviewed work; same session-id root as W-9d1ba25c, so it rides that mechanism",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "stop-hook"
   ],
