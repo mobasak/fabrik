@@ -3648,6 +3648,8 @@ def test_a_dash_or_refusal_replaces_a_collector_filed_cell(force_dash: bool) -> 
     assert _merge_cells(dashes, _row7(_BARE), force_dash)[7] == "—"
     extended = _BARE + "; fleet mail 01X"
     assert _merge_cells(dashes, _row7(extended), force_dash)[7] == extended
+    if force_dash:  # a refused run never publishes a count, even one it computed
+        assert _merge_cells(_row7(_FRESH), _row7(_BARE), True)[7] == "—"
 
 
 @pytest.mark.parametrize(
