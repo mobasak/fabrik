@@ -11,6 +11,21 @@ entries:
   text:
   - |-
     The loop runs until no issues remain to raise AND every class is proven hunted — two conditions, BOTH required, neither sufficient alone: the exit needs BOTH
+- id: tc-u08-anchor-recompute-by-writer
+  class: prose
+  file: commands/_fragments/term-coverage.md
+  section: '## ⚠️ Termination contract — coverage-adjudicated (READ FIRST — the rule agents skip)'
+  baseline: |-
+    Compute the surface hash: `git rev-parse HEAD` + `git diff HEAD | md5sum`
+  text:
+  - |-
+    Compute the surface hash the way the prior line was made
+  - |-
+    is recomputed from the repo root by `python scripts/review_receipt.py --restamp <the copy>` on an absolute scratch copy of that receipt, never the receipt itself, whose anchor it would rewrite
+  - |-
+    It matches only when it exits 0, the copy is then byte-identical to the receipt (`cmp`), and the paths that line names are the paths this review is over, since it hashes those paths alone
+  - |-
+    Any other line of a DIFF surface is compared with `git rev-parse HEAD` + `git diff HEAD | md5sum`; a non-diff surface keeps the inventory hash below
 - id: tc-u11-prior-surface-comparable
   class: prose
   file: commands/_fragments/term-coverage.md
@@ -313,6 +328,7 @@ entries:
 vanished:
   L2: {rule: [tc-u02-loop-runs-until]}
   L5: {duplicate-of: tc-u02-loop-runs-until}
+  L8: {rule: [tc-u08-anchor-recompute-by-writer]}
   L11: {rule: [tc-u11-prior-surface-comparable]}
   L12: {rule: [tc-u12-let-degrade-silently]}
   L14: {rule: [tc-u14-persist-exception-below]}

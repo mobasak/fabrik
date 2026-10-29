@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a re-invoked review's anchor can match a `review_receipt.py` Surface line again (2026-10-30)
+term-coverage obligation 1 (rendered into `/fabrik-review`, `/fabrik-repo-review`, `/fabrik-conformance-review`,
+`/fabrik-user-test` and `/fabrik-service-test`) recomputed the prior `Surface:` hash with a whole-tree
+`git diff HEAD | md5sum`, which never matches the line `review_receipt.py --init` writes, so every re-invoked review
+took the full pass. It now recomputes such a line with `review_receipt.py --restamp` on a scratch copy and states
+the match rule (exit 0, `cmp`-identical copy, the same path set). D-1366; grader
+`tests/test_term_coverage_anchor_recipe.py` (W-e9588939).
+
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
 `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.
