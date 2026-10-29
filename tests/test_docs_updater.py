@@ -828,6 +828,14 @@ def test_work_open_plans_says_so_when_the_plans_dir_cannot_be_read(tmp_path, mon
     assert len(out) == 1 and "PermissionError" in out[0] and "unavailable" in out[0], out
 
 
+def test_work_open_plans_is_empty_without_a_plans_dir_whatever_the_parser(tmp_path, monkeypatch):
+    """W-f1412a11 review: a repo with no plans dir has no open plan, so a parser that cannot load
+    there is not reported (the old view returned [] for it too)."""
+    work, repo, plans = _fake_docs_updater(tmp_path, monkeypatch, "raise RuntimeError('broken')\n")
+    plans.rmdir()
+    assert work._open_plans(repo) == []
+
+
 class TestLinkCheckReadsCommonMarkLinks:
     """W-f11e740e: check_link_integrity read links with its own `\\[..\\]\\(([^)]+)\\)` regex, so a
     titled or <angle> link to a live doc was reported broken and an escaped or paren name was

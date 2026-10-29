@@ -5783,10 +5783,14 @@ def _sessions_of(agent: str, main: Path) -> list[str]:
 
 def _open_plans(main: Path) -> list[str]:
     """Plan spines whose status is not terminal (docs_updater's own parser). An error never empties
-    the view (W-f1412a11): a parser that cannot load is one line saying so, and a plan the parser
-    raises on is listed as open with the error, since its status is unknown."""
+    the view (W-f1412a11): a parser that cannot load, or a plans dir that cannot be read, is one line
+    saying so, and a plan the parser raises on is listed as open with the error, since its status is
+    unknown. No plans dir is no open plan."""
     plans = main / "docs" / "development" / "plans"
+    if not plans.is_dir():
+        return []  # no plans dir, no open plan — whether or not the parser would load
     try:
+        os.listdir(plans)  # Path.glob swallows a PermissionError, which read as no open plans
         spec = importlib.util.spec_from_file_location(
             "_work_docs_updater", Path(__file__).with_name("docs_updater.py")
         )
@@ -5801,15 +5805,11 @@ def _open_plans(main: Path) -> list[str]:
     # (web-ecommerce-factory 01M46V7T0CR4MAXBF3K5D0FSDD: a one-level glob never listed one).
     # Sets are matched as `_iter_plan_spines` matches them; top-level files keep the wider
     # `*.md` glob, so an undated plan this view always listed is not dropped
-    try:
-        if plans.is_dir():
-            os.listdir(plans)  # Path.glob swallows a PermissionError, which read as no open plans
-    except OSError as exc:
-        return [f"{plans.relative_to(main).as_posix()} (open-plan view unavailable: {exc!r})"]
     spines = [d / f"{d.name}.md" for d in plans.glob("*/") if _PLAN_DIR_NAME_RE.match(d.name)]
     for path in sorted([*plans.glob("*.md"), *spines]):
         rel = path.relative_to(main).as_posix()
-        # one unreadable plan is skipped, never the whole view (review round 1)
+        # a spine that cannot be stat'ed (inside an unreadable set dir) is skipped, never the whole
+        # view (review round 1); the parser itself grades an unreadable file UNKNOWN, which is open
         try:
             if not path.is_file():
                 continue  # a dated set directory holding tickets but no spine

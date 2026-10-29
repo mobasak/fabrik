@@ -6,12 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — the coordinator's open-plan view no longer goes blank on one error (2026-10-29)
 - `scripts/work.py` `_open_plans` (shown by `work.py queue` and `triage` as `plan not executed:`):
-  an outer `except Exception` returned an empty list on any error, so one plan the status parser
-  raised on, or a `docs_updater.py` that failed to load, read as "no open plans". A plan the parser
-  raises on is now listed as open with the error, and a parser that cannot load, or a plans
-  directory that cannot be read, prints one line saying the view is unavailable (`Path.glob`
-  swallows that directory's `PermissionError`, so it read as no open plans too). An unreadable
-  plan file is still skipped, as before. Item W-f1412a11
+  an outer `except Exception` returned an empty list on any error, so a `docs_updater.py` that
+  failed to load, or one plan its parser raised on, read as "no open plans", and a plans directory
+  that could not be read did too (`Path.glob` swallows its `PermissionError`). Now a parser that
+  cannot load, or an unreadable plans directory, prints one line saying the view is unavailable,
+  and a plan the parser raises on is listed as open with the error. A repo with no plans directory
+  still lists nothing. Item W-f1412a11
   (review B-S1 of the 2026-10-08 docs-updater plan-status receipt); tests in
   `tests/test_docs_updater.py`.
 
