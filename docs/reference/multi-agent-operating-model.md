@@ -255,7 +255,10 @@ unless the base declares `# merge-test-mem: <n>M|<n>G` alone on its line, clampe
 grammar is named in the leg's verdict and ignored — and a leg capped_run stopped (exit 137 or 124) is
 refused with capped_run's own last verdict line, on the merge and the pretest alike, W-e64a7b8e), (e) the carry into the main checkout — sibling WIP, untracked and staged files are never
 overwritten; a path that changed is kept and listed in the reply — (f) a fast-forward push, (g) the
-hub's governance sync, and (h) the reply to requester and distributor, then `mail.py ack done
+hub's governance sync, OWED and run by a background `sync-runner` outside the merge lock (its own
+`<git common dir>/fabrik-merge/sync.lock`; a debt stays in `sync-owed.log` until a sync that started
+after it succeeds; the run's end waits for it and prints `sync: ran` or `sync: FAILED … --force`,
+W-4f4ac600), and (h) the reply to requester and distributor, then `mail.py ack done
 --merge-sha`. Every merge commit it writes, a catch-up's included, ends in one Agent Provenance
 Trailer block — `Agent-Role: orchestrator`, the owner's `Agent-Name` (left out, with a note, when the
 owner is outside the agent-name grammar) and an `Agent-Context` (the request's names the branch,

@@ -672,22 +672,156 @@ def test_a_resolved_ledger_conflict_commits_the_request_message_without_git_comm
     assert not [ln for ln in body.splitlines() if ln.startswith("#")], body
 
 
-# --- (g): the hub's governance sync runs when a merged path matches the filter -------------
-def test_the_hub_sync_runs_when_a_merged_path_matches_the_filter(world, monkeypatch):
-    world.write(
-        ".pre-commit-config.yaml",
-        "repos:\n  - repo: local\n    hooks:\n      - id: governance-sync\n"
-        "        files: '(^scripts/mail\\.py$|^templates/governance/)'\n"
-        "      - id: other\n        files: '^x'\n",
-    )
+# --- (g): the hub's governance sync runs OUTSIDE the merge lock (W-4f4ac600) ---------------
+_SYNC_CONFIG = (
+    "repos:\n  - repo: local\n    hooks:\n      - id: governance-sync\n"
+    "        files: '(^scripts/mail\\.py$|^templates/governance/)'\n"
+    "      - id: other\n        files: '^x'\n"
+)
+
+
+def _hub(world, monkeypatch) -> Path:
+    """Make the scratch checkout the hub, with a governance-sync filter; returns the state dir."""
+    world.write(".pre-commit-config.yaml", _SYNC_CONFIG)
     world.commit_main("hooks", ".pre-commit-config.yaml")
     monkeypatch.setattr(world.mod, "HUB_CHECKOUT", world.main)
-    head = world.branch({"scripts/mail.py": "# mail\n"})
-    msg_id = world.send(head)
+    return world.main / ".git" / "fabrik-merge"
+
+
+def _fake_sync(world, monkeypatch, body: str) -> None:
+    """SYNC_ARGV runs ``body`` (Python) with ``marker`` and ``state`` bound."""
+    code = (
+        "import fcntl, os, pathlib, sys, time\n"
+        f"marker = pathlib.Path({str(world.sync_marker)!r})\n"
+        f"state = pathlib.Path({str(world.main / '.git' / 'fabrik-merge')!r})\n" + body
+    )
+    monkeypatch.setattr(world.mod, "SYNC_ARGV", [sys.executable, "-c", code])
+
+
+def _sync_landing(world, text: str = "# mail\n") -> str:
+    """A request whose merge touches a governance-sync path."""
+    return world.send(world.branch({"scripts/mail.py": text}))
+
+
+def test_the_hub_sync_runs_when_a_merged_path_matches_the_filter(world, monkeypatch, capsys):
+    state = _hub(world, monkeypatch)
+    msg_id = _sync_landing(world)
 
     assert world.run("merge") == 0
     assert world.sync_marker.read_text() == "x"
-    assert "sync: ran for 1" in world.replies(msg_id)["fleet"]
+    reply = world.replies(msg_id)["fleet"]
+    assert "sync: owed for 1 governance-sync path(s) — runs outside the merge lock" in reply
+    assert "sync: ran" in capsys.readouterr().err
+    owed = (state / "sync-owed.log").stat().st_size
+    assert owed > 0
+    assert int((state / "sync-done").read_text()) == owed
+
+
+def test_the_sync_runs_outside_the_merge_lock(world, monkeypatch):
+    _hub(world, monkeypatch)
+    _fake_sync(
+        world,
+        monkeypatch,
+        "fd = os.open(state.parent / 'fabrik-merge.lock', os.O_RDWR | os.O_CREAT)\n"
+        "end = time.monotonic() + 8\n"
+        "got = 'held'\n"
+        "while time.monotonic() < end:\n"
+        "    try:\n"
+        "        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)\n"
+        "        got = 'free'\n"
+        "        break\n"
+        "    except BlockingIOError:\n"
+        "        time.sleep(0.1)\n"
+        "marker.write_text(got)\n",
+    )
+    _sync_landing(world)
+
+    assert world.run("merge") == 0
+    assert world.sync_marker.read_text() == "free"
+
+
+def test_a_debt_owed_during_a_sync_is_covered_by_one_more_run(world, monkeypatch):
+    _hub(world, monkeypatch)
+    # the first sync owes once more while it runs (as a later landing would); the runner's next
+    # turn covers that debt, and no third sync runs
+    _fake_sync(
+        world,
+        monkeypatch,
+        "first = not marker.exists()\n"
+        "with open(marker, 'a') as f: f.write('x')\n"
+        "if first:\n"
+        "    with open(state / 'sync-owed.log', 'a') as f: f.write('owed during the sync\\n')\n",
+    )
+    _sync_landing(world)
+
+    assert world.run("merge") == 0
+    assert world.sync_marker.read_text() == "xx"
+
+
+def test_a_failed_sync_stays_owed_and_the_next_kick_retries_it(world, monkeypatch, capsys):
+    state = _hub(world, monkeypatch)
+    _fake_sync(world, monkeypatch, "print('step one'); print('boom'); sys.exit(1)\n")
+    _sync_landing(world)
+
+    assert world.run("merge") == 0  # a sync's failure never changed the merge's exit
+    err = capsys.readouterr().err
+    assert (
+        "sync: FAILED (exit 1: step one boom) — run scripts/sync_enforcement_to_projects.py --force"
+        in err
+    )
+    assert not (state / "sync-done").exists()
+
+    _fake_sync(world, monkeypatch, "marker.write_text('retried')\n")
+    msg_id = world.send(world.branch({"notes.txt": "a landing that owes no sync\n"}))
+    assert world.run("merge") == 0
+    assert world.sync_marker.read_text() == "retried"
+    assert "the last background sync FAILED (exit 1)" in world.replies(msg_id)["fleet"]
+
+
+def test_a_debt_left_by_a_killed_run_runs_at_the_next_landing(world, monkeypatch):
+    state = _hub(world, monkeypatch)
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "sync-owed.log").write_text("2026-10-30T00:59:53 left by a killed run\n")
+    world.send(world.branch({"notes.txt": "a landing that owes no sync\n"}))
+
+    assert world.run("merge") == 0
+    assert world.sync_marker.read_text() == "x"
+
+
+def test_a_runner_waits_for_a_held_sync_lock_then_runs(world, monkeypatch):
+    import threading
+    import time
+
+    state = _hub(world, monkeypatch)
+    _fake_sync(world, monkeypatch, "marker.write_text(repr(time.time()))\n")
+    _sync_landing(world)
+    state.mkdir(parents=True, exist_ok=True)
+    fd = os.open(state / "sync.lock", os.O_RDWR | os.O_CREAT, 0o644)
+    fcntl.flock(fd, fcntl.LOCK_EX)  # another process's sync holds it
+    released: list[float] = []
+
+    def release() -> None:
+        time.sleep(2)
+        released.append(time.time())
+        os.close(fd)
+
+    t = threading.Thread(target=release)
+    t.start()
+    try:
+        assert world.run("merge") == 0
+    finally:
+        t.join()
+    assert float(world.sync_marker.read_text()) >= released[0]
+
+
+def test_no_sync_is_owed_outside_the_hub(world, monkeypatch):
+    world.write(".pre-commit-config.yaml", _SYNC_CONFIG)
+    world.commit_main("hooks", ".pre-commit-config.yaml")
+    _sync_landing(world)  # HUB_CHECKOUT stays /opt/fabrik: this checkout is not the hub
+
+    assert world.run("merge") == 0
+    assert not world.sync_marker.exists()
+    assert not (world.main / ".git" / "fabrik-merge" / "sync-owed.log").exists()
 
 
 # --- (c): the owner's tests import the MERGED tree and reach ../fabrik-lib -------------------
