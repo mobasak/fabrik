@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T13:08:19.732518Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-97557e65",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 1,
+  "score_reason": "HIGH: root of the operator's daily WSL hang (W-1d9ba411); effort low: one investigation, one session",
+  "status": "open",
+  "title": "hv_sock channel leak (infra-2 2026-10-29, from W-41fbce45): 534 live hv_sock vmbus channels and growing (519 at 15:57, 534 at 16:06), oldest ~3 days; each pins an unmovable 512 KB ring (~260 MB scattered), feeding the order-7 allocation failures behind the WSL hang. Find which process holds the channels and why they never close."
+}
