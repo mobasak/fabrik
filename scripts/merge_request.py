@@ -2183,6 +2183,20 @@ def _sync_runner(state: Path, argv: list[str]) -> int:
                 )
                 return 1
             _write_atomic(state / SYNC_DONE, f"{max(_done_size(state), covers)}\n")
+            if _done_size(state) < covers:
+                # sync-done did not persist: looping would re-run a 47-repo sync forever
+                _write_atomic(
+                    state / SYNC_STATUS,
+                    json.dumps(
+                        {
+                            "at": time.time(),
+                            "covers": covers,
+                            "rc": 2,
+                            "tail": f"{SYNC_DONE} did not persist",
+                        }
+                    ),
+                )
+                return 2
             _write_atomic(
                 state / SYNC_STATUS, json.dumps({"at": time.time(), "covers": covers, "rc": 0})
             )
@@ -2210,8 +2224,8 @@ def _drain_sync() -> None:
     if proc.returncode == 0 and _owed_size(state) <= _done_size(state):
         print(f"merge_request: sync: ran (log {state / SYNC_LOG})", file=sys.stderr)
         return
-    rc = last.get("rc", proc.returncode)
-    tail = last.get("tail", "")
+    rc = proc.returncode  # the runner's own exit; the status file may be an older run's
+    tail = last.get("tail", "") if last.get("rc") == rc else "the runner recorded no reason"
     print(
         f"merge_request: sync: FAILED (exit {rc}: {tail}) — run "
         "scripts/sync_enforcement_to_projects.py --force; the debt stays owed and the next "
@@ -3552,7 +3566,15 @@ def main(argv: list[str] | None = None) -> int:
         sync_argv = args.sync_argv[1:] if args.sync_argv[:1] == ["--"] else args.sync_argv
         if not sync_argv:
             ap.error("sync-runner needs the sync argv after --")
-        return _sync_runner(args.state, sync_argv)
+        try:
+            return _sync_runner(args.state, sync_argv)
+        except Exception as exc:  # recorded for the drain, whose stderr is the only reader
+            with contextlib.suppress(OSError):
+                _write_atomic(
+                    args.state / SYNC_STATUS,
+                    json.dumps({"at": time.time(), "rc": 70, "tail": f"runner crashed: {exc!r}"}),
+                )
+            return 70
     verb = {"request": request, "merge": merge, "resume": resume, "retry": retry}[args.cmd]
     try:
         return verb(args)

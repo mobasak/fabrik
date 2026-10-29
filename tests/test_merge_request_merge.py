@@ -778,6 +778,19 @@ def test_a_failed_sync_stays_owed_and_the_next_kick_retries_it(world, monkeypatc
     assert "the last background sync FAILED (exit 1)" in world.replies(msg_id)["fleet"]
 
 
+def test_a_runner_crash_is_printed_with_its_reason_not_a_stale_status(world, monkeypatch, capsys):
+    state = _hub(world, monkeypatch)
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "sync-status.txt").write_text('{"at": 0, "covers": 1, "rc": 0}')  # an older run's
+    (state / "sync-done").mkdir()  # writing it fails inside the runner, after a green sync
+    _sync_landing(world)
+
+    assert world.run("merge") == 0
+    err = capsys.readouterr().err
+    assert "sync: FAILED (exit 70: runner crashed: IsADirectoryError" in err
+    assert "sync: ran" not in err
+
+
 def test_a_debt_left_by_a_killed_run_runs_at_the_next_landing(world, monkeypatch):
     state = _hub(world, monkeypatch)
     state.mkdir(parents=True, exist_ok=True)
