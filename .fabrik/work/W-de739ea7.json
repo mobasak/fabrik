@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T15:51:52.401607Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-de739ea7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M63Z3KABB887NQ7J2AJQ6SVQ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "branch: infra-code-span-paths"
+}

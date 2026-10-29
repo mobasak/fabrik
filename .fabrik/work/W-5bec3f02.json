@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Wording ask — builders address the coordinator by the prompt line's live address, never a name from their notes (W-9bf5a363)"
 }

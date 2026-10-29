@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T15:55:17.989741Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-491b8196",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M640TVJY4DTA2MF7XHFD0AX3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "open",
+  "title": "Probe catalogue § Seat isolation: the lead's half of wef1's node_modules / git show --output finding (W-9ad5860f)"
+}
