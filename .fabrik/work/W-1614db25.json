@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "give the memory unbounded loop the CPU loop's read rule: integer or UNREADABLE (failed), GONE when the id left ps -aq; red-first test on the fake-docker harness",
+  "next": "PAUSED 2026-10-30 (operator: P0 first). Fix committed 441cb1d9b on branch fleet-am-grouping (pushed; stacked on fleet-cpu-verify). Review-scoped pass 1 had 1 of 3 seats return, with 1 CONFIRMED finding open: after an UNREADABLE memory row the section still prints 'none — every defined container has a memory ceiling' (scripts/vps_apply_limits.sh ~:192; the CPU twin ~:226 has the same flaw). Fix: count each section's own failures and print 'none' only when unbounded, that count and unlisted are all 0. Also pin test_a_container_removed_before_its_memory_read_is_gone (it passes on revert because the CPU section also prints GONE: assert two GONE rows). Then a fresh review-scoped run (3 seats), gate, CHANGELOG, item close, MR.",
   "note": "",
   "owner": "",
   "priority": 2,
