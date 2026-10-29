@@ -217,8 +217,9 @@ consumed will be done so"*. `classify_run_folder` is the ONE function that answe
   a write that only modifies an existing file, or lands inside an existing subfolder, is not seen, and
   a cleanup inside the folder after its close keeps it 36 h); a holder (fd or cwd)
   inside; a same-uid `/proc` gap whose process started INSIDE the run's own window — after the marker
-  was written and no later than the run's last activity (its vouched close, a top-level write after it,
-  or the newest seat transcript; a `running`/`resumable` marker's heartbeat; a `.trash-*`'s rename),
+  was written and no later than the run's last activity (its vouched close or a later top-level write
+  for a `done` run; its heartbeat for a `running`/`resumable` one; either raised to the newest seat
+  transcript of the marker's or the directory's sid; a `.trash-*`'s rename),
   each with a 5-minute clock margin — or whose start, or the window's end, is unknown (D-877, D-878; the
   end bound is W-d1a4a8f5: this box always carries daemons whose `/fd` no one can read — gpg-agent, the
   document portal's setuid `fusermount3` — and without an end one started mid-uptime kept every older
