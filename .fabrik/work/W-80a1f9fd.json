@@ -3,7 +3,7 @@
   "created": "2026-10-29T10:34:54.973212Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "2e403598b9e11245984ea0a470a52bb25d53e949",
   "id": "W-80a1f9fd",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "HIGH: operator ask; LOW effort: one removal script",
-  "status": "open",
+  "status": "done",
   "title": "Remove ocoron.com from vps1 entirely (operator D-1333: 'we will deploy ocoron.com at cloudflare not to our vps. remove it entirely from our vps'): one operator-run script, dry run by default, that inventories and removes the /opt/ocoron-com stack's containers and network, its Traefik route, Gatus/Prometheus/Backrest/Authelia entries, and any hub spec or catalog row; volumes and data dirs are content-classified and printed as an exact id list, deleted only on a separate --delete-volumes <ids> run the operator approves"
 }

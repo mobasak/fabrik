@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T11:12:16.887933Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-c27db1f1",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read scripts/sysadmin/vps1_pg_scoped_logins.py step 3d's DSN rewrite against the live /opt/glitchtip compose shape (ask the coordinator for an operator-run read: the DSN lines of compose.yaml and the .env key names, values masked); fix the rewrite so both glitchtip services resolve to the scoped login; re-run gate",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "waits-operator-run"
+  ],
+  "title": "vps1_pg_scoped_logins.py step 3d STOPs: /opt/glitchtip compose config resolves 0 scoped DSNs to glitchtip@…/glitchtip (expected 2), so GlitchTip still runs as the postgres superuser although the scoped roles exist (operator run 2026-10-29; compose.yaml and .env were restored, services up)"
+}

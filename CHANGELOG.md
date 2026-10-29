@@ -23,6 +23,17 @@ All notable changes to this project will be documented in this file.
   (review B-S1 of the 2026-10-08 docs-updater plan-status receipt); tests in
   `tests/test_docs_updater.py`.
 
+### Added — operator script that removes ocoron.com from vps1 (2026-10-29)
+- `scripts/sysadmin/vps1_ocoron_removal.py` (D-1333, D-1334, W-80a1f9fd): operator-run, dry run by default. It finds
+  the ocoron.com stack by compose project, name or Traefik route and lists its data with class, size and users, plus
+  the config lines still naming the site. `--apply` takes it down, moves `/opt/ocoron-com/compose.yaml` out of the
+  boot glob (fabrik-compose-boot.sh restarted D-121's down at the next boot) and drops its images. `--delete-volumes`
+  deletes only exact ids from that list.
+- `scripts/sysadmin/system-prompt.txt`: the vps1 sysadmin bot no longer manages ocoron-com as an application or a P0
+  service, and is told never to restore it. `--apply` refuses until this copy is on vps1 (`bash
+  scripts/sync-vps-sysadmin.sh`).
+- Graded by `tests/test_vps1_ocoron_removal.py`.
+
 ### Fixed — hub mail auto-replies tell one agent from another (2026-10-29)
 - `scripts/mail.py`: in the hub's shared `fabrik` mailbox the `--auto` self-guard and rate cap key on
   `(from, from-agent)` (W-19b57b9a, D-1329). A fleet request auto-replied by infra was held as infra's
