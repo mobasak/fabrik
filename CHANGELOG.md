@@ -23,6 +23,18 @@ All notable changes to this project will be documented in this file.
   guards it (red on the old teardown); it reads only "no such volume" as gone and waits out an
   in-flight `--rm` removal. `tests/test_docusaurus_static_runtime.py` takes the same flag.
 
+### Added — the coordinator sees every builder pane waiting on an answer (2026-10-29)
+- `scripts/sysadmin/rotate_session.py::waiting`: a read-only scan of the repo's agents_up tmux grid that names each
+  builder pane on a dialog (a permission dialog, the workspace-trust prompt, an AskUserQuestion) or idle after a turn
+  that ended with a question. 1 s budget; no tmux or no server reads as no grid.
+- `scripts/work.py`: the coordinator's prompt block opens with one `work: PANE WAITING: <agent> (<pane>) — …` line per
+  such pane (`PANE SCAN FAILED` when tmux fails), and its Stop hook blocks on a `pane-waiting` subject per pane ahead
+  of every other subject, re-armed by each distinct prompt. A headless session never scans. Before this the operator
+  answered builders' terminal prompts himself. `docs/reference/agents/coordinator.md` says how to answer.
+  W-a12b03a2, D-1331.
+- `scripts/sysadmin/rotate_session.py::_undimmed`: the arguments of an extended colour (`38;5;2`, `38;2;r;g;b`) are no
+  longer read as the dim attribute, which dropped every cell after them.
+
 ### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)
 - `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the
   box at 96 % the hook's `SCRATCH ALARM` line landed in the stdout of every `--hook` run that passes its

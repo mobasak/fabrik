@@ -177,6 +177,10 @@ _PLAN_STATUSES = frozenset(_PLAN_STATUS_ORDER)
 DECISIONS_PY = Path("/opt/fabrik/scripts/decisions.py")  # hub-only, by absolute path
 WHOAMI_PY = Path(__file__).with_name("whoami_agent.py")
 DOCS_UPDATER_PY = Path(__file__).with_name("docs_updater.py")  # T03: migrate-backlog / render
+# W-a12b03a2: the pane scan's home — the hub's own copy beside this file, else the hub's by absolute path (a
+# project's synced work.py; every agents_up grid on this box is the hub's)
+ROTATE_SESSION_PY = Path(__file__).parent / "sysadmin" / "rotate_session.py"
+HUB_ROTATE_SESSION_PY = Path("/opt/fabrik/scripts/sysadmin/rotate_session.py")
 NAME_RULE = "[a-z0-9-]{1,32}"  # whoami_agent.py's agent-name rule: owners are agent names only
 _NAME_RE = re.compile(NAME_RULE)
 # A tag is the constraint that must travel WITH an item (tryton-crm 01M3PM5H) — the repo's own
@@ -5259,8 +5263,61 @@ def _coordinator_address_line(tree: Path) -> str:
     return ""  # unreachable: one name ≤ 64 characters always fits
 
 
+_ROTATE_MOD: list[Any] = []
+
+
+def _scans_panes(tree: Path) -> bool:
+    """True when `tree` is a coordinator's: an interactive session in the MAIN checkout (`.git` a directory — a linked
+    worktree's is a file, so a builder whose `git worktree list` failed is never mistaken for it) of a store whose
+    config sets `coordinator_mode`. Pure file reads, so a repo without the key pays no subprocess per prompt or Stop."""
+    try:
+        return (
+            (tree / ".git").is_dir()
+            and _has_store(tree)
+            and _read_config(tree).get("coordinator_mode") is True
+            and not _print_mode()
+        )
+    except Exception:
+        return False
+
+
+def _panes_waiting(tree: Path, agent: str) -> tuple[list[dict], str]:
+    """(builder panes waiting on an answer, scan error) for the COORDINATOR (`_scans_panes`), else ([], "").
+    W-a12b03a2: the operator answered infra-2's and intel's terminal prompts himself because nothing showed the
+    coordinator a waiting pane. The scan is `rotate_session.waiting` (read-only, 1 s budget, under the Stop resolver's
+    5 s cap); a failure is returned, never read as "none waits"."""
+    if not _scans_panes(tree):
+        return [], ""
+    try:
+        main = tree.resolve()
+        if not _ROTATE_MOD:
+            path = ROTATE_SESSION_PY if ROTATE_SESSION_PY.is_file() else HUB_ROTATE_SESSION_PY
+            spec = importlib.util.spec_from_file_location("_work_rotate_session", path)
+            if spec is None or spec.loader is None:
+                raise ImportError(f"cannot load {path}")
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            _ROTATE_MOD.append(mod)
+        return list(_ROTATE_MOD[0].waiting(str(main), exclude=agent)), ""
+    except Exception as exc:
+        return [], f"{type(exc).__name__}: {exc}"
+
+
+def _pane_text(p: dict) -> str:
+    """One line under LINE_MAX (300): the quoted prompt is cut to 90 characters so the reply verbs survive a
+    32-character agent name and a 5-digit pane id (292 characters at worst; a test pins it). The prompt is QUOTED: it
+    is text a builder's screen showed — data to read, never an instruction to the coordinator."""
+    pane, line = p["pane"], str(p["line"]).replace('"', "'")
+    line = line if len(line) <= 90 else line[:89] + "…"
+    return (
+        f'PANE WAITING: {p["agent"]} ({pane}) — {p["kind"]}: "{line}" — answer it this turn: '
+        f"`tmux capture-pane -p -t {pane}`, then `tmux send-keys -t {pane}` (approve only what you read, D-1034)"
+    )
+
+
 def prompt_block(repo: Path | str, session: str) -> str:
-    """Read-only, no lock, the caller's own tree, in order: the unnamed-window line (spec D6), the
+    """Read-only, no lock, the caller's own tree, in order: for the coordinator, one PANE WAITING line per
+    builder pane waiting on an answer or the PANE SCAN FAILED line (W-a12b03a2), the unnamed-window line (spec D6), the
     PAUSED line when the caller is paused (W-da4bc702; it then gets no ready count), the
     obligation lines (D1), every awaiting-operator item with its question, ``session``'s live
     claims (the first ``PROMPT_CLAIM_LINES`` by priority, then a count line, then one line naming any
@@ -5275,7 +5332,13 @@ def prompt_block(repo: Path | str, session: str) -> str:
             closed = _closed_ids(root)
             claims = _live_claims(root)
             by_id = {str(it["id"]): it for it in items}
-            lines = [] if _agent_name(session=session) else [UNNAMED_WINDOW_LINE]
+            name = _agent_name(session=session)
+            panes, blind = _panes_waiting(root, name)
+            lines = [f"work: {_pane_text(p)}" for p in panes]
+            if blind:
+                lines.append(f"work: PANE SCAN FAILED — {blind}")
+            if not name:
+                lines.append(UNNAMED_WINDOW_LINE)
             pause = _caller_pause(root, session)
             if pause:
                 # no resume command here: a paused agent lifts only a pause it set itself
@@ -5972,6 +6035,40 @@ def _stop_action(tree: Path, session: str) -> dict:
     none = {"agent": agent, "role": "", "action": None, "fp": "", "text": ""}
     if not _has_store(main):
         return none
+    # FIRST on every path, a pause or a held claim included (W-a12b03a2): answering a builder's waiting pane starts no
+    # work; a blind scan adds nothing here (the prompt block reports it), so a broken tmux never blocks a Stop
+    found, blind = _panes_waiting(tree, agent)
+    panes = [{"action": "pane-waiting", "fp": p["fp"], "text": _pane_text(p) + "."} for p in found]
+    result = _stop_subject(tree, main, session, agent, is_worker, workers, coordinator, none)
+    if not panes and (not blind or "candidates" in result):
+        return result
+    # A ladder while a pane waits, so the hook moves on to the subject behind it after CAP blocks (on the classic path
+    # that subject is the single action, its fingerprint unchanged), and while the scan is BLIND, so a tmux blip never
+    # swaps the ladder's attempt map for the single-action state and re-arms an exhausted pane subject. A clean scan
+    # that finds no pane returns the classic result untouched: its idle reset (the hook unlinks the state on a null
+    # action) still re-arms a subject that comes back (W-a12b03a2 review, rounds 1 and 2).
+    behind = result.get("candidates")
+    if behind is None:
+        behind = []
+        if result.get("action"):  # the classic subject, copied whole — never a new action name
+            subject = {k: result.get(k) or "" for k in ("action", "fp", "text")}
+            subject["fp"] = subject["fp"] or subject["action"]
+            behind = [subject]
+    cands = [*panes, *[c for c in behind if c.get("fp") not in {p["fp"] for p in panes}]]
+    return {**result, **(panes[0] if panes else {}), "candidates": cands[:AUTONOMY_MAX_CANDIDATES]}
+
+
+def _stop_subject(
+    tree: Path,
+    main: Path,
+    session: str,
+    agent: str,
+    is_worker: bool,
+    workers: dict[str, Path],
+    coordinator: str,
+    none: dict,
+) -> dict:
+    """`_stop_action`'s ladder below the pane subjects: paused · autonomy · held claim · classic rungs."""
     commit = _commit_items_subject(tree, main)
     if _is_paused(_paused(main), agent, tree, workers):
         # paused (W-da4bc702): nothing that starts or continues work — not a held claim, mail, the

@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import fcntl
+import hashlib
 import importlib.util
 import json
 import math
@@ -740,6 +741,214 @@ def _dialog(screen: str) -> bool:
     return any(re.match(r"\d+\.\s", r) for r in near)
 
 
+# ── waiting: the coordinator's PANE WAITING scan (W-a12b03a2) ─────────────────────────────────────────────────────────
+#
+# Read-only. Shapes measured on Claude Code v2.1.312 (a throwaway session, 2026-10-29): every dialog — a permission
+# dialog, the workspace-trust prompt (un-numbered options), an AskUserQuestion whose options wrap 4+ rows apart — is
+# drawn without the input box and ends on a footer row; `_dialog` alone knows only the first. An idle turn ends on a
+# `✻ <Verb> for <n>s · done <time>` row; `✻ Waiting for N background agents` is an agent working on its own seats.
+# Fail direction: a screen nobody drew yet (a renamed footer, no `· done` row) is a QUIET miss; a tmux that answers
+# wrongly RAISES, so the caller reports a blind scan instead of reading it as "nobody waits".
+_FOOTER = re.compile(r"Esc to cancel|Enter to confirm|Enter to select")
+_TURN_END = re.compile(r"^\S\s+\S+ for \d+[hms]\b.*·\s*done\b")
+_SPINNER = re.compile(r"…\s*\(|Waiting for \d+ background")
+_FOOTER_ROW = re.compile(r"(?:RUN|STATE|NEXT):")
+# the two house markers of a turn that waits on its reader — only where they OPEN the paragraph (a DECISION block's
+# heading, a NEXT: whose value is the wait), so a footer that names them in passing ("no DECISION NEEDED") never asks
+_ASKS = re.compile(
+    r"(?:DECISION NEEDED\b|NEXT:\s*(?:awaiting your reply|operator decision|(?:see\s+)?DECISION NEEDED above)\b)",
+    re.I,
+)
+# a tool call (`● Bash(ls)`, `● mcp__x__y(…)` — a capitalised or `mcp__` name, the row closing on its `)`) and its
+# result rows (`⎿  …`): what the agent RAN, never what it asks; a message that opens `foo(bar) …?` stays text
+_TOOL_ROW = re.compile(r"^(?:●\s*(?:[A-Z][\w.:-]*|mcp__[\w.:-]+)\(.*\)$|⎿)")
+# activity below a turn end that is not a new turn: a seat's completion notice (measured live, idle pane)
+_IDLE_NOTICE = re.compile(r'^●\s*[A-Z][\w ]*"[^"]*"\s+(?:finished|completed|failed)\b')
+# the turn-end row up to its `done <time>`: a trailing note (`· 1 shell still running`) changes without a new turn
+_TURN_ID = re.compile(r"^.*?·\s*done\s+[^·]*")
+_NO_GRID = ("no server running on", "error connecting to")
+_PANE_GONE = "can't find pane"
+WAITING_LINE_MAX = 160
+
+
+def _plain(screen: str) -> list[str]:
+    return [_undimmed(r).rstrip() for r in screen.splitlines()]
+
+
+def _asks(text: str) -> bool:
+    return text.rstrip("*_`)\"'”’ ").endswith("?") or bool(_ASKS.match(text))
+
+
+def _dialog_waiting(rows: list[str], numbered: bool) -> tuple[str, str, str] | None:
+    text = [i for i, r in enumerate(rows) if r.strip()]
+    if not numbered and not any(_FOOTER.search(rows[i]) for i in text[-3:]):
+        return None
+    at = [i for i, r in enumerate(rows) if r.lstrip().startswith("❯")]
+    if not at:
+        return None
+    opt = at[-1]
+    top = max((i for i in range(opt) if rows[i].strip().startswith("─")), default=-1)
+    block = [r.strip().lstrip("│").strip() for r in rows[top + 1 : opt]]
+    asked = [r for r in block if "?" in r]
+    near = [r for r in block if r and not r.startswith("╌")]
+    line = asked[-1] if asked else (near[-1] if near else "a dialog is open")
+    # the cursor marker is dropped: arrowing between options is the same prompt, the same fingerprint
+    body = "\n".join(r.replace("❯", " ").strip() for r in rows[top + 1 :] if r.strip())
+    return "dialog", line, body
+
+
+def _question_waiting(rows: list[str]) -> tuple[str, str, str] | None:
+    starts = [
+        i
+        for i, r in enumerate(rows)
+        if i > 0 and r.lstrip().startswith("❯") and rows[i - 1].strip().startswith("─")
+    ]
+    if not starts:
+        return None
+    rule = starts[-1] - 1
+    ends = [i for i in range(rule) if _TURN_END.match(rows[i].strip())]
+    if not ends:
+        return None
+    end = ends[-1]
+    for row in (r.strip() for r in rows[end + 1 : rule]):
+        # a spinner, a new prompt or a new tool call below the turn end is a new turn under way
+        if (
+            _SPINNER.search(row)
+            or row.startswith("❯")
+            or (row.startswith("●") and not _IDLE_NOTICE.match(row))
+        ):
+            return None
+    # tool rows leave the tail as blank rows, so they also end the paragraph above them
+    tail = [
+        "" if _TOOL_ROW.match(r.strip()) else r.strip().removeprefix("●").strip()
+        for r in rows[:end]
+    ]
+    while tail and not tail[-1]:
+        tail.pop()
+    # The message tail: its last paragraph, and when that paragraph opens with the RUN/STATE/NEXT footer, the footer's
+    # entries (a label row plus its wrapped continuations) and the paragraph above the blank row before it.
+    paras: list[list[str]] = []
+    for _ in range(2):
+        start = len(tail)
+        while start > 0 and tail[start - 1]:
+            start -= 1
+        block, tail = tail[start:], tail[: max(0, start - 1)]
+        if not block:
+            break
+        lead = next((k for k, r in enumerate(block) if _FOOTER_ROW.match(r)), None)
+        if lead is None:
+            paras.append(block)
+            break
+        for row in block[lead:]:
+            if _FOOTER_ROW.match(row) or not paras:
+                paras.append([row])
+            else:
+                paras[-1].append(row)
+        if lead:
+            paras.append(block[:lead])
+            break
+    for para in sorted(
+        paras, key=lambda p: bool(_FOOTER_ROW.match(p[0]))
+    ):  # the message's own paragraph first
+        joined = " ".join(" ".join(para).split())
+        if joined and _asks(joined):
+            turn = _TURN_ID.match(rows[end].strip())
+            return (
+                "question",
+                joined,
+                joined + "\n" + (turn.group(0).strip() if turn else rows[end].strip()),
+            )
+    return None
+
+
+def _waiting_on(screen: str) -> tuple[str, str, str] | None:
+    """(kind, line, body) when the screen waits on an answer: `dialog` — no input box drawn and a dialog footer (or
+    `_dialog`'s numbered option) — or `question` — an empty box under a `· done` turn end with no new turn below it
+    (a spinner, a prompt row, a tool call), whose message tail (the RUN/STATE/NEXT footer entries and the paragraph
+    above them, tool rows excluded) ends in `?` or opens with a DECISION NEEDED / `NEXT: awaiting your reply` marker.
+    `body` keys the fingerprint: the dialog's rows (its command, the cursor dropped), or the question plus the turn-end
+    row up to its `done <time>`. An identical dialog shown twice is the same fingerprint (stated limit, D-1331)."""
+    box = _box(screen)
+    rows = _plain(screen)
+    if box is None:
+        return _dialog_waiting(rows, _dialog(screen))
+    return _question_waiting(rows) if box == "" else None
+
+
+def _grid_tmux(deadline: float, *args: str) -> str | None:
+    """One tmux call inside the scan's shared deadline: stdout (bytes decoded with replacement, so a pane showing binary
+    is still read), None when no grid exists (no tmux binary, no server) or, for a capture, when the pane closed after
+    the listing, and a RuntimeError for every other failure — a timeout, a spent budget, an OS error running tmux, or
+    an answer that is not a grid."""
+    left = deadline - time.monotonic()
+    if left <= 0:
+        raise RuntimeError("pane scan budget spent")
+    try:
+        r = subprocess.run(
+            [os.environ.get("ROTATE_TMUX", "tmux"), *args],
+            capture_output=True,
+            timeout=max(0.1, left),
+        )
+    except FileNotFoundError:
+        return None
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"tmux {args[0]} timed out") from exc
+    except OSError as exc:
+        raise RuntimeError(f"tmux {args[0]}: {exc}") from exc
+    err = r.stderr.decode("utf-8", "replace").strip()
+    if r.returncode != 0:
+        if err.startswith(_NO_GRID) or (args[0] == "capture-pane" and err.startswith(_PANE_GONE)):
+            return None
+        raise RuntimeError(f"tmux {args[0]} rc {r.returncode}: {err[:200]}")
+    return r.stdout.decode("utf-8", "replace")
+
+
+def waiting(repo: str, exclude: str = "", budget: float = 1.0) -> list[dict]:
+    """Every builder pane in `repo`'s agents_up grid waiting on an answer, as {agent, pane, kind, line, fp}. A pane
+    counts when its session or session group is `slug(repo)`, it carries an `@agent` other than `exclude`, and its
+    working directory is not `repo` itself (the coordinator's own pane); each pane once, by id. [] when no grid exists;
+    RuntimeError when tmux fails otherwise or the shared `budget` (seconds) runs out."""
+    deadline = time.monotonic() + budget
+    fmt = "#{pane_id}\t#{session_name}\t#{session_group}\t#{@agent}\t#{pane_current_path}"
+    out = _grid_tmux(deadline, "list-panes", "-a", "-F", fmt)
+    if out is None:
+        return []
+    home, grid = Path(repo).resolve(), slug(repo)
+    panes: dict[str, str] = {}
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) != 5:
+            continue
+        pane, session, group, agent, path = parts
+        if (group or session) != grid or not agent or agent == exclude:
+            continue
+        with contextlib.suppress(OSError):
+            if path and Path(path).resolve() == home:
+                continue
+        panes[pane] = agent
+    found = []
+    for pane, agent in panes.items():
+        screen = _grid_tmux(deadline, "capture-pane", "-p", "-e", "-t", pane)
+        if screen is None:  # the pane closed after the listing: it waits on nothing
+            continue
+        hit = _waiting_on(screen)
+        if hit is None:
+            continue
+        kind, line, body = hit
+        # a fingerprint for the Stop hook's attempt map, never a security digest
+        digest = hashlib.sha1(f"{kind}\n{body}".encode(), usedforsecurity=False).hexdigest()[:12]
+        found.append(
+            {
+                "agent": agent,
+                "pane": pane,
+                "kind": kind,
+                "line": line[:WAITING_LINE_MAX],
+                "fp": f"pane:{agent}:{digest}",
+            }
+        )
+    return found
+
+
 # ── request ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
 
@@ -927,7 +1136,9 @@ _ESC = re.compile(
 def _undimmed(row: str) -> str:
     """The row's text WITHOUT its dim cells (SGR 2 — Claude Code's placeholder, measured), every escape dropped. SGR is
     walked as a terminal does: dim turns on with a 2 in any parameter list and off only with 0, 22 or an empty list —
-    any other code (a colour, bold, inverse) leaves it as it was (review r1: a lazy regex ended the dim run at `39m`)."""
+    any other code (a colour, bold, inverse) leaves it as it was (review r1: a lazy regex ended the dim run at `39m`).
+    An extended colour's own arguments (`38;5;<n>`, `38;2;<r>;<g>;<b>`, likewise 48 and 58) are skipped, so the `2` of
+    a truecolor sequence or of colour index 2 is never read as dim (W-a12b03a2 review: it dropped a dialog's `❯` row)."""
     out, dim, pos = [], False, 0
     for m in _ESC.finditer(row):
         if not dim:
@@ -936,11 +1147,17 @@ def _undimmed(row: str) -> str:
         seq = m.group(0)
         if seq.startswith("\x1b[") and seq.endswith("m"):
             params = [p.split(":")[0] for p in seq[2:-1].split(";")] if len(seq) > 3 else [""]
-            for p in params:
+            k = 0
+            while k < len(params):
+                p = params[k]
+                if p in ("38", "48", "58") and k + 1 < len(params) and ":" not in seq:
+                    k += {"5": 3, "2": 5}.get(params[k + 1], 1)  # the selector and its arguments
+                    continue
                 if p in ("", "0", "22"):
                     dim = False
                 elif p == "2":
                     dim = True
+                k += 1
     if not dim:
         out.append(row[pos:])
     return "".join(out)
