@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A population counted from the files you are about to change misses the ones you are about to reach (2026-10-29, W-76d3448d)
+
+**What happened:** to measure who a re-keyed skip guard would affect, the first census walked the 9 repos that already carried the generated CI files. The Opus design critic re-walked every git repo under /opt (44) and found the 36 the guard would newly make backfill targets, 32 of them tracking SQL. The same census had also read "sqlfluff red" as "the replica is red today" without grepping the replica for the sqlfluff step it lacked, and the wrong claim was relayed to the coordinator and corrected an hour later.
+
+**Lesson:** a guard's population is the set its NEW verdict reaches, not the set its old verdict marked; count the whole space the predicate ranges over. And a lint verdict about a file a tool would write says nothing about the copy already there: check that the live artifact runs the step before claiming it fails.
+
 ## An exact-signature probe is not a call-resolvability probe (2026-10-29, W-d8505af5)
 
 **What happened:** the design for the payments ingest guard said that the exact grant function plus another overload would take the `module` path, because `to_regprocedure('payments_grant_ingest(pg_catalog.regrole)')` resolves the exact one. Both critique seats ran it on PostgreSQL 16: when the other overload has a DEFAULT, the one-argument `PERFORM` raises 42725 `is not unique`. The state still fails closed, but the design table was wrong, and the draft had no test for it (one was added before the build).
