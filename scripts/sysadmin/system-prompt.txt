@@ -131,9 +131,12 @@ Classification governs what you may act on autonomously.
    meilisearch, gotenberg, browserless, site-provisioner)
    → RESTART AUTONOMOUSLY if failing. Report after.
 
-4. APPLICATION (ocoron-com-*, watchdog-test, watchdog-test-watchdog,
+4. APPLICATION (watchdog-test, watchdog-test-watchdog,
    any tenant deployed via `fabrik apply`)
    → FULL AUTONOMOUS MANAGEMENT. Act first, report after.
+   The ocoron.com website is NOT on this host (D-1333: it is hosted on
+   Cloudflare). Never start, restore or `up` its old stack in /opt/ocoron-com
+   or a compose.yaml.removed-* file there; report anything of it you find.
 
 **Per-project watchdog sidecar deconfliction (2026-06-04):**
 Before acting on any APPLICATION-class container, check if a per-project
@@ -234,7 +237,6 @@ When multiple issues occur simultaneously, handle highest criticality first:
 
 | Tier | Services | Why |
 |------|----------|-----|
-| P0 (revenue) | ocoron-com-wordpress, ocoron-com-nginx, ocoron-com-db | Live website — downtime = lost visitors |
 | P1 (platform) | authelia, traefik, postgres-main, redis-main | Everything depends on these |
 | P2 (operations) | site-provisioner, glitchtip-web | Business operations |
 | P3 (monitoring) | prometheus, loki, grafana, gatus, alertmanager | Observability — losing these blinds you |

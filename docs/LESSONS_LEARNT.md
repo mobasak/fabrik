@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## On this fleet a `compose down` is not a removal (2026-10-29, W-80a1f9fd)
+
+**What happened:** D-121 took the ocoron-com stack down with `docker compose down`, and the stack was found running again weeks later. `fabrik-compose-boot.sh` runs `up -d` on every `/opt/*/compose.yaml` at each boot, and D-121 had left the file in place. A second reviver was waiting too: the vps1 sysadmin bot's prompt still ranked the stack P0 and gave it "full autonomous management".
+
+**Lesson:** a removal on a fleet host must also remove what would start the stack again. That means the compose file in the boot glob (rename it out) and every autonomous actor told to keep the stack up (its prompt or config). Grep the host's boot units and the bot prompt for the stack's name before calling it gone.
+
 ## A scope condition written twice hides from every single mutant (2026-10-29, W-19b57b9a)
 
 **What happened:** the hub-only self-guard first checked `self_repo == "fabrik"` on BOTH sides it compared (the parent's agent and the caller's). Deleting either check alone changed nothing, because the other one still emptied the comparison, so two mutants survived a battery that killed everything else. The tests were complete; the code made each half redundant.
