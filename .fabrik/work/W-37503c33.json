@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T22:41:20.783598Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-37503c33",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M64CGMNV7PD5VY793GVBTZSY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "branch: kaizen-task-queue-1029b"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T22:53:08.200343Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-7ca1a25d",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Let the unreviewed-work cause skip a file whose last commit names a W-id that is paused or tagged waits-*, while that item records the owed review in its next line; grade it with a paused-item fixture and a mirror (an open item still blocks).",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "hooks"
+  ],
+  "title": "final_gate_stop.py's unreviewed-work cause re-blocks every turn for a PAUSED item's committed work: an operator-paused item (W-a58bacb5, 2026-10-30) whose owed review is written on the item has no exemption, so its two files re-fired the block ~12 times in one session"
+}
