@@ -6,7 +6,8 @@ Without an owner command ``merge_request.py`` runs only the ``tests/`` files a b
 repo-wide grader the branch broke but never edited (the hub-write-root search, the contract's line
 cites, a command's byte cap) ran nowhere until master was red: 29 red-master fixes in 25 days, the
 measured branches each red ALONE before they merged. This runs, in the merge's build tree, every
-test file that names a path the merge changed — by file name, module stem or directory — plus every
+test file that names a path the merge changed — by file name, module stem or directory; a review
+receipt by its file name only (RECEIPT) — plus every
 tree grader (a test running ``git ls-files``), in parallel shards, and refuses only a NEW red: one
 failing on the merge that passes on the base, is absent there, or fails there with another crash
 line. Master is not green on the full suite (16 ids red in a merge-shaped throwaway, 2026-10-24),
