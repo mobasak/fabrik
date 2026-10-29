@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T13:38:31.290896Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d3927fee",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "cap or try/except the is_file probe in _cited_hub_files, test with a 300-byte token",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "mail.py _cited_hub_files calls Path.is_file() on every cited token with no length cap: a slashless token over 255 bytes raises OSError ENAMETOOLONG out of owner_of (send fails open, --to-agent map then refuses as unmapped); reproduced on trade-intelligence archive 01M23G21EBSS4BC187HQ7PS02X with the pre-W-f2e97f00 reader (found by its review)"
+}
