@@ -377,7 +377,12 @@ def test_a_stray_row_in_a_fake_table_above_the_ledger_is_reported():
     """Gap 2: a header plus delimiter typed above a stray row made the stray part of "the table"
     (the FIRST confirmed delimiter). The ledger table is the one holding the most D-rows."""
     fake = (
-        "| a | b |\n|---|---|\n" + _row("D-999") + "\n" + _SHAPE_HEAD + _row("D-001") + _row("D-002")
+        "| a | b |\n|---|---|\n"
+        + _row("D-999")
+        + "\n"
+        + _SHAPE_HEAD
+        + _row("D-001")
+        + _row("D-002")
     )
     assert find_rows_outside_the_table(fake) == [(3, "D-999")]
     # a tie goes to the LAST table — the ledger appends at its foot
@@ -448,7 +453,7 @@ def test_annotated_and_padded_ids_share_one_key():
     assert find_duplicates(annotated) == {"D-001": 2}
     assert find_duplicates(_SHAPE_HEAD + _row("D-001") + _row("D-1")) == {"D-001": 2}
     # a cell that only STARTS with the id's letters is no id: `D-1x`, `D-1.5`, `D-1-2` are not D-1
-    for other in ("D-1x", "D-1.5", "D-1-2", "D-1/2"):
+    for other in ("D-1x", "D-1.5", "D-1.1", "D-1-2", "D-1/2"):
         assert find_duplicates(_SHAPE_HEAD + _row("D-1") + f"| {other} | a |\n") == {}, other
 
 
@@ -460,13 +465,41 @@ def test_an_indented_duplicate_in_another_table_reds_twice():
     assert find_rows_outside_the_table(text) == [(8, "D-5")]
 
 
-def test_a_tab_or_four_space_row_stays_in_the_table():
-    """Design critique C3: a table is broken by a blank line, not by an indent — ending the body on a
-    tab would strand every row below it as stray and drop the indented row from every leg."""
+def test_the_table_body_ends_where_the_renderer_ends_it():
+    """Design critiques C3 (Opus) and 1 (Fable), settled by rendering with markdown-it (GFM tables,
+    2026-10-29): a tab or a 4-space indent ENDS the table — that line is an indented code block and
+    the rows after it render outside the table — while a row with no leading pipe continues it."""
     for indent in ("\t", "    "):
         text = _SHAPE_HEAD + _row("D-1") + indent + _row("D-2") + _row("D-3")
-        assert find_rows_outside_the_table(text) == [], repr(indent)
-        assert [i for _, i in _mod._all_row_ids(text)] == ["D-1", "D-2", "D-3"], repr(indent)
+        assert find_rows_outside_the_table(text) == [(5, "D-3")], repr(indent)
+        assert find_duplicates(text + _row("D-2")) == {}, "the code-block copy is an example"
+    no_pipe = _SHAPE_HEAD + _row("D-1") + "D-2 | d | w | what | why | where\n" + _row("D-3")
+    assert find_rows_outside_the_table(no_pipe) == []
+
+
+def test_a_slightly_indented_stray_is_still_a_stray():
+    """Fable critique 3: an indented row outside the table is prose to the duplicate leg, so a one-
+    space indent would have hidden a stray — yet no renderer shows it as a row."""
+    text = " " + _row("D-9") + "\n" + _SHAPE_HEAD + _row("D-1")
+    assert find_rows_outside_the_table(text) == [(1, "D-9")]
+
+
+def test_a_fence_that_swallows_the_table_does_not_silence_it():
+    """Fable critique 3: an unclosed fence above the ledger pairs with any later fence line, and
+    blanking that block would hide every duplicate — a block holding a header and delimiter is kept."""
+    text = "```\n" + _SHAPE_HEAD + _row("D-1") + _row("D-1") + "```\n"
+    assert find_duplicates(text) == {"D-1": 2}
+
+
+def test_a_duplicate_written_two_ways_names_both(tmp_path, monkeypatch, capsys):
+    """Fable critique 7: `D-1` beside `D-001` is one id; the line must name both spellings, or the
+    repairer greps one row."""
+    ledger = tmp_path / "docs" / "DECISIONS.md"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text(_SHAPE_HEAD + _row("D-001") + _row("D-1"))
+    monkeypatch.setattr(_mod, "LEDGER", ledger)
+    assert _mod.main() == 1
+    assert "id D-001 appears 2x (written D-001 and D-1)" in capsys.readouterr().out
 
 
 def test_a_crlf_ledger_reads_as_lf():
@@ -483,6 +516,18 @@ def test_a_delimiter_line_inside_the_body_opens_no_table():
     text = _SHAPE_HEAD + _row("D-1") + "| --- | --- |\n" + _row("D-2")
     assert find_rows_outside_the_table(text) == []
     assert [i for _, i in _mod._all_row_ids(text)] == ["D-1", "D-2"]
+    # where it would decide: a non-D row then a delimiter-shaped row makes an inner "table" that
+    # TIES the ledger on D-rows, and the tie-to-last rule would read its 2-cell header as the ledger's
+    tie = _SHAPE_HEAD + "| x | y |\n|---|---|\n" + _row("D-1")
+    assert _mod.malformed_ids(tie) == {}
+
+
+def test_a_table_with_no_d_row_is_not_the_ledger():
+    """Design critiques C5 (Opus) and 4 (Fable): a status legend must not become "the ledger table"
+    of a ledger whose rows sit under an unconfirmed header (fabrik-lib's shape plus one legend) —
+    every real row would red as stray. Stated cost: a stray above a zero-row table goes quiet."""
+    legend = "| status | meaning |\n|---|---|\n| open | live |\n\n| id | when |\n" + _row("D-1")
+    assert find_rows_outside_the_table(legend + _row("D-2")) == []
 
 
 def test_the_stray_message_names_where_the_row_is(tmp_path, monkeypatch, capsys):
@@ -496,7 +541,9 @@ def test_the_stray_message_names_where_the_row_is(tmp_path, monkeypatch, capsys)
     out = capsys.readouterr().out.splitlines()
     assert any("D-9 sits ABOVE the table delimiter" in ln for ln in out), out
     assert any("D-2 sits outside the ledger table (after it" in ln for ln in out), out
-    assert all("placement fix, not a content edit" in ln for ln in out if ":" in ln and "row D-" in ln)
+    assert all(
+        "placement fix, not a content edit" in ln for ln in out if ":" in ln and "row D-" in ln
+    )
 
 
 def test_main_from_a_subdirectory_under_a_hook_environment(tmp_path):
