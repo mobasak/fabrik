@@ -57,8 +57,9 @@ def _run(
         "SCRATCH_SWEEP_NOW": str(NOW),
         # never the live hub's worktrees — the janitor pass (W-18e66a92) reads this seam
         "SCRATCH_SWEEP_JANITOR_REPO": "",
-        # never the live disk — past 85 % the hook's SCRATCH ALARM line lands in every `--hook`
-        # stdout and reds the tests that assert silence (three of them at 96 %, 2026-10-29)
+        # never the live disk — past 85 % the hook's SCRATCH ALARM line lands in the stdout of
+        # every `--hook` run that passes its gates (an `/opt` cwd, not headless or autonomous) and
+        # reds the tests that assert silence (three of them at 96 %, 2026-10-29)
         "SCRATCH_SWEEP_DISK_USED_PCT": "10",
     }
     e.update(env or {})
@@ -1331,11 +1332,14 @@ def test_hook_line_fires_only_with_candidates_and_never_blocks(scratch: Path) ->
     assert "🧹 SCRATCH:" in proc.stdout, proc.stdout
     assert "never touches" in proc.stdout, "constraint 2 — the line says what it will not touch"
 
+    # a full disk on every gated leg: a gate must silence the SCRATCH ALARM line too, not only
+    # the candidate line — `_run`'s 10 % pin would otherwise let an alarm printed before the gate pass
+    full = {"SCRATCH_SWEEP_DISK_USED_PCT": "96"}
     for gate, value in (("CLAUDE_MESH_HEADLESS", "1"), ("CLAUDE_MESH_AUTONOMOUS", "1")):
-        gated = _hook(scratch, **{gate: value})
+        gated = _hook(scratch, **{gate: value}, **full)
         assert gated.returncode == 0 and gated.stdout == "", f"{gate} must silence it"
 
-    outside = _hook(scratch, cwd="/home/somewhere")
+    outside = _hook(scratch, cwd="/home/somewhere", **full)
     assert outside.returncode == 0 and outside.stdout == "", "a non-/opt cwd is silent"
 
 
