@@ -2169,7 +2169,8 @@ def _sync_once(argv: list[str], state: Path, lock_fd: int) -> tuple[int, str]:
 
 def _sync_runner(state: Path, argv: list[str]) -> int:
     """``sync-runner`` (internal, listed by ``--help``; started by ``_kick_sync``): hold SYNC_LOCK, sync until the owed
-    log is covered. Exit 0 covered · 1 a sync failed · 3 the lock stayed held past its wait."""
+    log is covered. Exit 0 covered · 1 a sync failed · 2 sync-done did not persist · 3 the lock
+    stayed held past its wait (``main`` adds 70: the runner itself crashed)."""
     state.mkdir(parents=True, exist_ok=True)
     fd = os.open(state / SYNC_LOCK, os.O_RDWR | os.O_CREAT, 0o644)
     try:
