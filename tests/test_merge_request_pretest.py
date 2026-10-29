@@ -320,13 +320,114 @@ def test_the_hub_declares_its_own_longer_leg(world):
     assert world.mod._declared_leg(script) == 2700
 
 
+# --- a repo-declared leg memory ceiling (W-e64a7b8e: fleet-docker-cpu's 244-file leg died at 137) --------
+@pytest.mark.parametrize(
+    ("script", "expected"),
+    [
+        ("pytest\n", None),  # no declaration: capped_run's own default, argv unchanged
+        ("# merge-test-mem: 8G\npytest\n", "8192M"),
+        ("#merge-test-mem:6144M\n", "6144M"),
+        ("# merge-test-mem: 8G\r\nexit 0\r\n", "8192M"),  # a CRLF file
+        ("# merge-test-mem: 6G\n# merge-test-mem: 2G\n", "6144M"),  # the first one
+        ("  # merge-test-mem: 8G\n", None),  # not at line start: not a declaration
+        ("# merge-test-mem: 8g\n", None),  # not the grammar (capped_run's units are upper-case)
+        ("# merge-test-mem: 8GB\n", None),
+        ("# merge-test-mem: 8\n", None),  # a unit is required: bytes are never meant
+        ("# merge-test-mem: 1.5G\n", None),
+        ("# merge-test-mem: 99G\n", "MAX"),  # clamped to the leg's share of the shared slice
+        pytest.param("# merge-test-mem: " + "9" * 5000 + "G\n", "MAX", id="past-int-digit-limit"),
+        ("# merge-test-mem: 0G\n", "FLOOR"),  # a zero ceiling would kill everything: the floor
+        ("# merge-test-mem: 1M\n", "FLOOR"),
+        ("# merge-test-mem: 0008G\n", "8192M"),  # leading zeros are still a number
+    ],
+)
+def test_the_declared_mem_grammar(world, script, expected):
+    mod = world.mod
+    want = {"MAX": f"{mod.LEG_MEM_MAX_MIB}M", "FLOOR": f"{mod.LEG_MEM_FLOOR_MIB}M"}.get(
+        expected, expected
+    )
+    assert mod._declared_mem(script) == want
+
+
+def test_the_hub_declares_its_own_leg_ceiling(world):
+    # W-e64a7b8e: the hub leg runs 8 pytest shards in ONE capped scope; a 244-file selection died at 4G
+    script = (Path(__file__).resolve().parents[1] / ".fabrik" / "merge-tests").read_text(encoding="utf-8")
+    assert world.mod._declared_mem(script) == "8192M"
+
+
+def _mem_runner(world, rc: int = 0) -> Path:
+    """A stand-in for capped_run.sh that logs its argv, then exits ``rc`` (137: capped_run's
+    memory-ceiling verdict) or runs the command."""
+    log = world.tmp / "mem-runner.log"
+    runner = world.tmp / "mem-runner.sh"
+    tail = f"exit {rc}" if rc else 'while [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"'
+    runner.write_text(f'#!/bin/sh\nprintf "%s\\n" "$*" | head -n1 >> {log}\n{tail}\n', encoding="utf-8")
+    runner.chmod(0o755)
+    world.mp.setenv("FABRIK_CAPPED_RUN", str(runner))
+    return log
+
+
+def _runner_flags(log: Path) -> list[str]:
+    """Each runner call's flags: everything before the first ``--``."""
+    return [ln.split(" -- ")[0] for ln in log.read_text().splitlines()]
+
+
+def test_the_bases_declared_mem_is_the_legs_ceiling(world):
+    log = _mem_runner(world)
+    _counting_tests(world, "# merge-test-mem: 8G\nexit 0\n")
+    world.send(_branch(world))
+
+    assert world.run("merge") == 0
+
+    assert _runner_flags(log) == ["--timeout 1800 --mem 8192M"]
+
+
+def test_no_declaration_passes_no_mem(world):
+    log = _mem_runner(world)
+    _counting_tests(world, "exit 0\n")
+    world.send(_branch(world))
+
+    assert world.run("merge") == 0
+
+    assert _runner_flags(log) == ["--timeout 1800"]
+
+
+def test_a_branch_cannot_raise_its_own_leg_ceiling(world):
+    log = _mem_runner(world)
+    _counting_tests(world, "exit 0\n")
+    _git(world.wt, "merge", "-q", "--ff-only", "master")
+    world.send(world.branch({".fabrik/merge-tests": "# merge-test-mem: 8G\nexit 0\n"}))
+
+    assert world.run("merge") == 0
+
+    assert _runner_flags(log) == ["--timeout 1800"]
+
+
+@pytest.mark.parametrize(
+    ("script", "ceiling"),
+    [
+        ("# merge-test-mem: 6G\nexit 0\n", "6144M declared"),
+        ("exit 0\n", "capped_run's default"),
+    ],
+)
+def test_a_137_refusal_names_the_memory_ceiling(world, script, ceiling):
+    _mem_runner(world, rc=137)
+    _counting_tests(world, script)
+    msg_id = world.send(_branch(world))
+
+    assert world.run("merge") != 0
+
+    reason = world.record(msg_id)["reason"]
+    assert f"exit 137 — killed at the memory ceiling ({ceiling})" in reason, reason
+
+
 def _limits(world, monkeypatch) -> list[int]:
     seen: list[int] = []
     real = world.mod._capped
 
-    def capped(argv, timeout):
+    def capped(argv, timeout, mem=None):
         seen.append(int(timeout))
-        return real(argv, timeout)
+        return real(argv, timeout, mem)
 
     monkeypatch.setattr(world.mod, "_capped", capped)
     return seen
