@@ -4389,6 +4389,14 @@ def _turn_texts(
             continue
         if not isinstance(entry, dict):
             continue
+        msg = entry.get("message")
+        if newest is not None and not (
+            entry.get("type") == "assistant"
+            and isinstance(msg, dict)
+            and isinstance(msg.get("id"), str)
+            and msg.get("id") == newest_id
+        ):
+            newest_id = None  # any other row ends the newest message: it never spans a queued prompt
         if entry.get("type") == "user":
             if _operator_text(entry):
                 break
@@ -4400,7 +4408,6 @@ def _turn_texts(
                 copies[entry["uuid"]] = copies.get(entry["uuid"], 0) + 1
                 cut = (entry["uuid"], copies[entry["uuid"]])
             continue
-        msg = entry.get("message")
         content = msg.get("content") if isinstance(msg, dict) else None
         if entry.get("type") == "assistant" and isinstance(content, list):
             blocks = [

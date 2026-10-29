@@ -1121,3 +1121,29 @@ def test_a_final_message_written_as_several_entries_keeps_its_cut_off(tmp_path, 
     )
     assert hook._panel_brief_problem(tr, brief) == ""
     assert hook._final_cut(hook._turn_texts(tr)[1], "Done.\n" + brief) is None
+
+
+def test_a_queued_prompt_between_entries_of_one_message_ends_its_whole_spelling(
+    tmp_path, panel_mode
+):
+    """W-573ddaa1 review pass 2 (SLICE-p2-1): the whole-message spelling joins only entries with no other row
+    between them — a block written in an entry BEFORE a queued prompt, whose message goes on after it, never takes
+    the cut of a prompt queued after the message's last entry (that would judge it on verdicts given after the
+    first prompt)."""
+    block = _block(PANEL)
+    tr = _transcript(
+        tmp_path,
+        _user("pick a retention window for the purge job"),
+        _said_as(block, "msg-1"),
+        _queued_with_uuid("first queued question", "q-1"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"verdict: {OPUS}."),
+        _result("t-fable", f"verdict: {FABLE}."),
+        _said_as("Waiting on you.", "msg-1"),
+        _queued_with_uuid("a second queued question", "q-2"),
+    )
+    ok, why = hook.parse_decision_block(
+        block + "\nWaiting on you.", run_live=False, transcript_path=tr
+    )
+    assert not ok and "since the operator's last message" in why
