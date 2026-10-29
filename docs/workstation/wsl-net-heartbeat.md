@@ -59,8 +59,11 @@ The watchdog reads whether each file's `LastWriteTime` CHANGED since its previou
 file's age. That works whichever clock stamps a 9p write, the WSL clock or the Windows one, and a WSL
 clock can lag Windows after sleep or resume.
 
-- `wsl-net-ran` unchanged on two checks in a row: the heartbeat is broken. The watchdog toasts once
-  and never restarts the adapter.
+- `wsl-net-ran` unchanged on one check: the watchdog skips that check, counting nothing and
+  resetting nothing, so one late heartbeat neither adds a fail nor clears the fails a real outage
+  has built up.
+- `wsl-net-ran` unchanged on two checks in a row: the heartbeat is broken. The watchdog clears its
+  fail count, toasts once and never restarts the adapter.
 - `wsl-net-ran` changed but `wsl-net-ok` unchanged: WSL has no network. The watchdog counts a fail,
   as before.
 - A missing file counts as unchanged.
@@ -96,7 +99,8 @@ while ($true) {
     if (-not (WslRunning)) { $fails = 0; $broken = 0; SeedHeartbeat; Start-Sleep $Interval; continue }
     $hb = WslHeartbeat
     if ($hb -eq 'broken') {
-        $broken++; $fails = 0
+        $broken++
+        if ($broken -ge 2) { $fails = 0 }
         if ($broken -eq 2) { Log 'WSL heartbeat not updating - systemctl --user status wsl-net-heartbeat.timer'; Toast 'WSL heartbeat stopped' 'The WSL heartbeat is not updating. The NAT watchdog is paused.' }
         Start-Sleep $Interval; continue
     }

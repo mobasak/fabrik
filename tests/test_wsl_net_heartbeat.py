@@ -342,4 +342,5 @@ def test_the_installer_refuses_without_linger_script_or_a_clean_verify(tmp_path:
         assert r.returncode != 0, case
         assert says in r.stderr, (case, r.stderr)
         assert not (base / dest_svc).exists(), f"{case}: nothing is installed on a refusal"
-        assert "enable" not in (log.read_text() if log.exists() else ""), case
+        # every refusal comes before any systemctl call: a refusal must not touch the live timer
+        assert "systemctl" not in (log.read_text() if log.exists() else ""), case
