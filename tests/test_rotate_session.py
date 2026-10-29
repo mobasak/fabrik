@@ -26,6 +26,7 @@ SCRIPT = REPO / "scripts" / "sysadmin" / "rotate_session.py"
 spec = importlib.util.spec_from_file_location("rotate_session", SCRIPT)
 rs = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(rs)
+_REAL_SLEEP = time.sleep  # captured before any test patches anything (W-1e0f4229)
 
 
 class _RsTime:
@@ -1659,7 +1660,21 @@ def test_w1e0f4229_a_slow_exiting_tmux_never_moves_the_fake_clock(world, monkeyp
     for _ in range(3):
         rs._tmux("capture-pane", "-p", "-t", "%5")
     assert clock["now"] == 1000.0, clock
-    assert time.sleep is not rs.time.sleep  # the global module keeps its real sleep
+    # the identity half, independent of how subprocess waits: rotate_session's `time` is the proxy, the global
+    # module keeps its real sleep
+    assert rs.time is not time and time.sleep is _REAL_SLEEP
+
+
+def test_w1e0f4229_no_test_patches_the_global_time_module():
+    """W-1e0f4229 review: the drift test above grades `_rs_time` only, so a later test patching `time` around it
+    (a monkeypatch of the `time` module or of `rs.time`, by object or by dotted string) would bring the drift back with
+    that test green. `_rs_time` is the one patch site this file may hold."""
+    src = Path(__file__).read_text(encoding="utf-8")
+    patches = re.compile(r"setattr\(\s*(?:rs\.time|time)\s*,|setattr\(\s*[\"']time\.")
+    hits = [n for n, line in enumerate(src.splitlines(), 1) if patches.search(line)]
+    assert hits == [], (
+        f"patch rotate_session's clock through _rs_time, never the global module: lines {hits}"
+    )
 
 
 def test_wb72231b8_no_bind_waits_the_whole_grace_then_rows_partial(world, monkeypatch):
