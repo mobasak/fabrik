@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T17:40:44.848941Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-3f85cd22",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1350",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen: one /fabrik-command-improve fabrik-task pass rewords line 111's tail and line 186 together (186 is ledgered in commands/_rules/fabrik-task.yaml)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "/fabrik-task quota runway (D-1350) wording residue: 'that park' has no antecedent for a lane-exempt owner (the wall's close, not the lane's park), 'or reset' lacks its article, and line 186's 'record stays open … v1 keeps it uncommitted' predates D-1350 but now sits beside a sentence citing CLAUDE.md's lane park (commit, push, blocked --wall)"
+}
