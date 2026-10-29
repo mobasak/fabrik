@@ -84,12 +84,12 @@ for n in 1 2 3 4 5; do ssh "$S" "sudo docker exec alloy-canary sh -c 'echo alloy
 
 ### (a) Keep the old file, place the new files
 
-First prove that the file the rollback will restore equals master's mirror, because this step replaces the live
-compose file and live copies are hand-edited (D-1324). That file is `compose.yaml.pre-alloy` once a backup exists
-(a re-run of this step after the new file was placed) and the live `compose.yaml` before. Read-only.
+On the first attempt of this step on a host, prove the live compose file is master's mirror first: the step
+replaces it, the rollback restores it, and live copies are hand-edited (D-1324). Read-only. A re-run of the step
+after its backup exists skips this check — the backup is the file this check passed.
 
 ```bash
-ssh "$S" 'cd /opt/monitoring-agent && if sudo test -e compose.yaml.pre-alloy; then sudo cat compose.yaml.pre-alloy; else sudo cat compose.yaml; fi' | diff - <(git show "origin/master:infra/$H/monitoring-agent/compose.yaml") && echo MIRROR
+ssh "$S" 'sudo cat /opt/monitoring-agent/compose.yaml' | diff - <(git show "origin/master:infra/$H/monitoring-agent/compose.yaml") && echo MIRROR
 ```
 
 Pass condition: `MIRROR`. **STOP on any diff line**, make the two one, and re-run this check: a line only the
@@ -218,10 +218,10 @@ for n in 1 2 3 4 5; do ssh "$S" "sudo docker exec alloy-canary sh -c 'echo alloy
 
 ### (a) Keep the old file, place the new files
 
-First the same read-only mirror check as § 1 (a), against the hub mirror:
+On the first attempt, the same read-only mirror check as § 1 (a), against the hub mirror:
 
 ```bash
-ssh vps 'cd /opt/monitoring && if sudo test -e compose.yaml.pre-alloy; then sudo cat compose.yaml.pre-alloy; else sudo cat compose.yaml; fi' | diff - <(git show origin/master:infra/vps1/monitoring/compose.yaml) && echo MIRROR
+ssh vps 'sudo cat /opt/monitoring/compose.yaml' | diff - <(git show origin/master:infra/vps1/monitoring/compose.yaml) && echo MIRROR
 ```
 
 Pass condition: `MIRROR`. **STOP on any diff line**, make the two one, and re-run this check: a line only vps1
@@ -325,7 +325,8 @@ for h in vps3 vps2 vps; do ssh "$h" 'sudo docker rm -f alloy-canary'; done
 
 Per host, in reverse order of the switch (spec § The delta › D6): restore the previous compose file and run
 `up -d --remove-orphans`, which starts Promtail and removes the alloy container as an orphan. The restore is a
-move, so no backup outlives the rollback and a later window's step (a) takes a fresh one.
+move, so no backup outlives the rollback and a later window's step (a) takes a fresh one. If `up -d` fails after
+the move, the file is already restored: re-run only `sudo docker compose up -d --remove-orphans` in that directory.
 
 ```bash
 # spoke (H=vps3 or vps2)

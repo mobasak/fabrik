@@ -234,8 +234,8 @@ Drop filters apply per-host — vps1's drop filter does NOT remove `ocoron-com-b
 
 Until Gate S (spec D6: V8 + V9 green on all three hosts for 14 days), `promtail` stays **defined** under the
 `rollback` profile in each host's compose file — stopped, never started by `docker compose up -d
---remove-orphans`, but restorable with `cp compose.yaml.pre-alloy compose.yaml && docker compose up -d
---remove-orphans`. A rolled-back host resumes Promtail's old config at `configs/promtail/promtail-config.yaml`
+--remove-orphans`, but restorable by the rollback in `docs/operations/promtail-to-alloy-runbook.md` § 4. A
+rolled-back host resumes Promtail's old config at `configs/promtail/promtail-config.yaml`
 (documented, before the Alloy rename, in this doc's Promtail-named predecessor) and re-ships log lines Alloy
 already sent since the switch (spec D6 — the duplicate span is bounded by how long Alloy ran before the
 rollback).
