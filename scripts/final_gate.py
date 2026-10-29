@@ -3801,10 +3801,11 @@ def _lean_not_run_row() -> tuple[str, bool, str]:
     a merge request went out on a run that never type-checked. One green row names the skip in
     every channel a reader has — its ⚠ text reaches --json `warnings`, the ` (NOT RUN` marker
     puts `Tier-2 checks` in `skipped_checks`, the roster carries the full row name as
-    `skipped`, and the human renderer prints `[SKIP]` plus the `Skipped:` line. It is advice, not enforcement: nothing refuses a commit or
-    a merge request on it. COBRA: every such lean run now reads `skipped` >= 1, so a reader who
-    takes `skipped == 0` to mean "every check ran" never gets that answer from --lean, which is
-    the truth. Defined down here so the gate's cited line numbers above do not move.
+    `skipped`, and the human renderer prints `[SKIP]` plus the `Skipped:` line. It is advice,
+    not enforcement: nothing refuses a commit or a merge request on it. COBRA: every such lean
+    run now reads `skipped` >= 1, so a reader who takes `skipped == 0` to mean "every check ran"
+    never gets that answer from --lean, which is the truth. Defined down here so the gate's
+    cited line numbers above do not move.
     """
     return (
         LEAN_NOT_RUN_ROW,
