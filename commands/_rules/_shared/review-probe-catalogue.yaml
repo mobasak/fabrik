@@ -442,6 +442,14 @@ entries:
   - tests/test_review_queue_pass.py::test_catalogue_holds_the_two_recurring_probes
   - tests/test_review_queue_pass.py::test_a_seat_brief_runs_the_tests_that_load_each_changed_module
   - tests/test_review_scoped_queue_pass.py::test_a_seat_runs_a_mutant_against_whole_test_files
+- id: cat-a-node-harness-test-is-the-leads-to-run
+  file: commands/_fragments/review-probe-catalogue.md
+  section: '## Seat isolation'
+  text:
+  - 'A test that needs a gitignored dependency tree (`node_modules/`) runs on no seat tree: an archive or a clone holds none, and a copy of the live one, a link to it or a variable pointing at it lets the run write inside it; so a seat reports that test unverifiable and never runs it, and the lead runs it in CLAUDE.md''s throwaway worktree, after an install from that tree''s own lockfile, when the change touches it or the code it tests'
+  class: ban
+  pins:
+  - tests/test_seat_recipe_readable.py::test_a_node_harness_test_is_the_leads_to_run
 - id: cat-a-brief-says-what-the-pin
   file: commands/_fragments/review-probe-catalogue.md
   section: '## Seat isolation'

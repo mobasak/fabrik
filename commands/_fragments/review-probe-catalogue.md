@@ -252,7 +252,11 @@ brief. Each is a step, not a check box: execute it, or name in the brief why the
   loader or a stub — found by grepping `tests/` for each changed file's stem, its name without `.py`, or an
   `__init__.py`'s package dotted name, and keeping the hits that import or load it) for every seat to run by
   `PIN_IMPORT`/`PYTEST_PINS` recipe (a test it leaves unrun stays unverified), so a new import that breaks a stubbed
-  loader reds in the pass. A script seat runs is run from its archive copy with every path argument under scratch (a
+  loader reds in the pass. A test that needs a gitignored dependency tree (`node_modules/`) runs on no seat tree: an
+  archive or a clone holds none, and a copy of the live one, a link to it or a variable pointing at it lets the run
+  write inside it; so a seat reports that test unverifiable and never runs it, and the lead runs it in CLAUDE.md's
+  throwaway worktree, after an install from that tree's own lockfile, when the change touches it or the code it tests.
+  A script seat runs is run from its archive copy with every path argument under scratch (a
   script may treat any argument as a write path), and pin carries changed files' one-hop callees that are repo files
   (`review_loop_ledger.py pin` refuses the whole list when one path is missing, a symlink or outside the repo root). The
   pin also carries each file a fix's text points at by path, and the brief says the pin holds only the files it lists,
