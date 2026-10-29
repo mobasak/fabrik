@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — the project audit accepts the docusaurus serve stage `nginx:mainline-<codename>` (2026-10-29)
 
-- `scripts/audit_all_projects.py` knew only the python, node and debian base shapes, so a scaffolded docusaurus project, whose final stage is the `nginx:mainline-<codename>` that `core/42-docusaurus.md` mandates (D-664), was graded critical. The shape is now a fourth base pattern on the same pinned codename (pinned, superseded one release back, otherwise noncompliant), and the fix hint names it. Graded by `tests/test_audit_all_projects_base_image.py` (W-cd8b8ead).
+- `scripts/audit_all_projects.py` knew only the python, node and debian base shapes, so a scaffolded docusaurus project, whose final stage is the `nginx:mainline-<codename>` that `core/42-docusaurus.md` mandates (D-664), was graded critical. For a project of type `docusaurus` that serve stage is now a base on the same pinned codename (pinned, superseded one release back, otherwise noncompliant), and its fix hint names the serve stage; every other type still grades an nginx final stage noncompliant and keeps the python/node/debian hint. The noncompliant row's required text reads "A pinned Debian base". Graded by `tests/test_audit_all_projects_base_image.py`, which renders `templates/docusaurus/Dockerfile.j2` and audits it (W-cd8b8ead).
 
 ### Fixed — mobile-app scaffold lints clean out of the box and its EAS delivery workflows can run (2026-10-29)
 
