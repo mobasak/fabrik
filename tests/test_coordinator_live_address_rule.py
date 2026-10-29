@@ -25,7 +25,7 @@ ESCALATION = "goes to the coordinator by `SendMessage`, naming"
 CONTRACT_SENTENCE = (
     "messages its coordinator `rotate <name>` and waits for the keys, sending it by `SendMessage` to every `to=` name "
     "the latest `work: coordinator (<role>)` line of its prompt block prints (one may be stale when several are "
-    "listed), else, or when that line ends `… and <n> more`, to every name `python3 scripts/mail.py who <role>` "
+    "listed), else, or when that line says `… and <n> more`, to every name `python3 scripts/mail.py who <role>` "
     "prints (`<role>` is the role that line names: the `distributor` in `.fabrik/work/config.json`, else the name "
     "`python3 /opt/fabrik/scripts/decisions.py --merge-owner .` prints), and only when neither names a live session "
     "by `python3 scripts/mail.py send --to <this repo> --kind request --ack required --to-agent <role>` with the ask "
@@ -35,7 +35,7 @@ CONTRACT_SENTENCE = (
 CHARTER_SENTENCE = (
     "the coordinator decides what it can and boards the rest. Send each one by `SendMessage` to every `to=` name the "
     "latest `work: coordinator (coordinator)` line of your prompt block prints (one may be stale when several are "
-    "listed), else, or when that line ends `… and <n> more`, to every name `python3 scripts/mail.py who "
+    "listed), else, or when that line says `… and <n> more`, to every name `python3 scripts/mail.py who "
     "coordinator` prints, and only when neither names a live session by `python3 scripts/mail.py send --to fabrik "
     "--kind request --ack required --to-agent coordinator` with the message as its body on stdin — never to a "
     "session name kept in your notes, since the coordinator's session name changes when it rotates (D-1337). A "

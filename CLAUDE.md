@@ -510,7 +510,7 @@ session-recall — structured rows beat lexical transcripts.
   `/compact` instead. No agent can type a slash command into its own prompt: at the boundary a builder
   messages its coordinator `rotate <name>` and waits for the keys, sending it by `SendMessage` to every `to=` name the
   latest `work: coordinator (<role>)` line of its prompt block prints (one may be stale when several are listed),
-  else, or when that line ends `… and <n> more`, to every name `python3 scripts/mail.py who <role>` prints (`<role>` is
+  else, or when that line says `… and <n> more`, to every name `python3 scripts/mail.py who <role>` prints (`<role>` is
   the role that line names: the `distributor` in `.fabrik/work/config.json`, else the name `python3
   /opt/fabrik/scripts/decisions.py --merge-owner .` prints), and only when neither names a live session by `python3
   scripts/mail.py send --to <this repo> --kind request --ack required --to-agent <role>` with the ask as its body on
