@@ -151,6 +151,16 @@ COLUMNS = (
     "Filed (spec/mail)",
 )
 _ANALYST_CELLS = (6, 7)
+# The exact shape the collector itself writes into an analyst cell (W-90163961). A cell that is
+# EXACTLY this is the collector's own earlier value, not the analyst's, so the next run of the week
+# replaces it; one character more (`; fleet mail …`, ` (auto) · …`) and it is the analyst's.
+# Cell 7 only: the shape of kaizen_outcomes.filings's f-string of non-negative ints — ASCII digits,
+# no leading zero (the producer never writes an all-zero count, which the shape still accepts).
+# Accepted cost: a bare count an analyst types by hand reads as the collector's and is refreshed.
+# Cobra: a looser shape satisfies "the collector's cell refreshes" while eating analyst prose.
+_COLLECTOR_CELL_SHAPES = {
+    7: re.compile(r"(?:0|[1-9][0-9]*) filed / (?:0|[1-9][0-9]*) none / (?:0|[1-9][0-9]*) unstated"),
+}
 
 
 def _warn(msg: str) -> None:
@@ -2043,19 +2053,27 @@ def _merge_cells(new: list[str], old: list[str], force_dash: bool) -> list[str]:
     fresh honest ``—`` under an advanced date must never republish the previous
     day's stale number (H6). Only the ANALYST cells keep the yield rule (a ``—``
     yields to whatever the analysis half put there — the script never overwrites a
-    human's cell with a dash). ``force_dash`` (golden refusal) stamps the mechanical
-    cells ``—`` regardless while the analyst cells still survive."""
+    human's cell with a dash). An analyst cell that is EXACTLY the collector's own
+    earlier value (``_COLLECTOR_CELL_SHAPES``) is mechanical for this rule: the new
+    value replaces it, a dash included. ``force_dash`` (golden refusal) stamps the
+    mechanical cells — and a collector-owned one — ``—`` regardless, while the
+    analyst's cells still survive."""
     merged = list(new)
     for i in range(1, len(new)):
-        if force_dash and i not in _ANALYST_CELLS:
+        shape = _COLLECTOR_CELL_SHAPES.get(i)
+        collector_owned = shape is not None and i < len(old) and shape.fullmatch(old[i]) is not None
+        if force_dash and (i not in _ANALYST_CELLS or collector_owned):
             merged[i] = DASH
             continue
-        # The analyst's cell is HERS. A real old value wins over ANY new value, computed or dash —
-        # kaizen.md:202 promises these are "never overwritten by a re-run", and the old rule only
-        # kept that promise while nothing computed them (it yielded to the analyst on a DASH but let
-        # a real new value win). `Filed (spec/mail)` is computed now, so without this the next cron
-        # run would silently eat the analysis half's prose. A computed value FILLS an empty cell and
-        # never more than that.
+        if collector_owned:
+            continue  # the collector's own earlier value: like a mechanical cell, the new one wins (H6)
+        # The analyst's cell is HERS. A real old value she wrote (the collector's own bare value is
+        # handled above) wins over ANY new value, computed or dash — kaizen.md's log-row table
+        # promises no re-run overwrites it, and the old rule only kept that promise while nothing
+        # computed these cells (it yielded to the analyst on a DASH but let a real new value win).
+        # `Filed (spec/mail)` is computed now, so without this the next cron run would silently eat
+        # the analysis half's prose. A computed value FILLS an empty or `—` cell, and replaces
+        # nothing else but the collector's own bare value.
         if i in _ANALYST_CELLS and i < len(old) and old[i] not in ("", DASH):
             merged[i] = old[i]
     return merged
@@ -2554,9 +2572,9 @@ def log_cells(day: dt.date, reg: dict[str, dict], state: Path | None = None) -> 
         _warn(f"Review rounds /plan = {DASH} — weekly recompute unavailable ({exc})")
         rounds = DASH
     # Cell 7 — `Filed (spec/mail)`. An ANALYST cell, so `_merge_cells` lets a value the analyst
-    # typed win over this one; the computed value only FILLS an empty cell. That ordering is the
-    # whole reason the merge rule was corrected first — before it, this line would have started
-    # overwriting the analysis half's prose on the next cron run.
+    # typed win over this one; the computed value FILLS an empty cell and REPLACES only the
+    # collector's own earlier value (`_COLLECTOR_CELL_SHAPES`, W-90163961) — any text an analyst
+    # added keeps the cell theirs.
     try:
         import kaizen_outcomes as _ko2  # noqa: PLC0415 - call-time, avoids the import cycle
 

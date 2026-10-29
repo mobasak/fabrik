@@ -88,6 +88,10 @@ paragraph now says the alternative is outside the mandate and routes a project t
   D-1346).
   Graded whole by `tests/test_coordinator_live_address_rule.py`.
 
+### Fixed — The kaizen log's Filed cell is refreshed by every run of the week until an analyst writes in it (2026-10-29)
+
+- `scripts/sysadmin/kaizen_collect_v2.py` kept the collector's own first `Filed (spec/mail)` value as if an analyst had typed it, so the cell froze for the rest of the ISO week. A cell that is exactly the collector's bare `N filed / N none / N unstated` is now refreshed (a dash or a golden refusal included); any text an analyst adds still wins. `docs/workstation/kaizen.md` states the rule (W-90163961, D-1347).
+
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
   `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`
