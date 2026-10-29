@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T08:02:18.666470Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-7ccdf632",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -15,7 +17,8 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — queue floor counts wrong store; coordinator assignment breaks workers",
   "status": "open",
   "title": "work.py queue/triage floor (and the Stop hook's WORK WAITING cause) counts a worker's queue from the WORKER's worktree store (_queued(workers[w], w) -> _ready_items(tree)), while the coordinator assigns on MAIN (work.py assign in the main checkout, as triage prescribes). So every coordinator assignm"
 }

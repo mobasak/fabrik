@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T22:13:29.143857Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-9d53468a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Y6ZXRSFPPTJJMVF2WX0A1K",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: blocked",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "D7 of the scratch-lifecycle spec: seat briefs should name RUN-SCRATCH as the seat-folder root (kaizen's beat, lands after plan-1 merges)"
+}

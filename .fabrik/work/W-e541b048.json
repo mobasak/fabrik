@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "check ran 2026-10-14: hub reads 2 (spawned by a hub session from an unknown source; no config names maestro), fabrik-lib 7 (allowed by ruling) — criterion failed; the investigation is filed as its own task",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "mcp-kill-criterion"
   ],

@@ -17,10 +17,10 @@
     "eb507553f07c9689275b27c0ef7e20a316752e9d518065c16869c80044aba462"
   ],
   "next": "",
-  "note": "",
+  "note": "panel: approved once the runbook:316-317 preconditions are met (appendix A1 mail sent, brand-identiy-creator uuidv7 branch ready, section 1 probes run); the WSL window keeps the 16 cluster until section 4",
   "owner": "",
   "priority": 2,
   "question": "May the operator run the PostgreSQL 18 WSL window (upgrade the WSL dev cluster from 16 to 18 with pg_upgradecluster), following docs/operations/postgres-major-upgrade-runbook.md § 2?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May the operator run the PostgreSQL 18 WSL window (upgrade the WSL dev cluster from 16 to 18 with pg_upgradecluster), following docs/operations/postgres-major-upgrade-runbook.md § 2?"
 }

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:47.685721Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-c4c02bc3",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -12,9 +14,10 @@
     "spec": ""
   },
   "next": "## [operator] `claude-stop-decider.py`'s lock prune aborts on one vanishing entry\n\n`acquire_lock`'s prune puts `f.stat()` inside the try that wraps the WHOLE loop, so one entry\ndisappearing between `iterdir()` and `stat()` aborts the prune and every stale lock behind it\nsurvives. CONFIRMED by reading the code at HEAD (`01M2CH5CWPWV`, from fabrik-32). NOT fixable by an\nagent: `~/.claude/bin/claude-stop-decider.py` is box-local, tracked by no repo, and the mesh scripts\nare read-only by contract — this one is the operator's.",
-  "note": "migrated-digest:b884fcf90743",
-  "owner": "operator",
-  "priority": 2,
-  "status": "open",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — rare lock race, file outside repo",
+  "status": "dropped",
   "title": "`claude-stop-decider.py`'s lock prune aborts on one vanishing entry"
 }

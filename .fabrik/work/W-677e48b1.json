@@ -12,9 +12,13 @@
     "spec": ""
   },
   "next": "measure first: how many /fabrik-task starts in fabrik-lib touched scripts/final_gate*.py, scripts/enforcement/* or .claude/hooks/* with heavy=no (the D-row + feedback ledger); build only if that is non-zero — proposal from fabrik-lib 01M3GH76 item 3 (e.g. .fabrik/heavy_paths read by _task_size_gate as heavy)",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "infra",
   "priority": 3,
-  "status": "open",
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "fabrik-task: a repo-local heavy-path list so a sync-EXCLUDED repo routes its own gate/hook/enforcement edits up mechanically"
 }

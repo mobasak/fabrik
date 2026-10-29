@@ -1,0 +1,29 @@
+{
+  "blocked_by": [
+    "W-ab566484",
+    "W-d146dd3c"
+  ],
+  "created": "2026-10-15T09:31:00.637552Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-b63b9832",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: read mail 01M4Y582BHYV1NMX91ZZJW6NH5, claim it, act on it",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — receipt tool refuses plan-review and --restamp --range",
+  "status": "open",
+  "tags": [
+    "mail-01m4y582bhyv1nmx91zzjw6nh5"
+  ],
+  "title": "review_receipt.py: no --command for /fabrik-plan-review, --restamp refuses --range; panel brief should pre-run stated baselines (mail 01M4Y582BHYV1NMX91ZZJW6NH5)"
+}

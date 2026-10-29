@@ -53,7 +53,7 @@ Generate a complete specification with these sections:
 | Backend | Python + FastAPI + Uvicorn | [Confirm or override] | [Why] |
 | Database | shared `postgres-main` (SSH+Compose) | [Confirm or override] | [Why] |
 | Auth | [Supabase Auth / Custom JWT] | [Choose] | [Why] |
-| Base images | `python:3.12-slim-bookworm` / `node:22-bookworm-slim` | **No Alpine** | amd64 stability |
+| Base images | `python:3.12-slim-<codename>` / `node:22-<codename>-slim`, `<codename>` = `debian_codename` in `.windsurf/rules/versions.yaml` | **No Alpine** | amd64 stability |
 | Platform | `linux/amd64` | **Mandatory** | Ubuntu x86_64 VPS |
 | Hosting | `fabrik apply` (SSH + Docker Compose) on x86_64 VPS | [Confirm] | [Why] |
 | Domains | `*.vps1.ocoron.com` | [Subdomain choice] | [Why] |

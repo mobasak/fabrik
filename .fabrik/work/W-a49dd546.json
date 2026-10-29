@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T23:02:51.414740Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a49dd546",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make the leg distinguish a runner that failed to start from a suite that ran red: a distinct row text and a retry or a setup-error, with a test that fakes the transient-scope failure",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "a transient-scope start failure mis-labels the gate's pytest row; seen twice under load, green on re-run; one row-text change plus a faked-failure test; gate code is infra's",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "capped_run.sh's 'Failed to start transient scope unit' under load surfaces as a plain red pytest row in the gate's pytest leg, so a suite that never ran reads as a failing suite and a refusing one can be mis-graded on a busy box (infra-3, W-f46bca45 round-1 seats and the merge-time re-run, 2026-10-23)"
+}

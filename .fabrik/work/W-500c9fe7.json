@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T07:31:41.737444Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-500c9fe7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VV3BD3HSPP4E1ATB5Z2W1W",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: class finding — scratch state under /tmp died in the WSL shutdown — shipped as 8d4ab4ac3 (D-836); the path to re-point the command text at"
+}

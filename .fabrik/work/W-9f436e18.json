@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T10:39:56.850106Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "dfdcef22ab640f2efa42ff05019bfa8528766945",
+  "id": "W-9f436e18",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "(1) --args a run file with no result key prints the 'pass --args <run file>' NOT CHECKED advice though a run file was given (key the advice on the --args file being a run file, scripts/review_loop_ledger.py ~:1412); (2) a repeated union id compared raw, so fold-equal duplicates (alpha-S1 / 'alpha-s1 ') escape the repeat guard and are both carried (compare _fold, ~:376). Probes: the W-b1f67743 review's seat-A-haiku-p3 run_noresult.json, run_fold.json. Grade each in tests/test_review_loop_ledger.py",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "two edge shapes recorded by the W-b1f67743 review's scope-growth stop; no live failure",
+  "status": "done",
+  "tags": [
+    "queued",
+    "review-loop"
+  ],
+  "title": "review_loop_ledger.py next: two edge shapes from the W-b1f67743 review's remainder round (recorded under the scope-growth stop)"
+}

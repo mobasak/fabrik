@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T02:12:24.871630Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "21c998acdc831db5583e2654cc9bc5103fa0702b",
+  "id": "W-a86563c9",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "term-edit/term-coverage rule (1) and fabrik-review :317 (the orchestrator executes claims, no carve-out for scripts that delete, deploy, provision, write outside scratch or contact a non-local host); commands/_agents/design-review.md and fabrik-gui.md lack the house-rule clause; final_gate --check writes ruff/mypy caches outside scratch; fabrik-command-improve PHASE 3's scratch-repo verb rule misses hard-coded live paths (proof_run.py:36-37)",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — carry never-execute seat rule into execute rules",
+  "status": "done",
+  "title": "Never-execute seat rule: carry it to the orchestrator's execute rules, the other Bash agents and the scratch-repo verb rule"
+}

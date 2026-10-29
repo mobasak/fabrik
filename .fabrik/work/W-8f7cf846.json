@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:36:41.489963Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8f7cf846",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure each fire rate from the feedback ledger, then build or reject with the number",
+  "note": "duplicate of W-ea1192bf (the mail item mail.py claim created for 01M4Q0MN0Q); root cause and next step: measure each fire rate from the feedback ledger, then build or reject with the number",
+  "owner": "",
+  "priority": 3,
+  "status": "dropped",
+  "title": "fabrik-spec verdicts asking for code: command-file md5 at start; auto-stamp the caller's step on a nested record; check_doc_index at doc creation (kaizen 01M4Q0MN0Q)"
+}

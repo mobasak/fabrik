@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-02T15:45:23.408720Z",
   "creator": "intel",
-  "evidence": "",
+  "effort": "low",
+  "evidence": "69b3619940ec9870bed9145a02658285f767b48b",
   "id": "W-7450f4b6",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,9 +15,10 @@
   },
   "next": "change scripts/kilo-benchmarks/update_gateway_counts.py:162,201 to name the flash tier (or derive it), re-render when the machinery resumes (D-430, W-b58d0f90)",
   "note": "",
-  "owner": "",
-  "priority": 2,
-  "status": "open",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "impact HIGH: names 'block'; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "status": "done",
   "tags": [
     "rules"
   ],

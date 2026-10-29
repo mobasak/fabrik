@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T08:01:54.592213Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-ccec009d",
+  "impact": "low",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -15,7 +17,11 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "MEDIUM (tag kept): an auto-armed mail watcher is a mechanism (/fabrik-task lane); real value, nobody blocked; LOW effort: one watcher beside selfwatch",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "request — an auto-armed fabrik-mail watcher so a hub session acts on new mail without a prompt, and survives a window restart"
 }

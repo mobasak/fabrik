@@ -5,6 +5,8 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 from docs_updater import (
     PLANS_BLOCK_RE,
@@ -283,7 +285,7 @@ class TestPlansTableOwnerColumn:
         assert "| beta | IN_PROGRESS | 1 |" in by_name["2026-01-01-epic-1-thing.md"]
         assert "(epics/2026-01-01-epic-1-thing.md)" in table
         # the Phase source is DEFINED in the block's own header comment
-        assert "<!-- Phase:" in table and "phased_order" in table
+        assert "<!-- Phase:" in table and "depends_on" in table
 
     @staticmethod
     def _stale_index(tmp_path: Path) -> Path:
@@ -697,3 +699,612 @@ def test_structure_outside_git_is_plain_walk(tmp_path):
     )
     body = _run_sync(tmp_path)
     assert "x.md" in body and "gone.md" not in body, body
+
+
+# site-provisioner 01M4DBKECA: a status VALUE outside the exact-first tuple was graded by whatever
+# word came later in its own line — `BUILT … Earlier: CONVERGED` read CONVERGED.
+def _plan_with_status(tmp_path, line: str):
+    p = tmp_path / "2026-10-08-plan-x.md"
+    p.write_text(f"# Plan\n\n**Status:** {line}\n\n## Tasks\n", encoding="utf-8")
+    return p
+
+
+def test_a_status_value_is_never_overridden_by_later_history_text(tmp_path):
+    import docs_updater as du
+
+    p = _plan_with_status(tmp_path, "BUILT 2026-09-05 — shipped in 0074c60. Earlier: CONVERGED")
+    assert du.parse_plan_status(p)[0] == "BUILT"
+    # real status lines from plans on the box (design critiques, Opus + Fable)
+    for line, want in (
+        ("✅ EXECUTED 2026-08-13 — whole-plan review converged", "EXECUTED"),
+        ("⛔ PINNED — DO NOT EXECUTE AS-WRITTEN (was CONVERGED 2026-07-07)", "PINNED"),
+        ("✅ **CLOSED 2026-06-02**", "CLOSED"),
+        ("BUILT IN PART, not EXECUTED (relabelled 2026-10-02)", "PARTIAL"),
+        ("DONE IN PART, remaining items pending", "PARTIAL"),
+        ("✓ EXECUTED — superseded by X (converged)", "EXECUTED"),
+        ("✓ EXECUTED, converged with baseline", "EXECUTED"),
+        ("BUILT; converged earlier", "BUILT"),
+        ("BUILT, IN PART, not EXECUTED", "PARTIAL"),
+        ("In-Progress — phase 2", "IN_PROGRESS"),
+        ("DONE (2026-07-01) — converged earlier", "COMPLETE"),
+        ("RESOLVED — see Resolution", "RESOLVED"),
+    ):
+        p = _plan_with_status(tmp_path, line)
+        assert du.parse_plan_status(p)[0] == want, line
+    for word in sorted(du._PLAN_STATUS_WORDS):
+        p = _plan_with_status(tmp_path, f"{word.upper()} — earlier: converged, then executed")
+        assert du.parse_plan_status(p)[0] == word.upper(), word
+
+
+def test_the_done_sets_agree_and_a_built_plan_is_done():
+    """docs_updater's PLAN_DONE and work.py's _PLAN_DONE grade the same plans as finished; a BUILT
+    plan is finished in both (it is never handed an owner nor listed as active)."""
+    import docs_updater as du
+    import work
+
+    assert du.PLAN_DONE == work._PLAN_DONE
+    assert {"BUILT", "IMPLEMENTED", "SHIPPED", "CLOSED", "FIXED"} <= du.PLAN_DONE
+    # RESOLVED labels a resolved issue inside an unfinished plan (check_plan_lock_release)
+    assert "RESOLVED" not in du.PLAN_DONE and "PARTIAL" not in du.PLAN_DONE
+
+
+def test_the_phase_note_names_no_hub_only_path():
+    """The note is written into every repo's PLANS.md; a project has no scripts/epic_order.py."""
+    import docs_updater as du
+
+    assert "epic_order.py" not in du._PLANS_PHASE_NOTE
+    assert "depends_on" in du._PLANS_PHASE_NOTE
+
+
+def test_work_open_plans_reads_the_shared_done_set(tmp_path):
+    """work.py's open-plan view lists a not-finished plan and hides a BUILT one, through the
+    docs_updater it imports (review B-S2: the agreement test never ran the consumer)."""
+    import work
+
+    plans = tmp_path / "docs" / "development" / "plans"
+    plans.mkdir(parents=True)
+    (plans / "2026-10-01-plan-a.md").write_text(
+        "# A\n\n**Status:** BUILT 2026-10-01 — Earlier: CONVERGED\n"
+    )
+    (plans / "2026-10-02-plan-b.md").write_text("# B\n\n**Status:** APPROVED — phases pending\n")
+    out = work._open_plans(tmp_path)
+    assert any("plan-b" in line for line in out), out
+    assert not any("plan-a" in line for line in out), out
+
+
+def _fake_docs_updater(tmp_path, monkeypatch, source):
+    """Point work._open_plans at a stand-in docs_updater.py (it loads the file beside work.py)."""
+    import work
+
+    fake = tmp_path / "fake-scripts"
+    fake.mkdir()
+    (fake / "docs_updater.py").write_text(source)
+    monkeypatch.setattr(work, "__file__", str(fake / "work.py"))
+    plans = tmp_path / "repo" / "docs" / "development" / "plans"
+    plans.mkdir(parents=True)
+    return work, tmp_path / "repo", plans
+
+
+def test_work_open_plans_survives_one_plan_the_parser_raises_on(tmp_path, monkeypatch):
+    """W-f1412a11 (review B-S1): an error parsing ONE plan emptied the whole view through the outer
+    `except Exception`; the other open plans stay listed and the failing one is listed as open."""
+    work, repo, plans = _fake_docs_updater(
+        tmp_path,
+        monkeypatch,
+        "PLAN_DONE = {'EXECUTED'}\n"
+        "def parse_plan_status(path):\n"
+        "    if 'bad' in path.name:\n"
+        "        raise ValueError('boom')\n"
+        "    return ('APPROVED', 0, 0)\n",
+    )
+    (plans / "2026-10-01-plan-bad.md").write_text("# bad\n")
+    (plans / "2026-10-02-plan-good.md").write_text("# good\n")
+    out = work._open_plans(repo)
+    assert any("plan-good" in line and "APPROVED" in line for line in out), out
+    assert any("plan-bad" in line and "ValueError" in line for line in out), out
+
+
+def test_work_open_plans_says_so_when_the_parser_cannot_load(tmp_path, monkeypatch):
+    """W-f1412a11: a docs_updater.py that fails to import read as 'no open plans'; the view now
+    names the failure instead of returning an empty list."""
+    work, repo, plans = _fake_docs_updater(tmp_path, monkeypatch, "raise RuntimeError('broken')\n")
+    (plans / "2026-10-02-plan-good.md").write_text("# good\n")
+    out = work._open_plans(repo)
+    assert len(out) == 1 and "RuntimeError" in out[0] and "unavailable" in out[0], out
+
+
+def test_work_open_plans_says_so_when_the_plans_dir_cannot_be_read(tmp_path, monkeypatch):
+    """W-f1412a11 review: Path.glob swallows a PermissionError, so an unreadable plans dir read as
+    'no open plans'; the view now names it as unavailable."""
+    work, repo, plans = _fake_docs_updater(
+        tmp_path, monkeypatch, "PLAN_DONE = set()\ndef parse_plan_status(path):\n    return ('DRAFT', 0, 0)\n"
+    )
+    (plans / "2026-10-02-plan-good.md").write_text("# good\n")
+    # unreadable; readable but not searchable (listdir works, stat fails); searchable but not readable
+    for mode in (0, 0o444, 0o300):
+        plans.chmod(mode)
+        try:
+            out = work._open_plans(repo)
+        finally:
+            plans.chmod(0o755)
+        assert len(out) == 1 and "PermissionError" in out[0] and "unavailable" in out[0], (mode, out)
+        assert str(tmp_path) not in out[0], out  # repo-relative, as every line of the view
+
+
+def test_work_open_plans_says_so_when_an_ancestor_cannot_be_read(tmp_path, monkeypatch):
+    """W-f1412a11 review pass 3: Path.is_dir re-raises EACCES, so an unreadable docs/development
+    crashed queue and triage; it is one 'unavailable' line, since the plans cannot be known."""
+    work, repo, plans = _fake_docs_updater(
+        tmp_path, monkeypatch, "PLAN_DONE = set()\ndef parse_plan_status(path):\n    return ('DRAFT', 0, 0)\n"
+    )
+    (plans / "2026-10-02-plan-good.md").write_text("# good\n")
+    plans.parent.chmod(0)
+    try:
+        out = work._open_plans(repo)
+    finally:
+        plans.parent.chmod(0o755)
+    assert len(out) == 1 and "PermissionError" in out[0] and "unavailable" in out[0], out
+
+
+def test_work_open_plans_is_empty_without_a_plans_dir_whatever_the_parser(tmp_path, monkeypatch):
+    """W-f1412a11 review: a repo with no plans dir has no open plan, so a parser that cannot load
+    there is not reported (the old view returned [] for it too)."""
+    work, repo, plans = _fake_docs_updater(tmp_path, monkeypatch, "raise RuntimeError('broken')\n")
+    plans.rmdir()
+    assert work._open_plans(repo) == []
+
+
+class TestLinkCheckReadsCommonMarkLinks:
+    """W-f11e740e: check_link_integrity read links with its own `\\[..\\]\\(([^)]+)\\)` regex, so a
+    titled or <angle> link to a live doc was reported broken and an escaped or paren name was
+    skipped unexamined; it now reads destinations through check_doc_links.link_targets."""
+
+    @staticmethod
+    def _issues(tmp_path, monkeypatch, body: str, files=("live.md", "a_b.md", "a(b).md", "a#b.md")):
+        import docs_updater as du
+
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        for name in files:
+            (docs / name).write_text("# x\n")
+        (docs / "src.md").write_text(body)
+        monkeypatch.setattr(du, "PROJECT_ROOT", tmp_path)
+        monkeypatch.setattr(du, "_gitignored", lambda paths: set())
+        return [i for i in du.check_link_integrity() if "src.md" in i]
+
+    def test_a_commonmark_link_to_a_live_doc_is_not_broken(self, tmp_path, monkeypatch):
+        body = '[t](live.md "a title")\n[a](<live.md>)\n[e](a\\_b.md)\n[p](a(b).md)\n[plain](live.md)\n'
+        assert self._issues(tmp_path, monkeypatch, body) == []
+
+    def test_a_commonmark_link_to_a_missing_doc_names_its_real_path(self, tmp_path, monkeypatch):
+        body = '[t](gone.md "a title")\n[a](<gone2.md>)\n[p](g(o)ne.md)\n'
+        issues = self._issues(tmp_path, monkeypatch, body)
+        assert any(i.endswith(": gone.md") for i in issues), issues
+        assert any(i.endswith(": gone2.md") for i in issues), issues
+        assert any(i.endswith(": g(o)ne.md") for i in issues), issues
+
+    def test_an_escaped_hash_in_a_name_is_not_cut(self, tmp_path, monkeypatch):
+        """link_targets already dropped the fragment and undid `\\#`; a second cut checked `a`."""
+        assert self._issues(tmp_path, monkeypatch, "[h](a\\#b.md)\n") == []
+
+    def test_the_link_check_falls_back_to_the_regex_and_says_so(
+        self, tmp_path, monkeypatch, capsys
+    ):
+        """With both import names gone the advisory row still runs, on today's regex."""
+        monkeypatch.setitem(sys.modules, "enforcement.check_doc_links", None)
+        monkeypatch.setitem(sys.modules, "scripts.enforcement.check_doc_links", None)
+        issues = self._issues(tmp_path, monkeypatch, "[g](gone.md)\n")
+        assert any("gone.md" in i for i in issues), issues
+        captured = capsys.readouterr()
+        assert "link_targets unavailable" in captured.err  # stdout carries only the report
+        assert "link_targets unavailable" not in captured.out
+
+    def test_a_uri_scheme_link_is_not_a_file(self, tmp_path, monkeypatch):
+        """A paren is now a path character, so `javascript:alert(1)` stopped being skipped as
+        regex-ish and was checked as a file (4 fleet docs, the after-diff): any URI scheme is
+        external, not only http(s)/mailto/file."""
+        body = (
+            "[x](javascript:alert(1))\n[t](tel:+15550100)\n[d](data:text/plain,hi)\n"
+            "[m](MAILTO:a@b.c)\n[u](urn:ietf:rfc:2119)\n[g](geo:37.7,-122.4)\n[s](ms-settings:display)\n"
+        )
+        assert self._issues(tmp_path, monkeypatch, body) == []
+
+    def test_a_colon_in_a_relative_name_is_still_graded(self, tmp_path, monkeypatch):
+        """Review passes 1-2: a dot or slash before the colon makes it a path, so `notes.md:12` and
+        `src/gone.py:1` are graded; a dot-free 2+ character prefix (`ab:c.md`) reads as a scheme."""
+        issues = self._issues(tmp_path, monkeypatch, "[a](src/gone.py:1)\n[b](notes.md:12)\n")
+        assert any(i.endswith(": src/gone.py:1") for i in issues), issues
+        assert any(i.endswith(": notes.md:12") for i in issues), issues
+
+    def test_a_protocol_relative_link_is_not_a_repo_file(self, tmp_path, monkeypatch):
+        assert self._issues(tmp_path, monkeypatch, "[c](//cdn.example.com/x.js)\n") == []
+
+    def test_two_links_to_one_missing_target_report_it_once(self, tmp_path, monkeypatch):
+        """The shared reader's line holds no link text, so duplicates would print identically."""
+        issues = self._issues(tmp_path, monkeypatch, "[a](gone.md)\nand [b](gone.md)\n")
+        assert issues == [i for i in issues if i.endswith(": gone.md")]
+        assert len(issues) == 1, issues
+
+
+class TestLinkCheckSkipsCodeExamples:
+    """W-69f51003: `_strip_quoted` removed ``` fences and blockquotes only, so a link inside an
+    inline code span or a `~~~` fence — a code EXAMPLE — was graded, and a `~~~` fence showing a
+    ``` line paired that line with the next real fence. The link check now blanks both fence kinds
+    in one pass before `_strip_quoted` and blanks inline spans after it."""
+
+    @staticmethod
+    def _issues(tmp_path, monkeypatch, body: str) -> list[str]:
+        import docs_updater as du
+
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        (docs / "live.md").write_text("# x\n")
+        (docs / "src.md").write_bytes(body.encode())
+        monkeypatch.setattr(du, "PROJECT_ROOT", tmp_path)
+        monkeypatch.setattr(du, "_gitignored", lambda paths: set())
+        return [i.rsplit(": ", 1)[1] for i in du.check_link_integrity() if "src.md" in i]
+
+    def test_link_integrity_skips_links_in_code_spans_and_tilde_fences(self, tmp_path, monkeypatch):
+        body = (
+            "Use `[a](a.md)` and ``[b](`b`.md)`` and `![](img.png)` here.\n"
+            "A span `crossing\n[c](c.md)` lines.\n"
+            "A CRLF span `crossing\r\n[d](d.md)` lines.\r\n\n"
+            "A span `opening\n[h](h.md)\n` closing at a line start.\n\n"
+            "~~~\n[e](e.md)\n~~~\n\n"
+            "~~~md\n[f](f.md)\n~~~~\n\n"
+            "~~~\r\n[g](g.md)\r\n~~~\r\n\n"
+            "```js\n[i](i.md)\n`````\n\n"
+            "[a]`(x)`(glue.md) is blanked, never deleted into a link.\n"
+            "a](`see [x](stray.md)`) — a stray `](` shields no span.\n"
+            "[live](live.md) stays.\n"
+        )
+        assert self._issues(tmp_path, monkeypatch, body) == []
+
+    def test_link_integrity_fence_kinds_do_not_pair_across_each_other(self, tmp_path, monkeypatch):
+        body = (
+            "~~~\n```python\n[ex1](ex1.md)\n~~~\n[real](real.md)\n\n"
+            "```\n[ex2](ex2.md)\n```\n[real2](real2.md)\n"
+        )
+        assert sorted(self._issues(tmp_path, monkeypatch, body)) == ["real.md", "real2.md"]
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "``[s](s.md)` tail\n",  # an opener is a whole run: `` never pairs with `
+            "\\`[s](s.md)` tail\n",  # an escaped backtick opens nothing
+            "- item `open\n- [s](s.md) y` z\n",  # a span never crosses into a list item
+            "# Title `open\n[s](s.md) x` y\n",  # nor out of a heading
+            "| a `x | [s](s.md) |\n| b | c` |\n",  # nor out of a table row
+            "para `open\n\n[s](s.md) x` y\n",  # nor across a blank line
+            "para `open\r\n\r\n[s](s.md) x` y\r\n",  # a CRLF blank line too
+            '[s](s.md "a `quote")\n',  # a backtick in a title
+            '[s](s.md "a `quote") and `x`\n',  # opens no span with a later backtick
+            "~~~\n[s](s.md)\n",  # an unclosed fence grades its links (the safe direction)
+            "```a`b\n[s](s.md)\n",  # a ``` opener's info string holds no backtick
+            "```x [y](y.md) ```\n[s](s.md)\n\n```\n[e](e.md)\n```\n",  # nor this one
+            "`open\n---\n[s](s.md) x`\n",  # a setext underline ends the paragraph
+            "`open\n===\n[s](s.md) x`\n",
+            "`open\n***\n[s](s.md) x`\n",  # so does a thematic break
+        ],
+    )
+    def test_link_integrity_still_reports_links_beside_stray_backticks(
+        self, tmp_path, monkeypatch, body
+    ):
+        assert self._issues(tmp_path, monkeypatch, body) == ["s.md"]
+
+    def test_a_backtick_in_a_link_destination_opens_no_span(self, tmp_path, monkeypatch):
+        assert self._issues(tmp_path, monkeypatch, "[s](`s`.md)\n") == ["`s`.md"]
+
+    def test_the_fence_walk_is_linear_on_unclosed_openers(self):
+        """The first build's fence regex searched to end of file from every unclosed opener
+        (100 KB took 24 s); the walk reads each line once."""
+        import time
+
+        import docs_updater as du
+
+        text = "```x\n" * 200_000
+        start = time.perf_counter()
+        assert du._blank_code_fences(text) == text
+        assert time.perf_counter() - start < 5
+
+
+# W-8f9a7d2c: a code span that crosses a line break, with a header key opening its second line, won first-match
+# over the real header. The scans skip a header whose KEY a code span holds and read every value from the original
+# text, so a value in code font (a live hub form) keeps it.
+def _plan(tmp_path, body: str):
+    p = tmp_path / "2026-10-20-plan-span.md"
+    p.write_text(f"# Plan\n\n{body}\n## Tasks\n", encoding="utf-8")
+    return p
+
+
+def test_a_status_line_inside_a_code_span_never_wins(tmp_path):
+    import docs_updater as du
+
+    p = _plan(
+        tmp_path,
+        "The header grammar is `one line,\nStatus: DRAFT` in an example.\n\n**Status:** COMPLETE\n",
+    )
+    assert du.parse_plan_status(p)[0] == "COMPLETE"
+    p = _plan(tmp_path, "See ``a\n**Status:** DRAFT`` here.\n\n**Status:** EXECUTED\n")
+    assert du.parse_plan_status(p)[0] == "EXECUTED"
+
+
+def test_an_owner_line_inside_a_code_span_never_wins(tmp_path):
+    import docs_updater as du
+
+    p = _plan(tmp_path, "Write it as `a\nOwner: someone` here.\n\n**Owner:** intel\n")
+    assert du.parse_plan_owner(p) == "intel"
+
+
+def test_a_backticked_header_value_is_kept(tmp_path):
+    import docs_updater as du
+
+    p = _plan(
+        tmp_path, "**Status:** `COMPLETE`\n**Owner:** `[infra]` · **Shape:** monolith (2 phases)\n"
+    )
+    assert du.parse_plan_status(p)[0] == "COMPLETE"
+    assert du.parse_plan_owner(p) == "infra"
+
+
+def test_a_span_opened_line_and_an_unclosed_backtick_read_as_today(tmp_path):
+    import docs_updater as du
+
+    p = _plan(
+        tmp_path,
+        "`check_x` Status: DRAFT example\n`run_y` Owner: nobody\n**Status:** EXECUTED\n**Owner:** intel\n",
+    )
+    assert (du.parse_plan_status(p)[0], du.parse_plan_owner(p)) == ("EXECUTED", "intel")
+    p = _plan(tmp_path, "Type the ` key.\n**Status:** DRAFT\n**Owner:** intel\n")
+    assert (du.parse_plan_status(p)[0], du.parse_plan_owner(p)) == ("DRAFT", "intel")
+
+
+def test_two_stray_backticks_around_the_only_header_still_read_it(tmp_path):
+    """Review pass 1 (S-s1, S-h1): two stray backticks pair into a span around the plan's only header; with no
+    header outside a span the scan falls back to the first match, as before, rather than read Active / no owner
+    (and `--adopt` would then write a second Owner line)."""
+    import docs_updater as du
+
+    p = _plan(tmp_path, "Use ` here\n**Status:** COMPLETE\n**Owner:** intel\nthen ` there\n")
+    assert (du.parse_plan_status(p)[0], du.parse_plan_owner(p)) == ("COMPLETE", "intel")
+    p = _plan(
+        tmp_path, "**Status:** EXECUTED — see `scripts/x.py\n**Owner:** intel — also `y` here\n"
+    )
+    assert (du.parse_plan_status(p)[0], du.parse_plan_owner(p)) == ("EXECUTED", "intel")
+
+
+# ── W-16c00597: _blank_code_spans is linear, with the quadratic original as its oracle ─────────────────────────────
+# The function below is `_blank_code_spans` VERBATIM as it stood at commit ed16ac2a7 (the last change before
+# W-16c00597), renamed and pointed at the module's own regex constants. It scanned forward from every unmatched
+# opener to its paragraph's end and found each opener's line start by an rfind — quadratic on one long line.
+import bisect  # noqa: E402
+
+import docs_updater as du  # noqa: E402
+
+_FX = du._fences_module()  # the regexes moved to _fences with the function (W-b9af1d47)
+
+
+def _old_blank_code_spans(content: str) -> str:
+    runs = list(_FX._BACKTICK_RUN_RE.finditer(content))
+    tails = [(m.start(1), m.end(1)) for m in _FX._LINK_TAIL_RE.finditer(content)]
+    tail_starts = [start for start, _ in tails]
+    out, kept, i = [], 0, 0
+    while i < len(runs):
+        opener = runs[i]
+        i += 1
+        # W-753040b8: the opener rule moved to CommonMark's backslash parity in the linear function, and this oracle
+        # takes the SAME rule — its job is linear-vs-quadratic equivalence; the escape rule is graded in test_fences.py
+        o_start, o_len = opener.start(), len(opener.group())
+        b = o_start
+        while b and content[b - 1] == "\\":
+            b -= 1
+        if (o_start - b) % 2:
+            o_start, o_len = o_start + 1, o_len - 1
+            if not o_len:
+                continue
+        t = bisect.bisect_right(tail_starts, o_start) - 1
+        if t >= 0 and o_start < tails[t][1]:
+            continue
+        line_start = content.rfind("\n", 0, opener.start()) + 1
+        one_line = _FX._ONE_LINE_BLOCK_RE.match(content, line_start) is not None
+        seen = opener.end()
+        for j in range(i, len(runs)):
+            # only the text since the last run is new; each line it starts is checked whole
+            starts = [m.end() for m in re.finditer("\n", content[seen : runs[j].start()])]
+            if starts and (
+                one_line or any(_FX._BLOCK_START_RE.match(content, seen + s) for s in starts)
+            ):
+                break
+            seen = runs[j].end()
+            if len(runs[j].group()) == o_len:
+                out += [
+                    content[kept:o_start],
+                    du._blank(content[o_start : runs[j].end()]),
+                ]
+                kept, i = runs[j].end(), j + 1
+                break
+    return "".join(out) + content[kept:]
+
+
+_FUZZ_TOKENS = [
+    "`",
+    "``",
+    "```",
+    "````",
+    "`````",
+    "x",
+    " ",
+    "\t",
+    "\n",
+    "\n\n",
+    "\r",
+    "\r\n",
+    "# h\n",
+    "#h",
+    "- ",
+    "+ ",
+    "1. ",
+    "2) ",
+    "> ",
+    ">",
+    "| a |",
+    "\\`",
+    "\\\\",
+    "[a](b`c)",
+    "[t]",
+    "](x)",
+    "[a [b] c](d `e (f`) g)",
+    "[",
+    "]",
+    "(",
+    ")",
+    "===\n",
+    "---\n",
+    "***\n",
+    "* * *\n",
+    "___\n",
+    "~~~",
+    "```x\n",
+    "    ",
+    "é",
+]
+
+_FIXTURES = [
+    "",
+    "`a`",
+    "`a\n- `x",
+    "`a\n```b` c",
+    "`` a ` b ``",
+    "\\`a` `b`",
+    "[a](x `y) z` w",
+    "a `b\n\nc` d",
+    "a `b\r\n\r\nc` d",
+    "# h `a\nb` c",
+    "| `a | b` |\n| c |",
+    "a `b\n    c` d",
+    "a `b\n===\nc` d",
+    "`" * 5 + "a" + "`" * 3 + "b" + "`" * 5,
+    "`a\n" * 50 + "`",
+]
+
+
+@pytest.mark.parametrize("text", _FIXTURES)
+def test_blank_code_spans_equals_the_quadratic_original_on_fixtures(text: str) -> None:
+    assert du._blank_code_spans(text) == _old_blank_code_spans(text)
+
+
+def test_blank_code_spans_equals_the_quadratic_original_on_fuzz() -> None:
+    import random
+
+    rng = random.Random(0x16C00597)
+    for _ in range(5000):
+        text = "".join(rng.choice(_FUZZ_TOKENS) for _ in range(rng.randint(0, 40)))
+        assert du._blank_code_spans(text) == _old_blank_code_spans(text), repr(text)
+
+
+def _best_of_3(text: str) -> float:
+    import time
+
+    best = float("inf")
+    for _ in range(3):
+        start = time.perf_counter()
+        du._blank_code_spans(text)
+        best = min(best, time.perf_counter() - start)
+    return best
+
+
+def test_blank_code_spans_beats_the_quadratic_original_on_unmatched_runs() -> None:
+    """1 500 unmatched distinct-length runs on one line: the original scans to the paragraph's end per opener (about
+    a second here), the linear walk takes milliseconds. Measured against the oracle on the same box, so a slow or busy
+    box slows both and the ~300x gap stays far above the 20x asserted. The original's other cost, a line-start rfind
+    per opener (26 s on 4 MB of dense pairs), separates from the forward walk only past ~2 MB, too slow for the suite —
+    the equality tests above guard that path's answer, not its speed."""
+    import time
+
+    text = " x ".join("`" * (k + 1) + " y" for k in range(1500))
+    start = time.perf_counter()
+    _old_blank_code_spans(text)
+    old = time.perf_counter() - start
+    assert _best_of_3(text) * 20 < old, (old, _best_of_3(text))
+
+
+# --- W-da101088: what the staleness gate may watch -------------------------------------------
+# A watched doc must be one the project can edit and may keep where it is: a stale-header row on a
+# hub-synced file or on a path check_structure calls misplaced is a row nobody can clear (D-1272).
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "enforcement"))
+import check_structure  # noqa: E402
+import fabrik_synced_manifest  # noqa: E402
+
+
+def _not_the_projects_to_edit(entries: list[str]) -> list[str]:
+    # This tree's own synced set, never the main checkout's (the function's default root).
+    readonly = set(fabrik_synced_manifest.review_readonly_paths(Path(__file__).resolve().parents[1]))
+    return [e for e in entries if e in readonly]
+
+
+def _misplaced(entries: list[str]) -> list[str]:
+    # The fallback allowlist lacks API_REFERENCE.md, so a failed registry import would be red
+    # for a reason that has nothing to do with the list.
+    assert check_structure._doc_registry is not None, "doc registry import failed"
+    # Ask the structure gate itself, path by path: any violation it reports means misplaced.
+    root = Path(__file__).resolve().parents[1]
+    return [e for e in entries if check_structure.check_structure(root, files=[e])]
+
+
+def test_no_watched_doc_is_a_file_the_project_cannot_edit() -> None:
+    assert _not_the_projects_to_edit(du.MANUAL_DOCS) == []
+
+
+@pytest.mark.parametrize(
+    "synced",
+    [
+        "AGENTS.md",
+        "agents-fabrik.md",
+        "agents-fabrik-core.md",
+        "CLAUDE.md",
+        "docs/reference/convergence-prompts.md",
+    ],
+)
+def test_the_readonly_guard_catches_every_synced_doc(synced: str) -> None:
+    assert _not_the_projects_to_edit(["docs/QUICKSTART.md", synced]) == [synced]
+
+
+def test_no_watched_doc_is_one_governance_misplaces() -> None:
+    assert _misplaced(du.MANUAL_DOCS) == []
+
+
+@pytest.mark.parametrize(
+    "misplaced",
+    [
+        "docs/INDEX.md",
+        "docs/NOTES.md",
+        "docs/notes/setup.md",
+        "notes.md",
+        "docs/index.md",
+        "scripts/notes.md",
+        "src/x.md",
+        "proposals/x.md",
+    ],
+)
+def test_the_misplaced_guard_catches_every_spelling(misplaced: str) -> None:
+    assert _misplaced(["docs/QUICKSTART.md", misplaced]) == [misplaced]
+
+
+@pytest.mark.parametrize(
+    "placed",
+    ["README.md", "docs/QUICKSTART.md", "docs/guides/setup.md", "docs/foo/README.md", ".github/x.md"],
+)
+def test_the_misplaced_guard_passes_a_doc_governance_allows(placed: str) -> None:
+    assert placed not in _misplaced([placed])
+
+
+def test_staleness_skips_the_dropped_docs_and_still_runs(tmp_path: Path, monkeypatch) -> None:
+    (tmp_path / "docs").mkdir()
+    for rel in ("AGENTS.md", "docs/INDEX.md", "docs/FUNNEL.md", "docs/AUTOMATION.md", "docs/QUICKSTART.md"):
+        (tmp_path / rel).write_text("# no marker\n")
+    (tmp_path / "docs/CONFIGURATION.md").write_text("**Last Updated:** 2000-01-01\n")
+    monkeypatch.setattr(du, "PROJECT_ROOT", tmp_path)
+    issues = du.check_staleness()
+    assert issues[0] == "Missing 'Last Updated' date: docs/QUICKSTART.md"
+    assert re.fullmatch(r"Stale doc \(\d+ days old\): docs/CONFIGURATION\.md", issues[1])
+    assert len(issues) == 2

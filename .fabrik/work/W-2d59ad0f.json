@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T19:25:38.466382Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2d59ad0f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TGT7N45NRG2SW6P6TWZ9ZW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: please add the enforcement half of kaizen's 01M4F92G6V (data-contract Backing legend membership) — a check over `docs/data-contract.md` in every project that flags an Enum-registry row whose `Backing` cell is not a legend token, WARN first. Fleet's half landed in the template (fabrik commit fc"
+}

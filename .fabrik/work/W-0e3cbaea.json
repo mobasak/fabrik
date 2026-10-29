@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T12:08:17.906715Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-0e3cbaea",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DNZH8B8592JXQXJN9ATFK4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: /fabrik-docs-review quoted anchors (W-8efe3357, 01M4DH0RP4) — fixed at e50f4ae40, with one scope change from your HOW"
+}

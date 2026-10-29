@@ -1,296 +1,87 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: docs/reference/external-services-registry.md tests/test_external_services_chain.py
-"""Render the external-services registry (fabrik_services) as a self-contained HTML dashboard.
+# AFTER-EDIT: docs/reference/external-services-registry.md tests/test_external_services_chain.py docs/workstation/quota-dashboard.md
+"""Render the external-services registry (fabrik_services) as a self-contained static HTML file.
 
-Reads services/api_keys/credit_snapshots/subscriptions and emits ONE static HTML file (data
-embedded, inline CSS/JS, no external requests) — a scan-first control panel: summary stats,
-then a sortable/filterable table by capability category. ZERO secrets: metadata + a value_sha256
-COUNT only, never a raw key. Body-content only (no <html>/<head>/<body>) so it publishes as an
-Artifact cleanly.
+The section is the SAME one the board's Services view shows: ``dashboard_ui.inventory.render`` with
+``interactive=False`` (no filter bar, nothing that needs ``app.js``), wrapped here in a document of its
+own: ``app.css`` inlined from ``dashboard_ui.STATIC_DIR``, no script, no external request, its own
+``<!doctype>``, ``lang``, ``<title>``, viewport and ``<h1>``. ZERO secrets: metadata and a credential
+COUNT only, never a raw key.
 
     python scripts/gen_dashboard.py [out.html]
+
+Cobra check (D-253): the cheapest way to pass "the file is a snapshot of the registry" without the
+outcome is a document whose section is empty or whose dates are the render's own; the section's
+"Registry synced" line is ``max(api_keys.last_seen)`` and a registry with no row says "never synced".
 """
 
 from __future__ import annotations
 
 import argparse
 import html
-import json
-import math
 import os
 import sys
-from datetime import UTC, datetime
+import time
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
-if (
-    str(Path(__file__).resolve().parent) not in sys.path
-):  # once — the chain suite loads this module 17 times (B65-7, FF1)
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-import registry_db  # noqa: E402
-
-STALE_AFTER_H = 48  # the chain fetches daily; two missed laps (a revoked key, a renamed vendor field, an outage) is stale
-
-
-def credit_cell(
-    bal: float, unit: str | None, fetched: datetime | None, now: datetime | None = None
-) -> str:
-    """The balance, flagged with its age once the LAST successful fetch is older than two laps.
-    A fetch that fails inserts no snapshot, so the dashboard kept rendering the last balance
-    forever — a revoked key and a healthy one were the same cell (FB9)."""
+for _dir in (Path(__file__).resolve().parent, Path(__file__).resolve().parent / "sysadmin"):
     if (
-        bal is None or not math.isfinite(bal) or bal < 0
-    ):  # NaN AND Infinity: NUMERIC accepts both and a backfilled row bypasses the fetchers' guard (FD7/FE1); a NEGATIVE too — `_finite` refuses one at fetch time, a backfilled row rendered `-5 usd` (FF1)
-        return ""  # the column is nullable — defensive: `load()` filters NULLs today (FC4)
-    text = f"{bal:g} {unit or ''}".strip()
-    if fetched is None:
-        return text
-    now = now or datetime.now(fetched.tzinfo)
-    age_h = (now - fetched).total_seconds() / 3600
-    if age_h > STALE_AFTER_H:
-        return f"⚠ {text} ({age_h / 24:.0f}d old)"
-    return text
+        str(_dir) not in sys.path
+    ):  # once - the chain suite loads this module many times (B65-7, FF1)
+        sys.path.insert(0, str(_dir))
+
+import dashboard_ui  # noqa: E402
+import registry_db  # noqa: E402
+from dashboard_ui import inventory  # noqa: E402
+from dashboard_ui.strings import t  # noqa: E402
+
+STALE_AFTER_H = inventory.STALE_AFTER_H
+
+
+def credit_cell(bal, unit, fetched, now=None) -> str:
+    """The balance, flagged with its age once the LAST successful fetch is older than two laps.
+    Keeps the datetime signature the chain suite calls and delegates to ``inventory.credit_cell``, which
+    owns every refusal (a bool, NaN, Infinity, a negative, a non-number balance): this wrapper only turns
+    a ``now`` into epoch seconds through the inventory's own ``_epoch`` (a datetime, a finite
+    non-negative number inside its edge) and anything it refuses into the wall clock, never raising. ``Decimal`` balances and datetime ``fetched``
+    reach the inventory as they are; it reads both."""
+    moment = inventory._epoch(now)  # the inventory's own time check: it refuses what it cannot age
+    return inventory.credit_cell(bal, unit, fetched, time.time() if moment is None else moment)
+
+
+def _read() -> tuple[list[dict], float | None]:
+    """``(rows, synced_at)``; the registry connection is closed on every path."""
+    conn = registry_db.connect()
+    try:
+        rows, synced_at = inventory.load(conn)
+    finally:
+        conn.close()
+    return rows, synced_at
 
 
 def load() -> list[dict]:
-    conn = registry_db.connect()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT id, provider, category, cost_tier, url, status FROM services")
-            svc = {
-                r[0]: {
-                    "provider": r[1],
-                    "category": r[2] or "?",
-                    "cost": r[3] or "?",
-                    "url": r[4] or "",
-                    "status": r[5] or "?",
-                    "keys": 0,
-                    "unattributed": 0,
-                    "projects": set(),
-                    "account": "",
-                    "credit": "",
-                    "renews": "",
-                    "price": "",
-                }
-                for r in cur.fetchall()
-            }
-            cur.execute(
-                "SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() "
-                "AND table_name='api_keys' AND column_name='kind'"
-            )
-            has_kind = (
-                cur.fetchone() is not None
-            )  # a registry never synced by the new registry_sync
-            cur.execute(
-                "SELECT service_id, used_by_projects, account_email, "
-                + ("kind" if has_kind else "'credential'")
-                + " FROM api_keys"
-            )
-            for sid, projects, email, kind in cur.fetchall():
-                s = svc.get(sid)
-                if not s:
-                    continue
-                if kind == "credential":  # a code call-site row proves USE, never a key
-                    s["keys"] += 1
-                elif (
-                    kind == "credential-unattributed"
-                ):  # visible on the row, never counted as a key (BM9)
-                    s["unattributed"] += 1
-                s["projects"].update(projects or [])
-                if email and not s["account"]:
-                    s["account"] = email
-            cur.execute(
-                "SELECT DISTINCT ON (service_id) service_id, balance, unit, fetched_at "
-                "FROM credit_snapshots ORDER BY service_id, fetched_at DESC, id DESC"  # a tie-break: two backfilled rows at one timestamp published an arbitrary one (FC4)
-            )
-            for sid, bal, unit, fetched in cur.fetchall():
-                if sid in svc and bal is not None:
-                    svc[sid]["credit"] = credit_cell(bal, unit, fetched)
-            cur.execute("SELECT service_id, price, currency, renews_on FROM subscriptions")
-            for sid, price, curr, renews in cur.fetchall():
-                s = svc.get(sid)
-                if not s:
-                    continue
-                if renews:
-                    s["renews"] = str(renews)
-                if (
-                    price is not None and math.isfinite(price) and price >= 0
-                ):  # a NaN/Infinity price rendered as a number (FE1); a NEGATIVE one too, asymmetric with the balance guard — the CLI's `--price` is an unbounded float (K67-6, FG1)
-                    s["price"] = f"{price:g} {curr or ''}".strip()
-    finally:
-        conn.close()
-    rows = sorted(svc.values(), key=lambda r: (r["category"], r["provider"]))
-    for r in rows:
-        r["projects"] = sorted(r["projects"])
-    return rows
+    return _read()[0]
 
 
-CSS = """
-:root{--bg:#f6f7f9;--surface:#fff;--surface-2:#eef1f4;--text:#161a20;--muted:#5f6875;--border:#e2e6ea;
---accent:#0d9488;--accent-weak:#0d948815;--free:#15803d;--freemium:#1d4ed8;--paid:#b45309;
---selfhost:#475569;--unknown:#7c3aed;--shadow:0 1px 2px #0000000d,0 1px 3px #0000000a;}
-@media (prefers-color-scheme:dark){:root{--bg:#0e1116;--surface:#161a21;--surface-2:#1d232c;--text:#e7eaee;
---muted:#98a1ad;--border:#262d38;--accent:#2dd4bf;--accent-weak:#2dd4bf1a;--free:#4ade80;--freemium:#60a5fa;
---paid:#fbbf24;--selfhost:#94a3b8;--unknown:#c084fc;--shadow:0 1px 2px #00000040;}}
-:root[data-theme="light"]{--bg:#f6f7f9;--surface:#fff;--surface-2:#eef1f4;--text:#161a20;--muted:#5f6875;
---border:#e2e6ea;--accent:#0d9488;--accent-weak:#0d948815;--free:#15803d;--freemium:#1d4ed8;--paid:#b45309;
---selfhost:#475569;--unknown:#7c3aed;--shadow:0 1px 2px #0000000d,0 1px 3px #0000000a;}
-:root[data-theme="dark"]{--bg:#0e1116;--surface:#161a21;--surface-2:#1d232c;--text:#e7eaee;--muted:#98a1ad;
---border:#262d38;--accent:#2dd4bf;--accent-weak:#2dd4bf1a;--free:#4ade80;--freemium:#60a5fa;--paid:#fbbf24;
---selfhost:#94a3b8;--unknown:#c084fc;--shadow:0 1px 2px #00000040;}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);
-font:15px/1.5 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
-.wrap{max-width:1240px;margin:0 auto;padding:32px 24px 64px}
-header{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:12px}
-h1{font-size:24px;font-weight:680;letter-spacing:-.01em;margin:0}
-.sub{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:24px 0}
-.stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow)}
-.stat .n{font-size:26px;font-weight:660;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-.stat .l{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
-.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:18px 0 12px}
-.bar input,.bar select{background:var(--surface);color:var(--text);border:1px solid var(--border);
-border-radius:9px;padding:8px 11px;font-size:13px;font-family:inherit}
-.bar input{flex:1;min-width:180px}
-.bar input:focus,.bar select:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:transparent}
-.tablewrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface);box-shadow:var(--shadow)}
-table{border-collapse:collapse;width:100%;font-size:13.5px}
-th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--border);white-space:nowrap}
-th{position:sticky;top:0;background:var(--surface-2);font-size:11px;text-transform:uppercase;
-letter-spacing:.05em;color:var(--muted);cursor:pointer;user-select:none;font-weight:600}
-th:hover{color:var(--accent)}
-th[aria-sort="ascending"]::after{content:" ▲";color:var(--accent)}
-th[aria-sort="descending"]::after{content:" ▼";color:var(--accent)}
-tbody tr:hover{background:var(--accent-weak)}
-td.num{font-variant-numeric:tabular-nums;text-align:right}
-td.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-.prov{font-weight:600;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-a{color:var(--accent);text-decoration:none}
-a:hover{text-decoration:underline}
-.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600}
-.c-free{color:var(--free);background:color-mix(in srgb,var(--free) 13%,transparent)}
-.c-freemium{color:var(--freemium);background:color-mix(in srgb,var(--freemium) 13%,transparent)}
-.c-paid{color:var(--paid);background:color-mix(in srgb,var(--paid) 15%,transparent)}
-.c-self-host{color:var(--selfhost);background:color-mix(in srgb,var(--selfhost) 15%,transparent)}
-.c-unknown,.c-retiring{color:var(--unknown);background:color-mix(in srgb,var(--unknown) 14%,transparent)}
-.c-active{color:var(--free);background:color-mix(in srgb,var(--free) 12%,transparent)}
-.projects{color:var(--muted);font-size:12px;white-space:normal;max-width:260px}
-.empty{color:var(--muted);opacity:.5}
-.catrow td{background:var(--surface-2);font-weight:660;font-size:11px;text-transform:uppercase;
-letter-spacing:.06em;color:var(--muted)}
-footer{color:var(--muted);font-size:12px;margin-top:20px;text-align:center}
-"""
-
-SCRIPT = r"""<script>
-const DATA=__DATA__;
-const tb=document.getElementById('tb'),q=document.getElementById('q'),
-  fcat=document.getElementById('fcat'),fcost=document.getElementById('fcost');
-let sortK='category',sortAsc=true;
-const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));  // `'` too — a single-quoted attribute must never be the day this bites (BB9)
-const href=u=>/^https?:\/\//i.test(String(u||''))?u:null;  // render-time scheme gate: a hand-edited or pre-guard `javascript:` url is never a live link (AS5)
-const cpill=v=>{const k=v==='?'?'unknown':String(v).replace(/[^A-Za-z0-9]+/g,'-');return '<span class="pill c-'+k+'">'+esc(v)+'</span>';};  // class token restricted: cost/status are model-authored (AP1)
-const cell=(v,cls)=>v?'<td class="'+(cls||'')+'">'+esc(v)+'</td>':'<td class="empty">—</td>';
-const keysCell=r=>'<td class="num mono">'+r.keys+(r.unattributed?' <span class="pill c-unknown" title="credentials no catalog prefix attributes to this vendor: a model-merged prefix, or provenance unknown at sync time">'+r.unattributed+' unattributed</span>':'')+'</td>';
-function render(){
-  const term=q.value.toLowerCase(),fc=fcat.value,fk=fcost.value;
-  let rows=DATA.filter(r=>(!fc||r.category===fc)&&(!fk||r.cost===fk)&&
-    (!term||(r.provider+' '+r.account+' '+r.projects.join(' ')+' '+r.category).toLowerCase().includes(term)));
-  rows.sort((a,b)=>{let x=a[sortK],y=b[sortK];if(sortK==='keys'){x=+x;y=+y;}
-    else{x=(''+x).toLowerCase();y=(''+y).toLowerCase();}return (x<y?-1:x>y?1:0)*(sortAsc?1:-1);});
-  let out='',cat=null;
-  for(const r of rows){
-    if(sortK==='category'&&r.category!==cat){cat=r.category;out+='<tr class="catrow"><td colspan="10">'+esc(cat)+'</td></tr>';}
-    const url=href(r.url)?'<a href="'+esc(r.url)+'" target="_blank" rel="noopener">'+esc(r.provider)+'</a>':esc(r.provider);
-    out+='<tr><td class="prov">'+url+'</td>'+cell(r.category)+'<td>'+cpill(r.cost)+'</td>'
-      +'<td>'+cpill(r.status)+'</td>'+cell(r.credit,'num mono')+cell(r.renews,'mono')+cell(r.price,'num mono')
-      +keysCell(r)+cell(r.account,'mono')
-      +'<td class="projects">'+(r.projects.length?esc(r.projects.join(', ')):'<span class=empty>—</span>')+'</td></tr>';
-  }
-  tb.innerHTML=out||'<tr><td colspan="10" class="empty" style="padding:24px;text-align:center">No services match.</td></tr>';
-}
-document.querySelectorAll('th[data-k]').forEach(th=>th.onclick=()=>{
-  const k=th.dataset.k;if(sortK===k)sortAsc=!sortAsc;else{sortK=k;sortAsc=true;}
-  document.querySelectorAll('th').forEach(h=>h.removeAttribute('aria-sort'));
-  th.setAttribute('aria-sort',sortAsc?'ascending':'descending');render();});
-[q,fcat,fcost].forEach(el=>el.oninput=render);
-render();
-</script>"""
-
-
-HELPERS = SCRIPT[
-    SCRIPT.index("const esc=") : SCRIPT.index("function render")
-]  # the escaper, the scheme gate, the pill and the cell — ONE source; the live twin re-copied a pre-repair set (FC4)
-
-
-def json_for_script(rows: list[dict]) -> str:
-    """JSON that is safe INSIDE an inline `<script>`: `json.dumps` leaves `</script>` intact, and
-    the registry's `provider`/`url` strings are model-authored (`classify_services` writes the pool
-    model's answer to the catalog), so a `</script><script>…` in one of them would run in the
-    operator's browser before the page's own `esc()` ever sees it (AM4). `\u003c` is valid JSON."""
+def render(
+    rows: list[dict],
+    *,
+    synced_at: float | None = None,
+    now: float | None = None,
+) -> str:
+    """The whole document: the inventory section (``interactive=False``) inside a self-contained page."""
+    when = time.time() if now is None else now
+    section = inventory.render(rows, now=when, synced_at=synced_at, interactive=False)
+    css = (dashboard_ui.STATIC_DIR / "app.css").read_text(encoding="utf-8")
+    if "</style" in css.lower():
+        raise ValueError("app.css would close its own <style> element")
+    title = html.escape(t("services.inv.title"))
     return (
-        json.dumps(rows, ensure_ascii=False)
-        .replace("<", "\\u003c")
-        .replace(">", "\\u003e")
-        .replace("&", "\\u0026")
-    )
-
-
-def render(rows: list[dict]) -> str:
-    now = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
-    cats = sorted({r["category"] for r in rows})
-    by_cost = {
-        c: sum(1 for r in rows if r["cost"] == c) for c in ("free", "freemium", "paid", "self-host")
-    }
-    nproj = len({p for r in rows for p in r["projects"]})
-    stats = [
-        (len(rows), "services"),
-        (len(cats), "categories"),
-        (nproj, "projects"),
-        (by_cost["paid"] + by_cost["freemium"], "paid / freemium"),
-        (by_cost["free"] + by_cost["self-host"], "free / self-host"),
-        (sum(1 for r in rows if r["credit"] and not r["credit"].startswith("⚠")), "credit tracked"),
-        (
-            sum(1 for r in rows if r["credit"].startswith("⚠")),
-            "credit stale",
-        ),  # a stale cell fed the headline number (FC4)
-        (sum(1 for r in rows if r["renews"]), "renewals set"),
-        (sum(1 for r in rows if r["category"] == "?"), "need triage"),
-        (
-            sum(r["unattributed"] for r in rows),
-            "unattributed keys",  # a KEY count beside provider counts — say so (BW9)
-        ),  # the degraded case in one number, not 439 per-row pills (BS16)
-    ]
-    statcards = "".join(
-        f'<div class="stat"><div class="n">{v}</div><div class="l">{html.escape(lbl)}</div></div>'
-        for v, lbl in stats
-    )
-    cat_opts = "".join(f'<option value="{html.escape(c)}">{html.escape(c)}</option>' for c in cats)
-    body = f"""<div class="wrap">
-  <header><h1>External Services &amp; Credentials</h1>
-    <span class="sub">{len(rows)} providers · {nproj} projects · generated {now}</span></header>
-  <div class="stats">{statcards}</div>
-  <div class="bar">
-    <input id="q" type="search" placeholder="Filter by provider, project, account…" aria-label="Search">
-    <select id="fcat" aria-label="Category"><option value="">All categories</option>{cat_opts}</select>
-    <select id="fcost" aria-label="Cost"><option value="">All costs</option>
-      <option>free</option><option>freemium</option><option>paid</option><option>self-host</option>
-      <option value="?">? (triage)</option></select>
-  </div>
-  <div class="tablewrap"><table id="t"><thead><tr>
-    <th data-k="provider">Provider</th><th data-k="category">Category</th><th data-k="cost">Cost</th>
-    <th data-k="status">Status</th><th data-k="credit">Credit</th><th data-k="renews">Renews</th>
-    <th data-k="price">Price</th><th data-k="keys" class="num">Keys</th><th data-k="account">Account</th>
-    <th data-k="projects">Used by</th></tr></thead><tbody id="tb"></tbody></table></div>
-  <footer>Read-only view of the fabrik_services registry · no secret values (metadata + key hashes only) · ⚠ credit = last successful fetch older than __STALE_H__ h</footer>
-</div>"""
-    script = SCRIPT.replace("__DATA__", json_for_script(rows))
-    return (
-        '<!DOCTYPE html>\n<html lang="en"><head><meta charset="utf-8">'
-        '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        "<title>External Services &amp; Credentials</title>\n"
-        f"<style>{CSS}</style></head>\n<body>\n{body.replace('__STALE_H__', str(STALE_AFTER_H))}\n{script}\n</body></html>"
+        "<!doctype html>\n"
+        f'<html lang="{html.escape(t("app.lang"))}"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        f"<title>{title}</title>\n<style>{css}</style></head>\n"
+        f'<body><main class="view"><h1>{title}</h1>\n{section}\n</main></body></html>\n'
     )
 
 
@@ -306,8 +97,10 @@ def main(argv: list[str] | None = None) -> int:
         ap.parse_args(argv).out
     )  # `--help` exits here — it used to WRITE a file named --help
     try:
-        rows = load()
-        html = render(rows)  # a row shape the template cannot render is the same typed line (EZ4)
+        rows, synced_at = _read()
+        page = render(
+            rows, synced_at=synced_at, now=time.time()
+        )  # a row shape the section cannot render is the same typed line (EZ4)
     except Exception as exc:  # noqa: BLE001 - a dead registry is one typed line and exit 1, never a traceback (EY6)
         print(
             f"ERROR: registry unreadable ({exc.__class__.__name__}: {exc}) — nothing written; the previous dashboard stands"
@@ -322,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
     tmp = out.with_name(f"{out.name}.tmp.{os.getpid()}")
     try:
         try:
-            tmp.write_text(html, encoding="utf-8")
+            tmp.write_text(page, encoding="utf-8")
             os.replace(tmp, out)
         finally:
             tmp.unlink(missing_ok=True)  # a failed write leaves nothing behind (AC14)

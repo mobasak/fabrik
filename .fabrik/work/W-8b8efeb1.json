@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T18:58:04.139477Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-8b8efeb1",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-plan-review",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: HELD:evidence-outside-readable-roots-is-a-pointer — its first half is already stated at commands/_sources/fabrik-plan-review.md:317-318 'The plan and its review",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-plan-review"
+}

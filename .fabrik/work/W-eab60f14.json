@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T20:30:39.169217Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-eab60f14",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
+  "title": "check_spec_convergence: a draft mode so /fabrik-spec can grade its own DRAFT before handoff (fabrik-spec verdict 1789139668.270968, kaizen 01M4EJQEEG)"
+}

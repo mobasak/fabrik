@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T17:49:37.374655Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-19625960",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TP1WRGD4D16702JFCJFHX6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: app-audit-log README takes the hub's read-the-key recipe + pgurl (fabrik-lib 11018d76); two findings on the canonical pgurl"
+}

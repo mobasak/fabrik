@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:31:44.458962Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-ed89e0d7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Y3YF83KRVVG4RMBQQCFFKT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "Handoff — scratch-lifecycle spec (D-864, Size: small) is yours to plan and build: /fabrik-plan-after-chat docs/superpowers/specs/2026-10-15-scratch-lifecycle-design.md"
+}

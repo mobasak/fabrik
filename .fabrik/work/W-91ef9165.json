@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:31:04.987145Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "43b1146e8267d899264ec6f1ad4d7e24ac87abbf",
+  "id": "W-91ef9165",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen: read mail 01M4YS0EZVXDM2YHSKB3VM49DH, claim it, act on it",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "status": "done",
+  "tags": [
+    "mail-01m4ys0ezvxdm2yhskb3vm49dh"
+  ],
+  "title": "Mark the feedback rows answered by infra's review_receipt.py fix (66ed34d47, D-876) (mail 01M4YS0EZVXDM2YHSKB3VM49DH)"
+}

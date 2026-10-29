@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T09:51:19.347809Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "d61f7385882159a3b7d4e418114b997c5af64176",
+  "id": "W-51d6c153",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read and validate the compose before up in redeploy/restart (per source type: /opt/<name> or source.path), refuse with DeployError, red-first in tests/orchestrator/test_deployer_ssh.py",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — redeploy/restart bypass compose validation invariants",
+  "status": "done",
+  "title": "SSHDeployer.redeploy() and restart() run docker compose up for every source type with no _validate_compose (deployer_ssh.py ~:510-553), a second door around the compose invariants the apply paths enforce; found by the W-807287f1 Fable critique"
+}

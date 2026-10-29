@@ -1133,7 +1133,7 @@ the operator as a gate.** The loop keeps every part the operator built; it is ma
    one writing it. A mechanism copied from a seat's report is a claim, not a verification (the 2026-09-22 runs paid
    three rounds for one such sentence).
 4. **The terminal is "every part verified, inside the run's budget" and nothing else.** A run ends when every
-   slice's ledger of claims is executed true — not when a reader is quiet, not at a round count. The run record
+   slice's ledger of claims is re-executed with zero defects confirmed present — not when a reader is quiet, not at a round count. The run record
    carries the slice ledgers, not only per-round totals, so the terminal is readable from the record (§ 4.1's
    unverifiable close goes away). The budget is declared at `start` from the surface's size, printed on the pinned
    `RUN:` line beside the rounds, and a run that would overrun it hands off with its failing slices named (§ 4.8) —

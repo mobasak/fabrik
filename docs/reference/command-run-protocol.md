@@ -49,15 +49,17 @@ The Stop hook keys on `state == "running"` **alone**, so neither field can chang
 
 | Command | Effect |
 |---|---|
-| `start --command <name> --phases <N> [--terminal "<cond>"] [--budget <minutes>] [--surface "<s>"] [--file <path>…] [--declare k=v,…]` | begin a run at phase 1 (a running record is pushed onto `stack`). `--file` (repeatable, ONE repo path per occurrence — a path that does not exist yet is accepted, so the grader the change is about to add is declarable) and `--declare` (all five of `decision`/`heavy`/`mechanism`/`oneway`/`tradeoffs`, each `yes` or `no`) belong to `--command fabrik-task` and are REFUSED under any other command; there they are BOTH REQUIRED and the pair IS the lane's SIZE gate — a missing flag, a path outside the repo, a directory, a path already dirty against `HEAD`, or a `yes`/`no` that names another lane REFUSES the start with the correction or the lane (rc 1); more than 3 files or a governance-sync path REFUSES too, but only AT LANE V1 — at lane v2 the module tests (`task_lane.admit`) replace that pair: 4 or more files are ADMITTED, and a sync path is ADMITTED with the full review. It persists `declared: {files, sha, sync_test, decision, heavy, mechanism, oneway, tradeoffs}` (`sync_test` is `unavailable` when the hub's governance-sync filter could not be read — the test fails OPEN. ⚠️ The close never reads this key back: it RE-DERIVES readability at close time with a fresh `_sync_filter_source()` call (`command_run.py:3284`) and keys `unmeasurable=sync_test-unavailable` on THAT reading alone — a filter readable at start and unreadable at close once scored a clean `0`, `command_run.py:3347-3353`) and prints `RECORD: <started_at>` for the phase-2 scratch path. Lane v2 (D12) adds a sixth declare key, `consumers=external\|internal`; `--appetite <min>` (default 240; past it routes `chain: appetite`); `--why "<reason>"` (required with `oneway=yes`/`tradeoffs=yes`, else refused — the text lands in the refusal ledger, D9); and `--from-downgrade <refusal id>` (a `/fabrik-spec` DOWNGRADE restart, recorded as `from_downgrade`). A v2 start prints `lane: v2 (switch <sha\|uncommitted>) · review: <scoped\|full> · appetite: <n> min` (the exact line); a v1 start prints `lane: v1` |
-| `step --phase <N> [--title "<t>"] [--design <path>] [--design-amend <path>] [--appetite <min>]` | advance. `--design` (`fabrik-task` only) stores that FILE'S TEXT once as the run's `design` — the six DESIGN fields, so they outlive the scratch directory and a `phase_title` the next `step` overwrites; stored WHOLE at any length (no cap — D-314; the design never reaches the ledger row's capped fields); an unreadable path is REFUSED. `--design-amend <path>` (`fabrik-task` only, lane v2 — REFUSED on any other command or an unstamped record) APPENDS one path to the design's declared surface — never overwriting a recorded field — counted at close as `design_amends` (D3.3). `--appetite <min>` is accepted on `step` for ANY command, not `fabrik-task`-only (D11): a non-positive value is REFUSED regardless of lane version; at lane v2 it opens a phase mark (`line` then shows `elapsed <m>/<min>`, past 2× the re-plan order), counted at close as `phase_marks`/`over_appetite_phases`; at lane v1 it is accepted and IGNORED with a stderr note (`--appetite ignored — this repo runs lane v1`) |
-| `dispatch --seats <n>` | stamp a fan-out BEFORE its seats go out — `rec["dispatch"] = {ts, seats, phase, round}`; the STAMP accumulates across the messages of one round, and that round's `round` (or the close) rewrites it as a release marker (`seats: 0, released: true`) — never a pop, because an absent stamp reads as "never dispatched" and the sibling probe would fall back to the round row and re-reserve the returned seats; `dispatch_headroom.py` subtracts a live stamp for 25 minutes on every OTHER session (a `round --seats` at the round's close reserves nothing while the seats run — D-193/D-194) |
-| `round [--seats <n>] [--findings <N>] [--classes-swept a,b] [--classes-new c,d] [--confirmed <N>] [--slices A:12/12,B:5/6]` | record one convergence pass; merge the class ledger. `--findings` counts the RAW candidates the pass raised, before adjudication — a receipt's rows are the adjudicated ledger, so the two figures differ by design. `--confirmed <N>` counts the candidates CONFIRMED by execution in that pass (default: not stated); when stated on the LAST round it is the exit counter — TERMINAL fires on `confirmed == 0` with every class swept; the `--findings 0` rule stands only while NO round of the record has ever stated it, because adoption is STICKY — a pass that omits `--confirmed` under a record that adopted it draws a stderr warning and cannot close the RECORD (adoption is a property of ONE record, never of the session: after a `handoff`/`blocked`/`done` close, the next `start` opens a new, un-adopted record); `--confirmed` MAY exceed `--findings` — a delta round raises no new candidate and reproduces the carried-over ones — but a NEGATIVE count of either is REFUSED (rc 2). `--seats` omitted = the round inherits its `dispatch` stamp; `0` = a deliberate zero; a typed count that disagrees with the stamp is said on stderr and recorded as typed; a partial close releases only what closed (`dispatch.seats` keeps the remainder); negative is refused; a round with NO stamp that finds seat transcripts whose newest in-window line is newer than the previous round (or a nested child's close — a `step` never narrows the window) says so on stderr; a partial close keeps the original stamp's clock |
-| `done --command <name> --evidence "<proof>" [--commit <sha> [<sha>…]] [--review <receipt>]` | terminal — the contract IS met. `--commit` is the `fabrik-task` lane's flag on the three close verbs (`nargs="+"` — SPACE-separated, never comma-joined) — REQUIRED on `done` there, optional on `blocked`/`handoff` (which may close before any commit exists), REFUSED on every other command; at lane v1 more than one is REFUSED (pass ONE). It names THIS run's commit(s), read from the capture file written the instant the commit returns, and the close re-measures each commit's diff IN ORDER to write `oversized_mini` (D3.2). `--review <receipt>` is REQUIRED on `done`/`handoff` when the re-measure finds a contract or new-source hit (`needs_full_review`): `check_review_receipt` grades it (a), (b), (c), (d); `blocked` needs neither |
-| `blocked --command <name> --reason "<sanctioned case>" [--commit <sha> [<sha>…]]` | terminal — a real halt |
-| `handoff --command <name> --reason "<why rows remain open>" --resume "<RESUME block>" [--commit <sha> [<sha>…]] [--review <receipt>]` | terminal — NOT-QUIET: the loop is quiet but rows stay OPEN and are routed (the close `/fabrik-user-test` and `/fabrik-service-test` mandate); `--feedback` owed like `done`/`blocked`; `fabrik-task`'s DOWNGRADE close names the `/fabrik-task --from-downgrade <id>` seed in `--resume` (D9) |
+| `start --command <name> --phases <N> [--terminal "<cond>"] [--budget <minutes>] [--surface "<s>"] [--file <path>…] [--declare k=v,…] [--resume-from <seed>]` | begin a run at phase 1 (a running record is pushed onto `stack`). `--resume-from <seed>` (W-28f260c3) reopens a run closed at the quota wall, or by an operator pause, from the JSON seed its `blocked --wall` or `blocked --paused` kept (or the session's own blocked record file): `rounds`, `classes`, `declared`, `design`, `design_amends`, `phase`, `terminal`, `surface_adds`, `waived_reviews`, `phase_marks` and `budget_min` are carried, the record's OWN `started_epoch` is this sitting's, and the original start rides beside it as `origin_epoch`/`origin_started_at` with `gap_s` — the commit binding and the review windows read the origin, budget and appetite read active time, the ledger rows pair (`wall: quota` on the wall row, `wall: paused` on a pause's, `resumed_from` + `gap_s` + `rounds_before_resume` on the resumed row, where `resumed_from.paused` tells the two apart). Never with `--file`/`--declare` (the SIZE gate ran once); a seed nested under a parent needs that parent live first; a `--phases` mismatch is a NOTE and a differing `--terminal` an amend. `--file` (repeatable, ONE repo path per occurrence — a path that does not exist yet is accepted, so the grader the change is about to add is declarable) and `--declare` (all five of `decision`/`heavy`/`mechanism`/`oneway`/`tradeoffs`, each `yes` or `no`) belong to `--command fabrik-task` and are REFUSED under any other command; there they are BOTH REQUIRED and the pair IS the lane's SIZE gate — a missing flag, a path outside the repo, a directory, a path already dirty against `HEAD`, or a `yes`/`no` that names another lane REFUSES the start with the correction or the lane (rc 1); more than 3 files or a governance-sync path REFUSES too, but only AT LANE V1 — at lane v2 the module tests (`task_lane.admit`) replace that pair: 4 or more files are ADMITTED, and a sync path is ADMITTED with the full review. It persists `declared: {files, sha, sync_test, decision, heavy, mechanism, oneway, tradeoffs}` (`sync_test` is `unavailable` when the hub's governance-sync filter could not be read — the test fails OPEN. ⚠️ The close never reads this key back: it RE-DERIVES readability at close time with a fresh `_sync_filter_source()` call (`command_run.py:3284`) and keys `unmeasurable=sync_test-unavailable` on THAT reading alone — a filter readable at start and unreadable at close once scored a clean `0`, `command_run.py:3347-3353`) and prints `RECORD: <started_at>` for the phase-2 scratch path. Lane v2 (D12) adds a sixth declare key, `consumers=external\|internal`; `--appetite <min>` (default 240; past it routes `chain: appetite`); `--why "<reason>"` (required with `oneway=yes`/`tradeoffs=yes`, else refused — the text lands in the refusal ledger, D9); and `--from-downgrade <refusal id>` (a `/fabrik-spec` DOWNGRADE restart, recorded as `from_downgrade`). A v2 start prints `lane: v2 (switch <sha\|uncommitted>) · review: <scoped\|full> · appetite: <n> min` (the exact line); a v1 start prints `lane: v1` |
+| `step --phase <N> [--title "<t>"] [--design <path>] [--terminal-amend "<text>"] [--design-amend <path>] [--appetite <min>]` | advance. `--design` (`fabrik-task` only) stores that FILE'S TEXT once as the run's `design` — the six DESIGN fields, so they outlive the scratch directory and a `phase_title` the next `step` overwrites; stored WHOLE at any length (no cap — D-314; the design never reaches the ledger row's capped fields); an unreadable path is REFUSED. `--design-amend <path>` (`fabrik-task` only, lane v2 — REFUSED on any other command or an unstamped record) APPENDS one path to the design's declared surface — never overwriting a recorded field — counted at close as `design_amends` (D3.3). `--terminal-amend "<text>"` (`fabrik-task` only, any lane) RESTATES the run's terminal when the design critiques narrowed the work — accepted only BEFORE or WITH the run's `--design` (refused once the design is recorded, a re-entered phase 2 included), one non-blank line; the old text is kept with the new and the time in `terminal_amends`, a same-text amend is a no-op, and every reader of the terminal (the pinned line, the Stop hook, `thread_anchor`) shows the new one. `--appetite <min>` is accepted on `step` for ANY command, not `fabrik-task`-only (D11): a non-positive value is REFUSED regardless of lane version; at lane v2 it opens a phase mark (`line` then shows `elapsed <m>/<min>`, past 2× the re-plan order), counted at close as `phase_marks`/`over_appetite_phases`; at lane v1 it is accepted and IGNORED with a stderr note (`--appetite ignored — this repo runs lane v1`) |
+| `surface --add <path> [--add <path> …]` | widen a RUNNING review's own Stop-hook exemption mid-run (W-24ae7ecf). A running review covers `(start, ∞)`, so its own edits are covered already; what it cannot cover is a file last edited BEFORE its start that its `--surface` did not name. Each path is appended to `surface_adds` (`{path, at}`) — never to `surface`, the ledger's run dimension — normalised once (`posixpath.normpath` collapses `./` and `//`, every trailing `.` is stripped, an absolute path is resolved — symlinks included — against the resolved `repo_root` and made relative), and skipped when the surface already exempts it by the hook's own token rule or an earlier add holds it. REFUSED, rc 1 with nothing stored: no record, a record not running, a command outside `REVIEW_FAMILY`, an empty value, a path that is a directory in the repo, a `..` component, an absolute path outside the repo, a backslash or any other character outside letters, digits and `_./-` (`_SURFACE_PATH`, bound by a parity grader to the hook's `_SURFACE_SPLIT`), and a record that could not be written. The hook repeats the `./`/trailing-`.` strip on every add it reads. Queues no event |
+| `dispatch --seats <n>` | stamp a fan-out BEFORE its seats go out — `rec["dispatch"] = {ts, seats, phase, round, batches}` (`batches`: one `[dispatch time, n]` per message with n > 0, which the round's stale-seat check reads — § Convergence); the STAMP accumulates across the messages of one round, and that round's `round` (or the close) rewrites it as a release marker (`seats: 0, released: true`) — never a pop, because an absent stamp reads as "never dispatched" and the sibling probe would fall back to the round row and re-reserve the returned seats; `dispatch_headroom.py` subtracts a live stamp for 25 minutes on every OTHER session (a `round --seats` at the round's close reserves nothing while the seats run — D-193/D-194) |
+| `round [--command <name>] [--seats <n>] [--findings <N>] [--classes-swept a,b] [--classes-new c,d] [--confirmed <N>] [--slices A:12/12,B:5/6]` | record one convergence pass; merge the class ledger. `--command` (W-79638b4a) is optional and, when given, must name the LIVE run — on a live record any other name, or an empty one, is REFUSED (rc 1, nothing recorded), the check the close verbs make, so a nested caller's round never lands on the wrong record; on a closed record `round` stays the warned no-op it always was, whatever the name. `--findings` counts the RAW candidates the pass raised, before adjudication — a receipt's rows are the adjudicated ledger, so the two figures differ by design. `--confirmed <N>` counts the candidates CONFIRMED by execution in that pass (default: not stated); when stated on the LAST round it is the exit counter — TERMINAL fires on `confirmed == 0` with every class swept; the `--findings 0` rule stands only while NO round of the record has ever stated it, because adoption is STICKY — a pass that omits `--confirmed` under a record that adopted it draws a stderr warning and cannot close the RECORD (adoption is a property of ONE record, never of the session: after a `handoff`/`blocked`/`done` close, the next `start` opens a new, un-adopted record); `--confirmed` MAY exceed `--findings` — a delta round raises no new candidate and reproduces the carried-over ones — but a NEGATIVE count of either is REFUSED (rc 2). `--seats` omitted = the round inherits its `dispatch` stamp; `0` = a deliberate zero; a typed count that disagrees with the stamp is said on stderr and recorded as typed; a partial close releases only what closed (`dispatch.seats` keeps the remainder); negative is refused; a round with NO stamp that finds seat transcripts whose newest in-window line is newer than the previous round (or a nested child's close — a `step` never narrows the window) says so on stderr; a partial close keeps the original stamp's clock. W-93a9d22a adds two REFUSALS (rc 2, nothing recorded, no event): `--confirmed <n>` with n > 0 while this round opens no class (`--classes-new` empty) and either sweeps anything or leaves every class the ledger knows `clean` — a confirmed defect lives in a class, so open it with `--classes-new <class>` (a class both swept and re-found stays open) or leave it out of `--classes-swept`, which marks a class swept AND found clean; a ledger with NO class is untouched (per-unit and classless loops), and a clean sweep beside a newly opened class is not checked (there is no per-finding class input) — the class form of the `0/0` slice refusal; and a FULL close (no `--seats`, `--seats 0`, or at or above the stamp) typed while the dispatch stamp is live for this round and a background Agent or Workflow of this session launched or resumed ≤25 minutes ago has no hand-back notification in the session transcript — `_hook_seats_in_flight`, the Stop hook's reader (W-4c7edc74) copied verbatim under a parity test, never imported (the hook's presence beside this synced script is not guaranteed in a project); a partial `--seats k` below the stamp is the dispatcher-mode close and is never refused; the false red is bounded by the stamp (any background agent of the session, a nested run's parent seats, the seconds between a hand-back message and its notification line — at most 25 minutes from the dispatch, never an override); an unresolved, missing or unreadable transcript prints one NOTE naming which and records (fail open, visible). W-fe322585 adds a third REFUSAL (rc 2, no round recorded): a BLIND RETRY of the last round — the call re-run because `2>&1 | tail -1` hid its output, which once printed TERMINAL for a retried quiet round 1 with no closing pass run. It fires when the last round closed seats (`seats` > 0, stamped or typed), nothing has run since (no live stamp — `dispatch --seats 0` is a known zero — no `--seats` or the same count typed, no seat transcript newer than that round), and `findings`, `confirmed` and the phase repeat, every other typed field equal where stated on both sides (absent on either matches; class lists compare as sets). It prints the landed round's verdict, then the refusal as the call's LAST line, emits one `round_refused` event, and leaves the record as it was but `event_seq` (no `updated_ts` move); a new seat pass is stamped first (`dispatch --seats <n>`), a pass the lead ran alone types `round --seats 0`. A round after one that closed no seats (an in-shell backfill), a malformed seat count, an incomplete seat count and a partial close's remainder all record |
+| `done --command <name> --evidence "<proof>" [--commit <sha> [<sha>…]] [--review <receipt>]` | terminal — the contract IS met. `--commit` is the `fabrik-task` lane's flag on the three close verbs (`nargs="+"` — space-separated, or one comma-joined value, which is split: a sha never holds a comma) — REQUIRED on `done` there, optional on `blocked`/`handoff` (which may close before any commit exists), REFUSED on every other command; at lane v1 more than one is REFUSED (pass ONE). It names THIS run's commit(s), read from the capture file written the instant the commit returns, and the close re-measures each commit's diff IN ORDER to write `oversized_mini` (D3.2). `--review <receipt>` is REQUIRED on `done`/`handoff` when the re-measure finds a contract or new-source hit (`needs_full_review`): `check_review_receipt` grades it (a), (b), (c), (d); `blocked` needs neither |
+| `blocked --command <name> --reason "<sanctioned case>" [--wall \| --paused] [--commit <sha> [<sha>…]]` | terminal — a real halt. `--paused` (W-79638b4a, exclusive with `--wall`) is an OPERATOR PAUSE: `--reason` carries the operator's words, and the close takes the wall's resume path unchanged — the seed, the `resumable` run folder, the reopen order ("when the operator resumes") — while the record says `paused: true` and its ledger row and event read `wall: paused`, never `quota`; no quota regex runs on its reason. `--wall` (W-28f260c3) says this is the fleet QUOTA WALL, not one of the three BLOCKED cases: the record is marked `wall: true` and a JSON seed of it (minus `stack`, plus `stack_commands`) is kept under `<state>/seeds/<sid>-wall-<hash>.json` (`-paused-` for a `--paused` close) for `start --resume-from`; the close prints the reopen order (and, when nested, "resume the PARENT first"). The hook's own phrase in `--reason` implies the flag; a quota-shaped reason without it gets a stderr NOTE and NO seed. A seed that cannot be written warns and the close proceeds — the record file itself stays a valid seed until the session's next `start`. |
+| `handoff --command <name> --reason "<why rows remain open>" --resume "<RESUME block>" [--commit <sha> [<sha>…]] [--review <receipt>]` | terminal — NOT-QUIET: the loop is quiet but rows stay OPEN and are routed (the close `/fabrik-user-test` and `/fabrik-service-test` mandate); `--feedback` owed like `done`/`blocked`; `fabrik-task`'s DOWNGRADE close names the `/fabrik-task --from-downgrade <id>` seed in `--resume` (D9); the `--resume` artifact is read ONCE, bounded, and the bytes it validated are copied byte for byte to `<state dir>/seeds/<safe sid>-<content hash>.md` (an artifact over the 1 MB cap is refused, and so is a copy that cannot be written — `blocked` stays the exit) and named as `resume_copy` in the run_close event and the output (and on the record unless a nested run's parent is restored over it), so a scratch seed outlives its session and the record the next `start` overwrites |
 | `line` | the pinned status line; **silent + rc 0 when no run is active** |
 | `status --json` | the record (`{}` when there is none) |
+| `capture --msg <file> --out <file>` | `fabrik-task` phase 5's capture as one plain command: appends to `--out` the sha of the newest commit whose message carries `--msg`'s subject (its first paragraph, as git reads it; found by that text, never `HEAD`), refusing unless that commit's subject is it, both compared with runs of whitespace collapsed; prints the sha. Touches no run record and takes no lock; exits 1 on an unreadable, non-UTF-8 or empty message, a `git log` that cannot run or times out, no matching commit, or an unwritable `--out` |
 
 Two flags are accepted on **either side** of the subcommand (`--adopt-sid round` and
 `round --adopt-sid` both parse): `--session <id>` and `--adopt-sid` (§ Events). ⚠️ The join flag is
@@ -115,7 +117,9 @@ persists across rounds:
 - A round that leaves **every known class clean** prints the **TERMINAL verdict** — never on round 1
   (round 1 is the full pass; the receipt gate demands a confirming Pass 2, so a clean first round prints
   `⛔ NOT TERMINAL — round 1 is the full pass, never the closing round` and the next quiet delta round
-  closes): when the LAST round
+  closes) — except for a command in `NO_CLOSING_PASS` (its own source orders no loop `round` and includes
+  no termination fragment: `/fabrik-spec`, `/fabrik-plan-after-chat`, `/fabrik-task`, the deploy and
+  release commands, …), where a quiet round 1 is TERMINAL and no line demands a closing pass: when the LAST round
   states `--confirmed`, TERMINAL fires on `confirmed == 0`. The old **`--findings 0`** rule stands only
   for a record whose rounds **NEVER** state `confirmed` — and never for a review-family run, where a
   `round` without `--confirmed` is REFUSED outright (`CONFIRMED_REQUIRED_COMMANDS`, D-335) — adoption is **sticky per record**: once any
@@ -132,15 +136,31 @@ persists across rounds:
 `start --budget <minutes>` (≥ 1, else refused rc 2) stores `budget_min`; the pinned line prints `· budget
 <used>/<m> min` (and `⚠️ OVER` past it) so a run can see how much of its second objective term is spent — rounds are
 not capped and nothing is refused on the budget: past it, a non-terminal round report ADVISES the close — `handoff`
-with the failing slices and their claims named. `round --slices A:12/12,B:5/6` stores the per-slice claim ledger
-(`verified/claims` per round-1 slice; a malformed value, `verified > claims`, a zero-claim slice or a repeated name is
-refused, rc 2; a later round that OMITS the ledger, or any slice ANY earlier round stated, is `⛔ NOT TERMINAL` and `done`
+with the failing slices and their claims named, else the closing pass or a `handoff` naming what is unverified (for a
+`NO_CLOSING_PASS` command: close with `done`, or `handoff` naming what is unverified). `round --slices A:12/12,B:5/6` stores the per-slice claim ledger
+(`verified/claims` per round-1 slice; a malformed value, `verified > claims` or a repeated name is
+refused, rc 2; `0/0` is a slice with no claim to verify and is clean, but a `0/0` for a slice any earlier round stated
+with claims, or a round confirming defects while every slice it names is `0/0`, is refused too; a later round that OMITS the ledger, or any slice ANY earlier round stated, is `⛔ NOT TERMINAL` and `done`
 refuses it — the omission is the gate's cobra, written down in `_parse_slices`). A round that
 states slices is TERMINAL only when every slice's ledger is verified — a quiet, all-classes-clean round with a slice at
 `5/6` prints `⛔ NOT TERMINAL — slice B has 1 open claim … its owning seat's next pass is owed`. `done` refuses (rc 1)
 while the last round's slices carry an open claim: hand off instead, naming them. The delta budget of D-229 is gone
 from both `command_run.py` and `dispatch_headroom.py` (`--delta` is an unknown flag): a later pass is sized by the
 slices with open claims, on the seats that owned them in round 1.
+
+A quiet round is not TERMINAL either when every seat it closed was dispatched before the newest earlier round that
+confirmed defects was RECORDED (W-128df814): none of those seats can have read that round's fix, so it prints
+`⛔ NOT TERMINAL — every seat this round closed was dispatched before round <k> RECORDED its <C> confirmed defect(s)`.
+The stamp keeps its seats as `batches` (`[dispatch time, n]`, one per `dispatch --seats n` with n > 0;
+`--seats 0` adds none, and a stamp whose batches do not add up to its seats — one written before batches existed,
+or a hand-edited or malformed one — counts as one batch at its `ts`; a batch time that is not a number is unknown,
+and a round touching it reads unknown, never stale); a round
+consumes them oldest first — all on a full close, `k` on a partial `--seats k` — and records `dispatched_at`, the time
+of the newest batch it consumed, while the remainder keeps the rest. Oldest-first is pessimistic: when the fresh seat
+returned before a stale one, its close reads stale once and the next reads fresh. A round that closes no stamped seat
+(no stamp, `--seats 0`) records no `dispatched_at` and keeps the old verdict — fail open. The anchor is the round's
+record time, not the fix's: a seat dispatched after the record but before the fix lands reads fresh, so fix first,
+then dispatch.
 
 ### The non-convergence detector
 
@@ -182,7 +202,9 @@ See `docs/reference/command-corpus-check.md` § Predicate 5.
 Each mutating verb appends one typed event to the kaizen stream
 (`docs/workstation/kaizen-event-stream.md`): `start` → `run_open`, `step` → `phase`, `round` →
 `round`, `done`/`blocked` → `run_close`. A **refused** close and an already-closed no-op emit
-nothing — they are not mutations. Neither does a close whose record could not be persisted
+nothing — they are not mutations. One refusal does emit: a `round` refused as a blind retry appends
+`round_refused` (the `round` row above), so the stream that counted the duplicated rounds can count
+the refusals that replaced them. Neither does a close whose record could not be persisted
 (`NOT CLOSED`, rc 1): it prints no FEEDBACK line, writes no ledger row and drops its queued
 `run_close` — the retry is the mutation. `line` and `status` are readers and emit nothing.
 
@@ -222,7 +244,7 @@ to the session's EARLIEST covered window and stamps `first_review_reach` there, 
 non-review command (`/fabrik-plan-review`, `/fabrik-spec`) is covered too (D-574); a nested review, or a
 ledger holding a pair it cannot read, keeps the latest-close reach. `REVIEW_FAMILY` (`fabrik-review` +
 `fabrik-review-scoped`) is that reach-back set, and only `done` reaches back: a `blocked` or `handoff`
-reviewed nothing and caps the window. Two consequences the review-family pass-3 plan
+reviewed nothing and caps the window. Every review-family `done`, nested included, also appends what it NAMED — `{surface, adds, closed}` — to the session-durable `reviewed_surfaces` list (a nested child starts it empty and joins it to the caller at the pop; `start` carries it like `covered`), and the Stop hook clears an edited path a closed entry names when the entry closed at or after the edit — so work reviewed only by nested reviews, which stamp no reach, is no longer unclearable (W-bdcff87a). Two consequences the review-family pass-3 plan
 wrote into `/fabrik-review-scoped` (2026-09-12): (1) a change that trips its step-1 trigger BEFORE any
 record exists routes up at once — the heavy review starts with `--surface "ROUTED-UP: step 1 — …"` and
 its `done` covers the pre-start edits, no scoped record in between; (2) a scoped review whose SECOND
@@ -331,7 +353,11 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   marks its rows — `command_feedback_report.py --mark-answered <command> --rows <ts,…> --commit
   <sha>`, which refuses a commit touching no corpus path and writes
   `~/.claude/state/command-feedback-answered.jsonl` beside the ledger. `--queue` excludes those
-  rows and states how many it dropped. In a repo with a work store, TAKING a command's queue
+  rows and states how many it dropped. `--reasons <command> [--held]` is the read-only view of the
+  REJECTED rows: their ts handle, held tags and reason text, newest reject first. A D-711 audit greps it,
+  because tag names alone miss a subject held under a near-synonym. It exits rc 1 on an unreadable index, and
+  its output is large, so the orchestrator pins it into a seat's scratch rather than having the seat read
+  `~/.claude`. In a repo with a work store, TAKING a command's queue
   (`command_feedback_report.py --take <command>`) opens (or reports held) the one `kind: feedback`
   work-store item for that queue's `/fabrik-command-improve` run, and `--mark-answered` closes it
   `done` with the note `answered by <sha prefix>` — but NOT always at the same depth the `QUEUE:` line
@@ -360,6 +386,9 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   single-token string: the agent-typed one when present, else the first of those four), and
   `phase_marks`/`over_appetite_phases` (both COUNTS, as strings — how many phases were marked with
   `step --appetite`, and how many of those ran past 2×) — see the paragraph below.
+  A `fabrik-task` close of ANY lane also carries `terminal_amends` (a COUNT, as a string) when — and
+  only when — the run restated its terminal with `step --terminal-amend`; a run that never did keeps
+  its row shape.
   **The analysis dimensions** (operator, 2026-09-07 — "which repo, which agent, which command,
   which spec, which file"): `repo` (the run's `repo_root`), `agent` (`CLAUDE_AGENT` at `start`,
   the same env and the same grammar `[a-z0-9-]{1,32}` the provenance trailers key on — anything
@@ -402,10 +431,11 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   NOT on the parent transcript — the parent's tool-result line carries the seat's LAST turn only
   (`toolUseResult.usage` == one message; 251 of 251 checked, median 10× under), a background seat's
   completion notice repeats that number, and a background launch carries no usage at all. The whole
-  seat lives in its own transcript, `<transcript dir>/<sid>/subagents/agent-<id>.jsonl`, in the
+  seat lives in its own transcript, `<transcript dir>/<sid>/subagents/agent-<id>.jsonl` (a Workflow seat one level down, `subagents/workflows/wf_<id>/`), in the
   parent's per-message shape — the close sums those (in-window assistant lines, per-message maximum)
-  into `tok_seat_in/out/cache_read/cache_create` and counts them as `seats_seen`; null when no seat
-  file holds an in-window message. Measured 2026-09-08: one review's 21 seats billed 69.5M input
+  into `tok_seat_in/out/cache_read/cache_create` (each null when no seat file holds an in-window message)
+  and counts them as `seats_seen`. `seats_seen` itself is null — never 0 — when the transcript was not read
+  (no path, not a file, no start time, a read that raised), and a measured 0 when it was read and no seat file sat in the window. Measured 2026-09-08: one review's 21 seats billed 69.5M input
   against the orchestrator's 35.7M. The FEEDBACK line prints them as `· seats N: X input / Y output`;
   a window with seats but no orchestrator message prints `tokens — · seats …`, never nothing; a seat still
   writing within 30 s of the close is summed mid-flight and the row says `seats_partial: true`; an unreadable or oversize (256 MiB) seat file is
@@ -413,7 +443,8 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   window lies inside its parent's, so the same seats appear on both rows — the report's seat column is
   non-additive across nested closes, like `tok_*`. The close also records `seats_declared` (the sum of
   `round --seats`) and prints a warning when it differs from `seats_seen` by more than one — the reservation
-  siblings subtract is only as true as the number typed.
+  siblings subtract is only as true as the number typed; when `seats_seen` is null it compares nothing and,
+  with seats declared, prints `seats declared N; seen unknown (transcript not read)` instead.
   The file is read
   backwards from the tail — the WHOLE file, a 2 GiB cap as a backstop — every line pre-filtered by
   a regex for its timestamp and type so only in-window assistant lines are parsed; a 750 MB hub
@@ -460,7 +491,10 @@ cost:      <a PLAIN AMOUNT — `0.0125`, `$0.30`, `pool $0.30`, `$1,234.50` — 
   rules at once (`foo: <…>` is both a bad key and a template) and must be counted once.
 - **Two flags read the queue.** `--queue <command>` prints one command's `change:` rows,
   TAB-separated and newest first (`<ts> <bucket> <value>`) — the input `/fabrik-command-improve`
-  consumes; the `ts` is the row's only handle, since the ledger has no id. `--observer-rank` prints
+  consumes; the `ts` is the row's only handle, since the ledger has no id. When that command's rejected rows carry
+  `HELD:<subject>` tags (D-711), the header adds `held (all time): <k> subject(s) on <m> of <n> rejected
+  row(s) — …`, each subject once per row, and `--reject` warns when its reason names a subject already
+  held. `--observer-rank` prints
   the commands whose closes are expensive enough to pay for a writer seat — the top four by MEAN
   `tok_in+tok_out` per close, cache excluded.
 - **`tok/round` is silent behind a MASS RULE, in two ordered clauses:** a command whose total token
@@ -536,8 +570,11 @@ the command?", that moment is the Stop hook.
 | `COMMAND_RUN_DIR` | `~/.claude/state/command-runs` | where records live (read by both the script and the hook) |
 | `CLAUDE_SESSION_ID` | — | record filename (`--session` overrides; falls through to `CLAUDE_CODE_SESSION_ID`, then the repo-scoped `nosession-<repo>`) |
 | `COMMAND_RUN_STALE_H` | `12` | hours after which the hook treats a record as abandoned; **≤0 / non-finite disables the block entirely** (never "block forever") |
-| `FABRIK_SCRATCH_SWEEP` | unset | set to `0` to suppress the scratch advisory a top-level close prints |
-| `FABRIK_SCRATCH_SWEEP_SCRIPT` | `/opt/fabrik/scripts/scratch_sweep.py` | the sweeper the advisory shells out to; a missing path is silent |
+| `FABRIK_SCRATCH_SWEEP` | unset | set to `0` to suppress the scratch advisory a top-level close prints — and the run-folder sweep `start` launches, so consumed run folders then wait for the nightly run |
+| `FABRIK_SCRATCH_SWEEP_SCRIPT` | `/opt/fabrik/scripts/scratch_sweep.py` | the sweeper the advisory shells out to, and the run-folder sweep `start` launches; a missing path is silent |
+| `FABRIK_SCRATCH_SWEEP_LIB` | `/opt/fabrik/scripts` | the directory whose `scratch_sweep.py` the run-folder mint loads by file location (never a `sys.path` insert) |
+| `COMMAND_RUN_SEAT_WARN_BYTES` | `2147483648` | a top-level folder of the run folder over this many apparent bytes prints the advisory line at `round` (a `pin --base` extraction beside its pins `MANIFEST.json` is exempt) |
+| `COMMAND_RUN_SEAT_DU_DEADLINE_S` | `10` | each folder's own deadline for its `du` call; past it that folder reads `size unmeasured` |
 
 ## The scratch advisory on a top-level close
 
@@ -562,6 +599,75 @@ Three properties are load-bearing and each has a grader:
   a grader that timed `line` passed with the call relocated into the lock, and now times `step`.
 - **It advises, it never acts.** The sweeper is invoked in dry-run `--brief`; `--apply` is the
   agent's own next command. That is the operator's constraint: nothing is deleted blindly.
+
+## A run's persistent scratch
+
+Since 2026-10-14 (kaizen 01M4V0B03B) every `start` gives its run a scratch dir that outlives the session,
+records it as `scratch`, and prints `SCRATCH: <absolute path>` after its other start lines. The session
+scratchpad lives under `/tmp`, which a WSL shutdown clears. On 2026-10-13 it took phase-2 `measure.md`,
+critique briefs and review pins with it; the record survived, because it lives under `~/.claude/state`.
+
+- **Where:** `<checkout>/.tmp/runs/<session>/<command>-<record key>/`, rooted in the checkout the session
+  runs in (`git rev-parse --show-toplevel`): the main checkout's for a run started there, a linked worktree's
+  OWN for a run started in it (W-128df814, superseding D-836's main-checkout root — a worktree-isolated
+  session's Write tool refuses a path outside its tree). A plain `git worktree remove` deletes it with the
+  tree (ignored files go even without `--force`); a submodule keeps its own root. Seats may read it (never
+  `$HOME/.claude*`), and it is never committed.
+- **Ignored or absent:** `start` makes sure git ignores `.tmp/runs/`. If git does not already, it appends
+  `/.tmp/runs/` once to the untracked `.git/info/exclude` shared by every worktree, then re-checks. If git
+  still does not ignore it (a `.gitignore` negation), no dir is made and a NOTE says why. The run itself
+  always starts.
+- **Resume:** `scratch` rides in `_RESUME_CARRY`. A `start --resume-from` keeps the seed's dir when it lies under
+  the run's root, even if the repo has since stopped ignoring it (with a NOTE), or builds the path from the seed's session, never
+  the new one's. A resume in a new session says the scratch is kept; a seed whose dir no longer exists (its
+  worktree was removed) says its files are not carried.
+- **Pruned by `start`, not scratch_sweep** (which never touches `.tmp`): a run dir goes once its newest
+  file is over 14 days old (`SCRATCH_RETENTION_S`), unless it is the current run's, a record or kept seed
+  names it, or it holds a git worktree (reported, never removed). Empty session dirs go too. Every `start`
+  prunes the `.tmp/runs/` of EVERY checkout `git worktree list` names, not only its own — a finished worktree
+  never starts again, and one stale dir would otherwise keep it `wt-ignored-data` for scratch_sweep for ever (a
+  symlinked `.tmp` is skipped).
+- **Tests:** when `COMMAND_RUN_DIR` or `PYTEST_CURRENT_TEST` is set, the root is the state dir's own
+  `scratch/` (`$COMMAND_RUN_DIR/scratch`, or `$HOME/.claude/state/command-runs/scratch` under a `HOME`
+  override) with no exclude step, so a suite never writes into a live checkout.
+
+COBRA (D-253): the cheapest way to "have scratch" without the outcome is to keep writing resume
+artifacts to the `/tmp` scratchpad. The counter is the command text naming the printed `SCRATCH:` path.
+
+## A run's disposable folder (run-bound scratch)
+
+Since 2026-10-15 (plan `2026-10-15-plan-1-scratch-lifecycle`, D-867/D-870/D-877) `start` also mints the
+run's DISPOSABLE folder — the bulky seat copies, pins and probes — and prints `RUN-SCRATCH: <path>`
+after `SCRATCH:` (or `RUN-SCRATCH: none — <why>`; a start is never refused). The two differ in kind:
+`SCRATCH` is durable (resume artifacts, the design, the commit window); `RUN-SCRATCH` is removed once the
+run is consumed. The removal rules live in `docs/workstation/cleanup-automation.md` § F.
+
+- **Where:** `<harness session dir>/scratchpad/run-<command>-<started_at>-<6 hex>/`, the session dir
+  FOUND by the hub's `scratch_sweep.find_session_dirs` (two candidates and no cwd match → none, never a
+  guess). The record keeps it as `run_scratch`; a `.owner` marker beside the work carries `sid`, `key`,
+  `command`, `repo` (the common git dir), `created`, `state` and `closed_at`.
+- **Marked at every close:** `done`, `handoff` and a plain `blocked` write `done`; a quota wall writes
+  `resumable` (or `done` when its seed could not be kept). A `died` coroner close, and the next `start`
+  over a closed non-wall record, mark a still-`running` folder `done`. A run started over a forgotten
+  wall resume records the wall folder as `superseded_run_scratch` and marks it `done` at its own `done`.
+- **Heartbeat:** `step`, `round` and `dispatch` refresh the marker's mtime.
+- **Handoff refusal:** a `handoff` whose `--resume` text names this run's own folder (its basename as a
+  whole token) is refused — the successor is a new run and this folder goes after the grace.
+- **Adoption:** `start --resume-from` moves the seed's `resumable` folder into the new session as
+  `run-<new key>` and rewrites its marker's `sid`/`key`; once the resumed record is saved the marker
+  reads `running` with an `adopted` time (until then a crash leaves it `resumable` at its new path,
+  which the seed no longer names: the 72 h alarm names it and `--run-folders --retire` ends it — unless
+  the crash fell between the rename and the marker's `sid` rewrite, when the marker still names the old
+  session, `--retire` refuses it and only a hand edit of `.owner` ends it).
+- **After the lock drops:** `start` launches `scratch_sweep.py --run-folders --session <sid> --cwd
+  <repo_root> --apply` detached; `round` prints one line per top-level folder of the run folder over
+  `COMMAND_RUN_SEAT_WARN_BYTES`. Neither runs under the record lock, neither changes an exit code.
+- **Tests:** a test seam (`COMMAND_RUN_DIR`/`PYTEST_CURRENT_TEST`) without `SCRATCH_SWEEP_ROOT` mints
+  nothing, and launches the sweep only for an explicit `FABRIK_SCRATCH_SWEEP_SCRIPT`.
+
+COBRA (D-253): the cheapest way to dodge the removal is to write bulky work outside `RUN-SCRATCH` or to
+keep a run open; the nightly size report counts the session's bytes outside running folders and names a
+run folder still open after 72 h.
 
 ## Tests
 

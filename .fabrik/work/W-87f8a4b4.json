@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T22:42:41.659374Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-87f8a4b4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M55Y7Y3SYCZEG9FZH8T0W550",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: review_loop_ledger.py read drops each seat's notes — FIXED on worktree-intel (577a31053 + c02090c90), reviewed CONVERGED"
+}

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:31:04.608837Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a147e0ef",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "intel: read mail 01M4XB7GPFFJKKW1CAKG63P1VM, claim it, act on it",
+  "note": "resolved before this item was worked: db331214f (in master) makes every review loop put pins_dir and its pass files under the run's SCRATCH: folder, <main checkout>/.tmp/runs/<sid>/ (D-836), which a WSL shutdown keeps; seat copies stay under RUN-SCRATCH by design. Mail 01M4XB7GPF was acked 2026-10-15 (wontfix as new code: the corpus change answers it).",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "status": "dropped",
+  "tags": [
+    "mail-01m4xb7gpffjkkw1cakg63p1vm"
+  ],
+  "title": "Review loop keeps its pins and briefs under /tmp, which a WSL shutdown wipes mid-review (mail 01M4XB7GPFFJKKW1CAKG63P1VM)"
+}

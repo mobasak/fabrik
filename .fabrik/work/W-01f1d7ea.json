@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T14:43:06.620713Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-01f1d7ea",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M54YKMF1AS1HDC73A4JW323A",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-review-scoped row 1792229873: the seat pin recipe has no layout for a scaffolding test (create_project)"
+}

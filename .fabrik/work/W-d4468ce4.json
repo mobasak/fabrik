@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T05:19:22.554371Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "01c1edeaf3e4dd64fea242f76c4f3caa3e551fb6",
+  "id": "W-d4468ce4",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "next /fabrik-command-improve fabrik-review-scoped pass: tighten test_the_input_class_names_every_reader_of_a_printed_command",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 3,
+  "score_reason": "LOW: a contrived grader decoy in the review-scoped queue-pass test (a repeated bullet still passes); a rare edge, nobody blocked; LOW effort: one slice bound in one test",
+  "status": "done",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "tests/test_review_scoped_queue_pass.py E3 grader: a decoy bullet before the input-class bullet that repeats its first four items ('boundary, empty, unset, mandated,') still passes; make the slice unable to cross a bullet (check whether the real slice holds ' - ' first)"
+}

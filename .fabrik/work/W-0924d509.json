@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:37:43.734317Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-0924d509",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4S8GKF9HD5ZP9WA0F0AMY50",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "declined, measured — the named-but-undeclared --design warning (D-800)"
+}

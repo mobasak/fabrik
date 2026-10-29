@@ -12,12 +12,14 @@
     "spec": ""
   },
   "next": "on the operator's data-egress ruling, run pilot 1 per docs/reference/jev-decision-model-map.md § 4 against the stop-compaction verdict set",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
-    "intel"
+    "intel",
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "Jev pilots in shadow mode: the Stop hook's stall detector, then the skill router's Tier 2 (owner: intel)"
 }

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T21:27:45.328840Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "c1280ac4ca42c87b9bc09b4c1ebc614a90da96d8",
+  "id": "W-67304972",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add a test that runs .claude/hooks/agent_role.py with CLAUDE_AGENT=<role> for every charter and asserts the output is under 10,000 characters and bytes",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "latent break on every agent: an oversized charter silently loses its binding overlay; one test, one session",
+  "status": "done",
+  "title": "No test guards the agent charters' injected size: tests/test_agent_role_hook.py has no assertion that agent_role.py's output per charter stays under Claude Code's 10,000-character hook cap (D-888), so a charter edit past it silently degrades to a 2,000-character preview (coordinator review 2026-10-19; coordinator.md at 9,891 chars / 9,971 bytes)"
+}

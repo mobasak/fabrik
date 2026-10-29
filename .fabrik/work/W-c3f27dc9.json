@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T16:24:22.982220Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c3f27dc9",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/archived/2026-10-17-plan-1-command-centre-dashboard",
+    "spec": ""
+  },
+  "next": "measure render time and bytes per repo, then page or collapse the Work view so one fetch stays small",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — 7.5MB dashboard page",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "The command centre's GET /v/work returns 7.5 MB of HTML on this box (live request 2026-10-17): every repo's open items rendered at once"
+}

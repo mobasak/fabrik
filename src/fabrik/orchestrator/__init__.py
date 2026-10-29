@@ -5,14 +5,23 @@ Unified controller for end-to-end deployments.
 
 import logging
 import os
+import posixpath
 from pathlib import Path
 from typing import Any
 
 import fabrik.state as state_module
 from fabrik.drivers.cloudflare import CloudflareClient
 from fabrik.drivers.dns import DNSClient
+from fabrik.drivers.preflight import (
+    HostUnreachableError,
+    check_ssh_config,
+    verify_host_reachable,
+)
+from fabrik.drivers.ssh import JumpConfigError, _ssh_host
+from fabrik.env_file import parse_env
 from fabrik.orchestrator.context import DeploymentContext
-from fabrik.orchestrator.deployer_ssh import SSHDeployer
+from fabrik.orchestrator.deployer_ssh import SSHDeployer, _host_env, app_dir
+from fabrik.orchestrator.destroyer import _http_status
 from fabrik.orchestrator.exceptions import (
     DeployError,
     DeploymentError,
@@ -30,6 +39,13 @@ from fabrik.orchestrator.validator import SpecValidator
 from fabrik.orchestrator.verifier import DeploymentVerifier
 
 logger = logging.getLogger(__name__)
+
+# The statuses the site-provisioner ITSELF answers its subdomain route with to refuse a write: 401 its
+# API-key middleware, 422 body validation, 429 its rate limiter. Any other status — a reverse-proxy
+# 403/404, a 400, a 3xx, a 5xx — is not its refusal and keeps the direct-Cloudflare fallback
+# (W-1086d295). The route answers an unmanaged zone with an unmapped 500 today; when site-provisioner
+# maps it to a 4xx (mail 01M5AKKR79), that status joins this set.
+PROVISIONER_REFUSALS = frozenset({401, 422, 429})
 
 __all__ = [
     "DeploymentState",
@@ -147,6 +163,11 @@ class DeploymentOrchestrator:
             ctx.target_vps = target_vps or spec.get("target_vps") or "vps1"
             # Phase 2: fail closed on cross-host error_webhook (unreachable :8889).
             _assert_error_webhook_colocated(spec, ctx.target_vps)
+            # W-2b657bee: prove the ssh path(s) answer before anything touches the fleet,
+            # so a dead path fails here in seconds, named, instead of hanging every
+            # later call (_pre_provision_db_for_boot is the first to ssh). A dry run
+            # probes nothing but still refuses a malformed jump variable.
+            self._verify_reachable(ctx.target_vps, probe=not dry_run)
             for w in warnings:
                 logger.warning("Validation warning: %s", w)
 
@@ -249,6 +270,27 @@ class DeploymentOrchestrator:
                 self._transition(ctx, DeploymentState.FAILED)
 
         return ctx
+
+    def _verify_reachable(self, target_vps: str, probe: bool = True) -> None:
+        """Probe the hub alias and, for a spoke, the target alias; dedup by alias.
+
+        ``probe=False`` (a dry run) runs no ssh and only checks each alias's jump variable.
+
+        Raises:
+            ValidationError: a path is dead or its jump variable is malformed — the
+                message is :class:`HostUnreachableError`'s (alias, dead leg, fix).
+        """
+        hosts = [_ssh_host()]
+        with _host_env(target_vps):
+            hosts.append(_ssh_host())
+        for host in dict.fromkeys(hosts):
+            try:
+                if probe:
+                    verify_host_reachable(host)
+                else:
+                    check_ssh_config(host)
+            except HostUnreachableError as e:
+                raise ValidationError(str(e), field="target_vps") from e
 
     def _warn_fabricated_secrets(self, keys: list) -> None:
         """Warn for each REQUIRED secret that is absent and will be auto-generated.
@@ -390,17 +432,29 @@ class DeploymentOrchestrator:
         project_path = Path(f"/opt/{spec.get('id', spec.get('name'))}")
         env_file = project_path / ".env"
         if env_file.exists():
+            bad_offset: int | None = None
             try:
-                for line in env_file.read_text().splitlines():
-                    line = line.strip()
-                    if line and not line.startswith("#") and "=" in line:
-                        key, value = line.split("=", 1)
-                        key = key.strip()
-                        value = value.strip()
-                        if key in from_env and key not in all_secrets:
-                            all_secrets[key] = value
+                # compose's dotenv grammar (quotes, escapes, `export`, ` #` comments) — the same
+                # codec that writes the deployed file; `str()` makes the value a literal secret.
+                parsed = parse_env(env_file.read_text(encoding="utf-8"))
+            except UnicodeDecodeError as e:
+                # str(e) quotes the offending byte(s) of a secrets file; keep the offset only. The
+                # raise happens below, outside this handler, so `__context__` holds no payload either.
+                bad_offset = e.start
+            except ValueError as e:
+                # Fail closed: one malformed line would otherwise drop EVERY from_env secret
+                # behind a warning and deploy without them. The message names key and line only.
+                raise ValidationError(f"cannot read {env_file}: {e}") from None
             except Exception as e:
                 logger.warning("Failed to read .env file: %s", e)
+                parsed = {}
+            if bad_offset is not None:
+                raise ValidationError(
+                    f"cannot read {env_file}: not valid UTF-8 at byte offset {bad_offset}"
+                ) from None
+            for key, value in parsed.items():
+                if key in from_env and key not in all_secrets:
+                    all_secrets[key] = str(value)
 
         for key in from_env:
             if key not in all_secrets:
@@ -414,9 +468,20 @@ class DeploymentOrchestrator:
         for env_var, file_path in from_file.items():
             if env_var not in all_secrets:
                 try:
-                    all_secrets[env_var] = Path(file_path).read_text()
+                    # One trailing newline is the file's, not the secret's (`echo secret > file`;
+                    # read_text already turns CRLF into LF); any other whitespace is kept.
+                    secret_text = Path(file_path).read_text(encoding="utf-8")
+                    all_secrets[env_var] = secret_text.removesuffix("\n")
                 except FileNotFoundError:
                     logger.warning("File not found for secret %s: %s", env_var, file_path)
+                except UnicodeDecodeError as e:
+                    # str(e) would quote the secret's own bytes into the log; the offset only.
+                    logger.warning(
+                        "Failed to read file for secret %s: %s is not valid UTF-8 at byte offset %d",
+                        env_var,
+                        file_path,
+                        e.start,
+                    )
                 except Exception as e:
                     logger.warning("Failed to read file for secret %s: %s", env_var, e)
 
@@ -436,6 +501,7 @@ class DeploymentOrchestrator:
         self,
         spec_path: Path,
         dry_run: bool = False,
+        target_vps: str | None = None,
     ) -> DeploymentContext:
         """Re-run only the InfrastructureProvisioner against an existing app.
 
@@ -447,9 +513,11 @@ class DeploymentOrchestrator:
         Pipeline:
           1. Validate spec.
           2. Load secrets (same path as :meth:`deploy`).
-          3. Resolve ``ctx.app_name`` from the live VPS state
-             matched on spec name (with the conventional ``fabrik-`` prefix
-             tried as a fallback).
+          3. Resolve ``ctx.target_vps`` (``target_vps`` > the spec's > ``vps1``) and
+             ``ctx.app_name``: walk the ``app_dir(spec)`` candidates with
+             ``SSHDeployer.probe_app`` on that host (only the walk runs inside the host
+             swap — hub-side registrars stay on vps1); the first candidate holding a
+             ``compose.yaml`` matches and its basename is the app name.
           4. Call ``InfrastructureProvisioner.provision(ctx)``.
 
         Skipped vs :meth:`deploy`: DNS provisioning, ``SSHDeployer.deploy``,
@@ -460,6 +528,7 @@ class DeploymentOrchestrator:
             spec_path: Path to the spec YAML.
             dry_run: If True, the provisioner runs in dry-run mode
                 (each registrar checks ``ctx.dry_run``).
+            target_vps: The host the app lives on; overrides the spec's ``target_vps``.
 
         Returns:
             DeploymentContext with ``coolify_uuid`` and any
@@ -467,8 +536,9 @@ class DeploymentOrchestrator:
 
         Raises:
             ValidationError: Spec validation fails.
-            ProvisioningError: App not found on VPS, or any registrar
-                raises (notably the GlitchTip DSN-injection verifier).
+            ProvisioningError: The host cannot be reached, no candidate directory
+                holds a ``compose.yaml``, or any registrar raises (notably the
+                GlitchTip DSN-injection verifier).
         """
         ctx = DeploymentContext(spec_path=spec_path, dry_run=dry_run)
 
@@ -487,16 +557,30 @@ class DeploymentOrchestrator:
                 resource_type="infrastructure",
             )
 
-        # Try exact name first, then fabrik- prefix fallback
-        existing = self.deployer.find_existing(spec_name)
-        if not existing:
-            existing = self.deployer.find_existing(f"fabrik-{spec_name}")
-        if not existing:
+        # Same precedence as deploy(): flag > spec > vps1. Persisted by _persist_state.
+        ctx.target_vps = target_vps or spec.get("target_vps") or "vps1"
+        candidates = app_dir(spec)
+        matched: str | None = None
+        # ONLY the probe walk swaps hosts — never the whole call (the 2026-06-02 revert:
+        # hub-side registrars would otherwise ssh to the spoke).
+        with _host_env(ctx.target_vps):
+            for path in candidates:
+                probe = self.deployer.probe_app(path)
+                if probe.get("exists"):
+                    matched = path  # a ps failure does not unmatch an existing directory
+                    break
+                if probe.get("error"):
+                    raise ProvisioningError(
+                        f"could not reach {ctx.target_vps}: {probe['error']}",
+                        resource_type="infrastructure",
+                    )
+        if matched is None:
             raise ProvisioningError(
-                f"No compose app found at /opt/{spec_name}/ or /opt/fabrik-{spec_name}/",
+                f"No compose app found on {ctx.target_vps}: no compose.yaml in "
+                + " or ".join(f"{p}/" for p in candidates),
                 resource_type="infrastructure",
             )
-        ctx.app_name = existing["name"]  # stores app name, not UUID
+        ctx.app_name = posixpath.basename(matched)  # the injection path reads /opt/<app_name>
         ctx.deployed_url = f"https://{spec['domain']}" if spec.get("domain") else None
         logger.info("refresh_infrastructure: matched %s -> %s", spec_name, ctx.app_name)
 
@@ -547,6 +631,7 @@ class DeploymentOrchestrator:
                     {"registrar": label, "error": error}
                     for label, _, error in (str(f).partition(": ") for f in ctx.registrar_failures)
                 ],
+                registrar_warnings=list(ctx.registrar_warnings),
             )
         except Exception as e:  # noqa: BLE001
             logger.warning("state.save failed (non-fatal): %s", e)
@@ -606,8 +691,10 @@ class DeploymentOrchestrator:
 
         # Primary: create the A record via site-provisioner's CLOUDFLARE route —
         # DNSClient.add_subdomain POSTs /api/cloudflare/dns/{domain}/subdomain
-        # (drivers/dns.py:294), NOT a Namecheap/registrar path. Fallback on any
-        # error: the CloudflareClient direct API. NB the record is a rolled-back
+        # (drivers/dns.py:294), NOT a Namecheap/registrar path. Fallback: the
+        # CloudflareClient direct API — on any error EXCEPT a refusal the provisioner
+        # itself emits (PROVISIONER_REFUSALS), which is a gate, never bypassed with the
+        # hub's own token (W-1086d295). NB the record is a rolled-back
         # resource (ctx.add_resource("dns", …) below), so a later-step failure
         # DELETES it — a rollback artifact, not a provisioning miss.
         try:
@@ -621,9 +708,17 @@ class DeploymentOrchestrator:
             ctx.add_resource("dns", domain, zone=base_domain)
             ctx.dns_record_id = domain
             logger.info("DNS record created: %s -> %s (via DNS Manager)", domain, vps_ip)
-        except ProvisioningError:
+        except (ProvisioningError, JumpConfigError):
+            # a malformed FABRIK_SSH_JUMP_<ALIAS> is config, never a reason to fall back
             raise
         except Exception as dns_err:
+            status = _http_status(dns_err)
+            if status in PROVISIONER_REFUSALS:
+                raise ProvisioningError(
+                    # one line: httpx's text carries a second "For more information" line
+                    f"DNS Manager refused {domain} (HTTP {status}): {' '.join(str(dns_err).split())}",
+                    resource_type="dns",
+                ) from dns_err
             logger.warning("DNS Manager failed (%s), trying Cloudflare...", dns_err)
             try:
                 cf = CloudflareClient()

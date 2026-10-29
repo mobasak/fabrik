@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T14:06:31.487336Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "b4046f44eebf3a02c2f426f6bcefaa781b6f7e5a",
+  "id": "W-961f1958",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure which transitive minors changed lint output since 7.7.3, then pick lockfile-at-scaffold vs overrides with the needs_network build test as the grader",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — scaffold lint can go red on fresh scaffold; no live failure today",
+  "status": "done",
+  "tags": [
+    "medium"
+  ],
+  "title": "chrome-extension and mobile scaffolds: transitive lint drift — @antfu/eslint-config 7.7.3 pulls 36 caret plugin ranges (perfectionist ^5.6.0 → 5.12.1, @typescript-eslint ^8.57.0, regexp ^3.1.0 → 3.3.0) and eslint ^9.39.2 floats, so a fresh scaffold's lint --max-warnings 0 can still go red; decide lockfile vs pnpm.overrides (W-70d9c609 design OUT)"
+}

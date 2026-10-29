@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-01T22:03:35.448090Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-8fcd2eb1",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -12,10 +14,11 @@
     "spec": "docs/superpowers/specs/2026-10-02-fabrik-task-feature-lane-design.md"
   },
   "next": "",
-  "note": "",
-  "owner": "",
-  "priority": 2,
-  "status": "open",
+  "note": "D-955/D-958 re-score 2026-10-18: LOW impact, high effort (time sink) — chain stage consolidation idea",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "status": "dropped",
   "tags": [
     "infra"
   ],

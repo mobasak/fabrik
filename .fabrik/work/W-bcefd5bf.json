@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T02:17:05.989306Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-bcefd5bf",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M56CDWG8PMHJX8CA2AA709E4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "kaizen command-wording change (D-956: kaizen work is HIGH); one command source, no spec",
+  "status": "done",
+  "title": "/fabrik-execute-plan step 6 — simplify the archive rule per D-975 (a cited plan is archived at once; the citing row is never repointed)"
+}

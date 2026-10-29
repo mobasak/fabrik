@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-07T01:28:47.167124Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "f21249a96b47ab530c44a9a2ab7126a2b9f8d0f2",
   "id": "W-28f260c3",
   "kind": "task",
   "legacy": false,
@@ -13,9 +13,9 @@
   },
   "next": "",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "tags": [
     "command-run"
   ],

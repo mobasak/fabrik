@@ -121,3 +121,21 @@ def test_each_panel_holder_states_its_split_block(rendered, command) -> None:
     assert re.search(r"^\s*- Panel: .*→ split\s*$", window, re.M), (
         f"{command}.md: no split Panel line"
     )
+
+
+def test_the_converged_flip_waits_for_the_panels_delta_round() -> None:
+    """/fabrik-plan-review row 1791954506 (decided by an Opus + Fable panel, both flip-after-panel): flipping before
+    the panel made a confirming delta round revert the flip with a superseding row (D-432 -> D-435 -> D-437 in the
+    reporting project), and check_convergence skips an artifact already CONVERGED at HEAD, so the delta round's
+    confirmed row went ungraded. The flip now waits for that round; the revert survives only for an artifact
+    already CONVERGED when it is re-reviewed."""
+    text = re.sub(r"\s+", " ", FRAGMENT.read_text())
+    assert (
+        "and the `Status: CONVERGED` flip waits for that round: it is written only on its `confirmed 0`, in the commit"
+        " that mints the approval row (a round that confirms more leaves the artifact `DRAFT` and the loop continues"
+    ) in text
+    assert (
+        "an artifact already CONVERGED at HEAD, re-reviewed, goes back to `DRAFT` with a row superseding its flip row"
+        " until such a round confirms 0"
+    ) in text
+    assert "flip touched back" not in text

@@ -1,0 +1,28 @@
+{
+  "blocked_by": [
+    "W-ab566484"
+  ],
+  "created": "2026-10-08T20:21:03.023513Z",
+  "creator": "intel",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-73f60b35",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure how many merged branches carried an IN-PROGRESS receipt; if nonzero, have merge_request.py request refuse while any branch receipt reads IN-PROGRESS",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "impact HIGH: names 'block'; effort HIGH: names 'spec' (D-890 rules, coordinator pass 2026-10-15)",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "Block an unintegrated Status: IN-PROGRESS review receipt at merge-request time (merge_request.py request) — the cheapest remaining exit of the review-coverage gate, named in spec 2026-10-08-review-coverage-commit-scope-design.md § Decisions taken (approval panel opus C3)"
+}

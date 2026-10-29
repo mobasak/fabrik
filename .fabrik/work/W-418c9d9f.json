@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T15:52:42.730712Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "63bcd55f4416bc46249b7a78efe9cb59ddf7ec76",
+  "id": "W-418c9d9f",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 0,
+  "score_reason": "blocks every full-suite hub merge",
+  "status": "done",
+  "title": "Hub merge-test leg now runs past its 1800 s limit on the base copy (exit 124), refusing every merge that selects the full suite (rotate-heal 01M5YMF4Q2 refused 4x, --pretest too): add '# merge-test-timeout: 3000' on its own line in master's .fabrik/merge-tests (read from base only, merge_request.py:551; clamped to MERGE_TEST_BUDGET_S 3600) — infra 2026-10-28"
+}

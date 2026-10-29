@@ -12,9 +12,13 @@
     "spec": ""
   },
   "next": "pick 3 such sids, search the box for <sid>.jsonl (find / -name), and name where those transcripts live or why none was written",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "infra",
   "priority": 3,
-  "status": "open",
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "52 kaizen event streams on 10-05 (50 project sessions; 46 with exactly {session_start, anchor_harvest}) have no transcript under ~/.claude/projects — every fleet account's projects dir symlinks there, so the scan root is not the cause (W-97de2aa3 critique, Opus #4)"
 }

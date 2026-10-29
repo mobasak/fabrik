@@ -1,0 +1,30 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T02:19:57.886448Z",
+  "creator": "fleet",
+  "effort": "high",
+  "evidence": "8a3c13bdf3b1563ec66860b967e64171d72b5461",
+  "id": "W-ab242b11",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1010",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-18-saas-skeleton-chat-auth-design.md"
+  },
+  "next": "re-plan slice 2 with /fabrik-plan-after-chat on the CONVERGED spec; the plan carries the 4 residues in docs/development/reviews/2026-10-18-saas-chat-auth-spec-review.md § Recorded and sequences W-0ae9b7e1 first",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "score_reason": "HIGH security; effort high on fleet's evidence: Pattern A auth means a design trade-off (backend route vs /auth/me check vs Next-side limiter), a /fabrik-spec; major, held behind the one in flight; interim mitigation (leave OPENROUTER_API_KEY unset) mailed to the 4 live projects",
+  "status": "done",
+  "tags": [
+    "interim-mail-01m56g1k5b",
+    "interim-mail-01m56g1kjw",
+    "interim-mail-01m56g1kzf",
+    "interim-mail-01m56g1mcz",
+    "security"
+  ],
+  "title": "saas-skeleton /api/chat is unauthenticated: any visitor can stream completions on the app's own OPENROUTER_API_KEY (no middleware in templates/saas-skeleton; 7 scaffolded projects carry the same route) — needs a session/auth check and a rate limit before a scaffolded app goes public"
+}

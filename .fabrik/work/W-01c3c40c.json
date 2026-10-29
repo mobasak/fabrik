@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T00:53:30.201220Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-01c3c40c",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — metrics gap in a coroner script, no breakage",
+  "status": "open",
+  "title": "kaizen_coroner.py should count a turn that died on a network error (EAI_AGAIN, no response) the same way as the self-watch does after W-5279e834/D-919; left out deliberately because closing those run records now would close sessions being revived"
+}

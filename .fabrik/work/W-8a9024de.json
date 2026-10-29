@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T01:16:15.851964Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8a9024de",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4EPDF7F9XDVMJ6DR13J6FYJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "a bare final_gate run in a worktree just fast-forwarded onto master auto-fixed two SIBLINGS' files, and deleted a U+2028 test literal"
+}

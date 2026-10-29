@@ -18,17 +18,20 @@ Schema
 ------
 
 The ``spec_id`` is the FILENAME (``<spec_id>.json``), NOT a field inside
-the JSON. Each file is a single JSON object with exactly these 10 fields,
+the JSON. Each file is a single JSON object with exactly these 11 fields,
 keys-sorted alphabetically for stable diffs::
 
     {
       "applied_at":          "<ISO 8601 UTC>",
       "coolify_app_name":    "<id or fabrik-<id>>",
-      "coolify_uuid":        "<24-char alphanumeric uuid or null>",
+      "coolify_uuid":        "<compose app name — the spec name on apply, the matched /opt directory on refresh — historical key>",
       "domain":              "<FQDN or empty>",
       "git_sha":             "<40-char or empty if not in git>",
       "registrar_failures":  [
         {"registrar": "redis", "error": "REDIS_URL injection failed: ..."}
+      ],
+      "registrar_warnings":  [
+        "payments-ingest-role: grant pending — <db> has not applied the fabrik-lib payments schema yet; ..."
       ],
       "registrars_applied":  [
         {"type": "postgres",  "id": "translator",  "status": "applied", "data_bearing": true},
@@ -47,10 +50,15 @@ tell runs apart. A ``registrar`` label may be a non-registrar step
 ``registrars_applied`` and ``registrar_failures`` (added, then a later step
 failed). A file written before the field existed has no key at all.
 
+``registrar_warnings`` holds the same last completed apply's warnings (W-0c60d86e) — a step that
+finished but left something to re-check (a payments grant ``pending``, a Prometheus target not
+loaded) — as sanitised strings ``"<label>: <text>"``. A warning is never a failure: it does not
+flip a run's success or ``fabrik audit-registrars``' exit. Older files have no key.
+
 The caller (``DeploymentOrchestrator._persist_state``) filters
 ``registrars_applied`` to entries whose ``type`` is in
 ``fabrik.orchestrator.infrastructure._REGISTRAR_ORDER`` — deploy-tier
-``ResourceRecord`` types (``dns``, ``coolify``, ``files``, etc.) never
+``ResourceRecord`` types (``dns``, ``compose``, ``files``, etc.) never
 appear because the state file is the *registrar* manifest, not the full
 *resource* manifest. ``state.save()`` itself trusts the input and only
 stamps ``data_bearing`` per type.
@@ -155,6 +163,7 @@ def save(
     git_sha: str | None = None,
     target_vps: str = "vps1",
     registrar_failures: list[dict[str, Any]] | None = None,
+    registrar_warnings: list[str] | None = None,
 ) -> Path:
     """Atomically write ``.fabrik/state/<spec_id>.json``.
 
@@ -162,10 +171,14 @@ def save(
         spec_id: The spec's ``id`` field (e.g. ``"translator"``).
         spec_path: Absolute path to the source spec YAML.
         spec_hash: SHA256 of the canonical spec content.
-        coolify_uuid: 24-char Coolify resource UUID, or ``None`` for
-            registrars-only flows where there is no Coolify app.
+        coolify_uuid: The compose app name, kept under this historical
+            key — the spec ``name`` on apply, the basename of the matched
+            ``/opt`` app directory on refresh (the two differ whenever that
+            directory is not ``/opt/<name>`` — an ``/opt/fabrik-<name>`` app,
+            or a local source at another ``/opt`` child); ``None`` for
+            registrars-only flows where there is no compose app.
         coolify_app_name: ``<id>`` or ``fabrik-<id>`` — whichever name
-            Coolify exposes the app under (per T1 G-G1 logic).
+            the deploy exposes the app under (per T1 G-G1 logic).
         registrars_applied: Raw list of registrar dicts from the caller.
             Each must have at least ``type``, ``id``, ``status`` keys.
             ``data_bearing`` is set automatically by this function from
@@ -181,6 +194,8 @@ def save(
             the apply; each error is sanitised here. ``None`` writes ``[]`` —
             which reads "finished clean", so only ``_persist_state`` (the sole
             writer, after a completed apply) may rely on that default.
+        registrar_warnings: the apply's ``ctx.registrar_warnings`` strings, each
+            sanitised like a failure's error; ``None`` writes ``[]``.
         git_sha: 40-char hash; generated via ``git rev-parse`` if ``None``.
 
     Returns:
@@ -209,6 +224,7 @@ def save(
             {"registrar": str(f.get("registrar") or ""), "error": _sanitize_failure(f.get("error"))}
             for f in (e if isinstance(e, dict) else {"error": e} for e in registrar_failures or [])
         ],
+        "registrar_warnings": [_sanitize_failure(w) for w in registrar_warnings or []],
         "registrars_applied": normalized,
         "spec_hash": spec_hash,
         "spec_path": spec_path,
@@ -227,15 +243,19 @@ def save(
 
 
 def load(spec_id: str) -> dict[str, Any] | None:
-    """Return the parsed state JSON or ``None`` if missing/unreadable."""
+    """Return the parsed state record, or ``None`` if missing, unreadable or not a JSON object."""
     target = STATE_DIR / f"{spec_id}.json"
     if not target.exists():
         return None
     try:
-        return json.loads(target.read_text())
-    except (json.JSONDecodeError, OSError) as e:
+        payload = json.loads(target.read_text(encoding="utf-8"))
+    except (ValueError, OSError) as e:  # ValueError covers JSONDecodeError and UnicodeDecodeError
         logger.warning("state.load(%s): unreadable — %s", spec_id, e)
         return None
+    if not isinstance(payload, dict):
+        logger.warning("state.load(%s): not a JSON object (%s)", spec_id, type(payload).__name__)
+        return None
+    return payload
 
 
 def archive_destroyed(spec_id: str) -> Path | None:

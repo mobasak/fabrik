@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T10:13:02.113471Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-2907ccef",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "validate the resolved compose (docker compose config on the target, or refuse include/extends), guard non-mapping limits, and parse volumes per service for the mount check; red-first in tests/orchestrator/test_deployer_ssh.py",
+  "note": "time sink (low impact / high effort, D-955): every validator escape needs a hand-written compose, 0 in the corpus today (fleet measured 2026-10-29); now needs the spec chain (resolved-compose vs hand parser). Code parked unmerged on fleet-compose-validate-gaps f87d2c38e with seed 4c1e43cd...246e2701; work.py add re-files it if a hand-written compose appears",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — validator blind spots, only unusual composes",
+  "status": "dropped",
+  "tags": [
+    "medium"
+  ],
+  "title": "deployer_ssh._validate_compose gaps shared by every deploy path (found by the W-807287f1 review): top-level include:/service extends: are never inspected, so a pulled-in service bypasses every invariant; a null deploy.resources.limits raises TypeError instead of a validation error; _assert_claude_cli_mounts is a raw substring test, so commented-out mount lines pass"
+}

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T19:20:25.939661Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "61c30d1d1f887251c8db79c3e6be9572b56d0bbf",
+  "id": "W-69f51003",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "strip inline code spans and ~~~ fences in _strip_quoted (and decide the same for check_doc_links), measured with a fleet diff",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: rare-edge link/fence parsing residue from W-f11e740e (D-1015); advisory, nobody blocked",
+  "status": "done",
+  "tags": [
+    "queued"
+  ],
+  "title": "Link readers grade links inside inline code spans and ~~~ fences: docs_updater's _strip_quoted strips only ``` fences and blockquotes, so `![](x)` in backticks and a ~~~ example are graded (one fleet false positive: fabrik-lib competitor-intel-mail-fix review) (W-f11e740e review)"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T04:25:36.987906Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "819e5c966f70a94fbffb3da8faec1ea70251231e",
+  "id": "W-7bd671f6",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Decide one root (the D-836 durable SCRATCH: folder for resumable passes), edit subagents-core.md:5 and :11 to match fabrik-review.md:173, check every includer of subagents-core.md expects it, and pin the sentence (found by the Opus audit in the 2026-10-18 fabrik-review queue pass)",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: kaizen work (D-956), a contradiction inside one rendered command on where pins_dir lives; two corpus files",
+  "status": "done",
+  "title": "fabrik-review.md:173 puts pins_dir under the durable SCRATCH: folder while subagents-core.md:5,11 put it under <run scratch> — one rendered command says both"
+}

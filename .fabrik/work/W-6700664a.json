@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T09:13:44.371052Z",
+  "creator": "infra-3",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-6700664a",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "map exits 2/3 from an owner leg to 'not checked' in _base_alone, and carry a green leg's last line into the reply; review on the fleet-synced surface",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 3,
+  "score_reason": "LOW: review residue on the new merge-test leg (D-1189), no merge blocked; effort low",
+  "status": "open",
+  "tags": [
+    "review-residue"
+  ],
+  "title": "merge_request.py::_base_alone reads the hub selector's exit 2 (NOT MEASURED) and 3 (LEG FAILED) as 'red too — likely a base-side fault: fix the base' (merge_request.py:1370-1377); and a GREEN owner leg surfaces nothing (:1303), so merge_test_select.py's FLAKY ids never reach the merge reply — residue of W-4e756979's review, merge_request.py is fleet-synced"
+}

@@ -1,0 +1,26 @@
+{
+  "block_digest": "8a4637880181c6652abeeda3f760fcc66b4988de4e649549d33c9f116d2d0679",
+  "blocked_by": [],
+  "created": "2026-10-29T10:36:35.721965Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-615070d9",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "a0173bc612681cd7676e3d2015022cd150299bc585a9158d4bae740be05dedde"
+  ],
+  "next": "",
+  "note": "ok proceed",
+  "owner": "",
+  "priority": 2,
+  "question": "May the finished lean-rewrite plan's lock (`.fabrik/plan-locks/2026-10-25-plan-1-lean-command-corpus.json`) be removed, so its files are free for other work?",
+  "status": "done",
+  "title": "May the finished lean-rewrite plan's lock (`.fabrik/plan-locks/2026-10-25-plan-1-lean-command-corpus.json`) be removed, so its files are free for other work?"
+}

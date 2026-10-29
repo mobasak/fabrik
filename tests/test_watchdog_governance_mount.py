@@ -23,6 +23,11 @@ def _ctx(spec: dict, *, target_vps: str | None = None) -> types.SimpleNamespace:
     return types.SimpleNamespace(spec=spec, app_name=spec.get("id"), target_vps=target_vps)
 
 
+def _vps(cmd, *a, **k):
+    """A VPS that answers the staging mktemp (W-719b2678) and returns nothing else."""
+    return "/tmp/fabrik-Ab3dEf9hIj\n" if cmd.startswith("mktemp") else ""
+
+
 def _rctx(driver: WatchdogDriver):
     spec = {"id": "demo", "watchdog": {"enabled": True}}
     return driver._build_render_context(spec, _ctx(spec))
@@ -45,7 +50,7 @@ class TestPushGovernance:
         d = WatchdogDriver()
         rctx = _rctx(d)
         with (
-            mock.patch("fabrik.drivers.watchdog.ssh") as m_ssh,
+            mock.patch("fabrik.drivers.watchdog.ssh", side_effect=_vps) as m_ssh,
             mock.patch("fabrik.drivers.watchdog.scp_to_vps") as m_scp,
         ):
             ok = d._push_governance(rctx)
@@ -71,7 +76,7 @@ class TestPushGovernance:
                 captured["names"] = t.getnames()
 
         with (
-            mock.patch("fabrik.drivers.watchdog.ssh"),
+            mock.patch("fabrik.drivers.watchdog.ssh", side_effect=_vps),
             mock.patch("fabrik.drivers.watchdog.scp_to_vps", side_effect=cap_scp),
         ):
             assert d._push_governance(rctx) is True
@@ -85,7 +90,7 @@ class TestPushGovernance:
         d = WatchdogDriver()
         rctx = _rctx(d)
         with (
-            mock.patch("fabrik.drivers.watchdog.ssh") as m_ssh,  # noqa: F841
+            mock.patch("fabrik.drivers.watchdog.ssh", side_effect=_vps) as m_ssh,  # noqa: F841
             mock.patch("fabrik.drivers.watchdog.scp_to_vps") as m_scp,
         ):
             ok = d._push_governance(rctx)
@@ -103,7 +108,7 @@ class TestPushGovernance:
         rctx = _rctx(d)
         rctx.project_id = bad_id
         with (
-            mock.patch("fabrik.drivers.watchdog.ssh") as m_ssh,  # noqa: F841
+            mock.patch("fabrik.drivers.watchdog.ssh", side_effect=_vps) as m_ssh,  # noqa: F841
             mock.patch("fabrik.drivers.watchdog.scp_to_vps") as m_scp,
         ):
             assert d._push_governance(rctx) is False
@@ -126,7 +131,7 @@ class TestPushGovernance:
         rctx = _rctx(d)
         with (
             mock.patch("fabrik.drivers.watchdog.tempfile.mkdtemp", side_effect=OSError("no space")),
-            mock.patch("fabrik.drivers.watchdog.ssh"),
+            mock.patch("fabrik.drivers.watchdog.ssh", side_effect=_vps),
             mock.patch("fabrik.drivers.watchdog.scp_to_vps") as m_scp,
         ):
             ok = d._push_governance(rctx)  # must NOT raise
@@ -140,7 +145,7 @@ class TestPushGovernance:
         rctx = _rctx(d)
         with (
             mock.patch("pathlib.Path.exists", side_effect=PermissionError("EACCES")),
-            mock.patch("fabrik.drivers.watchdog.ssh"),
+            mock.patch("fabrik.drivers.watchdog.ssh", side_effect=_vps),
             mock.patch("fabrik.drivers.watchdog.scp_to_vps") as m_scp,
         ):
             ok = d._push_governance(rctx)  # must NOT raise
@@ -162,7 +167,7 @@ class TestPushGovernance:
                 captured["names"] = t.getnames()
 
         with (
-            mock.patch("fabrik.drivers.watchdog.ssh"),
+            mock.patch("fabrik.drivers.watchdog.ssh", side_effect=_vps),
             mock.patch("fabrik.drivers.watchdog.scp_to_vps", side_effect=cap_scp),
         ):
             assert d._push_governance(rctx) is True
@@ -188,7 +193,7 @@ class TestPushGovernance:
                 captured["names"] = t.getnames()
 
         with (
-            mock.patch("fabrik.drivers.watchdog.ssh"),
+            mock.patch("fabrik.drivers.watchdog.ssh", side_effect=_vps),
             mock.patch("fabrik.drivers.watchdog.scp_to_vps", side_effect=cap_scp),
         ):
             assert d._push_governance(rctx) is True
@@ -208,7 +213,7 @@ class TestPushGovernance:
         d = WatchdogDriver()
         rctx = _rctx(d)
         with (
-            mock.patch("fabrik.drivers.watchdog.ssh"),
+            mock.patch("fabrik.drivers.watchdog.ssh", side_effect=_vps),
             mock.patch("fabrik.drivers.watchdog.scp_to_vps") as m_scp,
         ):
             ok = d._push_governance(rctx)
@@ -258,7 +263,7 @@ class TestOverlayVolumeGate:
             return real_dump(obj, **kw)
 
         with (
-            mock.patch("fabrik.drivers.watchdog.ssh"),
+            mock.patch("fabrik.drivers.watchdog.ssh", side_effect=_vps),
             mock.patch("fabrik.drivers.watchdog.scp_to_vps"),
             mock.patch.object(d, "_detect_docker_sock_gid", return_value=999),
             mock.patch("fabrik.drivers.watchdog.yaml.safe_dump", side_effect=cap_dump),

@@ -110,12 +110,13 @@ def _patched(vps: _Vps):
         patch.object(deployer_ssh, "_assert_claude_cli_mounts", lambda content, spec: None),
         patch.object(deployer_ssh, "_compose_up", lambda name, disabled, ssh_fn: None),
         patch.object(SSHDeployer, "find_existing", lambda self, name: {"name": name}),
+        patch.object(deployer_ssh, "_assert_deployed_env_present", lambda name: None),
     )
 
 
 def _apply(vps: _Vps, ctx: DeploymentContext) -> None:
     p = _patched(vps)
-    with p[0], p[1], p[2], p[3], p[4], p[5], p[6]:
+    with p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]:
         SSHDeployer().deploy(ctx)
 
 
@@ -212,7 +213,7 @@ def test_redeploy_and_rollback_persist_their_sha() -> None:
     # Success: the pulled SHA lands in .env before the stack comes up.
     vps = _Vps("GIT_SHA=" + OLD + "\nSENTRY_DSN=x\n")
     p = _patched(vps)
-    with p[0], p[1]:
+    with p[0], p[1], p[2], p[3], p[7]:
         SSHDeployer().redeploy("my-app", source_type="git")
     env = vps.last_env()
     assert env["GIT_SHA"] == NEW
@@ -224,7 +225,7 @@ def test_redeploy_and_rollback_persist_their_sha() -> None:
     # Rollback: the health check fails, the code is reset, and .env names the code now running.
     vps = _Vps("GIT_SHA=" + OLD + "\nSENTRY_DSN=x\n", fail_first_up=True)
     p = _patched(vps)
-    with p[0], p[1], pytest.raises(DeployError, match="rolled back"):
+    with p[0], p[1], p[2], p[3], p[7], pytest.raises(DeployError, match="rolled back"):
         SSHDeployer().redeploy("my-app", source_type="git")
     assert [_parse_env(w)["GIT_SHA"] for w in vps.writes] == [NEW, OLD]
     assert vps.last_env()["SENTRY_DSN"] == "x"
@@ -256,8 +257,36 @@ def test_unreadable_sha_leaves_env_alone(answer, caplog) -> None:
     vps = _Vps("GIT_SHA=" + OLD + "\n", rev_parse=answer)
     p = _patched(vps)
     caplog.clear()
-    with p[0], p[1], caplog.at_level(logging.WARNING, logger="fabrik.orchestrator.deployer_ssh"):
+    with (
+        p[0],
+        p[1],
+        p[2],
+        p[3],
+        p[7],
+        caplog.at_level(logging.WARNING, logger="fabrik.orchestrator.deployer_ssh"),
+    ):
         SSHDeployer().redeploy("my-app", source_type="git")
     assert vps.writes == []
     assert any("compose up" in c for c in vps.calls)
     assert "GIT_SHA" in caplog.text
+
+
+def test_a_successful_up_with_an_undecodable_answer_is_not_rolled_back(caplog) -> None:
+    """W-5597922e review: `up --wait` exited 0 (healthy) and only its stdout was not UTF-8 — the driver's
+    UndecodableAnswerError must not send a healthy deploy into the reset-rebuild rollback."""
+    from fabrik.drivers.ssh import UndecodableAnswerError
+
+    class _UndecodableUp(_Vps):
+        def ssh(self, cmd: str, timeout: int = 0) -> str:
+            out = super().ssh(cmd, timeout)
+            if "compose up" in cmd:
+                raise UndecodableAnswerError("SSH to 'vps': the answer is not valid UTF-8")
+            return out
+
+    vps = _UndecodableUp("GIT_SHA=" + OLD + "\n")
+    p = _patched(vps)
+    with p[0], p[1], p[2], p[3], p[7]:
+        SSHDeployer().redeploy("my-app", source_type="git")
+    assert not any("git reset --hard" in c for c in vps.calls), vps.calls
+    assert [_parse_env(w)["GIT_SHA"] for w in vps.writes] == [NEW]
+    assert "compose up succeeded but its output was not UTF-8" in caplog.text

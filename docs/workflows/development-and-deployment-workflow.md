@@ -186,8 +186,8 @@ The moment the container is up:
   |---|---|---|---|
   | ContainerDown | critical | not seen >2min | 2m |
   | ContainerHighCPU | warning | >80% | 5m |
-  | ContainerHighMemory | warning | >85% of container's own limit | 5m |
-  | ContainerMemoryHighOfHost | warning | >15% of VPS total RAM (catches containers without a limit) | 10m |
+  | ContainerHighMemory | warning | working set >85% of container's own limit | 15m |
+  | ContainerMemoryHighOfHost | warning | working set >15% of its own host's RAM (catches containers without a limit) | 10m |
   | ContainerOOMKilled | critical | any OOM in 5m | 0m |
   | ContainerRestarting | critical | >3 in 15m | 0m |
   | HostHighCPU | warning | >85% | 10m |

@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T23:31:00.770814Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-440f9bda",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-08-11-plan-1-knowledge-ratchet.md",
+    "spec": ""
+  },
+  "next": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
+  "title": "Knowledge-ratchet plan: apply the six-point § Revision required (D-721) — per-repo AFCL requests instead of foreign commits, all-generation matcher, fleet_doc_audit KEPT_SHAPE_DOCS, two-anchor LESSONS parser, one graduation convention, re-grounded cites — then /fabrik-plan-review, then /fabrik-execute-plan"
+}

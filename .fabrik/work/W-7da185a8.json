@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:07.613499Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7da185a8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4WRJWNEVZJC9SEYGMFPJCB7",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: --reasons view (D-837) — the D-711 clause now uses it; done at 5966b4176 on worktree-kaizen"
+}

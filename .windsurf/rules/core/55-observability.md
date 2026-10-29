@@ -250,10 +250,14 @@ level=None)` (D-126).
 
 ⚠️ **That last one is COUPLED to the allowlist and the two must move together.** The upstream reference
 uses `event_level=None`, which closes the log channel by never creating an event. The fleet keeps ERROR
-records as events — we want them in GlitchTip — so the channel is open, and what closes it is
-`_ALLOWED_LOGENTRY_KEYS == {"message"}`: the message TEMPLATE survives, `params` and `formatted` (the
-interpolated text) do not. Verified: `logger.error("otp=%s", secret)` yields one event with
-`logentry == {'message': 'otp=%s'}` and no secret. Widening that allowlist turns the fleet default into a
+records as events — we want them in GlitchTip — so the channel is open, and what NARROWS it (it does
+not close it) is `_ALLOWED_LOGENTRY_KEYS == {"message"}`: the message TEMPLATE survives, `params` and
+`formatted` (the interpolated text) do not. Verified: `logger.error("otp=%s", secret)` yields one event
+with `logentry == {'message': 'otp=%s'}` and no secret. That holds for DEFERRED interpolation only: an
+eagerly built message (an f-string, `.format`, `+` or `%` inside the call) IS the template and ships its
+text, and a bare token in a logged exception survives (only URL-shaped credentials are redacted). The
+scaffold's ruff `G001`–`G004` refuses the inline eager shapes; a message built into a variable first, or
+`logger.error(str(e))`, it cannot see. Widening that allowlist turns the fleet default into a
 leak where the upstream default would not.
 
 **Why the shape and not more flags — measured, not argued.** The two flags below were once the whole

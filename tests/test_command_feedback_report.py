@@ -1764,6 +1764,160 @@ def test_the_queue_states_how_many_it_excluded(tmp_path: Path, monkeypatch) -> N
     assert "1 already answered and excluded" in head, head
 
 
+def test_queue_lists_the_held_subjects_of_that_command_once_per_row(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """kaizen 01M4E88KDV: a one-off verdict is rejected with a `HELD:<subject>` tag, and a SECOND
+    verdict on a held subject is edited, never re-rejected — so the queue header names the held
+    subjects. Once per row (a tag repeated inside one reason counts once), this command's rejected
+    rows only, count first; a command with no tags keeps its header byte-identical."""
+    m = _cfr()
+    rows = [_row("fabrik-review", 10, 2, f"lean: v{i}") for i in range(4)]
+    index = tmp_path / "answered.jsonl"
+    lines = [
+        {
+            "ts": str(rows[0]["ts"]),
+            "command": "fabrik-review",
+            "commit": "rejected",
+            "reason": "x.md:12 HELD:pin-recipe, one-off; HELD:pin-recipe again",
+        },
+        {
+            "ts": str(rows[1]["ts"]),
+            "command": "fabrik-review",
+            "commit": "rejected",
+            "reason": "y.md:3 HELD:pin-recipe (seen twice now)",
+        },
+        {
+            "ts": str(rows[2]["ts"]),
+            "command": "fabrik-review",
+            "commit": "rejected",
+            "reason": "z.py:9 HELD:fabrik-review/phase-4; then prose",
+        },
+        {
+            "ts": "1.0",
+            "command": "fabrik-task",
+            "commit": "rejected",
+            "reason": "HELD:other-command-subject",
+        },
+        {
+            "ts": "2.0",
+            "command": "fabrik-review",
+            "commit": "abc123",
+            "reason": "HELD:an-answered-edit-is-not-held",
+        },
+    ]
+    index.write_text("".join(json.dumps(r) + "\n" for r in lines), encoding="utf-8")
+    monkeypatch.setattr(m, "_answered_path", lambda ledger=None: index)
+    out = m.queue(rows, "fabrik-review").splitlines()
+    held = [ln for ln in out if ln.startswith("held (all time):")]
+    assert held == [
+        "held (all time): 2 subject(s) on 3 of 3 rejected row(s) — "
+        "pin-recipe (2) · fabrik-review/phase-4"
+    ], out
+    assert out.index(held[0]) == 1, "the held line sits right under the head line"
+    assert all("\t" in ln for ln in out[2:]), "every line after the header is still a row"
+    assert "other-command-subject" not in "\n".join(out)
+    assert "an-answered-edit-is-not-held" not in "\n".join(out)
+    other = [
+        ln for ln in m.queue(rows, "fabrik-task").splitlines() if ln.startswith("held (all time):")
+    ]
+    assert other == [
+        "held (all time): 1 subject(s) on 1 of 1 rejected row(s) — other-command-subject"
+    ], other
+
+
+def test_untagged_rejects_print_no_held_line_and_series_stays_first(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """No tag, no line — rejected rows WITHOUT a tag (and another command's tagged rows) leave the
+    header exactly as it was; and for fabrik-task the `series:` line keeps `lines[1]`, the held line
+    following it (a trailing `.` is punctuation, never part of the subject)."""
+    m = _cfr()
+    rows = [_row("fabrik-review", 10, 2, "lean: a"), _row("fabrik-review", 10, 2, "lean: b")]
+    index = tmp_path / "answered.jsonl"
+    index.write_text(
+        json.dumps(
+            {
+                "ts": "5.0",
+                "command": "fabrik-review",
+                "commit": "rejected",
+                "reason": "already landed in abc123; nothing to change",
+            }
+        )
+        + "\n"
+        + json.dumps(
+            {
+                "ts": "6.0",
+                "command": "fabrik-task",
+                "commit": "rejected",
+                "reason": "a.md:1 HELD:task-subject.",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(m, "_answered_path", lambda ledger=None: index)
+    review = m.queue(rows, "fabrik-review")
+    assert "held" not in review.splitlines()[1] and "\t" in review.splitlines()[1], review
+    task_rows = [_row("fabrik-task", 10, 2, "lean: c")]
+    task = m.queue(task_rows, "fabrik-task").splitlines()
+    assert task[1].startswith("series:"), task
+    assert task[2] == "held (all time): 1 subject(s) on 1 of 1 rejected row(s) — task-subject", task
+
+
+def test_rejecting_again_under_a_held_subject_warns(tmp_path: Path) -> None:
+    """D-711's writer half: a second verdict on a held subject is edited, never re-rejected — the
+    reject still lands (a warning, not a refusal) but says so, naming the subject and its rows."""
+    m = _cfr()
+    ledger = tmp_path / "ledger.jsonl"
+    rows = [_row("fabrik-review", 10, 2, "lean: a"), _row("fabrik-review", 10, 2, "lean: b")]
+    _write(ledger, rows)
+    index = tmp_path / "command-feedback-answered.jsonl"
+    handles = [
+        line.split("\t")[0]
+        for line in m.queue(rows, "fabrik-review", ledger=ledger).splitlines()[1:]
+    ]
+    reason = "x.md:3 HELD:pin-recipe — valid as advice, held below the edit bar"
+    first, msg = m.reject("fabrik-review", [handles[0]], reason, tmp_path, index, ledger=ledger)
+    assert first == 1 and "already holds" not in msg, msg
+    second, msg = m.reject("fabrik-review", [handles[1]], reason, tmp_path, index, ledger=ledger)
+    assert second == 1, msg
+    assert "HELD:pin-recipe already holds 1 row(s)" in msg and "never re-rejected" in msg, msg
+
+
+def test_held_tags_split_glued_tags_and_skip_prefixed_words() -> None:
+    """Scoped review A-S1/A-O4: two tags glued without a space are two subjects, a word that merely
+    ENDS in `HELD:` is no tag, and sentence punctuation never joins the subject."""
+    m = _cfr()
+    assert m._held_tags("x.md:1 HELD:phase-4.HELD:phase-5 y") == {"phase-4", "phase-5"}
+    assert m._held_tags("UNHELD:foo WITHHELD:bar HELD:ok") == {"ok"}
+    assert m._held_tags("HELD:foo. end; HELD:a/b/, done") == {"foo", "a/b"}
+    for glued in ("HELD:aHELD:b", "HELD:a_HELD:b", "HELD:a-HELD:b", "HELD:a.HELD:b"):
+        assert m._held_tags(glued) == {"a", "b"}, glued
+
+
+def test_a_multi_row_reject_never_warns_about_itself_and_a_partial_write_keeps_the_warning(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The held set is read BEFORE the write: a first reject over several rows is no re-hold; a
+    later reject under that subject warns even when its write fails partway (review A-S2)."""
+    m = _cfr()
+    ledger = tmp_path / "ledger.jsonl"
+    rows = [_row("fabrik-review", 10, 2, f"lean: {c}") for c in "abc"]
+    _write(ledger, rows)
+    index = tmp_path / "command-feedback-answered.jsonl"
+    handles = [
+        line.split("\t")[0]
+        for line in m.queue(rows, "fabrik-review", ledger=ledger).splitlines()[1:]
+    ]
+    reason = "x.md:3 HELD:pin-recipe — valid as advice, held below the edit bar"
+    first, msg = m.reject("fabrik-review", handles[:2], reason, tmp_path, index, ledger=ledger)
+    assert first == 2 and "already holds" not in msg, msg
+    monkeypatch.setattr(m, "_append_answered", lambda path, recs: (0, "disk full"))
+    _, msg = m.reject("fabrik-review", handles[2:], reason, tmp_path, index, ledger=ledger)
+    assert msg.startswith("PARTIAL") and "HELD:pin-recipe already holds 2 row(s)" in msg, msg
+
+
 def test_an_absent_index_hides_nothing(tmp_path: Path, monkeypatch) -> None:
     """The safe direction: no index means every row shows. Over-reporting work beats hiding a
     verdict nobody acted on."""
@@ -3632,3 +3786,235 @@ def test_take_with_no_store_prints_no_store_line_exits_0_and_creates_nothing(
     assert r.returncode == 0, (r.stdout, r.stderr)
     assert "no work store" in r.stdout and "nothing taken" in r.stdout, r.stdout
     assert not (repo / ".fabrik").exists()
+
+
+# ── --reasons: the read-only view of rejected rows (kaizen 01M4V1BCW7) ─────────────────────────────
+
+
+def _reasons_index(tmp_path: Path) -> tuple[Path, Path]:
+    """A ledger path and the answered index beside it, holding string `ts` handles as `reject()` writes."""
+    ledger = tmp_path / "command-feedback.jsonl"
+    ledger.write_text("", encoding="utf-8")
+    index = tmp_path / "command-feedback-answered.jsonl"
+    rows = [
+        {
+            "ts": "1791000001.5",
+            "command": "fabrik-review",
+            "commit": "rejected",
+            "at": 300.0,
+            "reason": "x.md:1 HELD:pin-recipe one-off, tab\there",
+        },
+        {
+            "ts": "1791000002.5",
+            "command": "fabrik-review",
+            "commit": "rejected",
+            "at": 100.0,
+            "reason": "untagged — no recurrence",
+        },
+        {
+            "ts": "1791000003.5",
+            "command": "fabrik-review",
+            "commit": "abc123",
+            "at": 400.0,
+            "reason": "HELD:answered-not-rejected",
+        },
+        {
+            "ts": "9.0",
+            "command": "fabrik-task",
+            "commit": "rejected",
+            "at": 500.0,
+            "reason": "HELD:other-command",
+        },
+        {
+            "ts": "1791000004.5",
+            "command": "fabrik-review",
+            "commit": "rejected",
+            "at": 200.0,
+            "reason": "y.md:2 HELD:closing-pass-seat-count",
+        },
+    ]
+    index.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    return ledger, index
+
+
+def test_reasons_prints_the_rejected_rows_of_one_command(tmp_path: Path, capsys) -> None:
+    """Behaviour 1: only this command's REJECTED rows, newest reject (`at`) first, tags and escaping."""
+    m = _cfr()
+    ledger, _ = _reasons_index(tmp_path)
+    for name in ("fabrik-review", "/fabrik-review"):
+        assert m.main(["--reasons", name, "--ledger", str(ledger)]) == 0
+        out = capsys.readouterr().out.splitlines()
+        assert out[0].startswith(
+            "reasons: 3 of 3 rejected row(s) of /fabrik-review — 2 with a HELD tag"
+        ), out
+        assert "command-feedback-answered.jsonl" in out[0]
+        assert [ln.split("\t")[0] for ln in out[1:]] == [
+            "1791000001.5",
+            "1791000004.5",
+            "1791000002.5",
+        ], out
+        assert out[1] == "1791000001.5\tpin-recipe\tx.md:1 HELD:pin-recipe one-off, tab\\there"
+        assert out[3].split("\t")[1] == "-"
+        assert "answered-not-rejected" not in "\n".join(out) and "other-command" not in "\n".join(
+            out
+        )
+
+
+def test_reasons_held_keeps_only_tagged_rows(tmp_path: Path, capsys) -> None:
+    """Behaviour 2: --held narrows to tagged rows; the header says how many of how many were shown."""
+    m = _cfr()
+    ledger, _ = _reasons_index(tmp_path)
+    assert m.main(["--reasons", "fabrik-review", "--held", "--ledger", str(ledger)]) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[0].startswith(
+        "reasons: 2 of 3 rejected row(s) of /fabrik-review — 2 with a HELD tag · held only"
+    ), out
+    assert [ln.split("\t")[1] for ln in out[1:]] == ["pin-recipe", "closing-pass-seat-count"]
+
+
+def test_reasons_runs_alone_and_refuses_near_misses(tmp_path: Path, capsys) -> None:
+    """Behaviour 3: no write or report flag rides along; a stray --held or --reason is refused; nothing written."""
+    m = _cfr()
+    ledger, index = _reasons_index(tmp_path)
+    before = index.read_bytes()
+    for argv in (
+        [
+            "--reasons",
+            "fabrik-review",
+            "--reject",
+            "fabrik-review",
+            "--rows",
+            "1791000002.5",
+            "--reason",
+            "a reason long enough to pass the floor",
+        ],
+        [
+            "--reasons",
+            "fabrik-review",
+            "--mark-answered",
+            "fabrik-review",
+            "--rows",
+            "1",
+            "--commit",
+            "abc",
+        ],
+        ["--reasons", "fabrik-review", "--take", "fabrik-review"],
+        ["--reasons", "fabrik-review", "--depths"],
+        ["--reasons", "fabrik-review", "--queue", "fabrik-review"],
+        ["--reasons", "fabrik-review", "--json"],
+        ["--reasons", "fabrik-review", "--lane"],
+        ["--reasons", "fabrik-review", "--stages"],
+        ["--held"],
+        ["--reason", "fabrik-review"],
+    ):
+        with pytest.raises(SystemExit) as exc:
+            rc = m.main([*argv, "--ledger", str(ledger)])
+            raise SystemExit(rc)
+        assert exc.value.code == 2, argv
+        capsys.readouterr()
+    assert index.read_bytes() == before, "a refused --reasons call writes nothing"
+
+
+def test_reasons_on_a_missing_index_is_loud(tmp_path: Path, capsys) -> None:
+    """Behaviour 4: no index means rc 1 and a stderr line — never a silent 'nothing held'."""
+    m = _cfr()
+    ledger = tmp_path / "command-feedback.jsonl"
+    ledger.write_text("", encoding="utf-8")
+    assert m.main(["--reasons", "fabrik-review", "--ledger", str(ledger)]) == 1
+    err = capsys.readouterr().err
+    assert "command-feedback-answered.jsonl" in err and "not a readable file" in err, err
+
+
+def test_reasons_survives_an_ascii_stdout(tmp_path: Path) -> None:
+    """Behaviour 5: a non-UTF-8 stdout prints replacement characters, never a UnicodeEncodeError."""
+    ledger, index = _reasons_index(tmp_path)
+    index.write_text(
+        json.dumps(
+            {
+                "ts": "1.0",
+                "command": "fabrik-review",
+                "commit": "rejected",
+                "at": 1.0,
+                "reason": "held — § ⚠️ ’ ok",
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), "--reasons", "fabrik-review", "--ledger", str(ledger)],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONIOENCODING": "ascii"},
+        timeout=60,
+    )
+    assert r.returncode == 0, r.stderr
+    assert "ok" in r.stdout and "Traceback" not in r.stderr
+
+
+def test_reasons_review_fixes_hold(tmp_path: Path, capsys) -> None:
+    """Scoped-review round 1: every column escaped (ts handle too), a wrong command name is SAID,
+    `--since`/`--repo`/`--reason ""`/an empty `--ledger` never ride along, and the stdout policy is restored."""
+    m = _cfr()
+    ledger, index = _reasons_index(tmp_path)
+    with index.open("a", encoding="utf-8") as fh:
+        fh.write(
+            json.dumps(
+                {
+                    "ts": "w\tx\ny",
+                    "command": "c5",
+                    "commit": "rejected",
+                    "at": 1.0,
+                    "reason": "line1\nline2\r\\end",
+                }
+            )
+            + "\n"
+        )
+    assert m.main(["--reasons", "c5", "--ledger", str(ledger)]) == 0
+    out = capsys.readouterr().out.splitlines()
+    assert out[1:] == ["w\\tx\\ny\t-\tline1\\nline2\\r\\\\end"], out
+    assert m.main(["--reasons", "no-such-command", "--ledger", str(ledger)]) == 0
+    assert "NO row of any kind for /no-such-command" in capsys.readouterr().out
+    for argv in (
+        ["--reasons", "c5", "--since", "3", "--ledger", str(ledger)],
+        ["--reasons", "c5", "--repo", str(tmp_path), "--ledger", str(ledger)],
+        ["--reasons", "c5", "--reason", ""],
+        ["--queue", "c5", "--reason", ""],
+        ["--reasons", "c5", "--ledger", ""],
+    ):
+        with pytest.raises(SystemExit) as exc:
+            raise SystemExit(m.main(argv))
+        assert exc.value.code == 2, argv
+        capsys.readouterr()
+    import io
+
+    buf = io.TextIOWrapper(io.BytesIO(), encoding="ascii", errors="strict")
+    real = sys.stdout
+    sys.stdout = buf
+    try:
+        assert m.main(["--reasons", "c5", "--ledger", str(ledger)]) == 0
+        assert buf.errors == "strict", "the caller's stdout error policy is restored"
+    finally:
+        sys.stdout = real
+
+
+def test_reasons_refusal_survives_an_ascii_stdout(tmp_path: Path) -> None:
+    """Scoped-review round 1: the REFUSED line (it carries an em dash) never crashes an ascii stdout."""
+    ledger, _ = _reasons_index(tmp_path)
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--reasons",
+            "fabrik-review",
+            "--json",
+            "--ledger",
+            str(ledger),
+        ],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "PYTHONIOENCODING": "ascii"},
+        timeout=60,
+    )
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "Traceback" not in r.stderr

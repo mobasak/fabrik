@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T04:18:08.069502Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-da612c6e",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/archived/2026-10-18-plan-1-external-services-inventory/2026-10-18-plan-1-external-services-inventory.md",
+    "spec": ""
+  },
+  "next": "add ('https://u:pw@h.example/?','https://h.example/?') and the '#' case to _J1_STRIPPED and prove the geturl mutant dies; record or delete the unreachable except and the redundant password test (T02 wave review residue, W-3e9e2f4c)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: test-coverage or rare-edge residue in infra's scripts; nobody blocked",
+  "status": "open",
+  "title": "inventory.py _name: no test separates the raw-string userinfo cut from urlsplit().geturl() (a geturl mutant survives 161/161 — 'https://u:pw@h.example/?' must show 'https://h.example/?'); link()'s except branch is unreachable after the four-step rule; the password half of the userinfo check is redundant"
+}

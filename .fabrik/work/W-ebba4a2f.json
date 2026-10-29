@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:36:22.055659Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ebba4a2f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4F2HKK88QV4A9BMDPC9QF2S",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "check_review_coverage.py:65-67 still defines RECORDED — measured as \"makes no code or doc claim\"; /fabrik-review now also files a routed out-of-round defect under it"
+}

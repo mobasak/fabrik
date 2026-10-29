@@ -12,12 +12,14 @@
     "spec": ""
   },
   "next": "decide one home for the flywheel database and make the registrar match it",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
-    "fleet"
+    "fleet",
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "fabrik_analytics placement: documented on the WSL local Postgres (catalog-extraction design :144) yet created on postgres-main by every apply (orchestrator/infrastructure.py:690-715)"
 }

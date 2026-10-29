@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T09:10:30.160121Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-1398e650",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Y9Y40JVGPGNBY9VH7F3W2G",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: the box's session-rotation service (fabrik-rotate.path, user unit) was dead from 11:12 to ~12:55 +03 on 2026-10-27. No builder in any repo could be rotated, and nothing alerted anyone. The operator asks (verbatim): \"inform fabrik coordinator and prevent it from happening again\"."
+}

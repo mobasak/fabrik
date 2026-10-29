@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T22:32:39.588070Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-c9df2297",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "design-review",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "answered by eda6b430",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "feedback queue /design-review"
+}

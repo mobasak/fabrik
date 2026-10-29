@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-05T18:55:41.151880Z",
   "creator": "infra",
-  "evidence": "",
+  "effort": "low",
+  "evidence": "b9546a973d21295890fb409e8b5c5339c2a5a8e2",
   "id": "W-d6993055",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,9 +15,11 @@
   },
   "next": "cite the symbol (run_static_checks' pytest arming block) or refresh the range in both copies + the pinned test, one sync-path commit with full /fabrik-review",
   "note": "",
-  "owner": "",
-  "priority": 2,
-  "status": "open",
+  "owner": "infra",
+  "priority": 1,
+  "resolved_by": "W-42bde5ae",
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — CLAUDE.md stale gate cite, rule update",
+  "status": "done",
   "tags": [
     "infra"
   ],

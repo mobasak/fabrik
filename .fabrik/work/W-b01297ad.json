@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:10.567778Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b01297ad",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4V6S9KX00239SM6K05WTJVK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Addendum to 01M4V0B03B: the review_receipt.py --restamp --range verb is now also asked for by /fabrik-task row 1791910515 ('review_receipt --restamp should accept --range for an already-committed surface'). Confirmed in code at worktree-kaizen fa8cbd9df: restamp() (scripts/review_receipt.py:135) tak"
+}

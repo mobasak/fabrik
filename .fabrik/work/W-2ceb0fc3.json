@@ -12,12 +12,13 @@
     "spec": ""
   },
   "next": "after infra's hub-template pass (mail 01M3RQ7G) lands: run /claude-api prompt-audit scoped to the fleet-owned prompt templates, commit the report + diff on worktree-fleet, /fabrik-review-scoped, hand the branch to infra",
-  "note": "",
+  "note": "already landed in 24b231f78 — owner fleet confirmed 2026-10-18; follow-ups W-06cf054c (dropped) and W-46afa9c4 (open)",
   "owner": "fleet",
   "priority": 3,
-  "status": "open",
+  "status": "dropped",
   "tags": [
-    "prompts"
+    "prompts",
+    "proposed-done"
   ],
   "title": "fleet slice of the /claude-api prompt-audit: prompt text the scaffolder emits into new projects (templates/**/AGENTS.md.j2, template CLAUDE/AGENTS stubs) and the watchdog system prompt — propose-only, D-331 loss-checked"
 }

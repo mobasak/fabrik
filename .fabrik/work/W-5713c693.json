@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T03:13:30.512680Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5713c693",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-spec seeded with wef3's two shapes: an UNVERIFIABLE( detail counted beside the verdict as a declared gap, or a mode: declared-gap marker in the template's unreachable path; fleet owns the template half once ruled",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
+  "title": "/fabrik-spec: a parity contract that obeys /fabrik-deploy-checklist (UNVERIFIABLE rows emitted, never dropped — checklist :139-140) can never satisfy /fabrik-deploy-verify (CONFIRMED only when every verdict-bearing row is PASS — verify :310); rule how a declared gap is counted (fleet 01M4PKBYRV item C, W-82cff1ac)"
+}

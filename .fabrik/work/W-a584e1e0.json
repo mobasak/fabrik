@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:36:40.822311Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a584e1e0",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Q3AZ0NH5GD48QZ2R4X6BZS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — catchup feedback mechanism from kaizen triage",
+  "status": "open",
+  "title": "/fabrik-catchup feedback — a run-level claim for catchup in a multi-agent repo needs a mechanism (kaizen D-711 triage)"
+}

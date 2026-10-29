@@ -35,7 +35,7 @@ If your code:
 - Adds a Redis cache → `shape.needs_cache` MUST be `true`
 - Exposes `/metrics` → `shape.exposes_metrics` MUST be `true`
 - Adds Meilisearch indexes → `shape.has_search_feature` MUST be `true`
-- Adds an admin UI behind auth → `shape.is_admin_dashboard` MUST be `true`
+- Adds an admin UI behind auth on its OWN host → `shape.is_admin_dashboard` MUST be `true` there — never on the customer-facing domain: it puts that whole domain behind 2FA (D-366)
 
 If you change code in a way that affects any of the above, ALSO update `specs/services/<id>.yaml`.
 Don't ship code that contradicts the spec — `fabrik apply` will skip the registrar and you'll have a silently broken deploy.

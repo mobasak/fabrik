@@ -13,10 +13,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "the harness limit (one hand-back per agent id) is Claude Code's; the file-partitioned loop already re-dispatches slice+model fresh with its ledger; the fragment clause naming that dispatch shape for the section loops is kaizen's wording, routed in mail 01M4DST0Z8",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "handoff-2026-10-06"
   ],

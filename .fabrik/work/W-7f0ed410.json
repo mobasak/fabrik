@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T22:18:20.315925Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-7f0ed410",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5JV1GHA17EDXKA8YTMGT235",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: infra-quota-lane-sample"
+}

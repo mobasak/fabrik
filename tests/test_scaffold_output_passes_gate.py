@@ -92,6 +92,75 @@ def test_scaffolded_python_project_passes_its_own_lint_and_types(tmp_path, proje
 
 
 @requires_fabrik_env
+@pytest.mark.parametrize("use_database", [False, True])
+def test_scaffolded_file_worker_passes_its_own_lint_and_types(tmp_path, use_database):
+    """W-0859fd4b: a file-worker carries the template's ruff/mypy config in a ROOT pyproject.toml
+    (core/10-python.md: ASYNC, B and S, "configured in pyproject.toml, emitted by the scaffolder"),
+    and its own python passes it — mypy in the completion gate's form (no target: the config's
+    `files = ["worker"]` chooses it; without that the gate's `mypy .` stops on a duplicate module)."""
+    import tomllib
+
+    assert RUFF, f"ruff is neither beside {sys.executable} nor on PATH"
+    create_project(
+        name="gate-clean",
+        project_type="file-worker",
+        description="file-worker passes its own gate",
+        base=tmp_path,
+        generate_spec=False,
+        use_database=use_database,
+    )
+    proj = tmp_path / "gate-clean"
+    config = tomllib.loads((proj / "pyproject.toml").read_text())["tool"]
+    select = set(config["ruff"]["lint"]["select"])
+    assert {"ASYNC", "B", "S", "G001", "G002", "G003", "G004"} <= select, select
+    assert config["ruff"]["lint"]["isort"]["known-first-party"] == ["worker"]
+    assert config["mypy"]["files"] == ["worker"] and config["mypy"]["explicit_package_bases"]
+    candidates = sorted(
+        str(f.relative_to(proj))
+        for d in ("worker", "tests", "scripts")
+        for f in (proj / d).rglob("*.py")
+    )
+    ignored = set(
+        _run_input(["git", "check-ignore", "--stdin"], proj, "\n".join(candidates)).stdout.split()
+    )
+    own = [f for f in candidates if f not in ignored]
+    assert "worker/main.py" in own and not any(f.startswith("scripts/enforcement/") for f in own), (
+        own
+    )
+    checks = {
+        "ruff check <own .py>": [RUFF, "check", *own],
+        "ruff format --check <own .py>": [RUFF, "format", "--check", *own],
+        "mypy (the gate's form)": [sys.executable, "-m", "mypy", "--config-file=pyproject.toml"],
+        "mypy (the Makefile's form)": [
+            sys.executable,
+            "-m",
+            "mypy",
+            "--explicit-package-bases",
+            "worker",
+        ],
+    }
+    failures = {}
+    for label, argv in checks.items():
+        r = _run(argv, proj)
+        if r.returncode != 0:
+            failures[label] = (r.stdout + r.stderr).strip()[-2000:]
+    assert failures == {}, (use_database, RUFF, failures)
+
+
+def test_server_lint_config_defaults_carry_no_file_worker_keys(tmp_path):
+    """The server/ backends call _write_server_lint_config with its defaults; the file-worker keywords
+    (files, explicit_package_bases, pythonpath ".") must not leak into their config."""
+    import tomllib
+
+    from fabrik.scaffold import _write_server_lint_config
+
+    _write_server_lint_config(tmp_path, "acme_svc")
+    config = tomllib.loads((tmp_path / "pyproject.toml").read_text())["tool"]
+    assert "files" not in config["mypy"] and "explicit_package_bases" not in config["mypy"]
+    assert config["pytest"]["ini_options"]["pythonpath"] == ["src"]
+
+
+@requires_fabrik_env
 @pytest.mark.parametrize("name", NAMES)
 @pytest.mark.parametrize("project_type", ["saas-skeleton", "static-site", "office-extension"])
 def test_scaffolded_server_backend_passes_its_own_lint_and_types(tmp_path, project_type, name):
@@ -128,7 +197,9 @@ def test_scaffolded_server_backend_passes_its_own_lint_and_types(tmp_path, proje
 @requires_fabrik_env
 @pytest.mark.parametrize("name", NAMES)
 @pytest.mark.parametrize("project_type", ["chrome-extension", "mobile-app"])
-def test_every_server_src_backend_lints_and_types_under_its_own_config(tmp_path, project_type, name):
+def test_every_server_src_backend_lints_and_types_under_its_own_config(
+    tmp_path, project_type, name
+):
     """01M47Z0D: chrome-extension and mobile-app also ship a server/src backend, and got no
     server/pyproject.toml — ruff ran with no project config and mypy on its defaults. Each now carries
     the root template's rules, and passes them from server/."""

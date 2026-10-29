@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T01:42:08.236827Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "73ab18e5733d51732e22d53f125a4bc1dda4710e",
+  "id": "W-a846021a",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "in scripts/enforcement/check_doc_sync.py:510-531 gate the warning on Path('docs/RESILIENCE.md').exists(); add a regression test; found by plan 2026-10-17-plan-1 T01 (dashboard_ui components.py region_state retry)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — advisory false positive",
+  "status": "done",
+  "tags": [
+    "enforcement"
+  ],
+  "title": "check_doc_sync warns 'docs/RESILIENCE.md not updated' in a repo that has no RESILIENCE.md (the hub): the RESILIENCE trigger should skip when the doc does not exist, and a UI 'Retry' word in a .py diff should not count as retry/backoff code"
+}

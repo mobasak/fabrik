@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:54:02.408245Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-1ca97d13",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read mail 01M581KDPMVZMF936K5KT2Y1BR in the fabrik inbox, validate it, fix or answer it, then ack it",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "rule update: URGENT park names handoff, which start --resume-from cannot resume",
+  "status": "open",
+  "tags": [
+    "mail-01m581kdpmvzmf936k5kt2y1br"
+  ],
+  "title": "mail 01M581KDPMVZMF936K5KT2Y1BR: D-958's URGENT \"park its run\" names `command_run.py handoff` in four charters, but a handoff close cannot be resumed and /fabrik-task refuses it when a review is owed"
+}

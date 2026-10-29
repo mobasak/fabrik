@@ -1,0 +1,28 @@
+{
+  "blocked_by": [
+    "W-ab566484"
+  ],
+  "created": "2026-10-12T06:42:00.417270Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c03bf797",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-10-12-plan-1-owner-dsn-split.md",
+    "spec": ""
+  },
+  "next": "_write_env_files logs 'env: N owner key(s) kept in .env.owner for <path>' identically on every write; a project scaffolded before the split loses the key from .env silently on its next apply (its companion idles not_configured). Plumb the probe's owner-file presence from _read_env_file to the writer and log the first move at WARNING naming step 0 of the cutover runbook (Finish review of plan 2026-10-12-plan-1-owner-dsn-split, deployer-O3).",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — log level of one line",
+  "status": "dropped",
+  "tags": [
+    "deployer"
+  ],
+  "title": "deployer: log the FIRST move of the owner key out of .env at WARNING, not the steady-state INFO line"
+}

@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T07:21:36.912566Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-ffcac334",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M513RJN49S7S8B1N9ZXZJ9D7",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "operator 2026-10-16: bhdtrade urgent (D-921); the warning fires on every compliant certification run; one checker or command-text edit",
+  "status": "done",
+  "title": "WHAT: /fabrik-user-test tells the agent to write `<board>/runtime.md` (commands/_sources/fabrik-user-test.md, the \"RECORD how you started it\" bullet, rendered ~:254), and the same file says any other .md beside the spine \"flags BAD TICKET\" (~:359). scripts/enforcement/check_certification_coverage.py"
+}

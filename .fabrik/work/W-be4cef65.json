@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:22:56.125694Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-be4cef65",
+  "impact": "low",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RJDMSPA2C998XEK3VV4CNJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — docs_updater --adopt stamps owners on template rows",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "docs_updater --adopt stamps owners onto STRATEGIC_BACKLOG template placeholder rows."
+}

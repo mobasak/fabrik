@@ -12,12 +12,14 @@
     "spec": ""
   },
   "next": "measure which synced .py files the gate's format leg never sees; decide whether the sync or the gate should format-check the synced set",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
-    "infra"
+    "infra",
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "final_gate's ruff-format scope does not cover every governance-synced file (fleet finding 01M46GJZ SYSTEMIC point: check_lint_ratchet.py shipped unformatted to every project)"
 }

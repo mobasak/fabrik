@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T04:55:15.418549Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "2e019365661c8319bfa3079c2eb3559be310eaf2",
+  "id": "W-8bb683e6",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide per caller: add --fail-with-body and map rc 22 to a ProvisioningError with the cleaned body, keeping callers that read success:false working; drivers/dns.py only",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "security (a rejected DNS provisioner call reads as success); fleet's driver but fleet holds the major, intel is idle (D-983)",
+  "status": "done",
+  "tags": [
+    "security"
+  ],
+  "title": "dns._request_via_ssh never checks the HTTP status: curl -s without -f/--fail-with-body returns a provisioner 4xx/5xx JSON body as a successful dict, so a keyless or rejected request reads as success unless the caller checks success:false (found by the W-894fdc5f design critique)"
+}

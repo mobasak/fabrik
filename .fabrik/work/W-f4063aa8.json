@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T21:40:55.342172Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f4063aa8",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "re-read docs/development/reviews/2026-10-17-command-centre-dashboard-spec-review.md § Findings RECORDED rows at plan time",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — spec residue wording",
+  "status": "open",
+  "tags": [
+    "dashboard"
+  ],
+  "title": "Command-centre spec (W-573fae88) — residue the spec review's scope-growth stop routed: any wording defect a later round finds inside the review's own fix prose (D-355); settle it at /fabrik-plan-after-chat"
+}

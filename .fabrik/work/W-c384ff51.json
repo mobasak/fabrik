@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T03:34:41.288419Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "236b6f565baed6deac38afc8a4e49038d9086481",
+  "id": "W-c384ff51",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make the healthcheck fail on no match, e.g. test -n \"$(find /app/.tmp/worker_heartbeat -mmin -2)\", with a grader that runs it on a stale file",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH: bug, a hung file-worker reads healthy (find exits 0 on a stale heartbeat); one template healthcheck",
+  "status": "done",
+  "tags": [
+    "scaffold"
+  ],
+  "title": "file-worker .j2 healthcheck 'find /app/.tmp/worker_heartbeat -mmin -2 || exit 1' passes on a STALE heartbeat (find exits 0 when the file exists but does not match -mmin; measured rc 0 on a file touched to 2020), so a hung worker stays healthy — templates/file-worker/Dockerfile.j2:16, compose.yaml.j2:50 (found by the W-2a2c5a08 review; sibling of W-0bf1a37b)"
+}

@@ -61,7 +61,8 @@ def _database(s: ScratchPg, schema: str, *, with_jobs: bool = True, with_fn: boo
 def _apply(s: ScratchPg) -> str:
     """Run the driver's batch in the scratch DB; return the grant path it reports."""
     with s.as_driver():
-        return pg.create_payments_ingest_role(DB)["grants"]
+        pg.mint_payments_role(DB, "ingest")
+        return pg.grant_payments_role(DB, "ingest")["grants"]
 
 
 def _policy_roles(s: ScratchPg, table: str) -> str:
@@ -137,6 +138,69 @@ def test_install_without_the_function_keeps_the_legacy_block() -> None:
         # the pre-migration fallback: policies to the ingest role, table-level SELECT
         assert _policy_roles(s, "customers") == ROLE
         assert _can(s, f"has_table_privilege('{ROLE}', 'customers', 'SELECT')")
+
+
+def test_a_changed_function_signature_fails_the_step_without_the_legacy_grant() -> None:
+    """W-d8505af5: fabrik-lib adds a parameter, so the exact signature no longer resolves.
+
+    The legacy block keys on that signature being absent; without a guard it would
+    DROP+CREATE the policies (stripping ``other_reader``) and grant table-level SELECT.
+    """
+    schema = _schema()
+    with scratch_pg() as s:
+        _database(s, schema, with_fn=False)
+        _in_db(
+            s,
+            "CREATE FUNCTION payments_grant_ingest(r pg_catalog.regrole, extra text DEFAULT '') "
+            "RETURNS void LANGUAGE sql AS $$ SELECT $$;",
+        )
+        with pytest.raises(RuntimeError, match="the signature the hub calls"):
+            _apply(s)
+        assert _policy_roles(s, "customers") == "other_reader"
+        assert not _can(
+            s,
+            "EXISTS (SELECT 1 FROM pg_policy WHERE polname = 'payments_ingest_ins' "
+            "AND polrelid = 'webhook_events'::regclass)",
+        )
+        assert not _can(s, f"has_table_privilege('{ROLE}', 'customers', 'SELECT')")
+        assert not _can(s, f"has_table_privilege('{ROLE}', 'webhook_events', 'INSERT')")
+
+
+def test_the_grant_function_in_a_schema_off_the_search_path_fails_the_step() -> None:
+    """fabrik-lib's function installed in another schema is a migrated install, not a
+    pre-migration one: ``to_regprocedure`` cannot see it, so without the guard the legacy block
+    would re-widen the role on the public tables. The guard matches the name in every schema."""
+    schema = _schema()
+    with scratch_pg() as s:
+        _database(s, schema, with_fn=False)
+        _in_db(
+            s,
+            "CREATE SCHEMA offpath;\n"
+            "CREATE FUNCTION offpath.payments_grant_ingest(r pg_catalog.regrole) "
+            "RETURNS void LANGUAGE sql AS $$ SELECT $$;",
+        )
+        with pytest.raises(RuntimeError, match="the signature the hub calls"):
+            _apply(s)
+        assert _policy_roles(s, "customers") == "other_reader"
+        assert not _can(s, f"has_table_privilege('{ROLE}', 'customers', 'SELECT')")
+
+
+def test_an_ambiguous_overload_fails_the_step_without_the_legacy_grant() -> None:
+    """The exact function plus an overload with a DEFAULT: the exact signature resolves, so the
+    guard is silent and the legacy blocks skip, but the one-argument call is ambiguous (42725) —
+    the step fails closed, never re-widened."""
+    schema = _schema()
+    with scratch_pg() as s:
+        _database(s, schema)
+        _in_db(
+            s,
+            "CREATE FUNCTION payments_grant_ingest(r pg_catalog.regrole, extra text DEFAULT '') "
+            "RETURNS void LANGUAGE sql AS $$ SELECT $$;",
+        )
+        with pytest.raises(RuntimeError, match="is not unique"):
+            _apply(s)
+        assert _policy_roles(s, "customers") == "other_reader"
+        assert not _can(s, f"has_table_privilege('{ROLE}', 'customers', 'SELECT')")
 
 
 def test_upgrade_from_a_legacy_grant_narrows_the_role() -> None:

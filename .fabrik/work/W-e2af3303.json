@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-02T16:59:46.525563Z",
   "creator": "fleet",
-  "evidence": "",
+  "evidence": "f4f83e0b9ff08efc9b3933760290d923aef7ac1c",
   "id": "W-e2af3303",
   "kind": "task",
   "legacy": false,
@@ -13,9 +13,9 @@
   },
   "next": "/fabrik-spec for the chrome-extension developer-mode release kit, seeded with mail 01M3WQXZ3Y and .windsurf/rules/chrome-ext/70-chrome-ext.md § Distribution Model — spec-chain: >3 files, a signing-key secret surface, and the keypair-at-scaffold vs at-release trade-off",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet"
   ],

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T20:30:37.629830Z",
+  "creator": "infra",
+  "evidence": "fac5c0c9d0fef7f750cf3b9d3cf675ca430daad0",
+  "id": "W-f6e16f64",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Stop hook claim prompt: skip items whose linked decision assigns another builder (fabrik-spec verdict 1791404921.859391, kaizen 01M4EJQEEG)"
+}

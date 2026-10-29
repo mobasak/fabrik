@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T07:21:36.291565Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "9083e9e5851fd579c3ddb545935d9ccae798c784",
+  "id": "W-d7847226",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "red-first test; reply to 01M513RJ naming option (1) or (2)",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "operator 2026-10-16: bhdtrade urgent (D-921); the warning fires on every compliant certification run",
+  "status": "done",
+  "title": "check_certification_coverage.py flags the mandated <board>/runtime.md as BAD TICKET (web-ecommerce-factory mail 01M513RJ, wef3, cert-bhdtrade board); exempt runtime.md as ledger.md is, or move the recipe — and reply to the mail"
+}

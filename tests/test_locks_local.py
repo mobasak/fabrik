@@ -9,6 +9,9 @@ from pathlib import Path
 
 import pytest
 
+# what tests/conftest.py set for the whole process, read before any fixture of this file overrides it
+_PROCESS_LOCK_DIR = os.environ.get("FABRIK_LOCK_DIR", "")
+
 
 # Redirect lock dir to a tmpdir BEFORE importing the module so the
 # LOCK_DIR module-level constant is honored. Caller of file_lock will
@@ -23,6 +26,125 @@ def _isolate_lock_dir(tmp_path, monkeypatch):
 
     importlib.reload(fabrik.locks_local)
     yield
+    # undo then reload, so no later test inherits this test's deleted tmp LOCK_DIR (W-019e468b's shape)
+    monkeypatch.undo()
+    importlib.reload(fabrik.locks_local)
+
+
+def _reload_with(monkeypatch, **env):
+    """Reload locks_local under ``env`` (a None value deletes the variable) and return the module."""
+    import importlib
+
+    import fabrik.locks_local
+
+    for key, value in env.items():
+        if value is None:
+            monkeypatch.delenv(key, raising=False)
+        else:
+            monkeypatch.setenv(key, value)
+    return importlib.reload(fabrik.locks_local)
+
+
+def test_default_lock_dir_is_private_per_user_cache(tmp_path, monkeypatch):
+    """With no override the lock dir is ``~/.cache/fabrik-locks``, made 0700 — never a fixed /tmp name another
+    local user could pre-create (W-1f70f2e9). The umask is pinned so a dropped ``mode=`` cannot hide behind 077."""
+    home = tmp_path / "home"
+    home.mkdir()
+    mod = _reload_with(monkeypatch, FABRIK_LOCK_DIR=None, HOME=str(home))
+    expected = home / ".cache" / "fabrik-locks"
+    assert expected == mod.LOCK_DIR
+    old = os.umask(0o022)
+    try:
+        with mod.file_lock("default-dir"):
+            pass
+    finally:
+        os.umask(old)
+    assert mod.LOCK_DIR.stat().st_mode & 0o777 == 0o700
+
+
+@pytest.mark.parametrize(
+    "home",
+    [None, "", "relative/home", "/", "//", "/..", "/home/.."],
+    ids=[
+        "unset",
+        "empty",
+        "relative",
+        "root",
+        "double-slash-root",
+        "root-parent",
+        "dotdot-to-root",
+    ],
+)
+def test_default_lock_dir_without_an_absolute_home_uses_the_passwd_home(monkeypatch, home):
+    """Cron and other HOME-less callers resolve the same dir through the passwd entry. An empty HOME would
+    otherwise mean ``/`` (a fixed ``/.cache`` path as root), as would ``//`` or ``/..``, and a relative one the cwd."""
+    import pwd
+
+    mod = _reload_with(monkeypatch, FABRIK_LOCK_DIR=None, HOME=home)
+    expected = Path(pwd.getpwuid(os.getuid()).pw_dir) / ".cache" / "fabrik-locks"
+    assert expected == mod.LOCK_DIR
+
+
+@pytest.mark.parametrize("via", ["link", "link-dotdot"])
+def test_a_home_that_resolves_to_root_through_a_symlink_is_refused(tmp_path, monkeypatch, via):
+    """A lexical check passes ``<dir>/toroot`` and ``<dir>/l/x/..`` (x -> /); the kernel lands both on ``/``."""
+    import pwd
+
+    (tmp_path / "toroot").symlink_to("/")
+    (tmp_path / "l").mkdir()
+    (tmp_path / "l" / "x").symlink_to("/")
+    home = tmp_path / "toroot" if via == "link" else tmp_path / "l" / "x" / ".."
+    mod = _reload_with(monkeypatch, FABRIK_LOCK_DIR=None, HOME=str(home))
+    expected = Path(pwd.getpwuid(os.getuid()).pw_dir) / ".cache" / "fabrik-locks"
+    assert expected == mod.LOCK_DIR
+
+
+def test_an_empty_override_counts_as_unset(tmp_path, monkeypatch):
+    """``FABRIK_LOCK_DIR=""`` used to mean ``Path("")`` — the caller's cwd."""
+    home = tmp_path / "home"
+    mod = _reload_with(monkeypatch, FABRIK_LOCK_DIR="", HOME=str(home))
+    expected = home / ".cache" / "fabrik-locks"
+    assert expected == mod.LOCK_DIR
+
+
+@pytest.mark.parametrize(
+    "pw_dir",
+    ["", "relative/home", "/", "//", "/.."],
+    ids=["empty", "relative", "root", "double-slash-root", "root-parent"],
+)
+def test_an_unusable_passwd_home_is_refused_too(monkeypatch, pw_dir):
+    """The passwd home is held to HOME's rule: never a cwd-relative dir, never the fixed ``/.cache``."""
+    import pwd
+
+    class _Entry:
+        def __init__(self, d):
+            self.pw_dir = d
+
+    monkeypatch.setattr(pwd, "getpwuid", lambda uid: _Entry(pw_dir))
+    mod = _reload_with(monkeypatch, FABRIK_LOCK_DIR=None, HOME=None)
+    assert mod.LOCK_DIR is None
+
+
+def test_no_resolvable_home_imports_cleanly_and_refuses_to_lock(monkeypatch):
+    """No absolute HOME and no passwd entry: the import still succeeds (seven modules import this one) and
+    ``file_lock`` refuses with OSError, never falling back to a shared fixed path."""
+    import pwd
+
+    def no_entry(uid):
+        raise KeyError(uid)
+
+    monkeypatch.setattr(pwd, "getpwuid", no_entry)
+    mod = _reload_with(monkeypatch, FABRIK_LOCK_DIR=None, HOME=None)
+    assert mod.LOCK_DIR is None
+    with pytest.raises(OSError, match="FABRIK_LOCK_DIR"):
+        with mod.file_lock("no-home"):
+            pass
+
+
+def test_the_suite_never_locks_in_the_real_default_dir():
+    """tests/conftest.py pins FABRIK_LOCK_DIR for the whole process, so a test that takes the default lock
+    writes a tmp dir, never the operator's ~/.cache (the five state-*.lock leftovers in /tmp/fabrik-locks)."""
+    assert Path(_PROCESS_LOCK_DIR).name.startswith("pytest-lock-dir-"), _PROCESS_LOCK_DIR
 
 
 def _import_file_lock():

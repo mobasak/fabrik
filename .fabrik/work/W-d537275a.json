@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:16:25.235864Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "3fd778261f68baa664f043c6621e047041a32506",
+  "id": "W-d537275a",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure how many synced sources are symlinks; read the link's own 120000 entry from HEAD",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: rare-edge sync residue from W-ba306861 (D-1018); nobody blocked",
+  "status": "done",
+  "tags": [
+    "intel",
+    "queued"
+  ],
+  "title": "sync: symlinked hub sources bypass T12.17 — a tracked in-hub symlink pointing outside the hub returns None ('not ours') and ships the target's working bytes; an uncommitted retarget resolves before rel is computed and ships (_head_source :1789; W-ba306861 Opus critique #8)"
+}

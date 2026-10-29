@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:47:37.636522Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-28ca5c0a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4A0393H76KSX2HHPFZYN8A8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: 01M49GS9ZMDASXB3X7J6HGPN01 — precondition confirmed, rows reviewed, landing deferred to the next quota window."
+}

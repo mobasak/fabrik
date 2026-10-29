@@ -753,6 +753,7 @@ services:
       resources:
         limits:
           memory: 2G
+          cpus: '2.0'
     healthcheck:
       test:
       - CMD-SHELL

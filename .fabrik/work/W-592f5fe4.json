@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-07T06:03:16.117836Z",
   "creator": "infra",
-  "evidence": "",
+  "effort": "low",
+  "evidence": "3e3f462e39b79f5aa95c2fc337cbc995afa9f52d",
   "id": "W-592f5fe4",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,11 +15,13 @@
   },
   "next": "",
   "note": "",
-  "owner": "infra",
-  "priority": 2,
-  "status": "open",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — plan-review pass-1 hides findings: command wording/feedback verdict",
+  "status": "done",
   "tags": [
-    "mail-01m47t06vv"
+    "mail-01m47t06vv",
+    "queued"
   ],
   "title": "check_rule_grounding.py's advisory budget hides findings between pass 1 and the CONVERGED flip (mail 01M47T06VV): add --all for /fabrik-plan-review's pass-1 run, or mandate the re-run at every pin"
 }

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T22:08:31.875122Z",
+  "creator": "infra",
+  "evidence": "951f4335b603179fd69ff3d38cdcad126fe00140",
+  "id": "W-ebbedc88",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task over scripts/command_run.py _task_excl/_design_paths + scripts/task_lane.py check (d); hit live 3 times on 2026-10-11/12",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "status": "done",
+  "tags": [
+    "kaizen-01m4n1k909"
+  ],
+  "title": "/fabrik-task close: accept the run's own review receipt (docs/development/reviews/) and a working-tree Surface hash whose paths equal the commit's; strip a trailing :line from design paths; say --commit repeats per sha (kaizen 01M4N1K909 groups 1b-c, 2; rows 1791317858, 1791470714, 1791116082, 1791099519, 1791465412, 1791074435)"
+}

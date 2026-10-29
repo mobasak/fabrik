@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T00:47:57.310768Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-15744c17",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4P514GRFMNFRZ81Y6KWSWXK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "check_corpus_weight.py — two recorded residues of W-ed63cd68 on your sync surface: one wording fix at :522, one comment at :412 (request, D-441-shaped intra-hub routing)"
+}

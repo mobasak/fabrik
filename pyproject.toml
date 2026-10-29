@@ -29,12 +29,17 @@ dependencies = [
     "psutil>=6.0.0",
     "uvicorn[standard]>=0.30.0",
     "jsonschema>=4.17.0",
+    # scripts/sysadmin/prune_transcripts.py reads session-recall's index_state through the
+    # read-only role (D-736 C.2 rule 8) — the one dependency the retention plan authorises.
+    "psycopg2-binary>=2.9",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
+    # W-162398ef (operator-authorised): a hung test is a failure, never a stuck run
+    "pytest-timeout>=2.3.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
     "pre-commit>=3.0.0",
@@ -45,6 +50,12 @@ dev = [
     # EXECUTED by its guards, so the hub venv must carry what it imports.
     "sentry-sdk[fastapi]>=2.18.0",
     "structlog>=24",
+    # Authorised by the coordinator 2026-10-18 (W-0ae9b7e1, D-1013): the vendored fastapi-user-auth
+    # settings.py builds TypeAdapter(EmailStr) at import, so the hub's saas wiring tests need it.
+    "email-validator>=2.0",
+    # Authorised by the coordinator 2026-10-18 (W-ab242b11 slice 2, D-1013): the chat tests drive a
+    # real throwaway redis-server; 45-testing-strategy.md bans an in-memory Redis stand-in.
+    "redis>=5.0",
 ]
 
 [project.scripts]
@@ -101,6 +112,12 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 python_files = "test_*.py"
 addopts = "--ignore=tests/test_pipeline_runner.py -m 'not needs_network'"
+# Per-test limit (pytest-timeout, W-162398ef). The INI key, not `--timeout` in addopts: with the plugin
+# absent the key only warns, the flag refuses every run (exit 4). Memory is capped separately — a
+# runaway grows ~300 MB/s, faster than any timeout (tests/memguard.py, scripts/capped_run.sh).
+# 600, not the scaffold's 120: this is a hang detector, and hub tests that run the real completion
+# gate take longer than 120 s (test_final_gate_advisory_display.py: 209 s, measured 2026-10-17, D-935).
+timeout = 600
 markers = [
     "requires_fabrik_env: marks tests requiring /opt/fabrik environment (skipped in CI)",
     "needs_network: performs a REAL package install or build (pnpm/npm/uv). Excluded from the default run by addopts — measured 2026-09-02: it is what made `pytest tests/test_scaffold*.py` never finish. Run explicitly with `-m needs_network`.",

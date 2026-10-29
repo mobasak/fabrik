@@ -1,4 +1,4 @@
-<!-- rule-grounding-gate v2 · a RENDER INPUT, not a leaf doc: assemble_commands.py substitutes this block into every source that carries the `include:grounding-rules` directive — fabrik-spec.md, fabrik-plan-after-chat.md, fabrik-vision.md, fabrik-epics.md, fabrik-epics-review.md today (grep the directive, never a count). No hand-inlined twin exists (the only copies are inside docs/orchestrator/_retired/ tombstones, never rendered); editing this file makes every consumer's rendered command stale until the next render from the main master checkout — `assemble_commands.py --check` reports them HAND-EDITED. Server-side paste copies do not exist (operator-confirmed 2026-08-30) -->
+<!-- rule-grounding-gate v2 · a RENDER INPUT, not a leaf doc: assemble_commands.py substitutes this block into every source that carries the `include:grounding-rules` directive — fabrik-spec.md, fabrik-plan-after-chat.md, fabrik-vision.md, fabrik-epics.md, fabrik-epics-review.md today (grep the directive, never a count). No hand-inlined twin exists (the only copies are inside docs/orchestrator/_retired/ tombstones, never rendered); editing this file makes every consumer's rendered command stale until the next render from the main master checkout — `assemble_commands.py --check` reports them as DIFFERS from what this tree renders. Server-side paste copies do not exist (operator-confirmed 2026-08-30) -->
 ## ⚠️ Rule-grounding gate (BINDING — governance is read into an artifact, never into memory)
 Before the first architecture, tool, or dependency selection:
 - Run `python scripts/select_rules.py` at the PROJECT root for the ACTIVE census. **The MUST-READ-FULL
@@ -12,7 +12,14 @@ Before the first architecture, tool, or dependency selection:
   anti-pattern relevant to this scope, **every row carrying a VERBATIM quote from the pack +
   `file:line`**: you cannot quote a line from a pack you did not open, which is the whole proof.
   Head the columns `Quote` (or `Verbatim`) and `Source` (a repo-relative `path:line` alone in its
-  cell); without those headers the checker reads the first column as the quote and the next as the source.
+  cell); without those headers the checker treats a leading `#` column as a row label and reads the column
+  just before `Source` as the quote (the column after it when `Source` comes first, the first other
+  column when no `Source` is named), and the column after the quote as the source when `Source` is not named.
+  Put it under a `## Constraints Digest` heading, and give the table its `| Quote | Source |` header and
+  `|---|---|` separator, because the checker takes the first two table lines as those. Each row then reads
+  ``| <the pack's words> | `.windsurf/rules/<pack>.md:<line>` |``, with more columns after it if you like.
+  The quote is matched as one case-exact substring of the whole cited file, with whitespace collapsed and
+  backticks and `*` dropped. So no `…` elision, and a literal `|` in it is written `\|`.
   `scripts/enforcement/check_rule_grounding.py` grades the countable subset on CONVERGED plans
   (quote-integrity + MATCHED-pack completeness, advisory); reading QUALITY stays with
   `/fabrik-plan-review`'s audit — the check never claims otherwise.

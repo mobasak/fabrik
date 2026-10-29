@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T18:19:19.160214Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1fe4858e",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "design first: name every reader of rec['repo_root'] at close (task_lane re-measure, _task_run_commit, the review receipt) and decide whether a declared branch replaces or narrows each; then a /fabrik-task with the D-row",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "infra",
+  "priority": 3,
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
+  "title": "/fabrik-task: let start declare a target branch, so the close's re-measure and the review read that branch's tree, not the start root (kaizen 01M55GGMS5, feedback row 1792247538)"
+}

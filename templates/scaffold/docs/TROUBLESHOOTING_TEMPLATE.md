@@ -98,8 +98,14 @@ docker compose logs <service-name> --tail=100
 # ?sslmode= (a boolean ssl=true/false is not a libpq sslmode: write require/disable)
 # (other asyncpg-only query keys, e.g. prepared_statement_cache_size, still need removing by hand).
 # Define it first; `u=$(pgurl ...) &&` stops on an empty or unset variable instead of psql falling back
-# to the local default database.
-pgurl() ( [ -n "$1" ] || { echo "pgurl: empty DSN" >&2; exit 1; }; b=${1%%\?*}; q=${1#"$b"}; printf '%s%s\n' "$(printf %s "$b" | sed 's#^\(postgres[a-z]*\)+[a-z0-9_]*://#\1://#')" "$(printf %s "$q" | sed 's/\([?&]\)ssl=/\1sslmode=/g')" )
+# to the local default database — and on a DSN carrying whitespace, a quote or a backslash (a hand-edited or
+# still-quoted .env line fails CLOSED here instead of reaching psql mangled), on a value that does not rewrite to a
+# postgres:// or postgresql:// URI (a `-o/<file>` would reach root's psql as an option; an upper-case or malformed
+# +driver would reach it un-rewritten — fabrik-lib 01M4TP1W), on more than one ssl/sslmode/requiressl key (libpq keeps the LAST
+# silently: `?sslmode=require&ssl=disable` would drop TLS), on a percent-encoded query KEY (libpq decodes keys, so
+# `%73slmode=disable` is a second sslmode) and on a raw `?` in the user:password part (libpq reads the text before
+# the first `@` as credentials, so a `?` there would hide the real query from these checks — encode it as %3F).
+pgurl() ( [ -n "$1" ] || { echo "pgurl: empty DSN" >&2; exit 1; }; set -f; case $1 in *[[:space:]]*|*\"*|*\'*|*\\*) echo "pgurl: DSN carries whitespace, a quote or a backslash — fix the .env line, never psql it" >&2; exit 1;; esac; a=${1#*://}; case ${a%%/*} in *@*) case ${a%%@*} in *\?*) echo "pgurl: a ? in the user:password part — percent-encode it as %3F, or libpq and this check split the DSN differently" >&2; exit 1;; esac;; esac; b=${1%%\?*}; q=${1#"$b"}; n=0; IFS=" "; for kv in $(printf %s "${q#\?}" | tr '&' ' '); do case ${kv%%=*} in *%*) echo "pgurl: a percent-encoded query KEY ($kv) — libpq decodes keys, so it could hide a second sslmode; write keys plain" >&2; exit 1;; ssl|sslmode|requiressl) n=$((n+1));; esac; done; [ "$n" -le 1 ] || { echo "pgurl: more than one ssl/sslmode/requiressl key — libpq keeps the LAST one silently (requiressl rewrites sslmode); keep exactly one" >&2; exit 1; }; s=$(printf %s "$b" | sed 's#^\(postgres[a-z]*\)+[a-z0-9_][a-z0-9_]*://#\1://#'); case $s in postgres://*|postgresql://*) ;; *) echo "pgurl: not a postgres DSN (postgres://, postgresql:// or a lowercase +driver form such as postgresql+asyncpg://) — fix the .env line, never psql it" >&2; exit 1;; esac; printf '%s%s\n' "$s" "$(printf %s "$q" | sed 's/\([?&]\)ssl=/\1sslmode=/g')" )
 u=$(pgurl "$DATABASE_URL") && psql "$u" -c "SELECT 1"
 
 # Port check

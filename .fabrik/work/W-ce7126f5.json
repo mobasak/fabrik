@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
   "created": "2026-10-04T08:01:46.402232Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-ce7126f5",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -16,6 +20,7 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — guard refuses read-only commands; receipt cannot anchor multi-branch wave",
   "status": "open",
   "title": "FINDING — worktree-isolation Bash guard refuses read-only commands with no git surface; review_receipt cannot anchor a multi-branch wave"
 }

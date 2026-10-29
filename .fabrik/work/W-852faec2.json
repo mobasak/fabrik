@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T11:23:15.227329Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-852faec2",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide the lineage: re-vendor fabrik-lib i18n (D-413/D-419: response_format json_schema, exit codes, translate_i18n.py) into templates/i18n-kit, or keep the Kilo copy; also: Level 2 prints a BACK_TRANSLATE_ERROR under the 'semantic drift(s)' heading (wording, still exits 1) — recorded by the 01M478ZH scoped review",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — validator convergence",
+  "status": "dropped",
+  "tags": [
+    "i18n-kit"
+  ],
+  "title": "i18n-kit validator: converge the hub's Kilo-based validate_i18n.py on fabrik-lib's i18n module, or keep it and track SB-098 (JSON-output requests)"
+}

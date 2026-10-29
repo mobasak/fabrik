@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:23:06.360688Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-72e5e96b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RMKM28X35PS2RZHTRB54HH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "addendum to 01M4RM8CYR — the refuter row is also yours, and kaizen took the catalogue half"
+}

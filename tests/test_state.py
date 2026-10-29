@@ -81,6 +81,7 @@ def test_save_writes_every_field():
         "domain",
         "git_sha",
         "registrar_failures",
+        "registrar_warnings",
         "registrars_applied",
         "spec_hash",
         "spec_path",
@@ -187,7 +188,7 @@ def _orchestrator():
         [],
     )
     orch.deployer = MagicMock()
-    orch.deployer.find_existing.return_value = {"name": "svc", "status": "", "path": "/opt/svc"}
+    orch.deployer.probe_app.return_value = {"exists": True, "ps": "", "error": None}
     return orch
 
 
@@ -339,6 +340,19 @@ def test_atomic_write_no_tmp_left_behind(tmp_path):
 def test_load_returns_none_if_missing():
     state = _import()
     assert state.load("nonexistent-spec") is None
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [b'["oops"]', b'"a string"', b"42", b"null", b"\xff\xfe\x00bad"],
+    ids=["array", "string", "number", "null", "not-utf8"],
+)
+def test_load_returns_none_for_a_record_that_is_not_a_json_object(raw):
+    """Every reader (status, audit-registrars, destroy --use-state) calls .get on the record."""
+    state = _import()
+    state.STATE_DIR.mkdir(parents=True, exist_ok=True)
+    (state.STATE_DIR / "corrupt.json").write_bytes(raw)
+    assert state.load("corrupt") is None
 
 
 def test_load_round_trips():

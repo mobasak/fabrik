@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T21:04:48.431609Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-2191a0f4",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-14-coolify-verb-retirement-design.md"
+  },
+  "next": "measure every reader of the hub image (Dockerfile, compose.yaml, health_app.py, the scaffold docs that cite them), then /fabrik-task retire-or-keep with the SSH model's own liveness as the mirror",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "fleet",
+  "priority": 3,
+  "status": "dropped",
+  "tags": [
+    "fleet",
+    "proposed-drop",
+    "waits-operator-review",
+    "waits-w36571dff-plan"
+  ],
+  "title": "The hub's own container image (Dockerfile, compose.yaml, src/fabrik/health_app.py) has no deployer: no specs/services/*.yaml deploys it and no configs/ Gatus entry names it (0 of 69 specs, measured 2026-10-14 at the Coolify-verb-retirement spec, C2) — decide whether the image and its /health app are retired or given a consumer"
+}

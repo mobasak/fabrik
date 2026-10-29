@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "State the recipe (copy scripts/enforcement/ into the worktree, or run the main checkout's checker against the worktree path) in the contract's worktree mutate-restore paragraph, and make check_convergence/check_review_coverage exit loudly when their own path is missing. Source: iterative_image_editor mail 01M35NVJ3FEMND8274E4V31H0Q.",
-  "note": "",
+  "note": "gate half already done: final_gate.py:637-643 makes a missing checker a visible ⚠ 'check not present, skipping' row in warnings; the template recipe half is governance wording, routed to kaizen in mail 01M4DTZYZB",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "handoff-2026-10-06"
   ],

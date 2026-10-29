@@ -12,7 +12,9 @@ seat is the ``fabrik-reviewer`` agent type on a cheap model (D-344), the script 
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -28,6 +30,7 @@ SOURCES = [
     ROOT / "commands" / "_sources" / "fabrik-plan-review.md",
     ROOT / "commands" / "_sources" / "fabrik-review-scoped.md",
     ROOT / "commands" / "_sources" / "fabrik-deploy-plan-review.md",
+    ROOT / "commands" / "_sources" / "fabrik-execute-plan.md",
     ROOT / "commands" / "_fragments" / "subagents-core.md",
 ]
 BRIEF = ROOT / "commands" / "_agents" / "fabrik-reviewer.md"
@@ -58,6 +61,26 @@ def test_every_finder_schema_requires_files_read_and_candidates() -> None:
     assert required, "FINDINGS has no required list"
     for field in ("'files_read'", "'candidates'", "'notes'"):
         assert field in required.group(1), f"FINDINGS must require {field}"
+
+
+def test_the_ledger_status_labels_name_the_defect() -> None:
+    """W-729416b3: the schema a pass ≥ 2 seat fills offers exactly the defect-named labels, and its description
+    uses them; an old run's STILL_TRUE/NOW_FALSE rows still close their claims, because no reader branches on the
+    label (the NOW_FALSE fixtures below prove it)."""
+    m = re.search(r"const FINDINGS\s*=\s*\{(.*?)\n\}", _script(), re.S)
+    assert m, "no FINDINGS schema"
+    enum = re.search(r"status:\s*\{\s*enum:\s*\[([^\]]*)\]", m.group(1))
+    assert enum, "ledger_status.status has no enum"
+    assert [x.strip().strip("'\"") for x in enum.group(1).split(",")] == ["DEFECT_PRESENT", "DEFECT_ABSENT", "NEW"]
+    assert "DEFECT_PRESENT it persists, DEFECT_ABSENT it is absent" in m.group(1)
+    # every workflow seat runs as fabrik-reviewer, so its system prompt carries the same vocabulary (both B3 design
+    # critiques: a JS-only rename leaves a Haiku seat two label sets in one context)
+    agent = (ROOT / "commands" / "_agents" / "fabrik-reviewer.md").read_text(encoding="utf-8")
+    # review B3 r1 B-S1: the spaced form is a second vocabulary too — the agent spells the schema's exact tokens
+    for old in ("STILL_TRUE", "NOW_FALSE", "STILL TRUE", "NOW FALSE", "DEFECT PRESENT", "DEFECT ABSENT"):
+        assert old not in agent, old
+    assert "`DEFECT_PRESENT` the defect persists · `DEFECT_ABSENT` it is absent" in agent
+    assert "each label says what is true of the\nDEFECT, never of the claim" in agent
 
 
 def test_every_seat_names_its_model_and_effort_and_no_run_is_resumed() -> None:
@@ -237,12 +260,31 @@ def _run_ledger(args: dict, seat_results: dict) -> tuple[dict, str]:
 
 
 def _harness(
-    args: dict, seat_results: dict, *, expect_fail: bool = False, with_opts: bool = False
+    args: dict,
+    seat_results: dict,
+    *,
+    expect_fail: bool = False,
+    with_opts: bool = False,
+    unpinned: bool = False,
 ) -> tuple:
     """Execute the script's own pipeline under node with the Workflow globals stubbed: `agent` records the
     prompt it was sent and returns the canned result keyed by the call's label (`None` → a null seat),
     `parallel`/`pipeline` run the stages, `log` goes to stderr. Returns the ledger, the log text and the
-    prompts by label."""
+    prompts by label. The script refuses a launch without `pin_manifest`, so one covering the CALL's slice
+    files is injected when the key is absent — tolerating the malformed slices the refusal tests send — and
+    `unpinned=True` deletes the key instead."""
+    if unpinned:
+        args = {k: v for k, v in args.items() if k != "pin_manifest"}
+    elif "pin_manifest" not in args:
+        slices = args.get("slices")
+        files = [
+            f
+            for s in (slices if isinstance(slices, list) else [])
+            if isinstance(s, dict)
+            for f in (s.get("files") if isinstance(s.get("files"), list) else [])
+            if isinstance(f, str)
+        ]
+        args = {**args, "pin_manifest": dict.fromkeys(files, "0" * 32)}
     src = _script().replace("export const meta", "const meta", 1)
     harness = f"""
 globalThis.args = {json.dumps(args)};
@@ -255,10 +297,19 @@ globalThis.pipeline = async (items, ...stages) =>
   Promise.all(items.map(async (item, i) => {{ try {{ let v = item; for (const s of stages) v = await s(v, item, i); return v; }} catch (e) {{ console.error('STAGE THREW: ' + e); return null; }} }}));
 const prompts = {{}};
 const optsBy = {{}};
-globalThis.agent = async (prompt, opts) => {{
+globalThis.agent = (prompt, opts) => {{
+  console.error('AGENT CALLED ' + opts.label);
   prompts[opts.label] = prompt;
   optsBy[opts.label] = {{ model: opts.model, agentType: opts.agentType, effort: opts.effort }};
-  return Object.hasOwn(results, opts.label) ? results[opts.label] : null;
+  // "SYNC_THROW" throws before any promise exists, as agent() does on a spent budget or an unsatisfiable schema
+  // (the runtime reference); "THROW" makes the seat reject, as a transport or auth error may (W-b36e2a4a)
+  if (results[opts.label] === 'SYNC_THROW') throw new Error('seat ' + opts.label + ' threw at the call');
+  return (async () => {{
+    if (results[opts.label] === 'THROW') throw new Error('seat ' + opts.label + ' rejected');
+    // "THROW_UNREADABLE" rejects with a value whose `message` getter itself throws (review pass 3, A-H12)
+    if (results[opts.label] === 'THROW_UNREADABLE') throw {{ get message() {{ throw new Error('boom'); }} }};
+    return Object.hasOwn(results, opts.label) ? results[opts.label] : null;
+  }})();
 }};
 (async () => {{ {src} }})().then((out) => console.log(JSON.stringify({{ out, prompts, optsBy }})));
 """
@@ -313,10 +364,14 @@ def test_the_union_merges_only_across_seats_near_the_same_line_and_never_drops_a
         {
             "find:S:sonnet": {
                 "files_read": ["a.py", "b.py"],
-                "notes": "",
+                "notes": "read the slice",
                 "candidates": [_cand("S-S1", 3), _cand("S-S2", 5)],
             },
-            "find:S:haiku": {"files_read": ["a.py"], "notes": "", "candidates": [_cand("S-H1", 7)]},
+            "find:S:haiku": {
+                "files_read": ["a.py"],
+                "notes": "read the slice",
+                "candidates": [_cand("S-H1", 7)],
+            },
             "refute:S": {
                 "verdicts": [
                     {
@@ -358,11 +413,75 @@ def test_the_union_merges_only_across_seats_near_the_same_line_and_never_drops_a
     )
 
 
+def _two_seat_union(sonnet_file: str) -> tuple[dict, dict]:
+    """The sonnet seat — taken in FIRST, so its candidate is the one kept — cites the defect at line 3 as
+    `sonnet_file`; the haiku seat cites the same defect at line 4 as `a.py`."""
+    out, _, prompts = _harness(
+        _ARGS,
+        {
+            "find:S:sonnet": {
+                "files_read": ["a.py", "b.py"],
+                "notes": "n",
+                "candidates": [{**_cand("S-S1", 3), "file": sonnet_file}],
+            },
+            "find:S:haiku": {"files_read": ["a.py", "b.py"], "notes": "n", "candidates": [_cand("S-H1", 4)]},
+        },
+    )
+    return out["slices"][0], prompts
+
+
+@pytest.mark.parametrize(
+    "shape", ["/p/a.py", "/s/seat-p1-0-S-haiku/arch/a.py", "`/p/a.py`"], ids=["pin", "arch", "wrapped"]
+)
+def test_a_pin_or_scratch_copy_citation_merges_with_the_repo_path_citation(shape: str) -> None:
+    """W-177082fc: `sameDefect` compared `file` verbatim, so one defect cited by its pin or scratch-copy path and by
+    its repo path stayed two candidates (overlap undercounted, the estimate inflated, the refuter ran it twice). The
+    candidate's `file` now goes through readsFile's root strip (D-625) as it is taken in."""
+    s, prompts = _two_seat_union(shape)
+    assert [c["id"] for c in s["candidates"]] == ["S-S1"], s["candidates"]
+    assert s["overlap"] == 1 and s["candidates"][0]["also"] == "S-H1", s
+    assert s["candidates"][0]["file"] == "a.py"
+    assert "CANDIDATE S-S1 · a.py:3" in prompts["refute:S"], "the refuter is handed the repo path"
+    # W-7b5a6a17: a reader break the fix's hunks created is never filed as `recorded` for being outside the slice
+    assert (
+        "except the break a fix's hunks created in a reader of what they changed, shown by that reader passing on "
+        "the previous round's pin and failing on this one, which is confirmed or refuted like any other candidate "
+        "(D-230, W-7b5a6a17);"
+    ) in prompts["refute:S"]
+
+
+@pytest.mark.parametrize(
+    ("shape", "stored"),
+    [
+        ("/opt/x/a.py", "/opt/x/a.py"),
+        ("/p/other/a.py", "other/a.py"),
+        ("/pX/a.py", "/pX/a.py"),
+        ("/q/p/a.py", "/q/p/a.py"),
+    ],
+    ids=["live", "other-file-in-the-pins-dir", "near-root", "embedded-root"],
+)
+def test_a_live_or_different_path_is_never_merged_with_the_repo_path(shape: str, stored: str) -> None:
+    """D-625: only the pins root or a seat's scratch arch root is stripped, and only as a prefix — a live-checkout
+    path and a look-alike or embedded root are kept as cited, and a different file under the pins dir becomes its own
+    repo path (`other/a.py`), so none of them is merged with `a.py`."""
+    s, _ = _two_seat_union(shape)
+    assert [c["id"] for c in s["candidates"]] == ["S-S1", "S-H1"], s["candidates"]
+    assert s["overlap"] == 0
+    assert s["candidates"][0]["file"] == stored
+
+
+def test_a_file_that_is_only_a_root_keeps_its_original() -> None:
+    """A `file` that strips to the empty string (the pins dir itself) keeps the seat's original value rather than
+    reading as no file at all."""
+    s, _ = _two_seat_union("/p/")
+    assert s["candidates"][0]["file"] == "/p/", s["candidates"]
+
+
 def test_a_null_finder_makes_every_unread_file_a_logged_gap_and_the_seat_failed() -> None:
     ledger, log = _run_ledger(
         _ARGS,
         {
-            "find:S:sonnet": {"files_read": ["a.py"], "notes": "", "candidates": []},
+            "find:S:sonnet": {"files_read": ["a.py"], "notes": "read the slice", "candidates": []},
             # find:S:haiku absent → a null finder
         },
     )
@@ -373,8 +492,15 @@ def test_a_null_finder_makes_every_unread_file_a_logged_gap_and_the_seat_failed(
     assert s["verdicts"] == [], "zero candidates run zero verify seats"
 
 
-_FULL_READ = {"files_read": ["a.py", "b.py"], "notes": "", "candidates": []}
+_FULL_READ = {
+    "files_read": ["a.py", "b.py"],
+    "notes": "read a.py and b.py whole; nothing found",
+    "candidates": [],
+}
 _LEDGER_ROW = [{"id": "S-S1", "file": "a.py", "line": 3, "claim": "off by one"}]
+# W-b36e2a4a: a pass where NO finder returned anything throws, so a test that only reads prompts, the log or the
+# argument handling keeps one seat that returned but read nothing — failed, never null — and gets its ledger back
+_ONE_RETURNED = {"find:S:sonnet": {"files_read": [], "candidates": [], "notes": ""}}
 # Seven shapes of a finder that reviewed nothing (01M4C00TSS): `(pass, seat result, the returned files_read count)`.
 _READ_NOTHING = {
     "empty list": (1, {"files_read": [], "notes": "No, I have not stopped.", "candidates": []}, 0),
@@ -382,10 +508,19 @@ _READ_NOTHING = {
     "null": (1, {"files_read": None, "notes": "", "candidates": []}, 0),
     "not a list": (1, {"files_read": "a.py", "notes": "", "candidates": []}, 0),
     "an empty string": (1, {"files_read": [""], "notes": "", "candidates": []}, 1),
-    "an unrelated file": (1, {"files_read": ["CLAUDE.md"], "notes": "I read the contract", "candidates": []}, 1),
+    "an unrelated file": (
+        1,
+        {"files_read": ["CLAUDE.md"], "notes": "I read the contract", "candidates": []},
+        1,
+    ),
     "pass 2 with ledger rows": (
         2,
-        {"files_read": [], "notes": "", "candidates": [], "ledger_status": [{"id": "S-S1", "status": "NOW_FALSE"}]},
+        {
+            "files_read": [],
+            "notes": "read the slice",
+            "candidates": [],
+            "ledger_status": [{"id": "S-S1", "status": "NOW_FALSE"}],
+        },
         0,
     ),
 }
@@ -407,7 +542,9 @@ def test_a_seat_that_read_no_slice_file_is_a_dropped_seat_on_every_pass(shape: s
     haiku = next(x for x in s["seats"] if x["model"] == "haiku")
     assert haiku["failed"] and haiku["files_read"] == count, haiku
     assert haiku["notes"].startswith("SEAT FAILED (read no slice file): "), haiku["notes"]
-    assert "undefined" not in haiku["notes"], "a missing notes field renders empty, never as undefined"
+    assert "undefined" not in haiku["notes"], (
+        "a missing notes field renders empty, never as undefined"
+    )
     assert ledger["dropped_seats"] == 1 and not s["closable"] and not ledger["closable"], s["open"]
     assert "seat failed: haiku" in s["open"], s["open"]
     assert s["gaps"] == [], "the partner read every file, so the gap check alone stays silent"
@@ -417,13 +554,22 @@ def test_a_seat_that_read_no_slice_file_is_a_dropped_seat_on_every_pass(shape: s
 def test_a_failed_seats_ledger_rows_re_verify_no_claim() -> None:
     """A dropped seat echoing a ledger id must not count as its re-verification, so `open` names the claim too."""
     args = {**_ARGS, "pass": 2, "slices": [{**_ARGS["slices"][0], "ledger": _LEDGER_ROW}]}
-    echo = {"files_read": [], "notes": "", "candidates": [], "ledger_status": [{"id": "S-S1", "status": "NOW_FALSE"}]}
+    echo = {
+        "files_read": [],
+        "notes": "",
+        "candidates": [],
+        "ledger_status": [{"id": "S-S1", "status": "NOW_FALSE"}],
+    }
     ledger, _ = _run_ledger(args, {"find:S:sonnet": _FULL_READ, "find:S:haiku": echo})
-    assert "ledger claim S-S1 not re-verified by any seat" in ledger["slices"][0]["open"], ledger["slices"][0]["open"]
+    assert "ledger claim S-S1 not re-verified by any seat" in ledger["slices"][0]["open"], ledger[
+        "slices"
+    ][0]["open"]
 
 
 def test_a_seat_that_read_its_slice_is_not_dropped() -> None:
-    ledger, _ = _run_ledger(_ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku": {**_FULL_READ, "files_read": ["a.py"]}})
+    ledger, _ = _run_ledger(
+        _ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku": {**_FULL_READ, "files_read": ["a.py"]}}
+    )
     assert ledger["dropped_seats"] == 0 and ledger["closable"], ledger["slices"][0]["open"]
 
 
@@ -432,15 +578,26 @@ def test_every_seat_facing_git_show_example_redirects_into_scratch() -> None:
     lead's act. Every backticked git show EXAMPLE a seat reads — every agent definition, the seat-brief fragment,
     /fabrik-review's verbatim lessons and the seat-brief template — redirects into `<scratch>/`. A bare
     `git show` NAME (no arguments) inside a rule is not an example and is not matched."""
-    surfaces = {p.relative_to(ROOT).as_posix(): p.read_text(encoding="utf-8") for p in (ROOT / "commands" / "_agents").glob("*.md")}
-    surfaces["commands/_fragments/subagents-core.md"] = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
+    surfaces = {
+        p.relative_to(ROOT).as_posix(): p.read_text(encoding="utf-8")
+        for p in (ROOT / "commands" / "_agents").glob("*.md")
+    }
+    surfaces["commands/_fragments/subagents-core.md"] = (
+        ROOT / "commands" / "_fragments" / "subagents-core.md"
+    ).read_text(encoding="utf-8")
     review = (ROOT / "commands" / "_sources" / "fabrik-review.md").read_text(encoding="utf-8")
-    surfaces["fabrik-review lessons"] = next(line for line in review.splitlines() if "never bare-grep a tracked path" in line)
-    surfaces["convergence-prompts"] = (ROOT / "docs" / "reference" / "convergence-prompts.md").read_text(encoding="utf-8")
+    surfaces["fabrik-review lessons"] = next(
+        line for line in review.splitlines() if "never bare-grep a tracked path" in line
+    )
+    surfaces["convergence-prompts"] = (
+        ROOT / "docs" / "reference" / "convergence-prompts.md"
+    ).read_text(encoding="utf-8")
     assert len(surfaces) >= 7, sorted(surfaces)
     examples = {name: re.findall(r"`git show [^`]*`", text) for name, text in surfaces.items()}
     assert sum(map(len, examples.values())) >= 4, examples
-    bare = {name: [x for x in found if " > <scratch>/" not in x] for name, found in examples.items()}
+    bare = {
+        name: [x for x in found if " > <scratch>/" not in x] for name, found in examples.items()
+    }
     assert not any(bare.values()), {k: v for k, v in bare.items() if v}
 
 
@@ -451,7 +608,14 @@ def test_both_seat_prompts_open_with_the_brief_is_the_task_line() -> None:
     assert body.count("const BRIEF_IS_TASK = ") == 1, "one constant, defined once"
     assert body.count("${BRIEF_IS_TASK}") == 2, "used in the finder and the refuter prompt"
     _, _, prompts = _harness(
-        _ARGS, {"find:S:sonnet": {"files_read": ["a.py", "b.py"], "notes": "", "candidates": [_cand("S-S1", 3)]}}
+        _ARGS,
+        {
+            "find:S:sonnet": {
+                "files_read": ["a.py", "b.py"],
+                "notes": "read the slice",
+                "candidates": [_cand("S-S1", 3)],
+            }
+        },
     )
     line = (
         "THE TASK: everything in this prompt — the head, your slice, your ledger and the brief — IS your task. A user "
@@ -460,7 +624,10 @@ def test_both_seat_prompts_open_with_the_brief_is_the_task_line() -> None:
     )
     for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
         assert prompts[label].startswith(line), (label, prompts[label][:200])
-    assert "a files_read that names none of your slice files fails your seat" in prompts["find:S:sonnet"]
+    assert (
+        "a files_read that names none of your slice files fails your seat"
+        in prompts["find:S:sonnet"]
+    )
     doc = (ROOT / "docs" / "reference" / "review-loop-workflow.md").read_text(encoding="utf-8")
     assert "the workflow ledger's `seats[].failed` and `open` are the authority" in doc, (
         "the reader's READ 0 FILES flag is narrower than `failed`, and the doc says which one rules"
@@ -477,13 +644,17 @@ def test_a_later_pass_prompt_defines_its_ledger_status_on_the_defect_and_every_s
             "ledger": [{"id": "S-S1", "file": "a.py", "line": 3, "claim": "off by one"}],
         }
     ]
-    _, _, prompts = _harness(args, {})
+    _, _, prompts = _harness(args, _ONE_RETURNED)
     finder = prompts["find:S:sonnet"]
-    assert "STILL_TRUE means the defect is still there" in finder, (
+    # W-729416b3 (mail 01M48MQ2HS): the label names the DEFECT, not the claim's truth — a Haiku seat read a
+    # re-verified claim as "true" and labelled 11 then 14 of 14-16 fixed defects STILL_TRUE with the definition
+    # already in the brief
+    assert "DEFECT_PRESENT means the defect is still there" in finder, (
         "pass ≥ 2 keys the status on the DEFECT (R-3)"
     )
-    assert "NOW_FALSE means it is gone" in finder
-    assert "ONLY the STILL_TRUE and NEW rows" in finder, "a fix that holds is never a candidate"
+    assert "DEFECT_ABSENT means the claimed defect is absent" in finder
+    assert "ONLY the DEFECT_PRESENT and NEW rows" in finder, "a fix that holds is never a candidate"
+    assert "STILL_TRUE" not in finder and "NOW_FALSE" not in finder, "one vocabulary per prompt"
     assert "StructuredOutput" in prompts["find:S:haiku"], (
         "every finder is told to finish with the schema"
     )
@@ -492,7 +663,7 @@ def test_a_later_pass_prompt_defines_its_ledger_status_on_the_defect_and_every_s
         {
             "find:S:sonnet": {
                 "files_read": ["a.py", "b.py"],
-                "notes": "",
+                "notes": "read the slice",
                 "candidates": [_cand("S-S1", 3)],
             }
         },
@@ -506,11 +677,15 @@ def _two_finders(
     return {
         "find:S:sonnet": {
             "files_read": ["a.py", "b.py"],
-            "notes": "",
+            "notes": "read a.py and b.py whole",
             "candidates": cands_sonnet,
             "ledger_status": ledger_status or [],
         },
-        "find:S:haiku": {"files_read": ["a.py"], "notes": "", "candidates": cands_haiku or []},
+        "find:S:haiku": {
+            "files_read": ["a.py"],
+            "notes": "read the slice",
+            "candidates": cands_haiku or [],
+        },
     }
 
 
@@ -529,7 +704,7 @@ def test_a_ledger_row_is_an_object_with_a_claim_or_a_plain_claim_and_anything_el
             ],
         }
     ]
-    _, _, prompts = _harness(args, {})
+    _, _, prompts = _harness(args, _ONE_RETURNED)
     finder = prompts["find:S:sonnet"]
     assert "undefined" not in finder, "a ledger row rendered as undefined"
     assert (
@@ -629,8 +804,16 @@ def test_a_slice_closes_only_when_nothing_is_confirmed_unverified_unread_or_unre
         (_two_finders([_cand("S-S1", 3)]), "unverified"),
         (
             {
-                "find:S:sonnet": {"files_read": ["a.py"], "notes": "", "candidates": []},
-                "find:S:haiku": {"files_read": ["a.py"], "notes": "", "candidates": []},
+                "find:S:sonnet": {
+                    "files_read": ["a.py"],
+                    "notes": "read the slice",
+                    "candidates": [],
+                },
+                "find:S:haiku": {
+                    "files_read": ["a.py"],
+                    "notes": "read the slice",
+                    "candidates": [],
+                },
             },
             "unread",
         ),
@@ -766,11 +949,10 @@ def test_the_reviewer_agent_frontmatter_is_valid_yaml_carrying_the_cache_ttl() -
 
 def test_a_stage_that_throws_drops_its_slice_and_the_pass_is_not_closable() -> None:
     """A-S4: the Workflow runtime resolves a throwing parallel() thunk to null and drops a pipeline item whose
-    stage throws; the harness must do the same, and a dropped slice must never read as closable."""
-    ledger, log, _ = _harness(
-        _ARGS,
-        {**_two_finders([_cand("S-S1", 3)]), "refute:S": {"verdicts": 5}},
-    )
+    stage throws; the harness must do the same, and a dropped slice must never read as closable. The trigger is a
+    null candidate in the union stage: a non-array `verdicts` no longer throws, it is a refuter that answered
+    nothing (fleet 01M4DP81PE)."""
+    ledger, log, _ = _harness(_ARGS, _two_finders([None]))
     assert ledger["dropped_slices"] == 1 and ledger["closable"] is False, ledger
     assert "DROPPED" in log, log
 
@@ -826,7 +1008,7 @@ def test_every_seat_is_told_never_to_write_under_the_repo_and_to_time_box_blocki
         {
             "find:S:sonnet": {
                 "files_read": ["a.py", "b.py"],
-                "notes": "",
+                "notes": "read the slice",
                 "candidates": [_cand("S-S1", 3)],
             }
         },
@@ -847,7 +1029,7 @@ def test_every_seat_is_told_how_to_import_a_pinned_module_and_to_prove_it() -> N
         {
             "find:S:sonnet": {
                 "files_read": ["a.py", "b.py"],
-                "notes": "",
+                "notes": "read the slice",
                 "candidates": [_cand("S-S1", 3)],
             }
         },
@@ -884,9 +1066,10 @@ def test_every_seat_is_told_how_to_import_a_pinned_module_and_to_prove_it() -> N
         ), label
         assert "never write a .gitconfig into SCRATCH/home" in p and "runpy.run_path" in p, label
         assert "(SCRATCH/arch/src for `import fabrik`;" in p, label  # the hub's own case (NEW-2)
-        assert "with `FABRIK_ROOT=SCRATCH/arch` in front of it when PKG is src/fabrik" in p, (
-            label
-        )  # hub only (C4)
+        assert (
+            'when ROOTS holds src/fabrik, `os.environ["FABRIK_ROOT"]="SCRATCH/arch"` in the program\'s leading line'
+            in p
+        ), label  # hub only (C4)
         assert "check each overlaid file with `cmp` against its pin" in p, label
 
 
@@ -940,6 +1123,85 @@ def test_the_mutation_copy_is_made_from_the_pin_dir() -> None:
     """W-cbb9ecc9: the pin-dir provenance a brief must state reaches the mutation room only if
     the lesson ties the COPY to the pin dir instead of leaving the link to inference."""
     assert "COPY of the surface made FROM the pin dir" in _finder_lessons()
+
+
+def test_a_dead_mutant_is_defined_once_and_the_finder_lessons_point_at_it() -> None:
+    """/fabrik-review queue verdicts: an rc!=0 from a FileNotFoundError read as a kill, a `-t`
+    filter selecting 0 tests read GREEN, an equal-size mutant ran a stale `.pyc`, and a grep count
+    stood in for proof the mutant was applied."""
+    pointer = "as `/opt/fabrik/commands/_fragments/term-coverage.md` rule (4) says"
+    assert pointer in _finder_lessons()
+    assert "(dead " + pointer + ")" in REVIEW_SOURCE.read_text(encoding="utf-8")
+    rule4 = (ROOT / "commands" / "_fragments" / "term-coverage.md").read_text(encoding="utf-8")
+    for needle in (
+        "its result line quoted",
+        "`__pycache__` purged and `PYTHONDONTWRITEBYTECODE=1` set",
+        "printing the mutated module's `__file__` with output capture off",
+        "an equal-size mutant written in the same second runs the old code",
+        "vitest's `-t` is a regex that exits 0 when it selects none",
+        "fails on its own assertion or on an exception raised in the mutated code",
+        "an import, collection or harness error is no kill",
+        "on the unmutated copy selected tests and passed",
+        "pytest exits 5 then, and 4 on a malformed `-k`",
+        "shown applied by a diff of the copy against the pin, never a grep count",
+    ):
+        assert needle in rule4, needle
+
+
+def test_an_agent_tool_seat_brief_carries_the_write_scope() -> None:
+    """01M4DE0R2H: a seat's rmtree under the home directory deleted every session's skills. A
+    Workflow seat gets SEAT_ISOLATION; an Agent-tool seat gets only what the lead copies from
+    subagents-core, so the write scope must be stated there too."""
+    text = " ".join(
+        (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8").split()
+    )
+    for needle in (
+        "Nor does a finder, refuter or other read-only seat write anywhere else",
+        "(a writer seat writes only the paths its brief names)",
+        "it creates, modifies or deletes nothing outside the scratch dir its brief names",
+        "not `$HOME`, not the live checkout (the read-only git above excepted), not `/tmp` outside that dir",
+        "sets those variables INSIDE the program, never in front of the command, before anything calls `tempfile`",
+        '`import os,site; os.environ["PYTHONUSERBASE"]=site.getuserbase()` first, so a child process keeps the `--user`',
+        "then `HOME` and `TMPDIR` to directories under that dir, created first",
+        "(`tempfile` falls back to `/tmp` when `TMPDIR` does not exist), plus the module's path constants",
+        "a `Workflow` seat gets this as `SEAT_ISOLATION` in `.claude/workflows/fabrik-review-loop.js`",
+    ):
+        assert needle in text, needle
+    assert "create, modify or delete NOTHING outside SCRATCH" in SCRIPT.read_text(encoding="utf-8")
+
+
+def test_round_zero_enumerates_the_fixs_input_space_before_the_pin() -> None:
+    """/fabrik-review queue verdicts: an overlapping replace value, a shell `||` form, a guard's error
+    path and a regex edge were each found by a later round's seat instead of the author's own probe.
+    Both round-zero paragraphs carry the clause: term-coverage's and term-edit's."""
+    for name in ("term-coverage.md", "term-edit.md"):
+        text = " ".join(
+            (ROOT / "commands" / "_fragments" / name).read_text(encoding="utf-8").split()
+        )
+        # term-coverage leads its round zero with this duty, bold (W-7c290366); term-edit keeps it in place
+        lead = "**" if name == "term-coverage.md" else ""
+        for needle in (
+            "the fix's own INPUT space is enumerated and executed before the pin, so no seat is the first to meet it"
+            + lead
+            + " — for example a matcher or replacer",
+            "a matcher or replacer against boundary, sentinel, prefix, overlapping, escaped and alternate-notation inputs",
+            "and against its live population before it widens or narrows",
+            "a parser against every form its grammar admits",
+            "a recursive or fallback helper against cycles, depth and each container type",
+            "a trim or window at exactly one record's length",
+            "any other fix against the input classes its own shape implies, listed before the probe runs",
+            # /fabrik-review-scoped row 1791973917: a narrowing PREDICATE fix met its earlier-confirmed
+            # shapes one round at a time, since this clause used to name a regex fix only.
+            "a fix to a matcher, replacer, predicate or filter, a regex included, and above all one that narrows or"
+            " widens what it accepts, is drafted and probed against every shape this review has confirmed so far and,"
+            " where a shape names a field or key, against its renamed variant too, all at once, never one patch per"
+            " shape",
+        ):
+            assert needle in text, (name, needle)
+        # term-coverage continues the clause past "every error path" (d4009c252) and term-edit joins
+        # it with "and": only that word may sit between the halves, so an insertion still reds
+        guard = r"a guard against an input that shows the condition, one that does not,( and)? every error path"
+        assert re.search(guard, text), (name, guard)
 
 
 def test_the_finder_lessons_tell_a_seat_to_import_the_pin_and_state_the_ledger_high_water_mark() -> (
@@ -1033,6 +1295,135 @@ def test_a_leading_id_token_never_closes_a_shorter_id_it_merely_starts_with() ->
     assert s["open"] == ["ledger claim S-L1 not re-verified by any seat"], s["open"]
 
 
+def test_the_pin_recipe_archives_whole_roots_and_names_what_the_archive_cannot_hold() -> None:
+    """W-525d712a (iie1 01M3WS3EJ0): archiving one package (src/media_edit) failed on a sibling-package and a
+    root-module import. W-e354a3a9 (iie 01M3ZR3AND): a partial tests/ tree aborts a whole-tree conftest
+    self-check, and a synced rule pack is untracked in a project. W-02aa9153 (kaizen 01M4BY4SFQ): a later fix to a
+    file outside the slice is invisible to the archive. W-debee876 (fleet 01M3WMGRQ7): an archive is not a linked
+    worktree, so a hub pytest run resolved FABRIK_ROOT to the live hub. Each lands in every shell seat's prompt."""
+    _, _, prompts = _harness(
+        _ARGS,
+        {
+            "find:S:sonnet": {
+                "files_read": ["a.py", "b.py"],
+                "notes": "read the slice",
+                "candidates": [_cand("S-S1", 3)],
+            }
+        },
+    )
+    for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
+        p = prompts[label]
+        for needed in (
+            "with ROOTS every top-level path the code or its tests import, read or run",
+            "and when unsure, the whole commit",
+            "over-inclusion is safe",
+            "a package that imports a sibling package or a root module fails with ModuleNotFoundError in a one-package archive",
+            "a file outside the run's pins is at its",
+            "a later fix to it is invisible to you",
+            "the fleet-synced scripts and rule packs (`scripts/enforcement/`, `.windsurf/rules/`) are gitignored",
+            "Archive ALSO the WHOLE test tree",
+            'os.chdir("SCRATCH/arch")',
+            "one plain command per call forbids",
+            "still reads the live hub, so a result resting on one is UNPINNED",
+            "every root module file they import",
+            'os.environ["FABRIK_ROOT"]=os.getcwd()',
+            "an archive is not a linked worktree",
+            # W-393ffefa (kaizen 01M54YKMF1): the sibling repo a scaffold test reads, and what it must not start
+            "`ln -sfn /opt/fabrik-lib SCRATCH/fabrik-lib`",
+            "a plain `ln -s` run a second time follows the existing link",
+            "never a copy of the live tree",
+            "the scaffold imports a manifest from FABRIK_ROOT/scripts as it loads",
+            "The link is READ-ONLY: never write, chmod or delete through it",
+            "with its default `provision=False` and a `base=` under SCRATCH",
+            "read a `fabrik-lib/docs-site not present` skip as the missing link",
+            "fabrik-lib is another repo, never in the run's pins",
+            'os.environ["FABRIK_SCAFFOLD_OFFLINE"]="1"',
+            "never the `fabrik scaffold` CLI",
+            "for `scratch_pg` and `_real_pg` too",
+            "`docker run` or `docker compose` the test itself executes",
+            "pass `-B` to every python the probe starts",
+        ):
+            assert needed in p, (label, needed)
+        assert "PKG" not in p, (label, "the one-package placeholder is gone")
+
+
+_LIB_SCHEMA = Path("/opt/fabrik-lib/app-audit-log/schema.sql")
+
+
+def _audit_schema_found_under(root: Path) -> tuple[str, bool]:
+    """(APP_AUDIT_LOG_DIR, is its schema a file) as the scaffold resolves them with FABRIK_ROOT=<root>, read in a
+    FRESH interpreter: fabrik.config resolves FABRIK_ROOT once, at import, so an in-process import would see the
+    session's root."""
+    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "FABRIK_ROOT")}
+    env["FABRIK_ROOT"] = str(root)
+    prog = (
+        "import sys; sys.path.insert(0, sys.argv[1]); from fabrik import scaffold as s; "
+        "print(s.APP_AUDIT_LOG_DIR); print((s.APP_AUDIT_LOG_DIR / 'schema.sql').is_file())"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-P", "-B", "-c", prog, str(ROOT / "src")],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=120,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr[-800:]
+    where, found = proc.stdout.split()
+    return where, found == "True"
+
+
+@pytest.mark.skipif(not _LIB_SCHEMA.is_file(), reason="needs the sibling repo /opt/fabrik-lib")
+def test_the_recipes_fabrik_lib_link_is_where_the_scaffold_looks(tmp_path: Path) -> None:
+    """W-393ffefa (kaizen 01M54YKMF1): with FABRIK_ROOT on an archive, the scaffold looked for fabrik-lib beside it,
+    found nothing, and seats copied the live tree. The recipe's link lands exactly where the scaffold reads. The
+    first assert pins the unlinked path and its absence, so a scaffold that hard-codes /opt/fabrik-lib or reads
+    `FABRIK_ROOT / "fabrik-lib"` is red there; the second proves the link resolves — either way the recipe would be
+    stale."""
+    arch = tmp_path / "arch"
+    arch.mkdir()
+    # importing the scaffold reads FABRIK_ROOT/scripts (its synced-manifest import at module level)
+    (arch / "scripts").symlink_to(ROOT / "scripts")
+    where, found = _audit_schema_found_under(arch)
+    assert (where, found) == (str(tmp_path / "fabrik-lib" / "app-audit-log"), False)
+    (tmp_path / "fabrik-lib").symlink_to("/opt/fabrik-lib")
+    assert _audit_schema_found_under(arch) == (where, True)
+
+
+def test_the_recipes_link_command_run_twice_never_writes_into_the_sibling(tmp_path: Path) -> None:
+    """W-393ffefa review pass 1 (executed): a seat ran the recipe's `ln -s /opt/fabrik-lib SCRATCH/fabrik-lib` a
+    second time; GNU ln followed the existing link to the directory and wrote `/opt/fabrik-lib/fabrik-lib` — a write
+    into another repo. The command the prompt prints is run twice here against a stand-in sibling, which stays
+    empty."""
+    _, _, prompts = _harness(
+        _ARGS,
+        {"find:S:sonnet": {"files_read": ["a.py", "b.py"], "notes": "n", "candidates": [_cand("S-S1", 3)]}},
+    )
+    found = re.search(r"`(ln -s\w* /opt/fabrik-lib SCRATCH/fabrik-lib)`", prompts["find:S:sonnet"])
+    assert found, "the recipe names no link command"
+    sibling, scratch = tmp_path / "sibling", tmp_path / "scratch"
+    sibling.mkdir()
+    scratch.mkdir()
+    argv = found.group(1).replace("/opt/fabrik-lib", str(sibling)).replace("SCRATCH", str(scratch)).split()
+    for _ in range(2):
+        subprocess.run(argv, check=False, capture_output=True, timeout=30)
+    assert list(sibling.iterdir()) == [], list(sibling.iterdir())
+    assert (scratch / "fabrik-lib").resolve() == sibling
+
+
+def test_the_critique_and_seat_briefs_name_what_a_pin_cannot_hold() -> None:
+    """W-e354a3a9 (1): a cited synced rule pack has no commit in a project, so the design-critique brief names it by
+    hub path and md5. web-ecommerce-factory 01M42WP1S0 item 3: a seat with no Bash cannot hash what it read."""
+    crit = (ROOT / "commands" / "_fragments" / "design-critique.md").read_text(encoding="utf-8")
+    assert "copy the project's own file to the scratchpad and name it by that" in crit
+    assert "the md5 standing in for a commit wherever line" in crit
+    core = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
+    assert (
+        "a seat with no Bash (`fabrik-researcher`) cannot hash, so carry the pin's line count beside its md5"
+        in core
+    )
+
+
 def test_every_seat_is_told_how_to_run_pytest_against_the_pins() -> None:
     """01M469D3 (brand-identiy-creator): the probe recipe does not hold for a PYTEST run from the
     live repo — pytest prepends the live rootdir's ini `pythonpath` at sys.path[0], so an Opus
@@ -1043,19 +1434,23 @@ def test_every_seat_is_told_how_to_run_pytest_against_the_pins() -> None:
         {
             "find:S:sonnet": {
                 "files_read": ["a.py", "b.py"],
-                "notes": "",
+                "notes": "read the slice",
                 "candidates": [_cand("S-S1", 3)],
             }
         },
     )
     for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
         p = prompts[label]
-        assert "PYTEST" in p and "cd INTO SCRATCH/arch" in p, label
+        assert (
+            "PYTEST" in p
+            and "changing directory INSIDE the program" in p
+            and 'os.chdir("SCRATCH/arch")' in p
+        ), label
         # in-process launch keeps the site-packages insert: without it an editable .pth wins
         assert "pytest.main(sys.argv[1:])" in p and "site-packages" in p, label
         # the real base sha, never a literal BASE no seat can run (review A-H1)
         assert "tox.ini" in p and f"git ls-tree --name-only {_ARGS['base_sha']}`" in p, label
-        assert "every top-level directory the tests import" in p, label
+        assert "every top-level path the tests import, read or run" in p, label
         assert "the live repo's absolute path" in p and "unverifiable" in p, label
         assert "Print `__file__` from INSIDE the run" in p and "child process" in p, label
         # a dummy must never reach a real DB nor un-skip a DB-gated suite (Fable critique)
@@ -1079,7 +1474,8 @@ def test_a_shell_less_researcher_finder_gets_no_shell_recipe() -> None:
         {"name": "X", "files": ["a.py"], "models": ["sonnet"], "agent": "fabrik-researcher"}
     ]
     _, _, prompts = _harness(
-        args, {"find:X:sonnet": {"files_read": ["a.py"], "notes": "", "candidates": []}}
+        args,
+        {"find:X:sonnet": {"files_read": ["a.py"], "notes": "read the slice", "candidates": []}},
     )
     p = prompts["find:X:sonnet"]
     assert "read the pin, never the live tree" in p
@@ -1099,7 +1495,7 @@ _PIN_ARGS = {
 
 
 def _gaps(files_read: list, pins_dir: str | None = "/s/pins") -> list[str]:
-    seat = {"files_read": files_read, "notes": "", "candidates": []}
+    seat = {"files_read": files_read, "notes": "read the slice", "candidates": []}
     args = {**_PIN_ARGS, "pins_dir": pins_dir}
     ledger, _ = _run_ledger(args, {"find:S:sonnet": seat, "find:S:haiku": seat})
     return ledger["slices"][0]["gaps"]
@@ -1114,13 +1510,15 @@ def test_every_files_read_shape_a_seat_really_returns_counts_as_read() -> None:
             [
                 "/s/pins/src/a.py",  # absolute, inside the pin
                 "tests/b.py (pinned copy at /s/pins/tests/b.py (base 1d0a7b8))",  # nested annotation
-                "/s/scratch/S-opus/arch/c.md",  # the seat's SCRATCH/arch copy of the pin
+                "/s/scratch/seat-p1-0-S-opus/arch/c.md",  # the seat's SCRATCH/arch copy of the pin
             ]
         )
         == []
     )
     assert _gaps(["./src/a.py:120", "  `tests/b.py` — pinned  ", "file:///s/pins/c.md"]) == []
-    assert _gaps(["pins/src/a.py", "tests/b.py, read whole", "c.md [pin]"], pins_dir="pins") == []
+    # a relative pins_dir is refused before any seat now (01M4PNBVJ1 row 1791149709)
+    _, err, _ = _harness({**_PIN_ARGS, "pins_dir": "pins"}, {}, expect_fail=True)
+    assert "pins_dir must be an absolute path" in err, err[-300:]
     assert _gaps([None, 7, "", "src/a.py"]) == ["tests/b.py", "c.md"], (
         "a non-string entry never crashes"
     )
@@ -1131,8 +1529,10 @@ def test_every_files_read_shape_a_seat_really_returns_counts_as_read() -> None:
 def test_an_unset_empty_or_regex_special_root_never_credits_a_file() -> None:
     """Pass 1, code-S2/S3: an unset pins_dir must not become the root `undefined/`, an empty one must not strip
     every absolute path, and a pins_dir holding a regex metacharacter matches only itself (escRe)."""
-    assert _gaps(["undefined/src/a.py", "tests/b.py", "c.md"], pins_dir=None) == ["src/a.py"]
-    assert _gaps(["/src/a.py", "tests/b.py", "c.md"], pins_dir="") == ["src/a.py"]
+    # an unset or empty pins_dir no longer reaches readsFile: the launch is refused (01M4PNBVJ1 row 1791149709)
+    for bad in (None, ""):
+        _, err, _ = _harness({**_PIN_ARGS, "pins_dir": bad}, {}, expect_fail=True)
+        assert "pins_dir must be an absolute path" in err, (bad, err[-300:])
     assert _gaps(["/s/pXins/src/a.py", "/s/p.ins/tests/b.py", "c.md"], pins_dir="/s/p.ins") == [
         "src/a.py"
     ]
@@ -1149,9 +1549,39 @@ def test_a_different_file_with_the_same_name_is_still_unread() -> None:
             "src/a.py.bak",
             "tests/b.py-old",
             "/opt/fabrik/c.md",  # the live checkout — not the pin
-            "/s/scratch/S-opus/other/arch/c.md",  # not SCRATCH/arch
+            "/s/scratch/seat-p1-0-S-opus/other/arch/c.md",  # not SCRATCH/arch
         ]
     ) == ["src/a.py", "tests/b.py", "c.md"]
+
+
+# One refusal rule, verbatim in SEAT_ISOLATION and in the fabrik-reviewer House rules (01M4DQZGPC)
+REFUSAL_SHAPE = (
+    "a refusal that names a shape or a path (a `seat guard (…)` line, the worktree guard's shapes) is a rule: "
+    "fix the named shape, every path still under your scratch dir, never re-send it unchanged"
+)
+REFUSAL_CLASSIFIER = (
+    "a refusal that names neither is the permission classifier, which can refuse a compliant command and accept it "
+    "moments later: run the SAME command once more unchanged; refused again, reach the same bytes by another command "
+    "into the same destination under your scratch dir (the pinned or base copy, by `cp -r` then `chmod -R u+w`, when the brief names one), "
+    "else mark that check unverified — never a different destination — and say in MACHINERY which command was "
+    "refused how many times of how many tries"
+)
+# W-281e3ed2: the sentence kaizen added after the rule in subagents-core.md and fabrik-reviewer.md
+NO_DISGUISE = (
+    "A command reshaped after any refusal, a guard's or the classifier's, never disguises the refused act: fixing "
+    "the named shape, or changing the command or the tool, is allowed, but a refused name or path assembled, split "
+    "or encoded (such as `'gi'+'t'`) is the same call, so an act no allowed shape reaches is marked unverified and "
+    "named in MACHINERY."
+)
+
+
+def test_the_refusal_rule_names_a_copy_the_seat_can_write():
+    """kaizen 01M4DXXNYP: `review_loop_ledger.py pin` writes pins read-only and `cp` keeps the mode, so
+    the copy the rule sent a seat to make was `r--r--r--` and its next step (mutate the copy) was
+    refused with EACCES (executed). The rule names the `chmod` that makes the copy writable — RECURSIVE,
+    because the base copy is a directory whose nested files keep their bits (review A-S1, executed:
+    a plain `chmod u+w` left a nested file read-only, BASE_PIN's own `chmod -R u+w` does not)."""
+    assert "by `cp -r` then `chmod -R u+w`" in REFUSAL_CLASSIFIER
 
 
 def _shell_seat_prompts() -> tuple[str, str]:
@@ -1159,10 +1589,14 @@ def _shell_seat_prompts() -> tuple[str, str]:
     results = {
         "find:S:sonnet": {
             "files_read": ["a.py", "b.py"],
-            "notes": "",
+            "notes": "read the slice",
             "candidates": [_cand("S-S1", 3)],
         },
-        "find:S:haiku": {"files_read": ["a.py", "b.py"], "notes": "", "candidates": []},
+        "find:S:haiku": {
+            "files_read": ["a.py", "b.py"],
+            "notes": "read the slice",
+            "candidates": [],
+        },
         "refute:S": {"verdicts": []},
     }
     _, _, prompts = _harness(_ARGS, results)
@@ -1209,7 +1643,9 @@ def test_the_finder_and_refuter_share_one_import_recipe() -> None:
     assert marker in finder and marker in refuter
     end = "does not cover a child process the test starts."
     span = lambda p: p[p.find(marker) : p.find(end) + len(end)]  # noqa: E731
-    assert end in finder and end in refuter, "the shared span must run through the end of PYTEST_PINS"
+    assert end in finder and end in refuter, (
+        "the shared span must run through the end of PYTEST_PINS"
+    )
     assert span(finder) == span(refuter)
 
 
@@ -1234,39 +1670,77 @@ def test_the_reviewer_agent_carries_the_worktree_bash_rule() -> None:
         "inside a `-c` program or a heredoc body",
         "`git -C`",
     )
-    for needed in (*bans, "no Write tool", "splitting the command", ".venv/bin/python"):
+    for needed in (*bans, "no Write tool", ".venv/bin/python"):
         assert needed in rules, needed
-    assert "never a bare `python3`" in rules, "a probe on the system interpreter lacks the project's packages"
-    for needed in ("absolute paths for anything you write or run", "never `pkill`, `killall` or kill by pattern", "`worktree add`"):
+    # 01M4DQZGPC: the permission classifier refuses a compliant command and accepts it moments later — the
+    # old "never by re-sending it" left the incident's one-plain-command `git show > SCRATCH` no legal move
+    assert "never by re-sending it" not in rules
+    # review A-S3: one contiguous span through its terminator, so nothing can be spliced between or after the branches
+    assert f"{REFUSAL_SHAPE}; {REFUSAL_CLASSIFIER};" in rules
+    assert "never a bare `python3`" in rules, (
+        "a probe on the system interpreter lacks the project's packages"
+    )
+    for needed in (
+        "absolute paths for anything you write or run",
+        "never `pkill`, `killall` or kill by pattern",
+        "`worktree add`",
+    ):
         assert needed in rules, needed
-    assert "/reset/worktree there" not in rules, "git worktree list is a legal read; only add/remove write"
-    pin = next(line for line in brief.splitlines() if line.startswith("⚠️ **A brief that names a COMMIT"))
+    assert "/reset/worktree there" not in rules, (
+        "git worktree list is a legal read; only add/remove write"
+    )
+    pin = next(
+        line for line in brief.splitlines() if line.startswith("⚠️ **A brief that names a COMMIT")
+    )
     pin_clause = (
         "`git show <sha>:<path> > <scratch>/<file>` — always redirected, one file per call, as is any command whose output may be "
         "large (`git diff`, `git log -p`, a broad search), because a large stdout is saved by the harness under `$HOME`, where you "
         "may not read —"
     )
-    assert pin_clause in pin, "W-27fc7fa9: the SHA-pin redirect clause, subject through reason, as one span"
+    assert pin_clause in pin, (
+        "W-27fc7fa9: the SHA-pin redirect clause, subject through reason, as one span"
+    )
     core_text = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
-    assert re.findall(r"`git show [^`]*`", brief), "the agent brief shows the redirected git show form"
+    assert re.findall(r"`git show [^`]*`", brief), (
+        "the agent brief shows the redirected git show form"
+    )
     for name, text in (("agent brief", brief), ("subagents-core", core_text)):
         # a redirect counts only into the seat's scratch: `> <path>` or `> ~/x` lands in the live tree or $HOME
         bare = [s for s in re.findall(r"`git show [^`]*`", text) if " > <scratch>/" not in s]
-        assert not bare, (f"W-27fc7fa9: every git show example in the {name} redirects into scratch", bare)
+        assert not bare, (
+            f"W-27fc7fa9: every git show example in the {name} redirects into scratch",
+            bare,
+        )
     for needed in (
         "If given a git range/path, `git diff <range> > <scratch>/<file>` it; otherwise `git diff HEAD > <scratch>/<file>`.",
         "read that SHA with `git show <sha>:<path> > <scratch>/<file>` from your own worktree",
         "and any other query that does not write — a large output redirected into your scratch dir, per the SHA-pin rule above)",
     ):
-        assert needed in brief, ("W-27fc7fa9: method step 1 and the D8 list carry the redirect", needed)
-    assert "restored in ONE Bash call" not in brief, "the old compound probe rule contradicts one plain command per call"
+        assert needed in brief, (
+            "W-27fc7fa9: method step 1 and the D8 list carry the redirect",
+            needed,
+        )
+    assert "restored in ONE Bash call" not in brief, (
+        "the old compound probe rule contradicts one plain command per call"
+    )
     tools = next(line for line in brief.splitlines() if line.startswith("tools:"))
-    assert "Write" not in tools, "the house rule's printf write form assumes the seat has no Write tool"
+    assert "Write" not in tools, (
+        "the house rule's printf write form assumes the seat has no Write tool"
+    )
     core = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
-    d8 = next(line for line in core.splitlines() if line.startswith("**Every seat's brief carries the git-verb prohibition"))
+    d8 = next(
+        line
+        for line in core.splitlines()
+        if line.startswith("**Every seat's brief carries the git-verb prohibition")
+    )
     for needed in (*bans[1:], "runs one plain command per Bash call"):
-        assert needed in d8, ("general-purpose seats read the brief fragment, not the agent", needed)
-    assert d8.index("never a pop)") < d8.index("runs one plain command"), "the stash incident evidences the stash ban, not this rule"
+        assert needed in d8, (
+            "general-purpose seats read the brief fragment, not the agent",
+            needed,
+        )
+    assert d8.index("never a pop)") < d8.index("runs one plain command"), (
+        "the stash incident evidences the stash ban, not this rule"
+    )
     for needed in (
         "absolute paths for anything written or run",
         "never `pkill`, `killall` or kill by pattern",
@@ -1295,15 +1769,57 @@ def test_the_finder_and_refuter_share_one_isolation_constant() -> None:
     src = _script()
     assert src.count("const SEAT_ISOLATION = ") == 1
     assert src.count("${SEAT_ISOLATION}") == 2
-    iso = src[src.index("const SEAT_ISOLATION = ") : src.index("const PYTEST_PINS = ")]
-    assert "archive -o into SCRATCH, ls-tree, show" in iso, "the pin recipe's read-only git must stay legal"
-    assert "Popen" in iso and "\\`timeout\\`" in iso, "the kill ban must name a form a one-command seat can obey"
-    assert "backgrounds on its own is not yours" in iso, "the harness's auto-background is not the banned act"
+    start = src.index("const SEAT_ISOLATION = ")
+    iso = src[
+        start : src.index("\n", start)
+    ]  # the constant's own line, never BRIEF_IS_TASK below it
+    assert "archive -o into SCRATCH, ls-tree, show" in iso, (
+        "the pin recipe's read-only git must stay legal"
+    )
+    assert "Popen" in iso and "\\`timeout\\`" in iso, (
+        "the kill ban must name a form a one-command seat can obey"
+    )
+    assert "backgrounds on its own is not yours" in iso, (
+        "the harness's auto-background is not the banned act"
+    )
     clause = (
         "a command whose output may be large (\\`git show\\`, \\`git diff\\`, \\`git log -p\\`, a broad search) always redirects "
         "into a file under SCRATCH that you then read, because a large stdout is saved by the harness under $HOME, where you may not read."
     )
     assert clause in iso, "W-27fc7fa9: the large-output clause, subject through reason, as one span"
+    # 01M4DE0R2H + W-5f08698e: a probe rmtree'd Path.home()/.claude/skills box-wide, and a relative
+    # `git archive -o` left 85 MB in a live worktree — the rule is a SCOPE (nothing written outside
+    # SCRATCH), not only a spelling (absolute paths), and it names $HOME and the redirect
+    scope = (
+        "create, modify or delete NOTHING outside SCRATCH — not $HOME (`Path.home()`, `~`, `expanduser`), "
+        "not the live checkout, not /tmp outside SCRATCH"
+    )
+    assert scope.replace("`", "\\`") in iso, "the write-scope rule, as one span"
+    # 01M4DQZGPC + review of the design (Opus C1-C5, Fable 1-5): a refusal naming a shape or path is a rule; one
+    # naming neither is the classifier — one unchanged retry, then the same bytes into the same SCRATCH
+    # destination, else unverified; the clause sits after the write scope and reaches both rendered prompts
+    shape, classifier = (c.replace("`", "\\`") for c in (REFUSAL_SHAPE, REFUSAL_CLASSIFIER))
+    # review A-S3: an order-only chain passed a clause spliced in after the classifier branch — assert one span
+    # W-281e3ed2 (kaizen 01M5B6F0PZ): a seat refused by the worktree guard built git from 'gi'+'t' and ran it,
+    # so the rule's third home carries the no-disguise sentence the agent-side homes carry, verbatim
+    disguise = NO_DISGUISE.replace("`", "\\`")
+    assert f"On a refused command: {shape}; {classifier}. {disguise} The shell returns" in iso
+    assert iso.index(scope.replace("`", "\\`")) < iso.index(shape)
+    for prompt in _shell_seat_prompts():
+        assert REFUSAL_SHAPE in prompt and REFUSAL_CLASSIFIER in prompt and NO_DISGUISE in prompt
+    for home in ("commands/_fragments/subagents-core.md", "commands/_agents/fabrik-reviewer.md"):
+        text = " ".join((ROOT / home).read_text(encoding="utf-8").split())
+        # subagents-core opens a sentence with it, fabrik-reviewer continues one — both cases of the first letter
+        assert NO_DISGUISE[1:-1] in text, f"the agent-side home {home} drifted"
+    # review A-S1/A-S2: tempfile writes under TMPDIR (default /tmp), and PIN_IMPORT keeps the REAL user
+    # base for imports — the remedy names TMPDIR and says that line only reads
+    assert "set HOME, TMPDIR and the module's path constants to SCRATCH first" in iso
+    assert "only READS the real user base" in iso
+    # review A-S3 (pass 2, own-fix: round 1): the rule names TMPDIR, so both recipes it sits beside set it
+    for name in ("const PIN_IMPORT = ", "const PYTEST_PINS = "):
+        start = src.index(name)
+        body = src[start : src.index("\n", start)]
+        assert 'os.environ["TMPDIR"]="SCRATCH/tmp"' in body, name
 
 
 def test_fabrik_review_lessons_carry_the_leak_check() -> None:
@@ -1323,10 +1839,15 @@ def test_fabrik_review_lessons_carry_the_leak_check() -> None:
         "`pgrep -af <its script name>`",
     ):
         assert needed in leak, needed
-    for needed in ("the shell returns to the live checkout before every Bash call", "never `pkill`, `killall` or kill by pattern"):
+    for needed in (
+        "the shell returns to the live checkout before every Bash call",
+        "never `pkill`, `killall` or kill by pattern",
+    ):
         assert needed in review, needed
     prompts = (ROOT / "docs" / "reference" / "convergence-prompts.md").read_text(encoding="utf-8")
-    assert "restored inside ONE Bash call" not in prompts, "the seat-brief template must not teach the old lesson"
+    assert "restored inside ONE Bash call" not in prompts, (
+        "the seat-brief template must not teach the old lesson"
+    )
     assert "never pkill, killall or kill by pattern" in prompts
 
 
@@ -1338,8 +1859,10 @@ def test_no_seat_instruction_source_wraps_a_shell_builtin_in_timeout() -> None:
     assert "command grep" not in brief and "`/usr/bin/grep`, never bare `grep`" in brief
     review = (ROOT / "commands" / "_sources" / "fabrik-review.md").read_text(encoding="utf-8")
     assert "git archive <sha> | tar" not in review
-    assert "command grep" not in review, "a lead or seat wraps its greps in timeout; name /usr/bin/grep"
-    assert "$ git archive -o <scratchpad>/review-<sha>.tar <sha>" in review
+    assert "command grep" not in review, (
+        "a lead or seat wraps its greps in timeout; name /usr/bin/grep"
+    )
+    assert "$ git archive -o <scratch_dir>/review-<sha>.tar <sha>" in review
 
 
 def test_the_review_loop_doc_is_cited_hub_absolute() -> None:
@@ -1352,4 +1875,1194 @@ def test_the_review_loop_doc_is_cited_hub_absolute() -> None:
     bad = [str(f.relative_to(ROOT)) for f in sites if rel.search(f.read_text(encoding="utf-8"))]
     assert bad == [], bad
     core = (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8")
-    assert "own checkout's copy" in core, "in a hub worktree the hub-absolute path is master's, not the branch's"
+    assert "own checkout's copy" in core, (
+        "in a hub worktree the hub-absolute path is master's, not the branch's"
+    )
+
+
+# --- the pin manifest the lead's `review_loop_ledger.py pin` writes (kaizen 01M4CGJZAX) -------------------------
+
+_QUIET = {
+    "find:S:sonnet": {"files_read": ["a.py", "b.py"], "candidates": [], "notes": "n"},
+    "find:S:haiku": {"files_read": ["a.py", "b.py"], "candidates": [], "notes": "n"},
+}
+
+
+def test_workflow_refuses_an_unpinned_slice_before_dispatch() -> None:
+    """Row 1791230083: a slice file the manifest does not hold is refused BEFORE any seat runs — the same
+    refuse-at-the-args shape as a bad model or ledger row — never logged as a coverage gap after the seat ran;
+    a `./`-prefixed key still counts as the pin."""
+    args = {**_ARGS, "pin_manifest": {"./a.py": "0" * 32}}
+    _, err, _ = _harness(args, _QUIET, expect_fail=True)
+    assert "S:b.py" in err and "S:a.py" not in err and "pin_manifest" in err, err[-800:]
+    assert "AGENT CALLED" not in err, "a seat ran before the refusal"
+
+
+def test_workflow_refuses_a_launch_without_a_pin_manifest() -> None:
+    """D-663's switch, made once every launcher passed the manifest (kaizen e29ffb101): a launch with no
+    `pin_manifest` — absent or null — is refused before any seat runs, naming the verb that writes it; it used to
+    log UNPINNED LAUNCH and run. A pinned launch still returns `pinned: true`."""
+    for args, opt_out in ((_ARGS, True), ({**_ARGS, "pin_manifest": None}, False)):
+        _, err, _ = _harness(args, _QUIET, expect_fail=True, unpinned=opt_out)
+        assert "pin_manifest" in err and "review_loop_ledger.py pin" in err, err[-800:]
+        assert "AGENT CALLED" not in err, "a seat ran before the refusal"
+    out, log, _ = _harness(_ARGS, _QUIET)
+    assert out["pinned"] is True and "UNPINNED LAUNCH" not in log, (out.get("pinned"), log[-600:])
+
+
+def test_a_slice_without_a_file_list_is_refused_by_index() -> None:
+    """The manifest check reads every slice's `files` on every launch now, so a slice with no list (or a list of
+    non-strings) is refused by its index before anything runs — never a raw TypeError (Opus critique 6)."""
+    for bad in (
+        {"name": "S"},
+        {"name": "S", "files": "a.py"},
+        {"name": "S", "files": []},
+        {"name": "S", "files": [1]},
+    ):
+        _, err, _ = _harness({**_ARGS, "slices": [bad]}, {}, expect_fail=True, unpinned=True)
+        assert "slices[0].files must be a non-empty list" in err and "TypeError" not in err, (
+            bad,
+            err[-400:],
+        )
+        assert "AGENT CALLED" not in err
+
+
+def test_workflow_base_pin_clause_replaces_git_archive() -> None:
+    """Row 1791115993: with `base_pin_dir` the seats copy the lead's read-only base tree instead of archiving
+    the live repository — and make the copy writable as its own command, because `cp -r` keeps the read-only
+    bits and the pin overlay then fails, leaving the seat on the BASE bytes (the Fable design critique ran it)."""
+    _, _, prompts = _harness({**_ARGS, "base_pin_dir": "/bp/base"}, _QUIET)
+    for label in ("find:S:sonnet", "find:S:haiku"):
+        assert "cp -r /bp/base SCRATCH/arch" in prompts[label], prompts[label][:400]
+        assert "chmod -R u+w SCRATCH/arch" in prompts[label]
+        assert "in place of the archive" in prompts[label]
+        # review B-S1: the clause names the recipe steps it replaces, so a seat never runs both
+        assert "skip their mkdir, ls-tree, git archive, tar and ROOTS steps" in prompts[label]
+    _, _, plain = _harness(_ARGS, _QUIET)
+    # BASE_PIN's own step, not the bare `chmod -R u+w` the refusal rule now names in every prompt (01M4DXXNYP)
+    assert (
+        "/bp/base" not in plain["find:S:sonnet"]
+        and "chmod -R u+w SCRATCH/arch" not in plain["find:S:sonnet"]
+    )
+
+
+def test_every_launcher_passes_a_pin_manifest() -> None:
+    """Every launcher names `pin_manifest` beside `pins_dir` where it lists the args (kaizen, answering intel
+    01M4CS09BB). A text check proves the two names sit together, not that a launch passes the manifest: the
+    launch-time refusal in fabrik-review-loop.js is that guard, intel's half. This was a strict xfail until every
+    launcher named it."""
+    beside = re.compile(r"pins_dir`?,\s*`?pin_manifest")
+    missing = [s.name for s in SOURCES if not beside.search(s.read_text(encoding="utf-8"))]
+    assert not missing, f"launchers whose args do not pass pin_manifest beside pins_dir: {missing}"
+
+
+def test_an_empty_slice_list_is_refused_before_it_can_read_as_closable() -> None:
+    """kaizen 01M4CJKZRH (row 1791120510): `closable` was `every` over the slices, so a launch with `slices: []`
+    returned `closable: true` having read nothing — a closing round over zero slices. It is refused at the args,
+    before anything runs, like a bad model or ledger row."""
+    for bad in ([], None, "S"):
+        _, err, _ = _harness({**_ARGS, "slices": bad}, {}, expect_fail=True)
+        assert "slices" in err and "AGENT CALLED" not in err, (bad, err[-400:])
+    # review A-S1: an entry that is not an object is refused by its index, never a raw TypeError or a dropped stage
+    for bad in ([None], [42], [["a.py"]]):
+        _, err, _ = _harness({**_ARGS, "slices": bad}, {}, expect_fail=True)
+        assert "slices[0] must be an object" in err and "TypeError" not in err, (bad, err[-400:])
+
+
+def test_a_slice_file_matches_its_pin_under_the_normalisation_pin_uses() -> None:
+    """Review A-S1: `pin` keys each path by os.path.normpath, while the script stripped only a leading `./`, so a
+    slice file typed `a/./b.py` was refused although pinned as `a/b.py` — a hard stop once the manifest became
+    required. The script normalises both sides the same way."""
+    for typed in ("a/./b.py", "a//b.py", "x/../a/b.py", "./a/b.py"):
+        args = {
+            **_ARGS,
+            "slices": [{"name": "S", "files": [typed]}],
+            "pin_manifest": {"a/b.py": "0" * 32},
+        }
+        out, _, _ = _harness(args, _ONE_RETURNED)
+        assert out["pinned"] is True, typed
+    args = {
+        **_ARGS,
+        "slices": [{"name": "S", "files": ["a/../../b.py"]}],
+        "pin_manifest": {"b.py": "0" * 32},
+    }
+    _, err, _ = _harness(args, {}, expect_fail=True)
+    assert "holds no pin for S:a/../../b.py" in err, err[-400:]
+
+
+def test_every_manifest_refusal_names_the_pin_command() -> None:
+    """Review A-S2: a falsy non-null manifest (`false`, `0`, `""`) took the shape refusal, which did not say how to
+    build one; every manifest refusal now carries the same how-to as the absent case."""
+    for bad in (False, 0, "", [], {"a.py": "nope"}):
+        _, err, _ = _harness({**_ARGS, "pin_manifest": bad}, _QUIET, expect_fail=True)
+        assert "review_loop_ledger.py pin --pins-dir" in err and "AGENT CALLED" not in err, (
+            bad,
+            err[-400:],
+        )
+
+
+def test_a_matched_slice_file_is_handed_to_the_seats_as_pin_named_it() -> None:
+    """Review A-S4: a spelling that matches its pin only after normalisation (`//a/b.py`, `/a/b.py`, `x/../a/b.py`)
+    was still handed to the seats raw, so a seat read `<pins_dir>/x/../a/b.py` — a path that needs `x` to exist —
+    instead of the pin. A matched slice file is rewritten to the manifest's form before any prompt is built."""
+    for typed in ("//a/b.py", "/a/b.py", "x/../a/b.py"):
+        args = {
+            **_ARGS,
+            "slices": [{"name": "S", "files": [typed]}],
+            "pin_manifest": {"a/b.py": "0" * 32},
+        }
+        out, _, prompts = _harness(args, _ONE_RETURNED)
+        assert out["slices"][0]["files"] == ["a/b.py"], (typed, out["slices"][0]["files"])
+        assert (
+            "/p/a/b.py" in prompts["find:S:sonnet"]
+            and f"/p/{typed}" not in prompts["find:S:sonnet"]
+        ), typed
+
+
+def _verdict(cid: str, verdict: str = "refuted") -> dict:
+    return {
+        "id": cid,
+        "verdict": verdict,
+        "command": "grep x a.py",
+        "output": "0 matches",
+        "mechanism": "m",
+    }
+
+
+def test_a_refuter_that_returns_nothing_is_retried_once() -> None:
+    """fleet 01M4DP81PE: a refuter that returns null (or a non-array `verdicts`) is re-dispatched ONCE over its
+    candidates; a retry that answers is used and the slice can close."""
+    for first in (None, {"verdicts": 5}):
+        seats = {**_two_finders([_cand("S-S1", 3), _cand("S-S2", 30)])}
+        if first is not None:
+            seats["refute:S"] = first
+        seats["refute:S:retry"] = {"verdicts": [_verdict("S-S1"), _verdict("S-S2")]}
+        ledger, log, prompts = _harness(_ARGS, seats)
+        s = ledger["slices"][0]
+        assert [k for k in prompts if k.startswith("refute:")] == ["refute:S", "refute:S:retry"], (
+            prompts.keys()
+        )
+        assert {v["id"]: v["verdict"] for v in s["verdicts"]} == {
+            "S-S1": "refuted",
+            "S-S2": "refuted",
+        }, s
+        assert s["refuter"]["retried"] is True and s["refuter"]["failed"] is False, s["refuter"]
+        assert ledger["closable"] is True and ledger["failed_refuters"] == 0, ledger
+        assert "recovered" in log, log
+
+
+def test_a_partial_refuter_is_retried_over_the_unanswered_ids_only() -> None:
+    """A refuter that answers some ids is retried over the rest only — in its own scratch dir, so a dead seat's
+    leftover `arch/` never poisons the retry's copy — and the first answers stand."""
+    seats = {
+        **_two_finders([_cand("S-S1", 3), _cand("S-S2", 30), _cand("S-S3", 60)]),
+        "refute:S": {"verdicts": [_verdict("S-S1", "confirmed")]},
+        "refute:S:retry": {"verdicts": [_verdict("S-S2"), _verdict("S-S3")]},
+    }
+    ledger, _, prompts = _harness(_ARGS, seats)
+    retry = prompts["refute:S:retry"]
+    assert (
+        "CANDIDATE S-S2" in retry and "CANDIDATE S-S3" in retry and "CANDIDATE S-S1" not in retry
+    ), retry[:400]
+    assert "/s/seat-p1-0-refute-S-retry/" in retry and "/s/seat-p1-0-refute-S/" not in retry, (
+        "the retry needs its own scratch dir"
+    )
+    v = {x["id"]: x["verdict"] for x in ledger["slices"][0]["verdicts"]}
+    assert v == {"S-S1": "confirmed", "S-S2": "refuted", "S-S3": "refuted"}, v
+
+
+def test_a_refuter_that_fails_twice_keeps_the_slice_open() -> None:
+    """A retry that still leaves ids unanswered marks the refuter failed: `refuter failed` in `open`, counted in
+    `failed_refuters` — and NOT in `dropped_seats`, which stays the failed-finder count."""
+    seats = {
+        **_two_finders([_cand("S-S1", 3), _cand("S-S2", 30)]),
+        "refute:S": {"verdicts": [_verdict("S-S1")]},
+        "refute:S:retry": None,
+    }
+    ledger, log, _ = _harness(_ARGS, seats)
+    s = ledger["slices"][0]
+    assert s["refuter"] == {
+        "retried": True,
+        "failed": True,
+        "unanswered": 1,
+        "reason": "no verdict for 1 of 2 ids",
+    }, s
+    assert "refuter failed" in s["open"] and ledger["closable"] is False, s["open"]
+    assert ledger["failed_refuters"] == 1 and ledger["dropped_seats"] == 0, ledger
+    assert "STILL UNANSWERED" in log, log
+
+
+def test_a_slipped_refuter_id_is_matched_not_retried() -> None:
+    """A refuter that echoed `s-s1` or ` S-S1 ` for candidate S-S1 executed it: the slip is matched to its ONE
+    candidate and never re-dispatched; two ids differing only by case are never both matched by one row."""
+    for slipped in ("s-s1", " S-S1 "):
+        seats = {**_two_finders([_cand("S-S1", 3)]), "refute:S": {"verdicts": [_verdict(slipped)]}}
+        ledger, _, prompts = _harness(_ARGS, seats)
+        s = ledger["slices"][0]
+        assert "refute:S:retry" not in prompts and s["refuter"]["retried"] is False, s["refuter"]
+        assert s["verdicts"][0]["verdict"] == "refuted" and ledger["closable"] is True, s
+    ambiguous = _cand("s-s1", 30)
+    seats = {
+        **_two_finders([_cand("S-S1", 3), ambiguous]),
+        "refute:S": {"verdicts": [_verdict("S-S1"), _verdict(" s-s1 ")]},
+        "refute:S:retry": {"verdicts": [_verdict("s-s1")]},
+    }
+    ledger, _, prompts = _harness(_ARGS, seats)
+    retry = prompts.get("refute:S:retry", "")
+    assert "CANDIDATE s-s1" in retry and "CANDIDATE S-S1" not in retry, retry[:300]
+
+
+def test_a_duplicate_row_with_evidence_wins_over_a_placeholder_in_either_order() -> None:
+    """Review pass 1, A-S1: two same-verdict rows for one id — a placeholder and real counter-evidence — read as
+    `refuted` whichever the seat listed first."""
+    real, empty = _verdict("S-S1"), {**_verdict("S-S1"), "command": "n/a", "output": "n/a"}
+    for rows in ([empty, real], [real, empty]):
+        seats = {**_two_finders([_cand("S-S1", 3)]), "refute:S": {"verdicts": rows}}
+        ledger, _, _ = _harness(_ARGS, seats)
+        assert ledger["slices"][0]["verdicts"][0]["verdict"] == "refuted", (
+            rows,
+            ledger["slices"][0]["verdicts"],
+        )
+
+
+def test_an_ambiguous_fold_says_so_instead_of_no_verdict() -> None:
+    """Review pass 1, A-S2: with candidates `S-S1` and `s-s1`, a row ` s-s1 ` folds onto both, so it is assigned to
+    neither — and the mechanism says it was ambiguous, not that the refuter was silent."""
+    seats = {
+        **_two_finders([_cand("S-S1", 3), _cand("s-s1", 30)]),
+        "refute:S": {"verdicts": [_verdict("S-S1"), _verdict(" s-s1 ")]},
+        "refute:S:retry": {"verdicts": [_verdict(" s-s1 ")]},
+    }
+    ledger, _, prompts = _harness(_ARGS, seats)
+    assert "CANDIDATE s-s1" in prompts["refute:S:retry"], (
+        "an unassignable answer is retried like silence"
+    )
+    assert ledger["slices"][0]["refuter"]["failed"] is True, ledger["slices"][0]["refuter"]
+    v = {x["id"]: x for x in ledger["slices"][0]["verdicts"]}
+    assert v["S-S1"]["verdict"] == "refuted", v
+    assert v["s-s1"]["verdict"] == "unverified" and "ambiguous" in v["s-s1"]["mechanism"], v["s-s1"]
+
+
+def test_every_seat_facing_text_carries_the_one_refusal_rule_and_the_precise_silence_hedge() -> (
+    None
+):
+    """intel 01M4DSCHTM (W-68f8f358): the refusal rule lived in SEAT_ISOLATION and the fabrik-reviewer House
+    rules only, so an Agent-tool seat of another type, briefed from subagents-core, could still re-path after a
+    refusal (01M4DNRQ5C). And scope-growth-exit said nothing prints when the loop is "simply converging", weaker
+    than its own pack's "MERELY converging with no own-fix residue" (W-ad21a20f item 2)."""
+    core = " ".join(
+        (ROOT / "commands" / "_fragments" / "subagents-core.md").read_text(encoding="utf-8").split()
+    )
+    # one contiguous span through the next sentence, as its two siblings above are (review A-S3)
+    assert (
+        f"for a seat with a shell, {REFUSAL_SHAPE}; {REFUSAL_CLASSIFIER}. A command reshaped after any refusal"
+        in core
+    )
+    exit_ = " ".join(
+        (ROOT / "commands" / "_fragments" / "scope-growth-exit.md")
+        .read_text(encoding="utf-8")
+        .split()
+    )
+    assert (
+        "nothing prints when the loop is MERELY converging with no own-fix residue (a falling count that is "
+        "mostly own-fix DOES print the stop). So" in exit_
+    )
+    assert "simply converging" not in exit_
+
+
+def test_a_union_suffix_id_never_credits_the_bare_id() -> None:
+    """mail 01M4PHYNXJ (both design critiques executed it): `#` was a token splitter, so a seat reporting only
+    `S-S1#2` also re-verified `S-S1`, and a ledger holding both closed with `S-S1` never checked."""
+    args = {**_ARGS, "pass": 2}
+    args["slices"] = [
+        {
+            **_ARGS["slices"][0],
+            "ledger": [{"id": "S-S1", "claim": "c"}, {"id": "S-S1#2", "claim": "d"}],
+        }
+    ]
+    status = [{"id": "S-S1#2", "status": "NOW_FALSE", "command": "c", "output": "o"}]
+    out, _, _ = _harness(args, _two_finders([], ledger_status=status))
+    s = out["slices"][0]
+    assert s["closable"] is False, s["open"]
+    assert s["open"] == ["ledger claim S-S1 not re-verified by any seat"], s["open"]
+
+
+def test_the_launch_logs_its_dispatch_count_before_any_seat() -> None:
+    """mail 01M4PHYNXJ row 1791418327: the stamp is the finders plus one refuter per slice; the log names it, and
+    names it before the first seat starts — a one-model slice counts one finder."""
+    args = {
+        **_ARGS,
+        "slices": [
+            {"name": "S", "files": ["a.py", "b.py"], "priority": "p"},
+            {"name": "T", "files": ["c.py"], "priority": "p", "models": ["opus"]},
+        ],
+    }
+    _, log, _ = _harness(args, _ONE_RETURNED)
+    line = "DISPATCH: 3 finder seat(s) over 2 slice(s) + up to 2 refuter(s) = stamp 5"
+    assert line in log, log
+    assert log.index(line) < log.index("AGENT CALLED"), log
+    assert "stays inside this stamp" in log, log
+
+
+_GREP_RULE = "a grep not fed by a pipe or a redirect names a file or directory operand, and `-r` always names one"
+
+
+def test_the_seat_recipe_overlays_every_pin_and_names_every_used_root() -> None:
+    """kaizen 01M4RM8CYR/01M4RMKM28 (rows 1791774523, 1791785471): a test that READS templates/ or .windsurf/, or
+    RUNS scripts/ by subprocess, was a false red under an archive built from what the tests IMPORT. 01M4PNBVJ1 row
+    1791735249: a slice's tests may import another slice's module, so every pin of the run is overlaid — by ONE
+    program over MANIFEST.md5, which lists no manifest file and no change.diff."""
+    _, _, prompts = _harness(
+        _ARGS,
+        {"find:S:sonnet": {**_FULL_READ, "candidates": [_cand("S-S1", 3)]}},
+    )
+    for label in ("find:S:sonnet", "refute:S"):
+        p = prompts[label]
+        assert "every top-level path the code or its tests import, read or run" in p, label
+        assert "every top-level path the tests import, read or run" in p, label
+        assert "overlay EVERY pinned file of the run" in p and "MANIFEST.md5" in p, label
+        assert "hashlib.md5" in p and "/p/MANIFEST.md5" in p, (label, "the overlay is one program")
+        assert "a file outside the run's pins is at its" in p, label
+        assert "YOUR slice's pins" not in p and "it holds only the slice's files" not in p, label
+
+
+def test_a_relative_scratch_or_pins_dir_is_refused_before_any_seat() -> None:
+    """01M4PNBVJ1 row 1791149709: a relative scratch_dir lands a seat's probes in the live checkout."""
+    for key, bad in (
+        ("scratch_dir", "scratch/x"),
+        ("pins_dir", "pins"),
+        ("base_pin_dir", "base"),
+        ("scratch_dir", None),
+    ):
+        _, err, _ = _harness({**_ARGS, key: bad}, {}, expect_fail=True)
+        assert f"{key} must be an absolute path" in err and "AGENT CALLED" not in err, (
+            key,
+            err[-400:],
+        )
+    out, _ = _run_ledger({**_ARGS, "base_pin_dir": ""}, _ONE_RETURNED)
+    assert out is not None, "an empty base_pin_dir means none, never a refusal"
+
+
+def test_seat_isolation_requires_a_grep_file_operand() -> None:
+    """01M4PY7AG9 row 1789571402 (the brief half): a bare grep reads stdin and hangs; a bare `grep -r` searches the
+    live tree. A grep fed by a pipe or a redirect is fine, so the rule names those."""
+    _, _, prompts = _harness(
+        _ARGS, {"find:S:sonnet": {**_FULL_READ, "candidates": [_cand("S-S1", 3)]}}
+    )
+    for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
+        assert _GREP_RULE in prompts[label], label
+
+
+def test_a_finder_that_brought_nothing_back_fails() -> None:
+    """01M4Q4D8VP: notes of 'placeholder' or only a MACHINERY line, no candidate and no ledger row, read as a clean
+    0. Such a seat fails; a delta seat with ledger rows and a bare MACHINERY line does not."""
+    for notes in ("", "placeholder", "MACHINERY: none", "n/a\nMACHINERY: none", "TODO", "  \n "):
+        out, _ = _run_ledger(
+            _ARGS,
+            {"find:S:sonnet": {**_FULL_READ, "notes": notes}, "find:S:haiku": _FULL_READ},
+        )
+        seats = {s["model"]: s for s in out["slices"][0]["seats"]}
+        assert (
+            seats["sonnet"]["failed"] is True
+            and "no coverage statement" in seats["sonnet"]["notes"]
+        ), notes
+        assert seats["haiku"]["failed"] is False and out["closable"] is False, notes
+    led = {
+        **_ARGS,
+        "pass": 2,
+        "slices": [{**_ARGS["slices"][0], "models": ["sonnet"], "ledger": _LEDGER_ROW}],
+    }
+    row = {"id": "S-S1", "status": "NOW_FALSE", "command": "c", "output": "o"}
+    out, _ = _run_ledger(
+        led, {"find:S:sonnet": {**_FULL_READ, "notes": "MACHINERY: none", "ledger_status": [row]}}
+    )
+    assert out["slices"][0]["seats"][0]["failed"] is False and out["closable"] is True, out[
+        "slices"
+    ][0]
+
+
+def test_a_null_finder_is_reseated_once() -> None:
+    """W-b36e2a4a: a null finder (a transport or auth error) was dropped for the whole pass. It is re-seated once,
+    under its own label and its own scratch dir, and the retry's result is used; null twice stays a failed seat."""
+    out, log, prompts = _harness(
+        _ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku:retry": _FULL_READ}
+    )
+    assert "find:S:haiku:retry" in prompts and "find:S:sonnet:retry" not in prompts, sorted(prompts)
+    assert "/s/seat-p1-0-S-haiku-retry/" in prompts["find:S:haiku:retry"], (
+        "the retry never reuses the dead seat's scratch"
+    )
+    assert all(not s["failed"] for s in out["slices"][0]["seats"]), out["slices"][0]["seats"]
+    assert "find:S:haiku null — retried: recovered" in log, log
+    out, log, prompts = _harness(_ARGS, {"find:S:sonnet": _FULL_READ})
+    haiku = [s for s in out["slices"][0]["seats"] if s["model"] == "haiku"][0]
+    assert "find:S:haiku:retry" in prompts and haiku["failed"] is True, haiku
+    assert "after one retry" in haiku["notes"] and "retried: STILL NULL" in log, (haiku, log)
+
+
+def test_a_throwing_finder_is_reseated_too() -> None:
+    """A transport or auth error may THROW rather than resolve null; the first call is caught, so it is retried —
+    and a retry that throws too leaves the failed seat, never a dropped slice."""
+    out, log, prompts = _harness(
+        _ARGS,
+        {"find:S:sonnet": _FULL_READ, "find:S:haiku": "THROW", "find:S:haiku:retry": _FULL_READ},
+    )
+    assert "find:S:haiku:retry" in prompts and "retried: recovered" in log, log
+    assert out["dropped_slices"] == 0 and all(not s["failed"] for s in out["slices"][0]["seats"]), (
+        out
+    )
+    out, log, _ = _harness(
+        _ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku": "THROW", "find:S:haiku:retry": "THROW"}
+    )
+    assert out["dropped_slices"] == 0 and "retried: STILL NULL" in log, log
+
+
+def _seat(out: dict, model: str, slice_i: int = 0) -> dict:
+    return [s for s in out["slices"][slice_i]["seats"] if s["model"] == model][0]
+
+
+def test_a_rejecting_finder_keeps_its_error_text() -> None:
+    """feedback row 1790707386 (W-b36e2a4a): `.catch(() => null)` threw a rejection's text away, so a failed seat
+    said only `null result`. The first line of the retry's error — else the first call's, when the retry came back
+    null with no text — follows the failed seat's notes and the retry log line; a null with no text adds nothing,
+    and the returned seat's shape is unchanged."""
+    out, log, _ = _harness(
+        _ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku": "THROW", "find:S:haiku:retry": "THROW"}
+    )
+    haiku = _seat(out, "haiku")
+    assert haiku["failed"] is True and haiku["notes"] == (
+        "SEAT FAILED (null result, after one retry): seat find:S:haiku:retry rejected"
+    ), haiku
+    assert "find:S:haiku null — retried: STILL NULL: seat find:S:haiku:retry rejected" in log, log
+    assert sorted(haiku) == sorted(_seat(out, "sonnet")), sorted(haiku)
+    out, _, _ = _harness(_ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku": "THROW"})
+    assert _seat(out, "haiku")["notes"].endswith("after one retry): seat find:S:haiku rejected"), out
+    out, log, _ = _harness(_ARGS, {"find:S:sonnet": _FULL_READ})
+    assert _seat(out, "haiku")["notes"] == "SEAT FAILED (null result, after one retry)", out
+    assert "retried: STILL NULL\n" in log + "\n" and "STILL NULL:" not in log, log
+
+
+def test_a_finder_that_throws_at_the_call_is_retried_and_keeps_its_text() -> None:
+    """Review pass 1, A-S1: agent() can THROW at the call, before any promise exists (a spent budget, an
+    unsatisfiable schema — the runtime reference), which `.then`/`.catch` on its promise never see; the call is
+    wrapped so the seat is retried and its text kept, never lost to a null parallel() thunk. Two throws in a row
+    still leave a failed seat in an ordinary ledger, with its slice kept."""
+    once = {"find:S:sonnet": _FULL_READ, "find:S:haiku": "SYNC_THROW", "find:S:haiku:retry": _FULL_READ}
+    out, log, prompts = _harness(_ARGS, once)
+    assert "find:S:haiku:retry" in prompts and "find:S:haiku null — retried: recovered" in log, log
+    twice = {"find:S:sonnet": _FULL_READ, "find:S:haiku": "SYNC_THROW", "find:S:haiku:retry": "SYNC_THROW"}
+    out, log, _ = _harness(_ARGS, twice)
+    assert out["dropped_slices"] == 0 and _seat(out, "haiku")["notes"] == (
+        "SEAT FAILED (null result, after one retry): seat find:S:haiku:retry threw at the call"
+    ), out
+
+
+def test_the_kept_error_is_the_first_non_blank_line_of_any_rejection() -> None:
+    """Review passes 1 and 3, A-S3 A-H2 A-H10 A-H11 A-H12: a message that opens with a newline lost its cause
+    (`split('\\n')[0]` is empty), a plain-object rejection read `[object Object]`, an Error with an empty message lost
+    its name, a cycle still read `[object Object]`, and a throwing `message` getter made the helper itself throw. The
+    first non-blank line is kept, an object as JSON, an empty Error by its name, and nothing ever throws."""
+    src = _script()
+    start = src.index("function firstLine(e)")
+    body = src[start : src.index("\n}\n", start) + 2]
+    calls = (
+        "[firstLine(new Error('\\n  cause here\\nstack')), firstLine({code: 1}), firstLine(undefined),"
+        " firstLine('x'.repeat(400)).length, firstLine(new Error('one\\ntwo')), firstLine(new TypeError()),"
+        " firstLine((() => { const c = {}; c.self = c; return c })()),"
+        " firstLine({ get message() { throw new Error('boom') } })]"
+    )
+    probe = body + f"\nconsole.log(JSON.stringify({calls}))"
+    proc = subprocess.run(
+        ["node", "--input-type=module", "-e", probe],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        stdin=subprocess.DEVNULL,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    unreadable = "an error whose text could not be read"
+    expected = ["cause here", '{"code":1}', "", 300, "one", "TypeError", unreadable, unreadable]
+    assert json.loads(proc.stdout) == expected, proc.stdout
+    # end to end: a seat rejecting with an unreadable value stays a failed seat; its slice is never dropped
+    out, _, _ = _harness(
+        _ARGS,
+        {"find:S:sonnet": _FULL_READ, "find:S:haiku": "THROW_UNREADABLE", "find:S:haiku:retry": "THROW_UNREADABLE"},
+    )
+    assert out["dropped_slices"] == 0 and _seat(out, "haiku")["notes"].endswith(unreadable), out
+
+
+def test_every_finder_null_fails_the_launch() -> None:
+    """feedback row 1790707386 (W-b36e2a4a): a pass whose every finder came back null — two of the five such runs on
+    the box died on a disabled subscription — returned an all-dropped ledger that read like failed seats, which the
+    lead re-dispatches into the same dead account. It now throws AFTER each seat's retry, listing the causes and the
+    check, with at most three distinct seat errors and a count of the rest."""
+    _, err, _ = _harness(_ARGS, {}, expect_fail=True)
+    assert "AGENT CALLED find:S:haiku:retry" in err and "AGENT CALLED find:S:sonnet:retry" in err, err
+    line = [x for x in err.splitlines() if x.startswith("Error: every finder seat returned nothing")]
+    assert line and "2 finder seat(s) over 1 slice(s)" in line[0] and "nothing was reviewed" in line[0], err[-800:]
+    assert "disabled Claude subscription access" in line[0] and "seat errors" not in line[0], line
+    # review pass 1, B-S1: `review_loop_ledger.py read` prints the run file's `error` (this line, "Error: " included)
+    # cut at 300 characters — the check before a relaunch must survive that cut
+    check = "claude_rotate.py --status"
+    assert check in line[0][:300], (line[0].find(check), len(line[0]))
+    four = {
+        **_ARGS,
+        "slices": [
+            {"name": "S", "files": ["a.py"], "priority": "p"},
+            {"name": "T", "files": ["b.py"], "priority": "p", "models": ["opus", "sonnet"]},
+        ],
+    }
+    labels = ["find:S:sonnet", "find:S:haiku", "find:T:opus", "find:T:sonnet"]
+    _, err, _ = _harness(
+        four, {lab + suf: "THROW" for lab in labels for suf in ("", ":retry")}, expect_fail=True
+    )
+    line = [x for x in err.splitlines() if "every finder seat returned nothing" in x][0]
+    assert "4 finder seat(s) over 2 slice(s)" in line, line
+    assert line.count(":retry rejected") == 3 and "(+1 more)" in line, line
+
+
+def test_one_returned_finder_keeps_the_ledger() -> None:
+    """W-b36e2a4a: only a pass where NO finder returned anything fails, counted as each finder settles. A seat that
+    returned but read nothing is failed, never null, so it keeps the ordinary ledger; so does a pass whose returned
+    seats sit in a slice a LATER stage dropped (both design critiques: a survivors-only count read 'nothing was
+    reviewed' while two finders had read their files)."""
+    out, _ = _run_ledger(_ARGS, _ONE_RETURNED)
+    assert out["dropped_seats"] == 2 and out["closable"] is False, out
+    two = {
+        **_ARGS,
+        "slices": [
+            {"name": "S", "files": ["a.py"], "priority": "p"},
+            {"name": "T", "files": ["b.py"], "priority": "p"},
+        ],
+    }
+    out, _ = _run_ledger(two, {"find:T:haiku": {**_FULL_READ, "files_read": ["b.py"]}})
+    assert out["dropped_seats"] == 3 and len(out["slices"]) == 2, out
+    # slice S's union stage throws on a null candidate (its seats returned); every seat of slice T is null
+    out, log = _run_ledger(two, _two_finders([None]))
+    assert out["dropped_slices"] == 1 and "every finder seat returned nothing" not in log, log
+
+
+def test_a_ledger_pass_reexecutes_every_claim_and_keeps_recorded_recorded() -> None:
+    """01M4PPW8D8 Q1 (the Opus + Fable panel agreed): a quiet round 1's closing pass re-executes every claim of the
+    seat's ledger, an earlier refutation included. Enforced, not only said: an echoed NOW_FALSE with no command or
+    output re-verifies nothing. A `recorded: true` claim is report-only: a candidate on it never reaches the refuter."""
+    led = {
+        **_ARGS,
+        "pass": 2,
+        "slices": [{**_ARGS["slices"][0], "models": ["sonnet"], "ledger": _LEDGER_ROW}],
+    }
+    _, _, prompts = _harness(led, _ONE_RETURNED)
+    p = prompts["find:S:sonnet"]
+    assert "EVERY claim in YOUR ledger is re-executed, an earlier refutation included" in p
+    assert "a claim refuted in an earlier pass and NOT in your ledger is closed (D-206)" in p
+    assert "re-run and never cited" in p
+    echo = {
+        **_FULL_READ,
+        "ledger_status": [{"id": "S-S1", "status": "NOW_FALSE", "command": "", "output": ""}],
+    }
+    out, _ = _run_ledger(led, {"find:S:sonnet": echo})
+    assert "ledger claim S-S1 not re-verified by any seat" in out["slices"][0]["open"], out[
+        "slices"
+    ][0]
+    rec = {
+        **led,
+        "slices": [{**led["slices"][0], "ledger": [{**_LEDGER_ROW[0], "recorded": True}]}],
+    }
+    seat = {
+        **_FULL_READ,
+        "candidates": [_cand("S-S1", 3)],
+        "ledger_status": [{"id": "S-S1", "status": "STILL_TRUE", "command": "c", "output": "o"}],
+    }
+    out, _, prompts = _harness(rec, {"find:S:sonnet": seat})
+    assert "REPORT ONLY" in prompts["find:S:sonnet"], "recorded claims are listed as report-only"
+    assert "refute:S" not in prompts and out["slices"][0]["verdicts"] == [], out["slices"][0]
+    assert out["closable"] is True, out["slices"][0]
+    assert out["slices"][0]["candidates"] == [] and [
+        c["id"] for c in out["slices"][0]["recorded"]
+    ] == ["S-S1"]
+    # an executed check may print nothing (a grep that finds no match): the command is the evidence (round 1, A-H2)
+    quiet = {
+        **_FULL_READ,
+        "ledger_status": [
+            {"id": "S-S1", "status": "NOW_FALSE", "command": "grep -c x a.py", "output": ""}
+        ],
+    }
+    out, _ = _run_ledger(led, {"find:S:sonnet": quiet})
+    assert out["closable"] is True, out["slices"][0]["open"]
+
+
+def test_a_recorded_candidate_never_shifts_another_seats_credit() -> None:
+    """Review round 1 (A-S1/B-S1): with a recorded candidate beside an ordinary one, the per-seat `confirmed` credit
+    zipped `verdicts` against a `candidates` list the recorded one was put back into, crediting the wrong seat."""
+    ledger = [
+        {**_LEDGER_ROW[0], "id": "S-L1", "recorded": True},
+        {**_LEDGER_ROW[0], "id": "S-L2", "line": 50},
+    ]
+    args = {**_ARGS, "pass": 2, "slices": [{**_ARGS["slices"][0], "ledger": ledger}]}
+    row = lambda i: {"id": i, "status": "STILL_TRUE", "command": "c", "output": "o"}  # noqa: E731
+    seats = {
+        "find:S:sonnet": {
+            **_FULL_READ,
+            "candidates": [_cand("S-L1", 3)],
+            "ledger_status": [row("S-L1")],
+        },
+        "find:S:haiku": {
+            **_FULL_READ,
+            "candidates": [_cand("S-L2", 50)],
+            "ledger_status": [row("S-L2")],
+        },
+        "refute:S": {
+            "verdicts": [{"id": "S-L2", "verdict": "confirmed", "command": "c", "output": "o"}]
+        },
+    }
+    out, _ = _run_ledger(args, seats)
+    s = out["slices"][0]
+    credit = {x["model"]: x["confirmed"] for x in s["seats"]}
+    assert credit == {"sonnet": 0, "haiku": 1}, credit
+    assert [c["id"] for c in s["candidates"]] == ["S-L2"] and len(s["verdicts"]) == 1, s
+
+
+def test_a_machinery_block_is_not_a_coverage_statement() -> None:
+    """Review round 1 (A-S2): bullet lines under a MACHINERY header read as coverage, so a seat whose notes were only
+    a MACHINERY block passed. MACHINERY is the notes' last part: everything from its first line on is not coverage."""
+    notes = "MACHINERY:\n- the guard refused a heredoc twice\n- node rejected --input-type"
+    out, _ = _run_ledger(
+        _ARGS, {"find:S:sonnet": {**_FULL_READ, "notes": notes}, "find:S:haiku": _FULL_READ}
+    )
+    seats = {x["model"]: x for x in out["slices"][0]["seats"]}
+    assert seats["sonnet"]["failed"] is True, seats["sonnet"]
+    ok = "read a.py and b.py whole\nMACHINERY: none"
+    out, _ = _run_ledger(
+        _ARGS, {"find:S:sonnet": {**_FULL_READ, "notes": ok}, "find:S:haiku": _FULL_READ}
+    )
+    assert all(not x["failed"] for x in out["slices"][0]["seats"]), out["slices"][0]["seats"]
+
+
+def test_the_args_comment_states_no_pass_ceiling() -> None:
+    """01M4PVPY8J: D-756 removed the pass ceiling from four command sources; the script's comment was the last copy."""
+    assert "pass: 1|2|3" not in _script() and "pass: 1, 2, 3, … (unbounded)" in _script()
+
+
+def test_every_seat_is_told_how_to_run_a_git_history_test() -> None:
+    """kaizen 01M4V37VFT (/fabrik-review row 1791910374): an archive carries no history, so a test that runs git log,
+    blame or rev-parse failed falsely, and the seat prompt named no route; it now names the catalogue's shared clone,
+    with its push URL disabled and the pins committed in it, and only a test reading the LIVE checkout's own refs is
+    reported unverifiable (both design critiques executed the clone)."""
+    _, _, prompts = _harness(
+        _ARGS, {"find:S:sonnet": {**_FULL_READ, "candidates": [_cand("S-S1", 3)]}}
+    )
+    for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
+        p = prompts[label]
+        assert "A test that reads git HISTORY (log, blame, rev-parse of an older commit)" in p, (
+            label
+        )
+        assert (
+            "git -C SCRATCH clone --shared --no-checkout" in p and "remote.origin.pushurl" in p
+        ), label
+        assert (
+            f"git -C SCRATCH/clone checkout {_ARGS['base_sha']}" in p
+            and "git -C SCRATCH/clone add -A" in p
+            and "commit -q --allow-empty -m pins" in p
+        ), label
+        assert "writes nothing to the shared" in p and "lands in the clone's own" in p, label
+        assert "only a test that reads the LIVE checkout's own branches" in p, label
+        assert "these being examples only: init, clone, add, commit" in p, (
+            label,
+            "a clone is a writing verb, in the -C form",
+        )
+        # kaizen 01M4VNJWES: a push to the source PATH bypasses pushurl, and a fetch run IN the live repo from
+        # the clone writes live refs — so the URL is named a tripwire, no push is allowed, and both verbs are writers
+        assert "a tripwire, not a guard: an explicit path or URL bypasses it" in p, label
+        assert "NEVER run `git push` in the clone, to origin or to any path or URL" in p, label
+        # review A-S3/A-H2: the verb list is a class, `config` in it (it rewrites the tripwire); A-S4: the
+        # read-only subcommands of remote and worktree stay legal reads
+        # review pass 2 A-H1: the verbs read as a closed list until the class says the names are examples
+        assert "ANY verb that changes its refs, index, tree, config or objects, these being examples only" in p, label
+        assert "push, config, branch, tag, merge, rebase" in p, label
+        assert "(`git worktree list` and `git remote -v` only read)" in p, label
+
+
+def test_no_seat_executes_an_unread_or_destructive_script() -> None:
+    """kaizen 01M4W2D1N8 (/fabrik-plan-review row 1791938982): four plan-review seats ran scripts/proof_run.py, which
+    has no argument parsing, to confirm what it does, and destroyed a live fixture. The rule kaizen put in
+    subagents-core.md and the agent house rules rides in the Workflow's own seat constants too, and the refuter's
+    "run it" names the exception, so a refuter handed such a check returns it unverified."""
+    _, _, prompts = _harness(
+        _ARGS, {"find:S:sonnet": {**_FULL_READ, "candidates": [_cand("S-S1", 3)]}}
+    )
+    for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
+        p = prompts[label]
+        assert "read a script before you EXECUTE it, its `--help` included" in p, label
+        assert (
+            "never execute one that deletes, deploys, provisions, writes outside SCRATCH or contacts a non-local host"
+            in p
+        ), label
+        assert "whatever binary does it" in p and "cite the lines and return that claim unverified" in p, label
+        # both B4 design critiques: every route that runs the script's code counts, and a test that runs one is read first
+        assert "executing includes importing it and calling a function, `runpy`, a test that runs it" in p, label
+        assert "read each script a test runs before the run" in p, label
+        assert "run a script file the read-before-execute rule allows as" in p, label
+    refute = prompts["refute:S"]
+    assert "A re-read is not execution — run it, unless the never-execute rule forbids the check" in refute
+    assert "the command is your read of the cited lines and the output is those lines" in refute
+    assert "(a check the never-execute rule forbids is the one exception, below)" in refute
+    # a later pass has no unverified status: the forbidden claim gets no row, so closeCheck keeps it open (fail closed)
+    args = {**_ARGS, "pass": 2, "slices": [{**_ARGS["slices"][0], "ledger": _LEDGER_ROW}]}
+    _, _, later = _harness(args, {"find:S:sonnet": _FULL_READ, "find:S:haiku": _FULL_READ})
+    assert "a claim whose check the never-execute rule forbids gets NO ledger_status row" in later["find:S:sonnet"]
+    # review B4 r1 A-S3: and the no-row route really fails closed — both seats leave the forbidden claim out
+    notes = {**_FULL_READ, "notes": "unverified: never-execute rule, lines 840-868", "ledger_status": []}
+    ledger, _ = _run_ledger(args, {"find:S:sonnet": notes, "find:S:haiku": notes})
+    s = ledger["slices"][0]
+    assert not s["closable"] and "ledger claim S-S1 not re-verified by any seat" in s["open"], s["open"]
+
+
+def test_a_later_pass_seat_is_told_to_read_its_whole_slice() -> None:
+    """kaizen 01M4VNPMAZ (/fabrik-review row 1791927763): the files_read gap check runs on every pass, but a
+    ledger-only seat read only its claims' files — 296 of 2383 later-pass slices on the box logged a gap and stayed
+    open. The later-pass head now says to open every slice file, for a NEW defect the fix introduced, while still
+    raising nothing outside the ledger but a defect inside the fix hunks or the break those hunks created in a
+    reader of what they changed (D-230, W-7b5a6a17); the pass-1 head is unchanged."""
+    args = {**_ARGS, "pass": 2, "slices": [{**_ARGS["slices"][0], "ledger": _LEDGER_ROW}]}
+    _, _, prompts = _harness(args, {"find:S:sonnet": _FULL_READ, "find:S:haiku": _FULL_READ})
+    for label in ("find:S:sonnet", "find:S:haiku"):
+        p = prompts[label]
+        assert "Open EVERY slice file and list it in files_read on this pass too" in p, label
+        assert "a fix hunk can sit in a file no claim names" in p, label
+        # review A-S2: a NEW candidate is bounded by the fix hunks (term-edit.md, D-230), quoted, so the
+        # sentence asking for whole-slice reads cannot read as licence to raise one-hop defects that would count
+        assert "a defect of a line INSIDE the previous round's fix hunks" in p, label
+        assert "is never raised — name it in notes with a destination (D-230)" in p, label
+        # W-7b5a6a17 (kaizen mail 01M5A3B3V1): a reader the fix's hunks broke counts — the corpus homes' wording
+        assert (
+            "or the break those hunks created in a reader of what they changed (such as a returned value or type, "
+            "a key or path form, a field, a signature, a raised exception, an exit code, a printed line, or a "
+            "heading or term another section cites), shown by that reader passing on the previous round's pin "
+            "and failing on this one; a defect one hop out that the hunks did not create (a caller, a callee, "
+            "a neighbouring section, a pre-existing claim) is never raised"
+        ) in p, label
+        assert "a candidate outside the ledger is RECORDED with a destination, never counted" not in p, label
+        assert "a slice file no seat lists keeps the slice open" in p, label
+    _, _, first = _harness(_ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku": _FULL_READ})
+    assert "on this pass too" not in first["find:S:sonnet"], "pass 1 already reads the whole slice"
+
+
+# ── Seat scratch under the run's RUN-SCRATCH folder (mail 01M4Z8X09Y, W-41c1ec56) ──────────────────
+
+_SEAT_DIR = re.compile(r"(?:SCRATCH: |COPY under )(/s/[^ ]+/) ")
+
+
+def _seat_dirs(prompts: dict) -> dict:
+    """The scratch folder each seat was handed, by label (the finder's `SCRATCH:` line, the refuter's
+    `COPY under`)."""
+    return {label: m.group(1) for label, text in prompts.items() if (m := _SEAT_DIR.search(text))}
+
+
+def test_every_seat_scratch_dir_is_a_tagged_seat_folder_under_scratch_dir() -> None:
+    """`round`'s size warning reads every top-level child of the run folder (command_run.py
+    `_seat_size_lines`, W-3c60b7db), and the run folder is what `scratch_dir` names. A finder, a refuter and both
+    retries each get a `seat-p<pass>-<digest8>-` child of `scratch_dir`, never a bare `<slice>-<model>/`."""
+    seats = {
+        **_two_finders([_cand("S-S1", 3), _cand("S-S2", 30)]),
+        "refute:S": {"verdicts": [_verdict("S-S1", "confirmed")]},
+        "refute:S:retry": {"verdicts": [_verdict("S-S2")]},
+    }
+    _, _, prompts = _harness({**_ARGS, "digest": "0123456789abcdef"}, seats)
+    dirs = _seat_dirs(prompts)
+    assert set(dirs) >= {"find:S:sonnet", "find:S:haiku", "refute:S", "refute:S:retry"}, dirs
+    for label, d in dirs.items():
+        assert d.startswith("/s/seat-p1-01234567-") and d.count("/") == 3, (label, d)
+    _, _, prompts = _harness(_ARGS, {"find:S:sonnet": _FULL_READ, "find:S:haiku:retry": _FULL_READ})
+    assert _seat_dirs(prompts)["find:S:haiku:retry"] == "/s/seat-p1-0-S-haiku-retry/"
+
+
+def test_two_passes_never_share_a_seat_folder() -> None:
+    """Opus critique 1: with one `scratch_dir` per run, a second pass reusing pass 1's folder makes the
+    seat's `cp -r <pin> SCRATCH/arch` nest the copy under the stale one. The pass and the pin digest are in
+    the name, so pass 2, and a pass re-launched on a moved pin, get folders of their own."""
+    seats = _two_finders([])
+    _, _, one = _harness({**_ARGS, "digest": "aaaaaaaa"}, seats)
+    _, _, relaunch = _harness({**_ARGS, "digest": "bbbbbbbb"}, seats)
+    _, _, two = _harness({**_ARGS, "pass": 2, "digest": "aaaaaaaa"}, seats)
+    a, b, c = (set(_seat_dirs(p).values()) for p in (one, relaunch, two))
+    assert a and b and c, (a, b, c)
+    assert not (a & b) and not (a & c) and not (b & c), (a, b, c)
+
+
+RUN_SCRATCH_CLAUSE = (
+    "`scratch_dir` is this run's `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space "
+    "on the line `start` "
+    "printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed "
+    "`none` or nothing"
+)
+
+
+def test_each_review_command_carries_the_run_scratch_clause() -> None:
+    """Mail 01M4Z8X09Y: the four partitioned review commands passed `scratch_dir` with no word on which
+    folder, so seats landed loose in the session scratchpad. Each carries the one clause verbatim (Fable
+    critique 3: a proximity test passes on any sentence holding both tokens)."""
+    for name in ("fabrik-review", "fabrik-review-scoped", "fabrik-plan-review", "fabrik-spec-review"):
+        body = (ROOT / "commands" / "_sources" / f"{name}.md").read_text(encoding="utf-8")
+        flat = " ".join(body.split())
+        assert flat.count(RUN_SCRATCH_CLAUSE) == 1, name
+
+
+SCRATCH_HOME_CLAUSE = (
+    "(`pins_dir`, and `<scratch>` in this command's `review_loop_ledger.py` calls, go under the "
+    "run's `SCRATCH:` folder — the path on the line `start` printed that begins `SCRATCH:`, kept on disk "
+    "across a WSL shutdown (D-836), so an interrupted pass resumes from it — or the session "
+    "scratchpad when `start` printed no line that begins `SCRATCH:`"
+)
+REVIEW_LOOP_COMMANDS = (
+    "fabrik-review",
+    "fabrik-review-scoped",
+    "fabrik-plan-review",
+    "fabrik-spec-review",
+)
+
+
+def test_each_review_command_names_the_durable_home_of_pins_and_pass_files() -> None:
+    """Mail 01M4ZR1B2C (row 1791906916): the four commands named `scratch_dir` but left `pins_dir` and
+    `<scratch>/pass-<n>.json` homeless, so a lead put them under /tmp and a WSL shutdown lost the pass.
+    Each now names the run's durable `SCRATCH:` folder (D-836), once, and review-scoped's pin step,
+    which runs before its launch step, names it where the first pin is made."""
+    for name in REVIEW_LOOP_COMMANDS:
+        body = (ROOT / "commands" / "_sources" / f"{name}.md").read_text(encoding="utf-8")
+        flat = " ".join(body.split())
+        assert flat.count(SCRATCH_HOME_CLAUSE) == 1, name
+    scoped = ROOT / "commands" / "_sources" / "fabrik-review-scoped.md"
+    flat = " ".join(scoped.read_text(encoding="utf-8").split())
+    assert "--pins-dir <a NEW pins_dir under the run's `SCRATCH:` folder>" in flat
+
+
+def test_every_scratch_mention_in_the_review_loops_is_the_folder_or_the_line_selector() -> None:
+    """W-49adc7a7: `start` prints `SCRATCH: <durable>` and `RUN-SCRATCH: <disposable>` on separate lines, so a
+    needle like "after `SCRATCH: `" or "no `SCRATCH:` line" also matches the RUN-SCRATCH: line. Every mention of
+    `SCRATCH:` not preceded by `RUN-` in the review-loop sources is either the folder noun ("the run's `SCRATCH:`
+    folder") or the line selector ("begins `SCRATCH:`"). Mutants: "the text after `SCRATCH: `", "printed no
+    `SCRATCH:` line", "contains `SCRATCH:`" — each fails."""
+    names = REVIEW_LOOP_COMMANDS + ("fabrik-repo-review", "fabrik-deploy-plan-review")
+    for name in names:
+        flat = " ".join((ROOT / "commands" / "_sources" / f"{name}.md").read_text(encoding="utf-8").split())
+        mentions = list(re.finditer(r"(?<!RUN-)`SCRATCH: ?`", flat))
+        assert mentions, name
+        for m in mentions:
+            before = flat[max(0, m.start() - 8) : m.start()]
+            assert before.endswith(("run's ", "begins ")), (name, flat[max(0, m.start() - 60) : m.end() + 20])
+
+
+def test_term_edit_states_why_the_closing_seat_is_never_a_fresh_whole_reader() -> None:
+    """Mail 01M50FD9YE (D-911): three agents asked for a fresh whole re-read in one week because the
+    fragment stated D-335 without its reason; the reason now sits at the rule, quoted from § 4.7."""
+    fragment = ROOT / "commands" / "_fragments" / "term-edit.md"
+    body = " ".join(fragment.read_text(encoding="utf-8").split())
+    reason = "never a fresh whole-artifact reader, because that reader is how the loop"
+    assert body.count(reason) == 1
+    source = ROOT / "docs" / "reference" / "command-loop-performance.md"
+    quote = (
+        'one seat re-reads the whole artifact, the brief becomes "find anything", fixes are written '
+        "from recall so they seed the next round"
+    )
+    assert quote in body
+    assert quote in " ".join(source.read_text(encoding="utf-8").split())
+
+
+def test_seat_prompts_carry_the_gate_layout() -> None:
+    """W-4ad7ff2d (kaizen row 1792192144): a seat asked to run the completion gate had no layout for it. The gate
+    grades its WORKING DIRECTORY and scopes itself through git (`PROJECT_ROOT = Path.cwd()`), so run from the live
+    repo it graded the live tree, and a bare run auto-fixes the live checkout. Every finder and refuter prompt now
+    says: run it only inside the pinned shared clone, `--check`, with the directory changed inside the program,
+    and name a result resting on the synced set UNPINNED. Read from the BUILT prompts, never the source text."""
+    _, prompts = _two_seat_union("a.py")
+    for label in ("find:S:sonnet", "find:S:haiku", "refute:S"):
+        p = prompts[label]
+        assert "scripts/final_gate.py" in p and "--check" in p, label
+        assert 'os.chdir("SCRATCH/clone")' in p, label
+        assert "never from the live repo" in p and "UNPINNED" in p, label
+        assert "skipped_checks" in p and "setup-error" in p, label
+        # the two scopes the gate reads (critiques, executed): the index, and the range against @{upstream}
+        assert "--set-upstream-to=base pins" in p and "NEVER commit the pins" in p, label
+        assert "Run the gate TWICE" in p and "MANIFEST.md5" in p, label
+        # strings only GATE_PINS carries (review pass 1: two above also occur in PIN_IMPORT)
+        assert 'KAIZEN_EVENTS_DIR"]="SCRATCH/events"' in p and '"--check","--json"' in p, label
+        assert "> SCRATCH/gate-base.json" in p and "> SCRATCH/gate-pins.json" in p, label
+        assert "a pin-set row" in p and "WITHOUT any of the pytest recipe's guards" in p, label
+        assert "then `failures`, `warnings`, `skipped_checks` and `advisory`" in p, label
+        # review pass 2: each remaining rule a seat acts on, pinned by its own words
+        assert "a check whose script is missing is a green row reported only in `warnings`" in p, label
+        assert "a diff-sensed skip (nothing in its scope changed) is scope" in p, label
+        assert "the verdict is some 25 KB" in p and "launch both runs with `--lean`" in p, label
+        assert "after copying the gitignored inputs, look for that arming" in p, label
+        # review pass 3: the bare-base run has an EMPTY diff, which arms a CI-named pytest leg on its own
+        assert "treat that pair as armed whatever the diff" in p, label
+        assert "`tests/` plus a CI file naming pytest" in p and "on an empty diff" in p, label
+        assert "${" not in p, f"{label}: an uninterpolated template expression"
+
+
+# kaizen 01M5BMDT08 (rows 1792409279, 1792412480): seats lost rounds to a tracked symlink that dangled in a PART
+# of the tree they copied. `cp -rL` was proposed and REJECTED on measurement: a followed link is a frozen base copy
+# that the pin overlay never reaches, so a seat running the link path runs the base bytes.
+_LINK_RULE = (
+    # review pass 1 (S-H1): the two finders read the rule's reach over a base-pin seat differently — scope it
+    "Without the lead's base copy (a seat with one skipped these archive steps), a tracked symlink needs",
+    "run `git ls-tree -r 0` as its own second command, redirected into a file under SCRATCH",
+    "add to ROOTS the top-level path each link under a listed root points into, repeating for every root that adds",
+    "delete from SCRATCH/arch every link whose target is absolute or climbs out of the repo",
+    "so it resolves beside SCRATCH/arch, maybe into a live tree — and name it UNPINNED",
+)
+
+
+def _finder_and_refuter_prompts(args: dict) -> dict:
+    """The rendered prompts of both shell finders and the refuter (one candidate makes the refuter run)."""
+    _, _, prompts = _harness(
+        args,
+        {"find:S:sonnet": {"files_read": ["a.py", "b.py"], "notes": "n", "candidates": [_cand("S-S1", 3)]}},
+    )
+    return {k: prompts[k] for k in ("find:S:sonnet", "find:S:haiku", "refute:S")}
+
+
+def test_base_pin_copy_is_whole_and_keeps_links() -> None:
+    """The base copy is the WHOLE directory by plain `cp -r` (links stay links), and a dangling or absent tracked
+    path in it is the base's or the pin's SKIP, never a red of the change."""
+    for label, p in _finder_and_refuter_prompts({**_ARGS, "base_pin_dir": "/bp/base"}).items():
+        assert "Copy the WHOLE directory with plain `cp -r`, never a part of it and never with `-L`" in p, label
+        assert "a followed link is a frozen base copy the pin overlay no longer reaches" in p, label
+        assert "a tracked path missing from it is a member the lead's `pin --base` SKIPPED" in p, label
+        # review pass 1 (S-s1): the seat never receives `base_skipped`, so the prompt names a check it can run
+        assert "`git ls-tree 0 -- <that path>`, its own command, shows it as mode 120000" in p, label
+        assert "cp -rL" not in p and "cp -L " not in p, label
+
+
+def test_archive_recipe_carries_the_tracked_link_rule() -> None:
+    """Without a base pin a seat archives ROOTS: a link archived without its target root dangles, and tar keeps an
+    absolute or escaping link that `pin --base` would SKIP (both critique seats executed it). PYTEST_PINS archives
+    its own literal list, so it points at the same rule."""
+    for label, p in _finder_and_refuter_prompts(_ARGS).items():
+        for needed in _LINK_RULE:
+            assert needed in p, (label, needed)
+        assert "the tracked-link rule above applies to this list too" in p, label
+
+
+def _pinned_link_tree(tmp: Path, *, link_becomes_file: bool) -> tuple[Path, Path]:
+    """A real `pin --base` over a repo tracking `scripts/inrepo.py -> ../templates/t.py`. The change either edits
+    the link's TARGET or turns the link itself into a regular file; returns (pins_dir, base_pin_dir)."""
+    repo = tmp / "repo"
+    (repo / "scripts").mkdir(parents=True)
+    (repo / "templates").mkdir()
+    (repo / "templates" / "t.py").write_text("print('template')\n")
+    (repo / "scripts" / "inrepo.py").symlink_to("../templates/t.py")
+    env = {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null", "PATH": "/usr/bin:/bin"}
+    for argv in (["init", "-q"], ["add", "-A"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "b"]):
+        subprocess.run(["git", *argv], cwd=repo, check=True, env=env, capture_output=True)
+    if link_becomes_file:
+        (repo / "scripts" / "inrepo.py").unlink()
+        (repo / "scripts" / "inrepo.py").write_text("print('NEWFILE')\n")
+        pinned = "scripts/inrepo.py"
+    else:
+        (repo / "templates" / "t.py").write_text("print('PINNED')\n")
+        pinned = "templates/t.py"
+    pins = tmp / "pins"
+    got = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "review_loop_ledger.py"), "pin", "--pins-dir", str(pins)]
+        + ["--base", "HEAD", pinned],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert got.returncode == 0, got.stderr[-800:]
+    return pins, Path(json.loads(got.stdout.splitlines()[-1])["base_pin_dir"])
+
+
+def _run_the_rendered_copy_and_overlay(tmp: Path, pins: Path, base: Path) -> Path:
+    """EXECUTE what a finder's prompt tells it to run: BASE_PIN's copy command, its chmod, then the overlay
+    program — each lifted from the rendered prompt, SCRATCH bound to a tmp dir. Returns SCRATCH/arch."""
+    p = _finder_and_refuter_prompts({**_ARGS, "base_pin_dir": str(base), "pins_dir": str(pins)})["find:S:sonnet"]
+    scratch = tmp / "scratch"
+    scratch.mkdir()
+    copy = re.search(r"run `(cp [^`]+ SCRATCH/arch)` with SCRATCH/arch not yet created", p)
+    program = re.search(r"with ONE program: `python -P -B -c '(.+?)'`", p)
+    assert copy and program, p[:600]
+
+    def bind(text: str) -> str:
+        return text.replace("SCRATCH", str(scratch))
+
+    subprocess.run(bind(copy.group(1)).split(), check=False, capture_output=True)
+    subprocess.run(["chmod", "-R", "u+w", str(scratch / "arch")], check=True)
+    run = subprocess.run(
+        [sys.executable, "-P", "-B", "-c", bind(program.group(1))],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert run.returncode == 0 and "md5 mismatch []" in run.stdout, (run.stdout, run.stderr[-600:])
+    return scratch / "arch"
+
+
+def test_base_pin_copy_overlays_through_a_tracked_link(tmp_path: Path) -> None:
+    """A pinned link TARGET reaches the link path in the seat's copy — the property `cp -rL` breaks (red on a
+    `-rL` recipe: the link becomes a frozen file holding the base bytes)."""
+    pins, base = _pinned_link_tree(tmp_path, link_becomes_file=False)
+    arch = _run_the_rendered_copy_and_overlay(tmp_path, pins, base)
+    assert (arch / "scripts" / "inrepo.py").is_symlink()
+    assert (arch / "scripts" / "inrepo.py").read_text() == "print('PINNED')\n"
+
+
+def test_overlay_replaces_a_link_the_change_made_a_file(tmp_path: Path) -> None:
+    """When the change turns a tracked link into a file, the overlay replaces the link — it never writes through
+    it into the link's target, which the change did not touch (Opus critique 1: the md5 check still passed)."""
+    pins, base = _pinned_link_tree(tmp_path, link_becomes_file=True)
+    arch = _run_the_rendered_copy_and_overlay(tmp_path, pins, base)
+    assert not (arch / "scripts" / "inrepo.py").is_symlink()
+    assert (arch / "scripts" / "inrepo.py").read_text() == "print('NEWFILE')\n"
+    assert (arch / "templates" / "t.py").read_text() == "print('template')\n"
+
+
+# ---- W-b976638f: the `stage` verb builds the tree the rendered recipe builds ----
+
+
+def _pinned_parent_link_tree(tmp: Path) -> tuple[Path, Path]:
+    """A tracked directory link `lib -> src/lib` holding x.py and y.py; the change edits x.py through the link."""
+    repo = tmp / "repo"
+    (repo / "src" / "lib").mkdir(parents=True)
+    (repo / "src" / "lib" / "x.py").write_text("X0\n")
+    (repo / "src" / "lib" / "y.py").write_text("Y0\n")
+    (repo / "lib").symlink_to("src/lib")
+    env = {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null", "PATH": "/usr/bin:/bin"}
+    for argv in (["init", "-q"], ["add", "-A"], ["-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "b"]):
+        subprocess.run(["git", *argv], cwd=repo, check=True, env=env, capture_output=True)
+    (repo / "src" / "lib" / "x.py").write_text("XP\n")
+    pins = tmp / "pins"
+    got = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "review_loop_ledger.py"), "pin", "--pins-dir", str(pins)]
+        + ["--base", "HEAD", "lib/x.py"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert got.returncode == 0, got.stderr[-800:]
+    return pins, Path(json.loads(got.stdout.splitlines()[-1])["base_pin_dir"])
+
+
+def _unlock_tree(top: Path) -> None:
+    for d, _, names in os.walk(top):
+        Path(d).chmod(0o755)
+        for n in names:
+            if not (Path(d) / n).is_symlink():
+                (Path(d) / n).chmod(0o644)
+
+
+def _tree_shape(top: Path) -> dict[str, tuple[str, str]]:
+    """Every path under `top`: a link by its target text, a file by its bytes, a directory by its kind."""
+    shape: dict[str, tuple[str, str]] = {}
+    for d, dirs, names in os.walk(top):
+        for n in dirs + names:
+            p = Path(d) / n
+            rel = str(p.relative_to(top))
+            if p.is_symlink():
+                shape[rel] = ("link", os.readlink(p))
+            elif p.is_dir():
+                shape[rel] = ("dir", "")
+            else:
+                shape[rel] = ("file", p.read_text())
+    return shape
+
+
+def _run_stage(tmp: Path, pins: Path) -> dict:
+    (tmp / "stage").mkdir()
+    got = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "review_loop_ledger.py"), "stage", "--pins-dir", str(pins)]
+        + ["--out", str(tmp / "stage" / "arch")],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+        cwd=str(tmp),
+    )
+    assert got.returncode == 0, got.stderr[-800:]
+    return json.loads(got.stdout.splitlines()[-1])
+
+
+@pytest.mark.parametrize("shape", ["link-target-pinned", "link-made-a-file", "parent-link"])
+def test_stage_builds_the_recipes_tree(tmp_path: Path, shape: str) -> None:
+    """EXECUTE both: the rendered recipe's copy, chmod and overlay program, and `stage` — on the same pins, the two
+    trees are path-for-path identical (links by target, files by bytes). The parent-link shape is the one both design
+    critiques executed: the recipe writes through an in-tree directory link and keeps its other files."""
+    if shape == "parent-link":
+        pins, base = _pinned_parent_link_tree(tmp_path)
+    else:
+        pins, base = _pinned_link_tree(tmp_path, link_becomes_file=shape == "link-made-a-file")
+    recipe = _run_the_rendered_copy_and_overlay(tmp_path, pins, base)
+    doc = _run_stage(tmp_path, pins)
+    staged = Path(doc["arch"])
+    assert doc["source"] == "base-copy", doc
+    assert _tree_shape(staged) == _tree_shape(recipe), shape
+    if shape == "parent-link":
+        assert _tree_shape(staged)["src/lib/y.py"] == ("file", "Y0\n")
+    # the archive route (no base copy beside the pins) builds the same tree (review pass 1, B-S4/B-H3)
+    plain = tmp_path / "plain"
+    manifest = json.loads((pins / "MANIFEST.json").read_text())
+    got = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "review_loop_ledger.py"), "pin", "--pins-dir", str(plain)]
+        + ["--base", manifest["base_sha"], *manifest["files"]],
+        cwd=manifest["root"],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert got.returncode == 0, got.stderr[-800:]
+    _unlock_tree(Path(f"{plain}.base"))
+    shutil.rmtree(f"{plain}.base")
+    (tmp_path / "archived").mkdir()
+    arch = tmp_path / "archived" / "arch"
+    got = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "review_loop_ledger.py"), "stage", "--pins-dir", str(plain)]
+        + ["--out", str(arch)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+        cwd=str(tmp_path),
+    )
+    assert got.returncode == 0, got.stderr[-800:]
+    assert json.loads(got.stdout.splitlines()[-1])["source"] == "archive"
+    assert _tree_shape(arch) == _tree_shape(recipe), shape
+
+
+def test_stage_launcher_matches_the_recipe(tmp_path: Path) -> None:
+    """The `pytest` line stage prints is PYTEST_PINS's launcher program with SCRATCH bound — byte-equal, so the two
+    copies cannot drift — and its python is the repo's .venv one when the pinned repo has it."""
+    pins, _ = _pinned_link_tree(tmp_path, link_becomes_file=False)
+    p = _finder_and_refuter_prompts({**_ARGS, "pins_dir": str(pins)})["find:S:sonnet"]
+    m = re.search(r"`python -P -B -c '(import os,site,sys; os\.chdir\(\"SCRATCH/arch\"\).+?)' <pytest args>`", p)
+    assert m, "the PYTEST_PINS launcher moved"
+    doc = _run_stage(tmp_path, pins)
+    scratch = str(tmp_path / "stage")
+    python, _, rest = doc["pytest"].partition(" -P -B -c '")
+    assert rest == m.group(1).replace("SCRATCH", scratch) + "' <pytest args>", (rest, m.group(1))
+    assert python == sys.executable  # the fixture repo has no .venv
+
+
+def test_prompts_point_at_the_stage_verb() -> None:
+    """Every prompt carrying the recipe names the verb once, with the pins dir filled, BEFORE the archive steps,
+    which stay whole as its fallback."""
+    for label, p in _finder_and_refuter_prompts({**_ARGS, "pins_dir": "/pp"}).items():
+        cmd = "`python3 -P -B /opt/fabrik/scripts/review_loop_ledger.py stage --pins-dir /pp --out SCRATCH/arch`"
+        assert p.count("ONE COMMAND STAGES THE TREE") == 1 and cmd in p, label
+        assert p.index(cmd) < p.index("git archive -o SCRATCH/arch.tar 0 ROOTS"), label
+        assert "on any other refusal (exit 2, the reason on stderr) or `invalid choice: 'stage'`" in p, label
+        # review pass 1: a moved pin stops the seat (B-S5); skipped members are UNPINNED (B-S2); PYTEST_PINS's
+        # archive is skipped too (B-S3); the verb's one deletion is inside SCRATCH (B-S1)
+        assert "On a refusal about the pins dir itself — PIN MOVED, UNPINNED," in p and "stage nothing by hand" in p, label
+        # review pass 2, B-H8: every refusal _read_pins raises is a stop, so the manual overlay never runs on them
+        for why in ("an unsafe path", "no pinned files", "is not JSON", "does not list the files MANIFEST.json names"):
+            assert why in p, (label, why)
+        assert "name it UNPINNED, never a red of the change" in p, label
+        assert "PYTEST_PINS's archive of the test tree and its overlay too" in p, label
+        # review pass 2, B-S6: the verb deletes more than its refused tree, all of it inside SCRATCH
+        assert "every deletion it makes is inside SCRATCH" in p and "its own tar under SCRATCH/tmp" in p, label

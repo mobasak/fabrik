@@ -14,31 +14,31 @@ interface Message {
 interface ChatUIProps {
   endpoint: string;
   placeholder?: string;
-  systemPrompt?: string;
   className?: string;
+}
+
+/** Fill the pending assistant message with the finished reply, or drop it when nothing came back
+ * (a refusal or an error shows its message instead, never an empty reply). */
+export function settleReply(prev: Message[], fullText: string): Message[] {
+  const last = prev[prev.length - 1];
+  if (last?.role !== "assistant") return prev;
+  if (!fullText) return prev.slice(0, -1);
+  return [...prev.slice(0, -1), { ...last, content: fullText }];
 }
 
 export function ChatUI({
   endpoint,
   placeholder = "Type a message...",
-  systemPrompt,
   className,
 }: ChatUIProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { isStreaming, streamText, toolCalls, startStream } = useSSEStream({
-    onComplete: (fullText) => {
-      setMessages((prev) => {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last?.role === "assistant") {
-          last.content = fullText;
-        }
-        return updated;
-      });
-    },
+    onComplete: (fullText) => setMessages((prev) => settleReply(prev, fullText)),
+    onError: (message) => setError(message),
   });
 
   useEffect(() => {
@@ -63,16 +63,15 @@ export function ChatUI({
 
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
     setInput("");
+    setError(null);
 
-    await startStream(endpoint, {
-      message: userMessage.content,
-      systemPrompt,
-    });
+    // Posts only the message, to the endpoint its caller passes (the backend's /api/v1/chat).
+    await startStream(endpoint, { message: userMessage.content });
   };
 
   return (
     <div className={cn("flex flex-col h-[600px] rounded-2xl border", className)}>
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4" aria-live="polite" aria-busy={isStreaming}>
         {messages.length === 0 && (
           <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
             Start a conversation
@@ -123,6 +122,12 @@ export function ChatUI({
           );
         })}
 
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -130,6 +135,7 @@ export function ChatUI({
         <div className="flex gap-2">
           <input
             type="text"
+            aria-label="Message"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder={placeholder}
@@ -138,6 +144,7 @@ export function ChatUI({
           />
           <button
             type="submit"
+            aria-label="Send message"
             disabled={isStreaming || !input.trim()}
             className="rounded-xl bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T00:53:31.755491Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-10f1158d",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — red mesh test hides rotation regressions",
+  "status": "open",
+  "title": "mesh-test A0a ('default-ON rotation did not fire with a healthy sibling') fails on the untouched baseline too; find why and fix the test or the rotation path"
+}

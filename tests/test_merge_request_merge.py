@@ -167,9 +167,10 @@ class World:
         ack: str | None = None,
         item: str = "none",
         branch: str = "feat",
+        base: str = "master",
     ) -> str:
         body = (
-            f"branch: {branch}\nhead: {head}\nbase: master\nitem: {item}\n"
+            f"branch: {branch}\nhead: {head}\nbase: {base}\nitem: {item}\n"
             f"review: {self.tmp / 'review.md'}\ndoorbell: none\nsent: 2026-10-01T00:00:00Z\n"
             "requester: fleet\n\nWHAT — merge request.\n"
         )
@@ -270,7 +271,7 @@ def test_merge_lands_one_merge_commit_and_keeps_sibling_ledger_wip(world):
 
     new = world.base()
     assert _git(world.main, "rev-parse", f"{new}^1", f"{new}^2").split() == [old, head]
-    message = _git(world.main, "log", "-1", "--format=%B", new)
+    message = _git(world.main, "log", "-1", "--format=%s", new)  # Agent-Context repeats the phrase
     assert f"request {msg_id}, item W-0123abcd" in message
     assert world.origin() == new
     # sibling WIP byte-for-byte on top of the merged content; nothing staged
@@ -858,6 +859,36 @@ def _shadow_branch(world, monkeypatch, test=_SHADOW_TEST):
     return head, mark
 
 
+def test_owner_tests_run_with_the_merge_check_signal_in_both_legs(world, monkeypatch):
+    """W-c3177526: the owner tests run BEFORE the merge's render reaches ~/.claude, so both legs tell
+    them so — FABRIK_MERGE_CHECK=1, which the hub conftest reads to skip its live-box tests. The
+    caller's own value is removed first: this grader itself runs inside merge checks."""
+    monkeypatch.delenv("FABRIK_MERGE_CHECK", raising=False)
+    owner = world.tmp / "owner-leg"
+    world.write(
+        ".fabrik/merge-tests",
+        f"python3 -c \"import os; open({str(owner)!r}, 'w').write(os.environ.get('FABRIK_MERGE_CHECK', 'unset'))\"\n",
+    )
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    world.send(world.branch({"x.txt": "x\n"}))
+    assert world.run("merge") == 0
+    assert owner.read_text() == "1"
+
+    world.write(".fabrik/merge-tests", "")
+    world.commit_main("no owner tests", ".fabrik/merge-tests")
+    fallback = world.tmp / "fallback-leg"
+    monkeypatch.setenv("SIGNAL_MARK", str(fallback))
+    test = (
+        "import os, pathlib\n"
+        "def test_signal():\n"
+        "    pathlib.Path(os.environ['SIGNAL_MARK']).write_text(os.environ.get('FABRIK_MERGE_CHECK', 'unset'))\n"
+    )
+    world.send(world.branch({"tests/test_signal.py": test}))
+    assert world.run("merge") == 0
+    assert fallback.read_text() == "1"
+    assert os.environ.get("FABRIK_MERGE_CHECK") is None
+
+
 def test_fallback_tests_import_a_stdlib_named_src_package_without_shadowing(world, monkeypatch):
     head, mark = _shadow_branch(world, monkeypatch)
     msg_id = world.send(head)
@@ -1044,6 +1075,147 @@ def test_a_reply_timeout_after_the_cas_is_partial(world, monkeypatch):
     monkeypatch.setattr(world.mod, "_mail_cli", flaky)
     assert world.run("merge") == 4
     assert world.origin() == world.base() == world.record(msg_id)["merge_sha"]
+
+
+# W-d0bbb94d — an unreachable remote defers (step a) or stays PARTIAL (catch-up), never refuses
+def _origin_gone(world) -> str:
+    url = _git(world.main, "remote", "get-url", "origin")
+    _git(world.main, "remote", "set-url", "origin", str(world.tmp / "gone.git"))
+    return url
+
+
+def _pid_gone(world, msg_id: str) -> None:
+    path = world.main / ".git" / "fabrik-merge" / f"{msg_id}.json"
+    rec = json.loads(path.read_text())
+    rec.update(pid=_dead_pid(), start="123")
+    path.write_text(json.dumps(rec))
+
+
+def test_an_unreachable_remote_defers_and_replies_nothing(world, capsys):
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    _origin_gone(world)
+    old = world.base()
+
+    assert world.run("merge") == 1
+
+    rec = world.record(msg_id)
+    assert rec["phase"] == "claimed" and rec.get("outcome") != "refused", rec
+    assert "(a) preflight" in rec["deferred"]
+    assert world.replies(msg_id) == {} and "disposition:" not in world.archived(msg_id)
+    assert world.base() == old
+    assert f"DEFERRED {msg_id}" in capsys.readouterr().err
+
+
+def test_a_deferred_request_merges_on_the_next_run(world):
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    url = _origin_gone(world)
+    assert world.run("merge") == 1
+    _git(world.main, "remote", "set-url", "origin", url)
+    _pid_gone(world, msg_id)
+
+    assert world.run("merge") == 0
+
+    rec = world.record(msg_id)
+    assert rec["phase"] == "replied" and "deferred" not in rec, rec
+    assert "outcome: merged" in world.replies(msg_id)["fleet"]
+
+
+def test_a_fetch_timeout_defers(world, monkeypatch):
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    real = world.mod._run
+
+    def slow(argv, *a, **kw):
+        if argv[:2] == ["git", "fetch"]:
+            raise world.mod.TimedOutError("git fetch -q timed out after 60s")
+        return real(argv, *a, **kw)
+
+    monkeypatch.setattr(world.mod, "_run", slow)
+    assert world.run("merge") == 1
+    rec = world.record(msg_id)
+    assert rec["phase"] == "claimed" and "timed out" in rec["deferred"], rec
+    assert world.replies(msg_id) == {}
+
+
+def test_a_missing_remote_ref_still_refuses(world):
+    _git(world.main, "branch", "rel")  # a local base the reachable origin does not have
+    msg_id = world.send(world.branch({"x.txt": "x\n"}), base="rel")
+
+    assert world.run("merge") == 1
+
+    rec = world.record(msg_id)
+    assert rec["phase"] == "replied" and rec["outcome"] == "refused", rec
+    assert "deferred" not in rec
+    assert "outcome: refused" in world.replies(msg_id)["fleet"]
+
+
+def test_a_deferral_claims_nothing_from_the_inbox(world):
+    first = world.send(world.branch({"x.txt": "x\n"}))
+    head2 = world.branch({"y.txt": "y\n"})  # pushed while origin is still reachable
+    _origin_gone(world)
+    assert world.run("merge") == 1
+    _pid_gone(world, first)
+    second = world.send(head2)
+
+    assert world.run("merge") == 1
+
+    assert world.record(first)["phase"] == "claimed"
+    assert second in world.inbox()
+
+
+def test_one_fetch_per_unreachable_remote_per_run(world, monkeypatch):
+    first = world.send(world.branch({"x.txt": "x\n"}))
+    head2 = world.branch({"y.txt": "y\n"})
+    _origin_gone(world)
+    assert world.run("merge") == 1
+    second = world.send(head2)
+    assert world.run("merge", second) == 1  # claimed by id: both records now deferred
+    _pid_gone(world, first)
+    _pid_gone(world, second)
+    fetches: list[list[str]] = []
+    real = world.mod._run
+
+    def counting(argv, *a, **kw):
+        if argv[:2] == ["git", "fetch"]:
+            fetches.append(argv)
+        return real(argv, *a, **kw)
+
+    monkeypatch.setattr(world.mod, "_run", counting)
+    assert world.run("merge") == 1
+
+    assert len(fetches) == 1, fetches  # the second record deferred without its own timeout
+    assert "earlier in this run" in world.record(second)["deferred"]
+    assert world.record(first)["phase"] == world.record(second)["phase"] == "claimed"
+
+
+def test_an_unreachable_remote_never_starves_a_request_on_another(world):
+    other = world.tmp / "other.git"
+    _git(world.tmp, "clone", "-q", "--bare", str(world.remote), str(other))
+    _git(world.main, "remote", "add", "other", str(other))
+    _git(world.main, "branch", "-q", "rel", "master")
+    _git(world.main, "config", "branch.rel.remote", "other")
+    _git(world.main, "push", "-q", "other", "rel")
+    first = world.send(world.branch({"x.txt": "x\n"}))
+    head2 = world.branch({"y.txt": "y\n"})
+    _origin_gone(world)
+    assert world.run("merge") == 1
+    _pid_gone(world, first)
+    second = world.send(head2, base="rel")
+
+    world.run("merge")  # the stranded record defers again; the reachable request still merges
+
+    assert world.record(first)["phase"] == "claimed"
+    assert world.record(second)["phase"] == "replied"
+    assert "outcome: merged" in world.replies(second)["fleet"]
+
+
+def test_an_unreachable_catch_up_is_partial_not_parked(world):
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    assert world.run("merge", phase=_reject_push_with(world, "y.txt", "y\n")) == 4
+    _origin_gone(world)
+
+    assert world.run("resume", msg_id) == 4
+
+    assert world.record(msg_id)["phase"] == "carried"
 
 
 def test_a_failed_catch_up_fetch_on_resume_is_partial(world):
@@ -1384,3 +1556,684 @@ def test_a_tracked_file_where_the_include_list_has_a_directory_never_crashes_the
     assert mod._copy_worktree_include(ctx, wt, _git(main, "rev-parse", "HEAD")) is None
     assert (wt / "local").read_text(encoding="utf-8") == "a tracked file\n"
     assert (wt / ".env").read_text(encoding="utf-8") == "A=1\n"  # the rest is still copied
+
+
+# W-29ba0047 (fabrik-lib 01M3TW5MF2) — a repo NAMED fabrik-lib builds its throwaway: the
+# `<tmp>/fabrik-lib` link must not collide with the worktree that already holds that path.
+def test_a_repo_named_fabrik_lib_builds_its_throwaway(tmp_path, monkeypatch):
+    mod = _load_module()
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "scratch"))
+    (tmp_path / "scratch").mkdir()
+    for key, value in {
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@example.invalid",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@example.invalid",
+    }.items():
+        monkeypatch.setenv(key, value)
+    main = tmp_path / "fabrik-lib"
+    main.mkdir()
+    _git(main, "init", "-q", "-b", "master")
+    (main / "README.md").write_text("lib\n", encoding="utf-8")
+    _git(main, "add", "README.md")
+    _git(main, "commit", "-q", "-m", "init")
+    ctx = mod._Ctx(main, main / ".git", "infra")
+    rec = {"id": "01TESTTHROWAWAY"}
+    with mod._throwaway(ctx, rec, "master") as wt:
+        assert wt.name == "fabrik-lib" and (wt / "README.md").is_file()
+        assert (
+            wt / ".git"
+        ).exists()  # a real worktree; on HEAD the link step raised FileExistsError
+
+
+def test_a_repo_without_whoami_agent_resolves_the_caller_from_claude_agent(tmp_path, monkeypatch):
+    """The request told repos CLAUDE_AGENT is enough when whoami_agent.py cannot be vendored."""
+    mod = _load_module()
+    monkeypatch.setattr(sys, "path", list(sys.path))  # _caller_agent inserts HERE; keep it local
+    monkeypatch.setattr(mod, "HERE", tmp_path)  # a scripts/ dir with no whoami_agent.py
+    monkeypatch.setitem(sys.modules, "whoami_agent", None)  # the import fails
+    monkeypatch.setenv("CLAUDE_AGENT", "fleet")
+    assert mod._caller_agent() == "fleet"
+    monkeypatch.setenv("CLAUDE_AGENT", "../etc")  # outside the agent-name grammar
+    assert mod._caller_agent() == ""
+    monkeypatch.delenv("CLAUDE_AGENT")
+    assert mod._caller_agent() == ""
+
+
+def test_mail_claim_resolves_the_caller_without_whoami_agent(monkeypatch):
+    """The owner side too: mail.py's caller check falls back to a valid CLAUDE_AGENT."""
+    spec = importlib.util.spec_from_file_location("mail_t03", SCRIPT.parent / "mail.py")
+    mail = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mail)
+    monkeypatch.setattr(mail, "_whoami", lambda: None)
+    monkeypatch.setenv("CLAUDE_AGENT", "infra")
+    assert mail._caller_agent() == "infra"
+    monkeypatch.setenv("CLAUDE_AGENT", "Infra/../x")
+    assert mail._caller_agent() == ""
+
+
+def test_the_merge_request_name_grammar_is_whoami_agents():
+    mod = _load_module()
+    spec = importlib.util.spec_from_file_location("whoami_t03", SCRIPT.parent / "whoami_agent.py")
+    who = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(who)
+    assert mod._AGENT_NAME_RE.pattern == who._NAME_RE.pattern
+
+
+def test_a_fabrik_lib_alias_of_the_main_checkout_links_to_the_throwaway(tmp_path, monkeypatch):
+    """`<parent>/fabrik-lib -> <main>`: the throwaway's ../fabrik-lib is the commit under test."""
+    mod = _load_module()
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "scratch"))
+    (tmp_path / "scratch").mkdir()
+    for key, value in {
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@example.invalid",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@example.invalid",
+    }.items():
+        monkeypatch.setenv(key, value)
+    main = tmp_path / "lib-real"
+    main.mkdir()
+    _git(main, "init", "-q", "-b", "master")
+    (main / "README.md").write_text("lib\n", encoding="utf-8")
+    _git(main, "add", "README.md")
+    _git(main, "commit", "-q", "-m", "init")
+    (tmp_path / "fabrik-lib").symlink_to(main)
+    ctx = mod._Ctx(main, main / ".git", "infra")
+    with mod._throwaway(ctx, {"id": "01TESTALIAS"}, "master") as wt:
+        assert (wt.parent / "fabrik-lib").resolve() == wt.resolve()
+
+
+# --- W-c751bca6: retry a request refused for a base-side fault; name it in the refusal ---------
+def _red_base_refusal(world) -> tuple[str, str]:
+    """A request refused because the BASE's owner tests are red, whatever the branch carries."""
+    world.write(".fabrik/merge-tests", 'python3 -c "import sys; sys.exit(3)"\n')
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    head = world.branch({"x.txt": "x\n"})
+    msg_id = world.send(head)
+    assert world.run("merge") == 1
+    assert world.record(msg_id)["outcome"] == "refused"
+    return head, msg_id
+
+
+def _fix_base(world) -> None:
+    world.write(".fabrik/merge-tests", "true\n")
+    world.commit_main("fix owner tests", ".fabrik/merge-tests")
+
+
+def _every_reply(world, msg_id: str, agent: str) -> list[str]:
+    """Every reply threaded on ``msg_id`` to ``agent`` (``World.replies`` keeps one per addressee)."""
+    out = []
+    for path in sorted((world.tmp / "mail" / "proj" / "inbox").glob("*.md")):
+        text = path.read_text(encoding="utf-8")
+        head = text.split("\n---", 1)[0]
+        if (
+            "kind: reply" in head
+            and f"re: {msg_id}" in head
+            and f"\nagent: {agent}\n" in head + "\n"
+        ):
+            out.append(text)
+    return out
+
+
+def test_retry_merges_a_request_refused_for_a_base_fault(world):
+    """A refusal the base caused cost the requester a re-send of an identical request: `resume`
+    answered "already replied" and `merge` found nothing waiting. The owner fixes the base and
+    retries; the branch is merged, the mail is acked done with the merge SHA (the check a stale
+    `blocked` ack would skip), and the requester can tell the current reply from the refusal."""
+    head, msg_id = _red_base_refusal(world)
+    _fix_base(world)
+
+    assert world.run("retry", msg_id) == 0
+    rec = world.record(msg_id)
+    assert rec["phase"] == "replied" and rec["outcome"] == "merged", rec
+    assert _git(world.main, "merge-base", "--is-ancestor", head, world.base(), check=False) == ""
+    assert rec["retries"] and "owner tests red" in rec["retries"][0]["reason"], rec
+    acks = [ln for ln in world.archived(msg_id).splitlines() if ln.startswith("acked-by:")]
+    assert len(acks) == 1 and "disposition: done" in acks[0] and rec["merge_sha"] in acks[0], acks
+    replies = _every_reply(world, msg_id, "fleet")
+    assert len(replies) == 2, replies
+    current = [r for r in replies if "outcome: merged" in r]
+    assert len(current) == 1 and "retry: 1 — supersedes the refused reply" in current[0], replies
+
+
+def test_retry_refuses_a_moved_branch_and_an_unrefused_request(world, capsys):
+    """A branch that moved means the requester superseded this request. A merged request, or an
+    id with no record, has nothing to retry. Each refusal changes nothing."""
+    _head, msg_id = _red_base_refusal(world)
+    _fix_base(world)
+    moved = world.branch({"y.txt": "y\n"}, msg="more work")
+    capsys.readouterr()
+    before, archived = world.base(), world.archived(msg_id)
+
+    assert world.run("retry", msg_id) == 1
+    err = capsys.readouterr().err
+    assert f"moved to {moved[:12]}" in err and "superseded" in err, err
+    assert world.record(msg_id)["outcome"] == "refused" and world.base() == before
+    assert world.archived(msg_id) == archived and msg_id not in world.inbox()
+
+    ok_id = world.send(moved)
+    assert world.run("merge") == 0
+    capsys.readouterr()
+    assert world.run("retry", ok_id) == 1
+    assert "only a refused request is retried" in capsys.readouterr().err
+    assert world.run("retry", "01NOSUCHREQUEST00000000000") == 1
+    assert "no record of request 01NOSUCHREQUEST00000000000" in capsys.readouterr().err
+
+
+def test_retry_refuses_a_gone_branch_an_unreachable_remote_and_a_held_record(world, capsys):
+    """Each gate before the mail moves: the branch deleted on the remote, a remote that cannot be
+    reached (a refusal here, never a deferral: nothing is claimed to defer), and another request
+    for the branch that holds a record short of `replied` (mid-claim in another run)."""
+    head, msg_id = _red_base_refusal(world)
+    _fix_base(world)
+    archived = world.archived(msg_id)
+
+    _git(world.wt, "push", "-q", "origin", "--delete", "feat")
+    assert world.run("retry", msg_id) == 1
+    assert "is gone from origin" in capsys.readouterr().err
+    _git(world.wt, "push", "-q", "origin", "feat")
+
+    url = str(world.remote)
+    _git(world.main, "remote", "set-url", "origin", str(world.tmp / "no-such-remote.git"))
+    assert world.run("retry", msg_id) == 1
+    assert "could not reach origin" in capsys.readouterr().err
+    _git(world.main, "remote", "set-url", "origin", url)
+
+    held = dict(world.record(msg_id), id="01HELDCLAIM0000000000000000", phase="claimed")
+    (world.main / ".git" / "fabrik-merge" / f"{held['id']}.json").write_text(json.dumps(held))
+    assert world.run("retry", msg_id) == 1
+    assert f"request {held['id']} for branch feat waits" in capsys.readouterr().err
+    assert world.archived(msg_id) == archived and world.record(msg_id)["outcome"] == "refused"
+
+
+def test_a_failed_requeue_restores_the_refused_record(world, monkeypatch, capsys):
+    """The fresh record is written before `mail.py requeue`; a requeue that fails left the mail
+    where it was, so the refused record is put back and nothing else changed."""
+    _head, msg_id = _red_base_refusal(world)
+    _fix_base(world)
+    before, archived = world.record(msg_id), world.archived(msg_id)
+    real = world.mod._mail_cli
+
+    def failing_requeue(ctx, *args, **kw):
+        if args[:1] == ("requeue",):
+            return subprocess.CompletedProcess(args, 1, "", "requeue refused\n")
+        return real(ctx, *args, **kw)
+
+    monkeypatch.setattr(world.mod, "_mail_cli", failing_requeue)
+    assert world.run("retry", msg_id) == 1
+    assert "nothing changed" in capsys.readouterr().err
+    assert world.record(msg_id) == before and world.archived(msg_id) == archived
+
+
+def test_retry_refuses_while_a_resent_request_waits(world, capsys):
+    """The incident's own sequel: the requester already re-sent the same head. Retrying the first
+    id merged it and the re-sent one was then refused "already in master but no merge commit names
+    request" — telling the requester to change a merged branch. The retry names the waiting one."""
+    head, msg_id = _red_base_refusal(world)
+    _fix_base(world)
+    dup = world.send(head)
+    capsys.readouterr()
+
+    assert world.run("retry", msg_id) == 1
+    err = capsys.readouterr().err
+    assert dup in err and f"merge {dup}" in err, err
+    assert world.record(msg_id)["outcome"] == "refused" and dup in world.inbox()
+
+
+def test_a_retry_stopped_before_its_requeue_is_reopened_by_resume(world, monkeypatch):
+    """The retry writes its record before `mail.py requeue`; a run that stops in between left the
+    mail archived with the refusal's `blocked` ack, and `resume` continued it as claimed — the
+    merge landed but its ack was skipped (the stale line read as "already acked")."""
+    head, msg_id = _red_base_refusal(world)
+    _fix_base(world)
+    real = world.mod._mail_cli
+
+    def stop_at_requeue(ctx, *args, **kw):
+        if args[:1] == ("requeue",):
+            raise KeyboardInterrupt  # the run dies here, as a SIGKILL would
+        return real(ctx, *args, **kw)
+
+    monkeypatch.setattr(world.mod, "_mail_cli", stop_at_requeue)
+    with pytest.raises(KeyboardInterrupt):
+        world.run("retry", msg_id)
+    monkeypatch.setattr(world.mod, "_mail_cli", real)
+    assert world.record(msg_id)["phase"] == "claiming"
+
+    assert world.run("resume", msg_id) == 0
+    rec = world.record(msg_id)
+    assert rec["outcome"] == "merged", rec
+    acks = [ln for ln in world.archived(msg_id).splitlines() if ln.startswith("acked-by:")]
+    assert len(acks) == 1 and "disposition: done" in acks[0], acks
+
+
+def test_a_requeue_that_keeps_the_ack_refuses_until_stripped(world, monkeypatch, capsys):
+    """`mail.py requeue` leaves an undecodable message's ack in place. The retry refused, but the
+    record stayed `claiming` with the mail in the inbox, and `resume` claimed it directly: the
+    merge landed and its own ack was skipped. Every run refuses until the ack is stripped."""
+    _head, msg_id = _red_base_refusal(world)
+    _fix_base(world)
+    box = world.tmp / "mail" / "proj"
+    real = world.mod._mail_cli
+
+    def requeue_keeps_ack(ctx, *args, **kw):
+        if args[:1] == ("requeue",):
+            (box / "archive" / f"{msg_id}.md").rename(box / "inbox" / f"{msg_id}.md")
+            return subprocess.CompletedProcess(args, 0, "", "")
+        return real(ctx, *args, **kw)
+
+    monkeypatch.setattr(world.mod, "_mail_cli", requeue_keeps_ack)
+    assert world.run("retry", msg_id) == 1
+    monkeypatch.setattr(world.mod, "_mail_cli", real)
+    assert world.run("resume", msg_id) == 1
+    assert "still carries its old ack" in capsys.readouterr().err
+    assert world.record(msg_id)["phase"] == "claiming" and msg_id in world.inbox()
+
+    inbox = box / "inbox" / f"{msg_id}.md"
+    kept = [ln for ln in inbox.read_text().splitlines() if not ln.startswith("acked-by:")]
+    inbox.write_text("\n".join(kept) + "\n")
+    assert world.run("resume", msg_id) == 0
+    acks = [ln for ln in world.archived(msg_id).splitlines() if ln.startswith("acked-by:")]
+    assert len(acks) == 1 and "disposition: done" in acks[0], acks
+
+
+def test_retry_refuses_a_head_already_in_base(world, capsys):
+    """A head merged under ANOTHER request (one already replied, so not "open") would be re-opened
+    only to be refused again "already in base", its first refusal's ack lost on the way."""
+    head, msg_id = _red_base_refusal(world)
+    _fix_base(world)
+    other = world.send(head)
+    assert world.run("merge", other) == 0
+    capsys.readouterr()
+    archived = world.archived(msg_id)
+
+    assert world.run("retry", msg_id) == 1
+    assert "already in master" in capsys.readouterr().err
+    assert world.archived(msg_id) == archived and world.record(msg_id)["outcome"] == "refused"
+
+
+def test_a_red_base_is_named_in_the_refusal(world):
+    """ "owner tests red" read the same for a red base and a red branch, so neither side knew
+    whether to fix the branch or wait. The refusal runs the same tests on the base alone."""
+    _head, msg_id = _red_base_refusal(world)
+    reason = world.record(msg_id)["reason"]
+    assert reason.count("owner tests red (") == 1, reason
+    assert "on base alone (one run): red too (exit 3" in reason, reason
+    assert f"merge_request.py retry {msg_id}" in reason, reason
+    reply = world.replies(msg_id)["fleet"]
+    assert "change nothing and send nothing" in reply, reply
+
+
+def test_a_green_base_names_the_branch(world):
+    """A branch whose own change breaks the base's tests is told so, never sent to wait."""
+    world.write(".fabrik/merge-tests", "test ! -e BREAK.txt\n")
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    msg_id = world.send(world.branch({"BREAK.txt": "x\n"}))
+    assert world.run("merge") == 1
+    reason = world.record(msg_id)["reason"]
+    assert "owner tests red" in reason and "on base alone (one run): green" in reason, reason
+
+
+def test_base_alone_not_checked_for_new_tests_or_a_timeout(world, monkeypatch):
+    """The fallback leg runs the tests the diff touched; when every one is new in the branch the
+    base has nothing to run. A merged run that timed out is not run a second time: that would
+    only double the time the merge lock is held. Both say so instead of guessing."""
+    head, _ = _shadow_branch(world, monkeypatch, test="def test_x():\n    assert False\n")
+    msg_id = world.send(head)
+    assert world.run("merge") == 1
+    reason = world.record(msg_id)["reason"]
+    assert "on base alone: not checked" in reason and "new in the branch" in reason, reason
+
+    world.write(".fabrik/merge-tests", "exit 124\n")
+    world.commit_main("owner tests time out", ".fabrik/merge-tests")
+    slow = world.send(world.branch({"z.txt": "z\n"}, msg="z"))
+    assert world.run("merge") == 1
+    reason = world.record(slow)["reason"]
+    assert "on base alone: not checked" in reason and "timed out" in reason, reason
+
+
+def test_base_alone_names_an_outer_timeout_and_a_check_that_could_not_run(world, monkeypatch):
+    """The outer bound (a runner that itself hangs) raises instead of exiting 124, and the base-alone
+    run can fail on its own; both are the "not checked" clause, never a changed refusal."""
+    world.write(".fabrik/merge-tests", "exit 1\n")
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    real = world.mod._run_owner_leg
+
+    def hangs(ctx, wt, script, touched):
+        raise world.mod.TimedOutError("sh -e -c timed out after 1860s")
+
+    monkeypatch.setattr(world.mod, "_run_owner_leg", hangs)
+    first = world.send(world.branch({"a.txt": "a\n"}, msg="a"))
+    assert world.run("merge") == 1
+    reason = world.record(first)["reason"]
+    assert "timed out after 1860s" in reason and "not checked (the merged run timed out)" in reason
+
+    calls: list[str] = []
+
+    def red_then_broken(ctx, wt, script, touched):
+        calls.append(str(wt))
+        if len(calls) > 1:
+            raise RuntimeError("the base tree is unusable")
+        return real(ctx, wt, script, touched)
+
+    monkeypatch.setattr(world.mod, "_run_owner_leg", red_then_broken)
+    second = world.send(world.branch({"b.txt": "b\n"}, msg="b"))
+    assert world.run("merge") == 1
+    reason = world.record(second)["reason"]
+    assert reason.startswith("(a)-(d) build, preflight, tests, CAS: owner tests red"), reason
+    assert "not checked (the check could not run: the base tree is unusable)" in reason, reason
+
+
+# --- W-347cd0c3: one owner-test budget per invocation, inside the documented wrapper -------------
+def _logging_runner(world) -> Path:
+    """A stand-in for capped_run.sh that logs its argv and honours ``--timeout`` with coreutils
+    ``timeout`` (exit 124 on the limit, as capped_run's own time limit exits)."""
+    log = world.tmp / "runner.log"
+    runner = world.tmp / "runner.sh"
+    runner.write_text(
+        f'#!/bin/sh\necho "$*" >> {log}\nshift\nt="$1"\nshift 2\nexec timeout "$t" "$@"\n',
+        encoding="utf-8",
+    )
+    runner.chmod(0o755)
+    world.mp.setenv("FABRIK_CAPPED_RUN", str(runner))
+    return log
+
+
+def test_the_owner_test_budget_refuses_before_any_outer_wrapper(world):
+    import time
+
+    log = _logging_runner(world)
+    # the budget (8 s) is shorter than one leg's limit (60 s): the leg is stopped at what is left
+    world.mp.setattr(world.mod, "TEST_TIMEOUT_S", 60)
+    world.mp.setattr(world.mod, "MERGE_TEST_BUDGET_S", 8, raising=False)
+    world.mp.setattr(world.mod, "LEG_FLOOR_S", 1, raising=False)
+    world.write(".fabrik/merge-tests", "sleep 30\n")
+    world.commit_main("slow owner tests", ".fabrik/merge-tests")
+    msg_id = world.send(world.branch({"s.txt": "s\n"}, msg="s"))
+    t0 = time.monotonic()
+    assert world.run("merge") == 1
+    took = time.monotonic() - t0
+    reason = world.record(msg_id)["reason"]
+    assert "budget" in reason and "not a test verdict" in reason, reason
+    assert f"`merge_request.py retry {msg_id}`" in reason, reason
+    assert "on base alone" not in reason and "owner tests red" not in reason, reason
+    # one line per runner call (the script's own newline splits an argv across two log lines)
+    limits = [
+        int(ln.split()[1]) for ln in log.read_text().splitlines() if ln.startswith("--timeout ")
+    ]
+    assert len(limits) == 1 and 1 <= limits[0] <= 8, limits  # one leg, at what the budget left
+    assert took < 25, took  # the leg was stopped at the budget, not run for its 30 s
+    # the requester is told it is not theirs to fix
+    replies = world.replies(msg_id)
+    told = "the owner-test budget of the run, change nothing and send nothing either"
+    assert replies and all(told in " ".join(r.split()) for r in replies.values()), replies
+
+
+def test_an_owner_exit_124_inside_a_shortened_leg_stays_a_red(world):
+    """The owner's own `timeout` (here a plain exit 124) ends the leg well inside its shortened
+    limit: that is the tests' verdict, never the budget's."""
+    _logging_runner(world)
+    world.mp.setattr(world.mod, "TEST_TIMEOUT_S", 60)
+    world.mp.setattr(world.mod, "MERGE_TEST_BUDGET_S", 30)
+    world.mp.setattr(world.mod, "LEG_FLOOR_S", 1)
+    world.write(".fabrik/merge-tests", "exit 124\n")
+    world.commit_main("owner tests time out themselves", ".fabrik/merge-tests")
+    msg_id = world.send(world.branch({"t.txt": "t\n"}, msg="t"))
+    assert world.run("merge") == 1
+    reason = world.record(msg_id)["reason"]
+    assert "owner tests red" in reason and "exit 124" in reason and "budget" not in reason, reason
+
+
+def test_an_outer_timeout_under_a_shortened_limit_is_the_budget(world, monkeypatch):
+    """A runner that itself hangs past limit + 60 raises TimedOutError; under a shortened limit
+    that is the budget too, with no base-alone run."""
+    world.write(".fabrik/merge-tests", "true\n")
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+
+    def hangs_short(ctx, wt, script, touched):
+        ctx.leg_limit = 5
+        raise world.mod.TimedOutError("sh -e -c timed out after 65s")
+
+    monkeypatch.setattr(world.mod, "_run_owner_leg", hangs_short)
+    msg_id = world.send(world.branch({"h.txt": "h\n"}, msg="h"))
+    assert world.run("merge") == 1
+    reason = world.record(msg_id)["reason"]
+    assert "budget" in reason and "stopped at 5s" in reason, reason
+    assert "on base alone" not in reason and "timed out after" not in reason, reason
+
+
+def test_the_leg_floor_is_exact(world):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
+    floor = world.mod.LEG_FLOOR_S
+    ctx.test_deadline = world.mod.time.monotonic() + floor + 0.5
+    assert world.mod._leg_timeout(ctx) == floor  # exactly the floor left: a leg of that length
+    ctx.test_deadline = world.mod.time.monotonic() + floor - 0.5
+    with pytest.raises(world.mod.BudgetSpentError):
+        world.mod._leg_timeout(ctx)
+
+
+def test_a_parked_budget_catch_up_is_told_resume_not_a_hand_merge(world, capsys):
+    parked = _strand(world, _dead_pid(), "1", phase="catchup-refused")
+    path = world.main / ".git" / "fabrik-merge" / f"{parked}.json"
+    rec = json.loads(path.read_text())
+    rec["reason"] = world.mod._catch_up_refused(
+        world.mod._Ctx(world.main, world.main / ".git", "infra"),
+        rec,
+        "origin",
+        world.mod.BudgetSpentError("the owner-test budget of this run (3600s) ran out"),
+    )
+    path.write_text(json.dumps(rec))
+    assert world.run("merge") == 4
+    err = capsys.readouterr().err
+    assert f"`merge_request.py resume {parked}` again" in err and "by hand" not in err, err
+
+
+def test_a_spent_budget_starts_no_leg_and_a_catch_up_names_resume(world):
+    log = _logging_runner(world)
+    world.mp.setattr(world.mod, "MERGE_TEST_BUDGET_S", 0, raising=False)
+    world.write(".fabrik/merge-tests", "true\n")
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    msg_id = world.send(world.branch({"n.txt": "n\n"}, msg="n"))
+    before = world.state()
+    assert world.run("merge") == 1
+    reason = world.record(msg_id)["reason"]
+    assert "budget" in reason and f"`merge_request.py retry {msg_id}`" in reason, reason
+    assert not log.exists(), log.read_text()  # no leg started, so the runner never ran
+    after = world.state()
+    assert (after["refs"], after["origin"]) == (before["refs"], before["origin"])
+    # a catch-up refused by the budget is a new run's job, never a hand merge
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
+    spent = world.mod.BudgetSpentError("x")
+    text = world.mod._catch_up_refused(ctx, {"id": msg_id, "base": "master"}, "origin", spent)
+    assert f"`merge_request.py resume {msg_id}` again" in text and "by hand" not in text, text
+
+
+def test_the_documented_merge_wrapper_covers_the_budget():
+    """The newest decision row naming the merge command must give capped_run room for the whole
+    budget plus the push, the sync and 300 s for builds, preflights, the carry and the reply, and
+    rund a longer bound than capped_run (a shorter outer bound kills the merge mid-push)."""
+    import re
+
+    mod = _load_module()
+    rows = (Path(__file__).resolve().parents[1] / "docs" / "DECISIONS.md").read_text(
+        encoding="utf-8"
+    )
+    shape = re.compile(
+        r"rund --timeout (\d+) -- \S*capped_run\.sh --timeout (\d+) -- python3 "
+        r"scripts/merge_request\.py merge"
+    )
+    found = [
+        (int(m.group(1)), int(m.group(2)), int(d))
+        for d, line in re.findall(r"(?m)^\| D-(\d+) (.*)$", rows)
+        for m in shape.finditer(line)
+    ]
+    assert found, "no decision row documents the merge command"
+    outer, capped, _row = max(found, key=lambda f: f[2])
+    need = (
+        getattr(mod, "MERGE_TEST_BUDGET_S", 10**9) + mod.PUSH_TIMEOUT_S + mod.SYNC_TIMEOUT_S + 300
+    )
+    assert capped >= need and outer > capped, (outer, capped, need)
+
+
+# --- W-e914202a: every scripted merge commit is signed with a parseable trailer block --------
+def _trailer_lines(world: World, sha: str) -> list[str]:
+    """The trailer lines git itself parses from ``sha``'s message, in order (never a substring)."""
+    body = _git(world.main, "log", "-1", "--format=%B", sha)
+    res = subprocess.run(
+        ["git", "interpret-trailers", "--parse"],
+        cwd=world.main,
+        input=body + "\n",
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=True,
+    )
+    return res.stdout.splitlines()
+
+
+def _trailers(world: World, sha: str) -> dict[str, str]:
+    return dict(ln.split(": ", 1) for ln in _trailer_lines(world, sha) if ": " in ln)
+
+
+def test_a_request_merge_commit_carries_parseable_provenance_trailers(world):
+    head = world.branch({"x.txt": "x\n"})
+    msg_id = world.send(head, item="W-0123abcd")
+
+    assert world.run("merge") == 0
+
+    new = world.base()
+    assert _git(world.main, "log", "-1", "--format=%s", new) == (
+        f"merge(infra): feat — request {msg_id}, item W-0123abcd"
+    )
+    # the exact block, in order: a duplicated or forged trailer line fails here, and no Merged-From
+    # (scratch_sweep reads it over merges, where a reused branch name would read merged for ever)
+    assert _trailer_lines(world, new) == [
+        "Agent-Role: orchestrator",
+        "Agent-Name: infra",
+        f"Agent-Context: merge_request.py merged branch feat for request {msg_id}, item W-0123abcd",
+    ]
+
+
+def test_a_conflict_resolved_merge_commit_is_signed(world):
+    head = world.branch(
+        {"docs/DECISIONS.md": DECISIONS.replace("| D-1 |", "| D-2 | branch |\n| D-1 |")}
+    )
+    world.write("docs/DECISIONS.md", DECISIONS.replace("| D-1 |", "| D-3 | base |\n| D-1 |"))
+    world.commit_main("base row", "docs/DECISIONS.md")
+    msg_id = world.send(head)
+
+    assert world.run("merge") == 0
+    tr = _trailers(world, world.base())
+    assert tr.get("Agent-Role") == "orchestrator" and tr.get("Agent-Name") == "infra", tr
+    assert msg_id in tr.get("Agent-Context", ""), tr
+
+
+def test_a_catch_up_merge_commit_is_signed(world, capsys):
+    head = world.branch({"x.txt": "x\n"})
+    msg_id = world.send(head)
+    pushed: list[str] = []
+
+    def race(name):
+        if name == "before-push" and not pushed:
+            pushed.append(world.push_from_elsewhere("y.txt", "y\n"))
+
+    assert world.run("merge", phase=race) == 4
+    capsys.readouterr()
+    assert world.run("resume", msg_id) == 0
+
+    tip = world.base()
+    assert _git(world.main, "rev-parse", f"{tip}^2") == pushed[0]  # the catch-up merge itself
+    assert _trailer_lines(world, tip) == [
+        "Agent-Role: orchestrator",
+        "Agent-Name: infra",
+        f"Agent-Context: merge_request.py catch-up of origin/master after request {msg_id}",
+    ]
+    # both runs passed the post-CAS steps: the duty is recorded once, and the resume's gate line
+    # reports the REQUEST merge's owner tests (recorded by the first run), named as such
+    assert world.record(msg_id)["evidence"].count(world.mod.GATE_DUTY) == 1
+    out = capsys.readouterr().out
+    assert (
+        f"{world.mod.GATE_DUTY}; owner tests of the request merge: no owner tests ran "
+        "(no .fabrik/merge-tests, no touched tests/)"
+    ) in out.splitlines(), out
+
+
+def test_the_gate_line_without_recorded_tests_says_so():
+    mod = _load_module()
+    assert mod._gate_line({"merge_sha": "abc123"}) == (
+        f"{mod.GATE_DUTY}; owner tests of the request merge: none recorded "
+        "(resumed an existing merge abc123)"
+    )
+    rec = {"evidence": ["tests: A", "catch-up merge s of origin/master (tests: B)", mod.GATE_DUTY]}
+    assert mod._gate_line(rec).endswith("owner tests of the request merge: A")
+
+
+def test_an_uppercase_ascii_owner_signs_its_lowercase_name_without_a_note(world):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "INFRA")
+    message = world.mod._signed(ctx, "merge(INFRA): subject", "context")
+    assert "Agent-Name: infra" in message.splitlines() and ctx.notes == []
+
+
+def test_the_owner_grammar_note_is_written_once_per_run(world):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "two words")
+    for _ in range(2):  # a rebuild signs again
+        world.mod._signed(ctx, "merge(x): subject", "context")
+    assert len(ctx.notes) == 1, ctx.notes
+
+
+def test_the_block_parses_under_merge_log(world):
+    """merge.log=true makes `git merge -m` append a shortlog AFTER the message: without --no-log
+    the last paragraph is prose and git parses no trailer at all."""
+    _git(world.main, "config", "merge.log", "true")
+    head = world.branch({"x.txt": "x\n"})
+    world.send(head)
+
+    assert world.run("merge") == 0
+    assert _trailers(world, world.base()).get("Agent-Role") == "orchestrator"
+
+
+@pytest.mark.parametrize("owner", ["two words", "Straße", "infra_x", "a" * 33, "Kelvin"])
+def test_an_owner_outside_the_name_grammar_signs_without_agent_name(world, owner):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", owner)
+    message = world.mod._signed(ctx, "merge(x): subject", "context")
+    lines = message.splitlines()
+    assert lines[:2] == ["merge(x): subject", ""]
+    assert lines[2:] == ["Agent-Role: orchestrator", "Agent-Context: context"], message
+    assert any("outside the agent-name grammar" in n for n in ctx.notes), ctx.notes
+
+
+def test_a_multi_line_trailer_value_refuses(world):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
+    with pytest.raises(world.mod.RefusedError):
+        world.mod._signed(ctx, "merge(x): subject", "context\nAgent-Role: forged")
+
+
+def test_the_reflog_carries_the_subject_only(world):
+    head = world.branch({"x.txt": "x\n"})
+    msg_id = world.send(head)
+
+    assert world.run("merge") == 0
+    entry = _git(world.main, "reflog", "show", "-1", "--format=%gs", "refs/heads/master")
+    assert entry == f"merge_request: merge(infra): feat — request {msg_id}, item none", entry
+
+
+def test_merge_states_that_the_gate_is_the_callers(world, capsys):
+    head = world.branch({"x.txt": "x\n"})
+    msg_id = world.send(head)
+
+    assert world.run("merge") == 0
+    out = capsys.readouterr().out.splitlines()
+    i = next(n for n, ln in enumerate(out) if ln.startswith(f"merged {msg_id} as "))
+    duty = (
+        "gate: merge does not run final_gate — gating the merged result is the caller's duty; "
+        "merge itself runs only the owner tests"
+    )
+    assert out[i + 1] == (
+        f"{duty}; owner tests of the request merge: no owner tests ran (no .fabrik/merge-tests, "
+        "no touched tests/)"
+    ), out
+    assert f"evidence: {duty}\n" in world.replies(msg_id)["fleet"]

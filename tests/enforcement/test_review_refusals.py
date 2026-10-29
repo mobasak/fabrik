@@ -387,6 +387,27 @@ def test_the_header_is_exempt_and_a_second_header_shaped_row_is_a_refused_data_r
     assert _refusals(twice), "a second header-shaped row is a data row carrying the colon token"
 
 
+def test_the_receipt_skeleton_points_at_the_by_design_refusals_never_lists_them() -> None:
+    """The skeleton once listed 3 of `_residual_errors`'s 6 by-design refusals and said "refuses"
+    where the ledger check fails open (kaizen 01M53SBC2D): a hand-kept list drifts as the function
+    grows, so the skeleton names the functions, and they must exist."""
+    src = (REPO / "scripts" / "review_receipt.py").read_text(encoding="utf-8")
+    flat = " ".join(src.split())
+    # the WHOLE sentence between its neighbours, by equality: a rebuilt list or a "refuses" in new
+    # words fails, which a pair of fragment checks let through (review round 1)
+    head = "the reason follows the closing parenthesis. "
+    tail = " `RECORDED — measured` and `RECORDED — unexecuted` never enter"
+    assert flat.count(head) == 1 and flat.count(tail) == 1
+    assert flat.split(head)[1].split(tail)[0] == (
+        "What the gate refuses in a by-design verdict is the message list of `check_review_coverage.py::_residual_errors`, "
+        "read there and never restated here; whether a `D-nnn` is a row of the ledger is checked "
+        "only where `_ledger_ids` reads a `docs/DECISIONS.md` with rows, and is not checked "
+        "otherwise."
+    )
+    for name in ("_residual_errors", "_ledger_ids"):
+        assert callable(getattr(crc, name, None)), f"the skeleton names {name}, which is gone"
+
+
 def test_a_block_that_is_not_yet_a_ledger_is_never_refused() -> None:
     """`review_receipt.py --init` writes a header and a separator and nothing else."""
     init_shape = "| Pass | Finders | Counters | Method |\n|---|---|---|---|"
@@ -662,6 +683,19 @@ def test_the_closing_row_must_name_a_finder_seat_by_model_token() -> None:
     assert crc._closing_pass_row(crc._ledger_shapes(_embed(CLOSING))[2])[0] == 18
 
 
+def test_the_seat_token_knows_fable_and_refuses_its_near_misses() -> None:
+    """W-d90fe030 — Fable is a dispatched seat's model (core/62 § The orchestrator); the
+    near-miss spellings stay unmatched, a spelled-out version (`Fable 5.1×1`) on purpose, as
+    `opus 4×1` is."""
+    for cell in ("native fable×1", "Fable × 2", "native opus×1 + fable×1", "fablex1"):
+        assert crc._MODEL_TOK.search(cell), cell
+    for cell in (
+        "fables×1", "xfable×1", "non-fable×1", "claude-fable×1",
+        "Fable 5.1×1", "fable-5×1", "fable", "fable×",
+    ):
+        assert not crc._MODEL_TOK.search(cell), cell
+
+
 def test_corpus_the_finders_rule_is_scoped_to_the_new_grammar_by_measurement() -> None:
     """FIRE RATE, measured before it blocks: over the receipts at the base SHA the rule would
     refuse 66 of the 70 closing rows if applied to every ledger — receipts whose finders cell
@@ -834,3 +868,161 @@ def test_corpus_the_new_rules_change_no_other_committed_verdict() -> None:
     root = files[0].parents[3]
     assert (root / "docs/development/reviews").is_dir(), root
     assert crc._committed_nonquiet(root, set()) == pre._committed_nonquiet(root, set())
+
+
+# --- a review-loop finding id owns a by-design licence (W-528f123e, iterative_image_editor 01M3XTWYRZ) -----------
+
+
+def _self_cited(row_id: str, verdict: str, ids: str = "") -> list[str]:
+    """`_residual`, but with the Residual row's OWN first cell set to `row_id` — the shape a review-loop receipt
+    writes (its residual rows are keyed by candidate id), so a self-cite is the natural mistake there."""
+    ledger = [HEADER, SEP, PRIOR, CLOSING]
+    text = "\n".join(
+        [
+            "## Findings",
+            "",
+            "| id | note |",
+            "|---|---|",
+            *([ids] if ids else []),
+            "",
+            "## Residual",
+            "",
+            f"| {row_id} | RECORDED — {verdict} |",
+            "",
+            "## Pass Ledger",
+            "",
+            *ledger,
+            "",
+        ]
+    )
+    text_s = crc._strip_fences(text)
+    return crc._residual_errors(text_s, crc._ledger_shapes(text)[2])
+
+
+@pytest.mark.parametrize(
+    "owner",
+    [
+        "A-S1",
+        "B-H2",
+        "A-O3",
+        "A-L1",
+        "T09R-O15",
+        "B-H2#2",
+        "rule-grammar-S1",
+        "R1-T03-A-O14",
+        "A1-docstring-exemption-H1",
+    ],
+)
+def test_a_review_loop_owner_id_licenses_a_by_design_verdict(owner: str) -> None:
+    """The workflow mints `<slice>-<O|S|H|L><n>` (a reused id suffixed `#n`), and slice names are free text with
+    hyphens. Of 690 such first cells in this tree the F-only `_OWNER_ID` refused every one as an owner, so writers
+    fell back to the weaker `RECORDED — measured` (iie b9885cf)."""
+    assert _residual(f"by design ({owner}, round 3)", ids=f"| {owner} |") == []
+    assert _residual(f"by design (`{owner}`, round 3)", ids=f"| `{owner}` |") == [], (
+        "a backticked owner"
+    )
+    errs = _residual(f"by design ({owner}, round 3)", ids="| F342 |")
+    assert errs and "owning row is absent" in errs[0], (owner, errs)
+    errs = _residual(f"by design ({owner}, round 18)", ids=f"| {owner} |")
+    assert errs and "not EARLIER than the closing" in errs[0], (owner, errs)
+
+
+def test_a_review_loop_owner_is_matched_whole_and_prose_is_not_an_owner() -> None:
+    assert _residual("by design (A-S1, round 3)", ids="| B-A-S1 |"), (
+        "A-S1 must not be lifted out of B-A-S1"
+    )
+    for prose in ("the A-S1 shape", "A-SH1", "Pass-P1", "A-S?", "A#2"):
+        errs = _residual(f"by design ({prose}, round 3)", ids=f"| {prose} |")
+        assert errs and "owning row is absent" in errs[0], (prose, errs)
+
+
+@pytest.mark.parametrize("row_id", ["A-S1", "F7"])
+def test_a_residual_row_never_licenses_itself(row_id: str) -> None:
+    """Critique of W-528f123e: the owner lookup read EVERY first cell, the citing Residual row's own included, so
+    `| A-S1 | RECORDED — by design (A-S1, round 1) |` with no other A-S1 row licensed itself — the round bound
+    then rests on a number the writer typed. The citing line is not its own owner; another row with the id is."""
+    errs = _self_cited(row_id, f"by design ({row_id}, round 3)")
+    assert errs and "owning row is absent" in errs[0], (row_id, errs)
+    assert _self_cited(row_id, f"by design ({row_id}, round 3)", ids=f"| {row_id} |") == []
+
+
+def test_a_bare_carriage_return_cannot_move_the_citing_line() -> None:
+    """Review A-S1: the citing line was located by counting `\\n`, the owner set built by `splitlines()`, which
+    also breaks on a bare `\\r` — so one stray CR before the verdict excluded the WRONG line and the row licensed
+    itself again. Both now use the same line boundaries."""
+    rows = [
+        "| F1 | note |",
+        "|---|---|",
+        "| F2 | RECORDED — by design (F2, round 1) |",
+        "| Pass 18 | opus×1 | found: 0, confirmed: 0, fixed: 0 | m |",
+    ]
+    text = "\r".join(rows)
+    text_s = crc._strip_fences(text)
+    errs = crc._residual_errors(text_s, crc._ledger_shapes(text)[2])
+    assert errs and "owning row is absent" in errs[0], errs
+
+
+def test_the_owner_lookup_reads_each_line_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Review A-S2: the owner set was re-built from the whole document once per citing line — quadratic, 3.8 s at
+    a few thousand verdicts. Each line's ids are now read ONCE, whatever the verdict count."""
+    n = 300
+    rows = [f"| F{i} | finding |" for i in range(1, n + 1)]
+    rows += [f"| R{i} | RECORDED — by design (F{i}, round 1) |" for i in range(1, n + 1)]
+    text = "\n".join(["| id | note |", "|---|---|", *rows, "", HEADER, SEP, PRIOR, CLOSING, ""])
+    calls = {"n": 0}
+    real = crc._line_ids
+
+    def counting(line: str) -> set[str]:
+        calls["n"] += 1
+        return real(line)
+
+    monkeypatch.setattr(crc, "_line_ids", counting)
+    text_s = crc._strip_fences(text)
+    assert crc._residual_errors(text_s, crc._ledger_shapes(text)[2]) == []
+    assert calls["n"] <= len(text.splitlines()) + 1, calls
+
+
+def test_the_commands_by_design_example_passes_and_its_counter_example_is_refused() -> None:
+    """kaizen, /fabrik-review queue: three closes asked where the reason goes; written INSIDE the parentheses, which V5 reads as the
+    owner and refuses as absent. The command now shows both forms; this drives each one, as written in the
+    source, through the gate, so the text cannot teach a form the gate refuses."""
+    src = " ".join((REPO / "commands" / "_sources" / "fabrik-review.md").read_text().split())
+    ok = re.search(r"`RECORDED — (by design \(D-\d+\)) — <why>`", src)
+    bad = re.search(
+        r"a reason inside them, `(\(D-\d+: <why>\))`, is refused as an absent owner", src
+    )
+    assert ok and bad, "the by-design example and counter-example are missing from fabrik-review.md"
+    assert _residual(f"{ok.group(1)} — kept on purpose") == []
+    assert _residual("by design (F342, round 2) — kept on purpose") == [], (
+        "a receipt-row owner keeps its round"
+    )
+    assert _residual("by design (F342) — round 2, kept on purpose"), (
+        "the round is inside the parentheses"
+    )
+    term_edit = " ".join((REPO / "commands" / "_fragments" / "term-edit.md").read_text().split())
+    assert (
+        "only the owner, with a receipt-row owner's round, sits inside the parentheses, the reason after them"
+        in term_edit
+    )
+    assert "with its `, round N` for a receipt row, several owners `;`-joined" in src
+    assert "owner alone" not in src and "owner alone" not in term_edit
+    assert "RECORDED — <kind> (<why>)" not in src, (
+        "the generic template puts a by-design reason inside"
+    )
+    errs = _residual("by design " + bad.group(1).replace("<why>", "kept on purpose"))
+    assert errs and "owning row is absent" in errs[0], errs
+
+
+def test_a_by_design_d_owner_must_be_a_ledger_row() -> None:
+    """kaizen 01M4YMKN78 § SYSTEMIC (2): a `D-nnn` owner is checked against the checkout's ledger,
+    by integer (ledgers zero-pad: `D-001`), and only when the ledger was read."""
+    text = crc._strip_fences("| F1 | RECORDED — by design (D-99999) — a reason |")
+    errs = crc._residual_errors(text, [], known_ids=frozenset({203}), ledger="docs/DECISIONS.md")
+    assert len(errs) == 1 and "D-99999" in errs[0] and "docs/DECISIONS.md" in errs[0], errs
+    ok = crc._strip_fences("| F1 | RECORDED — by design (D-203) — a reason |")
+    assert crc._residual_errors(ok, [], known_ids=frozenset({203})) == []
+    padded = crc._strip_fences("| F1 | RECORDED — by design (D-1) — a reason |")
+    assert crc._residual_errors(padded, [], known_ids=frozenset({1})) == []
+    assert crc._residual_errors(text, []) == []  # no ledger read: shape only, as today
+    assert crc._residual_errors(text, [], known_ids=None) == []
+    assert crc._residual_errors(text, [], known_ids=frozenset()) == []  # zero rows: open

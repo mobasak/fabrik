@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import re
 import subprocess
 import sys
@@ -332,6 +333,7 @@ def test_t8_account_status_fails_closed_on_partial_usage(monkeypatch):
 def test_t9_failed_switch_falls_through_to_drain(tmp_path, monkeypatch):
     """Closer #4: 'successor exists but cannot install' must NOT shadow the drain — the
     silent burn to 100% is the failure mode the whole feature exists to prevent."""
+    monkeypatch.setenv("ROTATE_THRESHOLD", "98")  # fixture built on the pre-2026-10-14 line
     # 98.5: above the default flip threshold (95 since 2026-09-03 — the line moved 95 → 98 → 95
     # that day; 98.5 clears every one of them, and the CLASS under test is unaffected)
     live = _acct("live", session_pct=98.5)
@@ -1332,6 +1334,7 @@ def test_target_needs_session_budget_even_when_its_weekly_reset_is_soonest(monke
     """Perishable-first must not pick a sibling that is about to hit its OWN 5h wall — it would
     flip there and flip away next tick. Default budget gate: session ≤ the trip line (98%) used —
     the 85% drain band left the target set on 2026-10-06 ("there should not be 85% at all")."""
+    monkeypatch.setenv("ROTATE_THRESHOLD", "98")  # fixture built on the pre-2026-10-14 line
     monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
     monkeypatch.setattr(cr, "_now", lambda: NOW)
     soon_but_spent = _cand("soon", session=98.5, reset=NOW + 3600)
@@ -1377,6 +1380,7 @@ def test_cached_standby_whose_session_window_rolled_over_counts_as_empty(monkeyp
 def test_live_reverify_applies_the_same_session_budget_gate(monkeypatch):
     """A cached 10% that probes LIVE at 98.5% must not become the pointer — the live reading goes
     through the SAME candidate verdict the picker used on the cache (F-C1), budget gate included."""
+    monkeypatch.setenv("ROTATE_THRESHOLD", "98")  # fixture built on the pre-2026-10-14 line
     monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
     monkeypatch.setattr(cr, "_now", lambda: NOW)
     monkeypatch.setattr(cr, "_read_access_token", lambda p: "tok")
@@ -1397,9 +1401,10 @@ def test_live_reverify_applies_the_same_session_budget_gate(monkeypatch):
 # ── operator rule 2026-09-03: rotate at 98% on the 5h window (seen RED first) ─────────────────
 
 
-def test_default_flip_threshold_is_98_and_the_env_still_overrides(monkeypatch):
-    """`ROTATE_THRESHOLD` unset → 98 (operator, 2026-09-08, D-201: "we can switch a lot faster now
-    so i want to utilize them better — switch as soon as it reaches 98%").
+def test_default_flip_threshold_is_99_and_the_env_still_overrides(monkeypatch):
+    """`ROTATE_THRESHOLD` unset → 99 (operator, 2026-10-14: "98% hook is to restrictive, can we make it
+    99% except ob@ocoron.com" — superseding D-201's 98 of 2026-09-08; ob keeps 98 through its own row in
+    `thresholds.json`, graded below).
 
     This SUPERSEDES the 95 of 2026-09-03, which itself replaced a 98 that lost the same day. The
     number moved back not because the burst went away — it did not, and the docstring on
@@ -1411,7 +1416,7 @@ def test_default_flip_threshold_is_98_and_the_env_still_overrides(monkeypatch):
     The env override keeps working, and ONE helper feeds every call site so the
     `_env_float("ROTATE_THRESHOLD", …)` copies cannot drift apart again."""
     monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
-    assert cr._rotate_threshold() == 98.0
+    assert cr._rotate_threshold() == 99.0
     monkeypatch.setenv("ROTATE_THRESHOLD", "91")
     assert cr._rotate_threshold() == 91.0
 
@@ -1450,7 +1455,7 @@ def test_fleet_flip_leg_holds_below_the_line_and_flips_at_it_on_the_session_wind
             },
         ]
 
-    # 93 holds, 98.2 flips: the line is 98 (see _rotate_threshold). 93 is inside the old drain
+    # 93 holds, 98.2 holds, 99.2 flips: the line is 99 (see _rotate_threshold). 93 is inside the old drain
     # band (85), which relief-flipped to a fresher sibling until the 2026-10-06 ruling — now the
     # active account rides to its line. This fixture's state dir starts empty, so the projection
     # adds 0 and the raw reading is what decides.
@@ -1467,6 +1472,9 @@ def test_fleet_flip_leg_holds_below_the_line_and_flips_at_it_on_the_session_wind
     assert flips == [], capsys.readouterr().out
     (cr._rotate_state_dir() / "tick-last-reading.json").unlink(missing_ok=True)
     cr._fleet_flip_leg([], rows(98.2), threshold=cr._rotate_threshold())
+    assert flips == [], capsys.readouterr().out  # under the 99 default since 2026-10-14
+    (cr._rotate_state_dir() / "tick-last-reading.json").unlink(missing_ok=True)
+    cr._fleet_flip_leg([], rows(99.2), threshold=cr._rotate_threshold())
     assert flips == ["can"], capsys.readouterr().out
 
 
@@ -1475,7 +1483,7 @@ def test_weekly_leg_trips_at_the_cap_not_at_the_session_threshold(monkeypatch, c
     weekly rule. `min(threshold, cap)` broke it the moment the session threshold moved to 98:
     a cap of 99 tripped at 98. When a cap exists the weekly leg trips at the cap and nowhere else;
     the session threshold governs the 5h window only. No cap → the threshold governs both."""
-    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    monkeypatch.setenv("ROTATE_THRESHOLD", "98")  # fixture built on the pre-2026-10-14 line
     flips = []
     monkeypatch.setattr(cr, "_resolve_active", lambda: "can")
     monkeypatch.setattr(cr, "_flip_active", lambda slug, **kw: flips.append(slug) or True)
@@ -1767,6 +1775,7 @@ def test_guarantee_1_rotates_to_the_next_account_when_quota_hits(monkeypatch, tm
 def test_guarantee_2_waits_when_no_account_is_available(monkeypatch, tmp_path, capsys):
     """Active at the wall and EVERY sibling walled too -> no flip, and no crash. This is the
     'wait' half: installing a walled successor would kill every session box-wide."""
+    monkeypatch.setenv("ROTATE_THRESHOLD", "98")  # fixture built on the pre-2026-10-14 line
     flips = _real_pick_harness(monkeypatch, tmp_path)
     walled = [_ob(99.0, 40.0), _sib("sarp", 99.0), _sib("can", 100.0), _sib("mob", 98.5)]
     cr._fleet_flip_leg([], walled, threshold=95.0)
@@ -1856,8 +1865,15 @@ def test_the_2026_09_06_stall_an_account_seconds_past_reset_gets_a_refresh_slot(
     groups = {e: [{"mtime": now - 10}] for e in emails}
     cache = {e: _cache_row(now - 300, now + 3600) for e in emails}  # all fresh, none rolled
     cache["ob@test"] = _cache_row(now - 300, now - 48)  # rolled 48s ago
-    # every account pinged 5 minutes ago => _refresh_ping_due is False for ALL of them
+    # every account pinged 5 minutes ago => _refresh_ping_due is False for ALL of them; the stamps
+    # are REAL, so the obsolete gate (W-010bb0d9) is proven on "pinged before the roll", not on
+    # an absent stamp
     monkeypatch.setattr(cr, "_refresh_ping_due", lambda email, n: False)
+    (tmp_path / "state").mkdir(exist_ok=True)
+    for e in emails:
+        stamp = cr._fleet_refresh_stamp(e)
+        stamp.write_text("")
+        os.utime(stamp, (now - 300, now - 300))
     slots = cr._ping_slots(groups, cache, now)
     assert slots == {"ob@test"}, (
         f"the just-reset account must get the refresh slot, and only it; got {slots}"
@@ -2082,6 +2098,7 @@ def test_relief_uses_the_pickers_session_bar_not_the_drain_threshold(monkeypatch
     """P3-2: the picker refuses a target over ROTATE_TARGET_SESSION_MAX_PCT (default the 98 trip
     line since 2026-10-06); relief must not promise the weekly reset for an account past that bar
     — an instant at which nothing was pickable, re-broadcast every hour."""
+    monkeypatch.setenv("ROTATE_THRESHOLD", "98")  # fixture built on the pre-2026-10-14 line
     monkeypatch.delenv("ROTATE_TARGET_SESSION_MAX_PCT", raising=False)
     monkeypatch.delenv("ROTATE_DRAIN_THRESHOLD", raising=False)
     accounts = [
@@ -2332,6 +2349,7 @@ def test_a_sooner_sibling_without_session_budget_or_at_its_cap_does_not_preempt(
 ):
     """Preemption goes only to a validated candidate: a sooner sibling over the 5h target bar, or at its
     caps.json cap, is no target, and the later sibling behind it is not sooner than the active one."""
+    monkeypatch.setenv("ROTATE_THRESHOLD", "98")  # fixture built on the pre-2026-10-14 line
     flips = []
     _relief_rows_base(monkeypatch, flips, active="can")
     rows = [
@@ -2571,6 +2589,7 @@ def test_status_json_and_text_carry_the_picture(monkeypatch, capsys):
 
 
 def test_the_picture_names_over_threshold_and_the_cap_boundaries(monkeypatch):
+    monkeypatch.setenv("ROTATE_THRESHOLD", "98")
     """Scoped review: mob@ at 0/97 under cap 99 read as `unavailable` — it is over the picker's
     target line on the weekly window (refused as a target until that window resets) but under
     its cap (the tick keeps it active). Boundaries: weekly == cap → cap-walled; == 100 →
@@ -2593,6 +2612,7 @@ def test_the_picture_names_over_threshold_and_the_cap_boundaries(monkeypatch):
     pic = cr._fleet_picture(rows, "act", NOW)
     st = {r["email"].split("@")[0]: (r["state"], r["returns_at"]) for r in pic["accounts"]}
     assert cr._rotate_threshold() < 99, "this fixture needs the flip line under the default cap"
+    # (the test pins ROTATE_THRESHOLD=98 itself: the default became 99 on 2026-10-14)
     assert st["over"] == ("over-threshold", NOW + 5 * 86400), st
     assert st["atcap"][0] == "cap-walled" and st["full"][0] == "weekly-exhausted", st
 
@@ -2644,6 +2664,7 @@ def test_the_picture_reads_the_session_bar_strictly_like_the_picker(monkeypatch)
     the weekly window is under its cap; cap-walled with the weekly reset ALONE (no later-of-two
     with a session reset it is not blocked by) when the weekly window is at its cap. The bar is the
     98 trip line since 2026-10-06 (it was the 85 drain band)."""
+    monkeypatch.setenv("ROTATE_THRESHOLD", "98")  # fixture built on the pre-2026-10-14 line
     monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
     monkeypatch.setattr(cr, "_now", lambda: NOW)
     monkeypatch.setattr(cr, "_rotate_state_dir", lambda: Path("/nonexistent-state-dir"))
@@ -2930,3 +2951,252 @@ def test_the_no_successor_mail_always_precedes_the_flip_line(monkeypatch):
     monkeypatch.setenv("ROTATE_THRESHOLD", "92")
     monkeypatch.setenv("ROTATE_URGENT_DRAIN_PCT", "90")
     assert cr._urgent_drain_pct() < cr._rotate_threshold()
+
+
+# ── per-account rotate thresholds (operator 2026-10-14: "99 except ob") ────────────────────────
+
+
+def _thr_root(tmp_path, monkeypatch, thresholds):
+    root = tmp_path / "fleet"
+    root.mkdir()
+    if thresholds is not None:
+        (root / "thresholds.json").write_text(json.dumps(thresholds))
+    monkeypatch.setenv("CLAUDE_FLEET_ROOT", str(root))
+    return root
+
+
+def test_thresholds_file_loads_lowercased_clamped_and_never_halts(tmp_path, monkeypatch, capsys):
+    _thr_root(
+        tmp_path,
+        monkeypatch,
+        {"OB@ocoron.com": 98, "x@y.co": 150, "bad@y.co": "98", "t@y.co": True},
+    )
+    got = cr._thresholds_file()
+    assert got == {"ob@ocoron.com": 98.0, "x@y.co": 100.0}, got
+    assert "bad@y.co" in capsys.readouterr().err
+    (tmp_path / "fleet" / "thresholds.json").write_text("{nope")
+    assert cr._thresholds_file() == {}
+    assert "not valid JSON" in capsys.readouterr().err
+    (tmp_path / "fleet" / "thresholds.json").unlink()
+    assert cr._thresholds_file() == {}
+
+
+def test_row_threshold_prefers_the_account_override(monkeypatch):
+    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    assert cr._row_threshold({"session_threshold": 98.0}, 99.0) == 98.0
+    assert cr._row_threshold({"session_threshold": None}, 99.0) == 99.0
+    assert cr._row_threshold({}, 99.0) == 99.0
+
+
+def test_an_account_override_trips_the_flip_leg_below_the_default(monkeypatch, capsys):
+    """ob at 98.4% session with a 98 override flips; the same reading on an account without one
+    (default 99) holds — the override reaches the flip leg, not just the board."""
+    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    flips = []
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "ob")
+    monkeypatch.setattr(cr, "_flip_active", lambda slug, **kw: flips.append(slug) or True)
+    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: ("can", "can@ocoron.com"))
+    monkeypatch.setattr(cr, "_tick_telegram", lambda msg: None)
+    monkeypatch.setattr(cr, "_ledger_append", lambda e: None)
+
+    def rows(override):
+        return [
+            {
+                "email": "ob@ocoron.com",
+                "slugs": ["ob"],
+                "source": "live",
+                "valid": True,
+                "session_threshold": override,
+                "five_hour": {"utilization": 98.4, "resets_at_epoch": NOW + 3600},
+                "seven_day": {"utilization": 40.0, "resets_at_epoch": NOW + 86400},
+            },
+            {
+                "email": "can@ocoron.com",
+                "slugs": ["can"],
+                "source": "live",
+                "valid": True,
+                "five_hour": {"utilization": 5.0, "resets_at_epoch": NOW + 3600},
+                "seven_day": {"utilization": 10.0, "resets_at_epoch": NOW + 2 * 86400},
+            },
+        ]
+
+    (cr._rotate_state_dir() / "tick-last-reading.json").unlink(missing_ok=True)
+    cr._fleet_flip_leg([], rows(None), threshold=cr._rotate_threshold())
+    assert flips == [], capsys.readouterr().out
+    (cr._rotate_state_dir() / "tick-last-reading.json").unlink(missing_ok=True)
+    cr._fleet_flip_leg([], rows(98.0), threshold=cr._rotate_threshold())
+    assert flips == ["can"], capsys.readouterr().out
+
+
+def test_an_account_override_excludes_a_flip_target_at_its_own_line(monkeypatch):
+    """The picker's candidate verdict reads the row's own threshold: a sibling at 98.5% session is a
+    target under the default 99 and NOT one under its own 98."""
+    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    row = {
+        "email": "ob@ocoron.com",
+        "slugs": ["ob"],
+        "source": "live",
+        "five_hour": {"utilization": 98.5, "resets_at_epoch": NOW + 3600},
+        "seven_day": {"utilization": 10.0, "resets_at_epoch": NOW + 86400},
+    }
+    _s, _u, reason = cr._flip_candidate_verdict(row, cr._rotate_threshold())
+    assert reason is None, reason
+    _s, _u, reason = cr._flip_candidate_verdict(
+        {**row, "session_threshold": 98.0}, cr._rotate_threshold()
+    )
+    assert reason is not None and "98" in reason, reason
+
+
+def test_both_account_map_loaders_survive_a_giant_int_and_non_utf8_bytes(
+    tmp_path, monkeypatch, capsys
+):
+    """D-855 review A1: `math.isfinite(10**400)` raised OverflowError and a non-UTF-8 byte raised
+    UnicodeDecodeError out of the loaders — every tick then died until the file was hand-edited."""
+    root = _thr_root(tmp_path, monkeypatch, None)
+    for name, loader in (("thresholds.json", cr._thresholds_file), ("caps.json", cr._caps_file)):
+        (root / name).write_text('{"a@b.co": 1' + "0" * 400 + ', "c@d.co": 97}')
+        assert loader() == {"c@d.co": 97}, name
+        assert "a@b.co" in capsys.readouterr().err
+        (root / name).write_bytes(b'{"a@b.co": 97} \xff')
+        assert loader() == {}, name
+        assert "cannot read" in capsys.readouterr().err
+
+
+def test_an_own_line_never_walls_the_active_account_below_the_urgent_tier(monkeypatch):
+    """D-855 review A2: a board line of 85 wrote the `walled` stamp (the fleet's hard hold) at 87 —
+    below urgent-90, reversing D-201's ordering. The own line walls no lower than the urgent tier."""
+    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    monkeypatch.delenv("ROTATE_URGENT_DRAIN_PCT", raising=False)
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "ob")
+
+    def row(session, line):
+        return [
+            {
+                "email": "ob@ocoron.com",
+                "slugs": ["ob"],
+                "session_threshold": line,
+                "weekly_cap": None,
+                "five_hour": {"utilization": session},
+                "seven_day": {"utilization": 10.0},
+            }
+        ]
+
+    assert cr._active_account_walled(row(87.0, 85.0), cr._rotate_threshold())[0] is False
+    # closing round N1: flooring at 90 made urgent and walled fire together — a sub-urgent own line
+    # walls at the FLEET line instead, leaving the urgent tier its runway
+    assert cr._active_account_walled(row(90.5, 85.0), cr._rotate_threshold())[0] is False
+    assert cr._active_account_walled(row(99.2, 85.0), cr._rotate_threshold())[0] is True
+    assert cr._active_account_walled(row(98.2, 98.0), cr._rotate_threshold())[0] is True
+
+
+def test_a_capped_active_account_is_walled_on_its_cap_not_its_line(monkeypatch):
+    """D-855 review A3: cap 95, line 85, weekly 90 — the flip leg keeps it (weekly below cap) while the
+    walled predicate read it walled. The active account's weekly window walls at its cap."""
+    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "ob")
+    rows = [
+        {
+            "email": "ob@ocoron.com",
+            "slugs": ["ob"],
+            "session_threshold": 98.0,
+            "weekly_cap": 100,
+            "five_hour": {"utilization": 20.0},
+            "seven_day": {"utilization": 98.5},
+        }
+    ]
+    assert cr._active_account_walled(rows, cr._rotate_threshold())[0] is False
+    rows[0]["weekly_cap"] = None
+    assert cr._active_account_walled(rows, cr._rotate_threshold())[0] is True
+
+
+def test_a_session_wall_notice_names_the_session_window(monkeypatch):
+    """D-855 review A2b: the line IS the wall (D-201), so a SESSION trip walls — and the notice quoted
+    the weekly figure for it."""
+    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    row = {
+        "email": "ob@ocoron.com",
+        "session_threshold": 98.0,
+        "five_hour": {"utilization": 98.4},
+        "seven_day": {"utilization": 10.0},
+        "weekly_cap": None,
+    }
+    reason = cr._drain_trigger_reason(row, session_pct=98.4, walled=True)
+    assert "5-hour session" in reason and "98%" in reason and "10%" not in reason, reason
+    # closing round N2: weekly READS higher but sits under its cap — the session window walled it
+    capped = {
+        "email": "x@y.co",
+        "five_hour": {"utilization": 99.2},
+        "seven_day": {"utilization": 99.5},
+        "weekly_cap": 100,
+    }
+    reason = cr._drain_trigger_reason(capped, session_pct=99.2, walled=True)
+    assert "5-hour session" in reason, reason
+    # closing round N3: a parked account is PARKED, never "session-walled at 40%"
+    parked = {"email": "p@y.co", "five_hour": {"utilization": 40.0}, "weekly_cap": 0}
+    reason = cr._drain_trigger_reason(parked, session_pct=40.0, walled=True)
+    assert "PARKED" in reason and "40%" not in reason, reason
+    # closing round R3-1: a weekly window AT 100 is the wall, even with the session over its line
+    walled_wk = {
+        "email": "w@y.co",
+        "five_hour": {"utilization": 99.5},
+        "seven_day": {"utilization": 100.0},
+    }
+    for cap in (None, 90):
+        reason = cr._drain_trigger_reason({**walled_wk, "weekly_cap": cap}, 99.5, walled=True)
+        assert "weekly" in reason and "5-hour" not in reason, (cap, reason)
+
+
+def test_the_flip_leg_judges_siblings_on_the_fleet_line_not_the_active_accounts(
+    monkeypatch, capsys
+):
+    """D-855 review A4: the leg rebound `threshold` to the active account's own 98 and handed it to
+    the sibling diagnostics — a sibling at 98.5 with no override was reported 'no 5h budget'."""
+    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    seen = []
+    monkeypatch.setattr(cr, "_resolve_active", lambda: "ob")
+    monkeypatch.setattr(cr, "_validated_pick", lambda accts, excl, **kw: None)
+    monkeypatch.setattr(
+        cr, "_flip_exclusion_reasons", lambda accts, excl, thr: seen.append(thr) or []
+    )
+    monkeypatch.setattr(cr, "_ledger_append", lambda e: None)
+    rows = [
+        {
+            "email": "ob@ocoron.com",
+            "slugs": ["ob"],
+            "source": "live",
+            "valid": True,
+            "session_threshold": 98.0,
+            "five_hour": {"utilization": 98.4, "resets_at_epoch": NOW + 3600},
+            "seven_day": {"utilization": 40.0, "resets_at_epoch": NOW + 86400},
+        }
+    ]
+    (cr._rotate_state_dir() / "tick-last-reading.json").unlink(missing_ok=True)
+    cr._fleet_flip_leg([], rows, threshold=cr._rotate_threshold())
+    assert seen == [cr._rotate_threshold()], (seen, capsys.readouterr().out)
+
+
+def test_each_picture_row_carries_its_own_flip_line(monkeypatch):
+    """D-855 review A7: the picture's only line was the fleet's — an agent could not see ob@ trips at 98."""
+    monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
+    monkeypatch.setattr(cr, "_account_flip_dir", lambda slugs: slugs[0] if slugs else None)
+    monkeypatch.setattr(cr, "_now", lambda: NOW)
+    monkeypatch.setattr(cr, "_rotate_state_dir", lambda: Path("/nonexistent-state-dir"))
+    monkeypatch.setattr(
+        cr, "_fleet_exhaustion_stamp", lambda: Path("/nonexistent-state-dir/fleet-exhausted")
+    )
+    rows = [_live("act@ocoron.com", "act", 20.0, 30.0), _live("ob@ocoron.com", "ob", 5.0, 10.0)]
+    rows[1]["session_threshold"] = 98.0
+    pic = cr._fleet_picture(rows, "act", NOW)
+    trips = {r["email"]: r["trip"] for r in pic["accounts"]}
+    assert trips == {"act@ocoron.com": cr._rotate_threshold(), "ob@ocoron.com": 98.0}, trips
+
+
+def test_fleet_dirs_leaves_out_the_backups_park_root(tmp_path, monkeypatch):
+    """W-f7772267 (a): `backups` is the fleet's park root (`--merge-shared` parks copies there, `--new-dir backups` is
+    refused), never an account, so `_fleet_dirs` must not list it: it read as a phantom pending-login account on
+    `--status` beside the real ones. The `active` pointer stays out too, and every real account dir stays in."""
+    root = _mk_fleet(tmp_path, monkeypatch, slugs=("alpha", "beta"))
+    (root / cr._PARK_ROOT_NAME / "tasks-merged-from").mkdir(parents=True)
+    (root / cr._ACTIVE_POINTER_NAME).symlink_to(root / "alpha", target_is_directory=True)
+    assert [d.name for d in cr._fleet_dirs()] == ["alpha", "beta"]

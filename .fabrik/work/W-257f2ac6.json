@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:23.790233Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-257f2ac6",
+  "impact": "low",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VKTPP2JF7FCM1DR790YYRA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — kaizen triage row writer, nobody blocked",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "one more row from kaizen's D-735 triage that is infra's — a `--row` writer for the quiet-round Pass row (review_receipt.py)"
+}

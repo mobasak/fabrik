@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T12:41:26.562758Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-223704c1",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1296",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "red-first test: seat payload \"echo 'x <<EOF'\\ngit -C /opt/fabrik commit -m y\" must be denied; then honour only an UNQUOTED << in _strip_heredocs (reuse _strip_comments' quote walk); found by the Fable critique of W-e57d2481 (probe case quoted-heredoc-marker-evasion)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "seat_guard.py: a QUOTED <<WORD (echo 'see <<EOF') makes _strip_heredocs drop every following line from the scan, so a seat's git write or kill on line 2 passes the seat checks and a coordinator's sleep loop passes the D-1296 wait guard"
+}

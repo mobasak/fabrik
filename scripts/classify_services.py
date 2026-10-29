@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 # AFTER-EDIT: scripts/tests/test_gather_envs.py tests/test_external_services_chain.py scripts/external_services_chain.sh docs/reference/external-services-registry.md
-"""Web-ground the uncatalogued services (category=? in all-envs.env) via the OpenRouter pool.
+"""A manual tool since D-1046 (not in the daily chain): web-ground the uncatalogued services via the pool.
+
+The daily chain no longer runs this script: its only engine is the OpenRouter pool, OFF by ruling
+since 2026-09-07 (D-181/D-182), so it dispatches nothing while that ruling stands, and a provider
+gets its category from a hand-written scripts/service_catalog.json entry.
 
 For every NEEDS-TRIAGE provider in secrets/all-envs.env, dispatch ONE cheap pool research
 unit (family-diverse models under the <=$1.5/Mtok cap, web-grounded via exa/brave) that
@@ -86,10 +90,7 @@ def _enum_category(raw) -> str:
 
 COSTS = ("free", "freemium", "paid", "self-host", "?")  # the catalog's live value set (AP1)
 STATUSES = ("active", "retired", "retiring", "unidentified", "?")
-CATEGORIES = (
-    "ai-llm ai-image ai-audio ai-translate search scrape captcha proxy domains email "
-    "storage backup research-data media-stock infra-platform dev-tools comms payments"
-)
+CATEGORIES = gather_envs.CATEGORIES  # the enum's one home is the scan (D-1046)
 URL_KEY_RE = re.compile(r"(_URL|_BASE_URL|_ENDPOINT)$", re.I)
 KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$")
 
@@ -341,9 +342,16 @@ def tombstone_of(catalog: dict, prov: str) -> bool:
     category = meta.get("category")
     if isinstance(category, str) and category.strip() == "unidentified":
         return True
-    return not gather_envs.real_category(category) and not any(  # the ONE predicate (CU3)
+    return not _operator_category(category) and not any(
         meta.get(k) not in (None, "", "?", []) for k in ("match", "hosts", "url")
     )
+
+
+def _operator_category(cat) -> bool:
+    """A category the OPERATOR wrote: any string but blank or `?`. Since D-1050 an off-enum string is
+    not CATALOGUED (gather_envs.real_category routes it to triage), but it is still the operator's
+    field — a typo to correct, never a tombstone the merge path may pop or a stub may overwrite."""
+    return isinstance(cat, str) and cat.strip() not in ("", "?")
 
 
 def _tokens_elsewhere(catalog: dict, prov: str) -> set[str]:
@@ -361,8 +369,8 @@ def _tokens_elsewhere(catalog: dict, prov: str) -> set[str]:
 def tombstone_entry(prov: str, code_only: bool = False) -> dict:
     """A catalog stub for a provider the WEB genuinely could not identify.
 
-    The `category` is a NON-"?" value ("unidentified") on purpose: gather_envs buckets the
-    NEEDS-TRIAGE block SOLELY on category=="?", so a "?" stub would stay in triage and get
+    The `category` is a NON-"?" value ("unidentified") on purpose: gather_envs buckets into the
+    NEEDS-TRIAGE block every entry `real_category` rejects, `?` included, so a "?" stub would stay in triage and get
     re-dispatched (re-billed) every daily run — the exact loop this closes (C2). The match
     prefix is the FULL provider name (not `prov.split("_")[0]`) so a compound name like
     `aws_bedrock` tombstones only AWS_BEDROCK_* keys, never every AWS_* key (C5)."""
@@ -469,7 +477,9 @@ def main() -> int:
         )
         return 0
     try:
-        gather_envs.load_catalog()  # the same key rules the next gather_envs applies (lowercase, no whitespace): a lap must never accept a catalog the chain's next step refuses (EZ9)
+        lap_catalog, _ = (
+            gather_envs.load_catalog()
+        )  # the same key rules the next gather_envs applies (lowercase, no whitespace): a lap must never accept a catalog the chain's next step refuses (EZ9)
     except gather_envs.CatalogError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -484,6 +494,19 @@ def main() -> int:
         print(f"ERROR: {exc} — nothing written, cursor unmoved", file=sys.stderr)
         return 1
     all_flagged = set(provs)  # the WHOLE queue, before any --only narrowing (pass 5, Z2)
+    typos = sorted(  # an operator's off-enum category sits in triage until THEY correct it (D-1050)
+        p
+        for p in provs
+        if _operator_category((lap_catalog.get(p) or {}).get("category"))
+        and not gather_envs.real_category(lap_catalog[p].get("category"))
+    )
+    if typos:  # dispatching one could only fail to stub it — never overwrite it — and re-dispatch it every run
+        print(
+            f"skipped {typos}: their catalog category is outside the enum — correct it in "
+            f"{CATALOG_PATH.name}, nothing dispatched for them",
+            file=sys.stderr,
+        )
+        provs = {p: v for p, v in provs.items() if p not in typos}
     if args.only:  # the re-bill guard: classify ONLY the named (new) providers, not all flagged
         wanted = {x.strip() for x in args.only.split(",") if x.strip()}
         provs = {p: v for p, v in provs.items() if p in wanted}
@@ -845,16 +868,17 @@ def main() -> int:
         if args.tombstone_unresolved:
             # Persist a stub for a provider the WEB genuinely could not identify (not one that
             # merely errored — C4) so it drops out of NEEDS-TRIAGE and the daily path stops
-            # re-dispatching a paid pool call for it forever. The category MUST be non-"?" —
-            # gather_envs buckets NEEDS-TRIAGE purely on category=="?", so a "?" stub would
+            # re-dispatching a paid pool call for it forever. The category MUST be `unidentified` —
+            # gather_envs buckets into NEEDS-TRIAGE whatever real_category rejects, so a "?" stub would
             # stay in triage and defeat the whole point (C2). The full provider name is the
             # match prefix (not split on "_") so `aws_bedrock` doesn't swallow every AWS_* key (C5).
             for prov in names:
                 if prov in identified or prov in errored or prov in merged_into:
                     continue  # a merged host joined its vendor — never also a stub (AF2)
-                if prov in catalog and gather_envs.real_category(catalog[prov].get("category")):
-                    # a real entry — the SAME predicate the scan buckets on (Z10; CE3's mirror, CJ3): a
-                    # non-str category buckets to `?` there, so treating it as real here re-billed it daily
+                if prov in catalog and _operator_category(catalog[prov].get("category")):
+                    # the operator's category, an enum value or a typo — never overwritten by a stub;
+                    # a typo is skipped before dispatch (above), so it is never re-billed (D-1050). A
+                    # non-str category is not the operator's, and the stub replaces it (Z10, CJ3)
                     continue
                 stub = tombstone_entry(prov, code_only=code_only_provider(provs.get(prov, {})))
                 if stub["match"] and stub["match"][0].rstrip("_") in _tokens_elsewhere(

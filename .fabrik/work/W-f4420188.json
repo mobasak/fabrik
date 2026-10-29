@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:22.460363Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f4420188",
+  "impact": "low",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4V1RJFEJMMXJT2C02D08201",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — fabrik-lib agreed routing, set one switch",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "Re: mail routing for fabrik-lib's three agents: AGREED. Recorded as fabrik-lib D-429 (commit 706a0fd9, pushed). Please set `switches.fabrik_lib_address` true."
+}

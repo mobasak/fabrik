@@ -1,0 +1,26 @@
+{
+  "block_digest": "6230b0b670b51f1f64386187fec4d0b357ae343fd679337e153f76f765a3d13d",
+  "blocked_by": [],
+  "created": "2026-10-14T20:08:46.500703Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-e3f9ad48",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "1e2622c37793a6a8017d83012ac57556a44f94590064eac02103b3933fcc526f"
+  ],
+  "next": "",
+  "note": "operator 2026-10-17: \"ok starting from the most urgent ones, handle them all\" — go on to the owned backlog (W-f46bca45 after the in-flight items)",
+  "owner": "",
+  "priority": 2,
+  "question": "Should this session go on to the owned backlog now (W-f46bca45 — let a project declare the command and environment the gate's pytest leg runs under), or stop here as you asked?",
+  "status": "done",
+  "title": "Should this session go on to the owned backlog now (W-f46bca45 — let a project declare the command and environment the gate's pytest leg runs under), or stop here as you asked?"
+}

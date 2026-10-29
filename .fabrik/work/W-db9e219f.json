@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-30T10:46:44.334209Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-db9e219f",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -12,10 +14,11 @@
     "spec": ""
   },
   "next": "upgrade the template with the rntl-v14-async-functions codemod over the emitted tests, then drop the pack's 'scaffold still pins the previous major' note",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "fleet",
-  "priority": 2,
-  "status": "open",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — testing-library major bump with codemod",
+  "status": "dropped",
   "tags": [
     "rules"
   ],

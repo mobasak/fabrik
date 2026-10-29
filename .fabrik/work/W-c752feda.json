@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T20:30:21.549952Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c752feda",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4EJQEEGADZM6H9WAH3TZP2S",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-spec feedback queue — 11 verdict(s) that need CODE in your beat (kaizen D-711 triage)"
+}

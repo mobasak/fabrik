@@ -10,10 +10,14 @@ name no Haiku seat: a judgement unit has no grep-able angle.
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import json
+import os
 import re
+import signal
 import subprocess
+from html import unescape
 from pathlib import Path
 
 import pytest
@@ -99,7 +103,8 @@ def test_judgement_floors_name_no_haiku_seat_and_review_floors_name_a_class_wide
 _PARTITION_SENTENCE = (
     "**plus the partition — the surface cut into DISJOINT slices by file: two cheap finders per "
     "slice, one Sonnet and one Haiku `fabrik-reviewer`, candidates unioned, no Opus finder (pilot D-344 "
-    "over D-207); at most ONE extra Haiku class seat when the brief names a non-scriptable "
+    "over D-207; `/fabrik-execute-plan`'s per-round Opus finder floor is its own rule and "
+    "still stands, D-813); at most ONE extra Haiku class seat when the brief names a non-scriptable "
     "inventory class; every file read by its two finders; sized by "
     "`dispatch_headroom.py --slices sonnet=N,haiku=N`"
 )
@@ -233,12 +238,11 @@ def test_both_floor_sentences_reach_their_rendered_commands_whole(tmp_path):
         for native in ("`fabrik-reviewer`", "`fabrik-researcher`", "`design-review`")
     }
     assert units == {
-        "`fabrik-reviewer`": ["fabrik-doc-converge", "fabrik-features"],
+        "`fabrik-reviewer`": ["fabrik-doc-converge", "fabrik-docs-review", "fabrik-features"],
         # the third carrier (review-family pass 3, D1): /design-review keeps its mechanical seat
         "`design-review`": ["design-review"],
         # `/fabrik-spec-review` left this list for the SECTION-partition floor (D-212/D-218)
         "`fabrik-researcher`": [
-            "fabrik-docs-review",
             "fabrik-flows-review",
             "fabrik-rules-review",
             "fabrik-ui-design-review",
@@ -387,8 +391,10 @@ _BANNER_PAYLOAD = {
 
 
 def test_v7_the_rendered_board_banner_carries_no_retired_literal(tmp_path, monkeypatch):
-    """`_budget_probe` swallows every exception into `Box budget unavailable: …`, so the positive
-    control comes FIRST — an absence check against that fallback would pass vacuously."""
+    """`_budget_probe` collects the banner's DATA and the Overview's `_budget_lines` renders it (the
+    command-centre split, W-573fae88 T07); the test drives both, so the positive control — the real
+    banner's `Box budget:` line, not the probe's `{"error": …}` fallback — comes FIRST and an absence
+    check cannot pass vacuously."""
     monkeypatch.setenv("QUOTA_DASH_OUT_DIR", str(tmp_path / "out"))
     monkeypatch.setenv("QUOTA_DASH_POINTER", str(tmp_path / "active"))
     src = REPO / "scripts" / "sysadmin" / "quota_dashboard.py"
@@ -403,8 +409,27 @@ def test_v7_the_rendered_board_banner_carries_no_retired_literal(tmp_path, monke
         stderr = ""
 
     monkeypatch.setattr(qd.subprocess, "run", lambda args, **kw: _Run())
-    html = qd._budget_probe()
-    assert "Box budget (D-189" in html, html  # positive control: the real banner, not the fallback
+    budget = qd._budget_probe()
+    assert "error" not in budget, budget  # the probe parsed the payload, not its fallback
+    from dashboard_ui.views import overview  # loading `qd` above put scripts/sysadmin on sys.path
+
+    # this tree's renderer, never a `dashboard_ui` another tree left in sys.modules (review S-2)
+    # the exact file, never a parent check: every linked worktree sits under the main checkout (R2-1)
+    own = REPO / "scripts" / "sysadmin" / "dashboard_ui" / "views" / "overview.py"
+    assert Path(overview.__file__).resolve() == own.resolve(), overview.__file__
+    html = unescape(
+        "".join(overview._budget_lines(budget))
+    )  # a literal with `'` or `&` still matches
+    # positive control: the real banner WITH the payload's seat and quota facts, the part a retired
+    # seat-sizing literal lived in — the fixed template alone ("Box budget: · CLI cap") passed (S-1)
+    for fact in (
+        "Box budget: ",
+        "read-only seats allowed now: 17 (box 23)",
+        "heavy seats allowed now: 12 (box 12)",
+        "CLI cap 17",
+        "quota: active a@x at 7.0%",
+    ):
+        assert fact in html, (fact, html)
     joined = _joined(html)
     assert not [lit for lit in _RETIRED_LITERALS if lit in joined], html
 
@@ -576,13 +601,66 @@ def test_a_preview_render_without_a_skills_tree_still_trips_the_cap(tmp_path, mo
     assert _census(tmp_path) == (0, 0, 0)
 
 
-def _installed(tmp_path, monkeypatch):
-    """A clean install rendered into scratch trees, with `check()` pointed at them."""
-    d, s, a = _trees(tmp_path)
-    ac.render(d, s, agents_dest=a)
+def _gate_at(monkeypatch, d, s, a):
+    """Point `check()` at the scratch trees ``d``/``s``/``a`` for a test that grades its INSTALLED-tree
+    reads. The rule-ledger LOSS pass and the size measure read the temp render, the sources and tracked
+    repo files and take minutes on the full corpus (W-bda24c48: 11 such tests held ~1,950 s); their
+    own tests grade them and check()'s wiring of them (tests/test_command_rules.py,
+    tests/test_command_measure.py). Here they are spies that return their empty results and judge all
+    three arguments both passes share: ``render_dir`` must BE a destination rendered during THIS check()
+    call (``ac.render`` is wrapped to record each, ``ac.check`` to forget them at every call) and never
+    an installed tree, ``root`` the repo, ``src_dir`` the sources — so a regression that hands them an
+    installed tree, the sources, ``commands/``, the repo or an earlier call's deleted temp render still
+    goes red (review round 1: a marker directory let ``commands/`` through; round 2: "the LAST render"
+    false-redded a check() rendering twice; round 3: a whole-test list accepted a stale render). The
+    passes' other arguments (``rules``, ``path``) are not judged. A check() that stops calling them is
+    graded where the wiring lives, the two files above."""
+    renders: list[Path] = []
+    real_render = ac.render
+    real_check = ac.check
+
+    def _render(dest, *args, **kwargs):
+        renders.append(Path(dest).resolve())
+        return real_render(dest, *args, **kwargs)
+
+    def _check(*args, **kwargs):
+        renders.clear()
+        return real_check(*args, **kwargs)
+
+    def _not_installed(empty):
+        def spy(render_dir, root, src_dir, *rest, **kwargs):
+            rd = Path(render_dir).resolve()
+            assert not any(rd.is_relative_to(t.resolve()) for t in (d, s, a)), (
+                f"a ledger or measure pass was handed the installed tree {render_dir}"
+            )
+            assert rd in renders, (
+                f"a ledger or measure pass was handed {render_dir}, not check()'s temp render"
+            )
+            assert Path(root).resolve() == ac.ROOT.parent.resolve(), (
+                f"root was {root}, not the repo"
+            )
+            assert Path(src_dir).resolve() == ac.SRC.resolve(), (
+                f"src_dir was {src_dir}, not the sources"
+            )
+            return empty
+
+        return spy
+
+    monkeypatch.setattr(ac, "render", _render)
+    monkeypatch.setattr(ac, "check", _check)
+    monkeypatch.setattr(ac.command_rules, "losses", _not_installed([]))
+    monkeypatch.setattr(ac.command_measure, "findings", _not_installed(([], [])))
     monkeypatch.setattr(ac, "OUT", d)
     monkeypatch.setattr(ac, "SKILLS", s)
     monkeypatch.setattr(ac, "AGENTS", a)
+
+
+def _installed(tmp_path, monkeypatch):
+    """A clean install rendered into scratch trees, with `check()` pointed at them and its LOSS and
+    measure passes stubbed by `_gate_at` — never use it to grade those passes."""
+    d, s, a = _trees(tmp_path)
+    ac.render(d, s, agents_dest=a)
+    _gate_at(monkeypatch, d, s, a)
     first_cmd = sorted(d.glob("*.md"))[0]
     first_agent = sorted(a.glob("*.md"))[0]
     return {
@@ -612,14 +690,38 @@ def test_check_reports_a_corrupted_installed_file_instead_of_crashing(
     tmp_path, monkeypatch, capsys, tree
 ):
     """A GENERATED installed file that acquired non-UTF-8 bytes (a bad-encoding hand edit, a truncated
-    write) is reported as HAND-EDITED drift, never a traceback — for every installed tree, including the
+    write) is reported as drift, never a traceback — for every installed tree, including the
     agents tree `agent_drift` reads first (round 14: that sixth read was still bare)."""
     generated, _stray, _orphan = _installed(tmp_path, monkeypatch)[tree]
     generated.write_bytes(_STRAY)
     with pytest.raises(SystemExit) as exc:
         ac.check()
     assert exc.value.code == 1
-    assert "HAND-EDITED" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    # the label names all three causes the check cannot tell apart (intel 01M4D9HNXM), the remedy
+    # for each tree, and a changed-line count — never just one cause
+    for part in (
+        "an unrendered edit here",
+        "this tree behind the last render",
+        "a hand-edit of the installed file",
+        "in the main checkout render then re-check",
+        "in a worktree merge master",
+        "rows from this branch's own unmerged edits stay until they merge",
+        "changed lines",
+    ):
+        assert part in out, (part, out)
+    assert "DIFFERS from what this tree renders" in out and "HAND-EDITED" not in out, out
+
+
+def test_the_drift_count_is_changed_lines_only() -> None:
+    """A unified diff's headers and context are not differences: one changed line reads 2 (one
+    removed, one added), never 7 (review A-S1)."""
+    label = ac._differs("a\nb\nc\nd\n", "a\nX\nc\nd\n")
+    assert "(2 changed lines" in label, label
+    # a removed `---` frontmatter line, a lost trailing newline and CRLF endings are changes too
+    assert "(1 changed lines" in ac._differs("---\na\n", "a\n")
+    assert "(2 changed lines" in ac._differs("a\nb\n", "a\nb")
+    assert "(4 changed lines" in ac._differs("a\nb\n", "a\r\nb\r\n")
 
 
 @pytest.mark.parametrize("tree", ["commands", "skills"])
@@ -765,9 +867,7 @@ def test_a_symlinked_orphan_is_reported_by_the_gate_and_unlinked_by_the_prune(
         (outside / "zz-old.md").write_text(ac.BANNER + "\n# old\n")
         link = a / "zz-old.md"
         link.symlink_to(outside / "zz-old.md")
-    monkeypatch.setattr(ac, "OUT", d)
-    monkeypatch.setattr(ac, "SKILLS", s)
-    monkeypatch.setattr(ac, "AGENTS", a)
+    _gate_at(monkeypatch, d, s, a)
     if tree != "agents":  # check() has orphan rules for the commands and skills trees
         with pytest.raises(SystemExit) as exc:
             ac.check()
@@ -785,9 +885,7 @@ def test_the_gate_reports_a_malformed_orphan_position_instead_of_crashing(
 ):
     d, s, a = _trees(tmp_path)
     ac.render(d, s, agents_dest=a)
-    monkeypatch.setattr(ac, "OUT", d)
-    monkeypatch.setattr(ac, "SKILLS", s)
-    monkeypatch.setattr(ac, "AGENTS", a)
+    _gate_at(monkeypatch, d, s, a)
     if shape == "a directory":
         (d / "zz-odd.md").mkdir()
         (s / "zz-odd" / "SKILL.md").mkdir(parents=True)
@@ -922,13 +1020,14 @@ def test_an_orphan_fifo_never_hangs_the_render_or_the_gate(tmp_path, monkeypatch
     def _hang(signum, frame):
         raise TimeoutError("a read guard let a FIFO through — the render or the gate blocked on it")
 
+    # The alarm bounds the orphan-position reads: the render's prune and check()'s orphan walks over the
+    # installed trees. The LOSS pass and the size measure are `_gate_at`'s spies: live, they took 45-105 s
+    # and made the alarm fire mid-ledger (exit 4, not 1; kaizen 2026-10-27).
+    _gate_at(monkeypatch, d, s, a)
     old = signal.signal(signal.SIGALRM, _hang)
     signal.alarm(20)
     try:
         ac.render(d, s, agents_dest=a)
-        monkeypatch.setattr(ac, "OUT", d)
-        monkeypatch.setattr(ac, "SKILLS", s)
-        monkeypatch.setattr(ac, "AGENTS", a)
         with pytest.raises(SystemExit) as exc:
             ac.check()
         out = capsys.readouterr().out
@@ -942,6 +1041,113 @@ def test_an_orphan_fifo_never_hangs_the_render_or_the_gate(tmp_path, monkeypatch
         (s / "zz-fifo" / "SKILL.md").unlink(missing_ok=True)
     assert survived, "a prune removed a FIFO it must not read"
     assert exc.value.code == 1 and out.count("not a regular file") == 2, out
+
+
+def _kept_name(tree, d, s, a):
+    """The installed path of the FIRST kept name in ``tree``: a name the render writes and the gate
+    compares, as opposed to an orphan's (W-21f88ec3)."""
+    cmd = sorted(ac.SRC.glob("*.md"))[0].stem
+    agent = sorted(ac.AGENT_SRC.glob("*.md"))[0].name
+    return {"commands": d / f"{cmd}.md", "skills": s / cmd / "SKILL.md", "agents": a / agent}[tree]
+
+
+@contextlib.contextmanager
+def _within(seconds, what):
+    """Bound a call that a regression turns into a blocking open: SIGALRM raises instead of hanging."""
+
+    def _hang(signum, frame):
+        raise TimeoutError(f"{what} blocked on a non-regular file at a kept name")
+
+    old = signal.signal(signal.SIGALRM, _hang)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
+
+
+@pytest.mark.parametrize("tree", ["commands", "skills", "agents"])
+def test_render_refuses_a_fifo_at_a_kept_name(tmp_path, tree):
+    """W-21f88ec3: the render opens every kept name for WRITE, which blocks on a FIFO until a reader
+    comes. The pre-flight refuses any non-regular file there before the first write, so nothing is
+    written and the FIFO is left where it is."""
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("no mkfifo on this platform")
+    d, s, a = _trees(tmp_path)
+    kept = _kept_name(tree, d, s, a)
+    kept.parent.mkdir(parents=True, exist_ok=True)
+    os.mkfifo(kept)
+    try:
+        with _within(20, "render()"), pytest.raises(SystemExit, match="not a regular file") as exc:
+            ac.render(d, s, agents_dest=a)
+        assert str(kept) in str(exc.value), exc.value
+        assert _census(tmp_path) == (0, 0, 0)
+        assert kept.exists() and not kept.is_file(), "the refusal must leave the FIFO in place"
+    finally:
+        kept.unlink(missing_ok=True)  # pytest keeps tmp dirs and nothing else sweeps a FIFO
+
+
+@pytest.mark.parametrize("shape", ["fifo", "directory", "symlink"])
+@pytest.mark.parametrize("tree", ["commands", "skills", "agents"])
+def test_the_gate_reports_a_non_regular_file_at_a_kept_name(
+    tmp_path, monkeypatch, capsys, tree, shape
+):
+    """W-21f88ec3: the gate compares every kept name's installed text. A FIFO there blocked the read
+    forever, a directory crashed it with IsADirectoryError, and a symlink to a byte-identical copy
+    passed although the render refuses to write through it; each is now one drift line and exit 1.
+    The ledger and measure passes are stubbed to their empty results, so nothing slow runs inside the
+    alarm, which wraps the whole check(): its temp render as well as the installed-tree reads."""
+    if shape == "fifo" and not hasattr(os, "mkfifo"):
+        pytest.skip("no mkfifo on this platform")
+    d, s, a = _trees(tmp_path)
+    ac.render(d, s, agents_dest=a)
+    kept = _kept_name(tree, d, s, a)
+    _gate_at(monkeypatch, d, s, a)
+    if shape == "symlink":
+        # the target sits outside every tree the gate walks, under a name no glob matches
+        target = tmp_path / "outside" / f"{kept.name}.target"
+        target.parent.mkdir()
+        kept.rename(target)
+        kept.symlink_to(target)
+    else:
+        kept.unlink()
+        if shape == "fifo":
+            os.mkfifo(kept)
+        else:
+            kept.mkdir()
+    try:
+        with _within(20, "check()"), pytest.raises(SystemExit) as exc:
+            ac.check()
+    finally:
+        if shape == "fifo":
+            kept.unlink(missing_ok=True)
+    out = capsys.readouterr().out
+    label = {
+        "commands": kept.name,
+        "skills": f"skills/{kept.parent.name}: SKILL.md",
+        "agents": f"agents/{kept.name}",
+    }[tree]
+    assert exc.value.code == 1 and out.count("not a regular file") == 1, out
+    assert f" - {label}" + (" " if tree == "skills" else ": ") + "not a regular file (" in out, out
+
+
+def test_the_gate_reports_a_symlinked_kept_skill_directory(tmp_path, monkeypatch, capsys):
+    """W-21f88ec3 review: the render refuses to write through a symlinked kept skill DIRECTORY
+    (`_dir_or_absent`), so the gate must not pass one whose SKILL.md is byte-identical."""
+    d, s, a = _trees(tmp_path)
+    ac.render(d, s, agents_dest=a)
+    kept_dir = _kept_name("skills", d, s, a).parent
+    target = tmp_path / "outside" / kept_dir.name
+    target.parent.mkdir()
+    kept_dir.rename(target)
+    kept_dir.symlink_to(target)
+    _gate_at(monkeypatch, d, s, a)
+    with pytest.raises(SystemExit) as exc:
+        ac.check()
+    out = capsys.readouterr().out
+    assert exc.value.code == 1, out
+    assert f" - skills/{kept_dir.name}: the skill directory is a symlink" in out, out
 
 
 def _reversed_glob(monkeypatch, tmp_path):
@@ -1229,3 +1435,41 @@ def test_the_partition_floors_no_longer_name_an_opus_finder_and_the_judgement_fl
     # the section partition (D-212/D-218) keeps its Opus seats on the rule/grammar sections — untouched
     for kind in ("section partition", "grounding", "adjudication"):
         assert "on Opus as the authoritative pass" in ac._floor(kind, "`fabrik-reviewer`"), kind
+
+
+def test_docs_review_citations_carry_a_quoted_anchor() -> None:
+    """W-8efe3357 (intel): reconciler seats cited doc lines by bare number, the numbers drifted
+    after earlier fixes, and every fix of a docs review had to be re-anchored by hand."""
+    text = " ".join((REPO / "commands" / "_sources" / "fabrik-docs-review.md").read_text().split())
+    for needle in (
+        "A seat's return cites every `path:line`",
+        "with a short fragment of that line, unique in its file",
+        "in a code span — path:line — `<fragment>`",
+        "for `path:a-b`, a fragment of line a; never a blank, rule or fence line",
+        "the fragment carries no `|`, no backtick and no ledger counter such as `confirmed:`",
+        "a fix is re-anchored by the fragment, never by the number",
+        "moves every later number in the file, and only the fragment finds its line again",
+        "Every reconciler brief carries this form.",
+        "Pass Ledger rows, receipts (the claim ledger included) and the reviewed docs themselves keep a plain `path:line`",
+        "graders parse the first two",
+        "a quote written into a doc goes stale with the code",
+        "an earlier fix that adds or removes a line",
+    ):
+        assert needle in text, needle
+
+
+def test_term_edit_grades_a_pin_outside_the_citation_globs_with_doc() -> None:
+    """intel W-191404c0: a pin outside check_citations_resolve's SOURCE_GLOBS was examined by
+    nothing; --doc grades it and names it."""
+    text = " ".join((REPO / "commands" / "_fragments" / "term-edit.md").read_text().split())
+    for needle in (
+        "check_citations_resolve.py --doc <pin> --root <repo>",
+        "whose `--doc examined 1 file(s): <pin>` line is the proof it was in the examined set",
+        "(`0 file(s): none` means the path was wrong)",
+        "prints `0 citations found` when the pin cites none",
+        "and a `--changed` run there prints `nothing in scope` when no doc matches",
+        "always, unless that root is a git checkout in which the copy shows as changed",
+    ):
+        assert needle in text, needle
+    assert "backlog EXTEND" not in text
+    assert "anchors stay the seats" not in text

@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:19.484283Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-fc523655",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4T0EV8WNF3ES4B1TAWQ8JNS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — coroner expires parent run, refuses commits",
+  "status": "open",
+  "title": "/fabrik-task feedback 1791873117 needs code — the coroner expires a parent run whose child review is mid-loop, and done --commit then refuses commits made under the expired record"
+}

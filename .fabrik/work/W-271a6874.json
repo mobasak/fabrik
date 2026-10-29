@@ -1,0 +1,22 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T13:27:04.211191Z",
+  "creator": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+  "evidence": "",
+  "id": "W-271a6874",
+  "kind": "next",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+    "spec": ""
+  },
+  "next": "write `docs/development/plans/2026-10-08-plan-2-payments-fulfilment-role.md` from the grounding, then run /fabrik-plan-review on it to convergence.",
+  "next_at": "2026-10-08T13:27:04.211191Z",
+  "note": "superseded",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "dropped",
+  "title": "write `docs/development/plans/2026-10-08-plan-2-payments-fulfilment-role.md` from the grounding, then run /fabrik-plan-review on it to convergence."
+}

@@ -12,12 +12,14 @@
     "spec": "docs/superpowers/specs/2026-10-03-scaffold-retired-agent-surface-design.md"
   },
   "next": "spec it after plan-1 scaffold-retired-agent-surface merges: fleet drops _copy_windsurf_hooks (scaffold.py:526-539, :1372) and fix sites (:7479-7484, :7573-7575); infra de-lists AGENT_HOOK_FILES (fabrik_synced_manifest.py:272), prunes, relaxes check_hooks_index.py",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
-    "fleet"
+    "fleet",
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "Retire .windsurf/hooks.json (and .windsurf/workflows) from scaffold, fix and the sync — Cascade-only, emitted in 50 /opt repos"
 }

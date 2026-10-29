@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T19:19:45.617685Z",
+  "creator": "infra",
+  "evidence": "8667320ea76a2a81480d6b155bbe31f06b0f7cd4",
+  "id": "W-d81efab9",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure: run the test with -vv, read scripts/scratch_sweep.py's status parser and git log -S for the quoting change; fix the parser (not the grader) unless the test pins a stale shape",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "tests/test_scratch_sweep_sync_materialised.py::test_quoted_status_paths_are_unwrapped is red on master (set() == {'\".claude/settings.json\"'}): scratch_sweep's git-status path parser no longer unwraps a quoted path — reported by kaizen 2026-10-12, reproduced on master de7dae9ff"
+}

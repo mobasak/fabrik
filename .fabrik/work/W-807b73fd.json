@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T12:56:41.152918Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "008706b627f68a0a4aa8f460ff8a7662ac8c0d85",
+  "id": "W-807b73fd",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "give the smoke run a no-claim mode (e.g. JOB_TYPES empty or a SMOKE=1 env the worker honours by beating without claiming) and pass it from the docker-smoke recipe, with a grader",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH: a bug that can consume a real production job (a smoke run with a real .env claims from the live queue); one template rule",
+  "status": "done",
+  "tags": [
+    "fleet"
+  ],
+  "title": "file-worker docker-smoke runs a live worker: with a real .env the smoke container calls claim_job against the real queue and can claim a production job, then docker stop SIGTERMs it ~3-13 s later (templates/file-worker/worker/main.py:281-297)"
+}

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import ast
 import fcntl
+import hashlib
 import importlib.util
 import json
 import os
@@ -47,7 +48,7 @@ def tree(tmp_path, monkeypatch):
         monkeypatch.delenv(k)
     monkeypatch.setenv("CLAUDE_PROJECTS_DIR", str(projects))
     monkeypatch.setenv("ARCHIVE_ROOT", str(archive))
-    # the files above are written NOW, and the default window is 1 day — pin it to 0
+    # pinned to 0 (also the default since 2026-10-08) so a test never depends on the default
     monkeypatch.setenv("ARCHIVE_AFTER_DAYS", "0")
     monkeypatch.setenv("SESSION_ARCHIVE_ENV_FILE", str(tmp_path / "no-such.env"))
     monkeypatch.setenv("SESSION_ARCHIVE_B2_KEY_ID", "kid-test")
@@ -67,8 +68,9 @@ def rec(monkeypatch):
 
         def __call__(self, argv, env):
             rows = 0
-            if argv[1] == "copyto" and argv[2].endswith(at.MANIFEST_NAME):
-                p = Path(argv[2])
+            local = [a for a in argv[2:] if a.endswith(at.MANIFEST_NAME) and ":" not in a]
+            if argv[1] == "copyto" and local:
+                p = Path(local[0])
                 rows = len(p.read_text().splitlines()) if p.exists() else 0
             self.calls.append((list(argv), dict(env), rows))
             return subprocess.CompletedProcess(argv, self.results.get(argv[1], 0), "", "boom")
@@ -81,9 +83,13 @@ def rec(monkeypatch):
     return r
 
 
-def _rows(archive: Path) -> list[dict]:
-    m = archive / at.MANIFEST_NAME
+def _rows(archive: Path, name: str | None = None) -> list[dict]:
+    m = archive / (name or at.MANIFEST_NAME)
     return [json.loads(x) for x in m.read_text().splitlines()] if m.exists() else []
+
+
+def _sub_rows(archive: Path) -> list[dict]:
+    return _rows(archive, at.SUBAGENT_MANIFEST_NAME)
 
 
 # ── revision-1 behaviours, kept ─────────────────────────────────────────────────────────────
@@ -111,12 +117,120 @@ def test_manifest_key_disambiguates_the_same_session_id_across_projects(tree, re
         assert (archive / r["project_slug"] / f"{r['session_id']}.jsonl.zst").is_file()
 
 
-def test_subagent_transcripts_never_enter_the_archive(tree, rec):
+def test_subagent_transcripts_are_archived_under_their_path(tree, rec):
+    """D-1182: the */subagents/** tier is archived like MAIN — object at <slug>/<rel>.zst, row in its OWN
+    manifest (manifest.jsonl stays MAIN-only, so no MAIN reader can mis-key a sidechain row)."""
+    projects, archive = tree
+    subs = projects / "-opt-alpha" / "shared-id" / "subagents"
+    wf = subs / "workflows" / "wf_1"
+    wf.mkdir(parents=True)
+    (wf / "agent-y.jsonl").write_bytes(b"W" * 3000)
+    (wf / "journal.jsonl").write_bytes(b'{"j":1}\n' * 10)
+    (subs / "agent-x.meta.json").write_text("{}")
+    sup = projects / "-opt-beta" / "old-id.superseded-17" / "subagents"
+    sup.mkdir(parents=True)
+    (sup / "agent-z.jsonl").write_bytes(b"Z" * 700)
+    assert at.run([]) == 0
+    sub = {(r["project_slug"], r["rel"]): r for r in _sub_rows(archive)}
+    assert set(sub) == {
+        ("-opt-alpha", "shared-id/subagents/agent-x.jsonl"),
+        ("-opt-alpha", "shared-id/subagents/workflows/wf_1/agent-y.jsonl"),
+        ("-opt-alpha", "shared-id/subagents/workflows/wf_1/journal.jsonl"),
+        ("-opt-beta", "old-id.superseded-17/subagents/agent-z.jsonl"),
+    }
+    for (slug, rel), r in sub.items():
+        assert r["session_id"] == rel.split("/", 1)[0], "the session dir, never the leaf's parent"
+        src = projects / slug / rel
+        assert r["sha256"] == at._sha256(src) and r["bytes"] == src.stat().st_size
+        zst = archive / slug / f"{rel}.zst"
+        plain = subprocess.run(["zstd", "-dc", "-q", str(zst)], check=True, capture_output=True)
+        assert hashlib.sha256(plain.stdout).hexdigest() == r["sha256"], "the object holds the bytes"
+    assert not list(archive.rglob("*.meta.json*")), "a sidecar is not a transcript"
+    assert {(r["project_slug"], r["session_id"]) for r in _rows(archive)} == {
+        ("-opt-alpha", "shared-id"),
+        ("-opt-beta", "shared-id"),
+    }, "manifest.jsonl carries MAIN rows only"
+
+
+def test_an_unchanged_subagent_transcript_is_skipped_and_a_grown_one_rearchived(tree, rec):
+    projects, archive = tree
+    assert at.run([]) == 0
+    zst = archive / "-opt-alpha" / "shared-id" / "subagents" / "agent-x.jsonl.zst"
+    before, n = zst.stat().st_mtime_ns, len(_sub_rows(archive))
+    assert n == 1
+    assert at.run([]) == 0
+    assert zst.stat().st_mtime_ns == before, "an unchanged sidechain was re-compressed"
+    assert len(_sub_rows(archive)) == n, "an unchanged sidechain was re-rowed"
+    src = projects / "-opt-alpha" / "shared-id" / "subagents" / "agent-x.jsonl"
+    with src.open("ab") as fh:
+        fh.write(b"more")
+    assert at.run([]) == 0
+    rows = _sub_rows(archive)
+    assert len(rows) == n + 1 and rows[-1]["sha256"] == at._sha256(src)
+
+
+def test_a_failing_subagent_transcript_does_not_stop_the_night(tree, rec, monkeypatch, capsys):
+    """A sidechain that cannot be archived is reported and kept (the pruner refuses it as not-archived);
+    the MAIN rows and the transport still happen."""
     _projects, archive = tree
-    at.run([])
-    assert _rows(archive), "nothing archived — the exclusion below would pass vacuously"
-    assert all("agent-" not in r["session_id"] for r in _rows(archive))
-    assert not list(archive.rglob("agent-*.zst"))
+    real = shutil.copyfile
+
+    def denied_for_sidechains(src, dst):
+        if "/subagents/" in str(src):
+            raise PermissionError(13, "Permission denied")
+        return real(src, dst)
+
+    monkeypatch.setattr(at.shutil, "copyfile", denied_for_sidechains)
+    assert at.run([]) == 0
+    out = capsys.readouterr().out
+    assert "FAILED" in out and "agent-x.jsonl" in out and "the pruner keeps it" in out
+    assert "1 subagent failure(s)" in out
+    assert _sub_rows(archive) == [] and len(_rows(archive)) == 2
+    assert rec.verbs()[0] == "copy"
+
+
+def test_a_failed_test_of_a_new_object_keeps_the_last_good_object(tree, rec, monkeypatch, capsys):
+    """A compress or `zstd -t` that fails never leaves bytes at the object path for `ship()` to upload
+    over the key's last good version: the new object is built beside the snapshot and renamed in only
+    once tested (review W-62d2ce7d pass 1, A-haiku-1)."""
+    projects, archive = tree
+    assert at.run([]) == 0
+    zst = archive / "-opt-alpha" / "shared-id" / "subagents" / "agent-x.jsonl.zst"
+    good = zst.read_bytes()
+    with (projects / "-opt-alpha" / "shared-id" / "subagents" / "agent-x.jsonl").open("ab") as fh:
+        fh.write(b"grown")
+    real = subprocess.run
+
+    def verify_fails(argv, *a, **kw):
+        if argv[:2] == ["zstd", "-t"]:
+            raise subprocess.CalledProcessError(1, argv)
+        return real(argv, *a, **kw)
+
+    monkeypatch.setattr(at.subprocess, "run", verify_fails)
+    assert at.run([]) == 0
+    assert "FAILED" in capsys.readouterr().out
+    assert zst.read_bytes() == good, "the last good object was replaced by an untested one"
+    assert len(_sub_rows(archive)) == 1
+
+
+def test_a_zstd_failure_on_a_subagent_transcript_does_not_stop_the_night(
+    tree, rec, monkeypatch, capsys
+):
+    """The zstd branch of the same rule (review W-62d2ce7d pass 1, A-sonnet-2): a compressor that fails on
+    a sidechain is a reported skip, while MAIN still archives and ships."""
+    _projects, archive = tree
+    real = subprocess.run
+
+    def zstd_fails_for_sidechains(argv, *a, **kw):
+        if argv and argv[0] == "zstd" and any("/subagents/" in str(x) or "agent-" in str(x) for x in argv):
+            raise subprocess.CalledProcessError(1, argv)
+        return real(argv, *a, **kw)
+
+    monkeypatch.setattr(at.subprocess, "run", zstd_fails_for_sidechains)
+    assert at.run([]) == 0
+    out = capsys.readouterr().out
+    assert "FAILED" in out and "1 subagent failure(s)" in out
+    assert _sub_rows(archive) == [] and len(_rows(archive)) == 2
 
 
 def test_file_over_the_ceiling_is_reported_not_archived(tree, rec, monkeypatch, capsys):
@@ -226,12 +340,14 @@ def test_ab1_a_missing_zst_is_archived_again(tree, rec):
 def test_ab4_ship_order_copy_then_rows_then_manifest(tree, rec):
     _projects, archive = tree
     assert at.run([]) == 0
-    assert rec.verbs() == ["copy", "copyto"]
+    assert rec.verbs() == ["copy", "copyto", "copyto"]
     copy_argv = rec.calls[0][0]
     assert f"/{at.MANIFEST_NAME}" in copy_argv[copy_argv.index("--exclude") + 1 :]
+    assert f"/{at.SUBAGENT_MANIFEST_NAME}" in copy_argv[copy_argv.index("--exclude") + 1 :]
     assert rec.calls[1][2] == len(_rows(archive)) > 0, (
         "the manifest shipped before its rows existed"
     )
+    assert rec.calls[2][0][-1].endswith(f"/{at.SUBAGENT_MANIFEST_NAME}"), "the tier's manifest ships too"
     assert (tree[0] / "README").is_file(), "A.6: the data-not-cache marker"
 
 
@@ -414,7 +530,8 @@ def test_ab10_held_lock_makes_a_second_run_a_no_op(tree, rec, capsys):
     assert rec.calls == [] and _rows(archive) == []
 
 
-def test_ab11_window_defaults_to_one_day(tree, rec, monkeypatch, capsys):
+def test_ab11_window_defaults_to_zero_days(tree, rec, monkeypatch, capsys):
+    """Default 0 (D-row of 2026-10-08): every MAIN transcript, idle or still open, is eligible."""
     projects, _archive = tree
     monkeypatch.delenv("ARCHIVE_AFTER_DAYS")
     old = projects / "-opt-beta" / "shared-id.jsonl"
@@ -422,7 +539,7 @@ def test_ab11_window_defaults_to_one_day(tree, rec, monkeypatch, capsys):
     os.utime(old, (two_days, two_days))
     assert at.run(["--dry-run"]) == 0
     out = capsys.readouterr().out
-    assert "1 MAIN transcript(s) eligible (idle > 1.0d)" in out, out
+    assert "2 MAIN transcript(s) eligible (idle > 0.0d)" in out, out
     assert f"would archive {old}" in out
 
 
@@ -453,3 +570,618 @@ def test_ab13_units_load_no_env_file_run_main_checkout_and_catch_up():
     assert "ExecStartPre=-/opt/fabrik/scripts/sysadmin/sample_transcript_growth.sh" in service
     assert "Persistent=true" in timer and "Unit=session-archive.service" in timer
     assert "Restart=on-failure" in service, "a boot-time run without network must be retried"
+    # C.2 unit ordering: Type=oneshot, the archiver's ExecStart first, the pruner's `ExecStart=-` second,
+    # the rotation mail's `ExecStart=-` third (W-f975fee0 slice 3, D-1119)
+    assert "Type=oneshot" in service.splitlines()
+    starts = [ln for ln in service.splitlines() if ln.startswith("ExecStart=")]
+    assert len(starts) == 3 and "archive_transcripts.py" in starts[0]
+    assert starts[1].startswith("ExecStart=-") and "prune_transcripts.py" in starts[1]
+    assert starts[2].startswith("ExecStart=-") and "rotate_session.py due" in starts[2]
+
+
+def test_a_path_that_vanishes_between_the_scan_and_group_by_inode_is_skipped(
+    tree, rec, monkeypatch, capsys
+):
+    """C.2: `_group_by_inode` stats each scanned path; one removed in between is skipped, not a crash,
+    and the skip is SAID like the other vanished site's (review 2026-10-11, wiring-S3)."""
+    projects, archive = tree
+    real_group = at._group_by_inode
+
+    def gone_before_grouping(paths):
+        (
+            projects / "-opt-beta" / "shared-id.jsonl"
+        ).unlink()  # removed after main_transcripts() saw it
+        return real_group(paths)
+
+    monkeypatch.setattr(at, "_group_by_inode", gone_before_grouping)
+    assert at.run([]) == 0
+    assert {r["project_slug"] for r in _rows(archive)} == {"-opt-alpha"}
+    assert "vanished" in capsys.readouterr().out
+
+
+def test_a_stale_marker_readme_is_rewritten_and_names_the_pruner(tree, rec):
+    """The README that stops a human freeing disk must not say 'nothing prunes' once the pruner
+    exists: an older text is refreshed on the next run (review 2026-10-11, wiring-S2)."""
+    projects, _archive = tree
+    readme = projects / "README"
+    readme.write_text(
+        "THIS DIRECTORY IS DATA, NOT CACHE.\n\nNothing on this box prunes these files.\n"
+    )
+    assert at.run([]) == 0
+    text = readme.read_text()
+    assert "Nothing on this box prunes" not in text
+    assert "prune_transcripts.py" in text and "--restore" in text
+    assert "subagents/ transcripts" in text and "--restore agent-<id>" in text, "D-1182: the tier is archived"
+    assert text == at.MARKER
+
+
+def test_group_by_inode_skips_a_vanished_path_directly(tmp_path):
+    a, b = tmp_path / "a.jsonl", tmp_path / "gone.jsonl"
+    a.write_text("x")
+    assert at._group_by_inode([a, b]) == [(a, [])]
+
+
+# ── rclone copyto exits 0 when the SOURCE object is absent and writes nothing ───────────────
+# (measured live 2026-10-08: `--remote-count` against the empty `wsl-ozgur` bucket passed the rc
+# check, then crashed opening a manifest that never arrived). The recorder models that: rc 0, no file.
+
+
+def test_remote_count_on_an_empty_bucket_reports_the_manifest_absent(tree, rec, capsys):
+    """`--remote-count` before the first upload answers `absent`, never a traceback."""
+    assert at.run(["--remote-count"]) == 0
+    out = capsys.readouterr().out
+    assert "remote_objects 0" in out
+    assert "remote_manifest_sha256 absent" in out
+
+
+def test_fetch_of_an_object_the_bucket_does_not_hold_fails_loudly(tree, rec, tmp_path, capsys):
+    """A restore must never print `fetched` for bytes that never arrived (Phase B relies on it)."""
+    dest = tmp_path / "out.zst"
+    assert at.run(["--fetch", "/-opt-alpha/missing.jsonl.zst", str(dest)]) == 1
+    assert "was not downloaded" in capsys.readouterr().err
+    assert not dest.exists()
+
+
+# ── the named windows: a session open for days is still backed up, as a daily snapshot ──────
+# (operator 2026-10-08: "will we keep all chat histories of all active windows … infra, kaizen,
+# intel, fleet"; those windows never go idle for a day, so a 1-day idle window never took them)
+
+
+def test_an_active_transcript_is_archived_by_default(tree, rec, monkeypatch, capsys):
+    """A transcript written seconds ago is eligible with no ARCHIVE_AFTER_DAYS set."""
+    projects, _archive = tree
+    monkeypatch.delenv("ARCHIVE_AFTER_DAYS")
+    live = projects / "-opt-alpha" / "shared-id.jsonl"  # mtime: now
+    assert at.run(["--dry-run"]) == 0
+    assert f"would archive {live}" in capsys.readouterr().out
+
+
+def test_a_transcript_growing_during_the_archive_gets_a_row_matching_its_object(
+    tree, rec, monkeypatch
+):
+    """The row's sha256 and bytes describe the uploaded object even while the session appends."""
+    projects, archive = tree
+    live = projects / "-opt-beta" / "shared-id.jsonl"
+    real = at._sha256
+
+    def hash_then_the_session_appends(path):
+        digest = real(path)
+        with live.open("ab") as fh:  # the open window writes its next turn mid-archive
+            fh.write(b'{"turn":"next"}\n')
+        return digest
+
+    monkeypatch.setattr(at, "_sha256", hash_then_the_session_appends)
+    assert at.run([]) == 0
+    row = next(r for r in _rows(archive) if r["project_slug"] == "-opt-beta")
+    got = subprocess.run(
+        ["zstd", "-d", "-c", str(archive / "-opt-beta" / "shared-id.jsonl.zst")],
+        capture_output=True,
+        check=True,
+    ).stdout
+    assert row["sha256"] == hashlib.sha256(got).hexdigest(), "the row vouches for other bytes"
+    assert row["bytes"] == len(got)
+
+
+# ── review round 1 (fabrik-review-scoped of the 2026-10-08 change) ──────────────────────────
+
+
+def test_an_orphaned_snapshot_from_a_killed_run_is_reaped(tree, rec):
+    """A SIGKILL skips the with-block's cleanup; the next run, holding the lock, removes it."""
+    _projects, archive = tree
+    orphan = archive / f"{at.SNAPSHOT_PREFIX}killed" / "big.jsonl"
+    orphan.parent.mkdir(parents=True)
+    orphan.write_bytes(b"x" * 1000)
+    assert at.run([]) == 0
+    assert not orphan.parent.exists()
+    assert not list(archive.glob(f"{at.SNAPSHOT_PREFIX}*"))
+
+
+def test_the_ship_copy_never_uploads_a_snapshot(tree, rec):
+    assert at.run([]) == 0
+    copy = next(c[0] for c in rec.calls if c[0][1] == "copy")
+    assert ("--exclude", f"/{at.SNAPSHOT_PREFIX}*/**") in list(zip(copy, copy[1:], strict=False))
+
+
+def test_the_manifest_upload_skips_the_destination_check(tree, rec):
+    """B2's download host is the one copyto HEADs first; an upload must not depend on it
+    (2026-10-08: the HEAD hung 42 min behind an SNI filter while every upload worked)."""
+    assert at.run([]) == 0
+    manifest_calls = [c[0] for c in rec.calls if c[0][1] == "copyto"]
+    assert len(manifest_calls) == 2, "the MAIN manifest and the subagent tier's (D-1182)"
+    assert all("--no-check-dest" in call for call in manifest_calls)
+
+
+def test_fetch_refuses_a_local_path_that_already_exists(tree, rec, tmp_path, capsys):
+    """An old file at the target would read as a successful restore of a missing object."""
+    dest = tmp_path / "out.zst"
+    dest.write_bytes(b"stale")
+    assert at.run(["--fetch", "/-opt-alpha/missing.jsonl.zst", str(dest)]) == 1
+    assert "already exists" in capsys.readouterr().err
+    assert dest.read_bytes() == b"stale"
+    assert rec.calls == []
+
+
+def test_fetch_of_a_prefix_is_not_a_restore(tree, monkeypatch, tmp_path, capsys):
+    """copyto copies a PREFIX as a directory tree; only a regular file is a restored object."""
+
+    def copies_a_tree(argv, env):
+        (Path(argv[-1]) / "sid.jsonl.zst").parent.mkdir(parents=True)
+        (Path(argv[-1]) / "sid.jsonl.zst").write_bytes(b"z")
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(at, "_run_rclone", copies_a_tree)
+    assert at.run(["--fetch", "/-opt-alpha", str(tmp_path / "out")]) == 1
+    assert "not a single object" in capsys.readouterr().err
+
+
+def test_a_transcript_that_vanishes_mid_run_is_skipped(tree, rec, monkeypatch, capsys):
+    _projects, archive = tree
+    real = shutil.copyfile
+
+    def gone_for_beta(src, dst):
+        if "-opt-beta" in str(src):
+            Path(src).unlink()  # the session's file really is gone by the time the copy opens it
+        return real(src, dst)
+
+    monkeypatch.setattr(at.shutil, "copyfile", gone_for_beta)
+    assert at.run([]) == 0
+    assert {r["project_slug"] for r in _rows(archive)} == {"-opt-alpha"}
+    assert "vanished" in capsys.readouterr().out
+
+
+def test_a_full_disk_is_a_clean_exit_1(tree, rec, monkeypatch, capsys):
+    def no_space(src, dst):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(at.shutil, "copyfile", no_space)
+    assert at.run([]) == 1
+    err = capsys.readouterr().err
+    assert "No space left on device" in err
+    assert "Traceback" not in err
+
+
+def test_a_transcript_that_grew_during_the_copy_settles_on_the_next_run(tree, rec, monkeypatch):
+    """The skip state must describe the snapshot's bytes, or a stable file re-hashes forever."""
+    projects, _archive = tree
+    live = projects / "-opt-beta" / "shared-id.jsonl"
+    real = shutil.copyfile
+
+    def window_writes_then_copy(src, dst):
+        if Path(src) == live:
+            with live.open("ab") as fh:  # the turn lands after the stat, before the copy reads
+                fh.write(b'{"turn":"mid-copy"}\n')
+        return real(src, dst)
+
+    monkeypatch.setattr(at.shutil, "copyfile", window_writes_then_copy)
+    assert at.run([]) == 0
+    monkeypatch.setattr(at.shutil, "copyfile", real)
+    assert at.run([]) == 0  # the file is now stable
+    hashed = []
+    real_sha = at._sha256
+    monkeypatch.setattr(at, "_sha256", lambda p: (hashed.append(p), real_sha(p))[1])
+    assert at.run([]) == 0
+    assert hashed == [], "a stable, already-archived transcript was re-hashed"
+
+
+# ── review round 2 ──────────────────────────────────────────────────────────────────────────
+
+
+def test_a_missing_zstd_mid_run_is_loud_not_a_vanished_skip(tree, rec, monkeypatch, capsys):
+    """FileNotFoundError from a removed zstd binary is NOT a vanished transcript."""
+    real_run = subprocess.run
+
+    def zstd_gone(argv, *a, **kw):
+        if argv and argv[0] == "zstd":
+            raise FileNotFoundError(2, "No such file or directory", "zstd")
+        return real_run(argv, *a, **kw)
+
+    monkeypatch.setattr(at.subprocess, "run", zstd_gone)
+    assert at.run([]) == 1
+    captured = capsys.readouterr()
+    assert "vanished" not in captured.out
+    assert "zstd" in captured.err
+
+
+def test_an_oserror_outside_the_archive_loop_is_a_clean_exit_1(tree, rec, monkeypatch, capsys):
+    """A full disk on the marker or the manifest append exits 1 with a message, no traceback."""
+
+    def no_space(_projects):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(at, "_ensure_marker", no_space)
+    assert at.run([]) == 1
+    err = capsys.readouterr().err
+    assert "No space left on device" in err
+    assert "Traceback" not in err
+
+
+def test_a_snapshot_named_symlink_is_left_alone_and_does_not_crash(tree, rec, tmp_path):
+    _projects, archive = tree
+    archive.mkdir(parents=True)
+    target = tmp_path / "elsewhere"
+    target.mkdir()
+    (target / "keep.txt").write_text("not ours")
+    link = archive / f"{at.SNAPSHOT_PREFIX}link"
+    link.symlink_to(target, target_is_directory=True)
+    assert at.run([]) == 0
+    assert link.is_symlink()
+    assert (target / "keep.txt").exists()
+
+
+# ── Phase C.1 (D-736 / D-737): the `agent` tag and the `--agent` verb ───────────────────────────
+
+
+def _identity(tmp_path: Path, rows: list[dict]) -> Path:
+    p = tmp_path / "state" / "agent-identity.jsonl"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    return p
+
+
+def _registry(tmp_path: Path, entries: list[dict]) -> Path:
+    d = tmp_path / "sessions"
+    d.mkdir(parents=True, exist_ok=True)
+    for e in entries:
+        (d / f"{e['pid']}.json").write_text(json.dumps(e))
+    return d
+
+
+def test_c11_a_bound_session_row_carries_agent_and_an_unbound_one_carries_no_key(
+    tree, rec, tmp_path, monkeypatch
+):
+    projects, archive = tree
+    (projects / "-opt-alpha" / "bound.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    identity = _identity(
+        tmp_path, [{"session_id": "bound", "name": "fleet", "pid": 1, "pid_start": 2, "at": 10}]
+    )
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(identity))
+    monkeypatch.setenv("CLAUDE_SESSIONS_DIR", str(tmp_path / "no-sessions"))
+    assert at.run(["--no-ship"]) == 0
+    rows = [json.loads(line) for line in (archive / "manifest.jsonl").read_text().splitlines()]
+    by_sid = {r["session_id"]: r for r in rows}
+    assert by_sid["bound"]["agent"] == "fleet"
+    assert "agent" not in by_sid["shared-id"]
+
+
+def test_c11_the_latest_binding_by_at_wins(tree, rec, tmp_path, monkeypatch):
+    projects, archive = tree
+    (projects / "-opt-alpha" / "rebound.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    identity = _identity(
+        tmp_path,
+        [
+            {"session_id": "rebound", "name": "intel", "pid": 1, "pid_start": 2, "at": 50},
+            {"session_id": "rebound", "name": "fleet", "pid": 1, "pid_start": 2, "at": 20},
+        ],
+    )
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(identity))
+    monkeypatch.setenv("CLAUDE_SESSIONS_DIR", str(tmp_path / "no-sessions"))
+    assert at.run(["--no-ship"]) == 0
+    rows = [json.loads(line) for line in (archive / "manifest.jsonl").read_text().splitlines()]
+    assert {r["session_id"]: r.get("agent") for r in rows}["rebound"] == "intel"
+
+
+def test_c11_registry_join_tags_a_cleared_window_by_pid_and_procstart_as_integers(
+    tree, rec, tmp_path, monkeypatch
+):
+    """After /clear the new session id has no identity row; the registry entry for the SAME
+    claude pid carries the new id, and its procStart (a JSON string) equals the identity row's
+    pid_start (an int)."""
+    projects, archive = tree
+    (projects / "-opt-alpha" / "new-sid.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    (projects / "-opt-alpha" / "other-sid.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    identity = _identity(
+        tmp_path,
+        [{"session_id": "old-sid", "name": "kaizen", "pid": 777, "pid_start": 123456, "at": 5}],
+    )
+    sessions = _registry(
+        tmp_path,
+        [
+            {"pid": 777, "sessionId": "new-sid", "procStart": "123456"},
+            {"pid": 778, "sessionId": "other-sid", "procStart": "123456"},  # another pid: no join
+        ],
+    )
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(identity))
+    monkeypatch.setenv("CLAUDE_SESSIONS_DIR", str(sessions))
+    assert at.run(["--no-ship"]) == 0
+    rows = {
+        r["session_id"]: r
+        for r in (json.loads(x) for x in (archive / "manifest.jsonl").read_text().splitlines())
+    }
+    assert rows["new-sid"]["agent"] == "kaizen"
+    assert "agent" not in rows["other-sid"]
+
+
+def test_c12_agent_verb_lists_that_agents_rows_newest_first_with_the_local_flag(
+    tree, rec, tmp_path, monkeypatch, capsys
+):
+    projects, archive = tree
+    archive.mkdir(parents=True, exist_ok=True)
+
+    def row(slug, sid, when, agent=None, n=1):
+        r = {
+            "project_slug": slug,
+            "session_id": sid,
+            "sha256": str(n) * 64,
+            "bytes": 10 * n,
+            "mtime_ns": 1,
+            "also_slugs": [],
+            "archived_at": when,
+        }
+        if agent:
+            r["agent"] = agent
+        return r
+
+    rows = [
+        row("-opt-alpha", "a1", "2026-10-01T00:00:00Z", "fleet", 1),
+        row("-opt-alpha", "a2", "2026-10-03T00:00:00Z", "fleet", 2),
+        row("-opt-beta", "b1", "2026-10-02T00:00:00Z", "intel", 3),
+        row("-opt-beta", "shared-id", "2026-10-04T00:00:00Z", None, 4),
+    ]
+    (archive / "manifest.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    (projects / "-opt-alpha" / "a2.jsonl").write_bytes(b"x")  # a2 is still local, a1 is not
+    assert at.run(["--agent", "fleet"]) == 0
+    out = capsys.readouterr().out.strip().splitlines()
+    assert [line.split()[0] for line in out] == ["a2", "a1"], out
+    assert "local=yes" in out[0] and "local=no" in out[1]
+    assert all("intel" not in line and "shared-id" not in line for line in out)
+
+
+# ── review round 1 (2026-10-11) regression guards for the agent tag ─────────────────────────────
+
+
+def test_c11_an_ambiguous_registry_join_tags_nothing_and_an_agreeing_one_tags(
+    tree, rec, tmp_path, monkeypatch
+):
+    """archiver-S1: two `<pid>.json` entries for one session id joining to different identity
+    rows — the lexically-first file must not decide the tag."""
+    projects, archive = tree
+    (projects / "-opt-alpha" / "amb.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    (projects / "-opt-alpha" / "agree.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    identity = _identity(
+        tmp_path,
+        [
+            {"session_id": "old-a", "name": "alpha", "pid": 100, "pid_start": 1, "at": 1},
+            {"session_id": "old-b", "name": "beta", "pid": 200, "pid_start": 2, "at": 2},
+        ],
+    )
+    sessions = _registry(
+        tmp_path,
+        [
+            {"pid": 100, "sessionId": "amb", "procStart": "1"},
+            {"pid": 200, "sessionId": "amb", "procStart": "2"},
+            {"pid": 300, "sessionId": "agree", "procStart": "1"},
+        ],
+    )
+    # a third entry for `agree` joining to the SAME name as a 100/1 twin is not ambiguous
+    (sessions / "301.json").write_text(
+        json.dumps({"pid": 100, "sessionId": "agree", "procStart": "1"})
+    )
+    (sessions / "300.json").write_text(
+        json.dumps({"pid": 100, "sessionId": "agree", "procStart": "1"})
+    )
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(identity))
+    monkeypatch.setenv("CLAUDE_SESSIONS_DIR", str(sessions))
+    assert at.run(["--no-ship"]) == 0
+    rows = {
+        r["session_id"]: r
+        for r in (json.loads(x) for x in (archive / "manifest.jsonl").read_text().splitlines())
+    }
+    assert "agent" not in rows["amb"]
+    assert rows["agree"]["agent"] == "alpha"
+
+
+def test_c11_a_pretty_printed_registry_entry_joins_and_a_missing_at_ranks_below_zero(
+    tree, rec, tmp_path, monkeypatch
+):
+    """archiver-S2: `<pid>.json` is one document, indented or not. archiver-S5: a row without `at`
+    must not beat a row with an explicit `at: 0` by file order."""
+    projects, archive = tree
+    (projects / "-opt-alpha" / "pp.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    (projects / "-opt-alpha" / "tie.jsonl").write_bytes(b'{"x":1}\n' * 10)
+    identity = _identity(
+        tmp_path,
+        [
+            {"session_id": "old", "name": "kaizen", "pid": 777, "pid_start": 5, "at": 3},
+            {"session_id": "tie", "name": "intel", "pid": 1, "pid_start": 1, "at": 0},
+            {"session_id": "tie", "name": "fleet", "pid": 1, "pid_start": 1},  # no `at`
+        ],
+    )
+    sessions = tmp_path / "sessions"
+    sessions.mkdir()
+    (sessions / "777.json").write_text(
+        json.dumps({"pid": 777, "sessionId": "pp", "procStart": "5"}, indent=2)
+    )
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(identity))
+    monkeypatch.setenv("CLAUDE_SESSIONS_DIR", str(sessions))
+    assert at.run(["--no-ship"]) == 0
+    rows = {
+        r["session_id"]: r
+        for r in (json.loads(x) for x in (archive / "manifest.jsonl").read_text().splitlines())
+    }
+    assert rows["pp"]["agent"] == "kaizen"
+    assert rows["tie"]["agent"] == "intel"
+
+
+def test_c12_agent_verb_local_flag_sees_a_surviving_hard_linked_twin(
+    tree, rec, tmp_path, monkeypatch, capsys
+):
+    """archiver-S3: the primary name is gone, the worktree twin (`also_slugs`) survives — the
+    history is still local."""
+    projects, archive = tree
+    archive.mkdir(parents=True, exist_ok=True)
+    row = {
+        "project_slug": "-opt-alpha",
+        "session_id": "twin",
+        "sha256": "9" * 64,
+        "bytes": 1,
+        "mtime_ns": 1,
+        "also_slugs": ["-opt-alpha--claude-worktrees-x"],
+        "archived_at": "2026-10-05T00:00:00Z",
+        "agent": "fleet",
+    }
+    (archive / "manifest.jsonl").write_text(json.dumps(row) + "\n")
+    (projects / "-opt-alpha--claude-worktrees-x").mkdir()
+    (projects / "-opt-alpha--claude-worktrees-x" / "twin.jsonl").write_bytes(b"x")
+    assert at.run(["--agent", "fleet"]) == 0
+    assert "local=yes" in capsys.readouterr().out
+    # a row whose also_slugs is a bare STRING (not the list the archiver writes) is one slug, never
+    # a sequence of one-character directory names (review round 2, archiver-S6)
+    row["also_slugs"] = "-opt-alpha--claude-worktrees-x"
+    (archive / "manifest.jsonl").write_text(json.dumps(row) + "\n")
+    assert at.run(["--agent", "fleet"]) == 0
+    assert "local=yes" in capsys.readouterr().out
+    # a scalar the archiver never writes (an int, a bool, a null) means NO aliases — the listing
+    # reports the primary's state and never raises (review round 3, archiver-S8)
+    for scalar in (7, True, None, 2.5, {"k": "v"}):
+        row["also_slugs"] = scalar
+        (archive / "manifest.jsonl").write_text(json.dumps(row) + "\n")
+        assert at.run(["--agent", "fleet"]) == 0, scalar
+        assert "local=no" in capsys.readouterr().out, scalar
+
+
+def test_c12_agent_verb_refuses_to_double_as_another_verb(tree, rec, tmp_path, capsys):
+    """archiver-S4: `--agent fleet --fetch a b` silently listed and never fetched."""
+    _projects, archive = tree
+    archive.mkdir(parents=True, exist_ok=True)
+    (archive / "manifest.jsonl").write_text("")
+    with pytest.raises(SystemExit) as exc:
+        at.run(["--agent", "fleet", "--fetch", "/-opt-x/s.jsonl.zst", str(tmp_path / "out")])
+    assert exc.value.code == 2
+    assert "--agent takes no other verb" in capsys.readouterr().err
+    for extra in (
+        ["--no-ship"],
+        ["--dry-run"],
+        ["--remote-count"],
+        ["--version-at", "2026-01-01T00:00:00Z"],
+    ):
+        with pytest.raises(SystemExit) as more:
+            at.run(["--agent", "fleet", *extra])
+        assert more.value.code == 2, extra  # the usage exit, never a traceback or a listing
+
+
+# ── set-asides (W-a2cae11b): `<sid>.jsonl.superseded-<ms>`, Claude Code's name for a moved-aside transcript ──
+
+
+def test_a_set_aside_only_transcript_is_archived_under_its_own_key(tree, rec, tmp_path, monkeypatch, capsys):
+    """A set-aside whose inode has no live name is history nothing else holds: it gets its OWN row and
+    object, never the live `<sid>` key of a DIFFERENT file beside it in the same slug."""
+    projects, archive = tree
+    live = projects / "-opt-alpha" / "sid-1.jsonl"
+    live.write_bytes(b'{"live":1}\n' * 30)
+    aside = projects / "-opt-alpha" / "sid-1.jsonl.superseded-1792029283292"
+    aside.write_bytes(b'{"older":1}\n' * 20)
+    identity = _identity(
+        tmp_path, [{"session_id": "sid-1", "name": "infra", "pid": 1, "pid_start": 2, "at": 10}]
+    )
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(identity))
+    monkeypatch.setenv("CLAUDE_SESSIONS_DIR", str(tmp_path / "no-sessions"))
+    assert at.run(["--no-ship"]) == 0
+    rows = {r["session_id"]: r for r in _rows(archive) if r["project_slug"] == "-opt-alpha"}
+    key = "sid-1.superseded-1792029283292"
+    assert set(rows) >= {"sid-1", key}, rows.keys()
+    assert rows[key]["sha256"] == at._sha256(aside)
+    assert rows["sid-1"]["sha256"] == at._sha256(live), "the live row must still describe the live file"
+    zst = archive / "-opt-alpha" / f"{key}.jsonl.zst"
+    plain = subprocess.run(["zstd", "-dc", str(zst)], capture_output=True, check=True).stdout
+    assert plain == aside.read_bytes()
+    assert rows[key]["agent"] == "infra", "the agent tag reads the BASE session id"
+    assert at.run(["--agent", "infra"]) == 0
+    out = capsys.readouterr().out
+    assert f"{key} -opt-alpha" in out and "local=no" not in out, out
+    assert at.run(["--no-ship"]) == 0
+    assert len(_rows(archive)) == len(rows) + 1, "an unchanged set-aside is archived once"  # + -opt-beta
+
+
+def test_a_set_aside_link_of_a_live_name_is_archived_once_under_the_live_key(tree, rec):
+    """The measured shape: the set-aside is a HARD LINK of a live name, in a slug that Path-sorts FIRST
+    (`-opt-alpha` < `-opt-alpha--wt`). The inode keeps the live key and slug, gains no row, and a
+    set-aside's slug never enters `also_slugs` (which means "`<slug>/<sid>.jsonl` is a name")."""
+    projects, archive = tree
+    (projects / "-opt-alpha--wt").mkdir()
+    live = projects / "-opt-alpha--wt" / "sid-2.jsonl"
+    live.write_bytes(b'{"s":2}\n' * 40)
+    aside = projects / "-opt-alpha" / "sid-2.jsonl.superseded-1792094167189"
+    os.link(live, aside)
+    assert aside in at.main_transcripts(projects, 0), "a set-aside is a MAIN name"
+    assert at.run(["--no-ship"]) == 0
+    mine = [r for r in _rows(archive) if r["session_id"].startswith("sid-2")]
+    assert len(mine) == 1, mine
+    assert mine[0]["project_slug"] == "-opt-alpha--wt" and mine[0]["session_id"] == "sid-2"
+    assert mine[0]["also_slugs"] == []
+    assert not list(archive.glob("*/sid-2.superseded-*")), "no second object for one inode"
+
+
+def test_a_name_outside_the_set_aside_grammar_is_not_selected(tree, rec):
+    projects, _archive = tree
+    alpha = projects / "-opt-alpha"
+    for name in (
+        "sid-3.jsonl.superseded-",  # no digits
+        "sid-3.jsonl.superseded-abc",
+        "sid-3.jsonl.superseded-١٢",  # Arabic-Indic digits: `\d` would take them
+        "sid-3.jsonl.bak",
+        "sid-3.superseded-5.jsonl",  # a LIVE stem reading like a set-aside key would collide with one
+    ):
+        (alpha / name).write_bytes(b"x\n")
+    good = alpha / "sid-4.jsonl.superseded-17"
+    good.write_bytes(b"y\n")
+    both = alpha / "odd.jsonl.superseded-9.jsonl"  # matches BOTH globs: selected once, as a live name
+    both.write_bytes(b"z\n")
+    picked = sorted(p.name for p in at.main_transcripts(projects, 0))
+    assert picked == sorted(["shared-id.jsonl", "shared-id.jsonl", good.name, both.name]), picked
+    assert at.main_key(good) == ("sid-4.superseded-17", "sid-4", True)
+    assert at.main_key(alpha / "shared-id.jsonl") == ("shared-id", "shared-id", False)
+    # every selected name round-trips through its key, whatever its stem (review r1, H-C2/O9)
+    for name in (good.name, "shared-id.jsonl", both.name, "-x.superseded-5.jsonl", "a.b.superseded-5.jsonl"):
+        key = at.main_key(alpha / name)
+        if key is not None:
+            assert at.local_name(key[0]) == name, (name, key)
+
+
+def test_a_relocation_onto_a_twins_name_gives_each_inode_its_own_object(tree, rec):
+    """Twin live names A (`-opt-zeta`, `-opt-zeta--wt`); Claude Code sets `-opt-zeta`'s aside and moves a
+    new inode B in there. The alias row (`-opt-zeta--wt` → A's old row) must not keep vouching for A
+    once B's row owns `-opt-zeta/<sid>`: A is archived under its own surviving live slug, so neither
+    object is the other's bytes and A can be pruned (review r1, O1)."""
+    projects, archive = tree
+    zeta, wt = projects / "-opt-zeta", projects / "-opt-zeta--wt"
+    zeta.mkdir()
+    wt.mkdir()
+    (zeta / "z-1.jsonl").write_bytes(b'{"A":1}\n' * 50)
+    os.link(zeta / "z-1.jsonl", wt / "z-1.jsonl")
+    assert at.run(["--no-ship"]) == 0
+    (zeta / "z-1.jsonl").rename(zeta / "z-1.jsonl.superseded-1792029283292")
+    (zeta / "z-1.jsonl").write_bytes(b'{"B":2}\n' * 70)
+    for _night in (1, 2):
+        assert at.run(["--no-ship"]) == 0
+    latest = at._latest_rows(archive / at.MANIFEST_NAME)
+
+    def plain(p: Path) -> bytes:
+        return subprocess.run(["zstd", "-dc", str(p)], capture_output=True, check=True).stdout
+
+    assert plain(archive / "-opt-zeta" / "z-1.jsonl.zst") == (zeta / "z-1.jsonl").read_bytes()
+    assert plain(archive / "-opt-zeta--wt" / "z-1.jsonl.zst") == (wt / "z-1.jsonl").read_bytes()
+    assert latest[("-opt-zeta--wt", "z-1")]["project_slug"] == "-opt-zeta--wt"
+    assert latest[("-opt-zeta--wt", "z-1")]["sha256"] == at._sha256(wt / "z-1.jsonl")
+    n = len(_rows(archive))
+    assert at.run(["--no-ship"]) == 0
+    assert len(_rows(archive)) == n, "settled: a third night writes no row"

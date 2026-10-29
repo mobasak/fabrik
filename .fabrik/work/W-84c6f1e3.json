@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T00:35:07.612811Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-84c6f1e3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5B5CS5N6AK41XYP4HK6ZHMF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-lib SB-096 (W-dc3d7d0e, fabrik-lib D-478 design, D-487 EXECUTED): `payments_grant_fulfilment` now REFUSES a tenant-facing role. Merged to fabrik-lib main at f1a1159a."
+}

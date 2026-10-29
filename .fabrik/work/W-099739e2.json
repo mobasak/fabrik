@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T13:08:44.404133Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-099739e2",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5HK0CH6MZ1TQ76JMQE515YN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Deck attention hook — please review the new ENTRIES rows and hooks-index row (your beat), plus one pre-existing installer finding"
+}

@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:22:57.155425Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-67709d98",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Q83S1ZBFQVFC584F98T4EA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — feedback verdict on conformance-review/dispatch_headroom",
+  "status": "open",
+  "title": "/fabrik-conformance-review feedback — dispatch_headroom.py could say who holds the seats and for how long (kaizen D-711 triage)"
+}

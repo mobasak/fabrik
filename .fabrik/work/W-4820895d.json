@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T07:27:43.682581Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4820895d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4D35GZ9C0HWTFJNC4HGPCQG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "command_run.py seats_seen never counts Workflow seats — every review-loop close reads \"seen 0\""
+}

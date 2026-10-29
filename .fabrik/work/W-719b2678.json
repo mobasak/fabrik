@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T17:52:46.050552Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "eec32dd57a6d832d056c170e5544b9826553574c",
+  "id": "W-719b2678",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "route every scp staging through one remote-mktemp helper (the deployer's _write_file_to_vps_path pattern), the watchdog overlay first since it holds secrets; the build dir via mktemp -d",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — credentials staged at predictable /tmp paths",
+  "status": "done",
+  "tags": [
+    "fleet",
+    "security"
+  ],
+  "title": "Predictable /tmp staging paths remain outside the deployer after W-8dd25072: drivers/watchdog.py scp's the sidecar overlay to /tmp/{project_id}-compose.watchdog.yaml (it carries WATCHDOG_PG_DSN / WATCHDOG_REDIS_URL) and builds in the fixed /tmp/fabrik-watchdog-build; gatus.py (:202, :386), prometheus.py (:171) and redis.py (:188) stage under fixed names"
+}

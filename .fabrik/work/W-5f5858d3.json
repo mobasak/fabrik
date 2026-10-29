@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:06:50.267674Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-5f5858d3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4PQDPC74K2ZK7W3Y3FK9GV6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: 01M4F7QT11 — does a slice that kept one of its two finders owe the cut seat in the next waves? Yes."
+}

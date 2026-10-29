@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:27.638386Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-4ac0ab9f",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4WG89T67Y6RB5QMMDBY3TY6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — work.py render trips doc-link gate in worktree",
+  "status": "open",
+  "title": "`work.py render` in a worktree trips Doc Link Integrity — a rendered backlog item's TEXT names a retired path and check_doc_links reads it as a ref"
+}

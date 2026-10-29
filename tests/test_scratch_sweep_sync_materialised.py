@@ -1,7 +1,7 @@
 """A worktree the governance sync wrote into is not "dirty" (T12.23, 01M23JK2R — reported by wef3).
 
 The sync MATERIALISES manifest-owned files into every registered worktree, so a worktree nobody
-has touched reads `git status --porcelain` non-empty and is classified `wt-dirty` — never
+has touched reads `git status --porcelain -z` non-empty and is classified `wt-dirty` — never
 removable, forever. Those paths are not uncommitted work by any session; nothing authored them.
 
 ⚠️ The exemption is NARROW and these tests are mostly about its edges: a manifest-owned path counts
@@ -111,16 +111,49 @@ def test_a_missing_file_keeps_the_worktree_dirty(sweep, tmp_path: Path) -> None:
     assert sweep._is_sync_materialised(tmp_path, rel) is False
 
 
-def test_quoted_status_paths_are_unwrapped(sweep, tmp_path: Path) -> None:
-    """`git status --porcelain` quotes a path containing unusual characters. The unquoting moved to
-    `_sync_materialised_paths`, which is what reads porcelain output — the per-path predicate below
-    it takes an already-clean rel."""
+def test_status_paths_are_taken_verbatim(sweep, tmp_path: Path) -> None:
+    """The caller reads `git status --porcelain -z` (W-fe6e0ed3), which never C-quotes a path, so
+    `_sync_materialised_paths` takes each name verbatim: stripping quotes without unescaping resolved
+    the wrong path. A plain rel is recognised; a quoted one is not unwrapped into it."""
     rel = _a_synced_path()
     src = _hub_source_for(rel)
     dest = tmp_path / rel
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_bytes(_hub_head_bytes(src))
-    assert sweep._sync_materialised_paths(tmp_path, [f'"{rel}"']) == {f'"{rel}"'}
+    assert sweep._sync_materialised_paths(tmp_path, [rel]) == {rel}
+    assert sweep._sync_materialised_paths(tmp_path, [f'"{rel}"']) == set()
+
+
+def test_a_z_listing_with_a_git_warning_is_unreadable(sweep, monkeypatch) -> None:
+    """`_git` merged stderr into stdout, so on rc 0 a warning such as "could not open directory"
+    became a fake NUL-separated status entry — and the listing it rode on is INCOMPLETE (the
+    unreadable directory's files are missing from it). A machine-parsed `-z` call takes stdout
+    alone and reads a warning as unreadable, so the verdict fails toward keeping the worktree."""
+    import subprocess
+
+    def fake_run(cmd, **kw):
+        return subprocess.CompletedProcess(
+            cmd, 0, stdout="?? a.txt\0", stderr="warning: could not open directory 'locked/'\n"
+        )
+
+    monkeypatch.setattr(sweep.subprocess, "run", fake_run)
+    rc, entries = sweep._status_z(Path("/nonexistent"))
+    assert rc != 0 and entries == []
+
+
+def test_an_unreadable_ignored_listing_keeps_the_worktree(sweep, monkeypatch) -> None:
+    """`_ignored_data` read an unreadable `--ignored` listing as "no ignored data" — fail-OPEN on the
+    one check that guards NEVER-delete data from `worktree remove --force` (W-d81efab9 review A-O5).
+    It now reports the unreadable listing as a hit, so both callers keep the worktree."""
+    import subprocess
+
+    def fake_run(cmd, **kw):
+        return subprocess.CompletedProcess(
+            cmd, 0, stdout="!! data/x.db\0", stderr="warning: could not open directory 'x/'\n"
+        )
+
+    monkeypatch.setattr(sweep.subprocess, "run", fake_run)
+    assert sweep._ignored_data(Path("/nonexistent"), None)
 
 
 def test_the_hub_source_is_resolved_through_the_manifest_not_assumed(sweep, tmp_path: Path) -> None:

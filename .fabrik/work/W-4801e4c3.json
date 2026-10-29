@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-01T22:29:09.921563Z",
   "creator": "fleet",
-  "evidence": "",
+  "effort": "low",
+  "evidence": "704f0051bda68a873e092a9242960cf68cc86a92",
   "id": "W-4801e4c3",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,9 +15,10 @@
   },
   "next": "read the alert expression: does it compare usage (cache included) instead of the working set against the limit; fix the expression or the limit",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 3,
-  "status": "open",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — ContainerHighMemory false alert, advisory",
+  "status": "done",
   "tags": [
     "fleet",
     "monitoring"

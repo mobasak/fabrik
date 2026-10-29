@@ -252,7 +252,7 @@ NEUTERS: dict[str, tuple[str, str]] = {
     ),
     "check_env_vars": ("        if r.severity == Severity.ERROR", "        if False"),
     "check_doc_index": (
-        "        if p not in index_text and base not in index_text:",
+        "        if base not in index_text and base not in index_unq:",
         "        if False:",
     ),
     "check_certification_coverage": ("        if FORBIDDEN_HEADING in text:", "        if False:"),
@@ -263,6 +263,13 @@ NEUTERS: dict[str, tuple[str, str]] = {
     "check_decisions_unique": (
         "    return {i: n for i, n in Counter(ids).items() if n > 1}",
         "    return {}",
+    ),
+    # The one walk both rules read: deleting its delimiter confirmation makes every `|…|` run a
+    # paragraph, so BOTH rules fall silent on the canary's two defects — the red keys on table-ness
+    # (W-76c49aa8; a per-rule neuter cannot exist, the other rule still reds on its own defect).
+    "check_governance_tables": (
+        "            if not _DELIM.match(nxt):",
+        "            if True:",
     ),
 }
 

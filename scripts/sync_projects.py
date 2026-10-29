@@ -209,11 +209,17 @@ def _build_project(path: Path) -> Project:
     if project_yaml.exists():
         try:
             pdata = yaml.safe_load(project_yaml.read_text(encoding="utf-8")) or {}
-            has_explicit_category = "category" in pdata
+            # `category:` with no value is not a choice: the merge above skipped it, so
+            # auto-categorize rather than keep the dataclass default. A scalar file is not a dict.
+            has_explicit_category = isinstance(pdata, dict) and pdata.get("category") is not None
         except (yaml.YAMLError, OSError):
             pass  # Already warned above
     if not has_explicit_category:
         project.category = _auto_categorize(path, project.status)
+    elif not isinstance(project.category, str):
+        # A list or dict here is unhashable, and the catalog's catch-all bucket would raise
+        # on it; render it under "Other" so the bad project.yaml is visible, not fatal.
+        project.category = str(project.category)
 
     # Normalize status to clean enum (display formatting in markdown only)
     if project.status not in ("production", "development", "archived", "paused"):
@@ -535,9 +541,22 @@ def generate_catalog_markdown(projects: list[Project]) -> str:
         md += "| Project | Purpose | Stack | Status | URL | Scaffold |\n"
         md += "|---------|---------|-------|--------|-----|----------|\n"
         for p in sorted(group, key=lambda x: x.name):
-            url_display = p.url if p.url else "-"
+            # project.yaml's url is free text; only a link belongs in the URL column.
+            url_display = (
+                p.url
+                if isinstance(p.url, str) and p.url.startswith(("http://", "https://"))
+                else "-"
+            )
             desc = p.description[:95] + "..." if len(p.description) > 98 else p.description
-            md += f"| **{p.name}** | {desc} | {p.stack} | {_display_status(p.status)} | {url_display} | {_display_scaffold(p.scaffold_status)} |\n"
+            cells = [
+                f"**{p.name}**",
+                desc,
+                p.stack,
+                _display_status(p.status),
+                url_display,
+                _display_scaffold(p.scaffold_status),
+            ]
+            md += "| " + " | ".join(str(c).replace("|", "\\|") for c in cells) + " |\n"
         md += "\n"
 
     return md

@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "fabrik-review-loop.js — the seat PINS recipe is a compound command the worktree-isolation guard refuses; and the base_sha archive misses uncommitted out-of-slice fixes"
 }

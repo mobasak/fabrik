@@ -1,3 +1,7 @@
+# GlitchTip — Sentry-compatible error tracking at errors.vps1.ocoron.com, the error-tracker source the AI
+# watchdog consumes (org=ocoron, team=vps1). The live stack is the hand-maintained /opt/glitchtip/compose.yaml
+# on vps1; this is its mirror. Never regenerate GLITCHTIP_SECRET_KEY: a changed key invalidates every session.
+# A wrong DATABASE_URL or REDIS_URL detaches the live error history in postgres-main's `glitchtip` database.
 services:
   glitchtip-web:
     image: glitchtip/glitchtip:latest
@@ -23,6 +27,7 @@ services:
       resources:
         limits:
           memory: 512M
+          cpus: '1.0'
     ports:
     - 10.99.0.1:8000:8000
   glitchtip-worker:
@@ -44,6 +49,7 @@ services:
       resources:
         limits:
           memory: 512M
+          cpus: '1.0'
 networks:
   fabrik:
     external: true

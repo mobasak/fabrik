@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T05:01:26.884665Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-84ad2ff1",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task on scripts/work.py: _workers (and the floor rung) key on the bound agent name of the tree's live session, falling back to the directory name only when no session is bound; grader with a tree named unlike its agent",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 1,
+  "score_reason": "the floor rung mis-counts a live builder as a missing worker and blocks the coordinator's turn end each time; one name resolution in work.py plus a grader",
+  "status": "open",
+  "tags": [
+    "fold-w-b9ad80ae",
+    "queued"
+  ],
+  "title": "work.py _workers names a pool worker after its worktree DIRECTORY, so infra's live tree .claude/worktrees/infra-uncapped (session 88921ad9, whoami says infra) registers as an empty worker 'infra-uncapped' below the floor and the coordinator's Stop hook demands triage every turn; a pause by that tree name would pause infra's own window too (_is_paused matches the tree) — resolve a tree to the agent its live session is bound to (the identity binding, as _caller_name does) or fold a tree whose session is another worker into that worker"
+}

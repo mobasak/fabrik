@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/enforcement/test_plan_shape_gates.py, tests/test_check_test_proposal.py | none
+# AFTER-EDIT: tests/enforcement/test_plan_shape_gates.py, tests/test_check_test_proposal.py, tests/enforcement/test_contract_regions_linear.py | none
 """
 Check that the latest plan carries a Behavior Contract (the STRUCTURE gate).
 
@@ -17,6 +17,7 @@ Exit codes:
 import re
 import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 _HEADING = re.compile(r"^#{1,6}\s", re.MULTILINE)
@@ -39,9 +40,31 @@ def _section(content: str, title_substr: str) -> str | None:
 
 
 # Balanced line-anchored fences + inline single-line quotes — the shared parsing
-# contract (keep in step with check_plan_tickets._FENCE_RE): a fenced example
+# contract, `_fences.py`'s one linear scanner (W-276255e7): a fenced example
 # `Given` row must not count as a behavior.
-_FENCE_RE = re.compile(r"(?:^[ \t]*(`{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$|```[^`\n]+```)", re.M | re.S)
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _fences  # noqa: E402  (same-dir sibling, synced fleet-wide)
+
+_FENCE_RE = _fences.FENCE_STRIP
+
+
+_LINE_BREAK = re.compile(
+    "\r\n|[\n\r\v\f\x1c\x1d\x1e\x85\u2028\u2029]"
+)  # str.splitlines' boundaries
+
+
+def _lines_from(text: str, start: int) -> Iterator[str]:
+    """`text[start:].splitlines()`, yielded lazily without copying the rest of the text: a caller that stops at the
+    end of its block reads only that block. LOCKSTEP with check_phase_tests._lines_from (W-6904b41e)."""
+    pos, size = start, len(text)
+    while pos < size:
+        brk = _LINE_BREAK.search(text, pos)
+        if brk is None:
+            yield text[pos:]
+            return
+        yield text[pos : brk.start()]
+        pos = brk.end()
 
 
 def _bold_contract_regions(stripped: str) -> str:
@@ -53,7 +76,7 @@ def _bold_contract_regions(stripped: str) -> str:
     regions: list[str] = []
     for m in re.finditer(r"(?im)^\*\*Behavior Contract[^\n]*$", stripped):
         lines: list[str] = []
-        for line in stripped[m.end() :].splitlines():
+        for line in _lines_from(stripped, m.end()):
             if not line.strip() or re.match(r"^\s*[-*]\s", line) or re.match(r"^\s{2,}\S", line):
                 lines.append(line)
                 continue

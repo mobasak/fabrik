@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-06T14:30:02.774074Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-9512d108",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -12,9 +14,13 @@
     "spec": ""
   },
   "next": "read stdout/stderr incrementally (asyncio streams) so a timeout returns what was produced, with a test that times out after printing",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
   "priority": 3,
-  "status": "open",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — timed-out command loses output",
+  "status": "dropped",
+  "tags": [
+    "medium"
+  ],
   "title": "tools/wsl-mcp/server.py bash tool: on timeout the cancelled first communicate() drops the output the command already wrote, so a timed-out command returns empty stdout (pre-existing since 898eb1269; wsl-mcp lint review A-O1)"
 }

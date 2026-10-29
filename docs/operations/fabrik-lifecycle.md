@@ -139,7 +139,7 @@ The deployer has **no built-in migration step**. This is deliberate — the depl
 
 ### How migrations work
 
-⚠️ **SUPERSEDED — do NOT do this.** `core/30-ops.md` § Release & Admin Processes and `core/10-python.md` both ban it (12-Factor XII): with more than one replica, or a restart storm, concurrent containers race the Alembic version table and wedge the deploy. The rule packs are canonical; this section was stale (transdoc, 2026-08-28 — two synced files, opposite instructions, and a project cannot edit either locally). **Use instead:** a one-shot `migrate` compose service that `api`/`worker` gate on via `depends_on: {migrate: {condition: service_completed_successfully}}` — the deployer runs `docker compose up -d --wait`, which honours it, so it is automatic and the version-table race is structurally impossible. (`docker compose run --rm <svc> alembic upgrade head` remains valid but is manual.) ⚠️ This line previously also named `fabrik run` and a `.fabrik/hooks/post-deploy/` hook; **neither exists** — struck 2026-08-28 per transdoc `01M14BK0JD`, verified by execution. The entrypoint pattern below is kept ONLY as the shape to recognise and remove:
+⚠️ **SUPERSEDED — do NOT do this.** `core/30-ops.md` § Release & Admin Processes and `core/10-python.md` both ban it (12-Factor XII): with more than one replica, or a restart storm, concurrent containers race the Alembic version table and wedge the deploy. The rule packs are canonical; this section was stale (transdoc, 2026-08-28 — two synced files, opposite instructions, and a project cannot edit either locally). **Use instead:** a one-shot `migrate` compose service that `api`/`worker` gate on via `depends_on: {migrate: {condition: service_completed_successfully}}` — the deployer runs `docker compose up -d --wait`, which honours it, so it is automatic and the version-table race is structurally impossible. (`docker compose run --rm <svc> alembic upgrade head` remains valid but is manual — `<svc>` is a service that declares `.env.owner`, never the app service, which holds no owner DSN after the owner split, D-754.) ⚠️ This line previously also named `fabrik run` and a `.fabrik/hooks/post-deploy/` hook; **neither exists** — struck 2026-08-28 per transdoc `01M14BK0JD`, verified by execution. The entrypoint pattern below is kept ONLY as the shape to recognise and remove:
 
 Apps that use Alembic (or any migration framework) historically handled migrations in their **container entrypoint**:
 
@@ -200,12 +200,20 @@ If both the spec and the existing .env define `FOO=bar`, the spec's value wins. 
 
 ## App-role cutover and rollback
 
-Every database project's `.env` carries two DSNs. `DATABASE_URL_OWNER` connects as the
-database owner and is what migrations, runtime DDL and the retention job use.
-`DATABASE_URL` is what the app uses. On a fresh create both are the owner DSN, injected in
+Every database project carries two DSNs in two files: `DATABASE_URL` in `/opt/<name>/.env`,
+which every service loads, and `DATABASE_URL_OWNER` in `/opt/<name>/.env.owner` (root:root 0600),
+which only a service declaring it in `env_file` loads — the audit-jobs companion, a project's
+`migrate` service (the owner split, D-754). `DATABASE_URL_OWNER` connects as the database owner and
+is what migrations, runtime DDL and the retention job use. `DATABASE_URL` is what the app uses. On a fresh create both are the owner DSN, injected in
 one call before any other step can fail, because the owner password exists only at that
 moment. The role model is in
 [`docs/reference/modules/drivers.md`](../reference/modules/drivers.md) § Postgres.
+
+A project whose compose predates the split declares nothing, and its next `fabrik apply` moves the key out of `.env`
+anyway: the apply log carries `env: 1 owner key(s) kept in .env.owner for /opt/<name>` (the deployer's one log line,
+`deployer_ssh.py::_write_env_files`) and the audit-jobs companion idles `audit_jobs: not_configured` until the compose
+declares the file. After that first apply, read the line, then run step 0 of the cutover runbook below before the
+project's next migration — nothing else tells you.
 
 On every `fabrik apply` the postgres registrar runs the app-role step after the watchdog and
 payments-ingest roles. It mints or re-asserts `<db>_app` and its grants, reads the live
@@ -229,6 +237,15 @@ Logs name roles, never a DSN or a password.
 
 **Runbook — cut over:**
 
+0. A service that needs the owner DSN declares `.env.owner` in its `env_file` (`- .env`, then
+   `- path: .env.owner` / `required: false`) and has its tool read `DATABASE_URL_OWNER` from the
+   environment — Alembic: in `env.py`; migrations run as `docker compose run --rm <that service>
+   alembic upgrade head`, never through the app service, which no longer holds the key. The
+   `DATABASE_URL: ${DATABASE_URL_OWNER}` interpolation form and a hand-off in `command` no longer
+   work (compose interpolates from the project `.env`, where the key no longer lives; `run`
+   replaces `command`), and `fabrik app-role-check` reports the first. An audit-jobs companion
+   scaffolded after the split declares the file; one scaffolded before it does not — add the two
+   `env_file` lines above to its compose before its next apply, or its jobs idle `not_configured`.
 1. Set `shape.database_url_app_role: true` in `specs/services/<id>.yaml` (a YAML boolean; a
    string or a number is refused, never read as a switch).
 2. Run `fabrik app-role-check --spec specs/services/<id>.yaml` and fix everything it reports (a
@@ -250,14 +267,20 @@ until each moves to its own database. A scaffolded spec never shares — `fabrik
 `depends.postgres` to the project's own database (its id with hyphens as underscores, the name
 the registrar derives), so a new project is born on the app role.
 
-**The limit.** The owner DSN lives in the same project `.env` as the app DSN. Append-only on
-`audit_log` therefore holds against the app's own code paths and against SQL injection, not
-against code execution inside the container, which can read `DATABASE_URL_OWNER`.
+**What the split does not cover.** The owner DSN lives in `.env.owner`, which only the services
+declaring it load, so code executing inside an APP container no longer holds `DATABASE_URL_OWNER`
+(D-754) — and the owner CREDENTIAL leaves the app's environment only once the project cuts over:
+until then `DATABASE_URL` is itself the owner DSN. Still open, by design: a holder of the Docker
+socket or root on the host reads every file and every container's environment; and the companion
+and a `migrate` service run the app's own image, so a supply-chain compromise of that image executes
+in a process that legitimately holds the owner DSN.
 
 A `DATABASE_URL` pinned by the spec's `env:` block or the project secrets is rewritten on every
 apply and would re-cut-over and reset the `<db>_app` password each time, so the cutover refuses
-it: move the pinned value to `DATABASE_URL_OWNER` first (the `db_before_boot` first-apply seed and an
-`env:` placeholder stand-in are not pins).
+it: REMOVE the pin — the registrar's `.env` and `.env.owner` carry both DSNs, and an owner key in a
+spec's `env:` block is refused by the loader, because the templates render `env:` into every
+service's `environment:` (the `db_before_boot` first-apply seed and an `env:` placeholder stand-in
+are not pins).
 
 ---
 

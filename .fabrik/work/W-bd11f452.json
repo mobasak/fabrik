@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-ab566484"
+  ],
   "created": "2026-10-05T08:34:03.854677Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-bd11f452",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +17,12 @@
   },
   "next": "measure the median hook bytes per prompt over a 14-day transcript sample after D-583; build only if the residual still matters",
   "note": "",
-  "owner": "",
-  "priority": 3,
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "impact HIGH: names 'block'; effort HIGH: names 'every' (D-890 rules, coordinator pass 2026-10-15)",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "Per-prompt hook de-dup (fleet 01M3QJP8 amended scope): mail_notify's header list and mcp_watch's OUTDATED warning re-send identically every prompt (~2 KB together after D-583 cut the work block 29 KB -> 2.4 KB). Emit the full block on content-hash change, a one-line counter otherwise, the full block every N prompts and after every compaction; never thin the QUOTA line. Per-session state + a silent-hook failure mode to guard"
 }

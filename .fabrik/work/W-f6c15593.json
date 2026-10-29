@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-24T23:27:47.787131Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-f6c15593",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -12,9 +14,13 @@
     "spec": ""
   },
   "next": "## [infra] The Stop hook is fleet-synced; its 39 graders are not\n\n`scripts/fabrik_synced_manifest.py` distributes `.claude/hooks/final_gate_stop.py` to ~46 repos.\n`tests/test_stop_hook_spontaneous_review.py` is not in the manifest, so every project copy of the\nsixth cause ships ungraded — a project agent who edits it has nothing to run. Surfaced while\nreviewing Phase C's three fixes to that hook. **Do:** decide whether the graders ride the sync, or\nwhether the hook's project copies are declared read-only and a check enforces it.",
-  "note": "migrated-digest:320ef09bbde0",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
-  "priority": 2,
-  "status": "open",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — synced Stop hook graders not synced",
+  "status": "dropped",
+  "tags": [
+    "medium"
+  ],
   "title": "The Stop hook is fleet-synced; its 39 graders are not"
 }

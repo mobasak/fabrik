@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T06:17:41.674169Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "45c1c9a4f8d151eb96b613dfa0e024571eb54f94",
+  "id": "W-49adc7a7",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "In fabrik-review.md:173, fabrik-review-scoped.md:145, fabrik-plan-review.md:309 and fabrik-spec-review.md:236, name 'the line start printed that begins SCRATCH:' (as fabrik-repo-review now does, W-27a0dc32) and update SCRATCH_HOME_CLAUSE in tests/test_review_loop_workflow.py:2462 (found by the W-27a0dc32 review's Sonnet seat)",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: kaizen work (D-956); four review sources' 'path after SCRATCH:' also matches the RUN-SCRATCH: line; wording in four sources",
+  "status": "done",
+  "title": "Four review sources say the SCRATCH: path is 'the path after `SCRATCH: ` on the line `start` printed' — the RUN-SCRATCH: line also contains 'SCRATCH: ', so a literal reader can pin under the disposable folder"
+}

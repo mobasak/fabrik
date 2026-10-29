@@ -1,5 +1,5 @@
 # Build stage
-FROM node:22-bookworm-slim AS builder
+FROM node:22-{{ versions.debian_codename }}-slim AS builder
 
 WORKDIR /app
 
@@ -12,14 +12,14 @@ COPY . .
 RUN npm run build
 
 # Production stage
-FROM node:22-bookworm-slim AS runner
+FROM node:22-{{ versions.debian_codename }}-slim AS runner
 
 WORKDIR /app
 
 # B24: install curl for compose-level healthcheck. The scaffold's
 # `_write_canonical_compose` (scaffold.py::_write_canonical_compose) emits a
 # compose `healthcheck:` block that uses `curl -f`, which OVERRIDES this
-# Dockerfile's HEALTHCHECK at runtime. node:22-bookworm-slim has no curl by
+# Dockerfile's HEALTHCHECK at runtime. node:22-{{ versions.debian_codename }}-slim has no curl by
 # default, so without this apt-get the container is `exited:unhealthy` within
 # 30s of startup and the compose deploy keeps the last-good container
 # (HEALTHCHECK gates the swap). Other scaffold templates

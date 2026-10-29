@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T06:41:40.884783Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "f2b2c20e3c1d5bc042d8cd1f9f23092240b0ebaa",
+  "id": "W-b36e2a4a",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "done — built as D-1340: the launch throws when NO finder returned anything after its retry, keyed on that all-null pattern rather than on the disabled-subscription text (in the two measured subscription-disabled runs the seats resolved null and the text sat only in their transcripts; a seat that rejects keeps its text as its error); the folded scheduling rows moved to W-bc394d0b; residue W-62791872",
+  "note": "2026-10-14 intel: the re-seat half is BUILT in de9c47081 (D-829): a finder that returns null or throws is re-seated once on the same model, inside the stamp. Still open here: (1) fail fast when every seat failed with the same subscription-disabled error (a null result carries no error text, so the script needs agent().catch to keep it); (2) rows folded in from kaizen's D-735 triage (mail 01M4PNBVJ1): waves when a partition exceeds the box cap (1791062753, 1791241353), a per-seat time box re-dispatching a seat silent past 2x its box (1791034481), and accepting a slice verified at the same md5 in an earlier batch (01M4PVPY8J row 1791029742).",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — review-loop seat failure handling from kaizen mail",
+  "status": "done",
+  "tags": [
+    "review-loop"
+  ],
+  "title": "review-loop seat failure: re-seat a failed finder once and fail fast on an org-disabled account (mail 01M4PHYNXJ rows 1791027103, 1790707386)"
+}

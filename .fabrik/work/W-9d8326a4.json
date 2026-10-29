@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T20:55:15.101150Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "ab3c61f2b72f1badd0549c0def10bc2ee74d926c",
+  "id": "W-9d8326a4",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-957",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — command wording, D-957 operator ruling, panes stall on dialogs",
+  "status": "done",
+  "tags": [
+    "rules"
+  ],
+  "title": "Review commands name D-957: hub agents run the review-loop Workflow without asking; when a Workflow call is refused or asks, fall back to the Agent-tool seats (shape: agent-tool) instead of waiting on the operator (operator 2026-10-18)"
+}

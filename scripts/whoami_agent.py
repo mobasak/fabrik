@@ -73,7 +73,10 @@ def session_id() -> str:
     """This session's id, from the environment ONLY — never an argument.
 
     That is not a convenience: it is the structural half of the Cobra counter-measure. A process
-    cannot name a session it is not part of, because there is no input that sets this.
+    cannot name a session it is not part of, because there is no input that sets this — except
+    the env itself, which a SessionStart hook fills from Claude Code's payload before it calls
+    `refresh()` (W-a77742db). A same-user process can always append a row to the store directly,
+    so the store, not this read, is the trust root (D-1209).
     """
     return (os.environ.get("CLAUDE_CODE_SESSION_ID") or "").strip()
 
@@ -111,7 +114,7 @@ def _at(row: dict) -> int:
     """A row's timestamp as an int, or 0 when it is missing or uncoercible (never raises)."""
     try:
         return int(row.get("at") or 0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):  # json reads `Infinity`; int() of it overflows
         return 0
 
 
@@ -131,6 +134,18 @@ def _pid_start(pid: int | None) -> int | None:
         return None
 
 
+def _as_int(value: object) -> int | None:
+    """A stored pid or start time as an int, or None. Rows are hand-editable JSON: a digit string
+    counts, a bool never does (`True == 1` would make a corrupted row equal pid 1)."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        return int(value.strip())
+    return None
+
+
 def _pid_alive_same_start(row: dict) -> bool:
     """True only when the row's pid is alive AND is the same process the row was written for.
 
@@ -138,7 +153,7 @@ def _pid_alive_same_start(row: dict) -> bool:
     pid could not be determined gets no collision protection — and `bind()` says so in its success
     message rather than implying a protection it does not have.
     """
-    pid = row.get("pid")
+    pid = _as_int(row.get("pid"))
     if not pid:
         return False
     try:
@@ -149,7 +164,9 @@ def _pid_alive_same_start(row: dict) -> bool:
     was = row.get("pid_start")
     if was is None:
         return True  # a row written before start-times existed: pid-only, as before
-    return _pid_start(pid) == was
+    # Compared as ints: a start time stored as a digit string must not read as a DEAD holder, which
+    # would let any other session take a live name with no refusal.
+    return _pid_start(pid) == _as_int(was)
 
 
 def _toplevel() -> str:
@@ -181,8 +198,9 @@ def _toplevel() -> str:
 
 
 @contextlib.contextmanager
-def _locked(path: Path):
-    """Exclusive flock across the whole READ-MODIFY-WRITE of a bind.
+def _locked(path: Path, attempts: int = 50):
+    """Exclusive flock across the whole READ-MODIFY-WRITE of a bind (`attempts` tries 0.1 s apart;
+    `refresh` takes ONE, because it runs inside a SessionStart hook's 10 s budget).
 
     ⚠️ Without this the 30-day TRIM silently destroys a sibling's binding. `bind()` snapshots the
     rows, and when any row is older than the window it REWRITES the file from that snapshot — so a
@@ -204,12 +222,13 @@ def _locked(path: Path):
         # docstring promises covered only the ERROR cases and never contention — executed, a bind
         # blocked past 12 s behind a stopped holder. The critical section is milliseconds, so ~5 s
         # of retry is generous; after that we proceed unserialized and SAY SO.
-        for _ in range(50):
+        for i in range(max(1, attempts)):
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 break
             except OSError:
-                time.sleep(0.1)
+                if i + 1 < attempts:
+                    time.sleep(0.1)
         else:
             why = "another process held the store lock for over 5 s"
             with contextlib.suppress(OSError):
@@ -353,41 +372,81 @@ def _bind_locked(
                 "without --force would silently re-identify the session that dispatched you."
             )
 
-    if not force:
-        for r in rows:
-            if r.get("session_id") == sid or str(r.get("name") or "") != name:
-                continue
-            # ⚠️ An UNKNOWN scope is its own scope, never a wildcard. With `if top and …`, a
-            # holder scoped "" was invisible to any checker inside a repo, and a checker scoped ""
-            # matched every holder everywhere (both measured). `_toplevel()` returns "" on a
-            # git-less dir AND on its 10 s timeout, so a transient git failure silently downgraded
-            # a binding into the unprotected half.
-            if str(r.get("toplevel") or "") != top:
-                continue
-            if _pid_alive_same_start(r):
-                return 1, (
-                    f"whoami_agent: refused — {name!r} is held by a LIVE session (pid "
-                    f"{r.get('pid')}) in this repo. Pick another name, or --force if that session "
-                    "is gone. ⚠️ Two sessions on one name is the cheapest way to look named "
-                    "without being attributable, and nothing downstream catches it."
-                )
+    # This window's claude process, read AFTER the snapshot and inside the lock (the trim grader opens
+    # its race inside this call), and only once the re-bind refusal above has passed. A /clear mints
+    # a new session id in the SAME process, so a row with this exact (pid, pid_start) is this
+    # window's predecessor, never a holder (W-34cb1ef9). Both halves must be known, and CLAUDE_PID,
+    # when the real claude process exported it, must agree: a nested claude the /proc walk passes
+    # through reaches the OUTER window's pid.
+    me_pid = _session_pid()
+    me_start = _pid_start(me_pid)
+    claude_pid = (os.environ.get("CLAUDE_PID") or "").strip()
+    same_window = me_pid is not None and me_start is not None and claude_pid in ("", str(me_pid))
+
+    # Scanned with or without --force: force only skips the refusal, so a forced rotation still
+    # records who it succeeded. A predecessor never ends the scan — a live foreign holder later in the
+    # store still refuses. `predecessor` is the most recent such row of this name in this scope; a
+    # /resume into an older id can make the chain cycle, so a reader walking it must bound itself.
+    predecessor = ""
+    for r in rows:
+        if r.get("session_id") == sid or str(r.get("name") or "") != name:
+            continue
+        # ⚠️ An UNKNOWN scope is its own scope, never a wildcard. With `if top and …`, a
+        # holder scoped "" was invisible to any checker inside a repo, and a checker scoped ""
+        # matched every holder everywhere (both measured). `_toplevel()` returns "" on a
+        # git-less dir AND on its 10 s timeout, so a transient git failure silently downgraded
+        # a binding into the unprotected half.
+        if str(r.get("toplevel") or "") != top:
+            continue
+        if (
+            same_window
+            and _as_int(r.get("pid")) == me_pid
+            and _as_int(r.get("pid_start")) == me_start
+        ):
+            predecessor = str(r.get("session_id"))
+            continue
+        if not force and _pid_alive_same_start(r):
+            return 1, (
+                f"whoami_agent: refused — {name!r} is held by a LIVE session (pid "
+                f"{r.get('pid')}) in this repo. Pick another name, or --force if that session "
+                "is gone. ⚠️ Two sessions on one name is the cheapest way to look named "
+                "without being attributable, and nothing downstream catches it."
+            )
 
     row = {
         "session_id": sid,
         "name": name,
-        "pid": (_pid := _session_pid()),
-        "pid_start": _pid_start(_pid),
+        "pid": me_pid,
+        "pid_start": me_start,
         "toplevel": top,
         "at": int(time.time()),
         "force": bool(force),
         "unlocked": not locked,  # auditable: this row was written without serialization
     }
+    if predecessor:
+        row["predecessor"] = predecessor
     cutoff = int(time.time()) - _TRIM_AFTER_S
     # ⚠️ A row's `at` is whatever is on disk. `int("abc")` raises ValueError and `int([1])` raises
     # TypeError (both executed), and an exception here would abort a BIND — the one operation the
     # operator runs by hand. An uncoercible timestamp is treated as ANCIENT and trimmed, never
     # fatal: a row we cannot date is a row we cannot honour.
-    keep = [r for r in rows if _at(r) >= cutoff]
+    # Each (repo, name)'s NEWEST binding is kept whatever its age: it is how a quiet repo's launcher still finds its
+    # builders (agents_up.sh reads the bindings when a repo has no registry, W-89474fc1), and it bounds the store at
+    # one old row per name a repo ever bound. A row of no repo (empty toplevel) is never a launcher's, so it ages out
+    # as before. The new row supersedes the named pair's old one, so that one is not kept for it.
+    # Only a row that is still its SESSION's last row is kept that way: an old row of a session since bound to another
+    # name would otherwise outlive the row that renamed it, and resurrect the old owner (review round 1). Only string
+    # keys count — a hand-edited row with a list for a name must never abort a bind.
+    newest: dict[tuple[str, str], int] = {}
+    sid_last: dict[str, int] = {}
+    for i, r in enumerate(rows):
+        sid_last[str(r.get("session_id"))] = i
+        t, n = r.get("toplevel"), r.get("name")
+        if isinstance(t, str) and t and isinstance(n, str):
+            newest[(t, n)] = i
+    newest.pop((top, name), None)
+    last = {i for i in newest.values() if sid_last.get(str(rows[i].get("session_id"))) == i}
+    keep = [r for i, r in enumerate(rows) if _at(r) >= cutoff or i in last]
     if len(keep) != len(rows):
         _write_rows(path, keep + [row])
     else:
@@ -403,8 +462,106 @@ def _bind_locked(
     return 0, (
         f"whoami_agent: {name} bound to session {sid}"
         + (" (forced)" if force else "")
+        + (f" (succeeds {predecessor})" if predecessor else "")
         + unprotected
     )
+
+
+def refresh(top: str | None = None) -> str:
+    """Re-record this session's existing name under its CURRENT claude process; the name, or "".
+
+    A session resumed into a new claude process (a window reload, a reboot, `claude --resume`)
+    keeps its name by session id, but only `bind` writes a pid, so no row named the new process —
+    and the quota lane's /clear re-bind, keyed on the process (D-1209), found nothing and held the
+    merge owner for a whole lane (W-a77742db; 10 of 15 bound live windows on 2026-10-28). The
+    SessionStart hook calls this on every start, passing its own git common dir as `top` so no
+    second git runs inside its 10 s budget.
+
+    It writes ONE row only when this session's LAST row in this scope names a valid name that is
+    also the name of the session's last row overall (a row here must never flip the session back
+    to an older name; an invalid-name last row refuses), still the newest row of that name here
+    (nobody re-took it), this window's process is known (`same_window`'s rule in `_bind_locked`),
+    and no row of the session carries a live process other than this window's own row in another
+    repo — one test for both "already recorded under this window" and "the sid is live in another
+    process" (left alone: a row here would strand that window at its next /clear). No store file
+    at all writes nothing and creates nothing. Every other case, a busy store lock (ONE try) and
+    any error write nothing. COBRA (D-253): the cheapest way to make a /clear re-bind pass without
+    the outcome is a refresh for any name; this re-records only the session's own name, and
+    planting a row by hand was already possible (the store is the lane's trust root, D-1209).
+    """
+    try:
+        sid = session_id()
+        scope = _toplevel() if top is None else top
+        if not sid or not scope:
+            return ""
+        me_pid = _session_pid()
+        me_start = _pid_start(me_pid)
+        claude_pid = (os.environ.get("CLAUDE_PID") or "").strip()
+        if me_pid is None or me_start is None or claude_pid not in ("", str(me_pid)):
+            return ""
+        path = store_path()
+        if not path.is_file():
+            return ""  # nothing bound anywhere: never create the state dir or a lock file for it
+        with _locked(path, attempts=1) as (locked, _why):
+            if not locked:
+                return ""  # a refresh recurs at the next SessionStart; an unserialized one may be trimmed away
+            rows = _rows(path)
+            ours = [r for r in rows if r.get("session_id") == sid]
+            # scope matched by REALPATH, as the lane's `_scoped_rows` reads it: the hook passes its
+            # realpath'd common dir while `bind` stores `git rev-parse`'s string; the new row copies
+            # the last row's own string, so every string-keyed reader sees the binding's scope
+            want = os.path.realpath(scope)
+
+            def this_window_elsewhere(r: dict) -> bool:
+                t = r.get("toplevel")
+                return (
+                    _as_int(r.get("pid")) == me_pid
+                    and _as_int(r.get("pid_start")) == me_start
+                    and not (isinstance(t, str) and os.path.isabs(t) and os.path.realpath(t) == want)
+                )
+
+            # a live process on ANY row of the sid — another window, or this one already recorded
+            # here — leaves it alone (a later row under a process since gone does not make an earlier
+            # live one dead); this window's own row in ANOTHER repo says nothing about this one
+            if any(_pid_alive_same_start(r) and not this_window_elsewhere(r) for r in ours):
+                return ""
+            real: dict[str, str] = {}
+            here = []
+            for r in rows:
+                t = r.get("toplevel")
+                if isinstance(t, str) and os.path.isabs(t):
+                    if t not in real:
+                        real[t] = os.path.realpath(t)
+                    if real[t] == want:
+                        here.append(r)
+            mine = [r for r in here if r.get("session_id") == sid]
+            if not mine:
+                return ""
+            last = mine[-1]
+            name = str(last.get("name") or "")
+            if not _NAME_RE.fullmatch(name):
+                return ""
+            if str(ours[-1].get("name") or "") != name:
+                return ""  # the session resolves to another name now: a row here would flip it back
+            if [r for r in here if str(r.get("name") or "") == name][-1] is not last:
+                return ""  # re-taken since: a refresh would silently take it back
+            _append_row(
+                path,
+                {
+                    "session_id": sid,
+                    "name": name,
+                    "pid": me_pid,
+                    "pid_start": me_start,
+                    "toplevel": last["toplevel"],
+                    "at": int(time.time()),
+                    "force": False,
+                    "unlocked": False,
+                    "refresh": True,
+                },
+            )
+            return name
+    except Exception:
+        return ""
 
 
 def main(argv: list[str]) -> int:

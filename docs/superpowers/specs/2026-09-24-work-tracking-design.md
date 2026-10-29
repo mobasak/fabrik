@@ -201,7 +201,7 @@ The prompt hook adds one block, **never folded**, at the top of `line --hook` ou
 Drift classes, each defined by a predicate `status` evaluates and lists by path:
 1. **A CONVERGED spec that nothing carries forward.** No plan names it and no item links it. Specs marked SUPERSEDED or IMPLEMENTED are excluded. This covers the lost-decoder shape: the decoder spec is CONVERGED, no plan names it, and no item held its pending approval. A DECISIONS row naming the spec does not exclude it (D-311 names the decoder spec). Measured 2026-09-24: 14 fleet-wide.
 2. **A plan CONVERGED more than 7 days** with no plan lock and no item linking it. Measured 2026-09-24: 33 fleet-wide, 10 in the hub.
-3. **A plan IN-PROGRESS with no plan lock** (8 fleet-wide).
+3. **A plan IN-PROGRESS with no plan lock** (8 fleet-wide). *Amended 2026-10-08 (W-fbdd17c8, see `docs/reference/work-tracking.md`): also a plan BLOCKED with nothing it waits on.*
 4. **A plan EXECUTED while an item linking it is still open.**
 5. **An item file that doesn't parse, or a status outside the vocabulary.**
 6. **An item marked `done` within the last 14 days whose evidence SHA doesn't exist or doesn't name the item.** Older items are exempt, since a deleted branch can be garbage-collected. `legacy` items are exempt, and so is a `decision` closed by `answer` (it carries the operator's words in `note` and no commit by design; amended 2026-10-04, D-542). Also here: a closed marker older than 14 days whose item is still open in the main checkout (the branch was never merged).

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T01:51:03.127667Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-c13fa8ff",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5CK6BJGACM3T35D1T6MZMYG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "ROUTED — RAG claim pool finding is youtube W-d066a55c, owner yt3, P1, started today; 1da4b024 is one of those disposable workers and is NOT meant to run forever"
+}

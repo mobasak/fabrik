@@ -1121,3 +1121,36 @@ def test_human_mode_names_its_skips_and_agrees_with_the_envelope() -> None:
         assert int(s.group(1)) == payload["skipped"]
         for name in payload.get("skipped_checks") or []:
             assert name in human, f"{name} skipped but not named in human mode"
+
+
+# ── a checker that is not in the tree is a SKIP, never a PASS ───────────────────
+
+
+def test_a_missing_checker_is_a_skip_in_every_view(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """kaizen 01M4DZCA2B: an absent checker came back `('<name>', True, '⚠ check not present …')`;
+    no `_SKIP_MARKERS` token in the name, so the human view printed `[PASS]` and the roster said
+    `pass` — a gate run in a checker-less probe read green. The row is a named skip everywhere."""
+    name, passed, message = fg.run_optional_check(str(tmp_path / "absent_check.py"), "Absent Row")
+    assert passed is True
+    assert name == "Absent Row (NOT PRESENT)"
+    assert message == f"⚠ check not present, skipping: {tmp_path / 'absent_check.py'}"
+    rows = [(name, passed, message)]
+    assert fg._summarize_skipped(rows)["skipped_checks"] == ["Absent Row"]
+    assert fg._check_roster(rows) == [{"name": name, "outcome": "skipped"}]
+    assert fg._CHECK_SCRIPTS[name] == str(tmp_path / "absent_check.py"), "the row names its rerun"
+    fg.print_step(name, passed, message)
+    rendered = capsys.readouterr().out
+    assert "SKIP" in _row(rendered, "Absent Row") and "PASS" not in rendered
+
+
+def test_every_inline_missing_checker_row_uses_the_one_shape() -> None:
+    """The rows `run_consistency_checks` appends without `run_optional_check` (the Convention
+    Validator, the Kilo health check) and `_work_sync_row` build the same skip row — one helper,
+    so a fifth site cannot drift back to an unmarked green."""
+    src = (REPO_ROOT / "scripts" / "final_gate.py").read_text(encoding="utf-8")
+    assert "check not present, skipping)" not in src, (
+        "an inline `(check not present, skipping)` row"
+    )
+    assert src.count("_not_present_row(") >= 5, "the helper's definition plus its four call sites"

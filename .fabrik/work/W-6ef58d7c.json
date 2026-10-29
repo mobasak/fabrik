@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T14:21:53.053050Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-6ef58d7c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DTZYZBQZFMEW7S5ZHN0QH5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "the project template's mutate-restore paragraph never says scripts/enforcement/ is absent in a throwaway worktree (W-c0a68194, iterative_image_editor 01M35NVJ3F)"
+}

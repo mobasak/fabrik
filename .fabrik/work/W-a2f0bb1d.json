@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T01:47:53.923908Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-a2f0bb1d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5QQPNY4PZRR13PS0JXS3RT8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Add two verbs to the quota lane's finishing-verb list in CLAUDE.md and the template (W-cff56c52)"
+}

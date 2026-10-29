@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T17:48:54.555089Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-747f41c9",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1040",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "on site-provisioner's reply: read the route's new mapping, add its refusal status(es) to src/fabrik/orchestrator/__init__.py PROVISIONER_REFUSALS and move them from the fallback parametrization to the refusal test",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: waits on site-provisioner mapping its unmanaged-zone status (requests 01M5AKKR79, 01M5AMGFP7); nobody blocked",
+  "status": "open",
+  "tags": [
+    "waits-site-provisioner"
+  ],
+  "title": "Add the site-provisioner's unmanaged-zone refusal status to PROVISIONER_REFUSALS once its /api/cloudflare/dns/{domain}/subdomain route maps ValueError/CloudflareError/RateLimitError to 4xx (asked in mail 01M5AKKR79); today that case is an unmapped 500 and still falls back to direct Cloudflare (W-1086d295 residue)"
+}

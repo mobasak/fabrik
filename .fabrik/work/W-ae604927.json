@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T18:37:50.050397Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-ae604927",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "compare counts: warn when text.count('�') > data.count('�'.encode()); add the mixed-input case to test_handoff_write_refuses_a_missing_name_and_survives_non_utf8_stdin",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "review-residue"
+  ],
+  "title": "session_orient.py _handoff_write: the 'stdin was not valid UTF-8' warning is skipped when stdin holds a literal U+FFFD AND a bad byte (b'a \\xef\\xbf\\xbd b \\xff' → no warning, the \\xff silently replaced); pre-existing, identical before W-82034f59 (its review, seat A-sonnet c1)"
+}

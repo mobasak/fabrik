@@ -1,0 +1,26 @@
+{
+  "block_digest": "068ac864d0ada90f20967bb69e10b15bb43c7afaf112af886a884e3998005dfe",
+  "blocked_by": [],
+  "created": "2026-10-12T20:32:47.885067Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-7afc6c7d",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "25c238eeff73af8c815d54e8baee6eb24211833279a29f43faeff889b53bc747"
+  ],
+  "next": "",
+  "note": "panel unanimous: no. whatsapp-agent has no value deployed while trade-intelligence bind-staff-org is unbuilt (plan-08 pinned); re-board when it is live or whatsapp-agent documents a single-org fallback",
+  "owner": "",
+  "priority": 2,
+  "question": "May fleet deploy whatsapp-agent to vps1 now, knowing every staff Connect fails because trade-intelligence's `POST /api/internal/data/bind-staff-org` is unbuilt (TI plan-08 pinned DO NOT EXECUTE; TI spec still `.draft`)?",
+  "status": "done",
+  "title": "May fleet deploy whatsapp-agent to vps1 now, knowing every staff Connect fails because trade-intelligence's `POST /api/internal/data/bind-staff-org` is unbuilt (TI plan-08 pinned DO NOT EXECUTE; TI spec still `.draft`)?"
+}

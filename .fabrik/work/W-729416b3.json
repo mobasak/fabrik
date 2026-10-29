@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T00:40:42.251994Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "31014ec5886d4798a5e7122f922e88b1cb1ad3cd",
+  "id": "W-729416b3",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Rename the enum at fabrik-review-loop.js:96 and its brief :232 plus every reader (:404, closable logic), keeping STILL_TRUE/NOW_FALSE accepted as legacy input; grader: a Haiku-shaped ledger row pasting passing output under DEFECT_PRESENT is flagged",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "Label rename in one review-loop script",
+  "status": "done",
+  "tags": [
+    "mail-01m48mq2hs"
+  ],
+  "title": "fabrik-review-loop.js: rename the pass-2+ ledger_status labels to what they assert about the defect (DEFECT_PRESENT / DEFECT_GONE / NEW) — the defining sentence (d53d0db2c, 2026-09-23) was already in the brief when Haiku inverted STILL_TRUE on 2026-10-07 (mail 01M48MQ2HS), so a definition alone does not hold"
+}

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-29T18:16:56.878529Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-c7de366c",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -12,10 +14,11 @@
     "spec": ""
   },
   "next": "measure first: fabrik plan specs/services/spoke-canary.yaml + read the last apply log for where compose.watchdog.yaml landed; then wrap WatchdogDriver.provision's remote steps in _target_vps_env(ctx) with a grader that asserts the ssh host for a vps2 ctx",
-  "note": "",
+  "note": "duplicate of W-fc3eddd8: D-904 (f0289eefe, merged 445f09b88) runs WatchdogDriver.provision inside _target_vps_env(ctx); test_spoke_dsn_mesh.py::test_the_watchdog_provisions_on_the_spoke_that_holds_the_app passes and goes red with the switch removed (verified 2026-10-18 by fleet)",
   "owner": "fleet",
-  "priority": 2,
-  "status": "open",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — spoke watchdog targets wrong host",
+  "status": "dropped",
   "tags": [
     "watchdog"
   ],

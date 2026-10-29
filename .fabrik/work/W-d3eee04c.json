@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
   "created": "2026-10-04T08:01:31.025725Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-d3eee04c",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -16,6 +20,7 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — three-agent model field report, 9 frictions",
   "status": "open",
   "title": "three-agent worktree model — field report from web-ecommerce-factory wef1 (2026-09-30 → 10-01): what worked, 9 frictions, ranked fixes"
 }

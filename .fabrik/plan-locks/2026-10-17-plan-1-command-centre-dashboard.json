@@ -1,0 +1,28 @@
+{
+ "plan": "docs/development/plans/archived/2026-10-17-plan-1-command-centre-dashboard",
+ "owned_paths": [
+  "scripts/sysadmin/dashboard_ui/",
+  "scripts/sysadmin/quota_dashboard.py",
+  "tests/test_quota_dashboard_ui_kit.py",
+  "tests/test_quota_dashboard_app_js.py",
+  "tests/test_quota_dashboard_server.py",
+  "tests/test_quota_dashboard_overview.py",
+  "tests/test_quota_dashboard_work.py",
+  "tests/test_quota_dashboard_accounts.py",
+  "tests/test_quota_dashboard_views_misc.py",
+  "tests/test_quota_dashboard.py",
+  "tests/test_quota_dashboard_render_failure.py",
+  "tests/test_quota_dashboard_posture.py",
+  "tests/test_quota_dashboard_banner.py",
+  "tests/test_quota_dashboard_page_layer.py",
+  "tests/test_quota_dashboard_browser.py",
+  "docs/workstation/quota-dashboard.md"
+ ],
+ "branch": "worktree-infra",
+ "started_at": "2026-10-16T23:12:02.159467+00:00",
+ "status": "released",
+ "baseline_commit": "5648cf5e0b725a551718b4e0ab2c5f61bf32beb8",
+ "tickets": {},
+ "final_commit": "986b8ce22",
+ "completed_at": "2026-10-17T16:47:40.674237+00:00"
+}

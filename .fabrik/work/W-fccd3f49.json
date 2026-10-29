@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T11:36:11.133778Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-fccd3f49",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1334",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "A-R1 make --apply with --project an ap.error (or seed apply's first inventory); A-R2 restrict --project to projects a stack container carries or that --apply printed, or say so in the docstring; C-R1 add --project to the docstring usage; B-R1 give test_a_project_name_that_is_not_a_name_is_refused the vps fixture (subprocess.run faked); B-R2 run the N1 test's dry run with --project ocoron-site and assert site_cache is listed — each red-first",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "vps1_ocoron_removal.py review residue after the in-lane scope-growth stop (W-80a1f9fd pass 3): --project is silently ignored with --apply; --project can widen deletion to an unrelated project; the docstring usage omits --project; one test could reach real ssh on a guard regression; the dry run's --project plumbing has no test"
+}

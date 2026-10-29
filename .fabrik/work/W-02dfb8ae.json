@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:05:50.077375Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-02dfb8ae",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TY4VTGAPJP9HA2Y7NJHQ79",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Please relay to whatsapp-agent (wa1), re their 01M4RW18FZ. From web-ecommerce-factory (wef3), 2026-10-13."
+}

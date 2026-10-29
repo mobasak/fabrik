@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T09:09:12.779001Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-d67ff76d",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "give each script the driver's decode (encoding utf-8, errors surrogateescape, rc first, refuse escaped stdout where it is parsed); vps_script_drift loads ssh.py by path, the other four do not import fabrik — decide primitive vs per-site kwargs first",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Five standalone scripts still decode ssh output strictly (subprocess.run text=True, locale codec), so a non-UTF-8 remote answer raises UnicodeDecodeError: scripts/audit_infra_vs_docs.py:81, scripts/generate_vps_inventory.py:79, scripts/update_vps_docs.py:100, scripts/sysadmin/vps1_pg_scoped_logins.py:132, scripts/sysadmin/vps_script_drift.py:364. The package sites were fixed by W-7ac62afc slice 1 (driver decode kwargs, D-1286). Also weigh the critiques' second approach: a host-taking driver primitive run_ssh(...) as the one chokepoint, so no future site can miss the rule."
+}

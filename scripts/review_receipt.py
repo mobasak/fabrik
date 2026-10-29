@@ -36,7 +36,9 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import hashlib
+import os
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -112,10 +114,85 @@ def _surface(root: Path, changed: list[str], rng: str | None) -> tuple[str, int]
         if fp.is_file():
             blob += f"\n--- untracked: {p}\n".encode() + fp.read_bytes()
     digest = hashlib.md5(blob, usedforsecurity=False).hexdigest()  # a cross-run anchor
-    shown = f"git diff {rng or 'HEAD'} -- {' '.join(changed)}"
+    # shell-quoted: a path holding a space must survive the round trip `task_lane` and --restamp make
+    # (`shlex.split`); a plain path is written exactly as before (W-ebbedc88 review A-S3)
+    shown = f"git diff {rng or 'HEAD'} -- {shlex.join(changed)}"
     extra = f" + {len(untracked)} untracked file(s)" if untracked else ""
     line = f"`git rev-parse HEAD` = {head}; `{shown}`{extra} md5 {digest} ({len(blob)} bytes)"
     return line, len(blob)
+
+
+# The working-tree form `_surface` writes when no --range is given. `task_lane.check_review_receipt`
+# parses the same line (its `_WT_SURFACE`); tests/test_task_lane_receipt.py round-trips a real
+# `--init` through it, so a change to `_surface`'s wording reds there.
+_WT_SURFACE = re.compile(
+    r"`git rev-parse HEAD` = (?P<head>\S+); `git diff HEAD -- (?P<paths>[^`]*)`"
+    r"(?: \+ (?P<n>\d+) untracked file\(s\))? md5 (?P<md5>[0-9a-f]{32}) \((?P<bytes>\d+) bytes\)"
+)
+_SURFACE_LINE = re.compile(r"^\*\*Surface:\*\* ([^\r\n]*)", re.M)
+
+
+# What a receipt whose surface is already COMMITTED needs (kaizen 01M4V0B03B row 1791907300): nothing,
+# when the commit holds the reviewed bytes — task_lane's check (d) rebuilds them from base..last — or a
+# new receipt. A `--restamp --range` would downgrade a byte-checked receipt to a tip-only one.
+_COMMITTED_REMEDY = (
+    "Already committed? A working-tree receipt already passes task_lane's check (d) when the commit "
+    "holds the reviewed bytes; if it does not, re-make the receipt with `--init --range <base>..<last>`"
+)
+
+
+def restamp(root: Path, receipt: Path) -> int:
+    """Re-anchor an existing receipt's working-tree **Surface:** line to the tree as it is NOW.
+
+    `--init` hashes the tree when the review STARTS; every fix the review makes then changes the
+    diff, so the receipt no longer matches its commit and a `/fabrik-task` close refuses it
+    (`task_lane.check_review_receipt` check (d)). Run this after the last fix and before the
+    commit: it rewrites only that one line, over the paths the line already names (W-ebbedc88).
+
+    THE CHEAPEST WAY TO SATISFY IT WITHOUT THE OUTCOME (D-253): restamp a tree that still holds
+    unreviewed edits — the line then matches a commit nobody reviewed. That costs exactly what
+    hand-editing the line or forging a `--range` tip costs today; the review's own closing pass
+    over the pinned surface is the counter-measure, not this verb.
+    """
+    try:
+        # newline="" keeps the file's own line endings: a restamp rewrites one line, nothing else
+        with receipt.open(encoding="utf-8", newline="") as fh:
+            text = fh.read()
+    except OSError as exc:
+        sys.stderr.write(f"review_receipt: --restamp {receipt}: unreadable ({exc})\n")
+        return 1
+    lines = _SURFACE_LINE.findall(text)
+    if len(lines) != 1:
+        sys.stderr.write(
+            f"review_receipt: --restamp {receipt}: {len(lines)} **Surface:** line(s), not exactly one\n"
+        )
+        return 1
+    m = _WT_SURFACE.fullmatch(lines[0].strip())
+    if m is None:
+        sys.stderr.write(
+            f"review_receipt: --restamp {receipt}: the **Surface:** line is not the working-tree "
+            "form `--init` writes without --range (a range receipt is re-made with --range)\n"
+        )
+        return 1
+    try:
+        paths = shlex.split(m.group("paths"))
+    except ValueError as exc:
+        sys.stderr.write(f"review_receipt: --restamp {receipt}: unparseable paths ({exc})\n")
+        return 1
+    surface, nbytes = _surface(root, paths, None)
+    if nbytes == 0:
+        sys.stderr.write(
+            f"review_receipt: --restamp {receipt}: the surface is EMPTY — nothing differs from "
+            f"HEAD on its paths and none is untracked. {_COMMITTED_REMEDY}\n"
+        )
+        return 1
+    new = _SURFACE_LINE.sub(lambda _m: f"**Surface:** {surface}", text, count=1)
+    tmp = receipt.with_name(receipt.name + ".restamp.tmp")
+    with tmp.open("w", encoding="utf-8", newline="") as fh:
+        fh.write(new)
+    os.replace(tmp, receipt)
+    print(f"restamped {receipt}: {surface}")
+    return 0
 
 
 def _rubric(root: Path, changed: list[str]) -> str:
@@ -183,11 +260,13 @@ Rubric invocation (verbatim output — the gate reads the generated header, neve
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
-disproving line>)` · `RECORDED — unexecuted (<why>)` · `RECORDED — by design`, parenthesising the
-owning row's first-cell id and the EARLIER round that adjudicated it, or a `D-nnn` with no round
-(the § Residual block below shows the shape) · `RECORDED — measured (<why>)` ·
-`RECORDED — hygiene false positive (<why>)` — every RECORDED reason is PARENTHESISED, never
-colon-delimited (a colon would spell the `unexecuted: N` counter the ledger refuses). `UNCHECKED`
+disproving line>)` · `RECORDED — unexecuted (<why>)` · `RECORDED — measured (<why>)` ·
+`RECORDED — hygiene false positive (<why>)` · `RECORDED — by design`, whose parentheses hold owner ids
+only — each the owning row's first-cell id and the EARLIER round that adjudicated it, or a `D-nnn`
+row of this checkout's ledger with no round, `;`-joined — with its reason AFTER the closing
+parenthesis and an em dash (the § Residual block below shows the shape). Every OTHER RECORDED reason
+is PARENTHESISED, never colon-delimited (a colon would spell the `unexecuted: N` counter the ledger
+refuses). `UNCHECKED`
 may survive only under a `## BLOCKED` escalation (a finding + 3 failed attempts).
 
 ## Pass Ledger
@@ -222,14 +301,17 @@ grammar of `/fabrik-review` § Phase 2 (the fenced block under the next heading 
 
 ```text
 | F12 | RECORDED — unexecuted (3 probe attempts timed out) |
-| F19 | RECORDED — by design (F4, round 3; D-203) |
+| F19 | RECORDED — by design (F4, round 3; D-203) — <why> |
 | F31 | RECORDED — measured (a prevalence figure; makes no code or doc claim) |
 ```
 
 `RECORDED — by design` names the OWNING row's first-cell id and the EARLIER round that adjudicated
-it (or a `D-nnn` with no round); the gate refuses an absent owner and a round that is not below the
-closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never enter `confirmed:`;
-`unexecuted:` on the closing row is what keeps an unexecuted CODE candidate from closing the loop.
+it (or a `D-nnn` with no round); each `;`-part of a by-design parenthetical is an owner, never a
+reason — the reason follows the closing parenthesis. What the gate refuses in a by-design verdict is the
+message list of `check_review_coverage.py::_residual_errors`, read there and never restated here;
+whether a `D-nnn` is a row of the ledger is checked only where `_ledger_ids` reads a `docs/DECISIONS.md`
+with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED — unexecuted` never enter
+`confirmed:`; `unexecuted:` on the closing row is what keeps an unexecuted CODE candidate from closing the loop.
 
 ## Per-phase verdicts
 
@@ -237,19 +319,34 @@ closing `Pass N`. `RECORDED — measured` and `RECORDED — unexecuted` never en
 
 ## Gate
 
-`final_gate.py --check --json`, pasted verbatim at the flip (check_convergence reads the fenced
-`"status": "success"`):
+`final_gate.py --check --json`, pasted verbatim (check_convergence reads the fenced
+`"status": "success"`). Close order per `/fabrik-review` § Reporting: run it while this receipt reads
+`Status: IN-PROGRESS`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
 
 ```json
-UNCHECKED — paste the gate output here at the CONVERGED flip
+UNCHECKED — the IN-PROGRESS gate run goes here first, then the post-flip run replaces it
 ```
+
+A red caused only by another lane's work is pasted as is, with ONE line beside it (`/fabrik-review` § Reporting):
+`GATE-SCOPE: out-of-surface — <failing check>; findings naming this surface: 0 of <N>; measured by: <command>`,
+`<N>` the failing check's total findings (at least 1).
 """
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Emit a review-artifact skeleton (--init).")
-    ap.add_argument("--init", action="store_true", required=True)
-    ap.add_argument("--changed", nargs="+", required=True, help="changed repo-relative paths")
+    ap = argparse.ArgumentParser(
+        description="Emit a review-artifact skeleton (--init), or re-anchor one (--restamp)."
+    )
+    verb = ap.add_mutually_exclusive_group(required=True)
+    verb.add_argument("--init", action="store_true")
+    verb.add_argument(
+        "--restamp",
+        type=Path,
+        metavar="RECEIPT",
+        help="rewrite an existing receipt's working-tree **Surface:** line to the tree as it is "
+        "now — after the review's last fix, before the commit",
+    )
+    ap.add_argument("--changed", nargs="+", help="changed repo-relative paths (--init)")
     ap.add_argument(
         "--out", type=Path, help="artifact path (default: reviews/<date>-<scope>-review.md)"
     )
@@ -273,6 +370,17 @@ def main(argv: list[str] | None = None) -> int:
     )
     a = ap.parse_args(argv)
     root = a.project_root.resolve()
+    if a.restamp is not None:
+        if a.rng is not None:
+            sys.stderr.write(
+                "review_receipt: --restamp does not take --range — a restamp re-anchors the "
+                f"working-tree form only. {_COMMITTED_REMEDY}\n"
+            )
+            return 2
+        target = a.restamp if a.restamp.is_absolute() else root / a.restamp
+        return restamp(root, target)
+    if not a.changed:
+        ap.error("--init needs --changed")
     if a.out is None:
         if not a.scope:
             ap.error("--out or --scope is required")

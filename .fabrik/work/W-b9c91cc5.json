@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:12:27.416151Z",
+  "creator": "infra",
+  "evidence": "92e01c6d76a094dc30557359844f20a84acfbe8c",
+  "id": "W-b9c91cc5",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "work fabrik mail 01M3WZKG2S9BC8N105MAR3BAM3 (archived; read it with mail.py read 01M3WZKG2S9BC8N105MAR3BAM3); re-boarded from W-becbc0ba, which closed when infra acked the mail as not its beat",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: Two gaps in the spec-review machinery, both hit on 2026-10-02 in iterative_image_editor (iie2) while converging docs/superpowers/specs/2026-10-02-animate-fal-transport-design.md."
+}

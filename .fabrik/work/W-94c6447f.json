@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T11:12:39.465607Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-94c6447f",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-13-mail-routing-design.md"
+  },
+  "next": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — beat-aware triage idea",
+  "status": "dropped",
+  "tags": [
+    "infra"
+  ],
+  "title": "work.py triage routes by count only; a beat-aware triage would read the mail router's owner_of map (.fabrik/beat-owners.json) to assign unowned items to the owning beat"
+}

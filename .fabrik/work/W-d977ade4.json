@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T08:02:02.672907Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-d977ade4",
+  "impact": "low",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -15,7 +17,11 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — decisions.py check accepts wrong column count; fleet search misreads",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "# decisions.py --check accepts D-rows with the wrong column count — 34 rows read as \"MALFORMED ROW\" in the fleet search"
 }

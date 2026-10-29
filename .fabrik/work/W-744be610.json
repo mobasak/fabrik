@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T11:49:33.809025Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-744be610",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "still blocked 2026-10-19 ~20:45: egress 5.208.107.221, mcp_health --repo /opt/trade-intelligence → exa key check unverified (HTTP 403), firecrawl unverified (timeout), the geo-block pattern; rerun when api.ipify.org shows a non-IR egress, then record status, content type and body shape in the W-3350006b D-row",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: a live re-measure of a merged fix (an advisory proof), blocked by the box's IR egress (217.218.153.224), not by code; nobody blocked",
+  "status": "open",
+  "tags": [
+    "waits-open-egress"
+  ],
+  "title": "Measure mcp_health's key check live from an OPEN egress (W-3350006b residue): run the firecrawl /v1/team/credit-usage and exa /websets/v0/websets?limit=1 GETs once with the real key and once with a bogus key (keys masked) and confirm 200 + provider-shaped 401 — the build could only be graded against local stand-ins because the box egressed through a blocked network (217.218.153.224) on 2026-10-19"
+}

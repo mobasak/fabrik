@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:09.977365Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4bcede43",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VX04N5RH8CJ5H83NPPVS9P",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Correction to 01M4VWZE3Y, point 1: mail.py's ownership map names kaizen for .windsurf/rules/core/58-resilience.md wording (D-815, D-627). That fix is mine, not yours, and is filed as W-f8d45bea (kaizen will run the full /fabrik-review because it is a sync path). Points 2 (the red gate-row cite test,"
+}

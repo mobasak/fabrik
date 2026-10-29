@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T22:29:44.414455Z",
   "creator": "infra",
-  "evidence": "",
+  "effort": "low",
+  "evidence": "899199635e6e623818fde0990c7d4411a6c8fef8",
   "id": "W-79342704",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "reword the template line to '`--kind reply --re` replies are exempt', full review (sync path), one commit",
   "note": "",
-  "owner": "",
-  "priority": 3,
-  "status": "open",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — governance CLAUDE.md template misstates mail rule",
+  "status": "done",
   "title": "templates/governance/CLAUDE.md:433 says threaded --re replies are exempt from --to-agent; mail.py:1042 exempts only --kind reply with --re — reword to match (tryton-crm 01M3PJXN)"
 }

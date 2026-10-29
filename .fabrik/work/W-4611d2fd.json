@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T18:04:42.360653Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-4611d2fd",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read work.py add's output; one line plus a grader",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — misleading output line",
+  "status": "dropped",
+  "title": "work.py add prints the created path as UNCOMMITTED until staged (1791116967) — kaizen mail 01M4PHYRB6"
+}

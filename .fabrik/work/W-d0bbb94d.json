@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T02:11:07.334773Z",
+  "creator": "infra",
+  "evidence": "b03ba950512bda3f4d3963ec034ade793ffb2638",
+  "id": "W-d0bbb94d",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure: find the preflight fetch in scripts/merge_request.py and where a refusal writes its reply; decide retry-then-park vs park-without-reply on a fetch timeout",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "merge_request.py merge: a transient 'git fetch -q timed out after 60s' at preflight REFUSES and replies to the request, so the requester must re-send (twice on 2026-10-12: 01M4PQEFJF, 01M4PXVSWA); a network blip should leave the request waiting, not refused"
+}

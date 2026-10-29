@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T10:50:03.178741Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-931b6837",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TC3JVNDBRFRNG2QSBGX71F",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "hub mail auto-routing — kaizen's research for the feature you build after W-800579be (operator: \"we need it asap\")"
+}

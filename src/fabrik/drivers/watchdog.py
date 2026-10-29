@@ -12,7 +12,8 @@ after the spec's main compose stack is deployed. Three jobs:
 
 2. **Compose overlay.** Generate ``compose.watchdog.yaml`` next to the spec's
    ``compose.yaml`` carrying ONLY the ``watchdog`` service. Operators bring
-   the stack up with ``docker compose -f compose.yaml -f compose.watchdog.yaml up -d``;
+   the stack up with ``sudo docker compose -f compose.yaml -f compose.watchdog.yaml up -d``
+   (the overlay, like ``.env``, is root-only 0600 — it carries WATCHDOG_PG_DSN);
    the driver does the same to start the sidecar after build. Overlay pattern
    chosen over in-place YAML merge to avoid clobbering ``SSHDeployer``'s
    contract that it owns ``compose.yaml``.
@@ -85,7 +86,7 @@ from typing import Any
 
 import yaml
 
-from fabrik.drivers.ssh import scp_to_vps, ssh
+from fabrik.drivers.ssh import _MKTEMP_PATH_RE, remote_mktemp, scp_to_vps, ssh
 from fabrik.spec_loader import WATCHDOG_LLM_OPT_INS, normalize_llm_actions
 
 # Deterministic per-host sysadmin prompt substitutions. Replaces a hardcoded
@@ -126,10 +127,6 @@ logger = logging.getLogger(__name__)
 
 SIDECAR_SOURCE = Path("/opt/fabrik-lib/watchdog/watchdog_sidecar")
 IMAGE_REPO = "fabrik/watchdog"
-# Where on the VPS the build context lands while docker reads it. Always
-# under /tmp so a failed build doesn't leave a per-project residue under
-# /opt; cleaned up by the driver in finally{}.
-VPS_BUILD_ROOT = "/tmp/fabrik-watchdog-build"  # nosec B108 — path on the REMOTE VPS (docker build context), not a local temp; cleaned in finally
 # REMOTE VPS host dir holding the per-project governance set (CLAUDE.md +
 # AGENTS.md + .windsurf/rules), bind-mounted RO into the sidecar at /governance.
 # Dedicated dir OUTSIDE /opt/<id> (Option B) so it never touches the app's git
@@ -397,10 +394,11 @@ class _RenderContext:
     # Operator-tunable runtime knobs — agent.py has defaults if absent.
     check_interval_seconds: int = 60
     log_level: str = "INFO"
-    promtail_update_url: str = ""
     image_tag: str = ""
     # Filled in by _build_context.
     build_ctx_local: Path | None = None
+    # the remote mktemp dir the build context is staged in (W-719b2678); provision() removes it
+    remote_build_dir: str | None = None
     extra_env: dict[str, str] = field(default_factory=dict)
     # Trio plan Phase 1.3 (2026-06-04): which host the sidecar will run on.
     # Used at build time to render {{ HOST_NAME }} / {{ HOST_IP }} / etc. in
@@ -507,11 +505,7 @@ class WatchdogDriver:
                 # like the rmtree: an OSError here must not replace the build's own error.
                 with contextlib.suppress(OSError):
                     rctx.build_ctx_local.with_suffix(".tar.gz").unlink(missing_ok=True)
-            # Best-effort: clean the remote build dir whether or not build succeeded.
-            try:
-                ssh(f"sudo rm -rf {VPS_BUILD_ROOT}/{rctx.project_id}", timeout=15)
-            except Exception:  # noqa: BLE001
-                logger.debug("post-build remote cleanup raised; ignoring")
+            self._remove_build_stage(rctx)
 
         logger.info("watchdog: provisioned %s → %s", rctx.project_id, rctx.image_tag)
         return {"status": "provisioned", "image_tag": rctx.image_tag}
@@ -563,12 +557,18 @@ class WatchdogDriver:
         )
 
         image_tag = f"{IMAGE_REPO}:{project_id}"
+        target_vps = getattr(ctx, "target_vps", None) or spec.get("target_vps") or "vps1"
 
         # The same finite-budget rule resolve_applicability enforces before provisioning, applied
         # again where the value becomes the sidecar's env: provision() is public, and an inf/nan
         # rendered into WATCHDOG_*_BUDGET_USD is no ceiling at all. Local import — infrastructure
         # imports this module lazily, so module scope would invite a cycle.
-        from fabrik.orchestrator.infrastructure import _finite_budget
+        from fabrik.orchestrator.infrastructure import _finite_budget, _rewrite_shared_infra_host
+
+        # A spoke container cannot resolve postgres-main/redis-main (WireGuard carries no DNS):
+        # swap them to the hub mesh IP, as every other registrar's injected URL is.
+        redis_url = _rewrite_shared_infra_host(redis_url, target_vps)
+        pg_dsn = _rewrite_shared_infra_host(pg_dsn, target_vps)
 
         daily_budget = _finite_budget(wcfg, "daily_budget_usd", 1.0)  # D2: WatchdogConfig default
         per_incident_budget = _finite_budget(wcfg, "per_incident_budget_usd", 0.25)
@@ -601,9 +601,8 @@ class WatchdogDriver:
             project_git_remote=project_git_remote,
             check_interval_seconds=int(wcfg.get("check_interval_seconds", 60)),
             log_level=str(wcfg.get("log_level", "INFO")),
-            promtail_update_url=str(wcfg.get("promtail_update_url", "")),
             image_tag=image_tag,
-            target_vps=getattr(ctx, "target_vps", None) or spec.get("target_vps") or "vps1",
+            target_vps=target_vps,
         )
 
     def _gate_tier_d(
@@ -789,18 +788,18 @@ class WatchdogDriver:
         tar_path = local_ctx.with_suffix(".tar.gz")
         with tarfile.open(tar_path, "w:gz") as tar:
             tar.add(str(local_ctx), arcname=rctx.project_id)
-        remote_tar = f"{VPS_BUILD_ROOT}/{rctx.project_id}.tar.gz"
-        # /tmp is world-writable + sticky (1777); mkdir as the SSH user (no
-        # sudo) so the user can scp into the dir without permission denied.
-        # An earlier driver version used `sudo mkdir` which left the dir
-        # root-owned 755 — operator hit that on T-P5 Step 5 2026-06-03;
-        # fixed in fabrik:HEAD + one-time hub cleanup at apply time.
-        ssh(f"mkdir -p {VPS_BUILD_ROOT}", timeout=15)
+        # The context is staged in a fresh remote mktemp dir (0700, owned by the ssh user, so scp
+        # writes into it without sudo): the shared fixed /tmp/fabrik-watchdog-build let any local
+        # VPS user swap the tarball root extracts and builds (W-719b2678). The stage goes on rctx
+        # BEFORE anything is shipped, so provision()'s finally removes it whatever fails next.
+        stage = remote_mktemp(ssh, directory=True)
+        rctx.remote_build_dir = stage
+        remote_tar = f"{stage}/{rctx.project_id}.tar.gz"
         scp_to_vps(str(tar_path), remote_tar)
-        ssh(f"sudo tar -xzf {remote_tar} -C {VPS_BUILD_ROOT} && sudo rm {remote_tar}", timeout=60)
+        ssh(f"sudo tar -xzf {remote_tar} -C {stage} && sudo rm {remote_tar}", timeout=60)
         # 5. docker build. Cache-friendly: rebuilds only invalidated layers.
         build_cmd = (
-            f"cd {VPS_BUILD_ROOT}/{rctx.project_id} && "
+            f"cd {stage}/{rctx.project_id} && "
             # NO `| tail -N` — that masks the docker build's exit code with
             # tail's-always-zero. Without pipefail (off by default), a build
             # failure passes silently and the driver thinks success.
@@ -809,6 +808,18 @@ class WatchdogDriver:
         )
         logger.info("watchdog: building %s on VPS (may take ~3min cold, ~5s warm)", rctx.image_tag)
         ssh(build_cmd, timeout=600)
+
+    @staticmethod
+    def _remove_build_stage(rctx: Any) -> None:
+        """Best-effort root removal of the build stage — only one ``remote_mktemp`` made and that still
+        reads as one, so a missing or altered value never reaches ``sudo rm -rf``."""
+        stage = getattr(rctx, "remote_build_dir", None)
+        if not isinstance(stage, str) or not _MKTEMP_PATH_RE.fullmatch(stage):
+            return
+        try:
+            ssh(f"sudo rm -rf {stage}", timeout=15)
+        except Exception:  # noqa: BLE001
+            logger.debug("post-build remote cleanup raised; ignoring")
 
     # ── Compose overlay ───────────────────────────────────────────────────
 
@@ -861,7 +872,7 @@ class WatchdogDriver:
             logger.warning("watchdog: unsafe project id %r — skipping /governance", pid)
             return False
         remote_dir = f"{VPS_GOVERNANCE_ROOT}/{pid}"
-        remote_tar = f"{VPS_BUILD_ROOT}/{pid}-governance.tar.gz"
+        stage: str | None = None
         # ALL filesystem I/O (exists()/is_symlink()/mkdtemp/tar) lives INSIDE the
         # try: Path.exists() raises PermissionError on an EACCES parent, so keeping
         # it outside would abort provision() and break the fail-soft contract.
@@ -891,7 +902,9 @@ class WatchdogDriver:
             with tarfile.open(local_tar, "w:gz") as tar:
                 for m in members:
                     tar.add(str(src_root / m), arcname=m, filter=_governance_tar_filter)
-            ssh(f"mkdir -p {VPS_BUILD_ROOT}", timeout=15)
+            # a fresh remote mktemp dir per ship — root extracts this tarball (W-719b2678)
+            stage = remote_mktemp(ssh, directory=True)
+            remote_tar = f"{stage}/governance.tar.gz"
             scp_to_vps(str(local_tar), remote_tar)
             # Wipe+recreate (fresh each apply), extract, make world-readable (RO mount).
             ssh(
@@ -917,6 +930,10 @@ class WatchdogDriver:
         finally:
             if local_ctx is not None:
                 shutil.rmtree(local_ctx, ignore_errors=True)
+            if stage is not None:
+                # fail-soft: a failed removal never escapes the never-raises contract
+                with contextlib.suppress(Exception):
+                    ssh(f"sudo rm -rf {stage}", timeout=15)
 
     def _push_overlay(self, rctx: _RenderContext) -> None:
         """Write ``compose.watchdog.yaml`` to ``/opt/<project_id>/``."""
@@ -999,13 +1016,22 @@ class WatchdogDriver:
             fh.write(yaml_text)
             local_tmp = fh.name
         try:
-            remote_tmp = f"/tmp/{rctx.project_id}-compose.watchdog.yaml"  # nosec B108 — REMOTE VPS scp target, not a local temp file
-            scp_to_vps(local_tmp, remote_tmp)
-            ssh(
-                f"sudo mv {remote_tmp} {self._compose_dir(rctx)}/compose.watchdog.yaml && "
-                f"sudo chown root:root {self._compose_dir(rctx)}/compose.watchdog.yaml",
-                timeout=30,
-            )
+            # The overlay carries WATCHDOG_PG_DSN / WATCHDOG_REDIS_URL: it is staged in a remote mktemp
+            # file (random name, 0600) and chmod'd 0600 by name before the move, so it never sits at a
+            # guessable /tmp name or reaches /opt/<id> (the sidecar's /project mount) readable (W-719b2678).
+            remote_tmp = remote_mktemp(ssh)
+            try:
+                scp_to_vps(local_tmp, remote_tmp)
+                ssh(
+                    f"sudo chmod 0600 {remote_tmp} && "
+                    f"sudo mv {remote_tmp} {self._compose_dir(rctx)}/compose.watchdog.yaml && "
+                    f"sudo chown root:root {self._compose_dir(rctx)}/compose.watchdog.yaml",
+                    timeout=30,
+                )
+            except BaseException:
+                with contextlib.suppress(Exception):
+                    ssh(f"rm -f {remote_tmp}", timeout=5)
+                raise
         finally:
             os.unlink(local_tmp)
 
@@ -1062,7 +1088,6 @@ class WatchdogDriver:
             "WATCHDOG_PROJECT_GIT_REMOTE": rctx.project_git_remote,
             "WATCHDOG_CHECK_INTERVAL": str(rctx.check_interval_seconds),
             "WATCHDOG_LOG_LEVEL": rctx.log_level,
-            "WATCHDOG_PROMTAIL_UPDATE_URL": rctx.promtail_update_url,
         }
         # Event-driven bus sources (independent of Tier-D). Only set when the
         # spec opts in; leaving it UNSET keeps the library on its legacy poll
@@ -1190,15 +1215,15 @@ class WatchdogDriver:
             )
         # Generate on the VPS (host has ssh-keygen; the sidecar image may not),
         # copy into the container, lock down perms, then remove the host copy.
-        remote_priv = f"/tmp/{rctx.project_id}-git-deploy.key"  # nosec B108 — REMOTE VPS tmp, removed below
+        # The private key is generated in a fresh remote mktemp dir (0700, ssh user), never at a
+        # guessable /tmp name another local user could pre-create or read (W-719b2678). The dir is
+        # new, so ssh-keygen never meets an existing key (it would prompt and exit 1).
+        key_dir = remote_mktemp(ssh, directory=True)
+        remote_priv = f"{key_dir}/key"
         remote_pub = f"{remote_priv}.pub"
         comment = f"watchdog-{rctx.project_id}@fabrik"
-        ssh(
-            f"rm -f {remote_priv} {remote_pub} && "
-            f"ssh-keygen -t ed25519 -N '' -C '{comment}' -f {remote_priv}",
-            timeout=30,
-        )
         try:
+            ssh(f"ssh-keygen -t ed25519 -N '' -C '{comment}' -f {remote_priv}", timeout=30)
             ssh(
                 # keys/ is volume-initialized from the image (owned watchdog);
                 # ensure it exists, drop the key in, lock perms, restore owner.
@@ -1212,7 +1237,9 @@ class WatchdogDriver:
             )
             pubkey = ssh(f"cat {remote_pub}", timeout=15).strip()
         finally:
-            ssh(f"rm -f {remote_priv} {remote_pub}", timeout=15)
+            # a failed removal must not mask the original error
+            with contextlib.suppress(Exception):
+                ssh(f"rm -rf {key_dir}", timeout=15)
         # Phase 8 of deploy-readiness-gaps (2026-06-30): auto-push the pubkey
         # to GitHub as a write-enabled deploy key. Falls back to the print-
         # pubkey path on ANY failure (token scope missing, gh not installed,

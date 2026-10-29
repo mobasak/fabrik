@@ -11,6 +11,7 @@ Exit codes:
     1 - Fail (violations found)
 """
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -106,20 +107,42 @@ def is_template_generator(filepath: str) -> bool:
     )
 
 
+# A CALL of the banned function, never an identifier that merely ends in its name (mail
+# 01M3ZHT9HB: `def _fingerprint(` read as print()). The call must not follow a word character or a
+# dot, so `self.print(` (a method) and `obj.builtins.print(` are not the builtin, while an optional
+# `builtins.` / `__builtins__.` prefix IS it — the boundary applies before that prefix. A
+# definition (`def print(`, any whitespace after `def`) is rejected by `_is_definition`.
+# `console.log(` must not follow a word character or `$` (`myconsole.log(`); `window.console.log(`
+# and optional chaining `console?.log(` are still logging. No whitespace is allowed before the
+# parenthesis: `print (` matched docstring prose ("to print (the count") and a formatter never
+# writes it in code. Any other pattern keeps the substring contract.
+_CALL_PATTERNS = {
+    "print(": re.compile(r"(?<![\w.])(?:(?:__builtins__|builtins)\.)?print\("),
+    "console.log(": re.compile(r"(?<![\w$])console\??\.log\("),
+}
+_DEFINITION_TAIL = re.compile(r"(?<![\w.])def\s+$")
+
+
+def _is_definition(line: str, start: int) -> bool:
+    """True when the match at ``start`` is the name in a ``def`` statement, not a call."""
+    return bool(_DEFINITION_TAIL.search(line[:start]))
+
+
 def scan_file_for_pattern(filepath: str, pattern: str) -> list[int]:
-    """Scan a file for a substring pattern, returning matching line numbers."""
+    """Scan a file for a call of ``pattern``, returning matching line numbers."""
     try:
         content = Path(filepath).read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return []
 
+    matcher = _CALL_PATTERNS.get(pattern) or re.compile(re.escape(pattern))
     violations = []
     for line_num, line in enumerate(content.splitlines(), 1):
         stripped = line.strip()
         # Skip comments
         if stripped.startswith("#") or stripped.startswith("//"):
             continue
-        if pattern in line:
+        if any(not _is_definition(line, m.start()) for m in matcher.finditer(line)):
             violations.append(line_num)
     return violations
 

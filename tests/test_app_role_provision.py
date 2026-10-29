@@ -108,9 +108,12 @@ def _run(
         events.append(("watchdog",))
         return {"ro": {"user": f"{db}_wd_ro"}, "rw": {"user": f"{db}_wd_rw"}}
 
-    def fake_payments(db, dry_run=False, **kw):
-        events.append(("payments",))
-        return {"user": f"{db}_payments_ingest", "password": None, "status": "exists"}
+    def fake_payments(db, lane, dry_run=False, **kw):
+        events.append(("payments", lane))
+        return {"user": f"{db}_payments_{lane}", "password": None, "status": "exists"}
+
+    def fake_payments_grant(db, lane, dry_run=False, **kw):
+        return {"grants": "module"}
 
     def fake_check(db, repo_dir, container="postgres-main"):
         events.append(("run_check", db, str(repo_dir)))
@@ -121,9 +124,8 @@ def _run(
         mock.patch("fabrik.drivers.postgres.create_database", side_effect=fake_create),
         mock.patch("fabrik.drivers.postgres.database_exists", return_value=False),
         mock.patch("fabrik.drivers.postgres.create_watchdog_roles", side_effect=fake_watchdog),
-        mock.patch(
-            "fabrik.drivers.postgres.create_payments_ingest_role", side_effect=fake_payments
-        ),
+        mock.patch("fabrik.drivers.postgres.mint_payments_role", side_effect=fake_payments),
+        mock.patch("fabrik.drivers.postgres.grant_payments_role", side_effect=fake_payments_grant),
         mock.patch(
             "fabrik.drivers.postgres.create_subagent_ins_role",
             return_value={"ins": {"user": "x", "password": None}},
@@ -141,6 +143,7 @@ def _run(
             dry_run=dry_run,
             provision_watchdog_roles=True,
             provision_payments_ingest=True,
+            provision_payments_fulfilment=True,
         )
     return deployer, ctx, events, mocks
 
@@ -337,7 +340,9 @@ def test_converged_reapply_injects_nothing(tmp_path: Path, flag, url) -> None:
     ensures = [e for e in events if e[0] == "ensure_app_role"]
     assert ensures == [("ensure_app_role", False)]
     assert events.index(("watchdog",)) < events.index(ensures[0])
-    assert events.index(("payments",)) < events.index(ensures[0])
+    # both payments roles land before the app role's audit_log revokes, ingest first
+    assert events.index(("payments", "ingest")) < events.index(("payments", "fulfilment"))
+    assert events.index(("payments", "fulfilment")) < events.index(ensures[0])
     assert deployer.injects == []
     mocks["check"].assert_not_called()
     assert _app_role_failures(ctx) == []
@@ -432,7 +437,7 @@ def test_cutover_refuses_a_pinned_database_url(tmp_path: Path, extra, secrets) -
     assert ("ensure_app_role", True) not in events
     mocks["check"].assert_not_called()
     failures = _app_role_failures(ctx)
-    assert len(failures) == 1 and "DATABASE_URL_OWNER" in failures[0]
+    assert len(failures) == 1 and "remove the pin" in failures[0] and ".env.owner" in failures[0]
 
 
 def test_db_before_boot_seed_is_not_a_pin(tmp_path: Path) -> None:

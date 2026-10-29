@@ -21,6 +21,13 @@ import yaml
 
 from fabrik.config import FABRIK_ROOT
 from fabrik.orchestrator.exceptions import ValidationError
+from fabrik.spec_loader import (
+    CPU_GRAMMAR_MESSAGE,
+    HEALTH_PATH_RE,
+    POSTGRES_IDENT_RE,
+    cpu_in_grammar,
+    merge_template_defaults,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +194,7 @@ class SpecValidator:
             spec_path: Path to YAML spec file
 
         Returns:
-            Parsed spec dictionary
+            Parsed spec dictionary, with the template's ``shape:`` defaults merged under it
 
         Raises:
             ValidationError: If file cannot be loaded
@@ -204,7 +211,18 @@ class SpecValidator:
         if not isinstance(spec, dict):
             raise ValidationError("Spec must be a YAML mapping", field="type")
 
-        return spec
+        # The template's shape: block only — never env/resources/health, which the
+        # deployer would write into the app's .env (D-908). Plan merges every key; the
+        # registrar decision reads the merged shape plus the spec's own domain, infra,
+        # watchdog and depends, so plan and apply resolve the same registrars
+        # (W-989653a7; tests/orchestrator/test_apply_plan_parity.py proves it per spec).
+        try:
+            return merge_template_defaults(spec, self.templates_dir, keys=("shape",))
+        except (OSError, ValueError, yaml.YAMLError) as e:
+            raise ValidationError(
+                f"Invalid template defaults for {spec.get('template')!r}: {type(e).__name__}",
+                field="template",
+            ) from e
 
     def validate(self, spec: dict[str, Any]) -> list[str]:
         """Validate a spec dictionary.
@@ -324,6 +342,54 @@ class SpecValidator:
                 raise ValidationError("Health must be a mapping", field="health")
             if "path" not in hc:
                 warnings.append("Health missing 'path', using /health")
+            elif not isinstance(hc["path"], str) or not HEALTH_PATH_RE.fullmatch(hc["path"]):
+                # The apply path never builds a `Spec`, and the docker-image deployer pastes this path
+                # into its compose probe raw — the same grammar as `Health.path` (W-ff313a14).
+                raise ValidationError(
+                    "health.path must start with / and hold only URL path and query characters "
+                    "(no quotes, backslash, $, #, backtick, braces or whitespace)",
+                    field="health.path",
+                )
+
+        # The same raw-dict gap for the two other values pasted into compose: the DATABASE_URL default
+        # (`Depends.postgres` would refuse it only at render, after DNS) and the docker-image deployer's
+        # probe URL and traefik port (`Source.image_port` is typed only on the `Spec` path).
+        depends = spec.get("depends")
+        db_name = depends.get("postgres") if isinstance(depends, dict) else None
+        if db_name and (not isinstance(db_name, str) or not POSTGRES_IDENT_RE.fullmatch(db_name)):
+            raise ValidationError(
+                "depends.postgres must be a PostgreSQL identifier matching [a-zA-Z_][a-zA-Z0-9_]{0,62}",
+                field="depends.postgres",
+            )
+        # An int or an ASCII-digit string, the two spellings `Source.image_port` accepts on the load path.
+        source = spec.get("source")
+        image_port = source.get("image_port") if isinstance(source, dict) else None
+        if isinstance(image_port, str) and re.fullmatch(r"[0-9]{1,5}", image_port):
+            image_port = int(image_port)
+        if image_port is not None and (
+            isinstance(image_port, bool)
+            or not isinstance(image_port, int)
+            or not 1 <= image_port <= 65535
+        ):
+            raise ValidationError(
+                "source.image_port must be an integer port (1-65535)", field="source.image_port"
+            )
+        # `Source.image_command` is a str; a list here would reach the compose as its repr (W-4b977f21).
+        image_command = source.get("image_command") if isinstance(source, dict) else None
+        if image_command is not None and not isinstance(image_command, str):
+            raise ValidationError(
+                "source.image_command must be a string", field="source.image_command"
+            )
+        # `resources.cpu` reaches compose as `cpus` on the template and docker-image paths, and compose reads
+        # "0_5" as 5 CPUs and "0" as no limit — the `Resources` grammar, checked here on the raw dict
+        # (W-f01710a0). A git or local source runs its own compose and ignores the value; it is held to the
+        # grammar anyway, as its `Spec` is (`Resources`), so one spec never passes one reader and fails another.
+        if "resources" in spec:
+            resources = spec["resources"]
+            if not isinstance(resources, dict):
+                raise ValidationError("resources must be a mapping", field="resources")
+            if "cpu" in resources and not cpu_in_grammar(resources["cpu"]):
+                raise ValidationError(CPU_GRAMMAR_MESSAGE, field="resources.cpu")
 
         logger.info("Spec validated: %s", spec["name"])
         return warnings

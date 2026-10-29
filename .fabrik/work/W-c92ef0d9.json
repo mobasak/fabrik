@@ -1,0 +1,28 @@
+{
+  "blocked_by": [
+    "W-ab566484"
+  ],
+  "created": "2026-10-14T02:48:45.949397Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c92ef0d9",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "census each command's receipt shape (does it carry a Pass Ledger with confirmed counters?) before adding its name to _DESIGN_REVIEW_COMMAND",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — route other receipts; none live-false-failing",
+  "status": "dropped",
+  "tags": [
+    "gate"
+  ],
+  "title": "check_convergence.py: route the other design-family review receipts (/fabrik-ui-design-review, /fabrik-flows-review, /fabrik-deploy-plan-review, /design-review) to the Pass-Ledger proof like spec/plan-review (W-39d8d1fd OUT; none live-false-failing — tryton's /design-review receipt passes today only via a gate embed)"
+}

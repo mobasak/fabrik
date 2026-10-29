@@ -6,7 +6,7 @@
 > compose template uses pinned, architecture-compatible images, and
 > `fabrik redeploy <name>` reverts via `git reset --hard` on health-check
 > failure (git-sourced) or stays at the last good image (template-sourced)."
-> The container selection criteria (pinned tags, slim-bookworm bases,
+> The container selection criteria (pinned tags, Debian `-slim` bases on `debian_codename` from `.windsurf/rules/versions.yaml` for images we build,
 > registry choice GHCR/JFrog) are unchanged.
 
 How Fabrik selects and uses prebuilt container images for self-hosted services.
@@ -292,7 +292,7 @@ image: getmeili/meilisearch:v1.13
 image: getmeili/meilisearch@sha256:abc123...
 ```
 
-> **Known drift (2026-07-20):** the deployed compose files (`infra/vps1/{authelia,meilisearch}/compose.yaml`) already follow this policy — pinned to `authelia/authelia:4.39.19` and `getmeili/meilisearch:v1.13` respectively. The `specs/infrastructure/{authelia,meilisearch}.yaml` source-of-truth spec files have NOT been updated to match — they still declare a floating `:latest` tag (`specs/infrastructure/authelia.yaml:6`, `specs/infrastructure/meilisearch.yaml:6`). Pinning the specs is pending; don't take the spec layer as ground truth for the currently-deployed tag until that's done.
+> **Hub services (2026-10-22):** the hub's deployed compose files (`infra/vps1/{authelia,meilisearch}/compose.yaml`, mirrors of the live `/opt/<svc>/compose.yaml`) follow this policy — pinned to `authelia/authelia:4.39.19` and `getmeili/meilisearch:v1.13` respectively. The old `specs/infrastructure/` files, which declared a floating `:latest`, were retired (hub D-1097); the mirror is the reference for a deployed tag.
 
 ### Architecture Verification
 
@@ -775,7 +775,7 @@ Comprehensive analysis of Docker images that accelerate Fabrik development by re
 | Image | Purpose | Impact |
 |-------|---------|--------|
 | `ghcr.io/browserless/chromium` ✅ | Headless browser farm | Scale Playwright automation |
-| `redis:7-bookworm` ✅ | Job queue | Replace DB polling with proper queue |
+| `redis:7-alpine` ✅ | Job queue | Replace DB polling with proper queue |
 
 ---
 

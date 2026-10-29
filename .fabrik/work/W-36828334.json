@@ -1,9 +1,14 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-ab566484",
+    "W-d146dd3c"
+  ],
   "created": "2026-10-04T15:00:21.220265Z",
   "creator": "fleet",
+  "effort": "high",
   "evidence": "",
   "id": "W-36828334",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +18,9 @@
   },
   "next": "measure how long app.deploy() runs and whether `modal app list` shows the app before it returns; if yes, record the session before the deploy or have reconcile skip an endpoint whose session is mid-create (found by the Opus design critique of W-2f782cd7)",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — reaper race may reap own endpoint, needs design",
   "status": "open",
   "tags": [
     "gpu",

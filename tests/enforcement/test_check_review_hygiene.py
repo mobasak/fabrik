@@ -200,6 +200,106 @@ def test_rows_in_a_headerless_table_are_counted_as_ungraded(tmp_path):
     assert sweep.ungraded == 2
 
 
+_SPLIT = "| a | b |\n|---|---|\n| 1 | 2 |\n\n| 3 | 4 |\n| 5 | 6 |\n"
+
+
+def test_split_table_reports_the_orphan_run_once(tmp_path):
+    """W-b9c91cc5 (mail 01M3WZKG2S): a blank line between two rows ends the table, and the rows
+    after it render as headerless paragraphs. One hit per orphan run, at its first row."""
+    doc = tmp_path / "split.md"
+    doc.write_text(_SPLIT, encoding="utf-8")
+    sweep = crh.scan(surfaces=[doc])
+    assert _lines(sweep, "split-table") == [5]
+    assert sweep.ungraded == 2  # the orphan rows still have no header to be graded against
+
+
+def test_split_table_ignores_a_new_table_after_a_blank(tmp_path):
+    doc = tmp_path / "two-tables.md"
+    doc.write_text(
+        "| a | b |\n|---|---|\n| 1 | 2 |\n\n| c | d |\n|---|---|\n| 3 | 4 |\n", encoding="utf-8"
+    )
+    assert _lines(crh.scan(surfaces=[doc]), "split-table") == []
+
+
+def test_split_table_ignores_fenced_rows(tmp_path):
+    doc = tmp_path / "fenced.md"
+    doc.write_text("```text\n" + _SPLIT + "```\n", encoding="utf-8")
+    assert _lines(crh.scan(surfaces=[doc]), "split-table") == []
+
+
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        # two blanks still end the table
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n\n\n| 3 | 4 |\n", [6]),
+        # a multi-line HTML comment ends it (the blanked copy reads it blank), and so does a
+        # ONE-line comment, which `_blank_quoted` keeps — an HTML block starts there
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n<!--\nnote\n-->\n| 3 | 4 |\n", [7]),
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n<!-- note -->\n| 3 | 4 |\n", [5]),
+        # a heading, a thematic break, a blockquote or a list item starts NEW content, never an
+        # accidental split (measured: counting a heading fired 5 false reds in the receipt corpus)
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n\n## Pass Ledger\n\n| Pass 1 | x |\n", []),
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n***\n| 3 | 4 |\n", []),
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n> quoted\n\n| 3 | 4 |\n", []),
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n- item\n\n| 3 | 4 |\n", []),
+        # an NBSP-only line ends the table too (markdown-it opens a paragraph there)
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n\xa0\n| 3 | 4 |\n", [5]),
+        # prose closes the walk: a pipe row after prose and a blank opens no split of a table
+        ("text\n\n| 3 | 4 |\n", []),
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n\nsome prose\n\n| 3 | 4 |\n", []),
+        # an orphan row that repeats the header's text is still an orphan (the line cursor once
+        # bound it to the header and never graded it)
+        ("| a |\n|---|\n\n| a |\n", [4]),
+        # a fenced block between rows ends it
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n```\nx\n```\n| 3 | 4 |\n", [7]),
+        # a double-spaced table is ONE split region, reported once
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n\n| 3 | 4 |\n\n| 5 | 6 |\n", [5]),
+        # a 4-space-indented example is an indented code block, never a table
+        ("    | a | b |\n    |---|---|\n    | 1 | 2 |\n\n    | 3 | 4 |\n", []),
+        # a mismatched header after a blank forms no table: its rows are orphans
+        ("| a | b |\n|---|---|\n| 1 | 2 |\n\n| c | d | e |\n|---|---|\n", [5]),
+        # ONE malformed table (header and delimiter disagree) is table-shape noise, not a split:
+        # its body row sits right under the delimiter, with no blank line between
+        ("| a | b |\n|---|---|---|\n| 1 | 2 |\n", []),
+    ],
+)
+def test_split_table_widened_shapes(tmp_path, body, expected):
+    """Design critique (Opus + Fable) and review pass 1: a split is a line that ends the table by
+    accident — a blank, a comment, a fence — followed by more pipe rows with no header."""
+    doc = tmp_path / "shape.md"
+    doc.write_text(body, encoding="utf-8")
+    assert _lines(crh.scan(surfaces=[doc]), "split-table") == expected
+
+
+def test_a_code_span_header_keeps_its_rows_graded(tmp_path):
+    """Review pass 2: the line cursor's header test must count cells exactly as `_table_rows`
+    does. Counting with the code-span-masked splitter skipped a header `_table_rows` yields, ran
+    the cursor off the end and dropped every later row — the BLOCKING raw-pipe row included."""
+    receipt = tmp_path / "codespan-review.md"
+    receipt.write_text("| `a|b` | c |\n|---|---|\n| 1 | 2 | 3 |\n", encoding="utf-8")
+    hits, _ungraded = crh._receipt_hits(str(receipt), receipt.read_text(encoding="utf-8"))
+    assert [(h.cls, h.line) for h in hits] == [("raw-pipe", 3)]
+
+
+def test_split_table_keeps_the_strict_cli_green(tmp_path):
+    """The CLI under `--strict` (final_gate's registration) still exits 0 on a split — the class is
+    advisory, and the line says so."""
+    doc = tmp_path / "split.md"
+    doc.write_text(_SPLIT, encoding="utf-8")
+    r = _run(["--strict", "--surface", str(doc)], REPO)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "[ADVISORY] split-table" in r.stdout
+
+
+def test_split_table_is_advisory_under_strict(tmp_path):
+    """A split loses the table's structure, not its text: the hit is advisory on a receipt too."""
+    receipt = tmp_path / "split-review.md"
+    receipt.write_text(_SPLIT.replace("| a | b |", "| a | Disposition |"), encoding="utf-8")
+    hits = [h for h in crh.scan(receipts=[receipt]).hits if h.cls == "split-table"]
+    assert [h.line for h in hits] == [5]
+    assert not any(h.blocking for h in hits)
+
+
 # ---------------------------------------------------------------- the surface classes
 
 
@@ -510,11 +610,13 @@ def test_json_mode_emits_its_envelope_even_when_the_self_selection_is_empty(tmp_
     assert json.loads(r.stdout) == {"hits": [], "files": 0, "notes": [], "ungraded_rows": 0}
 
 
-def test_the_gate_registers_it_warn_only():
+def test_the_gate_registers_it_strict():
+    """W-205934fb (DD6 met): the gate passes `--strict`; the AST pin with mutants is in
+    test_final_gate_registration.py — this is the suite-local tripwire."""
     gate = (REPO / "scripts/final_gate.py").read_text(encoding="utf-8")
-    assert '"scripts/enforcement/check_review_hygiene.py"' in gate
     idx = gate.index('"scripts/enforcement/check_review_hygiene.py"')
-    assert "warn_only=True" in gate[idx : idx + 400]
+    window = gate[idx : idx + 200]
+    assert '"--strict"' in window and "warn_only" not in window, window
 
 
 # ---------------------------------------------------------------- the measured fire rate
@@ -542,6 +644,7 @@ CORPUS_DISPOSITION_ROWS = 1663
 CORPUS_UNGRADED = 4296
 CORPUS_RAW_PIPE = (35, 21)  # (hits, receipts)
 CORPUS_DUAL_VERDICT = (27, 5)  # round 2: the four leading-count tally cells fire again
+CORPUS_SPLIT_TABLE = (5, 5)  # W-b9c91cc5: one hit per split region (19 rows before the collapse)
 
 
 def test_the_fire_rate_over_the_committed_receipt_corpus():
@@ -567,8 +670,8 @@ def test_the_fire_rate_over_the_committed_receipt_corpus():
         n for n in names.stdout.split() if n.endswith(".md") and not n.endswith("-archive.md")
     ]
     rows = disposition = ungraded = 0
-    hits: dict[str, int] = {"raw-pipe": 0, "dual-verdict": 0}
-    files: dict[str, set[str]] = {"raw-pipe": set(), "dual-verdict": set()}
+    hits: dict[str, int] = {"raw-pipe": 0, "dual-verdict": 0, "split-table": 0}
+    files: dict[str, set[str]] = {"raw-pipe": set(), "dual-verdict": set(), "split-table": set()}
     for rel in receipts:
         text = _show(CORPUS_SHA, rel)
         assert text is not None, rel
@@ -595,7 +698,8 @@ def test_the_fire_rate_over_the_committed_receipt_corpus():
         f"  raw-pipe     {hits['raw-pipe']} hits in {len(files['raw-pipe'])} receipts "
         f"({hits['raw-pipe'] / rows:.3%} of rows)\n"
         f"  dual-verdict {hits['dual-verdict']} hits in {len(files['dual-verdict'])} receipts "
-        f"({hits['dual-verdict'] / disposition:.3%} of disposition-bearing rows)"
+        f"({hits['dual-verdict'] / disposition:.3%} of disposition-bearing rows)\n"
+        f"  split-table  {hits['split-table']} hits in {len(files['split-table'])} receipts"
     )
     assert (len(receipts), rows, disposition, ungraded) == (
         CORPUS_RECEIPTS,
@@ -605,6 +709,7 @@ def test_the_fire_rate_over_the_committed_receipt_corpus():
     )
     assert (hits["raw-pipe"], len(files["raw-pipe"])) == CORPUS_RAW_PIPE
     assert (hits["dual-verdict"], len(files["dual-verdict"])) == CORPUS_DUAL_VERDICT
+    assert (hits["split-table"], len(files["split-table"])) == CORPUS_SPLIT_TABLE
 
 
 def test_every_repeatable_flag_says_so_in_its_help() -> None:
@@ -1425,3 +1530,86 @@ def test_the_docstring_names_the_md_only_classes():
     """T4.7 (01M285X4H): three of four classes run only on `.md` surfaces — the pin recipe copies
     to any name, so the docstring says which classes a non-.md surface silently loses."""
     assert 'path.endswith(".md")' in crh.__doc__, crh.__doc__[:600]
+
+
+# ---------------------------------------------------------------- the blocking form (W-205934fb, DD6)
+
+_HEADER = "| Class | Status |\n|---|---|\n"
+
+
+def _receipt_repo(tmp_path: Path, body: str, *, stage: bool = True) -> Path:
+    root = _scratch_repo(tmp_path)
+    rel = "docs/development/reviews/2026-10-08-x-review.md"
+    (root / rel).write_text("# Review\n\n" + _HEADER + body, encoding="utf-8")
+    if stage:
+        subprocess.run(["git", "-C", str(root), "add", rel], check=True)
+    return root
+
+
+def test_strict_fails_on_a_text_overflow_receipt_row(tmp_path):
+    """A cell past the header's width is DISCARDED by GFM — the text after a stray `|` is lost to
+    every rendered reader. Under `--strict` that row fails the run and is named."""
+    root = _receipt_repo(tmp_path, "| fail-open | CLEAN |\n| boundary | FIXED (a || b) |\n")
+    r = _run(["--strict"], root)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "[BLOCKING] raw-pipe" in r.stdout and "2026-10-08-x-review.md:6" in r.stdout, r.stdout
+    assert "1 blocking" in r.stdout
+
+
+def test_strict_ignores_harmless_shapes(tmp_path):
+    """Shapes the renderer loses nothing from stay advisory: an overflow of only empty or
+    comment cells, a row indented into a code block, a short row, a dual verdict."""
+    body = (
+        "| a | CLEAN ||\n"
+        "| b | CLEAN |  |\n"
+        "| c | CLEAN | <!-- note --> |\n"
+        "| d |\n"
+        "| e | FIXED — the spans REFUTED again |\n"
+        "\n"
+        "    | Class | Status |\n"
+        "    |---|---|\n"
+        "    | f | CLEAN | lost |\n"
+        "\n"
+        # review A-S1: a TAB advances to the next 4-column stop (CommonMark), so a tab-led row
+        # is an indented code block too — as is two spaces then a tab
+        "\t| Class | Status |\n"
+        "\t|---|---|\n"
+        "\t| g | CLEAN | lost |\n"
+        "\n"
+        "  \t| Class | Status |\n"
+        "  \t|---|---|\n"
+        "  \t| h | CLEAN | lost |\n"
+    )
+    root = _receipt_repo(tmp_path, body)
+    r = _run(["--strict"], root)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "[BLOCKING]" not in r.stdout, r.stdout
+
+
+def test_three_spaces_is_still_a_table_row(tmp_path):
+    """The exemption's boundary: up to 3 leading spaces is a table row in GFM, so its overflow
+    still blocks — the tab fix must not widen the exemption below 4 columns."""
+    root = _receipt_repo(tmp_path, "   | boundary | FIXED (a || b) |\n")
+    r = _run(["--strict"], root)
+    assert r.returncode == 1 and "[BLOCKING]" in r.stdout, r.stdout + r.stderr
+
+
+def test_strict_demotes_an_untracked_receipt(tmp_path):
+    """A sibling's untracked draft is graded at staging, never against another session's gate —
+    the selection check_review_coverage makes."""
+    root = _receipt_repo(tmp_path, "| boundary | FIXED (a || b) |\n", stage=False)
+    r = _run(["--strict"], root)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "untracked" in r.stdout and "[BLOCKING]" not in r.stdout, r.stdout
+
+
+def test_without_strict_every_hit_stays_advisory(tmp_path):
+    """In-round callers keep exit 0; the marker still prints, LAST, so a clipped gate row keeps it,
+    and the first line opens with the warning sign the gate's --json surfaces a green row by."""
+    body = "| boundary | FIXED (a || b) |\n| e | FIXED — the spans REFUTED again |\n"
+    root = _receipt_repo(tmp_path, body)
+    r = _run([], root)
+    assert r.returncode == 0, r.stdout + r.stderr
+    lines = r.stdout.splitlines()
+    assert lines[0].startswith("⚠"), lines[:2]
+    assert "[BLOCKING]" in lines[-2] and "1 blocking" in lines[-1], lines[-3:]

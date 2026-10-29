@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:26:03.737333Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-19b2d9d8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4SM7Q26Y7B2W0KANZTSWPVM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate of W-9220f869 (check_plan_quality.py has no CLI entry point)",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "title": "WHAT: scripts/enforcement/check_plan_quality.py has no CLI entry point (no main / __main__): 'python3 scripts/enforcement/check_plan_quality.py <plan>' and '--help' print nothing and exit 0 — indistinguishable from a clean pass. Its check_file() also silently returns [] for any path outside the abso"
+}

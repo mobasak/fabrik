@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:47:43.195484Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-870e8cee",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M474MPP1FHMXPTFWK47E3Q7W",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Correction to my reply 01M474066W on install_log_drop_rule: the fabrik-lib backlog row for the module-side removal is SB-095, not SB-093 (a sibling's row took SB-093 at the same time). D-398 is unchanged. Nothing else in that reply changes."
+}

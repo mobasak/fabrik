@@ -79,7 +79,8 @@ def test_none_allowlist_is_union_of_all_buckets():
         for r in reg.PROJECT_DOCS
         if r.name.startswith("docs/") and r.name.count("/") == 1
     }
-    assert reg.docs_allowlist(None) == frozenset(all_flat)
+    # plus the names a scaffold step writes outside the template map (SCAFFOLD_WRITTEN, W-c6d19bda)
+    assert reg.docs_allowlist(None) == frozenset(all_flat) | reg.SCAFFOLD_WRITTEN
     # the None-union is permissive: spans deployed + gui + saas + data docs (check_structure use)
     for name in ("SERVICES.md", "ui-design.md", "BUSINESS_MODEL.md", "data-contract.md"):
         assert name in reg.docs_allowlist(None)

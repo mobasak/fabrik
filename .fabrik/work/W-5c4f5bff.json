@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:36:32.226485Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5c4f5bff",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M492HV5SSNSK8XMD45K9MMKS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re relay 01M49008ZH (for wef3) — accepted, sized as spec-chain, owner sp1; not built yet"
+}

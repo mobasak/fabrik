@@ -1,0 +1,26 @@
+{
+  "block_digest": "75ab70f71b8191b946b5797b2339fbfce1703108e54020af6a386b73d0d69f93",
+  "blocked_by": [],
+  "created": "2026-10-14T20:09:37.680158Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-1afe3956",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "b7a44d51bb9080a334b5abfb4b5896d182335501872ae3f235924af484282903"
+  ],
+  "next": "",
+  "note": "do not bypass the guard.",
+  "owner": "",
+  "priority": 2,
+  "question": "Should I delete the subagent transcripts older than 3 days now, permanently, to free about 7 GB?",
+  "status": "done",
+  "title": "Should I delete the subagent transcripts older than 3 days now, permanently, to free about 7 GB?"
+}

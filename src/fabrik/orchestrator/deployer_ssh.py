@@ -10,6 +10,7 @@ Design doc: ``docs/development/plans/archived/2026-05-28-ssh-deployer.md``
 from __future__ import annotations
 
 import contextlib
+import json
 import logging
 import os
 import posixpath
@@ -21,9 +22,22 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from fabrik.drivers.ssh import UndecodableAnswerError
+from fabrik.env_file import EnvTemplate
+from fabrik.env_file import format_env as _format_env
+from fabrik.env_file import parse_env as _parse_env
 from fabrik.orchestrator.context import DeploymentContext
-from fabrik.orchestrator.exceptions import DeployError
-from fabrik.spec_loader import Source, SourceType
+from fabrik.orchestrator.exceptions import DeployError, ProvisioningError
+from fabrik.spec_loader import (
+    CPU_GRAMMAR_MESSAGE,
+    OWNER_ENV_FILE,
+    OWNER_ENV_KEYS,
+    Resources,
+    Source,
+    SourceType,
+    Spec,
+    cpu_in_grammar,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -120,19 +134,15 @@ def _validate_name(name: str) -> None:
 
 
 @contextlib.contextmanager
-def _target_vps_env(ctx: DeploymentContext):
-    """Swap ``FABRIK_VPS_SSH_HOST`` to ``ctx.target_vps`` for the block.
+def _host_env(host: str | None):
+    """Swap ``FABRIK_VPS_SSH_HOST`` to *host* for the block, restoring it after.
 
-    The SSH driver reads ``FABRIK_VPS_SSH_HOST`` per call, so wrapping just
-    the calls that target the app's location (``SSHDeployer.deploy`` and
-    ``inject_env``) is enough to route them to the spoke. Hub-side
-    registrars (gatus on vps1, postgres-main on vps1, authelia on vps1)
-    outside this scope continue to talk to vps1 as intended.
-
-    ``vps1`` is treated as a no-op so the env stays unchanged for
-    hub-targeted deploys.
+    The SSH driver reads ``FABRIK_VPS_SSH_HOST`` per call, so wrapping just the calls that
+    target an app's location routes them to that host. ``"vps1"``, ``None`` and ``""`` are a
+    NO-OP: the driver's default host is the hub's ssh alias (``DEFAULT_SSH_HOST`` in
+    ``drivers/ssh.py``), which the name ``vps1`` does not resolve to.
     """
-    target = getattr(ctx, "target_vps", None) or "vps1"
+    target = host or "vps1"
     if target == "vps1":
         yield
         return
@@ -146,6 +156,97 @@ def _target_vps_env(ctx: DeploymentContext):
             os.environ.pop("FABRIK_VPS_SSH_HOST", None)
         else:
             os.environ["FABRIK_VPS_SSH_HOST"] = prev
+
+
+@contextlib.contextmanager
+def _target_vps_env(ctx: DeploymentContext):
+    """Swap ``FABRIK_VPS_SSH_HOST`` to ``ctx.target_vps`` for the block (see :func:`_host_env`).
+
+    Wraps only the calls that target the app's location (``SSHDeployer.deploy`` and
+    ``inject_env``); hub-side registrars (gatus, postgres-main, authelia on vps1) outside
+    this scope keep talking to vps1. ``vps1`` is a no-op.
+    """
+    with _host_env(getattr(ctx, "target_vps", None)):
+        yield
+
+
+def app_dir(spec: dict[str, Any] | Spec) -> list[str]:
+    """Return the CANDIDATE app directories for *spec*, in probe order (RAW, unquoted).
+
+    A local source yields its single ``source.path`` normalised (no trailing slash), or
+    ``/opt/<name>`` when the path is unset (as ``_deploy_local`` resolves it); a local path
+    whose parent is not ``/opt`` raises :class:`ProvisioningError` before any probe. Any
+    other source yields ``/opt/<n>`` then ``/opt/fabrik-<n>`` -- the second only when ``<n>``
+    does not already start with ``fabrik-``. ``<n>`` is ``name or id``, and it must match the
+    app-name pattern :func:`_validate_name` enforces on deploy (so ``../etc`` can never become
+    ``/opt/../etc``; ``Spec.id`` is pattern-validated, ``Spec.name`` is not -- 0 of 69 specs
+    set one today). Accepts the validator's dict (``source`` may be absent) and the ``Spec``
+    model alike.
+    """
+    if isinstance(spec, dict):
+        name = spec.get("name") or spec.get("id")
+        source = spec.get("source") or {}
+        if isinstance(source, dict):
+            stype, path = source.get("type"), source.get("path")
+        else:
+            stype, path = source.type, source.path
+    else:
+        name = spec.name or spec.id
+        stype, path = spec.source.type, spec.source.path
+    if not name:
+        raise ProvisioningError("spec has neither name nor id", resource_type="app_dir")
+    if not isinstance(name, str) or not _NAME_RE.fullmatch(name):
+        raise ProvisioningError(f"invalid app name: {name!r}", resource_type="app_dir")
+    if getattr(stype, "value", stype) == SourceType.LOCAL.value:
+        resolved = posixpath.normpath(path) if path else f"/opt/{name}"
+        if not resolved.startswith("/") or posixpath.dirname(resolved) != "/opt":
+            raise ProvisioningError(
+                f"local source path {path!r} is not a direct child of /opt",
+                resource_type="app_dir",
+            )
+        return [resolved]
+    candidates = [f"/opt/{name}"]
+    if not name.startswith("fabrik-"):
+        candidates.append(f"/opt/fabrik-{name}")
+    return candidates
+
+
+_PS_KEYS = ("Service", "State", "Health", "ExitCode")
+# Everything the ssh driver (`fabrik.drivers.ssh.ssh`) can raise: a failed command or an answer
+# that is not valid UTF-8 (RuntimeError, W-5597922e), a missing ssh binary or fork failure
+# (OSError), a bad host alias or jump setting (SshHostError / JumpConfigError are ValueErrors) and
+# the timeout. probe_app RETURNS these, never raises.
+_SSH_FAILURES = (RuntimeError, OSError, ValueError, subprocess.TimeoutExpired)
+
+# Printed by the remote shell when a compose filename does not exist (_read_compose_from_vps), so
+# "absent, try the next name" is told apart from "exists but the read failed, refuse".
+_NO_COMPOSE_FILE = "__FABRIK_NO_COMPOSE_FILE__"
+
+
+def _parse_compose_ps(text: str) -> list[dict[str, str]]:
+    """Parse ``docker compose ps --format json`` into rows of Service/State/Health/ExitCode.
+
+    Reads JSON Lines (one object per line, Compose >= 2.21) or a leading-``[`` array (older
+    Compose); every other key is ignored and every value is a string (missing -> ``""``). An
+    empty body is zero rows; a body that is not JSON, or an object without a non-empty
+    ``Service`` (``{}`` and ``{"Service": null}`` are not rows), raises :class:`ValueError` --
+    the same rule :meth:`SSHDeployer.list_compose_projects` applies to a non-array body.
+    """
+    body = text.strip()
+    if not body:
+        return []
+    if body.startswith("["):
+        items = json.loads(body)
+    else:
+        items = [json.loads(line) for line in body.splitlines() if line.strip()]
+    rows: list[dict[str, str]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            raise ValueError(f"compose ps row is not an object: {item!r}")
+        if not item.get("Service"):
+            raise ValueError(f"compose ps row lacks a Service: {item!r}")
+        rows.append({k: "" if item.get(k) is None else str(item.get(k)) for k in _PS_KEYS})
+    return rows
 
 
 class SSHDeployer:
@@ -290,6 +391,66 @@ class SSHDeployer:
             return {"name": name, "status": status, "path": f"/opt/{name}"}
         return None
 
+    def probe_app(self, path: str) -> dict[str, Any]:
+        """Probe the app directory *path* read-only: ``{"exists", "ps", "error"}``.
+
+        First the whole file test inside one ``sudo sh -c`` (rc 0 either way; a refused sudo
+        prints nothing), then -- on ``exists`` -- ``docker compose ps -a`` in that directory.
+        ``shlex.quote`` is applied once per shell layer. Every failure is RETURNED in
+        ``error``, never raised (:data:`_SSH_FAILURES` -- a transport ``RuntimeError``, an
+        ``OSError`` such as a missing ssh binary, undecodable output, the timeout): an
+        exception from the first call or a stdout that is neither
+        ``exists`` nor ``absent`` is a HOST failure (``exists`` False, the ``ps`` call never
+        sent); an exception or a non-JSON body from the second keeps ``exists`` True.
+        """
+        from fabrik.drivers.ssh import ssh as _ssh
+
+        test = "[ -f " + shlex.quote(path + "/compose.yaml") + " ] && echo exists || echo absent"
+        try:
+            out = _ssh("sudo sh -c " + shlex.quote(test), timeout=10)
+        except _SSH_FAILURES as exc:
+            return {"exists": False, "ps": "", "error": f"{type(exc).__name__}: {exc}"}
+        verdict = out.strip()
+        if verdict == "absent":
+            return {"exists": False, "ps": "", "error": None}
+        if verdict != "exists":
+            return {"exists": False, "ps": "", "error": f"unexpected probe output: {out!r}"}
+        try:
+            ps = _ssh(
+                f"cd {shlex.quote(path)} && sudo docker compose ps -a --format json", timeout=15
+            )
+        except _SSH_FAILURES as exc:
+            return {"exists": True, "ps": "", "error": f"{type(exc).__name__}: {exc}"}
+        try:
+            _parse_compose_ps(ps)
+        except (ValueError, RecursionError) as exc:  # a pathologically nested body is an error too
+            return {"exists": True, "ps": ps, "error": f"compose ps output is not JSON: {exc}"}
+        return {"exists": True, "ps": ps, "error": None}
+
+    def list_compose_projects(self, host: str) -> list[dict[str, Any]]:
+        """Return ``docker compose ls -a`` on *host* as the parsed array of projects.
+
+        Runs under :func:`_host_env` so a spoke is reached and the env restored after. A
+        transport failure propagates (``RuntimeError`` / ``TimeoutExpired``); a body that is
+        not a JSON array of objects raises ``RuntimeError`` naming *host* (D3 reads ``Name``
+        and ``ConfigFiles`` from every entry, so a non-object entry is a host failure, not a
+        project).
+        """
+        from fabrik.drivers.ssh import ssh as _ssh
+
+        with _host_env(host):
+            out = _ssh("sudo docker compose ls -a --format json", timeout=60)
+        try:
+            projects = json.loads(out)
+        except ValueError as exc:
+            raise RuntimeError(f"compose ls on {host} returned non-JSON: {out[:200]!r}") from exc
+        if not isinstance(projects, list):
+            kind = type(projects).__name__
+            raise RuntimeError(f"compose ls on {host} returned {kind}, not a JSON array")
+        if not all(isinstance(p, dict) for p in projects):
+            raise RuntimeError(f"compose ls on {host} returned an array with a non-object entry")
+        return projects
+
     def delete(self, name: str, dry_run: bool = False) -> bool:
         """Stop containers, remove volumes, and delete the app directory."""
         from fabrik.drivers.ssh import ssh as _ssh
@@ -357,9 +518,10 @@ class SSHDeployer:
         merged.update(env_vars)
 
         with _target_vps_env(ctx):
-            env_content = _format_env(merged)
-
-            _write_file_to_vps(name, ".env", env_content)
+            # The owner key lands in `.env.owner` FIRST, then `.env` without it, then ONE restart —
+            # the registrar's one-call injection at creation keeps its invariant: the owner password
+            # is on disk before anything below it can fail (plan 2026-10-12-plan-1-owner-dsn-split).
+            _write_env_files(f"/opt/{name}", merged, _env_writer_for(name))
             _compose_up(name, _health_disabled(ctx.spec), _ssh)
             logger.info("Injected %d env vars into %s and restarted", len(env_vars), name)
 
@@ -371,6 +533,7 @@ class SSHDeployer:
         if dry_run:
             logger.info("[DRY RUN] Would restart %s", name)
             return
+        _assert_deployed_compose_valid(name)
         _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
 
     def redeploy(
@@ -398,6 +561,33 @@ class SSHDeployer:
             # contract, which redeploy previously lacked.
             old_sha = _ssh(f"cd /opt/{name} && sudo git rev-parse HEAD", timeout=30).strip()
             _ssh(f"cd /opt/{name} && sudo git pull", timeout=60)
+            # W-51d6c153: the pulled compose is checked BEFORE the GIT_SHA write, the build and
+            # the up; a violation or a failed read resets the checkout to old_sha, so the running
+            # containers and the code on disk stay on the last commit that passed (left on the
+            # pulled commit, the next redeploy would capture it as its rollback point). When there
+            # is no valid old_sha, or the reset itself fails, the pulled commit DOES stay on disk —
+            # the raised error says so; the containers are untouched either way.
+            try:
+                _assert_deployed_compose_valid(name)
+            except (DeployError, *_SSH_FAILURES) as err:
+                if not _GIT_SHA_RE.fullmatch(old_sha):
+                    raise DeployError(
+                        f"Redeploy of {name!r} refused; no valid previous commit to reset to "
+                        f"({old_sha[:40]!r}), pulled code left on disk, containers untouched: {err}"
+                    ) from err
+                try:
+                    _ssh(f"cd /opt/{name} && sudo git reset --hard {old_sha}", timeout=60)
+                except _SSH_FAILURES as rb_err:
+                    raise DeployError(
+                        f"Redeploy of {name!r} refused, AND the reset to {old_sha[:12]} failed — "
+                        f"pulled code is on disk, containers untouched. Reason: {err}; "
+                        f"reset error: {rb_err}"
+                    ) from err
+                logger.warning("Redeploy of %s refused; checkout reset to %s", name, old_sha[:12])
+                raise DeployError(
+                    f"Redeploy of {name!r} refused; checkout reset to {old_sha[:12]}, "
+                    f"containers untouched. {err}"
+                ) from err
             new_sha = _read_head_sha(name, _ssh)
             if new_sha:
                 _persist_git_sha(name, new_sha, _ssh)
@@ -407,6 +597,13 @@ class SSHDeployer:
             )
             try:
                 _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
+            except UndecodableAnswerError:
+                # `up --wait` exited 0 — the services are up and healthy — and only its output was not
+                # UTF-8. Rolling back would tear down a healthy deploy (W-5597922e review).
+                logger.warning(
+                    "Redeploy of %s: compose up succeeded but its output was not UTF-8 (not read)",
+                    name,
+                )
             except (RuntimeError, subprocess.TimeoutExpired) as err:
                 logger.error(
                     "Redeploy of %s failed health check; rolling back to %s",
@@ -449,6 +646,7 @@ class SSHDeployer:
             # than fabricate one — the operator must re-run apply/redeploy or
             # restore from a known-good spec.
             recreate_flags = " --force-recreate" if force else ""
+            _assert_deployed_compose_valid(name)
             try:
                 _ssh(
                     f"cd /opt/{name} && sudo docker compose up -d --wait{recreate_flags}",
@@ -478,6 +676,7 @@ class SSHDeployer:
         from fabrik.drivers.ssh import ssh as _ssh
         from fabrik.spec_loader import Spec
         from fabrik.template_renderer import TemplateRenderer
+        from fabrik.version_registry import VersionRegistryError
 
         spec = ctx.spec
 
@@ -503,8 +702,38 @@ class SSHDeployer:
 
         spec_obj = Spec(**spec_dict)
 
-        # Always dry_run=True for render — we need content strings, not file paths
-        rendered = TemplateRenderer().render(spec_obj, secrets=ctx.secrets, dry_run=True)
+        # Always dry_run=True for render — we need content strings, not file paths. An owner
+        # key among the secrets never reaches compose.yaml (the renderer puts every secret into
+        # every service's `environment:`, which would hand the app the owner DSN, D-754): it
+        # rides to `.env.owner` through `_build_env` and the writer instead (the Finish review, O1).
+        # A render refusal is the spec's or a secret's (a template that is not one, a NUL or
+        # non-UTF-8 value, a bad port — D-1269), so it is a named DeployError, not an orchestrator
+        # traceback (W-c9dcd641). The renderer's messages name a key or a template, never a value.
+        # A hub defect stays a traceback, the only report that names the broken file: the spec's
+        # template must be exactly one of list_templates() (a path that only resolves to one, such
+        # as `a/../python-api`, is refused here, since jinja's loader refuses it), so a
+        # TemplateNotFound inside the render is a missing include and is not caught; the version
+        # registry's error and a template file that will not decode are ValueErrors, so they are
+        # re-raised first; a template's syntax or undefined-attribute error is a jinja2 error no
+        # clause names. Limits: a template directory that lost its compose.yaml.j2 is refused like
+        # a misspelt name (the message names the file it looked for), and a bad value in a
+        # template's own defaults.yaml is refused by the same input guards as a spec value.
+        renderer = TemplateRenderer()
+        if spec_obj.template not in renderer.list_templates():
+            raise DeployError(
+                f"Template render failed for {name}: {spec_obj.template!r} is not a template"
+                f" (no {spec_obj.template!r}/compose.yaml.j2 in {renderer.templates_dir.name}/)"
+            )
+        try:
+            rendered = renderer.render(
+                spec_obj,
+                secrets={k: v for k, v in ctx.secrets.items() if k not in OWNER_ENV_KEYS},
+                dry_run=True,
+            )
+        except (VersionRegistryError, UnicodeDecodeError):
+            raise
+        except ValueError as exc:
+            raise DeployError(f"Template render failed for {name}: {exc}") from exc
         compose_content = rendered["compose.yaml"]
 
         # Validate compose against rule-pack constraints
@@ -516,12 +745,12 @@ class SSHDeployer:
         _assert_claude_cli_mounts(compose_content, ctx.spec)
 
         # Build .env from spec env + secrets (read-merge to preserve registrar-injected vars)
-        env_content = self._build_env_content(ctx, name, existing)
+        env = self._build_env(ctx, name, existing)
 
         # Write files to VPS
         _ssh(f"sudo mkdir -p /opt/{name}", timeout=10)
         _write_file_to_vps(name, "compose.yaml", compose_content)
-        _write_file_to_vps(name, ".env", env_content)
+        _write_env_files(f"/opt/{name}", env, _env_writer_for(name))
 
         # Write additional rendered files (Dockerfile, etc.)
         for filename, content in rendered.items():
@@ -601,10 +830,8 @@ class SSHDeployer:
         _assert_claude_cli_mounts(compose_content, ctx.spec)
 
         # Write .env (read-merge to preserve registrar-injected vars).
-        env_content = self._build_env_content(
-            ctx, name, existing, overrides={"GIT_SHA": sha} if sha else None
-        )
-        _write_file_to_vps(name, ".env", env_content)
+        env = self._build_env(ctx, name, existing, overrides={"GIT_SHA": sha} if sha else None)
+        _write_env_files(f"/opt/{name}", env, _env_writer_for(name))
 
         _ssh(f"cd /opt/{name} && sudo docker compose build", timeout=_BUILD_TIMEOUT)
         _ssh(f"cd /opt/{name} && sudo docker compose up -d --wait", timeout=120)
@@ -632,8 +859,12 @@ class SSHDeployer:
         spec = ctx.spec
         domain = spec.get("domain", "")
 
-        # Generate minimal compose.yaml
-        compose_content = _generate_docker_compose(name, image, image_port, domain, spec)
+        # Generate minimal compose.yaml. A refused scalar (a NUL or non-UTF-8 image_command) is a
+        # spec error: a DeployError, as the template path maps its render ValueError (D-1289).
+        try:
+            compose_content = _generate_docker_compose(name, image, image_port, domain, spec)
+        except ValueError as e:  # the message names the field, never the value
+            raise DeployError(f"Cannot generate the compose for {name}: {e}") from None
 
         errors = _validate_compose(compose_content)
         if errors:
@@ -642,11 +873,11 @@ class SSHDeployer:
             )
         _assert_claude_cli_mounts(compose_content, ctx.spec)
 
-        env_content = self._build_env_content(ctx, name, existing)
+        env = self._build_env(ctx, name, existing)
 
         _ssh(f"sudo mkdir -p /opt/{name}", timeout=10)
         _write_file_to_vps(name, "compose.yaml", compose_content)
-        _write_file_to_vps(name, ".env", env_content)
+        _write_env_files(f"/opt/{name}", env, _env_writer_for(name))
         _compose_up(name, _health_disabled(spec), _ssh)
 
     def _deploy_local(
@@ -656,7 +887,7 @@ class SSHDeployer:
         source: dict[str, Any] | Source,
         existing: dict[str, Any] | None,
     ) -> None:
-        """Deploy a local compose directory — just write .env and up."""
+        """Deploy a local compose directory — validate its compose, write .env, up."""
         from fabrik.drivers.ssh import ssh as _ssh
 
         if isinstance(source, dict):
@@ -664,27 +895,42 @@ class SSHDeployer:
         else:
             path = source.path or f"/opt/{name}"
 
+        # source.path is spec-supplied and reaches a root shell on the VPS: every command below
+        # quotes it (_shell_path), keeping a leading ~/ for the shell to expand, as the .env
+        # writer does (_write_file_to_vps_path leaves a tilde app dir unquoted).
+        compose_file = _shell_path(f"{path}/compose.yaml")
+
         # Verify compose exists at the path
         try:
-            _ssh(f"test -f {path}/compose.yaml && echo exists", timeout=10)
+            _ssh(f"test -f {compose_file} && echo exists", timeout=10)
         except RuntimeError:
             raise DeployError(
                 f"Local source for {name}: no compose.yaml found at {path}/compose.yaml"
             )
 
+        # W-807287f1: validate the compose against the Fabrik invariants BEFORE any write or up,
+        # as the template, git and docker paths do — the local path was the one door around
+        # them. One read serves both checks; a read that fails refuses (nothing written).
+        try:
+            compose_content = _ssh(f"sudo cat {compose_file}", timeout=10)
+        except _SSH_FAILURES as err:
+            raise DeployError(f"Local source for {name}: cannot read {path}/compose.yaml: {err}")
+        errors = _validate_compose(compose_content)
+        if errors:
+            raise DeployError(
+                f"Compose validation failed for {name}:\n" + "\n".join(f"  - {e}" for e in errors)
+            )
         # shape.uses_claude_cli → the project compose must mount the host's rotated ~/.claude
-        # (guard the extra read behind the flag — the common case does no extra SSH round-trip)
-        if (ctx.spec.get("shape") or {}).get("uses_claude_cli"):
-            _assert_claude_cli_mounts(_ssh(f"sudo cat {path}/compose.yaml", timeout=10), ctx.spec)
+        _assert_claude_cli_mounts(compose_content, ctx.spec)
 
         # Write/merge .env. ``find_existing`` probes /opt/<name> only, so a source living
         # elsewhere arrives with existing=None; the compose verified above proves the app is at
         # ``path``, so its .env is always read (absent → {}) — else the merge dropped every
         # registrar-injected key, DATABASE_URL_OWNER included (W-7ec31807).
         existing = existing or {"name": name, "path": path}
-        env_content = self._build_env_content(ctx, name, existing, app_path=path)
-        _write_file_to_vps_path(path, ".env", env_content)
-        _ssh(f"cd {path} && sudo docker compose up -d --wait", timeout=120)
+        env = self._build_env(ctx, name, existing, app_path=path)
+        _write_env_files(path, env, _write_file_to_vps_path)
+        _ssh(f"cd {_shell_path(path)} && sudo docker compose up -d --wait", timeout=120)
 
     # ------------------------------------------------------------------
     # Helpers
@@ -699,7 +945,21 @@ class SSHDeployer:
         *,
         overrides: dict[str, str] | None = None,
     ) -> str:
-        """Build .env content by merging spec env + secrets over existing vars.
+        """The formatted view of :meth:`_build_env` — kept for its readers and tests; the deploy
+        paths hand the DICT to :func:`_write_env_files`, never a string parsed back (the
+        format→parse round trip loses a value holding a newline — Phase A's review, O2)."""
+        return _format_env(self._build_env(ctx, name, existing, app_path, overrides=overrides))
+
+    def _build_env(
+        self,
+        ctx: DeploymentContext,
+        name: str,
+        existing: dict[str, Any] | None,
+        app_path: str | None = None,
+        *,
+        overrides: dict[str, str] | None = None,
+    ) -> dict[str, str]:
+        """Build the merged .env mapping — spec env + secrets over existing vars.
 
         Read-merge strategy: reads existing .env on VPS first (if any) to
         preserve registrar-injected vars (SENTRY_DSN, REDIS_URL, etc.) that
@@ -737,7 +997,9 @@ class SSHDeployer:
             existing_val = merged.get(key)
             if _is_placeholder(value) and existing_val and not _is_placeholder(existing_val):
                 continue  # keep the registrar-injected real value
-            merged[key] = value
+            # A spec value's `$` is a compose interpolation (`${LOG_LEVEL:-INFO}`), written bare;
+            # every other value's `$` is literal and is escaped (fabrik.env_file).
+            merged[key] = EnvTemplate(value) if "$" in value else value
 
         merged.update(overrides or {})
 
@@ -746,7 +1008,7 @@ class SSHDeployer:
         for key, value in ctx.secrets.items():
             merged[key] = str(value)
 
-        return _format_env(merged)
+        return merged
 
 
 # ======================================================================
@@ -769,6 +1031,17 @@ def claude_cli_mount_lines(container_home: str) -> list[str]:
         f"{VPS_CLAUDE_HOME}:{home}/.claude:ro",
         f"{VPS_CLAUDE_HOME}.json:{home}/.claude.json:ro",
     ]
+
+
+def _shell_path(path: str) -> str:
+    """``path`` as ONE shell word for a remote command, a leading ``~/`` (or a bare ``~``) left
+    outside the quotes so the remote shell still expands it to the ssh user's home; anything else
+    — ``;``, spaces, ``$`` — stays inside ``shlex.quote``. ``~user/…`` is quoted whole (literal)."""
+    if path == "~":
+        return "~"
+    if path.startswith("~/"):
+        return "~/" + shlex.quote(path[2:])
+    return shlex.quote(path)
 
 
 def _assert_claude_cli_mounts(compose_content: str, spec: dict) -> None:
@@ -802,7 +1075,7 @@ def _is_placeholder(value: str) -> bool:
 
     Fabrik specs carry registrar-managed vars (DATABASE_URL, REDIS_URL, …) as
     literal ``…placeholder…`` strings; the infra registrars overwrite them
-    post-deploy via ``inject_env()``. ``_build_env_content`` uses this to avoid
+    post-deploy via ``inject_env()``. ``_build_env`` uses this to avoid
     letting such a placeholder clobber an already-injected real value on a
     re-apply (which would break ``docker compose up --wait``).
 
@@ -816,108 +1089,133 @@ def _is_placeholder(value: str) -> bool:
     return "placeholder" in value.lower() or bool(_INTERPOLATION_RE.fullmatch(value))
 
 
-def _closing_quote(value: str) -> int:
-    """Index of the quote closing ``value[0]``, or -1 when unterminated.
-
-    Inside double quotes a backslash escapes the next character (the form
-    ``_format_env`` writes); single quotes have no escapes.
-    """
-    quote, i = value[0], 1
-    while i < len(value):
-        if quote == '"' and value[i] == "\\":
-            i += 2
-            continue
-        if value[i] == quote:
-            return i
-        i += 1
-    return -1
-
-
-def _parse_env(content: str) -> dict[str, str]:
-    """Parse a .env file into a dict, ignoring comments and blank lines."""
-    result: dict[str, str] = {}
-    for line in content.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        key = key.strip()
-        # `export KEY=…` (a shell-sourceable .env) is the key KEY — for read_env's
-        # decision and inject_env's merge alike, or the merge writes a second key.
-        if key.startswith("export "):
-            key = key[len("export ") :].strip()
-        # Strip surrounding quotes — and UNESCAPE a double-quoted value, mirroring
-        # `_format_env`'s escaping. Without the unescape the round-trip corrupts:
-        # write escapes `\"` -> read strips the wrapper but leaves the backslashes ->
-        # the next write escapes them AGAIN, so a value grows a backslash per apply.
-        value = value.strip()
-        # A value that OPENS with a quote and is followed by only `# comment`
-        # (`K="v" # note`) is the quoted content; an unterminated quote or any other
-        # tail keeps the rule below.
-        if value[:1] in ("'", '"'):
-            end = _closing_quote(value)
-            if end > 0 and value[end + 1 :].strip()[:1] in ("", "#"):
-                value = value[: end + 1]
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
-            quote = value[0]
-            value = value[1:-1]
-            if quote == '"':
-                value = value.replace('\\"', '"').replace("\\\\", "\\")
-        result[key] = value
-    return result
-
-
-def _format_env(env: dict[str, str]) -> str:
-    """Format a dict as .env file content."""
-    lines = []
-    for key, value in sorted(env.items()):
-        # Quote values with spaces or special chars — and ESCAPE when we do.
-        #
-        # The escape is the fix (2026-08-31). The old code wrapped without it:
-        # `value = f'"{value}"'`. A JSON secret contains `"`, so it shipped as
-        # `K="{"a":"b"}"` and Compose read the first inner quote as a NEW VARIABLE
-        # NAME — `failed to read .env: unexpected character '"' in variable name` —
-        # breaking `docker compose build` for EVERY value carrying a quote on the
-        # fleet. Measured live on tryton-crm's CONSUMER_TOKENS: two byte-identical
-        # apply failures.
-        #
-        # The QUOTE TRIGGER is deliberately unchanged. Dropping it for spaces (a
-        # compose env_file reads to end-of-line, so `K=a b` parses) broke
-        # `TestFormatEnv::test_quotes_spaces`, which encodes a real contract: the
-        # file must stay safe for a shell `source`, where a bare `K=a b` word-splits.
-        # Verified live that Compose unescapes correctly: `K="{\"a\":\"b\"}"`
-        # resolves to `{"a":"b"}`. `_parse_env` carries the matching unescape.
-        if any(c in value for c in (" ", "#", "'", '"', "\n")):
-            value = '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
-        lines.append(f"{key}={value}")
-    return "\n".join(lines) + "\n" if lines else ""
+# The line `_read_env_file` echoes between `.env` and `.env.owner`: no `=`, so a .env parser skips
+# it, and no shell metacharacter (a leading `#` would make it a shell comment), so it needs no quoting.
+_OWNER_SEPARATOR = "__fabrik_env_owner_follows__"
 
 
 def _read_env_file(path: str, _ssh: Any) -> dict[str, str]:
-    """Parse ``{path}/.env`` on the current SSH target — ``{}`` ONLY when the file is
-    absent; any ssh/read failure or unrecognised probe answer raises :class:`DeployError`.
+    """Parse ``{path}/.env`` overlaid by ``{path}/.env.owner`` on the current SSH target — the
+    MERGED view — ``{}`` ONLY when ``.env`` is absent; any ssh/read failure or unrecognised probe
+    answer raises :class:`DeployError`.
 
     The one absent-vs-failed distinction shared by :meth:`SSHDeployer.read_env` (the
     app-role decision and :meth:`~SSHDeployer.inject_env`'s merge) and
-    :meth:`SSHDeployer._build_env_content` (the deploy/redeploy merge).
+    :meth:`SSHDeployer._build_env` (the deploy/redeploy merge). ONE probe and ONE
+    read, as before the owner split: the probe answers ``present``/``absent`` for ``.env`` on
+    its first line and ``owner`` on a second line when ``.env.owner`` exists; the read is then
+    today's ``sudo cat <env>`` alone, or ``sudo sh -c 'cat <env> && echo && echo <separator> && cat
+    <owner>'`` —
+    chained with ``&&`` so a failed read of EITHER file is a non-zero exit the ssh driver raises
+    on (a ``;`` chain exits with the LAST cat's status and would hand back the owner keys alone
+    as the merged view — executed in Phase A's review), and the ``echo`` is a SEPARATOR,
+    because a plain two-file ``cat`` joins the last line of a ``.env``
+    that lacks a trailing newline onto the owner file's first line (executed at the design's
+    approval panel: the owner key vanished from the parse and the owner DSN rode into
+    ``REDIS_URL``'s value, which the next write would have put back into ``.env``). The owner
+    file's keys parse LAST, so they win a shared key (a stale copy left in ``.env``).
+
+    The two files are PARSED APART: ``echo <_OWNER_SEPARATOR>`` follows the separator ``echo``
+    and the content is split on that line, because a quoted value may span lines and an unterminated
+    quote in ``.env`` would otherwise read the owner file into an app key — which the next write
+    puts into ``.env`` (W-2ae286e2 critique). An unterminated quote raises (compose refuses the same
+    file), so the read fails closed.
     """
     env_path = f"{path}/.env"
+    owner_path = f"{path}/{OWNER_ENV_FILE}"
     try:
         # The whole test runs INSIDE sudo: a refused sudo prints nothing (an
         # unrecognised answer → raise) instead of the `|| echo absent` fallback
         # that `sudo test -f X && … || echo absent` would print.
-        inner = f"[ -f {shlex.quote(env_path)} ] && echo present || echo absent"
+        inner = (
+            f"[ -f {shlex.quote(env_path)} ] && echo present || echo absent; "
+            f"[ -f {shlex.quote(owner_path)} ] && echo owner || true"
+        )
         probe = _ssh(f"sudo sh -c {shlex.quote(inner)}", timeout=10).strip()
-        if probe == "absent":
+        lines = [ln.strip() for ln in probe.splitlines()]
+        first = lines[0] if lines else ""
+        if first == "absent":
+            # The deployer always writes `.env` whenever it writes the owner file, so an orphan
+            # `.env.owner` is not read while `.env` is absent; the moment any write recreates
+            # `.env`, the next read merges the orphan again — by design, with no freshness check
+            # (D-754's reversal deletes the file explicitly for that reason).
             return {}
-        if probe != "present":
+        if first != "present" or len(lines) > 2 or (len(lines) == 2 and lines[1] != "owner"):
             raise DeployError(f"cannot read {env_path}: unexpected probe answer {probe[:40]!r}")
-        content = _ssh(f"sudo cat {shlex.quote(env_path)}", timeout=10)
+        if len(lines) == 2:
+            cat = (
+                f"cat {shlex.quote(env_path)} && echo && echo {_OWNER_SEPARATOR} && "
+                f"cat {shlex.quote(owner_path)}"
+            )
+            content = _ssh(f"sudo sh -c {shlex.quote(cat)}", timeout=10)
+            # The separator is matched as a whole LINE, never as `\n<sep>\n`: the ssh driver
+            # strips the output, so an empty `.env` puts it on the first line and an empty
+            # `.env.owner` on the last. The LAST such line wins — the owner file is ours, `.env`
+            # may carry hand-written text.
+            lines = content.split("\n")
+            at = [i for i, ln in enumerate(lines) if ln.rstrip("\r") == _OWNER_SEPARATOR]
+            if not at:
+                raise DeployError(f"cannot read {env_path}: the owner separator is missing")
+            app_text = "\n".join(lines[: at[-1]])
+            owner_text = "\n".join(lines[at[-1] + 1 :])
+        else:
+            app_text = _ssh(f"sudo cat {shlex.quote(env_path)}", timeout=10)
+            owner_text = ""
     except (RuntimeError, OSError, subprocess.TimeoutExpired) as e:
         raise DeployError(f"cannot read {env_path}: {e}") from e
-    return _parse_env(content)
+    merged: dict[str, str] = {}
+    for file_path, text in ((env_path, app_text), (owner_path, owner_text)):
+        try:
+            merged.update(_parse_env(text))
+        except ValueError as e:  # the message names the key and line, never the value
+            raise DeployError(f"cannot read {file_path}: {e}") from None
+    return merged
+
+
+def _split_env(env: dict[str, str]) -> tuple[dict[str, str], dict[str, str]]:
+    """``(app, owner)`` — the keys of *env* partitioned by membership in ``OWNER_ENV_KEYS``."""
+    owner = {k: v for k, v in env.items() if k in OWNER_ENV_KEYS}
+    app = {k: v for k, v in env.items() if k not in OWNER_ENV_KEYS}
+    return app, owner
+
+
+def _write_env_files(
+    path: str, merged: dict[str, str], write: Callable[[str, str, str], None]
+) -> None:
+    """The ONE writer of ``.env`` and ``.env.owner`` under *path*: the owner half FIRST (only when
+    non-empty — no empty owner file is ever written), then ``.env`` WITHOUT any owner key, one log
+    line. Every path that used to write ``.env`` — ``inject_env``, the four deploy paths and
+    ``_persist_git_sha`` — writes through here, so no path can resurrect the key into ``.env``
+    from a merged read, and a project whose ``.env`` still carries the key gets it moved on its
+    next apply or redeploy with no flag and no runbook step (spec § The delta 3). *write* is the
+    ``(path, filename, content)`` writer: :func:`_write_file_to_vps_path` for a local-source app,
+    :func:`_env_writer_for` for the ``/opt/<name>`` apps.
+    """
+    app, owner = _split_env(merged)
+    # Both halves are formatted before the first write, so a line the codec refuses (a NUL, a lone
+    # surrogate — W-8495d72f) leaves both files as they were; the try holds no write, whose own
+    # ValueError (a filename outside the app dir) is not a codec refusal.
+    content: dict[str, str] = {}
+    for filename, half in ((OWNER_ENV_FILE, owner), (".env", app)):
+        try:
+            content[filename] = _format_env(half)
+        except ValueError as e:  # the message names the key, never the value
+            raise DeployError(f"cannot write {path}/{filename}: {e}") from None
+    if owner:
+        write(path, OWNER_ENV_FILE, content[OWNER_ENV_FILE])
+        logger.info("env: %d owner key(s) kept in %s for %s", len(owner), OWNER_ENV_FILE, path)
+    write(path, ".env", content[".env"])
+
+
+def _env_writer_for(name: str) -> Callable[[str, str, str], None]:
+    """A ``(path, filename, content)`` writer over :func:`_write_file_to_vps` for ``/opt/<name>``,
+    so the name-based callers (and their tests, which patch ``_write_file_to_vps``) keep the
+    ``(name, filename, content)`` shape they have today."""
+
+    def write(path: str, filename: str, content: str) -> None:
+        _write_file_to_vps(name, filename, content)
+
+    return write
 
 
 def _read_head_sha(name: str, _ssh: Any) -> str | None:
@@ -949,7 +1247,7 @@ def _persist_git_sha(name: str, sha: str, _ssh: Any) -> None:
     try:
         merged = _read_env_file(f"/opt/{name}", _ssh)
         merged["GIT_SHA"] = sha
-        _write_file_to_vps(name, ".env", _format_env(merged))
+        _write_env_files(f"/opt/{name}", merged, _env_writer_for(name))
     except (DeployError, RuntimeError, OSError, subprocess.TimeoutExpired) as e:
         logger.warning("GIT_SHA not updated for %s: .env read-merge-write failed: %s", name, e)
 
@@ -960,8 +1258,8 @@ def _write_file_to_vps(name: str, filename: str, content: str) -> None:
 
 
 def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
-    """Write a file to ``{path}/{filename}`` via scp-to-tmp-then-sudo-mv."""
-    from fabrik.drivers.ssh import scp_to_vps
+    """Write a file to ``{path}/{filename}`` via a remote ``mktemp`` file, scp into it, then ``sudo mv``."""
+    from fabrik.drivers.ssh import remote_mktemp, scp_to_vps
     from fabrik.drivers.ssh import ssh as _ssh
 
     # A rendered key is a path RELATIVE to the app dir; an absolute one or a `..` part would write
@@ -972,13 +1270,29 @@ def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
         raise ValueError(f"refusing to write a filename outside {path}: {filename!r}")
 
     safe_name = filename.replace("/", "-")
-    tmp_remote = f"/tmp/fabrik-{os.getpid()}-{safe_name}"  # nosec B108
-
     fd, tmp_local = tempfile.mkstemp(prefix=f"fabrik-{safe_name}-")
     try:
-        with os.fdopen(fd, "w") as f:
+        # UTF-8 whatever the hub's locale: the codec's refusals (env_file.format_env_line) promise
+        # that a line passing them is writable, and a locale codec (LC_ALL=C → ASCII) broke that
+        # mid-write, after .env.owner was already on the VPS (W-8495d72f review).
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(content)
-        scp_to_vps(tmp_local, tmp_remote, timeout=30)
+        # The remote temp file is made by `mktemp` (a random name, O_EXCL, mode 0600) BEFORE scp
+        # writes into it. A pid-derived name was predictable: a local VPS user could pre-create it
+        # 0666 and read a DSN through the open fd in the window before the chmod (W-8dd25072). scp
+        # into the existing file keeps its owner and 0600 mode. `remote_mktemp` fails closed on any
+        # answer that is not a mktemp path.
+        tmp_remote = remote_mktemp(_ssh)
+        try:
+            scp_to_vps(tmp_local, tmp_remote, timeout=30)
+        except BaseException:
+            # The remote temp file exists from the mktemp on: never leave it behind, not even on
+            # an interrupt.
+            try:
+                _ssh(f"rm -f {shlex.quote(tmp_remote)}", timeout=5)
+            except Exception:  # noqa: BLE001, S110
+                pass
+            raise
     finally:
         try:
             os.unlink(tmp_local)
@@ -992,9 +1306,18 @@ def _write_file_to_vps_path(path: str, filename: str, content: str) -> None:
     parent = posixpath.dirname(filename)
     dest = f"{path}/{shlex.quote(filename)}"
     mkdir = f"sudo mkdir -p {path}/{shlex.quote(parent)} && " if parent else ""
+    # `.env` and `.env.owner` are root:root 0600 BY NAME, the mode set on the remote temp file
+    # BEFORE the `mv` (which keeps it; `chown` does not touch it) so the file never sits at its
+    # final path wider than 0600. The remote mktemp file is already 0600, so the chmod by name is a
+    # second guard for the two secret files.
+    chmod = (
+        f"sudo chmod 0600 {shlex.quote(tmp_remote)} && "
+        if filename in (".env", OWNER_ENV_FILE)
+        else ""
+    )
     try:
         _ssh(
-            f"{mkdir}sudo mv {shlex.quote(tmp_remote)} {dest} && sudo chown root:root {dest}",
+            f"{chmod}{mkdir}sudo mv {shlex.quote(tmp_remote)} {dest} && sudo chown root:root {dest}",
             timeout=10,
         )
     except Exception:
@@ -1014,6 +1337,11 @@ def _validate_compose(content: str) -> list[str]:
     """
     import yaml as _yaml
 
+    # Text only, checked FIRST: yaml.safe_load on a file-like object (a MagicMock from a test's
+    # unconfigured ssh patch has a `.read` that never returns empty) reads forever — that took
+    # WSL down twice on 2026-10-17 (W-51d6c153's draft). Refuse in microseconds instead.
+    if not isinstance(content, str):
+        return [f"Compose content is not text (got {type(content).__name__})"]
     try:
         data = _yaml.safe_load(content)
     except _yaml.YAMLError as e:
@@ -1131,6 +1459,15 @@ def _validate_compose(content: str) -> list[str]:
                     '(e.g. test: ["CMD-SHELL", "kill -0 1"]) or omit the block when the image '
                     "declares no HEALTHCHECK"
                 )
+            # Compose takes a duration only as a string ("10s"): an empty template line renders YAML
+            # null, and a bare number an int, and the VPS `compose up` refuses both (W-3197a125).
+            for key in ("interval", "timeout", "start_period", "start_interval"):
+                value = healthcheck.get(key)
+                if key in healthcheck and (not isinstance(value, str) or not value.strip()):
+                    errors.append(
+                        f"Service '{svc_name}': healthcheck.{key} must be a duration string such "
+                        f"as '10s' (got {value!r})"
+                    )
 
     # Network: fabrik external (renamed from `coolify` 2026-05-31; W12 of fleet-hardening plan).
     networks = data.get("networks", {})
@@ -1165,21 +1502,82 @@ def _read_compose_from_vps(name: str) -> str:
     """Read the deployed compose file back from ``/opt/<name>`` on the VPS (D1).
 
     Git-sourced deploys clone the compose onto the VPS rather than rendering it locally, so
-    validation must fetch it. Tries the four Compose-recognised filenames; raises if none exist.
+    validation must fetch it. Tries the four Compose-recognised filenames in compose's own
+    precedence (docker compose 2.40.3 picks docker-compose.yml over .yaml); raises if none exist.
+
+    The FIRST file that exists is the one ``docker compose up`` runs, so it is returned as read —
+    empty or not — and a file that exists but cannot be read REFUSES: falling through to the next
+    name would validate a stale legacy file while ``up`` ran the unchecked one (W-51d6c153
+    review). Absence is told from a failed read by a sentinel the remote shell prints. Read with
+    sudo: the template path writes the rendered compose root:root 0600.
     """
     from fabrik.drivers.ssh import ssh as _ssh
 
     for filename in ("compose.yaml", "compose.yml", "docker-compose.yml", "docker-compose.yaml"):
+        path = shlex.quote(f"/opt/{name}/{filename}")
+        probe = f"if [ -e {path} ]; then cat {path}; else printf {_NO_COMPOSE_FILE}; fi"
         try:
-            out = _ssh(f"cat /opt/{name}/{filename} 2>/dev/null", timeout=15)
-        except RuntimeError:
+            out = _ssh(f"sudo sh -c {shlex.quote(probe)}", timeout=15)
+        except _SSH_FAILURES as err:
+            raise DeployError(f"Cannot read /opt/{name}/{filename}: {err}") from err
+        # The ssh driver returns str; anything else (a test's unconfigured mock) is refused here,
+        # before a YAML parser can stream from it without end (see _validate_compose).
+        if not isinstance(out, str):
+            raise DeployError(
+                f"Reading /opt/{name}/{filename} returned {type(out).__name__}, not text"
+            )
+        if out == _NO_COMPOSE_FILE:
             continue
-        if out and out.strip():
-            return out
+        return out
     raise DeployError(
         f"No compose file found in /opt/{name} "
         "(looked for compose.yaml, compose.yml, docker-compose.yml, docker-compose.yaml)"
     )
+
+
+def _assert_deployed_compose_valid(name: str) -> None:
+    """Refuse a deployed compose at ``/opt/<name>`` that breaks the Fabrik invariants — the same
+    check and message the apply paths use (W-51d6c153: redeploy and restart were the doors
+    around it) — and refuse a missing ``.env`` beside it. A read failure raises from
+    ``_read_compose_from_vps``."""
+    errors = _validate_compose(_read_compose_from_vps(name))
+    if errors:
+        raise DeployError(
+            f"Compose validation failed for {name}:\n" + "\n".join(f"  - {e}" for e in errors)
+        )
+    _assert_deployed_env_present(name)
+
+
+def _assert_deployed_env_present(name: str) -> None:
+    """Refuse when ``/opt/<name>/.env`` is not a regular file.
+
+    The scaffold composes load ``.env`` with ``required: false`` so a fresh checkout parses
+    (W-6f690b90), which means compose no longer refuses when the file is gone. Every deploy path
+    writes it before ``up`` (``_write_env_files``); restart and redeploy do not write it before
+    this check (a git redeploy's ``_persist_git_sha`` runs after it), so without the check they
+    would start a stack with no DATABASE_URL or secrets that can still report healthy. An empty ``.env`` (a deploy with no keys) is present. Anything but the exact
+    ``present`` answer refuses.
+    """
+    from fabrik.drivers.ssh import ssh as _ssh
+
+    path = shlex.quote(f"/opt/{name}/.env")
+    probe = f"if [ -f {path} ]; then printf present; else printf absent; fi"
+    try:
+        out = _ssh(f"sudo sh -c {shlex.quote(probe)}", timeout=15)
+    except _SSH_FAILURES as err:
+        raise DeployError(f"Cannot check /opt/{name}/.env: {err}") from err
+    if out != "present":
+        state = "absent" if out == "absent" else f"unconfirmed (probe answered {out!r:.60})"
+        raise DeployError(
+            f"/opt/{name}/.env is {state}; every deploy writes it before up, and restart and "
+            f"redeploy would start {name} without it. Run `fabrik apply` for {name} to rewrite it."
+        )
+
+
+def _raw_duration(health: dict[str, Any], key: str, default: str) -> object:
+    value = health.get(key)
+    unset = value is None or (isinstance(value, str) and not value.strip())  # as `Health` reads it
+    return default if unset else value
 
 
 def _generate_docker_compose(
@@ -1192,6 +1590,13 @@ def _generate_docker_compose(
     """Generate a minimal compose.yaml for a Docker image source."""
     resources = spec.get("resources", {})
     memory = resources.get("memory", "256M") if isinstance(resources, dict) else "256M"
+    # The CPU limit was dropped here, so a docker-sourced service ran unlimited (W-f01710a0). An absent cpu takes
+    # the `Resources` default, as the template path's `Spec` does, and the cpu is held to the same grammar. A
+    # non-mapping `resources` defaults both values here, as memory always did; apply's validator refuses it first.
+    default_cpu = Resources.model_fields["cpu"].default
+    cpu = resources.get("cpu", default_cpu) if isinstance(resources, dict) else default_cpu
+    if not cpu_in_grammar(cpu):
+        raise ValueError(CPU_GRAMMAR_MESSAGE)  # never the value
 
     # Health: read from spec (W12.b 2026-06-02 — was hardcoded /health + curl).
     # `curl` is not in nginx:alpine or many other small images; use a wget/Python
@@ -1199,7 +1604,11 @@ def _generate_docker_compose(
     # nonzero otherwise — works in alpine, debian, ubuntu, distroless-busybox.
     health = spec.get("health", {}) if isinstance(spec.get("health"), dict) else {}
     health_path = health.get("path", "/health")
-    health_interval = health.get("interval", "30s")
+    # A raw spec dict never passes `Spec`: an absent, null or blank value takes the default (a
+    # model_dump'd spec carries `start_period: None`), and any other value is written as given so
+    # `_validate_compose` refuses a non-string one instead of it being swapped (W-3197a125).
+    health_interval = _raw_duration(health, "interval", "30s")
+    health_start_period = _raw_duration(health, "start_period", "20s")
     source = spec.get("source", {}) if isinstance(spec.get("source"), dict) else {}
     image_command = source.get("image_command")
 
@@ -1214,20 +1623,26 @@ def _generate_docker_compose(
     ]
     # Custom container command override (e.g. Zitadel's `start-from-init … --tlsMode external`). Without this
     # the container runs the image's DEFAULT CMD and the whole directive is silently lost. Docker Compose
-    # interpolates ${VAR} in `command:` from env_file at `up` time (verified on compose 2.40.3), so a
-    # secrets-minted ${ZITADEL_MASTERKEY} expands here exactly as it does in the env.
+    # interpolates ${VAR} in `command:` from the shell and the PROJECT `.env` beside compose.yaml at `up`
+    # time — never from a service's `env_file` entries (compose-spec interpolation; research ledger
+    # 2026-10-12-owner-dsn-split ods-60/61). For an image-sourced app the two files coincide, which is why
+    # the 2.40.3 check could not tell them apart; a secrets-minted ${ZITADEL_MASTERKEY} expands here because
+    # it lives in that project `.env` — an owner key never would (it lives in `.env.owner`).
     if image_command:
-        # Single-quoted YAML scalar (escape embedded single-quotes by doubling) — keeps a colon, `#`, or
-        # other YAML-special char in the command from breaking the compose, and matches Zitadel's own official
-        # docker-compose form. Compose still interpolates ${VAR} from env_file (interpolation runs on the
-        # parsed string value, after YAML parsing).
-        _q = image_command.replace("'", "''")
-        lines.append(f"    command: '{_q}'")
+        # One double-quoted YAML scalar via the template path's `_compose_str` (W-4b977f21): a single-quoted
+        # scalar folded a newline to a space and passed DEL / lone surrogates raw. A colon, `#` or quote stays
+        # inert, and compose still interpolates ${VAR} from the project `.env` after YAML parsing.
+        from fabrik.template_renderer import TemplateRenderer
+
+        lines.append(
+            f"    command: {TemplateRenderer._compose_str(image_command, 'image_command')}"
+        )
     lines += [
         "    deploy:",
         "      resources:",
         "        limits:",
         f"          memory: {memory}",
+        f"          cpus: '{cpu}'",
     ]
     # `health: { disabled: true }` → OMIT the healthcheck. The default `wget --spider` probe needs a shell +
     # wget, absent from FROM-scratch/distroless images (e.g. Zitadel) — a forced healthcheck there errors,
@@ -1236,11 +1651,13 @@ def _generate_docker_compose(
     if not health.get("disabled"):
         lines += [
             "    healthcheck:",
-            f'      test: ["CMD-SHELL", "wget -q --spider http://localhost:{port}{health_path} || exit 1"]',  # noqa: localhost is correct — a container health-check probes its OWN port
+            # The URL is single-quoted: a health path may hold `&`, `;` or parentheses
+            # (HEALTH_PATH_RE, checked by the apply validator), which the shell would read (W-ff313a14).
+            f'      test: ["CMD-SHELL", "wget -q --spider \'http://localhost:{port}{health_path}\' || exit 1"]',  # noqa: localhost is correct — a container health-check probes its OWN port
             f"      interval: {health_interval}",
             "      timeout: 10s",
             "      retries: 3",
-            "      start_period: 20s",
+            f"      start_period: {health_start_period}",
         ]
     lines += [
         "    networks:",

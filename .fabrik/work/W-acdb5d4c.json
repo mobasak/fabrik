@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:19.200880Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-acdb5d4c",
+  "impact": "low",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4SZTBQ90XQ6AJXD1T7153EH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — check blocked for seats by home read",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "assemble_commands.py --check reads $HOME/.claude, so no review seat may run it under the standing brief rule — a --sources-only mode (W-a8361c19 residual 4)"
+}

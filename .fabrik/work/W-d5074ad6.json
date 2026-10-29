@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T22:02:55.074914Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-d5074ad6",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fold the reword into the next /fabrik-command-improve fabrik-review-scoped edit of that sentence; the pin test's phrase moves with it",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — kaizen command wording",
+  "status": "open",
+  "tags": [
+    "kaizen",
+    "wording"
+  ],
+  "title": "/fabrik-review-scoped step 5: 'never the live tree or HEAD' can read against step 5's own base_sha = HEAD at pin time — reword to 'never HEAD at the seat's run' on the next edit of that sentence (own-fix residue, Opus remainder round, 2026-10-15 command-improve)"
+}

@@ -329,8 +329,10 @@ Applies to: Authelia bootstrap, `fabrik scaffold` credential generation, ops scr
 
 ## Rate Limiting
 
-- Hard rate limits on `/auth/login`, `/auth/register`, `/auth/reset` endpoints using **Redis-backed** token buckets. In-memory buckets are per-process and bypassable behind multiple workers — single-process services only.
-- Apply limits on **both** axes: per-IP (brute force) and per-account (credential stuffing).
+- Hard rate limits, as **Redis-backed** token buckets, on every other route `fastapi-user-auth` mounts (the passwordless request is the next bullet) — each takes a credential, a code or an address (paths relative to where the router is included, `/auth` by default): `POST /auth/login`, `POST /auth/login/web`, `POST /auth/signup`, `POST /auth/refresh`, `POST /auth/logout`, `POST /auth/verify-email`, `POST /auth/password-reset/request`, `POST /auth/password-reset/confirm` and `GET|POST /auth/passwordless/verify`. In-memory buckets are per-process and bypassable behind multiple workers — single-process services only.
+- `POST /auth/passwordless/request` is ALREADY capped per email and per IP in Redis by the library (`AUTH_PASSWORDLESS_REQUEST_CAP`, `AUTH_PASSWORDLESS_IP_REQUEST_CAP`): tune those, add no second limiter, and never answer it with 429 — it returns 202 either way, so throttling never reveals an account. `POST /auth/passwordless/verify` has a per-code attempt cap (`AUTH_PASSWORDLESS_ATTEMPT_CAP`) but no per-IP bound; the project adds that bucket.
+- Apply limits on **both** axes: per-IP (brute force) and per-account (credential stuffing) — except where the request carries no account key: `GET /auth/passwordless/verify`, `POST /auth/password-reset/confirm`, `POST /auth/verify-email`, `POST /auth/refresh` and `POST /auth/logout` carry only a token, so they are limited per IP.
+- Pattern B configures Supabase Auth's own rate limits and proxies none of its endpoints; Pattern A-compat uses the list above unchanged.
 - Credential stuffing and brute-force attacks are the primary threats these limits address.
 
 ---
@@ -399,6 +401,6 @@ Escalate mission-critical auth mail (reset, receipts) to **Postmark** only on me
 
 ## Spec Contract — Auth Registrars
 
-Public services with admin UI behind 2FA: set `shape.is_admin_dashboard: true` — the Authelia registrar adds a per-domain `two_factor` rule on `fabrik apply`. API services with bearer auth: set `shape.has_bearer_api: true` — the registrar inserts an Authelia **bypass** rule *before* the `two_factor` catch-all so machine/bearer callers aren't hit with interactive 2FA. Don't add Traefik `authelia-forward` middlewares manually — the scaffolder + registrars emit them.
+A dedicated admin host on its own domain — never the customer-facing app's domain — behind 2FA: set `shape.is_admin_dashboard: true` there. The Authelia registrar adds a per-domain `two_factor` rule on `fabrik apply`, so every path on that domain sits behind 2FA except the standing `/health` and `/metrics` bypasses (D-366, `saas/60-saas-ui.md` § Admin). API services with bearer auth: set `shape.has_bearer_api: true` — the registrar inserts an Authelia **bypass** rule *before* the `two_factor` catch-all so machine/bearer callers aren't hit with interactive 2FA. Don't add Traefik `authelia-forward` middlewares manually — the scaffolder + registrars emit them.
 
 > **⚠️ Bearer bypass scope — security-critical.** The bypass defaults to `^/api/`, which makes the **entire** `/api/*` surface public (un-2FA'd). If the application authenticates only a **sub-prefix** (e.g. `/api/v1` carries the bearer/internal-token check) while OTHER `/api/*` routes are unauthenticated (legacy / admin / destructive), you **MUST** narrow the bypass with `shape.bearer_bypass_prefix: "^/api/v1"` — otherwise `fabrik apply` exposes those routes to the public internet. **Bypass ONLY the path the app itself authenticates.** Value must start with `^/`; the verifier (`orchestrator/verifier.check_api_bypass`) probes the configured prefix on deploy. When unsure whether a service has un-auth'd `/api/*` routes, ask the app owner before relying on the `^/api/` default.

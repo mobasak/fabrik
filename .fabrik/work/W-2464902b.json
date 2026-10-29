@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:25.745175Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-2464902b",
+  "impact": "low",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VYQWC1HA4QQJMGTKQET3DA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — scratch path in main checkout from worktree; workaround exists",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "WHAT: `command_run.py start` prints a SCRATCH path inside the MAIN checkout (`/opt/web-ecommerce-factory/.tmp/runs/<sid>/<command>-<ts>/`) when the session runs in a linked worktree (`.claude/worktrees/wef3`). Claude Code's worktree isolation refuses every write there, so `/fabrik-task`'s phase-1/2"
+}

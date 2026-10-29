@@ -462,7 +462,7 @@ def test_driver_dsn_grader_catches_the_fail_open_shapes(tmp_path, monkeypatch):
         assert got is flagged, (text, got)
 
 
-def test_pgurl_rewrites_a_driver_dsn_for_libpq():
+def test_pgurl_rewrites_a_driver_dsn_for_libpq(tmp_path):
     """Both seeded pgurl copies, run by POSIX sh (dash), yield a libpq URI and refuse an empty DSN."""
     import subprocess
 
@@ -482,10 +482,22 @@ def test_pgurl_rewrites_a_driver_dsn_for_libpq():
         "postgresql+asyncpg://shop@10.99.0.1:5432/shop?ssl=require": (
             "postgresql://shop@10.99.0.1:5432/shop?sslmode=require"
         ),
-        "postgresql+psycopg://u@h/d?application_name=x&ssl=prefer&ssl=disable": (
-            "postgresql://u@h/d?application_name=x&sslmode=prefer&sslmode=disable"
+        "postgresql+psycopg://u@h/d?application_name=x&ssl=prefer": (
+            "postgresql://u@h/d?application_name=x&sslmode=prefer"
         ),
+        # sslcert/sslkey/sslrootcert are not ssl= — only the bare key is renamed
+        "postgresql://u@h/d?sslcert=c&sslkey=k&ssl=require": "postgresql://u@h/d?sslcert=c&sslkey=k&sslmode=require",
         "postgres+asyncpg://u@h/d": "postgres://u@h/d",
+        "postgres://u@h/d?ssl=require": "postgres://u@h/d?sslmode=require",  # the plain postgres scheme
+        # a percent-encoded VALUE and a glob stay as written (set -f: no pathname expansion of the query)
+        "postgresql://u@h/d?application_name=my%20app&sslmode=require": (
+            "postgresql://u@h/d?application_name=my%20app&sslmode=require"
+        ),
+        "postgresql://u@h/d?application_name=a*b&ssl=require": "postgresql://u@h/d?application_name=a*b&sslmode=require",
+        # an ENCODED `?` in the password is fine — only the raw character splits the DSN (review pgurl-O8)
+        "postgresql://u:p%3Fx@h/d?ssl=require": "postgresql://u:p%3Fx@h/d?sslmode=require",
+        # no userinfo, an `@` in a query value: libpq reads no credentials here and neither does pgurl
+        "postgresql://h/d?application_name=a@b&ssl=require": "postgresql://h/d?application_name=a@b&sslmode=require",
         "postgresql+asyncpg:///db?host=/var/run/postgresql": "postgresql:///db?host=/var/run/postgresql",
         "postgresql://u:a&ssl=x@h/my&ssl=db": "postgresql://u:a&ssl=x@h/my&ssl=db",
         "postgresql://u:p+asyncpg@h/d": "postgresql://u:p+asyncpg@h/d",
@@ -502,3 +514,258 @@ def test_pgurl_rewrites_a_driver_dsn_for_libpq():
         ["sh", "-c", definition + '\nu=$(pgurl "") && echo RAN'], capture_output=True, text=True
     )
     assert empty.returncode != 0 and "RAN" not in empty.stdout
+    # A DSN carrying whitespace, a quote or a backslash — a hand-edited or still-quoted .env line — is refused
+    # before psql (review 2026-10-13 S3/O4/O6), each alternative of the case pattern exercised alone; a
+    # legitimate DSN with URL-encoding, a `#` in the password or a query string is not.
+    for bad in (
+        "postgresql://o:p@h/d # note",
+        'postgresql://o:p@h/d"',
+        "postgresql://o:p'x@h/d",  # the quote AFTER the scheme: the quote arm, never the scheme arm
+        "postgresql://o:p\\x@h/d",
+        "postgresql://o:p@h/d\r",
+    ):
+        r = subprocess.run(
+            ["sh", "-c", definition + '\nu=$(pgurl "$1") && echo RAN', "sh", bad],
+            capture_output=True,
+            text=True,
+        )
+        assert r.returncode != 0 and "RAN" not in r.stdout and "pgurl:" in r.stderr, (
+            bad,
+            r.stdout,
+            r.stderr,
+        )
+    for good in ("postgresql://o:p%40w%23x@h/d?sslmode=require", "postgresql://o:p#x@h/d"):
+        r = subprocess.run(
+            ["sh", "-c", definition + '\npgurl "$1"', "sh", good],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        assert r.stdout.strip() == good, (good, r.stdout)
+    # fabrik-lib 01M4TP1W (2026-10-13), both executed against psql 16: (a) libpq keeps the LAST of duplicate
+    # sslmode keys silently, so `?sslmode=require&ssl=disable` renamed blindly connects WITHOUT TLS — more than
+    # one ssl/sslmode key (requiressl since 01M4VB91YA) is refused before the rename; (b) the recipe has no `--` before "$u", so a value
+    # `-o/etc/<file>` reaches root's psql as an option (psql truncates the file before connecting) — only a
+    # postgres://, postgresql:// or +driver form is accepted. Fail-closed hardening: whoever writes .env.owner
+    # is already root, but a refused line beats a silent downgrade or a truncated file.
+    for bad, needle in (
+        ("postgresql://u@h/d?sslmode=require&ssl=disable", "more than one ssl"),
+        ("postgresql://u@h/d?ssl=require&sslmode=disable", "more than one ssl"),
+        ("postgresql://u@h/d?ssl=prefer&ssl=disable", "more than one ssl"),
+        ("postgresql://u@h/d?sslmode=require&x=1&sslmode=disable", "more than one ssl"),
+        ("-o/etc/passwd", "not a postgres DSN"),
+        ("mysql://u@h/d", "not a postgres DSN"),
+        ("u@h/d?sslmode=require", "not a postgres DSN"),
+        ("POSTGRESQL://u@h/d", "not a postgres DSN"),
+        # a +driver the rewrite cannot strip is refused, never printed unchanged (review pgurl-S1/O6):
+        # upper-case, a second `+`, a `.`/`-`, an empty driver
+        ("postgresql+AsyncPG://u@h/d?ssl=require", "not a postgres DSN"),
+        ("postgresql+asyncpg+x://u@h/d", "not a postgres DSN"),
+        ("postgresql+psycopg.3://u@h/d", "not a postgres DSN"),
+        ("postgres+://u@h/d", "not a postgres DSN"),
+        # libpq percent-decodes query KEYS: `%73slmode` IS sslmode, so the duplicate check alone is blind (pgurl-O1)
+        ("postgresql://u@h/d?sslmode=require&%73slmode=disable", "percent-encoded query KEY"),
+        ("postgresql://u@h/d?ssl%6dode=disable&sslmode=require", "percent-encoded query KEY"),
+        # a raw `?` in the password: libpq scans for `@` first, so ITS query starts later than pgurl's split —
+        # the hidden second sslmode would pass both checks (review pgurl-O8, executed: rc 0 before this arm)
+        (
+            "postgresql://u:p?x=y@h/d?%73slmode=disable&sslmode=require",
+            "a ? in the user:password part",
+        ),
+        ("postgresql://u:p?@h/d?sslmode=require", "a ? in the user:password part"),
+        # a still-quoted or space-wrapped line is told the REAL cause — the quote arm runs before the scheme arm (pgurl-O5)
+        ("'postgresql://o:p@h/d'", "whitespace, a quote or a backslash"),
+        (" postgresql://o:p@h/d", "whitespace, a quote or a backslash"),
+        # fabrik-lib 01M4VB91YA (2026-10-14), executed against libpq 17 (psycopg2 parse_dsn): `requiressl` is a
+        # deprecated alias that REWRITES sslmode — `?sslmode=verify-full&requiressl=0` resolves to `prefer`, so the
+        # pairing is counted like a second sslmode; a lone `requiressl=1` (= require) is not a downgrade and passes.
+        ("postgresql://u@h/d?sslmode=require&requiressl=0", "more than one ssl"),
+        ("postgresql://u@h/d?requiressl=0&sslmode=verify-full", "more than one ssl"),
+        ("postgresql://u@h/d?requiressl=1&ssl=require", "more than one ssl"),
+    ):
+        r = subprocess.run(
+            ["sh", "-c", definition + '\nu=$(pgurl "$1") && echo RAN', "sh", bad],
+            capture_output=True,
+            text=True,
+        )
+        assert r.returncode != 0 and "RAN" not in r.stdout and needle in r.stderr, (
+            bad,
+            r.stdout,
+            r.stderr,
+        )
+    # The key count word-splits the query with the CALLER's IFS (review pg2-O1, 2026-10-14): a root shell that
+    # ran `IFS=:` earlier let `?sslmode=require&ssl=disable` through as one word, rc 0 — the subshell pins
+    # IFS to a space for its own loop. Executed red on the unpinned line (RAN under IFS=: and under IFS='').
+    for ifs_prefix in ("IFS=:\n", "IFS=\n"):
+        r = subprocess.run(
+            [
+                "sh",
+                "-c",
+                ifs_prefix + definition + '\nu=$(pgurl "$1") && echo RAN',
+                "sh",
+                "postgresql://u@h/d?sslmode=require&ssl=disable",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        assert r.returncode != 0 and "RAN" not in r.stdout and "more than one ssl" in r.stderr, (
+            ifs_prefix,
+            r.stdout,
+            r.stderr,
+        )
+    # `set -f` pinned (fabrik-lib 01M4VB91YA finding b): the query is word-split unquoted, so without `set -f` a
+    # key glob that matches a FILE in the cwd is replaced by the filename before the %-key arm reads it — a file
+    # named `x73slmode=disable` turns `[%x]73slmode=disable` into a plain key and the %-arm never fires. libpq
+    # itself rejects that DSN (`invalid percent-encoded token`), so `set -f` is defence in depth, pinned here:
+    # executed red with `set -f; ` removed from the line (the glob expands, rc 0, RAN).
+    globdir = tmp_path / "globcwd"
+    globdir.mkdir()
+    (globdir / "x73slmode=disable").write_text("")
+    r = subprocess.run(
+        [
+            "sh",
+            "-c",
+            definition + '\nu=$(pgurl "$1") && echo RAN',
+            "sh",
+            "postgresql://u@h/d?sslmode=require&[%x]73slmode=disable",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=globdir,
+    )
+    assert (
+        r.returncode != 0 and "RAN" not in r.stdout and "percent-encoded query KEY" in r.stderr
+    ), (
+        r.stdout,
+        r.stderr,
+    )
+
+
+def test_readme_template_carries_every_section_the_readme_gate_requires():
+    """infra 01M4RQ3FH6 (whatsapp-agent 01M4RNRXQJ, 2026-10-12): the template's headings were Overview, Tech
+    Stack, Requirements, Documentation while scripts/enforcement/check_readme_md.py requires `## Quick Start`
+    too — a README converged toward the template failed the gate. Two hand-kept lists of one contract drift
+    silently; this grader reads the gate's `required_sections` literal and asserts every `## ` entry is a
+    heading of the template, so the next drift reds here before it reds a project."""
+    import ast
+
+    gate_src = (REPO_ROOT / "scripts" / "enforcement" / "check_readme_md.py").read_text(
+        encoding="utf-8"
+    )
+    required: list[str] = []
+    for node in ast.walk(ast.parse(gate_src)):
+        if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == "required_sections" for t in node.targets
+        ):
+            required = [ast.literal_eval(elt) for elt in node.value.elts]  # type: ignore[attr-defined]
+    assert required, (
+        "check_readme_md.py no longer defines required_sections — update this grader with the gate"
+    )
+    template = (
+        REPO_ROOT / "templates" / "scaffold" / "docs" / "PROJECT_README_TEMPLATE.md"
+    ).read_text(encoding="utf-8")
+    headings = {line.strip() for line in template.splitlines() if line.startswith("## ")}
+    missing = [s for s in required if s.startswith("## ") and s not in headings]
+    assert missing == [], f"template lacks the gate's required section(s): {missing}"
+    assert "## Quick Start" in headings
+
+
+# ONE grammar: the gate's own check is the reader, so the template and the gate cannot drift
+# (design critique 2026-10-13 — a private copy here and a stricter one in the check disagreed).
+sys.path.insert(0, str(REPO_ROOT / "scripts" / "enforcement"))
+import check_data_contract_legend as _legend  # noqa: E402
+
+_BACKING_TOKENS = _legend.LEGEND_TOKENS
+
+
+def _legend_tokens(text: str) -> list[str]:
+    tokens = _legend.legend_tokens(text)
+    assert tokens is not None, "no bold Backing legend header"
+    return tokens
+
+
+def _backing_cell_ok(cell: str, tokens: list[str]) -> bool:
+    return _legend.backing_cell_ok(cell, tokens)
+
+
+def test_data_contract_template_backing_legend_is_closed_and_its_rows_and_checklist_obey_it():
+    """kaizen 01M4F92G6V (2026-10-13): the registry's `Backing` column had a two-word legend hidden in prose and no
+    check; most frozen contracts used tokens it never named. The template now states a CLOSED legend; this grader
+    binds the three places that name it — the legend lines, the example rows and the FREEZE CHECKLIST box — so they
+    cannot drift, and keeps the whole-cell grammar executable (round 1 of its review: a prefix match let
+    `app-enforced` through, a placeholder exemption let anything through, the checklist compare was a prefix)."""
+    import re
+
+    text = (REPO_ROOT / "templates" / "scaffold" / "docs" / "data-contract-template.md").read_text(
+        encoding="utf-8"
+    )
+    legend = _legend_tokens(text)
+    assert legend == list(_BACKING_TOKENS), legend
+    # the example rows obey the grammar — every table row of the registry section, backticked Enum cell or not
+    has_section, registry = _legend.registry_rows(text)
+    assert has_section and registry is not None, "the template's registry table is not recognised"
+    rows = [backing for _enum, backing in registry]
+    assert len(rows) == 2 and all(_backing_cell_ok(r, legend) for r in rows), rows
+    # the grammar: legitimate shapes seen in frozen contracts pass …
+    for good in (
+        "native",
+        "**CHECK**",
+        "doc (unenforced)",
+        "native (PG enum)",
+        "CHECK *(SHIPPED mig 086/087, §R1)*",
+        "file (config/a.yaml / Zod)",
+        "native / CHECK",
+        "app (no DB CHECK) / doc",
+    ):
+        assert _backing_cell_ok(good, legend), good
+    # … and invented or malformed cells fail — the prefix-match class round 1 found
+    for bad in (
+        "app-enforced",
+        "app-enforced, no DB CHECK",
+        "native bespoke junk",
+        "native, CHECK",
+        "app.foo",
+        "`contracts/` bespoke ⇒ Nautilus at runtime",
+        "Tryton Selection",
+        "jsonb value (§R3)",
+        "<anything at all>",
+        "",
+        # round 2: unbalanced wrappers and a note hiding an invented tail
+        "`native",
+        "native**",
+        "*native",
+        "`native`*",
+        "native (a) / bespoke junk",
+        "CHECK (a) / <x> (b)",
+        "native (a (b))",
+        # round 3: the note's own wrapper must be balanced, and a note must say something
+        "native (a)*",
+        "native *(a)",
+        "native ()",
+        "native *()*",
+        "native ( )",
+        "native *(  )*",
+    ):
+        assert not _backing_cell_ok(bad, legend), bad
+    for good in ("`CHECK`", "**native**", "*doc* (unenforced)", "CHECK (a) / `app` (b)"):
+        assert _backing_cell_ok(good, legend), good
+    # the FREEZE CHECKLIST box lists exactly the legend's tokens, in order (full equality, not a prefix)
+    lines = text.splitlines()
+    i = next(k for k, ln in enumerate(lines) if "is a legend token" in ln)
+    box = lines[i]
+    for nxt in lines[i + 1 :]:
+        if not nxt.startswith("      "):
+            break
+        box += " " + nxt.strip()
+    listed = re.findall(
+        r"`([A-Za-z_]+)`", box.split("legend token", 1)[1].split(" — optionally")[0]
+    )
+    assert listed == legend, (listed, legend)
+    # the parser fails loudly on a malformed legend, never silently
+    broken = text.replace("`doc` (documented only", "doc (documented only", 1)
+    try:
+        _legend_tokens(broken)
+    except ValueError as exc:
+        assert "legend item is not" in str(exc)
+    else:  # pragma: no cover — the assertion above is the behaviour under test
+        raise AssertionError("a malformed legend item was parsed silently")

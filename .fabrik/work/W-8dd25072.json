@@ -1,0 +1,28 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T06:42:00.565401Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "a6d0da75cea64a30da51ca24bc5e821534f81812",
+  "id": "W-8dd25072",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-10-12-plan-1-owner-dsn-split.md",
+    "spec": ""
+  },
+  "next": "_write_file_to_vps_path scp's the content into a pid-derived /tmp name BEFORE the sudo chmod 0600, so a local VPS user who pre-creates that path 0666 and keeps it open reads the owner DSN through the fd in that window (pre-existing for .env; the split adds .env.owner to the same path). Create the temp file remotely with mktemp -m 0600 (one extra ssh per write; the exact-ssh-count graders at tests/orchestrator/test_deployer_ssh.py move with it) — Finish review deployer-O6.",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — predictable remote staging path",
+  "status": "done",
+  "tags": [
+    "deployer",
+    "queued",
+    "security"
+  ],
+  "title": "deployer: the remote staging path /tmp/fabrik-<pid>-<name> is predictable; stage through a remote mktemp -m 0600"
+}

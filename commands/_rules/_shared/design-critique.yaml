@@ -1,0 +1,171 @@
+shared: commands/_fragments/design-critique.md
+baseline_sentences: design-critique.baseline.txt
+baseline_sha256: 13cbcd9125a0cd61cdcf1108409d62f9e8375843e837858fa9fe92058ca47cd7
+entries:
+- id: dcr-u0
+  class: ban
+  file: commands/_fragments/design-critique.md
+  baseline: "Two independent design critiques before the operator decides (operator ruling 2026-10-03). Before the design-approval DECISION block — and in `/fabrik-task`, after writing `design.md` and BEFORE `step --design` records it, so before phase 3 builds anything — dispatch two author-blind critique seats in ONE message: `fabrik-reviewer` with `model: \"opus\"` (the latest Opus) and `fabrik-reviewer` with `model: \"fable\"` (the latest Fable) — the operator's exception to the tier map's \"Fable is never a routine finder\" (D-517)"
+  text:
+  - "Two independent design critiques before the operator decides (operator ruling 2026-10-03). Before the design-approval DECISION block — and in `/fabrik-task`, after writing `design.md` and BEFORE `step --design` records it, so before phase 3 builds anything — dispatch two author-blind critique seats in ONE message: `fabrik-reviewer` with `model: \"opus\"` (the latest Opus) and `fabrik-reviewer` with `model: \"fable\"` (the latest Fable) — the operator's exception to the tier map's \"Fable is never a routine finder\" (D-517)"
+- id: dcr-u1
+  class: prose
+  file: commands/_fragments/design-critique.md
+  baseline: "Dispatch step (D-191): the pair is fixed at two seats, under the floor `dispatch_headroom.py` always grants, so no sizing run is owed — stamp them BEFORE they go out with `python3 scripts/command_run.py dispatch --seats 2`"
+  current: "Dispatch step (D-191): the pair is fixed at two seats, under the floor `dispatch_headroom.py` always grants, so no sizing run is owed — stamp them BEFORE they go out with `python3 scripts/command_run.py dispatch --seats 2`"
+  text:
+  - "Dispatch step (D-191): the pair is fixed at two seats, under the floor `dispatch_headroom.py` always grants, so no sizing run is owed — stamp them BEFORE they go out with `python3 scripts/command_run.py dispatch --seats 2`"
+- id: dcr-u2
+  class: prose
+  file: commands/_fragments/design-critique.md
+  baseline: "Both get the SAME brief, and neither sees the other's answer"
+  current: "Both get the SAME brief; neither sees the other's answer"
+  text:
+  - "Both get the SAME brief; neither sees the other's answer"
+- id: dcr-u4
+  class: prose
+  file: commands/_fragments/design-critique.md
+  baseline: "the design artifact pinned by md5 (the spec, plan, flows or UI contract, or the phase-2 `design.md`) and the commit it was read at — a cited fleet-synced file (`scripts/enforcement/`, `.windsurf/rules/`) is gitignored in a project, so no commit of the project holds it: copy the project's own file to the scratchpad and name it by that absolute path and its md5 (its origin is the hub's `/opt/fabrik/<path>`), the md5 standing in for a commit wherever line numbers are cited;"
+  text:
+  - "the design artifact pinned by md5 (the spec, plan, flows or UI contract, or the phase-2 `design.md`) and the commit it was read at — a cited fleet-synced file (`scripts/enforcement/`, `.windsurf/rules/`) is gitignored in a project, so no commit of the project holds it: copy the project's own file to the scratchpad and name it by that absolute path and its md5 (its origin is the hub's `/opt/fabrik/<path>`), the md5 standing in for a commit wherever line numbers are cited;"
+- id: dcr-u5
+  class: prose
+  file: commands/_fragments/design-critique.md
+  baseline: "the operator's ask in their own words;"
+  current: "the operator's ask in their own words;"
+  text:
+  - "the operator's ask in their own words;"
+- id: dcr-u6
+  class: ban
+  file: commands/_fragments/design-critique.md
+  baseline: "the house rules every seat brief carries: read-only, no `$HOME` read the brief does not name by file, scratch only under `<RUN-SCRATCH>/seat-critique-<model>-<k>/` (the run's `RUN-SCRATCH:` folder, the path after `RUN-SCRATCH: ` up to the next space; `<k>` counts this run's critique dispatches, so a stand-in or a re-dispatch never shares a folder; the absolute scratchpad when the line reads `none` or is absent), `timeout 120 /usr/bin/grep`, and one plain command per Bash call: the seat's own `mkdir -p` on its absolute folder first, then absolute paths, never `cd`, `&&`, a pipe or a `$VAR`"
+  current: "the house rules every seat brief carries: read-only, no `$HOME` read the brief does not name by file, scratch only under `<RUN-SCRATCH>/seat-critique-<model>-<k>/` (the run's `RUN-SCRATCH:` folder, the path after `RUN-SCRATCH: ` up to the next space; `<k>` counts this run's critique dispatches, so a stand-in or a re-dispatch never shares a folder; the absolute scratchpad when the line reads `none` or is absent), `timeout 120 /usr/bin/grep`, and one plain command per Bash call: the seat's own `mkdir -p` on its absolute folder first, then absolute paths, never `cd`, `&&`, a pipe or a `$VAR`"
+  text:
+  - "the house rules every seat brief carries: read-only, no `$HOME` read the brief does not name by file, scratch only under `<RUN-SCRATCH>/seat-critique-<model>-<k>/` (the run's `RUN-SCRATCH:` folder, the path after `RUN-SCRATCH: ` up to the next space; `<k>` counts this run's critique dispatches, so a stand-in or a re-dispatch never shares a folder; the absolute scratchpad when the line reads `none` or is absent), `timeout 120 /usr/bin/grep`, and one plain command per Bash call: the seat's own `mkdir -p` on its absolute folder first, then absolute paths, never `cd`, `&&`, a pipe or a `$VAR`"
+- id: dcr-u7
+  class: ban
+  file: commands/_fragments/design-critique.md
+  baseline: "The brief never carries the author's review history or recommendation"
+  current: "The brief never carries the author's review history or recommendation"
+  text:
+  - "The brief never carries the author's review history or recommendation"
+- id: dcr-u8
+  class: prose
+  file: commands/_fragments/design-critique.md
+  baseline: "Ask each seat to read the design COLD and return:"
+  current: "Ask each seat to read the design COLD and return:"
+  text:
+  - "Ask each seat to read the design COLD and return:"
+- id: dcr-u9
+  class: prose
+  file: commands/_fragments/design-critique.md
+  baseline: "a verdict: `sound` · `sound-with-changes` · `unsound`;"
+  current: "a verdict: `sound` · `sound-with-changes` · `unsound`;"
+  text:
+  - "a verdict: `sound` · `sound-with-changes` · `unsound`;"
+- id: dcr-u10
+  class: prose
+  file: commands/_fragments/design-critique.md
+  baseline: "its concerns, ranked — each with an anchor (section or line), the claim, its evidence (`path:line` or the command run and its output), and the change it proposes, as the exact text when the change is a wording (a SQL predicate, a regex, a sentence);"
+  current: "its concerns, ranked — each with an anchor (section or line), the claim, its evidence (`path:line` or the command run and its output), and the change it proposes, as the exact text when the change is a wording (a SQL predicate, a regex, a sentence);"
+  text:
+  - "its concerns, ranked — each with an anchor (section or line), the claim, its evidence (`path:line` or the command run and its output), and the change it proposes, as the exact text when the change is a wording (a SQL predicate, a regex, a sentence);"
+- id: dcr-u11
+  class: prose
+  file: commands/_fragments/design-critique.md
+  baseline: "or, when it has no concern, the attacks it tried and why each held"
+  current: "or, with no concern, the attacks it tried and why each held"
+  text:
+  - "or, with no concern, the attacks it tried and why each held"
+- id: dcr-u12
+  class: ban
+  file: commands/_fragments/design-critique.md
+  baseline: "When Fable is unavailable, refused or out of credit, run a second Opus seat in its place, and say so in the presentation with the reason"
+  current: "When Fable is unavailable, refused or out of credit, run a second Opus seat in its place, and say so in the presentation with the reason"
+  text:
+  - "When Fable is unavailable, refused or out of credit, run a second Opus seat in its place, and say so in the presentation with the reason"
+- id: dcr-u13
+  class: ban
+  file: commands/_fragments/design-critique.md
+  baseline: "Never present a single critique"
+  current: "Never present a single critique"
+  text:
+  - "Never present a single critique"
+- id: dcr-u14
+  class: prose
+  file: commands/_fragments/design-critique.md
+  baseline: "Once both critiques are in hand (the stand-in Opus seat's when Fable failed, the re-dispatched seat's when one came back empty), you adjudicate every concern by executing its claim, then give it one disposition:"
+  current: "Once both critiques are in hand (the stand-in Opus seat's when Fable failed, the re-dispatched seat's when one came back empty), adjudicate every concern by executing its claim, then give it one disposition:"
+  text:
+  - "Once both critiques are in hand (the stand-in Opus seat's when Fable failed, the re-dispatched seat's when one came back empty), adjudicate every concern by executing its claim, then give it one disposition:"
+- id: dcr-u15
+  class: ban
+  file: commands/_fragments/design-critique.md
+  baseline: "`ACCEPTED` — the change is applied, and reviewed before anyone approves it: in spec-review and plan-review it re-opens the loop for ONE delta round by the round-1 seats over the fix, recorded as the next Pass with every slice an earlier round stated re-stated in `--slices`, and the `Status: CONVERGED` flip waits for that round: it is written only on its `confirmed 0`, in the commit that mints the approval row (a round that confirms more leaves the artifact `DRAFT` and the loop continues — that round is a delta round of the same loop, so its own-fix defects count in the same scope-growth window and, once the scope-growth stop has fired, route to its backlog row — residue a delta round raises AFTER the stop fired is `RECORDED — measured` there (term-edit's scope-growth stop), not confirmed, so it does not hold the flip, while the round that fires the stop confirms and fixes its defects and does; an artifact already CONVERGED at HEAD, re-reviewed, goes back to `DRAFT` with a row superseding its flip row until such a round confirms 0); an OSCILLATING advisory naming that round's count after an earlier 0 is expected there, not drift; in `/fabrik-task` you edit `design.md` before `step --design` records it, which works on both lane versions;"
+  current: "`ACCEPTED` — the change is applied and reviewed before anyone approves it: in spec-review and plan-review it re-opens the loop for ONE delta round by the round-1 seats over the fix, recorded as the next Pass with every slice an earlier round stated re-stated in `--slices`, and the `Status: CONVERGED` flip waits for that round: it is written only on its `confirmed 0`, in the commit that mints the approval row (a round that confirms more leaves the artifact `DRAFT` and the loop continues — that round is a delta round of the same loop, so its own-fix defects count in the same scope-growth window and, once the scope-growth stop has fired, route to its backlog row — residue a delta round raises AFTER the stop fired is `RECORDED — measured` there (term-edit's scope-growth stop), not confirmed, so it does not hold the flip, while the round that fires the stop confirms and fixes its defects and does; an artifact already CONVERGED at HEAD, re-reviewed, goes back to `DRAFT` with a row superseding its flip row until such a round confirms 0); an OSCILLATING advisory naming that round's count after an earlier 0 is expected there, not drift; in `/fabrik-task` edit `design.md` before `step --design` records it, which works on both lane versions;"
+  text:
+  - "`ACCEPTED` — the change is applied and reviewed before anyone approves it: in spec-review and plan-review it re-opens the loop for ONE delta round by the round-1 seats over the fix, recorded as the next Pass with every slice an earlier round stated re-stated in `--slices`, and the `Status: CONVERGED` flip waits for that round: it is written only on its `confirmed 0`, in the commit that mints the approval row (a round that confirms more leaves the artifact `DRAFT` and the loop continues — that round is a delta round of the same loop, so its own-fix defects count in the same scope-growth window and, once the scope-growth stop has fired, route to its backlog row — residue a delta round raises AFTER the stop fired is `RECORDED — measured` there (term-edit's scope-growth stop), not confirmed, so it does not hold the flip, while the round that fires the stop confirms and fixes its defects and does; an artifact already CONVERGED at HEAD, re-reviewed, goes back to `DRAFT` with a row superseding its flip row until such a round confirms 0); an OSCILLATING advisory naming that round's count after an earlier 0 is expected there, not drift; in `/fabrik-task` edit `design.md` before `step --design` records it, which works on both lane versions;"
+- id: dcr-u16
+  class: prose
+  file: commands/_fragments/design-critique.md
+  baseline: "`REJECTED` — with the counter-evidence;"
+  current: "`REJECTED` — with the counter-evidence;"
+  text:
+  - "`REJECTED` — with the counter-evidence;"
+- id: dcr-u17
+  class: prose
+  file: commands/_fragments/design-critique.md
+  baseline: "`OPEN` — the operator rules on it (at a design-approval gate, an OPEN concern makes the panel split)"
+  current: "`OPEN` — the operator rules on it (at a design-approval gate, an OPEN concern makes the panel split)"
+  text:
+  - "`OPEN` — the operator rules on it (at a design-approval gate, an OPEN concern makes the panel split)"
+- id: dcr-u18
+  class: ban
+  file: commands/_fragments/design-critique.md
+  baseline: "Run the step once per artifact version: an md5 already critiqued in this run is not re-dispatched, and a version that ONLY folds its ACCEPTED concerns is not a new one — the delta round reviews it, or `/fabrik-task` records it as is"
+  current: "Run the step once per artifact version: an md5 already critiqued in this run is not re-dispatched, and a version that ONLY folds its ACCEPTED concerns is not a new one — the delta round reviews it, or `/fabrik-task` records it as is"
+  text:
+  - "Run the step once per artifact version: an md5 already critiqued in this run is not re-dispatched, and a version that ONLY folds its ACCEPTED concerns is not a new one — the delta round reviews it, or `/fabrik-task` records it as is"
+- id: dcr-u19
+  class: prose
+  file: commands/_fragments/design-critique.md
+  baseline: "In `/fabrik-task`, present both critiques with the design: each seat's verdict, then each concern with its disposition"
+  current: "In `/fabrik-task`, present both critiques with the design: each verdict, then each concern with its disposition"
+  text:
+  - "In `/fabrik-task`, present both critiques with the design: each verdict, then each concern with its disposition"
+- id: dcr-u20
+  class: prose
+  file: commands/_fragments/design-critique.md
+  baseline: "At a design-approval gate, the panel step that follows decides what reaches the operator"
+  current: "At a design-approval gate, the following panel step decides what reaches the operator"
+  text:
+  - "At a design-approval gate, the following panel step decides what reaches the operator"
+- id: dcr-u21
+  class: prose
+  file: commands/_fragments/design-critique.md
+  baseline: "Cobra (D-253): the cheapest way past this step is two rubber-stamp `sound` verdicts"
+  current: "Cobra (D-253): the cheapest way past this step is two rubber-stamp `sound` verdicts"
+  text:
+  - "Cobra (D-253): the cheapest way past this step is two rubber-stamp `sound` verdicts"
+- id: dcr-u22
+  class: prose
+  file: commands/_fragments/design-critique.md
+  baseline: "The counter: a critique that names no concern AND no attack it tried is re-dispatched once, then shown to the operator as empty"
+  current: "The counter: a critique that names no concern AND no attack it tried is re-dispatched once, then shown to the operator as empty"
+  text:
+  - "The counter: a critique that names no concern AND no attack it tried is re-dispatched once, then shown to the operator as empty"
+vanished:
+  L1: {rule: [dcr-u0]}
+  L2: {rule: [dcr-u1]}
+  L3: {rule: [dcr-u2]}
+  L5: {rule: [dcr-u4]}
+  L11: {rule: [dcr-u10]}
+  L12: {rule: [dcr-u11]}
+  L13: narrative
+  L16: {rule: [dcr-u14]}
+  L17: {rule: [dcr-u15]}
+  L19: {rule: [dcr-u17]}
+  L21: {rule: [dcr-u19]}
+  L22: {rule: [dcr-u20]}
+  L23: {rule: [dcr-u21]}
+  L24: {rule: [dcr-u22]}

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T23:48:58.749919Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f9294824",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make the codes group case-sensitive: (?-i:[A-Z]+[0-9]+(?:[\\s,]+[A-Z]+[0-9]+)*) in _NOQA (tests/test_scaffold_logging_lint.py:21); add the 'step2' case to the grader",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — test regex fail-closed on rare prose; rare edge",
+  "status": "dropped",
+  "tags": [
+    "medium"
+  ],
+  "title": "tests/test_scaffold_logging_lint.py: _NOQA's re.I reads a lowercase prose word ending in digits (step2) after '# noqa: G003' as a code — fails closed (rejects a valid line)"
+}

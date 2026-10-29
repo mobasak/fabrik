@@ -1,0 +1,28 @@
+{
+  "blocked_by": [
+    "W-ab566484"
+  ],
+  "created": "2026-10-08T16:46:25.534677Z",
+  "creator": "intel",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-c22f75e9",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "move the --baseline branch above the quota yield (a hook subprocess costs no tokens); grader: walled at SessionStart, relief, then a new gate failure blocks — found by the W-37003fa1 Fable design critique",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "impact HIGH: names 'red'; effort HIGH: names 'design' (D-890 rules, coordinator pass 2026-10-15)",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "final_gate_stop: a session that STARTS under a walled quota hold writes no SessionStart baseline, so gate-red and uncommitted stay disarmed for its whole life after relief"
+}

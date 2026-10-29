@@ -49,7 +49,9 @@ it, so the session's pid is found by walking `/proc` ancestry, never by matching
 
 Store: `$AGENT_IDENTITY_FILE`, else `~/.claude/state/agent-identity.jsonl`. `$HOME`-keyed, not
 `$CLAUDE_CONFIG_DIR`-keyed, so a session pinned to another account slug shares it. Append-only, last
-row wins per session, rows trimmed at 30 days by the writer — nothing else prunes that directory.
+row wins per session, rows trimmed at 30 days by the writer — nothing else prunes that directory — except each
+(repo, name)'s newest binding, kept whatever its age, because a repo with no registry gets its launcher's builders
+from these bindings and a quiet repo binds nothing for weeks (W-89474fc1; one row per name a repo ever bound).
 
 ## What it refuses, and why
 
@@ -57,7 +59,15 @@ row wins per session, rows trimmed at 30 days by the writer — nothing else pru
   `mail.py` but rejected by `command_run.py` and `agent_role.py`, so such a name would bind and then
   be silently dropped downstream — one session with two identities and no error anywhere.
 - **A name a LIVE session already holds in this repo** (scoped to the git toplevel, not the cwd — a
-  plain `cd` defeated a cwd-scoped check). `--force` overrides and records that it did.
+  plain `cd` defeated a cwd-scoped check). `--force` overrides and records that it did. The one
+  exception is this window's own earlier session: `/clear` mints a new session id in the SAME `claude`
+  process, so a row carrying this process's exact `pid` and `pid_start` (and agreeing with
+  `CLAUDE_PID` when it is set) is a predecessor, not a holder — the bind needs no `--force`, with or
+  without it the new row records `predecessor` (the most recent such row of this name in this
+  scope), and a live foreign holder later in the store still refuses (W-34cb1ef9). A row written
+  before start times existed (`pid_start` absent) is never a predecessor and still needs `--force`.
+  `predecessor` can cycle — a `/resume` into an older id in the same process points back — so a reader
+  walking the chain must bound itself.
 - **Re-binding one session id to a different name**, without `--force`. A Task subagent inherits its
   dispatcher's session id, so this would otherwise let a seat silently re-identify the session that
   dispatched it.

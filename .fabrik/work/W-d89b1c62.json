@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
   "created": "2026-09-30T07:22:51.737966Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-d89b1c62",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -15,9 +19,11 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — operator-ruled fleet-wide adoption",
   "status": "open",
   "tags": [
-    "adoption"
+    "adoption",
+    "waits-2026-10-21"
   ],
   "title": "Fleet adoption of the three-agent worktree model: 39 repos read UNDECLARED on 2026-09-30 and were each mailed the adopt recipe (ack required, operator's D-444/D-445 words); 3 had adopted (fabrik-lib, trade-intelligence, tryton-crm)"
 }

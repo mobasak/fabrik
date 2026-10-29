@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:54:00.164591Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-addf2627",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read mail 01M562396FV9641TTF9670E6HX in the fabrik inbox, validate it, fix or answer it, then ack it",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "advisory improvement: decisions.py warns at mint time on a missing cite",
+  "status": "open",
+  "tags": [
+    "mail-01m562396fv9641ttf9670e6hx"
+  ],
+  "title": "mail 01M562396FV9641TTF9670E6HX: decisions.py could warn at mint time on a cite that does not exist — the check the link gate no longer runs on the ledger (D-965)"
+}

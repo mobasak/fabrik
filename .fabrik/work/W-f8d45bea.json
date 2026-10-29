@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T00:28:59.536656Z",
+  "creator": "kaizen",
+  "evidence": "88d478e49707660c21f7c17164378d2b5579b883",
+  "id": "W-f8d45bea",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fix the wording in .windsurf/rules/core/58-resilience.md:521-522 and :714 per the CLAUDE.md 'A count lives at its list' bullet; governance-sync path, so the full /fabrik-review",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "title": "58-resilience.md: two counts stated away from their lists (:521 'the bullet below … the four numbered' points up to :507; :714 'All five' ~170 lines from §3a)"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T11:06:03.058284Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b60b65a1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DHVXWAA5CWV9VVM2ANJXWH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: scripts/enforcement/check_plan_tickets.py refuses a ticket's `Gate:` that runs a script a DEPENDENCY ticket creates. The rule accepts a Gate path only if it exists on disk or sits in the SAME ticket's Touches, so a shared guard built by an earlier ticket can never gate the tickets that depend"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T01:51:39.637578Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-bd0acf32",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5CH9GPF1A5AN2R9RYNGHA7V",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate: this mail's relay work is fleet's task W-c4f60000, which carries all four i18n consumer-note mail ids; the mail itself is acked when fleet reports the relay done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "dropped",
+  "title": "WHAT: fabrik-lib `i18n/` validator and translator: malformed input now fails with one `ERROR:` line, never a traceback (fabrik-lib D-506 approval, D-507 executed; W-474c9324, SB-151/153..156/159/161). A consumer note: projects that vendor `i18n/` see new failures, changed output and one quiet fail-o"
+}

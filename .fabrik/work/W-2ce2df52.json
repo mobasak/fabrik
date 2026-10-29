@@ -1,0 +1,29 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T16:01:11.954774Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-2ce2df52",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure the public interface's real 10/8 exposure (provider private networking?), then a deploy-gated rule change mirrored in scripts/sysadmin/install-docker-user-rules.sh",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH: security issue — mesh-only ports reachable from any 10/8 source on vps1's public interface (live iptables); effort low: one deploy-gated rule + installer mirror",
+  "status": "open",
+  "tags": [
+    "deploy",
+    "fleet",
+    "queued",
+    "waits-vps-gate"
+  ],
+  "title": "vps1 DOCKER-USER RETURNs 10.0.0.0/8 on ANY interface (live iptables -S DOCKER-USER, 2026-10-23), not only wg0, so every mesh-only published port (5432, 6379, 8000, and 8202 once the Apprise gate lands) is reachable from any 10/8 source on the public interface too; tighten to -i wg0 (and the docker bridges) — found by the W-5dcafaef design panel"
+}

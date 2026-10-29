@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T16:30:58.894775Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-3738da64",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M505J6KGJ6SS23WY6MM1RD5Q",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "mail-claim item for fleet's gap_keeps finding; the work is W-a39d4c86 (P1); closes on infra's ack",
+  "status": "done",
+  "title": "scratch_sweep.gap_keeps keeps nothing for a NaN `created`, and its docstring names the wrong Cobra direction"
+}

@@ -7,17 +7,18 @@
   "kind": "task",
   "legacy": false,
   "links": {
-    "decision": "",
-    "plan": "",
-    "spec": ""
+    "decision": "D-828",
+    "plan": "docs/development/plans/2026-10-14-plan-1-coolify-verb-retirement/2026-10-14-plan-1-coolify-verb-retirement.md",
+    "spec": "docs/superpowers/specs/2026-10-14-coolify-verb-retirement-design.md"
   },
-  "next": "/fabrik-spec for Phase 11-2: per verb, rebase on the SSH deploy model or retire it (and every doc and hint that recommends it, e.g. cli.py:1457 audit-registrars -> reconcile-all); spec-chain because it changes the public CLI contract of several verbs",
-  "note": "",
-  "owner": "",
+  "next": "/fabrik-execute-plan docs/development/plans/2026-10-14-plan-1-coolify-verb-retirement/ — the plan set is CONVERGED (D-838, 743c2ceb3): 13 tickets, four phases, 615 min through phase C (T01–T09, the session's hard stop), 165 min spill (T10a/T10b/T11); the orchestrator runs R1 (one read-only vps1 ssh) before T03's dispatch; T08's first commit is proof_run.py's argparse --live guard — until it lands nobody executes that script",
+  "note": "already landed: plan EXECUTED 2026-10-15, 00bf077b2 — owner fleet confirmed 2026-10-18",
+  "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
-    "fleet"
+    "fleet",
+    "proposed-done"
   ],
   "title": "Phase 11-2 — the CLI verbs still bound to the retired Coolify API (fabrik status, logs, reconcile-all, registry --sync; plus health_app/deploy/portability/compose_updater imports, docs/DEPLOYMENT_ARCHITECTURE.md:137) are broken: retire or rebase each on the SSH+Compose deploy model. Supersedes the reconcile-all-only W-ef765f8d"
 }

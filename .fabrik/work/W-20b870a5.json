@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T22:30:22.165302Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-20b870a5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VNJWESY21GA54VB501TWJN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re 01M4VMNGGM — done at worktree-kaizen 0f5b11488 (pushed; merge request to infra follows). Both corrections reproduced here in a scratch repo and again by the review's Opus seat. The catalogue's shared-clone sentence now: checks the clone out at the base SHA (git -C <scratch>/clone checkout -q <bas"
+}

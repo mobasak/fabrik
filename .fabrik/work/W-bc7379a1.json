@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:05.284106Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-bc7379a1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VGXM8J7J96YK1D91VA1540",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: health-probe load_env and the python-dotenv 1.2.0 floor — fixed at fabrik-lib 8bedcaa4 (fabrik-lib D-434)"
+}

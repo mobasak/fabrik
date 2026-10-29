@@ -1,0 +1,28 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T08:25:22.037736Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "8d108a3567eb647f1ccbd07d6783c4fdfc9c4611",
+  "id": "W-da4bc702",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: a paused list in .fabrik/work/config.json (or work.py verb) read by queue/triage/Stop floor",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — false triage nudge each coordinator turn",
+  "status": "done",
+  "tags": [
+    "medium",
+    "queued",
+    "work-store"
+  ],
+  "title": "work.py has no way to mark a worker PAUSED: while the operator holds fleet (D-880, until W-a71b3926 answers), the coordinator's Stop hook demands triage every turn ('1 worker below the floor of 1 (fleet)'), and queuing an item would make fleet's own Stop hook push it to start work. Add a paused-workers setting the floor and both Stop rungs honour"
+}

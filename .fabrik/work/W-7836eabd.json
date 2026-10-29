@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T18:54:10.181699Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7836eabd",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RP527PAYJDJDFQKZ9X6JYD",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: On this WSL box, IPv4 loopback connections to EPHEMERAL ports are refused. A socket bound to 127.0.0.1:0 (the kernel picks from ip_local_port_range 32768-60999) cannot be reached at all; a fixed port (18765) on 127.0.0.1 works, and ::1 on an ephemeral port works."
+}

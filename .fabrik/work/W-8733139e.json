@@ -1,0 +1,26 @@
+{
+  "block_digest": "b8767a5b9cc6e9c5e3fff16e0e5c24692d203f30aa63f715b56fc6754e85e391",
+  "blocked_by": [],
+  "created": "2026-10-14T20:32:24.055285Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-8733139e",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "7aef4a9d36937ff2c40a6493c93b57039c5c3a801a3c7df3d4d907b9fa0bfc2f"
+  ],
+  "next": "",
+  "note": "operator 2026-10-14: 'ok we we agree on this, please do not drift. approved' — B (coordinator-only in multi-window repos, priority rules everywhere), the six jobs + job 7 record-keeper (status, never content)",
+  "owner": "",
+  "priority": 2,
+  "question": "Should a coordinator that never builds run in every repo, only in the 10 repos with several agent windows, or as one coordinator for the whole fleet?",
+  "status": "done",
+  "title": "Should a coordinator that never builds run in every repo, only in the 10 repos with several agent windows, or as one coordinator for the whole fleet?"
+}

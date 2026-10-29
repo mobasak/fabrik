@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T19:07:23.922752Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ec096818",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4ZQXYEFQM437HRZVRFZ03D9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "scratch-lifecycle conformance (W-a71b3926): 15/23 CONFORM, 8 PARTIAL — fix F11 first (a dead session's backup can be removed); F1-F3, F5, F7-F10, R1"
+}

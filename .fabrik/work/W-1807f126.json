@@ -12,9 +12,13 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "Project repos have no Agent-Name trailer check: check_commit_trailers.py is installed in the hub only, so in a multi-agent project who-did-what rests on each agent signing correctly (D-442 docs say so)"
 }

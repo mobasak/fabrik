@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T16:17:11.863282Z",
+  "creator": "fleet",
+  "evidence": "c8c741908dc2caf270ef2617973bb0bfe98d105f",
+  "id": "W-c49a7adf",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-09-06-plan-1-session-history-retention.md",
+    "spec": ""
+  },
+  "next": "after the merge of branch worktree-fleet (merge_request.py), run bash scripts/sysadmin/install_session_archive_timer.sh from /opt/fabrik and paste systemctl --user cat session-archive.service into the plan's Evidence",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "tags": [
+    "gate-c",
+    "infra"
+  ],
+  "title": "Gate C (0) — infra: merge worktree-fleet's Phase C and re-run install_session_archive_timer.sh from the MAIN checkout (the unit's second ExecStart=- … prune_transcripts.py --dry-run; systemctl --user cat shows it)"
+}

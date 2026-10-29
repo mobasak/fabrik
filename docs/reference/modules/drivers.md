@@ -2,13 +2,11 @@
 
 **Last Updated:** 2026-04-22
 
-> **⚠️ Pre-migration vintage.** The "CoolifyClient — primary deploy driver"
-> section below describes the deploy path before the 2026-05 SSH+Compose
-> migration. Today the primary deploy driver is `orchestrator/deployer_ssh.py`
-> (SSH + Docker Compose, no Coolify API). `drivers/coolify.py` and
-> `drivers/compose_updater.py` are retained as legacy for the few CLI
-> commands (`fabrik status`, `fabrik logs`, `fabrik reconcile-all`) that
-> still talk to the Coolify API for services that were never migrated.
+> **⚠️ Pre-migration vintage.** Today the primary deploy driver is
+> `orchestrator/deployer_ssh.py` (SSH + Docker Compose, no Coolify API).
+> `drivers/coolify.py` (`CoolifyClient`) and `drivers/compose_updater.py` were
+> removed at 9c02e8c86 in the Coolify retirement; no command talks to the
+> Coolify API any more.
 > Other drivers in this document (postgres, redis, gatus, backrest,
 > glitchtip, grafana, authelia, meilisearch, prometheus, cloudflare, dns,
 > ssh, r2, supabase) are unchanged and current.
@@ -19,16 +17,15 @@ Fabrik drivers (`src/fabrik/drivers/`) are the **only place that talks to extern
 
 ---
 
-## All Drivers (27 modules, 2026-07-19)
+## All Drivers (25 modules, 2026-10-15)
 
 | File | Lines | Used during deploy for | Shape gate |
 |---|---:|---|---|
-| `ssh.py` | 138 | `ssh(cmd, timeout, dry_run)`, `scp_to_vps()` — host alias `vps` (override via `FABRIK_VPS_SSH_HOST`) | always |
-| `locks.py` | 165 | `run_locked(resource, script, timeout)`, `git_commit_config(path)` — VPS `flock -x -w` + whitelisted git commits | always |
-| `coolify.py` | 934 | `CoolifyClient` — legacy Coolify v4 API client (Coolify decommissioned 2026-05-30; retained for `reconcile-all`/legacy paths only) | legacy |
-| `dns.py` | 689 | `DNSClient` — site-provisioner service at `provision.vps1.ocoron.com`; domain registration, A/CNAME/TXT records, Cloudflare zone provisioning | always when `domain` set |
+| `ssh.py` | 283 | `ssh(cmd, timeout, dry_run)`, `scp_to_vps()` — host alias `vps` (override via `FABRIK_VPS_SSH_HOST`, refused with `SshHostError` unless `is_alias()` — `[user@]host`, the jump-hop grammar without the port); `jump_args(host)` adds `-o ProxyJump=` when `FABRIK_SSH_JUMP_<ALIAS>` is set (`docs/CONFIGURATION.md` § SSH jump); `_one_line()` puts remote stderr in an error or log masked and on one line | always |
+| `locks.py` | 183 | `run_locked(resource, script, timeout)`, `git_commit_config(path)` — VPS `flock -x -w` on a root-owned file in `/var/lib/fabrik-locks` (D-1044) + whitelisted git commits | always |
+| `dns.py` | 815 | `DNSClient` — site-provisioner service at `provision.vps1.ocoron.com`; domain registration, A/CNAME/TXT records, Cloudflare zone provisioning; its SSH proxy sends the API key and the body to the remote curl as a `-K -` config on stdin, never in an argv | always when `domain` set |
 | `cloudflare.py` | 368 | `CloudflareClient` — direct Cloudflare API fallback when site-provisioner is down | fallback |
-| `postgres.py` | 1380 | `create_database()`, `drop_database()` — per-service DB + role on `postgres-main` (registrar injects `DATABASE_URL` on first create); watchdog/subagent roles, `create_payments_ingest_role()` (scoped NON-BYPASSRLS cross-tenant ingest role → `PAYMENTS_INGEST_DATABASE_URL`), allocations, analytics DB; SQL identifier validation; drops deferred to operator | `shape.needs_database` / `shape.needs_payments_ingest` |
+| `postgres.py` | 2439 | `create_database()`, `drop_database()` — per-service DB + role on `postgres-main` (registrar injects `DATABASE_URL` on first create); watchdog/subagent roles, `mint_payments_role()` + `grant_payments_role()` (the scoped NON-BYPASSRLS payments roles, lanes `ingest` → `PAYMENTS_INGEST_DATABASE_URL` and `fulfilment` → `PAYMENTS_FULFILMENT_DATABASE_URL`; mint, then the orchestrator injects the DSN, then the grant returns its path), allocations, analytics DB; SQL identifier validation; drops deferred to operator | `shape.needs_database` / `shape.needs_payments_ingest` / `shape.needs_payments_fulfilment` |
 | `gatus.py` | 398 | `add_endpoint()`, `remove_endpoint()` — git-repo edit of `/opt/monitoring/configs/gatus/config.yaml` + commit via `git_commit_config()` | `shape.is_public` + `domain` |
 | `backrest.py` | 742 | `add_backup_plan()`, `remove_backup_plan()` — Restic policy via Backrest API; atomic `.tmp` → `json.tool` validate → `mv` (operator use; the registrar never writes a plan). Read-only coverage: `discover_persistence()`, `read_plans()`, `visible()`, `trusted()`, `coverage()`, `coverage_findings()` | `shape.has_persistent_data` |
 | `glitchtip.py` | 501 | `create_project()`, `delete_project()`, `verify_dsn_injection()` — Sentry-compatible; **DSN verification via `docker inspect`** (Lesson 31) | `shape.kind in {service, worker, wordpress}` |
@@ -37,8 +34,7 @@ Fabrik drivers (`src/fabrik/drivers/`) are the **only place that talks to extern
 | `redis.py` | 293 | `acquire_db_index()`, `release_db_index()` — per-service Redis DB index on `redis-main` via `assignments.json`; registrar injects `REDIS_URL` | `shape.needs_cache` |
 | `prometheus.py` | 521 | `add_scrape_target()`, `remove_scrape_target()` — scrape config for `/metrics` | `shape.exposes_metrics` + `domain` |
 | `meilisearch.py` | 262 | `create_index()`, `delete_index()` — container-scoped `sh -c` evaluates `$MEILI_MASTER_KEY` inside container (no secret on SSH wire) | `shape.has_search_feature` |
-| `compose_updater.py` | 451 | `class ComposeUpdater`, `.update(uuid, new_compose, ...)` — surgical YAML patching of Coolify's `docker_compose_raw` (used for env-var plumbing, label additions) | on demand |
-| `preflight.py` | 312 | Readiness probes invoked before deploy (DNS resolves, Coolify reachable, required secrets present) | always |
+| `preflight.py` | 522 | Readiness probes (compose declares `platform: linux/amd64`, DNS resolves from the VPS and the public internet, Traefik API is reachable) plus `restart_traefik_and_wait()`, which restarts Traefik on the VPS — no command calls those; and `verify_host_reachable()`, the ssh reachability probe `fabrik apply` runs first (W-2b657bee) | `fabrik apply` |
 | `supabase.py` | 437 | `SupabaseClient` — Auth + DB when `spec.infrastructure.database == supabase` | on demand |
 | `r2.py` | 408 | `R2Client` — Cloudflare R2 (S3-compatible) when `spec.storage.type == r2` | on demand |
 | ~~`wordpress.py`~~ | — | **Removed** — WP-CLI client extracted to `/opt/wpf/` (May 2026) | WordPress sites (legacy) |
@@ -53,44 +49,11 @@ Fabrik drivers (`src/fabrik/drivers/`) are the **only place that talks to extern
 | `vultr.py` | 298 | Vultr provisioning for `fabrik vultr` (DR drills, disposable spokes) | provisioning |
 | `watchdog.py` | 1284 | Watchdog sidecar registrar — config emission, `WATCHDOG_TRIGGER_SOURCES`, RO/RW DSNs | `watchdog.enabled` |
 
-Total: 27 driver modules + `__init__.py`.
+Total: 25 driver modules + `__init__.py`.
 
 ---
 
 ## Usage examples (most common)
-
-### CoolifyClient — legacy deploy driver (decommissioned)
-
-> **Legacy (Coolify decommissioned 2026-05-30).** `drivers/coolify.py` is retained on disk but non-functional. The primary deploy path is now `orchestrator/deployer_ssh.py` (`docker compose up -d` over SSH). The example below is historical.
-
-```python
-from fabrik.drivers.coolify import CoolifyClient
-
-c = CoolifyClient()  # reads COOLIFY_API_URL, COOLIFY_API_TOKEN from env
-
-# Discover
-servers = c.list_servers()
-projects = c.list_projects()
-apps = c.list_applications()
-
-# Create a dockercompose application (base64-encoded compose)
-app = c.create_dockercompose_application(
-    name="my-api",
-    project_uuid=projects[0]["uuid"],
-    server_uuid=servers[0]["uuid"],
-    docker_compose_raw=compose_yaml,  # client base64-encodes internally
-)
-
-# Set env vars (Coolify v4 API: key/value; HTTP 409 if key exists → use PATCH)
-c.bulk_update_env_vars(app["uuid"], {"SENTRY_DSN": dsn, "LOG_LEVEL": "info"})
-
-# Deploy
-c.deploy(app["uuid"], force=True)
-
-# Lifecycle
-c.stop_application(uuid); c.start_application(uuid); c.restart_application(uuid)
-c.delete_application(uuid)
-```
 
 ### DNSClient — all DNS/domain ops
 
@@ -117,7 +80,7 @@ from fabrik.drivers.glitchtip import create_project, verify_dsn_injection
 
 result = create_project("my-api")  # {status: "created"|"exists", dsn: "http://..."}
 
-# Inject DSN into Coolify app env, then verify container picks it up
+# Inject the DSN into the container env, then verify the container picks it up
 # verify_dsn_injection uses `docker inspect` — works on scratch/distroless (Lesson 31)
 ok = verify_dsn_injection("my-api", expected_dsn=result["dsn"], max_wait=60)
 ```
@@ -235,7 +198,7 @@ re-asserts every role below on each `fabrik apply`; nothing here is hand-run.
 
 | Role | Minted by | Connects as | May do on `audit_log` |
 |---|---|---|---|
-| owner (`<db>`) | `create_database` | `DATABASE_URL_OWNER` — migrations, runtime DDL, the retention job | everything; it owns the table (`ensure_app_role` re-owns it to the owner if anyone else holds it) |
+| owner (`<db>`) | `create_database` | `DATABASE_URL_OWNER` (in `/opt/<name>/.env.owner`, loaded only by the services that declare it — D-754) — migrations, runtime DDL, the retention job | everything; it owns the table (`ensure_app_role` re-owns it to the owner if anyone else holds it) |
 | app (`<db>_app`) | `ensure_app_role` | `DATABASE_URL` once the spec sets `shape.database_url_app_role: true` and the cutover ran | `INSERT`, `SELECT` only; `UPDATE`, `DELETE`, `TRUNCATE`, `TRIGGER`, `REFERENCES` revoked; no `CREATE` on `public`, so it can never own a table |
 | watchdog rw (`<db>_wd_rw`) | `create_watchdog_roles` | `WATCHDOG_DB_URL_RW` | DML on other tables; `UPDATE`, `DELETE`, `TRUNCATE` on `audit_log` revoked after its `GRANT … ON ALL TABLES` |
 | group roles (`anon` / `authenticated` / `service_role`, Pattern A, where the project defines them) | the project's schema | never directly; the app reaches them by `SET ROLE` (membership `WITH INHERIT FALSE, SET TRUE`, mirroring the owner's) | the same revokes as the app, because after `SET ROLE` the session acts with that role's privileges |
@@ -287,7 +250,6 @@ Canonical source: `/opt/fabrik/.env` (git-ignored; `.env.example` is tracked). R
 
 | Driver | Variables |
 |---|---|
-| `coolify` | `COOLIFY_API_URL`, `COOLIFY_API_TOKEN` |
 | `dns` | `SITE_PROVISIONER_URL` (defaults to `https://provision.vps1.ocoron.com`), `SITE_PROVISIONER_API_KEY` |
 | `cloudflare` | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_ZONE_ID_OCORON` |
 | `glitchtip` | `GLITCHTIP_AUTH_TOKEN`, `GLITCHTIP_ORG_SLUG`, `GLITCHTIP_TEAM_SLUG`, `GLITCHTIP_ADMIN_EMAIL`, `GLITCHTIP_ADMIN_PASSWORD` |
@@ -296,7 +258,7 @@ Canonical source: `/opt/fabrik/.env` (git-ignored; `.env.example` is tracked). R
 | `meilisearch` | `MEILI_MASTER_KEY` (read inside container, never on wire) |
 | `supabase` | `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` |
 | `r2` | `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_URL` |
-| `ssh`, `locks` | `FABRIK_VPS_SSH_HOST` (default `vps`) |
+| `ssh`, `locks` | `FABRIK_VPS_SSH_HOST` (default `vps`); `FABRIK_SSH_JUMP_<ALIAS>` (opt-in ProxyJump, `ssh` only) |
 
 Never commit `.env`. Never `source` a `.env` file — values can contain shell metacharacters (Lesson 25 §8.14); use `python-dotenv` in Python, `grep | cut` in shell.
 
@@ -305,14 +267,14 @@ Never commit `.env`. Never `source` a `.env` file — values can contain shell m
 ## Tests
 
 ```bash
-# All driver tests (377 tests as of 2026-07-19, across 17 driver test modules)
+# All driver tests (16 driver test modules)
 pytest tests/drivers/ -q
 
 # One driver
 pytest tests/drivers/test_glitchtip.py -q
 ```
 
-Test files: `test_authelia.py`, `test_backrest.py`, `test_compose_updater.py`, `test_coolify.py`, `test_dns_client.py`, `test_gatus.py`, `test_gatus_aro_wake.py`, `test_glitchtip.py`, `test_grafana.py`, `test_locks.py`, `test_meilisearch.py`, `test_postgres.py`, `test_preflight.py`, `test_prometheus_aro_wake.py`, `test_ssh.py`, `test_vultr_client.py`, `test_watchdog_peer_map.py`.
+Test files: `test_authelia.py`, `test_backrest.py`, `test_dns_client.py`, `test_gatus.py`, `test_gatus_aro_wake.py`, `test_glitchtip.py`, `test_grafana.py`, `test_locks.py`, `test_meilisearch.py`, `test_postgres.py`, `test_preflight.py`, `test_prometheus_aro_wake.py`, `test_redis.py`, `test_ssh.py`, `test_vultr_client.py`, `test_watchdog_peer_map.py`.
 
 ---
 

@@ -1,0 +1,25 @@
+{
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
+  "created": "2026-10-08T13:01:28.465868Z",
+  "creator": "infra",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-901df64c",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — command-pin graders pass on inverted rule; false green",
+  "status": "open",
+  "title": "command-pin graders: a bare-substring phrase pin passes on the inverted rule (inside/outside, never/always, must/may) — measure the polarity-word pins first, then a shared ordered-pair + inversion-control helper adopted as each grader is touched (precedent tests/test_execute_plan_d7.py; intel 01M4DSHQYN, W-b95f5c5e item 2)"
+}

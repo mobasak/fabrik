@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T00:02:56.669075Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-2fc0ce71",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M50FD9YE2AVXG4JVWGZ56KCC",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re 01M4F6WDEG — closing-round design decided: D-335 stands (D-911); one wording sentence for term-edit is yours"
+}

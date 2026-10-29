@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T04:40:41.285270Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-31e9c6c0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4CV040F1QPSR7VQHF0AK2HS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Review seats still write whole-repo archives into /opt/fabrik's root despite the never-write-under-/opt brief (two tonight, 87-88 MB each)"
+}

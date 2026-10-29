@@ -1,5 +1,5 @@
 # Dockerfile.python - Multi-stage Python FastAPI/uvicorn build
-# Copy to project root as "Dockerfile" and customize:
+# The scaffold copies this to "Dockerfile" and fills {{ versions.debian_codename }}; a hand copy must too. Customize:
 #   1. Entry point (app.main:app vs src.main:app)
 #   2. System dependencies (libpq-dev for postgres, etc.)
 #   3. Port number
@@ -7,7 +7,7 @@
 # Build: docker build -t PROJECT_NAME .
 # Run: docker run -p 8000:8000 --env-file .env PROJECT_NAME
 
-FROM python:3.12-slim-bookworm AS builder
+FROM python:3.12-slim-{{ versions.debian_codename }} AS builder
 
 WORKDIR /app
 
@@ -23,7 +23,7 @@ RUN pip install --no-cache-dir uv && \
     uv pip install --system --no-cache -r requirements.txt
 
 # Production stage
-FROM python:3.12-slim-bookworm
+FROM python:3.12-slim-{{ versions.debian_codename }}
 
 WORKDIR /app
 

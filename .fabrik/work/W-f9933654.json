@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T06:13:48.779593Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "207ceaa911dc6c99de06ca8cc273288c2ffa808d",
+  "id": "W-f9933654",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Decide its root (it is a partitioned review loop, like the four D8 names): give fabrik-deploy-plan-review.md:167 the SCRATCH: parenthesis repo-review now carries (and scratch_dir if it launches the review-loop workflow), then pin it (found by the W-27a0dc32 review's Opus seat)",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: kaizen work (D-956); fabrik-deploy-plan-review names no pins root, same class as W-27a0dc32; one command source",
+  "status": "done",
+  "title": "fabrik-deploy-plan-review pins with --pins-dir <a NEW dir> and names no root at all — it does not include subagents-core, so neither D8's default nor a SCRATCH: root reaches it"
+}

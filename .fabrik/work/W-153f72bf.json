@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-29T17:52:53.989321Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-153f72bf",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -12,10 +14,11 @@
     "spec": ""
   },
   "next": "only if a real test or src call site hits one of these shapes (0 today, grep over tests/ scripts/ src/): replace the word heuristics in tests/conftest.py _command_names/_shell_heads with bashlex parsing, or accept and keep this row as the record; also su -c / script -c payloads are not parsed (remainder round, pass 4)",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
-  "status": "open",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — record-only test-guard residue, 0 call sites",
+  "status": "dropped",
   "tags": [
     "tests"
   ],

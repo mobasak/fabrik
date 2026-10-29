@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:47:43.728237Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-93ca3962",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4740KA9BVY2HA4D9T1X0HQP",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: payments scoped service roles (01M44Y868J, 01M45P5MX4): received; your (a) and (c) are recorded, and the fulfilment-grant finding is routed to a spec (fabrik-lib D-399, SB-094)."
+}

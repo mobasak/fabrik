@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T22:08:32.009216Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-0e30671d",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task over scripts/command_run.py start and step --design output",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — advisory print additions",
+  "status": "dropped",
+  "tags": [
+    "kaizen-01m4n1k909"
+  ],
+  "title": "command_run.py start / step --design print the next phase, the quota runway beside the appetite, an ACTIVE plan lock owning a declared --file, and the declared files the design's APPROACH/MIRROR do not name (kaizen 01M4N1K909 group 3; rows 1791355691, 1791336923, 1791324378, 1791130188, 1791128626)"
+}

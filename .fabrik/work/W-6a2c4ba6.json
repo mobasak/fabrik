@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T11:57:12.537523Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-6a2c4ba6",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DJC9T82FXKAP0WVWHR4R0M",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "term-edit.md:17's \"a --pin root and wider globs are a backlog EXTEND\" can now point at check_citations_resolve --doc (intel W-191404c0, review running)"
+}

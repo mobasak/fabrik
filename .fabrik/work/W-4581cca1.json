@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T21:43:02.317191Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-4581cca1",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide whether pre-commit install is provisioning (gate it on _scaffold_offline or say why not), fix the inverted message, add a grader that greps scaffold.py for Popen/check_output/os.system",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "scaffold"
+  ],
+  "title": "scaffold opt-in seam gaps outside the coordinator init: _install_pre_commit (src/fabrik/scaffold.py ~840-858) runs pre-commit install with no _scaffold_offline() gate and tests/test_scaffold_provision_opt_in.py stubs it, so 'a default call spawns only git' is unproven for it; _scaffold_offline's docstring says offline installs nothing; test L127's failure message states the opposite of what failed; no test guards that every spawn goes through subprocess.run"
+}

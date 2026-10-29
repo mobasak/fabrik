@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:38:17.322409Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-b03aceec",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TDF3MKGWYR2S3E4YMS05P9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "scripts/kilo-benchmarks/tests/test_golden_parity.py is red in the main checkout — 10 tests: \"CONTRACT DRIFT: scripts/kilo_openrouter_routes_final.json: structure changed\""
+}

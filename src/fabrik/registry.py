@@ -19,19 +19,13 @@ class Project:
     name: str
     path: str
     type: str = "service"  # service, library, tool
-    status: str = "development"  # deployed, ready, development
-    coolify_uuid: str | None = None
-    coolify_name: str | None = None
+    status: str = "development"  # `ready` from ProjectRegistry.scan; the scanner writes production/development/archived/paused
     domain: str | None = None
     port: int | None = None
     has_user_guide: bool = False
 
     def to_dict(self) -> dict[str, str | int]:
         d: dict[str, str | int] = {"path": self.path, "type": self.type, "status": self.status}
-        if self.coolify_uuid:
-            d["coolify_uuid"] = self.coolify_uuid
-        if self.coolify_name:
-            d["coolify_name"] = self.coolify_name
         if self.domain:
             d["domain"] = self.domain
         if self.port:
@@ -46,8 +40,6 @@ class Project:
             path=data.get("path", f"/opt/{name}"),
             type=data.get("type", "service"),
             status=data.get("status", "development"),
-            coolify_uuid=data.get("coolify_uuid"),
-            coolify_name=data.get("coolify_name"),
             domain=data.get("domain"),
             port=data.get("port"),
             has_user_guide=bool(data.get("has_user_guide", False)),

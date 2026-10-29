@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:22:58.219430Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c85ab78e",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4PVPY0JQWAZ4Z68SA5J8TPT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — feedback-verdict code work from kaizen triage",
+  "status": "open",
+  "title": "/fabrik-spec-review feedback queue — 4 verdict(s) that need CODE in your beat (kaizen one-pass triage, D-735)"
+}

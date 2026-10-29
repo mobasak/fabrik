@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T01:32:38.110538Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "187ab35c066552410b1e8d7ac478052b27d2dabc",
+  "id": "W-3d6a6236",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-972",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "catch BaseException minus KeyboardInterrupt in _manifest_lists (or narrow the two comments + docstring to 'Exception or SystemExit'), with a GeneratorExit grader — routed by the W-5feb6e9c review's scope-growth stop (D-972)",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: rare edge (GeneratorExit from a manifest) plus docstring overclaim; one file",
+  "status": "done",
+  "title": "check_synced_unmodified: a manifest raising a non-Exception BaseException (GeneratorExit) escapes the ManifestError catch with a bare traceback; the loader comments and docstring overclaim 'every load failure that raises is named'"
+}

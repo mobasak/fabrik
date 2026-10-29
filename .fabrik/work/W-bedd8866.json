@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T20:40:29.864736Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-bedd8866",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4EKCDTR6C63T3TGNYP3JW8A",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: /fabrik-spec (01M4EJQEEG) + /fabrik-spec-review (01M4EKAZZF) code verdicts — boarded as infra items"
+}

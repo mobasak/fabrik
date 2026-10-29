@@ -1,0 +1,26 @@
+{
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
+  "created": "2026-10-14T09:06:24.242874Z",
+  "creator": "infra",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-c02a2762",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VMSB33CB06HG8T5TCJRCJB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — panel-ruled wiring request from another agent",
+  "status": "open",
+  "title": "Re 01M4V8S8DT — the panel ruled option A (D-830): sync-path Profile: small plans code in a worktree; the wiring needs a resume mechanism in your plan-lock code, map below"
+}

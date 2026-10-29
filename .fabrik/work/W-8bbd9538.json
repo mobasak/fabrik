@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T22:14:34.645653Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "cd14803e40544540526b9f2ee53d3875bdd716fa",
+  "id": "W-8bbd9538",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-15-scratch-lifecycle-design.md"
+  },
+  "next": "when origin/master's scripts/command_run.py start prints RUN-SCRATCH: (plan-1 Phase A merged — git grep -c RUN-SCRATCH origin/master -- scripts/command_run.py > 0), edit the two fragments + /fabrik-review-scoped + the three D7 sites fleet added in 01M4Y86A9RKAP0ASCAY85CSE2V (fabrik-review.md:126-128 the archive pin under <scratchpad>/review-<sha> and :219 <scratch>/<slice>-<model>/; fabrik-execute-plan.md:951 and :954 brief/report files under <scratchpad>; :696 stays), then reply to fleet",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: kaizen wording work (D-956) — the scratch-lifecycle spec's D7 names RUN-SCRATCH as the seat-folder root in the subagents fragment; LOW effort: one fragment",
+  "status": "done",
+  "tags": [
+    "kaizen",
+    "wording"
+  ],
+  "title": "D7 of the scratch-lifecycle spec: name RUN-SCRATCH as the seat-folder root (<run scratch>/seat-<n>/) and restate the archive/clone copy rule as the only staging in commands/_fragments/subagents-core.md and review-probe-catalogue.md:160-185 — fleet mail 01M4Y6ZXRSFPPTJJMVF2WX0A1K"
+}

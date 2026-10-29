@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:20:51.861932Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2bad693a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4SK3342BSJ39AY45820B69D",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "done — flows-review's description names all eight axes, and ui-design-review's names its F (2127cf86c, 066af1b35, worktree-kaizen)"
+}

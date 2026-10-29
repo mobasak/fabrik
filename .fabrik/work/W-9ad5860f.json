@@ -1,0 +1,28 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T00:05:19.034567Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-9ad5860f",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "HIGH: another repo's finding; map-owner intel (fabrik-review-loop.js recipe); the fragment half folds into kaizen's rewrite",
+  "status": "open",
+  "tags": [
+    "mail-01m5qkg9y78thdmcdz5bkvjre7",
+    "queued",
+    "waits-lean-program"
+  ],
+  "title": "Mail 01M5QKG9Y7 (wef1 finding): the seat-isolation test recipe imports the LIVE tree unless it uses -P + env -C; git show --output writes nothing; map-owner intel (.claude/workflows/fabrik-review-loop.js); fold the recipe fix into the lean rewrite of the fragment and fix the loop's recipe"
+}

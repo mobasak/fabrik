@@ -1,0 +1,28 @@
+{
+  "blocked_by": [
+    "W-c7153a2a"
+  ],
+  "created": "2026-10-29T02:47:40.636477Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-78649ed2",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-121",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "D-121 recorded the stack REMOVED (2026-09-05) and that a return re-enters via fabrik apply or is re-measured — it is live again without either: confirm with the operator via the coordinator whether it should exist; if yes, size memory + cpus from 7-day cAdvisor data, add them to infra/vps1/ocoron-com/compose.yaml, drop its exception in tests/test_infra_vps1_cpu_limits.py, hand the docker update to the coordinator",
+  "note": "superseded by D-1333: ocoron.com leaves vps1 entirely (Cloudflare), so its limits work is moot",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH: a live stack with no memory or CPU limit breaks a Fabrik invariant (HARD STOPS: compose without limits.memory); LOW effort: one stack",
+  "status": "dropped",
+  "tags": [
+    "deploy"
+  ],
+  "title": "The ocoron-com stack on vps1 runs its 5 containers (wordpress, nginx, db, redis, backup) with NO memory or CPU limit — infra/vps1/ocoron-com/compose.yaml declares no deploy.resources at all, breaking the memory-limit invariant (cAdvisor container_spec_memory_limit_bytes = 0, 2026-10-29)"
+}

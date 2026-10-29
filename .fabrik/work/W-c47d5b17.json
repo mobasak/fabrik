@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T15:00:35.159769Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-c47d5b17",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-execute-plan",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "answered by b8fe383d",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "feedback queue /fabrik-execute-plan"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T22:44:12.439267Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-eb8e7fec",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M55K57P8N7CABGD7825035J4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: three /fabrik-task feedback rows for command_run.py — 2 BUILT (capture verb, comma --commit), 1 filed (target branch, W-1fe4858e)"
+}

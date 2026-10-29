@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-05T15:10:24.384985Z",
   "creator": "infra",
-  "evidence": "",
+  "effort": "low",
+  "evidence": "8139c52df87037a1c026dd8f89cb110488858f4a",
   "id": "W-ad71f248",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,9 +15,10 @@
   },
   "next": "decide how a project-side gate (no hub templates in projects) reads template text: a generated, synced token/line list beside _doc_registry, or the box-local /opt/fabrik path fail-open; then reuse fleet_doc_audit.template_left_pct's rule",
   "note": "",
-  "owner": "",
-  "priority": 2,
-  "status": "open",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — doc-stub detector near-dead, false green",
+  "status": "done",
   "tags": [
     "infra"
   ],

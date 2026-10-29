@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T14:55:34.939480Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-4294e4fe",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-review-scoped",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: answered by the recipe step 5 points at (kaizen 2026-10-18): commands/_sources/fabrik-review-scoped.md step 5 'the archive roots are derived from what the tests",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-review-scoped"
+}

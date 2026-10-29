@@ -2,15 +2,14 @@
 description: Full-project adversarial code review + fix — partition the repo into disjoint file slices → parallel read-only review slices → triage → risk-ordered serial fixes with regression tests → incremental convergence, with a coverage ledger. TRIGGER — EN: "audit the whole repo", "sweep the entire project for bugs"; TR: "tüm repoyu denetle", "projenin tamamını incele" — fires for a whole-repo sweep, not one diff. SKIP: a single diff/PR's changed-surface gate (→ /fabrik-review). Stage: gate.
 argument-hint: "[subsystem/dir/risk-tier to scope — omit for the whole repo]"
 ---
+{{include:no-workflow-hub}}
 
-> **⚠️ POOL OFF — D-181 (operator, 2026-09-07).** The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
+
+> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable). Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing). Never write `NO-POOL:` for it: `check_subagent_flywheel.py`'s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182). Canonical: `62-using-subagents.md` § Dispatch policy.
 
 FULL PROJECT CODE REVIEW
 
-Adversarially review — and fix — this Fabrik project's codebase using multiple
-subagents. Orchestrate in phases; do not free-form. Obey this project's CLAUDE.md /
-AGENTS.md. If an argument was given, scope the whole run to it: `$ARGUMENTS` (a
-subsystem, dir, or risk-tier); otherwise review the ENTIRE repo.
+Adversarially review — and fix — this Fabrik project's codebase using multiple subagents. Orchestrate in phases; do not free-form. Obey this project's CLAUDE.md / AGENTS.md. If an argument was given, scope the whole run to it: `$ARGUMENTS` (a subsystem, dir, or risk-tier); otherwise review the ENTIRE repo.
 
 {{include:run-record}}
 {{include:orient}}
@@ -18,31 +17,13 @@ subsystem, dir, or risk-tier); otherwise review the ENTIRE repo.
 {{include:grounding-code}}
 ## PHASE 0 — DISCOVER THIS PROJECT (you, first — do NOT assume conventions)
 
-Read `project.yaml::type` (one of the real `SCAFFOLD_TYPES` — the live registry is `scaffold.py::SCAFFOLD_TYPES`, 13 at D-039 incl. `office-extension`: python-api / python-api-gpu /
-saas-skeleton / node-api / file-api / file-worker / wordpress / docusaurus /
-chrome-extension / mobile-app / desktop-app / static-site; the hub and fabrik-lib have NO project.yaml — there, skip this step and detect surfaces directly). Run `python scripts/select_rules.py` (if present) and READ
-every ACTIVE pack + every AVAILABLE pack matching a unit — the `.windsurf/rules` packs are
-AUTHORITATIVE on *how* code must be written (conflict order: rule pack > ticket). Detect
-which surfaces EXIST, hence which review axes apply: `compose.yaml` (deployable VPS
-service → deploy invariants apply), the DB migrations dir, `specs/services/*.yaml`
-(usually ABSENT — only apply the shape axis if it exists), a web build (vitest/tsc), and
-the FABRIK-SYNCED set (manifest `/opt/fabrik/scripts/fabrik_synced_manifest.py` + the
-`.gitignore` "Fabrik-synced" block — these files are REVIEW-ONLY, never edited locally).
+Read `project.yaml::type` (one of the real `SCAFFOLD_TYPES` — the live registry is `scaffold.py::SCAFFOLD_TYPES`, 13 at D-039 incl. `office-extension`: python-api / python-api-gpu / saas-skeleton / node-api / file-api / file-worker / wordpress / docusaurus / chrome-extension / mobile-app / desktop-app / static-site; the hub and fabrik-lib have NO project.yaml — there, skip this step and detect surfaces directly). Run `python scripts/select_rules.py` (if present) and READ every ACTIVE pack + every AVAILABLE pack matching a unit — the `.windsurf/rules` packs are AUTHORITATIVE on *how* code must be written (conflict order: rule pack > ticket). Detect which surfaces EXIST, hence which review axes apply: `compose.yaml` (deployable VPS service → deploy invariants apply), the DB migrations dir, `specs/services/*.yaml` (usually ABSENT — only apply the shape axis if it exists), a web build (vitest/tsc), and the FABRIK-SYNCED set (manifest `/opt/fabrik/scripts/fabrik_synced_manifest.py` + the `.gitignore` "Fabrik-synced" block — these files are REVIEW-ONLY, never edited locally).
 
-Partition the codebase into INDEPENDENT review units (by subsystem/dir so two units never
-share files) — **fine-grained: a large repo is DOZENS of units, not a handful.** Size each
-unit to what one reviewer holds in context (a file / package / the changed surface), not
-coarse buckets; more, smaller units = better recall AND more parallelism. Risk-rank by
-blast radius (money / auth / data-integrity / domain-correctness highest). **Emit a COVERAGE LEDGER into the review artifact the Termination
-contract already mandates (`docs/development/reviews/YYYY-MM-DD-<scope>-review.md`) — that FILE is
-the single source of truth** for all later phases: `unit → files → risk → fabrik-synced?
-→ which axes apply → assigned`. If `$ARGUMENTS` scoped the run, restrict the ledger to it
-and say so.
+Partition the codebase into INDEPENDENT review units (by subsystem/dir so two units never share files) — **fine-grained: a large repo is DOZENS of units, not a handful.** Size each unit to what one reviewer holds in context (a file / package / the changed surface), not coarse buckets; more, smaller units = better recall AND more parallelism. Risk-rank by blast radius (money / auth / data-integrity / domain-correctness highest). **Emit a COVERAGE LEDGER into the review artifact the Termination contract already mandates (`docs/development/reviews/YYYY-MM-DD-<scope>-review.md`) — that FILE is the single source of truth** for all later phases: `unit → files → risk → fabrik-synced? → which axes apply → assigned`. If `$ARGUMENTS` scoped the run, restrict the ledger to it and say so.
 
 ## PHASE 1 — PARALLEL ADVERSARIAL REVIEW (read-only)
 
-One reviewer per SLICE, READ-ONLY — no edits, so parallel workers can't collide. **The repo is cut
-into DISJOINT slices by file and every file is read once (D-207): two cheap finders per slice — one Sonnet and one Haiku, each over the whole slice, candidates unioned — and no Opus finder (pilot D-344, superseding D-207's Opus-on-the-risky mix; the risky units — concurrency and locks, record and file formats, fleet-synced paths, auth, schema, migrations, secrets — are the slice's named hunt priority; Opus/Fable execute in the orchestrator), at most ONE extra Haiku class seat when the brief names a non-scriptable inventory class. Scale the fan-out to the repo — as many seats as `dispatch_headroom.py --slices sonnet=N,haiku=N` prints for each slice batch, never a token 2–3.** Every seat is a **native `fabrik-reviewer`** (one Sonnet and one Haiku per slice — the pool is OFF, D-181). A unit touching secret-material paths (`.env` / `.env.*` except `.env.example`, `secrets/`, key files) is read by its two finders with the secret redacted from the brief.
+One reviewer per SLICE, READ-ONLY — no edits, so parallel workers can't collide. **Scale the fan-out to the repo — as many seats as `dispatch_headroom.py --slices sonnet=N,haiku=N` prints for each slice batch, never a token 2–3.** Every seat is a **native `fabrik-reviewer`** (one Sonnet and one Haiku per slice — the pool is OFF, D-181). A unit touching secret-material paths (`.env` / `.env.*` except `.env.example`, `secrets/`, key files) is read by its two finders with the secret redacted from the brief.
 <!-- POOL OFF (D-181): **`fanout("review", units=[<unit code inlined> …], repo=…, project="repo-review", mode="read_only", max_concurrency=…)`** -->
 <!-- POOL OFF (D-181, 2026-09-07) — kept verbatim for re-enable:
 (`repo=` is REQUIRED; omit `project=` and NOTHING is recorded, making the back-fill below an
@@ -61,143 +42,42 @@ contains one ships it to a third-party model, and a leaked secret cannot be unle
 per worker (⚠️ never `record_run` — it silently no-ops). **Batch the fan-out in WAVES by
 risk tier (cap concurrency via `max_concurrency`; don't spawn all 20+ at literally once)** —
 -->
-Batch the slices by risk tier, highest-blast-radius first — a slice batch IS a round: `dispatch_headroom.py --slices sonnet=N,haiku=N` (SEATS is Σ slices, no floor padding) → `command_run.py dispatch --seats <n>` → the seats as ONE `Workflow` call per batch (`scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js"` (`<repo root>`: the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree; when the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached) the seats go out through the `Agent` tool in ONE message with the same briefs, and the receipt's Pass row (or, with no receipt, the close's `--evidence`) notes `shape: agent-tool`), `args.slices` = the batch, each with its `files` and `priority`; contract and fallback: `/opt/fabrik/docs/reference/review-loop-workflow.md`) → `round --seats <n> --findings <the raw candidates the batch's seats raised>` with NO `--classes-swept` — a batch's round is a RESERVATION close, never a class-ledger close, so the tool's terminal verdict cannot fire mid-pass (only the pass's final round sweeps classes); each batch's sibling reservation runs on its own clock (a stamp accumulated across batches would expire on the FIRST batch's 25 minutes), and the oscillation advisory is off for this command because per-batch counts rise and fall with the subsystem, not with convergence; the box and the quota cap what is in flight, never a hand-picked number. Each reviewer applies the `/fabrik-review` adversarial
-methodology to its slice PLUS everything it calls / is called by, hunting these failure
-classes:
+Batch the slices by risk tier, highest-blast-radius first — a slice batch IS a round: `dispatch_headroom.py --slices sonnet=N,haiku=N` (SEATS is Σ slices, no floor padding) → `command_run.py dispatch --seats <n>` → the seats as ONE `Workflow` call per batch (`scriptPath: "<repo root>/.claude/workflows/fabrik-review-loop.js"` (`<repo root>`: the session's own checkout, `git rev-parse --show-toplevel` — in a worktree, the worktree; when the `Workflow` tool is absent or cannot load the script (a repo or checkout the sync has not reached), or the session is in the hub (D-961: the hub never calls the `Workflow` tool), or the operator did not invoke this review (the tool runs only on their explicit opt-in), the seats go out through the `Agent` tool in ONE message with the same briefs, and the receipt's Pass row (or, with no receipt, the close's `--evidence`) notes `shape: agent-tool`), `args.slices` = the batch, each with its `files` and `priority`, `scratch_dir` (this run's `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing), and `pins_dir`, `pin_manifest` and `digest` as `python3 scripts/review_loop_ledger.py pin --pins-dir <a NEW dir> <the batch's files>` printed them (`pins_dir` goes under the run's `SCRATCH:` folder — the path on the line `start` printed that begins `SCRATCH:`, kept on disk across a WSL shutdown (D-836) — or the session scratchpad when `start` printed no line that begins `SCRATCH:`); contract and fallback: `/opt/fabrik/docs/reference/review-loop-workflow.md`) → `round --seats <n> --findings <the raw candidates the batch's seats raised>` with NO `--classes-swept` — a batch's round is a RESERVATION close, never a class-ledger close, so the tool's terminal verdict cannot fire mid-pass (only the pass's final round sweeps classes); a batch's sibling reservation runs on its own clock (a stamp accumulated across batches would expire on the FIRST batch's 25 minutes), and the oscillation advisory is off for this command because per-batch counts rise and fall with the subsystem, not with convergence; the box and the quota cap what is in flight, never a hand-picked number. Each reviewer applies the `/fabrik-review` adversarial methodology to its slice PLUS everything it calls / is called by, hunting these failure classes:
 
-- CORRECTNESS/LOGIC: off-by-one, null/empty/None, idempotency, effective-dating/ordering,
-  error/edge paths, concurrency & transaction atomicity, resource cleanup,
-  precision/timezone/encoding.
-- DOMAIN SAFETY (fail-open vs fail-closed): identify THIS project's "never silently wrong
-  in the unsafe direction" invariant (e.g. never under-charge money / understate a levy,
-  never over-grant a permission, never serve stale-as-fresh, never drop a job) and prove
-  the code cannot violate it.
-- SECURITY: auth, cross-tenant/RLS isolation (every read/write scoped to the authed
-  principal; service-role paths can't leak across tenants), secret handling
-  (`os.getenv("KEY","default")`, no hardcoded secrets).
-- RULE-PACK COMPLIANCE: deviations from the ACTIVE `.windsurf/rules` packs — cite
-  pack:rule. A finding that contradicts an ACTIVE pack is by definition a defect.
-- PORTABILITY (Fabrik 3-env invariant — only if a service scaffold): the SAME code must
-  run unmodified in local dev (`.venv`, PG localhost, `.env`) · VPS Docker
-  (`postgres-main:5432` / `redis-main:6379`, compose) · managed env (env vars). Flag
-  hardcoded localhost, `DB_HOST=localhost`, env-specific branches.
-- DEPLOY/COMPOSE INVARIANTS — ONLY IF `compose.yaml` EXISTS: every service has
-  `deploy.resources.limits.memory` (OOM guard); on the `fabrik` network, no host-bound
-  ports (Traefik routes); health endpoints (`/health /healthz /metrics /api/health`)
-  NEVER behind auth; health/monitoring targets use stable Docker DNS (compose service
-  name / registered alias), never per-redeploy UUIDs; health checks hit real deps. Phase 0's
-  surface detection governs (chrome-extension, mobile-app, static-site and docusaurus all scaffold a
-  compose.yaml; only desktop-app has none).
-- SPEC↔CODE — ONLY IF `specs/services/*.yaml` EXISTS (usually it does NOT): code adding a
-  DB call ⇒ `shape.needs_database:true`, cache ⇒ `needs_cache`, `/metrics` ⇒
-  `exposes_metrics`, search ⇒ `has_search_feature`, admin UI ⇒ `is_admin_dashboard`. If
-  no specs dir, record "N/A — no spec contract in this project."
-- SPEC/PLAN↔CODE deviations generally (the written spec can be wrong — judge against
-  intent).
+- CORRECTNESS/LOGIC: off-by-one, null/empty/None, idempotency, effective-dating/ordering, error/edge paths, concurrency & transaction atomicity, resource cleanup, precision/timezone/encoding.
+- DOMAIN SAFETY (fail-open vs fail-closed): identify THIS project's "never silently wrong in the unsafe direction" invariant (e.g. never under-charge money / understate a levy, never over-grant a permission, never serve stale-as-fresh, never drop a job) and prove the code cannot violate it.
+- SECURITY: auth, cross-tenant/RLS isolation (every read/write scoped to the authed principal; service-role paths can't leak across tenants), secret handling (`os.getenv("KEY","default")`, no hardcoded secrets).
+- RULE-PACK COMPLIANCE: deviations from the ACTIVE `.windsurf/rules` packs — cite pack:rule. A finding that contradicts an ACTIVE pack is by definition a defect.
+- PORTABILITY (Fabrik 3-env invariant — only if a service scaffold): the SAME code must run unmodified in local dev (`.venv`, PG localhost, `.env`) · VPS Docker (`postgres-main:5432` / `redis-main:6379`, compose) · managed env (env vars). Flag hardcoded localhost, `DB_HOST=localhost`, env-specific branches.
+- DEPLOY/COMPOSE INVARIANTS — ONLY IF `compose.yaml` EXISTS: every service has `deploy.resources.limits.memory` (OOM guard); on the `fabrik` network, no host-bound ports (Traefik routes); health endpoints (`/health /healthz /metrics /api/health`) NEVER behind auth; health/monitoring targets use stable Docker DNS (compose service name / registered alias), never per-redeploy UUIDs; health checks hit real deps. Phase 0's surface detection governs (chrome-extension, mobile-app, static-site and docusaurus all scaffold a compose.yaml; only desktop-app has none).
+- SPEC↔CODE — ONLY IF `specs/services/*.yaml` EXISTS (usually it does NOT): code adding a DB call ⇒ `shape.needs_database:true`, cache ⇒ `needs_cache`, `/metrics` ⇒ `exposes_metrics`, search ⇒ `has_search_feature`, admin UI ⇒ `is_admin_dashboard`. If no specs dir, record "N/A — no spec contract in this project."
+- SPEC/PLAN↔CODE deviations generally (the written spec can be wrong — judge against intent).
 
-**Prove before you flag, WITHOUT breaking read-only** (this obligation falls on the finders and on YOUR triage — a read-only seat's findings arrive unproven and get verified at Phase 2): reproduce each suspected bug with
-a THROWAWAY repro in the scratchpad or a read-only execution — NOT a committed test and
-NOT an edit to any repo file (the kept regression test is written later, in Phase 3).
-Return STRUCTURED findings only: `{file:line, failure_class, severity:
-correctness|security|style, reproduction, root-cause, proposed_fix, confidence,
-fabrik_synced: yes/no}`. A unit that finds nothing must still enumerate exactly what it
-inspected (files × failure classes × rule packs) — empty claims without coverage evidence
-don't count. Update the ledger with each slice's coverage as the batches complete.
+**Prove before you flag, WITHOUT breaking read-only** (this obligation falls on the finders and on YOUR triage — a read-only seat's findings arrive unproven and get verified at Phase 2): reproduce each suspected bug with a THROWAWAY repro in the scratchpad or a read-only execution — NOT a committed test and NOT an edit to any repo file (the kept regression test is written later, in Phase 3). Return STRUCTURED findings only: `{file:line, failure_class, severity: correctness|security|style, reproduction, root-cause, proposed_fix, confidence, fabrik_synced: yes/no}`. A unit that finds nothing must still enumerate exactly what it inspected (files × failure classes × rule packs) — empty claims without coverage evidence don't count. Update the ledger with each slice's coverage as the batches complete.
 
 ## PHASE 2 — MERGE, DEDUPE, TRIAGE (you)
 
-Consolidate all units; dedupe cross-unit findings; re-verify each to drop false positives;
-keep ONLY confirmed correctness/security for fixing (style → a separate list); rank by
-severity × blast radius. Produce the ranked fix list and set a **fix budget**: the top
-severity×blast-radius tier is fixed THIS run; the long tail is handed off as a tracked
-backlog (Phase 4 output), not force-fixed in one exhausting turn. **A CONFIRMED SECURITY
-finding budgeted OUT of this run is a risk-acceptance decision, never silent triage —
-surface it to the operator, and their disposition (defer / waive) mints its
-`docs/DECISIONS.md` row in this run's change, classified at mint — an accepted-and-shipped
-vulnerability is the archetypal ONE-WAY row (grows the § Binding field block; TRIPWIRE and
-CLOSE-OUT especially), a short deferral with a named re-visit is a plain row** (the same class as
-`/fabrik-release`'s waiver mint; correctness-tier deferrals stay technical triage).
+Consolidate all units; dedupe cross-unit findings; re-verify each to drop false positives; keep ONLY confirmed correctness/security for fixing (style → a separate list); rank by severity × blast radius. Produce the ranked fix list and set a **fix budget**: the top severity×blast-radius tier is fixed THIS run; the long tail is handed off as a tracked backlog (Phase 4 output), not force-fixed in one exhausting turn. **A CONFIRMED SECURITY finding budgeted OUT of this run is a risk-acceptance decision, never silent triage — surface it to the operator, and their disposition (defer / waive) mints its `docs/DECISIONS.md` row in this run's change, classified at mint — an accepted-and-shipped vulnerability is the archetypal ONE-WAY row (grows the § Binding field block; TRIPWIRE and CLOSE-OUT especially), a short deferral with a named re-visit is a plain row** (the same class as `/fabrik-release`'s waiver mint; correctness-tier deferrals stay technical triage).
 
 ## PHASE 3 — PROVE + FIX
 
-**Serialized in the working tree by DEFAULT** (parallel worktree-isolated subagents ONLY
-when that isolation is explicitly set up — never two agents on one file at once). Fix in
-risk order, honoring the Phase-2 fix budget — top tier now; fold the remainder into the
-tracked backlog rather than rushing unsafe fixes. For each confirmed bug: write the failing
-test FIRST (red), then fix it, keep the test as a regression guard (verify red→green).
-**A test that passes because the environment cannot express the
-failure has proven nothing** — "it passed locally" is not evidence when local is the one
-place the bug is unreachable (a superuser role for an RLS bug, one tenant for an isolation
-bug). Reach for the missing constraint in a throwaway/ephemeral instance you own; **never**
-degrade shared or paid infrastructure (`postgres-main`/`redis-main`, the VPS fleet, real
-vendor quota) to manufacture a red — if that is the only way to see it, say so in the
-finding instead. Stay in scope.
+**Serialized in the working tree by DEFAULT** (parallel worktree-isolated subagents ONLY when that isolation is explicitly set up — never two agents on one file at once). Fix in risk order, honoring the Phase-2 fix budget — top tier now; fold the remainder into the tracked backlog rather than rushing unsafe fixes. For each confirmed bug: write the failing test FIRST (red), then fix it, keep the test as a regression guard (verify red→green). **A test that passes because the environment cannot express the failure has proven nothing** — "it passed locally" is not evidence when local is the one place the bug is unreachable. Reach for the missing constraint in a throwaway/ephemeral instance you own; **never** degrade shared or paid infrastructure (`postgres-main`/`redis-main`, the VPS fleet, real vendor quota) to manufacture a red — if that is the only way to see it, say so in the finding instead. Stay in scope.
 
-CONSTRAINTS: if this is a SHARED multi-lane worktree, do NOT edit other lanes' files; do
-NOT touch deps files unless authorized; and NEVER edit a FABRIK-SYNCED file locally (it is
-overwritten on the next governance sync — `scripts/sync_enforcement_to_projects.py`, run by the POST-commit hook since 2026-08-29 — gate-enforced) — if a synced file has a real bug,
-fix it in `/opt/fabrik/<path>` (if correct for ALL projects) or propose it upstream, and
-note that in findings; never fork it here. Schema changes = a NEW tracked migration
-applied by the project's migration runner (idempotent), never hand-DDL. Commit ONLY by
-explicit pathspec, never `git add -A`. Re-run `final_gate.py` after each fix cluster
-(`--lean` for fast mid-loop self-review only · `--json` the FULL Tier-2 completion gate · `--systemic` Tier-3 repo-health only (docker/ports/docs sprawl — narrower, NOT a superset; completion still needs `--json`)) — fixes regress;
-a green gate is necessary but NOT proof of correctness (it doesn't test logic), and
-known-environmental reds (e.g. Traefik/templates checks on a repo with no templates dir)
-don't count as new failures.
+CONSTRAINTS: if this is a SHARED multi-lane worktree, do NOT edit other lanes' files; do NOT touch deps files unless authorized; and NEVER edit a FABRIK-SYNCED file locally (it is overwritten on the next governance sync — `scripts/sync_enforcement_to_projects.py`, run by the POST-commit hook since 2026-08-29 — gate-enforced) — if a synced file has a real bug, fix it in `/opt/fabrik/<path>` (if correct for ALL projects) or propose it upstream, and note that in findings; never fork it here. Schema changes = a NEW tracked migration applied by the project's migration runner (idempotent), never hand-DDL. Commit ONLY by explicit pathspec, never `git add -A`. Re-run `final_gate.py` after each fix cluster (`--lean` for fast mid-loop self-review only · `--json` the FULL Tier-2 completion gate · `--systemic` Tier-3 repo-health only (docker/ports/docs sprawl — narrower, NOT a superset; completion still needs `--json`)) — fixes regress; a green gate is necessary but NOT proof of correctness (it doesn't test logic), and known-environmental reds (e.g. Traefik/templates checks on a repo with no templates dir) don't count as new failures.
 
 ## PHASE 4 — CONVERGE (incremental)
 
-After each fix cluster, re-review ONLY the CHANGED surface + its callers/callees (fixes
-create new surface) and update the ledger — do NOT re-run all units from scratch every
-iteration — those are the DELTA rounds, over the fix diff plus one hop of callers and callees (the hop bounds the EXTENT; what a delta round may COUNT is the fragments' bounded-hop rule — `term-edit`/`term-coverage`), same
-partition and the same persisting class ledger. When a delta round CONFIRMS zero, run ONE final,
-demonstrably-thorough FULL certification pass across all in-scope slices — a complete re-adjudication of the
-**Coverage Checklist (slice × failure-class × rule-pack)**. You EXIT when, after that pass, **every checklist
-row is adjudicated** (CLEAN / FIXED / REFUTED / RECORDED — the only standing residual being the
-explicitly-tracked deferred backlog) and it **CONFIRMED zero** — a candidate counts only once you
-EXECUTED it and it reproduced; refuted and `RECORDED` candidates never reopen the loop (D-206) — and
-every class the certification's own fixes touched has been re-checked. If certification
-surfaces anything new, adjudicate it (fix, or budget it into the backlog) and re-certify the touched classes
-— with no round ceiling; a finding stuck after 3 fix attempts is BLOCKED-escalated per the Termination
-contract while the rest keeps converging. Do not claim the exit without embedded proof: the adjudicated Coverage Checklist + the verbatim `final_gate.py --json` success
-+ each fix's regression test. `check_review_coverage.py` grades the review artifact, and the run
-record's round entries (`command_run.py round`, Stop-hook-enforced) trace the loop — record every
-pass in both; the certification pass's round is the CLASS-LEDGER close — `python3 scripts/command_run.py round --seats <n> --findings <raw> --confirmed <n> --classes-swept <every class in the checklist> --classes-new none` — the only round shape that can print the TERMINAL verdict (a slice batch's round carries no classes); the embedded proof above is what the operator audits. Run the FULL test suite (pytest and, if a web surface was touched, vitest/tsc)
-— not just the in-scope tests.
+After each fix cluster, re-review ONLY the CHANGED surface + its callers/callees (fixes create new surface) and update the ledger — do NOT re-run all units from scratch every iteration — those are the DELTA rounds, over the fix diff plus one hop of callers and callees (the hop bounds the EXTENT; what a delta round may COUNT is the fragments' bounded-hop rule — `term-edit`/`term-coverage`), same partition and the same persisting class ledger. When a delta round CONFIRMS zero, run ONE final, demonstrably-thorough FULL certification pass across all in-scope slices — a complete re-adjudication of the **Coverage Checklist (slice × failure-class × rule-pack)**. You EXIT when, after that pass, **every checklist row is adjudicated** (CLEAN / FIXED / REFUTED / RECORDED — the only standing residual being the explicitly-tracked deferred backlog) and it **CONFIRMED zero** — a candidate counts only once you EXECUTED it and it reproduced; refuted and `RECORDED` candidates never reopen the loop (D-206). If certification surfaces anything new, adjudicate it (fix, or budget it into the backlog) and re-certify the touched classes — with no round ceiling; a finding stuck after 3 fix attempts is BLOCKED-escalated per the Termination contract while the rest keeps converging. Do not claim the exit without embedded proof: the adjudicated Coverage Checklist + the verbatim `final_gate.py --json` success + each fix's regression test. `check_review_coverage.py` grades the review artifact, and the run record's round entries (`command_run.py round`, Stop-hook-enforced) trace the loop — record every pass in both; the certification pass's round is the CLASS-LEDGER close — `python3 scripts/command_run.py round --seats <n> --findings <raw> --confirmed <n> --classes-swept <every class in the checklist> --classes-new none` — the only round shape that can print the TERMINAL verdict (a slice batch's round carries no classes). Run every owed pass UNPROMPTED — *"already reviewed per-unit," "I triaged them all away," "obviously clean"* each mean: run the pass. Run the FULL test suite (pytest and, if a web surface was touched, vitest/tsc) — not just the in-scope tests.
 
-**`found` counts every candidate a slice reviewer RAISED — including ones you drop as false positives in
-triage — and `confirmed` counts only the ones you EXECUTED and reproduced.** `confirmed` is the exit
-counter: a certification pass that raised 3 and refuted all 3 CLOSES (`confirmed: 0`), because a
-refutation you executed is knowledge, not an open defect (D-206); a pass that confirms anything fixes
-it in that round and re-opens the touched classes for the next delta round. Run every
-owed pass **UNPROMPTED** — *"already reviewed per-unit," "I triaged them all away," "obviously clean"* each
-mean: run the pass.
+**`found` counts every candidate a slice reviewer RAISED — including ones you drop as false positives in triage — and `confirmed` counts only the ones you EXECUTED and reproduced.** `confirmed` is the exit counter: a certification pass that raised 3 and refuted all 3 CLOSES (`confirmed: 0`), because a refutation you executed is knowledge, not an open defect (D-206); a pass that confirms anything fixes it in that round and re-opens the touched classes for the next delta round.
 
 ## DEPLOY / FABRIK LIFECYCLE — out of scope for this run
 
-Do NOT deploy. For a VPS service scaffold, deploying is a human-gated step = commit → PUSH
-(the VPS `git pull`s from the GitHub remote, so push-before-redeploy is mandatory) →
-`fabrik redeploy` (or `fabrik apply` for spec/registrar/compose changes); migrations are
-applied separately. Other scaffold types deploy differently (extension store, app bundle,
-package publish). The review MUST assess deploy-READINESS against whichever invariants
-apply and list any blocker — but state the deploy steps as a RECOMMENDATION and let the
-owner run them.
+Do NOT deploy. For a VPS service scaffold, deploying is a human-gated step = commit → PUSH (the VPS `git pull`s from the GitHub remote, so push-before-redeploy is mandatory) → `fabrik redeploy` (or `fabrik apply` for spec/registrar/compose changes); migrations are applied separately. Other scaffold types deploy differently (extension store, app bundle, package publish). The review MUST assess deploy-READINESS against whichever invariants apply and list any blocker — but state the deploy steps as a RECOMMENDATION and let the owner run them.
 
 ## OUTPUT
 
-The coverage ledger; per-unit findings with verdicts; the fixes with their regression
-tests; a rule-pack & (where applicable) Fabrik-invariant compliance summary; the
-DEFERRED-BACKLOG list — **APPENDED as owner-tagged rows to `docs/STRATEGIC_BACKLOG.md` in this
-run's change** (file absent — 19 of 43 /opt repos lack it, measured 2026-08-31 — → seed it from
-`/opt/fabrik/templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md` first (hub-absolute — the
-template is NOT synced into projects; the bare relative path resolves only in the hub), then append) (append-only: never rewrite or reflow existing rows — the shared-tree rules govern
-a file three sessions touch; the Doc Sync Matrix's deferred-work row, operator rule 2026-08-27 —
-a chat-only backlog dies with the session), ready to fold into
-`docs/development/plans/*`; and an explicit RESIDUAL-RISKS list (incl. any
-Fabrik-synced-file bugs needing an upstream fix, and any deploy blockers). When unsure
-whether something is a bug, surface it. Scale effort to risk — exhaustive on
-money/auth/domain-correctness units, proportionate on low-blast-radius ones — and log
-anything you deliberately skip.
+The coverage ledger; per-unit findings with verdicts; the fixes with their regression tests; a rule-pack & (where applicable) Fabrik-invariant compliance summary; the DEFERRED-BACKLOG list — **APPENDED as owner-tagged rows to `docs/STRATEGIC_BACKLOG.md` in this run's change** (file absent — 19 of 43 /opt repos lack it, measured 2026-08-31 — → seed it from `/opt/fabrik/templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md` first (hub-absolute — the template is NOT synced into projects; the bare relative path resolves only in the hub), then append) (append-only: never rewrite or reflow existing rows — the shared-tree rules govern a file several sessions touch; the Doc Sync Matrix's deferred-work row, operator rule 2026-08-27 — a chat-only backlog dies with the session), ready to fold into `docs/development/plans/*`; and an explicit RESIDUAL-RISKS list (incl. any Fabrik-synced-file bugs needing an upstream fix, and any deploy blockers). When unsure whether something is a bug, surface it. Scale effort to risk — exhaustive on money/auth/domain-correctness units, proportionate on low-blast-radius ones — and log anything you deliberately skip.
 
 
 {{include:subagents-core}}

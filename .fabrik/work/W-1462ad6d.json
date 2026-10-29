@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-05T21:05:35.302209Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-1462ad6d",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -12,10 +14,11 @@
     "spec": ""
   },
   "next": "extend _command_part with a substitution-depth stack for $( and backtick, and widen _CRON_ENV_RE to cron's load_env name grammar (cronie env.c), each graded against dash/cron; found by the W-9b910755 closing pass, out of that change's scope",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "fleet",
   "priority": 3,
-  "status": "open",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — edge in drift tracker quoting",
+  "status": "dropped",
   "tags": [
     "vps"
   ],

@@ -12,12 +12,14 @@
     "spec": "docs/superpowers/specs/2026-10-03-scaffold-retired-agent-surface-design.md"
   },
   "next": "infra: retire or reword each per D-514/D-364; filed from plan-1 design critique (Fable concern 7)",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
-    "infra"
+    "infra",
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "Same-ruling Kilo residue outside the scaffold: final_gate Kilo CLI Health row (:2393-2400), --post-kilo gate_issues.jsonl (:2573), cli.py review-pack help naming Kilo (:2759-2795)"
 }

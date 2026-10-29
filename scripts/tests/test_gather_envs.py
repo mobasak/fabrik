@@ -1227,6 +1227,31 @@ def test_restub_keeps_a_curated_match_list(tmp_path, monkeypatch):
     assert out["category"] == "unidentified" and out["match"] == ["ZZZ", "ZZZ_LEGACY"]
 
 
+def test_the_classifier_never_pops_or_restubs_an_operators_off_enum_category(
+    tmp_path, monkeypatch, capsys
+):
+    """D-1050 review (A-sonnet C4, A-haiku C1): an off-enum category is no longer CATALOGUED (it routes
+    to triage), but it is still the OPERATOR'S field — a typo to correct, never a tombstone the merge
+    path may pop or the re-stub may overwrite with `unidentified`. Nor is it DISPATCHED: it stays in
+    triage until the operator corrects it, so a dispatch could only fail to stub it and re-dispatch it
+    every run (review pass 2, A-haiku NEW-1) — the run skips it before the spend and says so."""
+    assert cs.tombstone_of({"p": {"category": "ai-lm"}}, "p") is False
+    text = '# ═ NEEDS-TRIAGE ═\n#svc name=zzz category=? cost=? capability="?" url=? status=? used_by=-\nZZZ_API_KEY=x\n'
+    cat, _ = _classify_env(
+        tmp_path, monkeypatch, text, ["--apply", "--tombstone-unresolved"], [_Res("not json")]
+    )
+    cat.write_text(json.dumps({"zzz": {"category": "ai-lm", "cost": "paid"}}), encoding="utf-8")
+    monkeypatch.setattr(
+        cs, "fanout", lambda *a, **k: pytest.fail("an off-enum entry was dispatched")
+    )
+    assert cs.main() == 0
+    assert "zzz" in capsys.readouterr().err
+    assert json.loads(cat.read_text(encoding="utf-8"))["zzz"] == {
+        "category": "ai-lm",
+        "cost": "paid",
+    }
+
+
 def test_identified_env_keyed_provider_joins_the_existing_vendors_match_list(tmp_path, monkeypatch):
     """`OPENAI2_API_KEY` (flagged `openai2`) identified as `openai` (catalogued) lends its prefix to
     openai's `match` list instead of minting a second vendor (AD2)."""
@@ -1500,7 +1525,8 @@ def test_svc_line_never_emits_a_token_the_consumer_cannot_parse():
     )
     assert "\n" not in line and rs.SVC_RE.match(line), line
     m = rs.SVC_RE.match(line).groupdict()
-    assert m["cost"] == "free_tier" and m["category"] == "ai_llm" and m["used_by"] == "p"
+    # an off-enum category (`ai llm`) is not catalogued, so it is `?`, never a token of its own (D-1046)
+    assert m["cost"] == "free_tier" and m["category"] == "?" and m["used_by"] == "p"
     # the two fields _svc_token did not cover: the provider NAME (a bad one would fail the sync
     # closed every day, AS3) and each used_by member (a bad one silently mis-attributed, AS4)
     line = ge.svc_line("pro v", {"category": "search"}, {"pro j", "b"})
@@ -2484,7 +2510,7 @@ def test_only_on_a_curated_name_is_refused_and_the_scan_never_flags_it(tmp_path,
         )
     ]
     curated = {
-        "category": "ai-coding",
+        "category": "dev-tools",  # a REAL category (the docstring's premise; `ai-coding` is off-enum, D-1046)
         "cost": "?",
         "capability": "the operator's words",
         "url": "https://kilocode.ai",
@@ -2958,6 +2984,60 @@ def test_the_category_predicate_is_one_and_the_guard_counts_the_field(tmp_path, 
     )
     with pytest.raises(ge.CatalogError, match="knew 1 catalogued vendor"):
         ge.refuse_emptied_catalog()  # the FIELD is real; the literal in the capability once hid it
+
+
+def test_an_off_enum_category_routes_to_triage_with_a_warning(tmp_path, monkeypatch, capsys):
+    """D-1046 (W-7e467f2d): with the classifier retired, the catalog is hand-written, and a typo'd
+    category once rendered as its own dashboard table. A category outside the enum (a typo, a case
+    variant, a retired value) is NOT catalogued: its keys go to NEEDS-TRIAGE as `?`, the provider
+    shows by name in the Untriaged queue, and parse_catalog warns naming it — the scan never fails,
+    because a display-only typo must not kill the chain or the registry's provenance."""
+    for cat, real in (
+        ("ai-llm", True),
+        (" ai-llm ", True),
+        ("unidentified", True),
+        ("AI-LLM", False),
+        ("ai-lm", False),
+        ("internal-config", False),
+    ):
+        assert ge.real_category(cat) is real, cat
+    assert "ai-llm" in ge.CATEGORIES.split() and cs.CATEGORIES is ge.CATEGORIES  # one home
+    catalog = tmp_path / "catalog.json"
+    catalog.write_text(
+        json.dumps(
+            {
+                "typo": {"category": "ai-lm", "match": ["TYPO"]},
+                "ok": {"category": "ai-llm", "match": ["OK"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(ge, "CATALOG_PATH", catalog)
+    env = tmp_path / "p" / ".env"
+    env.parent.mkdir()
+    env.write_text("TYPO_API_KEY=x\nOK_API_KEY=y\n", encoding="utf-8")
+    body, stats = ge.consolidate([env])  # never a CatalogError
+    assert "#svc name=typo category=?" in body and "ai-lm" not in body.replace("ai-llm", "")
+    assert stats["catalogued"] == 1 and stats["flagged"] == 1
+    ge.load_catalog()  # the run's second load (the emptied-catalog guard) says nothing new
+    err = capsys.readouterr().err
+    assert "WARNING" in err and "typo" in err and "ai-lm" in err and "ai-llm" in err, err
+    assert err.count("WARNING") == 1, err  # once per process, never once per load
+
+
+def test_the_committed_catalog_carries_only_real_categories():
+    """The suite-time half of D-1046's typo guard (a test, not a commit hook): hand curation (W-17aac223) is now the only
+    writer of scripts/service_catalog.json, so every category it carries must be an enum value or
+    `unidentified` — caught here, not by the 06:00 chain."""
+    raw = json.loads(
+        (Path(ge.__file__).parent / "service_catalog.json").read_text(encoding="utf-8")
+    )
+    catalog, _ = ge.parse_catalog(raw, "service_catalog.json")
+    bad = {
+        p: m.get("category") for p, m in catalog.items() if not ge.real_category(m.get("category"))
+    }
+    assert not bad, bad
+    assert "internal-config" not in raw["_README"]  # the README names the enum, not a retired value
 
 
 def test_undecodable_ripgrep_output_is_a_scan_that_could_not_run(tmp_path, monkeypatch, capsys):
@@ -4544,3 +4624,43 @@ def test_the_registry_sync_import_leaves_no_module_behind():
             del _sys.modules[k]
     assert _sys.path == path_before
     assert "registry_sync" not in _sys.modules or "registry_sync" in before
+
+
+def test_a_host_is_never_credited_by_an_env_key_prefix():
+    """W-b81263e8 (W-17aac223 review residue; Opus + Fable critiques, executed): a catalog `match` token is
+    an ENV-KEY prefix, not domain evidence, so the two `<LABEL>_API_KEY` fallbacks credited foreign hosts —
+    a hyphenated SLD (`modal-labs.com`), an alias SLD (`hf-token.com`, `kling.com`) and a customer-named
+    platform bucket or resource (`modal-labs.s3.amazonaws.com`, `openai-prod.openai.azure.com`). Both are
+    gone: a host is credited only by domain evidence. Measured: 0 of 592 live code hosts relied on them."""
+    catalog = {
+        "modal": {"url": "https://modal.com"},
+        "paddle": {"url": "https://www.paddle.com"},
+        "huggingface": {"url": "https://huggingface.co"},
+        "klingai": {"url": "https://kling.ai"},
+        "openai": {"url": "https://openai.com"},
+        "gmail.googleapis": {},
+    }
+    matchers = [
+        ("MODAL", "modal"),
+        ("PADDLE_", "paddle"),
+        ("HF_TOKEN", "huggingface"),
+        ("KLING", "klingai"),
+        ("OPENAI", "openai"),
+    ]
+    idx = ge.catalog_url_index(catalog)
+    expected = {
+        # no domain evidence — each reached a removed fallback
+        "api.modal-labs.com": None,
+        "paddle-ocr.com": None,
+        "hf-token.com": None,
+        "kling.com": None,
+        "modal-labs.s3.amazonaws.com": None,
+        "openai-prod.openai.azure.com": None,
+        # domain evidence — unchanged rules
+        "api.modal.com": "modal",
+        "paddle.com": "paddle",
+        "huggingface.co": "huggingface",
+        "gmail.googleapis.com": "gmail.googleapis",
+    }
+    got = {h: ge.provider_for_host(h, catalog, idx, matchers) for h in expected}
+    assert got == expected, {h: (got[h], v) for h, v in expected.items() if got[h] != v}

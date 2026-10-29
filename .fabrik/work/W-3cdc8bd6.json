@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T18:13:22.911195Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "b10107ed314a3ecc3ec288a02c76c4a98b6be545",
+  "id": "W-3cdc8bd6",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "emit the ttl session_end before the save (has_end keeps it idempotent; a failed emit leaves the record running for the next sweep), and re-attempt a revival missing from the stream when has_recon; a second-sweep test pins each — W-6f46cebd design critiques (Opus + Fable)",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: rare edge, a lost ttl session_end or revival is a one-shot signal; residue of D-1007",
+  "status": "done",
+  "title": "kaizen_coroner: a lost ttl session_end or revival is never retried — the record is saved expired before the ttl emit, and has_recon skips a revival once the death landed, so W-6f46cebd's error is one-shot and the next clean sweep evidences the day with the event missing"
+}

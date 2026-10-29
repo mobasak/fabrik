@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "its mail 01M46JMS135T5PPQGAN6K1HEA0 is already in the fabrik archive (acked/handled before or without this item being closed); nothing left for fleet to do — bulk pass 2026-10-14 during the operator pause",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "Re: scaffolded projects lint the vendored GlitchTip scrubber — fixed in the template (force-exclude + mypy override) with a hub grader; three more hub-authored defects fixed alongside"
 }

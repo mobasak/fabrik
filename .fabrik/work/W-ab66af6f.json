@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T13:27:37.359281Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "22d78bf8dd9ee37d622b2029027dc7410d019432",
+  "id": "W-ab66af6f",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "use (?![:=]) in place of (?!=) and add 'docker-smoke ::= 1' to test_a_template_with_no_smoke_rule_is_left_alone (verified by the W-881752ec remainder seat: True for : / :: rules, False for := ::= :::=)",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "LOW: a rare-edge regex in the scaffold drift guard; one-character fix",
+  "status": "done",
+  "tags": [
+    "fleet"
+  ],
+  "title": "file-worker scaffold docker-smoke guard reads a GNU make ::= assignment as a rule: ^docker-smoke[ \\t]*::?(?!=) backtracks to one colon, so a target-less template with 'docker-smoke ::= 1' is refused (src/fabrik/scaffold.py _scaffold_file_worker)"
+}

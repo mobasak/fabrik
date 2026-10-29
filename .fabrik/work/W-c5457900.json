@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T12:52:05.113935Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-c5457900",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5A3B3V12BRTEP75KAFVSE23",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Workflow seat prompt needs the bounded-hop clause the review contracts now carry (W-7b5a6a17, D-row in this MR)"
+}

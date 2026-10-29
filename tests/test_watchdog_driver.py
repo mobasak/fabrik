@@ -91,6 +91,7 @@ class TestSidecarSource:
             ctx_dir.mkdir()
             rctx.build_ctx_local = ctx_dir
             ctx_dir.with_suffix(".tar.gz").mkdir()
+            rctx.remote_build_dir = "/tmp/fabrik-Ab3dEf9hIj"  # the stage remote_mktemp made
             raise WatchdogProvisionError("scp failed")
 
         spec = {"id": "demo", "watchdog": {"enabled": True}}
@@ -101,7 +102,9 @@ class TestSidecarSource:
             pytest.raises(WatchdogProvisionError, match="scp failed"),
         ):
             d.provision(_ctx(spec))
-        assert any("rm -rf" in c.args[0] for c in remote.call_args_list), "remote cleanup skipped"
+        assert any(
+            c.args[0] == "sudo rm -rf /tmp/fabrik-Ab3dEf9hIj" for c in remote.call_args_list
+        ), "remote cleanup skipped"
 
 
 class TestDryRun:
@@ -140,6 +143,20 @@ class TestRenderContext:
         )
         assert rctx.target_vps == "vps2"
 
+    def test_a_spoke_sidecar_reaches_the_shared_data_plane_by_mesh_ip(self):
+        """A vps2/vps3 container cannot resolve postgres-main/redis-main (WireGuard carries no
+        DNS); like every other registrar, the watchdog's own URLs swap to the hub mesh IP."""
+        spoke = WatchdogDriver()._build_render_context(
+            {"id": "demo", "watchdog": {"enabled": True}}, _ctx({"id": "demo"}, target_vps="vps2")
+        )
+        assert spoke.redis_url == "redis://10.99.0.1:6379/15"
+        assert "@10.99.0.1:5432/" in spoke.pg_dsn and "postgres-main" not in spoke.pg_dsn
+        hub = WatchdogDriver()._build_render_context(
+            {"id": "demo", "watchdog": {"enabled": True}}, _ctx({"id": "demo"}, target_vps="vps1")
+        )
+        assert hub.redis_url == "redis://redis-main:6379/15"
+        assert "@postgres-main:5432/" in hub.pg_dsn
+
     @pytest.mark.parametrize("key", ["daily_budget_usd", "per_incident_budget_usd"])
     @pytest.mark.parametrize("raw", [float("inf"), float("nan"), "inf", "x"])
     def test_a_non_finite_budget_never_reaches_the_sidecar_env(self, key, raw):
@@ -153,6 +170,14 @@ class TestRenderContext:
         spec = {"id": "demo", "watchdog": {"daily_budget_usd": 2, "per_incident_budget_usd": "0.5"}}
         rctx = WatchdogDriver()._build_render_context(spec, _ctx(spec))
         assert (rctx.daily_budget_usd, rctx.per_incident_budget_usd) == (2.0, 0.5)
+
+    def test_the_retired_promtail_drop_url_is_never_rendered(self):
+        """install_log_drop_rule is retired (fabrik-lib D-398): a spec still naming its Promtail
+        update URL renders no WATCHDOG_PROMTAIL_UPDATE_URL into the sidecar (W-1feb4dfa)."""
+        spec = {"id": "demo", "watchdog": {"enabled": True, "promtail_update_url": "http://p:9080"}}
+        d = WatchdogDriver()
+        env = d._render_env(d._build_render_context(spec, _ctx(spec)))
+        assert not [k for k in env if "PROMTAIL" in k], env
 
 
 def _rctx(driver: WatchdogDriver, *, propose_fix_prs: bool = False):
@@ -198,8 +223,8 @@ class TestDeployKey:
     def test_generates_when_absent_and_logs_pubkey(self, caplog):
         d = WatchdogDriver()
         pub = "ssh-ed25519 AAAAC3Nz...stub watchdog-demo@fabrik"
-        # probe=ABSENT, keygen='', place='', cat=pubkey, rm=''
-        side = ["ABSENT", "", "", pub, ""]
+        # probe=ABSENT, mktemp -d=stage, keygen='', place='', cat=pubkey, rm=''
+        side = ["ABSENT", "/tmp/fabrik-Ab3dEf9hIj\n", "", "", pub, ""]
         with mock.patch("fabrik.drivers.watchdog.ssh", side_effect=side) as m:
             with caplog.at_level("WARNING"):
                 d._ensure_deploy_key(_rctx(d, propose_fix_prs=True))
@@ -216,8 +241,8 @@ class TestDeployKey:
         def boom(cmd, *a, **k):
             if cmd.startswith("sudo docker exec -u 0") and "test -f" in cmd:
                 return "ABSENT"
-            if cmd.startswith("rm -f") and "ssh-keygen" in cmd:
-                return ""
+            if cmd.startswith("mktemp -d "):
+                return "/tmp/fabrik-Ab3dEf9hIj\n"
             if "docker cp" in cmd:
                 raise RuntimeError("cp failed")
             return ""
@@ -226,7 +251,7 @@ class TestDeployKey:
             with pytest.raises(RuntimeError, match="cp failed"):
                 d._ensure_deploy_key(_rctx(d, propose_fix_prs=True))
         # The cleanup rm (finally) must have run.
-        assert any(c.args[0].startswith("rm -f /tmp/") for c in m.call_args_list)
+        assert any(c.args[0] == "rm -rf /tmp/fabrik-Ab3dEf9hIj" for c in m.call_args_list)
 
 
 class TestDryRunSteps:

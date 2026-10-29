@@ -12,12 +12,14 @@
     "spec": "docs/superpowers/specs/2026-10-01-docusaurus-static-runtime-design.md"
   },
   "next": "after the docusaurus spec lands its versions loader, render each template's FROM lines from .windsurf/rules/versions.yaml, one runtime-compatibility test per template",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
-    "fleet"
+    "fleet",
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "Six templates hardcode node:22-bookworm-slim / python:3.12-slim-bookworm instead of the version registry (desktop-app, file-api, node-api, saas-skeleton, file-worker, scaffold.py:5690)"
 }

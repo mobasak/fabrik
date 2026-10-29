@@ -6,8 +6,8 @@
 # - pip-tools: pip-compile pyproject.toml
 # - poetry: poetry install
 #
-# Version: 1.0.0
-# Last Updated: 2025-12-13
+# Version: 1.1.0
+# Last Updated: 2026-10-17
 
 [project]
 name = "project-name"  # CHANGE: Your project name (lowercase, hyphens)
@@ -46,6 +46,7 @@ dev = [
     "pytest>=8.3.0",
     "pytest-cov>=6.0.0",
     "pytest-asyncio>=0.24.0",
+    "pytest-timeout>=2.3.0",
     "ruff>=0.8.0",
     "mypy>=1.13.0",
     "pre-commit>=4.0.0",
@@ -91,6 +92,11 @@ select = [
     "ARG",    # flake8-unused-arguments
     "SIM",    # flake8-simplify
     "S",      # flake8-bandit (security)
+    "ASYNC",  # flake8-async: blocking IO inside async code (core/10-python.md mandates it)
+    "G001",   # logging: str.format() in the call — the built message ships to GlitchTip (D-126)
+    "G002",   # logging: % operator in the call
+    "G003",   # logging: + concatenation in the call
+    "G004",   # logging: f-string in the call
 ]
 ignore = [
     "E501",   # line too long (handled by formatter)
@@ -141,6 +147,11 @@ testpaths = ["tests"]
 pythonpath = ["src"]  # Make src-layout packages importable without `pip install -e .`
 asyncio_mode = "auto"
 addopts = "-v --tb=short"
+# A hung test fails after 120 s (pytest-timeout) and every stack is dumped at 120 s (built in, so the
+# dump happens even without the plugin) — a hang guard only; a runaway that eats memory is the
+# capped runner's to stop (D-935, W-046828fb).
+timeout = 120
+faulthandler_timeout = 120
 
 [tool.bandit]
 exclude_dirs = ["tests", "venv", ".venv"]

@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "its mail 01M474J4GC3KD4KNV0RWKDFZEM is already in the fabrik archive (acked/handled before or without this item being closed); nothing left for fleet to do — bulk pass 2026-10-14 during the operator pause",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "Re: health_probe.cli() crashes on a NUL byte in .env — fixed at b1c06437"
 }

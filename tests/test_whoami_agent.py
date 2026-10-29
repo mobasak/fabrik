@@ -37,6 +37,9 @@ def store(tmp_path, monkeypatch):
     monkeypatch.setenv("AGENT_IDENTITY_FILE", str(p))
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sid-alpha")
     monkeypatch.delenv("CLAUDE_AGENT", raising=False)
+    # The real claude process exports CLAUDE_PID into every shell; the predecessor rule reads it, so
+    # an ambient value must never decide a grader (W-34cb1ef9 review B-S2).
+    monkeypatch.delenv("CLAUDE_PID", raising=False)
     return p
 
 
@@ -626,3 +629,393 @@ def test_the_append_path_uses_o_append(store):
     src = inspect.getsource(_mod()._append_row)
     body = src.split('"""')[-1]
     assert "O_APPEND" in body, "concurrent appends are only atomic under O_APPEND"
+
+
+def _holder(m, pid, start, sid="sid-other", name="agent-2"):
+    return json.dumps(
+        {
+            "session_id": sid,
+            "name": name,
+            "pid": pid,
+            "pid_start": start,
+            "toplevel": m._toplevel(),
+            "at": 9_999_999_999,
+            "force": False,
+        }
+    )
+
+
+def _own_process(m, monkeypatch, pid=None):
+    """Pretend this test process is the window's claude process (its pid is live and readable)."""
+    pid = os.getpid() if pid is None else pid
+    monkeypatch.setattr(m, "_session_pid", lambda: pid)
+    monkeypatch.delenv("CLAUDE_PID", raising=False)
+    return pid, m._pid_start(pid)
+
+
+def test_a_clear_successor_binds_its_own_window_name_without_force(store, monkeypatch):
+    """W-34cb1ef9: /clear mints a new session id in the SAME claude process; its own earlier row
+    is a predecessor, not a holder, so the bind needs no --force and says who it succeeded."""
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    store.write_text(
+        _holder(m, pid, start, sid="sid-old")
+        + "\n"
+        + _holder(m, pid, start, sid="sid-older")
+        + "\n",
+        encoding="utf-8",
+    )
+    code, msg = m.bind("agent-2")
+    assert code == 0, msg
+    assert m.resolve_agent_name() == "agent-2"
+    last = m._rows(store)[-1]
+    assert last["predecessor"] == "sid-older" and "sid-older" in msg  # the most recent matching row
+    assert last["force"] is False
+
+
+def test_a_forced_rotation_still_records_its_predecessor(store, monkeypatch):
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    store.write_text(_holder(m, pid, start, sid="sid-old") + "\n", encoding="utf-8")
+    assert m.bind("agent-2", force=True)[0] == 0
+    last = m._rows(store)[-1]
+    assert last["predecessor"] == "sid-old" and last["force"] is True
+
+
+def test_a_predecessor_never_excuses_a_live_foreign_holder(store, monkeypatch):
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    other = os.getppid()
+    store.write_text(
+        _holder(m, pid, start, sid="sid-old")
+        + "\n"
+        + _holder(m, other, m._pid_start(other), sid="sid-foreign")
+        + "\n",
+        encoding="utf-8",
+    )
+    code, msg = m.bind("agent-2")
+    assert code == 1 and "held by a LIVE session" in msg
+
+
+def test_a_live_holder_in_another_process_still_refuses(store, monkeypatch):
+    m = _mod()
+    _own_process(m, monkeypatch, pid=os.getppid())
+    me = os.getpid()
+    store.write_text(_holder(m, me, m._pid_start(me)) + "\n", encoding="utf-8")
+    code, msg = m.bind("agent-2")
+    assert code == 1 and "held by a LIVE session" in msg
+
+
+def test_an_unknown_start_time_never_makes_a_predecessor(store, monkeypatch):
+    """A legacy row (pid_start None) on our own pid, and our own start unreadable: (pid, None) ==
+    (pid, None) must not read as 'the same window'."""
+    m = _mod()
+    pid, _start = _own_process(m, monkeypatch)
+    monkeypatch.setattr(m, "_pid_start", lambda _pid: None)
+    store.write_text(_holder(m, pid, None) + "\n", encoding="utf-8")
+    code, msg = m.bind("agent-2")
+    assert code == 1 and "held by a LIVE session" in msg
+
+
+def test_a_walk_that_disagrees_with_claude_pid_claims_no_predecessor(store, monkeypatch):
+    """A nested claude the /proc walk passes through reaches the OUTER window's pid; CLAUDE_PID,
+    exported by the real claude process, names the mismatch and the bind stays refused."""
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    monkeypatch.setenv("CLAUDE_PID", str(os.getppid()))
+    store.write_text(_holder(m, pid, start, sid="sid-old") + "\n", encoding="utf-8")
+    code, msg = m.bind("agent-2")
+    assert code == 1 and "held by a LIVE session" in msg
+
+
+def test_a_hand_edited_row_with_digit_strings_is_still_this_windows_predecessor(store, monkeypatch):
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    store.write_text(_holder(m, str(pid), str(start), sid="sid-old") + "\n", encoding="utf-8")
+    code, msg = m.bind("agent-2")
+    assert code == 0, msg
+    assert m._rows(store)[-1]["predecessor"] == "sid-old"
+
+
+def test_a_live_foreign_holder_with_a_string_start_time_still_refuses(store, monkeypatch):
+    """A start time stored as a digit string must not read as a DEAD holder: before the review this
+    compared int to str, so any session could take a live name with no refusal."""
+    m = _mod()
+    _own_process(m, monkeypatch, pid=os.getppid())
+    me = os.getpid()
+    store.write_text(_holder(m, me, str(m._pid_start(me))) + "\n", encoding="utf-8")
+    code, msg = m.bind("agent-2")
+    assert code == 1 and "held by a LIVE session" in msg
+
+
+def test_a_boolean_pid_is_never_a_process(store, monkeypatch):
+    """JSON `true` equals 1 in Python; a corrupted row must not match a claude running as pid 1."""
+    m = _mod()
+    monkeypatch.setattr(m, "_session_pid", lambda: 1)
+    monkeypatch.setattr(m, "_pid_start", lambda _pid: 7)
+    store.write_text(_holder(m, True, 7, sid="sid-old") + "\n", encoding="utf-8")
+    code, msg = m.bind("agent-2")
+    assert code == 0, msg
+    assert "predecessor" not in m._rows(store)[-1]
+
+
+def test_trim_keeps_each_names_newest_binding(store):
+    # W-89474fc1: a repo with no registry gets its launcher's builders from these bindings, and a quiet repo binds
+    # nothing for 30 days — so each (repo, name)'s NEWEST row survives the trim, while its older rows, a row of no
+    # repo, and the row this bind supersedes still go.
+    m = _mod()
+    rows = [
+        {"session_id": "sid-b1-old", "name": "b1", "toplevel": "/opt/shop/.git", "at": 1},
+        {"session_id": "sid-b1-new", "name": "b1", "toplevel": "/opt/shop/.git", "at": 2},
+        {"session_id": "sid-b2", "name": "b2", "toplevel": "/opt/shop/.git", "at": 3},
+        {"session_id": "sid-norepo", "name": "b3", "toplevel": "", "at": 4},
+        {"session_id": "sid-other", "name": "b1", "toplevel": "/opt/else/.git", "at": 5},
+    ]
+    store.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+    assert m.bind("agent-2")[0] == 0
+    ids = {
+        json.loads(line)["session_id"] for line in store.read_text().splitlines() if line.strip()
+    }
+    assert {"sid-b1-new", "sid-b2", "sid-other"} <= ids, ids
+    assert "sid-b1-old" not in ids and "sid-norepo" not in ids, ids
+
+
+def test_the_trim_never_resurrects_a_renamed_session_or_aborts_on_a_bad_row(store, monkeypatch):
+    # Review round 1: (a) a session force-renamed alice -> bob keeps its OLD alice row only while that row is still
+    # the session's last, so the trim cannot hand the session back to alice; (b) the pair this bind supersedes goes;
+    # (c) a hand-edited row with a list for a name, or an `at` of Infinity, never aborts the bind. The bind's own
+    # scope is pinned, so (b) is exercised from any cwd — outside a repo `_toplevel()` is "" and (b) would pass vacuously.
+    m = _mod()
+    top = "/opt/mine/.git"
+    monkeypatch.setattr(m, "_toplevel", lambda: top)
+    rows = [
+        {"session_id": "s1", "name": "alice", "toplevel": "/opt/shop/.git", "at": 1},
+        {"session_id": "s1", "name": "bob", "toplevel": "/opt/shop/.git", "at": 2, "force": True},
+        {"session_id": "s2", "name": "bob", "toplevel": "/opt/shop/.git", "at": 3},
+        {"session_id": "s-mine-old", "name": "agent-2", "toplevel": top, "at": 4},
+        {"session_id": "s-list", "name": ["x"], "toplevel": "/opt/shop/.git", "at": 5},
+    ]
+    store.write_text(
+        "".join(json.dumps(r) + "\n" for r in rows)
+        + '{"session_id": "s-inf", "name": "z", "at": Infinity}\n',
+        encoding="utf-8",
+    )
+    code, msg = m.bind("agent-2")
+    assert code == 0, msg
+    kept = [json.loads(line) for line in store.read_text().splitlines() if line.strip()]
+    owner = {r["session_id"]: r["name"] for r in kept}
+    assert owner.get("s1") != "alice", kept  # never resurrected: s1's last row named bob
+    assert "s2" in owner, kept  # bob's newest binding survives
+    assert "s-mine-old" not in owner, kept  # superseded by this bind's own row
+
+
+# ── W-a77742db: a session resumed into a new claude process is re-recorded under it ────────────
+def _bound_elsewhere(m, sid="sid-alpha", name="agent-2", pid=9_999_999, start=1, top=None):
+    """A row for `sid` written under ANOTHER claude process (a dead pid by default) — the shape
+    every session resumed into a new process carries (measured 2026-10-28: 10 of 15 bound live
+    windows)."""
+    row = json.loads(_holder(m, pid, start, sid=sid, name=name))
+    if top is not None:
+        row["toplevel"] = top
+    row["at"] = 100
+    return json.dumps(row)
+
+
+def test_refresh_records_a_resumed_session_under_its_new_process(store, monkeypatch):
+    """Behaviour 1: the one case refresh writes — this session's last in-scope row names a valid
+    name, still the newest row of that name, under a dead process — appends ONE row with the same
+    session, name and scope under THIS process, marked as a refresh, never forced; a passed
+    `top` is the scope (the SessionStart hook passes its own, so no second git runs)."""
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    store.write_text(_bound_elsewhere(m) + "\n", encoding="utf-8")
+    assert m.refresh() == "agent-2"
+    rows = m._rows(store)
+    assert len(rows) == 2
+    new = rows[-1]
+    assert (new["session_id"], new["name"], new["toplevel"]) == ("sid-alpha", "agent-2", m._toplevel())
+    assert (new["pid"], new["pid_start"]) == (pid, start)
+    assert new["refresh"] is True and new["force"] is False and new["unlocked"] is False
+    assert m.resolve_agent_name() == "agent-2"
+    store.write_text(_bound_elsewhere(m, top="/given/.git") + "\n", encoding="utf-8")
+    monkeypatch.setattr(m, "_toplevel", lambda: pytest.fail("a passed scope runs no git"))
+    assert m.refresh(top="/given/.git") == "agent-2"
+    assert m._rows(store)[-1]["toplevel"] == "/given/.git"
+
+
+def test_refresh_writes_nothing_outside_its_one_case(store, monkeypatch):
+    """Behaviour 2: every guard of the design's input table writes nothing — and a second call
+    after a refresh writes nothing (idempotent per process)."""
+    import fcntl
+
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    other = os.getppid()  # a LIVE process that is not this window
+
+    def unchanged(text: str, **kw: object) -> bool:
+        store.write_text(text, encoding="utf-8")
+        before = store.read_bytes()
+        got = m.refresh(**kw)
+        return got == "" and store.read_bytes() == before
+
+    assert unchanged("")  # no binding for this session
+    assert unchanged(_bound_elsewhere(m, sid="sid-other") + "\n")  # another session's row only
+    assert unchanged(_bound_elsewhere(m, name="Bad Name") + "\n")  # invalid name
+    assert unchanged(_bound_elsewhere(m, top="/elsewhere/.git") + "\n")  # only in another scope
+    assert unchanged(_bound_elsewhere(m, top="") + "\n")  # an unknown scope is never ours
+    assert unchanged(_bound_elsewhere(m) + "\n", top="")  # nor an unknown current scope
+    assert unchanged(_holder(m, pid, start, sid="sid-alpha") + "\n")  # already under this process
+    # the sid is live in ANOTHER process (`claude --resume <sid>` in a second terminal)
+    assert unchanged(_bound_elsewhere(m, pid=other, start=m._pid_start(other)) + "\n")
+    lock = os.open(str(store) + ".lock", os.O_CREAT | os.O_RDWR, 0o600)
+    fcntl.flock(lock, fcntl.LOCK_EX)  # a writer holds the store: one try, then nothing
+    t0 = time.monotonic()
+    assert unchanged(_bound_elsewhere(m) + "\n")
+    assert time.monotonic() - t0 < 1.0, "a busy store must not hold SessionStart"
+    fcntl.flock(lock, fcntl.LOCK_UN)
+    os.close(lock)
+    monkeypatch.setenv("CLAUDE_PID", "31337")  # a nested claude: the walk reached the outer one
+    assert unchanged(_bound_elsewhere(m) + "\n")
+    monkeypatch.delenv("CLAUDE_PID")
+    monkeypatch.setattr(m, "_session_pid", lambda: None)  # no claude ancestor
+    assert unchanged(_bound_elsewhere(m) + "\n")
+    _own_process(m, monkeypatch)
+    real_start = m._pid_start
+    monkeypatch.setattr(m, "_pid_start", lambda _pid: None)  # start tick unreadable
+    assert unchanged(_bound_elsewhere(m) + "\n")
+    monkeypatch.setattr(m, "_pid_start", real_start)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "")
+    assert unchanged(_bound_elsewhere(m) + "\n")  # no session id
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sid-alpha")
+    store.write_text(_bound_elsewhere(m) + "\n", encoding="utf-8")
+    assert m.refresh() == "agent-2"  # the positive control under the same patches
+    once = store.read_bytes()
+    assert m.refresh() == "" and store.read_bytes() == once  # idempotent
+
+
+def test_refresh_never_takes_back_a_name_re_taken_since(store, monkeypatch):
+    """Behaviour 3: once another session bound the name after this one, a refresh would make this
+    window the name's newest live holder again — a silent take-back; it writes nothing. And the
+    last row is chosen PER SCOPE: a sid holding the name here and elsewhere refreshes here."""
+    m = _mod()
+    _own_process(m, monkeypatch)
+    store.write_text(
+        _bound_elsewhere(m) + "\n" + _bound_elsewhere(m, sid="sid-new", pid=9_999_998) + "\n",
+        encoding="utf-8",
+    )
+    before = store.read_bytes()
+    assert m.refresh() == "" and store.read_bytes() == before
+    # this session re-bound the name after the other one took it: its own again, refreshed
+    store.write_text(
+        _bound_elsewhere(m, name="agent-3")
+        + "\n"
+        + _bound_elsewhere(m, sid="sid-new", name="agent-3", pid=9_999_998)
+        + "\n"
+        + _bound_elsewhere(m, name="agent-2")
+        + "\n",
+        encoding="utf-8",
+    )
+    assert m.refresh() == "agent-2"
+    # the session's LAST row overall sits in another repo; its last row HERE still refreshes
+    store.write_text(
+        _bound_elsewhere(m) + "\n" + _bound_elsewhere(m, top="/elsewhere/.git") + "\n",
+        encoding="utf-8",
+    )
+    assert m.refresh() == "agent-2"
+    assert m._rows(store)[-1]["toplevel"] == m._toplevel()
+
+
+def test_refresh_never_changes_what_the_session_resolves_to(store, monkeypatch):
+    """Review round 1 (A-haiku-1): the session's LAST row overall decides its name
+    (`resolve_agent_name`); a session forced to another name in another repo must not get its old
+    name here re-recorded as its newest row, or its identity flips. A refresh writes only the name
+    the session resolves to now."""
+    m = _mod()
+    _own_process(m, monkeypatch)
+    store.write_text(
+        _bound_elsewhere(m, name="alpha")
+        + "\n"
+        + _bound_elsewhere(m, name="beta", top="/elsewhere/.git")
+        + "\n",
+        encoding="utf-8",
+    )
+    assert m.resolve_agent_name() == "beta"
+    before = store.read_bytes()
+    assert m.refresh() == "" and store.read_bytes() == before
+    assert m.resolve_agent_name() == "beta"
+
+
+def test_refresh_leaves_a_session_live_in_another_process_alone(store, monkeypatch):
+    """Review round 1 (A-haiku-5): the sid is live in another process even when that process's row
+    is not the sid's last one (a later `--force` re-bind under a process since gone); any live row
+    of this sid under another process leaves it alone."""
+    m = _mod()
+    _own_process(m, monkeypatch)
+    other = os.getppid()
+    store.write_text(
+        _bound_elsewhere(m, pid=other, start=m._pid_start(other)) + "\n" + _bound_elsewhere(m) + "\n",
+        encoding="utf-8",
+    )
+    before = store.read_bytes()
+    assert m.refresh() == "" and store.read_bytes() == before
+
+
+def test_refresh_is_not_blocked_by_this_windows_own_row_in_another_repo(store, monkeypatch):
+    """Review round 2 (A-haiku-p2-1): the live-process refusal is about ANOTHER process holding the
+    session; this window's own live row in another repo is not that, and must not block the row
+    here (the lane here keys on a row of this process in this repo)."""
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    store.write_text(
+        _bound_elsewhere(m) + "\n" + _holder(m, pid, start, sid="sid-alpha").replace(
+            json.dumps(m._toplevel()), json.dumps("/elsewhere/.git")
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    assert m.refresh() == "agent-2"
+    assert m._rows(store)[-1]["toplevel"] == m._toplevel()
+    # review r3 (A-haiku-p3-1): only THIS window's row elsewhere is exempt — another live process's
+    # row in another repo still leaves the session alone
+    other = os.getppid()
+    store.write_text(
+        _bound_elsewhere(m)
+        + "\n"
+        + _bound_elsewhere(m, pid=other, start=m._pid_start(other), top="/elsewhere/.git")
+        + "\n",
+        encoding="utf-8",
+    )
+    before = store.read_bytes()
+    assert m.refresh() == "" and store.read_bytes() == before
+
+
+def test_refresh_with_no_store_creates_nothing(tmp_path, monkeypatch):
+    """Review round 1 (A-sonnet-2): every SessionStart in every repo calls refresh; with nothing
+    ever bound there is no store, and refresh must not create its directory or a lock file."""
+    store = tmp_path / "state" / "agent-identity.jsonl"
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(store))
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sid-alpha")
+    m = _mod()
+    _own_process(m, monkeypatch)
+    assert m.refresh(top="/some/repo/.git") == ""
+    assert not (tmp_path / "state").exists()
+
+
+def test_refresh_matches_the_scope_by_realpath_and_never_by_an_empty_one(store, monkeypatch, tmp_path):
+    """Review round 1 (A-sonnet-1, A-haiku-2): the hook passes a realpath'd common dir while `bind`
+    stored git's string — a symlinked spelling of the same repo is the same scope, and the new row
+    keeps the binding's own spelling; an empty scope is never this one, even where the store holds
+    a row whose scope is the current directory (realpath("") is the cwd)."""
+    m = _mod()
+    _own_process(m, monkeypatch)
+    real = tmp_path / "repo-real" / ".git"
+    real.mkdir(parents=True)
+    link = tmp_path / "repo-link"
+    link.symlink_to(tmp_path / "repo-real")
+    store.write_text(_bound_elsewhere(m, top=str(link / ".git")) + "\n", encoding="utf-8")
+    assert m.refresh(top=str(real)) == "agent-2"
+    assert m._rows(store)[-1]["toplevel"] == str(link / ".git")
+    monkeypatch.chdir(tmp_path)
+    store.write_text(_bound_elsewhere(m, top=os.path.realpath(".")) + "\n", encoding="utf-8")
+    before = store.read_bytes()
+    assert m.refresh(top="") == "" and store.read_bytes() == before

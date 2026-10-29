@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-08-29T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "effort": "low",
+  "evidence": "b9d9653ad1ac4beb8f7934977190546e82cff8ac",
   "id": "W-f46bca45",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "## [infra] Gate pytest leg — project-declared environment/command (transdoc 01M171R8, 2026-08-29)\n\nThe gate now runs the suite under the RIGHT interpreter (the ruff-coupling fix, cmd-29 audit turn) and\nnames an exit-4 refusal distinctly (`pytest (SUITE REFUSED — usage error)`), but a project whose suite\nNEEDS environment (`TEST_DATABASE_URL`) still cannot pass the leg — transdoc's conftest deliberately\nrefuses rather than skip-to-green. Their ranked ask: honour a project-declared env/command (e.g.\n`.fabrik/pytest-env` or `[tool.fabrik.gate]`) so such repos supply what their suite needs instead of\ncarrying a permanent named red. **Measured need: 1 repo** (transdoc; every other marker-armed repo\npasses env-free) — below the build threshold; revisit when a second repo hits it or transdoc asks\nagain. Blocked by: nothing — deliberately deferred at n=1.",
   "note": "migrated-digest:99cf1a1a29ef",
-  "owner": "infra",
-  "priority": 2,
-  "status": "open",
+  "owner": "infra-3",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — transdoc blocked on gate pytest command; operator asked",
+  "status": "done",
   "title": "Gate pytest leg — project-declared environment/command (transdoc 01M171R8, 2026-08-29)"
 }

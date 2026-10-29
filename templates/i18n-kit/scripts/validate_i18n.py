@@ -250,29 +250,90 @@ def run_kilo(
     return parse_kilo_jsonl("".join(stdout_parts))
 
 
-def extract_json_from_text(text: str) -> Any:
-    """Extract JSON from LLM response that may include markdown fences."""
+def _one_answer(keyed: list[Any]) -> Any:
+    """The single answer among the keyed objects. One whose items all sit inside another (a quoted
+    fragment or a repeat of the answer) is not a competitor; two that still differ are ambiguous."""
+
+    def inside(a: dict, b: dict) -> bool:
+        return all(k in b and b[k] == v for k, v in a.items())
+
+    answers = [
+        o
+        for i, o in enumerate(keyed)
+        if not any(
+            j != i and inside(o, other) and (o != other or j < i) for j, other in enumerate(keyed)
+        )
+    ]
+    if len(answers) != 1:
+        raise ValueError(f"ambiguous reply: {len(answers)} different answer objects")
+    return answers[0]
+
+
+# The one result back_translate and llm_critique return when Level 2/3 cannot run. main() compares
+# it exactly: an issue string starts with a type the model chose, which may itself read SKIP.
+SKIP_NO_KILO = "SKIP: kilo binary not found"
+
+
+def extract_json_from_text(text: str, expected_keys: tuple[str, ...] = ()) -> Any:
+    """Extract JSON from LLM response that may include markdown fences.
+
+    ``expected_keys``: when the reply holds several JSON objects (in ``` fences or in prose), the
+    one carrying one of these top-level keys (the caller's payload shape) is the answer; a keyed
+    object whose items all sit inside it (a quoted fragment, a repeat) does not compete. Two keyed
+    objects that still differ raise ValueError: no position rule tells an answer from a worked
+    example or an echo placed before or after it, and a wrong guess reads as a clean or invented
+    result. Without a keyed object, the first fenced block wins (only when no keys are given), else
+    the longest object. This is a heuristic over
+    free text; a caller that can ask the API for JSON output should (fabrik-lib SB-098).
+    """
     text = text.strip()
     if "```" in text:
         parts = text.split("```")
+        fenced: list[Any] = []
         for part in parts[1::2]:  # odd indices = inside fences
             cleaned = part.strip()
             if cleaned.startswith("json"):
                 cleaned = cleaned[4:].strip()
             try:
-                return json.loads(cleaned)
-            except json.JSONDecodeError:
+                fenced.append(json.loads(cleaned))
+            except (json.JSONDecodeError, RecursionError):
                 continue
+        keyed = [o for o in fenced if isinstance(o, dict) and any(k in o for k in expected_keys)]
+        if keyed:
+            return _one_answer(keyed)
+        if fenced and not expected_keys:
+            return fenced[0]
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        # Try to find JSON object in text
-        match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", text, re.DOTALL)
-        if match:
+        # A reply with prose around the object: decode at every `{`; the one keyed answer wins (two
+        # different ones raise — _one_answer), else the longest. Never a brace-matching regex: a
+        # critique `fix` holds ICU placeholders such as `{count}`, which put the reply three braces
+        # deep, and a one-level regex returned the inner issue dict, whose missing "issues" key
+        # silently read as zero issues. Never the first object (prose quoting `{"count": 1}` wins),
+        # the longest alone (an echoed input sample wins), or the longest or the last keyed one (a
+        # worked example before or after the answer wins and its invented issue, or its empty
+        # list, is reported in place of the real one).
+        decoder = json.JSONDecoder()
+        all_keyed: list[Any] = []
+        last_keyed_end = -1
+        longest: tuple[int, Any] | None = None
+        for start in (i for i, ch in enumerate(text) if ch == "{"):
             try:
-                return json.loads(match.group())
-            except json.JSONDecodeError:
-                pass
+                obj, end = decoder.raw_decode(text, start)
+            except (json.JSONDecodeError, RecursionError):
+                continue
+            keyed = isinstance(obj, dict) and any(k in obj for k in expected_keys)
+            # a keyed object starting INSIDE the previous keyed one is nested in it, never a later answer
+            if keyed and start >= last_keyed_end:
+                all_keyed.append(obj)
+                last_keyed_end = end
+            if longest is None or end - start > longest[0]:
+                longest = (end - start, obj)
+        if all_keyed:
+            return _one_answer(all_keyed)
+        if longest is not None:
+            return longest[1]
     raise ValueError(f"Could not extract JSON from: {text[:200]}...")
 
 
@@ -381,7 +442,7 @@ def back_translate(lang: str, sample_size: int = 30) -> list:
     """Back-translate target→EN via Kilo, compare with original EN."""
     kilo = _find_kilo()
     if not kilo:
-        return ["SKIP: kilo binary not found"]
+        return [SKIP_NO_KILO]
 
     en = flatten(load_lang("en"))
     tr = flatten(load_lang(lang))
@@ -411,9 +472,13 @@ def back_translate(lang: str, sample_size: int = 30) -> list:
 
     try:
         result = run_kilo(prompt, model=model)
-        back = extract_json_from_text(result["result"])
+        back = extract_json_from_text(result["result"], expected_keys=tuple(strings_to_check))
         session = result.get("session_id", "")
         print(f"    [cost: ${result['cost']:.4f}, session: {session[:20]}...]")
+        if not isinstance(back, dict):
+            raise ValueError(f"reply is a {type(back).__name__}, not a JSON object")
+        if not any(k in back for k in strings_to_check):
+            raise ValueError("reply carries none of the keys it was asked to back-translate")
     except Exception as e:
         return [f"BACK_TRANSLATE_ERROR: {e}"]
 
@@ -452,7 +517,7 @@ def llm_critique(lang: str, session_id: str = None) -> tuple[list, str]:
     """Ask Kilo to critique translations as a native speaker. Returns (issues, session_id)."""
     kilo = _find_kilo()
     if not kilo:
-        return ["SKIP: kilo binary not found"], ""
+        return [SKIP_NO_KILO], ""
 
     en = flatten(load_lang("en"))
     tr = flatten(load_lang(lang))
@@ -507,14 +572,16 @@ def llm_critique(lang: str, session_id: str = None) -> tuple[list, str]:
 
     try:
         result = run_kilo(prompt, model=model, session_id=session_id)
-        data = extract_json_from_text(result["result"])
+        data = extract_json_from_text(result["result"], expected_keys=("issues", "errors"))
         new_session = result.get("session_id", "")
         print(f"    [cost: ${result['cost']:.4f}, session: {new_session[:20]}...]")
 
         if isinstance(data, dict):
+            if "issues" not in data and "errors" not in data:
+                raise ValueError("reply has no 'issues' or 'errors' key")
             data = data.get("issues", data.get("errors", []))
         if not isinstance(data, list):
-            data = []
+            raise ValueError(f"'issues' is a {type(data).__name__}, not a list")
     except Exception as e:
         return [f"CRITIQUE_ERROR: {e}"], ""
 
@@ -650,22 +717,23 @@ def main():
         # Level 2
         print("\n  Level 2 — Back-translation...")
         issues = back_translate(lang)
-        skipped = any("SKIP:" in i for i in issues)
-        real = [i for i in issues if "SKIP:" not in i]
+        skipped = issues == [SKIP_NO_KILO]
+        real = [] if skipped else issues
         if skipped:
             print(f"    SKIPPED: {issues[0]}")
         elif real:
             print(f"    {len(real)} semantic drift(s):")
             for i in real:
                 print(f"    {i}")
+            all_pass = False
         else:
             print("    PASS — no semantic drift detected")
 
         # Level 3
         print("\n  Level 3 — Native-speaker critique...")
         issues, session_id = llm_critique(lang)
-        skipped = any("SKIP:" in i for i in issues)
-        real = [i for i in issues if "SKIP:" not in i and "ERROR" not in i]
+        skipped = issues == [SKIP_NO_KILO]
+        real = [] if skipped else [i for i in issues if not i.startswith("CRITIQUE_ERROR")]
         if skipped:
             print(f"    SKIPPED: {issues[0]}")
         elif real:
@@ -677,10 +745,12 @@ def main():
             print("\n  Applying critique fixes...")
             fixed = apply_critique_fixes(lang, real)
             print(f"    Applied {fixed} fix(es)")
+            all_pass = False
         else:
-            err = [i for i in issues if "ERROR" in i]
+            err = [i for i in issues if i.startswith("CRITIQUE_ERROR")]
             if err:
                 print(f"    ERROR: {err[0]}")
+                all_pass = False
             else:
                 print("    PASS — no issues found")
 

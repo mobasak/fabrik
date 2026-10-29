@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:37:43.279895Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-504a9932",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4S6N7GHTJQW8HVWA2KW5N76",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "done — /fabrik-task checks the design note's names at --design and lists the tests that name a declared script (D-796, c597549ce)"
+}

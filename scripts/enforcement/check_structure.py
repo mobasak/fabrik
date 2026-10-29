@@ -98,7 +98,7 @@ LEGACY_DIRS = {
 # --- docs/ allowlist: DERIVED from the canonical registry (SSOT), never hand-maintained ---
 # The registry lives sibling-to-sibling in scripts/enforcement/ (synced fleet-wide), so a
 # SAME-DIR import resolves both hub-side and project-side. Do NOT use the
-# sys.path.insert(0, FABRIK_ROOT/"scripts") pattern (e.g. check_synced_unmodified.py) —
+# sys.path.insert(0, FABRIK_ROOT/"scripts") pattern (any read of a hub-root module) —
 # FABRIK_ROOT is hardcoded /opt/fabrik, so a project would import the HUB's registry
 # instead of its own synced copy. We call docs_allowlist() with NO argument: the permissive
 # full union, so a recognized doc never false-WARNs regardless of the project's exact shape
@@ -135,6 +135,8 @@ _FALLBACK_DOCS_ALLOWLIST = frozenset(
         "design-system.md",
         "LESSONS_LEARNT.md",
         "STRATEGIC_BACKLOG.md",
+        # written by the scaffold's preplan layering (_doc_registry.SCAFFOLD_WRITTEN)
+        "preplan.md",
     }
 )
 try:
@@ -146,6 +148,7 @@ try:
     DOCS_ALLOWLIST = _doc_registry.docs_allowlist() | _doc_registry.LEGACY_TOLERATED
 except Exception:  # noqa: BLE001 — a registry glitch must never crash the structure gate
     DOCS_ALLOWLIST = _FALLBACK_DOCS_ALLOWLIST
+    _doc_registry = None  # type: ignore[assignment]  # bound, so the parity check can say NOT checked
 
 
 def _gitignored_files(root: Path) -> set[str]:
@@ -439,7 +442,12 @@ def _scaffold_registry_drift(project_root: Path) -> list[str]:
     except (OSError, SyntaxError, ValueError):
         return []  # unreadable source is not this check's verdict to give
     if _doc_registry is None:
-        return []
+        # the hub's scaffold.py is here, so parity is owed: an unimportable registry is a check
+        # that could not run, never PARITY (W-fe6e0ed3 — the fail-silent green two lines below fix)
+        return [
+            "could not import scripts/enforcement/_doc_registry.py, so ALL_TYPES parity with "
+            "src/fabrik/scaffold.py::SCAFFOLD_TYPES was NOT checked. This is not a pass"
+        ]
     if declared is None:
         # NO assignment found at all (or a bare annotation with no value) — a different fact from
         # "found it, could not read literals out of it", and the one message covered both until

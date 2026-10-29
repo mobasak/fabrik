@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T13:05:18.588475Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "45499ef52a6ae2e14817f3de96f42ec717d33f49",
+  "id": "W-5279e834",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "extend the self-watch waker (scripts/sysadmin/selfwatch_*) with a network-restored trigger; prove it with a simulated DNS failure",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "operator asked 2026-10-15 ('permanently implement this feature') after infra, fleet and kaizen sat dead ~40 min on EAI_AGAIN; owner: box mesh/self-watch is infra's beat; effort: extends the existing self-watch waker, one session",
+  "status": "done",
+  "title": "Auto-resume hub builders after a network outage: detect a session whose turn died on a network error (EAI_AGAIN, ECONNRESET, fetch failed) and, once the API answers again, wake it to resume its run record — no operator poke needed"
+}

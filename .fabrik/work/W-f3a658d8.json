@@ -1,0 +1,26 @@
+{
+  "block_digest": "c6980a1b8f4beeab7768a01d577d513d0ae9f95b3f548374f69501bf192155b0",
+  "blocked_by": [],
+  "created": "2026-10-17T20:48:49.159868Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-f3a658d8",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "a4d52e9a3fef3e240083e28eb2f420b36ca94e450d8448e635de6954c9653dd0"
+  ],
+  "next": "",
+  "note": "operator 2026-10-18: \"then update your charter as you said, then update priority of all tasks in ouor fabrik repo for all tasks\" — four-level proposal adopted",
+  "owner": "",
+  "priority": 2,
+  "question": "Should the suggested priorities above become the rule for every other kind of mail, feedback and work item?",
+  "status": "done",
+  "title": "Should the suggested priorities above become the rule for every other kind of mail, feedback and work item?"
+}

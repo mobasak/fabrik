@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T22:48:09.932765Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-08669e63",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Once intel's d588cc1fe (--all) is on master: add to commands/_sources/fabrik-plan-review.md § Before Pass 1 a pass-1 reviewer run 'python3 scripts/enforcement/check_rule_grounding.py --all' (new obligation, no existing invocation to edit); check commands/_fragments/grounding-rules.md:23 too; pin it; scoped review",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "D-956 kaizen work; its dependency d588cc1fe is on master (merged 29ffb09de), so it is ready now",
+  "status": "open",
+  "title": "fabrik-plan-review Before Pass 1: add a reviewer run of check_rule_grounding.py --all (intel 01M5602897 + correction 01M560A9BM)"
+}

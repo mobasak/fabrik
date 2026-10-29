@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:22:58.972383Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-aff5f518",
+  "impact": "low",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4PRPKK7CT8NB9HZXF8JM8A6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — paused plan lock not resumable",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "addendum to 01M4PR7PGB (paused-state group): a `paused` plan lock is neither scanned nor resumable by /fabrik-execute-plan step 7"
+}

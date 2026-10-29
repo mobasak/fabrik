@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T10:36:07.711399Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-07231796",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "claim the mail, add the row per self-healing.md:65, reply to youtube, ack",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "another repo's request blocking its plan (rule row must precede its response logic); one table row in a synced pack",
+  "status": "open",
+  "tags": [
+    "mail-01m5c99yxsw5m0hccsk6k2398y"
+  ],
+  "title": "youtube mail 01M5C99YXS: add a self-healing pack failure-class row for a D-state worker child under a kernel netlink wedge (.windsurf/rules/core/self-healing.md table; youtube incident 2026-10-20)"
+}

@@ -1,0 +1,29 @@
+{
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
+  "created": "2026-10-16T08:13:27.248354Z",
+  "creator": "infra",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-7def1b78",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "spec the access route and its auth before exposing :5051 beyond loopback",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "operator reaches the board from browser VS Code/other devices (2026-10-16 port-forward trouble); needs its own auth design = major; held behind the one major in flight",
+  "status": "open",
+  "tags": [
+    "dashboard",
+    "medium"
+  ],
+  "title": "Reach the operator's dashboard (:5051) safely from a phone or second device — today it binds 127.0.0.1 with header-guarded POST actions and no auth; a remote route (VS Code tunnel port-forward, or an authenticated proxy) needs its own design (out of scope of W-573fae88's redesign)"
+}

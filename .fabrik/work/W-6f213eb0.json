@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T08:50:00.851769Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-6f213eb0",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: a box-local launcher already exists (coordinator, 2026-10-15, at the operator's ask): ~/bin/hub-up + ~/.tmux.conf + Windows Terminal profile 'Fabrik Agents' (font 9) + desktop 'Fabrik Agents.bat'; builders only (coordinator stays in VS Code), even-horizontal, refuses a sid already running. Remaining: move it into the repo (scripts/sysadmin/, docs/workstation/), and resolve each agent's CURRENT session id instead of the hard-coded list",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — operator ruling D-884 daily launcher",
+  "status": "open",
+  "tags": [
+    "queued",
+    "workstation"
+  ],
+  "title": "hub-up launcher for D-884: one command that creates or attaches the tmux session 'hub' with one pane per hub agent (coordinator, infra, intel, fleet, kaizen), each 'CLAUDE_AGENT=<role> claude --resume <its current session id>', resolved from the agent's latest run record or whoami binding rather than hard-coded; even-horizontal layout; idempotent (attach if 'hub' exists); documented in docs/workstation/"
+}

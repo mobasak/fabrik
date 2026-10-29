@@ -37,7 +37,7 @@ The audit log is MANDATORY in every project, whatever its scaffold type. "Proper
    data, privacy rights and consent, and autonomous watchdog actions. A client-only surface (extension,
    mobile, desktop or static page) records through the backend it calls, never with a client-side write.
 4. **Retention scheduled** — `data_retention.sql` from the project's scheduler, as the database OWNER
-   (`DATABASE_URL_OWNER`), which is how the scaffolded job connects. The watchdog sidecar does NOT run it, whatever the module's README and
+   (`DATABASE_URL_OWNER`), which only a service declaring `.env.owner` (the scaffolded `<name>-audit-jobs` companion) or a host shell under `sudo` holds — an in-app scheduler no longer sees the key; that is how the scaffolded job connects. The watchdog sidecar does NOT run it, whatever the module's README and
    `data_retention.sql` header say (filed to fabrik-lib); register it yourself.
 5. **Weekly verification** — `verify_chain(conn, since=<ts of the LAST row the previous run verified>)` from the
    scheduler: `verify_chain` skips the pointer check of the first row in its window, so starting at the previous
@@ -105,20 +105,20 @@ audit trace.
 | --- | --- | --- | --- |
 | `auth.login` | DEPRECATED alias the default IdP writes for `auth.login_success` until fabrik-lib renames it — query both; never write it from project code | none (the IdP writes no details) | `target_type` NULL, `target_id` = user_id |
 | `auth.login_success` | Successful password/MFA login (a passwordless success is `auth.passwordless_login`) | `{ip, user_agent, mfa_used: bool}` | `user`, user_id |
-| `auth.login_failure` | Wrong password / failed MFA | `{ip, user_agent, reason: "wrong_password" \| "mfa_failed" \| ...}` | `user`, user_id (if known) |
-| `auth.signup` | An account was created (password signup, or a passwordless first login) | `{ip, user_agent, via: "password" \| "passwordless"}` | `user`, user_id |
+| `auth.login_failure` | Wrong password / failed MFA | `{ip, user_agent, reason}` — `reason` one of `"wrong_password"`, `"mfa_failed"`, ... | `user`, user_id (if known) |
+| `auth.signup` | An account was created (password signup, or a passwordless first login) | `{ip, user_agent, via}` — `via` is `"password"` or `"passwordless"` | `user`, user_id |
 | `auth.logout` | User-initiated logout | `{ip}` | `user`, user_id |
 | `auth.password_changed` | User changed their own password | `{}` | `user`, user_id |
 | `auth.password_reset` | A password was reset through the emailed reset flow | `{ip}` | `user`, user_id |
 | `auth.passwordless_requested` | A magic-link / OTP login was requested | `{ip, user_agent, email_hash}` | `user`, user_id (if known) |
-| `auth.passwordless_login` | Passwordless login succeeded | `{ip, user_agent, via: "link" \| "code"}` | `user`, user_id |
-| `auth.passwordless_refused` | A passwordless approval was REFUSED | `{ip, reason: "expired" \| "already_used" \| "binding_mismatch"}` | `user`, user_id (if known) |
+| `auth.passwordless_login` | Passwordless login succeeded | `{ip, user_agent, via}` — `via` is `"link"` or `"code"` | `user`, user_id |
+| `auth.passwordless_refused` | A passwordless approval was REFUSED | `{ip, reason}` — `reason` one of `"expired"`, `"already_used"`, `"binding_mismatch"` | `user`, user_id (if known) |
 | `auth.profile_updated` | User changed profile fields (name, locale, timezone) | `{fields: [..]}` (names only, never values) | `user`, user_id |
 | `auth.avatar_set` | User set or removed an avatar | `{}` | `user`, user_id |
 | `auth.email_changed` | User changed account email | `{old_email_hash, new_email_hash}` (hash, not plain) | `user`, user_id |
-| `auth.mfa_enabled` | User added MFA factor | `{factor_type: "totp" \| "webauthn" \| ...}` | `user`, user_id |
+| `auth.mfa_enabled` | User added MFA factor | `{factor_type}` — `factor_type` one of `"totp"`, `"webauthn"`, ... | `user`, user_id |
 | `auth.mfa_disabled` | User removed MFA factor | `{factor_type}` | `user`, user_id |
-| `auth.session_revoked` | Session invalidated (any reason) | `{reason: "user_action" \| "admin" \| "suspicious"}` | `session`, session_id |
+| `auth.session_revoked` | Session invalidated (any reason) | `{reason}` — `reason` one of `"user_action"`, `"admin"`, `"suspicious"` | `session`, session_id |
 
 ### `billing.*` — payment and subscription events
 
@@ -156,7 +156,7 @@ audit trace.
 | `gdpr.deletion_requested` | User requested account erasure | `{}` | `user`, user_id |
 | `gdpr.deletion_cancelled` | User withdrew an erasure request within the grace period | `{}` | `user`, user_id |
 | `gdpr.deletion_purged` | Hard purge executed (post-grace) | `{purged_rows: int}` | `user`, user_id |
-| `consent.granted` | User opted in (any purpose) | `{purpose, source: "web" \| "api" \| "import"}` | `user`, user_id |
+| `consent.granted` | User opted in (any purpose) | `{purpose, source}` — `source` one of `"web"`, `"api"`, `"import"` | `user`, user_id |
 | `consent.withdrawn` | User opted out | `{purpose, source}` | `user`, user_id |
 
 ### `watchdog.*` — autonomous sidecar actions
@@ -166,9 +166,9 @@ fabrik-lib). Until it does, a project running the sidecar records them from its 
 
 | Action | Triggers | `details` shape | `target_*` |
 | --- | --- | --- | --- |
-| `watchdog.tier_a_action` | Sidecar took an autonomous Tier A action | `{action: "restart_container" \| "clear_cache" \| ..., reason, llm_provider, llm_model}` | `container`, container_name |
+| `watchdog.tier_a_action` | Sidecar took an autonomous Tier A action | `{action, reason, llm_provider, llm_model}` — `action` one of `"restart_container"`, `"clear_cache"`, ... | `container`, container_name |
 | `watchdog.tier_b_action` | Sidecar took an opt-in Tier B action | same as Tier A | `container`, container_name |
-| `watchdog.tier_c_escalation` | Sidecar escalated to owner (no autonomous action) | `{reason, severity: "warn" \| "urgent"}` | `container`, container_name |
+| `watchdog.tier_c_escalation` | Sidecar escalated to owner (no autonomous action) | `{reason, severity}` — `severity` is `"warn"` or `"urgent"` | `container`, container_name |
 | `watchdog.llm_call` | Sidecar issued an LLM call (success or failure) | `{provider, model, in_tokens, out_tokens, cost_usd, incident_id, confidence}` | `incident`, incident_id |
 | `watchdog.budget_kill_switch` | Sidecar dropped to rule-only mode (cap reached) | `{daily_usd_spent, daily_usd_cap, daily_invocations_spent, daily_invocations_cap}` | `project`, project_id |
 
@@ -177,7 +177,7 @@ fabrik-lib). Until it does, a project running the sidecar records them from its 
 ## Retention Policy
 
 **Default TTL: 12 months from `ts`.** Apply via `data_retention.sql` from your project's scheduler, as the database
-owner (`DATABASE_URL_OWNER` — § Every project has it (operator ruling 2026-09-23, D-368; the app role, D-385)); the watchdog sidecar does not run it.
+owner (`DATABASE_URL_OWNER` — § Every project has it (operator ruling 2026-09-23, D-368; the app role, D-385)), which only a service declaring `.env.owner` (the scaffolded `<name>-audit-jobs` companion) or a host shell under `sudo` holds — an in-app scheduler no longer sees the key; the watchdog sidecar does not run it.
 
 **Longer periods — keep for the legal period, then purge (never indefinitely):**
 

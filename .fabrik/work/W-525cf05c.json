@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T00:53:30.912378Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-525cf05c",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — glob admits non-ASCII digits, low risk",
+  "status": "open",
+  "title": "claude-sound.sh (3 sites) and claude-autoresume.sh (7 sites) use the [!0-9] glob, which admits non-ASCII digits under en_US.utf8; fix as claude-selfwatch.sh was fixed (W-5279e834)"
+}

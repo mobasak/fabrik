@@ -1,0 +1,26 @@
+{
+  "block_digest": "7911952c558508ea7b766dd66d5e680cd1fb79d9b521bca8a75183e0760db57e",
+  "blocked_by": [],
+  "created": "2026-10-15T06:42:10.282577Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-c160abfb",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "7a292bf75d695fa9922dfecfedefb83b8b155eea55db8da5ceafd50e0195dc5c"
+  ],
+  "next": "",
+  "note": "operator 2026-10-17: \"ok starting from the most urgent ones, handle them all\" — read as yes; the 9 items and every other proposed-drop time sink dropped, reversible",
+  "owner": "",
+  "priority": 2,
+  "question": "May I drop these 9 time-sink items (low impact, high effort) from the first-50 re-score? W-5f272cc3 aro-wake dashboard (PromQL and alerts already cover it) · W-d4a64471 repeated-flag detector (waits a second incident) · W-6017dc33 pgvector CI (no consumer yet) · W-fd3076c6 command-source dedup (no behaviour change) · W-9ca203c5 staged-only scoping audit (open-ended) · W-06de43f1 mailbox-clear majors (unscoped umbrella) · W-170c07d4 rules currency pass (file-by-file sweep) · W-50c97e5c mailbox second-pass findings (unscoped umbrella) · W-60d39719 kaizen observer tiers 2-3 (deferred behind tier 1)",
+  "status": "done",
+  "title": "May I drop these 9 time-sink items (low impact, high effort) from the first-50 re-score? W-5f272cc3 aro-wake dashboard (PromQL and alerts already cover it) · W-d4a64471 repeated-flag detector (waits a second incident) · W-6017dc33 pgvector CI (no consumer yet) · W-fd3076c6 command-source dedup (no behaviour change) · W-9ca203c5 staged-only scoping audit (open-ended) · W-06de43f1 mailbox-clear majors (unscoped umbrella) · W-170c07d4 rules currency pass (file-by-file sweep) · W-50c97e5c mailbox second-pass findings (unscoped umbrella) · W-60d39719 kaizen observer tiers 2-3 (deferred behind tier 1)"
+}

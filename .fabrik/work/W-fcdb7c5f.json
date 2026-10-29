@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T10:25:47.529321Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-fcdb7c5f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TCKDX55YPAE7VN51169M9H",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "45-testing-strategy checklist line 226 still mandates require_throwaway unconditionally — the FLOOR rubric injects it into repos that never vendored it (iterative_image_editor 01M3WW5PFN, item 2)"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T18:06:43.596107Z",
+  "creator": "infra",
+  "evidence": "ff40fa6d209c71ef1145be9589d975f7b989d430",
+  "id": "W-7ed355e6",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "when fleet's merge request for the owner-DSN branch arrives: merge it, then apply the five edits verbatim, render, /fabrik-review (synced packs), commit, push, sync",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "owner-DSN split (D-754): amend five rule-pack sentences for .env.owner (30-ops.md:161, :445; 10-python.md:297, :305; app-audit-log.md:39-41, :180) — fleet mail 01M4Q22F27, verbatim text in that mail; land in the SAME window as the merge of fleet's deployer change c2ec25e4c (W-4e74ea9d), never before"
+}

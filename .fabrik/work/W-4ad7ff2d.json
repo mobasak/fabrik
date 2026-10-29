@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:53:56.586962Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "208b721b724a3b10718f4487e1d0d63342a4670f",
+  "id": "W-4ad7ff2d",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read mail 01M53HEZHS75GR9JM6FWD486NG in the fabrik inbox, validate it, fix or answer it, then ack it",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "agent request (kaizen): review-loop seat recipe layout for a final_gate seat; intel owns the review loop",
+  "status": "done",
+  "tags": [
+    "mail-01m53hezhs75gr9jm6fwd486ng"
+  ],
+  "title": "mail 01M53HEZHS75GR9JM6FWD486NG: /fabrik-plan-review row 1792192144: the review-loop seat recipe has no layout for a seat that runs final_gate.py"
+}

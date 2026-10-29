@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-02T18:40:00.335441Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "2beb208792abc7dec327b8c2040dc60f84932cd2",
   "id": "W-b4e1dfb2",
   "kind": "task",
   "legacy": false,
@@ -13,8 +13,11 @@
   },
   "next": "/fabrik-command-improve fabrik-task",
   "note": "",
-  "owner": "",
+  "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
+  "tags": [
+    "queued"
+  ],
   "title": "/fabrik-command-improve fabrik-task: answer its 37-verdict queue with one edit (the .fabrik/work exclusion W-b43ce8bc is code; the rest cluster on phase-1/2 checklist asks)"
 }

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:31:40.760279Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-419ba48b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Y7QT6VM0Z5548JW7T9FB5X",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: D7 of the scratch-lifecycle spec — accepted by kaizen; it lands the turn RUN-SCRATCH: first prints on master"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:47:38.939036Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-8cbef364",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4AF6DZFEMZRXQJXF7SA37M2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re 01M4827R5H: your three commits are on master (132c4613f, ee5e5c524, a8b2ab2fd via fd5f57228). core/12-node.md:170 and its checklist line :331 now say the scaffold sets stop_grace_period: 30s on every routed app service (python-api template, _write_canonical_compose, _write_saas_compose; saas work"
+}

@@ -6,6 +6,12 @@
 .env.*BACKUP*
 .env.env.backup.*
 
+# Box-side secret files beside the infra/ compose mirrors (W-d9ccd618): a whole-dir pull from the
+# box must never stage the Cloudflare token, ACME private keys or basic-auth hashes
+infra/**/cf.env
+infra/**/acme*.json
+infra/**/htpasswd
+
 # VPS env dumps (plaintext secrets — local reference only)
 docs/reference/vps-all-container-envs.txt
 docs/reference/vps-env-*.txt
@@ -27,6 +33,7 @@ eggs/
 .eggs/
 lib/
 !templates/mobile-app/src/lib/
+!templates/saas-skeleton/lib/
 lib64/
 parts/
 sdist/
@@ -117,6 +124,11 @@ scripts/kilo-benchmarks/cache/update.log*
 # resolved registrars into .fabrik/review/<ts>.md. Local artefact; PR diff
 # already captures the change set — never committed.
 /.fabrik/review/
+
+# The builder registry agents_up.sh reads (W-66e2f6a7): box-local state naming this box's sessions — never committed.
+/.fabrik/session-agents.json
+# the operator's private notes vault, linked here on this box only: never tracked, so no git archive, pin or seat copy carries it (W-36c2607c)
+/vault
 
 # Local artifacts (originally appended by a `fabrik scaffold update` run in the hub)
 #

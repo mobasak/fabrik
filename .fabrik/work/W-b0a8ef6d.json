@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T12:23:19.613454Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "a1b1b89c9011dd234e8c2a49c3600eef8bd5dca4",
+  "id": "W-b0a8ef6d",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-878",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-15-scratch-lifecycle-design.md"
+  },
+  "next": "edit the two spec clauses to cite D-878; no code change (gap_keeps already builds it)",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "still true: spec lines 75/112 contradict D-878; actionable: two-clause doc edit; owner: fleet wrote the spec and D-877/D-878",
+  "status": "done",
+  "title": "Re-freeze scratch-lifecycle spec INV-1 (line 75) and V2 (line 112) to D-878's /proc-gap rule: a gap keeps a run folder only when its process started at or after created-300s or a time is unknown"
+}

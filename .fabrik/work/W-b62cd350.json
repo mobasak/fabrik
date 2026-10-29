@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T18:04:38.040025Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-b62cd350",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure each against command_run.py's round/done parsers; one /fabrik-task for the record-naming pair, the rest as their own small tasks",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — command_run ergonomics incl. refused close exit code",
+  "status": "dropped",
+  "tags": [
+    "medium",
+    "needs-split"
+  ],
+  "title": "command_run.py round/step ergonomics: `round --command` names its record (1791300827), round/step print which record they wrote when several are open (1791240820), `round --seats 0` refused (1790979495), a refused close exits non-zero (1790382393), `--edited-after` suppresses TERMINAL when code changed after the pin (1790977640) — kaizen mail 01M4PHYRB6"
+}

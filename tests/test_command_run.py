@@ -12,9 +12,11 @@ from __future__ import annotations
 
 import datetime as dt
 import importlib.util
+import inspect
 import json
 import math
 import os
+import re
 import subprocess
 import sys
 import time
@@ -51,6 +53,8 @@ def _cr(
     env = {
         "PATH": "/usr/bin:/bin",
         "COMMAND_RUN_DIR": str(run_dir),
+        # never the box's real session transcript (W-93a9d22a): a test that wants one passes it
+        "COMMAND_RUN_TRANSCRIPT": str(run_dir / "no-transcript.jsonl"),
         # Never let a test emit into the operator's real event store.
         "KAIZEN_EVENTS_DIR": str(_events_dir(run_dir)),
     }
@@ -994,6 +998,9 @@ def test_record_shape_and_pinned_line_are_unchanged_by_events(run_dir: Path) -> 
         # Derived per-stop instead, it evaporated at the session's next `start` (Phase C review
         # round 1, F5).
         "first_review_reach",
+        # every review-family `done` of the session, by what it NAMED, for the Stop hook's sixth
+        # cause — a nested review's surface otherwise died with its record (W-bdcff87a)
+        "reviewed_surfaces",
         "session_id",
         "command",
         "phases",
@@ -1014,6 +1021,8 @@ def test_record_shape_and_pinned_line_are_unchanged_by_events(run_dir: Path) -> 
         "agent",
         "surface",
         "account",
+        # the run's persistent scratch dir (kaizen 01M4V0B03B) — under COMMAND_RUN_DIR in tests
+        "scratch",
     }, sorted(rec)
     assert rec["state"] == "running"
     assert _cr(run_dir, "line").stdout.rstrip("\n") == (
@@ -2689,6 +2698,101 @@ def test_handoff_closes_a_not_quiet_run_with_its_resume_artifact(run_dir: Path) 
     assert row["closed_by"] == "agent", row
 
 
+def test_handoff_keeps_a_durable_copy_of_the_resume_seed(run_dir: Path) -> None:
+    """intel 01M4EDB9TC: `handoff --resume` stored only the PATH, and a /fabrik-task UPGRADE seed is
+    written to the session's scratch — which dies with the session — while the next `start` in the
+    same session (the /fabrik-spec the UPGRADE opens) overwrites the record itself. The close keeps
+    the seed's text under the state dir's `seeds/`, names it in the record, the run_close event and
+    its output, and the copy outlives both the original and the record."""
+    _start(run_dir)
+    seed = Path(_resume_artifact(run_dir))
+    text = seed.read_text(encoding="utf-8")
+    out = _cr(
+        run_dir,
+        "handoff",
+        "--command",
+        "fabrik-probe",
+        "--resume",
+        str(seed),
+        "--reason",
+        "UPGRADE: tradeoffs — seed in design.md",
+    )
+    assert out.returncode == 0, out.stderr
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    copy = Path(rec["resume_copy"])
+    assert copy.parent == run_dir.resolve() / "seeds", rec
+    assert copy.read_text(encoding="utf-8") == text, rec
+    assert str(copy) in out.stdout, out.stdout
+    assert _events(run_dir, "s1")[-1]["resume_copy"] == str(copy)
+    seed.unlink()
+    _start(run_dir)  # the UPGRADE's /fabrik-spec opens a new record in the same session
+    assert copy.read_text(encoding="utf-8") == text, "the seed outlives its scratch and its record"
+
+
+def test_handoff_keeps_the_bytes_it_validated_when_the_seed_moves_after(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Review pass 1 (A-S1, A-S2): the close checked the seed's size with an unguarded `stat()`
+    and the copier re-read the file unbounded, so a seed deleted after validation crashed into
+    `main`'s fail-soft rc 0 with the record still `running`, and one grown past the cap was copied
+    whole. The close reads the bytes ONCE, bounded, and keeps exactly those."""
+    cr = _in_process(tmp_path, monkeypatch, "cr_seed_once")
+    seed = tmp_path / "design.md"
+    text = "# x\n\n## RESUME\n- the validated seed\n"
+    seed.write_text(text, encoding="utf-8")
+    real = cr._task_close_fields
+
+    def _moves(rec, args):
+        seed.write_text("x" * (cr._RESUME_READ_CAP + 10), encoding="utf-8")
+        seed.unlink()
+        return real(rec, args)
+
+    monkeypatch.setattr(cr, "_task_close_fields", _moves)
+    assert cr.main(["start", "--command", _PROBE, "--phases", "1"]) == 0
+    fb = "confusion: none · waste: none · change: none · filed: none — harness setup"
+    rc = cr.main(
+        ["handoff", "--command", _PROBE, "--resume", str(seed), "--reason", "r", "--feedback", fb]
+    )
+    assert rc == 0
+    rec = json.loads((tmp_path / "runs" / "s1.json").read_text(encoding="utf-8"))
+    assert rec["state"] != "running", rec
+    assert Path(rec["resume_copy"]).read_text(encoding="utf-8") == text, rec
+
+
+def test_handoff_seed_copies_never_collide_or_escape_and_never_truncate(run_dir: Path) -> None:
+    """The design critiques' executed defects: two seeds from one session in one second (a nested
+    run) overwrote each other; a session id carrying `/` or `..` wrote outside `seeds/` (or could
+    never close); a seed over the 1 MB read cap was copied cut, silently. The copy is keyed by the
+    record's own `_safe_sid` plus the content hash, and an over-cap seed is refused."""
+    sid = "../a/b"
+    seeds = run_dir.resolve() / "seeds"
+    kept = []
+    for body in ("CHILD", "PARENT"):
+        _start(run_dir, sid=sid)
+        art = run_dir.parent / f"{body}.md"
+        art.write_text(f"# x\n\n## RESUME\n- {body}\n", encoding="utf-8")
+        out = _cr(
+            run_dir, "handoff", "--command", _PROBE, "--resume", str(art), "--reason", "r", sid=sid
+        )
+        assert out.returncode == 0, out.stdout + out.stderr
+        kept.append(
+            Path(
+                json.loads(next(run_dir.glob("*.json")).read_text(encoding="utf-8"))["resume_copy"]
+            )
+        )
+    assert len(set(kept)) == 2 and all(k.parent == seeds for k in kept), kept
+    assert [k.read_text(encoding="utf-8").split("- ")[1].strip() for k in kept] == [
+        "CHILD",
+        "PARENT",
+    ]
+    _start(run_dir)
+    big = run_dir.parent / "big.md"
+    big.write_text("## RESUME\n" + "x" * 1_000_100, encoding="utf-8")
+    out = _cr(run_dir, "handoff", "--command", _PROBE, "--resume", str(big), "--reason", "r")
+    assert out.returncode == 1 and "cap" in out.stdout, out.stdout
+    assert json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))["state"] == "running"
+
+
 def test_handoff_refuses_without_the_resume_artifact(run_dir: Path) -> None:
     """The whole point: it must be harder to fake than the BLOCKED cause it replaces. Omitting the
     flag is argparse's refusal (rc 2); NAMING an artifact that is not there must refuse at the close
@@ -2805,6 +2909,21 @@ def test_an_honest_none_naming_the_surfaces_it_swept_is_not_read_as_filed(run_di
         assert row["feedback"] == "none", f"{text!r} -> {row['feedback']}"
         assert row["feedback_to"] == [], f"{text!r} -> {row['feedback_to']}"
         (run_dir / "s1.json").unlink()
+
+
+def test_the_coordinator_is_never_a_filing_beat(run_dir: Path) -> None:
+    """Coordinator-role Finish review, pass 1 (B-sonnet 1): `_BEATS` is the FEEDBACK grammar's
+    list, four beats, and the coordinator owns none (plan 2026-10-15-plan-1-coordinator-role
+    § Decisions taken here; D-875). A `filed:` value that mentions the coordinator — the word
+    this plan puts into most closes — is never attributed to it."""
+    text = (
+        "confusion: none · waste: none · change: lean: name the coordinator rungs · "
+        "filed: mentioned the coordinator cause but no mail id"
+    )
+    _start(run_dir)
+    _cr(run_dir, "done", "--command", "fabrik-probe", "--evidence", "e", "--feedback", text)
+    row = _events(run_dir, "s1")[-1]
+    assert "coordinator" not in row["feedback_to"], row["feedback_to"]
 
 
 def test_a_real_filing_still_registers_its_beats(run_dir: Path) -> None:
@@ -3026,6 +3145,32 @@ def test_the_scope_growth_stop_fires_when_a_loop_only_reviews_its_own_fixes() ->
     assert "SCOPE GROWTH" in warn, warn
     assert "9/0 → 7/7 → 4/4" in warn, warn
     assert "backlog row" in warn, warn
+    # the exit is behaviour, not prose: the WHOLE message is pinned, so a negation, an added or
+    # dropped instruction anywhere in it, or a loosened step fails — kept as a literal here,
+    # never imported from the module
+    assert warn == (
+        "\n⚠️  SCOPE GROWTH — 2 of the last 3 rounds confirmed mostly defects inside text this "
+        "review itself added (confirmed/own-fix: 9/0 → 7/7 → 4/4).\n"
+        "    The artifact's own surface is quiet; you are reviewing your previous fix, and "
+        "correcting prose regenerates the surface you are correcting.\n"
+        "    Exit (term-edit / term-coverage § Scope-growth stop): STOP the hunt — fix the "
+        "window's open defects, route the remaining own-fix work to /fabrik-spec or a backlog "
+        "row with a named destination, re-verify the fixed set alone, and close on a "
+        "`confirmed: 0 · fixed: 0 · unexecuted: 0` round (D-355) — a review never closes on "
+        "a round that confirmed something.\n"
+        "    (Advisory only — nothing is blocked.)"
+    ), warn
+    lane_rows = [{"n": 1, "confirmed": 5, "own_fix": 0}, {"n": 2, "confirmed": 2, "own_fix": 2}]
+    assert cr.scope_growth_warning(lane_rows, lane=True) == (
+        "\n⚠️  SCOPE GROWTH (in-lane) — round 2 confirmed ONLY defects inside text this review "
+        "itself added (confirmed/own-fix: 2/2) under a running /fabrik-task.\n"
+        "    Exit (term-edit / term-coverage § Scope-growth stop, lane variant): STOP the hunt — "
+        "fix the window's open defects, route the remaining own-fix work to /fabrik-spec or a "
+        "backlog row with a named destination, re-verify the fixed set alone, and close on a "
+        "`confirmed: 0 · fixed: 0 · unexecuted: 0` round (D-355); the receipt carries "
+        "`**Lane:** fabrik-task`.\n"
+        "    (Advisory only — nothing is blocked.)"
+    )
 
     # ONE such round is not the signal, and neither is a window that is not yet full
     assert cr.scope_growth_warning(rows[:1]) == ""
@@ -4168,7 +4313,9 @@ def test_a_stated_nonzero_confirmed_never_closes_the_loop(run_dir: Path) -> None
     made `confirmed > findings` a refusal, so this asserts the same rule on a legal row."""
     _start(run_dir)
     _cr(run_dir, "round", "--findings", "4", "--confirmed", "2", "--classes-new", "auth")
-    r = _cr(run_dir, "round", "--findings", "3", "--confirmed", "2", "--classes-swept", "auth")
+    # re-found, not swept clean: a round that confirms while sweeping everything is now REFUSED
+    # (W-93a9d22a) — the claim here is the TERMINAL banner, which a confirmed round never earns
+    r = _cr(run_dir, "round", "--findings", "3", "--confirmed", "2", "--classes-new", "auth")
     assert r.returncode == 0, r.stderr
     assert "TERMINAL" not in r.stdout, r.stdout
     assert _rec(run_dir)["rounds"][-1]["confirmed"] == 2, _rec(run_dir)["rounds"][-1]
@@ -4437,6 +4584,72 @@ def test_a_delta_round_may_confirm_more_than_it_raised(run_dir: Path) -> None:
 # closing delta round: a banner that closes it sends the agent to write a one-`Pass`-row receipt
 # the coverage gate hard-refuses, so the two halves of the same redesign disagreed about whether
 # one clean pass can end a loop. ──────────────────────────────────────────────────────────────
+
+
+def test_a_command_with_no_closing_pass_closes_at_round_one(run_dir: Path) -> None:
+    """fabrik-spec verdict 1790969786.235392 (W-29e3424f): a /fabrik-spec run recorded one quiet
+    round and was told "round 1 is the full pass, never the closing round; run the closing pass —
+    the round-1 seats over their own slices". /fabrik-spec has no closing pass, no slices and no
+    receipt — its convergence is /fabrik-spec-review's. A command in `NO_CLOSING_PASS` closes at a
+    quiet round 1 and no line of its report demands a closing pass; a loop command keeps both."""
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-spec",
+        "--phases",
+        "7",
+        "--terminal",
+        "spec handed to review",
+    )
+    one = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "grounding,panel")
+    assert "TERMINAL VERDICT" in one.stdout, one.stdout
+    assert "NOT TERMINAL" not in one.stdout, one.stdout
+    assert "run the closing pass" not in one.stdout and "round-1 seats" not in one.stdout, (
+        one.stdout
+    )
+    rec = _rec(run_dir)
+    rec["budget_min"], rec["started_epoch"] = 1, time.time() - 3600
+    (run_dir / "s1.json").write_text(json.dumps(rec), encoding="utf-8")
+    over = _cr(run_dir, "round", "--findings", "2", "--classes-new", "grounding")
+    assert "BUDGET" in over.stdout, over.stdout
+    assert "run the closing pass" not in over.stdout, over.stdout
+    loop = run_dir.parent / "loop"
+    loop.mkdir()
+    _cr(loop, "start", "--command", "fabrik-command-improve", "--phases", "5", "--terminal", "x")
+    first = _cr(loop, "round", "--confirmed", "0", "--classes-swept", "logic")
+    assert "round 1 is the full pass" in first.stdout, first.stdout
+    assert "TERMINAL VERDICT" not in first.stdout, first.stdout
+
+
+def test_no_closing_pass_set_matches_the_command_sources() -> None:
+    """`NO_CLOSING_PASS` is DERIVED, never hand-picked, and pinned both ways: a command is in it
+    exactly when its OWN source neither orders a `round` carrying `--classes-swept`, `--confirmed`
+    or `--own-fix` on its own record nor includes `term-coverage`/`term-edit`. A wording test
+    (`closing pass`) put /fabrik-command-improve in ("Round 1, then the round-1 seat re-verifies its
+    own ledger … a quiet round 2") and left /fabrik-plan-after-chat out on a line about the PLAN it
+    emits (both design critiques, W-29e3424f)."""
+    import re as _re
+
+    command_run = _load("cr_no_closing", _SCRIPT)
+    src_dir = Path(__file__).resolve().parents[1] / "commands" / "_sources"
+    derived = set()
+    for p in src_dir.glob("*.md"):  # every source, `design-review.md` included
+        text = p.read_text(encoding="utf-8")
+        own_round = any(
+            _re.search(r"--(?:classes-swept|confirmed|own-fix)\b", ln)
+            and _re.search(r"\bround\b", ln)
+            for ln in text.splitlines()
+        )
+        loop_fragment = _re.search(r"\{\{include:term-(?:coverage|edit)\}\}", text)
+        if not own_round and not loop_fragment:
+            derived.add(p.stem)
+    assert "fabrik-spec" in derived and "fabrik-plan-review" not in derived, derived
+    assert set(command_run.NO_CLOSING_PASS) == derived, (
+        sorted(set(command_run.NO_CLOSING_PASS) - derived),
+        sorted(derived - set(command_run.NO_CLOSING_PASS)),
+    )
+    assert not command_run.NO_CLOSING_PASS & command_run.CONFIRMED_REQUIRED_COMMANDS
 
 
 def test_a_clean_round_one_is_not_terminal_but_round_two_is(run_dir: Path) -> None:
@@ -6105,6 +6318,44 @@ def test_the_paste_guard_covers_every_field_not_just_change() -> None:
     )
     for field in ("confusion", "waste", "filed"):
         assert f"{field} (placeholder)" in missing, missing
+    # every spelling the `filed:` template has had is a placeholder (the D-627 regression: the three-beat paste)
+    for spelling in (
+        "mail id(s) to infra|fleet|intel | none",
+        "mail id(s) to infra|fleet|intel|kaizen | none",
+        "mail id(s) to <infra|fleet|intel|kaizen> | none",
+        "mail id(s) to a beat | none",
+    ):
+        _, missing = cr._parse_usage_feedback(
+            "confusion: none · waste: none · change: none · filed: " + spelling
+        )
+        assert "filed (placeholder)" in missing, (spelling, missing)
+    # a real verdict that MENTIONS the phrase and then says something is never a placeholder (Opus critique)
+    _, missing = cr._parse_usage_feedback(
+        "confusion: mail id(s) to a beat — which beat is kaizen? · waste: mail id(s) to kaizen were filed twice · "
+        "change: lean: mail id(s) to infra should name the hub beat first · filed: none — surfaces exercised: x"
+    )
+    assert missing == [], missing
+    # a FILLED value written in the template's form is a verdict, not a paste (review A-H1/A-H2)
+    _, missing = cr._parse_usage_feedback(
+        "confusion: none · waste: none · change: none · filed: mail id(s) to infra|fleet | 01M4C5VRQE, 01M4C64EDN"
+    )
+    assert missing == [], missing
+    # ... bracketed too: the brackets PAIR, so the regex cannot back off `>` and stop at the prefix (review A-S3)
+    _, missing = cr._parse_usage_feedback(
+        "confusion: none · waste: none · change: none · filed: mail id(s) to <infra|fleet> | 01M4C5VRQE"
+    )
+    assert missing == [], missing
+    assert not cr._FILED_TEMPLATE.match("mail id(s) to a beat > sent"), (
+        "an unpaired `>` is not the template"
+    )
+    # BEHAVIOUR, not only text: the report buckets the same way (review A-S2)
+    report = _load("cfr_axis", _SCRIPT.parent / "command_feedback_report.py")
+    assert report._axis_of("mail id(s) to infra|fleet|intel | none") == "placeholder"
+    assert report._axis_of("lean: mail id(s) to infra should name the hub beat first") == "lean"
+    assert (
+        cr._FILED_TEMPLATE.pattern
+        == _load("cfr_tmpl", _SCRIPT.parent / "command_feedback_report.py")._FILED_TEMPLATE.pattern
+    )
 
 
 def test_the_grammar_phrases_cover_both_spellings_the_system_prints() -> None:
@@ -6407,6 +6658,189 @@ def test_a_round_records_its_slice_ledger_and_a_failing_slice_is_never_terminal(
     assert "TERMINAL VERDICT" in final and "every slice verified" in final, final
 
 
+def _round_slices(run_dir: Path, slices: str | None, *extra: str, confirmed: str = "0"):
+    args = ["round", "--findings", confirmed, "--confirmed", confirmed, *extra]
+    if slices is not None:
+        args += ["--slices", slices]
+    return _cr(run_dir, *args)
+
+
+def _warns(out) -> list[str]:
+    return [ln for ln in out.stderr.splitlines() if ln.startswith("[command_run] ⚠ round --slices")]
+
+
+def test_a_later_sliced_round_echoes_the_ledger_it_expects(run_dir: Path) -> None:
+    """W-2d704438 (kaizen mail 01M58H6DF7): a later pass re-verifies the round-1 seats' own
+    ledgers, and the lead types `--slices` by hand. The round now says, BEFORE it records and on
+    stderr beside the handler's other advisories, the first sliced round's claims, each slice's
+    last stated count and the classes still open — and a ledger restated as it stands warns about
+    nothing."""
+    _start(run_dir)
+    first = _round_slices(run_dir, "A:6/11,B:0/2", "--classes-new", "auth,race", confirmed="5")
+    assert "EXPECTED" not in first.stderr, first.stderr  # round 1 has no ledger to echo
+    out = _round_slices(run_dir, "A:11/11,B:2/2", "--classes-swept", "auth")
+    expected = [ln for ln in out.stderr.splitlines() if ln.startswith("[command_run] EXPECTED")]
+    assert len(expected) == 1, out.stderr
+    assert "round-1 slices: A claims 11 · B claims 2" in expected[0], expected[0]
+    assert "last stated: A 6/11 · B 0/2" in expected[0], expected[0]
+    assert "classes open: auth, race" in expected[0], expected[0]
+    assert _warns(out) == [], out.stderr
+    assert out.stdout.splitlines()[0].startswith("ROUND 2 recorded"), out.stdout  # stdout unchanged
+
+
+def test_a_slice_mismatch_warns_and_still_records(run_dir: Path) -> None:
+    """Each way a later `--slices` can disagree with the slice's LAST stated row is said, and the
+    round is still recorded. The case reproduced on 2026-10-19: candidate counts typed where the
+    ledger belongs (`A:0/3` against `A:6/11`), a slice never stated before, an owed slice left out,
+    and verified falling."""
+    _start(run_dir)
+    _round_slices(run_dir, "A:6/11,B:0/2", confirmed="5")
+    out = _round_slices(run_dir, "A:0/3,C:0/0")
+    assert out.returncode == 0, out.stderr
+    text = "\n".join(_warns(out))
+    assert "A claims shrank 11 → 3 since it was last stated" in text, out.stderr
+    assert "A verified fell 6 → 0" in text, out.stderr
+    assert "C is new — no earlier round stated it" in text, out.stderr
+    assert "B is missing — an omitted slice is open" in text, out.stderr
+    assert len(_warns(out)) == 4, out.stderr
+    assert _rec(run_dir)["rounds"][-1]["slices"][0] == {"name": "A", "verified": 0, "claims": 3}
+
+
+def test_a_changed_ledger_warns_once_never_on_every_later_round(run_dir: Path) -> None:
+    """Both design critiques executed this: against a round-1 baseline, a ledger that legitimately
+    grew (a fix hunk opens a claim, `/fabrik-review` § later passes) or shrank warned on every later
+    round, terminal one included — the warning teaches the lead to ignore it. Against the slice's
+    last stated row, it says the change once; restating the new ledger is silent. A slice first
+    stated in a later round is owed from then on, exactly as `_vanished_slices` owes it."""
+    _start(run_dir)
+    _round_slices(run_dir, "A:6/11,B:0/0", confirmed="5")
+    grew = _round_slices(run_dir, "A:11/12,B:0/1,C:0/2", confirmed="1")
+    assert any("A claims grew 11 → 12" in w for w in _warns(grew)), grew.stderr
+    assert any("C is new" in w for w in _warns(grew)), grew.stderr
+    same = _round_slices(run_dir, "A:12/12,B:1/1,C:2/2")
+    assert _warns(same) == [], same.stderr
+    dropped = _round_slices(run_dir, "A:12/12,B:1/1")
+    assert [w for w in _warns(dropped) if "C is missing" in w], dropped.stderr
+
+
+def test_a_later_round_without_slices_is_told_every_owed_slice(run_dir: Path) -> None:
+    """The dominant omission: a later round that drops `--slices` altogether. The report's
+    missing-slice banner fires only on a quiet round, so a non-quiet one heard nothing at all."""
+    _start(run_dir)
+    _round_slices(run_dir, "A:6/11,B:0/2", confirmed="5")
+    out = _round_slices(run_dir, None, confirmed="1")
+    assert out.returncode == 0, out.stderr
+    assert "[command_run] EXPECTED" in out.stderr, out.stderr
+    assert any("absent — every earlier slice is owed" in w for w in _warns(out)), out.stderr
+
+
+def test_a_first_sliced_round_that_undercounts_confirmed_is_told(run_dir: Path) -> None:
+    """Round 1's own ledger has nothing earlier to be checked against, but its claims must hold
+    every confirmed defect; a total below `--confirmed` is the undercount `_parse_slices` records
+    (measured, so a warning, not a refusal)."""
+    _start(run_dir)
+    out = _round_slices(run_dir, "A:0/3,B:0/1", confirmed="6")
+    assert out.returncode == 0, out.stderr
+    assert [w for w in _warns(out) if "claims total 4 < --confirmed 6" in w], out.stderr
+
+
+def test_a_first_sliced_round_that_holds_every_confirmed_claim_is_silent(tmp_path: Path) -> None:
+    """The other side of the undercount: on a FIRST sliced round (its own record — a second
+    sliced round never reaches this check), a claims total at or above `--confirmed` warns of
+    nothing, and so does an unsliced first round that states `--confirmed`, which records cleanly."""
+    run_dir = tmp_path / "runs"
+    _start(run_dir)
+    ok = _round_slices(run_dir, "A:3/3,B:1/1", confirmed="4")
+    assert ok.returncode == 0 and _warns(ok) == [], ok.stderr
+    bare_dir = tmp_path / "bare"
+    _start(bare_dir)
+    bare = _cr(bare_dir, "round", "--findings", "2", "--confirmed", "1")
+    assert bare.returncode == 0 and "ROUND 1 recorded" in bare.stdout, bare.stderr
+    assert _warns(bare) == [], bare.stderr
+
+
+def test_the_echo_reads_every_earlier_round_and_each_boundary(run_dir: Path) -> None:
+    """The paths the round-1 mutation sweep found unpinned (W-2d704438 review): the EXPECTED line
+    names the FIRST sliced round's claims even after several sliced rounds, lists names sorted,
+    says `classes open: none` when none are; a 0 → N growth and a one-point verified fall are
+    each said, while a verified count restated as it stood is not; and a hand-edited count that no
+    longer reads shows as `?` and is never compared."""
+    _start(run_dir)
+    _round_slices(run_dir, "B:0/2,A:6/11,Z:0/0", confirmed="5")
+    # round 2 moves A's claims (11 → 12), so "round-1 claims" and "last stated" differ
+    _round_slices(run_dir, "B:2/2,A:9/12,Z:0/0", confirmed="1")
+    # a SECOND sliced round never reaches the undercount check, however far below
+    # --confirmed its total (15 < 20) sits
+    out = _round_slices(run_dir, "B:2/2,A:8/12,Z:0/1", confirmed="20")
+    expected = next(ln for ln in out.stderr.splitlines() if "EXPECTED" in ln)
+    assert "round-1 slices: B claims 2 · A claims 11 · Z claims 0" in expected, expected
+    assert "last stated: A 9/12 · B 2/2 · Z 0/0" in expected, expected
+    assert "classes open: none" in expected, expected
+    text = "\n".join(_warns(out))
+    assert "Z claims grew 0 → 1" in text, out.stderr
+    assert "A verified fell 9 → 8" in text, out.stderr
+    assert "A claims" not in text, out.stderr  # 12 restated as it stood
+    assert "claims total" not in text, out.stderr
+    assert "B verified fell" not in text and "B claims" not in text, (
+        out.stderr
+    )  # restated as it stood
+    # a hand-edited count (`_slice_rows` reads it as -1) is shown as `?` and never compared
+    f = run_dir / "s1.json"
+    rec = json.loads(f.read_text(encoding="utf-8"))
+    rec["rounds"][-1]["slices"][0]["claims"] = None
+    f.write_text(json.dumps(rec), encoding="utf-8")
+    edited = _round_slices(run_dir, "B:2/5,A:12/12,Z:1/1", confirmed="0")
+    assert edited.returncode == 0, edited.stderr
+    line = next(ln for ln in edited.stderr.splitlines() if "EXPECTED" in ln)
+    assert "B 2/?" in line, line
+    assert not [w for w in _warns(edited) if "B claims" in w], edited.stderr
+
+
+def test_no_echo_before_a_ledger_or_on_a_refused_round(run_dir: Path) -> None:
+    """Nothing to echo before a ledger exists, and a round refused for another reason prints no
+    expectation: the echo comes after every refusal, so it only ever describes a round that is
+    recorded."""
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "2", "--confirmed", "1")
+    out = _round_slices(run_dir, "A:1/1", confirmed="1")
+    assert "EXPECTED" not in out.stderr and _warns(out) == [], out.stderr
+    refused = _cr(
+        run_dir, "round", "--findings", "0", "--confirmed", "0", "--new", "5", "--slices", "A:0/9"
+    )
+    assert refused.returncode == 2, refused.stderr
+    assert "EXPECTED" not in refused.stderr and _warns(refused) == [], refused.stderr
+    # the last refusal in the handler, `--seats`, comes before the echo too
+    seats = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--seats",
+        "-1",
+        "--slices",
+        "A:0/9",
+    )
+    assert seats.returncode == 2, seats.stderr
+    assert "EXPECTED" not in seats.stderr and _warns(seats) == [], seats.stderr
+    # and so do the `--own-fix` refusals (an own-fix count above the confirmed count)
+    own = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "1",
+        "--confirmed",
+        "0",
+        "--own-fix",
+        "5",
+        "--slices",
+        "A:0/9",
+    )
+    assert own.returncode == 2, own.stderr
+    assert "EXPECTED" not in own.stderr and _warns(own) == [], own.stderr
+
+
 def test_a_malformed_slice_ledger_is_refused(run_dir: Path) -> None:
     _start(run_dir)
     bad = _cr(
@@ -6520,9 +6954,10 @@ def test_a_malformed_stored_slice_row_never_turns_done_into_a_silent_success(run
     rec["rounds"][-1]["slices"] = [{"name": "A"}]
     (run_dir / "s1.json").write_text(json.dumps(rec))
     bare = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e")
-    assert bare.returncode == 1 and "slice A has no claims in its ledger" in bare.stderr, (
-        bare.stderr
-    )
+    assert (
+        bare.returncode == 1
+        and "slice A has an unreadable claim count in its ledger" in bare.stderr
+    ), bare.stderr
 
 
 def test_omitting_slices_after_stating_them_is_not_terminal_and_a_zero_claim_ledger_is_refused(
@@ -6530,8 +6965,8 @@ def test_omitting_slices_after_stating_them_is_not_terminal_and_a_zero_claim_led
 ) -> None:
     """A2 (the cobra of the slice gate): the cheapest way to satisfy "every slice verified" is to
     stop passing `--slices`, or to pass `A:0/0`. A round that omits the ledger after an earlier
-    round stated it is NOT TERMINAL and names the vanished slices; a slice with zero claims is
-    refused."""
+    round stated it is NOT TERMINAL and names the vanished slices; a slice an earlier round stated with claims may never shrink to `0/0`
+    (W-65fb308e)."""
     _start(run_dir)
     _cr(
         run_dir,
@@ -6589,6 +7024,147 @@ def test_omitting_slices_after_stating_them_is_not_terminal_and_a_zero_claim_led
         "A:1/1,A:0/2",
     )
     assert dup.returncode == 2 and "duplicate" in dup.stderr.lower(), dup.stderr
+
+
+def test_a_slice_with_no_claims_restates_as_zero_of_zero_and_reads_clean(run_dir: Path) -> None:
+    """W-65fb308e (site-provisioner 01M4DR9PAB): the review commands restate EVERY round-1 slice
+    each pass, but a slice whose round-1 candidates were all refuted holds no claim — `B:0/0` was
+    refused, the agent dropped B, and a dropped slice reads VANISHED. A never-claimed slice is a
+    clean `0/0`: the round is recorded, B reads verified, and `done` closes on it."""
+    _start(run_dir)
+    first = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "4",
+        "--confirmed",
+        "2",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:0/2,B:0/0",
+    )
+    assert first.returncode == 0, first.stderr
+    quiet = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a",
+        "--slices",
+        "A:2/2,B:0/0",
+    )
+    assert quiet.returncode == 0, quiet.stderr
+    assert "B 0/0 ✓" in quiet.stdout and "TERMINAL VERDICT" in quiet.stdout, quiet.stdout
+    out = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "round 2 confirmed: 0")
+    assert out.returncode == 0, out.stderr
+    assert _rec(run_dir)["state"] != "running"
+
+
+def test_a_slice_that_held_claims_in_any_earlier_round_may_not_return_as_zero(
+    run_dir: Path,
+) -> None:
+    """The `0/0` refusal scans EVERY earlier round, never only the previous one (W-aa53dfc6's
+    lesson): a slice stated with claims in round 1 and omitted in round 2 still cannot come back
+    as `0/0` in round 3."""
+    _start(run_dir)
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "5",
+        "--confirmed",
+        "5",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:1/5,B:0/0",
+    )
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a",
+        "--slices",
+        "B:0/0",
+    )
+    back = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a",
+        "--slices",
+        "A:0/0,B:0/0",
+    )
+    assert back.returncode == 2 and "--slices" in back.stderr and "A" in back.stderr, back.stderr
+    assert len(_rec(run_dir)["rounds"]) == 2, "the refused round must not be recorded"
+
+
+def test_an_unreadable_earlier_claim_count_never_admits_a_zero_slice(run_dir: Path) -> None:
+    """Review pass 1 (A-S1): a slice whose earlier stored count was hand-edited to null read as
+    never-claimed, so a later `0/0` closed it TERMINAL. An unreadable earlier count is HELD."""
+    _start(run_dir)
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "5",
+        "--confirmed",
+        "5",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:1/5",
+    )
+    rec_path = next(p for p in run_dir.glob("*.json") if p.is_file())
+    rec = json.loads(rec_path.read_text(encoding="utf-8"))
+    rec["rounds"][0]["slices"][0]["claims"] = None
+    rec_path.write_text(json.dumps(rec), encoding="utf-8")
+    out = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a",
+        "--slices",
+        "A:0/0",
+    )
+    assert out.returncode == 2 and "--slices" in out.stderr, out.stdout + out.stderr
+    assert "TERMINAL VERDICT" not in out.stdout
+
+
+def test_confirmed_defects_with_an_all_zero_slice_ledger_are_refused(run_dir: Path) -> None:
+    """The cobra `0/0` reopens: a round that CONFIRMS defects yet names every slice `0/0` holds
+    confirmed claims in no ledger — refused, and nothing is recorded."""
+    _start(run_dir)
+    out = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "3",
+        "--confirmed",
+        "2",
+        "--classes-new",
+        "a",
+        "--slices",
+        "A:0/0,B:0/0",
+    )
+    assert out.returncode == 2 and "REFUSED" in out.stderr and "0/0" in out.stderr, out.stderr
+    assert not _rec(run_dir).get("rounds"), "the refused round must not be recorded"
 
 
 def test_a_non_positive_budget_is_refused_not_coerced(run_dir: Path) -> None:
@@ -6711,13 +7287,66 @@ def test_a_slice_omitted_for_several_rounds_stays_vanished_until_restated(run_di
     _cr(run_dir, "round", *quiet, "--slices", "A:2/2")
     out = _cr(run_dir, "round", *quiet, "--slices", "A:2/2").stdout
     assert "NOT TERMINAL" in out and "(B, C)" in out and "TERMINAL VERDICT" not in out, out
+    # W-c8069437: the banner tells the lead HOW — an idle slice is re-stated at its last count in this round
+    assert "needs no seat and no extra round: re-state it at its last" in out, out
     refused = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e")
+    assert "no extra round" in refused.stderr, refused.stderr
     assert refused.returncode == 1 and "missing from the last round's ledger" in refused.stderr, (
         refused.returncode,
         refused.stderr,
     )
     back = _cr(run_dir, "round", *quiet, "--slices", "A:2/2,B:3/3,C:1/1").stdout
     assert "TERMINAL VERDICT" in back and "NOT TERMINAL" not in back, back
+
+
+def test_a_corrupt_round_keeps_its_slot_in_the_trend_series() -> None:
+    """W-1bba6b75: the findings branch of `_trend_series` FILTERED a non-dict round out, so the series was
+    shorter than the rounds and the oscillation window reached across the corrupt round as if it were
+    adjacent — the hole the scope-growth stop closed for its own window (D-252 review round 2, C-1). The
+    slot stays, as None; the advisory never diagnoses a window holding one; the trend prints `?` there."""
+    cr = _load("cr_trend", _SCRIPT)
+    rounds = [
+        {"findings": 9},
+        {"findings": 5},
+        {"findings": 0},
+        "corrupt",
+        {"findings": 5},
+        {"findings": 0},
+    ]
+    series = cr._trend_series(rounds)
+    assert series == [9, 5, 0, None, 5, 0], series
+    # the filtered series [9, 5, 0, 5, 0] DID misfire ("0 → 5 → 0", at "round 5"); the kept slot is silent
+    assert "OSCILLATING" in cr.convergence_warning([9, 5, 0, 5, 0]), "the old misfire this guards"
+    assert cr.convergence_warning(series) == "", cr.convergence_warning(series)
+    assert "OSCILLATING" in cr.convergence_warning([5, 0, 5, 0, 5]), (
+        "the advisory still fires on a clean window"
+    )
+    # the FEEDBACK trend prints `?` in the slot, never `None` and never a shorter arrow
+    line = cr._feedback_line({"command": "fabrik-review", "rounds": rounds}, {}, 10)
+    assert "(9→5→0→?→5→0)" in line, line
+    # the confirmed branch keeps the slot too: a corrupt round no longer vetoes the adopted series
+    adopted = [{"findings": 9, "confirmed": 5}, "corrupt", {"findings": 7, "confirmed": 0}]
+    assert cr._trend_series(adopted) == [5, None, 0], cr._trend_series(adopted)
+    assert cr._trend_label(adopted) == "confirmed counts"
+    assert cr._trend_series(["corrupt"]) == [None] and cr._trend_label(["corrupt"]) == "findings"
+
+
+def test_done_closes_a_record_holding_a_corrupt_round(tmp_path: Path) -> None:
+    """W-1bba6b75 (Fable critique F1): the `done` ledger row read `r.get("findings")` over every
+    round unguarded, so a non-dict round raised, main()'s fail-soft swallowed it at rc 0, and the
+    record stayed `running` for good — the Stop hook blocking every turn, the `?` trend unreachable."""
+    run_dir = tmp_path / "runs"
+    run_dir.mkdir()
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "5")
+    _cr(run_dir, "round", "--findings", "0")
+    f = run_dir / "s1.json"
+    rec = json.loads(f.read_text(encoding="utf-8"))
+    rec["rounds"].insert(1, "corrupt")
+    f.write_text(json.dumps(rec), encoding="utf-8")
+    out = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "x")
+    assert "(5→?→0)" in out.stdout, (out.stdout, out.stderr)
+    assert json.loads(f.read_text(encoding="utf-8"))["state"] == "done", out.stderr
 
 
 def test_an_unrestatable_stored_slice_name_is_never_owed() -> None:
@@ -6847,3 +7476,1330 @@ def test_a_malformed_counter_on_the_record_never_crashes_a_round(
     r = _cr(run_dir, "round", "--findings", "1", "--classes-new", "a")
     assert r.returncode == 0 and "Traceback" not in r.stderr, r.stderr
     assert "ROUND" in r.stdout, r.stdout
+
+
+def test_the_scope_growth_verdicts_close_on_a_confirmed_zero_round():
+    """D-355: neither SCOPE GROWTH verdict tells the agent to close on a round that confirmed
+    something (kaizen 01M4CPWDK0); both name the confirmed-zero close over the fixed set."""
+    cr = _load("command_run_d355", _SCRIPT)
+    ordinary = cr.scope_growth_warning(
+        [
+            {"n": 1, "confirmed": 9, "own_fix": 0},
+            {"n": 2, "confirmed": 7, "own_fix": 7},
+            {"n": 3, "confirmed": 4, "own_fix": 4},
+        ]
+    )
+    lane = cr.scope_growth_warning(
+        [{"n": 1, "confirmed": 9, "own_fix": 0}, {"n": 2, "confirmed": 3, "own_fix": 3}], lane=True
+    )
+    for warn in (ordinary, lane):
+        assert "SCOPE GROWTH" in warn, warn
+        assert "`confirmed: 0 · fixed: 0 · unexecuted: 0` round (D-355)" in warn, warn
+        assert "ORIGINAL surface" not in warn, warn
+
+
+# --- W-24ae7ecf: `surface --add` widens a RUNNING review's own exemption mid-run -------------------
+
+
+def _rec_on_disk(run_dir: Path, sid: str = "s1") -> dict:
+    return json.loads((run_dir / f"{sid}.json").read_text(encoding="utf-8"))
+
+
+def _surface_cr(run_dir: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """`_cr` from a throwaway repository holding `scripts/` and `tests/` directories.
+
+    `start` records the invoking shell's repo and `surface --add` reads a directory against it, so
+    a grader run from pytest's own cwd measures wherever pytest was launched (pass 3: from a
+    non-repository cwd, `scripts` was accepted as a file)."""
+    repo = run_dir.parent / "surface-repo"
+    if not (repo / ".git").exists():
+        for d in ("scripts", "tests"):
+            (repo / d).mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init", "-q", str(repo)], check=True, capture_output=True)
+    return _cr(run_dir, *args, cwd=repo)
+
+
+def _start_review(run_dir: Path, command: str = "fabrik-review-scoped") -> None:
+    r = _surface_cr(
+        run_dir,
+        "start",
+        "--command",
+        command,
+        "--phases",
+        "1",
+        "--surface",
+        "scripts/a.py",
+        "--terminal",
+        "confirmed:0 closing pass",
+    )
+    assert r.returncode == 0, r.stderr
+
+
+def test_surface_add_refuses_every_record_but_a_running_review(run_dir: Path) -> None:
+    """No record, a closed record, a non-review record: rc 1 and the record unchanged — never the
+    warned rc-0 no-op `step` gives a closed record, which reads as success with nothing stored."""
+    r = _surface_cr(run_dir, "surface", "--add", "tests/x.py")
+    assert r.returncode == 1 and "REFUSED" in r.stdout, (r.returncode, r.stdout, r.stderr)
+    _start(run_dir)  # fabrik-probe: not a review
+    before = _rec_on_disk(run_dir)
+    r = _surface_cr(run_dir, "surface", "--add", "tests/x.py")
+    assert r.returncode == 1 and "REFUSED" in r.stdout, (r.returncode, r.stdout)
+    assert _rec_on_disk(run_dir) == before
+    _cr(run_dir, "done", "--command", _PROBE, "--evidence", "x")
+    _start_review(run_dir)
+    _cr(run_dir, "blocked", "--command", "fabrik-review-scoped", "--reason", "x")
+    closed = _rec_on_disk(run_dir)
+    r = _surface_cr(run_dir, "surface", "--add", "tests/x.py")
+    assert r.returncode == 1 and "REFUSED" in r.stdout, (r.returncode, r.stdout)
+    assert _rec_on_disk(run_dir) == closed
+
+
+@pytest.mark.parametrize(
+    "bad",
+    ["", "a b.py", "a.py,b.py", "scripts/", "scripts", ".", "a\\b.py", "../x.py", "/etc/passwd"],
+)
+def test_surface_add_refuses_a_value_that_is_not_one_repo_path(run_dir: Path, bad: str) -> None:
+    """A value the hook's splitter would cut into several tokens would exempt a fragment; a
+    directory exempts nothing (whole-token match); a path outside the repo is no repo file."""
+    _start_review(run_dir)
+    before = _rec_on_disk(run_dir)
+    r = _surface_cr(run_dir, "surface", "--add", bad)
+    assert r.returncode == 1 and "REFUSED" in r.stdout, (bad, r.returncode, r.stdout, r.stderr)
+    assert _rec_on_disk(run_dir) == before, bad
+
+
+def test_surface_add_normalises_as_the_hook_reads_and_never_repeats(run_dir: Path) -> None:
+    _start_review(run_dir)
+    root = _rec_on_disk(run_dir)["repo_root"]
+    for value in (
+        "./tests/x.py",
+        "././tests/x.py",
+        "tests//x.py",
+        "tests/x.py..",
+        "tests/x.py.",
+        f"{root}/tests/x.py",
+        "tests/x.py",
+        "scripts/a.py",
+    ):
+        r = _surface_cr(run_dir, "surface", "--add", value)
+        assert r.returncode == 0, (value, r.stdout, r.stderr)
+    adds = _rec_on_disk(run_dir)["surface_adds"]
+    # one entry: the four spellings of tests/x.py collapse; scripts/a.py is already the surface
+    assert [a["path"] for a in adds] == ["tests/x.py"], adds
+
+
+def test_surface_add_records_a_trace_and_never_writes_surface(run_dir: Path) -> None:
+    """The ledger's `surface` dimension keeps its meaning; the widening is its own field, with
+    the time of each add, so a close or an audit can count what a review widened mid-run."""
+    _start_review(run_dir)
+    r = _surface_cr(run_dir, "surface", "--add", "tests/x.py", "--add", "docs/y.md")
+    assert r.returncode == 0, r.stderr
+    rec = _rec_on_disk(run_dir)
+    assert rec["surface"] == "scripts/a.py", rec["surface"]
+    assert [a["path"] for a in rec["surface_adds"]] == ["tests/x.py", "docs/y.md"]
+    assert all(isinstance(a.get("at"), str) and a["at"] for a in rec["surface_adds"])
+
+
+def test_surface_add_alphabet_is_the_hooks_token_alphabet() -> None:
+    """The writer refuses exactly what the hook's splitter would cut: the two are one alphabet,
+    kept as two copies because the writer cannot import the hook (the REVIEW_FAMILY twin rule)."""
+    cr = _load("command_run_surface_alpha", _SCRIPT)
+    hook = _load("final_gate_stop_surface_alpha", _HOOK)
+    assert hook._SURFACE_SPLIT.pattern == "[^" + cr._SURFACE_PATH.pattern[1:], (
+        hook._SURFACE_SPLIT.pattern,
+        cr._SURFACE_PATH.pattern,
+    )
+
+
+def test_surface_add_refuses_when_the_record_cannot_be_written(run_dir: Path) -> None:
+    """save() never raises; a False is an exemption that does not exist, so it is a refusal, never
+    a printed success (round 1: A-S1 / B-S4 / C-S1)."""
+    _start_review(run_dir)
+    before = _rec_on_disk(run_dir)
+    run_dir.chmod(0o555)
+    try:
+        r = _surface_cr(run_dir, "surface", "--add", "tests/x.py")
+    finally:
+        run_dir.chmod(0o755)
+    assert r.returncode == 1 and "could not be written" in r.stdout, (
+        r.returncode,
+        r.stdout,
+        r.stderr,
+    )
+    assert _rec_on_disk(run_dir) == before
+
+
+def test_surface_add_resolves_an_absolute_path_through_a_symlinked_root(tmp_path: Path) -> None:
+    cr = _load("command_run_surface_symlink", _SCRIPT)
+    real = tmp_path / "real"
+    (real / "tests").mkdir(parents=True)
+    alias = tmp_path / "alias"
+    alias.symlink_to(real)
+    assert cr._surface_path(f"{alias}/tests/x.py", str(real)) == ("tests/x.py", "")
+    assert cr._surface_path(f"{real}/tests/x.py", str(alias)) == ("tests/x.py", "")
+
+
+def test_surface_add_skips_only_what_the_hook_already_exempts(run_dir: Path) -> None:
+    """The dedup asks "does the surface already exempt this path?" with the HOOK'S rule: a surface
+    token `././tests/x.py` reads as `./tests/x.py` there, which matches nothing, so the add is kept."""
+    r = _surface_cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-review-scoped",
+        "--phases",
+        "1",
+        "--surface",
+        "././tests/x.py",
+        "--terminal",
+        "confirmed:0 closing pass",
+    )
+    assert r.returncode == 0, r.stderr
+    assert _surface_cr(run_dir, "surface", "--add", "tests/x.py").returncode == 0
+    assert [a["path"] for a in _rec_on_disk(run_dir)["surface_adds"]] == ["tests/x.py"]
+
+
+def test_surface_add_refuses_a_directory_even_with_no_repo_root(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Round 2: an empty repo_root (a record started outside a repository) short-circuited the
+    directory check, so a real directory was accepted as a file."""
+    cr = _load("command_run_surface_noroot", _SCRIPT)
+    (tmp_path / "scripts").mkdir()
+    monkeypatch.chdir(tmp_path)
+    assert cr._surface_path("scripts", "") == ("", "is a directory, not a file")
+    assert cr._surface_path("scripts/x.py", "") == ("scripts/x.py", "")
+
+
+# --- W-28f260c3: a run closed at the quota wall is resumed, not restarted -----------------
+#
+# The wall text (quota_stop.py `_reason`) tells a held session to close its run record; the
+# session's next `start` then overwrote it, so the successor lost the round and class ledgers,
+# the design, the SIZE declaration and the start clock: its quiet round read as "round 1 is the
+# full pass" and `done --commit` refused every pre-wall commit. `blocked --wall` keeps a JSON
+# seed; `start --resume-from <seed>` carries the run forward with the ORIGINAL clock kept
+# beside the new sitting's (origin_epoch + gap_s), never as the record's own start.
+
+_WALL_FB = "confusion: none · waste: none · change: none · filed: none — harness setup, wall probe"
+_GAP_S = 10 * 3600  # an overnight wall
+
+
+def _age_record(path: Path, seconds: int) -> None:
+    """Move a record's whole clock `seconds` into the past (started_epoch, updated_ts, phase marks)."""
+    rec = json.loads(path.read_text(encoding="utf-8"))
+    for key in ("started_epoch", "updated_ts"):
+        if isinstance(rec.get(key), (int, float)):
+            rec[key] = rec[key] - seconds
+    for m in rec.get("phase_marks") or []:
+        for key in ("started", "ended"):
+            if isinstance(m.get(key), (int, float)):
+                m[key] -= seconds
+    path.write_text(json.dumps(rec), encoding="utf-8")
+
+
+def _wall_block(run_dir: Path, command: str = _PROBE, sid: str = "s1") -> Path:
+    out = _cr(run_dir, "blocked", "--command", command, "--wall", "--reason", "quota wall", sid=sid)
+    assert out.returncode == 0, out.stdout + out.stderr
+    m = re.search(r"--resume-from (\S+)", out.stdout)
+    assert m, out.stdout
+    return Path(m.group(1))
+
+
+def test_wall_blocked_keeps_a_resume_seed_and_names_the_reopen(run_dir: Path) -> None:
+    """Behaviour 1: `blocked --wall` marks the record, keeps a seed (the closed record minus `stack`,
+    plus `stack_commands`) under <state>/seeds/, and prints the reopen order; the hook's own phrase
+    is the regex fallback; a non-wall `blocked` keeps none, a broad quota-shaped reason without the
+    flag gets a stderr NOTE, and a nested wall-block names the parent and the order."""
+    _start(run_dir)
+    _cr(
+        run_dir,
+        "round",
+        "--seats",
+        "3",
+        "--findings",
+        "5",
+        "--confirmed",
+        "3",
+        "--classes-new",
+        "a,b",
+    )
+    out = _cr(run_dir, "blocked", "--command", _PROBE, "--wall", "--reason", "quota wall")
+    assert out.returncode == 0, out.stdout + out.stderr
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    assert rec["state"] == "blocked" and rec["wall"] is True
+    seed = Path(rec["resume_seed"])
+    assert seed.parent == run_dir.resolve() / "seeds" and seed.suffix == ".json", seed
+    data = json.loads(seed.read_text(encoding="utf-8"))
+    assert data["state"] == "blocked" and data["wall"] is True
+    assert len(data["rounds"]) == 1 and sorted(data["classes"]) == ["a", "b"]
+    assert "stack" not in data and data["stack_commands"] == []
+    assert f"start --command {_PROBE} --phases 5 --resume-from {seed}" in out.stdout, out.stdout
+    # the hook's own phrase, without the flag, still keeps a seed
+    _start(run_dir, sid="s2")
+    _cr(
+        run_dir,
+        "blocked",
+        "--command",
+        _PROBE,
+        "--reason",
+        "FLEET QUOTA EXHAUSTED — hold",
+        sid="s2",
+    )
+    assert json.loads((run_dir / "s2.json").read_text(encoding="utf-8")).get("wall") is True
+    # a quota-shaped reason WITHOUT the flag: no seed, a NOTE naming the flag
+    _start(run_dir, sid="s3")
+    out3 = _cr(
+        run_dir,
+        "blocked",
+        "--command",
+        _PROBE,
+        "--reason",
+        "BLOCKED: quota RED — searched: x",
+        sid="s3",
+    )
+    r3 = json.loads((run_dir / "s3.json").read_text(encoding="utf-8"))
+    assert "wall" not in r3 and "resume_seed" not in r3
+    assert "--wall" in out3.stderr, out3.stderr
+    # the NOTE is a conditional: a vendor quota or a wall-mounted sensor in a legitimate reason
+    # also matches the broad hint, and the line must then read as ignorable (review code-S3)
+    assert "IF this close is the fleet quota wall" in out3.stderr, out3.stderr
+    assert "ignore this line" in out3.stderr, out3.stderr
+    # an ordinary BLOCKED case: nothing kept, nothing said — spelled the way agents spell it: a
+    # lowercase "red" is a test colour, never the RED band (the band name is upper-case only)
+    _start(run_dir, sid="s4")
+    out4 = _cr(
+        run_dir,
+        "blocked",
+        "--command",
+        _PROBE,
+        "--reason",
+        "3 same-test failures — tests/test_x.py::t red thrice",
+        sid="s4",
+    )
+    r4 = json.loads((run_dir / "s4.json").read_text(encoding="utf-8"))
+    assert "wall" not in r4 and "resume_seed" not in r4 and "--wall" not in out4.stderr
+    # `--wall` belongs to `blocked` alone — argparse refuses it on `done` (review tests-docs-S6)
+    _start(run_dir, sid="s6")
+    out6 = _cr(
+        run_dir,
+        "done",
+        "--command",
+        _PROBE,
+        "--wall",
+        "--evidence",
+        "e",
+        "--feedback",
+        _WALL_FB,
+        sid="s6",
+    )
+    assert out6.returncode == 2 and "unrecognized arguments: --wall" in out6.stderr, out6.stderr
+    # nested: the child's wall close names the live parent and the resume order
+    _start(run_dir, sid="s5")
+    _cr(run_dir, "start", "--command", "fabrik-child", "--phases", "1", "--terminal", "t", sid="s5")
+    out5 = _cr(
+        run_dir,
+        "blocked",
+        "--command",
+        "fabrik-child",
+        "--wall",
+        "--reason",
+        "quota wall",
+        sid="s5",
+    )
+    assert out5.returncode == 0, out5.stdout + out5.stderr
+    assert (
+        f"the parent /{_PROBE} is live" in out5.stdout and "resume the PARENT first" in out5.stdout
+    )
+    child_seed = Path(re.search(r"--resume-from (\S+)", out5.stdout).group(1))
+    assert json.loads(child_seed.read_text(encoding="utf-8"))["stack_commands"] == [_PROBE]
+
+
+def _seeded_run(run_dir: Path, sid: str = "s1") -> Path:
+    """A probe run with a budget, a phase, a round, hand-set carried fields, blocked at the wall
+    ten hours ago; returns the seed path (aged like the record)."""
+    _cr(
+        run_dir,
+        "start",
+        "--command",
+        _PROBE,
+        "--phases",
+        "5",
+        "--terminal",
+        "t",
+        "--budget",
+        "30",
+        "--surface",
+        "S",
+        sid=sid,
+    )
+    _cr(run_dir, "step", "--phase", "2", "--title", "two", sid=sid)
+    _cr(
+        run_dir,
+        "round",
+        "--seats",
+        "3",
+        "--findings",
+        "5",
+        "--confirmed",
+        "3",
+        "--classes-new",
+        "a,b",
+        sid=sid,
+    )
+    f = run_dir / f"{sid}.json"
+    rec = json.loads(f.read_text(encoding="utf-8"))
+    rec["design"] = "PROBLEM: d\nAPPROACH: `a.py`\n"
+    rec["design_amends"] = ["x.py"]
+    rec["surface_adds"] = ["a.py"]
+    rec["waived_reviews"] = [{"phase": 1, "reason": "w", "at": "t"}]
+    rec["phase_marks"] = [{"phase": 2, "appetite": 60, "started": time.time()}]
+    f.write_text(json.dumps(rec), encoding="utf-8")
+    seed = _wall_block(run_dir, sid=sid)
+    _age_record(seed, _GAP_S)
+    _age_record(f, _GAP_S)
+    return seed
+
+
+def test_start_resume_from_carries_the_run_and_the_closing_pass_is_not_round_one(
+    run_dir: Path,
+) -> None:
+    """Behaviour 2: the resumed record carries the ledgers, the design, the declaration-shaped
+    fields and the phase, keeps ITS OWN start clock (budget and appetite count active time, so a
+    ten-hour gap prints no OVER), carries the original clock as origin_epoch + gap_s, drops the
+    stale dispatch stamp, and the next quiet round is round 2 — the TERMINAL verdict, never the
+    "round 1 is the full pass" refusal (defect 1 of W-28f260c3)."""
+    seed = _seeded_run(run_dir)
+    seed_data = json.loads(seed.read_text(encoding="utf-8"))
+    out = _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--resume-from", str(seed))
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert "RESUMED: from" in out.stdout and "round 1" in out.stdout, out.stdout
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    assert rec["state"] == "running" and rec["command"] == _PROBE
+    assert len(rec["rounds"]) == 1 and sorted(rec["classes"]) == ["a", "b"]
+    assert rec["phase"] == 2 and rec["phase_title"] == "two" and rec["terminal"] == "t"
+    assert rec["surface"] == "S" and rec["budget_min"] == 30
+    assert rec["design"].startswith("PROBLEM") and rec["design_amends"] == ["x.py"]
+    assert rec["surface_adds"] == ["a.py"] and rec["waived_reviews"][0]["reason"] == "w"
+    # the clocks: this sitting's start is NOW; the original is carried beside it
+    assert rec["started_epoch"] > time.time() - 120
+    assert rec["origin_epoch"] == seed_data["started_epoch"]
+    assert rec["origin_started_at"] == seed_data["started_at"]
+    assert rec["gap_s"] >= _GAP_S - 120
+    assert rec["resumed_from"]["seed"] == str(seed) and rec["resumed_from"]["session_id"] == "s1"
+    assert "dispatch" not in rec
+    # the open phase mark ended at the wall; a fresh one runs from the resume
+    marks = rec["phase_marks"]
+    assert marks[0]["ended"] == seed_data["updated_ts"] and marks[-1]["phase"] == 2
+    assert marks[-1]["started"] > time.time() - 120 and marks[-1]["appetite"] == 60
+    line = _cr(run_dir, "line").stdout
+    assert "round 1" in line and "OVER" not in line and "past 2×" not in line, line
+    # the closing pass is round 2 — terminal, not "the full pass"
+    out2 = _cr(
+        run_dir,
+        "round",
+        "--seats",
+        "3",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a,b",
+    )
+    assert "TERMINAL VERDICT" in out2.stdout, out2.stdout
+    assert "round 1 is the full pass" not in out2.stdout
+    assert len(json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))["rounds"]) == 2
+
+
+def test_start_resume_from_refuses_a_seed_that_is_not_a_wall_block(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Behaviour 3: every bad seed shape is REFUSED with no record opened — a missing or oversized
+    file, a seed still `running`, one without the wall mark, another command's, a resume beside a
+    fresh declaration, a child seed with no live parent, a parent seed under a live run. A
+    `--phases` mismatch is a NOTE and a differing `--terminal` becomes an amend, never a refusal."""
+    cr = _load("command_run_resume_refusals", _SCRIPT)
+
+    def _try(seed: Path, *extra: str, sid: str = "r1") -> subprocess.CompletedProcess[str]:
+        return _cr(
+            run_dir,
+            "start",
+            "--command",
+            _PROBE,
+            "--phases",
+            "5",
+            "--resume-from",
+            str(seed),
+            *extra,
+            sid=sid,
+        )
+
+    missing = tmp_path / "nope.json"
+    r = _try(missing)
+    assert r.returncode == 1 and "REFUSED" in r.stdout and "--resume-from" in r.stdout, r.stdout
+    assert not (run_dir / "r1.json").exists(), "a refused start opens no record"
+    big = tmp_path / "big.json"
+    big.write_bytes(b"{" + b" " * (cr._RESUME_READ_CAP + 1) + b"}")
+    r = _try(big)
+    assert r.returncode == 1 and "REFUSED" in r.stdout and "seed cap" in r.stdout, r.stdout
+    base = {
+        "state": "blocked",
+        "wall": True,
+        "command": _PROBE,
+        "rounds": [],
+        "classes": {},
+        "started_at": "2026-10-13T10:00:00+0300",
+        "started_epoch": time.time() - 3600,
+        "updated_ts": int(time.time()) - 1800,
+        "phases": 5,
+        "phase": 1,
+        "terminal": "t",
+        "stack_commands": [],
+    }
+    for name, patch, needle in (
+        ("running", {"state": "running"}, "blocked"),
+        ("nowall", {"wall": False}, "wall"),
+        ("other", {"command": "fabrik-other"}, "fabrik-other"),
+    ):
+        p = tmp_path / f"{name}.json"
+        p.write_text(json.dumps({**base, **patch}), encoding="utf-8")
+        r = _try(p)
+        assert r.returncode == 1 and needle in r.stdout, (name, r.stdout)
+        assert not (run_dir / "r1.json").exists()
+    good = tmp_path / "good.json"
+    good.write_text(json.dumps(base), encoding="utf-8")
+    r = _try(good, "--declare", "decision=yes")
+    assert r.returncode == 1 and "carried" in r.stdout, r.stdout
+    # a child seed with no live parent: resume the parent first
+    child = tmp_path / "child.json"
+    child.write_text(
+        json.dumps({**base, "command": "fabrik-child", "stack_commands": [_PROBE]}),
+        encoding="utf-8",
+    )
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-child",
+        "--phases",
+        "1",
+        "--resume-from",
+        str(child),
+        sid="r1",
+    )
+    assert r.returncode == 1 and "parent" in r.stdout, r.stdout
+    # a parent seed under a live run: refused (the live run would be parked under its own parent)
+    _start(run_dir, sid="r2")
+    r = _try(good, sid="r2")
+    assert r.returncode == 1 and "live" in r.stdout, r.stdout
+    assert json.loads((run_dir / "r2.json").read_text(encoding="utf-8"))["state"] == "running"
+    # the parent resumed first, then the child nests under it as a normal start would
+    r = _try(good, sid="r3")
+    assert r.returncode == 0, r.stdout + r.stderr
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-child",
+        "--phases",
+        "1",
+        "--resume-from",
+        str(child),
+        sid="r3",
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    rec = json.loads((run_dir / "r3.json").read_text(encoding="utf-8"))
+    assert rec["command"] == "fabrik-child" and rec["stack"][-1]["command"] == _PROBE
+    # phases mismatch → NOTE; a differing terminal → an amend, the seed's terminal kept as the original
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        _PROBE,
+        "--phases",
+        "9",
+        "--terminal",
+        "new words",
+        "--resume-from",
+        str(good),
+        sid="r4",
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "phases" in r.stderr
+    rec4 = json.loads((run_dir / "r4.json").read_text(encoding="utf-8"))
+    assert (
+        rec4["phases"] == 5
+        and rec4["terminal"] == "new words"
+        and rec4["terminal_amends"][-1] == "t"
+    )
+
+
+def _wall_repo(tmp_path: Path) -> tuple[Path, dict[str, str]]:
+    """A lane-v1 git repo with one tracked declared file, and the hub env its SIZE gate reads."""
+    r = tmp_path / "repo"
+    (r / "scripts").mkdir(parents=True)
+    (r / ".fabrik").mkdir()
+    (r / "scripts" / "plain.py").write_text("x = 1\n", encoding="utf-8")
+    (r / ".fabrik" / "synced.lock").write_text("[]\n", encoding="utf-8")
+    (r / ".fabrik" / "lane.json").write_text('{"version": 1}\n', encoding="utf-8")
+    git = ["git", "-c", "user.email=t@t", "-c", "user.name=t"]
+    subprocess.run(["git", "init", "-q"], cwd=r, check=True, timeout=15)
+    subprocess.run(["git", "add", "-A"], cwd=r, check=True, timeout=15)
+    subprocess.run([*git, "commit", "-qm", "base"], cwd=r, check=True, timeout=15)
+    hub = tmp_path / "hub"
+    hub.mkdir()
+    (hub / ".pre-commit-config.yaml").write_text(
+        "repos:\n  - repo: local\n    hooks:\n      - id: governance-sync\n        name: sync\n"
+        "        entry: true\n        language: system\n        stages: [post-commit]\n"
+        "        files: '^never/match/'\n        pass_filenames: false\n",
+        encoding="utf-8",
+    )
+    return r, {"FABRIK_HUB_ROOT": str(hub)}
+
+
+def test_resumed_run_binds_a_pre_wall_commit(run_dir: Path, tmp_path: Path) -> None:
+    """Behaviour 4 (defect 2 of W-28f260c3), end to end: a commit made after the ORIGINAL start and
+    before the wall is this run's commit on the resumed record — `done --commit` accepts it where
+    the overwritten successor refused it as "not this run's commit"."""
+    repo, env = _wall_repo(tmp_path)
+    decl = "decision=yes,heavy=no,mechanism=no,oneway=no,tradeoffs=no,consumers=internal"
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-task",
+        "--phases",
+        "5",
+        "--terminal",
+        "t",
+        "--file",
+        "scripts/plain.py",
+        "--declare",
+        decl,
+        cwd=repo,
+        extra_env=env,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    time.sleep(1.1)  # the commit binding floors to whole seconds
+    (repo / "scripts" / "plain.py").write_text("x = 2\n", encoding="utf-8")
+    git = ["git", "-c", "user.email=t@t", "-c", "user.name=t"]
+    subprocess.run([*git, "commit", "-qam", "the change"], cwd=repo, check=True, timeout=15)
+    sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, timeout=15
+    ).stdout.strip()
+    seed = _wall_block(run_dir, command="fabrik-task")
+    # the gap: age the seed and the record so a fresh start would sit AFTER the commit
+    _age_record(seed, 60)
+    _age_record(run_dir / "s1.json", 60)
+    time.sleep(1.1)
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-task",
+        "--phases",
+        "5",
+        "--resume-from",
+        str(seed),
+        cwd=repo,
+        extra_env=env,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "RECORD:" in r.stdout, "a /fabrik-task resume reprints the scratch key"
+    r = _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-task",
+        "--commit",
+        sha,
+        "--evidence",
+        "e",
+        "--feedback",
+        _WALL_FB,
+        cwd=repo,
+        extra_env=env,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "not this run's commit" not in r.stdout and "DONE /fabrik-task" in r.stdout
+
+
+def test_resumed_close_row_names_resumed_from_and_the_gap(run_dir: Path) -> None:
+    """Behaviour 5: the wall row carries `wall: quota`; the resumed run's row carries resumed_from,
+    gap_s, rounds_before_resume and THIS sitting's wall_s (the pre-wall sitting is on the wall
+    row, never counted twice), and the close prints the gap NOTE."""
+    seed = _seeded_run(run_dir)
+    ledger = run_dir.parent / "command-feedback.jsonl"
+    rows = [json.loads(ln) for ln in ledger.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    wall_row = rows[-1]
+    assert wall_row["command"] == _PROBE and wall_row.get("wall") == "quota", wall_row
+    r = _cr(run_dir, "start", "--command", _PROBE, "--phases", "5", "--resume-from", str(seed))
+    assert r.returncode == 0, r.stdout + r.stderr
+    _cr(
+        run_dir,
+        "round",
+        "--seats",
+        "3",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "a,b",
+    )
+    out = _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e", "--feedback", _WALL_FB)
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert "NOTE — resumed run" in out.stdout + out.stderr, out.stdout + out.stderr
+    rows = [json.loads(ln) for ln in ledger.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    row = rows[-1]
+    assert row["resumed_from"] and row["resumed_from"]["session_id"] == "s1", row
+    assert row["gap_s"] >= _GAP_S - 120 and row["rounds_before_resume"] == 1 and row["rounds"] == 2
+    assert row["wall_s"] < 600, row  # this sitting only — the gap is not wall-clock
+    # the run_close EVENTS carry the pair as scalars under their own names — `wall` on the wall
+    # close, `resumed_from_start` on the resumed one; `resumed_from` (the dict) stays on the record
+    # and the ledger row (review tests-docs-S1: one name, two shapes across two streams)
+    closes = [e for e in _events(run_dir, "s1") if e.get("event") == "run_close"]
+    assert closes[0]["wall"] == "quota" and closes[0]["resumed_from_start"] == "", closes[0]
+    assert (
+        closes[-1]["wall"] == ""
+        and closes[-1]["resumed_from_start"] == row["resumed_from"]["started_at"]
+    ), closes[-1]
+    assert "resumed_from" not in closes[-1], closes[-1]
+
+
+def test_wall_blocked_warns_and_proceeds_when_the_seed_cannot_be_kept(run_dir: Path) -> None:
+    """The fail direction of the wall close (review tests-docs-S3): when `<state>/seeds/` cannot be
+    written the close WARNS on stderr and PROCEEDS — at the wall every tool is held, and a refused
+    close would leave the record `running` with the Stop hook blocking every turn after the lift —
+    and the record file itself is the seed the reopen order names and `start --resume-from` accepts."""
+    _start(run_dir, sid="s7")
+    (run_dir / "seeds").write_text("not a directory", encoding="utf-8")  # mkdir → FileExistsError
+    out = _cr(run_dir, "blocked", "--command", _PROBE, "--wall", "--reason", "quota wall", sid="s7")
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert "WARNING — the quota-wall seed could not be kept" in out.stderr, out.stderr
+    rec_path = run_dir / "s7.json"
+    assert f"--resume-from {rec_path}" in out.stdout, out.stdout
+    rec = json.loads(rec_path.read_text(encoding="utf-8"))
+    assert rec["state"] == "blocked" and rec["wall"] is True and "resume_seed" not in rec, rec
+    (run_dir / "seeds").unlink()
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        _PROBE,
+        "--phases",
+        "5",
+        "--resume-from",
+        str(rec_path),
+        sid="s8",
+    )
+    assert r.returncode == 0 and "RESUMED: from" in r.stdout, r.stdout + r.stderr
+    assert (
+        json.loads((run_dir / "s8.json").read_text(encoding="utf-8"))["resumed_from"]["session_id"]
+        == "s7"
+    )
+
+
+def test_since_label_names_the_origin_of_a_resumed_run() -> None:
+    """Review code-S1: the phase-review refusal's human cutoff and the gate it describes
+    (`_phase_review_exists(since=origin_epoch or started_epoch)`) read the SAME clock — a resumed
+    run's label names the pre-wall origin, never this sitting's start two hours later."""
+    cr = _load("command_run_since_label", _SCRIPT)
+    now = time.time()
+    origin, sitting = now - 7200, now - 60
+    label = cr._since_label({"origin_epoch": origin, "started_epoch": sitting})
+    assert time.strftime("%H:%M:%S", time.localtime(origin)) in label, label
+    assert time.strftime("%H:%M:%S", time.localtime(sitting)) not in label, label
+    assert cr._since_label({"started_epoch": sitting}).endswith(
+        f"({time.strftime('%Y-%m-%d %H:%M:%S %Z', time.localtime(sitting))})"
+    )
+    assert cr._since_label({}) == ""
+
+
+def test_resumed_task_appetite_counts_active_time_not_the_gap(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Behaviour 7: a lane-v2 /fabrik-task resumed after a ten-hour wall reads its appetite from
+    ACTIVE time — the pinned line shows elapsed 0/240, never the past-2× UPGRADE order — because
+    `_effective_start` shifts the carried origin by the gap."""
+    cr = _load("command_run_effective_start", _SCRIPT)
+    seed = tmp_path / "task.json"
+    now = time.time()
+    seed.write_text(
+        json.dumps(
+            {
+                "state": "blocked",
+                "wall": True,
+                "command": "fabrik-task",
+                "rounds": [],
+                "classes": {},
+                "started_at": "2026-10-13T08:00:00+0300",
+                "started_epoch": now - _GAP_S - 600,
+                "updated_ts": int(now) - _GAP_S,
+                "phases": 5,
+                "phase": 3,
+                "terminal": "t",
+                "stack_commands": [],
+                "declared": {"gate": 2, "appetite": 240, "review": "scoped", "files": ["a.py"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-task",
+        "--phases",
+        "5",
+        "--resume-from",
+        str(seed),
+        cwd=tmp_path,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    rec = json.loads((run_dir / "s1.json").read_text(encoding="utf-8"))
+    assert rec["declared"]["appetite"] == 240 and rec["gap_s"] >= _GAP_S - 120
+    # the helper: origin shifted by the gap ≈ ten minutes of active time
+    eff = cr._effective_start(rec)
+    # the seed's updated_ts is floored to whole seconds, so the gap can read up to a second long
+    assert -2 <= (now - eff) - 600 < 120, (eff, now)
+    line = _cr(run_dir, "line").stdout
+    # ten minutes of active time, floored to whole minutes (the gap's second-rounding can shave one)
+    assert re.search(r"elapsed (9|10|11)/240", line), line
+    assert "past 2×" not in line and "UPGRADE" not in line
+
+
+# --- W-bdcff87a: a closed review's NAMED surface outlives the record that held it -----------------
+#
+# A nested review's surface lived only on its own record, which the pop folds into `nested` and the
+# session's next top-level `start` drops; and a nested review never stamps `first_review_reach`. So
+# an edit made before the session's first run, reviewed only by nested reviews, stayed UNREVIEWED
+# SPONTANEOUS WORK forever (site-provisioner 01M49X4BZT, 01M4AH24H7). Each review-family `done` now
+# records `{surface, adds, closed}` in the session-durable `reviewed_surfaces` list.
+
+
+def _start_cmd(run_dir: Path, command: str, sid: str, *extra: str) -> None:
+    _cr(run_dir, "start", "--command", command, "--phases", "1", "--terminal", "t", *extra, sid=sid)
+
+
+def test_only_a_done_review_records_its_surface(run_dir: Path) -> None:
+    sid = "rs-done"
+    _start_cmd(run_dir, "fabrik-review-scoped", sid, "--surface", "uncommitted: api/early.py")
+    _cr(
+        run_dir,
+        "done",
+        "--command",
+        "fabrik-review-scoped",
+        "--evidence",
+        "e",
+        "--surface",
+        "uncommitted: api/late.py",
+        sid=sid,
+    )
+    got = _rec(run_dir, sid).get("reviewed_surfaces")
+    assert isinstance(got, list) and len(got) == 1, got
+    assert got[0]["surface"] == "uncommitted: api/late.py", (
+        "a late `done --surface` is the one recorded"
+    )
+    assert isinstance(got[0]["closed"], int) and got[0]["closed"] > 0, got
+    _start_cmd(run_dir, "fabrik-review-scoped", sid, "--surface", "api/blocked.py")
+    _cr(
+        run_dir,
+        "blocked",
+        "--command",
+        "fabrik-review-scoped",
+        "--reason",
+        "missing infra",
+        sid=sid,
+    )
+    _start_cmd(run_dir, _PROBE, sid, "--surface", "api/probe.py")
+    _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e", sid=sid)
+    got = _rec(run_dir, sid).get("reviewed_surfaces")
+    assert [e["surface"] for e in got] == ["uncommitted: api/late.py"], (
+        "a blocked review and a non-review command record nothing"
+    )
+
+
+def test_reviewed_surfaces_carry_across_start_and_join_at_pop(run_dir: Path) -> None:
+    sid = "rs-carry"
+    _start_cmd(run_dir, "fabrik-review-scoped", sid, "--surface", "api/w.py")
+    _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
+    _start_cmd(run_dir, _PROBE, sid)
+    assert [e["surface"] for e in _rec(run_dir, sid)["reviewed_surfaces"]] == ["api/w.py"]
+    _start_cmd(run_dir, "fabrik-review-scoped", sid, "--surface", "api/x.py")
+    assert _rec(run_dir, sid).get("reviewed_surfaces") == [], (
+        "a nested child starts empty — inheriting the caller's list would double it at the pop"
+    )
+    _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
+    parent = _rec(run_dir, sid)
+    assert parent["command"] == _PROBE
+    assert [e["surface"] for e in parent["reviewed_surfaces"]] == ["api/w.py", "api/x.py"], parent
+    _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e", sid=sid)
+    _start_cmd(run_dir, _PROBE, sid)
+    after = _rec(run_dir, sid)
+    assert "nested" not in after, "the fixture's premise: `nested` is dropped by the next start"
+    assert [e["surface"] for e in after["reviewed_surfaces"]] == ["api/w.py", "api/x.py"], (
+        "carried across the next top-level start, each once"
+    )
+
+
+def test_a_nested_review_done_records_its_surface_for_the_parent(run_dir: Path) -> None:
+    """End to end, the reported shape: an edit before any run, every review nested, the hook asked."""
+    import importlib.util as _u
+
+    spec = _u.spec_from_file_location("fgs_rs", _HOOK)
+    fgs = _u.module_from_spec(spec)
+    spec.loader.exec_module(fgs)
+    sid = "rs-e2e"
+    edit = int(time.time()) - 5
+    _start_cmd(run_dir, "fabrik-execute-plan", sid)
+    _start_cmd(run_dir, "fabrik-review-scoped", sid, "--surface", "uncommitted: api/x.py")
+    _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
+    _cr(run_dir, "done", "--command", "fabrik-execute-plan", "--evidence", "e", sid=sid)
+    rec = _rec(run_dir, sid)
+    assert rec.get("first_review_reach") is None, "the premise: a nested review stamps no reach"
+    assert fgs._unreviewed_spontaneous_files(rec, {"api/x.py": edit}, edit - 600) == []
+    assert fgs._unreviewed_spontaneous_files(rec, {"api/y.py": edit}, edit - 600) == ["api/y.py"], (
+        "a path the review did not name stays unreviewed"
+    )
+
+
+def test_a_corrupt_reviewed_surfaces_value_never_wedges_a_close_or_a_start(run_dir: Path) -> None:
+    """Round 1, C4: a non-list `reviewed_surfaces` raised inside `done`, which swallowed it and left
+    the record `running` — the wedge the Stop hook then blocks on — and the same inside `start`."""
+    sid = "rs-corrupt"
+    for bad in (5, True, "x", {"closed": 1}):
+        _start_cmd(run_dir, "fabrik-review-scoped", sid)
+        f = run_dir / f"{sid}.json"
+        r = json.loads(f.read_text(encoding="utf-8"))
+        r["reviewed_surfaces"] = bad
+        f.write_text(json.dumps(r), encoding="utf-8")
+        _cr(run_dir, "done", "--command", "fabrik-review-scoped", "--evidence", "e", sid=sid)
+        got = _rec(run_dir, sid)
+        assert got["state"] == "done", (bad, got.get("state"))
+        assert isinstance(got["reviewed_surfaces"], list) and len(got["reviewed_surfaces"]) == 1, (
+            bad
+        )
+        r = json.loads(f.read_text(encoding="utf-8"))
+        r["reviewed_surfaces"] = bad
+        f.write_text(json.dumps(r), encoding="utf-8")
+        _start_cmd(run_dir, _PROBE, sid)
+        assert _rec(run_dir, sid)["command"] == _PROBE, ("start opened no record", bad)
+        _cr(run_dir, "done", "--command", _PROBE, "--evidence", "e", sid=sid)
+
+
+# ── W-93a9d22a: `round` refuses the two contradictions it can see ───────────────────────────────
+# (a) confirmed defects with no class left open; (b) a full close while stamped seats are in flight.
+
+
+def _seat_transcript(d: Path, *lines: dict) -> Path:
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / "t.jsonl"
+    p.write_text("".join(json.dumps(ln) + "\n" for ln in lines), encoding="utf-8")
+    return p
+
+
+def _launch(agent: str, age_s: float = 0.0) -> dict:
+    """A background Agent launch line in the hook's own parsed shape (`final_gate_stop.py`
+    `_seats_in_flight`: a `user` line whose `toolUseResult.status` is `async_launched`)."""
+    ts = dt.datetime.now(dt.UTC) - dt.timedelta(seconds=age_s)
+    return {
+        "type": "user",
+        "timestamp": ts.isoformat().replace("+00:00", "Z"),
+        "toolUseResult": {"status": "async_launched", "agentId": agent},
+    }
+
+
+def _notice(agent: str) -> dict:
+    return {
+        "type": "queue-operation",
+        "operation": "enqueue",
+        "content": f"<task-notification>\n<task-id>{agent}</task-id>\n<status>completed</status>\n",
+    }
+
+
+def test_a_round_confirming_defects_with_every_class_clean_is_refused(run_dir: Path) -> None:
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "4", "--confirmed", "2", "--classes-new", "auth")
+    r = _cr(run_dir, "round", "--findings", "3", "--confirmed", "2", "--classes-swept", "auth")
+    assert r.returncode == 2, (r.stdout, r.stderr)
+    assert "REFUSED" in r.stdout and "auth" in r.stdout and "--classes-new" in r.stdout, r.stdout
+    assert len(_rec(run_dir)["rounds"]) == 1, _rec(run_dir)["rounds"]
+    r = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "3",
+        "--confirmed",
+        "2",
+        "--classes-swept",
+        "auth",
+        "--classes-new",
+        "auth",
+    )
+    assert r.returncode == 0, (r.stdout, r.stderr)
+    assert _rec(run_dir)["classes"] == {"auth": "open"}, _rec(run_dir)["classes"]
+
+
+def test_a_round_that_sweeps_while_confirming_must_open_a_class(run_dir: Path) -> None:
+    """The multi-class shape (critique O4): sweeping the confirmed class clean while another stays
+    open passed the single-class predicate and let the next round retire it — intel's complaint."""
+    _start(run_dir)
+    _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "5",
+        "--confirmed",
+        "3",
+        "--classes-new",
+        "docs-vs-code,auth",
+    )
+    r = _cr(
+        run_dir, "round", "--findings", "2", "--confirmed", "2", "--classes-swept", "docs-vs-code"
+    )
+    assert r.returncode == 2 and len(_rec(run_dir)["rounds"]) == 1, (r.stdout, r.stderr)
+    r = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "2",
+        "--confirmed",
+        "2",
+        "--classes-swept",
+        "docs-vs-code",
+        "--classes-new",
+        "auth",
+    )
+    assert r.returncode == 0, (r.stdout, r.stderr)
+    assert _rec(run_dir)["classes"] == {"docs-vs-code": "clean", "auth": "open"}
+
+
+def test_a_classless_round_may_confirm_defects(run_dir: Path) -> None:
+    _start(run_dir)
+    r = _cr(run_dir, "round", "--findings", "5", "--confirmed", "3")
+    assert r.returncode == 0, (r.stdout, r.stderr)
+    assert _rec(run_dir)["rounds"][-1]["confirmed"] == 3
+
+
+def test_a_round_while_stamped_seats_are_in_flight_is_refused(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    _start(run_dir)
+    _cr(run_dir, "dispatch", "--seats", "2")
+    env = {
+        "COMMAND_RUN_TRANSCRIPT": str(
+            _seat_transcript(tmp_path / "a", _launch("a1"), _launch("a2"))
+        )
+    }
+    r = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "1",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "x",
+        extra_env=env,
+    )
+    assert r.returncode == 2 and "in flight" in r.stdout, (r.stdout, r.stderr)
+    assert _rec(run_dir)["rounds"] == [], _rec(run_dir)["rounds"]
+    r = _cr(run_dir, "round", "--seats", "0", "--findings", "1", "--confirmed", "0", extra_env=env)
+    assert r.returncode == 2 and "in flight" in r.stdout, (
+        r.stdout,
+        r.stderr,
+    )  # a typed zero claims nobody ran
+    assert _rec(run_dir)["rounds"] == []
+    env = {
+        "COMMAND_RUN_TRANSCRIPT": str(
+            _seat_transcript(
+                tmp_path / "b", _launch("a1"), _launch("a2"), _notice("a1"), _notice("a2")
+            )
+        )
+    }
+    r = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "1",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "x",
+        extra_env=env,
+    )
+    assert r.returncode == 0, (r.stdout, r.stderr)
+    assert len(_rec(run_dir)["rounds"]) == 1
+    _cr(
+        run_dir, "dispatch", "--seats", "1"
+    )  # a launch older than the stamp window is not in flight
+    env = {
+        "COMMAND_RUN_TRANSCRIPT": str(
+            _seat_transcript(tmp_path / "c", _launch("a3", age_s=26 * 60))
+        )
+    }
+    r = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "0",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "x",
+        extra_env=env,
+    )
+    assert r.returncode == 0, (r.stdout, r.stderr)
+    assert len(_rec(run_dir)["rounds"]) == 2
+
+
+def test_a_partial_close_is_never_refused_for_seats_in_flight(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Dispatcher mode (the round-11 partial close): several tickets stamp into one round and
+    return independently, so a `--seats k` below the stamp is typed while seats are legitimately
+    still out (critiques O3/F1)."""
+    _start(run_dir)
+    _cr(run_dir, "dispatch", "--seats", "2")
+    env = {
+        "COMMAND_RUN_TRANSCRIPT": str(
+            _seat_transcript(tmp_path / "p", _launch("a1"), _launch("a2"), _notice("a1"))
+        )
+    }
+    r = _cr(
+        run_dir,
+        "round",
+        "--seats",
+        "1",
+        "--findings",
+        "1",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "x",
+        extra_env=env,
+    )
+    assert r.returncode == 0, (r.stdout, r.stderr)
+    assert len(_rec(run_dir)["rounds"]) == 1 and _rec(run_dir)["dispatch"]["seats"] == 1, _rec(
+        run_dir
+    )["dispatch"]
+
+
+def test_an_unverifiable_seat_return_is_noted_not_refused(run_dir: Path, tmp_path: Path) -> None:
+    _start(run_dir)
+    _cr(run_dir, "dispatch", "--seats", "2")
+    env = {"COMMAND_RUN_TRANSCRIPT": str(tmp_path / "missing.jsonl")}
+    r = _cr(
+        run_dir,
+        "round",
+        "--findings",
+        "1",
+        "--confirmed",
+        "0",
+        "--classes-swept",
+        "x",
+        extra_env=env,
+    )
+    assert r.returncode == 0 and "could not verify the 2 stamped seat(s)" in r.stderr, (
+        r.stdout,
+        r.stderr,
+    )
+    assert len(_rec(run_dir)["rounds"]) == 1
+
+
+def test_seats_in_flight_matches_the_stop_hook(tmp_path: Path) -> None:
+    """The tool's reader is the hook's, renamed (`_SEAT_TAIL_BYTES` already exists in the tool with
+    another value): source after the prefix strip, the four constants, the regex, and a behaviour
+    matrix through both modules — the hook imports nothing from the tool by design, so parity is
+    graded, never shared (like `_safe_sid`)."""
+    cr = _load("cr_seats_parity", _SCRIPT)
+    hook = _load("hook_seats_parity", _HOOK)
+
+    def strip(src: str) -> str:
+        return src.replace("_hook_", "_").replace("_HOOK_", "_")
+
+    for a, b in (
+        ("_hook_seats_in_flight", "_seats_in_flight"),
+        ("_hook_line_age_s", "_line_age_s"),
+    ):
+        assert strip(inspect.getsource(getattr(cr, a))) == inspect.getsource(getattr(hook, b)), a
+    assert (cr._HOOK_NOTIFY_RE.pattern, cr._HOOK_NOTIFY_RE.flags) == (
+        hook._NOTIFY_RE.pattern,
+        hook._NOTIFY_RE.flags,
+    )
+    for a, b in (
+        ("_HOOK_SEAT_STAMP_FRESH_S", "_SEAT_STAMP_FRESH_S"),
+        ("_HOOK_SEAT_TAIL_BYTES", "_SEAT_TAIL_BYTES"),
+        ("_HOOK_CLOCK_SKEW_TOLERANCE_S", "_CLOCK_SKEW_TOLERANCE_S"),
+    ):
+        assert getattr(cr, a) == getattr(hook, b), a
+    now = time.time()
+    live = {"dispatch": {"seats": 2, "round": 0, "ts": now, "released": False}, "rounds": []}
+    stamp = live["dispatch"]
+    wf = {
+        **_launch("x"),
+        "toolUseResult": {
+            "status": "async_launched",
+            "taskId": "wf1",
+            "taskType": "local_workflow",
+        },
+    }
+    resumed = {**_launch("x"), "toolUseResult": {"resumedAgentId": "a9"}}
+    att = {
+        "type": "attachment",
+        "attachment": {
+            "commandMode": "task-notification",
+            "prompt": "<task-notification><task-id>a1</task-id><status>completed</status></task-notification>",
+        },
+    }
+    cases = {
+        "launch-only": ([_launch("a1")], live),
+        "launch-notice": ([_launch("a1"), _notice("a1")], live),
+        "attachment-notice": ([_launch("a1"), att], live),
+        "workflow": ([wf], live),
+        "resumed": ([resumed], live),
+        "old-launch": ([_launch("a1", 26 * 60)], live),
+        "released": ([_launch("a1")], {"dispatch": {**stamp, "released": True}, "rounds": []}),
+        "stale-stamp": (
+            [_launch("a1")],
+            {"dispatch": {**stamp, "ts": now - 30 * 60}, "rounds": []},
+        ),
+        "other-round": ([_launch("a1")], {"dispatch": {**stamp, "round": 1}, "rounds": []}),
+    }
+    seen = set()
+    for name, (lines, rec) in cases.items():
+        p = _seat_transcript(tmp_path / name, *lines)
+        mine, theirs = cr._hook_seats_in_flight(rec, str(p)), hook._seats_in_flight(rec, str(p))
+        assert mine == theirs, (name, mine, theirs)
+        seen.add(theirs)
+    assert seen == {True, False}, seen  # the matrix exercises both verdicts
+    assert cr._hook_seats_in_flight(live, str(tmp_path / "nope.jsonl")) is False
+
+
+def test_the_classes_swept_help_says_found_clean(run_dir: Path) -> None:
+    r = _cr(run_dir, "round", "--help")
+    assert "swept AND found clean" in r.stdout, r.stdout
+
+
+def test_a_round_confirming_with_no_sweep_and_every_class_clean_is_refused(run_dir: Path) -> None:
+    """Refusal (a)'s second arm (review B-2): nothing swept this round, every ledger class already clean."""
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "2", "--confirmed", "0", "--classes-swept", "x")
+    r = _cr(run_dir, "round", "--findings", "1", "--confirmed", "1")
+    assert r.returncode == 2 and "leaves every class the ledger knows clean" in r.stdout, (
+        r.stdout,
+        r.stderr,
+    )
+    assert len(_rec(run_dir)["rounds"]) == 1
+
+
+def test_a_refused_round_prints_no_advisory_that_says_it_went_ahead(run_dir: Path) -> None:
+    """Review A-1: refusal (a) used to sit after the advisories, so a refused round first printed
+    `releasing 1 of the 2 seat(s)` / `recording 3 as typed` and only then REFUSED."""
+    _start(run_dir)
+    _cr(run_dir, "round", "--findings", "4", "--confirmed", "2", "--classes-new", "auth")
+    _cr(run_dir, "dispatch", "--seats", "2")
+    r = _cr(
+        run_dir,
+        "round",
+        "--seats",
+        "3",
+        "--findings",
+        "3",
+        "--confirmed",
+        "2",
+        "--classes-swept",
+        "auth",
+    )
+    assert r.returncode == 2, (r.stdout, r.stderr)
+    assert "REFUSED" in r.stdout and "recording 3 as typed" not in r.stderr, (r.stdout, r.stderr)
+    assert "releasing" not in r.stderr, r.stderr
+    # case C (closing pass A-1 residual): no transcript, no --own-fix — the transcript NOTE
+    # ("recording as typed") and the own-fix NOTE must not precede a refusal either
+    r = _cr(run_dir, "round", "--findings", "2", "--confirmed", "2", "--classes-swept", "auth")
+    assert r.returncode == 2, (r.stdout, r.stderr)
+    assert "recording as typed" not in r.stderr and "without --own-fix" not in r.stderr, r.stderr
+    assert len(_rec(run_dir)["rounds"]) == 1
+
+
+def test_an_unreadable_transcript_is_noted_not_silently_recorded(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Review mb-1: an EXISTING but unreadable transcript passed `is_file()` and the reader's broad
+    except recorded the round with no NOTE."""
+    if os.geteuid() == 0:
+        pytest.skip("root reads a mode-000 file")
+    _start(run_dir)
+    _cr(run_dir, "dispatch", "--seats", "2")
+    p = _seat_transcript(tmp_path / "u", _launch("a1"))
+    p.chmod(0)
+    try:
+        env = {"COMMAND_RUN_TRANSCRIPT": str(p)}
+        r = _cr(
+            run_dir,
+            "round",
+            "--findings",
+            "1",
+            "--confirmed",
+            "0",
+            "--classes-swept",
+            "x",
+            extra_env=env,
+        )
+    finally:
+        p.chmod(0o600)
+    assert r.returncode == 0 and "could not verify the 2 stamped seat(s)" in r.stderr, (
+        r.stdout,
+        r.stderr,
+    )
+    assert f"transcript unreadable: {p}" in r.stderr, (
+        r.stderr
+    )  # the NOTE names the real cause (review ha-1)
+
+
+def test_the_usage_grammar_round_trips_its_optional_cost_bracket() -> None:
+    """W-256d6877: `_USAGE_GRAMMAR` prints the optional field as `[· cost: <…>]`, and the parser read
+    that shape back with the `[` inside `filed` and the `]` inside `cost` — the close then refused
+    `0.01]`. Filled from the constant itself (nested angle placeholders filled fully), the line must
+    parse clean; an opener alone closes nothing it does not own, and a `filed:` id in brackets stays."""
+    cr = _cr_module("w256")
+    filled = cr._USAGE_GRAMMAR
+    while re.search(r"<[^<>]*>", filled):
+        filled = re.sub(r"<[^<>]*>", "x", filled)
+    filled = filled.replace("change: x: x", "change: lean: cut the rubric block")
+    assert "[· cost: x]" in filled, filled
+    for tail, cost in (
+        ("[· cost: 0.01]", "0.01"),
+        ("[· cost: 0.01].", "0.01."),
+        ("[· cost: 0.01]\r\n", "0.01"),
+        ("[· cost: 0.01", "0.01"),
+    ):
+        line = filled.replace("[· cost: x]", tail)
+        fields, missing = cr._parse_usage_feedback(line)
+        assert not missing, (tail, missing)
+        assert fields["cost"] == cost, (tail, fields)
+        assert "[" not in fields["filed"] and "]" not in fields["filed"], (tail, fields)
+    base = "confusion: none · waste: none · change: none · filed: mail [01M5ABC]"
+    fields, _ = cr._parse_usage_feedback(base)
+    assert fields["filed"] == "mail [01M5ABC]", fields
+    fields, _ = cr._parse_usage_feedback(base + " [· cost: 0.01]")
+    assert fields["filed"] == "mail [01M5ABC]" and fields["cost"] == "0.01", fields
+    # a bracketed field that is NOT the last one closes too, at its own end
+    fields, _ = cr._parse_usage_feedback(
+        "waste: none · change: none · filed: x [· confusion: y] · cost: 1"
+    )
+    assert fields["filed"] == "x" and fields["confusion"] == "y" and fields["cost"] == "1", fields
+    # a bracketed field whose value ENDS in an id's own bracket keeps it: only an unbalanced `]`
+    # closes the opener (review pass 1, A-haiku-1)
+    lead = "confusion: none · waste: none · change: lean: x "
+    fields, _ = cr._parse_usage_feedback(lead + "[· filed: mail [01M5ABC]")
+    assert fields["filed"] == "mail [01M5ABC]", fields
+    fields, _ = cr._parse_usage_feedback(lead + "[· filed: mail [01M5ABC]]")
+    assert fields["filed"] == "mail [01M5ABC]", fields
+    # a newline is a separator too: a bracket opened before a wrapped label closes the same way
+    fields, _ = cr._parse_usage_feedback(base + " [\ncost: 0.01]")
+    assert fields["filed"] == "mail [01M5ABC]" and fields["cost"] == "0.01", fields
+    # a bracket with no separator is not a label boundary today and is left alone
+    fields, _ = cr._parse_usage_feedback(base + " [cost: 0.01]")
+    assert fields["filed"] == "mail [01M5ABC] [cost: 0.01]" and "cost" not in fields, fields

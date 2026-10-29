@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T22:23:16.216879Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-c51f517f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M55SB7GG291GWN878JGW9VRS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: tracked as work item W-f71d8743, owner wef3 (the parity contract's owner). It lands in the bhdtrade parity contract's v4 re-freeze (gate G2 of plan docs/development/plans/2026-10-17-plan-1-bhdtrade-cloudflare-pages/)."
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:36:02.060111Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9ae08a8f",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: print the checked-file count, and every ticket's READ total beside the finding count",
+  "note": "duplicate of W-e08c7227 (the mail item mail.py claim created for 01M4Q6CZFN); root cause and next step: /fabrik-task: print the checked-file count, and every ticket's READ total beside the finding count",
+  "owner": "",
+  "priority": 2,
+  "status": "dropped",
+  "title": "check_plan_quality.py has no main() count line; check_plan_tickets.py prints a ticket's READ total only when over budget (kaizen 01M4Q6CZFN #3-4)"
+}

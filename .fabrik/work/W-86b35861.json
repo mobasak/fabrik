@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T06:11:45.362168Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-86b35861",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure: how often an owned major is re-scored down while others are held behind it; then a stderr notice from cmd_assign naming those ids",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: a work-store edge from the W-0fe931b7 review, nobody blocked; one function",
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "work.py assign: re-scoring the IN-FLIGHT major itself to a non-major leaves every major held behind it (assign --blocked-by, the one-major hold) blocked by a non-major, silently — triage then counts them all as in flight; the clear of W-0fe931b7 (D-1327) covers only the held item's own re-score. Proposed: when a re-score takes an in-flight major out of the class, print the items still held behind it so the coordinator picks the next major and --unblocks it (found in the W-0fe931b7 review, slice A)"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T07:40:34.799348Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-d6db9042",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4D34PG2EC0SZE7ZT0FB1TYA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: pin enforcement (01M4CS09BB) and the TRIMMED sentence (01M4CV19C3) — both wording halves landed in e29ffb101; pin_manifest is now in all 7 launchers"
+}

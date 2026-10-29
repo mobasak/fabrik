@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T04:57:02.445847Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-04bd8668",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5BSVANZWX2A7SNGV3N4VPCT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "A design question from the /fabrik-task queue: when is a nested full review's receipt made? (rows 1792464865, 1792450211, the 3rd and 4th ask)"
+}

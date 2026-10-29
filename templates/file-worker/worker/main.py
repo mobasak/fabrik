@@ -13,6 +13,7 @@ import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import Any, cast
 
 import boto3
 from supabase import Client, create_client
@@ -21,9 +22,18 @@ from worker.logger import get_logger
 
 log = get_logger(__name__)
 
-# Heartbeat file for Docker HEALTHCHECK
-HEARTBEAT_FILE = Path("/app/.tmp/worker_heartbeat")
-HEARTBEAT_FILE.parent.mkdir(parents=True, exist_ok=True)
+# Heartbeat file for the Dockerfile.j2/compose.yaml.j2 healthchecks: the project's own .tmp/ beside the
+# worker/ package — /app/.tmp/worker_heartbeat in the image (WORKDIR /app, COPY . .), the checkout's
+# .tmp/ in dev.
+# Nothing is created at import: _beat() makes the directory on the first heartbeat.
+HEARTBEAT_FILE = Path(__file__).resolve().parent.parent / ".tmp" / "worker_heartbeat"
+
+
+def _beat() -> None:
+    """Refresh the heartbeat the Dockerfile.j2/compose.yaml.j2 healthchecks read."""
+    HEARTBEAT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    HEARTBEAT_FILE.touch()
+
 
 # Config
 WORKER_ID = os.getenv("WORKER_ID", "worker-1")
@@ -31,6 +41,9 @@ JOB_TYPES = os.getenv("JOB_TYPES", "transcribe,ocr,extract_text").split(",")
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "5"))
 MAX_CONCURRENT = int(os.getenv("MAX_CONCURRENT_JOBS", "2"))
 MAX_PROCESSING_TIME = int(os.getenv("MAX_PROCESSING_TIME", "3600"))
+# Set only by `make docker-smoke` (W-807b73fd): beat for the healthcheck, never claim a job — a smoke run against a
+# real .env would otherwise claim production jobs and be stopped mid-run. Exactly "1"; any other value is a worker.
+SMOKE = os.getenv("WORKER_SMOKE") == "1"
 
 # Clients
 supabase: Client = create_client(
@@ -51,7 +64,7 @@ R2_BUCKET = os.environ["R2_BUCKET"]
 shutdown_requested = False
 
 
-def signal_handler(signum, frame):
+def signal_handler(signum, _frame):
     global shutdown_requested
     log.info("shutdown_requested", signal=signum)
     shutdown_requested = True
@@ -80,13 +93,15 @@ def claim_job() -> dict | None:
     ).execute()
 
     if result.data:
-        return result.data
+        return cast("dict[str, Any] | None", result.data)
     return None
 
 
-def complete_job(job_id: str, success: bool, result_data: dict = None, error_message: str = None):
+def complete_job(
+    job_id: str, success: bool, result_data: dict | None = None, error_message: str | None = None
+):
     """Mark job as completed or failed."""
-    update = {
+    update: dict[str, Any] = {
         "status": "completed" if success else "failed",
         "completed_at": "now()",
     }
@@ -102,7 +117,7 @@ def complete_job(job_id: str, success: bool, result_data: dict = None, error_mes
 def get_file_info(file_id: str) -> dict | None:
     """Get file metadata."""
     result = supabase.table("files").select("*").eq("id", file_id).single().execute()
-    return result.data
+    return cast("dict[str, Any] | None", result.data)
 
 
 def create_derivative(
@@ -111,7 +126,7 @@ def create_derivative(
     r2_key: str,
     content_type: str,
     size_bytes: int,
-    metadata: dict = None,
+    metadata: dict | None = None,
 ):
     """Create derivative record."""
     supabase.table("file_derivatives").insert(
@@ -126,7 +141,7 @@ def create_derivative(
     ).execute()
 
 
-def process_extract_text(job: dict, file_info: dict) -> dict:
+def process_extract_text(_job: dict, file_info: dict) -> dict:
     """Extract text from PDF."""
     from pypdf import PdfReader
 
@@ -167,7 +182,7 @@ def process_extract_text(job: dict, file_info: dict) -> dict:
         }
 
 
-def process_ocr(job: dict, file_info: dict) -> dict:
+def process_ocr(_job: dict, file_info: dict) -> dict:
     """OCR text extraction from images or PDFs."""
     import pytesseract
     from pdf2image import convert_from_path
@@ -213,7 +228,7 @@ def process_ocr(job: dict, file_info: dict) -> dict:
         return {"char_count": len(full_text), "derivative_key": derivative_key}
 
 
-def process_transcribe(job: dict, file_info: dict) -> dict:
+def process_transcribe(_job: dict, file_info: dict) -> dict:
     """Audio transcription (placeholder - integrate with Soniox/Whisper)."""
     # TODO: Integrate with actual transcription service
     # For now, create a placeholder
@@ -258,13 +273,16 @@ def process_job(job: dict) -> None:
 def main():
     """Main worker loop."""
     log.info("worker_starting", worker_id=WORKER_ID, job_types=JOB_TYPES)
+    if SMOKE:
+        # a warning, so a production worker that somehow carries the flag shows up idle in log triage
+        log.warning("worker_smoke_mode", detail="WORKER_SMOKE=1: beating, never claiming a job")
 
     with ThreadPoolExecutor(max_workers=MAX_CONCURRENT) as executor:
         futures = {}
 
         while not shutdown_requested:
             # Update heartbeat for Docker HEALTHCHECK
-            HEARTBEAT_FILE.touch()
+            _beat()
 
             # Clean up completed futures
             done = [f for f in futures if f.done()]
@@ -276,7 +294,7 @@ def main():
                 del futures[f]
 
             # Claim new jobs if we have capacity
-            while len(futures) < MAX_CONCURRENT and not shutdown_requested:
+            while not SMOKE and len(futures) < MAX_CONCURRENT and not shutdown_requested:
                 job = claim_job()
                 if not job:
                     break

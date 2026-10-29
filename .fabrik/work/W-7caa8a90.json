@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T17:01:11.981330Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "38bcdd2184f8a82a61d2a8eff6af3957df28e141",
+  "id": "W-7caa8a90",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: guard owned_paths as a list (refuse or wrap a string, with a stderr warning), add a regression test with a string-valued owned_paths lock, then /fabrik-review (enforcement path)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: a rare edge (no lock today stores owned_paths as a string), nobody blocked; LOW effort: one guard plus a test",
+  "status": "done",
+  "title": "scripts/enforcement/check_plan_tickets.py:2740 reads a plan lock's owned_paths with no scalar guard: a lock whose owned_paths is a string iterates its characters, so _path_covers matches single letters (split from kaizen's W-bcf6fc2f, from the W-ddf1839c review residue)"
+}

@@ -1,14 +1,25 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: scripts/enforcement/check_convergence.py | tests/enforcement/test_mega_validation_reports.py | tests/enforcement/test_review_exit_contract.py | tests/test_check_review_coverage_rederivation.py | tests/test_check_review_coverage_blocked.py | tests/test_check_review_coverage_precommit.py | tests/enforcement/test_review_confirmed_grammar.py | tests/enforcement/test_review_refusals.py | tests/test_task_lane_review_stop.py (the in-lane window and its lockstep with scripts/task_lane.py)
+# AFTER-EDIT: scripts/enforcement/check_convergence.py | tests/enforcement/test_mega_validation_reports.py | tests/enforcement/test_review_exit_contract.py | tests/test_check_review_coverage_rederivation.py | tests/test_check_review_coverage_blocked.py | tests/test_check_review_coverage_precommit.py | tests/enforcement/test_review_confirmed_grammar.py | tests/enforcement/test_review_refusals.py | tests/test_task_lane_review_stop.py (the in-lane window and its lockstep with scripts/task_lane.py) | tests/enforcement/test_review_coverage_unintegrated.py | docs/workflows/FINAL_GATE_WORKFLOW.md
 """Coverage-checklist gate — run by final_gate via run_optional_check (non-zero = fail).
 
 Companion to check_convergence.py for the coverage-adjudicated review commands
 (/fabrik-review, /fabrik-repo-review). A review artifact that claims the exit must
-prove FULL adjudication of its Coverage Checklist. Inspects only changed/untracked
-files under docs/development/reviews/ (git status + regex; safe every tier).
+prove FULL adjudication of its Coverage Checklist. The blocking scan reads two sources under
+docs/development/reviews/: the working tree (`git status --porcelain -z`) and review artifacts in
+commits not yet in an INTEGRATION REF (`git log --cc HEAD --not <refs>`, merges read by combined
+diff, so a receipt hand-added inside a merge commit counts) — committing a review and then gating
+no longer passes it (W-f847a317, D-715). The refs are admitted by CONFIGURATION, never because a
+remote name exists (a push creates names): in a linked worktree the main checkout's branch and its
+configured upstream, else the first of origin/master, origin/main; in the main checkout its
+configured upstream, else the same fallback. `--base <ref>` overrides the set. A shallow clone, an
+unresolvable ref or a git failure keeps today's working-tree scope plus one NOTE. Cheapest ways
+past it, named not closed (cobra, D-253): push before gating in a main checkout (the push IS the
+integration there), `Status: IN-PROGRESS`, or a deliberate local act on refs or configuration
+(`--set-upstream-to`, a main checkout's `git push -u`, `git update-ref`).
 
 A changed reviews/*.md containing a "Coverage Checklist" table:
-  -> every checklist row must carry a verdict: CLEAN / FIXED / REFUTED.
+  -> every checklist row must carry a verdict: CLEAN / FIXED / REFUTED / ROUTED, or a
+     parenthesised RECORDED — <disposition> (the VERDICT regex below).
   -> zero UNCHECKED rows. (There is NO cap-stop / "Declared residual" bypass —
      the Termination contract has no round ceiling; the only pause is a
      per-finding 3-attempts BLOCKED escalation. A prior docstring advertised a
@@ -29,6 +40,7 @@ Checklist and are not this gate's subject (check_convergence.py covers them).
 from __future__ import annotations
 
 import argparse
+import bisect
 import json
 import os
 import re
@@ -52,13 +64,15 @@ COMMAND_MARK = re.compile(r"/fabrik-(?:repo-)?review\b")  # noqa: F841 — retir
 # ROUTE-not-fix had no honest terminal token — authors were forced to write
 # "FIXED(n, via routing)" to parse. A routed finding is adjudicated, not open.
 # RECORDED (D6/D-206): the three residual dispositions plus the hygiene adjudication are
-# VERDICTS, not missing ones — a candidate executed and kept on purpose, one that could not be
-# executed, one that makes no code or doc claim, and a hygiene hit adjudicated false. The reason
+# VERDICTS, not missing ones (by design, unexecuted, measured, hygiene false positive). What each
+# means is `commands/_sources/fabrik-review.md` § Phase 2's to define, never restated here — this
+# regex only checks the spelling, and any parenthesised reason passes. The reason
 # is PARENTHESISED, never colon-delimited: a colon form would spell the `unexecuted: 3` counter
 # token the ledger rules refuse, so the two vocabularies can never collide. The trailing `\(` is
 # what keeps `RECORDED` alone (no reason) a non-verdict.
-# ⚠️ MIRROR: `check_convergence.py` imports this name (`:429`/`:439`) and grades its own checklist
-# rows with it at `:477` — the widening reaches that gate on the same sync, where a RECORDED row
+# ⚠️ MIRROR: `check_convergence.py` imports this name (its relative import and the
+# direct-script fallback) and grades its own checklist rows with it (the `noverdict` line) —
+# the widening reaches that gate on the same sync, where a RECORDED row
 # likewise stops being a `noverdict` row. That is intended (T03 carries the note); nothing else
 # reads this pattern's groups, so the added alternative is deliberately NON-capturing.
 VERDICT = re.compile(
@@ -90,44 +104,268 @@ RECURRENCE = {
 }
 
 
-def _changed_md(root: Path, prefix: str) -> tuple[list[Path], list[str], list[Path]]:
-    """Changed/untracked .md under ``prefix`` (git status), excluding archived/.
+def _shown(p: object) -> str:
+    """A path (or a whole line holding one) made printable: a name git returned raw under ``-z`` and
+    ``os.fsdecode`` turned into surrogates prints backslash-escaped instead of raising
+    UnicodeEncodeError at ``print`` — every line main() prints goes through here."""
+    return os.fsencode(str(p)).decode("utf-8", "backslashreplace")
 
-    Returns (paths, notes) — NOTE lines are RETURNED, not printed: round 25 reproduced a NOTE
+
+def _git_bytes(root: Path, *args: str | bytes) -> tuple[int, bytes]:
+    """``git <args>`` in ``root`` as raw bytes; (-1, b"") when git cannot run at all."""
+    try:
+        r = subprocess.run(["git", *args], cwd=root, capture_output=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return -1, b""
+    return r.returncode, r.stdout
+
+
+def _git_line(root: Path, *args: str) -> str:
+    rc, out = _git_bytes(root, *args)
+    return out.decode("utf-8", "replace").strip() if rc == 0 else ""
+
+
+def _porcelain_z(out: bytes) -> list[tuple[str, str]]:
+    """``git status --porcelain -z`` records as (XY, path): names arrive unquoted, and a rename or
+    copy carries its SOURCE as the next NUL field (destination first under ``-z``), which is dropped."""
+    fields = out.split(b"\0")
+    recs: list[tuple[str, str]] = []
+    i = 0
+    while i < len(fields):
+        e = fields[i]
+        i += 1
+        if len(e) < 4:
+            continue
+        xy = e[:2].decode("ascii", "replace")
+        if "R" in xy or "C" in xy:
+            i += 1
+        recs.append((xy, os.fsdecode(e[3:])))
+    return recs
+
+
+def _is_review_md(root: Path, rel: str) -> bool:
+    # `*-archive.md` is a long review's rotated finding tables (the head file keeps the checklist,
+    # the Pass Ledger and the exit proofs — /fabrik-review § Reporting, 2026-09-05); it carries no
+    # checklist by design and must not be read as a review artifact.
+    return (
+        rel.endswith(".md")
+        and not rel.endswith("-archive.md")
+        and "archived/" not in rel
+        and (root / rel).is_file()
+    )
+
+
+def integration_refs(root: Path) -> list[str]:
+    """The FULL ref names (`refs/heads/…`, `refs/remotes/…`) the unintegrated range excludes; [] when none.
+
+    Full names, because a short one is shadowed by any local tag or branch of the same name (git
+    resolves refs/tags and refs/heads before refs/remotes), which one `git tag` would turn into an
+    empty range (Phase A review, A-O1).
+
+    A member is admitted by CONFIGURATION or as the one fallback, never because a remote name exists:
+    every member shrinks the range and `git push origin HEAD:<name>` creates any remote name (plan
+    review passes 6 and 7 executed both bypasses). Linked worktree: the main checkout's branch B, B's
+    configured upstream (which also excludes commits merged from a remote ahead of B), and only when B
+    has no configured upstream the first of origin/master, origin/main — never this branch's OWN
+    upstream (pushing a worktree branch must not take its reviews out of scope before they merge).
+    Main checkout: its configured upstream, else the same fallback. Residual (named, not guarded —
+    each a deliberate local act on refs or configuration, never a by-product of normal work):
+    rewriting branch configuration (`--set-upstream-to`, or a main checkout's `git push -u`, which
+    writes it), moving a ref by hand (`git update-ref`), and where the fallback is reached, a push
+    that creates it.
+    """
+
+    def fallback() -> list[str]:
+        return next(
+            (
+                [r]
+                for r in ("refs/remotes/origin/master", "refs/remotes/origin/main")
+                if _ref_ok(root, r)
+            ),
+            [],
+        )
+
+    git_dir = _git_line(root, "rev-parse", "--path-format=absolute", "--git-dir")
+    common = _git_line(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+    refs: list[str] = []
+    if git_dir and common and git_dir != common:
+        # FULL names from symbolic-ref (no --short): `--short` disambiguates to `heads/<b>` once a
+        # same-named tag exists, and that spelling would silently drop B from the set
+        b = _git_line(root, "--git-dir", common, "symbolic-ref", "--quiet", "HEAD")
+        head = _git_line(root, "symbolic-ref", "--quiet", "HEAD")
+        if b and b != head:
+            refs.append(b)
+            # `<branch>@{upstream}` takes the SHORT branch name: `refs/heads/x@{upstream}` resolves to
+            # nothing, which would drop the configured upstream and leave only the fallback
+            short = b.removeprefix("refs/heads/")
+            up = _git_line(root, "rev-parse", "--symbolic-full-name", f"{short}@{{upstream}}")
+            refs.extend([up] if up else fallback())
+        else:
+            refs.extend(fallback())
+    else:
+        up = _git_line(root, "rev-parse", "--symbolic-full-name", "@{upstream}")
+        refs.extend([up] if up else fallback())
+    out: list[str] = []
+    for r in refs:
+        if r and r not in out and _ref_ok(root, r):
+            out.append(r)
+    return out
+
+
+def _ref_ok(root: Path, ref: str) -> bool:
+    return _git_bytes(root, "rev-parse", "--verify", "--quiet", ref)[0] == 0
+
+
+def _unintegrated_md(
+    root: Path, prefix: str, bases: list[str]
+) -> tuple[list[Path], dict[Path, str], list[str]]:
+    """Review artifacts touched by commits reachable from HEAD and from no ref in ``bases``.
+
+    Returns (paths, attribution, notes). ``--cc`` lists a merge commit's paths only where they differ
+    from EVERY parent, so a clean catch-up merge adds nothing while a receipt hand-added inside a merge
+    commit is listed. A shallow clone (its grafted root lists already-integrated files), an unresolvable
+    ref or a git failure returns nothing plus one NOTE — never a traceback.
+    """
+    if not bases:
+        return [], {}, []
+    rc, out = _git_bytes(root, "rev-parse", "--is-shallow-repository")
+    if rc == 0 and out.strip() == b"true":
+        return (
+            [],
+            {},
+            [
+                "NOTE: unintegrated review scan skipped — shallow clone (its grafted root lists "
+                "already-integrated files); working tree and running receipts only"
+            ],
+        )
+    rc, out = _git_bytes(
+        root,
+        "log",
+        "-z",
+        "--cc",
+        "--name-only",
+        "--format=",
+        "--diff-filter=d",
+        "HEAD",
+        "--not",
+        *bases,
+        "--",
+        prefix,
+    )
+    if rc != 0:
+        return (
+            [],
+            {},
+            [
+                f"NOTE: unintegrated review scan skipped — git log rc {rc} against "
+                f"{' '.join(bases)} (working tree and running receipts only)"
+            ],
+        )
+    paths: list[Path] = []
+    for raw in out.split(b"\0"):
+        rel = os.fsdecode(raw.strip(b"\n"))
+        if rel and _is_review_md(root, rel) and (root / rel) not in paths:
+            paths.append(root / rel)
+    who: dict[Path, str] = {}
+    for p in paths:
+        # the commit that ADDED the review inside the range names its author; a review that existed
+        # before the range and was only edited inside it names its newest editor, worded so (A-O7)
+        for verb, adds in (("entered history in", True), ("was changed in", False)):
+            who_line = _attribution(root, p, bases, prefix, adds)
+            if who_line:
+                who[p] = f"{verb} {who_line}"
+                break
+    return paths, who, []
+
+
+_HDR = "--format=%x1e%h%x00%(trailers:key=Agent-Name,valueonly,separator=%x2C%x20)%x00%an%x00"
+
+
+def _attribution(root: Path, p: Path, bases: list[str], prefix: str, adds: bool) -> str:
+    """``<sha> (<Agent-Name trailers, else author>)`` of the NEWEST commit in the range that ADDED ``p``
+    (``adds``) or that touched it at all, or "" — several Agent-Name trailers are joined on one line.
+
+    The newest add is the author of the file now on disk (add, delete, re-add names the re-adder). The
+    add query reads the whole review ``prefix`` with ``-M``, so a rename pairs with its source and counts
+    as an edit (worded "was changed in"), never an add; the edit query names ``p`` as a LITERAL pathspec,
+    so a glob character in a review's name matches only that file (Phase A review, passes 1-2)."""
+    rel = str(p.relative_to(root))
+    spec = prefix if adds else rel
+    rc, out = _git_bytes(
+        root,
+        "log",
+        "--cc",  # so a review hand-added inside a merge commit is attributed to that merge
+        "-M",
+        "-z",
+        "--name-status",
+        *(("--diff-filter=A",) if adds else ("-1",)),
+        _HDR,  # each record OPENS with \x1e, so the name-status tokens git prints stay in it
+        "HEAD",
+        "--not",
+        *bases,
+        "--",
+        b":(literal)" + os.fsencode(spec),
+    )
+    for rec in out.split(b"\x1e")[1:] if rc == 0 else []:
+        toks = [t.strip(b"\n") for t in rec.split(b"\0")]
+        if len(toks) < 3 or not toks[0]:
+            continue
+        if adds and not _adds_path(toks[3:], rel):
+            continue
+        f = [x.decode("utf-8", "replace").strip() for x in toks[:3]]
+        return f"{f[0]} ({f[1] or f[2]})"
+    return ""
+
+
+def _adds_path(names: list[bytes], rel: str) -> bool:
+    """True when ``git log -z --name-status`` tokens (``ST path``, or ``R/C ST old new``) ADD ``rel``."""
+    i = 0
+    while i < len(names):
+        st = names[i].decode("ascii", "replace")
+        if not st:
+            i += 1
+            continue
+        if st[0] in "RC":
+            i += 3
+            continue
+        if i + 1 < len(names) and "A" in st and os.fsdecode(names[i + 1]) == rel:
+            return True
+        i += 2
+    return False
+
+
+def _read_or_empty(p: Path) -> str:
+    """The file's text, or "" when it vanished between listing and reading (a gate never tracebacks)."""
+    try:
+        return p.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def _changed_md(root: Path, prefix: str) -> tuple[list[Path], list[str], list[Path]]:
+    """Changed/untracked .md under ``prefix`` (``git status --porcelain -z``), excluding archived/.
+
+    Returns (paths, notes, untracked) — NOTE lines are RETURNED, not printed: round 25 reproduced a NOTE
     printing before the ⚠-first advisory header, which broke final_gate's startswith("⚠")
     opt-in and silently re-hid the whole advisory payload from --json whenever an untracked
     draft co-occurred with a committed advisory. Print order is part of the emitter protocol;
     only main() may decide it.
     """
     notes: list[str] = []
-    try:
-        out = subprocess.run(
-            ["git", "status", "--porcelain", "--untracked-files=all", "--", prefix],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    # -z: names arrive unquoted, so a review named outside ASCII (core.quotePath octal-escapes it in
+    # the plain format, which the old quote-strip never unescaped) is graded, not silently skipped
+    rc, out = _git_bytes(root, "status", "--porcelain", "-z", "--untracked-files=all", "--", prefix)
+    if rc != 0:
         return [], notes, []
     paths = []
     untracked: list[Path] = []
-    for line in out.splitlines():
-        rel = line[3:].split(" -> ")[-1].strip().strip('"')
-        # `*-archive.md` is a long review's rotated finding tables (the head file keeps the checklist,
-        # the Pass Ledger and the exit proofs — /fabrik-review § Reporting, 2026-09-05); it carries no
-        # checklist by design and must not be read as a review artifact.
-        if not (
-            rel.endswith(".md")
-            and not rel.endswith("-archive.md")
-            and "archived/" not in rel
-            and (root / rel).is_file()
-        ):
+    for xy, rel in _porcelain_z(out):
+        if not _is_review_md(root, rel):
             continue
         # Shared-master: '??' = untracked AND unstaged — a sibling session's (or a
         # not-yet-staged) in-flight draft. The checklist is enforced at the
         # staging/commit moment, never against another agent's mid-write scratch.
-        if line[:2] == "??":
+        if xy == "??":
             notes.append(f"NOTE: skip untracked in-flight draft (checked at staging): {rel}")
             untracked.append(root / rel)
             continue
@@ -144,21 +382,11 @@ def _intent_to_add(root: Path, prefix: str) -> set[Path]:
     names them on failure; it never skips them (that would let the author's own receipt escape).
     Read only on the failure path, so a green run pays no second `git status`.
     """
-    try:
-        out = subprocess.run(
-            ["git", "status", "--porcelain", "--untracked-files=no", "--", prefix],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    # the same -z read as _changed_md, so a non-ASCII peer receipt the scan grades is also named here
+    rc, out = _git_bytes(root, "status", "--porcelain", "-z", "--untracked-files=no", "--", prefix)
+    if rc != 0:
         return set()
-    return {
-        (root / line[3:].strip().strip('"')).resolve()
-        for line in out.splitlines()
-        if line[:2] == " A"
-    }
+    return {(root / rel).resolve() for xy, rel in _porcelain_z(out) if xy == " A"}
 
 
 def _is_separator(row: str) -> bool:
@@ -547,6 +775,87 @@ def _scope_growth_exit(text: str, ordered_rows: list[_Row]) -> bool:
     return all(r[1] is not None and r[1] > 0 for r in ordered_rows[-window:])
 
 
+# D-355 superseded the D-252 exit on 2026-09-23. A receipt first committed BEFORE that day closed
+# on a then-sanctioned stop and is never nagged for it (the D-497 grandfathering pattern); one
+# first committed on or after it gets no exemption. Cobra (D-253): the cheapest way past the
+# cut-over is to backdate a commit — visible in `git log`, and it buys only an advisory's silence.
+_D355_CUTOVER = "2026-09-23"
+
+
+# Environment that would point git at ANOTHER repository or index — a hook or wrapper can leak it
+# (review A-S1: a leaked GIT_DIR dated a receipt from a sibling repo's history). Mirrors
+# task_lane._GIT_ENV_OVERRIDES; enforcement scripts ship without task_lane, so it is restated here.
+_GIT_LOCATION_ENV = frozenset(
+    {
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_COMMON_DIR",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_NAMESPACE",
+        "GIT_CEILING_DIRECTORIES",
+        "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+        "GIT_LITERAL_PATHSPECS",
+        "GIT_GLOB_PATHSPECS",
+        "GIT_NOGLOB_PATHSPECS",
+        "GIT_ICASE_PATHSPECS",
+    }
+)
+
+
+def _first_commit_date(root: Path | None, path: Path) -> str:
+    """The receipt's first-commit date (``YYYY-MM-DD``), or "" when git cannot say.
+
+    The ONE first-commit reader: check_convergence's D-497 cut-over delegates here. Never
+    ``--follow`` — and ``-c log.follow=false``, because a user's ``log.follow=true`` turns it on for
+    a one-path log: it follows COPIES too, so a new receipt similar enough to an older one (they
+    share a template) inherits the older one's date and its exemption — measured. Without it a
+    rename, a shallow clone's graft and a squash all read as a LATER date, so every limit errs
+    toward naming the receipt, never toward hiding it. git runs with ``_GIT_LOCATION_ENV`` removed,
+    so the repository asked is the one ``root`` names. ``root=None`` resolves the work tree from the
+    receipt's own directory (the uncommitted check has no root of its own); a failed resolution
+    answers ""."""
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_LOCATION_ENV}
+    try:
+        if root is None:
+            top = subprocess.run(
+                ["git", "rev-parse", "--show-toplevel"],
+                cwd=path.resolve().parent,
+                capture_output=True,
+                text=True,
+                timeout=15,
+                env=env,
+            )
+            if top.returncode != 0 or not top.stdout.strip():
+                return ""
+            root = Path(top.stdout.strip())
+        rel = str(path.resolve().relative_to(root.resolve()))
+        r = subprocess.run(
+            ["git", "-c", "log.follow=false", "log", "--diff-filter=A", "--format=%cs", "--", rel],
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            env=env,
+        )
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return ""
+    out = r.stdout.split() if r.returncode == 0 else []
+    return out[-1] if out else ""
+
+
+def _legacy_scope_growth_exit(
+    root: Path | None, path: Path, text: str, ordered_rows: list[_Row]
+) -> bool:
+    """The D-252 exemption, kept ONLY for a receipt first committed before D-355. An undatable
+    or never-committed receipt gets no exemption (fail closed: the check then names it)."""
+    if not _scope_growth_exit(text, ordered_rows):
+        return False
+    first = _first_commit_date(root, path)
+    return bool(first) and first < _D355_CUTOVER
+
+
 def _blocked_sections(text: str) -> int:
     """How many BLOCKED sections carry their own in-section evidence — the per-finding
     3-attempts phrase, or (loop-level exit) a NON-CONVERGENCE heading naming a foundation error.
@@ -766,15 +1075,11 @@ def check_file(p: Path) -> list[str]:
             "after the real ledger becomes the exit round (round-13, reproduced with an "
             "appendix example row). Quote examples inside code fences"
         )
-    # ⚠️ the scope-growth exit is exempted HERE ONLY — from the quietness rule. The closing-seat
-    # rule below (V11) is NOT exempt: a loop that stopped because it was reviewing its own
-    # fixes needs a fresh non-authoring reader more than a quiet one does, not less.
-    if (
-        ordered_rows
-        and not blocked_ok
-        and not _in_progress(text)
-        and not _scope_growth_exit(text, ordered_rows)
-    ):
+    # D-355 (2026-09-23, operator): a review closes only when its closing pass confirms zero,
+    # whatever stopped it — the D-252 scope-growth stop routes own-fix work, it is not an exit.
+    # A receipt first committed before the ruling keeps its then-sanctioned stop, so an edit to
+    # one (a link fix) is not refused; a new or post-ruling receipt gets no exemption.
+    if ordered_rows and not blocked_ok and not _in_progress(text):
         last = ordered_rows[-1]
         quiet = _confirmed_quiet(last)
         if quiet is None:  # no `confirmed:` counter — the legacy rule stands
@@ -782,13 +1087,14 @@ def check_file(p: Path) -> list[str]:
             named = f"raised {last[0]}"
         else:
             named = _exit_counters(last, f"found: {last[0]}")
-        if not quiet:
+        if not quiet and not _legacy_scope_growth_exit(None, p, text, ordered_rows):
             errs.append(
                 f"final ledger round {named} (a candidate CONFIRMED by execution counts; RECORDED and REFUTED rows never reopen the loop — D-206) — the exit round must be quiet, or the stuck finding must be BLOCKED-escalated (named + 3 failed attempts), or the report must declare `Status: IN-PROGRESS`"
             )
     # V5 — the residual section's licences, whole-document and fence-stripped (never inside
     # `_checklist_section`'s scope: a by-design verdict lives in `## Residual`, not the checklist).
-    errs.extend(_residual_errors(text_s, ordered_rows))
+    known_ids, ledger = _ledger_ids(p)
+    errs.extend(_residual_errors(text_s, ordered_rows, known_ids=known_ids, ledger=ledger))
     # V11 — the closing round carried a finder seat. A delta round whose fix diff is the
     # orchestrator's own work cannot close on the orchestrator's own reading (core/62 § Role
     # separation), and the finders cell is where the receipt says who read it. Scoped to the NEW
@@ -2107,7 +2413,15 @@ _BY_DESIGN = re.compile(r"RECORDED\s*—\s*by design\s*\(([^)]*)\)")
 # (500 bare, 3 sub-findings `F8a`–`F8c`) and 40 are prefixed (`AF1`–`AF15`, `BF1`, `A-F1`–`A-F4`,
 # `U0-F1`–`U3-F2`); 0 are hyphenated `F-nnn`. FULLMATCHED, never searched — a search would lift
 # `F9` out of `AF9` and pass an owner that does not exist.
-_OWNER_ID = re.compile(r"[A-Za-z0-9]{0,3}-?F\d+[a-z]?")
+# The SECOND shape is the review-loop workflow's own (W-528f123e): `<slice>-<O|S|H|L><n>` with a reused id
+# suffixed `#n` (.claude/workflows/fabrik-review-loop.js), the slice name free text with hyphens
+# (`rule-grammar-S1`, `R1-T03-A-O14`). Of 690 such first cells in the tree at 8fcc01023 the F-only shape refused
+# every one as an owner, so writers fell back to `RECORDED — measured` (iie b9885cf). The seat letter is only
+# ever O, S, H or L, so prose like `Pass-P1` or `A-SH1` stays refused; a pass-suffixed id (`B-S1-p3`) and the
+# placeholders `A-S?` / `A#2` are not owner shapes — cite the base id.
+_OWNER_ID = re.compile(
+    r"[A-Za-z0-9]{0,3}-?F\d+[a-z]?|[A-Za-z0-9][A-Za-z0-9-]{0,60}-[OSHL]\d+[a-z]?(?:#\d+)?"
+)
 _D_OWNER = re.compile(r"D-\d+")
 _BY_DESIGN_ENTRY = re.compile(r"^(?P<owner>.*?)\s*,\s*round\s*(?P<n>\d+)$", re.I)
 # `| F9, F12–F16 |` — one multi-owner cell exists in the corpus, and its range must expand or
@@ -2120,7 +2434,19 @@ _CLOSING_PASS = re.compile(r"^\s*" + _LIST_MARK + r"\s*\|?\s*\**Pass\s*(\d+)", r
 # receipt already writes (`native opus×1 + sonnet×3`). The run record's stamp stays the
 # orchestrator's duty (DD10); this gate has no run-record reader and adding one would be a new
 # mechanism.
-_MODEL_TOK = re.compile(r"(?<![\w-])(?:opus|sonnet|haiku)\s*[×x]\s*\d+", re.I)
+# COBRA (D-253, W-b61f25cb): typing a token is cheaper than dispatching a seat — a cell reading
+# `the orchestrator (opus×1) re-read its own fix diff — no seat dispatched`, or `same seats as pass 1:
+# opus×1 + sonnet×2, re-prompted`, satisfies this search while describing the state the rule forbids.
+# The artifact that could falsify it is the `command_run.py dispatch --seats` stamp, which this gate
+# does not read; a counter-measure is /fabrik-spec work (D-262 ruled this grammar needs a spec, not a
+# patch). `fable` is a token because a dispatched Fable seat re-verifies its own slice in the closing
+# pass (core/62 § The orchestrator, W-d90fe030) — and the orchestrator is Opus or Fable, so
+# `fable×1 (the orchestrator re-read its own fix)` passes exactly as its `opus×1` twin does, same
+# counter. A spelled-out version (`Fable 5.1×1`, `opus 4×1`) is no token.
+# The rule's wording ("Finders cell") names the TABLE grammar; a prose closing row is graded on
+# the text before its counters (0 of the 42 graded closing rows were prose across 324 receipts, measured
+# 2026-09-19 for W-b61f25cb).
+_MODEL_TOK = re.compile(r"(?<![\w-])(?:opus|sonnet|haiku|fable)\s*[×x]\s*\d+", re.I)
 
 
 def _closing_pass_row(ordered: list[_Row]) -> tuple[int, str] | None:
@@ -2144,53 +2470,100 @@ def _closing_pass_row(ordered: list[_Row]) -> tuple[int, str] | None:
     return (int(m.group(1)), ordered[-1][4]) if m is not None else None
 
 
-def _row_ids(text_s: str) -> set[str]:
-    """Every ledger/finding row id in the receipt — the FIRST cell of every `|`-leading,
-    non-separator row ANYWHERE in the fence-stripped text, comma/semicolon split and ranges
-    expanded. Deliberately wider than the LEDGER BLOCKS of the token rule: 514 of the 543 owner
-    rows at 8092e8a8 sit in findings tables, outside any ledger block.
-    """
+def _line_ids(line: str) -> set[str]:
+    """The row ids ONE line carries — its first cell, comma/semicolon split, ranges expanded; empty for a line
+    that is not a non-separator `|` row. Every `|`-leading row ANYWHERE in the fence-stripped text counts, which is
+    deliberately wider than the LEDGER BLOCKS of the token rule: 514 of the 543 owner rows at 8092e8a8 sit in
+    findings tables, outside any ledger block."""
     ids: set[str] = set()
-    for line in text_s.splitlines():
-        stripped = line.strip()
-        if not stripped.startswith("|") or _SEP_ROW.fullmatch(stripped):
+    stripped = line.strip()
+    if not stripped.startswith("|") or _SEP_ROW.fullmatch(stripped):
+        return ids
+    cells = _row_cells(line)
+    if not cells:
+        return ids
+    for tok in re.split(r"[,;]", cells[0]):
+        tok = tok.strip().strip("*`").strip()
+        if not tok:
             continue
-        cells = _row_cells(line)
-        if not cells:
-            continue
-        for tok in re.split(r"[,;]", cells[0]):
-            tok = tok.strip().strip("*`").strip()
-            if not tok:
-                continue
-            ids.add(tok)
-            rng = _OWNER_RANGE.match(tok)
-            if rng is not None:
-                lo, hi = int(rng.group(2)), int(rng.group(3))
-                if lo <= hi and hi - lo < 200:
-                    ids.update(f"{rng.group(1)}{i}" for i in range(lo, hi + 1))
+        ids.add(tok)
+        rng = _OWNER_RANGE.match(tok)
+        if rng is not None:
+            lo, hi = int(rng.group(2)), int(rng.group(3))
+            if lo <= hi and hi - lo < 200:
+                ids.update(f"{rng.group(1)}{i}" for i in range(lo, hi + 1))
     return ids
 
 
-def _residual_errors(text_s: str, ordered: list[_Row]) -> list[str]:
+# `decisions.py::_ledger_ids`'s first-cell parse, exactly (no re.I there either)
+_LEDGER_ROW = re.compile(r"^\|\s*D-(\d+)\s*\|", re.M)
+
+
+def _ledger_ids(receipt: Path) -> tuple[frozenset[int] | None, str]:
+    """The D-ids, as INTEGERS (ledgers zero-pad: `D-001` is `D-1`), of the `docs/DECISIONS.md` of
+    the checkout holding `receipt` — the first ancestor carrying `.git` (a file in a linked
+    worktree), never beyond it, so a stray tree never borrows an outer repo's ledger.
+
+    Fails OPEN — `(None, "")`, shape-only — when there is no `.git` ancestor, no ledger, an
+    unreadable one, or one with zero rows (a different grammar is not a licence to refuse every
+    D-owner). Read fresh each call: a cached ledger would miss a row minted since. Measured before
+    it shipped (kaizen 01M4YMKN78): over 1651 tracked receipts in 9 repos, 485 by-design D-owners,
+    2 absent — both D-874, a row then held only on an unmerged plan branch.
+    COBRA (D-253): the cheapest way past this check is to cite any EXISTING D-id that does not
+    license the candidate — existence is not relevance; the reason written after the parentheses
+    is what a reviewer reads to catch that."""
+    for anc in receipt.resolve().parents:
+        if (anc / ".git").exists():
+            ledger = anc / "docs" / "DECISIONS.md"
+            try:
+                ids = frozenset(int(n) for n in _LEDGER_ROW.findall(ledger.read_text("utf-8")))
+            except (OSError, UnicodeDecodeError, ValueError):
+                return None, ""
+            return (ids or None), (str(ledger) if ids else "")
+    return None, ""
+
+
+def _residual_errors(
+    text_s: str,
+    ordered: list[_Row],
+    *,
+    known_ids: frozenset[int] | None = None,
+    ledger: str = "",
+) -> list[str]:
     """V5 — every `RECORDED — by design (…)` verdict names an EXISTING owner and an EARLIER round.
 
     Whole-document (it is a residual-section verdict, not a checklist one) and run over the
-    fence-stripped text, so the template's own fenced example is invisible to it.
+    fence-stripped text, so the template's own fenced example is invisible to it. A `D-nnn` owner
+    is checked against `known_ids` (the checkout's ledger, `_ledger_ids`) when that set is
+    non-empty; `None` or an empty set keeps the shape-only check.
     """
     verdicts = list(_BY_DESIGN.finditer(text_s))
     if not verdicts:
         return []
-    ids = _row_ids(text_s)
+    # each line's ids ONCE, and the lines an id occurs on — the citing line is located by the SAME line
+    # boundaries (`splitlines(keepends=True)` offsets), so a bare `\r` cannot shift it (review A-S1) and the
+    # per-verdict owner check is a lookup, not a re-join of the whole document (A-S2: quadratic in verdicts)
+    starts: list[int] = []
+    on_lines: dict[str, set[int]] = {}
+    pos = 0
+    for i, line in enumerate(text_s.splitlines(keepends=True)):
+        starts.append(pos)
+        pos += len(line)
+        for tok in _line_ids(line):
+            on_lines.setdefault(tok, set()).add(i)
     closing = _closing_pass_row(ordered)
     repair = "cite the owning row's first-cell id verbatim, or `(D-nnn)`"
     out: list[str] = []
     for v in verdicts:
+        # the citing row is never its own owner (W-528f123e critique): every first cell is an id, so
+        # `| A-S1 | RECORDED — by design (A-S1, round 1) |` with no other A-S1 row licensed itself
+        at = bisect.bisect_right(starts, v.start()) - 1
         for raw in v.group(1).split(";"):
             entry = raw.strip()
             if not entry:
                 continue
             em = _BY_DESIGN_ENTRY.match(entry)
-            owner = em.group("owner").strip() if em else entry
+            owner = (em.group("owner") if em else entry).strip().strip("*`").strip()
             n = int(em.group("n")) if em else None
             if _D_OWNER.fullmatch(owner):
                 if n is not None:
@@ -2198,8 +2571,15 @@ def _residual_errors(text_s: str, ordered: list[_Row]) -> list[str]:
                         f"`RECORDED — by design ({entry})`: a `D-nnn` owner takes NO round token "
                         "— a D-row is earlier than any closing round by construction"
                     )
+                elif known_ids and int(owner[2:]) not in known_ids:
+                    out.append(
+                        f"`RECORDED — by design ({entry})`: `{owner}` is not a row in "
+                        f"{ledger or 'docs/DECISIONS.md'} — cite a row this checkout's ledger holds "
+                        "(merge the integration branch first if the row was minted there), or the "
+                        "owning row's id"
+                    )
                 continue
-            if not _OWNER_ID.fullmatch(owner) or owner not in ids:
+            if not _OWNER_ID.fullmatch(owner) or not (on_lines.get(owner, set()) - {at}):
                 out.append(f"`RECORDED — by design ({entry})`: the owning row is absent — {repair}")
                 continue
             if n is None:
@@ -2814,12 +3194,12 @@ def _committed_nonquiet(root: Path, skip: set[Path]) -> list[str]:
                 named = legacy
             else:
                 named = _exit_counters(last, legacy)
-        # ⚠️ The SAME exemption `check_file` grants at the uncommitted path. Without it the two
+        # ⚠️ The SAME legacy-only exemption `check_file` grants (D-355). Without it the two
         # readers disagree by construction in the direction this function's own docstring calls its
         # founding enemy — accepted uncommitted, then nagged FOREVER once committed, telling an
         # author who took a SANCTIONED exit that "committing a review does not converge it". Found
         # by the heavy review of D-281; the exemption existed at one reader only.
-        if not quiet and not _scope_growth_exit(text, ordered_rows):
+        if not quiet and not _legacy_scope_growth_exit(root, p, text, ordered_rows):
             out.append(
                 f"{p.relative_to(root)}: COMMITTED with a non-quiet exit round ({named}) "
                 "— committing a review does not converge it. Finish the loop; BLOCKED-escalate the "
@@ -3037,7 +3417,7 @@ _PLAN_STEM_RE = re.compile(
 )
 
 
-def _grade(p: Path, root: Path) -> list[str]:
+def _grade(p: Path, root: Path, live: bool = True) -> list[str]:
     """Full blocking battery for ONE review artifact — the routing main() always applied.
 
     Factored out (2026-08-30) so the commit-moment path (explicit paths from the pre-commit
@@ -3052,10 +3432,15 @@ def _grade(p: Path, root: Path) -> list[str]:
     # \A-anchored: the H1 must be the FILE'S FIRST LINE. A content-anywhere match let any
     # review file that merely QUOTED the template (even fenced) route here and skip the
     # checklist gate it actually owed — reproduced 2026-08-18.
-    body = p.read_text(encoding="utf-8", errors="replace")
+    # vanished or unreadable after it was listed: a failure line, never a traceback
+    try:
+        body = p.read_text(encoding="utf-8", errors="replace")
+    except OSError as e:
+        return [f"{rel}: unreadable while being graded ({e.strerror or type(e).__name__})"]
     if _is_mega_report(p, body):
         # a mega validation report is exit-proof-gated, not checklist-gated
-        return [f"{rel}: {e}" for e in check_mega_validation(p, root, live=True)]
+        # live=False for a committed unintegrated report: epics legitimately move after it
+        return [f"{rel}: {e}" for e in check_mega_validation(p, root, live=live)]
     # a receipt still IN-PROGRESS (a dispatched seat's mid-loop draft the running-record read now
     # reaches) is exempt from the Hunt-row and cert legs exactly as `check_file` exempts it — the
     # carve-out belongs to the whole battery, not one leg (round 3)
@@ -3090,7 +3475,17 @@ def main() -> int:
         "hook passes the STAGED reviews/*.md here — a review committed without a gate run "
         "while dirty otherwise escapes the blocking scan forever, observed live 2026-08-30)",
     )
+    ap.add_argument(
+        "--base",
+        default=None,
+        help="the one integration ref the unintegrated scan excludes, overriding the resolved set "
+        "(final_gate.py never passes it; the checker resolves the refs itself)",
+    )
     args = ap.parse_args()
+    if args.base is not None and (not args.base or args.base.startswith("-")):
+        # passed verbatim to `git log --not`: a leading dash would be read as an OPTION
+        # (`--base=--all` excluded every ref and passed green — Phase A review, A-O5)
+        ap.error("--base must name a ref, not an option or an empty string")
     root = Path(args.root).resolve()
     failures: list[str] = []
     if args.paths:
@@ -3103,7 +3498,7 @@ def main() -> int:
         if failures:
             print("Coverage-checklist gate FAILED (explicitly-named review artifacts):")
             for f in failures:
-                print(f"  - {f}")
+                print(_shown(f"  - {f}"))
             print(
                 "A review artifact enters history only fully adjudicated — fix it, finish "
                 "the loop, or mark it `Status: IN-PROGRESS` (never invent a round to "
@@ -3121,6 +3516,14 @@ def main() -> int:
     for _p in _running_review_receipts(root):
         if _p not in changed:
             changed.append(_p)
+    # W-f847a317: review artifacts in commits not yet in an integration ref join the BLOCKING set —
+    # commit-then-gate passed green before. An IN-PROGRESS one stays out of the advisory skip set, so
+    # it keeps its standing nag and every file is reported by exactly one of the two scans.
+    bases = [args.base] if args.base is not None else integration_refs(root)
+    unint, who, unint_notes = _unintegrated_md(root, REVIEWS_DIR, bases)
+    have = {p.resolve() for p in changed}
+    unint_only = [p for p in unint if p.resolve() not in have]
+    in_progress = {p for p in unint_only if _in_progress(_read_or_empty(p))}
     # ⚠️ ADVISORY, not a failure — and the asymmetry is deliberate. The hole was that a committed
     # unconverged review was INVISIBLE; printing it fixes that. Hard-failing it would retro-grade
     # every historical report across ~46 synced repos on the next sync, on artifacts whose authors
@@ -3130,7 +3533,9 @@ def main() -> int:
     # untracked joins the skip set (round 121): an untracked file is neither changed nor
     # COMMITTED — the rglob scanned it anyway and labeled a sibling's mid-write scratch
     # "COMMITTED", the exact shared-tree misattribution the '??' carve-out exists to avoid.
-    stale = _committed_nonquiet(root, skip=set(changed) | set(untracked))
+    stale = _committed_nonquiet(
+        root, skip=set(changed) | set(untracked) | (set(unint_only) - in_progress)
+    )
     if stale:
         # ⚠ FIRST character matters: final_gate's --json ships a passing check's stdout only
         # when it STARTS with ⚠ (the opt-in the emitter documents). Round 23-25: the advisory
@@ -3138,29 +3543,42 @@ def main() -> int:
         # the emitter was correct all along; this check never spoke its protocol.
         print("⚠ check_review_coverage ADVISORY — committed review(s) needing attention:")
         for s in stale:
-            print(f"  ⚠ {s}")
-    for note in skip_notes:
+            print(_shown(f"  ⚠ {s}"))
+    for note in skip_notes + unint_notes:
         # AFTER the ⚠ block, never before it — a NOTE printing first broke the emitter's
         # startswith("⚠") opt-in and re-hid the advisory whenever an untracked draft
         # co-occurred with a committed advisory (round 25, reproduced end-to-end)
-        print(note)
+        print(_shown(note))
     failed: list[Path] = []
-    for p in changed:
-        errs = _grade(p, root)
+    # a path gone since it was listed (a sibling's checkout mid-run) is neither graded nor counted
+    changed = [p for p in changed if p.is_file()]
+    unint_only = [p for p in unint_only if p.is_file()]
+    for p, live in [(p, True) for p in changed] + [(p, False) for p in unint_only]:
+        errs = _grade(p, root, live=live)
         if errs:
             failed.append(p)
         failures.extend(errs)
     if failures:
         print("Coverage-checklist gate FAILED:")
         for f in failures:
-            print(f"  - {f}")
+            print(_shown(f"  - {f}"))
+        for p in failed:
+            if p in who and p not in changed:
+                print(
+                    _shown(
+                        f"  NOTE: {p.relative_to(root)} {who[p]} — mail its "
+                        "author or revert it; never push to clear it"
+                    )
+                )
         ita = _intent_to_add(root, REVIEWS_DIR)
         for p in failed:
             if p.resolve() in ita:
                 print(
-                    f"  NOTE: {p.relative_to(root)} is intent-to-add (`git add -N`, never "
-                    "committed, invisible to `git diff --cached`) — if it is not your receipt it "
-                    "is another session's in-flight work: message its author, never edit it"
+                    _shown(
+                        f"  NOTE: {p.relative_to(root)} is intent-to-add (`git add -N`, never "
+                        "committed, invisible to `git diff --cached`) — if it is not your receipt it "
+                        "is another session's in-flight work: message its author, never edit it"
+                    )
                 )
         print(
             "A coverage-adjudicated review exits only on a fully-adjudicated checklist "
@@ -3172,7 +3590,7 @@ def main() -> int:
     # nothing". See docs/reference/enforcement-battery-audit.md.
     print(
         "check_review_coverage: OK — 0 unproven coverage claims across "
-        f"{len(changed)} changed review artifact(s)"
+        f"{len(changed)} changed + {len(unint_only)} unintegrated review artifact(s)"
     )
     return 0
 

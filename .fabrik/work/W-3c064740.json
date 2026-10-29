@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T21:49:39.436908Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-3c064740",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4V6VQ8VHA9CER82TQ9QX4FF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "review_loop_ledger.py pin mixes advisory lines into the JSON on stdout, so a Workflow brief cannot take its output whole — /fabrik-review row 1791913338"
+}

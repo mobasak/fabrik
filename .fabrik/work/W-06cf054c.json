@@ -12,12 +12,14 @@
     "spec": ""
   },
   "next": "decide the shape: emit the governance CLAUDE.md for mobile-app like every type, and move the mobile-only rules (already duplicated in AGENTS.md.j2) there; grader = scaffold a mobile-app into tmp and assert CLAUDE.md == templates/governance/CLAUDE.md",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
-    "scaffold"
+    "proposed-drop",
+    "scaffold",
+    "waits-operator-review"
   ],
   "title": "mobile-app scaffold writes templates/mobile-app/CLAUDE.md instead of the governance contract every other type gets (templates/governance/CLAUDE.md), so a new mobile project starts without the fleet contract until a governance sync overwrites it (prompt-audit finding 2026-09-30, probe: scratch scaffold of mobile-app)"
 }

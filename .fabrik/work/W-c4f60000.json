@@ -1,0 +1,29 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T01:52:13.069494Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "9694b2f2569b0a0f4bd93a72e76fcb25e3757f18",
+  "id": "W-c4f60000",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "DONE 2026-10-21 (fleet): all four notes relayed verbatim to 13 consumers (ai-model-catalog, compliance-ops, exam-coach, obsidian-agents, rnfinal, supplement-tracker-advisor, test-saas-platform, test-saas-scaffold, tojlo-mail, transdoc, tryton-crm, web-ecommerce-factory, youtube; mails 01M5EDNX5Y..01M5EDNYY7); fabrik-test-saas-skeleton skipped (pending deletion, W-636a7709); fabrik-lib-dev2 answered 01M5EDP87G; the coordinator acks the four claimed mails",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH: another repo's request (fabrik-lib asks the hub to relay, D-956); LOW effort: a grep for the consumer set plus one mail per consumer, no code",
+  "status": "done",
+  "tags": [
+    "mail-01m5bkrr080gbv2911n50zte48",
+    "mail-01m5bt0tcp7q9zr3z5kjk52s9p",
+    "mail-01m5ch9gpf1a5an2r9ryngha7v",
+    "mail-01m5ebhwzc0r52mfvh66pj5e96"
+  ],
+  "title": "Relay fabrik-lib i18n/ consumer notes (mails 01M5BT0TCP7Q9ZR3Z5KJK52S9P and 01M5CH9GPF1A5AN2R9RYNGHA7V, archived under the coordinator's claim): the re-vendored validator newly FAILS blank/non-text array items and bad _meta, WARNS on type and length mismatches, and translate fails OPEN on an absent _context.json — find every /opt project vendoring i18n/ and mail each one the two notes with the post-re-vendor check"
+}

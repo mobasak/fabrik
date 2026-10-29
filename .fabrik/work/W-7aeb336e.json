@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T04:14:33.995028Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-7aeb336e",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-command-improve",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: HELD:placement-keeps-anaphor-with-antecedent — valid one-off advice, held below the edit bar: one verdict, no recurrence in 72 reasons (D-711, kaizen 2026-10-18",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-command-improve"
+}

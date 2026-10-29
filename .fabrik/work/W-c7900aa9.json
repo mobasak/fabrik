@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T05:19:38.825618Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-c7900aa9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4CY4B5007F98H8W1K8GVR91",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "addendum to 01M4CXVZ1F — two more pre-D-355 close sentences (Fable critique)"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T19:43:20.499567Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-178f07a3",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — rare misuse hardening of one round path",
+  "status": "dropped",
+  "title": "command_run round: refuse --findings 0 / --confirmed 0 after a dispatched workflow whose ledger holds confirmed verdicts (plan-review verdict 1791337661.4608235, kaizen 01M4EG5F6D)"
+}

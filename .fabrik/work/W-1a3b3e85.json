@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T20:04:32.241964Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-1a3b3e85",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reuse check_review_coverage's selection (import by path like the twin pattern) or re-implement -z + unintegrated; sibling of W-699a271a",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — docstring parity false and a gate hole kept; defect near gate path",
+  "status": "dropped",
+  "tags": [
+    "medium"
+  ],
+  "title": "check_review_hygiene._changed_receipts mirrors check_review_coverage's selection by hand (scripts/enforcement/check_review_hygiene.py:947-976): plain porcelain + strip('\"'), working tree only — after W-f847a317 its docstring's parity claim is false and it keeps the commit-then-gate hole and the non-ASCII skip"
+}

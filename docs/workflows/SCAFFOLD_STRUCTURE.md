@@ -82,6 +82,14 @@
 └── project.yaml · pyproject.toml · requirements.txt · requirements-dev.txt
 ```
 
+Test runs carry a 120 s per-test hang guard (W-046828fb): the python template's `[tool.pytest.ini_options]` sets
+`timeout` and `faulthandler_timeout`, and every dependency file that names pytest also names pytest-timeout —
+python-api, python-api-gpu and mobile-app in their `requirements-dev.txt`, file-worker in the `requirements-dev.txt` its
+Makefile installs, the saas family (saas-skeleton, static-site, office-extension) in `server/requirements-dev.txt`,
+and chrome-extension in a root `requirements-dev.txt` that keeps the test deps out of the image's
+`requirements.txt` (W-4d6a37c8). chrome-extension also emits a root `pytest.ini` carrying the
+two settings, because its root `tests/` never reads `server/pyproject.toml`.
+
 `.github/` is not emitted: CI checks are retired fleet-wide (operator directive), and `scripts/ci_local.sh` is the
 clean-room runner instead (`src/fabrik/ci_scaffold.py::ci_files` returns exactly `scripts/ci_local.sh` and
 `.fabrik/run-pytest`; `render_ci_workflow` stays there as the statement of what the checks are).
@@ -233,6 +241,16 @@ The `fabrik scaffold` command runs the same checks after `create_project()` retu
 5. `_post_scaffold_sync()` runs `scripts/sync_projects.py`: registers the project in `data/projects.yaml` and refreshes the hub's `docs/PROJECT_CATALOG.md`
 6. the repo's `.mcp.json` is emitted (the MCP split, D-028/D-029)
 7. `generate_and_save_spec()` for `SPEC_ENABLED_TYPES` (skipped with `--no-spec`)
+
+Step 2's venv and pip install, the local dev database a `--db` scaffold creates (python-api, python-api-gpu,
+chrome-extension), step 5, step 6 and a step-7 spec in the hub's `specs/services/` run only when provisioning is
+opted in: `fabrik scaffold` calls
+`create_project(provision=True)`; any other caller (a script, a probe, a review seat, a test) gets the files only, its
+spec under its own base (none at all when that base is the hub's scan root), and the skipped venv and
+database steps print the command to run instead (W-e2f0b6e5). Code that needs the
+real steps outside the CLI wraps them in `scaffold.provisioning()` (a thread it starts is not opted in unless it
+copies the context); `FABRIK_SCAFFOLD_OFFLINE` still turns off the venv, database, sync and `.mcp.json` steps inside
+an opt-in, while the hub spec follows the opt-in alone.
 
 The `fabrik scaffold` command then prints the `validate-deploy` warnings and, for build-context types with `gh` authenticated, creates and wires a private GitHub repo at `mobasak/<name>` (`--github-create` forces it, `--no-github` skips it).
 

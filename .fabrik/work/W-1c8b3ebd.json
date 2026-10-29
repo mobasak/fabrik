@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:34:42.303698Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-1c8b3ebd",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide how a worktree run meets D7 (Opus seat's proposal: in-process proof against a throwaway clone per multi-agent-operating-model.md § The shared runtime, plus a post-merge live request the report names as owed) via the Opus + Fable panel, then one edit to D7 and Finish step 5's (c) flip",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "kaizen work + rule update = HIGH (D-956); one execute-plan wording decision, Opus+Fable panel decides it",
+  "status": "open",
+  "title": "/fabrik-execute-plan D7 requires a live request against the running service, but from a linked worktree (positions b and c) a shared runtime serves MAIN's code until this tree merges, which happens after D7 (b: Finish step 4) or after the run stops (c) — so D7's live request cannot prove this tree's route in-run (review round 3 of the execute-plan queue pass, 2026-10-19)"
+}

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T06:29:11.996925Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "35fe3b8737be4f00eb817c30b71475758562959f",
+  "id": "W-5f3617e6",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "auto-resolve a work-item-file conflict at merge: the branch's status/closed/evidence fields win, master's score fields (impact, effort, why, priority, owner) win, with a test per field class",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "HIGH: a bug blocking other agents' merges, 4 refused resend rounds today; one script plus tests",
+  "status": "done",
+  "tags": [
+    "merge"
+  ],
+  "title": "merge_request.py refuses a branch on a .fabrik/work/*.json conflict when the coordinator scored or assigned the item on master after the builder changed it on its branch: 4 refusals on 2026-10-18 (kaizen 01M56J2XWP, 01M56Q8NVD, 01M56TYT9S; intel 01M55BZP81), each a resend round"
+}

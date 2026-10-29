@@ -1,6 +1,6 @@
 """Pre-deploy checks run by ``fabrik apply`` before any mutating step.
 
-Three independent, composable checks that correspond to Critical Success
+Four independent, composable checks; the first three correspond to Critical Success
 Factors §1, §2, and §4 in ``docs/development/plans/2026-04-18-zero-touch-deployment.md``:
 
 * :func:`verify_architecture` — asserts every service in a compose YAML
@@ -15,6 +15,10 @@ Factors §1, §2, and §4 in ``docs/development/plans/2026-04-18-zero-touch-depl
   polls the Traefik API on ``127.0.0.1:8080`` via SSH until it returns
   200 (CSF §1). Replaces the blind ``time.sleep(5)`` from the plan's
   example with an evidence-based wait.
+* :func:`verify_host_reachable` — one bounded ``ssh <alias> true`` probe run
+  by ``fabrik apply`` before anything touches the fleet (W-2b657bee); a dead path
+  raises :class:`HostUnreachableError` naming the alias, the dead leg and the fix
+  instead of hanging each later call to its own timeout.
 
 Design notes
 ------------
@@ -22,8 +26,9 @@ Design notes
   and the local ``subprocess`` module for local checks, mirroring the
   pattern established in :mod:`fabrik.drivers.ssh` and
   :mod:`fabrik.drivers.locks`.
-* All three accept ``dry_run: bool`` to return early without touching
-  the VPS, matching the ``--dry-run`` contract of ``fabrik apply``.
+* The DNS and Traefik checks accept ``dry_run: bool`` to return early without
+  touching the VPS, matching the ``--dry-run`` contract of ``fabrik apply``;
+  :func:`verify_host_reachable` has none — the orchestrator skips it on a dry run.
 * No side effects other than what is named in the function name.
   :func:`verify_architecture` and :func:`verify_dns_before_deployment`
   are read-only; only :func:`restart_traefik_and_wait` mutates VPS state.
@@ -32,12 +37,23 @@ Design notes
 from __future__ import annotations
 
 import logging
+import re
 import subprocess
 import time
 
 import yaml
 
-from fabrik.drivers.ssh import ssh
+from fabrik.drivers.ssh import (
+    _REMOTE_ENCODING,
+    _REMOTE_ERRORS,
+    JumpConfigError,
+    _ssh_host,
+    is_alias,
+    jump_env_name,
+    jump_for,
+    parse_hop,
+    ssh,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +63,7 @@ DEFAULT_VPS_IP = "172.93.160.197"
 PUBLIC_DNS_RESOLVER = "1.1.1.1"
 """Cloudflare public resolver, used for out-of-band DNS propagation checks."""
 
-TRAEFIK_API_LOCAL_URL = "http://127.0.0.1:8080/api/http/routers"
+TRAEFIK_API_LOCAL_URL = "http://127.0.0.1:8080/api/http/routers"  # noqa — the VPS's own Traefik admin API, reached over SSH, never from this host
 """Traefik API endpoint. Bound to VPS loopback only; reached via SSH."""
 
 
@@ -302,6 +318,207 @@ def restart_traefik_and_wait(
     )
 
 
+# --------------------------------------------------------------------------- #
+# 4. SSH reachability                                                          #
+# --------------------------------------------------------------------------- #
+
+
+class HostUnreachableError(RuntimeError):
+    """The ssh path to a fleet alias is dead; the message names the leg and the fix."""
+
+
+# stderr shapes of a NETWORK failure — only these earn the "set/check the jump" advice; a
+# host-key or auth failure (also rc 255) gets "run ssh <alias> true by hand" instead.
+# "connection closed" is deliberately absent: sshd also closes after an auth failure.
+_NETWORK_STDERR = re.compile(
+    r"timed out|banner exchange|connection refused|connection reset|no route|unreachable"
+    r"|network is down|could not resolve|name or service not known",
+    re.I,
+)
+# ssh's noise — its generic sign-off and the known_hosts addition notice; neither says why it
+# failed. Every other `Warning:` line stays: one can BE the cause (a host key that differs for
+# the IP, W-6a96f699) — but none counts toward the network shape, since it can name a host.
+_SSH_NOISE = re.compile(r"connection (closed|to \S+ closed)|warning: permanently added", re.I)
+_WARNING = re.compile(r"warning:", re.I)
+_REASON_MAX = 300  # one terminal-width-ish error line; ssh's longest (a changed host key) is ~600
+
+
+def _probe(argv: list[str], timeout: int) -> tuple[bool, bool, str]:
+    """Run one ``ssh … true`` probe; return ``(ok, network_shaped, reason)``.
+
+    The OUTER timeout is load-bearing: ``ConnectTimeout`` bounds the direct connect and
+    handshake, but ssh never passes ``-o`` options on to a ProxyJump hop, so a hung jump
+    host is bounded only here. ``stdin`` is closed so no prompt can wait for input.
+    """
+    try:
+        r = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=timeout + 5,
+            stdin=subprocess.DEVNULL,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return False, True, f"no answer in {timeout + 5}s"
+    except OSError as e:
+        return False, False, f"{type(e).__name__}: {e}".rstrip(".")
+    if r.returncode == 0:
+        return True, False, ""
+    # Each line stripped of its `@` frame (the host-key banner's rules become empty, its headline
+    # stays) and its trailing period; a line left empty says nothing.
+    lines, headline = [], []
+    for raw in (r.stderr or "").splitlines():
+        text = raw.strip().strip("@").strip().rstrip(".")
+        if text:
+            lines.append(text)
+            if raw.strip().startswith("@") and text not in headline:
+                headline.append(text)
+    # Every line but ssh's noise, in order — no single line is picked, because which line
+    # says WHY differs by failure (a jumped refusal's cause comes first, a host-key failure's
+    # last). The banner's headline leads; the rest is tail-kept when long: ssh prints the
+    # failure last.
+    said = [ln for ln in lines if not _SSH_NOISE.match(ln)]
+    body = [ln for ln in said if ln not in headline]
+    reason = "; ".join(body)
+    if len(reason) > _REASON_MAX:
+        reason = "…" + reason[-_REASON_MAX:]
+    head = "; ".join(headline)  # a banner has one headline; never let it grow, and mark a cut
+    if len(head) > _REASON_MAX:
+        head = head[: _REASON_MAX - 1] + "…"
+    # Nothing kept: the last line that says anything (a noise line, as before), else the exit
+    # code — saying whether stderr was empty or held only `@`/`.` (it is not "no stderr" then).
+    empty = "no stderr" if not (r.stderr or "").strip() else "stderr held no text"
+    reason = "; ".join(part for part in (head, reason) if part) or (
+        lines[-1] if lines else f"rc={r.returncode}, {empty}"
+    )
+    network = any(_NETWORK_STDERR.search(ln) for ln in said if not _WARNING.match(ln))
+    return False, network, reason
+
+
+def _batch(timeout: int) -> list[str]:
+    return ["-o", "BatchMode=yes", "-o", f"ConnectTimeout={timeout}"]
+
+
+def _hop_destination(hop: str) -> str:
+    """The hop as an ssh destination: ``[user@]host``, or ``ssh://[user@]host:port`` when it
+    carries a port — ssh reads ``host:port`` as a HOSTNAME; the URI is the form it parses."""
+    parsed = parse_hop(hop)
+    if parsed is None:  # unreachable: jump_for already refused it; never strip to a TypeError
+        return hop
+    user, host, port = parsed
+    who = f"{user}@{host}" if user else host
+    return f"ssh://{who}:{port}" if port else who
+
+
+def check_ssh_config(host: str) -> str | None:
+    """The no-network half of the preflight (a dry run runs only this): *host* must be an
+    ssh alias and its jump variable well-formed. Returns the jump, or ``None``.
+
+    Raises:
+        HostUnreachableError: either check failed.
+    """
+    if not is_alias(host):
+        raise HostUnreachableError(
+            f"SSH preflight: {host!r} is not an ssh alias (nothing was changed)"
+        )
+    try:
+        return jump_for(host)
+    except JumpConfigError as e:
+        raise HostUnreachableError(f"SSH preflight: {e} (nothing was changed)") from None
+
+
+def verify_host_reachable(host: str | None = None, timeout: int = 10) -> None:
+    """Prove ``ssh <host> true`` answers before a deploy touches the fleet.
+
+    Probes the path every later call will take: through ``FABRIK_SSH_JUMP_<ALIAS>`` when
+    it is set, else exactly as ssh config resolves the alias. Never switches path (no
+    automatic reroute, D-row of W-2b657bee): on a jumped pass it only LOGS when the direct
+    path answers again, so the variable can be removed by hand.
+
+    Args:
+        host: ssh alias; defaults to ``FABRIK_VPS_SSH_HOST`` (``vps``).
+        timeout: ``ConnectTimeout`` seconds; the outer bound is ``timeout + 5``.
+
+    Raises:
+        HostUnreachableError: the path is dead, the alias is malformed, or the jump
+            variable is. The message names the alias, the path, the dead leg when a jump is
+            set, the reason and the next step.
+    """
+    host = host or _ssh_host()
+    jump = check_ssh_config(host)
+    var = jump_env_name(host)
+    path = f"via jump {jump!r}" if jump else "without a FABRIK jump (as ssh config resolves it)"
+    hop = ["-o", f"ProxyJump={jump}"] if jump else []  # the value read once, above
+    ok, network, reason = _probe(["ssh", *hop, *_batch(timeout), host, "true"], timeout)
+    if ok:
+        if jump:
+            _advise_if_direct_back(host, var)
+        return
+    head = f"SSH preflight: {host!r} is unreachable {path}: {reason}."
+    if jump:
+        hops = jump.split(",")
+        first = hops[0]
+        dest = _hop_destination(first)  # what the operator should type, too
+        first_ok, first_network, first_reason = _probe(
+            ["ssh", *_batch(timeout), dest, "true"], timeout
+        )
+        if first_ok:
+            beyond = "a later hop or the leg to" if len(hops) > 1 else "the leg from it to"
+            tail = (
+                f" The jump host {first!r} answers; {beyond} {host!r} does not. Check that"
+                f" leg's network, or unset {var} if the direct path is back."
+                if network
+                else f" The jump host {first!r} answers. Run `ssh {host} true` by hand to see why."
+            )
+        elif first_network:
+            tail = (
+                f" The jump host {first!r} is unreachable too: {first_reason}. Check"
+                f" `ssh {dest} true`, or unset {var} if the direct path is back."
+            )
+        else:
+            tail = (
+                f" The jump host {first!r} fails: {first_reason}. Run `ssh {dest} true` by"
+                " hand to see why."
+            )
+        msg = head + tail
+    elif network:
+        msg = head + (
+            f" If another fleet host reaches it (e.g. over WireGuard), set {var}=<that alias>"
+            " and re-run."
+        )
+    else:
+        msg = head + f" Run `ssh {host} true` by hand to see why."
+    raise HostUnreachableError(msg + " (nothing was changed)")
+
+
+def _advise_if_direct_back(host: str, var: str) -> None:
+    """Log (never act) when the direct path answers again. Fail-quiet: any error is silence."""
+    argv = ["ssh", "-o", "ProxyJump=none", *_batch(3), host, "true"]
+    try:
+        # Only the rc is read; the driver's decode keeps a stray byte from silencing the advice (W-7ac62afc).
+        r = subprocess.run(
+            argv,
+            capture_output=True,
+            text=True,
+            encoding=_REMOTE_ENCODING,
+            errors=_REMOTE_ERRORS,
+            timeout=5,
+            stdin=subprocess.DEVNULL,
+            check=False,
+        )
+    except Exception:  # noqa: BLE001 — an advisory probe must never fail the deploy
+        return
+    if r.returncode == 0:
+        logger.warning(
+            "The direct path to %r answers again — %s can be removed (the jump stays in use"
+            " until it is).",
+            host,
+            var,
+        )
+
+
 __all__: tuple[str, ...] = (
     "DEFAULT_VPS_IP",
     "PUBLIC_DNS_RESOLVER",
@@ -309,4 +526,7 @@ __all__: tuple[str, ...] = (
     "verify_architecture",
     "verify_dns_before_deployment",
     "restart_traefik_and_wait",
+    "HostUnreachableError",
+    "check_ssh_config",
+    "verify_host_reachable",
 )

@@ -363,7 +363,6 @@ class TestProvisionDispatch:
             ) as grafana,
             patch("fabrik.drivers.authelia.add_access_rule") as authelia,
             patch("fabrik.drivers.meilisearch.create_index") as meili,
-            patch("fabrik.drivers.coolify.CoolifyClient"),
         ):
             # coolify_uuid must be set for glitchtip to proceed past guard
             ctx.coolify_uuid = "test-uuid"
@@ -473,7 +472,6 @@ class TestProvisionDispatch:
             ),
             patch("fabrik.drivers.authelia.add_access_rule", return_value=_ok(status="added")),
             patch("fabrik.drivers.meilisearch.create_index", return_value=_ok()),
-            patch("fabrik.drivers.coolify.CoolifyClient"),
         ):
             prov.provision(ctx)
 
@@ -662,7 +660,6 @@ class TestGlitchTipDsnInjection:
             ),
             patch("fabrik.drivers.glitchtip.verify_dsn_injection", return_value=False),
             patch("fabrik.drivers.glitchtip.delete_project") as del_proj,
-            patch("fabrik.drivers.coolify.CoolifyClient"),
             patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()),
             patch(
                 "fabrik.drivers.grafana.post_deployment_annotation",
@@ -714,7 +711,6 @@ class TestGlitchTipDsnInjection:
                 return_value=_ok(status="dry_run", dsn=None),
             ),
             patch("fabrik.drivers.glitchtip.verify_dsn_injection") as verify,
-            patch("fabrik.drivers.coolify.CoolifyClient") as coolify_cls,
             patch("fabrik.drivers.gatus.add_endpoint", return_value=_ok()),
             patch(
                 "fabrik.drivers.grafana.post_deployment_annotation",
@@ -724,7 +720,6 @@ class TestGlitchTipDsnInjection:
             prov.provision(ctx)
 
         verify.assert_not_called()
-        coolify_cls.return_value.bulk_update_env_vars.assert_not_called()
 
 
 # --------------------------------------------------------------------------- #

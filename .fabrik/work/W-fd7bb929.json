@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T22:06:27.573219Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-fd7bb929",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M55CM91H0JBGGJJFF89CQNWQ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Stop hook blocks an open review's own files as unreviewed spontaneous work"
+}

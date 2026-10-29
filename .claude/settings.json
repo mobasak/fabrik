@@ -49,31 +49,37 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/final_gate_stop.py\" --baseline",
+            "command": "f=\"${CLAUDE_PROJECT_DIR}/.claude/hooks/final_gate_stop.py\"; [ -f \"$f\" ] && [ -r \"$f\" ] || { printf '%s\\n' \"HOOK MISSING: $f — this checkout lacks its synced hook copies (a linked worktree made without its .worktreeinclude set): copy .claude/hooks/, scripts/ and the rest of that set from the main checkout (git worktree list names it), or have the hub re-run its enforcement sync\"; exit 0; }; python3 \"$f\" --baseline",
             "timeout": 120,
             "statusMessage": "Snapshotting gate baseline..."
           },
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/session_orient.py\"",
+            "command": "f=\"${CLAUDE_PROJECT_DIR}/.claude/hooks/session_orient.py\"; [ -f \"$f\" ] && [ -r \"$f\" ] || { printf '%s\\n' \"HOOK MISSING: $f — this checkout lacks its synced hook copies (a linked worktree made without its .worktreeinclude set): copy .claude/hooks/, scripts/ and the rest of that set from the main checkout (git worktree list names it), or have the hub re-run its enforcement sync\"; exit 0; }; python3 \"$f\"",
             "timeout": 10,
             "statusMessage": "Orienting: governance + memory + session-recall..."
           },
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/agent_role.py\"",
+            "command": "f=\"${CLAUDE_PROJECT_DIR}/.claude/hooks/agent_role.py\"; [ -f \"$f\" ] && [ -r \"$f\" ] || { printf '%s\\n' \"HOOK MISSING: $f — this checkout lacks its synced hook copies (a linked worktree made without its .worktreeinclude set): copy .claude/hooks/, scripts/ and the rest of that set from the main checkout (git worktree list names it), or have the hub re-run its enforcement sync\"; exit 0; }; python3 \"$f\"",
             "timeout": 10,
             "statusMessage": "Loading agent role charter..."
           },
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/mail_notify.py\"",
+            "command": "test -f \"${CLAUDE_PROJECT_DIR}/scripts/agent_status.py\" && python3 \"${CLAUDE_PROJECT_DIR}/scripts/agent_status.py\" --session-start || true",
+            "timeout": 20,
+            "statusMessage": "Loading every agent's now/done/next..."
+          },
+          {
+            "type": "command",
+            "command": "f=\"${CLAUDE_PROJECT_DIR}/.claude/hooks/mail_notify.py\"; [ -f \"$f\" ] && [ -r \"$f\" ] || { printf '%s\\n' \"HOOK MISSING: $f — this checkout lacks its synced hook copies (a linked worktree made without its .worktreeinclude set): copy .claude/hooks/, scripts/ and the rest of that set from the main checkout (git worktree list names it), or have the hub re-run its enforcement sync\"; exit 0; }; python3 \"$f\"",
             "timeout": 10,
             "statusMessage": "Checking fabrik-mail inbox..."
           },
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/scripts/thread_anchor.py\" line --hook",
+            "command": "f=\"${CLAUDE_PROJECT_DIR}/scripts/thread_anchor.py\"; [ -f \"$f\" ] && [ -r \"$f\" ] || { printf '%s\\n' \"HOOK MISSING: $f — this checkout lacks its synced hook copies (a linked worktree made without its .worktreeinclude set): copy .claude/hooks/, scripts/ and the rest of that set from the main checkout (git worktree list names it), or have the hub re-run its enforcement sync\"; exit 0; }; python3 \"$f\" line --hook",
             "timeout": 10,
             "statusMessage": "Recalling open threads..."
           }
@@ -86,7 +92,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/final_gate_stop.py\"",
+            "command": "f=\"${CLAUDE_PROJECT_DIR}/.claude/hooks/final_gate_stop.py\"; [ -f \"$f\" ] && [ -r \"$f\" ] || { printf '%s\\n' \"HOOK MISSING: $f — this checkout lacks its synced hook copies (a linked worktree made without its .worktreeinclude set): copy .claude/hooks/, scripts/ and the rest of that set from the main checkout (git worktree list names it), or have the hub re-run its enforcement sync\" >&2; exit 1; }; python3 \"$f\"",
             "timeout": 120,
             "statusMessage": "Definition of done — verifying final_gate..."
           }
@@ -99,25 +105,25 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/skill_router.py\"",
+            "command": "f=\"${CLAUDE_PROJECT_DIR}/.claude/hooks/skill_router.py\"; [ -f \"$f\" ] && [ -r \"$f\" ] || { printf '%s\\n' \"HOOK MISSING: $f — this checkout lacks its synced hook copies (a linked worktree made without its .worktreeinclude set): copy .claude/hooks/, scripts/ and the rest of that set from the main checkout (git worktree list names it), or have the hub re-run its enforcement sync\"; exit 0; }; python3 \"$f\"",
             "timeout": 15,
             "statusMessage": "Routing to a /fabrik-* skill..."
           },
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/mail_notify.py\"",
+            "command": "f=\"${CLAUDE_PROJECT_DIR}/.claude/hooks/mail_notify.py\"; [ -f \"$f\" ] && [ -r \"$f\" ] || { printf '%s\\n' \"HOOK MISSING: $f — this checkout lacks its synced hook copies (a linked worktree made without its .worktreeinclude set): copy .claude/hooks/, scripts/ and the rest of that set from the main checkout (git worktree list names it), or have the hub re-run its enforcement sync\"; exit 0; }; python3 \"$f\"",
             "timeout": 10,
             "statusMessage": "Checking fabrik-mail inbox..."
           },
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/scripts/thread_anchor.py\" line --hook",
+            "command": "f=\"${CLAUDE_PROJECT_DIR}/scripts/thread_anchor.py\"; [ -f \"$f\" ] && [ -r \"$f\" ] || { printf '%s\\n' \"HOOK MISSING: $f — this checkout lacks its synced hook copies (a linked worktree made without its .worktreeinclude set): copy .claude/hooks/, scripts/ and the rest of that set from the main checkout (git worktree list names it), or have the hub re-run its enforcement sync\"; exit 0; }; python3 \"$f\" line --hook",
             "timeout": 10,
             "statusMessage": "Recalling open threads..."
           },
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/mcp_watch.py\"",
+            "command": "f=\"${CLAUDE_PROJECT_DIR}/.claude/hooks/mcp_watch.py\"; [ -f \"$f\" ] && [ -r \"$f\" ] || { printf '%s\\n' \"HOOK MISSING: $f — this checkout lacks its synced hook copies (a linked worktree made without its .worktreeinclude set): copy .claude/hooks/, scripts/ and the rest of that set from the main checkout (git worktree list names it), or have the hub re-run its enforcement sync\"; exit 0; }; python3 \"$f\"",
             "timeout": 5,
             "statusMessage": "MCP assigned-vs-live watch..."
           }
@@ -130,9 +136,20 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PROJECT_DIR}/.claude/hooks/quota_stop.py\"",
+            "command": "f=\"${CLAUDE_PROJECT_DIR}/.claude/hooks/quota_stop.py\"; [ -f \"$f\" ] && [ -r \"$f\" ] || { printf '%s\\n' \"HOOK MISSING: $f — this checkout lacks its synced hook copies (a linked worktree made without its .worktreeinclude set): copy .claude/hooks/, scripts/ and the rest of that set from the main checkout (git worktree list names it), or have the hub re-run its enforcement sync\" >&2; exit 1; }; python3 \"$f\"",
             "timeout": 5,
             "statusMessage": "Quota stop check (fleet-exhausted stamp)..."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"${CLAUDE_PROJECT_DIR}/.claude/hooks/seat_guard.py\"; [ -f \"$f\" ] || exit 0; python3 \"$f\"; exit 0",
+            "timeout": 5,
+            "statusMessage": "Seat guard (review seats: no pattern kills, git writes only in scratch; every session: no sync into a worktree's shared .venv)..."
           }
         ]
       }

@@ -1,9 +1,14 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-ab566484",
+    "W-5985e74a"
+  ],
   "created": "2026-09-30T20:47:12.090470Z",
   "creator": "fleet",
-  "evidence": "",
+  "effort": "low",
+  "evidence": "3d11f15beb2121322d7e9ee8e94bfd5153d7f41d",
   "id": "W-4b1dfd76",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +18,12 @@
   },
   "next": "at /fabrik-plan-after-chat for the fulfilment spec, name both refresh branches in the ticket that edits cli.py; unit test drives refresh with a failing registrar AND a pending payments lane and asserts the ⚠ line",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 3,
-  "status": "open",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — registrar warnings not printed on exit-2 branch, small build item",
+  "status": "done",
+  "tags": [
+    "medium"
+  ],
   "title": "fulfilment-role build: print registrar_warnings in fabrik refresh's exit-2 branch (cli.py:1282) as well as its ✅ branch (:1293) — spec 2026-09-30-payments-fulfilment-role § The delta item 5 names 'the refresh summary' singular (spec-review round 4, rules-O22, recorded under the scope-growth stop)"
 }

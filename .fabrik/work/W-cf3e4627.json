@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T14:31:49.885915Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-cf3e4627",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-data-contract",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: answered by the contract the session loads and a fragment this command's review applies: CLAUDE.md § Behavior (shared repo, mutate-restore paragraph) 'Dispatche",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-data-contract"
+}

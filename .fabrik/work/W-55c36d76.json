@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T08:02:17.486221Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-55c36d76",
+  "impact": "low",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -15,7 +17,11 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — stale rules copy misled a review",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "fabrik-lib's .windsurf/rules/ is a stale gitignored copy (2026-09-02) — a spec review cited dead lines from it"
 }

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T22:41:28.383545Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4ebdbf2f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4V00C6A48Q3ZMNT8CSB8V22",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "backlog SB-ids are minted by eye, and SB-119 and SB-117 were each minted twice across branches (/fabrik-review-scoped feedback row 1791906868)"
+}

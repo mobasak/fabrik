@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T14:55:41.529784Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c5315db2",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-920",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide whether _battery_lift / _QUOTA_HOT_THIS_TICK=None must require row['source']=='live' — today a blackout tick whose active account has a cache row lifts the hold on stale (possibly too-cool) utilisation (_row_has_reading ignores source; critiques of W-5a1b8961, 2026-10-17)",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — battery-hold lift misreads cached row; quota wall release bug",
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "Battery-hold lift reads a CACHED row as a reading (D-920 review of _row_has_reading)"
+}

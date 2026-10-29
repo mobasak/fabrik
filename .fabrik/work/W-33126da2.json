@@ -1,0 +1,26 @@
+{
+  "block_digest": "204ebef09e9f700ce4fdc902950e5e5ef3379bdad244d62bc9a8206505e8abdd",
+  "blocked_by": [],
+  "created": "2026-10-14T20:20:44.197976Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-33126da2",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "cc21b7aa9ff3e780ea18e28729c64df9966825255a63f4b79f513751d949cd63"
+  ],
+  "next": "",
+  "note": "operator 2026-10-14: 'research and brainstorm skill first, it will be used in all repos not only in fabrik.'",
+  "owner": "",
+  "priority": 2,
+  "question": "Shall I write the coordinator-agent spec you asked about? The coordinator would sort mail, set priority, own merges and handle coordination, never build, run on Sonnet, take infra's seat in the main checkout, and score items on impact × effort. Or do you want to change the role first?",
+  "status": "done",
+  "title": "Shall I write the coordinator-agent spec you asked about? The coordinator would sort mail, set priority, own merges and handle coordination, never build, run on Sonnet, take infra's seat in the main checkout, and score items on impact × effort. Or do you want to change the role first?"
+}

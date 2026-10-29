@@ -16,5 +16,8 @@
   "owner": "fleet",
   "priority": 2,
   "status": "done",
+  "tags": [
+    "waits-operator-resume"
+  ],
   "title": "`fabrik fix` seeds every project from the python-api template map unless `--type` is passed (2026-09-22)"
 }

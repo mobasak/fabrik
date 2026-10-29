@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T09:29:58.842679Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-8507598f",
+  "impact": "low",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -15,7 +17,11 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — missing registry probe, outage was invisible",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "Box health has no probe for the package registries — a resolver-side outage of registry.npmjs.org (2026-10-02) was invisible until a build hung"
 }

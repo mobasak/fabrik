@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-02T13:37:21.132214Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-e796497e",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -12,11 +14,13 @@
     "spec": ""
   },
   "next": "edit docs/reference/ai-media-generation-provider-map.md:92 (via Higgsfield app/agent only; not in the REST API; no Hunyuan3D) and :94 (drop CSM, API shut down); re-check Luma Genie (sunset 2026-01-01) if listed; mark Rodin (:93) reachable via fal and WaveSpeed, generate call only",
-  "note": "",
-  "owner": "",
-  "priority": 2,
-  "status": "open",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — reach map wrong, misleads agent",
+  "status": "dropped",
   "tags": [
+    "medium",
     "rules"
   ],
   "title": "Reach map's 3D rows are stale: Higgsfield's REST API exposes no 3D (Meshy/Tripo are app/agent-only, Hunyuan3D not offered), and CSM's API shut down 2026-01-05 after Google's acquisition; and Rodin, Meshy and Tripo are reachable through fal and WaveSpeed (keys held), so the map's 'Rodin add-key' is wrong too"

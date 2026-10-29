@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:53:57.220283Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-808a9beb",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read mail 01M53THJ0MJQCVB85P7MF9HRAW in the fabrik inbox, validate it, fix or answer it, then ack it",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "break on an agent: the Stop hook feedback rung blocks kaizen on its own fresh verdicts",
+  "status": "open",
+  "tags": [
+    "mail-01m53thj0mjqcvb85p7mf9hraw"
+  ],
+  "title": "mail 01M53THJ0MJQCVB85P7MF9HRAW: Stop hook feedback rung blocks kaizen on verdicts its own session just filed (self-feeding loop)"
+}

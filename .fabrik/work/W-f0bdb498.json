@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T07:21:35.566539Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f0bdb498",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "coordinate with wef3/wef2 by mail on the relay's home (their W-24b96f01) and the Pages project; prepare the spec + DNS plan; stop at Gate 2",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — operator said bhdtrade urgent, deploy-blocking",
+  "status": "open",
+  "tags": [
+    "waits-wef-migration"
+  ],
+  "title": "bhdtrade.com go-live, hub side (D-921, D-106): register the deploy — the static Astro site on Cloudflare Pages and only services/quote-forms (SMTP relay) on vps1 via a hub copy of web-ecommerce-factory/specs/services/bhdtrade.yaml + fabrik apply; check W-bce494ec (SSH identity in the vps1 docker group, alias vps vs vps1) with the operator; deploy only after Gate 2"
+}

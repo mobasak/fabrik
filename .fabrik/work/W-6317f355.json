@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:21:35.808301Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6317f355",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4NJA3AX0R459PMZ5407FV67",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "UPDATE 2 to 01M4NHSE7J (lussobotanica quote form, D-384): the operator's info@lussobotanica.com will be a Microsoft 365 mailbox. So Cloudflare Email Routing is OUT (it needs the zone's MX). Revised ask for site-provisioner: (1) Turnstile widget for lussobotanica.com + www — unchanged; (2) once the o"
+}

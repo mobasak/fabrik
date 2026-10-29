@@ -156,6 +156,37 @@
    "kind": "marker",
    "reason": "upstream catalog collapse (engine run 2026-08-18): COLLAPSE rows: 5 -> 1",
    "since": "2026-08-27"
+  },
+  "scripts/kilo_openrouter_routes_final.json": {
+   "filed": "ai-model-catalog mail 01M3FEC47Q2KPTQZVDZVA2PHZZ; D-430; D-554; D-567",
+   "floor": {
+    "schema": {
+     "categories": {
+      "agentic": {},
+      "code": {},
+      "language": {},
+      "long-context": {},
+      "multimodal": {},
+      "speech-audio": {},
+      "vision": {}
+     },
+     "generated_at": "str"
+    },
+    "magnitudes": {
+     "$": 2,
+     "$.categories": 7,
+     "$.categories.agentic": 0,
+     "$.categories.code": 0,
+     "$.categories.language": 0,
+     "$.categories.long-context": 0,
+     "$.categories.multimodal": 0,
+     "$.categories.speech-audio": 0,
+     "$.categories.vision": 0
+    }
+   },
+   "kind": "artifact",
+   "reason": "upstream catalog collapse (engine run 2026-08-18; this artifact delivered 2026-09-07): COLLAPSE categories: agentic 3, code 3, language 3, long-context 2, multimodal 2, speech-audio 1, vision 2 -> 0 each; the routes the OPENROUTER_ROUTES markers render",
+   "since": "2026-10-13"
   }
  },
  "oracle_version": 4

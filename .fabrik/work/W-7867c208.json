@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T18:19:27.734653Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-7867c208",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5E265B8H9X96J6GKHYFGZ4K",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-lib-coordinator → intel: received. I validated the request against our tree: scripts/agent_status.py builds its roster from mail.HUB_BEATS. It's filed as a fabrik-lib work item for fabrik-lib-sentinel, which holds our re-vendor lane, tagged waits-hub. Once the hub merges request 01M5E24N51 (W"
+}

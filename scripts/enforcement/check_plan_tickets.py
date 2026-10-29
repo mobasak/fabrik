@@ -495,21 +495,24 @@ _RESIDUE_RE = re.compile(r"[`\"',;:]")
 _BLOCKQUOTE_RE = re.compile(r"^[ \t]*>.*$", re.M)
 # Fenced blocks are QUOTED content — never counted (a `Gate:`/`Status:` inside an
 # example must not trip the field counters).
-_FENCE_RE = re.compile(
-    # PARSING CONTRACT (recorded, review round 9): fences are BALANCED backtick
-    # fences — a 3+-backtick opener closed by an EQUAL-length line-start closer —
-    # plus inline single-line ```…``` quotes. Out of contract (documented, not
-    # chased): tilde fences, over-long closers, and unpaired line-start fence
-    # PAIRS — the emitting commands write balanced 3-backtick fences and quote
-    # templates with 4-backtick outers, both in-contract; no live fleet file
-    # violates this (verified 2026-08-05).
-    # Line-anchored BLOCK fences + inline single-line fences. NEVER a bare
-    # ```.*?``` — an unpaired backtick in prose would pair with the NEXT
-    # block's opener and swallow real document body (live fleet regression:
-    # calendar-orchestration-engine 2026-07-25 plan lost ## File Scope).
-    r"(?:^[ \t]*(`{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$|```[^`\n]+```)",
-    re.M | re.S,
-)
+# PARSING CONTRACT (recorded, review round 9): fences are BALANCED backtick
+# fences — a 3+-backtick opener closed by an EQUAL-length line-start closer —
+# plus inline single-line ```…``` quotes. Out of contract (documented, not
+# chased): tilde fences, over-long closers, and unpaired line-start fence
+# PAIRS — the emitting commands write balanced 3-backtick fences and quote
+# templates with 4-backtick outers, both in-contract; no live fleet file
+# violates this (verified 2026-08-05).
+# Line-anchored BLOCK fences + inline single-line fences. NEVER a bare
+# ```.*?``` — an unpaired backtick in prose would pair with the NEXT
+# block's opener and swallow real document body (live fleet regression:
+# calendar-orchestration-engine 2026-07-25 plan lost ## File Scope).
+# The match set is `_fences.py`'s, one linear scanner shared by every check that
+# strips fences (W-276255e7: the regex it replaced was quadratic).
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _fences  # noqa: E402  (same-dir sibling, synced fleet-wide)
+
+_FENCE_RE = _fences.FENCE_STRIP
 
 
 def _strip_fences(text: str) -> str:
@@ -547,6 +550,15 @@ NEVER_ROUTE_PREFIXES = (
     "db/migrations/",
     "secrets/",
 )
+# Filename FAMILIES — a stem the never-route path only has to START with. `_covered_by` is
+# component-literal containment, so `scripts/final_gate.py` above covers that one file and nothing
+# else: a repo whose completion gate is `scripts/final_gate_fabrik_lib.py` (fabrik-lib carries the
+# synced shim AND its own gate) got no never-route cover and a pool-tier ticket could own gate
+# machinery (fabrik-lib 01M494TQ3E, W-2e6c1b0b, D-row of 2026-10-13). The stem encodes the fleet
+# convention "a repo's completion gate lives at scripts/final_gate*" — 54 of 54 files on the box.
+# Over-match is deliberate and cheap (a false match re-tiers one ticket to native; a false miss is
+# silent); a gate named outside the family still needs the spine's `Never-Route:` line.
+NEVER_ROUTE_FILE_FAMILIES = ("scripts/final_gate",)
 # `.env` and `.env.*` are secret material — EXCEPT `.env.example` (a routine
 # Doc-Sync-Matrix file every env-var change touches).
 _ENV_EXEMPT = ".env.example"
@@ -603,7 +615,7 @@ def _norm_path(p: str) -> str:
     # QUOTE wraps (never parens — legal path chars), a trailing `:NN` citation
     # suffix and trailing colons, a RUN of trailing sentence dots (whole-dot
     # segments survive for the repo-root/out-of-repo arms; `dir/.` collapses),
-    # interior `/./` self-references, and a `./` prefix. Iterated so mixed
+    # interior `/./` self-references and doubled slashes, and a `./` prefix. Iterated so mixed
     # forms (`` `vendor/`. ``) resolve fully. Commas/semicolons are NOT
     # stripped — they reach the LOUD residue arms. A lone edge star is a GLOB
     # (`docs/*`) and must survive so the glob ERROR catches it.
@@ -624,9 +636,10 @@ def _norm_path(p: str) -> str:
         # A `path:NN` citation suffix collapses to the path (author intent —
         # the file is what's owned/protected); bare trailing colons strip too.
         p = re.sub(r":\d+$", "", p).rstrip(":")
-        # Interior `/./` self-references collapse (POSIX identity).
-        while "/./" in p:
-            p = p.replace("/./", "/")
+        # Interior `/./` self-references and doubled slashes collapse (POSIX
+        # identity) — `scripts//final_gate.py` must not slip past Never-Route.
+        while "/./" in p or "//" in p:
+            p = p.replace("/./", "/").replace("//", "/")
         # A RUN of trailing sentence dots — segment-aware: a final segment that
         # is ENTIRELY dots must survive for the repo-root/out-of-repo arms —
         # except the POSIX self-reference `dir/.`, which IS the dir.
@@ -637,7 +650,7 @@ def _norm_path(p: str) -> str:
             if p.rsplit("/", 1)[-1].strip("."):
                 p = core
         if p.startswith("./"):
-            p = p[2:]
+            p = p[2:] or "."  # `./` IS the repo root — never an empty, silently dropped token
         if p == before:
             return p
 
@@ -673,10 +686,18 @@ def _path_covers(entry: str, path: str) -> bool:
 def _never_route(p: str) -> bool:
     """Bidirectional: a Touches entry that IS, is UNDER, or COVERS a never-route
     path is never-route (a `scripts/` or slash-less `scripts` dir entry owns
-    scripts/enforcement/ too)."""
+    scripts/enforcement/ too) — and a FOURTH relation, filename FAMILY: an entry whose
+    slash-stripped path STARTS WITH a `NEVER_ROUTE_FILE_FAMILIES` stem (character-level,
+    not component-bounded — `scripts/final_gate_fabrik_lib.py`, and by accepted over-match
+    `scripts/final_gatekeeper.md` too)."""
     if p == _ENV_EXEMPT:
         return False
     if p == ".env" or p.startswith(".env."):
+        return True
+    # A filename family: the slash-stripped path STARTS WITH the stem (`scripts/final_gate*`), the
+    # one shape containment cannot express. Callers hand in `_norm_path` output, so `./`, backticks
+    # and a `:NN` suffix are already gone; only a trailing slash is stripped here.
+    if any(p.rstrip("/").startswith(stem) for stem in NEVER_ROUTE_FILE_FAMILIES):
         return True
     return any(_covered_by(n, p) or _covered_by(p, n) for n in NEVER_ROUTE_PREFIXES)
 
@@ -977,6 +998,20 @@ def _parse_ticket(path: Path) -> Ticket:
             _norm_behavior(m) for m in GIVEN_ROW_RE.findall(_section(scan, "Behavior Contract"))
         ],
     )
+
+
+def _ancestors(tid: str, edges: dict[str, list[str]]) -> set[str]:
+    """Every ticket `tid` transitively Depends on (itself excluded). Cycle-safe; `edges` already
+    drops unknown ids, and a cycle is reported by the Depends-graph check, never here."""
+    stack, seen = list(edges.get(tid, [])), set()
+    while stack:
+        cur = stack.pop()
+        if cur in seen:
+            continue
+        seen.add(cur)
+        stack.extend(edges.get(cur, []))
+    seen.discard(tid)
+    return seen
 
 
 def _depends_connected(a: str, b: str, edges: dict[str, list[str]]) -> bool:
@@ -2435,9 +2470,14 @@ def check_plan_dir(
                 )
             )
         # T4.8 (01M21804, 01M218KM): a Gate: over a file that exists nowhere and sits in no
-        # Touches; and prose inside ## Touches, which the bullet collector never saw
+        # Touches; and prose inside ## Touches, which the bullet collector never saw. A Depends
+        # ancestor's Touches name it too: the executor dispatches a ticket only once every
+        # Depends row is ✅ (fabrik-execute-plan.md:470), so the ancestor's file exists by then
+        # (web-ecommerce-factory 01M4DHVXWA). Membership stays exact: a directory entry names no file.
         _scan_t = _strip_fences(t.text)
         _touch_set = {_norm_path(x) for x in t.touches}
+        for _anc in _ancestors(t.tid, edges):
+            _touch_set |= {_norm_path(x) for x in tickets[_anc].touches}
         for _gm in GATE_CMD_RE.finditer(_scan_t):
             for _spellings in _gate_file_paths(_gm.group("cmd")):
                 _f = _spellings[0]
@@ -2449,7 +2489,9 @@ def check_plan_dir(
                     results.append(
                         _err(
                             f"{t.tid}: Gate: runs `{_f}`, which exists nowhere and is in no "
-                            "Touches — declare it in this ticket's Touches or drop the gate",
+                            "Touches of this ticket or of a ticket it Depends on — declare it in "
+                            "the Touches of the ticket that creates it and Depend on that ticket, "
+                            "or drop the gate",
                             t.path,
                         )
                     )
@@ -2625,9 +2667,15 @@ def check_file(file_path: Path) -> list[CheckResult]:
     ]
 
 
+# A plan lock whose plan is still MID-FLIGHT — the writer's contract (`/fabrik-execute-plan`: `active`, a quota
+# `paused`, a halt `blocked`), kept equal to check_plan_lock_release.NON_TERMINAL by a test; no check imports a
+# sibling check. A paused plan still owns its scope, so its findings are selected (advisory) like an active one's.
+_LOCK_MID_FLIGHT = frozenset({"active", "paused", "blocked"})
+
+
 def _discover_dirs(root: Path) -> tuple[list[Path], dict[Path, str]]:
     """No-arg CLI discovery. Returns (dirs, advisory) where dirs = dated plan dirs containing any
-    changed file PLUS plan dirs whose ACTIVE lock's owned paths intersect the changed set.
+    changed file PLUS plan dirs whose MID-FLIGHT lock (`_LOCK_MID_FLIGHT`) owns a changed file.
 
     `advisory` maps each dir NOT selected by this session's own working-tree/staged plan edits to
     WHY — `"lock"` (a lock's owned_paths intersected the change set) or `"upstream"` (a plan file
@@ -2696,10 +2744,37 @@ def _discover_dirs(root: Path) -> tuple[list[Path], dict[Path, str]]:
                 data = json.loads(lf.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
-            if data.get("status") != "active":
+            if not isinstance(data, dict):
+                _note(f"NOTE: plan_tickets discovery: {lf.name} is not a JSON object — skipped")
+                continue
+            status = data.get("status")
+            # a non-string status (hand-edited `["active"]`) is unhashable in the frozenset test: skip the lock, as
+            # the old `!= "active"` did, never abort discovery (review pass 1, W-b2bbc1f1)
+            if not isinstance(status, str) or status not in _LOCK_MID_FLIGHT:
                 continue
             owned = data.get("owned_paths", [])
-            if any(any(_path_covers(o, c) for o in owned) for c in changed):
+            # a STRING iterates its characters, so `_path_covers` would match single letters
+            # (W-7caa8a90): one path written bare is read as that one path, and said
+            if isinstance(owned, str):
+                _note(
+                    f"NOTE: plan_tickets discovery: {lf.name} owned_paths is a string, not a list — read as one path"
+                )
+                owned = [owned]
+            elif not isinstance(owned, list):
+                _note(
+                    f"NOTE: plan_tickets discovery: {lf.name} owned_paths is not a list — lock skipped"
+                )
+                continue
+            if any(not isinstance(o, str) for o in owned):
+                _note(
+                    f"NOTE: plan_tickets discovery: {lf.name} owned_paths has a non-string entry — dropped"
+                )
+                owned = [o for o in owned if isinstance(o, str)]
+            # read each entry as the epic reader does (W-b2bbc1f1): `_norm_glob` (edge backticks and quotes, `./`,
+            # `/./`) and the DIRECTIONAL, glob-aware `_glob_covers` — `src/app/**` covers a changed file under it,
+            # an entry below a changed file never selects; case-folded both sides as check_phase_tests' `_owned` is
+            owned = [n.lower() for n in (_norm_glob(o) for o in owned) if n]
+            if any(any(_glob_covers(o, c.lower()) for o in owned) for c in changed):
                 cand = root / "docs" / "development" / "plans" / lf.stem
                 if cand.is_dir():
                     lock_dirs.add(cand)
@@ -2787,7 +2862,7 @@ def main() -> int:
         return 0
     # Explicit --plan-dir = the author's own emit gate → full severity ("cli").
     # No-arg discovery = the shared Tier-2 gate path → "gate" (DRAFT downgrade
-    # applies). A dir selected ONLY via a sibling's active lock is that sibling's
+    # applies). A dir selected ONLY via a sibling's mid-flight lock (active, paused or blocked) is that sibling's
     # plan — ALL its findings become advisory WARNs (this session cannot fix them).
     run_context = "cli" if args.plan_dir else "gate"
     all_results: list[CheckResult] = []
@@ -2817,7 +2892,7 @@ def main() -> int:
                     f"NOTE: plan_tickets — {demoted} ERROR(s) for {d.name} demoted to advisory "
                     f"[sibling plan]: "
                     + (
-                        "this dir was selected via an active LOCK, and discovery cannot tell your "
+                        "this dir was selected via a mid-flight LOCK (active, paused or blocked), and discovery cannot tell your "
                         "own lock from a sibling's. "
                         if lock_only.get(d) == "lock"
                         else "this dir was selected via a plan file changed in an unpushed commit "

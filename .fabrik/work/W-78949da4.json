@@ -13,10 +13,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
-  "owner": "intel",
+  "note": "answered: command_run.py:621-628's in-lane verdict now reads 're-verify the fixed set alone, and close on a confirmed: 0 · fixed: 0 · unexecuted: 0 round (D-355)', matching scope-growth-exit.md's 'still closes only on a round that CONFIRMS zero' — the two exits wef1 saw disagree now say the same thing; mail 01M43KAE43 already archived",
+  "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "handoff-2026-10-06"
   ],

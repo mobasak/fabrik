@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:16:24.942784Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "1ac2271b64f29b8d81d6fb45d92bf68004b28323",
+  "id": "W-bb97199e",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide ship-HEAD vs name-only; ls-tree the skipped path in the skip branch; test with a deleted tracked source",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: rare-edge sync residue from W-ba306861 (D-1018); nobody blocked",
+  "status": "done",
+  "tags": [
+    "intel",
+    "queued"
+  ],
+  "title": "sync: a TRACKED synced file deleted from the hub working tree ships NOTHING, silently — every caller skips on source.exists()/is_file() (sync_enforcement_to_projects.py ~:2193-2387) before _head_source can serve HEAD's bytes; record it as drift ('deleted in working tree') or ship HEAD (W-ba306861 Opus critique #3)"
+}

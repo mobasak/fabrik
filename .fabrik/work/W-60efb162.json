@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T10:58:43.328057Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-60efb162",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TCHD5YGRT9742JAY5Z7M51",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "ownership-map draft for the mail router (re 01M4TC3JVN) — the five hub seams settled, plus fabrik-lib's three agents (operator: \"fabrik-lib has 3 agents and their work must be routed like this too\")"
+}

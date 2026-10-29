@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T14:40:19.532643Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "8c81694f5425582400c4e047dae2b00423947f4d",
+  "id": "W-046828fb",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "red-first test that every scaffold type's emitted deps include pytest-timeout and its pytest config carries timeout",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "operator paste 2026-10-20 (tests capped; pytest-timeout); one scaffold change",
+  "status": "done",
+  "tags": [
+    "queued"
+  ],
+  "title": "Scaffolded projects' pytest runs have no per-test timeout: add pytest-timeout to every scaffold's dev dependency list (python-api, file-worker, the server types that copy the pytest table) and set timeout in the emitted pytest config — moved from infra's P0 W-162398ef (D-935) because the server/file-worker scaffolds install no plugin today"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T22:14:20.822674Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-89b0b507",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5BMDT38S08REF37CGS466EA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "Two /fabrik-review feedback rows ask for command_run.py code — start's brief path from a worktree, and TERMINAL after a round that re-read no fix hunk"
+}

@@ -88,6 +88,9 @@ CATEGORY_ORDER = [
     "comms",
     "payments",
 ]
+# The category enum as ONE space-separated string — classify_services imports it (its unit prompt
+# interpolates it, so it stays a string) and `real_category` splits it (D-1046: one home).
+CATEGORIES = " ".join(CATEGORY_ORDER)
 
 SECRET_KEY_RE = re.compile(
     r"(KEY|TOKEN|SECRET|PASSWORD|PASSPHRASE|CREDENTIAL|_AUTH|APIKEY|DSN|SIGNING)",
@@ -568,6 +571,14 @@ def host_label(host: str) -> str:
 
 
 def provider_for_host(host: str, catalog: dict, url_index: dict[str, str], matchers) -> str | None:
+    """The catalog vendor a code host belongs to, credited only by DOMAIN or LABEL evidence — an exact
+    `hosts`/url entry, a registrable-domain wildcard, a catalog label on the vendor's own domain (or on any
+    domain when the entry has no parseable http(s) url of its own, C5), or a platform host's catalogued
+    service label (`<first>.<platform>`, or the bare platform label, an exact catalog key). A `match` token
+    is an ENV-KEY prefix, never domain evidence: the `<LABEL>_API_KEY` fallbacks this used to end in
+    credited `modal-labs.com` to modal, `hf-token.com` to huggingface and a customer's S3 bucket or Azure
+    resource name to its vendor, while 0 of 592 live code hosts relied on them (W-b81263e8). An unknown
+    host is triaged and curated into its entry's `hosts`. `matchers` is kept for the callers' signature."""
     h = host.lower()
     sld = host_sld(h)
     if sld in PLATFORM_SLD:  # never credit a whole cloud to one catalog vendor …
@@ -576,8 +587,9 @@ def provider_for_host(host: str, catalog: dict, url_index: dict[str, str], match
         label = host_label(h)
         if label in catalog:  # … but a platform SERVICE the classifier already named/tombstoned
             return label  # keeps its entry, or it is re-billed on every cycle (review 2026-09-02)
-        first = h.split(".")[0]
-        return match_provider(f"{first.upper().replace('-', '_')}_API_KEY", matchers)
+        # no catalogued service label: a first label here is often a customer's bucket or resource
+        # name, so its env-key spelling is never evidence
+        return None
     if h in url_index:  # exact hostname
         return url_index[h]
     dom = host_domain(h)
@@ -589,21 +601,22 @@ def provider_for_host(host: str, catalog: dict, url_index: dict[str, str], match
         url = str(catalog[sld].get("url") or "")
         try:
             own = urlsplit(url).hostname if url.startswith("http") else None
-        except ValueError:  # an unparseable catalog url is not evidence, never a crash (BB6/BR1)
+        except ValueError:  # an unparseable url names no domain (the label then counts, C5), never a crash (BB6/BR1)
             own = None
         if not own or host_domain(own) == host_domain(h):
             return sld
         # the entry's url sits on ANOTHER registrable domain: not this vendor — and never re-credited
-        # by falling through to its own `<SLD>_API_KEY` prefix (most vendors curate it: 82 of 109;
-        # the C5 grader passed `matchers=[]`, the one shape production never has — BS3). Said
-        # aloud: 14 live hosts of 8 vendors sit on a sibling domain (`fal.run`, `replicate.delivery`)
+        # by an env-key prefix (no host is, W-b81263e8; the C5 grader once passed `matchers=[]`, the
+        # one shape production never has — BS3). Said aloud: 14 live hosts of 8 vendors sit on a
+        # sibling domain (`fal.run`, `replicate.delivery`)
         # and belong in the entry's `hosts` — silent None triaged them as their own blocks (BW1)
         print(
             f"WARNING: host {h} carries catalogued label {sld} but {sld}'s url is on {host_domain(own)} — add it to {sld}'s `hosts` or it is triaged as its own block",
             file=sys.stderr,
         )
         return None
-    return match_provider(f"{sld.upper().replace('-', '_')}_API_KEY", matchers)
+    # no domain evidence: triaged under its own label, never routed by an env-key prefix
+    return None
 
 
 def code_only_block_name(host: str, catalog: dict) -> str:
@@ -829,6 +842,9 @@ def load_catalog() -> tuple[dict, list[tuple[str, str]]]:
     return parse_catalog(raw, str(CATALOG_PATH))
 
 
+_WARNED_OFF_ENUM: set[tuple[str, tuple[str, ...]]] = set()
+
+
 def parse_catalog(raw: dict, where: str) -> tuple[dict, list[tuple[str, str]]]:
     """Every rule the chain applies to a catalog, on an already-decoded object — the key rules
     (`validate_catalog_keys`) AND the prefix-tie rule below. ONE function for the loader and for
@@ -837,6 +853,23 @@ def parse_catalog(raw: dict, where: str) -> tuple[dict, list[tuple[str, str]]]:
     (FC5)."""
     catalog = {k: v for k, v in raw.items() if not k.startswith("_") and isinstance(v, dict)}
     validate_catalog_keys(catalog, where)
+    off_enum = sorted(
+        f"{p} ({m['category']!r})"
+        for p, m in catalog.items()
+        if isinstance(m.get("category"), str)
+        and m["category"].strip() not in ("", "?")
+        and not real_category(m["category"])
+    )
+    if off_enum and (where, tuple(off_enum)) not in _WARNED_OFF_ENUM:
+        # a display-only typo routes to triage by name and never fails the scan (D-1050); one line per
+        # process — a gather run loads the catalog twice (consolidate, then the emptied-catalog guard)
+        _WARNED_OFF_ENUM.add((where, tuple(off_enum)))
+        print(
+            f"WARNING {where}: category outside the enum, routed to NEEDS-TRIAGE: "
+            + "; ".join(off_enum)
+            + f" — allowed: {CATEGORIES} unidentified",
+            file=sys.stderr,
+        )
     matchers: list[tuple[str, str]] = []
     for provider, meta in catalog.items():
         for field in ("match", "merged_match"):  # curated prefixes + model-merged ones (BH1)
@@ -1185,13 +1218,16 @@ def consolidate(files: list[Path], code_dirs: list[Path] | None = None) -> tuple
 
 
 def real_category(cat) -> bool:
-    """The ONE predicate for "this entry is catalogued": a non-empty string other than `?`. The
-    bucketing, the `catalogued` stat and the classifier's tombstone loop all apply it — three
-    hand-written variants once disagreed on `null`, a list and blank, so a block could count as
-    catalogued while rendering under NEEDS-TRIAGE (CM3)."""
-    return (
-        isinstance(cat, str) and bool(cat.strip()) and cat.strip() != "?"
-    )  # blank is `?` everywhere (CP1)
+    """The ONE predicate for "this entry is catalogued": a string whose stripped value is an enum
+    category or `unidentified` (a tombstone). The bucketing, the `catalogued` stat and the
+    classifier's tombstone loop all apply it — three hand-written variants once disagreed on `null`,
+    a list and blank, so a block could count as catalogued while rendering under NEEDS-TRIAGE (CM3).
+    Any other string — a typo, a case variant, a retired value — is NOT catalogued and routes to
+    triage by name, never to a table of its own (D-1046); parse_catalog warns about it."""
+    return isinstance(cat, str) and cat.strip() in _REAL_CATEGORIES  # blank and `?` are not (CP1)
+
+
+_REAL_CATEGORIES = frozenset(CATEGORIES.split()) | {"unidentified"}
 
 
 def refuse_emptied_catalog() -> None:

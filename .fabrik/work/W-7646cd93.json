@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:27:15.683374Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-7646cd93",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "MEASURED by intel 2026-10-21: exa and firecrawl answer 200 on egress 46.221.24.2 (the 10-19 failures were the geo-blocked egress); brave answers 422 SUBSCRIPTION_TOKEN_INVALID — the key is revoked in all five copies. No code owed. Closes when the operator answers the Brave-key credentials gate and brave answers 200 (resolve by the gate item), or is dropped if the operator declines the key.",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "another repo's request: exa/firecrawl tier-2 research arms fail for native seats (Cloudflare 403); research MCPs are intel's beat",
+  "status": "open",
+  "tags": [
+    "mail-01m5agypd6w2j0fag23tqf1v0n",
+    "waits-operator-brave-key"
+  ],
+  "title": "three of the tier-2 research arms are failing for native seats on this box: (1) `mcp__exa__web_fetch_exa` and `mcp__exa__web_search_exa` return a Cloudflare \"Attention Required\" 403 page for EVERY URL (mail 01M5AGYPD6W2J0FAG23TQF1V0N, from fabrik-lib-dev2)"
+}

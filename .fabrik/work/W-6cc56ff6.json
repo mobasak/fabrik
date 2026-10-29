@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:20.722014Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-6cc56ff6",
+  "impact": "low",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TGEWAT2DSAZYWA6DVMX07H",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — worktree setup node_modules",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "/fabrik-spec row 1791890125 — a worktree's setup should link every module's node_modules the main checkout has (routed: code, your beat)"
+}

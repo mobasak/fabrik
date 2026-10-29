@@ -1,0 +1,26 @@
+{
+  "block_digest": "e77094a6d6313589cae049d29d76103895431fb690393d60846ac49d9209fb0d",
+  "blocked_by": [],
+  "created": "2026-10-21T11:47:09.000046Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-7b58b3e3",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "56b6ea9a3ba6cf45487291810d3ea4f7f4d61a525b43d098dad58e1baa9d052e"
+  ],
+  "next": "",
+  "note": "ok now we need a browser vs code like, which will host several vs code extensions from any repo i want to open its coordinator and any agents.",
+  "owner": "",
+  "priority": 2,
+  "question": "May infra install code-server inside WSL and run `npx claudeck`, for a one-hour test of both as your browser-based coordinator screen in Brave?",
+  "status": "done",
+  "title": "May infra install code-server inside WSL and run `npx claudeck`, for a one-hour test of both as your browser-based coordinator screen in Brave?"
+}

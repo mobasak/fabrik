@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T21:05:13.635053Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-5138d332",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M53MC04F13RS8Z0JEE6T4A51",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: review-loop pins under /tmp (row 1791906916) — DONE in worktree-kaizen db331214f + ed312c0c5; the briefs half waits on 01M4Y3N9GW"
+}

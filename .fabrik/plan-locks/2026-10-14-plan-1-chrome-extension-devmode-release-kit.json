@@ -1,0 +1,22 @@
+{
+  "plan": "docs/development/plans/2026-10-14-plan-1-chrome-extension-devmode-release-kit.md",
+  "owned_paths": [
+    "src/fabrik/scaffold.py",
+    "templates/chrome-extension/defaults.yaml",
+    "templates/chrome-extension/compose.yaml.j2",
+    "tests/test_scaffold.py",
+    "tests/test_scaffold_chrome_ext_wxt.py",
+    "docs/superpowers/specs/2026-10-14-chrome-extension-devmode-release-kit-design.md",
+    "docs/development/plans/2026-10-14-plan-1-chrome-extension-devmode-release-kit.md"
+  ],
+  "branch": "worktree-intel",
+  "started_at": "2026-10-15T12:21:10+00:00",
+  "status": "released",
+  "baseline_commit": "8d5bd5020b566dcf48d774abd261c3f79fccdffc",
+  "baseline_gate": {
+    "status": "success",
+    "red": []
+  },
+  "completed_at": "2026-10-15T23:30:00+00:00",
+  "final_commit": "6b0047c27"
+}

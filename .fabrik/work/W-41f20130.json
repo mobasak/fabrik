@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-07T23:46:44.254040Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-41f20130",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4C57A55VRJ2RAAXPXHDS44Y",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "check_convergence accepts a review receipt flipped to COMPLETE / DONE / CLOSED with no embedded gate"
+}

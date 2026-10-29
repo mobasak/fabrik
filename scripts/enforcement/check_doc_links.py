@@ -31,6 +31,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import unquote
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -94,7 +95,22 @@ _PLACEHOLDER_RE = re.compile(
     r"|example\.com|<your|\bNNN\b|\bxxx\b"
 )
 
-_LINK_RE = re.compile(r"\]\(([^)\s]+?)(?:#[^)]*)?\)")
+# CommonMark: the whitespace before a title and before `)` holds spaces or tabs and up to ONE line
+# ending — `\r\n`, `\r` or `\n`, since check_doc_index reads INDEX.md as bytes (W-55905ee1); a blank
+# line (two line endings) ends the link.
+_LE = r"(?:\r\n|\r|\n)"
+_WS1 = r"[ \t]*(?:" + _LE + r"[ \t]*)?"
+# at least one whitespace before a title
+_SEP = r"(?:[ \t]+(?:" + _LE + r"[ \t]*)?|" + _LE + r"[ \t]*)"
+_TITLE_CLOSE_RE = re.compile(
+    r"(?:"
+    + _SEP
+    + r"""(?:"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|\((?:[^()\\\n]|\\.)*\)))?"""
+    + _WS1
+    + r"\)"
+)
+_ESCAPED_RE = re.compile(r"\\([!-/:-@\[-`{-~])")
+_PUNCT = frozenset("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")  # CommonMark's escapable set
 _BARE_RE = re.compile(
     r"(?<![\w/-])((?:docs|scripts|src|specs|configs|templates|\.windsurf)/"
     r"[A-Za-z0-9_./-]+?\.(?:md|py|sh|yaml|yml|json|txt))(?![\w.-])"
@@ -127,8 +143,11 @@ def _tracked_md_sources() -> list[Path]:
     # Scope = the live KNOWLEDGE tree. Excluded as sources: all archives (frozen
     # history), the plan/epic/review/spec pipeline artifacts (they cite future
     # deliverables and pre-migration paths by design), LESSONS_LEARNT.md (a dated
-    # ledger — entries cite files as they were on the entry date), and scaffold
-    # TEMPLATES (intentional placeholder refs — see _is_template_source).
+    # ledger — entries cite files as they were on the entry date), DECISIONS.md (an
+    # immutable ledger — a row minted with a DRAFT plan cites files not yet made, and a
+    # row whose cite later breaks can never be edited, so it redded every session's
+    # gate: W-e9c8a4df; it stays a link TARGET), and scaffold TEMPLATES (intentional
+    # placeholder refs — see _is_template_source).
     skip_prefixes = (
         "docs/archive/",
         "docs/infrastructure/archive/",
@@ -139,7 +158,7 @@ def _tracked_md_sources() -> list[Path]:
         p
         for p in out
         if not p.startswith(skip_prefixes)
-        and p != "docs/LESSONS_LEARNT.md"
+        and p not in ("docs/LESSONS_LEARNT.md", "docs/DECISIONS.md")
         and not _is_template_source(p)
     ]
     srcs += [p for p in ROOT_SOURCES if (REPO / p).exists()]
@@ -169,11 +188,154 @@ def _tracked_md_sources() -> list[Path]:
     return [REPO / p for p in sorted(set(srcs)) if str(Path(p)) not in SOURCE_WAIVERS]
 
 
+def link_targets(text: str):
+    """Yield the destination of every inline link in `text` as CommonMark reads it (W-dd091f0d).
+
+    After `](`: an `<angle>` destination (no newline, no unescaped `<` or `>`) or a bare one with
+    BALANCED parentheses and no whitespace, then an optional whitespace-led title (`"…"`, `'…'` or
+    `(…)`) and the closing `)`. The fragment is dropped and backslash escapes of ASCII punctuation
+    are undone; a link that is not well formed yields nothing. The old `\\]\\(([^)\\s]+?)…\\)`
+    regex truncated `docs/a(b).md` to `docs/a(b`, missed a titled link entirely and kept the
+    brackets of an angle one (`<docs/x.md>`); none of those ends in a checked suffix, so a link of
+    any of the three shapes to a MISSING file was never examined. check_doc_index
+    carries the same function (no enforcement check imports a sibling check; `_`-prefixed helpers such as `_fences` are shared); a test in
+    tests/test_check_doc_index_percent_encoding.py pins the two to one output."""
+    n = len(text)
+    opened_at = n  # the first `[` behind an EVEN backslash run (`\\[` opens, `\[` does not)
+    o = text.find("[")
+    while o != -1:
+        b = o
+        while b > 0 and text[b - 1] == "\\":
+            b -= 1
+        if (o - b) % 2 == 0:
+            opened_at = o
+            break
+        o = text.find("[", o + 1)
+    i = text.find("](")
+    while i != -1:
+        # Not a link: a `]` escaped by an odd run of backslashes, or a `](` with no unescaped `[`
+        # anywhere before it — accepting one would consume a real link inside its "title".
+        b = i
+        while b > 0 and text[b - 1] == "\\":
+            b -= 1
+        if (i - b) % 2 or opened_at > i:
+            i = text.find("](", i + 2)
+            continue
+        j = i + 2
+        while j < n and text[j] in " \t":
+            j += 1
+        if j < n and text[j] in "\r\n":  # one line ending may precede the destination (W-55905ee1)
+            j += 2 if text[j : j + 2] == "\r\n" else 1
+            while j < n and text[j] in " \t":
+                j += 1
+        dest = None
+        if j < n and text[j] == "<":
+            k = j + 1
+            while k < n and text[k] not in "<>\n":
+                k += 2 if text[k] == "\\" and text[k + 1 : k + 2] in _PUNCT else 1
+            if k < n and text[k] == ">":
+                dest, k = text[j + 1 : k], k + 1
+        else:
+            k, depth = j, 0
+            while k < n:
+                c = text[k]
+                if c == "\\" and text[k + 1 : k + 2] in _PUNCT:
+                    k += 2
+                    continue
+                # Any str.isspace() char ends it (NBSP-class too, OUT); a NUL stays and is reported.
+                if c.isspace():
+                    break
+                if c == "(":
+                    depth += 1
+                elif c == ")":
+                    if depth == 0:
+                        break
+                    depth -= 1
+                k += 1
+            if depth == 0:
+                dest = text[j:k]
+        close = _TITLE_CLOSE_RE.match(text, k) if dest is not None else None
+        if dest is None or close is None:
+            i = text.find("](", i + 2)
+            continue
+        cut, p = len(dest), 0  # the fragment starts at the first UNESCAPED `#`
+        while p < len(dest):
+            if dest[p] == "\\" and dest[p + 1 : p + 2] in _PUNCT:
+                p += 2
+            elif dest[p] == "#":
+                cut = p
+                break
+            else:
+                p += 1
+        dest = _ESCAPED_RE.sub(r"\1", dest[:cut])
+        if dest:
+            yield dest
+        # Resume AFTER the link: a `](` inside its destination or title is not a second link.
+        i = text.find("](", close.end())
+
+
+# A backtick run, text, then the same run: an inline code span on one line, not a fence opener.
+_INLINE_SPAN_RE = re.compile(r"(`{3,})[^`]+\1(?!`)")
+
+
+def _local_fence_toggle(line: str) -> bool:
+    """`_fences.fence_toggle`'s fallback copy, read only where `_fences.py` is missing or predates it;
+    tests/enforcement/test_fences.py holds the two equal."""
+    stripped = line.lstrip()
+    return stripped.startswith("```") and not _INLINE_SPAN_RE.match(stripped)
+
+
+_BLANKER: object = None  # unloaded; then _fences.blank_code_examples, or False where it is missing
+_TOGGLE = _local_fence_toggle
+
+
+def _blank_examples(text: str) -> str:
+    """Fence lines, fence bodies and inline code spans blanked, length-preserving, by
+    `_fences.blank_code_examples` (W-b9af1d47, W-85bd72fa) — the one reading check_doc_index grades INDEX.md
+    links on too. Imported on first use by the sibling directory, with `_fences.fence_toggle` for the skip loop;
+    where `_fences.py` is missing (ImportError) or lags the sync without `blank_code_examples` — even one that
+    has `blank_code_spans` — the text comes back unblanked: the pre-W-b9af1d47 reading. A sync copies
+    scripts/enforcement whole, so that lag lasts one sync. A `_fences.py` that fails to import any other way
+    raises, as it does in every check importing it."""
+    global _BLANKER, _TOGGLE
+    if _BLANKER is None:
+        here = str(Path(__file__).resolve().parent)
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        try:
+            import _fences
+        except ImportError:
+            _BLANKER = False
+        else:
+            _BLANKER = getattr(_fences, "blank_code_examples", False)
+            _TOGGLE = getattr(_fences, "fence_toggle", _local_fence_toggle)
+    return _BLANKER(text) if _BLANKER else text  # type: ignore[operator]
+
+
 def _iter_refs(text: str):
-    """Yield (target, kind) pairs, skipping fenced code blocks for bare paths."""
-    in_fence = False
-    for line in text.splitlines():
-        if line.lstrip().startswith("```"):
+    """Yield (target, kind) pairs, skipping fenced code blocks for links and bare paths alike.
+
+    A fenced link is a code EXAMPLE, so it is not graded (W-f11e740e: over 44 /opt repos it removed
+    none of the findings and stopped examining 3 resolving example links). The fence is the toggle
+    bare paths always used — any line starting with ``` opens or closes one — kept on purpose: a
+    CommonMark fence model (run length, ~~~, info strings) measured 16 NEW findings fleet-wide, all a
+    shared lessons-learnt template whose fences only balance by this toggle, so it waits on that
+    template (W-f11e740e review residue). One exception: a line-leading inline span that closes on its
+    own line (```` ```x``` ````) is inline code, never a fence — it would hide every link below it.
+    Cost, stated: a fence that is never closed stops grading links and bare paths to the end of the
+    file. A link inside an inline code span is an example too (W-b9af1d47): the link reader reads the
+    line from `_blank_examples` (fences, then spans, blanked by `_fences.blank_code_examples`, which
+    check_doc_index reads too — W-85bd72fa), while the fence toggle, the stale markers and the bare-path
+    scan read it raw. The blanked text is cut at each raw line's offsets — the blanker keeps every length, and a
+    second splitlines() would not, since it also breaks on the \\f, \\v and U+2028 a span turns into
+    spaces."""
+    blanked = _blank_examples(text)
+    in_fence, pos = False, 0
+    for raw in text.splitlines(keepends=True):
+        line, start = raw.splitlines()[0], pos
+        pos += len(raw)
+        span_free = blanked[start : start + len(line)]
+        if _TOGGLE(line):
             in_fence = not in_fence
             continue
         # documented-stale convention: a line carrying the warning marker or an
@@ -188,9 +350,9 @@ def _iter_refs(text: str):
             or "does not exist" in line
         ):
             continue
-        for m in _LINK_RE.finditer(line):
-            yield m.group(1), "link"
         if not in_fence:
+            for target in link_targets(span_free):
+                yield target, "link"
             for m in _BARE_RE.finditer(line):
                 yield m.group(1), "bare"
 
@@ -222,7 +384,29 @@ def _resolves(target: str, src: Path, extra_bases: list[str] | None = None) -> b
         return True
     if _PLACEHOLDER_RE.search(t):
         return True
-    t = t.replace("%20", " ")
+    # The link as WRITTEN first, then percent-decoded (W-7ae1169a) — the contract check_doc_index
+    # applies to the same INDEX links in the same gate run: `%20` alone left `%25`, `%23` and UTF-8
+    # escapes "broken", and decoding alone broke a file whose real name holds `%XX`, linked by that
+    # name. A decoded form holding a NUL names no file (`.resolve()` would raise) and is skipped.
+    decoded = pct_decode(t)
+    return any(
+        _resolves_path(c, src, extra_bases) for c in dict.fromkeys((t, decoded)) if "\x00" not in c
+    )
+
+
+def pct_decode(text: str) -> str:
+    """Percent-decode a markdown link target or text, keeping `%2F` LITERAL.
+
+    surrogateescape matches how paths are read here, so a non-UTF-8 byte (`%E9`) decodes to the
+    same string the filesystem walk yields. `%2F` stays as written because a renderer resolves an
+    escaped slash as part of ONE path segment, never as a separator: decoding it made
+    `docs%2Fsub%2Fx.md` index and resolve `docs/sub/x.md`, a link that does not reach that file.
+    check_doc_index carries the same one-liner (no enforcement check imports a sibling check; `_`-prefixed helpers such as `_fences` are shared); a test in
+    tests/test_check_doc_index_percent_encoding.py pins the two to one output."""
+    return unquote(re.sub(r"%2[Ff]", "%252F", text), errors="surrogateescape")
+
+
+def _resolves_path(t: str, src: Path, extra_bases: list[str] | None) -> bool:
     norm = t.lstrip("/") if t.startswith("/") else t
     if not norm.startswith("../"):
         while norm.startswith("./"):
@@ -359,9 +543,9 @@ def main() -> int:
                 target.startswith(("http", "#", "mailto:")) or "." not in target
             ):
                 continue
-            if kind == "link" and not re.search(
-                r"\.(md|py|sh|yaml|yml|json|txt)$", target.split("#")[0]
-            ):
+            # `link_targets` already cut the fragment and undid `\#`; splitting again at `#` would
+            # cut a literal `#` in the name and skip the link unexamined (W-dd091f0d review).
+            if kind == "link" and not re.search(r"\.(md|py|sh|yaml|yml|json|txt)$", target):
                 continue
             refs_checked += 1
             if not _resolves(target, src, extra_bases=bases):

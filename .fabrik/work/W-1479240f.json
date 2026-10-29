@@ -1,0 +1,28 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:30:59.759730Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-1479240f",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: read mail 01M4XWS6CTVNGZTF77VFPA1TM5, claim it, act on it",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "Coordinator mail sort 2026-10-15; proposed for operator review on the dashboard",
+  "status": "dropped",
+  "tags": [
+    "mail-01m4xws6ctvngztf77vfpa1tm5",
+    "proposed-drop",
+    "waits-operator-review"
+  ],
+  "title": "skill_router.py nudges toward /fabrik-spec and has no /fabrik-task trigger — biases the lane decision toward the heavy path (mail 01M4XWS6CTVNGZTF77VFPA1TM5)"
+}

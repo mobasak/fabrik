@@ -1,0 +1,28 @@
+{
+  "blocked_by": [
+    "W-16c00597"
+  ],
+  "created": "2026-10-20T02:54:14.791720Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "9b9cccbf73dc2d1a4cfe22f4f0ccd1ed251921a1",
+  "id": "W-b9af1d47",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "MEASURED 2026-10-20: 44 /opt repos with docs/, check_doc_links findings 321 today vs 321 with inline spans blanked for the link reader (0 change; 29 span-held link targets in 21 of 7064 docs files, all in skipped sources or resolving). Wire it only after W-16c00597 makes _blank_code_spans linear inside scripts/enforcement/_fences.py — the blanker is quadratic today and would put that class back into a gate check",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "latent advisory: no live false positive today; one reader",
+  "status": "done",
+  "tags": [
+    "link-reader"
+  ],
+  "title": "check_doc_links grades a link inside an inline code span (latent: today's examples sit in its skipped docs/development and docs/superpowers sources; a [a](x.md) example in docs/reference would be reported)"
+}

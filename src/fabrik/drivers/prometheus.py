@@ -35,9 +35,11 @@ Design notes
   ``metrics_path: /metrics``. Internal-network scraping (faster, no
   TLS) is supported via the ``target`` kwarg for infra services with
   stable container names.
-* **Idempotent** — if a job named ``fabrik-<name>`` already exists,
-  :func:`add_scrape_target` returns ``status=exists`` without rewriting
-  or reloading.
+* **Idempotent** — if a job named ``fabrik-<name>`` already exists and its
+  managed keys match the spec, :func:`add_scrape_target` returns
+  ``status=exists`` without rewriting; when they differ it updates them in
+  place and returns ``status=updated`` (W-01815aee). Either way it reloads, so a config an earlier run wrote but Prometheus never
+  loaded is reported again (``reload`` on every result, W-cc9b0532).
 * **No auth wiring yet.** ``/metrics`` endpoints are assumed to be
   reachable without credentials. When a service stands up bearer-token
   auth on ``/metrics``, the caller passes ``bearer_token`` to embed
@@ -55,7 +57,7 @@ from typing import Any
 
 import yaml as yaml_lib
 
-from fabrik.drivers.ssh import scp_to_vps, ssh
+from fabrik.drivers.ssh import install_world_readable, scp_to_vps, ssh
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +80,7 @@ try:
 except Exception:  # noqa: BLE001 — defensive: tests can monkeypatch
     _LOCAL_PROMETHEUS_CONFIG_PATH = None
 
-PROMETHEUS_RELOAD_URL = "http://localhost:9090/-/reload"
+PROMETHEUS_RELOAD_URL = "http://localhost:9090/-/reload"  # noqa — prometheus's own loopback, called inside its container
 """Lifecycle endpoint for hot-reload, called from INSIDE the prometheus
 container (its own loopback). The VPS host does not join the monitoring
 network, and the old route — wget from the ``alertmanager`` container to
@@ -116,6 +118,17 @@ _DOMAIN_RE = re.compile(
 )
 """Conservative hostname validator (same regex Gatus uses)."""
 
+_TARGET_HOST_RE = re.compile(
+    r"^(?=.{1,253}$)(?![-_])[a-zA-Z0-9_-]{1,63}(?<![-_])(\.(?![-_])[a-zA-Z0-9_-]{1,63}(?<![-_]))*$"
+)
+"""Scrape-target host: dot-separated labels that may carry ``_`` (Docker DNS, ``<name>-api`` for a
+service named with ``_``); a dotted IPv4 matches as labels. IPv6 is refused on purpose (W-01815aee)."""
+
+_SCHEMES = ("http", "https")
+
+_OTHER_AUTH_KEYS = ("basic_auth", "bearer_token", "bearer_token_file", "oauth2")
+"""Scrape-job auth forms promtool refuses beside an ``authorization`` block."""
+
 
 def _validate_name(name: str) -> None:
     if not isinstance(name, str) or not _NAME_RE.fullmatch(name):
@@ -127,6 +140,27 @@ def _validate_name(name: str) -> None:
 def _validate_domain(domain: str) -> None:
     if not isinstance(domain, str) or not _DOMAIN_RE.fullmatch(domain):
         raise ValueError(f"Invalid domain {domain!r}: must be a bare hostname")
+
+
+def _validate_scheme(scheme: object) -> None:
+    if scheme not in _SCHEMES:
+        raise ValueError(f"Invalid monitoring scheme {scheme!r}: must be 'http' or 'https'")
+
+
+def _validate_target(target: object) -> None:
+    """``<host>:<port>`` with an explicit port 1-65535 — promtool refuses the whole file otherwise."""
+    host, sep, port = target.rpartition(":") if isinstance(target, str) else ("", "", "")
+    if (
+        not sep
+        or not _TARGET_HOST_RE.fullmatch(host)
+        or not (port.isascii() and port.isdigit() and len(port) <= 5)
+        or str(int(port)) != port  # no leading zero: the spec's spelling is the one compared
+        or not 1 <= int(port) <= 65535
+    ):
+        raise ValueError(
+            f"Invalid monitoring target {target!r}: must be <host>:<port> (port 1-65535; "
+            "no scheme, path or IPv6)"
+        )
 
 
 def _job_name(service_name: str) -> str:
@@ -168,14 +202,8 @@ def _write_config(data: dict[str, Any]) -> None:
     with tempfile.NamedTemporaryFile(mode="w", suffix=".yml", delete=False) as f:
         f.write(body)
         local_tmp = f.name
-    vps_tmp = "/tmp/prometheus.yml.staged"  # nosec B108 — single-tenant VPS staging file for scp+mv into /opt/monitoring/configs/prometheus/
     try:
-        scp_to_vps(local_tmp, vps_tmp)
-        ssh(
-            f"sudo mv {shlex.quote(vps_tmp)} {shlex.quote(PROMETHEUS_CONFIG_PATH)} && "
-            f"sudo chown root:root {shlex.quote(PROMETHEUS_CONFIG_PATH)} && "
-            f"sudo chmod 644 {shlex.quote(PROMETHEUS_CONFIG_PATH)}"
-        )
+        install_world_readable(ssh, scp_to_vps, local_tmp, PROMETHEUS_CONFIG_PATH)
     finally:
         Path(local_tmp).unlink(missing_ok=True)
     # Git mirror — best-effort. A read-only filesystem, missing directory,
@@ -189,13 +217,23 @@ def _write_config(data: dict[str, Any]) -> None:
             logger.warning("failed to mirror prometheus.yml to git: %s", e)
 
 
-def _reload_prometheus() -> bool:
+_PROMTOOL_REFUSED_RC = 3
+"""The restart leg's exit code when promtool printed its ``FAILED`` verdict on the on-disk config. promtool,
+docker exec and the no-container guard all exit 1, so the exit code alone cannot tell a rejected config from
+a docker failure: the verdict text decides, and only it maps to this code (review A-1)."""
+
+
+def _reload_prometheus_outcome() -> str:
     """Hot-reload Prometheus; on failure, restart the container only if its config passes promtool.
 
-    Returns True if either path succeeded. We always succeed-or-warn
-    because the config is already written — a reload failure means
-    "the new target won't show up until next restart", not "the deploy
-    is broken".
+    Returns which of four things happened (W-cc9b0532):
+
+    * ``reloaded`` — the hot-reload took the new config;
+    * ``restarted`` — the hot-reload failed, promtool passed, the container restarted on the new config;
+    * ``refused`` — promtool rejected the config now on disk: it is INVALID, the running Prometheus keeps
+      its last good config, and the next restart for any reason crash-loops it (W-5aa5e3d8, D-513);
+    * ``unavailable`` — no prometheus container, ssh failed, or the restart itself failed; the config on
+      disk is not known to be bad and loads on the next successful reload or restart.
     """
     # Hot-reload first (fast, no scrape-gap), from INSIDE the prometheus
     # container against its own loopback — no other container's DNS involved
@@ -215,7 +253,7 @@ def _reload_prometheus() -> bool:
             timeout=15,
         )
         logger.info("Prometheus hot-reload succeeded")
-        return True
+        return "reloaded"
     except Exception as e:  # noqa: BLE001 — bounded fallback
         logger.info("Prometheus hot-reload failed (%s); trying container restart", e)
 
@@ -228,20 +266,28 @@ def _reload_prometheus() -> bool:
             "PROM_CONTAINER=$(sudo docker ps --format '{{.Names}}' "
             "| grep -E '^prometheus(-|$)' | head -1) && "
             f'{{ [ -n "$PROM_CONTAINER" ] || {{ {_NO_CONTAINER}; }}; }} && '
-            'sudo docker exec "$PROM_CONTAINER" promtool check config '
-            f"{shlex.quote(PROMETHEUS_CONTAINER_CONFIG)} && "
+            '{ OUT=$(sudo docker exec "$PROM_CONTAINER" promtool check config '
+            f"{shlex.quote(PROMETHEUS_CONTAINER_CONFIG)} 2>&1) || "
+            '{ printf "%s\\n" "$OUT" >&2; case "$OUT" in *FAILED*) '
+            f"exit {_PROMTOOL_REFUSED_RC};; esac; exit 1; }}; }} && "
             'sudo docker restart "$PROM_CONTAINER"',
             timeout=30,
         )
         logger.info("Prometheus container restarted")
-        return True
+        return "restarted"
     except Exception as e:  # noqa: BLE001
+        refused = f"failed (rc={_PROMTOOL_REFUSED_RC}):" in str(e)
         logger.warning(
             "Prometheus not restarted after a failed hot-reload (non-fatal; a running "
             "Prometheus keeps its last good config): %s",
             e,
         )
-        return False
+        return "refused" if refused else "unavailable"
+
+
+def _reload_prometheus() -> bool:
+    """True when the new config is live (hot-reloaded or restarted into); see the outcome helper."""
+    return _reload_prometheus_outcome() in ("reloaded", "restarted")
 
 
 def _build_job_block(
@@ -267,6 +313,74 @@ def _build_job_block(
     return job
 
 
+def _sync_managed_keys(
+    job: dict[str, Any], target: str, metrics_path: str, scheme: str, bearer_token: str | None
+) -> bool:
+    """Bring an existing job's managed keys to the spec in place; True when anything changed.
+
+    Managed: ``scheme`` and ``metrics_path`` (absent reads as Prometheus's default), the one static
+    config's ``targets`` (its labels kept), and ``authorization`` only when the spec carries a token —
+    a ``credentials_file`` secret (the house form, configs/prometheus/README.md) counts as current.
+    Every other key is the operator's. A shape this cannot update unambiguously raises before
+    anything is changed, so the caller writes nothing (W-01815aee).
+    """
+    name = job.get("job_name")
+    static = job.get("static_configs")
+    if static is None:
+        static = []
+    first = static[0] if isinstance(static, list) and static else None
+    targets = first.get("targets") if isinstance(first, dict) else None
+    sd = sorted(k for k in job if k.endswith("_sd_configs") and job[k])
+    if (
+        not isinstance(static, list)
+        or len(static) > 1
+        or any(not isinstance(s, dict) for s in static)
+        or (isinstance(targets, list) and len(targets) > 1)
+        or sd
+    ):
+        raise ValueError(
+            f"Prometheus job {name} is hand-shaped (static_configs {static!r}"
+            f"{', ' + ', '.join(sd) if sd else ''}); fabrik manages exactly one static target — "
+            "fix the job on vps1 by hand"
+        )
+    auth = job.get("authorization")
+    set_auth = bool(bearer_token) and (
+        not isinstance(auth, dict)
+        or (
+            not auth.get("credentials_file")  # null or "" is absent: the inline token is live
+            # Prometheus reads an absent type as Bearer
+            and (auth.get("type", "Bearer"), auth.get("credentials")) != ("Bearer", bearer_token)
+        )
+    )
+    if set_auth:
+        # null (or an empty token string) is absent to promtool, so it is no clash; an empty
+        # mapping such as `basic_auth: {}` is still a configured block and clashes
+        clash = [k for k in _OTHER_AUTH_KEYS if job.get(k) is not None and job.get(k) != ""]
+        if clash:
+            raise ValueError(
+                f"Prometheus job {name} already authenticates with {', '.join(clash)}; "
+                "adding the spec's bearer token beside it makes promtool refuse the file"
+            )
+
+    changed = False
+    if job.get("scheme", "http") != scheme:
+        job["scheme"] = scheme
+        changed = True
+    if job.get("metrics_path", "/metrics") != metrics_path:
+        job["metrics_path"] = metrics_path
+        changed = True
+    if not static:
+        job["static_configs"] = [{"targets": [target]}]
+        changed = True
+    elif static[0].get("targets") != [target]:
+        static[0]["targets"] = [target]
+        changed = True
+    if set_auth:
+        job["authorization"] = {"type": "Bearer", "credentials": bearer_token}
+        changed = True
+    return changed
+
+
 def add_scrape_target(
     service_name: str,
     domain: str | None = None,
@@ -280,8 +394,10 @@ def add_scrape_target(
 ) -> dict:
     """Register ``service_name`` as a Prometheus scrape target.
 
-    Idempotent: a job named ``fabrik-<service_name>`` already in
-    ``scrape_configs`` returns ``status=exists`` without rewriting.
+    Idempotent: a job named ``fabrik-<service_name>`` already in ``scrape_configs`` whose managed
+    keys match returns ``status=exists`` without rewriting; one whose scheme, metrics_path, target or
+    (with a token) authorization differs is updated in place, keeping every other key, and returns
+    ``status=updated`` (see ``_sync_managed_keys``). ``interval`` applies on create only.
 
     Args:
         service_name: Service name. Becomes the suffix of the job name
@@ -301,7 +417,7 @@ def add_scrape_target(
         dry_run: Log intent and return without touching the VPS.
 
     Returns:
-        ``{"status": "created" | "exists" | "dry_run",
+        ``{"status": "created" | "exists" | "updated" | "dry_run",
            "job": "fabrik-<name>",
            "target": "<resolved-target>"}``
 
@@ -310,12 +426,20 @@ def add_scrape_target(
         RuntimeError: SSH or YAML parse failure.
     """
     _validate_name(service_name)
+    # scheme first: it picks the derived port below (W-01815aee)
+    _validate_scheme(scheme)
     if target is None:
         if domain is None:
             raise ValueError("add_scrape_target requires either domain or explicit target")
         _validate_domain(domain)
         target = f"{domain}:443" if scheme == "https" else f"{domain}:80"
-    if metrics_path[:1] != "/" or '"' in metrics_path or "'" in metrics_path:
+    _validate_target(target)
+    if (
+        not isinstance(metrics_path, str)
+        or metrics_path[:1] != "/"
+        or '"' in metrics_path
+        or "'" in metrics_path
+    ):
         raise ValueError(
             f"Invalid metrics_path {metrics_path!r}: must start with / and contain no quotes"
         )
@@ -337,8 +461,19 @@ def add_scrape_target(
 
     for job in scrape_configs:
         if isinstance(job, dict) and job.get("job_name") == job_name:
-            logger.info("Prometheus scrape target already exists: %s", job_name)
-            return {"status": "exists", "job": job_name, "target": target}
+            status = "exists"
+            if _sync_managed_keys(job, target, metrics_path, scheme, bearer_token):
+                _write_config(config)
+                status = "updated"
+            logger.info("Prometheus scrape target %s: %s", status, job_name)
+            # re-check what is on disk each apply, so a config a previous run wrote but
+            # Prometheus never loaded keeps being reported (W-cc9b0532)
+            return {
+                "status": status,
+                "job": job_name,
+                "target": target,
+                "reload": _reload_prometheus_outcome(),
+            }
 
     scrape_configs.append(
         _build_job_block(
@@ -352,7 +487,7 @@ def add_scrape_target(
     )
 
     _write_config(config)
-    _reload_prometheus()
+    reload = _reload_prometheus_outcome()
     logger.info(
         "Added Prometheus scrape target: %s -> %s://%s%s",
         job_name,
@@ -360,7 +495,7 @@ def add_scrape_target(
         target,
         metrics_path,
     )
-    return {"status": "created", "job": job_name, "target": target}
+    return {"status": "created", "job": job_name, "target": target, "reload": reload}
 
 
 def remove_scrape_target(service_name: str, dry_run: bool = False) -> bool:
@@ -375,8 +510,9 @@ def remove_scrape_target(service_name: str, dry_run: bool = False) -> bool:
         dry_run: Log intent and return True.
 
     Returns:
-        True on successful removal, ``not_found``, or dry_run; False on
-        SSH/YAML failure.
+        True on a removal Prometheus loaded, ``not_found``, or dry_run; False on
+        SSH/YAML failure or when the rewritten config was not loaded (reload refused
+        or Prometheus unavailable — it still scrapes the removed job, W-cc9b0532).
     """
     _validate_name(service_name)
     job_name = _job_name(service_name)
@@ -409,9 +545,9 @@ def remove_scrape_target(service_name: str, dry_run: bool = False) -> bool:
         logger.warning("Prometheus config rewrite failed (non-fatal): %s", e)
         return False
 
-    _reload_prometheus()
+    ok = _reload_prometheus()
     logger.info("Removed Prometheus scrape target: %s", job_name)
-    return True
+    return ok
 
 
 def list_scrape_targets() -> list[dict[str, Any]]:
@@ -477,8 +613,13 @@ def add_aro_wake_target(spoke_name: str, mesh_ip: str, *, dry_run: bool = False)
 
     for sc in job.get("static_configs", []) or []:
         if target in (sc.get("targets") or []):
-            logger.info("Prometheus aro-wake already has target %s; no-op", target)
-            return {"status": "exists", "target": target, "host": spoke_name}
+            logger.info("Prometheus aro-wake already has target %s; no rewrite", target)
+            return {
+                "status": "exists",
+                "target": target,
+                "host": spoke_name,
+                "reload": _reload_prometheus_outcome(),
+            }
 
     job.setdefault("static_configs", []).append(
         {
@@ -487,9 +628,9 @@ def add_aro_wake_target(spoke_name: str, mesh_ip: str, *, dry_run: bool = False)
         }
     )
     _write_config(config)
-    _reload_prometheus()
+    reload = _reload_prometheus_outcome()
     logger.info("Added aro-wake target %s (host=%s)", target, spoke_name)
-    return {"status": "created", "target": target, "host": spoke_name}
+    return {"status": "created", "target": target, "host": spoke_name, "reload": reload}
 
 
 def remove_aro_wake_target(spoke_name: str, *, dry_run: bool = False) -> bool:
@@ -523,9 +664,9 @@ def remove_aro_wake_target(spoke_name: str, *, dry_run: bool = False) -> bool:
         return True
 
     _write_config(config)
-    _reload_prometheus()
+    ok = _reload_prometheus()
     logger.info("Removed aro-wake target for host=%s", spoke_name)
-    return True
+    return ok
 
 
 __all__ = (

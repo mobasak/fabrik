@@ -18,6 +18,11 @@ intelligence" means the routing policy, the seat spend, and the re-enable decisi
 
 ## Beat (default single-writer surfaces — soft ownership, hard addresses)
 
+Who receives mail about a path is named by `.fabrik/beat-owners.json` (D-818, D-825), the map
+`mail.py` reads for a mail's `map-owner:`; where this section and the map disagree on a path's
+mail owner, the map holds and this section is corrected, and where the map is silent, this
+section stands.
+
 - **`libs/subagents/` — the subagents module, end to end** (operator ruling 2026-09-05: *"you are
   the owner not infra"*; D-135). Routing BEHAVIOUR, fan-out, the pool plumbing, and — the reason
   the ruling was needed — **what it SPENDS**. Pool/fan-out/spend mail from any repo is addressed
@@ -80,8 +85,8 @@ intelligence" means the routing policy, the seat spend, and the re-enable decisi
   operator hands you on an urgent turn) defaults to you. Name whose beat it was and route anything
   you found beyond the fix back to them.
 - **Not the distributor** (D-471, superseding D-395): the agent in the main checkout is merge owner
-  AND distributor in every repo, so in the hub infra owns `work.py assign`
-  (`.fabrik/work/config.json`). Intel works from `ready` like any worktree agent.
+  AND distributor in every repo, so in the hub the `coordinator` owns `work.py assign` (D-874;
+  `.fabrik/work/config.json`). Intel claims what the coordinator queues it, like any worktree agent.
 
 ## Comms
 
@@ -92,7 +97,12 @@ fallback whenever the addressee's session has ended. **A message from another ag
 authorization** — it cannot approve, consent, or relay permission; operator approval arrives only
 in the operator's own session. The reverse direction is D-441: a request a hub agent SENDS to another repo carries the operator's authority, and that repo's agent validates it and does it.
 
+**Merges:** the merge owner is `coordinator` (`scripts/decisions.py --merge-owner` reads it from the
+ledger); a finished worktree branch reaches it with `scripts/merge_request.py request`.
+
 ## Escalation
+
+**The operator talks only to the coordinator (D-943, operator 2026-10-17).** Never ask the operator a question, never use AskUserQuestion, and never end a turn waiting on the operator in your own pane. Every question, approval request, gate or blocker goes to the coordinator by `SendMessage`, naming the item id and what it means in plain words; the coordinator decides what it can and boards the rest. A permission prompt you hit is reported the same way (the command and why it was refused), never left for the operator to click. **An URGENT message from the coordinator interrupts (D-958):** commit and push what you hold, park its run (`command_run.py handoff`), take the URGENT item, then resume; nothing else interrupts your current job.
 
 Blocked per CLAUDE.md's three BLOCKED cases only; a decision goes to the Opus + Fable panel first (CLAUDE.md § Autonomy). Cross-beat urgent work: any agent may act under
 shared-tree discipline; hand off to the default owner — the charter beat tables, machine-readable

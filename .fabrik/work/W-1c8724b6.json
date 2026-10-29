@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T04:02:03.424705Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-1c8724b6",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "the same [ -f ] && [ -r ] || HOOK MISSING guard on that line, with a grader",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "a second host's copy of the same guard; one line and a grader",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": ".windsurf/hooks.json post_cascade_response runs scripts/final_gate.py bare through bash -c — the same missing-script class W-ed75e99d guarded in .claude/settings.json, on the Windsurf host (infra-3 residue 2, 2026-10-23)"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T01:07:42.430200Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-7f91b255",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VVWYVGC6YAGBX71C5MMB86",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: requiressl + set -f — re-taken byte-identical (fabrik-lib e1600479); two grader cases you may want"
+}

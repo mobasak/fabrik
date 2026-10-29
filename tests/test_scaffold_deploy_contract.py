@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -395,18 +396,40 @@ def test_a_leg_that_could_not_run_is_emitted_unverifiable_not_dropped(tmp_path: 
     assert "no ssh to vps1" in rows[0]["detail"] and rows[0]["detail"].startswith("UNVERIFIABLE")
 
 
-def test_verdict_merges_row_files_from_several_legs(tmp_path: Path) -> None:
-    """`--verdict --rows-from a.json b.json` applies the algebra to the UNION of the legs' rows."""
-    proj = tmp_path / "proj"
+_XY_CONTRACT = (
+    'def x() -> dict[str, Any]:\n    return liveness_row("x", True, "")\n\n\n'
+    'def y() -> dict[str, Any]:\n    return liveness_row("y", True, "")\n\n\n'
+    "ROWS: list[Callable[[], dict[str, Any]]] = [x, y]"
+)
+
+
+def _frozen_xy_stub(proj: Path) -> Path:
+    """The seeded stub, FROZEN, with a contract declaring rows `x` and `y` — `--rows-from` refuses a row the
+    contract does not declare and a merge missing one (kaizen D-769), so leg files for x and y need a
+    contract that names them. The merge never RUNS x and y — only their names matter here; the leg files
+    carry whatever rows the test needs."""
     (proj / "scripts").mkdir(parents=True)
     stub = proj / "scripts" / "verify_prod_parity.py"
     src = TEMPLATE.read_text().replace(
         "# Status: DRAFT · Version: v0 · Date: —",
         "# Status: FROZEN · Version: v1 · Date: 2026-09-02",
     )
-    stub.write_text(src)
+    assert src.count(_ROWS_LINE) == 1
+    stub.write_text(src.replace(_ROWS_LINE, _XY_CONTRACT))
+    return stub
+
+
+_ROWS_LINE = "ROWS: list[Callable[[], dict[str, Any]]] = [l0_health_probe_vendored]"
+
+
+def test_verdict_merges_row_files_from_several_legs(tmp_path: Path) -> None:
+    """`--verdict --rows-from a.json b.json` applies the algebra to the legs' rows CONCATENATED — every
+    contract row exactly once across the files (a doubled or missing row is refused, never merged)."""
+    proj = tmp_path / "proj"
+    stub = _frozen_xy_stub(proj)
     a = tmp_path / "a.json"
     b = tmp_path / "b.json"
+    b_ok = tmp_path / "b_ok.json"
     a.write_text(
         json.dumps(
             [
@@ -435,24 +458,25 @@ def test_verdict_merges_row_files_from_several_legs(tmp_path: Path) -> None:
             ]
         )
     )
-    ok = _run_as_documented(stub, "--verdict", "--rows-from", str(a), cwd=proj)
-    assert ok.returncode == 0 and "VERDICT: CONFIRMED" in ok.stdout, ok.stdout
+    b_ok.write_text(json.dumps([{"system": "y", "status": "OK", "detail": "pong"}]))
+    ok = _run_as_documented(stub, "--verdict", "--rows-from", str(a), str(b_ok), cwd=proj)
+    assert ok.returncode == 0 and "VERDICT: CONFIRMED" in ok.stdout, (ok.stdout, ok.stderr)
     both = _run_as_documented(stub, "--verdict", "--rows-from", str(a), str(b), cwd=proj)
     assert both.returncode == 2 and "1 disagree" in both.stdout and " of 2 " in both.stdout, (
         both.stdout
     )
+    # one leg alone is NOT a merge: the contract's `y` is missing — refused, never a verdict (D-769)
+    alone = _run_as_documented(stub, "--verdict", "--rows-from", str(a), cwd=proj)
+    assert alone.returncode == 64 and "'y': missing" in alone.stderr, (alone.stdout, alone.stderr)
+    assert "VERDICT:" not in alone.stdout
 
 
 def test_not_obligated_set_is_wired_into_the_cli_verdict(tmp_path: Path) -> None:
     """The stub declares `NOT_OBLIGATED` and `--verdict` must apply it — tryton-crm had to add the wiring
     by hand because the seeded `main()` never passed it."""
     proj = tmp_path / "proj"
-    (proj / "scripts").mkdir(parents=True)
-    stub = proj / "scripts" / "verify_prod_parity.py"
-    src = TEMPLATE.read_text().replace(
-        "# Status: DRAFT · Version: v0 · Date: —",
-        "# Status: FROZEN · Version: v1 · Date: 2026-09-02",
-    )
+    stub = _frozen_xy_stub(proj)
+    src = stub.read_text()
     src = src.replace(
         "NOT_OBLIGATED: frozenset[str] = frozenset()",
         'NOT_OBLIGATED: frozenset[str] = frozenset({"x"})',
@@ -535,3 +559,160 @@ def test_rows_for_takes_only_the_parsed_values() -> None:
 
     vp = _vp()
     assert list(inspect.signature(vp._rows_for).parameters) == ["values"]
+
+
+# ── W-82cff1ac item 1 (2026-10-11): where the stub finds the comparator under the runner's recipes ────────
+# `/fabrik-deploy-verify`'s host leg copies the stub to /tmp and stages the comparator FLAT beside it
+# (`scp -r libs/health_probe <vps>:/tmp/health_probe`); the VPS checkout never holds the gitignored module.
+# Pre-fix the stub derived its root from `__file__` alone, so every host-leg comparison row read UNVERIFIABLE.
+
+
+def _owner_only_modes(staged: Path) -> None:
+    """Give a staged `health_probe/` the modes a 022 umask gives (dirs 755, files 644), never what the
+    test process or the checkout happened to have. A merge leg runs under umask 002, where a copied or
+    freshly written copy is group-writable, and the stub rightly refuses it as "writable by others", so
+    a test meant to reach the stub's other branches was red only in merge legs (W-17fc722a)."""
+    staged.chmod(0o755)
+    for f in staged.rglob("*"):
+        f.chmod(0o755 if f.is_dir() else 0o644)
+
+
+def _flat_stage(dst_dir: Path) -> Path:
+    """The recipe's staging layout: the stub beside a FLAT `health_probe/` copy of the comparator."""
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(REPO / "libs" / "health_probe", dst_dir / "health_probe")
+    _owner_only_modes(dst_dir / "health_probe")
+    stub = dst_dir / "verify_prod_parity.py"
+    shutil.copy(TEMPLATE, stub)
+    return stub
+
+
+def _l0(r: subprocess.CompletedProcess[str]) -> dict[str, Any]:
+    rows = json.loads(r.stdout)
+    row = next((x for x in rows if x["system"] == "l0_health_probe_vendored"), None)
+    assert row is not None, (r.returncode, [x.get("system") for x in rows], r.stderr[-300:])
+    return row
+
+
+def test_parity_root_reads_the_recipes_flat_staging_copy_beside_the_script(tmp_path: Path) -> None:
+    """B1 — the host-leg recipe AS WRITTEN: the stub in a bare dir beside a flat `health_probe/` copy,
+    cwd an unrelated bare dir (the VPS clone, which holds no comparator) → the precondition row is a
+    real comparison with `match: True`. RED pre-fix (the root resolved to the bare dir's parent)."""
+    stub = _flat_stage(tmp_path / "tmp")
+    cwd = tmp_path / "clone"
+    cwd.mkdir()
+    r = _run_as_documented(stub, "--json", cwd=cwd)
+    l0 = _l0(r)
+    assert l0["match"] is True, l0
+
+
+def test_parity_root_prefers_a_vendored_clone_over_a_flat_sibling(tmp_path: Path) -> None:
+    """B2 — a REGRESSION GUARD against a sibling-first implementation (GREEN pre-fix, which only ever
+    read the clone): the stub in A/scripts with A vendoring the real module AND a poisoned flat
+    `health_probe/` beside the stub → the clone wins and the row is `match: True`."""
+    proj = tmp_path / "A"
+    (proj / "scripts").mkdir(parents=True)
+    shutil.copytree(REPO / "libs" / "health_probe", proj / "libs" / "health_probe")
+    poisoned = proj / "scripts" / "health_probe"
+    poisoned.mkdir()
+    (poisoned / "__init__.py").write_text("raise ImportError('poisoned flat sibling')\n")
+    (poisoned / "health_probe.py").write_text("raise ImportError('poisoned flat sibling')\n")
+    stub = proj / "scripts" / "verify_prod_parity.py"
+    shutil.copy(TEMPLATE, stub)
+    r = _run_as_documented(stub, "--json", cwd=tmp_path)
+    assert _l0(r)["match"] is True, _l0(r)
+
+
+def test_parity_root_unvendored_detail_names_both_paths_looked_for(tmp_path: Path) -> None:
+    """B3 — nothing qualifies: an un-vendored clone and no flat sibling → UNVERIFIABLE (exit 2, no
+    traceback) with the pinned prefix and a detail naming BOTH module paths looked for, so the reader
+    is sent to vendor or stage, never to 'run the fleet sync'. RED pre-fix on the detail."""
+    proj = tmp_path / "proj"
+    (proj / "scripts").mkdir(parents=True)
+    stub = proj / "scripts" / "verify_prod_parity.py"
+    shutil.copy(TEMPLATE, stub)
+    r = _run_as_documented(stub, "--json", cwd=proj)
+    assert r.returncode == 2, (r.returncode, r.stderr[-400:])
+    assert "Traceback" not in r.stderr, r.stderr[-400:]
+    detail = str(_l0(r)["detail"])
+    assert detail.startswith("UNVERIFIABLE (health_probe not vendored"), detail
+    assert str(proj / "libs" / "health_probe" / "health_probe.py") in detail, detail
+    assert str(proj / "scripts" / "health_probe" / "health_probe.py") in detail, detail
+    assert "run the fleet sync" not in detail, detail
+
+
+def test_parity_root_ignores_a_pycache_only_leftover_in_the_clone(tmp_path: Path) -> None:
+    """B4 — the marker is the MODULE, not the directory: a clone whose `libs/health_probe/` holds only
+    `__pycache__` (a retired-dir leftover the sync's gitignore block keeps) does not qualify, so the
+    good flat sibling wins → `match: True`. RED pre-fix (the clone was inserted and the import failed)."""
+    stub = _flat_stage(tmp_path / "stage")
+    (tmp_path / "libs" / "health_probe" / "__pycache__").mkdir(parents=True)
+    r = _run_as_documented(stub, "--json", cwd=tmp_path)
+    assert _l0(r)["match"] is True, _l0(r)
+
+
+def test_hub_symlinked_stub_reads_unverifiable_naming_the_template_dir(tmp_path: Path) -> None:
+    """B5 — the hub's own `scripts/verify_prod_parity.py` is a symlink into `templates/scaffold/`, which
+    has no `libs/` and no flat sibling, so the hub's own run reads UNVERIFIABLE (today's outcome, kept)
+    and the detail now SAYS which path it looked for — the shape stays stated, never silently flips."""
+    r = _run_as_documented(REPO / "scripts" / "verify_prod_parity.py", "--json", cwd=tmp_path)
+    l0 = _l0(r)
+    assert l0["match"] is None, l0
+    looked = REPO / "templates" / "scaffold" / "libs" / "health_probe" / "health_probe.py"
+    assert str(looked) in str(l0["detail"]), l0
+
+
+@pytest.mark.parametrize(
+    ("body", "cause"),
+    [
+        ("def compare_not_here():\n    pass\n", "not the vendored comparator: no compare()"),
+        ("import a_dependency_nobody_installed_xyz\n", "ModuleNotFoundError"),
+    ],
+)
+def test_parity_root_found_but_unusable_module_names_the_cause(
+    tmp_path: Path, body: str, cause: str
+) -> None:
+    """B6 — a module file that QUALIFIES by path but is not the vendored comparator (a same-named
+    foreign package, or the real one with a dependency missing) is reported as FOUND BUT UNUSABLE
+    with the cause, never as 'not vendored' and never as a traceback or a 'row raised' detail."""
+    stage = tmp_path / "stage"
+    (stage / "health_probe").mkdir(parents=True)
+    (stage / "health_probe" / "__init__.py").write_text("")
+    (stage / "health_probe" / "health_probe.py").write_text(body)
+    _owner_only_modes(stage / "health_probe")
+    stub = stage / "verify_prod_parity.py"
+    shutil.copy(TEMPLATE, stub)
+    r = _run_as_documented(stub, "--json", cwd=tmp_path)
+    assert r.returncode == 2 and "Traceback" not in r.stderr, (r.returncode, r.stderr[-400:])
+    detail = str(_l0(r)["detail"])
+    assert detail.startswith("UNVERIFIABLE (health_probe found at "), detail
+    assert cause in detail and "not vendored" not in detail and "row raised" not in detail, detail
+
+
+@pytest.mark.parametrize("mode", [0o777, 0o775], ids=["other-writable", "group-writable"])
+def test_parity_root_refuses_a_staged_copy_writable_by_others(tmp_path: Path, mode: int) -> None:
+    """B7 — a shared /tmp lets another local user plant `health_probe/` beside the script: a staged
+    directory writable by group or others is REFUSED, the row is UNVERIFIABLE and the detail says why.
+    The group-only case is its own row: a check narrowed to the other-write bit passes 0777."""
+    stub = _flat_stage(tmp_path / "stage")
+    (tmp_path / "stage" / "health_probe").chmod(mode)
+    r = _run_as_documented(stub, "--json", cwd=tmp_path)
+    l0 = _l0(r)
+    assert l0["match"] is None, l0
+    assert "writable by others" in str(l0["detail"]), l0
+
+
+@pytest.mark.parametrize("mode", [0o666, 0o664], ids=["other-writable", "group-writable"])
+def test_parity_root_refuses_a_staged_module_file_writable_by_others(
+    tmp_path: Path, mode: int
+) -> None:
+    """B8 — the check covers the module FILE, not only its directory: a `health_probe.py` writable by
+    group or others inside an owned 0755 directory is REFUSED the same way (round 2 of the scoped review
+    reproduced the gap: the directory passed both checks and a 0666 file was loaded and executed)."""
+    stub = _flat_stage(tmp_path / "stage")
+    (tmp_path / "stage" / "health_probe").chmod(0o755)
+    (tmp_path / "stage" / "health_probe" / "health_probe.py").chmod(mode)
+    r = _run_as_documented(stub, "--json", cwd=tmp_path)
+    l0 = _l0(r)
+    assert l0["match"] is None, l0
+    assert "writable by others" in str(l0["detail"]), l0

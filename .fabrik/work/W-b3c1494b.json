@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T01:51:39.371903Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-b3c1494b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5BT0TCP7Q9ZR3Z5KJK52S9P",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate: this mail's relay work is fleet's task W-c4f60000, which carries all four i18n consumer-note mail ids; the mail itself is acked when fleet reports the relay done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "dropped",
+  "title": "WHAT: fabrik-lib `i18n/` validator closes three false passes (fabrik-lib D-497 approval, D-499 executed; W-0c6910d5, SB-152/157/158). A consumer note: projects that vendor `i18n/` see new failures and warnings on re-vendor."
+}

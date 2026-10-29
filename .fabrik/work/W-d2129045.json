@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T16:38:46.199396Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d2129045",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4E3HXT11MFC600DE1ZH8YZG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "check_convergence's RUBRIC_RUN anchor is satisfiable by pasted rubric output, not the invocation (forwarded from web-ecommerce-factory 01M3WRE0TS, side friction (a))"
+}

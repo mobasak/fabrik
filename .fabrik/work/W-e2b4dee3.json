@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:47:42.737865Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-e2b4dee3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DFVS1EFSXXWC19NMDPTP6Q",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: two synced reference docs still name bookworm — fixed (W-29e4ce7e)"
+}

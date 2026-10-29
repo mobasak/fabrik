@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T15:46:40.804444Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "81afd8a76e14d83377ba55a496a0d79eddbca595",
+  "id": "W-e2f0b6e5",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "name the call that creates the DB; add a guard (env flag or dry-run) honoured by tests/test_scaffold_audit_log.py's stub list; red-first test that scaffolding under the stub creates no database",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — scaffolder creates real databases in probes",
+  "status": "done",
+  "tags": [
+    "medium"
+  ],
+  "title": "The scaffolder's local dev-database step creates REAL Postgres databases on the WSL dev cluster even when scaffolding runs as a probe or test: today it left envp_chrome_dev, envp_pyapidb_dev (a review seat's create_project) and inv_chrome_extension_dev, inv_python_api_dev, inv_python_api_gpu_dev (fleet's W-046828fb MEASURE) — stubbing sudo/venv/pip did not stop it; find the call and make probes/tests unable to touch the real cluster"
+}

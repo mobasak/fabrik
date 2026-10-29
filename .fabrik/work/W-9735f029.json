@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
   "created": "2026-10-04T08:01:53.905305Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-9735f029",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -16,6 +20,7 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — agents stop on context, blocks continued work",
   "status": "open",
   "title": "Context-full agents stop instead of continuing: make compaction automatic-and-early, and make the context-excuse stop un-escapable"
 }

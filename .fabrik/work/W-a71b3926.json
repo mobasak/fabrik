@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T07:51:18.609744Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "ddd3b23ebd82575a3fce8d8e33229affcd8e0db6",
+  "id": "W-a71b3926",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-10-15-plan-1-scratch-lifecycle.md",
+    "spec": "docs/superpowers/specs/2026-10-15-scratch-lifecycle-design.md"
+  },
+  "next": "intel: /fabrik-conformance-review on the scratch-lifecycle spec + plan; report the verdict to the coordinator",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "Operator gate: fleet stays paused until this answers; one conformance pass over a one-day-old spec",
+  "status": "done",
+  "tags": [
+    "conformance",
+    "queued"
+  ],
+  "title": "Scratch-lifecycle conformance: verify the scratchpad usage is implemented as designed (operator 2026-10-15, D-880 — fleet stays PAUSED until this answers). Author-blind: fleet built it, so not fleet. Check every Behaviour of the spec against the merged code (run-bound scratch under .tmp/runs/<sid>/<run>, the RUN-SCRATCH brief wording, scratch_sweep.py classes, cleanup at close) with executed evidence, and list each gap as a finding routed to its owner"
+}

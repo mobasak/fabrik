@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "already done: same root cause as W-62fed2af, fixed by D-816 / 9e0dade83",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "a hub sync updates the MAIN checkout but not linked worktrees, so a worktree's final_gate goes red on \"Fabrik-Synced Files Unmodified\" with no local edit"
 }

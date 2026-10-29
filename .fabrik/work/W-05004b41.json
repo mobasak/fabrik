@@ -1,0 +1,25 @@
+{
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
+  "created": "2026-10-17T09:07:02.979270Z",
+  "creator": "fleet",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-05004b41",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "escape $ for compose (single-quote, or $$ inside the double-quoted form) in _format_env with the _parse_env mirror, measure make docker-smoke (docker run --env-file does not unescape $$), red-first case in tests/orchestrator/test_env_format_roundtrip.py",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — deployed secrets silently truncated; needs spec chain",
+  "status": "open",
+  "title": "deployer_ssh._format_env never escapes $, and compose interpolates env_file values: a deployed value containing $ (bcrypt hash, user password) reaches the container substituted or truncated, silently (a$b -> a, compose 2.40.3; found by both W-9ead34bd design critiques)"
+}

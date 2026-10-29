@@ -1,0 +1,28 @@
+{
+  "blocked_by": [
+    "W-ab566484"
+  ],
+  "created": "2026-10-08T19:41:26.289396Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-5cdc6a91",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — drift relabel cobra",
+  "status": "dropped",
+  "tags": [
+    "medium"
+  ],
+  "title": "work.py drift: a DRAFT plan with an open non-backlog item linked to it claims work without evidence — the relabel the BLOCKED check moves the cobra to (W-fbdd17c8 critiques)"
+}

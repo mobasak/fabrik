@@ -108,21 +108,26 @@ verbs:
 |---|---|---|
 | `init [--distributor <agent>]` | once per repo | create `.fabrik/work/` and `config.json`; nothing else writes an item into a repo without it |
 | `add --kind {backlog,decision,feedback,mail,next,task} --title <t> [--next <t>] [--link key=value] [--priority 0-3] [--tag <t>]…` | anyone | create an item; `--kind decision`, `--kind mail`, `--kind feedback` and `--kind next` are all refused — each comes only from its own mechanism (an accepted DECISION block, a mail claim, taking a feedback queue, the Stop harvest's NEXT rules), never from `add` |
-| `assign <id> [--owner <agent>] [--priority 0-3] [--tag <t>]… [--untag <t>]…` | distributor | set owner, priority and/or tags |
+| `assign <id> [--owner <agent>] [--priority 0-3] [--tag <t>]… [--untag <t>]… [--impact high\|low] [--effort high\|low] [--why <t>] [--blocked-by <id>]… [--unblock <id>]…` | distributor | set owner, priority and/or tags; SCORE an item (§ Scores and holds) or hold it behind another id |
+| `edit <id> [--title <t>] [--next <t>] [--link key=value]… [--unlink spec\|plan\|decision]…` | anyone | change what `add` wrote — title, next, the spec/plan/decision links — under the store lock, in the caller's own tree; refused on `decision`, `next`, `mail` and `feedback` items (their title and links come from their mechanism), on a call naming no field, an empty title, a key both linked and unlinked, and a `decision=` that is not a ledger id; `--next ""` clears next; a `spec=`/`plan=` value that does not name a regular file inside the repo is applied with a warning; a `--link`/`--unlink` refuses an item whose stored spec, plan or decision link is not a string, naming each, while a title or next edit leaves `links` exactly as stored. The backlog block lists owner, title and id only, so a link or next edit needs no render. In a linked worktree the edited item merges with the branch: when the main checkout holds an uncommitted write to the same item, `commit-items` there first or the merge refuses. An open item linked to an `EXECUTED` or archived plan reads drift class 4 until it is closed (mail 01M55ZNVH7) |
 | `queue [--json] [--stop --session <id> --cwd <path>]` | anyone, read-only | each window's queued work against the floor, routable and waiting-backlog counts, plans not executed; `--stop` prints the Stop hook's one action (§ Ownership and the distributor) |
-| `triage [--apply]` | distributor (`--apply`) | plan the top-up of every present worker below the floor; `--apply` assigns it and prints the SendMessage lines |
-| `ready [--mine] [--all]` | worker | spec D4's crisp default: the obligation lines (§ The view), this session's claims, items this agent owns, awaiting items, then the top 10 remaining ready items (and how many more `--all` would show); `--mine` puts the caller's own first among those remaining, then unassigned ones; `--all` is the OLD default — every `open`, unblocked, unclaimed item by priority then age |
-| `next` | worker | the first item `ready --all --mine` would list — `_ready_items(mine=True)`'s ordering (open, unblocked, no live claim; this agent's own first, then unassigned; never an item owned by someone else), NOT the crisp `ready` default above |
-| `claim <id> [--session <s>]` | worker | take (or renew) the live claim; refused when another session holds a live claim, or the item is `blocked`/has an unresolved `blocked_by` |
-| `release <id> [--session <s>]` | worker | give up this session's live claim (fenced the same way as `done`) |
+| `triage [--apply]` | distributor (`--apply`) | plan the top-up of every present worker below the floor; `--apply` assigns it and prints the SendMessage lines; also prints `unscored <n>: <ids>` and any `major in flight:` line, and plans at most one major project per run (§ Scores and holds) |
+| `ready [--mine] [--all]` | worker | spec D4's crisp default: the obligation lines (§ The view), this session's claims, items this agent owns, awaiting items, then the top 10 remaining ready items (and how many more `--all` would show); `--mine` puts the caller's own first among those remaining, then unassigned ones; `--all` is the OLD default — every `open`, unblocked, unclaimed item by priority then age. In a coordinator-mode repo a BUILDER's default `ready` lists only its own items among the remaining ones; `--all` (and `--all --mine`) is unfiltered |
+| `next` | worker | the first item `ready --all --mine` would list — `_ready_items(mine=True)`'s ordering (open, unblocked, no live claim; this agent's own first, then unassigned; never an item owned by someone else), NOT the crisp `ready` default above. In a coordinator-mode repo a BUILDER's `next` offers only its own items |
+| `claim <id> [--session <s>]` | worker | take (or renew) the live claim; refused when another session holds a live claim, or the item is `blocked`/has an unresolved `blocked_by`. In a linked worktree an item MISSING from this tree's store is read from the main checkout's (the claim is shared state, and an item the coordinator made there reaches a branch only with a merge), and its `blocked_by` is checked in that store (W-98204c50) |
+| `release <id> [--session <s>]` | worker | give up this session's live claim (fenced the same way as `done`); finds a main-store-only item from a linked worktree as `claim` does, so `merge_request.py request --item` releases it |
 | `done <id> --evidence <sha> [--session <s>]` | worker | refused without `--evidence`, with a SHA that does not resolve, or whose commit message does not name the item id; refused BY HAND on a `mail`/`feedback` item — those close only through `mail.py ack`/`close_linked` |
 | `done <id> --resolved-by <W-id> [--evidence <sha>] [--session <s>]` | worker | close an item another item's commit already fixed: the cited item must read `done` in this tree, on the base branch or in a closed marker, and record evidence; this item carries that evidence and records `resolved_by`. A given `--evidence` must equal the cited item's, so a fresh commit that merely names the cited item is refused (W-f154f3f3) |
 | `drop <id> (--why <text> \| --duplicate-of <keep>) [--session <s>]` | `--why`: the owner, the distributor, or anyone for an unassigned item · `--duplicate-of`: the distributor, or a caller whose agent name or session id is the `creator` of BOTH items | end an item that won't be done (`--why`, refused on `awaiting-operator` items); or retire an open `awaiting-operator` `<id>` into another open `awaiting-operator` `<keep>` (`--duplicate-of`, D5) — `<keep>` absorbs `<id>`'s block digest and id so a later re-ask of either wording refreshes `<keep>` instead of opening a third item |
 | `answer <id> --note <text> [--decision D-NNN] [--session <s>]` | the agent the operator answered | close an awaiting-operator item with the operator's own words |
 | `status` | anyone | the obligation lines and the distributor's lines (§ The view), items by state, uncommitted item files, plan-board ticket counts, and the eight drift classes below (read-only, no lock) |
+| `pause [<name>] [--why <t>] [--by <label>]` | the distributor, the named agent itself, or the operator (a caller with no agent name AND no Claude session id; `--by` names it, default `operator`) | mark an agent PAUSED in this repo (W-da4bc702): a marker `<git common dir>/fabrik-work/paused/<name>.json` every tree sees at once. A paused caller's `queue --stop` action is null (only the main checkout's `commit-items` survives) — no held claim is pushed on, nothing is lost; the floor rung and `triage` skip a paused worker; a worker's doorbell skips a paused coordinator; `queue` marks it; its prompt block says PAUSED and drops the ready line; its `NEXT:` claims nothing. The caller's own rungs match the window's resolved agent name OR its worker tree's name; the floor, `triage` and `queue` count worker trees, so they honour a pause by the tree's name. With no name, lists the pauses. An unnamed Claude session is refused; an unknown name is warned about; re-pausing over another's pause is refused unless the caller is the distributor or the operator. Presence is the pause: an unreadable marker still pauses, and an entry that is no regular file (a directory, a FIFO) is never read and is removed by hand |
+| `verdict [--text <t>] [--by <label>] -- <id> accept\|reject\|comment` | the operator only (no agent name AND no Claude session id — stricter than `pause`, which admits a named agent; an audit rule, not a security boundary) | the operator's call on one item, from the dashboard's Repos tab or a shell (W-e1f1a1bd). Every call appends `{at, by: operator, via: <--by or cli>, action, text}` to the item's `comments` list (the text one printable line, at most 200 characters). `accept` answers an awaiting decision (note `accepted[: <text>]`) and on any other open item adds the informational tag `operator-accepted` and removes the `waits-operator-review` hold (it never assigns an owner); `reject` answers an awaiting decision (`rejected: <text>`) and drops any other open item (`rejected by the operator: <text>`); `comment` only appends. `reject` and `comment` need `--text`. An awaiting item that is no decision takes comments only; another session's live claim refuses accept and reject; a resolved item is refused. A reject reaches every tree at once (the closed marker); an accept's tags and every comment live in the main checkout's item file until `commit-items` and a merge carry them |
+| `resume <name>` | whoever set the pause (by agent name), the distributor, or the operator | lift a pause; a paused agent cannot lift a pause someone else set, and a pause the operator set is lifted only by the distributor or the operator (the check reads the marker's `actor`, never its `--by` label). The hook's merge-owner cause never reads a pause: a paused merge owner still owes merges |
 | `commit-items` | the MAIN checkout's session | commit every uncommitted, valid item file of the main store in ONE plumbing commit on the current branch (`Agent-Role`/`Agent-Context` trailers), built in a private index from HEAD, so no other dirty or staged file rides along; a path another session STAGED and a file that is not a valid item are skipped and named; a sibling commit landing meanwhile is never overwritten (compare-and-swap, one rebuild). Refused in a linked worktree and on a detached HEAD. It never pushes. While committable files remain, `queue --stop` hands the main checkout's session this verb: FIRST on the autonomy ladder (re-armed after each store commit and each doubling of the backlog), LAST on the classic path and never while the session holds a claim; when the checkout's state refuses the verb it names that state instead. A deleted item file is never committed by it (W-4238b6ec) |
+| `merge-item <base> <ours> <theirs>` | `merge_request.py merge`, and the `workitem` merge driver on a HAND merge, rebase or cherry-pick in any hub worktree | the key-wise 3-way merge of ONE item file (W-5f3617e6). The side that changed a key against the base wins; a change both sides made identically merges; an object value (`links`) merges per sub-key, against `{}` when both sides added it; `tags` and `blocked_by` merge as sets (the base, plus what either side added, minus what either side removed) and any other list (`comments`) merges when both sides only appended to it; the result is written into `<ours>` in the store's own format, exit 0. A key both sides changed to different values, or deleted on one side and changed on the other, leaves `<ours>` untouched, names every such key on stderr and exits 3, so it never picks a side; an unreadable or non-object side exits 1. An empty base (both sides added the item) merges against `{}`. It needs no repository. `merge_request.py` refuses a merged item whose `id` is not its file name. Needed because the store writes one key per line in sorted order, so DISJOINT keys that sort side by side (`effort`/`evidence`, `score_reason`/`status`) collide in git's line merge. **As a merge driver** (W-c230cb2e): the hub's `.gitattributes` maps `.fabrik/work/W-*.json` to `merge=workitem`, and `scripts/install_post_commit_hook.sh` registers `python3 scripts/work.py merge-item %O %A %B` (the merging tree's own copy) with `merge-file` as its fallback: ANY non-zero exit falls back to the text merge, so a conflict keeps its markers (labelled `ours`/`theirs` — in a rebase `ours` is the branch being rebased onto, as in git) and the file stays unmerged. Read the `work: merge-item: both sides changed <key>` line, not the hunk count: the fallback marks the whole file's line conflict. `-X ours`/`-X theirs` reach no custom driver, so they no longer resolve an item-file key conflict — resolve it by hand. A clone without the config merges as text. |
 | `sync --check` | gate, pipeline | the same drift report, plus one `readings.jsonl` line; exits non-zero only when a listed class is both `(blocking)` in its output **and** the repo has passed its blocking window (below) |
-| `render` | pipeline, agents | regenerate the backlog's `AUTO-GENERATED:BACKLOG` block — its only writer |
+| `render [--here]` | pipeline, agents, in the main checkout | regenerate the backlog's `AUTO-GENERATED:BACKLOG` block — its only writer. The block is the main checkout's view of the main store, so `render` refuses in a linked worktree and when `--repo` names a tree the caller is not in (a worktree render once rewrote 433 rows of a block its branch then merges); a branch's item edits reach the block when the main checkout renders at merge. `--here` renders the caller's own store anyway in a linked worktree and says not to commit the result; it never writes a tree the caller is not in, so `--repo` naming another tree is refused with or without it (mail 01M55ZNVH7) |
 | `migrate-backlog` | once per repo | turn existing `docs/STRATEGIC_BACKLOG.md` rows into items; once `migrated_at` is set, a run creates nothing |
 
 `--repo <path>` (any path inside the repo, default cwd) is a TOP-LEVEL option and must come BEFORE the
@@ -153,7 +158,7 @@ else; in the hub that agent is infra (D-471 superseded D-395's intel). Since D-5
 ruling D-512: "no agent waits idle if there is work to be done") the distributor keeps every PRESENT
 worker — a registered `.claude/worktrees/<name>` with a live `claude` process — at the floor (3,
 `queue_floor` in `config.json`) of QUEUED work: an owned `task`, or owned backlog promoted with the
-`queued` tag (backlog is a list, not an order). `work.py queue` shows each window against the floor,
+`queued` tag (backlog is a list, not an order). A worker's queued count is read from the MAIN checkout's store (the store of record for assignment, D-516) plus the items only its own tree holds — main's file wins for an id both hold — so an assignment counts the moment the distributor writes it, before the worker merges. `work.py queue` shows each window against the floor,
 the routable and waiting-backlog counts and the plans not yet executed; `work.py triage` plans the
 top-up (it prints each item's tags — the coordinator judges role fit) and `--apply` assigns it, never
 promoting, dropping or creating anything; items tagged `runtime`, `hold` or `waits-*` are never
@@ -163,9 +168,9 @@ release it. `waits-<slug>` (an event: `waits-tojlo`) parks until the tag is remo
 `waits-YYYY-MM-DD` parks until that UTC date and is live again on it, and a dated tag that is not a
 real date is refused when written. `runtime` is never parked: assigned by hand it is due work.
 Parking an existing item is the distributor's call (`work.py assign <id> --tag …`); `add --tag`
-sets the tags of a new item. `queue` counts each agent's OWNED parked items, and the Stop result
+sets the tags of a new item. `queue` counts each agent's OWNED parked items (a worker's from its own tree), and the Stop result
 counts the parked items the agent owns or this session has claimed. The Stop hook enforces both sides through `work.py queue --stop`: a window
-with queued work and no claim is told to claim it, a worker whose queue is empty rings the
+with queued work and no claim is told to claim it, a worker whose tree lacks items main already assigns it is told to merge the base branch and then claim, a worker whose queue is empty rings the
 coordinator, the distributor is told to triage while a present worker sits below the floor and
 work waits (routable or backlog items, or its own queue above the floor), and a
 one-window repo (or one with no distributor) is its own coordinator. A repo whose `config.json` carries
@@ -176,7 +181,53 @@ queued work, the coordinator rungs above, the agent's other owned ready items, a
 distributor the command-feedback queues (for a `feedback_owner` that is not the distributor, its
 queues come right after its mail instead — § above) — and the Stop hook blocks on each subject in turn, three
 times at most, so holding a claim no longer silences it. Self-service claiming from
-`ready` stays the fallback — `docs/reference/multi-agent-operating-model.md` § Claim or assign.
+`ready` stays the fallback — `docs/reference/multi-agent-operating-model.md` § Claim or assign —
+except for a BUILDER in a coordinator-mode repo (below), who claims what the coordinator queued it
+and serves itself only while the coordinator has no live window.
+
+### Scores and holds (the coordinator role, D-871)
+
+The coordinator scores every item on two fields, set with `assign` and always with `--why` (the
+one-line reason is stored as `score_reason`): `impact` (`high`/`low`) and `effort` (`high`/`low`, the
+quota it will spend). Once an item carries both, its `priority` is DERIVED — high/low → 1 (quick
+win), high/high → 2 (major project), low/low → 3 (fill-in) — and every check runs on the item as it
+will be written, so a score split across two calls is judged as one. Low impact with high effort is
+a time sink: `assign` refuses it and names `work.py drop --why`. On a scored item `--priority 0`
+sets the incident override; any other `--priority` is refused (the priority is derived), and a
+re-score without `--priority 0` ends the override and says so (`P0 override cleared`). A P0 set
+before an item's FIRST full score survives that score (`P0 kept`). An item that is not fully scored
+— never scored, or half-scored — keeps today's `priority` (default 2) and today's `--priority`;
+`--why` without a score is refused.
+
+`assign --blocked-by <id>` holds an item behind another (`ready` and `claim` already skip an item
+with an open blocker); `--unblock <id>` releases it. Refused: an unknown id, the item itself, a hold
+that would close a cycle, `--unblock` of an id the item is not blocked by, and the same id in both
+flags. `triage` lists every open item that lacks a score (`unscored <n>: …`, `kind: next` and items
+closed elsewhere excluded), never plans a second high/high item while one is in flight (owned or
+claimed, `open` or `blocked` — it prints the slot holder), and plans at most one high/high item per
+run. A high/high item held behind another in-flight one with `assign --blocked-by` waits rather
+than flies: triage prints it as `major held: <id> behind <id>`; one waiting on anything else (a
+prerequisite task, an unknown id) still holds the slot. That hold exists only because of the item's
+class — a major, or an unscored item tagged `medium` (the high-effort MEDIUM, which takes the tag
+instead of a score) — so a re-score that leaves the item scored and not a major drops every hold
+behind an in-flight major (high/high, owned or claimed, `open` or `blocked`, not closed — triage's
+own test, read from the main checkout as triage reads it) and prints `one-major hold
+cleared: … re-add it: work.py assign <id> --blocked-by <dep>` for each, since `blocked_by` cannot
+say whether a hold was also a real prerequisite (W-0fe931b7). It keeps a hold this call names in
+`--blocked-by`, one it removes with `--unblock` (no line), one behind anything else, and one whose
+blocker it cannot read (`one-major hold kept: …`). It edits `blocked_by` only, never `status`.
+
+**Coordinator mode** is opt-in per repo: `"coordinator_mode": true` in the main checkout's
+`config.json`. `work.py` is fleet-synced, so the behaviours that change what a builder sees act only
+there — and, for a builder, only once its own branch carries the key too (until it merges the flip
+it keeps today's view, and its Stop doorbell says so: one predicate decides both). A BUILDER is a pool worker (`_workers`; the feedback owner's tree is not one) that is not the
+distributor, named by its worker tree — the tree test the Stop hook's worker check makes — else the way the Stop hook names it. A builder's `next`, default `ready` and prompt
+`ready` count show only its own items;
+`triage` plans scored items before unscored ones; and when the coordinator has no live window, the
+Stop doorbell points a builder with an empty queue at `work.py ready --all --mine` (its own items,
+then unassigned ones) instead of `next`. Scoring, holds and the unscored listing work in every repo.
+COBRA (D-253): the cheapest way to look prioritised is to score everything a quick win — every
+score carries its reason, and `triage` keeps the unscored count in view.
 
 ## NEXT, DECISION blocks and the register
 
@@ -207,6 +258,26 @@ also does, when the repo has a store:
   block's digest, so a block answered and then re-asked word for word in a new message whose Stop
   write failed still gets its item. A write that still fails prints one warning line naming the count,
   so a lost write is never silent.
+- **The pending file — when the slot write was skipped too (W-e64aa44a, D7 W4-O3).** The slot write
+  runs under the per-session lock (≤ 1 s) and the store write under the store lock (≤ 2 s), each
+  fail-open; with both busy at one Stop the block was in neither place and the second chance had
+  nothing to read. Now, when the slot write was skipped (the lock busy, or a save that did not land)
+  and the block is not an echo, the Stop side first lands the block in a
+  lock-free file beside the slot — `~/.claude/state/threads/<session>.pending-<digest16>.json`, the
+  slot's `decision` shape plus `session` — BEFORE the store wait, so even a Stop hook killed at its
+  5 s budget leaves it on disk; the store taking the block unlinks it at once. The second chance
+  lists pending files by their own glob (they never take a slot's place in the slot scan's 50-newest
+  window, and the listing has no mtime filter of its own), rescues each live one for this repo with
+  its own session as the item's creator, unlinks them once every entry is in the store, keeps them
+  while the store is busy or momentarily unreadable, skips (unread, kept) one over the size cap,
+  and sweeps — without rescuing — any file older than 7 days (its mtime, or its `ts`), without a
+  session, or whose name does not carry its message digest — before the store check, so a
+  store-less repo's leftovers age out too.
+  The operator's answer settles a pending block exactly as it settles a slot block: the answering
+  prompt's rescue mints the item when the store is free, and the clear that follows drops exactly
+  the pending files that rescue collected for this session — never one a later Stop wrote, and
+  nothing when no rescue ran — so a question answered while the store was busy is never minted
+  later and an unread block survives the answer.
 - **The NEXT rules (spec D3).** The Stop harvest and `scripts/sysadmin/next_census.py`'s fleet
   measurement sort a NEXT's text with the SAME function, `work.classify_next` (T05a) — but they answer
   different questions with it, never one shared verdict: the harvest classifies only the turn's LAST
@@ -272,6 +343,13 @@ D4, D6):
   `work: your claims on items not in this tree — <ids>` for any claim `ready` cannot list; one `on it:`
   line per OTHER session holding a live claim, so every live claim in the repo is counted for every
   session — `work: on it: <session short id> (<agent or "unnamed">) — W-xxxx, W-yyyy`;
+  for a BUILDER in a coordinator-mode repo, the coordinator's live peer address —
+  `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved every prompt through
+  `mail.py who` (1 s cap), every live name that fits the 300-character line listed whole (the rest
+  counted, `… and N more`) with `(several windows answer for it — one may be stale)` when more than
+  one answers, no line when none answers within the cap or the store's distributor is not an agent
+  name, and none in a headless session, which keeps only its own claim lines (W-9bf5a363: an
+  extension coordinator's peer name changes at each rotation, and a name kept in notes goes dead);
   and the ready count.
 - **`status`'s distributor lines (D4).** `UNOWNED` — open items with no owner (a `next` item is never
   counted; it is nobody's to own); `CLAIMS` — one line per session holding a live claim, flagged `— over
@@ -303,6 +381,16 @@ line prints its bound (`V5: PASS — <items> open next item(s) <=
 <sessions> qualifying session(s), <claims> live claim(s)`), so a vacuous 0 <= 0 reads differently from a
 real one.
 
+**Reading 2026-10-09** (V5 on its due date, 13 days after the T08 adoption commit `36ea99199`; W-aa89df9f):
+`next_census.py --since 7 --repo /opt/fabrik` printed `V5: PASS — 0 open next item(s) <= 3 qualifying session(s),
+6 live claim(s)`, and the classes line `next: 18742 lines over 4680 sessions — names-item 3126 · none 263 ·
+operator-decision 1121 · blocked 8 · free-text 14224` (9183 distinct free-text; 20 accepted-free-text sessions
+fleet-wide). What it settles about the spec's open unknown (whether `_is_anchor` is the right filter for the
+session's `next` item): `_is_anchor` is KEPT (D-724), on narrower grounds than "proven right". The 3 qualifying
+sessions show the filter accepts some free-text NEXTs; the open-item side cannot show its width either way — one
+`next` item per session at most, and the supersede and 7-day idle closes above empty it independently of what
+the filter admitted. No over- or under-admission has been reported; the first report re-opens it.
+
 ## Spec and plan state is derived, never copied
 
 `status` and `sync --check` read spec `Status:` lines, plan `Status:` lines, Ticket Boards and plan
@@ -314,18 +402,18 @@ other value is drift class 8. Both readers prefer the calling repo's own
 repo's copy is missing or fails to import, so the drift report is never silently empty because a
 sibling script drifted.
 
-Eight drift classes (`status`/`sync` print `DRIFT <n> (blocking|advisory)  <path>`):
+Eight drift classes (`status`/`sync` print `DRIFT <n> (blocking|advisory)  <path>`, class 8 with its reason after the path):
 
 | # | Class | Always |
 |---|---|---|
 | 1 | A CONVERGED spec no plan names and no item links (SUPERSEDED/IMPLEMENTED excluded; a plan under `plans/archived/` still names its spec) | advisory |
 | 2 | A plan CONVERGED more than 7 days with no plan lock and no item linking it | blocking\* |
-| 3 | A plan IN-PROGRESS with no plan lock | blocking\* |
+| 3 | A plan IN-PROGRESS with no plan lock (a lock clears it); or BLOCKED (`ON-HOLD`, `PAUSED`, `WAITING` alike) with nothing it waits on — clear it with a linked item that is `awaiting-operator` (or `blocked` by an open item), an awaiting item its Status line names by id, or an awaiting operator question naming the plan's dated stem; a plan lock does not clear it | blocking\* |
 | 4 | A plan EXECUTED while an item linking it is still open (archived plans included — a plan is archived at EXECUTED) | blocking\* |
 | 5 | An item file that doesn't parse, or a status outside the vocabulary | blocking\* |
 | 6 | A `done` item within the last 14 days whose evidence SHA doesn't exist or doesn't name it (or its `resolved_by` root); or a closed marker over 14 days old whose item is still open in the base branch (never merged) | blocking\* |
 | 7 | The backlog block is stale (`render` would change it) | advisory |
-| 8 | A plan `Status:` value outside the normalised set | advisory |
+| 8 | A plan `Status:` value outside the normalised set — its line goes on to name the value it read (the whole line, printable, at most 60 characters; `unreadable (…)` when the parser cannot read the header or the file, `missing (no Status: line in its first 4000 characters)` when the parser's window holds none), the five statuses, what check_convergence wants of an EXECUTED plan (its whole-plan review under `docs/development/reviews/` cited, with a quiet Pass row), and the archive as a superseded plan's remedy | advisory |
 
 Classes 2, 3 and 8 read the live plans only: a plan under `plans/archived/` is settled history.
 
@@ -400,7 +488,7 @@ A `work.py` failure never blocks a Stop — every hook-facing call fails open, l
 second chance above and a printed warning if that also fails. A corrupt item file is reported by
 `sync`/`status` and skipped by `ready`. A missing store reads as empty only through the hook-facing
 API (`has_store`, `on_harvest`, `ensure_decision_item[s]`, `has_msg_digest`, `prompt_block`) and
-through `sync` (one line, exit 0); every OTHER CLI verb — `add`, `assign`, `ready`, `next`, `claim`,
+through `sync` (one line, exit 0); every OTHER CLI verb — `add`, `assign`, `edit`, `ready`, `next`, `claim`,
 `release`, `done`, `drop`, `answer`, `status`, `queue`, `triage`, `commit-items`, `render`, `migrate-backlog` — exits 1 with the `init`
 refusal instead.
 

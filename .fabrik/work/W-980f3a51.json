@@ -1,0 +1,28 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T21:30:52.269240Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-980f3a51",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "waits on fabrik-lib's reply to mail 01M5GCNCVS (a missing locale dir passes, *.example.json validated as targets); then re-vendor byte-identical, retire tests/test_i18n_kit_validate_json.py (Kilo-only), kit docs pass --dir, verify on a JS scaffold — measure: /opt/fabrik/.tmp/runs/f57f3e25-3c69-4aee-b93b-cb9754686abf/fabrik-task-2026-10-22T02-25-30-0300/measure.md",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "MEDIUM: templates/i18n-kit's validator lags fabrik-lib's i18n (a measured false-red on 7 of 12 labels); real value for every scaffolded project, nobody blocked; LOW effort: re-vendor from fabrik-lib i18n/, which W-c4f60000's relay also covers",
+  "status": "open",
+  "tags": [
+    "fleet",
+    "medium",
+    "waits-fabrik-lib"
+  ],
+  "title": "templates/i18n-kit/scripts/validate_i18n.py Level 2 lags fabrik-lib's i18n: it fails the run on drift (a measured false-red: 7 of 12 correct UI labels), samples only youtube's six key prefixes (auth. queue. watchlists. common. failure. nav.) so other projects check few or no strings, and passes product context to the back-translator; fabrik-lib SB-107 (drift warns, could-not-run fails) and SB-136 (sample every key, fail-closed _context.json scope, blind call) fix both (mails 01M5AFMZV4, 01M5ANKQ1T, 2026-10-19, owner: fleet)"
+}

@@ -518,8 +518,8 @@ there. Production reference: `/opt/youtube/docs/reference/pipeline-resilience.md
    the fleet: `fabrik-lib`'s copy and `/opt/youtube`'s key on `title`, while the HUB's own
    `libs/alerting/` keys on `severity:title` — deliberately, because
    title-only let an `info` alert swallow the `critical` escalation of the same condition. So a
-   durable latch is yours to build, and "the module does it" is wrong in every way the bullet below enumerates — the four
-   numbered, plus per-process, plus a key that is not stable across the fleet. A
+   durable latch is yours to build, and "the module does it" is wrong in every way this item names above — each
+   numbered point, the per-process dict, and a key that is not stable across the fleet. A
    sliding `SETEX` keeps no first-set timestamp — store it beside the flag, or that escalation is
    unimplementable. Detection with no terminus is not autorecovery.
 3. **Queue depth = job count, exactly.** Dispatch-dedup + worker-keeps-flag-on-pause + sweeper-headroom together prevent the pause-then-re-queue-then-re-pause queue-explosion failure mode.
@@ -711,7 +711,7 @@ Everything else stays in `docs/RESILIENCE.md`; mirroring it creates two copies t
 - [ ] One error-classifier file; every `except` block calls it.
 - [ ] Pause-key namespaces use `$SERVICE_NAME`; no literal TTLs in code (§7a env vars).
 - [ ] Pause keys carry a first-set timestamp, and a pause outliving N× its TTL escalates exactly once.
-- [ ] All five queue-bloat-prevention mechanisms are wired (§3a).
+- [ ] Every mechanism in § Queue Bloat Prevention is wired (§3a).
 - [ ] `has_persistent_data: true` → disk-space Beat task running (§6e).
 - [ ] §9 Accepted Gaps each carry a `Review by` date; §10 has a real `Last run`.
 

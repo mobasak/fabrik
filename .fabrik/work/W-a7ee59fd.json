@@ -12,12 +12,14 @@
     "spec": ""
   },
   "next": "after the switch window passes, read docs/operations/promtail-to-alloy-runbook.md § 6 daily and open the cleanup change at day 14",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
-    "fleet"
+    "fleet",
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "Gate S for the Promtail -> Alloy switch: read V9 daily (docker inspect alloy: OOMKilled=false, restarts 0) and V8 on vps1, vps2, vps3; after 14 green days author the cleanup change (promtail service, the classified promtail-positions volume, the .pre-alloy files, the two Promtail configs, the promtail 256 ceiling spec row first) for a second operator window"
 }

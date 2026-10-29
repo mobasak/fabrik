@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T19:46:51.742997Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-e8c58342",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4EG5F43GPT7J4JG35QB4M4N",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-plan-review feedback queue — 9 verdict(s) that need CODE in your beat (kaizen D-711 triage)"
+}

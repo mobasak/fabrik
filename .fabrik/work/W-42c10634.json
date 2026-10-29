@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-02T14:37:35.494322Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-42c10634",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,11 +15,13 @@
   },
   "next": "if a later edit to ai/25-3d-generation.md trips or slips a guard, replace that guard's substring/prefix match with a parsed structure (table cells, bullet labels) rather than another spelling; the battery at the review receipt lists the 31 regressions and 9 rewordings already proven",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — kaizen rules-pack graders weak; wording-guard work",
   "status": "open",
   "tags": [
-    "rules"
+    "rules",
+    "waits-guard-trips"
   ],
   "title": "tests/test_3d_generation_pack.py guards are string matchers: further rewordings may slip past or false-fail (scope-growth stop of the D-503 review, 2026-10-02)"
 }

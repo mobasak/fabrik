@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T07:21:35.923449Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-bfd8aff6",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fabrik plan specs/services/tryton-crm.yaml (read-only); stop at Gate 2",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — operator said tryton-crm urgent (D-921)",
+  "status": "open",
+  "tags": [
+    "waits-gate2",
+    "waits-tryton-ready"
+  ],
+  "title": "tryton-crm go-live, hub side (D-921): deploy the current release with fabrik apply specs/services/tryton-crm.yaml once the operator answers the project's Gate 2 (tryton-crm W-d595600e, waiting since 2026-09-29); before then, run fabrik plan read-only and list what apply would change"
+}

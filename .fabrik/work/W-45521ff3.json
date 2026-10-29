@@ -1,0 +1,26 @@
+{
+  "block_digest": "8401d344f721b58b8979cff4e4242ac59d5eea742497ca0b322611ed5dd7c69c",
+  "blocked_by": [],
+  "created": "2026-10-23T18:37:22.789434Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-45521ff3",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "D-1313",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "50d9261d364b80ac75d5a13cd1f03d22a4d9fac1c3d3d05b56fce895d6354914"
+  ],
+  "next": "",
+  "note": "i give you permission. proceed.",
+  "owner": "",
+  "priority": 2,
+  "question": "How should the vps1 database password change run, now that Claude Code's safety classifier refuses fleet's commands on the production servers, including the read-only ones?",
+  "status": "done",
+  "title": "How should the vps1 database password change run, now that Claude Code's safety classifier refuses fleet's commands on the production servers, including the read-only ones?"
+}

@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: scripts/enforcement/check_print_ban.py matches the bare substring \"print(\" (scan_file_for_pattern, `if pattern in line`), so any identifier ENDING in \"print\" fires: `def _fingerprint(html, hosts)` was reported as \"print() found in production code\"."
 }

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T11:12:17.846677Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-0ae7a1e4",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "compare the emitted compose (cpus from resources.cpu, default 0.5) with the previous live one; get the container's last logs from the operator (exact read-only command to the coordinator); decide whether the CPU cap starves its startup or the crash predates the cap",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "waits-operator-run"
+  ],
+  "title": "evolution-api re-apply (W-97d74d93) FAILED and rolled back: container never reached a stable running state ('running 8', likely a crash-loop) after the docker emitter started writing cpus"
+}

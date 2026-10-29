@@ -12,9 +12,13 @@
     "spec": ""
   },
   "next": "decide in the spec whether a NEXT naming a new item releases the session's previous rule-2 claim (D3 is silent); measure the claims-per-session distribution after T08's adoption readings first",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "work.py rule 2 never releases a session's earlier NEXT-claimed item: a session naming a different item each turn holds live claims on all of them until its lease runs out"
 }

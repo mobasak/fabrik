@@ -1,0 +1,28 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T16:26:25.185563Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "46b409cc906bf329775b620df8a049db800ba578",
+  "id": "W-a39d4c86",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "red-first cases for created=NaN and created=True in gap_keeps and the .trash fallback; fix the docstring; same branch as W-de2c34c1",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "a NaN created makes the /proc-gap rule keep nothing, so a live writer's folder can be removed (data loss); one function in a file infra is mid-flight on; owner: scratch_sweep.py = infra",
+  "status": "done",
+  "tags": [
+    "mail-01m505j6kgj6ss23wy6mm1rd5q",
+    "mail-01m505vvej924s6r9y7esgtqaq",
+    "scratch-gap"
+  ],
+  "title": "scratch_sweep.gap_keeps: a NaN created keeps nothing (the D-878 keep-on-doubt fails open), a bool created skips the .trash ctime fallback, and the docstring names the wrong Cobra direction (mail 01M505J6KG + 01M505VVEJ, fleet's spec re-freeze review)"
+}

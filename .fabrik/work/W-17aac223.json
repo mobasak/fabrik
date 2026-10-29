@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T13:03:20.544677Z",
+  "creator": "intel",
+  "evidence": "307d19c194225dcbcda759956756d68dad61be2f",
+  "id": "W-17aac223",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1046",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "for each of: axiom backblazeb2 brightdata cerebras deepgram groq heygen hubspot hyperbolic ideogram klingai lemonsqueezy lumalabs modal monday mux notion novita openai paddle paytr pika pipedream posthog revenuecat runpod runwayml sanity serper slack speechmatics stripe suno tinybird udio vercel vultr yandex formbricks healthchecks imgix dub linkedin tiktok twitter — ground the category with native fabrik-researcher seats, hand-write the scripts/service_catalog.json entry, verify with .venv/bin/python scripts/gather_envs.py (dry run)",
+  "note": "",
+  "owner": "intel",
+  "priority": 2,
+  "score_reason": "MEDIUM: real value (45 real vendors get a category on the dashboard), nobody blocked; LOW effort: hand-written catalog entries, validated at scan time (D-1046)",
+  "status": "done",
+  "tags": [
+    "medium",
+    "registry"
+  ],
+  "title": "Curate service_catalog.json entries for the ~45 real vendors stuck in the external-services triage queue (D-1046: automatic classification retired)"
+}

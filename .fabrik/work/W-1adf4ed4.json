@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T00:48:40.194366Z",
+  "creator": "infra-3",
+  "evidence": "f15997b999e467980129c1c692e029306dc6c183",
+  "id": "W-1adf4ed4",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide per doc: add a registry row (scripts/enforcement/_doc_registry.py) so governance allows it, or drop it from MANUAL_DOCS; then remove it from tests/test_docs_updater.py's _MISPLACED_PENDING",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "done",
+  "title": "docs_updater.py MANUAL_DOCS watches docs/FUNNEL.md and docs/AUTOMATION.md, which check_structure.py:301 warns are misplaced (not in the doc registry's DOCS_ALLOWLIST); held 1/49 repos (site-provisioner) — split from W-da101088"
+}

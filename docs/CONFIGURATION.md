@@ -44,17 +44,55 @@ python -c "from fabrik.config import Config; Config(); print('OK — required va
    ssh-copy-id deploy@your-vps
    ```
 
+### SSH jump — `FABRIK_SSH_JUMP_<ALIAS>` (opt-in, per box)
+
+**Why needed:** only on a box whose direct ssh path to a fleet host is dead while another fleet
+host still reaches it (the case that motivated it: W-2b657bee).
+
+**What it does:** `FABRIK_SSH_JUMP_VPS=vps2` adds `-o ProxyJump=vps2` to the ssh/scp that the SSH
+driver (`src/fabrik/drivers/ssh.py`), the DNS client's SSH proxy and the audit probes run against
+the `vps` alias (the audit probes' alias is `FABRIK_AUDIT_VPS`, default `vps`). Not covered: the Vultr provisioning and drill calls (fresh hosts by IP), the
+watchdog's redeploy command (it runs on the VPS), the alerting library's ssh leg, and any script
+under `scripts/` that runs `ssh` itself rather than through the driver. The key is the
+host part of the alias (after any `user@`) upper-cased with every non-alphanumeric turned into `_`
+(`vps2` → `FABRIK_SSH_JUMP_VPS2`; `deploy@vps` reads `FABRIK_SSH_JUMP_VPS`; `vps-1` and `vps_1`
+share one). The value is one or more comma-separated
+`[user@]host[:port]` hops, port 1-65535; anything else (a leading `-`, a space, an IPv6 literal, a
+hop host of `none`) is refused with an error naming the variable. Unset, the argv is exactly what
+it was before — nothing reroutes automatically.
+
+**How it is checked:** `fabrik apply` probes the hub alias, and the target alias for a spoke,
+right after the spec is validated and before any step touches the fleet
+(`DeploymentOrchestrator._verify_reachable`,
+`drivers/preflight.py::verify_host_reachable`); a dead path fails the run in validation with the
+reason and the next step, naming the dead leg when a jump is set. A dry run probes nothing but
+still refuses a malformed value.
+
+**Where:** any `.env` or environment the `fabrik` process sees — `src/fabrik/config.py` loads the
+first `.env` found walking up from its own directory (`src/fabrik/`; under a debugger or an
+interactive interpreter python-dotenv walks up from the current directory instead) and never
+overrides a variable already set (`FABRIK_NO_AUTOLOAD=1` skips the load). For the main checkout's
+install that is `/opt/fabrik/.env`.
+
+The ssh host itself — `FABRIK_VPS_SSH_HOST` (default `vps`) and the audit's `FABRIK_AUDIT_VPS` — must
+be an ssh alias, `[user@]host`: each part a letter, digit or `_` followed by letters, digits, `_`,
+`.` or `-` — no port, no IPv6 literal, no other character (the same grammar as a jump hop, without
+the port). Any other value is refused before ssh runs (W-6a96f699).
+
 <!--
 Coolify API Token section — REMOVED 2026-06-02 (coolify-residue-cleanup plan).
 
 Coolify was fully removed from vps1 on 2026-05-30 (no containers, no binary;
 only /data/coolify/ filesystem residue remains). The active deploy path is
-SSH + Docker Compose (`fabrik apply`). The legacy CLI commands (`fabrik status`,
-`fabrik logs`, `fabrik reconcile-all`) that historically talked to the Coolify
-API are now non-functional and listed under "Known broken" in the SSH-deployer
-archived plan.
+SSH + Docker Compose (`fabrik apply`). `fabrik status` (last apply from the state record, plus a
+read-only container probe over ssh), `fabrik reconcile-all` (the `docker compose ls -a` projects per target
+host, then `refresh_infrastructure` per spec) and `fabrik projects --sync` (`scripts/sync_projects.py`, which
+rescans `/opt/*` into the project registry) no longer touch the removed API; `fabrik logs` queries Loki.
 
-New projects never needed a Coolify API token.
+New projects never needed a Coolify API token. The `.env.example` placeholder blocks (nine `COOLIFY_*` names:
+`COOLIFY_URL`, `COOLIFY_API_URL`, `COOLIFY_API_TOKEN`, `COOLIFY_ADMIN_EMAIL`, `COOLIFY_ADMIN_PASSWORD`, the server,
+project, environment and private-key UUIDs) and the hub `compose.yaml`'s four `COOLIFY_*` environment lines were removed on
+2026-10-14 (plan 2026-10-14-plan-1-coolify-verb-retirement, T07b); the hub `/health` no longer checks Coolify.
 -->
 
 ### FABRIK_EXEC_MODE — WordPress driver execution mode
@@ -119,7 +157,12 @@ New projects never needed a Coolify API token.
 | `SESSION_ARCHIVE_B2_KEY_ID` / `SESSION_ARCHIVE_B2_APPLICATION_KEY` | an application key restricted to that bucket, read + write |
 | `SESSION_ARCHIVE_B2_PREFIX` | path under the bucket, default `archive` |
 | `SESSION_ARCHIVE_ENV_FILE` | where the archiver reads every `SESSION_ARCHIVE_*` setting (key, bucket, prefix) from when the process environment lacks it or holds an empty value, default `/opt/fabrik/.env` — only `SESSION_ARCHIVE_*` lines are read |
-| `ARCHIVE_ROOT` / `ARCHIVE_AFTER_DAYS` / `ARCHIVE_MAX_FILE_MB` | local archive dir (`~/.claude/archive`), idle window in days (default 1), optional per-file ceiling |
+| `ROTATE_ADVISE_MB` | the ROTATE advisory's threshold in MB (default 200; D-736 C.1.3) — `scripts/sysadmin/transcript_size_check.py` prints its one line when a session's transcript is at or past it and has crossed a new 100 MB step; read from the process env, else this file's line |
+| `ROTATE_CONTEXT_WINDOW` | the context sensor's window in tokens (W-f975fee0) — unset, 1,000,000 for every session (a bare model id is no evidence of 200k: this box runs Opus 5.5 and Fable 5.1 at 1M under it, W-25f6b2a3); a positive int overrides it for every session; read from the process env, else this file's line |
+| `PRUNE_AFTER_DAYS` | the pruner's window in days (default 3; D-736 C.2.1 r1) — `scripts/sysadmin/prune_transcripts.py` never offers a MAIN transcript whose `mtime` is inside it, nor a subagent sidechain, task or shell snapshot; read from the process env, else this file's line |
+| `PRUNE_MAX_PER_RUN` | the cap on MAIN deletions per pruner run (default 200; C.2.2) — every run takes the oldest cap-many deletable inodes and reports the rest `deferred`; a hand run's `--max M` replaces it |
+| `SESSION_RECALL_RO_DSN` | session-recall's EXISTING read-only role `recall_ro` (`/opt/session-recall/db/schema.sql`), copied here by the operator — the pruner reads `index_state` by inode through it (C.2.1 r8) and deletes nothing it has not indexed to the file's current size; absent ⇒ every file is refused `not-indexed`. Never printed |
+| `ARCHIVE_ROOT` / `ARCHIVE_AFTER_DAYS` / `ARCHIVE_MAX_FILE_MB` | local archive dir (`~/.claude/archive`), idle window in days (default 0 — every MAIN transcript, so an open window ships a daily snapshot), optional per-file ceiling |
 
 **How to get the key:** B2 console → Application Keys → Add a New Application Key, restricted to
 the bucket, read + write; put both values in `/opt/fabrik/.env` (gitignored). The `B2_*` keys
@@ -216,13 +259,11 @@ Used by `/opt/ai-model-catalog/engine/microbench_specialty.py` (ai-model-catalog
 
 ### GlitchTip (error tracking)
 
-GlitchTip (`errors.vps1.ocoron.com`, Sentry-compatible) is declared in `specs/infrastructure/glitchtip.yaml` and is the error-tracker source for the AI watchdog (`org=ocoron`, `team=vps1`). It reuses `postgres-main` (DB `glitchtip`) + `redis-main`. Env vars:
+GlitchTip (`errors.vps1.ocoron.com`, Sentry-compatible) is the error-tracker source for the AI watchdog (`org=ocoron`, `team=vps1`). It runs from the hand-maintained `/opt/glitchtip/compose.yaml` on vps1, mirrored at `infra/vps1/glitchtip/compose.yaml`, and never through `fabrik apply`. It reuses `postgres-main` (DB `glitchtip`) + `redis-main` (db 4); both `DATABASE_URL` and `REDIS_URL` are literal in that compose. Its one interpolated secret:
 
-- `GLITCHTIP_SECRET_KEY` — Django secret key. **Use the existing live value** (`/opt/glitchtip/compose.yaml`); changing it invalidates all sessions.
-- `GLITCHTIP_REDIS_URL` — e.g. `redis://redis-main:6379/<db>` (existing live value).
-- `POSTGRES_PASSWORD` — shared `postgres-main` superuser password (already provisioned).
+- `GLITCHTIP_SECRET_KEY` — Django secret key, set on vps1 beside the live compose (a host fact; the hub `.env` does not carry it). **Never regenerate it** — a changed key invalidates every session.
 
-⚠️ Do not `fabrik apply specs/infrastructure/glitchtip.yaml` until these match the live deployment, or the live tracker + its session keys break. The spec declares the existing hand-deployed stack; `fabrik apply` is targeted, so adding it does not auto-redeploy.
+The hub `.env` carries none of the stack's settings — only the API settings the GlitchTip registrar reads (`GLITCHTIP_AUTH_TOKEN`, `GLITCHTIP_ORG_SLUG`, `GLITCHTIP_TEAM_SLUG`; `src/fabrik/drivers/glitchtip.py`).
 
 ### Watchdog DB access — `WATCHDOG_DB_URL_RO` / `WATCHDOG_DB_URL_RW` (auto-injected, do NOT set by hand)
 
@@ -230,24 +271,28 @@ For a watchdog-enabled project with `shape.needs_database`, the postgres registr
 
 ### Payments webhook ingest — `PAYMENTS_INGEST_DATABASE_URL` (auto-injected, do NOT set by hand)
 
-For a project with `shape.needs_payments_ingest` (vendors fabrik-lib `payments`, takes UNSIGNED-provider webhooks — iyzico has no signed org field), the postgres registrar mints a **scoped, NON-BYPASSRLS** cross-tenant ingest role and injects `PAYMENTS_INGEST_DATABASE_URL` at `fabrik apply` (hub-generated, never operator-set; minted on fresh create, preserved on re-apply — like `DATABASE_URL`). The role exists because `PgWebhookStore.resolve_org()` must read across tenants to discover *which* tenant a webhook belongs to (the tenant is the unknown being resolved), which the multi-tenant RLS model (ENABLE + FORCE) otherwise default-denies. Unlike fabrik-lib's BYPASSRLS default, this role is confined by permissive policies to ONLY the three payments tables the store touches — SELECT on `customers`/`subscriptions` and INSERT+SELECT on `webhook_events` (the SELECT half is required for `record_event`'s `INSERT … RETURNING`). A leaked DSN therefore cannot reach the app's own core tenant tables — proven at provision time: the role is `NOBYPASSRLS` and any non-payments table is `permission denied`. **Which grant path runs** depends on the project's payments install. Once it has run fabrik-lib's scoped-roles migration (fabrik-lib D-337), each apply calls the module's `payments_grant_ingest('<db>_payments_ingest')`. That call extends the ingest policies rather than replacing them, so other roles already on a policy survive. It grants SELECT on only the three columns `resolve_org` reads, never `email`, plus INSERT on the project's `jobs`. The tables resolve through the registrar session's search_path, which in a Fabrik project DB is `public`. If the payments schema is not applied yet, the apply grants nothing and logs a warning, and the next apply makes the grant. If the payments tables exist but `jobs` does not, the step fails and names `jobs`, because the function requires it. An install that predates the migration keeps the registrar's own block, which grants table-level SELECT.
+For a project with `shape.needs_payments_ingest` (vendors fabrik-lib `payments`, takes UNSIGNED-provider webhooks — iyzico has no signed org field), the postgres registrar mints a **scoped, NON-BYPASSRLS** cross-tenant ingest role and injects `PAYMENTS_INGEST_DATABASE_URL` at `fabrik apply` (hub-generated, never operator-set; minted on fresh create, preserved on re-apply — like `DATABASE_URL`). The role exists because `PgWebhookStore.resolve_org()` must read across tenants to discover *which* tenant a webhook belongs to (the tenant is the unknown being resolved), which the multi-tenant RLS model (ENABLE + FORCE) otherwise default-denies. Unlike fabrik-lib's BYPASSRLS default, this role is confined by permissive policies to ONLY the three payments tables the store touches — SELECT on `customers`/`subscriptions` and INSERT+SELECT on `webhook_events` (the SELECT half is required for `record_event`'s `INSERT … RETURNING`). A leaked DSN therefore cannot reach the app's own core tenant tables — proven at provision time: the role is `NOBYPASSRLS` and any non-payments table is `permission denied`. **Which grant path runs** depends on the project's payments install. Once it has run fabrik-lib's scoped-roles migration (fabrik-lib D-337), each apply calls the module's `payments_grant_ingest('<db>_payments_ingest')`. That call extends the ingest policies rather than replacing them, so other roles already on a policy survive. It grants SELECT on only the three columns `resolve_org` reads, never `email`, plus INSERT on the project's `jobs`. The tables resolve through the registrar session's search_path, which in a Fabrik project DB is `public`. If the payments schema is not (fully) applied yet, the apply gives the role only CONNECT on the database and USAGE on `public` (plus, on an install without the function, the legacy grant on whichever of the three tables exist), the apply records it `pending` and prints a `⚠ payments-ingest-role: grant pending …` line under the `fabrik apply` / `fabrik redeploy --refresh-infra` summary without failing the run; the next apply after the schema lands makes the grant. If the payments tables exist but `jobs` does not, the step fails and names `jobs`, because the function requires it. An install that predates the migration keeps the registrar's own block, which grants table-level SELECT.
 
 **Consuming-project wiring** (the project's job, NOT built by the registrar): connect ingest with `PAYMENTS_INGEST_DATABASE_URL`. To assert the wiring at boot on a payments copy re-vendored at or after fabrik-lib D-337, call `verify_service_role(conn, lane="ingest")`. It logs a "table-level SELECT" WARNING while an install is still on the legacy grant. On an older copy, check `SELECT rolbypassrls, rolsuper FROM pg_roles WHERE rolname = current_user` and require BOTH false. There, `verify_service_role(conn, allow_policy_based=True)` asserts nothing, because the flag skips the only check it makes.
 
-The fulfilment WORKER does NOT use this role. Under fabrik-lib D-337 it needs its OWN scoped `LOGIN NOSUPERUSER NOBYPASSRLS` login, granted by the module's `payments_grant_fulfilment`: it claims each job across orgs, then scopes the job with `set_config('app.tenant_id', <org>, true)`. The module's tenant read, `payments_current_org_id()`, also reads `app.current_org` and denies when the two are set and disagree, so a stale `app.current_org` on the worker's connection denies the job. Never grant that lane to `<db>_app` — the request path would gain cross-org access to jobs. On a `fabrik apply` database that login does not exist yet, and no role the registrar mints can create it (all `NOCREATEROLE`), so PayTR stays off there. Its hub-side provisioning is the converged payments fulfilment-role spec (`docs/superpowers/specs/2026-09-30-payments-fulfilment-role-design.md`), whose design approval is pending.
+The fulfilment WORKER does NOT use this role; it has its own, below. Never grant that lane to `<db>_app` — the request path would gain cross-org access to jobs.
 
-Boot every payments connection — ingest now, and the worker once its login exists — with `verify_service_role(conn, lane="ingest"|"fulfilment")` AND the `pg_roles` check above (both false): this release the lane check only warns on a `BYPASSRLS` or superuser role (`.windsurf/rules/core/85-payments-billing.md:28`, D-575). If the project's own `jobs`/queue table is under RLS, the project's migration adds its own policies for BOTH lanes on that project-owned table — ingest `INSERT`, the worker `SELECT` + `UPDATE` with no tenant GUC set (`core/85-payments-billing.md:27`). The registrar's legacy block scopes only the payments-module tables, and `payments_grant_ingest` grants the INSERT privilege on `jobs` but no policy on it. The fleet-wide contract lives in `.windsurf/rules/core/85-payments-billing.md` and `.windsurf/rules/saas/95-multi-tenant-saas.md` § Admin and Maintenance Access.
+### Payments fulfilment worker — `PAYMENTS_FULFILMENT_DATABASE_URL` (auto-injected, do NOT set by hand)
+
+For a project with `shape.needs_payments_fulfilment` (requires `shape.needs_database`), the postgres registrar mints a second scoped role, `<db>_payments_fulfilment` — `LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS NOREPLICATION`, no membership granted (re-apply does not revoke one added by hand) — and injects `PAYMENTS_FULFILMENT_DATABASE_URL` at `fabrik apply` (minted on fresh create and injected BEFORE the grant runs, so a failing grant never loses the one-time password; preserved on re-apply). Beyond CONNECT on the database and USAGE on `public`, which the registrar grants first, its grants come only from fabrik-lib's `payments_grant_fulfilment(regrole)`, from the scoped-roles migration (fabrik-lib D-337): the worker claims each job across orgs, then scopes the job with `set_config('app.tenant_id', <org>, true)`. The module's tenant read, `payments_current_org_id()`, also reads `app.current_org` and denies when the two are set and disagree, so a stale `app.current_org` on the worker's connection denies the job. There is no hub-written fallback for the payments tables. **What an apply does**, in this order: the payments tables exist but the function does not → the step fails and names the migration to apply; a function of that name under another signature → the step fails and names the signature the hub calls; the payments schema is absent or partial → the role is recorded `pending` and a `⚠ payments-fulfilment-role: grant pending …` line is printed under the summary (the run still exits 0; re-apply after the schema lands); the tables and the function exist but `jobs` does not → the step fails and names `jobs`; otherwise the function runs. A failed step records `failed` and the apply exits 2. These exit codes hold when the deploy otherwise completes: a rolled-back or failed deploy exits 1 and prints no registrar-warning (`⚠ payments-…: grant pending`) lines. Both roles grant on one apply, ingest first. An `infra.postgres: false` override turns both payments roles off with the postgres registrar.
+
+Boot every payments connection — ingest and the fulfilment worker — with `verify_service_role(conn, lane="ingest"|"fulfilment")` AND the `pg_roles` check above (both false): this release the lane check only warns on a `BYPASSRLS` or superuser role (`.windsurf/rules/core/85-payments-billing.md:28`, D-575). If the project's own `jobs`/queue table is under RLS, the project's migration adds its own policies for BOTH lanes on that project-owned table — ingest `INSERT`, the worker `SELECT` + `UPDATE` with no tenant GUC set (`core/85-payments-billing.md:27`). The registrar's legacy block scopes only the payments-module tables, and `payments_grant_ingest` grants the INSERT privilege on `jobs` but no policy on it. The fleet-wide contract lives in `.windsurf/rules/core/85-payments-billing.md` and `.windsurf/rules/saas/95-multi-tenant-saas.md` § Admin and Maintenance Access.
 
 ### Project database DSNs — `DATABASE_URL` / `DATABASE_URL_OWNER` and `shape.database_url_app_role` (auto-injected, do NOT set by hand)
 
-Every project with `shape.needs_database` carries two DSNs in its `.env`, both injected by the postgres registrar at `fabrik apply` and neither with a default in code (a missing value fails loudly at boot):
+Every project with `shape.needs_database` carries two DSNs — `DATABASE_URL` in its `.env` and `DATABASE_URL_OWNER` in its `.env.owner` (root 0600, loaded only by the services that declare it: the audit-jobs companion, a `migrate` service — the owner split, D-754) — both injected by the postgres registrar at `fabrik apply` and neither with a default in code (a missing value fails loudly at boot):
 
-- `DATABASE_URL_OWNER` — the database OWNER. Only schema work uses it: `db/schema.sql` (whose header reads `psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql`), migrations, runtime DDL, and the scheduled audit-log retention and verification jobs. It is the rollback DSN, so it is never removed.
+- `DATABASE_URL_OWNER` — the database OWNER. Only schema work uses it: `db/schema.sql` (whose header reads `DATABASE_URL_OWNER` out of `.env.owner` with `sed`, strips the double quotes — an owner DSN holding a `$` is written single-quoted or `\$`-escaped (`src/fabrik/env_file.py`), which `pgurl` then refuses loudly — and runs `u=$(pgurl "$v") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql` — `pgurl` is the one-line shell function from the project's TROUBLESHOOTING § Debug Commands, defined inside the root shell by the header's `sed` half — under one `sudo sh -c` that never sources the env files as shell code), migrations, runtime DDL, and the scheduled audit-log retention and verification jobs. It is the rollback DSN, so it is never removed.
 - `DATABASE_URL` — what the app connects with. On a fresh create both hold the owner DSN; once the spec's `shape.database_url_app_role: true` cuts over, `DATABASE_URL` names the non-owner `<db>_app` role (the same DSN with only user and password swapped), which cannot `CREATE`, owns no table, and holds only `INSERT, SELECT` on `audit_log`.
 
 `shape.database_url_app_role` (boolean, default `false`, requires `needs_database`) is the per-project switch and must be a YAML boolean (a string such as `"false"` or a number fails validation, as the registrar refuses it). Every scaffolded database spec (`--db`, or a type whose defaults need a database) emits it `true` together with `depends.postgres: <id with hyphens as underscores>` — the project's OWN database, the name the registrar derives — so a new project is born on the app role and never shares a database the cutover would refuse; an existing project flips it after `fabrik app-role-check` passes, and unsetting it rolls back. The runbook and the converge table are in [`docs/operations/fabrik-lifecycle.md`](operations/fabrik-lifecycle.md) § App-role cutover and rollback.
 
-**The limit.** Both DSNs live in the same project `.env`. Append-only on `audit_log` holds against the app's own code paths and against SQL injection, not against code execution inside the container, which can read `DATABASE_URL_OWNER`.
+**What the split does not cover.** The owner DSN lives in `.env.owner`, loaded only by the services that declare it, so an app container no longer holds `DATABASE_URL_OWNER` (D-754); the owner credential leaves the app's environment only once the project cuts over (until then `DATABASE_URL` is itself the owner DSN). Still open: the Docker socket or root on the host, and a supply-chain compromise of the shared image the companion runs.
 
 ### Watchdog governance mount — `WATCHDOG_GOVERNANCE_MOUNT` (auto-set, do NOT set by hand)
 
@@ -255,7 +300,7 @@ At `fabrik apply`, the watchdog driver ships the project's governance set — `C
 
 ### Watchdog LLM action menu — `WATCHDOG_LLM_ACTIONS` / `WATCHDOG_AUTO_TIER_B` (rendered from the spec; a hand-set `WATCHDOG_AUTO_TIER_B` is always overridden)
 
-`fabrik apply` renders `WATCHDOG_AUTO_TIER_B` from `watchdog.auto_tier_b` on every deploy and `WATCHDOG_LLM_ACTIONS` (csv) from `watchdog.llm_actions` when the list is non-empty (`src/fabrik/spec_loader.py::WatchdogConfig.llm_actions`, fabrik-lib D-412). The model's menu is `restart_container` + `escalate_apprise` until actions are listed: `clear_file_cache`, `pause_worker` (Tier A) run once listed; `wipe_redis_cache`, `reset_db_pool` (Tier B) run once listed AND `auto_tier_b: true` — listed without it they are held with a deploy warning. The allowed names are `WATCHDOG_LLM_OPT_INS`; `scale_concurrency`, `drop_queue_items`, `rotate_locks` and `install_log_drop_rule` are refused as never offered. A non-empty field overrides a `WATCHDOG_LLM_ACTIONS` line in the project `.env`; an unset or empty field leaves that line in force (`llm_actions: []` clears nothing — delete the line).
+`fabrik apply` renders `WATCHDOG_AUTO_TIER_B` from `watchdog.auto_tier_b` on every deploy and `WATCHDOG_LLM_ACTIONS` (csv) from `watchdog.llm_actions` when the list is non-empty (`src/fabrik/spec_loader.py::WatchdogConfig.llm_actions`, fabrik-lib D-412). The model's menu is `restart_container` + `escalate_apprise` until actions are listed: `clear_file_cache`, `pause_worker` (Tier A) run once listed; `wipe_redis_cache`, `reset_db_pool` (Tier B) run once listed AND `auto_tier_b: true` — listed without it they are held with a deploy warning. The allowed names are `WATCHDOG_LLM_OPT_INS`; `drop_queue_items` and `rotate_locks` are refused because no spec field carries the `WATCHDOG_DB_WRITE_ALLOWLIST` they need (with the field unset, the project `.env` can enable them; fabrik-lib SB-103), and the retired `scale_concurrency` is refused as unknown. A non-empty field overrides a `WATCHDOG_LLM_ACTIONS` line in the project `.env`; an unset or empty field leaves that line in force (`llm_actions: []` clears nothing — delete the line).
 
 ### Watchdog Tier-D operator knobs — `WATCHDOG_REDEPLOY_TIMEOUT` / `WATCHDOG_TELEGRAM_OPERATOR_IDS` (operator-supplied, project `.env`)
 
@@ -381,6 +426,12 @@ As of 2026-09-02 it carries the full AI-supplier set, each **validated live befo
   canary roster (deduped union; `anthropic/*` always excluded). Default `8`; hub-local tunable,
   read at batch start. See `docs/reference/canary-grounding.md`.
 
+### fabrik-scrape endpoint — `FABRIK_SCRAPE_MCP_URL`
+
+- `FABRIK_SCRAPE_MCP_URL` — the MCP endpoint `scripts/scrape_ledger.py` grades a ledger against when no `--server`
+  is given. Default `http://127.0.0.1:8034/mcp`, the loopback service `fabrik-scrape-mcp.service` runs. Set it only to
+  grade a server on another port, such as a scratch copy. See `docs/reference/fabrik-scrape-mcp.md`.
+
 ### Subagent flywheel — `SUBAGENT_RUNS_DSN` / `SUBAGENT_PROJECT` (hub-injected; do NOT hand-set the DSN)
 
 The vendored `libs/subagents` pool scores every run to `fabrik_analytics.subagent_runs` via `record_agent_run`, which `pick_models(task_type)` learns from. The module autoloads both vars from `.env` (`_dotenv.py`, non-overriding — a real `export` or a deploy-injected value always wins):
@@ -412,6 +463,41 @@ Every sysadmin script (VPS-side) invokes Claude through `scripts/sysadmin/claude
 - `CLAUDE_BIN` — override the resolved claude binary (default: `command -v claude`, then `/usr/local/bin/claude` → `~operator/.local/bin/claude` → `/usr/bin/claude`).
 - The 3 pre-existing rotation callers (`bot.py`, `aro-wake/main.py`, `claude-keepalive-rotate.sh`) already run as ozgur through `claude_rotate` and are unchanged.
 
+### Battery hold — `CLAUDE_BATTERY_HOLD_PCT` / `CLAUDE_BATTERY_DIR` / `CLAUDE_AC_DIR` (WSL box, D-898)
+
+Read by `scripts/sysadmin/claude_rotate.py` (`--tick`, and the `*/1` `--battery-tick` cron once the operator installs it) from the process environment; none of them goes in a project `.env`. How the hold works: `docs/workstation/claude-account-rotation.md`, its **Battery hold** entry.
+
+- `CLAUDE_BATTERY_HOLD_PCT` — the hold line in percent (default `7`, the top of the operator's "6-7%"); a non-finite value falls back to the default.
+- `CLAUDE_BATTERY_DIR` — the battery's sysfs dir (default `/sys/class/power_supply/BAT1`: `status`, `capacity`). No readable `status` means no battery and no hold.
+- `CLAUDE_AC_DIR` — the mains adapter's sysfs dir (default `/sys/class/power_supply/AC1`: `online`); read only when the battery's own status is not definite (`Discharging` and `Charging`/`Full`/`Not charging` win): then `1` is mains, `0` battery, unreadable unknown.
+
+The test suite pins both dirs to empty folders (`tests/conftest.py`), so no test reads the real battery.
+
+### Resume wake — `CLAUDE_RESUME_GAP_MIN` (WSL box, W-75cafe7a, D-1058)
+
+Read by `scripts/sysadmin/claude_rotate.py --tick` from the process environment; it never goes in a project `.env`. How the wake works: `docs/workstation/claude-account-rotation.md`, its **Resume wake** entry.
+
+- `CLAUDE_RESUME_GAP_MIN` — the gap, in minutes, from the last tick's end to this tick's start beyond which the tick reads a host sleep and wakes every armed self-watch (default `15`). A value under `12` falls back to `15`, because one missed `*/5` slot already makes a 10–11 minute gap; a non-finite value falls back too.
+
+### Fabrik Deck — `FABRIK_DECK_PORT` / `FABRIK_DECK_CODE_PORT` / `FABRIK_DECK_STATE` (WSL box, D-1106)
+
+Kept in `~/.config/fabrik-deck/env`, which the two systemd units load as their `EnvironmentFile=`; `serve` and
+`code-server` read the two ports from the process environment only; `serve` and the hook take `FABRIK_DECK_STATE`
+from the process environment, else from the file; `install` and `up` read the file only, so a value set just in a
+shell does not reach them.
+None of them goes in a project `.env`. `fabrik_deck.py install` writes the defaults and never overwrites a line you changed. How the Deck
+works: `docs/workstation/fabrik-deck.md`.
+
+- `FABRIK_DECK_PORT` — the board's port on 127.0.0.1 (default `8445`).
+- `FABRIK_DECK_CODE_PORT` — code-server's port on 127.0.0.1 (default `8443`); the board's repo links point at it.
+- `FABRIK_DECK_STATE` — the folder holding `attention/`, one file per session waiting on the operator (default
+  `<home>/.local/state/fabrik-deck`; written absolute, as systemd does not expand `~`; when read, a `~` is
+  expanded and a value still relative falls back to the default).
+
+`install` also seeds the code-server workbench's environment into the same file — `FABRIK_DECK=1` (marks a Deck tab,
+the hook's `origin: deck`), `CLAUDE_CONFIG_DIR`, `CLAUDE_QUOTA_HOME`, `PATH`, `DISPLAY` and `WAYLAND_DISPLAY`; their
+defaults are in `docs/workstation/fabrik-deck.md` § The two services.
+
 ### Mutation testing — `FABRIK_MUTMUT` (dev; advisory, opt-in)
 
 The Behavior Contract's substance-mechanical layer: `mutmut` (dev dependency, `pyproject.toml [dev]`) proves the tests **kill mutants**, not just cover lines. `scripts/enforcement/check_mutation.py` is registered in `final_gate` as **advisory** — but through the gate it **never actually mutates**: `final_gate.py` deliberately strips `FABRIK_MUTMUT` before invoking this one child (a set flag would start a session-detached mutmut that the gate's 120s outer timeout then orphans on the shared box) and restores it after, so a gate run always prints the pointer and exits 0 regardless of the flag. A REAL run happens only by **direct invocation** (`FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py`) or the **Sunday 05:00 cron** (diff-scoped + weekly, never a per-PR blocking gate per `45-testing-strategy.md`); it mutates only **committed** changed Python (never the dirty worktree, never `tests/` or the vendored `libs/`), and **always exits 0**.
@@ -437,6 +523,53 @@ runner reports partial results and still exits 0.
 **Why needed:** mutation runs are slow and noisy — the advisory stays opt-in and bounded so the
 weekly signal can never block or starve the box. Wired invoker: the Sunday 05:00 cron (see
 crontab), ahead of Monday's fleet doc audit.
+
+### Test caps — `FABRIK_TEST_MEM_MAX` / `FABRIK_TEST_SLICE_MAX` / `FABRIK_TEST_TIMEOUT` / `FABRIK_TEST_RSS_MAX` (WSL box, D-935)
+
+Read from the process environment, never from a project `.env`. They bound a test run so that a
+runaway is a named failure, never a host outage. `docs/reference/long-command-monitoring.md`
+§ Test runs covers the runner and its exit codes.
+
+- `FABRIK_TEST_MEM_MAX`: the memory ceiling for one run of `scripts/capped_run.sh` (default `4G`, no
+  swap). The completion gate's pytest leg, `merge_request.py` and `kaizen_outcomes.py` launch tests
+  through it.
+- `FABRIK_TEST_SLICE_MAX`: the total for every capped run on the box together, set on
+  `fabrik-agents-tests.slice` at runtime on each launch (default `12G`). The dashed name nests it under
+  `fabrik-agents.slice`, so the agents' parent ceiling (below) bounds the test jobs too.
+- `FABRIK_TEST_ADMIT_WAIT`: the admission band's bound in seconds (default `300`, 0 to 9999), itself capped at half
+  the run's time limit. Before a start the runner waits while `MemAvailable` is under 3 GiB or memory PSI `some avg10`
+  is over 10, then starts and says so; the seconds waited come off the run's time limit;
+  an unreadable meminfo or PSI starts at once and says so. `FABRIK_PROC_ROOT` (default `/proc`) is the test seam for
+  both reads.
+- `FABRIK_TEST_TIMEOUT`: one run's time limit in seconds (default `1800`). The gate passes its own
+  900 s.
+- `FABRIK_TEST_RSS_MAX`: the hub suite's in-process guard (`tests/memguard.py`, started by
+  `tests/conftest.py`). It kills a pytest process tree whose summed PSS passes this size and prints
+  the traceback (default `3G`, below the runner's 4G so the traceback prints before the kernel kills).
+
+### Agent grid memory — `FABRIK_AGENT_NONAGENT_FLOOR` / `FABRIK_AGENT_SLICE_MAX` / `FABRIK_AGENT_TASKS_MAX` (WSL box, W-6e656dac)
+
+Read from the process environment by `scripts/sysadmin/agents_up.sh`. Panes have no `MemoryMax` of their own;
+`FABRIK_AGENT_MEM_MAX` is retired (a set value is warned about and ignored). One parent slice,
+`fabrik-agents.slice`, holds every pane and every capped test job: `MemoryHigh` = MemTotal − max(4G, floor) and
+`MemoryMax` = MemTotal − max(2G, floor − 2G), in whole G.
+
+- `FABRIK_AGENT_NONAGENT_FLOOR`: what the non-agent processes (Windows, VS Code, the system) keep at `MemoryHigh`
+  (floor − 2G at `MemoryMax`), in whole G
+  (default `12G`; the `G` is optional). A MemTotal under 8G, or an unreadable one keeps
+  D-1075's 16G `MemoryMax` and says so; a floor that leaves nothing uses the minimum margins (MemTotal − 4G / MemTotal − 2G), also said.
+- `FABRIK_AGENT_SLICE_MAX`: overrides the derived `MemoryMax` (and clears `MemoryHigh`).
+- `FABRIK_AGENT_TASKS_MAX`: `TasksMax` per pane (default `1024`).
+- `FABRIK_AGENTS_UNCAPPED=1`: lets an interactive launch proceed when no user manager answers (otherwise it
+  refuses); `agents_up.sh --detach`, the boot path, launches uncapped with a warning regardless.
+- `FABRIK_PROC_ROOT`: the `/proc` seam MemTotal is read through (tests).
+
+Sizes are `<digits><K|M|G>`, from 1M to 999999999G, and a timeout is 1 to 604800 seconds. The runner
+refuses a bad value with exit 2; the guard falls back to its default and says so. `FABRIK_TEST_SLICE`
+(the slice name, ending `.slice`) and `FABRIK_CAPPED_RUN` exist for tests and moved installs only. The
+three launchers find the runner as `FABRIK_CAPPED_RUN`, else the `capped_run.sh` beside them, else
+`/opt/fabrik/scripts/capped_run.sh`. A project's synced copy has no runner beside it, so it takes the
+hub path.
 
 ---
 
@@ -563,14 +696,19 @@ serialize WSL-side Python orchestration — for example, `fabrik reconcile-all`
 walking specs and `state.save()` writing `.fabrik/state/<id>.json` under
 contention.
 
-- **Default:** `/tmp/fabrik-locks`
-- **When to override:** if `/tmp` is on a filesystem without flock support
-  (rare on modern WSL2; possible on some containers/CI), point at a path
-  on the same filesystem as `FABRIK_ROOT`.
+- **Default:** `~/.cache/fabrik-locks`, created 0700 (W-1f70f2e9). It is one dir per user, shared by every hub
+  process of that user. The home is an absolute `HOME` that is not the root under any spelling or symlink (`/`, `//`,
+  `/..`, a link to `/`, read through `realpath`), else the passwd home under the same rule, which is what cron uses, so an empty, relative or root home
+  never moves it. Under a private HOME no other local user can pre-create it, as they
+  could the old fixed `/tmp/fabrik-locks`. An empty value counts as unset.
+- **When to override:** when the home is unwritable, or no home resolves at all (no absolute `HOME` and no
+  passwd entry), where `file_lock` fails closed with `OSError`; or when the home filesystem lacks flock support.
+  Every process that must exclude each other needs the same value. The test suite sets its own per-process
+  value in `tests/conftest.py`.
 
 Distinct from the registrar-side VPS lock (`fabrik.drivers.locks.run_locked`),
-which operates over SSH on the VPS and lives in `/tmp/fabrik-<resource>.lock`
-on the remote host. The two never interact.
+which operates over SSH on the VPS and lives in the root-owned
+`/var/lib/fabrik-locks/fabrik-<resource>.lock` on the remote host (D-1044). The two never interact.
 
 ### Scheduled audits — WSL cron (T2-03)
 
@@ -632,8 +770,7 @@ around no longer happens — Coolify was fully removed from vps1 on 2026-05-30.
 All containers now have stable names via compose `container_name:` fields
 (Lesson 22). The `coolify-alias-watcher.service` was decommissioned with
 Coolify. Code references to `coolify.alias` / `coolify_alias.add_alias()`
-remain in archived legacy modules (`src/fabrik/orchestrator/coolify_alias.py`)
-but are no longer called from any active code path.
+lived in `coolify_alias.py`, removed in the Coolify retirement (T09).
 -->
 
 ---
@@ -654,10 +791,9 @@ VPS_SSH_KEY=  # Remove from .env
 <!--
 "Coolify API 401" troubleshooting section — REMOVED 2026-06-02.
 
-Coolify is fully removed from vps1 (2026-05-30). The legacy CLI commands
-that used to call the Coolify API (`fabrik status`, `fabrik logs`,
-`fabrik reconcile-all`) are non-functional and listed under "Known broken"
-in the archived SSH-deployer plan. New troubleshooting starts from
+Coolify is fully removed from vps1 (2026-05-30). The verbs that once called the Coolify API
+(`fabrik status`, `fabrik logs`, `fabrik reconcile-all`) now run over ssh and Loki and carry no
+Coolify credential. New troubleshooting starts from
 `docs/operations/deployment.md` (`fabrik apply` / SSH + Docker Compose).
 -->
 
@@ -975,6 +1111,7 @@ python -m alerting --selftest --dry-run  # configuration only, sends nothing
 | `ALERT_ENABLED` | `0` disables; `1` forces on; unset auto-enables when any delivery var is set. |
 | `ALERT_MIN_INTERVAL` | Dedup window in seconds per alert title (default `300`). |
 | `FABRIK_MAIL_ROOT` | Root of the durable mail store (default `/opt/fabrik-mail`). Every mailbox lives at `<root>/<repo>/{inbox,archive,malformed}`; the test suite points this at a temp dir. |
+| `MAIL_NOTIFY_STATE_DIR` | Where the mail hook keeps each session's digest of the last FULL block it printed (default `~/.claude/state/mail-notify`), so an unchanged block under 30 min old prints on UserPromptSubmit as one pointer line (D-1171); the test suite points this at a temp dir. ⚠️ Read from the hook's process environment only, never from `.env`, and used as written — give an absolute path, `~` is not expanded. |
 | `FABRIK_OPT_ROOT` | Base used to validate that a recipient repo actually exists on the box (default `/opt`). A recipient with no directory under it is refused. |
 | `FABRIK_MAIL_ESCALATE_DAYS` | escalation-digest age threshold in days (default `3`; a non-numeric or below-minimum value warns and uses the default). ⚠️ Read by the CRON LINE's env prefix, never from `.env` — cron sources no dotenv and the alerting loader's allowlist excludes it (`docs/workstation/fabrik-mail.md` § Escalation). |
 | `FABRIK_MAIL_HOP_CAP` | fabrik-mail auto-reply hop budget — HOLD when `parent.hops >=` this (default `3`; `0` = refuse all auto-replies; a negative or non-numeric value warns and uses the default). |
@@ -1003,7 +1140,6 @@ in `docs/reference/external-services-registry.md`.
 | Var | Default | Effect |
 |---|---|---|
 | `STEP_TIMEOUT` | `900` | seconds per chain step; must be positive (`0` switches `timeout(1)` off) |
-| `CLASSIFY_TIMEOUT` | `2100` | seconds for the paid classify step |
 | `REGISTRY_PRUNE_FORCE` | unset | `1`/`true`/`yes` overrides the bounded-prune refusal — **disables a data-loss guard** |
 | `REGISTRY_WRITE_TESTS` | unset | `1` opts the live-registry tests in; unset they skip (they WRITE to `fabrik_services`) |
 | `FABRIK_NO_AUTOLOAD` | unset | `1` stops `libs/alerting` autoloading a `.env` from the cwd, and `fabrik.config` loading `.env` at import (the root `conftest.py` sets it for every test process) |
@@ -1012,8 +1148,26 @@ in `docs/reference/external-services-registry.md`.
 
 | Var | Default | Effect |
 |---|---|---|
-| `FABRIK_SCAFFOLD_OFFLINE` | unset | `1`/`true`/`yes`/`on` makes `create_project` write every file but create no venv, install nothing, create no local database, skip the hub registry sync and the `.mcp.json` emitter; the venv and database steps print the command to run instead. `tests/conftest.py` pins it for the whole test session. It scopes `create_project` only: `fabrik scaffold`'s own registry save, sync and GitHub wiring around it still run. |
+| `FABRIK_SCAFFOLD_OFFLINE` | unset | `1`/`true`/`yes`/`on` makes scaffold code write every file but create no venv, install nothing, create no local database, skip the hub registry sync and the `.mcp.json` emitter; the venv and database steps print the command to run instead. Those steps already run only inside an explicit opt-in — `create_project(provision=True)`, which `fabrik scaffold` passes, or `scaffold.provisioning()` — so this switch matters only there; any other caller is offline without it (W-e2f0b6e5). `tests/conftest.py` pins it for the whole test session. It scopes scaffold code only: `fabrik scaffold`'s own registry save, sync and GitHub wiring around `create_project` still run. |
 | `FABRIK_REAL_DOCKER_BUILD` | unset | `1` opts `tests/test_docusaurus_static_runtime.py::test_real_build_serves_the_static_site` into a real `docker build` and run of a scaffolded docusaurus site (needs docker and the npm registry; ~80 s); unset, the test skips with a reason naming the flag; set with no `docker` on `PATH`, it fails rather than skips. |
+
+## Prepaid API credits (D-1196)
+
+Three prepaid $200 Anthropic API credits are spent by `scripts/api_credit.py` on capped, read-only `claude -p --safe-mode`
+runs, each behind a keyless pre-flight ([workstation/api-credit.md](workstation/api-credit.md)). The script reads the keys from the main checkout's
+`.env`, never prints them, and hands one key to each run as that run's own `ANTHROPIC_API_KEY`.
+
+| Var | Default | Effect |
+|---|---|---|
+| `ANTHROPIC_API_KEY_CAN` | empty | the Can credit's key; `api_credit.py run --key can` |
+| `ANTHROPIC_API_KEY_SARP` | empty | the Sarp credit's key; `--key sarp` |
+| `ANTHROPIC_API_KEY_OZGURBASAK` | empty | the Ozgur Basak credit's key; `--key ozgurbasak` |
+| `API_CREDIT_ENV_FILE` | the main checkout's `.env` | where `api_credit.py` reads the three keys (tests point it at a fixture) |
+| `API_CREDIT_MANAGED_DIR` | `/etc/claude-code` | the managed-settings directory whose existence refuses every run (tests point it at a fixture) |
+| `API_CREDIT_PREFLIGHT_TIMEOUT` | `60` | seconds the keyless pre-flight may take before the run is refused (tests shorten it) |
+
+The plain `ANTHROPIC_API_KEY` stays empty on purpose, so no tool bills the API by accident. The ledger lives under
+`ROTATE_STATE_DIR` (default `~/.claude/state`) as `api-credit.jsonl`.
 
 <!-- BEGIN related-scripts: generated by scripts/render_doc_script_links.py — do not hand-edit -->
 ## Related scripts
@@ -1024,4 +1178,5 @@ means updating this page in the same change. This list is generated from those h
 
 - `scripts/enforcement/check_mutation.py`
 - `scripts/mail.py`
+- `scripts/sysadmin/prune_transcripts.py`
 <!-- END related-scripts -->

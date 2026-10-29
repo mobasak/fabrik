@@ -48,11 +48,20 @@ def test_unaddressed_hub_send_is_refused_and_writes_nothing(env):
 
 
 def test_each_beat_and_broadcast_pass(env):
-    for beat in ("infra", "fleet", "intel", "kaizen"):
+    for beat in mail.HUB_BEATS:
         assert mail.send(
             to="fabrik", kind="finding", body=beat, frm="alpha", to_agent=beat
         ).is_file()
     assert mail.send(to="fabrik", kind="finding", body="all", frm="alpha", broadcast=True).is_file()
+
+
+def test_coordinator_is_a_hub_beat(env):
+    """Plan 2026-10-15 Phase B (D-871): the hub's merge owner becomes `coordinator`, and
+    merge_request.py sends `--to-agent <owner>` — the beat must exist BEFORE the row flips."""
+    assert "coordinator" in mail.HUB_BEATS
+    assert mail.send(
+        to="fabrik", kind="finding", body="c", frm="alpha", to_agent="coordinator"
+    ).is_file()
 
 
 def test_typoed_beat_is_refused_on_hub_sends(env):
@@ -154,8 +163,8 @@ def test_cli_refusal_exits_2_with_the_beat_guide_on_stderr(env, capsys, monkeypa
     rc = mail.main(["send", "--to", "fabrik", "--kind", "finding", "--from", "alpha"])
     assert rc == 2
     err = capsys.readouterr().err
-    for beat in ("infra", "fleet", "intel", "kaizen"):
-        assert beat in err, f"the guide must name {beat}"
+    for beat in mail.HUB_BEATS:
+        assert f"--to-agent {beat}" in err, f"the guide must name {beat}"
 
 
 def test_cli_broadcast_keeps_stdout_path_only(env, capsys, monkeypatch):
@@ -234,15 +243,55 @@ def test_rotate_twin_copies_are_byte_identical():
 def test_kaizen_sends_one_addressed_obligation_per_beat():
     """The kaizen hand-off is each beat's PASS TRIGGER (infra.md/fleet.md) — it must stay
     an ADDRESSED ack:required obligation per beat, never a sweepable ownerless broadcast."""
-    src = _KAIZEN.read_text(encoding="utf-8")
-    m = _re.search(r'for beat in \("infra", "fleet"\):.*?"send",.*?\]', src, _re.S)
-    assert m, "kaizen per-beat addressed send loop not found"
-    argv = " ".join(
-        m.group(0).split()
-    )  # formatting-insensitive: the source is ruff-formatted one arg per line
-    assert '"--to-agent", beat' in argv, argv
-    assert '"--broadcast"' not in argv and '"--ack"' not in argv, (
-        "the obligation must keep kind-default ack:required and never broadcast: " + argv
+    import ast
+
+    tree = ast.parse(_KAIZEN.read_text(encoding="utf-8"))
+    # the beats ride a named tuple since a90b35a3b (D-646 added kaizen); every beat whose
+    # charter names the digest its pass trigger must be in it. Read from the AST, never by a
+    # regex over the text: a regex stops at the first bracket and misses an appended flag.
+    beats = next(
+        (
+            n.value
+            for n in ast.walk(tree)
+            if isinstance(n, (ast.Assign, ast.AnnAssign))
+            and any(
+                isinstance(t, ast.Name) and t.id == "MAIL_BEATS"
+                for t in (n.targets if isinstance(n, ast.Assign) else [n.target])
+            )
+        ),
+        None,
+    )
+    assert isinstance(beats, ast.Tuple), "MAIL_BEATS tuple not found"
+    named = {e.value for e in beats.elts if isinstance(e, ast.Constant)}
+    assert {"infra", "fleet", "kaizen"} <= named, named
+    loops = [
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.For)
+        and isinstance(n.iter, ast.Name)
+        and n.iter.id == "MAIL_BEATS"
+        and isinstance(n.target, ast.Name)
+    ]
+    assert len(loops) == 1, "kaizen per-beat addressed send loop not found"
+    body = ast.Module(body=loops[0].body, type_ignores=[])
+    flags = [
+        n.value for n in ast.walk(body) if isinstance(n, ast.Constant) and isinstance(n.value, str)
+    ]
+    assert "send" in flags and "--to-agent" in flags, flags
+    addressed = any(
+        isinstance(n, ast.List)
+        and any(
+            isinstance(a, ast.Constant)
+            and a.value == "--to-agent"
+            and isinstance(b, ast.Name)
+            and b.id == loops[0].target.id
+            for a, b in zip(n.elts, n.elts[1:], strict=False)
+        )
+        for n in ast.walk(body)
+    )
+    assert addressed, "the send must pass `--to-agent <the loop's beat>`"
+    assert "--broadcast" not in flags and "--ack" not in flags, (
+        "the obligation must keep kind-default ack:required and never broadcast: " + str(flags)
     )
 
 
@@ -350,3 +399,67 @@ def test_a_from_agent_recorded_under_another_name_is_not_trusted(env, monkeypatc
     reply = mail.send(to="fabrik", kind="reply", body="a", frm="fabrik", re=parent.stem)
     # `from: wef1` is not this mailbox, so its role is not trusted; the addressee is inherited
     assert _fm(reply).get("agent") == "intel"
+
+
+# --- W-fa004224 (D-1128): on-demand builders are named <beat>-<N>; mail addresses them by that name ---
+
+
+def test_a_numbered_builder_of_a_beat_is_a_hub_addressee(env):
+    """infra-2 and coordinator-12 address mail and route it; the shape is exact — no zero, no letters, no
+    unknown beat, at most three digits — so a typo still hides nothing."""
+    for name in ("infra-2", "infra-3", "fleet-10", "coordinator-12", "kaizen-999"):
+        assert mail.send(
+            to="fabrik", kind="finding", body=name, frm="alpha", to_agent=name
+        ).is_file(), name
+    for name in (
+        "infra-0",
+        "infra-x",
+        "infra-1000",
+        "devops-2",
+        "infra-",
+        "-2",
+        "infra2",
+        "Infra-2",
+    ):
+        with pytest.raises(mail.MailRefusedError, match="unknown hub beat"):
+            mail.send(to="fabrik", kind="finding", body=name, frm="alpha", to_agent=name)
+    mid = mail.send(to="fabrik", kind="finding", body="b", frm="alpha", broadcast=True).stem
+    mail.route(mid, "infra-2", repo="fabrik")
+    assert mail._parse(mail.read_msg(mid, "fabrik")).get("agent") == "infra-2"
+
+
+def test_a_reply_reaches_the_numbered_builder_that_asked(env, monkeypatch):
+    """merge_request.py replies `--kind reply --re <request>` to the requester's resolved name: a request from
+    infra-2 is answered to infra-2, never to the request's addressee (the coordinator) — W-fa004224."""
+    _as(monkeypatch, "infra-2")
+    parent = mail.send(to="fabrik", kind="request", body="mr", frm="fabrik", to_agent="coordinator")
+    assert _fm(parent).get("from-agent") == "infra-2"
+    _as(monkeypatch, "coordinator")
+    reply = mail.send(to="fabrik", kind="reply", body="merged", frm="fabrik", re=parent.stem)
+    assert _fm(reply).get("agent") == "infra-2"
+    explicit = mail.send(
+        to="fabrik", kind="reply", body="m", frm="fabrik", re=parent.stem, to_agent="infra-2"
+    )
+    assert _fm(explicit).get("agent") == "infra-2"
+
+
+def test_a_reply_inherits_a_numbered_builders_address_when_the_parent_names_no_asker(
+    env, monkeypatch
+):
+    """The second reply branch: a parent addressed `infra-2` that carries no `from-agent` (legacy, cron) keeps that
+    address for its reply — the asker branch alone does not cover it (review W-fa004224, F1)."""
+    _as(monkeypatch, "")
+    parent = mail.send(to="fabrik", kind="finding", body="f", frm="fabrik", to_agent="infra-2")
+    assert "from-agent" not in _fm(parent)
+    _as(monkeypatch, "coordinator")
+    reply = mail.send(to="fabrik", kind="reply", body="a", frm="fabrik", re=parent.stem)
+    assert _fm(reply).get("agent") == "infra-2"
+
+
+def test_route_refuses_a_malformed_builder_name(env):
+    """`route` holds the same exact grammar as send (review W-fa004224, F2)."""
+    mid = mail.send(to="fabrik", kind="finding", body="b", frm="alpha", broadcast=True).stem
+    for name in ("infra-0", "infra-1000", "devops-2", "infra2"):
+        with pytest.raises(mail.MailRefusedError, match="unknown hub beat"):
+            mail.route(mid, name, repo="fabrik")
+    assert mail._parse(mail.read_msg(mid, "fabrik")).get("agent") is None

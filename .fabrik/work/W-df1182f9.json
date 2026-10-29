@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T19:01:44.830000Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-df1182f9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5AQ4754NVBWVB9E1A31FHC7",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-docs-review's researcher verdict table lacks NEEDS-RAW-FETCH and (after W-0c33e10f) INFERENCE rows"
+}

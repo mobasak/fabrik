@@ -1,4 +1,4 @@
-# VENDORED-FROM fabrik-lib health-probe/fingerprint.py @ f21f2123 — byte-identical below this 3-line header; re-vendor, never edit
+# VENDORED-FROM fabrik-lib health-probe/fingerprint.py @ 8bedcaa4 — byte-identical below this 3-line header; re-vendor, never edit
 # ruff: noqa
 # fmt: off
 """Key fingerprinting for multi-key API probes."""

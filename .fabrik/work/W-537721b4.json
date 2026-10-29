@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T10:35:33.326750Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-537721b4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4WZ36J6DEQB6SJDNGWFVPPH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "tests/test_mail_routing.py fixture is leaking into the REAL /opt/fabrik-mail/fabrik-lib inbox (4 mails so far, 2 per run)"
+}

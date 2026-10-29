@@ -1,0 +1,25 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T22:08:32.927912Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-124be7cf",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide via /fabrik-spec: a lane-gate change re-cuts the D-507 lane table",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "infra",
+  "priority": 3,
+  "status": "dropped",
+  "tags": [
+    "kaizen-01m4n1k909",
+    "proposed-drop",
+    "waits-operator-review"
+  ],
+  "title": "A --declare key for 'a doc becomes machine-read' in the /fabrik-task lane gate (kaizen 01M4N1K909 group 7; row 1790924889)"
+}

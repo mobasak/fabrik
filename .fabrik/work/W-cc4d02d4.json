@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:26.655730Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-cc4d02d4",
+  "impact": "low",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4WAVDJDJZ9CFFEB8GY8P610",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — quota_cap ignores forecast; seats die unread",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "/fabrik-plan-review row 1791950376 needs code — dispatch_headroom.py's quota_cap ignores the time-to-wall forecast, so seats dispatched just before the wall die unread"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T18:50:43.705324Z",
+  "creator": "infra",
+  "evidence": "d52cb0e47615daa89a2756e0228adef474103852",
+  "id": "W-1008046c",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fix: write MANIFEST.md5 lines with the pinned copy's ABSOLUTE path (pins_dir/rel) so md5sum -c checks the pin from any cwd; MANIFEST.json and the digest consumers re-read; red-first grader in tests/test_review_loop_ledger.py running md5sum -c from the repo root after editing the live file; update the 'md5sum -c MANIFEST.md5 inside it' wording in commands/_fragments/subagents-core.md and fabrik-review-scoped.md; synced script → full /fabrik-review",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "tags": [
+    "waits-2026-10-13"
+  ],
+  "title": "review_loop_ledger.py pin writes MANIFEST.md5 with repo-relative paths (scripts/review_loop_ledger.py:527), so a seat's 'md5sum -c <pins>/MANIFEST.md5' from the repo cwd hashes the LIVE files and prints OK while the pins are never checked (from any other cwd it fails) — site-provisioner 01M4RNTM85; seats cannot cd"
+}

@@ -379,6 +379,101 @@ def test_stop_block_cause_uncommitted(tmp_path: Path) -> None:
     assert [(b["cause"], b["outcome"]) for b in blocks] == [("uncommitted", "blocked")]
 
 
+def _running_review(tmp_path: Path, sid: str, surface: str) -> None:
+    runs = tmp_path / "runs"  # `_env` points COMMAND_RUN_DIR here
+    runs.mkdir(exist_ok=True)
+    now = time.time()
+    rec = {
+        "command": "fabrik-review-scoped",
+        "state": "running",
+        "started_epoch": now - 60,
+        "updated_ts": now,
+        "surface": surface,
+    }
+    (runs / f"{sid}.json").write_text(json.dumps(rec), encoding="utf-8")
+
+
+def test_a_running_reviews_surface_stands_the_uncommitted_cause_down(tmp_path: Path) -> None:
+    """W-5ce56208 end to end: a dirty authored file the running review names gets the fifth
+    cause ("run it to its terminal condition"), never an order to commit before the review closes,
+    and the stand-down is in the event stream. The control names another file and is blocked as
+    uncommitted, so main() — not only the helper — carries the exemption."""
+    proj = _project(tmp_path)
+    tp = _transcript(proj, edited=["session_file.py"])
+    _running_review(tmp_path, "sidrev", "session_file.py — the change under review")
+    proc = _run_stop(proj, tmp_path, "sidrev", baseline=[], transcript=tp)
+    reason = json.loads(proc.stdout).get("reason", "")
+    assert "COMMAND STILL RUNNING" in reason and "DEFINITION OF DONE" not in reason, reason
+    blocks = _of_type(_events(tmp_path, "sidrev"), "stop_block")
+    assert ("uncommitted", "stood_down") in [(b["cause"], b["outcome"]) for b in blocks], blocks
+    _running_review(tmp_path, "sidctl", "other_file.py")
+    proc = _run_stop(proj, tmp_path, "sidctl", baseline=[], transcript=tp)
+    assert "DEFINITION OF DONE NOT MET" in json.loads(proc.stdout).get("reason", ""), proc.stdout
+
+
+def test_a_running_reviews_range_surface_stands_the_uncommitted_cause_down(tmp_path: Path) -> None:
+    """W-42ddde8f: the same stand-down when the running review's surface names a commit RANGE that
+    changed the file and no path — the uncommitted cause reads the surface with the repo root, as
+    the sixth cause does, so the two causes never disagree on what one surface names. The control
+    is a range that did not touch the file."""
+    proj = _project(tmp_path)
+    (proj / "session_file.py").write_text("v1\n", encoding="utf-8")
+    _git(proj, "add", "session_file.py")
+    # an hour old, so the transcript's edit is newer than the file's last commit (`_own_uncommitted`)
+    old = {"GIT_COMMITTER_DATE": f"@{int(time.time()) - 3600} +0000"}
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "the fix"],
+        cwd=proj,
+        check=True,
+        timeout=30,
+        env={**os.environ, **old},
+    )
+    (proj / "other.py").write_text("x\n", encoding="utf-8")  # a later commit of ANOTHER file
+    _git(proj, "add", "other.py")
+    _git(proj, "commit", "-qm", "other")
+    (proj / "session_file.py").write_text(
+        "v2 — a round-1 fix, not yet committed\n", encoding="utf-8"
+    )
+    tp = _transcript(proj, edited=["session_file.py"])
+    _running_review(tmp_path, "sidrange", "W-x the fix, range HEAD~2..HEAD~1 (1 file)")
+    proc = _run_stop(proj, tmp_path, "sidrange", baseline=[], transcript=tp)
+    reason = json.loads(proc.stdout).get("reason", "")
+    assert "COMMAND STILL RUNNING" in reason and "DEFINITION OF DONE" not in reason, reason
+    # the control: a non-empty range that changed only other.py
+    _running_review(tmp_path, "sidrangectl", "W-x the other change, range HEAD~1..HEAD")
+    proc = _run_stop(proj, tmp_path, "sidrangectl", baseline=[], transcript=tp)
+    assert "DEFINITION OF DONE NOT MET" in json.loads(proc.stdout).get("reason", ""), proc.stdout
+
+
+def test_the_stale_opt_out_takes_the_stand_down_with_the_fifth_cause(tmp_path: Path) -> None:
+    """`COMMAND_RUN_STALE_H=0` turns the fifth cause off, so main() must read the FRESH record
+    (None here), never the raw one — or the running review's file is ordered by neither cause
+    (critique C1/F1; review B-1: a raw-record main() passed every other test)."""
+    proj = _project(tmp_path)
+    tp = _transcript(proj, edited=["session_file.py"])
+    _running_review(tmp_path, "sidopt", "session_file.py — the change under review")
+    env = _env(tmp_path, COMMAND_RUN_STALE_H="0")
+    proc = _run_stop(proj, tmp_path, "sidopt", baseline=[], transcript=tp, env=env)
+    assert "DEFINITION OF DONE NOT MET" in json.loads(proc.stdout).get("reason", ""), proc.stdout
+    blocks = _of_type(_events(tmp_path, "sidopt"), "stop_block")
+    assert ("uncommitted", "stood_down") not in [(b["cause"], b["outcome"]) for b in blocks], blocks
+
+
+def test_the_fifth_causes_warn_through_stop_orders_the_commit(tmp_path: Path) -> None:
+    """Review A-1, driven through main(): the fifth cause blocks three stops while the commit
+    order stands down; the fourth — its warn-through — must order the commit, never allow the
+    stop with the review's file uncommitted and nothing said."""
+    proj = _project(tmp_path)
+    tp = _transcript(proj, edited=["session_file.py"])
+    _running_review(tmp_path, "sidwt", "session_file.py — the change under review")
+    reasons = []
+    for i in range(4):
+        proc = _run_stop(proj, tmp_path, "sidwt", baseline=[], transcript=tp, reset=i == 0)
+        reasons.append(json.loads(proc.stdout or "{}").get("reason", ""))
+    assert all("COMMAND STILL RUNNING" in r for r in reasons[:3]), reasons
+    assert "DEFINITION OF DONE NOT MET" in reasons[3], reasons
+
+
 def _with_upstream(tmp_path: Path, proj: Path) -> None:
     bare = tmp_path / "origin.git"
     subprocess.run(

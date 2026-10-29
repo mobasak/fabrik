@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T14:28:41.115184Z",
+  "creator": "infra",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-d146dd3c",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-spec seeded with /opt/fabrik/.tmp/runs/7e6fef18-ef7b-4fc0-b940-07694d395af9/fabrik-task-2026-10-18T18-29-32-0330/seed.md — choose the approach (network namespace, deny-by-default git, token-anywhere deny) before any network class ships (D-1004)",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "HIGH security, now spec-chain (UPGRADED: three approaches the build cannot settle; panel ruled B, D-1004): a major, held behind the major in flight W-ab242b11",
+  "status": "open",
+  "tags": [
+    "enforcement"
+  ],
+  "title": "seat_guard.py refuses a reviewer seat's network clients: ssh, scp, sftp and rsync with a remote target are denied whatever their options, ssh -G alone passes (two seats made live ssh/scp connections despite the brief, mail 01M56C2E4F; ProxyJump bypasses a PATH shim and outranks ProxyCommand)"
+}

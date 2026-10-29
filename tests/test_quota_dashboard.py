@@ -15,11 +15,15 @@ Three things carry real risk and are pinned here; the rest is presentation.
 from __future__ import annotations
 
 import html
+import html.parser
 import importlib.util
 import json
+import math
 import os
 import re
+import signal
 import subprocess
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -32,19 +36,129 @@ import pytest
 _SRC = Path(__file__).resolve().parents[1] / "scripts" / "sysadmin" / "quota_dashboard.py"
 
 
+from tests.quota_dashboard_isolation import NET_DENIED as _NET_DENIED  # noqa: E402
+from tests.quota_dashboard_isolation import (  # noqa: E402
+    after_load,
+    isolate,
+    no_network,  # noqa: E402, F401 — autouse: the network guard
+)
+
+
 def _load(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, **env: str):
-    """Import a FRESH module instance whose env-derived module constants point at tmp_path."""
+    """Import a FRESH module instance whose env-derived module constants point at tmp_path, under
+    the shared isolation (`tests/quota_dashboard_isolation.py`: an empty HOME, no provider key, no
+    proxy, no MCP config) — a run once printed "brave quota probe failed (HTTPError)": a live call."""
+    isolate(tmp_path, monkeypatch)
     monkeypatch.setenv("QUOTA_DASH_OUT_DIR", str(tmp_path / "out"))
     # never the box's REAL pointer: a test render says "mob" while the box may point elsewhere,
     # and the pointer-moved regeneration would then fire on every view
     monkeypatch.setenv("QUOTA_DASH_POINTER", str(tmp_path / "active"))
+    if "QUOTA_DASH_CREDITS_KEY_FILE" not in os.environ:
+        monkeypatch.setenv("QUOTA_DASH_CREDITS_KEY_FILE", str(tmp_path / "no-key.env"))
     for k, v in env.items():
         monkeypatch.setenv(k, v)
     spec = importlib.util.spec_from_file_location(f"qd_{tmp_path.name}", _SRC)
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
     spec.loader.exec_module(mod)
+    after_load(mod, monkeypatch)
     return mod
+
+
+def test_a_loopback_proxy_cannot_carry_a_provider_call(tmp_path, monkeypatch):
+    """urllib connects to a configured proxy — on 127.0.0.1 the guard would let it through and the
+    proxy would resolve the provider. The isolation drops every proxy variable, so the call goes
+    direct and the guard refuses it."""
+    import socket
+    import urllib.request
+
+    proxy = socket.socket()
+    proxy.bind(("127.0.0.1", 0))
+    proxy.listen(1)
+    proxy.settimeout(0.5)
+    url = f"http://127.0.0.1:{proxy.getsockname()[1]}"
+    for var in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "all_proxy"):
+        monkeypatch.setenv(var, url)
+    monkeypatch.delenv("NO_PROXY", raising=False)
+    monkeypatch.delenv("no_proxy", raising=False)
+    _load(tmp_path, monkeypatch)  # the isolation every test file's loader applies
+    try:
+        with pytest.raises(OSError):
+            urllib.request.urlopen("https://api.search.brave.com/res/v1/web/search?q=x", timeout=2)
+        try:
+            proxy.accept()[0].close()
+            reached = True
+        except TimeoutError:
+            reached = False
+    finally:
+        proxy.close()
+    assert not reached, "the provider call went through the loopback proxy"
+    assert any("brave" in d for d in _NET_DENIED), _NET_DENIED
+    del _NET_DENIED[:]  # this test's own refusal was the point
+
+
+def test_the_network_guard_refuses_and_records_a_non_loopback_connect():
+    """The guard itself: a connect or a lookup off loopback raises AND is recorded (the teardown
+    assertion fails the test that tried); loopback passes."""
+    import socket
+
+    for target in (("192.0.2.1", 9), ("api.search.brave.com", 443)):
+        with pytest.raises(OSError, match="test network guard"):
+            socket.create_connection(target, timeout=1)
+    assert any("192.0.2.1" in d for d in _NET_DENIED) and any("brave" in d for d in _NET_DENIED)
+    del _NET_DENIED[:]  # this test's own refusals were the point
+    srv = socket.socket()
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(1)
+    socket.create_connection(srv.getsockname(), timeout=1).close()
+    srv.close()
+    assert _NET_DENIED == []
+
+
+def _files_without_the_guard(tests_dir: Path) -> list[str]:
+    """Every quota-dashboard test file whose module never imports `no_network` from the shared
+    isolation module — the import is what activates the autouse guard in that file."""
+    import ast
+
+    missing = []
+    for path in sorted(tests_dir.glob("test_quota_dashboard*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        if not any(
+            isinstance(node, ast.ImportFrom)
+            and (node.module or "").endswith("quota_dashboard_isolation")
+            and any(alias.name == "no_network" for alias in node.names)
+            for node in tree.body
+        ):
+            missing.append(path.name)
+    return missing
+
+
+def test_every_quota_dashboard_test_file_activates_the_network_guard(tmp_path):
+    """The guard is live only where it is imported; dropping the import from one file must go red
+    here, not silently let that file reach the network."""
+    tests_dir = Path(__file__).resolve().parent
+    assert len(list(tests_dir.glob("test_quota_dashboard*.py"))) >= 13
+    assert _files_without_the_guard(tests_dir) == []
+    (tmp_path / "test_quota_dashboard_x.py").write_text(
+        "from tests.quota_dashboard_isolation import isolate\n", encoding="utf-8"
+    )
+    assert _files_without_the_guard(tmp_path) == ["test_quota_dashboard_x.py"]
+
+
+def test_the_network_guard_also_refuses_connect_ex():
+    """`connect_ex` is a second way to open a socket; the guard refuses and records it like
+    `connect`."""
+    import socket
+
+    s = socket.socket()
+    s.settimeout(1)
+    try:
+        with pytest.raises(OSError, match="test network guard"):
+            s.connect_ex(("192.0.2.1", 9))
+    finally:
+        s.close()
+    assert any("192.0.2.1" in d for d in _NET_DENIED), _NET_DENIED
+    del _NET_DENIED[:]
 
 
 def _payload(session: float = 40.0, weekly: float = 72.0) -> dict:
@@ -67,28 +181,144 @@ def _payload(session: float = 40.0, weekly: float = 72.0) -> dict:
     }
 
 
+# The redesign (plan 2026-10-17-plan-1, T07) retired the five-tab page these tests once grepped; each
+# now renders the view that carries the behaviour, through the module's own `_render_view`.
+class _Node:
+    def __init__(self, tag: str, attrs: dict, parent):
+        self.tag, self.attrs, self.parent, self.children, self.text = tag, attrs, parent, [], ""
+
+    def walk(self):
+        yield self
+        for c in self.children:
+            yield from c.walk()
+
+    def words(self) -> str:
+        return " ".join((self.text + " " + " ".join(c.words() for c in self.children)).split())
+
+
+class _Tree(html.parser.HTMLParser):
+    _VOID = {"input", "meta", "link", "br", "hr", "img"}
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.root = self.cur = _Node("#root", {}, None)
+
+    def handle_starttag(self, tag, attrs):
+        n = _Node(tag, dict(attrs), self.cur)
+        self.cur.children.append(n)
+        if tag not in self._VOID:
+            self.cur = n
+
+    def handle_endtag(self, tag):
+        n = self.cur
+        while n is not self.root and n.tag != tag:
+            n = n.parent
+        if n is not self.root:
+            self.cur = n.parent
+
+    def handle_data(self, data):
+        self.cur.text += " " + data
+
+
+def _dom(markup: str) -> _Node:
+    p = _Tree()
+    p.feed(markup)
+    p.close()
+    return p.root
+
+
+def _find(root: _Node, tag: str | None = None, **attrs) -> list[_Node]:
+    return [
+        n
+        for n in root.walk()
+        if (tag is None or n.tag == tag)
+        and all(n.attrs.get(k.replace("_", "-")) == v for k, v in attrs.items())
+    ]
+
+
+def _text(markup: str) -> str:
+    """Every word the operator reads in ``markup``, unescaped and whitespace-collapsed."""
+    return _dom(markup).words()
+
+
+def _badges(markup: str) -> list[tuple[str, str]]:
+    """(severity, text) of every status badge — the text without its icon and assistive prefix."""
+    out = []
+    for n in _find(_dom(markup), "span"):
+        if "data-severity" in n.attrs and n.children:
+            out.append((n.attrs["data-severity"], n.children[-1].words()))
+    return out
+
+
+def _view(qd, name: str) -> str:
+    """One view's fragment exactly as `GET /v/<name>` serves it."""
+    return qd._render_view(name)
+
+
+def _accounts(qd) -> str:
+    return _view(qd, "accounts")
+
+
+def _acct_row(markup: str, slug: str, kind: str | None = None) -> _Node:
+    rows = [
+        r
+        for r in _find(_dom(markup), "tr", data_acct=slug)
+        if kind is None or r.attrs.get("data-row") == kind
+    ]
+    assert len(rows) == 1, (slug, kind, len(rows))
+    return rows[0]
+
+
+def _join_regen(qd) -> None:
+    worker = qd._LAST_REGEN[0]
+    if worker is not None:
+        worker.join(timeout=10)
+
+
+def test_generate_writes_quota_json_and_no_page(tmp_path, monkeypatch):
+    """`generate()` keeps its probe, quota.json and `_LAST_STATUS` duty; the page is the live shell
+    now, so no index.html is written (T07)."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_probe", lambda: _payload())
+
+    payload = qd.generate()
+
+    assert payload["active"] == "mob" and qd._LAST_STATUS[0][1] == payload
+    assert qd._JSON.is_file() and json.loads(qd._JSON.read_text())["active"] == "mob"
+    assert not (qd.OUT_DIR / "index.html").exists()
+
+
+def _one_account(qd, monkeypatch, acct: dict) -> str:
+    monkeypatch.setattr(qd, "_status_triggers", lambda: None)  # the reading is set by hand
+    qd._set_last_status(time.time(), {"active": acct["slugs"][0], "accounts": [acct]})
+    return _accounts(qd)
+
+
 def test_serving_inside_the_floor_costs_exactly_one_probe(tmp_path, monkeypatch):
     """The probe-volume bound: many views inside QUOTA_DASH_MAX_AGE_S → ONE probe."""
     qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
     calls: list[float] = []
     monkeypatch.setattr(qd, "_probe", lambda: (calls.append(time.time()), _payload())[1])
 
-    first = qd._fresh_html()
+    _accounts(qd)  # nothing on disk: the first view starts the one background probe
+    _join_regen(qd)
     for _ in range(5):
-        again = qd._fresh_html()
+        again = _accounts(qd)
+        _join_regen(qd)
 
     assert len(calls) == 1, f"expected 1 probe for 6 views inside the floor, got {len(calls)}"
-    assert "mob@ocoron.com" in first and "mob@ocoron.com" in again
+    assert "mob@ocoron.com" in again
 
 
 def test_a_view_past_the_floor_reprobes(tmp_path, monkeypatch):
-    """The other half of the bound: the page must not go stale forever."""
+    """The other half of the bound: the board must not go stale forever."""
     qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="0")
     calls: list[int] = []
     monkeypatch.setattr(qd, "_probe", lambda: (calls.append(1), _payload())[1])
 
-    qd._fresh_html()
-    qd._fresh_html()
+    _accounts(qd)
+    _join_regen(qd)
+    _accounts(qd)
     # The second view kicks off a BACKGROUND regeneration; join it rather than race it (this
     # assertion failed 2-3 times in 10 before the join, on a code path nobody had changed).
     worker = qd._LAST_REGEN[0]
@@ -108,24 +338,31 @@ def test_probe_failure_keeps_the_last_good_board_and_says_so(tmp_path, monkeypat
         raise RuntimeError("connection reset")
 
     monkeypatch.setattr(qd, "_probe", _boom)
-    html = qd.generate()
+    payload = qd.generate()
+    assert payload["probe_failed"] == "RuntimeError: connection reset"
+    assert json.loads(qd._JSON.read_text())["probe_failed"] == "RuntimeError: connection reset"
+    html_ = _accounts(qd)
 
-    assert "mob@ocoron.com" in html, "the last good board must survive a failed probe"
-    assert "28%" in html, "…including its numbers (100-72 weekly remaining)"
-    assert "live probe failed" in html.lower()
-    assert "connection reset" in html
+    assert "mob@ocoron.com" in html_, "the last good board must survive a failed probe"
+    assert ("ok", "28% left") in _badges(html_), "…including its numbers (100-72 weekly)"
+    # the banner names the failure by class (a message can carry paths — W-6a0f3c65)
+    assert (
+        "critical",
+        "Live probe failed — showing the last good reading. RuntimeError",
+    ) in _badges(html_)
 
 
 def test_the_board_reports_remaining_not_used(tmp_path, monkeypatch):
     """Inversion guard: 91% used must render as 9% left, not 91%."""
     qd = _load(tmp_path, monkeypatch)
     monkeypatch.setattr(qd, "_probe", lambda: _payload(session=0.0, weekly=91.0))
+    qd.generate()
 
-    html = qd.generate()
+    html_ = _accounts(qd)
 
-    assert '<span class="pct warn">9%</span> left' in html, "weekly 91% used → 9% left"
-    assert '<span class="pct ok">100%</span> left' in html, "session 0% used → 100% left"
-    assert "91% used" in html, "the raw utilisation stays visible as the sub-line"
+    assert ("warning", "9% left") in _badges(html_), "weekly 91% used → 9% left"
+    assert ("ok", "100% left") in _badges(html_), "session 0% used → 100% left"
+    assert "91% used" in _text(html_), "the raw utilisation stays visible as the sub-line"
 
 
 def test_red_starts_where_the_fleet_abandons_the_account(tmp_path, monkeypatch):
@@ -134,10 +371,12 @@ def test_red_starts_where_the_fleet_abandons_the_account(tmp_path, monkeypatch):
     qd = _load(tmp_path, monkeypatch)
 
     monkeypatch.setattr(qd, "_probe", lambda: _payload(session=0.0, weekly=95.0))
-    assert '<span class="pct crit">5%</span> left' in qd.generate()
+    qd.generate()
+    assert ("critical", "5% left") in _badges(_accounts(qd))
 
     monkeypatch.setattr(qd, "_probe", lambda: _payload(session=0.0, weekly=94.0))
-    assert '<span class="pct warn">6%</span> left' in qd.generate()
+    qd.generate()
+    assert ("warning", "6% left") in _badges(_accounts(qd))
 
 
 def test_cap_walled_account_is_named_as_reserved(tmp_path, monkeypatch):
@@ -148,21 +387,12 @@ def test_cap_walled_account_is_named_as_reserved(tmp_path, monkeypatch):
         {"email": "ob@ocoron.com", "slugs": ["ob"], "weekly_cap": 90, "cap_walled": True}
     )
     monkeypatch.setattr(qd, "_probe", lambda: payload)
-
-    html = qd.generate()
-
-    assert "cap 90%" in html
-    assert "RESERVED" in html and "fleet excluded" in html
-
-
-def test_generate_writes_both_artifacts(tmp_path, monkeypatch):
-    qd = _load(tmp_path, monkeypatch)
-    monkeypatch.setattr(qd, "_probe", lambda: _payload())
-
     qd.generate()
 
-    assert qd._HTML.is_file() and qd._JSON.is_file()
-    assert json.loads(qd._JSON.read_text())["active"] == "mob"
+    marks = _badges(_accounts(qd))
+
+    assert ("info", "cap 90%") in marks
+    assert ("critical", "RESERVED — fleet excluded") in marks
 
 
 def test_no_credential_paths_are_read_by_the_dashboard():
@@ -182,13 +412,16 @@ def test_a_cached_reading_older_than_its_window_reads_unknown_not_100(tmp_path, 
     payload["active"] = "someone-else"  # this row must NOT be the active pointer
     payload["accounts"][0].update({"source": "cache", "age_s": 8.5 * 3600})
     monkeypatch.setattr(qd, "_probe", lambda: payload)
+    qd.generate()
 
-    html = qd.generate()
+    html_ = _accounts(qd)
 
-    assert '<span class="pct ok">100%</span> left' not in html, "no unearned reassuring 100%"
-    assert "idle" in html, "a non-active account's rolled window is EMPTY by construction — say so"
-    assert "not the active pointer" in html, "and say why it is derivable, not measured"
-    assert '<span class="pct warn">9%</span> left' in html, "the 7-day cell survives at 8.5h"
+    assert ("ok", "100% left") not in _badges(html_), "no unearned reassuring 100%"
+    assert ("ok", "idle") in _badges(html_), (
+        "a non-active account's rolled window is EMPTY — say so"
+    )
+    assert "not the active pointer" in _text(html_), "and say why it is derivable, not measured"
+    assert ("warning", "9% left") in _badges(html_), "the 7-day cell survives at 8.5h"
 
 
 def test_a_cached_reading_younger_than_its_window_still_shows_the_number(tmp_path, monkeypatch):
@@ -198,11 +431,12 @@ def test_a_cached_reading_younger_than_its_window_still_shows_the_number(tmp_pat
     payload = _payload(session=40.0, weekly=50.0)
     payload["accounts"][0].update({"source": "cache", "age_s": 1800.0})
     monkeypatch.setattr(qd, "_probe", lambda: payload)
+    qd.generate()
 
-    html = qd.generate()
+    html_ = _accounts(qd)
 
-    assert '<span class="pct ok">60%</span> left' in html
-    assert "which has since rolled" not in html
+    assert ("ok", "60% left") in _badges(html_)
+    assert "since this window rolled" not in _text(html_)
 
 
 def test_the_active_account_cannot_claim_idle_when_its_window_rolled(tmp_path, monkeypatch):
@@ -213,10 +447,11 @@ def test_the_active_account_cannot_claim_idle_when_its_window_rolled(tmp_path, m
     payload["active"] = "mob"  # the row below IS mob
     payload["accounts"][0].update({"source": "cache", "age_s": 8.5 * 3600})
     monkeypatch.setattr(qd, "_probe", lambda: payload)
+    qd.generate()
 
-    html = qd.generate()
+    marks = _badges(_accounts(qd))
 
-    assert "unknown" in html and ">idle<" not in html
+    assert ("warning", "unknown") in marks and ("ok", "idle") not in marks
 
 
 def test_a_capped_account_surfaces_the_browser_blind_spot(tmp_path, monkeypatch):
@@ -227,8 +462,9 @@ def test_a_capped_account_surfaces_the_browser_blind_spot(tmp_path, monkeypatch)
     payload["active"] = "someone-else"
     payload["accounts"][0].update({"source": "cache", "age_s": 8.5 * 3600, "weekly_cap": 90})
     monkeypatch.setattr(qd, "_probe", lambda: payload)
+    qd.generate()
 
-    assert "browser use is not visible here" in qd.generate()
+    assert "browser use is not visible here" in _text(_accounts(qd))
 
 
 # ── model-specific weekly windows on the board (2026-08-22: fable/opus visibility) ──
@@ -242,9 +478,10 @@ def test_row_renders_fable_weekly_column(tmp_path, monkeypatch):
         "seven_day": {"utilization": 40.0, "resets_at_epoch": None},  # 60% left
         "model_windows": {"Fable": {"utilization": 76.0, "resets_at_epoch": None}},
     }
-    html = qd._row(acct, "sarp")
-    assert ">24%</span> left" in html, "Fable cell shows remaining (100-76) in its own column"
-    assert "76% used" in html
+    row = _acct_row(_one_account(qd, monkeypatch, acct), "sarp", "active")
+    fable = [c for c in row.children if c.tag == "td"][2]  # account | session | weekly | FABLE
+    assert "24% left" in fable.words(), "Fable cell shows remaining (100-76) in its own column"
+    assert "76% used" in fable.words()
 
 
 def test_row_fable_column_says_no_reading_when_absent(tmp_path, monkeypatch):
@@ -258,13 +495,16 @@ def test_row_fable_column_says_no_reading_when_absent(tmp_path, monkeypatch):
         "seven_day": {"utilization": 1.0, "resets_at_epoch": None},
     }
     # no Fable reading yet (idle, token unrefreshed) → the Fable cell is an honest "no reading"
-    assert "no reading" in qd._row(acct, "ob")
+    row = _acct_row(_one_account(qd, monkeypatch, acct), "ob", "active")
+    assert [c for c in row.children if c.tag == "td"][2].words() == "no reading"
 
 
 def test_header_has_fable_weekly_column(tmp_path, monkeypatch):
     qd = _load(tmp_path, monkeypatch)
-    html = qd.render({"accounts": [], "active": None}, 0.0)
-    assert "Fable 5 weekly remaining" in html
+    monkeypatch.setattr(qd, "_status_triggers", lambda: None)
+    qd._set_last_status(time.time(), {"accounts": [], "active": None})
+    heads = [h.words() for h in _find(_dom(_accounts(qd)), "th", scope="col")]
+    assert heads == ["Account", "Session (5h)", "Weekly", "Fable", "Controls"]
 
 
 # ---------------------------------------------------------------------------------------------
@@ -405,12 +645,49 @@ def test_switch_cli_failure_is_reported_not_hidden(tmp_path, monkeypatch):
         httpd.shutdown()
 
 
+def _buttons(node: _Node, path: str) -> list[dict]:
+    """The JSON body of every button in ``node`` that posts to ``path``."""
+    return [
+        json.loads(b.attrs.get("data-body") or "{}") for b in _find(node, "button", data_post=path)
+    ]
+
+
+def _two_accounts(active: str) -> dict:
+    p = _payload()
+    p["active"] = active
+    p["accounts"].append({**p["accounts"][0], "email": "can@ocoron.com", "slugs": ["can"]})
+    return p
+
+
+def test_the_page_scripts_parse(tmp_path, monkeypatch):
+    """A syntax error in the page's script silently kills every behaviour on it (measured
+    2026-09-02: a raw newline inside a confirm() string — the board froze on the old account and
+    every button was inert). The page now carries ONE inline script — the theme head script — and
+    one static `app.js`; both must parse."""
+    import shutil
+
+    qd = _load(tmp_path, monkeypatch)
+    page = qd._shell_page()
+    inline = [m.group(1) for m in re.finditer(r"<script>(.*?)</script>", page, re.S)]
+    assert len(inline) == 1 and "qd-theme" in inline[0]
+    app_js = (qd.dashboard_ui.STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed: the parse check needs it")
+    for name, script in (("head.js", inline[0]), ("app.js", app_js)):
+        js = tmp_path / name
+        js.write_text(script, encoding="utf-8")
+        r = subprocess.run([node, "--check", str(js)], capture_output=True, text=True)
+        assert r.returncode == 0, (name, r.stderr[:400])
+
+
 def test_every_idle_row_has_a_switch_button_and_the_active_row_has_none(tmp_path, monkeypatch):
     qd = _load(tmp_path, monkeypatch)
     monkeypatch.setattr(qd, "_probe", _multi_payload)
-    html = qd.generate()
-    assert 'data-slug="sarp"' in html
-    assert 'data-slug="mob"' not in html  # mob is the active pointer
+    qd.generate()
+    html_ = _accounts(qd)
+    assert _buttons(_acct_row(html_, "sarp"), "/switch") == [{"account": "sarp"}]
+    assert _buttons(_acct_row(html_, "mob", "active"), "/switch") == []  # mob is the active pointer
 
 
 def test_park_without_the_custom_header_is_refused(tmp_path, monkeypatch):
@@ -472,12 +749,18 @@ def test_a_parked_row_shows_parked_and_enable_and_an_unparked_row_offers_disable
         return p
 
     monkeypatch.setattr(qd, "_probe", payload)
-    html = qd.generate()
-    assert "PARKED — out of service" in html
-    assert 'data-email="sarp@ocoron.com" data-verb="unpark"' in html and ">enable<" in html
-    assert 'data-slug="sarp"' not in html, "a parked account offers no switch → until enabled"
-    assert 'data-email="mob@ocoron.com" data-verb="park"' in html and ">disable<" in html
-    assert "cap 0%" not in html, "a parked row names itself PARKED, not a 0% cap"
+    qd.generate()
+    html_ = _accounts(qd)
+    sarp, mob = _acct_row(html_, "sarp"), _acct_row(html_, "mob", "active")
+    assert ("critical", "PARKED — out of service") in _badges(html_)
+    assert _buttons(sarp, "/park") == [{"account": "sarp@ocoron.com", "park": False}]
+    assert [b.words() for b in _find(sarp, "button", data_post="/park")] == ["Enable"]
+    assert _buttons(sarp, "/switch") == [], "a parked account offers no switch → until enabled"
+    assert _buttons(mob, "/park") == [{"account": "mob@ocoron.com", "park": True}]
+    assert [b.words() for b in _find(mob, "button", data_post="/park")] == ["Disable"]
+    assert ("info", "cap 0%") not in _badges(html_), (
+        "a parked row names itself PARKED, not a 0% cap"
+    )
 
 
 def test_a_parked_account_is_never_shown_returning(tmp_path, monkeypatch):
@@ -522,18 +805,21 @@ def test_a_parked_account_is_never_shown_returning(tmp_path, monkeypatch):
 def test_a_short_body_cannot_hold_a_handler_thread_forever(tmp_path, monkeypatch):
     """A client that promises 100 bytes and sends 10 must be dropped by the socket timeout,
     not parked on `rfile.read()` until it decides to leave (measured before the fix: the
-    handler thread hung for as long as the client stayed connected)."""
+    handler thread hung for as long as the client stayed connected). The request names the
+    board's own Host, so it passes the INV-6 guard and reaches the body read — a foreign Host is
+    answered 421 before any read and would prove nothing (the T02 review's vacuity finding)."""
     import socket
 
     monkeypatch.setenv("QUOTA_DASH_SOCKET_TIMEOUT_S", "0.5")  # the knob the fix reads at import
-    qd, _stub = _switch_env(tmp_path, monkeypatch)
+    qd, stub = _switch_env(tmp_path, monkeypatch)
     httpd, base = _serve(qd)
     try:
         host, port = httpd.server_address[:2]
         s = socket.create_connection((host, port), timeout=5)
         s.sendall(
-            b"POST /switch HTTP/1.1\r\nHost: x\r\nX-Quota-Dash: 1\r\n"
-            b"Content-Type: application/json\r\nContent-Length: 100\r\n\r\n" + b'{"account"'
+            f"POST /switch HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nX-Quota-Dash: 1\r\n".encode()
+            + b"Content-Type: application/json\r\nContent-Length: 100\r\n\r\n"
+            + b'{"account"'
         )
         t0 = time.time()
         try:
@@ -541,39 +827,50 @@ def test_a_short_body_cannot_hold_a_handler_thread_forever(tmp_path, monkeypatch
         except TimeoutError:
             pytest.fail("handler held the connection open past 5s on a short body")
         assert time.time() - t0 < 4.0
-        assert data == b"" or data.startswith(b"HTTP/1.")
+        assert data == b"" or (data.startswith(b"HTTP/1.") and b" 421 " not in data[:16])
         s.close()
     finally:
         httpd.shutdown()
+    assert not any(c[:1] == ["--switch"] for c in _calls(stub))
 
 
 def test_a_pointer_change_regenerates_before_the_floor(tmp_path, monkeypatch):
     """The operator switched accounts and the board kept showing the OLD pointer for up to
     floor + reload (~5 min) — measured 2026-09-02 after a `--switch`. A pointer that no longer
-    matches the rendered `active` must regenerate on the next view, floor or no floor."""
+    matches the reading's `active` must regenerate on the next view, floor or no floor."""
     pointer = tmp_path / "active"
     monkeypatch.setenv("QUOTA_DASH_POINTER", str(pointer))
     qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
     state = {"active": "mob"}
-    monkeypatch.setattr(qd, "_probe", lambda: {**_payload(), "active": state["active"]})
+    calls: list[int] = []
+    monkeypatch.setattr(qd, "_probe", lambda: (calls.append(1), _two_accounts(state["active"]))[1])
+    for d in ("mob", "can"):  # the fleet dirs exist; the CLI names a pointer by its real target
+        (tmp_path / d).mkdir(exist_ok=True)
     pointer.symlink_to(tmp_path / "mob")
-    assert 'who">mob' in qd.generate()
-    # the pointer moves (a --switch or a tick flip); the render on disk is seconds old
+    qd.generate()
+    assert _acct_row(_accounts(qd), "mob", "active")
+    # the pointer moves (a --switch or a tick flip); the reading on disk is seconds old
     pointer.unlink()
     pointer.symlink_to(tmp_path / "can")
     state["active"] = "can"
-    assert 'who">can' in qd._fresh_html(), "a moved pointer must not wait for the floor"
-    assert 'who">can' in qd._fresh_html()  # and the second view costs no second probe path
+    _accounts(qd)  # the view is served at once and starts the regeneration in the background
+    _join_regen(qd)
+    assert _acct_row(_accounts(qd), "can", "active"), "the next view shows it, not the floor's"
+    _join_regen(qd)
+    assert _acct_row(_accounts(qd), "can", "active")  # and the later views cost no second probe
+    assert len(calls) == 2
 
 
 def test_a_probe_hang_after_a_flip_blocks_one_view_not_every_view(tmp_path, monkeypatch):
-    """After a flip the board regenerates synchronously ONCE. If that probe FAILS, the fallback
+    """After a flip the board regenerates ONCE (in the background). If that probe FAILS, the fallback
     payload must carry the live pointer so the next views serve instantly instead of each
     paying the probe timeout until the probe recovers (review finding on the pointer-moved path)."""
     pointer = tmp_path / "active"
     monkeypatch.setenv("QUOTA_DASH_POINTER", str(pointer))
     qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
-    monkeypatch.setattr(qd, "_probe", lambda: {**_payload(), "active": "mob"})
+    monkeypatch.setattr(qd, "_probe", lambda: _two_accounts("mob"))
+    for d in ("mob", "can"):  # the fleet dirs exist; the CLI names a pointer by its real target
+        (tmp_path / d).mkdir(exist_ok=True)
     pointer.symlink_to(tmp_path / "mob")
     qd.generate()
     pointer.unlink()
@@ -585,36 +882,15 @@ def test_a_probe_hang_after_a_flip_blocks_one_view_not_every_view(tmp_path, monk
         raise TimeoutError("probe hung")
 
     monkeypatch.setattr(qd, "_probe", _hang)
-    qd._fresh_html()  # the one synchronous attempt after the flip — it fails
-    qd._fresh_html()
-    qd._fresh_html()
+    _accounts(qd)  # the one background attempt after the flip — it fails
+    _join_regen(qd)
+    _accounts(qd)
+    _accounts(qd)
+    _join_regen(qd)
     assert len(calls) == 1, f"every view re-ran the failed probe: {len(calls)} probes for 3 views"
-    assert 'who">can' in qd._fresh_html(), (
+    assert _acct_row(_accounts(qd), "can", "active"), (
         "the pointer is a local fact — shown even when the probe is down"
     )
-
-
-def test_the_rendered_script_parses(tmp_path, monkeypatch):
-    """The page's ONE <script> carries the auto-reloader AND the switch handlers. A syntax error
-    anywhere in it silently kills both (measured 2026-09-02: a raw newline inside the confirm()
-    string — the board froze on the old account and every button was inert). Parse it."""
-    import re
-    import shutil
-    import subprocess
-
-    qd = _load(tmp_path, monkeypatch)
-    monkeypatch.setattr(qd, "_probe", _multi_payload)
-    html = qd.generate()
-    script = re.search(r"<script>(.*?)</script>", html, re.S).group(1)
-    # no JS string literal may span a line: a raw newline inside quotes is the exact defect
-    for line in script.splitlines():
-        assert line.count('"') % 2 == 0, f"unbalanced quotes → a string spans lines: {line[:80]!r}"
-    node = shutil.which("node")
-    if node:
-        js = tmp_path / "page.js"
-        js.write_text(script, encoding="utf-8")
-        r = subprocess.run([node, "--check", str(js)], capture_output=True, text=True)
-        assert r.returncode == 0, r.stderr[:400]
 
 
 def test_ensure_restarts_a_server_that_listens_but_does_not_answer(tmp_path, monkeypatch):
@@ -709,15 +985,24 @@ def test_the_server_probes_on_its_own_cadence_without_a_viewer(tmp_path, monkeyp
 def test_the_active_account_crossing_the_session_threshold_triggers_the_tick_at_once(
     tmp_path, monkeypatch
 ):
-    """Operator rule: rotate as soon as the 5h window hits 98%. The board, which now probes every
-    20s, invokes the rotation tick the moment the ACTIVE account's session ≥ ROTATE_THRESHOLD —
-    once per cooldown, never at 90%."""
+    """Operator rule: rotate as soon as the 5h window hits the flip line. The board, which probes
+    every 20s, invokes the rotation tick the moment the ACTIVE account's session ≥ ROTATE_THRESHOLD —
+    once per cooldown. The drain tier is pushed to 100 so ONLY the flip tier can fire here (a literal
+    98.2 under the 99 default passed on the drain tier with the flip check dead — D-855 review)."""
     monkeypatch.delenv("ROTATE_THRESHOLD", raising=False)
-    qd, stub = _tick_env(tmp_path, monkeypatch, session=86.0, QUOTA_DASH_TRIGGER_COOLDOWN_S="60")
+    qd, stub = _tick_env(
+        tmp_path,
+        monkeypatch,
+        session=86.0,
+        QUOTA_DASH_TRIGGER_COOLDOWN_S="60",
+        ROTATE_URGENT_DRAIN_PCT="100",
+    )
     qd.generate()
     assert qd._maybe_trigger_rotation(json.loads(qd._JSON.read_text())) is None
     assert not [c for c in _calls(stub) if c[:1] == ["--tick"]]
-    (tmp_path / "stub_rotate.py.payload").write_text(json.dumps(_payload(session=98.2)))
+    (tmp_path / "stub_rotate.py.payload").write_text(
+        json.dumps(_payload(session=qd.TRIGGER_THRESHOLD + 0.2))
+    )
     qd.generate()
     payload = json.loads(qd._JSON.read_text())
     t = qd._maybe_trigger_rotation(payload)
@@ -735,13 +1020,6 @@ def test_a_cap_walled_active_account_also_triggers_the_tick(tmp_path, monkeypatc
     assert t is not None
     t.join(10)
     assert [c for c in _calls(stub) if c[:1] == ["--tick"]] == [["--tick"]]
-
-
-def test_the_page_is_wide_and_refreshes_every_20s(tmp_path, monkeypatch):
-    qd = _load(tmp_path, monkeypatch)
-    html = qd.render(_payload(), time.time())
-    assert qd.REFRESH_S == 20 and "refreshes every 20s" in html
-    assert "max-width:1600px" in html
 
 
 # ── scoped review 2026-09-03 (seen RED first) ─────────────────────────────────────────────────
@@ -779,6 +1057,7 @@ def test_the_trigger_runs_the_tick_under_the_cron_lock_and_off_the_loop_thread(
     """The cron runs `flock -n ~/.claude/state/rotate.lock … --tick`; the board's tick must take the
     SAME lock (two ticks deciding at once is the double-flip race) and must not stall the probe
     loop for up to TICK_TIMEOUT_S — it runs on its own thread, which the trigger returns."""
+    monkeypatch.setenv("ROTATE_THRESHOLD", "98")  # fixture built on the pre-2026-10-14 line
     lockfile = tmp_path / "rotate.lock"
     qd, stub = _tick_env(tmp_path, monkeypatch, session=98.5, QUOTA_DASH_ROTATE_LOCK=str(lockfile))
     assert lockfile == qd.ROTATE_LOCK
@@ -815,7 +1094,7 @@ def test_dashboard_trigger_default_matches_the_tick_default(tmp_path, monkeypatc
     # 98 since 2026-09-08 (D-201). The literal is pinned deliberately — deriving BOTH sides from
     # the code would let the two drift together silently, which is the only failure this grader
     # exists to catch. Update it in the same change that moves the constants, never after.
-    assert qd.TRIGGER_THRESHOLD == cr._rotate_threshold() == 98.0
+    assert qd.TRIGGER_THRESHOLD == cr._rotate_threshold() == 99.0
     # and the no-successor mail must stay BELOW the flip line: with a successor the flip is the
     # remedy, without one this is, and it needs runway. 90 < 98 is the design (D-201).
     assert qd.DRAIN_TRIGGER_THRESHOLD < qd.TRIGGER_THRESHOLD
@@ -856,15 +1135,16 @@ def test_rows_are_ordered_active_first_then_in_rotation_order(tmp_path, monkeypa
     }
     order = [a["slugs"][0] for a in qd._display_order(payload, _NOW)]
     assert order == ["sarp", "can", "mob", "x5", "ob"], order
-    html = qd.render(payload, now)
-    first = html.index("sarp@ocoron.com")
-    assert (
-        first
-        < html.index("can@ocoron.com")
-        < html.index("mob@ocoron.com")
-        < html.index("ob@ocoron.com")
-    )
-    assert "next" in html.lower()  # the rank is labelled, not implied
+    monkeypatch.setattr(qd, "_status_triggers", lambda: None)
+    qd._set_last_status(now, payload)
+    html_ = _accounts(qd)
+    rows = [
+        r.attrs["data-acct"]
+        for r in _find(_dom(html_), "tr")
+        if r.attrs.get("data-row") != "return" and "data-acct" in r.attrs
+    ]
+    assert rows == ["sarp", "can", "mob", "x5", "ob"], rows
+    assert ("neutral", "#2 NEXT") in _badges(html_)  # the rank is labelled, not implied
 
 
 def test_the_probe_interval_is_a_period_not_a_pause_after_each_probe(tmp_path, monkeypatch):
@@ -992,8 +1272,8 @@ def test_a_cached_pool_balance_does_not_freeze_the_board(tmp_path, monkeypatch):
 
 
 def test_a_broken_pool_balance_never_takes_the_board_down(tmp_path, monkeypatch):
-    """The guard `_generate_locked`'s own comment promised but did not have. The pool balance is a
-    panel; the quota board is the reason the page exists."""
+    """The pool balance is a panel; the quota board is the reason the page exists. A raise in it is
+    the Services view's pool error — the probe pass and the Accounts view never see it."""
     qd = _load(tmp_path, monkeypatch)
 
     def boom(*_a, **_k):
@@ -1001,8 +1281,11 @@ def test_a_broken_pool_balance_never_takes_the_board_down(tmp_path, monkeypatch)
 
     monkeypatch.setattr(qd, "_pool_credits", boom)
     monkeypatch.setattr(qd, "_probe", _payload)
-    html = qd.generate()
-    assert "Claude account quota" in html and "mob" in html
+    assert qd.generate()["active"] == "mob"
+    assert "mob@ocoron.com" in _accounts(qd)
+    services = _text(_view(qd, "services"))
+    assert "The pool balance could not be read: RuntimeError: pool exploded" in services
+    assert "Search-API quotas" in services  # the rest of the view still renders
 
 
 # ── Search-API quotas: brave · firecrawl · exa (operator ask 2026-09-07) ──────────────────────
@@ -1043,6 +1326,42 @@ _FC_OK = {
 }
 
 
+def test_the_quota_views_refresh_themselves_every_20s(tmp_path, monkeypatch):
+    """The board's cadence: the Overview and the Accounts view declare a 20 s refresh, which
+    `app.js` reads off the fragment's root (the old page's meta refresh and its fixed 1600 px width
+    were the five-tab page's; the shell's layout is the T01 stylesheet's, graded there)."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_status_triggers", lambda: None)
+    qd._set_last_status(time.time(), _payload())
+    assert qd.REFRESH_S == 20
+    for name in ("overview", "accounts"):
+        roots = [
+            n.attrs.get("data-refresh-s")
+            for n in _find(_dom(_view(qd, name)))
+            if "data-refresh-s" in n.attrs
+        ]
+        assert roots and roots[0] == "20", (name, roots)
+
+
+def _services_with(qd, monkeypatch, apis: dict) -> str:
+    """The Services view as served, with ``apis`` as the search-API reading the cache holds (the
+    real `_api_quotas` is put back after, so the test's later fetches are real)."""
+    with monkeypatch.context() as m:
+        m.setattr(qd, "_api_quotas", lambda *_a, **_k: apis)
+        return _view(qd, "services")
+
+
+def _api_row(markup: str, label: str) -> str:
+    rows = [r.words() for r in _find(_dom(markup), "tr") if r.words().startswith(label)]
+    assert len(rows) == 1, (label, rows)
+    return rows[0]
+
+
+def _firecrawl_row(qd, monkeypatch, now: float, **entry) -> str:
+    apis = {"ts": now, "age_s": 1.0, "firecrawl": {"state": "ok", "unit": "credits", **entry}}
+    return _api_row(_services_with(qd, monkeypatch, apis), "Firecrawl")
+
+
 def test_braves_monthly_zero_means_unlimited_not_exhausted(tmp_path, monkeypatch):
     """THE trap in this feature, and it is live on this box today. Brave has no balance endpoint —
     the quota is the rate-limit header, comma-separated as "<per-second>, <monthly>", and our plan
@@ -1057,9 +1376,9 @@ def test_braves_monthly_zero_means_unlimited_not_exhausted(tmp_path, monkeypatch
     assert q["brave"]["unlimited"] is True
     assert q["brave"]["remaining"] is None and q["brave"]["total"] is None
     assert q["brave"]["per_second"] == 50
-    html = qd._api_quotas_panel(q, now)
-    assert "unlimited" in html and "no monthly cap" in html
-    assert ">0<" not in html and "0 (0%)" not in html, "an unlimited plan must never render as 0"
+    brave = _api_row(_services_with(qd, monkeypatch, q), "Brave Search")
+    assert "unlimited" in brave and "no monthly cap" in brave
+    assert " 0 " not in f" {brave} " and "0 (0%)" not in brave, "an unlimited plan never reads 0"
     # a REAL cap still reports real numbers, and a low one is toned
     capped = dict(
         _BRAVE_UNLIMITED, **{"x-ratelimit-limit": "50, 15000", "x-ratelimit-remaining": "49, 900"}
@@ -1069,7 +1388,7 @@ def test_braves_monthly_zero_means_unlimited_not_exhausted(tmp_path, monkeypatch
     qd._api_quotas_mem.clear()  # the in-memory TTL stamp (21eba0fb) outlives the disk cache
     q2 = qd._api_quotas(now)
     assert q2["brave"]["total"] == 15000 and q2["brave"]["remaining"] == 900
-    assert "crit" in qd._api_quotas_panel(q2, now)  # 6% left
+    assert ("critical", "900 (6%)") in _badges(_services_with(qd, monkeypatch, q2))  # 6% left
 
 
 def test_the_reset_header_is_seconds_remaining_not_an_epoch(tmp_path, monkeypatch):
@@ -1081,7 +1400,7 @@ def test_the_reset_header_is_seconds_remaining_not_an_epoch(tmp_path, monkeypatc
     now = time.time()
     q = qd._api_quotas(now)
     assert q["brave"]["renews_at"] == pytest.approx(now + 2079893, abs=2)
-    assert "(24d)" in qd._api_quotas_panel(q, now)
+    assert "(24d)" in _api_row(_services_with(qd, monkeypatch, q), "Brave Search")
     # firecrawl's renewal is a real ISO date from the provider, not a computed offset
     assert q["firecrawl"]["renews_at"] == pytest.approx(
         datetime.fromisoformat("2026-09-12T12:16:19+00:00").timestamp(), abs=1
@@ -1207,7 +1526,8 @@ def test_a_page_wide_stale_reading_badges_its_rows(tmp_path, monkeypatch):
     )
     q = qd._api_quotas(time.time(), fetch=False)
     assert q["stale"] is True
-    assert 'badge stale">stale' in qd._api_quotas_panel(q, time.time())
+    marks = _badges(_view(qd, "services"))  # the real reader, fetch=False, off the cache above
+    assert marks.count(("warning", "reading out of date")) == 3, marks  # every provider row
 
 
 def test_impossible_numbers_are_shown_without_an_invented_percentage(tmp_path, monkeypatch):
@@ -1216,33 +1536,13 @@ def test_impossible_numbers_are_shown_without_an_invented_percentage(tmp_path, m
     healthy green badge, and "-1 (-100%)". Neither is a number to act on."""
     qd = _load(tmp_path, monkeypatch)
     now = time.time()
-
-    def panel(total, rem):
-        return qd._api_quotas_panel(
-            {
-                "ts": now,
-                "firecrawl": {"state": "ok", "unit": "credits", "total": total, "remaining": rem},
-            },
-            now,
-        )
-
-    assert "(46%)" in panel(5000, 2290)  # the ordinary case still shows a percentage
-    assert "120%" not in panel(5000, 6000) and "6,000" in panel(5000, 6000)
-    assert "%" not in panel(5000, -1).split("Renews")[1] and "-1" in panel(5000, -1)
+    assert "(46%)" in _firecrawl_row(qd, monkeypatch, now, total=5000, remaining=2290)  # ordinary
+    over = _firecrawl_row(qd, monkeypatch, now, total=5000, remaining=6000)
+    assert "120%" not in over and "6,000" in over
+    under = _firecrawl_row(qd, monkeypatch, now, total=5000, remaining=-1)
+    assert "-1" in under and "%" not in under.split("credits", 1)[1]
     # a renewal already in the past is not a renewal
-    past = qd._api_quotas_panel(
-        {
-            "ts": now,
-            "firecrawl": {
-                "state": "ok",
-                "unit": "credits",
-                "total": 5,
-                "remaining": 1,
-                "renews_at": now - 3 * 86400,
-            },
-        },
-        now,
-    )
+    past = _firecrawl_row(qd, monkeypatch, now, total=5, remaining=1, renews_at=now - 3 * 86400)
     assert "overdue" in past and "-3d" not in past
 
 
@@ -1287,33 +1587,17 @@ def test_a_future_stamp_or_a_junk_renewal_date_cannot_raise_or_read_as_fresh(tmp
     class already closed for `ts`, one field over."""
     qd = _load(tmp_path, monkeypatch)
     now = time.time()
-    assert "future" in qd._api_quotas_panel({"ts": now + 9999, "age_s": -9999}, now)
-    assert (
-        "-1"
-        not in qd._api_quotas_panel({"ts": now + 9999, "age_s": -9999}, now).split("Service")[0]
-    )
+    intro = _text(_services_with(qd, monkeypatch, {"ts": now + 9999, "age_s": -9999}))
+    assert "stamped in the future" in intro and "-1" not in intro.split("Service")[0]
     for junk in ("bad", None, True, [], {}, 10**20):
-        html = qd._api_quotas_panel(
-            {
-                "ts": now,
-                "age_s": 1.0,
-                "firecrawl": {
-                    "state": "ok",
-                    "unit": "credits",
-                    "total": 5,
-                    "remaining": 1,
-                    "renews_at": junk,
-                },
-            },
-            now,
-        )  # must NOT raise
-        assert "Firecrawl" in html
+        row = _firecrawl_row(qd, monkeypatch, now, total=5, remaining=1, renews_at=junk)
+        assert row.startswith("Firecrawl"), junk  # rendered, not raised
     # ...and a PROVIDER ENTRY that is not a dict at all. A partial write or a hand edit makes
     # `quotas["brave"]` a list, and `q.get("state")` on a list is an AttributeError on the render
     # path — the same untrusted-value class as `ts` and `renews_at`, one level in.
     for junk in (["malformed"], "ok", 7, None, True):
-        html = qd._api_quotas_panel({"ts": now, "age_s": 1.0, "brave": junk}, now)  # must NOT raise
-        assert "Brave Search" in html and "not read yet" in html
+        apis = {"ts": now, "age_s": 1.0, "brave": junk}
+        assert "not read yet" in _api_row(_services_with(qd, monkeypatch, apis), "Brave Search")
 
 
 def test_the_render_path_never_makes_a_network_call(tmp_path, monkeypatch):
@@ -1340,7 +1624,9 @@ def test_the_render_path_never_makes_a_network_call(tmp_path, monkeypatch):
     q = qd._api_quotas(time.time(), fetch=False)
     assert q["firecrawl"]["remaining"] == 10
     monkeypatch.setattr(qd, "_probe", _payload)
-    assert "Search-API quota" in qd.generate()  # a whole board render, still no call
+    qd.generate()
+    for name in qd._views.VIEWS:  # every view of the board, still no call
+        assert "data-view-root" in _view(qd, name)
 
 
 def test_one_dead_provider_does_not_blank_the_other_two(tmp_path, monkeypatch):
@@ -1355,8 +1641,9 @@ def test_one_dead_provider_does_not_blank_the_other_two(tmp_path, monkeypatch):
     q = qd._api_quotas(now)
     assert q["brave"]["state"] == "ok", "brave must survive firecrawl being down"
     assert q["firecrawl"]["state"] == "error" and q["firecrawl"]["error"] == "OSError"
-    html = qd._api_quotas_panel(q, now)
-    assert "unlimited" in html and "probe failed (OSError)" in html
+    html_ = _services_with(qd, monkeypatch, q)
+    assert "unlimited" in _api_row(html_, "Brave Search")
+    assert "probe failed (OSError)" in _api_row(html_, "Firecrawl")
 
 
 def test_exas_unavailability_is_stated_not_blank(tmp_path, monkeypatch):
@@ -1367,16 +1654,17 @@ def test_exas_unavailability_is_stated_not_blank(tmp_path, monkeypatch):
     monkeypatch.setattr(qd, "API_QUOTAS_CACHE", tmp_path / "q.json")
     _quota_stub(qd, monkeypatch, brave_hdrs=_BRAVE_UNLIMITED, fc_body=_FC_OK)
     now = time.time()
-    html = qd._api_quotas_panel(qd._api_quotas(now), now)
-    assert "SERVICE key" in html and "403" in html
+    exa = _api_row(_services_with(qd, monkeypatch, qd._api_quotas(now)), "Exa")
+    assert "SERVICE key" in exa and "403" in exa
     # the stub configures every key (exa included): the row states WHY it is unknowable
-    assert "returns spend, not a balance" in html
+    assert "returns spend, not a balance" in exa
     # and an absent key is a DIFFERENT verdict from an unavailable API — stated too. The disk
     # cache AND the in-memory TTL stamp (21eba0fb) must both go, or the configured row is served
     monkeypatch.setattr(qd, "_mcp_key", lambda *_a, **_k: None)
     (tmp_path / "q.json").unlink()
     qd._api_quotas_mem.clear()
-    assert "no API key configured" in qd._api_quotas_panel(qd._api_quotas(now), now)
+    exa = _api_row(_services_with(qd, monkeypatch, qd._api_quotas(now)), "Exa")
+    assert "no API key configured" in exa
 
 
 def test_no_api_key_ever_reaches_the_page(tmp_path, monkeypatch):
@@ -1391,8 +1679,10 @@ def test_no_api_key_ever_reaches_the_page(tmp_path, monkeypatch):
     now = time.time()
     qd._api_quotas(now)
     monkeypatch.setattr(qd, "_probe", _payload)
-    html = qd.generate()
-    assert secret not in html
+    qd.generate()
+    for name in qd._views.VIEWS:
+        assert secret not in _view(qd, name), name
+    assert secret not in qd._shell_page()
     assert secret not in (tmp_path / "q.json").read_text(encoding="utf-8")
 
 
@@ -1498,6 +1788,107 @@ def test_a_corrupt_or_unreadable_command_file_never_takes_the_board_down(tmp_pat
     assert len(rows) > 0 and all(r["purpose"] == "" for r in rows)
 
 
+def _commands(qd) -> str:
+    return _view(qd, "commands")
+
+
+def _matrix_rows(markup: str) -> list[list[str]]:
+    """The service matrix's body rows as cell words (the first cell is the command)."""
+    region = _find(_dom(markup), "div", aria_labelledby="commands-matrix-table")
+    assert len(region) == 1
+    return [
+        [c.words() for c in r.children if c.tag in ("th", "td")]
+        for r in _find(region[0], "tr")
+        if any(c.tag == "td" for c in r.children)
+    ]
+
+
+def test_the_matrix_is_in_the_commands_view_and_names_its_maintenance_point(tmp_path, monkeypatch):
+    """The operator's second ask: a note that says how this is kept current. The registry name and
+    its file must be ON THE PAGE — a maintenance contract only in a code comment is unfindable."""
+    qd = _load(tmp_path, monkeypatch)
+    html_ = _commands(qd)
+    tab = _find(_dom(html_), "button", role="tab", id="tab-commands-matrix")
+    assert tab and tab[0].words() == "Service matrix"
+    assert _find(_dom(html_), "div", aria_labelledby="commands-matrix-table")
+    text = _text(html_)
+    assert "_EXT_SERVICES" in text and "scripts/sysadmin/quota_dashboard.py" in text
+    # R2, all three independent readers: the opening sentence used to assert the data came from the
+    # rendered corpus unconditionally, which a missing or PARTIAL render made false two sentences
+    # before the caveat said otherwise. It must state how many rows actually came from there.
+    rows = qd._load_commands()
+    n_r = sum(1 for r in rows if r["rendered"])
+    assert f"{n_r} of {len(rows)} rows from the rendered" in text
+
+
+def test_the_views_are_six_in_navigation_order_and_the_commands_list_every_source(
+    tmp_path, monkeypatch
+):
+    """The five tabs became six views behind one navigation (spec § Information architecture): the
+    Overview first, then Work (today's Repos tab), Accounts (Quota), Usage, Commands, Services
+    (External). A link or a reload lands where it was — the hash names the view (`app.js`)."""
+    qd = _load(tmp_path, monkeypatch)
+    nav = _find(_dom(qd._shell_page()), "a")
+    assert [(a.attrs.get("data-nav"), a.words()) for a in nav if "data-nav" in a.attrs] == [
+        ("overview", "Overview"), ("work", "Work"), ("accounts", "Accounts"),
+        ("usage", "Usage"), ("commands", "Commands"), ("services", "Services"),
+    ]  # fmt: skip
+    assert [a.attrs.get("href") for a in nav if "data-nav" in a.attrs][0] == "#overview"
+    commands = _commands(qd)
+    listing = _find(_dom(commands), "div", aria_labelledby="commands-table")[0]
+    body_rows = [r for r in _find(listing, "tr") if any(c.tag == "td" for c in r.children)]
+    assert len(body_rows) == len(qd._load_commands())
+    heads = [h.words() for h in _find(listing, "th", scope="col")]
+    for col in ("Command", "Stage", "Purpose", "When to use", "Skip when", "Next"):
+        assert col in heads, col
+
+
+def _pool_view(qd, monkeypatch, credits: dict) -> str:
+    with monkeypatch.context() as m:
+        m.setattr(qd, "_pool_credits", lambda *_a, **_k: credits)
+        return _view(qd, "services")
+
+
+def test_the_pool_balance_shows_once_on_the_services_view(tmp_path, monkeypatch):
+    """Operator, 2026-09-04, looking at #external: "i dont see it here?" — the external-services
+    tab is where a person asks "is my third-party spend OK", so the balance went there too and sat
+    on two tabs. The redesign shows it ONCE (spec § Information architecture: Services, "shown
+    ONCE"), on the Services view beside the search-API quotas and the external-services page."""
+    qd = _credits_env(tmp_path, monkeypatch)
+    c = {"granted": 245.0, "used": 225.87, "remaining": 19.13, "age_s": 0.0, "stale": False}
+    monkeypatch.setattr(qd, "_pool_credits", lambda *_a, **_k: c)
+    monkeypatch.setattr(qd, "_probe", _payload)
+    qd.generate()
+    seen = {name: _text(_view(qd, name)).count("OpenRouter pool") for name in qd._views.VIEWS}
+    assert seen["services"] == 1, seen
+    assert sum(seen.values()) == 1, "exactly one view carries the balance"
+
+
+def _usage(qd) -> str:
+    return _view(qd, "usage")
+
+
+def test_an_unreadable_sidecar_is_said_never_a_zeroed_table(tmp_path, monkeypatch):
+    """No file, bad JSON: the Usage view says it could not read the sidecar, in words, and shows no
+    table — a zeroed one would read as "we spent nothing this month". (The old tab rendered an empty
+    pane; the redesign gives every region an error state, spec § Lifecycle, Degradation.)"""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_COST_SIDECAR", tmp_path / "does-not-exist.json")
+    for _case in ("missing", "bad json"):
+        html_ = _usage(qd)
+        assert "The spend sidecar could not be read" in _text(html_), _case
+        assert 'data-state="error"' in html_ and "<table" not in html_
+        bad = tmp_path / "bad.json"
+        bad.write_text("{not json", encoding="utf-8")
+        monkeypatch.setattr(qd, "_COST_SIDECAR", bad)
+
+
+def _pending_view(qd, monkeypatch, payload: dict) -> str:
+    monkeypatch.setattr(qd, "_status_triggers", lambda: None)
+    qd._set_last_status(time.time(), payload)
+    return _accounts(qd)
+
+
 def test_a_negated_mention_is_the_limit_the_page_declares(tmp_path, monkeypatch):
     """Round 3. The ONLY `cit` match in the live corpus was fabrik-data-contract saying the
     verifier "does not apply here" — the whole column was one negation. A regex cannot read
@@ -1520,20 +1911,20 @@ def test_a_negated_mention_is_the_limit_the_page_declares(tmp_path, monkeypatch)
     # not be a silent miss
     assert "brw" in services("then browser_take_screenshot to prove it rendered")
     assert "brw" in services("browser_navigate to the page")
-    # and the honest limit is ON THE PAGE, not only in a comment
-    intro = qd._ext_matrix_intro(qd._load_commands())
-    assert "reads no NEGATIONS" in intro and "preserves both is invisible" in intro
+    # and the honest limit is ON THE PAGE (the Commands view's matrix intro), not only in a comment
+    intro = _text(_commands(qd))
+    assert "reads no negations" in intro and "preserves both is invisible" in intro
     # R6: "cannot go stale against the corpus" survived round 5 and sat one clause from the sentence
     # explaining exactly how it CAN — an absolute claim next to its own counterexample.
     assert "cannot go stale" not in intro
 
 
 def test_an_unreadable_pool_balance_says_so_on_the_page(tmp_path, monkeypatch):
-    """Round 4, and it corrects THIS session's own earlier fix. Guarding the render stopped the
-    board dying, but the panel then vanished — and "no panel" already means "the pool is not
-    configured on this box". A fault that renders identically to a deliberate absence, traceable
-    only in a log nobody reads, is the exact shape of the freeze this file was carrying an hour ago.
-    The board must SAY it, and must not print a zero the operator would act on."""
+    """Round 4. Guarding the render stopped the board dying, but the panel then vanished — and "no
+    panel" already means "the pool is not configured on this box". A fault that renders identically
+    to a deliberate absence, traceable only in a log nobody reads, is the exact shape of the freeze
+    this file was carrying. The board must SAY it, and must not print a zero the operator would act
+    on. Since the redesign the Services view says it, as that region's error state."""
     qd = _load(tmp_path, monkeypatch)
 
     def boom(*_a, **_k):
@@ -1541,13 +1932,15 @@ def test_an_unreadable_pool_balance_says_so_on_the_page(tmp_path, monkeypatch):
 
     monkeypatch.setattr(qd, "_pool_credits", boom)
     monkeypatch.setattr(qd, "_probe", _payload)
-    html = qd.generate()
-    assert "Claude account quota" in html and "mob" in html  # the board still stands
-    assert "Pool balance UNREADABLE" in html and "PermissionError" in html
-    assert "not zero" in html, "a missing balance must not read as an exhausted one"
-    # and a pool that is simply NOT CONFIGURED still renders no panel at all — the two are different
+    qd.generate()
+    assert "mob@ocoron.com" in _accounts(qd)  # the board still stands
+    services = _text(_view(qd, "services"))
+    assert "The pool balance could not be read: PermissionError" in services
+    assert "$0.00" not in services, "a missing balance must not read as an exhausted one"
+    # and a pool that is simply NOT CONFIGURED says that instead — the two are different
     monkeypatch.setattr(qd, "_pool_credits", lambda *a, **k: None)
-    assert "Pool balance UNREADABLE" not in qd.generate()
+    unconfigured = _text(_view(qd, "services"))
+    assert "could not be read" not in unconfigured and "not configured on this box" in unconfigured
 
 
 def test_every_registered_detector_is_pinned_by_a_positive_probe(tmp_path, monkeypatch):
@@ -1611,6 +2004,7 @@ def test_every_registered_detector_is_pinned_by_a_positive_probe(tmp_path, monke
             "vps3",
         ],
         "aic": ["ai-consult", "ai_consult"],
+        "rea": ["mcp__rea__binary_session", "rea-agents mcp"],
         "cit": [
             "verify_citation(doi)",
             "verify_batch(",
@@ -1653,12 +2047,12 @@ def test_the_service_registry_is_well_formed(tmp_path, monkeypatch):
         assert label.lower() == key or len(label) > len(key), (
             f"{key}: the column head must not re-abbreviate"
         )
-    # A reader raised "a hand-edited title containing a literal quote breaks the title attribute".
-    # REFUTED, and pinned: html.escape defaults to quote=True, so the attribute survives.
+    # A hand-edited title or label carrying markup is TEXT on the page: every value goes through
+    # a component, which escapes it (INV-4).
     hostile = '"><script>alert(1)</script>'
-    monkeypatch.setattr(qd, "_EXT_SERVICES", ((("x", "x", hostile, "zzz"),)))
-    html = qd._ext_matrix_table([{"name": "c", "services": set(), "rendered": True}])
-    assert "<script>" not in html and "&quot;&gt;&lt;script&gt;" in html
+    monkeypatch.setattr(qd, "_EXT_SERVICES", ((("x", hostile, hostile, "zzz"),)))
+    html_ = _commands(qd)
+    assert "<script>" not in html_ and "&quot;&gt;&lt;script&gt;" in html_
 
 
 def test_every_command_gets_a_matrix_row_and_the_totals_carry_their_denominator(
@@ -1668,11 +2062,12 @@ def test_every_command_gets_a_matrix_row_and_the_totals_carry_their_denominator(
     (CLAUDE.md § HARD STOPS), so the footer states `of N` and each total is re-derived here."""
     qd = _load(tmp_path, monkeypatch)
     rows = qd._load_commands()
-    html = qd._ext_matrix_table(rows)
-    assert html.count('<td class="cmd"><strong>/') == len(rows)
-    assert f'<td class="cmd tot">of {len(rows)}</td>' in html
-    for key, _l, _t, _p in qd._EXT_SERVICES:
-        assert f'<td class="dot tot">{sum(1 for r in rows if key in r["services"])}</td>' in html
+    body = _matrix_rows(_commands(qd))
+    *per_command, totals = body
+    assert [r[0] for r in per_command] == [f"/{r['name']}" for r in rows]
+    assert totals[0] == f"of {len(rows)}"
+    for i, (key, _l, _t, _p) in enumerate(qd._EXT_SERVICES, 1):
+        assert totals[i] == str(sum(1 for r in rows if key in r["services"])), key
     # the live corpus must actually exercise the matrix — an all-blank grid would pass every
     # assertion above and tell the operator nothing
     assert sum(len(r["services"]) for r in rows) > len(rows), "the live corpus reaches services"
@@ -1683,7 +2078,7 @@ def test_an_unrendered_corpus_is_declared_never_silently_underreported(tmp_path,
     monkeypatch.setattr(qd, "RENDERED_COMMANDS", tmp_path / "absent")
     qd._cmd_cache_key = None
     rows = qd._load_commands()
-    intro = qd._ext_matrix_intro(rows)
+    intro = _text(_commands(qd))
     assert "UNDER-report" in intro and f"{len(rows)} of {len(rows)} rows did NOT come" in intro
     # R4: the headline used to say "derived on EVERY PAGE LOAD", which the mtime cache makes false
     # on every hit — a claim the page cannot support about its own machinery
@@ -1694,9 +2089,11 @@ def test_an_unrendered_corpus_is_declared_never_silently_underreported(tmp_path,
     # on, and a row whose source ALSO failed to open would otherwise be reported as read from
     # `_sources/` — a claim about a file that was never opened
     assert rows[0]["name"] in intro
-    monkeypatch.setattr(qd, "RENDERED_COMMANDS", Path.home() / ".claude" / "commands")
-    qd._cmd_cache_key = None
-    assert "UNDER-report" not in qd._ext_matrix_intro(qd._load_commands())
+    # a fully rendered corpus carries no caveat
+    for r in rows:
+        r["rendered"] = True
+    monkeypatch.setattr(qd, "_load_commands", lambda: rows)
+    assert "UNDER-report" not in _text(_commands(qd))
 
 
 def test_a_vanishing_rendered_file_re_keys_instead_of_raising(tmp_path, monkeypatch):
@@ -1785,24 +2182,6 @@ def test_the_detectors_catch_the_invocation_forms_the_live_corpus_actually_uses(
     assert services("the stack deploys Gotenberg/Browserless behind Traefik") == set()
 
 
-def test_the_matrix_is_in_the_commands_pane_and_names_its_maintenance_point(tmp_path, monkeypatch):
-    """The operator's second ask: a note that says how this is kept current. The registry name and
-    its file must be ON THE PAGE — a maintenance contract only in a code comment is unfindable."""
-    qd = _load(tmp_path, monkeypatch)
-    html = qd.render(_payload(), time.time())
-    pane = html[
-        html.index('<section id="pane-commands"') : html.index('<section id="pane-external"')
-    ]
-    assert "External services per command" in pane and 'table class="matrix"' in pane
-    assert "_EXT_SERVICES" in pane and "scripts/sysadmin/quota_dashboard.py" in pane
-    # R2, all three independent readers: the opening sentence used to assert the data came from the
-    # rendered corpus unconditionally, which a missing or PARTIAL render made false two sentences
-    # before the caveat said otherwise. It must state how many rows actually came from there.
-    rows = qd._load_commands()
-    n_r = sum(1 for r in rows if r["rendered"])
-    assert f"{n_r} of {len(rows)} rows from the rendered" in pane
-
-
 def test_a_rerendered_corpus_invalidates_the_cache(tmp_path, monkeypatch):
     """The rows are cached on mtimes; the rendered corpus can be rewritten by the assembler with
     no `_sources/` mtime moving, so the dots would freeze at the previous render."""
@@ -1819,19 +2198,6 @@ def test_a_rerendered_corpus_invalidates_the_cache(tmp_path, monkeypatch):
     assert "pool" in {s for r in qd._load_commands() for s in r["services"]}
 
 
-def test_page_has_two_tabs_quota_default_commands_second(tmp_path, monkeypatch):
-    qd = _load(tmp_path, monkeypatch)
-    html = qd.render(_payload(), time.time())
-    assert 'data-tab="quota"' in html and 'data-tab="commands"' in html
-    assert html.index('data-tab="quota"') < html.index('data-tab="commands"')
-    assert '<section id="pane-quota" class="pane">' in html
-    assert '<section id="pane-commands" class="pane" hidden>' in html
-    assert html.count('<tr><td class="ord">') == len(qd._load_commands())
-    assert "location.hash" in html  # the chosen tab survives the 20s reload
-    for col in ("Command", "Stage", "Purpose", "When to use", "Skip when", "Next"):
-        assert f"<th>{col}</th>" in html
-
-
 def test_commands_cache_follows_the_assembler_and_an_empty_corpus_is_said(tmp_path, monkeypatch):
     qd = _load(tmp_path, monkeypatch)
     qd._load_commands()
@@ -1842,84 +2208,859 @@ def test_commands_cache_follows_the_assembler_and_an_empty_corpus_is_said(tmp_pa
     assert any(e[0].startswith(str(qd.RENDERED_COMMANDS) + "/") for e in key1)
     monkeypatch.setattr(qd, "_FABRIK_ROOT", tmp_path / "nowhere")
     assert qd._load_commands() == []
-    html = qd.render(_payload(), time.time())
-    assert "Command corpus unreadable" in html
+    assert "Command corpus unreadable" in _text(_commands(qd))
 
 
-# ── External-services tab (operator ask 2026-09-03; seen RED first) ───────────────────────────
+# ── The external-services inventory in the Services view (plan 2026-10-18-plan-1, T04) ──────────
+# The registry is read by a child process (scripts/sysadmin/inventory_read.py) the collector spawns and
+# kills at the read's deadline. Every test here uses the shared isolation's stub spawn or a fake child
+# of its own; the two that run the REAL child point it at a socket that never answers or at a script
+# that never ends. No test reads the real registry.
 
 
-def test_external_services_page_is_served_from_the_static_file_and_404s_when_absent(
+class _Ctx:
+    now = 0.0
+
+
+def _inv_data(qd):
+    return qd._inventory(_Ctx())
+
+
+class _FakeChild:
+    """A child that answers when released, never when not, and ends when killed — the three things
+    the collector's waiter thread asks of a ``Popen``."""
+
+    def __init__(
+        self, stdout: bytes = b"", code: int = 0, *, answers: bool = True, at_once: bool = False
+    ):
+        import threading
+
+        self.stdout, self.code, self.answers = stdout, code, answers
+        self.wake = threading.Event()
+        if at_once:
+            self.wake.set()
+        self.killed = threading.Event()
+        self.returncode = None
+
+    def release(self) -> None:
+        self.wake.set()
+
+    def communicate(self, timeout=None):
+        if not self.killed.is_set():
+            self.wake.wait(timeout)
+        if self.killed.is_set():
+            self.returncode = -9
+            return b"", b""
+        if not (self.wake.is_set() and self.answers):
+            raise subprocess.TimeoutExpired("inventory_read", timeout or 0)
+        self.returncode = self.code
+        return self.stdout, b""
+
+    def kill(self) -> None:
+        self.killed.set()
+        self.wake.set()
+
+
+def _fake_children(qd, monkeypatch, **kw):
+    spawned: list[_FakeChild] = []
+
+    def spawn(deadline):
+        child = _FakeChild(**kw)
+        spawned.append(child)
+        return child
+
+    monkeypatch.setattr(qd, "_inventory_spawn", spawn)
+    return spawned
+
+
+def _rows_json(rows=None, synced=1_790_000_000.0) -> bytes:
+    return json.dumps(
+        {"rows": [{"provider": "p"}] if rows is None else rows, "synced_at": synced}
+    ).encode()
+
+
+def _fast_deadlines(qd, monkeypatch, request_s=0.8, read_s=0.6):
+    monkeypatch.setattr(qd, "INVENTORY_REQUEST_S", request_s)
+    monkeypatch.setattr(qd, "INVENTORY_READ_S", read_s)
+
+
+def _call_in_thread(qd, results: list, *, start_gap: float = 0.0):
+    import threading
+
+    def run():
+        t0 = time.monotonic()
+        out = _inv_data(qd)
+        results.append((out, time.monotonic() - t0))
+
+    th = threading.Thread(target=run, daemon=True)
+    th.start()
+    if start_gap:
+        time.sleep(start_gap)
+    return th
+
+
+def test_a_board_test_never_reaches_the_registry(tmp_path, monkeypatch):
+    """Isolation (spec § Validation): the spawn is the stub, the DSN names a socket directory that
+    does not exist, the 60 s slot is empty, and a Services render reads the census fixture through
+    the stub — one spawn, no process."""
+    qd = _load(tmp_path, monkeypatch)
+    stub = qd.INVENTORY_STUB
+    assert qd._inv_good is None and qd._inv_flight is None
+    assert qd._inventory_spawn == stub.spawn
+    dsn = os.environ["SERVICES_REGISTRY_DSN"]
+    assert "host=" in dsn and not Path(dsn.split("host=", 1)[1]).exists()
+    text = _text(_view(qd, "services"))
+    assert "466 providers" in text and len(stub.spawns) == 1
+
+
+def test_the_board_process_imports_neither_registry_db_nor_psycopg2(tmp_path):
+    """D9: psycopg2 lives in the child only. A fresh interpreter loads the board, renders the Services
+    view through a stubbed spawn, and reports whether either module was ever imported."""
+    script = tmp_path / "probe.py"
+    script.write_text(
+        "import importlib.util, json, sys\n"
+        f"spec = importlib.util.spec_from_file_location('qd_probe', {str(_SRC)!r})\n"
+        "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
+        "class C:\n"
+        "    returncode = 0\n"
+        "    def communicate(self, timeout=None):\n"
+        "        return json.dumps({'rows': [], 'synced_at': None}).encode(), b''\n"
+        "m._inventory_spawn = lambda deadline: C()\n"
+        "html = m._render_view('services')\n"
+        "print(json.dumps({'psycopg2': 'psycopg2' in sys.modules,\n"
+        "                  'registry_db': 'registry_db' in sys.modules,\n"
+        "                  'rendered': 'data-view-root=\"services\"' in html}))\n",
+        encoding="utf-8",
+    )
+    env = {**os.environ, "HOME": str(tmp_path), "QUOTA_DASH_BUDGET": "0", "NO_PROXY": "*"}
+    for var in ("PYTHONPATH", "SERVICES_REGISTRY_DSN"):
+        env.pop(var, None)
+    out = subprocess.run(
+        [sys.executable, "-I", str(script)], capture_output=True, text=True, timeout=60, env=env
+    )
+    assert out.returncode == 0, out.stderr[-500:]
+    assert json.loads(out.stdout.splitlines()[-1]) == {
+        "psycopg2": False,
+        "registry_db": False,
+        "rendered": True,
+    }
+
+
+def test_a_registry_that_accepts_and_never_answers_is_the_error_state_within_five_seconds(
+    tmp_path, monkeypatch
+):
+    """The REAL child against a loopback server that accepts and never answers: libpq's own
+    ``connect_timeout=2`` ends the child (~2 s, well before the board's 4.5 s kill), and the section shows
+    that failure's class and first line; the child is gone; the pool and API cards render beside it. The
+    kill path is proven by the sleeper test below."""
+    import socket
+
+    qd = _load(tmp_path, monkeypatch)
+    qd.INVENTORY_STUB.use_real(monkeypatch)
+    srv = socket.socket()
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(5)
+    held: list = []
+    stop = False
+
+    def accept_and_hold():
+        srv.settimeout(0.2)
+        while not stop:
+            try:
+                held.append(srv.accept()[0])
+            except OSError:
+                continue
+
+    import threading
+
+    threading.Thread(target=accept_and_hold, daemon=True).start()
+    monkeypatch.setenv(
+        "SERVICES_REGISTRY_DSN", f"postgresql://u@127.0.0.1:{srv.getsockname()[1]}/none"
+    )
+    procs: list = []
+    real_spawn = qd._inventory_spawn
+
+    def recording_spawn(deadline):
+        procs.append(real_spawn(deadline))
+        return procs[-1]
+
+    monkeypatch.setattr(qd, "_inventory_spawn", recording_spawn)
+    monkeypatch.setattr(
+        qd,
+        "_pool_credits",
+        lambda *_a, **_k: {
+            "granted": 245.0,
+            "used": 225.0,
+            "remaining": 20.0,
+            "age_s": 0.0,
+            "stale": False,
+        },
+    )
+    t0 = time.monotonic()
+    try:
+        html_ = _view(qd, "services")
+    finally:
+        stop = True
+        for c in held:
+            c.close()
+        srv.close()
+    took = time.monotonic() - t0
+    text = _text(html_)
+    assert took < 4.0, (
+        took
+    )  # the child ended by libpq's connect_timeout, not by the board's 4.5 s kill
+    assert "The external-services inventory could not be read: " in text
+    assert re.search(r"could not be read: OperationalError: .*timeout expired", text), text[-400:]
+    assert "OpenRouter pool" in text and "Search-API quota" in text
+    assert procs and procs[0].poll() is not None  # the child is gone
+    assert "\n" not in re.search(r"could not be read: ([^<]*)", html_).group(1)
+
+
+def test_a_child_that_never_ends_is_killed_at_the_read_deadline_and_reaped(tmp_path, monkeypatch):
+    """A script that sleeps for a minute stands for a read a server stalls: the request ends inside
+    its 5 s with the timeout's one line, the child is dead, and both its pipes are closed."""
+    qd = _load(tmp_path, monkeypatch)
+    qd.INVENTORY_STUB.use_real(monkeypatch)
+    sleeper = tmp_path / "sleeper.py"
+    sleeper.write_text("import time\ntime.sleep(60)\n", encoding="utf-8")
+    monkeypatch.setattr(qd, "_INVENTORY_READ", sleeper)
+    procs: list = []
+    real_spawn = qd._inventory_spawn
+
+    def recording_spawn(deadline):
+        procs.append(real_spawn(deadline))
+        return procs[-1]
+
+    monkeypatch.setattr(qd, "_inventory_spawn", recording_spawn)
+    t0 = time.monotonic()
+    out = _inv_data(qd)
+    took = time.monotonic() - t0
+    assert out == {"error": "ReadTimeout: registry read killed at its deadline"}
+    assert 4.0 < took < 5.0, took
+    assert len(procs) == 1 and procs[0].poll() is not None
+    assert procs[0].stdout.closed and procs[0].stderr.closed
+    assert qd._inv_flight is None
+
+
+def test_the_read_deadline_leaves_the_request_room_to_kill_clean_up_and_render(
+    tmp_path, monkeypatch
+):
+    """The arithmetic the whole bound rests on: a read's deadline is 4.5 s after its spawning request's
+    arrival, inside that request's 5 s, with half a second for the kill, the reap and the render."""
+    mod = _load(tmp_path, monkeypatch)
+    assert (mod.INVENTORY_REQUEST_S, mod.INVENTORY_READ_S, mod.INVENTORY_FRESH_S) == (
+        5.0,
+        4.5,
+        60.0,
+    )
+    assert mod.INVENTORY_REQUEST_S - mod.INVENTORY_READ_S >= 0.5
+
+
+def test_a_read_that_faults_before_the_deadline_still_kills_and_reaps_its_child(
+    tmp_path, monkeypatch
+):
+    """At most one child is ever alive: whatever ends the first read of a running child (here an OSError),
+    the waiter kills it and reaps it, and the field is clear for the next request."""
+    qd = _load(tmp_path, monkeypatch)
+    calls: list[str] = []
+
+    class _Faulting:
+        returncode = None
+
+        def communicate(self, timeout=None):
+            calls.append("communicate")
+            if len(calls) == 1:
+                raise OSError("pipe broke")
+            self.returncode = -9
+            return b"", b""
+
+        def poll(self):
+            return self.returncode
+
+        def kill(self):
+            calls.append("kill")
+
+    monkeypatch.setattr(qd, "_inventory_spawn", lambda deadline: _Faulting())
+    out = _inv_data(qd)
+    assert out == {"error": "OSError: pipe broke"}
+    assert calls == ["communicate", "kill", "communicate"]  # killed, then reaped
+    assert qd._inv_flight is None
+
+
+def test_the_real_child_bounds_itself_when_the_board_that_would_kill_it_is_gone(tmp_path):
+    """A server that completes the handshake and stalls, and no board to kill the child: the child
+    ends by its own alarm a moment past the deadline it was given."""
+    stub = tmp_path / "stub"
+    stub.mkdir()
+    (stub / "psycopg2.py").write_text(
+        "import time\n\n\ndef connect(*a, **k):\n    time.sleep(60)\n", encoding="utf-8"
+    )
+    env = {**os.environ, "PYTHONPATH": str(stub), "SERVICES_REGISTRY_DSN": "postgresql://u@h/d"}
+    t0 = time.monotonic()
+    proc = subprocess.Popen(
+        [sys.executable, str(_CHILD), "--deadline", repr(time.time() + 1.0)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=env,
+    )
+    try:
+        proc.wait(timeout=6.0)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+        raise AssertionError("the child outlived its own bound") from None
+    head = proc.stdout.read()[:200]
+    proc.stdout.close()
+    proc.stderr.close()
+    assert proc.returncode == -signal.SIGALRM, (
+        proc.returncode,
+        head,
+    )  # the alarm, not any fast failure
+    assert head == b"", head  # an alarm-killed child writes nothing
+    assert time.monotonic() - t0 < 6.0
+
+
+def test_concurrent_requests_share_one_child_and_each_gets_the_result(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    spawned = _fake_children(qd, monkeypatch, stdout=_rows_json(), answers=True)
+    _fast_deadlines(qd, monkeypatch, request_s=3.0, read_s=2.5)
+    results: list = []
+    first = _call_in_thread(qd, results, start_gap=0.2)
+    second = _call_in_thread(qd, results, start_gap=0.2)
+    assert len(spawned) == 1 and qd._inv_flight is not None  # one child in flight, two waiting
+    spawned[0].release()
+    first.join(5)
+    second.join(5)
+    assert len(spawned) == 1 and len(results) == 2
+    assert all(r[0]["rows"] == [{"provider": "p"}] for r in results), results
+    assert qd._inv_flight is None  # cleared on exit
+
+
+def test_every_request_without_a_fresh_result_is_the_error_state_within_its_own_deadline(
+    tmp_path, monkeypatch
+):
+    """A child that never answers, a joiner arriving later: both answer the error state, each inside
+    5 s (here the scaled 0.8 s) of its OWN arrival, the child is killed, and the field is clear."""
+    qd = _load(tmp_path, monkeypatch)
+    spawned = _fake_children(qd, monkeypatch, answers=False)
+    _fast_deadlines(qd, monkeypatch, request_s=0.8, read_s=0.6)
+    results: list = []
+    a = _call_in_thread(qd, results, start_gap=0.3)
+    b = _call_in_thread(qd, results)
+    a.join(5)
+    b.join(5)
+    assert len(spawned) == 1 and spawned[0].killed.is_set()
+    assert [r[0] for r in results] == [{"error": qd._INV_TIMEOUT}] * 2
+    assert all(r[1] < 0.8 + 0.25 for r in results), [r[1] for r in results]  # its own 5 s, scaled
+    assert qd._inv_flight is None
+    # the next request starts afresh: a new child, not a join of the dead one
+    _inv_data(qd)
+    assert len(spawned) == 2
+
+
+def test_a_failed_child_is_the_error_state_and_leaves_the_last_good_read(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    good = ([{"provider": "kept"}], 1.0, time.monotonic() - 61)  # past its 60 s, still held
+    monkeypatch.setattr(qd, "_inv_good", good)
+    _fake_children(
+        qd,
+        monkeypatch,
+        stdout=json.dumps({"error": "OperationalError: no route"}).encode(),
+        code=1,
+        at_once=True,
+    )
+    for _ in range(2):  # a failure is not cached: both requests read, both fail
+        out = _inv_data(qd)
+        assert out == {"error": "OperationalError: no route"}
+        assert qd._inv_good is good  # the failed read never replaced it
+        assert qd._inv_flight is None  # and the field cleared, so the next request starts afresh
+
+
+def test_the_last_good_read_is_served_inside_its_60_seconds_and_a_new_child_starts_past_them(
     tmp_path, monkeypatch
 ):
     qd = _load(tmp_path, monkeypatch)
-    page = tmp_path / "external-services-dashboard.html"
-    monkeypatch.setattr(qd, "EXT_SERVICES_HTML", page)
-    httpd, base = _serve(qd)
-    try:
-        with pytest.raises(urllib.error.HTTPError) as e:
-            urllib.request.urlopen(base + "/external-services.html", timeout=10)
-        assert e.value.code == 404
-        page.write_text(
-            "<html><title>External Services</title><body>ok</body></html>", encoding="utf-8"
-        )
-        with urllib.request.urlopen(base + "/external-services.html", timeout=10) as r:
-            assert r.status == 200 and "text/html" in r.headers["Content-Type"]
-            assert b"External Services" in r.read()
-    finally:
-        httpd.shutdown()
-
-
-def test_page_has_an_external_services_tab_with_a_lazy_iframe_and_freshness(tmp_path, monkeypatch):
-    qd = _load(tmp_path, monkeypatch)
-    page = tmp_path / "external-services-dashboard.html"
-    page.write_text("<html></html>", encoding="utf-8")
-    monkeypatch.setattr(qd, "EXT_SERVICES_HTML", page)
-    html = qd.render(_payload(), time.time())
-    assert 'data-tab="external"' in html and html.index('data-tab="commands"') < html.index(
-        'data-tab="external"'
-    )
-    assert '<section id="pane-external" class="pane" hidden>' in html
-    assert 'data-src="/external-services.html"' in html  # set to src only when the tab is shown
-    import re as _re
-
-    # the phrase SHAPE is pinned: reusing `_fmt_age` once produced "regenerated cached 10h ago ago"
-    assert _re.search(r"regenerated \d+\.\d h ago by the daily chain", html)
-    # The hash keeps the tab across the 20s reload. Pinned on the MECHANISM, not on the literal
-    # `"#external"` an earlier implementation happened to contain: the restore became GENERIC on
-    # 2026-09-05 (any pane restorable by its own hash, because naming tabs literally meant every tab
-    # added later fell through to quota on every auto-reload). The old assertion went red against a
-    # strictly better behaviour. These two fail if the restore is deleted or narrowed back to a
-    # hardcoded list.
-    assert 'location.pathname : "#" + name' in html, "choosing a tab must write its hash"
-    assert 'document.getElementById("pane-" + want)' in html, (
-        "and any existing pane restores from it"
-    )
-    monkeypatch.setattr(qd, "EXT_SERVICES_HTML", tmp_path / "missing.html")
-    absent = qd.render(_payload(), time.time())
+    fresh = _rows_json([{"provider": "new"}])
+    spawned = _fake_children(qd, monkeypatch, stdout=fresh)
+    monkeypatch.setattr(qd, "_inv_good", ([{"provider": "old"}], 5.0, time.monotonic() - 59))
     assert (
-        "not generated yet" in absent and '<iframe id="ext-frame"' not in absent
-    )  # no iframe element → no 404 rendered inside it (the JS may still name the id)
+        _inv_data(qd)["rows"] == [{"provider": "old"}] and spawned == []
+    )  # 59 s: served, no child
+    monkeypatch.setattr(qd, "_inv_good", ([{"provider": "old"}], 5.0, time.monotonic() - 61))
+    out: list = []
+    th = _call_in_thread(qd, out, start_gap=0.2)
+    assert len(spawned) == 1  # 61 s: a new child
+    spawned[0].release()
+    th.join(5)
+    assert out[0][0]["rows"] == [{"provider": "new"}]
+    assert qd._inv_good[0] == [{"provider": "new"}]
 
 
-def test_external_services_route_serves_only_a_regular_html_file(tmp_path, monkeypatch):
-    """Review: the env override followed a symlink to /etc/hostname. A directory, a symlink whose
-    name is not .html, or a non-.html file all 404 — the single-operator threat model is stated in
-    the route comment; this is the cheap guard that still makes the measured leak impossible."""
-    import os
+def test_a_request_held_on_the_lock_answers_inside_its_own_deadline(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    spawned = _fake_children(qd, monkeypatch, stdout=_rows_json())
+    _fast_deadlines(qd, monkeypatch, request_s=0.4, read_s=0.3)
+    # the lock acquire is bounded by the constant the request reads, so the scaled value applies
+    qd._inv_lock.acquire()
+    try:
+        results: list = []
+        _call_in_thread(qd, results).join(5)
+    finally:
+        qd._inv_lock.release()
+    assert results[0][0] == {
+        "error": "ReadTimeout: registry lock not taken within the request's deadline"
+    }
+    assert (
+        results[0][1] < 0.3 + 0.15
+    )  # the wait is bounded by the read's share, leaving room to render
+    assert spawned == []
+
+
+def test_a_spawn_that_raises_is_the_error_state_and_clears_the_field(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+
+    def broken(deadline):
+        raise OSError("fork failed")
+
+    monkeypatch.setattr(qd, "_inventory_spawn", broken)
+    assert _inv_data(qd) == {"error": "OSError: fork failed"}
+    assert qd._inv_flight is None and qd._inv_good is None
+
+
+def test_a_thread_that_cannot_start_clears_the_field_so_the_next_request_starts_afresh(
+    tmp_path, monkeypatch
+):
+    import threading
 
     qd = _load(tmp_path, monkeypatch)
-    link = tmp_path / "l"
-    os.symlink("/etc/hostname", link)
+    real_start = threading.Thread.start
+
+    def refuse(self):
+        if self.name == "inventory-read":
+            raise RuntimeError("can't start new thread")
+        return real_start(self)
+
+    monkeypatch.setattr(threading.Thread, "start", refuse)
+    assert _inv_data(qd) == {"error": "RuntimeError: can't start new thread"}
+    assert qd._inv_flight is None
+    monkeypatch.setattr(threading.Thread, "start", real_start)
+    assert "rows" in _inv_data(qd)  # the stub answers: nothing stayed stuck in flight
+
+
+def test_no_connection_is_ever_cancelled_and_the_board_never_imports_a_driver():
+    """psycopg2's cancel() against a server that accepts and never answers froze every thread of the
+    process (the plan review's pass-3 probe): the child's kill is the only way a read ends."""
+    child = (_SRC.parent / "inventory_read.py").read_text(encoding="utf-8")
+    board = _SRC.read_text(encoding="utf-8")
+    assert not re.search(r"\.cancel\s*\(|\bcancel\s*\(", child)
+    assert not re.search(
+        r"\.cancel\s*\(",
+        board[board.index("def _inventory_spawn") : board.index("def _pointer_slug")],
+    )
+    code = "\n".join(line for line in board.splitlines() if not line.lstrip().startswith("#"))
+    assert not re.search(r"^\s*(import|from)\s+(psycopg2|registry_db)\b", code, re.M)
+
+
+@pytest.mark.parametrize(
+    "stdout,code,want",
+    [
+        (b'{"rows": [{"a": 1}], "synced_at": 5.5}', 0, ("ok", [{"a": 1}], 5.5)),
+        (b'{"rows": [], "synced_at": null}', 0, ("ok", [], None)),
+        (b'{"error": "ValueError: bad\\nsecond line"}', 1, ("err", "ValueError: bad")),
+        (
+            b'{"error": "X: y"}',
+            0,
+            ("err", "ReadFailed: exit status 0"),
+        ),  # shape against exit status
+        (b'{"rows": [], "synced_at": null}', 1, ("err", "ReadFailed: exit status 1")),
+        (
+            b'{"rows": [], "synced_at": null, "error": "X: y"}',
+            0,
+            ("err", "ReadFailed: exit status 0"),
+        ),
+        (b'{"rows": {}, "synced_at": null}', 0, ("err", "ReadFailed: exit status 0")),
+        (b'{"rows": [1], "synced_at": null}', 0, ("err", "ReadFailed: exit status 0")),
+        (b'{"rows": [], "synced_at": "yesterday"}', 0, ("err", "ReadFailed: exit status 0")),
+        (b'{"rows": [], "synced_at": true}', 0, ("err", "ReadFailed: exit status 0")),
+        (b'{"rows": [], "synced_at": NaN}', 0, ("err", "ReadFailed: exit status 0")),
+        (b'{"rows": [], "synced_at": Infinity}', 0, ("err", "ReadFailed: exit status 0")),
+        (b'{"rows": [], "synced_at": -Infinity}', 0, ("err", "ReadFailed: exit status 0")),
+        (b'{"rows": [], "synced_at": -1}', 0, ("err", "ReadFailed: exit status 0")),
+        (
+            b'{"rows": [], "synced_at": ' + b"9" * 400 + b"}",
+            0,
+            ("err", "ReadFailed: exit status 0"),
+        ),
+        (
+            b'{"rows": [], "synced_at": -' + b"9" * 400 + b"}",
+            0,
+            ("err", "ReadFailed: exit status 0"),
+        ),
+        (b'{"error": 5}', 1, ("err", "ReadFailed: exit status 1")),
+        (b"[]", 0, ("err", "ReadFailed: exit status 0")),
+        (b"not json", 0, ("err", "ReadFailed: exit status 0")),
+        (b"", -9, ("err", "ReadFailed: exit status -9")),
+        (b"\xff\xfe", 1, ("err", "ReadFailed: exit status 1")),
+    ],
+)
+def test_the_childs_stdout_and_exit_status_are_one_outcome(
+    tmp_path, monkeypatch, stdout, code, want
+):
+    qd = _load(tmp_path, monkeypatch)
+    assert qd._inventory_outcome(stdout, code) == want
+
+
+def test_the_board_reads_synced_at_by_the_pages_rule(tmp_path, monkeypatch):
+    """W-a4bc74a6 (R27): the board had its own `_epoch`, which admitted a `synced_at` the page's
+    refuses (no calendar holds it), so a payload the page renders as no time was a FRESH read here.
+    One rule now: the page's. A real child already applies it, so only a foreign payload meets this."""
+    qd = _load(tmp_path, monkeypatch)
+    from dashboard_ui import inventory
+
+    assert qd._epoch is inventory._epoch
+    for synced in (b"1e308", b"253402300799"):
+        payload = b'{"rows": [], "synced_at": ' + synced + b"}"
+        assert qd._inventory_outcome(payload, 0) == ("err", "ReadFailed: exit status 0"), synced
+    outcome = qd._inventory_outcome(b'{"rows": [], "synced_at": -0.0}', 0)
+    assert outcome == ("ok", [], 0.0)
+    assert math.copysign(1.0, outcome[2]) == 1.0  # `==` above ignores the sign of zero
+
+
+def test_a_child_that_cannot_import_psycopg2_is_only_the_inventory_sections_error_state(
+    tmp_path, monkeypatch
+):
+    """D9: a missing driver fails the CHILD. The error object names the import's exception class
+    whatever the child's stderr holds (here it prints a decoy `{"error": …}` line), every other view
+    serves, and the board process never imported psycopg2."""
+    qd = _load(tmp_path, monkeypatch)
+    qd.INVENTORY_STUB.use_real(monkeypatch)
+    blocked = tmp_path / "blocked"
+    blocked.mkdir()
+    (blocked / "psycopg2.py").write_text(
+        "import sys\n"
+        'sys.stderr.write(\'{"error": "Decoy: stderr is never read"}\\n\')\n'
+        "raise ModuleNotFoundError(\"No module named 'psycopg2'\", name='psycopg2')\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("PYTHONPATH", str(blocked))
+    out = _inv_data(qd)
+    assert out == {"error": "ModuleNotFoundError: No module named 'psycopg2'"}
+    html_ = _view(qd, "services")
+    assert "could not be read: ModuleNotFoundError: No module named" in _text(html_)
+    assert "Decoy" not in html_
+    for name in qd._views.VIEWS:
+        if name != "services":
+            assert 'data-state="error"' not in _view(qd, name).split(">", 1)[0], name
+    assert "psycopg2" not in sys.modules or sys.modules["psycopg2"].__file__ != str(
+        blocked / "psycopg2.py"
+    )
+
+
+def test_external_services_html_is_a_303_to_the_inventory_section_with_no_body(
+    tmp_path, monkeypatch
+):
+    from datetime import date
+
+    qd = _load(tmp_path, monkeypatch)
     httpd, base = _serve(qd)
     try:
-        for target in (tmp_path, link, tmp_path / "nope.html"):
-            monkeypatch.setattr(qd, "EXT_SERVICES_HTML", target)
-            with pytest.raises(urllib.error.HTTPError) as e:
-                urllib.request.urlopen(base + "/external-services.html", timeout=10)
-            assert e.value.code == 404, target
+        for path in ("/external-services.html", "/external-services.html?x=1"):
+            status, hdrs, body = _get(base, path)
+            assert status == 303 and hdrs["Location"] == "/#services" and body == b"", (
+                path,
+                status,
+            )
+            assert hdrs["Content-Length"] == "0" and hdrs["Cache-Control"] == "no-store"
+        assert (
+            qd._LEGACY_TOKEN_UNTIL is not None
+        )  # the redirect is not tied to the work-verdict window
+        monkeypatch.setattr(
+            qd, "_LEGACY_TOKEN_UNTIL", date(2000, 1, 1)
+        )  # that window closed long ago
+        assert _get(base, "/external-services.html")[0] == 303
     finally:
         httpd.shutdown()
+
+
+def test_no_link_card_ext_page_key_or_services_ext_string_remains(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    data = qd._view_data("services", type("C", (), {"now": time.time()})())
+    assert "ext_page" not in data and "inventory" in data
+    assert not [k for k in qd._strings.CATALOGUE if k.startswith("services.ext.")]
+    assert not hasattr(qd, "EXT_SERVICES_HTML")
+    source = _SRC.read_text(encoding="utf-8")
+    assert "QUOTA_DASH_EXT_SERVICES" not in source
+    html_ = _view(qd, "services")
+    assert (
+        'href="/external-services.html"' not in html_ and "external-services-dashboard" not in html_
+    )
+
+
+def test_the_inventory_carries_no_classifier_time(tmp_path, monkeypatch):
+    """D-1046 retired the classifier's source rule: the board no longer stats classify_last.json
+    and its inventory payload carries no `classified_at`."""
+    qd = _load(tmp_path, monkeypatch)
+    data = _inv_data(qd)
+    assert "rows" in data and "synced_at" in data, (
+        data
+    )  # the read succeeded: the negative is not vacuous
+    assert "classified_at" not in data
+    assert not hasattr(qd, "_CLASSIFY_STAMP") and not hasattr(qd, "_inventory_classified_at")
+
+
+def test_two_renders_of_the_services_view_a_minute_apart_carry_the_same_data_stamp(
+    tmp_path, monkeypatch
+):
+    """Spec § Data flow: the stamp hashes the markup, so a render must not carry the clock — the
+    summary, the attention list and the rows are the registry's, the same registry gives the same stamp."""
+    qd = _load(tmp_path, monkeypatch)
+    real_time = time.time
+
+    def stamp_of(html_: str) -> str:
+        root = re.match(r"<section[^>]*>", html_.strip()).group(0)
+        assert 'data-view-root="services"' in root
+        return re.search(r'data-stamp="([0-9a-f]{16})"', root).group(1)
+
+    first = stamp_of(_view(qd, "services"))
+    monkeypatch.setattr(qd.time, "time", lambda: real_time() + 60)
+    monkeypatch.setattr(qd, "_inv_good", None)  # a read, not the cache
+    second = stamp_of(_view(qd, "services"))
+    assert len(qd.INVENTORY_STUB.spawns) == 2 and first == second
+
+
+# ── the child process itself (scripts/sysadmin/inventory_read.py) ────────────────────────────
+
+_CHILD = _SRC.parent / "inventory_read.py"
+
+
+def _child_module(monkeypatch):
+    """The child's module, loaded by path, with the registry's driver module and the reader faked:
+    nothing here connects to anything."""
+    monkeypatch.syspath_prepend(str(_SRC.parents[1]))
+    monkeypatch.syspath_prepend(str(_SRC.parent))
+    spec = importlib.util.spec_from_file_location("inventory_read_under_test", _CHILD)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class _OneWrite:
+    def __init__(self):
+        self.writes: list[str] = []
+
+    def write(self, text):
+        self.writes.append(text)
+
+    def flush(self):
+        pass
+
+
+def test_the_child_reports_a_read_as_one_json_object_with_floats_for_decimals(monkeypatch):
+    from decimal import Decimal
+
+    child = _child_module(monkeypatch)
+    import registry_db
+    from dashboard_ui import inventory
+
+    seen: dict = {}
+
+    class Conn:
+        closed = False
+
+        def set_session(self, **kw):
+            pass
+
+        def close(self):
+            self.closed = True
+
+    conn = Conn()
+
+    def connect(**kw):
+        seen["kw"] = kw
+        return conn
+
+    def load(c, *, before_query=None):
+        assert c is conn and before_query is not None
+        return [
+            {
+                "provider": "p",
+                "balance": Decimal("12.50"),
+                "projects": {"b", "a"},
+                "keys": 2,
+                "x": None,
+            },
+        ], Decimal("1790000000.5")
+
+    monkeypatch.setattr(registry_db, "connect", connect)
+    monkeypatch.setattr(inventory, "load", load)
+    out = _OneWrite()
+    monkeypatch.setattr(sys, "stdout", out)
+    code = child.main(["inventory_read.py", "--deadline", str(time.time() + 4)])
+    assert code == 0 and len(out.writes) == 1  # ONE write, the whole object
+    obj = json.loads(out.writes[0])
+    assert obj == {
+        "rows": [{"provider": "p", "balance": 12.5, "projects": ["a", "b"], "keys": 2, "x": None}],
+        "synced_at": 1790000000.5,
+    }
+    assert isinstance(obj["rows"][0]["balance"], float)
+    assert seen["kw"] == {"connect_timeout": 2, "options": "-c statement_timeout=2000"}
+    assert conn.closed  # closed on success
+
+
+def test_the_child_re_arms_the_statement_timeout_to_the_deadline_left_never_below_one_ms(
+    monkeypatch,
+):
+    child = _child_module(monkeypatch)
+    import registry_db
+    from dashboard_ui import inventory
+
+    class Cur:
+        def __init__(self):
+            self.sql: list[str] = []
+
+        def execute(self, sql):
+            self.sql.append(sql)
+
+    cur = Cur()
+    conn = type("Conn", (), {"close": lambda self: None, "set_session": lambda self, **kw: None})()
+    monkeypatch.setattr(registry_db, "connect", lambda **kw: conn)
+
+    def load(c, *, before_query=None):
+        before_query(cur)
+        return [], None
+
+    monkeypatch.setattr(inventory, "load", load)
+    for deadline_in, low, high in ((3.0, 2500, 3000), (0.0004, 1, 1), (-5.0, 1, 1)):
+        cur.sql.clear()
+        monkeypatch.setattr(sys, "stdout", _OneWrite())
+        assert child.main(["x", "--deadline", repr(time.time() + deadline_in)]) == 0
+        (stmt,) = cur.sql
+        ms = int(re.fullmatch(r"SET LOCAL statement_timeout = (\d+)", stmt).group(1))
+        assert low <= ms <= high, (deadline_in, ms)  # 0 would DISABLE the bound in Postgres
+
+
+def test_the_child_reads_the_registry_in_one_read_only_snapshot(monkeypatch):
+    """W-a4bc74a6 (R15): under READ COMMITTED each of `load()`'s six statements took its own
+    snapshot, so a read straddling `registry_sync`'s one-transaction commit showed pre-sync rows
+    stamped with the post-sync `synced_at` (read last) — and the board keeps a read 60 s. The child
+    asks for REPEATABLE READ, read-only, BEFORE the first statement: one snapshot for the six."""
+    child = _child_module(monkeypatch)
+    import registry_db
+    from dashboard_ui import inventory
+
+    events: list = []
+
+    class Conn:
+        def set_session(self, **kw):
+            events.append(("set_session", kw))
+
+        def close(self):
+            events.append(("close", None))
+
+    monkeypatch.setattr(registry_db, "connect", lambda **kw: Conn())
+
+    def load(c, *, before_query=None):
+        events.append(("load", None))
+        return [], None
+
+    monkeypatch.setattr(inventory, "load", load)
+    monkeypatch.setattr(sys, "stdout", _OneWrite())
+    assert child.main(["x", "--deadline", repr(time.time() + 4)]) == 0
+    assert events == [
+        ("set_session", {"isolation_level": "REPEATABLE READ", "readonly": True}),
+        ("load", None),
+        ("close", None),
+    ]
+    # a session the driver refuses is an error object AND a closed connection, never a leaked one
+    events.clear()
+
+    def refuse(self, **kw):
+        events.append(("set_session", kw))
+        raise RuntimeError("set_session cannot be used inside a transaction")
+
+    monkeypatch.setattr(Conn, "set_session", refuse)
+    out = _OneWrite()
+    monkeypatch.setattr(sys, "stdout", out)
+    assert child.main(["x", "--deadline", repr(time.time() + 4)]) == 1
+    assert json.loads(out.writes[0]) == {
+        "error": "RuntimeError: set_session cannot be used inside a transaction"
+    }
+    assert [e for e, _ in events] == ["set_session", "close"]  # load never ran; close did
+
+
+@pytest.mark.parametrize(
+    "argv,starts",
+    [
+        (["x"], "ValueError: usage"),
+        (["x", "--deadline"], "ValueError: usage"),
+        (["x", "--deadline", "soon"], "ValueError: could not convert string to float"),
+        (["x", "--bogus", "1"], "ValueError: usage"),
+        (["x", "--deadline", "1", "extra"], "ValueError: usage"),
+    ],
+)
+def test_the_child_reports_a_bad_argv_the_same_way_as_any_failure(monkeypatch, argv, starts):
+    child = _child_module(monkeypatch)
+    out = _OneWrite()
+    monkeypatch.setattr(sys, "stdout", out)
+    assert child.main(argv) == 1 and len(out.writes) == 1
+    err = json.loads(out.writes[0])["error"]
+    assert err.startswith(starts) and "\n" not in err
+
+
+def test_the_child_closes_the_connection_and_reports_the_first_line_when_the_read_fails(
+    monkeypatch,
+):
+    child = _child_module(monkeypatch)
+    import registry_db
+    from dashboard_ui import inventory
+
+    conn = type(
+        "Conn",
+        (),
+        {
+            "closed": False,
+            "close": lambda self: setattr(self, "closed", True),
+            "set_session": lambda self, **kw: None,
+        },
+    )()
+    monkeypatch.setattr(registry_db, "connect", lambda **kw: conn)
+
+    def load(c, *, before_query=None):
+        raise RuntimeError("canceling statement due to statement timeout\nCONTEXT: second line")
+
+    monkeypatch.setattr(inventory, "load", load)
+    out = _OneWrite()
+    monkeypatch.setattr(sys, "stdout", out)
+    assert child.main(["x", "--deadline", "1"]) == 1
+    assert json.loads(out.writes[0]) == {
+        "error": "RuntimeError: canceling statement due to statement timeout"
+    }
+    assert conn.closed
+
+
+def test_the_child_reports_an_interrupt_and_a_missing_connection_the_same_way(monkeypatch):
+    child = _child_module(monkeypatch)
+    import registry_db
+
+    for exc, want in (
+        (KeyboardInterrupt(), "KeyboardInterrupt"),
+        (OSError("connection refused"), "OSError: connection refused"),
+    ):
+
+        def connect(_exc=exc, **kw):
+            raise _exc
+
+        monkeypatch.setattr(registry_db, "connect", connect)
+        out = _OneWrite()
+        monkeypatch.setattr(sys, "stdout", out)
+        assert child.main(["x", "--deadline", "1"]) == 1
+        assert json.loads(out.writes[0]) == {"error": want}
+
+
+def test_the_real_child_process_with_no_argument_prints_one_error_object_and_exits_one():
+    out = subprocess.run([sys.executable, str(_CHILD)], capture_output=True, text=True, timeout=60)
+    assert out.returncode == 1 and out.stderr == ""
+    assert json.loads(out.stdout)["error"].startswith("ValueError: usage")
 
 
 # ── 2026-09-03 20:10: the probe timed out 7× in a row (60 s each) while ob@ burned 96 → 100 ──
@@ -2117,9 +3258,12 @@ def test_no_key_is_not_an_error_and_never_blanks_the_board(tmp_path, monkeypatch
     qd = _load(tmp_path, monkeypatch)
 
     assert qd._pool_credits(now=1000.0) is None
-    assert qd._pool_credits_panel(None) == ""
-    html = qd.render(_payload(), time.time())
-    assert "<table" in html, "the board still renders"
+    services = _view(qd, "services")
+    assert "not configured on this box" in _text(services)
+    assert 'data-state="error"' not in services, "an absent pool is not an error"
+    monkeypatch.setattr(qd, "_probe", _payload)
+    qd.generate()
+    assert _find(_dom(_accounts(qd)), "table"), "the board still renders"
 
 
 def test_the_key_never_reaches_the_page_or_the_cache(tmp_path, monkeypatch):
@@ -2129,34 +3273,33 @@ def test_the_key_never_reaches_the_page_or_the_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(
         qd, "_credits_get", lambda key: {"data": {"total_credits": 100.0, "total_usage": 40.0}}
     )
-    c = qd._pool_credits(now=1000.0)
-
-    panel = qd._pool_credits_panel(c)
-    assert "TESTKEY" not in panel
+    qd._pool_credits(now=time.time())
     assert "TESTKEY" not in qd.CREDITS_CACHE.read_text()
-    assert "TESTKEY" not in qd.render(_payload(), time.time(), credits=c)
+    services = _view(qd, "services")
+    assert "$60.00 remaining of $100.00" in _text(services)  # the cached balance IS on the page
+    monkeypatch.setattr(qd, "_probe", _payload)
+    qd.generate()
+    for name in qd._views.VIEWS:
+        assert "TESTKEY" not in _view(qd, name), name
+    assert "TESTKEY" not in qd._shell_page()
 
 
 def test_the_panel_reaches_the_page_and_goes_critical_when_the_pool_is_dry(tmp_path, monkeypatch):
     qd = _credits_env(tmp_path, monkeypatch)
+    healthy = _badges(_pool_view(qd, monkeypatch, {"granted": 245.0, "used": 25.0, "remaining": 220.0,
+                                                   "age_s": 0.0, "stale": False}))  # fmt: skip
+    assert ("ok", "$220.00 remaining of $245.00") in healthy
 
-    healthy = qd._pool_credits_panel(
-        {"granted": 245.0, "used": 25.0, "remaining": 220.0, "age_s": 0.0, "stale": False}
+    dry = [b for b in _badges(_pool_view(qd, monkeypatch, {"granted": 245.0, "used": 245.01,
+           "remaining": -0.01, "age_s": 0.0, "stale": False})) if "remaining of" in b[1]]  # fmt: skip
+    assert dry and dry[0][0] == "critical"
+    assert "402" in dry[0][1], "say WHAT the operator will see, not just that a number is low"
+    view = _pool_view(
+        qd,
+        monkeypatch,
+        {"granted": 1.0, "used": 0.0, "remaining": 1.0, "age_s": 0.0, "stale": False},
     )
-    assert "ok" in healthy and "$220.00" in healthy
-
-    dry = qd._pool_credits_panel(
-        {"granted": 245.0, "used": 245.01, "remaining": -0.01, "age_s": 0.0, "stale": False}
-    )
-    assert "crit" in dry
-    assert "402" in dry, "say WHAT the operator will see, not just that a number is low"
-
-    html = qd.render(
-        _payload(),
-        time.time(),
-        credits={"granted": 1.0, "used": 0.0, "remaining": 1.0, "age_s": 0.0, "stale": False},
-    )
-    assert "OpenRouter" in html, "the panel must actually be placed in the page"
+    assert "OpenRouter pool" in _text(view), "the panel must actually be placed in the page"
 
 
 def test_the_drain_advisory_fires_once_per_episode_and_re_arms_on_a_top_up(tmp_path, monkeypatch):
@@ -2235,24 +3378,6 @@ def test_the_refresher_runs_off_the_lock_and_drops_an_overlapping_request(tmp_pa
         qd._credits_lock.release()
 
 
-def test_the_pool_banner_shows_on_the_external_services_tab_too(tmp_path, monkeypatch):
-    """Operator, 2026-09-04, looking at #external: "i dont see it here?" — and they were right to
-    look there. OpenRouter is listed on the external-services page as a paid provider with a
-    `credit` field that nothing fills, so that tab is where a person goes to ask "is my third-party
-    spend OK". The Quota tab is about Claude ACCOUNTS; putting the pool balance only there hid it
-    behind a mental model the board does not actually teach."""
-    qd = _credits_env(tmp_path, monkeypatch)
-    c = {"granted": 245.0, "used": 225.87, "remaining": 19.13, "age_s": 0.0, "stale": False}
-
-    html = qd.render(_payload(), time.time(), credits=c)
-
-    ext = html[html.index('<section id="pane-external"') :]
-    assert "OpenRouter pool" in ext, "the external-services pane must carry the balance"
-    quota = html[html.index('<section id="pane-quota"') : html.index('<section id="pane-commands"')]
-    assert "OpenRouter pool" in quota, "and it stays on the quota tab — it IS a quota"
-    assert html.count("OpenRouter pool") == 2, "exactly the two panes, not a third copy"
-
-
 def _sidecar(tmp_path, monkeypatch, unweighted: dict):
     """A minimal but VALID cost sidecar — `_spend_panel` renders nothing at all without tiers,
     spend and base rate, so a rig that omits them would prove the panel silent for the wrong reason."""
@@ -2306,7 +3431,7 @@ def test_tokens_no_tier_claimed_are_named_on_the_page(tmp_path, monkeypatch):
     all rather than appearing blank."""
     qd = _sidecar(tmp_path, monkeypatch, {"claude-mythos-5-1": 4_200_000_000})
 
-    panel = qd._spend_panel()
+    panel = _text(_usage(qd))
 
     assert "4,200,000,000 tokens are NOT in any total on this page" in panel
     assert "claude-mythos-5-1" in panel, "name the model, or nobody can act on the warning"
@@ -2317,7 +3442,7 @@ def test_no_unclassified_tokens_means_no_warning(tmp_path, monkeypatch):
     read past."""
     qd = _sidecar(tmp_path, monkeypatch, {})
 
-    panel = qd._spend_panel()
+    panel = _text(_usage(qd))
 
     assert "NOT in any total" not in panel
     assert "Daily token consumption" in panel, (
@@ -2327,9 +3452,9 @@ def test_no_unclassified_tokens_means_no_warning(tmp_path, monkeypatch):
 
 def test_the_warning_survives_the_blank_panel_path(tmp_path, monkeypatch):
     """All-unrecognised is precisely the state that empties `tiers`, and an empty `tiers` is the
-    early return that renders nothing at all. So the one case where the whole panel goes silent is
-    the one case where the reader most needs to be told why — the warning is computed before that
-    return, not beside the table."""
+    early return that renders no table. So the one case where the panel goes quiet is the one case
+    where the reader most needs to be told why — the warning is computed before that return, not
+    beside the table."""
     qd = _sidecar(tmp_path, monkeypatch, {"claude-mythos-5-1": 9_000_000})
     blank = json.loads(qd._COST_SIDECAR.read_text(encoding="utf-8"))
     blank["per_model_spend"]["tiers"] = {}
@@ -2337,21 +3462,11 @@ def test_the_warning_survives_the_blank_panel_path(tmp_path, monkeypatch):
     blank["per_model_spend"]["base_rate_per_mtok"] = None
     qd._COST_SIDECAR.write_text(json.dumps(blank), encoding="utf-8")
 
-    panel = qd._spend_panel()
+    html_ = _usage(qd)
 
-    assert "9,000,000 tokens are NOT in any total on this page" in panel
-    assert "<table>" not in panel, "no zeroed table — only the explanation"
-
-
-def test_an_unreadable_sidecar_still_renders_nothing(tmp_path, monkeypatch):
-    """The fail-soft contract is unchanged for every other cause: no file, bad JSON, old format."""
-    qd = _load(tmp_path, monkeypatch)
-    monkeypatch.setattr(qd, "_COST_SIDECAR", tmp_path / "does-not-exist.json")
-    assert qd._spend_panel() == ""
-    bad = tmp_path / "bad.json"
-    bad.write_text("{not json", encoding="utf-8")
-    monkeypatch.setattr(qd, "_COST_SIDECAR", bad)
-    assert qd._spend_panel() == ""
+    assert "9,000,000 tokens are NOT in any total on this page" in _text(html_)
+    assert not _find(_dom(html_), "div", aria_labelledby="usage-tiers"), "no zeroed tier table"
+    assert "No tier-weighted spend is recorded yet" in _text(html_), "only the explanation"
 
 
 def test_the_headline_says_the_monthly_fee_not_just_the_window_slice(tmp_path, monkeypatch):
@@ -2365,10 +3480,10 @@ def test_the_headline_says_the_monthly_fee_not_just_the_window_slice(tmp_path, m
     doc["per_model_spend"]["monthly_spend"] = {"2026-08": 800.0, "2026-09": 800.0}
     qd._COST_SIDECAR.write_text(json.dumps(doc), encoding="utf-8")
 
-    panel = qd._spend_panel()
+    panel = _text(_usage(qd))
 
     assert "$800/month" in panel, "the FEE must be on the page, not only the window slice"
-    assert "25 August days at $800/31" in panel and "5 September days at $800/30" in panel
+    assert "25 August day(s) at $800/31" in panel and "5 September day(s) at $800/30" in panel
     assert "not a calendar month" in panel
 
 
@@ -2377,9 +3492,9 @@ def test_an_underivable_fee_breakdown_is_omitted_not_guessed(tmp_path, monkeypat
     one of them, the number still stands and the explanation is simply absent — an invented split
     would be worse than none."""
     qd = _sidecar(tmp_path, monkeypatch, {})  # monthly_spend has 2026-09 only; the window spans 08
-    panel = qd._spend_panel()
-    assert "priced against <b>$800.00</b> for that window" in panel
-    assert "August days at" not in panel and "$800/month" not in panel
+    panel = _text(_usage(qd))
+    assert "priced against $800.00 for that window" in panel
+    assert "August day(s) at" not in panel and "$800/month" not in panel
 
 
 # --- a scaffolded-but-unlogged dir is SHOWN, not dropped (5th account, 2026-09-06) ------------
@@ -2413,12 +3528,15 @@ def _pending_payload(pending: list[str]) -> dict:
 
 def test_a_pending_login_dir_is_rendered_with_its_one_action(tmp_path, monkeypatch):
     qd = _load(tmp_path, monkeypatch)
-    html = qd.render(_pending_payload(["ozgurbasak"]), 1_900_000_000.0)
-    assert "ozgurbasak" in html, "the scaffolded dir vanished from the board"
-    assert "pending-login" in html, "the row must say WHY it is not an account yet"
-    assert "/login" in html, "the row must name the one action that pins it"
+    html_ = _pending_view(qd, monkeypatch, _pending_payload(["ozgurbasak"]))
+    row = _acct_row(html_, "ozgurbasak", "pending")
+    assert "ozgurbasak" in row.words(), "the scaffolded dir vanished from the board"
+    assert "pending-login" in row.words(), "the row must say WHY it is not an account yet"
+    assert "/login" in row.words(), "the row must name the one action that pins it"
     # it is never mistaken for a candidate: no switch button, and it sorts after every account
-    assert html.index("ob@ocoron.com") < html.index("ozgurbasak")
+    assert _buttons(row, "/switch") == []
+    order = [r.attrs["data-acct"] for r in _find(_dom(html_), "tr") if "data-acct" in r.attrs]
+    assert order.index("ob") < order.index("ozgurbasak")
 
 
 def test_no_pending_key_renders_no_pending_row(tmp_path, monkeypatch):
@@ -2426,8 +3544,9 @@ def test_no_pending_key_renders_no_pending_row(tmp_path, monkeypatch):
     qd = _load(tmp_path, monkeypatch)
     p = _pending_payload([])
     del p["pending"]
-    html = qd.render(p, 1_900_000_000.0)
-    assert "pending-login" not in html
+    html_ = _pending_view(qd, monkeypatch, p)
+    assert "pending-login" not in _text(html_)
+    assert not _find(_dom(html_), "tr", data_row="pending")
 
 
 # --- the Quota tab is the ROTATION QUEUE, numbered 1..N, active first (operator, 2026-09-06) -----
@@ -2492,24 +3611,45 @@ def _queue_payload(active_five=20.0, active_five_reset=_NOW + 4 * 3600):
     }
 
 
+def _accounts_at(qd, payload: dict, now: float) -> str:
+    """The Accounts view at a fixed clock: the module's own `_view_data` (its queue included) and
+    the real view, both handed ``now`` — the queue fixtures sit at a fixed `_NOW`, not the wall clock."""
+    from dashboard_ui.views import ViewContext
+
+    qd._set_last_status(now, payload)
+    ctx = ViewContext(opt_root=_opt(), fabrik_root=qd._FABRIK_ROOT, now=now)
+    return str(qd._views.load("accounts").render(qd._view_data("accounts", ctx), ctx).html)
+
+
+def _queue_rows(markup: str) -> list[tuple[str, str]]:
+    """(slug, row kind) of every account-table row, in display order."""
+    return [
+        (r.attrs["data-acct"], r.attrs.get("data-row", ""))
+        for r in _find(_dom(markup), "tr")
+        if "data-acct" in r.attrs
+    ]
+
+
 def test_queue_is_numbered_active_first_then_the_picker_order_then_returns_by_time(
     tmp_path, monkeypatch
 ):
     qd = _load(tmp_path, monkeypatch)
     order = [e["slug"] for e in qd._queue(_queue_payload(), _NOW)]
     assert order == ["ob", "zeta", "alpha", "mob", "can"], order
-    html = qd.render(_queue_payload(), _NOW)
-    # every account row carries its 1-based queue position, in display order. Search the TABLE
-    # BODY only: a bare "#3" also matches hex colours in the stylesheet ("#333") — first probe did.
-    body = html[html.index("<tbody>") :]
-    pos = [body.index(f"#{n} ") for n in (1, 2, 3, 4, 5)]
-    assert pos == sorted(pos), "queue numbers are not in ascending order on the page"
+    html_ = _accounts_at(qd, _queue_payload(), _NOW)
+    assert [s for s, _k in _queue_rows(html_)] == ["ob", "zeta", "alpha", "mob", "can"]
+    # every account row carries its 1-based queue position — its rank badge — in display order
+    per_row = []
+    for slug, _kind in _queue_rows(html_):
+        marks = [n for n in _find(_acct_row(html_, slug), "span") if "data-severity" in n.attrs]
+        per_row.append(
+            next(n.children[-1].words() for n in marks if n.children[-1].words().startswith("#"))
+        )
+    assert [p.split()[0] for p in per_row] == ["#1", "#2", "#3", "#4", "#5"], per_row
     assert (
-        html.index("ob@ocoron.com")
-        < html.index("zeta@ocoron.com")
-        < html.index("alpha@ocoron.com")
-        < html.index("mob@ocoron.com")
-        < html.index("can@ocoron.com")
+        per_row[0].startswith("#1 ACTIVE")
+        and per_row[1] == "#2 NEXT"
+        and per_row[2] == "#3 in line"
     )
 
 
@@ -2520,8 +3660,9 @@ def test_ineligible_tail_is_ordered_by_when_it_returns_not_by_utilization(tmp_pa
     entries = {e["slug"]: e for e in qd._queue(_queue_payload(), _NOW)}
     assert entries["mob"]["returns_at"] == _NOW + 2 * 3600
     assert entries["can"]["returns_at"] == _NOW + 20 * 3600
-    html = qd.render(_queue_payload(), _NOW)
-    assert "returns" in html.lower()
+    html_ = _accounts_at(qd, _queue_payload(), _NOW)
+    assert "#4 — returns" in _acct_row(html_, "mob").words()
+    assert "#5 — returns" in _acct_row(html_, "can").words()
 
 
 def test_a_session_capped_active_account_is_both_first_and_its_return_slot(tmp_path, monkeypatch):
@@ -2531,10 +3672,15 @@ def test_a_session_capped_active_account_is_both_first_and_its_return_slot(tmp_p
     p = _queue_payload(active_five=96.0, active_five_reset=_NOW + 4 * 3600)
     slugs = [e["slug"] for e in qd._queue(p, _NOW)]
     assert slugs == ["ob", "zeta", "alpha", "mob", "ob", "can"], slugs
-    html = qd.render(p, _NOW)
-    assert html.count("ob@ocoron.com") >= 2, "the active account must appear at its return slot too"
-    assert "is-return" in html, "the return slot must be a visibly distinct ghost row"
-    assert "also #5" in html, "the active row must say which later slot is its return"
+    html_ = _accounts_at(qd, p, _NOW)
+    rows = _queue_rows(html_)
+    assert rows[0] == ("ob", "active") and rows[4] == ("ob", "return"), rows
+    ghost = _acct_row(html_, "ob", "return")
+    assert "ob@ocoron.com" in ghost.words(), "the active account must appear at its return slot too"
+    assert "#5 — returns" in ghost.words(), "the return slot is a distinct row naming its position"
+    assert "also #5" in _acct_row(html_, "ob", "active").words(), (
+        "the active row names its return slot"
+    )
 
 
 def test_a_healthy_active_account_has_no_return_slot(tmp_path, monkeypatch):
@@ -2542,7 +3688,8 @@ def test_a_healthy_active_account_has_no_return_slot(tmp_path, monkeypatch):
     qd = _load(tmp_path, monkeypatch)
     slugs = [e["slug"] for e in qd._queue(_queue_payload(active_five=20.0), _NOW)]
     assert slugs.count("ob") == 1
-    assert "is-return" not in qd.render(_queue_payload(active_five=20.0), _NOW)
+    rows = _queue_rows(_accounts_at(qd, _queue_payload(active_five=20.0), _NOW))
+    assert ("ob", "return") not in rows
 
 
 # --- review pass 1 (2026-09-06): C5/C6/C7 — one sort key, one clock, a reset AT now is "now" ----
@@ -2692,7 +3839,7 @@ def test_the_ghost_return_row_renders_for_an_active_the_tick_will_relief_flip(
     p["accounts"][0]["seven_day"]["utilization"] = 97.0
     kinds = [e["kind"] for e in qd._queue(p, _NOW)]
     assert "return" in kinds, kinds
-    assert "is-return" in qd.render(p, _NOW)
+    assert ("ob", "return") in _queue_rows(_accounts_at(qd, p, _NOW))
 
 
 def test_a_garbage_session_bar_knob_neither_crashes_import_nor_disagrees_with_itself(
@@ -2778,6 +3925,281 @@ def test_pool_dot_ignores_a_commented_pool_contract(tmp_path, monkeypatch):
     assert "pool" in services  # a LIVE call would still be visible — the column is not blind
 
 
+def _commands_with(qd, monkeypatch, rows: list[dict]) -> str:
+    """The Commands view as served over ``rows`` (the catalogue's own fields filled in)."""
+    full = [
+        {"stage": "", "purpose": "", "when": "", "skip": "", "next": "", "natives": [], "rule": (False, ()),
+         "tiers": (), "services": set(), "rendered": True, **r}
+        for r in rows
+    ]  # fmt: skip
+    with monkeypatch.context() as m:
+        m.setattr(qd, "_load_commands", lambda: full)
+        return _view(qd, "commands")
+
+
+def _catalogue_cells(markup: str, name: str) -> dict[str, str]:
+    """The catalogue row of /<name>, as {column head: cell words}."""
+    region = _find(_dom(markup), "div", aria_labelledby="commands-table")[0]
+    heads = [h.words() for h in _find(region, "th", scope="col")]
+    for r in _find(region, "tr"):
+        cells = [c for c in r.children if c.tag in ("th", "td")]
+        if len(cells) == len(heads) and cells[1].words() == f"/{name}":
+            return {h: c.words() for h, c in zip(heads, cells, strict=True)}
+    raise AssertionError(f"no catalogue row for /{name}")
+
+
+def _budget_payload(**over) -> dict:
+    p = {
+        "caps": {"box_cap": 23, "concurrency_cap": 17},
+        "box_caps": {"read_only": 23, "heavy": 12},
+        "heavy_reasons": [],
+        "quota": {"ok": True, "active": "a@x", "hottest_pct": 7.0, "eligible": 1, "hold": False},
+    }
+    p.update(over)
+    return p
+
+
+def _health_strip(qd, monkeypatch) -> str:
+    """The Overview's Health strip words, rendered from whatever the budget cache now holds."""
+    monkeypatch.setattr(qd, "_status_triggers", lambda: None)
+    qd._set_last_status(time.time(), {"active": "a", "accounts": []})
+    html_ = _view(qd, "overview")
+    return _text(html_.split('id="ov-health"', 1)[1])
+
+
+def test_the_box_budget_shows_the_maximum_and_fails_soft(tmp_path, monkeypatch):
+    """D-191: the operator wants the MAXIMUM visible on the board, not the rule. The probe runs
+    dispatch_headroom.py --json (read-only and heavy) and reads what the box AND quota allow now —
+    the min over every cap in the payload, the CLI cap read from it, and 0 with a loud HOLD line
+    when the fleet is held (round 1: the box number printed beside `hold=True`); a failed probe
+    says the reason, never an empty table head; QUOTA_DASH_BUDGET=0 disables it. The reading is
+    data now (T07 removed the banner's HTML half); the Overview's Health strip renders it."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setenv("QUOTA_DASH_BUDGET", "1")
+    qd._budget_cache.update(ts=0.0, data=None, thread=None)
+    calls = []
+    state = {"hold": False, "quota_cap": None}
+
+    class _R:
+        def __init__(self, args):
+            calls.append(list(args))
+            caps = {"box_cap": 23, "concurrency_cap": 17}
+            if state["quota_cap"] is not None:
+                caps["quota_cap"] = state["quota_cap"]
+            q = {
+                "ok": True,
+                "active": "a@x",
+                "hottest_pct": 7.0,
+                "eligible": 1,
+                "hold": state["hold"],
+            }
+            self.stdout = json.dumps(_budget_payload(caps=caps, quota=q))
+
+    monkeypatch.setattr(qd.subprocess, "run", lambda args, **kw: _R(args))
+    r = qd._budget_probe()
+    seats = {s["key"]: s for s in r["seats"]}
+    assert (seats["read_only"]["allowed"], seats["read_only"]["box"]) == (17, 23)
+    assert (seats["heavy"]["allowed"], seats["heavy"]["box"]) == (12, 12)
+    assert r["cli_cap"] == 17
+    strip = _health_strip(qd, monkeypatch)
+    assert (
+        "read-only seats allowed now: 17 (box 23)" in strip
+    )  # nothing reserved: no reservation clause
+    assert "heavy seats allowed now: 12 (box 12" in strip
+    assert "CLI cap 17" in strip and "CLI cap 20" not in strip
+    # ONE probe per refresh — the fleet round-trip inside it is the thing the module bounds
+    assert len(calls) == 1 and "--heavy" not in calls[0]
+    # the quota cap binds when the payload carries it; a HOLD is 0 seats and says so
+    state["quota_cap"] = 3
+    r = qd._budget_probe()
+    ro = next(s for s in r["seats"] if s["key"] == "read_only")
+    assert ro["allowed"] == 3 and ro["box"] == 23 and ro["quota_cap"] == 3 and ro["has_quota_cap"]
+    state["hold"] = True
+    r = qd._budget_probe()
+    assert r["hold"] is True and all(s["allowed"] == 0 for s in r["seats"])
+    strip = _health_strip(qd, monkeypatch)
+    assert (
+        "allowed now: 0" in strip
+        and "fleet hold — dispatch nothing" in strip
+        and "at 7.0%" not in strip
+    )
+
+    def boom(args, **kw):
+        raise OSError("probe down")
+
+    monkeypatch.setattr(qd.subprocess, "run", boom)
+    assert qd._budget_probe() == {"error": "OSError: probe down"}
+    assert "budget failed: OSError: probe down" in _health_strip(qd, monkeypatch)
+    # the line never blocks a render on the probe: a stale cache returns a placeholder and
+    # starts ONE background refresh; the next render reads what it computed
+    qd._budget_cache.update(ts=0.0, data=None, thread=None)
+    monkeypatch.setattr(qd.subprocess, "run", lambda args, **kw: _R(args))
+    assert qd._budget_data() == {"computing": True}
+    qd._budget_cache["thread"].join(timeout=10)
+    assert qd._budget_data()["seats"]
+    # round 7: the sibling reservation and the floor are read from the script's own verdict; the
+    # script's caveats (a failed sibling probe, a LOWER bound, an env-only own id) reach the board;
+    # standbys are the COOL ones of the eligible
+    payload = {
+        "caps": {"box_cap": 3, "concurrency_cap": 17},
+        "box_caps": {"read_only": 3, "heavy": 3},
+        "floor": 3,
+        "box": {"ok": True},
+        "box_caps_floored": {
+            "read_only": True,
+            "heavy": True,
+        },  # the script's own verdict (round 9)
+        "heavy_reasons": [],
+        "siblings": {"seats": 21, "ok": True},
+        "quota": {
+            "ok": True,
+            "active": "a@x",
+            "hottest_pct": 7.0,
+            "eligible": 0,
+            "eligible_raw": 1,
+        },
+        "reasons": ["2 running sibling session(s) carry NO seat figure — a LOWER bound"],
+    }
+
+    class _P:
+        def __init__(self, args):
+            self.stdout = json.dumps(payload)
+
+    monkeypatch.setattr(qd.subprocess, "run", lambda args, **kw: _P(args))
+    r = qd._budget_probe()
+    assert all(s["floored"] and s["taken"] == 21 for s in r["seats"])
+    assert r["quota"]["eligible"] == 0 and r["quota"]["eligible_raw"] == 1
+    assert r["caveats"] == ["2 running sibling session(s) carry NO seat figure — a LOWER bound"]
+    strip = _health_strip(qd, monkeypatch)
+    assert "0 cool standbys of 1 eligible" in strip and "21 reserved by sibling sessions" in strip
+    assert "Caveats: 2 running sibling session(s) carry NO seat figure — a LOWER bound" in strip
+    payload["box_caps"] = {"read_only": 20, "heavy": 9}
+    payload["box_caps_floored"] = {"read_only": False, "heavy": False}
+    payload["caps"]["box_cap"] = 20
+    payload["siblings"] = {"seats": 0, "ok": False, "why": "sibling probe failed: PermissionError"}
+    payload["reasons"] = []
+    r = qd._budget_probe()
+    assert not any(s["floored"] for s in r["seats"]) and all(s["taken"] == 0 for s in r["seats"])
+    assert r["caveats"] == [
+        "sibling probe failed: PermissionError — sibling seats unknown, not subtracted"
+    ]
+    payload["siblings"] = {"seats": 2, "ok": True}
+    r = qd._budget_probe()
+    assert all(s["taken"] == 2 and not s["floored"] for s in r["seats"]) and r["caveats"] == []
+    # a box or quota probe that FAILED is held at the floor — the caveat must say so (round 8)
+    payload["reasons"] = ["psutil not importable — box unknown, held at the floor"]
+    assert qd._budget_probe()["caveats"] == [
+        "psutil not importable — box unknown, held at the floor"
+    ]
+    payload["reasons"] = [
+        "quota: 0 of 1 standby(s) are COOL — every fallback is itself in the drain band"
+    ]
+    assert "0 of 1 standby(s) are COOL" in qd._budget_probe()["caveats"][0]
+    # a DEAD box probe holds the cap at the floor: the caveat says so and the floor flag never blames
+    # the sibling reservation for it (round-8 Opus finding)
+    payload["box"] = {"ok": False, "why": "box probe failed: /proc/meminfo"}
+    payload["box_caps"] = {"read_only": 3, "heavy": 3}
+    payload["siblings"] = {"seats": 5, "ok": True}
+    payload["reasons"] = ["box probe failed: /proc/meminfo — box unknown, held at the floor"]
+    r = qd._budget_probe()
+    assert not any(s["floored"] for s in r["seats"]) and all(s["taken"] == 5 for s in r["seats"])
+    assert r["caveats"] == ["box probe failed: /proc/meminfo — box unknown, held at the floor"]
+    payload.pop("box")
+    # round 9: an ABSENT box block is unknown — the floor flag must not fire; the over-dispatch
+    # caveat is spelled "NOT subtracted" by the script — case must not hide it; a hard cap below
+    # the floor and a malformed concurrency cap are caveats too
+    assert not any(s["floored"] for s in qd._budget_probe()["seats"])
+    payload["box"] = {"ok": True}
+    payload["siblings"] = {"seats": 0, "ok": False, "why": "sibling probe failed: EACCES"}
+    payload["reasons"] = [
+        "below the floor because a HARD cap binds (quota_cap=0) — dispatch nothing until relief"
+    ]
+    caveats = qd._budget_probe()[
+        "caveats"
+    ]  # round 11: an unrelated caveat must not hide a failed sibling probe
+    assert "sibling probe failed: EACCES — sibling seats unknown, not subtracted" in caveats
+    payload["siblings"] = {"seats": 0, "ok": True}
+    payload["reasons"] = [
+        "1 sibling record(s) unreadable (x.json) — their seats are NOT subtracted; the box number is an UPPER bound",
+        "below the floor because a HARD cap binds (quota_cap=0) — dispatch nothing until relief",
+        "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS='x' is not a number — using 20",
+    ]
+    caveats = qd._budget_probe()["caveats"]
+    assert caveats == payload["reasons"]
+    payload["reasons"] = []
+    # the HEAVY half's reasons reach the caveats too, LABELLED (round-10 Opus: a heavy-only
+    # over-commit rendered with no warning)
+    payload["heavy_reasons"] = [
+        "floor granted: 2 seat(s) past what the box has left after the sibling reservation"
+    ]
+    assert qd._budget_probe()["caveats"] == [
+        "heavy half — floor granted: 2 seat(s) past what the box has left after the sibling reservation"
+    ]
+    payload["heavy_reasons"] = []
+    # a probe that predates the halves SAYS so (round 11: an absent key read as "no heavy caveats")
+    payload.pop("heavy_reasons")
+    assert any("probe payload predates heavy_reasons" in c for c in qd._budget_probe()["caveats"])
+    payload["heavy_reasons"] = []
+    # the read-only half is read too — a caveat only IT carries renders (round 12)
+    payload["reasons_read_only"] = ["read-only-only: box unknown, held at the floor"]
+    assert qd._budget_probe()["caveats"] == ["read-only-only: box unknown, held at the floor"]
+    payload.pop("reasons_read_only")
+    # a line repeated INSIDE heavy_reasons renders once (round 13)
+    payload["heavy_reasons"] = ["floor granted: 2 seat(s) past what the box has left"] * 2
+    assert qd._budget_probe()["caveats"] == [
+        "heavy half — floor granted: 2 seat(s) past what the box has left"
+    ]
+    # a cause in BOTH halves is not heavy-only: rendered once, unlabelled (round 14)
+    payload["heavy_reasons"] = ["quota HOLD is on — dispatch nothing"]
+    payload["reasons"] = ["quota HOLD is on — dispatch nothing"]
+    assert qd._budget_probe()["caveats"] == ["quota HOLD is on — dispatch nothing"]
+    # the read-only half and the heavy half sharing a cause the run's own half lacks: once, unlabelled
+    payload["reasons"] = []
+    payload["reasons_read_only"] = ["quota HOLD is on — dispatch nothing"]
+    assert qd._budget_probe()["caveats"] == ["quota HOLD is on — dispatch nothing"]
+    payload.pop("reasons_read_only")
+    payload["heavy_reasons"] = []
+    # an older probe without box_caps must not let the read-only cap pose as the heavy one
+    monkeypatch.setattr(
+        qd.subprocess,
+        "run",
+        lambda args, **kw: type(
+            "R", (), {"stdout": json.dumps({"caps": {"box_cap": 23}, "quota": {}})}
+        )(),
+    )
+    assert "carries no box_caps" in qd._budget_probe()["error"]
+    # single-flight under CONCURRENT stale-cache renders: N threads, ONE probe thread started
+    import threading
+
+    qd._budget_cache.update(ts=0.0, data=None, thread=None)
+    monkeypatch.setattr(qd.subprocess, "run", lambda args, **kw: _R(args))
+    calls.clear()
+    gate = threading.Barrier(6)
+
+    def hit():
+        gate.wait(timeout=5)
+        qd._budget_data()
+
+    ts = [threading.Thread(target=hit) for _ in range(6)]
+    for th in ts:
+        th.start()
+    for th in ts:
+        th.join(timeout=5)
+    qd._budget_cache["thread"].join(timeout=10)
+    assert len(calls) == 1
+    # an account switch invalidates the cache (round 4): the next reading is a placeholder or a
+    # fresh probe, never the old account's headroom
+    qd._budget_cache.update(
+        ts=time.time(), data={"quota": {"active": "OLD ACCOUNT"}, "seats": []}, thread=None
+    )
+    with qd._budget_lock:
+        qd._budget_cache.update(ts=0.0, data=None)  # the exact statement `_rerender` runs
+    assert qd._budget_data() == {"computing": True}
+    qd._budget_cache["thread"].join(timeout=10)
+    monkeypatch.setenv("QUOTA_DASH_BUDGET", "0")
+    assert qd._budget_data() == {"disabled": True}
+
+
 def test_native_subagents_column_follows_the_commands_own_steps(tmp_path, monkeypatch):
     """Per command: how many native subagent types it names and which (operator ask 2026-09-08).
     Boilerplate every command carries by assembly (the D-181 banner's enumeration, the close-out
@@ -2808,39 +4230,17 @@ def test_native_subagents_column_follows_the_commands_own_steps(tmp_path, monkey
         ("fabrik-reviewer", ("opus",)),  # the tier named beside the seat rides with it
         ("general-purpose", ()),  # no tier named → the name alone
     ]
-    html = qd._commands_table(
-        [
-            {
-                "name": name,
-                "stage": "gate",
-                "purpose": "p",
-                "when": "",
-                "skip": "",
-                "next": "",
-                "natives": [("fabrik-reviewer", ("opus", "sonnet")), ("general-purpose", ())],
-            }
-        ]
+    natives = [("fabrik-reviewer", ("opus", "sonnet")), ("general-purpose", ())]
+    cells = _catalogue_cells(
+        _commands_with(qd, monkeypatch, [{"name": name, "natives": natives}]), name
     )
-    assert "Native subagents" in html
     # the cell leads with the dispatch RULE (none in this fixture row), then the types
     assert (
-        "no per-unit rule</strong> · fabrik-reviewer <em>(opus, sonnet)</em>, general-purpose"
-        in html
+        cells["Native subagents"]
+        == "no per-unit rule · fabrik-reviewer (opus, sonnet), general-purpose"
     )
-    html = qd._commands_table(
-        [
-            {
-                "name": name,
-                "stage": "gate",
-                "purpose": "p",
-                "when": "",
-                "skip": "",
-                "next": "",
-                "natives": [],
-            }
-        ]
-    )
-    assert "Native subagents" in html and "0 ·" not in html
+    cells = _catalogue_cells(_commands_with(qd, monkeypatch, [{"name": name, "natives": []}]), name)
+    assert cells["Native subagents"] == "-" and "0 ·" not in cells["Native subagents"]
 
 
 def test_a_tier_between_two_adjacent_seats_is_awarded_to_one_of_them(tmp_path, monkeypatch):
@@ -2885,6 +4285,15 @@ def test_the_seat_column_reports_the_dispatch_rule_not_the_type_count(tmp_path, 
     so the cell leads with the command's own rule: the floor it carries, and the unit it fans over."""
     qd = _load(tmp_path, monkeypatch)
     name = "fabrik-review"
+
+    def cell() -> str:
+        row = {
+            "name": name,
+            "natives": qd._command_natives(name),
+            "rule": qd._command_seat_rule(name),
+        }
+        return _catalogue_cells(_commands_with(qd, monkeypatch, [row]), name)["Native subagents"]
+
     body = (
         "# x\n\n**⚠️ Floor — every review dispatches ≥1 native `fabrik-reviewer` on Opus** as the "
         "authoritative pass.\n\nAdd one `fabrik-reviewer` seat on Sonnet per INDEPENDENT unit of the "
@@ -2892,8 +4301,7 @@ def test_the_seat_column_reports_the_dispatch_rule_not_the_type_count(tmp_path, 
     )
     monkeypatch.setattr(qd, "RENDERED_COMMANDS", _rendered(tmp_path, name, body))
     assert qd._command_seat_rule(name) == (True, ("unit",))
-    cell = qd._natives_cell(qd._command_natives(name), qd._command_seat_rule(name))
-    assert "≥1 opus + 1 per unit" in cell and "fabrik-reviewer" in cell
+    assert cell().startswith("at least 1 opus + 1 per unit") and "fabrik-reviewer" in cell()
 
     # the shared fragment's sizing paragraph rides INSIDE the D-181 banner paragraph in every
     # rendered command — that is the real shape (the first draft's fixture had it standalone, which
@@ -2905,9 +4313,7 @@ def test_the_seat_column_reports_the_dispatch_rule_not_the_type_count(tmp_path, 
     )
     monkeypatch.setattr(qd, "RENDERED_COMMANDS", _rendered(tmp_path, name, frag))
     assert qd._command_seat_rule(name) == (False, ())
-    assert "no per-unit rule" in qd._natives_cell(
-        qd._command_natives(name), qd._command_seat_rule(name)
-    )
+    assert cell().startswith("no per-unit rule")
 
     # a unit counts only NEXT TO a seat word — "naming, per claim, landed / deferred" is a report
     # format and "States per screen: empty · loaded" a checklist (round-1 findings on five commands)
@@ -2925,7 +4331,7 @@ def test_the_seat_column_reports_the_dispatch_rule_not_the_type_count(tmp_path, 
     fixed = "# x\n\nThe floor is 2–3 readers: native `fabrik-reviewer` seats over the diff.\n"
     monkeypatch.setattr(qd, "RENDERED_COMMANDS", _rendered(tmp_path, name, fixed))
     assert qd._command_seat_rule(name) == (False, ("!2–3 readers",))
-    assert "2–3 readers" in qd._natives_cell(qd._command_natives(name), qd._command_seat_rule(name))
+    assert cell().startswith("2–3 readers")
 
 
 def test_the_seat_rule_reads_the_real_corpus_correctly(tmp_path, monkeypatch):
@@ -2975,225 +4381,6 @@ def test_the_seat_rule_reads_the_real_corpus_correctly(tmp_path, monkeypatch):
     assert rule["fabrik-catchup"] == (False, ())
 
 
-def test_the_box_budget_banner_shows_the_maximum_and_fails_soft(tmp_path, monkeypatch):
-    """D-191: the operator wants the MAXIMUM visible on the board, not the rule. The probe runs
-    dispatch_headroom.py --json (read-only and heavy) and prints what the box AND quota allow now —
-    the min over every cap in the payload, the CLI cap read from it, and 0 with a loud HOLD line
-    when the fleet is held (round 1: the box number printed beside `hold=True`); a failed probe
-    prints the reason, never an empty table head; QUOTA_DASH_BUDGET=0 disables it."""
-    qd = _load(tmp_path, monkeypatch)
-    monkeypatch.setenv("QUOTA_DASH_BUDGET", "1")
-    qd._budget_cache.update(ts=0.0, html="", thread=None)
-    calls = []
-    state = {"hold": False, "quota_cap": None}
-
-    class _R:
-        def __init__(self, args):
-            calls.append(list(args))
-            caps = {"box_cap": 23, "concurrency_cap": 17}
-            if state["quota_cap"] is not None:
-                caps["quota_cap"] = state["quota_cap"]
-            self.stdout = json.dumps(
-                {
-                    "caps": caps,
-                    "box_caps": {"read_only": 23, "heavy": 12},
-                    "heavy_reasons": [],
-                    "quota": {
-                        "ok": True,
-                        "active": "a@x",
-                        "hottest_pct": 7.0,
-                        "eligible": 1,
-                        "hold": state["hold"],
-                    },
-                }
-            )
-
-    monkeypatch.setattr(qd.subprocess, "run", lambda args, **kw: _R(args))
-    html = qd._budget_probe()
-    assert "read-only seats allowed now: <strong>17</strong> (box 23)" in html
-    assert "heavy seats allowed now: <strong>12</strong> (box 12)" in html
-    assert "CLI cap 17" in html and "CLI cap 20" not in html
-    # ONE probe per refresh — the fleet round-trip inside it is the thing the module bounds
-    assert len(calls) == 1 and "--heavy" not in calls[0]
-    # the quota cap binds when the payload carries it; a HOLD is 0 seats and says so
-    state["quota_cap"] = 3
-    html = qd._budget_probe()
-    assert "read-only seats allowed now: <strong>3</strong> (box 23, quota 3)" in html
-    state["hold"] = True
-    html = qd._budget_probe()
-    assert "<strong>0</strong>" in html and "FLEET HOLD" in html and "at 7.0%" not in html
-
-    def boom(args, **kw):
-        raise OSError("probe down")
-
-    monkeypatch.setattr(qd.subprocess, "run", boom)
-    assert "Box budget unavailable: probe down" in qd._budget_probe()
-    # the banner never blocks a render on the probe: a stale cache returns a placeholder and
-    # starts ONE background refresh; the next render reads what it computed
-    qd._budget_cache.update(ts=0.0, html="", thread=None)
-    monkeypatch.setattr(qd.subprocess, "run", lambda args, **kw: _R(args))
-    first = qd._budget_banner()
-    assert "computing" in first
-    qd._budget_cache["thread"].join(timeout=10)
-    assert "seats allowed now" in qd._budget_banner()
-    # round 7: the sibling reservation is on the label; a cap the FLOOR raised says so instead of
-    # implying a 24-seat box; the script's own caveats (a failed sibling probe, a LOWER bound, an
-    # env-only own id) reach the board; standbys are the COOL ones of the eligible
-    payload = {
-        "caps": {"box_cap": 3, "concurrency_cap": 17},
-        "box_caps": {"read_only": 3, "heavy": 3},
-        "floor": 3,
-        "box": {"ok": True},
-        "box_caps_floored": {
-            "read_only": True,
-            "heavy": True,
-        },  # the script's own verdict (round 9)
-        "heavy_reasons": [],
-        "siblings": {"seats": 21, "ok": True},
-        "quota": {
-            "ok": True,
-            "active": "a@x",
-            "hottest_pct": 7.0,
-            "eligible": 0,
-            "eligible_raw": 1,
-        },
-        "reasons": ["2 running sibling session(s) carry NO seat figure — a LOWER bound"],
-    }
-
-    class _P:
-        def __init__(self, args):
-            self.stdout = json.dumps(payload)
-
-    monkeypatch.setattr(qd.subprocess, "run", lambda args, **kw: _P(args))
-    html = qd._budget_probe()
-    assert "(box 3 = the floor, 21 reserved by sibling sessions)" in html
-    assert "0 cool standby(s) of 1 eligible" in html
-    assert "⚠️ 2 running sibling session(s) carry NO seat figure — a LOWER bound" in html
-    payload["box_caps"] = {"read_only": 20, "heavy": 9}
-    payload["box_caps_floored"] = {"read_only": False, "heavy": False}
-    payload["caps"]["box_cap"] = 20
-    payload["siblings"] = {"seats": 0, "ok": False, "why": "sibling probe failed: PermissionError"}
-    payload["reasons"] = []
-    html = qd._budget_probe()
-    assert "(box 20)" in html and "reserved" not in html
-    assert "⚠️ sibling probe failed: PermissionError — sibling seats unknown, not subtracted" in html
-    payload["siblings"] = {"seats": 2, "ok": True}
-    html = qd._budget_probe()
-    assert "(box 20 after 2 reserved by sibling sessions)" in html and "⚠️" not in html
-    # a box or quota probe that FAILED is held at the floor — the caveat must say so (round 8)
-    payload["reasons"] = ["psutil not importable — box unknown, held at the floor"]
-    assert "⚠️ psutil not importable — box unknown, held at the floor" in qd._budget_probe()
-    payload["reasons"] = [
-        "quota: 0 of 1 standby(s) are COOL — every fallback is itself in the drain band"
-    ]
-    assert "0 of 1 standby(s) are COOL" in qd._budget_probe()
-    # a DEAD box probe holds the cap at the floor: the caveat says so and the label never blames
-    # the sibling reservation for it (round-8 Opus finding)
-    payload["box"] = {"ok": False, "why": "box probe failed: /proc/meminfo"}
-    payload["box_caps"] = {"read_only": 3, "heavy": 3}
-    payload["siblings"] = {"seats": 5, "ok": True}
-    payload["reasons"] = ["box probe failed: /proc/meminfo — box unknown, held at the floor"]
-    html = qd._budget_probe()
-    assert "= the floor" not in html and "(box 3 after 5 reserved by sibling sessions)" in html
-    assert "⚠️ box probe failed: /proc/meminfo — box unknown, held at the floor" in html
-    payload.pop("box")
-    # round 9: an ABSENT box block is unknown — the floor label must not fire; the over-dispatch
-    # caveat is spelled "NOT subtracted" by the script — case must not hide it; a hard cap below
-    # the floor and a malformed concurrency cap are caveats too
-    html = qd._budget_probe()
-    assert "= the floor" not in html and "(box 3 after 5 reserved by sibling sessions)" in html
-    payload["box"] = {"ok": True}
-    payload["siblings"] = {"seats": 0, "ok": False, "why": "sibling probe failed: EACCES"}
-    payload["reasons"] = [
-        "below the floor because a HARD cap binds (quota_cap=0) — dispatch nothing until relief"
-    ]
-    html = qd._budget_probe()  # round 11: an unrelated caveat must not hide a failed sibling probe
-    assert "sibling probe failed: EACCES — sibling seats unknown, not subtracted" in html
-    payload["siblings"] = {"seats": 0, "ok": True}
-    payload["reasons"] = [
-        "1 sibling record(s) unreadable (x.json) — their seats are NOT subtracted; the box number is an UPPER bound",
-        "below the floor because a HARD cap binds (quota_cap=0) — dispatch nothing until relief",
-        "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS='x' is not a number — using 20",
-    ]
-    html = qd._budget_probe()
-    assert "⚠️ 1 sibling record(s) unreadable (x.json) — their seats are NOT subtracted" in html
-    assert "HARD cap binds" in html and "is not a number" in html
-    payload["reasons"] = []
-    # the HEAVY half's reasons reach the caveat block too (round-10 Opus: a heavy-only
-    # over-commit rendered with no ⚠️)
-    payload["heavy_reasons"] = [
-        "floor granted: 2 seat(s) past what the box has left after the sibling reservation"
-    ]
-    assert (
-        "⚠️ heavy half — floor granted: 2 seat(s) past what the box has left" in qd._budget_probe()
-    )
-    payload["heavy_reasons"] = []
-    # a probe that predates the halves SAYS so (round 11: an absent key read as "no heavy caveats")
-    payload.pop("heavy_reasons")
-    assert "probe payload predates heavy_reasons" in qd._budget_probe()
-    payload["heavy_reasons"] = []
-    # the read-only half is read too — a caveat only IT carries renders (round 12: the merge
-    # branch was unguarded at the board layer)
-    payload["reasons_read_only"] = ["read-only-only: box unknown, held at the floor"]
-    assert "read-only-only: box unknown, held at the floor" in qd._budget_probe()
-    payload.pop("reasons_read_only")
-    # a line repeated INSIDE heavy_reasons renders once (round 13: the prefixed form never
-    # matched its raw twin, so the second copy slipped through the dedupe)
-    payload["heavy_reasons"] = ["floor granted: 2 seat(s) past what the box has left"] * 2
-    assert qd._budget_probe().count("heavy half — floor granted: 2 seat(s)") == 1
-    # a cause in BOTH halves is not heavy-only: rendered once, unlabelled (round 14)
-    payload["heavy_reasons"] = ["quota HOLD is on — dispatch nothing"]
-    payload["reasons"] = list(payload["reasons"]) + ["quota HOLD is on — dispatch nothing"]
-    _both = qd._budget_probe()
-    assert _both.count("quota HOLD is on — dispatch nothing") == 1
-    assert "heavy half — quota HOLD" not in _both
-    # the read-only half and the heavy half sharing a cause the run's own half lacks: once, unlabelled
-    payload["reasons"].remove("quota HOLD is on — dispatch nothing")
-    payload["reasons_read_only"] = ["quota HOLD is on — dispatch nothing"]
-    _ro = qd._budget_probe()
-    assert _ro.count("quota HOLD is on — dispatch nothing") == 1
-    assert "heavy half — quota HOLD" not in _ro
-    payload.pop("reasons_read_only")
-    payload["heavy_reasons"] = []
-    # an older probe without box_caps must not let the read-only cap pose as the heavy one
-    monkeypatch.setattr(
-        qd.subprocess,
-        "run",
-        lambda args, **kw: type(
-            "R", (), {"stdout": json.dumps({"caps": {"box_cap": 23}, "quota": {}})}
-        )(),
-    )
-    assert "carries no box_caps" in qd._budget_probe()
-    # single-flight under CONCURRENT stale-cache renders: N threads, ONE probe thread started
-    import threading
-
-    qd._budget_cache.update(ts=0.0, html="", thread=None)
-    monkeypatch.setattr(qd.subprocess, "run", lambda args, **kw: _R(args))
-    calls.clear()
-    gate = threading.Barrier(6)
-
-    def hit():
-        gate.wait(timeout=5)
-        qd._budget_banner()
-
-    ts = [threading.Thread(target=hit) for _ in range(6)]
-    for th in ts:
-        th.start()
-    for th in ts:
-        th.join(timeout=5)
-    qd._budget_cache["thread"].join(timeout=10)
-    assert len(calls) == 1
-    # an account switch invalidates the banner cache (round 4): the next banner is a placeholder
-    # or a fresh probe, never the old account's headroom
-    qd._budget_cache.update(ts=time.time(), html="<p>OLD ACCOUNT</p>", thread=None)
-    with qd._budget_lock:
-        qd._budget_cache.update(ts=0.0, html="")  # the exact statement switch_account runs
-    assert "OLD ACCOUNT" not in qd._budget_banner()
-    qd._budget_cache["thread"].join(timeout=10)
-    monkeypatch.setenv("QUOTA_DASH_BUDGET", "0")
-    assert qd._budget_banner() == ""
-
-
 def test_model_tiers_column_catches_a_tier_no_seat_mention_is_near(tmp_path, monkeypatch):
     """The seat column can only report a tier written NEXT to a seat. A command that tiers its work
     in its own paragraph — "Haiku only for trivial-mechanical checks" — names a real tier that no
@@ -3208,21 +4395,12 @@ def test_model_tiers_column_catches_a_tier_no_seat_mention_is_near(tmp_path, mon
     monkeypatch.setattr(qd, "RENDERED_COMMANDS", _rendered(tmp_path, name, body))
     assert qd._command_natives(name) == [("general-purpose", ("sonnet",))]
     assert qd._command_tiers(name) == ("opus", "sonnet", "haiku")  # canonical order, not text order
-    html = qd._commands_table(
-        [
-            {
-                "name": name,
-                "stage": "2-contract",
-                "purpose": "p",
-                "when": "",
-                "skip": "",
-                "next": "",
-                "natives": [("general-purpose", ("sonnet",))],
-                "tiers": ("opus", "sonnet", "haiku"),
-            }
-        ]
+    row = {"name": name, "stage": "2-contract", "natives": [("general-purpose", ("sonnet",))],
+           "tiers": ("opus", "sonnet", "haiku")}  # fmt: skip
+    assert (
+        _catalogue_cells(_commands_with(qd, monkeypatch, [row]), name)["Model tiers"]
+        == "opus · sonnet · haiku"
     )
-    assert "Model tiers" in html and "opus · sonnet · haiku" in html
 
 
 def test_flywheel_column_is_a_tombstone_the_retirement_notice_cannot_light(tmp_path, monkeypatch):
@@ -3278,23 +4456,40 @@ def test_pool_column_reads_backticked_prose_not_only_code(tmp_path, monkeypatch)
 
 def test_governor_panel_never_advertises_shedding_to_a_pool_that_is_off(tmp_path, monkeypatch):
     qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_status_triggers", lambda: None)
     payload = {
         "active": "ob",
-        "accounts": [{"slugs": ["ob"], "cap_walled": True, "five_hour": {"utilization": 99}}],
+        "accounts": [
+            {
+                "email": "ob@x.com",
+                "slugs": ["ob"],
+                "cap_walled": True,
+                "five_hour": {"utilization": 99},
+            }
+        ],
     }
+    qd._set_last_status(time.time(), payload)
+
+    def governor() -> str:
+        cards = [
+            c.words()
+            for c in _find(_dom(_accounts(qd)), "article")
+            if "Quota governor" in c.words()
+        ]
+        assert len(cards) == 1
+        return cards[0]
+
     monkeypatch.setenv("FABRIK_POOL_POLICY", "off")
-    html = qd._governor_panel(payload)
-    assert "pool OFF by ruling" in html and "pool-diagnose" not in html
+    assert "pool OFF by ruling" in governor() and "pool-diagnose" not in governor()
     monkeypatch.setenv("FABRIK_POOL_POLICY", "on")
-    html = qd._governor_panel(payload)
-    assert "pool-diagnose" in html
+    assert "pool-diagnose" in governor()
 
 
 def test_a_switch_orphans_the_probe_already_in_flight(tmp_path, monkeypatch):
     """Round-5 finding: the switch reset the cache but a probe thread that had started BEFORE the
-    switch wrote the OLD account's html with a fresh stamp afterwards. The switch bumps a
+    switch wrote the OLD account's reading with a fresh stamp afterwards. The switch bumps a
     generation; a probe lands only if its generation is still current — graded through the REAL
-    switch_account, banner enabled (the F102 test had re-run the reset statement itself)."""
+    switch_account, the budget enabled (the F102 test had re-run the reset statement itself)."""
     import threading
 
     qd, stub = _switch_env(tmp_path, monkeypatch)
@@ -3303,39 +4498,26 @@ def test_a_switch_orphans_the_probe_already_in_flight(tmp_path, monkeypatch):
     release = threading.Event()
     real_run = qd.subprocess.run
 
-    def slow_probe(args, **kw):  # only the banner's dispatch_headroom probe is slowed
+    def slow_probe(args, **kw):  # only the budget's dispatch_headroom probe is slowed
         if any("dispatch_headroom" in str(a) for a in args):
             started.set()
             release.wait(timeout=10)
-            return type(
-                "R",
-                (),
-                {
-                    "stdout": json.dumps(
-                        {
-                            "caps": {"box_cap": 23, "concurrency_cap": 20},
-                            "box_caps": {"read_only": 23, "heavy": 12},
-                            "quota": {
-                                "ok": True,
-                                "active": "OLD-ACCOUNT",
-                                "hottest_pct": 1.0,
-                                "eligible": 1,
-                                "hold": False,
-                            },
-                        }
-                    )
-                },
-            )()
+            q = {
+                "ok": True,
+                "active": "OLD-ACCOUNT",
+                "hottest_pct": 1.0,
+                "eligible": 1,
+                "hold": False,
+            }
+            return type("R", (), {"stdout": json.dumps(_budget_payload(quota=q))})()
         return real_run(args, **kw)
 
     monkeypatch.setattr(qd.subprocess, "run", slow_probe)
-    qd._budget_cache.update(ts=0.0, html="", thread=None, gen=0)
-    assert "computing" in qd._budget_banner()  # the pre-switch probe is now in flight
+    qd._budget_cache.update(ts=0.0, data=None, thread=None, gen=0)
+    assert qd._budget_data() == {"computing": True}  # the pre-switch probe is now in flight
     assert started.wait(timeout=10)
     gen_before = qd._budget_cache["gen"]
-    monkeypatch.setattr(
-        qd, "generate", lambda: None
-    )  # the switch's own re-render is not under test
+    monkeypatch.setattr(qd, "generate", lambda: None)  # the switch's own re-probe is not under test
     status, body = qd.switch_account("sarp")
     assert status == 200 and qd._budget_cache["gen"] == gen_before + 1
     old_thread = qd._budget_cache[
@@ -3347,9 +4529,8 @@ def test_a_switch_orphans_the_probe_already_in_flight(tmp_path, monkeypatch):
     nxt = qd._budget_cache["thread"]
     assert nxt is not old_thread
     nxt.join(timeout=10)
-    assert (
-        "OLD-ACCOUNT" in qd._budget_cache["html"] and qd._budget_cache["ts"] > 0
-    )  # the stub's payload, now current
+    data = qd._budget_cache["data"]
+    assert data["quota"]["active"] == "OLD-ACCOUNT" and qd._budget_cache["ts"] > 0  # now current
 
 
 def test_every_degraded_reason_the_script_can_emit_reaches_the_board(tmp_path, monkeypatch):
@@ -3416,14 +4597,14 @@ def test_every_degraded_reason_the_script_can_emit_reaches_the_board(tmp_path, m
 def _check(r, s, qd, bookkeeping, missed, key="reasons"):
     d = {"reasons": [], "reasons_read_only": [], "heavy_reasons": [], "siblings": s}
     d[key] = r["reasons"]  # every half present: the "predates" line must never pollute (round 15)
-    rendered = qd._budget_caveats(d)
-    assert "predates heavy_reasons" not in rendered
+    lines = qd._budget_caveat_lines(d)
+    assert not any("predates heavy_reasons" in x for x in lines)
     # the heavy half renders LABELLED — containment alone passed with the label dropped (round 14)
     label = "heavy half — " if key == "heavy_reasons" else ""
     for reason in r["reasons"]:
         if reason.startswith(bookkeeping):
             continue
-        if html.escape(label + reason) not in rendered:
+        if label + reason not in lines:
             missed.add(key + ": " + reason[:90])
 
 
@@ -3454,7 +4635,7 @@ def test_an_orphaned_probe_re_kicks_only_when_no_other_probe_is_alive(tmp_path, 
     hold = threading.Event()
     other = threading.Thread(target=hold.wait, daemon=True)
     other.start()
-    qd._budget_cache.update(ts=0.0, html="", thread=other, gen=7)
+    qd._budget_cache.update(ts=0.0, data=None, thread=other, gen=7)
     qd._budget_probe(3)  # stale generation lands while `other` is alive: no re-kick
     assert qd._budget_cache["thread"] is other and len(started) == 1
     hold.set()
@@ -3464,4 +4645,1367 @@ def test_an_orphaned_probe_re_kicks_only_when_no_other_probe_is_alive(tmp_path, 
     nxt = qd._budget_cache["thread"]
     assert nxt is not None and nxt is not other
     nxt.join(timeout=10)
-    assert len(started) == 3 and qd._budget_cache["html"]  # the re-kick landed as current
+    assert len(started) == 3 and qd._budget_cache["data"]["seats"]  # the re-kick landed as current
+
+
+# ── Repos tab (operator ask 2026-10-11) ─────────────────────────────────────────────────────────
+# "a tab should come first named repos. in it i want to be able to select different repos start with
+# fabrik first." The repos come from FABRIK_OPT_DIR, which conftest pins to an empty dir per test.
+
+
+def _work_repo(opt: Path, name: str, items: list[dict], *, closed=(), claims=None, git=True):
+    repo = opt / name
+    (repo / ".fabrik" / "work").mkdir(parents=True)
+    if git:
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    for it in items:
+        item = {"kind": "task", "status": "open", "priority": 2, "owner": "", "next": "", **it}
+        (repo / ".fabrik" / "work" / f"{item['id']}.json").write_text(json.dumps(item))
+    shared = repo / ".git" / "fabrik-work"
+    for item_id in closed:
+        (shared / "closed").mkdir(parents=True, exist_ok=True)
+        (shared / "closed" / f"{item_id}.json").write_text(json.dumps({"at": time.time()}))
+    for item_id, agent in (claims or {}).items():
+        (shared / "claims").mkdir(parents=True, exist_ok=True)
+        claim = {"agent": agent, "session": "s1", "at": time.time(), "lease_s": 7200, "token": 1}
+        (shared / "claims" / f"{item_id}.json").write_text(json.dumps(claim))
+    return repo
+
+
+def _opt() -> Path:
+    return Path(os.environ["FABRIK_OPT_DIR"])
+
+
+def _work(qd) -> str:
+    return _view(qd, "work")
+
+
+def _work_pane(markup: str, repo: str) -> _Node:
+    panes = _find(_dom(markup), "div", data_pick=repo)
+    assert len(panes) == 1, (repo, len(panes))
+    return panes[0]
+
+
+def _owner_sections(pane: _Node) -> list[tuple[str, _Node]]:
+    """(summary words, section) of every owner section in a Work pane, in display order."""
+    return [
+        (next(c for c in d.children if c.tag == "summary").words(), d)
+        for d in _find(pane, "details")
+        if "data-f-owner" in d.attrs
+    ]
+
+
+def _owner_section(pane: _Node, owner: str) -> _Node:
+    hits = [d for words, d in _owner_sections(pane) if words.split(" (")[0] == owner]
+    assert len(hits) == 1, (owner, [w for w, _d in _owner_sections(pane)])
+    return hits[0]
+
+
+def _chip_words(pane: _Node) -> list[str]:
+    navs = [n for n in _find(pane, "nav") if n.attrs.get("data-chips") == "owners"]
+    return [b.words() for b in _find(navs[0], "button")] if navs else []
+
+
+def _item_ids(node: _Node) -> list[str]:
+    """The item ids of every Work table row under ``node``, in order (the row's header cell)."""
+    out = []
+    for r in _find(node, "tr"):
+        cells = [c for c in r.children if c.tag in ("th", "td")]
+        if cells and cells[0].tag == "th" and cells[0].attrs.get("scope") == "row":
+            out.append(cells[0].words())
+    return out
+
+
+def test_the_quota_views_never_read_a_work_store(tmp_path, monkeypatch):
+    """Isolation (the old Repos page's): a work store that raises costs the Work view — which says so
+    in words — never the Accounts view, which reads the quota payload alone."""
+    qd = _load(tmp_path, monkeypatch)
+
+    def boom(_opt):
+        raise RuntimeError("store exploded")
+
+    monkeypatch.setattr(qd, "_collect_work", boom)
+    monkeypatch.setattr(qd, "_probe", _payload)
+    qd.generate()
+    accounts = _accounts(qd)
+    assert "store exploded" not in accounts and "mob@ocoron.com" in accounts
+    work = _work(qd)
+    assert "The work stores could not be read: RuntimeError: store exploded" in _text(work)
+    assert 'data-state="error"' in work
+
+
+def _agents_table(markup: str, repo: str) -> _Node:
+    regions = [
+        d
+        for d in _find(_dom(markup), "div", role="region")
+        if any(c.tag == "table" for c in d.children)
+        and next(c for c in d.children if c.tag == "table").children[0].words()
+        == f"Agents in {repo}"
+    ]
+    assert len(regions) == 1, (repo, len(regions))
+    return regions[0]
+
+
+def _agent_cells(markup: str, repo: str, agent: str) -> list[_Node]:
+    rows = _find(_agents_table(markup, repo), "tr", data_agent=agent)
+    assert len(rows) == 1, (repo, agent, len(rows))
+    return [c for c in rows[0].children if c.tag in ("th", "td")]
+
+
+def _overview(qd, monkeypatch) -> str:
+    monkeypatch.setattr(qd, "_status_triggers", lambda: None)  # the Agents block is not the quota
+    return _view(qd, "overview")
+
+
+def test_agents_block_failure_is_its_sections_error(tmp_path, monkeypatch):
+    _work_repo(_opt(), "fabrik", [{"id": "W-0000000a", "title": "still listed"}])
+    qd = _load(tmp_path, monkeypatch)
+
+    def boom():
+        raise RuntimeError("status exploded")
+
+    monkeypatch.setattr(qd, "_status_module", boom)
+    html_ = _overview(qd, monkeypatch)
+    agents = html_.split('id="ov-agents"', 1)[1].split('id="ov-quota"', 1)[0]
+    assert "The agents could not be read: RuntimeError: status exploded" in _text(agents)
+    assert 'data-state="error"' in agents
+    assert "still listed" in _work_pane(_work(qd), "fabrik").words()
+
+    class Stub:  # a malformed agent row (a claim that is a bare string): every repo's rows stay
+        @staticmethod
+        def collect_box(_opt):
+            return {"repos": [
+                {"name": "bad", "agents": [{"name": "x", "claim": "W-1"}]},
+                {"name": "good", "agents": [{"name": "fine", "state": "idle"}]},
+            ]}  # fmt: skip
+
+    monkeypatch.setattr(qd, "_status_module", lambda: Stub)
+    qd._drop_repos_cache()
+    html_ = _overview(qd, monkeypatch)
+    assert (
+        _agent_cells(html_, "bad", "x") and "idle" in _agent_cells(html_, "good", "fine")[1].words()
+    )
+    assert "still listed" in _work_pane(_work(qd), "fabrik").words()
+
+
+def test_the_repo_picker_lists_fabrik_first_then_by_open_count(tmp_path, monkeypatch):
+    opt = _opt()
+    _work_repo(opt, "aaa", [])
+    _work_repo(opt, "big", [{"id": f"W-0000000{i}"} for i in range(3)])
+    _work_repo(opt, "mid", [{"id": "W-00000010"}, {"id": "W-00000011"}])
+    _work_repo(opt, "fabrik", [{"id": "W-00000020"}])
+    qd = _load(tmp_path, monkeypatch)
+    html_ = _work(qd)
+    picker = [n for n in _find(_dom(html_), "nav") if n.attrs.get("data-picker") == "repo"]
+    assert [b.attrs["data-pick-to"] for b in _find(picker[0], "button")] == [
+        "fabrik",
+        "big",
+        "mid",
+        "aaa",
+    ]
+    # the picked repo is kept in the URL (`#work/<repo>`, app.js's pick group), so a reload keeps it
+    assert _find(_dom(html_), "div", data_pick_group="repo")
+
+
+def test_a_repo_shows_only_remaining_work_grouped_by_owner(tmp_path, monkeypatch):
+    _work_repo(
+        _opt(),
+        "fabrik",
+        [
+            {"id": "W-0000000a", "owner": "zed", "title": "zed item"},
+            {"id": "W-0000000b", "owner": "", "title": "nobody's"},
+            {"id": "W-0000000c", "owner": "fleet", "status": "blocked", "title": "fleet item"},
+            {"id": "W-0000000d", "owner": "infra", "title": "infra item", "next": "x" * 400},
+            {
+                "id": "W-0000000e",
+                "owner": "operator",
+                "status": "awaiting-operator",
+                "kind": "decision",
+            },
+            {"id": "W-0000000f", "owner": "infra", "status": "done", "title": "finished"},
+            {"id": "W-00000001", "owner": "infra", "status": "dropped", "title": "dropped one"},
+            {"id": "W-00000002", "owner": "infra", "title": "closed elsewhere"},
+        ],
+        closed=["W-00000002"],
+        claims={"W-0000000d": "infra"},
+    )
+    qd = _load(tmp_path, monkeypatch)
+    html_ = _work(qd)
+    for gone in ("W-0000000f", "W-00000001", "W-00000002"):
+        assert gone not in html_, gone
+    pane = _work_pane(html_, "fabrik")
+    heads = [w.split(" (")[0] for w, _d in _owner_sections(pane)]
+    assert heads == [
+        "coordinator",
+        "infra",
+        "fleet",
+        "intel",
+        "kaizen",
+        "operator",
+        "zed",
+        "(unassigned)",
+    ]
+    infra = _owner_section(pane, "infra")
+    assert _item_ids(infra) == ["W-0000000d"]
+    assert "infra item" in infra.words() and "claimed by infra" in infra.words()
+    capped = [d for d in _find(infra, "details") if "data-f-owner" not in d.attrs]
+    summary = next(c for c in capped[0].children if c.tag == "summary").words()
+    assert summary == "x" * 159 + "…", len(summary)  # the Next cell is capped at 160 characters
+    assert "blocked" in _owner_section(pane, "fleet").words()
+
+
+def test_one_unreadable_repo_does_not_hide_the_others(tmp_path, monkeypatch):
+    _work_repo(_opt(), "fabrik", [{"id": "W-00000004", "title": "still listed"}])
+    _work_repo(_opt(), "nogit", [{"id": "W-00000005"}], git=False)
+    qd = _load(tmp_path, monkeypatch)
+    html_ = _work(qd)
+    assert "still listed" in _work_pane(html_, "fabrik").words()
+    nogit = _work_pane(html_, "nogit")
+    assert (
+        _find(nogit, "div", data_state="error")
+        and "the work store could not be read" in nogit.words()
+    )
+
+
+def test_item_text_is_escaped(tmp_path, monkeypatch):
+    _work_repo(_opt(), "fabrik", [{"id": "W-00000003", "title": "<script>x</script>"}])
+    qd = _load(tmp_path, monkeypatch)
+    html_ = _work(qd)
+    assert "<script>x</script>" not in html_ and "&lt;script&gt;x&lt;/script&gt;" in html_
+
+
+def test_rows_run_awaiting_operator_first_then_priority_then_id(tmp_path, monkeypatch):
+    _work_repo(
+        _opt(),
+        "fabrik",
+        [
+            {"id": "W-000000c1", "owner": "infra", "priority": 1},
+            {"id": "W-000000a3", "owner": "infra", "priority": 3},
+            {"id": "W-000000b2", "owner": "infra", "priority": 1},
+            {"id": "W-000000d9", "owner": "infra", "priority": 3, "status": "awaiting-operator"},
+        ],
+    )
+    qd = _load(tmp_path, monkeypatch)
+    assert _item_ids(_work_pane(_work(qd), "fabrik")) == [
+        "W-000000d9",
+        "W-000000b2",
+        "W-000000c1",
+        "W-000000a3",
+    ]
+
+
+def test_a_malformed_item_or_a_file_store_stays_inside_its_repo(tmp_path, monkeypatch):
+    """A hand-broken item (a dict priority, an int tags) still renders; a store that is a FILE is
+    that repo's error, in words; a symlinked alias of a repo is not listed twice."""
+    opt = _opt()
+    _work_repo(opt, "fabrik", [{"id": "W-00000006", "title": "still listed"}])
+    bad = _work_repo(opt, "bad", [{"id": "W-00000007", "title": "odd fields"}])
+    item = bad / ".fabrik" / "work" / "W-00000007.json"
+    item.write_text(json.dumps({**json.loads(item.read_text()), "priority": {"x": 1}, "tags": 5}))
+    (opt / "flat" / ".fabrik").mkdir(parents=True)
+    (opt / "flat" / ".fabrik" / "work").write_text("not a dir")
+    (opt / "alias").symlink_to(opt / "fabrik")
+    qd = _load(tmp_path, monkeypatch)
+    html_ = _work(qd)
+    assert "still listed" in _work_pane(html_, "fabrik").words()
+    assert "odd fields" in _work_pane(html_, "bad").words()
+    flat = _work_pane(html_, "flat")
+    assert _find(flat, "div", data_state="error") and "not a directory" in flat.words()
+    picker = [n for n in _find(_dom(html_), "nav") if n.attrs.get("data-picker") == "repo"][0]
+    names = [b.attrs["data-pick-to"] for b in _find(picker, "button")]
+    assert sorted(names) == ["bad", "fabrik", "flat"]  # the symlinked alias is not listed twice
+
+
+def test_the_owner_chips_name_the_hub_agents_and_unassigned_even_at_zero(tmp_path, monkeypatch):
+    """Operator ask 2026-10-11: see infra, kaizen, intel, fleet and unassigned in the fabrik pane."""
+    items = [{"id": "W-0000000a", "owner": "infra"}, {"id": "W-0000000b", "owner": "infra"}]
+    _work_repo(_opt(), "fabrik", items + [{"id": "W-0000000c", "owner": "zed"}])
+    qd = _load(tmp_path, monkeypatch)
+    assert _chip_words(_work_pane(_work(qd), "fabrik")) == [
+        "All 3", "coordinator 0", "infra 2", "fleet 0", "intel 0", "kaizen 0", "zed 1", "(unassigned) 0",
+    ]  # fmt: skip
+
+
+def test_every_owner_section_is_a_closed_details_and_empty_ones_say_so(tmp_path, monkeypatch):
+    _work_repo(_opt(), "fabrik", [{"id": "W-0000000a", "owner": "infra"}, {"id": "W-0000000b"}])
+    qd = _load(tmp_path, monkeypatch)
+    pane = _work_pane(_work(qd), "fabrik")
+    owners = [w.split(" (")[0] for w, _d in _owner_sections(pane)]
+    assert owners == ["coordinator", "infra", "fleet", "intel", "kaizen", "(unassigned)"], owners
+    # the work-data cache is shared by every viewer: no section is opened on the server
+    assert all("open" not in d.attrs for _w, d in _owner_sections(pane))
+    kaizen = _owner_section(pane, "kaizen")
+    assert "No open items." in kaizen.words() and not _find(kaizen, "table")
+    assert _item_ids(_owner_section(pane, "(unassigned)")) == ["W-0000000b"]
+
+
+def test_a_literal_unassigned_owner_and_odd_names_stay_distinct_and_escaped(tmp_path, monkeypatch):
+    _work_repo(
+        _opt(),
+        "fabrik",
+        [{"id": "W-0000000a", "owner": "unassigned"}, {"id": "W-0000000b", "owner": 'a"b<c'}],
+    )
+    qd = _load(tmp_path, monkeypatch)
+    html_ = _work(qd)
+    labels = [w.rsplit(" ", 1)[0] for w in _chip_words(_work_pane(html_, "fabrik"))]
+    assert "unassigned" in labels and "(unassigned)" in labels and 'a"b<c' in labels
+    assert 'a"b<c' not in html_ and "a&quot;b&lt;c" in html_
+
+
+def test_only_a_repo_with_remaining_work_carries_owner_chips(tmp_path, monkeypatch):
+    _work_repo(_opt(), "fabrik", [{"id": "W-0000000a", "owner": "infra"}])
+    _work_repo(_opt(), "quiet", [{"id": "W-0000000b", "status": "done"}])
+    qd = _load(tmp_path, monkeypatch)
+    html_ = _work(qd)
+    assert _chip_words(_work_pane(html_, "fabrik"))
+    quiet = _work_pane(html_, "quiet")
+    assert _chip_words(quiet) == [] and "No remaining work in this repo." in quiet.words()
+
+
+# ── per-account weekly caps from the board (operator ask 2026-10-14) ───────────────────────────
+
+
+def _caps_env(tmp_path, monkeypatch, seed: dict | None):
+    caps = tmp_path / "caps.json"
+    if seed is not None:
+        caps.write_text(json.dumps(seed))
+    monkeypatch.setenv("QUOTA_DASH_CAPS_FILE", str(caps))
+    qd, stub = _switch_env(tmp_path, monkeypatch)
+    return qd, stub, caps
+
+
+def test_cap_without_the_custom_header_is_refused(tmp_path, monkeypatch):
+    """`/cap` writes caps.json — the same CSRF guard as `/switch` and `/park`."""
+    qd, stub, caps = _caps_env(tmp_path, monkeypatch, {"mob@ocoron.com": 99})
+    httpd, base = _serve(qd)
+    try:
+        status, body = _post(f"{base}/cap", b'{"account": "sarp@ocoron.com", "cap": 80}')
+        assert status == 403, body
+        assert json.loads(caps.read_text()) == {"mob@ocoron.com": 99}
+    finally:
+        httpd.shutdown()
+
+
+def test_cap_rejects_an_unknown_account_or_a_bad_value(tmp_path, monkeypatch):
+    qd, stub, caps = _caps_env(tmp_path, monkeypatch, {"mob@ocoron.com": 99})
+    httpd, base = _serve(qd)
+    try:
+        for bad in (
+            b'{"account": "nobody@x.com", "cap": 80}',
+            b'{"account": "sarp@ocoron.com", "cap": "80"}',
+            b'{"account": "sarp@ocoron.com", "cap": 150}',
+            b'{"account": "sarp@ocoron.com", "cap": -1}',
+            b'{"account": "sarp@ocoron.com", "cap": true}',
+            b'{"account": "sarp@ocoron.com"}',
+        ):
+            status, body = _post(f"{base}/cap", bad, {qd.SWITCH_HEADER: "1"})
+            assert status == 400, (bad, body)
+        assert json.loads(caps.read_text()) == {"mob@ocoron.com": 99}
+    finally:
+        httpd.shutdown()
+
+
+def test_cap_set_and_clear_write_caps_json_and_regenerate(tmp_path, monkeypatch):
+    """One click sets (or clears, with null) ONE account's weekly cap, keeps every other entry,
+    lowercases the key the rotation loader compares on, and re-renders the board."""
+    qd, stub, caps = _caps_env(tmp_path, monkeypatch, {"mob@ocoron.com": 99})
+    httpd, base = _serve(qd)
+    try:
+        before = _calls(stub)
+        status, body = _post(
+            f"{base}/cap", b'{"account": "SARP@ocoron.com", "cap": 80}', {qd.SWITCH_HEADER: "1"}
+        )
+        assert status == 200 and body["ok"] is True, body
+        assert json.loads(caps.read_text()) == {"mob@ocoron.com": 99, "sarp@ocoron.com": 80}
+        assert ["--status", "--json"] in _calls(stub)[len(before) :]  # re-rendered after the write
+        status, body = _post(
+            f"{base}/cap", b'{"account": "sarp@ocoron.com", "cap": null}', {qd.SWITCH_HEADER: "1"}
+        )
+        assert status == 200 and body["ok"] is True, body
+        assert json.loads(caps.read_text()) == {"mob@ocoron.com": 99}
+        assert caps.with_name("caps.json.tmp").exists() is False
+    finally:
+        httpd.shutdown()
+
+
+def test_cap_never_overwrites_an_unreadable_caps_file(tmp_path, monkeypatch):
+    """A caps.json that does not parse is refused, not replaced — rewriting it from {} would
+    silently drop every other account's reserve."""
+    qd, stub, caps = _caps_env(tmp_path, monkeypatch, None)
+    caps.write_text("{not json")
+    httpd, base = _serve(qd)
+    try:
+        status, body = _post(
+            f"{base}/cap", b'{"account": "sarp@ocoron.com", "cap": 80}', {qd.SWITCH_HEADER: "1"}
+        )
+        assert status == 502, body
+        assert caps.read_text() == "{not json"
+    finally:
+        httpd.shutdown()
+
+
+def test_cap_on_a_missing_caps_file_creates_it(tmp_path, monkeypatch):
+    qd, stub, caps = _caps_env(tmp_path, monkeypatch, None)
+    assert not caps.exists()
+    httpd, base = _serve(qd)
+    try:
+        status, body = _post(
+            f"{base}/cap", b'{"account": "sarp@ocoron.com", "cap": 0}', {qd.SWITCH_HEADER: "1"}
+        )
+        assert status == 200, body
+        assert json.loads(caps.read_text()) == {"sarp@ocoron.com": 0}
+    finally:
+        httpd.shutdown()
+
+
+def _edit_panel(markup: str, slug: str) -> _Node:
+    """The account row's Edit disclosure (its four controls live there)."""
+    row = _acct_row(markup, slug)
+    panels = _find(row, "details")
+    assert len(panels) == 1, (slug, len(panels))
+    return panels[0]
+
+
+def _work_row(markup: str, item: str) -> _Node:
+    rows = [r for r in _find(_dom(markup), "tr") if _item_ids(r) == [item]]
+    assert len(rows) == 1, (item, len(rows))
+    return rows[0]
+
+
+def test_every_row_offers_a_cap_control_showing_the_current_cap(tmp_path, monkeypatch):
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_probe", _multi_payload)
+    qd.generate()
+    html_ = _accounts(qd)
+    for acct in _multi_payload()["accounts"]:
+        email, slug, cap = acct["email"], acct["slugs"][0], acct.get("weekly_cap")
+        panel = _edit_panel(html_, slug)
+        field = _find(panel, "input", name="cap")
+        assert len(field) == 1, email
+        assert field[0].attrs.get("value") == ("" if cap is None else f"{cap:g}"), (
+            email,
+            field[0].attrs,
+        )
+        assert _buttons(panel, "/cap") == [{"account": email}], email
+
+
+# ── per-account rotate thresholds from the board (operator 2026-10-14) ─────────────────────────
+
+
+def _thr_env(tmp_path, monkeypatch, seed: dict | None):
+    f = tmp_path / "thresholds.json"
+    if seed is not None:
+        f.write_text(json.dumps(seed))
+    monkeypatch.setenv("QUOTA_DASH_THRESHOLDS_FILE", str(f))
+    monkeypatch.setenv("QUOTA_DASH_CAPS_FILE", str(tmp_path / "caps.json"))
+    qd, stub = _switch_env(tmp_path, monkeypatch)
+    return qd, stub, f
+
+
+def test_threshold_set_clear_and_refusals(tmp_path, monkeypatch):
+    qd, stub, f = _thr_env(tmp_path, monkeypatch, {"mob@ocoron.com": 98})
+    httpd, base = _serve(qd)
+    try:
+        status, body = _post(
+            f"{base}/threshold", b'{"account": "sarp@ocoron.com", "threshold": 97}'
+        )
+        assert status == 403, body
+        for bad in (
+            b'{"account": "nobody@x.com", "threshold": 97}',
+            b'{"account": "sarp@ocoron.com", "threshold": 49}',
+            b'{"account": "sarp@ocoron.com", "threshold": 101}',
+            b'{"account": "sarp@ocoron.com", "threshold": "97"}',
+            b'{"account": "sarp@ocoron.com", "threshold": false}',
+            b'{"account": "sarp@ocoron.com"}',
+        ):
+            status, body = _post(f"{base}/threshold", bad, {qd.SWITCH_HEADER: "1"})
+            assert status == 400, (bad, body)
+        assert json.loads(f.read_text()) == {"mob@ocoron.com": 98}
+        status, body = _post(
+            f"{base}/threshold",
+            b'{"account": "SARP@ocoron.com", "threshold": 97}',
+            {qd.SWITCH_HEADER: "1"},
+        )
+        assert status == 200 and body["ok"], body
+        assert json.loads(f.read_text()) == {"mob@ocoron.com": 98, "sarp@ocoron.com": 97}
+        status, body = _post(
+            f"{base}/threshold",
+            b'{"account": "mob@ocoron.com", "threshold": null}',
+            {qd.SWITCH_HEADER: "1"},
+        )
+        assert status == 200 and body["ok"], body
+        assert json.loads(f.read_text()) == {"sarp@ocoron.com": 97}
+    finally:
+        httpd.shutdown()
+
+
+def test_every_row_offers_a_threshold_control_and_the_trigger_reads_the_override(
+    tmp_path, monkeypatch
+):
+    qd = _load(tmp_path, monkeypatch)
+
+    def payload():
+        p = _multi_payload()
+        p["accounts"][0]["session_threshold"] = 97.0
+        return p
+
+    monkeypatch.setattr(qd, "_probe", payload)
+    qd.generate()
+    html_ = _accounts(qd)
+    for acct in payload()["accounts"]:
+        panel = _edit_panel(html_, acct["slugs"][0])
+        assert _find(panel, "input", name="threshold"), acct["email"]
+        assert _buttons(panel, "/threshold") == [{"account": acct["email"]}], acct["email"]
+    first = payload()["accounts"][0]
+    field = _find(_edit_panel(html_, first["slugs"][0]), "input", name="threshold")[0]
+    assert field.attrs.get("value") == "97", field.attrs
+    assert qd._trip_line(payload()["accounts"][0]) == 97.0
+    assert qd._trip_line(payload()["accounts"][1]) == qd.TRIGGER_THRESHOLD
+
+
+def test_the_account_map_writer_drops_case_variants_and_holds_the_lock(tmp_path, monkeypatch):
+    """D-855 review: a hand-written `OB@…` survived a board clear of `ob@…` (the loaders lowercase and
+    the last duplicate wins), and no grader died when the flock was removed. The writer must drop every
+    case-variant, and a write must WAIT while another holder has `<file>.lock`."""
+    import fcntl
+    import threading
+
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_rerender", lambda: None)
+    f = tmp_path / "thresholds.json"
+    f.write_text(json.dumps({"OB@ocoron.com": 60, "x@y.co": 97}))
+    status, _body = qd._edit_account_map(f, "ob@ocoron.com", None, "thresholds")
+    assert status == 200 and json.loads(f.read_text()) == {"x@y.co": 97}
+    status, _body = qd._edit_account_map(f, "x@y.co", 95, "thresholds")
+    assert json.loads(f.read_text()) == {"x@y.co": 95}
+
+    done = threading.Event()
+    th = threading.Thread(
+        target=lambda: (qd._edit_account_map(f, "z@y.co", 90, "thresholds"), done.set())
+    )
+    with open(tmp_path / "thresholds.json.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        th.start()
+        try:
+            assert not done.wait(0.5), "the writer did not wait for the lock holder"
+            assert "z@y.co" not in json.loads(f.read_text())
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+    th.join(5)
+    assert done.is_set() and json.loads(f.read_text()) == {"x@y.co": 95, "z@y.co": 90}
+
+
+# ── the Agents block and the live Repos page (operator 2026-10-15, W-7159f8e2) ─────────────────────
+
+
+def _run_record(sid: str, **fields) -> None:
+    d = Path(os.environ["COMMAND_RUN_DIR"])
+    d.mkdir(parents=True, exist_ok=True)
+    rec = {"session_id": sid, "updated_ts": time.time(), "phase": 3, "phases": 5, **fields}
+    (d / f"{sid}.json").write_text(json.dumps(rec))
+
+
+def test_agents_block_shows_every_repo_with_titles(tmp_path, monkeypatch):
+    """Every repo with a recent agent gets its rows — state, NOW, HOLDS, NEXT — and every item id
+    shown carries its title (operator: "i cant understand what is W-41c1ec56")."""
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    fab = _work_repo(_opt(), "fabrik", [
+        {"id": "W-0000000a", "owner": "infra", "title": "build the agents table"},
+        {"id": "W-0000000b", "owner": "infra", "title": 'next <script>alert("x")</script> one'},
+    ], claims={"W-0000000a": "infra"})  # fmt: skip
+    shop = _work_repo(_opt(), "shop", [])
+    _run_record("s1", agent="infra", state="running", command="fabrik-task", surface="the table",
+                repo_root=str(fab.resolve()))  # fmt: skip
+    _run_record(
+        "s2", agent="wef2", state="done", command="fabrik-review", repo_root=str(shop.resolve())
+    )
+    qd = _load(tmp_path, monkeypatch)
+    html_ = _overview(qd, monkeypatch)
+    who, state, now, holds, nxt, _merge = _agent_cells(html_, "fabrik", "infra")
+    assert (
+        "working" in state.words() and "/fabrik-task" in now.words() and "the table" in now.words()
+    )
+    assert holds.words() == "W-0000000a build the agents table"
+    # NEXT: the queued (unclaimed) item with its title, escaped — never live markup
+    assert 'W-0000000b next <script>alert("x")</script> one' in nxt.words()
+    assert "<script>alert" not in html_
+    assert "no window open" in _agent_cells(html_, "shop", "wef2")[1].words()
+    tables = [c.words() for c in _find(_dom(html_), "caption") if c.words().startswith("Agents in")]
+    assert tables.index("Agents in fabrik") < tables.index("Agents in shop")
+
+
+def test_unowned_awaiting_operator_counts_under_operator(tmp_path, monkeypatch):
+    """A decision waiting on the operator carries no owner: it is grouped under operator, while an
+    unowned open item stays (unassigned) and an OWNED awaiting item stays with its owner."""
+    _work_repo(_opt(), "fabrik", [
+        {"id": "W-0000000e", "status": "awaiting-operator", "kind": "decision", "title": "gate one"},
+        {"id": "W-0000000f", "status": "awaiting-operator", "owner": "fleet", "title": "fleet's gate"},
+        {"id": "W-0000000b", "title": "nobody's"},
+    ])  # fmt: skip
+    qd = _load(tmp_path, monkeypatch)
+    pane = _work_pane(_work(qd), "fabrik")
+    assert _item_ids(_owner_section(pane, "operator")) == ["W-0000000e"]
+    assert _item_ids(_owner_section(pane, "(unassigned)")) == ["W-0000000b"]
+    assert _item_ids(_owner_section(pane, "fleet")) == ["W-0000000f"]
+    chips = dict(w.rsplit(" ", 1) for w in _chip_words(pane))
+    assert chips["operator"] == "1" and chips["(unassigned)"] == "1"
+
+
+# ── Pause / Resume per agent (operator 2026-10-15, W-7159f8e2 part 3) ──────────────────────────────
+
+_HUB_WORK = Path(__file__).resolve().parents[1] / "scripts" / "work.py"
+
+
+def _store_repo(name: str) -> Path:
+    """A real git repo with a real work store (config.json) under the /opt seam."""
+    repo = _opt() / name
+    env = {
+        "PATH": os.environ["PATH"],
+        "HOME": str(repo.parent),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@x",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@x",
+    }
+    subprocess.run(["git", "init", "-q", "-b", "master", str(repo)], check=True, env=env)
+    (repo / "README").write_text("seed\n")
+    subprocess.run(["git", "-C", str(repo), "add", "README"], check=True, env=env)
+    subprocess.run(["git", "-C", str(repo), "commit", "-q", "-m", "seed"], check=True, env=env)
+    r = subprocess.run(
+        [sys.executable, str(_HUB_WORK), "init", "--distributor", "coord"],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert r.returncode == 0, r.stderr
+    return repo.resolve()
+
+
+def _paused_marker(repo: Path, name: str) -> Path:
+    return repo / ".git" / "fabrik-work" / "paused" / f"{name}.json"
+
+
+def test_agent_pause_endpoint_is_guarded(tmp_path, monkeypatch):
+    """POST /agent-pause refuses without the custom header, for a pair the board never rendered, for
+    an unknown action and for a row with no pause button — and runs nothing."""
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    shop = _store_repo("shop")
+    _run_record("s1", agent="wef1", state="done", command="fabrik-task", repo_root=str(shop))
+    qd = _load(tmp_path, monkeypatch)
+    _overview(qd, monkeypatch)
+    httpd, base = _serve(qd)
+    try:
+        body = json.dumps({"repo": "shop", "agent": "wef1", "action": "pause"}).encode()
+        assert _post(base + "/agent-pause", body)[0] == 403  # no X-Quota-Dash header
+        hdr = {qd.SWITCH_HEADER: "1"}
+        unknown = json.dumps({"repo": "shop", "agent": "ghost", "action": "pause"}).encode()
+        assert _post(base + "/agent-pause", unknown, hdr)[0] == 400
+        escape = json.dumps({"repo": "../etc", "agent": "wef1", "action": "pause"}).encode()
+        assert _post(base + "/agent-pause", escape, hdr)[0] == 400
+        bad = json.dumps({"repo": "shop", "agent": "wef1", "action": "delete"}).encode()
+        assert _post(base + "/agent-pause", bad, hdr)[0] == 400
+    finally:
+        httpd.shutdown()
+    assert not _paused_marker(shop, "wef1").exists()
+
+
+def test_agent_pause_acts_as_the_operator(tmp_path, monkeypatch):
+    """A board pause runs work.py as the OPERATOR against the recorded repo even when the server carries
+    an agent identity, a session id and a GIT_DIR; a `-`-led why is kept; resume lifts the marker the
+    row showed, here one keyed by the window's tree."""
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    shop = _store_repo("shop")
+    decoy = _store_repo("decoy")
+    _run_record("s1", agent="wef1", state="done", command="fabrik-task", repo_root=str(shop))
+    qd = _load(tmp_path, monkeypatch)
+    _overview(qd, monkeypatch)
+    monkeypatch.setenv("CLAUDE_AGENT", "infra")
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sid-of-some-agent")
+    monkeypatch.setenv("GIT_DIR", str(decoy / ".git"))
+    status, out = qd.pause_agent("shop", "wef1", "pause", "--repo=/etc hold")
+    assert status == 200, out
+    rec = json.loads(_paused_marker(shop, "wef1").read_text())
+    assert rec["actor"] == "" and rec["by"] == "dashboard" and rec["why"] == "--repo=/etc hold"
+    assert not _paused_marker(decoy, "wef1").exists()
+    status, out = qd.pause_agent("shop", "wef1", "resume")
+    assert status == 200, out
+    assert not _paused_marker(shop, "wef1").exists()
+    # a pause keyed by another name (the window's tree) is lifted by the name the row carries
+    for k in ("CLAUDE_AGENT", "CLAUDE_CODE_SESSION_ID", "GIT_DIR"):
+        monkeypatch.delenv(k)
+    for tree in ("tree1", "tree2"):  # the agent's two windows, both trees paused: Resume lifts both
+        _paused_marker(shop, tree).write_text(
+            json.dumps({"by": "operator", "actor": "", "at": time.time()})
+        )
+    qd._PAUSE_TARGETS = {("shop", "lead"): {"main": str(shop),
+                                            "paused": {"name": "tree1", "names": ["tree1", "tree2"]}}}  # fmt: skip
+    status, out = qd.pause_agent("shop", "lead", "resume")
+    assert status == 200, out
+    assert not _paused_marker(shop, "tree1").exists() and not _paused_marker(shop, "tree2").exists()
+
+    class Stub:  # a partial pause says so on its row, and the row offers Resume
+        @staticmethod
+        def collect_box(_opt):
+            lead = {"name": "lead", "state": "idle", "can_pause": True, "pause_honoured": True,
+                    "paused": {"by": "operator", "at": None, "partial": True, "names": ["tree1"]}}  # fmt: skip
+            return {"repos": [{"name": "shop", "main": str(shop), "agents": [lead]}]}
+
+    monkeypatch.setattr(qd, "_status_module", lambda: Stub)
+    qd._drop_repos_cache()
+    _who, state, *_rest = _agent_cells(_overview(qd, monkeypatch), "shop", "lead")
+    assert "only some of its windows" in state.words()
+    assert _buttons(state, "/agent-pause") == [
+        {"repo": "shop", "agent": "lead", "action": "resume"}
+    ]
+
+
+def test_agent_pause_refuses_buttonless_rows_and_odd_input(tmp_path, monkeypatch):
+    """The review's round-1 findings, each pinned: a row with no button (no config.json) is refused; a
+    NUL or a lone surrogate in the reason is dropped, never an uncaught error; a failed board read
+    leaves no older read's pairs to act on; a write landing mid-read is never cached."""
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    shop = _store_repo("shop")
+    bare = _work_repo(_opt(), "bare", [])  # a work dir, no config.json
+    _run_record("s1", agent="wef1", state="done", command="fabrik-task", repo_root=str(shop))
+    _run_record(
+        "s3", agent="bob", state="done", command="fabrik-task", repo_root=str(bare.resolve())
+    )
+    qd = _load(tmp_path, monkeypatch)
+    _overview(qd, monkeypatch)
+    assert qd.pause_agent("bare", "bob", "pause")[0] == 400
+    status, out = qd.pause_agent("shop", "wef1", "pause", "a\x00b\ud800c")
+    assert status == 200, out
+    assert json.loads(_paused_marker(shop, "wef1").read_text())["why"] == "abc"
+
+    def broken():
+        raise RuntimeError("box unreadable")
+
+    monkeypatch.setattr(qd, "_status_module", broken)
+    qd._drop_repos_cache()
+    assert "The agents could not be read: RuntimeError: box unreadable" in _text(
+        _overview(qd, monkeypatch)
+    )
+    assert qd._PAUSE_TARGETS == {}
+    # a write that lands while the agents are being read: that read is served once, never cached
+
+    class Racing:
+        @staticmethod
+        def collect_box(_opt):
+            qd._drop_repos_cache()
+            return {"repos": []}
+
+    monkeypatch.setattr(qd, "_status_module", lambda: Racing)
+    qd._drop_repos_cache()
+    assert qd._box_data() == {"repos": []}
+    assert qd._box_cache is None
+
+
+# ── Accept / Reject / comment per work item (operator 2026-10-15, W-e1f1a1bd) ──────────────────────
+
+
+def _store_item(repo: Path, title: str, *tags: str) -> str:
+    """A real item in a real store, added by the hub's work.py as the operator (tagged when asked)."""
+    env = {"PATH": os.environ["PATH"], "HOME": str(repo.parent), "GIT_CONFIG_NOSYSTEM": "1"}
+    r = subprocess.run(
+        [sys.executable, str(_HUB_WORK), "add", "--kind", "task", "--title", title],
+        cwd=repo,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    assert r.returncode == 0, r.stderr
+    item = Path(r.stdout.strip().splitlines()[-1]).stem
+    if tags:
+        path = repo / ".fabrik" / "work" / f"{item}.json"
+        path.write_text(json.dumps({**json.loads(path.read_text()), "tags": list(tags)}))
+    return item
+
+
+def _item(repo: Path, item: str) -> dict:
+    return json.loads((repo / ".fabrik" / "work" / f"{item}.json").read_text())
+
+
+def test_item_verdict_endpoint_is_guarded(tmp_path, monkeypatch):
+    """POST /item-verdict refuses without the custom header, for an item the board never listed, for
+    an unknown action and for a reject with no words — and runs nothing; a failed read lists no pairs."""
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    shop = _store_repo("shop")
+    item = _store_item(shop, "a task")
+    qd = _load(tmp_path, monkeypatch)
+    _work(qd)
+    httpd, base = _serve(qd)
+    try:
+        token = qd._snapshot.token(_item(shop, item))
+        body = json.dumps(
+            {"repo": "shop", "item": item, "action": "comment", "text": "hi", "token": token}
+        ).encode()
+        assert _post(base + "/item-verdict", body)[0] == 403  # no X-Quota-Dash header
+        hdr = {qd.SWITCH_HEADER: "1"}
+        ghost = json.dumps({"repo": "shop", "item": "W-00000000", "action": "accept"}).encode()
+        assert _post(base + "/item-verdict", ghost, hdr)[0] == 400
+        bad = json.dumps({"repo": "shop", "item": item, "action": "delete"}).encode()
+        assert _post(base + "/item-verdict", bad, hdr)[0] == 400
+        mute = json.dumps(
+            {"repo": "shop", "item": item, "action": "reject", "text": " \x00 "}
+        ).encode()
+        assert _post(base + "/item-verdict", mute, hdr)[0] == 400
+        blank = json.dumps({"repo": "shop", "item": item, "action": "comment", "text": ""}).encode()
+        assert _post(base + "/item-verdict", blank, hdr)[0] == 400  # refused here, never a 502
+        assert "comments" not in _item(shop, item) and _item(shop, item)["status"] == "open"
+        assert _post(base + "/item-verdict", body, hdr)[0] == 200
+    finally:
+        httpd.shutdown()
+    assert _item(shop, item)["comments"][-1]["text"] == "hi"
+    qd._ITEM_TARGETS = {}  # a restarted server: the first write rebuilds the targets once, then acts
+    token = qd._snapshot.token(_item(shop, item))
+    assert qd.item_verdict("shop", item, "comment", "again", token=token)[0] == 200
+    assert _item(shop, item)["comments"][-1]["text"] == "again"
+
+    def broken(_opt):
+        raise RuntimeError("stores unreadable")
+
+    monkeypatch.setattr(qd, "_collect_work", broken)
+    qd._drop_repos_cache()
+    assert "The work stores could not be read: RuntimeError: stores unreadable" in _text(_work(qd))
+    assert qd._ITEM_TARGETS == {}
+
+
+def test_item_verdict_acts_as_the_operator(tmp_path, monkeypatch):
+    """A board verdict runs the hub's work.py as the OPERATOR against the recorded main checkout even
+    when the server carries an agent identity, a session id and a GIT_DIR; a `-`-led reason is kept
+    (the options sit before `--`); accept lifts the review hold; reject drops an owned item."""
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    shop = _store_repo("shop")
+    decoy = _store_repo("decoy")
+    held = _store_item(shop, "held", "waits-operator-review")
+    owned = _store_item(shop, "owned")
+    path = shop / ".fabrik" / "work" / f"{owned}.json"
+    path.write_text(json.dumps({**json.loads(path.read_text()), "owner": "wef1"}))
+    qd = _load(tmp_path, monkeypatch)
+    _work(qd)
+    monkeypatch.setenv("CLAUDE_AGENT", "infra")
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sid-of-some-agent")
+    monkeypatch.setenv("GIT_DIR", str(decoy / ".git"))
+    status, out = qd.item_verdict("shop", owned, "reject", "--repo=/etc not needed",
+                                  token=qd._snapshot.token(_item(shop, owned)))  # fmt: skip
+    assert status == 200, out
+    gone = _item(shop, owned)
+    assert (
+        gone["status"] == "dropped"
+        and gone["note"] == "rejected by the operator: --repo=/etc not needed"
+    )
+    assert gone["comments"][-1] == {
+        **gone["comments"][-1],
+        "by": "operator",
+        "via": "dashboard",
+        "action": "reject",
+    }
+    status, out = qd.item_verdict(
+        "shop", held, "accept", token=qd._snapshot.token(_item(shop, held))
+    )
+    assert status == 200, out
+    assert _item(shop, held)["tags"] == ["operator-accepted"]
+    assert not list((decoy / ".fabrik" / "work").glob("W-*.json"))
+
+
+_TAGS_DOM = r"""
+const spec = JSON.parse(process.argv[process.argv.length - 1]);
+const gets = [], store = {}; if (spec.stored !== null) { store["repo-tag"] = spec.stored; }
+global.localStorage = { getItem: (k) => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } };
+const rows = spec.rows.map((t) => ({ hidden: false, getAttribute: () => t }));
+const box_ = (v) => ({ value: v, getAttribute: (k) => ({"data-repo": "shop", "data-item": "W-0000000a"})[k] });
+let inputs = spec.typed.map(box_);
+const opts = spec.known.map((v) => ({ value: v }));
+let onInput = null;
+const box = { value: "", addEventListener: (t, f) => { if (t === "input") { onInput = f; } } };
+// #live: a swap (innerHTML set) rebuilds every comment box empty, as the browser does
+const cur = { querySelector: () => ({ textContent: "read 10:00:00" }) };
+Object.defineProperty(cur, "innerHTML", { set: () => { inputs = inputs.map(() => box_("")); }, get: () => "" });
+const nw = { innerHTML: "NEW", querySelector: () => ({ textContent: "read 10:00:20" }) };
+const inBox = { tagName: "INPUT", id: "", closest: (sel) => (sel === "#live" ? cur : null) };
+global.document = { hidden: false, activeElement: spec.focused ? inBox : null,
+  getElementById: (id) => (id === "tag-pick" ? box : id === "live" ? cur : null),
+  querySelectorAll: (sel) => (sel === "tr[data-tags]" ? rows : sel === "#tag-list option" ? opts
+    : sel === "input.iv-text" ? inputs : []),
+  addEventListener: () => {} };
+global.window = { scrollY: 0, scrollTo: () => {}, getSelection: () => "", frameElement: null };
+global.DOMParser = function () { this.parseFromString = () => ({ getElementById: () => nw }); };
+global.fetch = (url) => { gets.push(url); return Promise.resolve({ ok: true, text: () => Promise.resolve("x") }); };
+global.setInterval = () => {};
+eval(spec.script);
+const first = rows.map((r) => r.hidden);
+box.value = spec.typeTag; if (onInput) { onInput(); }
+const after = rows.map((r) => r.hidden);
+refreshRepos(spec.force);
+setTimeout(() => console.log(JSON.stringify({first, after, gets, stored: store["repo-tag"],
+  values: inputs.map((x) => x.value)})), 30);
+"""
+
+
+def test_item_rows_verdict_buttons_and_tag_filter(tmp_path, monkeypatch):
+    """Rows carry Accept, Reject, a comment box and their tags; the last comment shows; an awaiting
+    item that is no decision gets the box only; each Accept / Reject names its confirm dialog and
+    posts the card's snapshot token; the tag box filters rows by their tags. (How the filter, the
+    confirm and a half-typed comment behave in a browser is `app.js`'s — graded in
+    tests/test_quota_dashboard_app_js.py and over these real views in tests/test_quota_dashboard_browser.py.)"""
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    shop = _store_repo("shop")
+    plain = _store_item(shop, "plain", "waits-operator-review")
+    odd = _store_item(shop, "odd")
+    path = shop / ".fabrik" / "work" / f"{odd}.json"
+    path.write_text(json.dumps({**json.loads(path.read_text()), "status": "awaiting-operator"}))
+    qd = _load(tmp_path, monkeypatch)
+    _work(qd)
+    token = qd._snapshot.token(_item(shop, plain))
+    assert qd.item_verdict("shop", plain, "comment", "<b>look</b>", token=token)[0] == 200
+    html_ = _work(qd)
+    row = _work_row(html_, plain)
+    assert row.attrs.get("data-f-tag") == "waits-operator-review"
+    now_token = qd._snapshot.token(_item(shop, plain))
+    for action, note in (("accept", "optional"), ("reject", "required")):
+        btn = [b for b in _find(row, "button", data_post="/item-verdict")
+               if json.loads(b.attrs["data-body"]).get("action") == action]  # fmt: skip
+        assert len(btn) == 1, action
+        body = json.loads(btn[0].attrs["data-body"])
+        assert body == {"repo": "shop", "item": plain, "token": now_token, "action": action}
+        assert btn[0].attrs.get("data-note") == note
+        assert _find(_dom(html_), "dialog", id=btn[0].attrs["data-confirm"]), action
+    assert _find(row, "input"), "the comment box"
+    assert "operator comment: <b>look</b>" in row.words() and "<b>look</b>" not in html_
+    odd_row = _work_row(html_, odd)
+    actions = [
+        json.loads(b.attrs["data-body"]).get("action")
+        for b in _find(odd_row, "button", data_post="/item-verdict")
+    ]
+    assert actions == ["comment"] and _find(odd_row, "input")
+    tag_box = _find(_dom(html_), "input", id="work-tag")
+    assert (
+        tag_box
+        and tag_box[0].attrs.get("data-filter") == "tag"
+        and tag_box[0].attrs.get("data-filter-mode") == "token"
+    )
+
+
+def test_agent_rows_pause_and_resume_buttons(tmp_path, monkeypatch):
+    """Rows show Pause, or Resume with who paused; no button for a store-less repo; Pause asks for an
+    optional reason in its confirm dialog and Resume names the markers it lifts (the confirm, the
+    post and the forced refresh are `app.js`'s, graded in tests/test_quota_dashboard_app_js.py)."""
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    shop = _store_repo("shop")
+    bare = _work_repo(_opt(), "bare", [])  # a work dir, no config.json
+    _run_record("s1", agent="wef1", state="done", command="fabrik-task", repo_root=str(shop))
+    _run_record("s2", agent="wef2", state="done", command="fabrik-task", repo_root=str(shop))
+    _run_record(
+        "s3", agent="bob", state="done", command="fabrik-task", repo_root=str(bare.resolve())
+    )
+    _paused_marker(shop, "wef2").parent.mkdir(parents=True, exist_ok=True)
+    _paused_marker(shop, "wef2").write_text(
+        json.dumps({"by": "operator", "actor": "", "at": time.time()})
+    )
+    qd = _load(tmp_path, monkeypatch)
+    html_ = _overview(qd, monkeypatch)
+    wef1 = _agent_cells(html_, "shop", "wef1")[1]
+    wef2 = _agent_cells(html_, "shop", "wef2")[1]
+    bob = _agent_cells(html_, "bare", "bob")[1]
+    pause = _find(wef1, "button", data_post="/agent-pause")
+    assert [b.words() for b in pause] == ["Pause"] and pause[0].attrs.get("data-note") == "optional"
+    assert json.loads(pause[0].attrs["data-body"]) == {
+        "repo": "shop",
+        "agent": "wef1",
+        "action": "pause",
+    }
+    dlg = _find(_dom(html_), "dialog", id=pause[0].attrs["data-confirm"])
+    assert dlg and "stops starting new work at its next turn boundary" in dlg[0].words()
+    resume = _find(wef2, "button", data_post="/agent-pause")
+    assert [b.words() for b in resume] == ["Resume"] and "paused by operator" in wef2.words()
+    assert "not honoured here" in wef2.words()  # the fixture repo has no synced work.py of its own
+    assert _find(bob, "button") == []  # no config.json: the button could only fail
+
+
+# ── INV-1 after the redesign: the rebuild-on-miss goes through the new builders (T07) ──────────────
+
+
+# ── the routes after the redesign (T07): the shell, the old Repos bookmark, quota.json, --once ─────
+
+
+def _get(base: str, path: str, *, host: str | None = None, headers: dict | None = None):
+    """One GET with no redirect following: (status, headers, body)."""
+    import http.client
+    from urllib.parse import urlsplit
+
+    u = urlsplit(base)
+    c = http.client.HTTPConnection(u.hostname, u.port, timeout=10)
+    c.request("GET", path, headers={"Host": host or f"{u.hostname}:{u.port}", **(headers or {})})
+    r = c.getresponse()
+    out = (r.status, dict(r.getheaders()), r.read())
+    c.close()
+    return out
+
+
+def test_get_root_is_the_app_shell_with_the_overview_as_the_default_view(tmp_path, monkeypatch):
+    """Spec § Contract deltas: `GET /` (and `/index.html`) is the app shell — a skip link first, the
+    six-view navigation, one `<main>` that `app.js` fills with the Overview — and it carries no data,
+    so it answers at once, before and without any probe."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_probe", lambda: (_ for _ in ()).throw(AssertionError("no probe")))
+    monkeypatch.setattr(
+        qd, "_collect_work", lambda _o: (_ for _ in ()).throw(AssertionError("no store"))
+    )
+    httpd, base = _serve(qd)
+    try:
+        for path in ("/", "/index.html"):
+            status, hdrs, body = _get(base, path)
+            assert status == 200 and hdrs["Content-Type"].startswith("text/html"), (path, status)
+            page = _dom(body.decode())
+            mains = _find(page, "main")
+            assert len(mains) == 1 and mains[0].attrs.get("data-view") == "overview", path
+            assert mains[0].attrs.get("id") == "view" and not mains[0].children  # filled by app.js
+            links = _find(page, "a")
+            assert links[0].attrs.get("href") == "#view", "the skip link is the first link"
+            current = [
+                a.attrs.get("data-nav") for a in links if a.attrs.get("aria-current") == "page"
+            ]
+            assert current == ["overview"]
+            scripts = [s.attrs.get("src") for s in _find(page, "script") if s.attrs.get("src")]
+            assert scripts == ["/static/app.js"]
+            assert [n.attrs.get("href") for n in _find(page, "link")] == ["/static/app.css"]
+        assert not (qd.OUT_DIR / "index.html").exists() and not qd._JSON.exists()
+    finally:
+        httpd.shutdown()
+    assert qd._LAST_REGEN[0] is None  # the shell starts no regeneration
+
+
+def test_the_shell_is_behind_the_host_guard_too(tmp_path, monkeypatch):
+    """INV-6 covers the new `/`: a page under any other name (a DNS-rebinding site) is answered 421
+    before anything renders; a cross-site GET of the shell is harmless — it carries no data and acts
+    on nothing — so it is served, as `/health` and the static files are."""
+    qd = _load(tmp_path, monkeypatch)
+    httpd, base = _serve(qd)
+    try:
+        status, _h, body = _get(base, "/", host="evil.example:5051")
+        assert status == 421 and b"<main" not in body
+        status, _h, _b = _get(base, "/", headers={"Sec-Fetch-Site": "cross-site"})
+        assert status == 200
+    finally:
+        httpd.shutdown()
+
+
+def test_the_repos_bookmark_redirects_to_work_inside_the_window_then_404s(tmp_path, monkeypatch):
+    """Spec § Lifecycle: `/repos.html` sends a bookmark to `/#work` for the 14 days after the redesign,
+    then is gone — the same date as the snapshot token's legacy window (spec § Which actions confirm),
+    one constant for both."""
+    from datetime import date, timedelta
+
+    qd = _load(tmp_path, monkeypatch)
+    assert date(2026, 10, 31) == qd._LEGACY_TOKEN_UNTIL  # coded 2026-10-17, + 14 days
+    httpd, base = _serve(qd)
+    try:
+        monkeypatch.setattr(qd, "_LEGACY_TOKEN_UNTIL", date.today())  # the last day: still open
+        for path in ("/repos.html", "/repos.html?fresh=1"):
+            status, hdrs, body = _get(base, path)
+            assert status == 303 and hdrs["Location"] == "/#work" and body == b"", (path, status)
+        monkeypatch.setattr(qd, "_LEGACY_TOKEN_UNTIL", date.today() - timedelta(days=1))
+        status, _h, _b = _get(base, "/repos.html")
+        assert status == 404
+        # the token window closed on the same date: a verdict with no token is refused
+        assert qd._legacy_window_open() is False
+    finally:
+        httpd.shutdown()
+
+
+def test_quota_json_is_served_at_once_and_an_old_one_starts_one_background_probe(
+    tmp_path, monkeypatch
+):
+    """`/quota.json` serves the last payload on disk without waiting on the probe; nothing on disk is
+    `{}`; a payload older than MAX_AGE_S starts ONE background regeneration, as the old page did."""
+    qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
+    calls: list[int] = []
+    gate = threading.Event()
+
+    def slow():
+        calls.append(1)
+        gate.wait(10)
+        return _payload()
+
+    monkeypatch.setattr(qd, "_probe", slow)
+    httpd, base = _serve(qd)
+    try:
+        t0 = time.time()
+        status, hdrs, body = _get(base, "/quota.json")
+        assert (
+            status == 200 and body == b"{}" and time.time() - t0 < 2.0
+        )  # never a wait on the probe
+        assert hdrs["Content-Type"] == "application/json"
+        worker = qd._LAST_REGEN[0]
+        assert worker is not None
+        _get(base, "/quota.json")  # a second request while the first probe runs starts none
+        gate.set()
+        worker.join(10)
+        assert calls == [1]
+        status, _h, body = _get(base, "/quota.json")
+        assert json.loads(body)["active"] == "mob"
+        assert qd._LAST_REGEN[0] is worker or qd._LAST_REGEN[0] is None  # fresh: no new probe
+        assert calls == [1]
+    finally:
+        httpd.shutdown()
+
+
+def test_quota_json_is_behind_the_cross_site_guard(tmp_path, monkeypatch):
+    """`/quota.json` can start a regeneration — the same reason a view GET is guarded: a page on
+    another site marked `Sec-Fetch-Site: cross-site` gets 403 and starts nothing."""
+    qd = _load(tmp_path, monkeypatch)
+    started: list[int] = []
+    monkeypatch.setattr(qd, "_regen_async", lambda: started.append(1))
+    httpd, base = _serve(qd)
+    try:
+        status, _h, body = _get(base, "/quota.json", headers={"Sec-Fetch-Site": "cross-site"})
+        assert status == 403 and b"cross-site" in body and started == []
+        status, _h, _b = _get(base, "/quota.json", headers={"Sec-Fetch-Site": "same-origin"})
+        assert status == 200 and started == [1]
+    finally:
+        httpd.shutdown()
+
+
+def test_quota_json_starts_a_regeneration_when_the_pointer_moved_even_if_fresh(
+    tmp_path, monkeypatch
+):
+    qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
+    monkeypatch.setattr(qd, "_probe", _payload)
+    qd.generate()  # fresh on disk
+    started: list[int] = []
+    monkeypatch.setattr(qd, "_regen_async", lambda: started.append(1))
+    httpd, base = _serve(qd)
+    try:
+        assert (
+            _get(base, "/quota.json")[0] == 200 and started == []
+        )  # fresh, pointer still: nothing
+        monkeypatch.setattr(qd, "_pointer_moved", lambda: True)
+        status, _h, body = _get(base, "/quota.json")
+        assert status == 200 and json.loads(body)["active"] == "mob" and started == [1]
+    finally:
+        httpd.shutdown()
+
+
+def test_a_regeneration_that_raises_ends_its_thread_cleanly(tmp_path, monkeypatch):
+    """The background worker records the failure (as `_generate_held` does) and ends; nothing
+    escapes into the thread machinery, and the next regeneration can start."""
+    qd = _load(tmp_path, monkeypatch)
+    escaped: list[object] = []
+    monkeypatch.setattr(threading, "excepthook", lambda args: escaped.append(args.exc_type))
+
+    def boom():
+        raise RuntimeError("disk on fire")
+
+    monkeypatch.setattr(qd, "_generate_locked", boom)
+    worker = qd._regen_async()
+    assert worker is not None
+    worker.join(10)
+    assert escaped == [] and qd._LAST_PROBE_FAILURE[0][1] == "RuntimeError"
+    again = qd._regen_async()
+    assert again is not None, "the lock was released"
+    again.join(10)
+
+
+def test_a_pointer_through_a_second_symlink_is_not_read_as_moved(tmp_path, monkeypatch):
+    """The board names the pointer the way the rotation CLI does — the final target's name
+    (`realpath`), not the first link's: `active -> current -> mob` is `mob`, so a payload whose
+    `active` is `mob` has not moved."""
+    pointer = tmp_path / "active"
+    monkeypatch.setenv("QUOTA_DASH_POINTER", str(pointer))
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_probe", _payload)
+    qd.generate()  # quota.json says active "mob"
+    (tmp_path / "mob").mkdir()
+    (tmp_path / "current").symlink_to(tmp_path / "mob")
+    pointer.symlink_to(tmp_path / "current")
+    assert qd._pointer_slug() == "mob" and qd._pointer_moved() is False
+    (tmp_path / "can").mkdir()
+    (tmp_path / "current").unlink()
+    (tmp_path / "current").symlink_to(tmp_path / "can")
+    assert qd._pointer_slug() == "can" and qd._pointer_moved() is True
+
+
+def test_quota_json_with_a_mismatch_that_never_clears_probes_once_per_window(tmp_path, monkeypatch):
+    """A pointer that disagrees with every reading (a probe that never confirms the flip) must not
+    turn every poll into a probe: the pointer-moved branch shares `_status_triggers`' window."""
+    qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
+    monkeypatch.setattr(qd, "_probe", _payload)
+    qd.generate()
+    probes: list[int] = []
+    monkeypatch.setattr(qd, "_probe", lambda: (probes.append(1), _payload())[1])
+    monkeypatch.setattr(qd, "_pointer_moved", lambda: True)
+    for _ in range(5):
+        qd._quota_json()
+        _join_regen(qd)
+    assert probes == [1], probes
+
+
+def test_once_probes_writes_quota_json_and_prints_its_path(tmp_path, monkeypatch, capsys):
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_probe", _payload)
+    assert qd.main(["--once"]) == 0
+    assert capsys.readouterr().out.strip() == str(qd._JSON)
+    assert json.loads(qd._JSON.read_text())["active"] == "mob"
+    assert not (qd.OUT_DIR / "index.html").exists()
+    with pytest.raises(SystemExit):
+        qd.main(["--help"])
+    assert "write quota.json" in capsys.readouterr().out
+
+
+def test_after_a_restart_a_verdict_and_a_pause_post_find_targets_the_views_show(
+    tmp_path, monkeypatch
+):
+    """A restarted server has rendered no view and holds no targets; a verdict POST for an item the
+    Work view lists and a pause POST for an agent the Overview's Agents table lists are both found —
+    the rebuild-on-miss renders the view that shows them, never a probe."""
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    shop = _store_repo("shop")
+    item = _store_item(shop, "after a restart")
+    _run_record("s1", agent="wef1", state="done", command="fabrik-task", repo_root=str(shop))
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_probe", lambda: (_ for _ in ()).throw(AssertionError("no probe")))
+    assert qd._ITEM_TARGETS == {} and qd._PAUSE_TARGETS == {}
+    assert qd._TARGET_SLICES == {"pause": {}, "item": {}}
+    httpd, base = _serve(qd)
+    hdr = {qd.SWITCH_HEADER: "1"}
+    try:
+        token = qd._snapshot.token(_item(shop, item))
+        body = {
+            "repo": "shop",
+            "item": item,
+            "action": "comment",
+            "text": "after restart",
+            "token": token,
+        }
+        status, out = _post(base + "/item-verdict", json.dumps(body).encode(), hdr)
+        assert status == 200, out
+        assert ("shop", item) in qd._TARGET_SLICES["item"]["work"]
+        why = {"repo": "shop", "agent": "wef1", "action": "pause", "why": "hold"}
+        status, out = _post(base + "/agent-pause", json.dumps(why).encode(), hdr)
+        assert status == 200, out
+        assert ("shop", "wef1") in qd._TARGET_SLICES["pause"]["overview"]
+    finally:
+        httpd.shutdown()
+    assert _item(shop, item)["comments"][-1]["text"] == "after restart"
+    assert _paused_marker(shop, "wef1").exists()
+    # the reason typed in the Pause dialog rides the POST's `why` into the marker
+    assert json.loads(_paused_marker(shop, "wef1").read_text())["why"] == "hold"
+
+
+def test_a_moved_pointer_never_probes_on_the_request_thread(tmp_path, monkeypatch):
+    """`_view_data` promises "never a probe": a moved pointer starts ONE background regeneration and
+    the view is served at once — the next refresh shows the new account. A slow probe on the HTTP
+    thread would hold the view for the whole probe (the 2026-08-18 hang)."""
+    qd = _load(tmp_path, monkeypatch, QUOTA_DASH_MAX_AGE_S="600")
+    monkeypatch.setattr(qd, "_probe", _payload)
+    qd.generate()
+    ran_on: list[str] = []
+    gate = threading.Event()
+
+    def slow():
+        ran_on.append(threading.current_thread().name)
+        gate.wait(10)
+        return _payload()
+
+    monkeypatch.setattr(qd, "_probe", slow)
+    monkeypatch.setattr(qd, "_pointer_moved", lambda: True)
+    httpd, base = _serve(qd)
+    try:
+        for name in ("accounts", "overview"):
+            t0 = time.time()
+            status, _h, _b = _get(base, f"/v/{name}")
+            assert status == 200 and time.time() - t0 < 2.0, (name, time.time() - t0)
+    finally:
+        gate.set()
+        httpd.shutdown()
+    _join_regen(qd)
+    assert ran_on and all(n == "quota-regen" for n in ran_on), ran_on
+
+
+def test_the_health_strip_and_the_stale_banner_agree_on_when_a_reading_is_stale(
+    tmp_path, monkeypatch
+):
+    """One threshold for both: a reading is stale after one probe interval plus one probe timeout
+    plus a minute (a healthy slow probe reaches interval + timeout before it lands). At 100 s the
+    Health strip used to call it stale (2 x 20 s) while the banner did not (140 s)."""
+    qd = _load(tmp_path, monkeypatch)
+    from dashboard_ui.views import ViewContext
+
+    monkeypatch.setattr(qd, "_status_triggers", lambda: None)
+    bound = qd.PROBE_INTERVAL_S + qd.PROBE_TIMEOUT_S + 60
+    for age, stale in ((100.0, False), (bound - 5, False), (bound + 5, True)):
+        now = time.time()
+        qd._set_last_status(now - age, _payload())
+        health = qd._view_data("overview", ViewContext(_opt(), qd._FABRIK_ROOT, now))["health"]
+        assert bool(health["stale"]) is stale, (age, health)
+        assert qd._status_stale(now) is stale, age
+        assert ('id="render-failed"' in _accounts(qd)) is stale, age
+
+
+def test_a_refused_verdict_collects_the_stores_once(tmp_path, monkeypatch):
+    """The rebuild-on-miss re-reads the stores ONCE: the Work rebuild fills the cache and the
+    Overview fallback reads through it — never a second collection on the POST thread."""
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    _store_repo("shop")
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_status_triggers", lambda: None)
+    real = qd._collect_work
+    calls: list[int] = []
+    monkeypatch.setattr(qd, "_collect_work", lambda opt: (calls.append(1), real(opt))[1])
+    status, out = qd.item_verdict("shop", "W-0000dead", "comment", "ghost", token="t")
+    assert status == 400 and "not on the board" in out["error"]
+    assert calls == [1], calls
+
+
+def test_a_regeneration_whose_thread_cannot_start_releases_its_lock(tmp_path, monkeypatch, capsys):
+    """`Thread.start()` can raise (no threads left). The lock was taken first, so a failed start
+    used to drop every later regeneration forever; it is released and the failure logged."""
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_probe", _payload)
+    real_start = threading.Thread.start
+    state = {"fail": True}
+
+    def start(self):
+        if state["fail"]:
+            state["fail"] = False
+            raise RuntimeError("can't start new thread")
+        return real_start(self)
+
+    monkeypatch.setattr(threading.Thread, "start", start)
+    assert qd._regen_async() is None
+    assert "regeneration could not start (RuntimeError)" in capsys.readouterr().err
+    worker = qd._regen_async()
+    assert worker is not None, "the lock was released: the next call regenerates"
+    worker.join(10)
+    assert qd._JSON.is_file()
+
+
+def test_a_card_the_overview_shows_is_found_when_its_work_pane_faults(tmp_path, monkeypatch):
+    """INV-1: the rebuild-on-miss of a verdict reads the Work view first; when that repo's Work pane
+    faults (its own error state, no targets), the Overview still shows the decision card — so the
+    rebuild falls through to the Overview before answering "not on the board"."""
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(tmp_path / "no-proc"))
+    shop = _store_repo("shop")
+    item = _store_item(shop, "a decision")
+    path = shop / ".fabrik" / "work" / f"{item}.json"
+    path.write_text(json.dumps({**json.loads(path.read_text()), "status": "awaiting-operator",
+                                "kind": "decision", "question": "Ship?"}))  # fmt: skip
+    qd = _load(tmp_path, monkeypatch)
+    monkeypatch.setattr(qd, "_status_triggers", lambda: None)
+    from dashboard_ui.views import work as work_view
+
+    def broken(*_a, **_k):
+        raise RuntimeError("pane broke")
+
+    monkeypatch.setattr(work_view, "_pane", broken)
+    _view(qd, "work")
+    assert ("shop", item) not in qd._ITEM_TARGETS  # the faulted pane publishes no target
+    qd._ITEM_TARGETS = {}
+    for kind in ("item", "pause"):
+        qd._TARGET_SLICES[kind].clear()
+    token = qd._snapshot.token(_item(shop, item))
+    status, out = qd.item_verdict("shop", item, "comment", "seen on the overview", token=token)
+    assert status == 200, out
+    assert _item(shop, item)["comments"][-1]["text"] == "seen on the overview"

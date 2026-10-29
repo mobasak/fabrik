@@ -1,0 +1,14 @@
+# W-f975fee0 slice 2 (D-1135): run fabrik-rotate.service whenever a rotation request is waiting.
+# A request is written only by `agents_up.sh rotate-session <name>` (rotate_session.py request) after its checks; the
+# service re-runs every check itself and deletes every file it reaches; it leaves one only after running CLAIM_CUTOFF_S
+# (W-b72231b8), and this unit re-firing on that leftover is how it runs next.
+# The directory is created 0700 by install_rotate_unit.sh and by `request`/`execute` (slice 3); a path unit's own
+# directory option creates nothing for a glob path, so this unit carries none.
+[Unit]
+Description=Fabrik session rotation — watch for rotation requests
+
+[Path]
+PathExistsGlob=%h/.claude/state/rotate-requests/*.json
+
+[Install]
+WantedBy=default.target

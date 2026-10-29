@@ -1,0 +1,28 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T12:18:42.062897Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "ce3a73b4554e1cef086eda0b1264fc1e43cf37f3",
+  "id": "W-6cdc86f3",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: reject non-finite times in read_owner + test",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-890: a corrupt marker leads to removal (data loss path); one reader fixed at its root",
+  "status": "done",
+  "tags": [
+    "mail-01m4zqxyefqm437hrzvrfz03d9",
+    "queued",
+    "scratch-gap"
+  ],
+  "title": "F10: a corrupted run-folder marker with a NaN/inf time reads as CONSUMED, so the folder is removed; all three sites trace to read_owner (mail 01M4ZQXYEFQM437HRZVRFZ03D9; intel conformance ledger docs/development/reviews/2026-10-15-scratch-lifecycle-conformance-review.md)"
+}

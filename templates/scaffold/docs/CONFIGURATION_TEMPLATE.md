@@ -30,7 +30,7 @@ curl http://localhost:$PORT/health
 |----------|---------|-------------|
 | `PORT` | *(see .env.example)* | Service port. Auto-assigned by scaffold, registered in `PORTS.md`. |
 | `DATABASE_URL` | *(injected by `fabrik apply`)* | The app's PostgreSQL connection — the non-owner `<db>_app` role once the spec's `shape.database_url_app_role` is `true`. No default in code. |
-| `DATABASE_URL_OWNER` | *(injected by `fabrik apply`)* | The database OWNER. Only `db/schema.sql` (`u=$(pgurl "$DATABASE_URL_OWNER") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql`, define `pgurl` first: Debug commands), migrations, runtime DDL and the audit-log retention/verification jobs use it. No default in code. |
+| `DATABASE_URL_OWNER` | *(injected by `fabrik apply`)* | The database OWNER, injected into `.env.owner` (root 0600; loaded only by the services that declare it — the audit-jobs companion, a `migrate` service — never the app; D-754). Only `db/schema.sql` (on the VPS, from `/opt/<name>`: `sudo sh -c "$(sed -n '/^pgurl() /p' docs/TROUBLESHOOTING.md)"'; v=$(sed -n "s/^DATABASE_URL_OWNER=//p" ./.env.owner | tail -n 1); v=${v%\"}; v=${v#\"}; u=$(pgurl "$v") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql'` — the sed half defines `pgurl` (TROUBLESHOOTING § Debug Commands) inside the root shell; the recipe READS the one key it needs and never sources the env files as shell code), migrations, runtime DDL and the audit-log retention/verification jobs use it. No default in code. |
 
 <!-- Add project-specific required vars. Delete both DSN rows if not using a database. -->
 
@@ -115,10 +115,12 @@ curl -sS -o /dev/null -w "HTTP %{http_code}\n" \
 ### Database
 
 **Shared postgres-main (recommended for Fabrik services):** the postgres registrar injects
-both DSNs into `.env` at `fabrik apply` — never hand-set them. The app connects with
-`DATABASE_URL`; schema work and the audit-log jobs connect with `DATABASE_URL_OWNER`.
-Both live in the same `.env`, so the append-only `audit_log` holds against the app's code
-paths and SQL injection, not against code execution inside the container.
+both DSNs at `fabrik apply` — never hand-set them: `DATABASE_URL` into `.env`, which every
+service loads, and `DATABASE_URL_OWNER` into `.env.owner`, which only the services declaring it
+load (the audit-jobs companion; a `migrate` service — D-754). The app connects with
+`DATABASE_URL`; schema work and the audit-log jobs connect with `DATABASE_URL_OWNER`, so an app
+container never holds the owner key; the owner credential leaves the app's environment once the
+spec cuts over to the app role (`shape.database_url_app_role: true`).
 
 ```bash
 DATABASE_URL=postgresql://[project]_app:password@postgres-main:5432/[project]
@@ -141,7 +143,7 @@ DATABASE_URL=postgresql://localhost:5432/[project]_dev
 PORT=<see .env.example>
 LOG_LEVEL=DEBUG
 DATABASE_URL=postgresql://localhost:5432/[project]_dev
-DATABASE_URL_OWNER=postgresql://localhost:5432/[project]_dev  # one local role serves both in dev
+DATABASE_URL_OWNER=postgresql://localhost:5432/[project]_dev  # one local role serves both in dev — and one file (.env.local)
 ```
 
 ### Production (VPS / Docker Compose)
@@ -150,7 +152,7 @@ DATABASE_URL_OWNER=postgresql://localhost:5432/[project]_dev  # one local role s
 PORT=${PORT}
 LOG_LEVEL=INFO
 DATABASE_URL=postgresql://[project]_app:${DB_PASSWORD}@postgres-main:5432/[project]
-DATABASE_URL_OWNER=postgresql://[project]:${DB_OWNER_PASSWORD}@postgres-main:5432/[project]
+DATABASE_URL_OWNER=postgresql://[project]:${DB_OWNER_PASSWORD}@postgres-main:5432/[project]  # in .env.owner, not .env (D-754)
 REDIS_URL=redis://redis-main:6379/0
 # ^ hub (vps1) Docker-DNS hosts. On a spoke (spec target_vps: vps2/vps3) the
 #   registrar injects 10.99.0.1:<port> here instead — trust the injected value.
@@ -192,8 +194,15 @@ cat PORTS.md
 # ?sslmode= (a boolean ssl=true/false is not a libpq sslmode: write require/disable)
 # (other asyncpg-only query keys, e.g. prepared_statement_cache_size, still need removing by hand).
 # Define it first; `u=$(pgurl ...) &&` stops on an empty or unset variable instead of psql falling back
-# to the local default database.
-pgurl() ( [ -n "$1" ] || { echo "pgurl: empty DSN" >&2; exit 1; }; b=${1%%\?*}; q=${1#"$b"}; printf '%s%s\n' "$(printf %s "$b" | sed 's#^\(postgres[a-z]*\)+[a-z0-9_]*://#\1://#')" "$(printf %s "$q" | sed 's/\([?&]\)ssl=/\1sslmode=/g')" )
+# to the local default database — and on a DSN carrying whitespace, a quote or a backslash (a hand-edited or
+# still-quoted .env line fails CLOSED here instead of reaching psql mangled), on a value that does not rewrite to a
+# postgres:// or postgresql:// URI (a `-o/<file>` would reach root's psql as an option; an upper-case or malformed
+# +driver would reach it un-rewritten — fabrik-lib 01M4TP1W), on more than one ssl/sslmode/requiressl key (libpq keeps the LAST
+# silently: `?sslmode=require&ssl=disable` would drop TLS), on a percent-encoded query KEY (libpq decodes keys, so
+# `%73slmode=disable` is a second sslmode) and on a raw `?` in the user:password part (libpq reads the text before
+# the first `@` as credentials, so a `?` there would hide the real query from these checks — encode it as %3F). Byte-identical to the copy in
+# TROUBLESHOOTING.md § Debug Commands (tests/test_scaffold_doc_seeding.py holds the two together).
+pgurl() ( [ -n "$1" ] || { echo "pgurl: empty DSN" >&2; exit 1; }; set -f; case $1 in *[[:space:]]*|*\"*|*\'*|*\\*) echo "pgurl: DSN carries whitespace, a quote or a backslash — fix the .env line, never psql it" >&2; exit 1;; esac; a=${1#*://}; case ${a%%/*} in *@*) case ${a%%@*} in *\?*) echo "pgurl: a ? in the user:password part — percent-encode it as %3F, or libpq and this check split the DSN differently" >&2; exit 1;; esac;; esac; b=${1%%\?*}; q=${1#"$b"}; n=0; IFS=" "; for kv in $(printf %s "${q#\?}" | tr '&' ' '); do case ${kv%%=*} in *%*) echo "pgurl: a percent-encoded query KEY ($kv) — libpq decodes keys, so it could hide a second sslmode; write keys plain" >&2; exit 1;; ssl|sslmode|requiressl) n=$((n+1));; esac; done; [ "$n" -le 1 ] || { echo "pgurl: more than one ssl/sslmode/requiressl key — libpq keeps the LAST one silently (requiressl rewrites sslmode); keep exactly one" >&2; exit 1; }; s=$(printf %s "$b" | sed 's#^\(postgres[a-z]*\)+[a-z0-9_][a-z0-9_]*://#\1://#'); case $s in postgres://*|postgresql://*) ;; *) echo "pgurl: not a postgres DSN (postgres://, postgresql:// or a lowercase +driver form such as postgresql+asyncpg://) — fix the .env line, never psql it" >&2; exit 1;; esac; printf '%s%s\n' "$s" "$(printf %s "$q" | sed 's/\([?&]\)ssl=/\1sslmode=/g')" )
 u=$(pgurl "$DATABASE_URL") && psql "$u"  # Test DB connection
 lsof -i :$PORT                  # Check port availability
 grep -vE '^#|^$' .env      # Show active env vars
@@ -211,4 +220,4 @@ Before deploying:
 - [ ] No hardcoded `localhost` in `compose.yaml` (use service names)
 - [ ] Logs writing to expected location
 - [ ] Environment-specific settings verified (dev vs prod)
-- [ ] amd64 compatibility confirmed (base images use `-slim-bookworm`, not Alpine)
+- [ ] amd64 compatibility confirmed (base images use the `-slim` variant on the Debian variant pinned as `debian_codename` in `.windsurf/rules/versions.yaml`, not Alpine)

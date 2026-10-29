@@ -1,0 +1,28 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:31:03.846444Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-e359a74a",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: read mail 01M4Z50991F5GZ76MT5NA55CRF, claim it, act on it",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "Coordinator mail sort 2026-10-15; proposed for operator review on the dashboard",
+  "status": "dropped",
+  "tags": [
+    "mail-01m4z50991f5gz76mt5na55crf",
+    "proposed-drop",
+    "waits-operator-review"
+  ],
+  "title": "Archive the EXECUTED coordinator-role plan: repoint the two links that still cite its live path, then move it to archived/ (mail 01M4Z50991F5GZ76MT5NA55CRF)"
+}

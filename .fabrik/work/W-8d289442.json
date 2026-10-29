@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T02:20:15.815258Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8d289442",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4YMKN78BTHMPB7Q2QE5QB2Z",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "review_receipt.py skeleton: third /fabrik-review feedback row on the by-design grammar — the skeleton still says every RECORDED reason is parenthesised, and the gate accepts a D-row that does not exist"
+}

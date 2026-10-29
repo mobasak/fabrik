@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T00:47:31.563766Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-16cbb676",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4F1KHHWJR4XQ7XAAHKP96P1",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "second live-provider call from a critique seat in one hour — \"unset the variables\" does not work when the app loads its .env at import (site-provisioner)"
+}

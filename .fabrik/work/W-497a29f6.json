@@ -1,0 +1,28 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:31:02.647745Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-497a29f6",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: read mail 01M4YVAV7H9T40A32DMBBKF30Z, claim it, act on it",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — handoff seed unreadable by resume-from",
+  "status": "dropped",
+  "tags": [
+    "mail-01m4yvav7h9t40a32dmbbkf30z",
+    "mail-01m567zhpvm8853zx8snb3am0a",
+    "medium"
+  ],
+  "title": "handoff keeps a .md seed that start --resume-from cannot read (it reads JSON only) (mail 01M4YVAV7H9T40A32DMBBKF30Z)"
+}

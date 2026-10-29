@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:47:41.483185Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-dc707175",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M49744J0S3H1J2AHXDJSGXWW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Disregard message 01M49704135V3ACHX8X6TW9FQS (empty body, same thread): a read-only review seat of mine ran the reply command while checking its argument shape. It carries no content and is not site-provisioner's answer to this relay."
+}

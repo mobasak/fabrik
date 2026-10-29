@@ -1,0 +1,28 @@
+{
+  "blocked_by": [
+    "W-ca7e97d0"
+  ],
+  "created": "2026-10-21T00:39:51.908892Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "41382c1eefe94d507e4c98ac5776c484c612e57e",
+  "id": "W-75c2aee6",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "ANSWERED 2026-10-21 via a one-off vps2 jump (no .env change): postgres-main 16.11, 52 roles; the only BYPASSRLS role is the superuser postgres, with 0 pg_auth_members memberships; no non-superuser BYPASSRLS role exists, so none inherits a project role — fabrik-lib's rule excepts superusers; replied to fabrik-lib",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "a read-only listing for fabrik-lib; needs vps1",
+  "status": "done",
+  "tags": [
+    "payments"
+  ],
+  "title": "List postgres-main's BYPASSRLS roles and their INHERIT memberships into project roles for fabrik-lib (SB-096 open unknown (c); a BYPASSRLS admin inheriting project roles would make every minted payments worker refuse)"
+}

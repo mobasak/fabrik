@@ -1,0 +1,26 @@
+{
+  "block_digest": "9ef774a341195f886c757165309fe1b66223c21aad7bad1c3c4951386db841d9",
+  "blocked_by": [],
+  "created": "2026-10-15T09:27:11.802817Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-2b6c5ba3",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "3ede4ad7ed71d2286487cf8ab0215c186974565d32f61ec8fff4a24018db4df9"
+  ],
+  "next": "",
+  "note": "panel unanimous: obsolete. 1 of the 57 listed paths exists after the 19:31 restart; a fresh read-only census is needed first, and striking rows stays the operator's",
+  "owner": "",
+  "priority": 2,
+  "question": "May the old scratch folders listed in `docs/development/reviews/2026-10-15-plan-1-scratch-lifecycle-legacy-list.md` (1,428 entries, 32.84 GB, from before the new temporary-folder design) be removed, after you strike any rows you want kept?",
+  "status": "done",
+  "title": "May the old scratch folders listed in `docs/development/reviews/2026-10-15-plan-1-scratch-lifecycle-legacy-list.md` (1,428 entries, 32.84 GB, from before the new temporary-folder design) be removed, after you strike any rows you want kept?"
+}

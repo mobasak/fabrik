@@ -17,8 +17,11 @@ already owns `~/.claude/commands` and `~/.claude/skills`.
 from __future__ import annotations
 
 import importlib.util
+import re
 import tempfile
 from pathlib import Path
+
+import pytest
 
 REPO = Path(__file__).resolve().parent.parent
 _spec = importlib.util.spec_from_file_location("asm", REPO / "commands" / "assemble_commands.py")
@@ -121,6 +124,7 @@ def test_check_detects_drift_in_a_rendered_agent():
     assert any("fabrik-reviewer" in d for d in drift), drift
 
 
+@pytest.mark.live_box
 def test_the_live_box_matches_the_repo_sources():
     """The point of the whole change: what the box actually dispatches is what the repo says."""
     drift = asm.agent_drift(asm.AGENTS)
@@ -165,3 +169,14 @@ def test_the_mail_triage_agent_sentences_are_present_once():
     researcher = (SRC / "fabrik-researcher.md").read_text(encoding="utf-8")
     assert reviewer.count("with `git -C <repo>` when the repo is not your cwd") == 1
     assert researcher.count("silently DROPS TABLES") == 1
+
+
+def test_the_researcher_names_the_quote_arm_and_the_positive_synthesis_bar():
+    """W-8bc61173 (mail 01M4VHFP7S): the fetch-path routing still has six shapes, and shape 1 asks again once. The
+    directives themselves are ledger entries (`commands/_rules/_shared/fabrik-researcher.yaml`)."""
+    raw = (SRC / "fabrik-researcher.md").read_text(encoding="utf-8")
+    block = raw[raw.index("Fetch-path routing") : raw.index("- **Library/API docs:**")]
+    assert len(re.findall(r"(?m)^  \d\. ", block)) == 6
+    # shape 1 asks again ONCE: no second re-ask clause survives anywhere in the shape (review pass 1, M6)
+    shape1 = " ".join(block[block.index("  1. ") : block.index("  2. ")].split())
+    assert shape1.count("ask again") == 1

@@ -1,0 +1,28 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T12:18:41.550043Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "ce3a73b4554e1cef086eda0b1264fc1e43cf37f3",
+  "id": "W-9f3dad31",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: fix _holds_backup to use the minted-key check + regression test; 0 of 59 scratchpads exposed today",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-890: loses data (a session's only backup) — a one-function fix with a sandbox repro already done by intel",
+  "status": "done",
+  "tags": [
+    "mail-01m4zqxyefqm437hrzvrfz03d9",
+    "queued",
+    "scratch-gap"
+  ],
+  "title": "F11 DATA LOSS: a dead session whose only backup sits in its own scratchpad/run-* folder (not mint-made) is removed whole, backup included — _holds_backup skips by name prefix, not by the minted-key check (scripts/scratch_sweep.py:279); a regression of plan-1-scratch-lifecycle (mail 01M4ZQXYEFQM437HRZVRFZ03D9; intel conformance ledger docs/development/reviews/2026-10-15-scratch-lifecycle-conformance-review.md)"
+}

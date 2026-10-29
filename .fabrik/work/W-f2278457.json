@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-07T06:03:20.077524Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-f2278457",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -12,12 +14,14 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
-  "priority": 2,
-  "status": "open",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — INDEX rows dropped in worktree",
+  "status": "dropped",
   "tags": [
-    "mail-01m48vevsg"
+    "mail-01m48vevsg",
+    "medium"
   ],
   "title": "docs_updater.py --sync in a linked worktree drops INDEX.md STRUCTURE rows for EMPTY untracked directories that exist only in the main checkout (mail 01M48VEVSG, follow-up to 1ded2e290 which covered ignored rows only)"
 }

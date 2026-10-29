@@ -12,12 +12,14 @@
     "spec": ""
   },
   "next": "/fabrik-spec (Profile: small): brand-neutral default theme from design-system-template slots + a test that an Ocoron fill, when chosen, matches the brand pack (the D-460 shape); update tests/test_mobile_components_pack.py pins for items 3 and 5; intel finding 01M3VX3A1N items 1-5",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
-    "fleet"
+    "fleet",
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "mobile-app scaffold theme and components drift from the packs: Ocoron is the default @theme (D-051 says declared-only), its values are stale vs core/ocoron-design-system.md (#7676FF/#2980B9/#999999), Space Grotesk is declared but never embedded, EmptyList spins (LI5 wants skeleton rows), the modal snaps at 60% (pack: 50%/90%) (2026-10-02, owner: fleet)"
 }

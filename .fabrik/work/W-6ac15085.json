@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T10:29:33.257741Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-6ac15085",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "document the five refusals; key r8 by file_path or check both; regression test for the rename case",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: a docstring gap and a pre-existing rename edge in the pruner's guard; effort low",
+  "status": "open",
+  "title": "prune_transcripts.py residue (infra, W-a2cae11b review): the docstring's exit-3 list omits five pre-existing --restore refusals (bad id, no zstd, no row, row without paths or sha, fetched sha mismatch); r8 reads index_state by inode+size while index_state is keyed by file_path, so a stale row after a rename can pass r8 for a live name"
+}

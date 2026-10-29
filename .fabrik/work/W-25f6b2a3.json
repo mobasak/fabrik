@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T14:18:54.979290Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "bacd7e89a3cddea73338d618158f32423c4b6eb4",
+  "id": "W-25f6b2a3",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "slice 2 (coordinator 2026-10-23: take it before W-a5b90257/W-0fae19b7 — P0 remainder outranks P3s): stop re-injecting an unchanged mail digest and unchanged work lines on every prompt (inject only on change, digest 10→3 rows) in mail_notify.py — fleet-synced hook, full /fabrik-review; CLAUDE.md size stays with D-1118/kaizen. Slice 1 merged 32b97f95c (D-1165).",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 0,
+  "score_reason": "the single largest token-waste cause on the box: a ~640k prefix on every turn of every session; the first cut is measurement plus one or two injections turned into pointers",
+  "status": "done",
+  "tags": [
+    "queued"
+  ],
+  "title": "Every hub session is born at ~64% context: transcript_size_check.py's ctx measure counts the cached PREFIX (the 134 KB hub CLAUDE.md + agents-fabrik-core + every hook's injected context + the 10-row mail digest + the recalled memory index), so a freshly rotated builder (infra-3 85584cc3, first prompt) already reads ROTATE-DUE and every turn of every builder re-sends ~640k tokens — six builders burned the weekly window at 0.8%/m on 2026-10-23 17:25 (81% → wall projected in 23 min). Rotation cannot fix this; the prefix can. (infra-3's finding + the coordinator's quota reading)"
+}

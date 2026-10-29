@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T13:59:14.031529Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "1fb96f03a8b08940808a9cff690f615c4c6123b0",
+  "id": "W-a4bc74a6",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/archived/2026-10-18-plan-1-external-services-inventory/2026-10-18-plan-1-external-services-inventory.md",
+    "spec": ""
+  },
+  "next": "read R13-R15, R19-R21, R24, R27-R28 of docs/development/reviews/2026-10-18-plan-1-external-services-inventory-review.md and fix or drop each with its reason",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: recorded review residue from the external-services plan (0 of 466 rows affected)",
+  "status": "done",
+  "title": "External-services plan whole-plan review residue (W-3e9e2f4c): no ORDER BY on api_keys/subscriptions (0 of 466 affected); a NULL used_by_projects element breaks sorted(); the six reads straddle a sync commit; two _epoch helpers disagree (1e308 renders 'never synced'), -0.0 passes; test _under_200_ms misnamed; weak needles in T01/T02 tests; the retirement scan covers scripts/ and tests/ only; the deadline_epoch drift after the lock wait"
+}

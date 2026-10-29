@@ -134,3 +134,19 @@ extension settings, and `remote.SSH` config for the VPS.
   (see [cleanup-automation.md](cleanup-automation.md)).
 - The WSL-side server (`~/.vscode-server`) is the live Remote-WSL backend — never delete it wholesale;
   its caches are handled by the weekly cleaner.
+- **The remote extension host's heap cannot be raised from `~/.vscode-server/server-env-setup`** — measured
+  2026-10-15 for W-99a835ca (D-896); a `NODE_OPTIONS=--max-old-space-size=8192` block there was added,
+  reviewed and removed the same day.
+  - Why: the VS Code server deletes `NODE_OPTIONS` from every process it forks —
+    `function pv(r){r&&(delete r.DEBUG,delete r.NODE_OPTIONS,…)}` in `~/.vscode-server/bin/<commit>/out/server-main.js`,
+    applied to the extension host's environment right after "Starting extension host process..." and to the
+    ptyHost, fileWatcher and agent-host forks — and gives the extension host the server's own `execArgv` (empty:
+    `bin/code-server` starts node with no flags) plus `--dns-result-order=ipv4first`.
+    A probe forking the same way read 8,384 MiB in the parent and 4,288 MiB (node's default here)
+    in the child. The extension host keeps that default whatever that file says.
+  - What it costs: every Claude tab of one window shares that ONE host, and the extension parses a restored
+    tab's transcript whole when its compact boundaries carry a preserved segment; the host died with
+    "JavaScript heap out of memory" at 4,088.5 MiB on 2026-10-15 11:13 (`remoteagent.log`).
+  - What works: keep large transcripts out of VS Code — the hub agents run as plain `claude` CLIs in the tmux
+    session `hub` (D-884) — and restore at most one large-transcript tab per window, since each window is its
+    own host. Sending the upstream report of the loader bug is the operator gate W-49a8280d.

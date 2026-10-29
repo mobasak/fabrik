@@ -33,6 +33,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -50,6 +51,7 @@ from fabrik_synced_manifest import (  # noqa: E402
     REFERENCE_DOCS,
     RETIRED_CORE_SCRIPTS,
     RETIRED_GOVERNANCE_FILES,
+    RETIRED_VENDORED_DIRS,
     RUN_SCRIPTS,
     RUN_SCRIPTS_SRC_DIR,
     SEED_IF_MISSING,
@@ -807,6 +809,102 @@ def _backup_worktree_file(path: Path, dst_root: Path, project_dir: Path) -> None
         pass
 
 
+# Successful readings only (W-800579be review): a transient OSError or git failure must not pin
+# "no proof" for the rest of a long sync run — it is retried on the next call instead.
+_HUB_SOURCES: dict[str, dict[str, str]] = {}
+_HUB_BLOBS: dict[tuple[str, str], frozenset[str]] = {}
+
+
+def _hub_source_by_dest(hub_root: str) -> dict[str, str]:
+    """Project-relative destination -> hub-relative source, from the manifest's own pairing
+    (`iter_synced_pairs`), so a template that ships under another name (the governance
+    `CLAUDE.md`) is looked up at the path it is published from. Empty on a walk failure
+    (not cached)."""
+    if hub_root in _HUB_SOURCES:
+        return _HUB_SOURCES[hub_root]
+    root = Path(hub_root)
+    anchor = Path("/__fabrik_dest__")
+    pairs: dict[str, str] = {}
+    try:
+        for src, dst in iter_synced_pairs(anchor, root):
+            try:
+                pairs[dst.relative_to(anchor).as_posix()] = src.relative_to(root).as_posix()
+            except ValueError:
+                continue
+    except OSError:
+        return {}
+    _HUB_SOURCES[hub_root] = pairs
+    return pairs
+
+
+def _published_blobs(hub_root: str, src_rel: str) -> frozenset[str]:
+    """Every blob id hub HEAD's history recorded at `src_rel` — `-m` so a merge's own
+    resolution counts too. Empty (not cached) on any git failure. No `--follow`: its copy
+    detection can pull another file's history in, which would weaken the proof; a version
+    from before a rename only stays WARN'd (the safe direction)."""
+    key = (hub_root, src_rel)
+    if key in _HUB_BLOBS:
+        return _HUB_BLOBS[key]
+    try:
+        out = subprocess.run(
+            [
+                "git",
+                "-C",
+                hub_root,
+                "log",
+                "HEAD",
+                "-m",
+                "--format=",
+                "--raw",
+                "--no-abbrev",
+                "--",
+                src_rel,
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return frozenset()
+    if out.returncode != 0:
+        return frozenset()
+    # `:<old mode> <new mode> <old blob> <new blob> <status>\t<path>` — the new blob is field 4
+    blobs = frozenset(
+        parts[3] for parts in (ln.split() for ln in out.stdout.splitlines()) if len(parts) >= 5
+    )
+    _HUB_BLOBS[key] = blobs
+    return blobs
+
+
+def _is_published_version(project_rel: str, data: bytes, project_dir: Path) -> bool:
+    """True when `data` is a version hub HEAD's history published at the hub source of
+    `project_rel` — the proof that a worktree copy with no ledger row is STALE, not edited
+    (W-800579be). Bound to the file's OWN source path, never "any blob in the store": the
+    empty blob is in a real hub store (truncating a gate script would self-prove), as are
+    other paths' contents and unmerged or dangling objects. Never taken for the hub itself
+    — its store holds its worktrees' committed edits. Every failure is "no proof", which
+    keeps today's WARN-and-preserve.
+
+    THE CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (D-253): revert a gap file to an
+    OLDER published version — it reads as stale and is refreshed to the current one. That
+    loses nothing the hub does not own; any other edit stays WARN'd.
+    """
+    if not data:
+        return False
+    hub = FABRIK_ROOT
+    try:
+        if project_dir.resolve() == hub.resolve():
+            return False
+    except OSError:
+        return False
+    src_rel = _hub_source_by_dest(str(hub)).get(project_rel)
+    if not src_rel:
+        return False
+    blob = hashlib.sha1(b"blob %d\0" % len(data) + data, usedforsecurity=False).hexdigest()
+    return blob in _published_blobs(str(hub), src_rel)
+
+
 def _copy_into_worktree_safely(
     src: Path,
     dst: Path,
@@ -849,16 +947,20 @@ def _copy_into_worktree_safely(
       class 2: measured live, 5 of 5 hash-sampled instances of this exact case on the
       first fleet run were stale copies from an older branch, not agent edits — the
       worktree's copy equalled the MAIN checkout at the time, just not the freshly-
-      advanced hub). WARN, distinctly worded ("no ledger record … — left in place"),
-      and left alone — the decision (never overwrite without proof) still stands, but
-      the message must not claim an edit that was never made.
+      advanced hub). One proof IS available here (W-800579be): non-empty bytes that hub
+      HEAD's history published at this file's own source path (`_is_published_version`)
+      are a stale distributed copy — COPY, reason "a published hub version — stale, not
+      an edit". Otherwise WARN, distinctly worded ("no ledger record … — left in
+      place"), and left alone — the decision (never overwrite without proof) still
+      stands, but the message must not claim an edit that was never made.
     - anything else (a hash matching neither the source nor a PRESENT ledger record)
       → a genuine, provable drift from what the sync last wrote: the agent's own
       edit. WARN, worded "differs from the ledger record — edit preserved", and left
       alone, unconditionally.
 
-    **Bootstrapping a worktree stuck in the ledger-gap state:** this function will
-    never overwrite it on its own — that decision does not change. An operator who
+    **Bootstrapping a worktree stuck in the ledger-gap state:** a copy that is a
+    published hub version heals on the next sync by itself (above); for anything else
+    this function will never overwrite it on its own. An operator who
     has confirmed the worktree's copy carries no real edit clears the gap by hand:
     copy the MAIN CHECKOUT's current file over the worktree's copy at the same
     relative path (`cp <project>/<path> <worktree>/<path>`) and run the sync once —
@@ -903,6 +1005,23 @@ def _copy_into_worktree_safely(
         # asserts a provable drift the sentinel can never actually prove. The prune
         # side already treats an empty sentinel as "no proof" (`if not recorded_
         # hash`); the copy side must use the same test.
+        #
+        # W-800579be: a ledger gap whose bytes ARE a version the hub published at this
+        # same path is a stale distributed copy (Claude Code's creation-time
+        # `.worktreeinclude` copy records no row), not an edit — refresh it, or the
+        # worktree's check_synced_unmodified reds against the fresh lock forever.
+        try:
+            published = _is_published_version(project_rel, dst.read_bytes(), project_dir)
+        except OSError:
+            published = False
+        if published:
+            reason = "worktree refresh (a published hub version — stale, not an edit)"
+            if dry_run:
+                return SyncResult("COPY", src, dst, reason)
+            if backup:
+                _backup_worktree_file(dst, dst_root, project_dir)
+            _atomic_copy(src, dst)
+            return SyncResult("COPY", src, dst, reason)
         return SyncResult(
             "WARN",
             src,
@@ -1621,6 +1740,10 @@ def compute_file_hash(path: Path) -> str:
     return hasher.hexdigest()
 
 
+# The name `create_backup` gives: `<name>.backup.YYYYMMDD-HHMMSS`. A prune leaves it alone.
+_BACKUP_NAME_RE = re.compile(r"\.backup\.\d{8}-\d{6}$")
+
+
 def create_backup(path: Path) -> Path:
     """Create timestamped backup of a file."""
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -1630,17 +1753,98 @@ def create_backup(path: Path) -> Path:
 
 
 _head_drift: set[str] = set()  # synced paths whose working tree differs from HEAD, for the report
+# W-ba306861: why a path is in `_head_drift` when it is not a byte difference (an unreadable copy),
+# and the hub sources git could NOT read from HEAD, so the working tree shipped for them. Both were
+# silent: an unreadable copy recorded no drift, and a git that cannot answer returned None exactly as
+# an untracked file does. Display-only beside `_head_drift`'s bare names; reset in `main()` with it.
+_head_drift_why: dict[str, str] = {}
+_head_unread: dict[str, str] = {}
+# rel -> the time of HEAD's last commit touching it, for sources gone from the working tree
+# (`_head_file_time`); cleared in `main()` with the records above.
+_head_time_cache: dict[str, float] = {}
+# rel -> why a hub source involving a symlink is refused, or None (`_link_refusal`); cleared in
+# `main()` with the records above.
+_link_refusal_cache: dict[str, str | None] = {}
+# rel -> why a symlinked hub source was refused this run — its own report line, never the
+# HEAD-unread one (nothing shipped, and git read it fine); cleared in `main()`.
+_link_refused: dict[str, str] = {}
+
+
+def _lexical_rel(source: Path) -> tuple[Path, str] | None:
+    """`(root, rel)` for a hub source, never resolving the source itself: against the hub root as
+    spelled, else as resolved (a source spelled through the real path of a symlinked root)."""
+    path = Path(os.path.abspath(source))
+    for root in (Path(os.path.abspath(FABRIK_ROOT)), FABRIK_ROOT.resolve()):
+        try:
+            return root, path.relative_to(root).as_posix()
+        except ValueError:
+            continue
+    return None
+
+
+def _link_refusal(source: Path) -> str | None:
+    """Why a hub source that involves a symlink is refused, or None (W-d537275a).
+
+    `_head_source` read `source.resolve()` — the target the WORKING TREE points at — so an
+    uncommitted retarget shipped its new target, a link leaving the hub shipped the outside file's
+    working bytes, and a committed link replaced by a regular file shipped the link text as a
+    mode-0 file. Following HEAD's link instead needs a rule for a directory, missing, outside or
+    chained target, a symlinked parent and the link's own commit time (both design critiques), and
+    0 of the 217 synced sources were links when measured — so a source is REFUSED when any path
+    component below the hub root is a symlink in the working tree, or HEAD records a symlink (mode
+    120000) at its own path. Named in `_head_unread`; nothing ships. A path outside the hub is not
+    a hub source and is not checked. THE CHEAPEST WAY TO SATISFY THIS WITHOUT THE OUTCOME (D-253):
+    a link that is neither in the working tree nor in HEAD at the source's own path — impossible,
+    since the sync reads exactly that path.
+    """
+    found = _lexical_rel(source)
+    if found is None:
+        return None
+    root, rel = found
+    why: str | None = None
+    component = root  # the working-tree scan runs every call: cheap, and never stale mid-run
+    for part in Path(rel).parts:
+        component = component / part
+        if component.is_symlink():
+            linked = component.relative_to(root).as_posix()
+            why = "a symlink in the working tree" + ("" if linked == rel else f" ({linked}/)")
+            break
+    if why is None:
+        if rel not in _link_refusal_cache:  # HEAD's answer is memoised per run
+            head_why: str | None = None
+            try:
+                ls = subprocess.run(
+                    ["git", "--literal-pathspecs", "ls-tree", "HEAD", "--", rel],
+                    cwd=FABRIK_ROOT,
+                    capture_output=True,
+                    check=False,
+                )
+                if ls.returncode == 0 and ls.stdout.startswith(b"120000 "):
+                    head_why = "a symlink in HEAD"
+            except OSError:
+                pass  # a git that cannot answer is named by `_head_source`, which runs next
+            _link_refusal_cache[rel] = head_why
+        why = _link_refusal_cache[rel]
+    if why is not None:
+        _link_refused[rel] = why
+    return why
+
+
 # (rel, blob_sha, mtime_ns, size) -> (data, mode, drifted). MEASURED 2026-09-15: `_head_source` costs
 # 5.26 ms (two subprocesses — `git ls-tree HEAD` then `git show`), and after the T12.17 hoist it
 # runs twice per COPIED file and once per skipped one, plus once per `_shipped_hash` call. Over
 # the manifest against the 47 repos carrying `.fabrik/synced.lock` that is tens of seconds of
 # pure re-asking, on a post-commit hook three sessions trigger. Keyed on the stat so an edit
 # DURING a run is never served stale; cleared in `main()` beside `_head_drift`.
-_head_cache: dict[tuple[str, str, int, int], tuple[bytes, int, bool] | None] = {}
+_head_cache: dict[tuple[str, str, int, int], tuple[bytes, int, bool]] = {}
 
 
 def _head_source(source: Path) -> tuple[bytes, int] | None:
-    """The COMMITTED bytes and mode of a hub-tracked source, or None when it is untracked.
+    """The COMMITTED bytes and mode of a hub-tracked source, or None when the working tree ships.
+
+    None means one of: untracked, a hub with no commit yet, a source outside the hub — or a git
+    that could not read it from HEAD, which is recorded in `_head_unread` with the reason and
+    named in the run's report (W-ba306861).
 
     T12.17 (01M1Y86PQ). This script is the fleet-distribution mechanism and it copied the WORKING
     TREE: an uncommitted edit — mine, or a sibling's, on a tree three sessions share — shipped to
@@ -1662,6 +1866,8 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
     umask to ~46 repos while the new one distributes exactly what CI would check out. The bit that
     MATTERS is preserved: an executable stays executable, which is graded.
     """
+    if _link_refusal(source) is not None:
+        return None  # a symlinked hub source: refused and named, never read through (W-d537275a)
     try:
         # BOTH sides resolved. Resolving only the source means a symlinked hub root raises
         # ValueError here, and the `except` below turns that into a SILENT working-tree
@@ -1679,13 +1885,25 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
         # repo in the 47-repo walk was served the pre-commit bytes. Reading HEAD's own tree keys
         # the memo on what the function actually returns, at the same one-subprocess cost, and
         # takes the MODE from HEAD too (the index's mode is as stale as its SHA).
+        # `--literal-pathspecs`: a hub path that STARTS with `:(` (a root file so named) is pathspec MAGIC; `ls-tree` exits 128
+        # on it, which would read as a git that cannot answer (W-ba306861 critique).
+        step = "ls-tree"
         ls = subprocess.run(
-            ["git", "ls-tree", "HEAD", "--", rel],
+            ["git", "--literal-pathspecs", "ls-tree", "HEAD", "--", rel],
             cwd=FABRIK_ROOT,
             capture_output=True,
             check=False,
         )
-        if ls.returncode != 0 or not ls.stdout.strip():
+        if ls.returncode != 0:
+            # A git that cannot ANSWER is not an untracked file (W-ba306861): a corrupt tree or ref,
+            # a non-repo hub, dubious ownership. Only an unborn HEAD — a hub with no commit yet, which
+            # a post-commit hook never sees — has nothing in HEAD to read, like an untracked file;
+            # every other failure is named, and the working tree ships for it.
+            step = "rev-parse"
+            if not _hub_is_unborn():
+                _head_unread[rel] = f"git ls-tree exited {ls.returncode}: {_first_line(ls.stderr)}"
+            return None
+        if not ls.stdout.strip():
             # NOT cached: an untracked file has no blob SHA, so there is no HEAD-aware key to
             # store it under — and a stat-only key here would re-open exactly the staleness the
             # SHA closes (the file becomes tracked and the memo keeps answering "untracked").
@@ -1693,6 +1911,17 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
             return None  # untracked: the working tree is the only source there is
         # `ls-tree` prints: <mode> SP blob SP <sha> TAB <path>
         mode = int(ls.stdout.split()[0].decode(), 8)
+        kind = ls.stdout.split()[1].decode()
+        if mode == 0o120000:
+            # A link committed after `_link_refusal`'s memo answered (a sibling's commit mid-run):
+            # refused here too — its blob is link TEXT, which shipped as a mode-0 file (W-d537275a).
+            _link_refused[rel] = "a symlink in HEAD"
+            return None
+        if kind != "blob":
+            # A tree (a directory source) or a gitlink: `git show` of a tree prints its LISTING,
+            # which would have been written, mode 0, as the file.
+            _head_unread[rel] = f"not a file in HEAD ({kind})"
+            return None
         # ⚠️ THE KEY CARRIES THE BLOB SHA, not just the working file's stat. The first cut keyed on
         # `(rel, st_mtime_ns, st_size)` and claimed "an edit DURING a run is never served stale" —
         # false for the edit that matters. `git commit` does not touch the working file, so a HEAD
@@ -1701,41 +1930,258 @@ def _head_source(source: Path) -> tuple[bytes, int] | None:
         # commit landed mid-run and every remaining repo was served the pre-commit bytes, all
         # reported `copied`, with the drift report computed against the stale HEAD. `ls-tree HEAD` is
         # the cheap half of the pair and it already prints the SHA, so keying on it costs nothing
-        # and memoises only the expensive `git show` + `read_bytes`.
+        # and memoises only the expensive blob read + `read_bytes`.
         sha = ls.stdout.split()[2].decode()  # field 2 under ls-tree (field 1 is the word "blob")
         try:
             st = source.stat()
             key: tuple[str, str, int, int] | None = (rel, sha, st.st_mtime_ns, st.st_size)
+        except FileNotFoundError:
+            # Deleted in the working tree: still keyed on HEAD's blob, so the three consults per
+            # file per project are one blob read, not three (W-bb97199e).
+            key = (rel, sha, -1, -1)
         except OSError:
             key = None  # unstattable: answer it the slow way rather than caching a guess
         if key is not None and key in _head_cache:
-            hit = _head_cache[key]
-            if hit is None:
-                return None
-            data, mode, drifted = hit
+            data, mode, drifted = _head_cache[key]
             if drifted:
                 _head_drift.add(rel)  # rebuilt per run; a cache hit still records
+            if key[2] == -1:
+                _head_drift_why[rel] = "deleted in the working tree"  # the reason survives a hit
             return data, mode
+        # The blob `ls-tree` LISTED, by its SHA — never `git show HEAD:<rel>`, which re-resolves
+        # HEAD: a sibling's commit between the two calls paired the new bytes with the old mode and
+        # cached them under the old SHA (W-ba306861 review).
+        step = "cat-file"
         blob = subprocess.run(
-            ["git", "show", f"HEAD:{rel}"], cwd=FABRIK_ROOT, capture_output=True, check=False
+            ["git", "cat-file", "blob", sha], cwd=FABRIK_ROOT, capture_output=True, check=False
         )
         if blob.returncode != 0:
-            if key is not None:
-                _head_cache[key] = None
-            return None  # tracked but not in HEAD (a staged add) — working tree it is
-    except OSError:
+            # `ls-tree HEAD` just listed this blob, so its object is missing or corrupt — never a
+            # staged add. NOT cached: one transient failure must not answer for the rest of the walk.
+            _head_unread[rel] = f"git cat-file exited {blob.returncode}: {_first_line(blob.stderr)}"
+            return None
+    except OSError as exc:
+        _head_unread[rel] = f"git not runnable ({step}): {exc}"
         return None
     data = blob.stdout
-    drifted = False
     try:
         drifted = source.read_bytes() != data
-    except OSError:
-        pass
+    except OSError as exc:
+        # The working copy cannot be read, so what ships (HEAD) is not what is on disk: drift, with
+        # its reason. Only a deletion is cached (under its -1 key, whose hit restores the reason);
+        # an unreadable copy is not, so a hit can never drop its reason or serve it stale.
+        _head_drift.add(rel)
+        _head_drift_why[rel] = (
+            "deleted in the working tree"
+            if isinstance(exc, FileNotFoundError)
+            else f"working copy unreadable ({type(exc).__name__})"
+        )
+        if isinstance(exc, FileNotFoundError) and key is not None and key[2] == -1:
+            _head_cache[key] = (data, mode, True)
+        return data, mode
     if drifted:
         _head_drift.add(rel)
     if key is not None:
         _head_cache[key] = (data, mode, drifted)
     return data, mode
+
+
+def _hub_is_unborn() -> bool:
+    """True only for a hub repo with no commit yet (W-ba306861 review).
+
+    `rev-parse --verify -q HEAD` exits 1 for an unborn HEAD AND for a corrupt or deleted branch
+    ref, executed, so it cannot tell "nothing committed" from "a commit git cannot reach". Unborn
+    is: HEAD is a symbolic ref, no ref exists (and none is broken — `for-each-ref` warns on
+    stderr), and the object store is empty; a hub with objects but no reachable HEAD is broken.
+    """
+    for cmd in (["git", "symbolic-ref", "-q", "HEAD"], ["git", "for-each-ref"]):
+        p = subprocess.run(cmd, cwd=FABRIK_ROOT, capture_output=True, check=False)
+        if p.returncode != 0 or p.stderr.strip() or (cmd[1] == "for-each-ref" and p.stdout.strip()):
+            return False
+    counts = subprocess.run(
+        ["git", "count-objects", "-v"], cwd=FABRIK_ROOT, capture_output=True, check=False
+    )
+    fields = dict(
+        line.split(": ", 1)
+        for line in counts.stdout.decode(errors="replace").splitlines()
+        if ": " in line
+    )
+    return counts.returncode == 0 and fields.get("count") == "0" and fields.get("in-pack") == "0"
+
+
+def _named(names: list[str], why: dict[str, str]) -> str:
+    """At most eight names for a report line, each with its reason when it has one."""
+    shown = [f"{n} ({why[n]})" if n in why else n for n in names[:8]]
+    return ", ".join(shown) + (f" … (+{len(names) - 8} more)" if len(names) > 8 else "")
+
+
+def _first_line(stderr: bytes) -> str:
+    """git's first stderr line, for a reason; never raises on a non-UTF-8 path in it."""
+    lines = stderr.decode("utf-8", errors="replace").strip().splitlines()
+    return lines[0] if lines else "(no message)"
+
+
+def _hub_present(source: Path) -> bool:
+    """A listed hub source the sync ships: on disk, or a blob HEAD still holds (W-bb97199e).
+
+    T12.17 read a tracked file's BYTES from HEAD, but every caller decided whether the file EXISTS
+    from the working tree, so a sibling's uncommitted deletion shipped nothing and the project kept
+    a stale copy, silently. `_head_source` already returns HEAD's bytes for a deleted copy and names
+    it "deleted in the working tree"; this lets the caller reach it. A COMMITTED deletion (absent
+    from HEAD too) is still absent. A symlink HEAD records (mode 120000) is refused inside
+    `_head_source` (`_link_refusal`, W-d537275a), so what comes back is always a regular file.
+    """
+    return source.exists() or _head_source(source) is not None
+
+
+def _head_file_time(source: Path) -> float:
+    """The time of the last commit in HEAD that touched `source` — the mtime a source deleted from
+    the working tree stands in with (W-bb97199e): the "destination newer" guard compares it, and a
+    copy shipped from HEAD carries it, as `copy2` carried the hub file's mtime. HEAD's LATEST commit
+    time was the first cut; review pass 1 executed it clobbering a project edit made after the
+    file's own last commit but before an unrelated later one. 0 when git cannot say, so the guard
+    WARNs rather than overwrite a copy it cannot date. Memoised per run (cleared in `main()`)."""
+    try:
+        rel = source.resolve().relative_to(FABRIK_ROOT.resolve()).as_posix()
+    except (OSError, ValueError):
+        return 0.0
+    if rel not in _head_time_cache:
+        try:
+            out = subprocess.run(
+                ["git", "--literal-pathspecs", "log", "-1", "--format=%ct", "HEAD", "--", rel],
+                cwd=FABRIK_ROOT,
+                capture_output=True,
+                check=False,
+            )
+            text = out.stdout.strip()
+            _head_time_cache[rel] = float(text) if out.returncode == 0 and text else 0.0
+        except (OSError, ValueError):
+            _head_time_cache[rel] = 0.0
+    return _head_time_cache[rel]
+
+
+def _hub_files(src_dir: Path) -> list[Path]:
+    """Every file under a hub directory the sync walks: the working tree's, plus each blob HEAD
+    lists there that the working tree lost (W-bb97199e).
+
+    The walk is also the orphan prunes' live set, so a working-tree-only walk turned a sibling's
+    uncommitted deletion into a DELETE in every project. A symlink HEAD records (mode 120000) is
+    listed too: the sync refuses it with a WARN (`_link_refusal`, W-d537275a), and listing keeps
+    the project copy of a link deleted from the working tree out of the prune. A dir outside the
+    hub, an unborn HEAD or a git that cannot answer adds nothing; the last is named in
+    `_head_unread`.
+    """
+    found = {p for p in src_dir.rglob("*") if p.is_file()} if src_dir.is_dir() else set()
+    try:
+        rel = src_dir.resolve().relative_to(FABRIK_ROOT.resolve()).as_posix()
+    except ValueError:
+        return sorted(found)
+    try:
+        ls = subprocess.run(
+            ["git", "--literal-pathspecs", "ls-tree", "-r", "-z", "HEAD", "--", rel],
+            cwd=FABRIK_ROOT,
+            capture_output=True,
+            check=False,
+        )
+    except OSError as exc:
+        _head_unread[f"{rel}/"] = f"git not runnable (ls-tree -r): {exc}"
+        return sorted(found)
+    if ls.returncode != 0:
+        if not _hub_is_unborn():
+            _head_unread[f"{rel}/"] = (
+                f"git ls-tree -r exited {ls.returncode}: {_first_line(ls.stderr)}"
+            )
+        return sorted(found)
+    for entry in ls.stdout.split(b"\0"):
+        meta, _, path = entry.partition(b"\t")
+        fields = meta.split()
+        if len(fields) != 3 or fields[1] != b"blob":  # a gitlink (commit) is not a file
+            continue
+        path_rel = Path(os.fsdecode(path)).relative_to(rel)
+        if path_rel != Path("."):  # a blob AT `rel` (a dir in the tree, a file in HEAD)
+            found.add(src_dir / path_rel)
+    return sorted(found)
+
+
+# Every name imported from the manifest at the top of this module, rebound from HEAD by `main()`.
+_MANIFEST_NAMES = (
+    "AGENT_HOOK_FILES",
+    "CORE_SCRIPTS",
+    "GOVERNANCE_DIRS",
+    "GOVERNANCE_FILES",
+    "GOVERNANCE_TEMPLATES",
+    "REFERENCE_DOCS",
+    "RETIRED_CORE_SCRIPTS",
+    "RETIRED_GOVERNANCE_FILES",
+    "RETIRED_VENDORED_DIRS",
+    "RUN_SCRIPTS",
+    "RUN_SCRIPTS_SRC_DIR",
+    "SEED_IF_MISSING",
+    "VENDORED_DIRS",
+    "gitignore_block_text",
+    "iter_synced_pairs",
+    "worktreeinclude_text",
+)
+# The import-time (working-tree) binding, restored at the start of every bind, so a run never
+# inherits an EARLIER in-process run's HEAD binding (on success, refusal or no HEAD alike).
+_IMPORTED_MANIFEST = {name: globals()[name] for name in _MANIFEST_NAMES}
+
+
+def _bind_manifest_from_head() -> str | None:
+    """Rebind every manifest name this module uses from the hub's COMMITTED manifest (W-8c57e84a).
+
+    `_head_source` keeps the files the sync COPIES to HEAD's bytes (T12.17), but what it copies —
+    every synced list — and the `.gitignore` block it COMPUTES came from the manifest imported at
+    module load, i.e. the WORKING TREE: a sibling's uncommitted manifest edit patched ~46 repos'
+    `.gitignore` with no drift line (the manifest is never itself a synced file, so no HEAD check
+    ran on it). Reading it through `_head_source` gives it the copied files' contract: HEAD's bytes
+    ship, and a drifted manifest is recorded in `_head_drift` and named in the run's report.
+
+    Two cases where HEAD gives no manifest, and they are NOT handled alike:
+    - No HEAD blob to read (an untracked manifest, an unborn HEAD): the import-time working-tree
+      binding is restored, silently — `_head_source`'s rule for EVERY untracked source (T12.17).
+      A committed manifest git cannot READ (it lands in `_head_unread`: a corrupt object, git not
+      runnable, a non-repo hub) is a refusal, for the reason below (W-ba306861).
+    - A HEAD blob that cannot be BOUND (it raises on exec, or lacks a name the sync imports — a
+      manifest and a sync edited together and committed apart): a refusal. A working-tree fallback
+      there would ship uncommitted bytes while a committed manifest exists, the incident this
+      closes; the import-time binding is restored and `main()` stops with the reason.
+    Every name in `_MANIFEST_NAMES` is the module's only manifest import (a test pins the two
+    equal) and is read inside functions only, so rebinding them here reaches every use. A name a
+    caller set on the module before `main()` is replaced, so patch the hub's HEAD instead. The
+    module still IMPORTS the working-tree manifest at load (that binding is the fallback above), so
+    a working tree that cannot import stops the run before `main()`, as it always has.
+    """
+    path = FABRIK_ROOT / "scripts" / "fabrik_synced_manifest.py"
+    head = _head_source(path)
+    globals().update(_IMPORTED_MANIFEST)  # never inherit an earlier in-process run's binding
+    if head is None:
+        unread = _head_unread.get("scripts/fabrik_synced_manifest.py")
+        if unread:
+            return (
+                f"HEAD's scripts/fabrik_synced_manifest.py cannot be read ({unread}); a "
+                "working-tree fallback would ship uncommitted lists fleet-wide — fix the hub's git "
+                "and re-run"
+            )
+        return None
+    committed = types.ModuleType("fabrik_synced_manifest_at_head")
+    committed.__file__ = str(path)  # as an import sets it — a manifest may resolve paths from it
+    # Registered while it executes: `dataclasses` (under `from __future__ import annotations`)
+    # resolves `sys.modules[cls.__module__]` at decoration time, and an unregistered module would
+    # turn a valid manifest into a misleading refusal.
+    sys.modules[committed.__name__] = committed
+    try:
+        exec(compile(head[0], str(path), "exec"), committed.__dict__)  # noqa: S102 — the hub's own
+        bound = {name: getattr(committed, name) for name in _MANIFEST_NAMES}
+    except (Exception, SystemExit) as exc:  # noqa: BLE001 — a refusal, never a tree fallback
+        return (
+            f"HEAD's scripts/fabrik_synced_manifest.py cannot be bound ({type(exc).__name__}: "
+            f"{exc}); commit the manifest and the sync together, then re-run"
+        )
+    finally:
+        sys.modules.pop(committed.__name__, None)
+    globals().update(bound)
+    return None
 
 
 def _shipped_hash(source: Path) -> str:
@@ -1759,6 +2205,20 @@ def _shipped_hash(source: Path) -> str:
     return hashlib.md5(head[0], usedforsecurity=False).hexdigest()
 
 
+def _carry_mtime(source: Path, tmp: Path) -> None:
+    """Give the written copy the source's mtime; for a source gone from the working tree, its last
+    commit's time (W-bb97199e) — "now" would read as a newer project edit to the next sync."""
+    try:
+        st = source.stat()
+        os.utime(tmp, (st.st_atime, st.st_mtime))
+    except FileNotFoundError:
+        when = _head_file_time(source)
+        if when:
+            os.utime(tmp, (when, when))
+    except OSError:
+        pass  # an unreadable source mtime is not worth failing a correct write over
+
+
 def _atomic_write(data: bytes, mode: int, destination: Path, source: Path | None = None) -> None:
     """The byte-level twin of `_atomic_copy` — same temp-file-then-rename contract.
 
@@ -1778,11 +2238,7 @@ def _atomic_write(data: bytes, mode: int, destination: Path, source: Path | None
         tmp.write_bytes(data)
         os.chmod(tmp, stat.S_IMODE(mode))
         if source is not None:
-            try:
-                st = source.stat()
-                os.utime(tmp, (st.st_atime, st.st_mtime))
-            except OSError:
-                pass  # an unreadable source mtime is not worth failing a correct write over
+            _carry_mtime(source, tmp)
         os.replace(tmp, destination)
     except Exception:
         tmp.unlink(missing_ok=True)
@@ -1796,7 +2252,8 @@ def _atomic_copy(source: Path, destination: Path) -> None:
     sees EITHER the whole old file OR the whole new file — never a half-written one — and a process
     that already imported the module keeps the old inode alive until it exits (the rename only swaps
     the directory entry). This is what makes a mid-dispatch sync safe: no torn reads, no ImportError.
-    Falls back to a plain copy only if the atomic path can't be used (cross-device temp, etc.)."""
+    There is NO plain-copy fallback: any failure removes the temp file and re-raises, leaving the
+    destination untouched."""
     destination.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=str(destination.parent), prefix=".sync-tmp-")
     os.close(fd)
@@ -1807,17 +2264,113 @@ def _atomic_copy(source: Path, destination: Path) -> None:
             # T12.17: a tracked synced file ships its COMMITTED bytes, never the working tree.
             tmp.write_bytes(head[0])
             os.chmod(tmp, stat.S_IMODE(head[1]))
-            try:  # carry the mtime `copy2` used to — see `_atomic_write`'s docstring
-                st = source.stat()
-                os.utime(tmp, (st.st_atime, st.st_mtime))
-            except OSError:
-                pass
-        else:
+            _carry_mtime(source, tmp)  # the mtime `copy2` used to — see `_atomic_write`
+        elif _link_refusal(source) is None and not _gone(source):  # never copy through a link
             shutil.copy2(source, tmp)  # untracked: the working tree is the only source
+        else:  # gone, and HEAD unreadable on this consult: the caller WARNs (W-bb97199e)
+            raise _GoneSourceError(source)
         os.replace(tmp, destination)  # atomic on the same filesystem
     except Exception:
         tmp.unlink(missing_ok=True)
         raise
+
+
+def _project_tracking(project_dir: Path, rel: Path) -> str:
+    """ "tracked", "untracked" or "unknown" — does the PROJECT's git track *rel*? Exit 0 is tracked;
+    exit 1 (no match) and "not a git repository" are untracked; any other failure — a corrupt index,
+    dubious ownership — is unknown, and the caller keeps the file (review pass 1:
+    `_worktree_file_is_tracked` read a git fatal as "untracked" and the prune deleted a tracked
+    copy). Git is asked even without a `.git` here, so a parent repo's index still counts (pass 2).
+    A project WITH a `.git` is pinned to it (`--git-dir`/`--work-tree`): unpinned, git walks past a
+    `.git` it rejects (a corrupt HEAD, a dangling gitfile) to a parent repo and answers for that
+    one, and "not a git repository" there is a broken repo, not an absent one (pass 3).
+    """
+    own = project_dir / ".git"
+    pin = ["--git-dir", str(own), "--work-tree", str(project_dir)] if own.exists() else []
+    try:
+        proc = subprocess.run(
+            ["git", *pin, "--literal-pathspecs", "ls-files", "--error-unmatch", "--", str(rel)],
+            cwd=project_dir,
+            capture_output=True,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+    if proc.returncode == 0:
+        return "tracked"
+    if proc.returncode == 1:
+        return "untracked"
+    if not pin and b"not a git repository" in proc.stderr:
+        return "untracked"  # no repo here or above
+    return "unknown"
+
+
+def _younger_than(path: Path, seconds: float) -> bool:
+    """Was *path* written in the last *seconds*? By `st_ctime`: a sync's temp file carries its
+    SOURCE's mtime (`_carry_mtime`), often days old, while writing it set ctime to now (pass 2)."""
+    try:
+        return time.time() - path.stat().st_ctime < seconds
+    except OSError:
+        return True  # cannot date it: keep it
+
+
+def _prune_enforcement_orphans(
+    project_dir: Path,
+    project_enforcement: Path,
+    fabrik_enforcement: Path,
+    live_sources: list[Path],
+    dry_run: bool,
+) -> list[SyncResult]:
+    """Delete project copies of enforcement checks the hub no longer has (W-47d91afa).
+
+    The walk never pruned, so a check the hub deleted or renamed stayed in every project forever
+    (82 copies of two retired checks in 41 projects, measured 2026-10-20). The live set is the
+    walk's own `_hub_files` listing — working tree ∪ HEAD — so a sibling's uncommitted deletion is
+    still live; when HEAD could not be listed (`_head_unread` names the dir) that set is the
+    working tree alone and nothing is pruned. A file the PROJECT tracks is reported, never deleted
+    (one synced repo commits its copies). Bytecode is not the prune's. No retirement list: no
+    synced project owns a file here (the gitignore block ignores the whole dir), and a list would
+    cover a rename only if someone remembered it. THE CHEAPEST WAY TO SATISFY THIS WITHOUT THE
+    OUTCOME (D-253): a hub that cannot list HEAD prunes nothing, silently but for the unread line
+    already printed — the fail-closed direction.
+    """
+    if not project_enforcement.is_dir():
+        return []
+    try:
+        dir_rel = fabrik_enforcement.resolve().relative_to(FABRIK_ROOT.resolve()).as_posix()
+    except ValueError:
+        return []
+    if f"{dir_rel}/" in _head_unread:
+        return []  # a working-tree-only live set: never prune from it
+    live = {src.relative_to(fabrik_enforcement) for src in live_sources}
+    results: list[SyncResult] = []
+    for dest in sorted(project_enforcement.rglob("*")):
+        if not dest.is_file() or "__pycache__" in dest.parts or dest.suffix == ".pyc":
+            continue
+        if _BACKUP_NAME_RE.search(dest.name):
+            continue  # `create_backup`'s copy from this or an earlier `--backup` run (review pass 1)
+        if dest.name.startswith(".sync-tmp-") and _younger_than(dest, 3600):
+            continue  # a concurrent sync's live temp file, about to be renamed (review pass 1)
+        rel = dest.relative_to(project_enforcement)
+        if rel in live:
+            continue
+        tracking = _project_tracking(project_dir, dest.relative_to(project_dir))
+        if tracking != "untracked":
+            reason = (
+                "enforcement orphan tracked by the project; kept"
+                if tracking == "tracked"
+                else "enforcement orphan kept: the project's git could not say if it is tracked"
+            )
+            results.append(SyncResult("WARN", dest, dest, reason))
+            continue
+        if not dry_run:
+            dest.unlink()
+        results.append(SyncResult("DELETE", dest, dest, "enforcement orphan removed"))
+    if not dry_run:  # remove empty dirs left after pruning (never the walk root itself)
+        for dirpath in sorted(project_enforcement.rglob("*"), reverse=True):
+            if dirpath.is_dir() and not dirpath.is_symlink() and not any(dirpath.iterdir()):
+                dirpath.rmdir()
+    return results
 
 
 def prune_retired_scripts(scripts_dir: Path, dry_run: bool = False) -> list[SyncResult]:
@@ -1855,6 +2408,24 @@ def prune_retired_governance(project_dir: Path, dry_run: bool = False) -> list[S
     return results
 
 
+_GONE_UNREADABLE = "source missing and no readable HEAD copy"
+
+
+def _gone(source: Path) -> bool:
+    """The source is ABSENT — and only that: a stat that cannot answer (a locked subdir) reads as
+    present, so the copy runs as it did before these checks existed (W-bb97199e review: an
+    `exists()` raising here skipped a worktree refresh the old code made)."""
+    try:
+        return not source.exists()
+    except OSError:
+        return False
+
+
+class _GoneSourceError(FileNotFoundError):
+    """`_atomic_copy` found its source gone and no readable HEAD copy — a WARN, never an
+    aborted project (`copy2` of the missing path raised FileNotFoundError; W-bb97199e review)."""
+
+
 def sync_single_file(
     source: Path,
     destination: Path,
@@ -1890,21 +2461,40 @@ def sync_single_file(
     # ship?", and an uncommitted hub edit NOT shipping is the surprise it must surface — including
     # under `--force` and for a brand-new file, the two branches that used to return before the
     # consult and so reported no drift at all (found in the Phase E review).
-    _head_source(source)
+    head_missing = _head_source(source) is None
+    found = _lexical_rel(source)
+    why = _link_refused.get(found[1]) if found else None
+    if why is not None:  # refused before anything is hashed or written through it (W-d537275a)
+        return SyncResult("WARN", source, destination, f"symlinked hub source not shipped: {why}")
+    if head_missing and _gone(source):
+        # Gone from the working tree and no readable HEAD copy — git cannot read the blob (named in
+        # `_head_unread`), or a sibling's commit retired it after the listing: nothing to ship. A
+        # per-file WARN — hashing the missing path raised FileNotFoundError and aborted the whole
+        # project's sync (W-bb97199e critique).
+        return SyncResult("WARN", source, destination, _GONE_UNREADABLE)
+
+    def copied(reason: str) -> SyncResult:
+        try:
+            _atomic_copy(source, destination)
+        except _GoneSourceError:
+            # a source that became a link between consults is named as the refusal it is
+            why = _link_refusal(source)
+            reason = _GONE_UNREADABLE if why is None else f"symlinked hub source not shipped: {why}"
+            return SyncResult("WARN", source, destination, reason)
+        return SyncResult("COPY", source, destination, reason)
 
     if destination.is_symlink():
         if dry_run:
             return SyncResult("COPY", source, destination, "replacing symlink with copy")
-        destination.unlink()
-        _atomic_copy(source, destination)
-        return SyncResult("COPY", source, destination, "replaced symlink with copy")
+        # no unlink first: `os.replace` swaps the link entry itself (the target is untouched), and
+        # a copy that WARNs then leaves the link where it was rather than nothing (W-bb97199e)
+        return copied("replaced symlink with copy")
 
     # Destination doesn't exist - always copy
     if not destination.exists():
         if dry_run:
             return SyncResult("COPY", source, destination, "new file")
-        _atomic_copy(source, destination)
-        return SyncResult("COPY", source, destination, "new file")
+        return copied("new file")
 
     # --force: skip all checks, always overwrite
     if force:
@@ -1912,10 +2502,8 @@ def sync_single_file(
             return SyncResult("COPY", source, destination, "forced overwrite")
         if backup:
             backup_path = create_backup(destination)
-            _atomic_copy(source, destination)
-            return SyncResult("COPY", source, destination, f"forced (backup: {backup_path.name})")
-        _atomic_copy(source, destination)
-        return SyncResult("COPY", source, destination, "forced overwrite")
+            return copied(f"forced (backup: {backup_path.name})")
+        return copied("forced overwrite")
 
     # Compare the bytes that will actually be WRITTEN against the bytes on the destination.
     # ⚠️ `compute_file_hash(source)` here was the same writer-vs-reader disagreement `_shipped_hash`
@@ -1933,11 +2521,11 @@ def sync_single_file(
     if source_hash == dest_hash:
         return SyncResult("SKIP", source, destination, "identical")
 
-    # Hashes differ - check mtime
-    source_mtime = source.stat().st_mtime
-    dest_mtime = destination.stat().st_mtime
-
-    if dest_mtime > source_mtime:
+    # Hashes differ - check mtime. A source deleted from the hub's working tree reached here only
+    # because HEAD still holds it (W-bb97199e): its time is its own last commit's, so a project
+    # edit made after that commit is still protected, as it is for a present source.
+    source_mtime = _head_file_time(source) if _gone(source) else source.stat().st_mtime
+    if destination.stat().st_mtime > source_mtime:
         return SyncResult("WARN", source, destination, "destination newer")
 
     # Source is newer - proceed with copy
@@ -1960,8 +2548,13 @@ def sync_single_file(
         # T12.17: committed bytes, never the tree — with the source's mtime, or the
         # "destination newer" guard below refuses every later sync of this file.
         _atomic_write(head[0], head[1], destination, source=source)
-    else:
+    elif (why := _link_refusal(source)) is not None:
+        # became a link after the first consult (review pass 2): never copy through it
+        return SyncResult("WARN", source, destination, f"symlinked hub source not shipped: {why}")
+    elif not _gone(source):
         shutil.copy2(source, destination)
+    else:  # HEAD unreadable on this second consult and the file gone: one WARN, never a raise
+        return SyncResult("WARN", source, destination, _GONE_UNREADABLE)
     return result
 
 
@@ -1997,7 +2590,7 @@ def sync_scripts_to_project(
         # Sync core scripts
         for script_name in CORE_SCRIPTS:
             source = FABRIK_ROOT / "scripts" / script_name
-            if source.exists():
+            if _hub_present(source):
                 destination = scripts_dir / script_name
                 result = sync_single_file(
                     source, destination, dry_run=dry_run, backup=backup, force=force
@@ -2014,7 +2607,7 @@ def sync_scripts_to_project(
         run_src_dir = FABRIK_ROOT / RUN_SCRIPTS_SRC_DIR
         for script_name in RUN_SCRIPTS:
             source = run_src_dir / script_name
-            if source.exists():
+            if _hub_present(source):
                 destination = scripts_dir / script_name
                 result = sync_single_file(
                     source, destination, dry_run=dry_run, backup=backup, force=force
@@ -2028,26 +2621,31 @@ def sync_scripts_to_project(
         fabrik_enforcement = FABRIK_ROOT / "scripts" / "enforcement"
         project_enforcement = scripts_dir / "enforcement"
 
-        if fabrik_enforcement.exists():
+        enforcement_files = _hub_files(fabrik_enforcement)
+        if enforcement_files:
             if not dry_run:
                 project_enforcement.mkdir(parents=True, exist_ok=True)
 
-            for source in fabrik_enforcement.rglob("*"):
+            for source in enforcement_files:
                 # Never sync compiled bytecode — __pycache__/*.pyc is build noise,
                 # not enforcement logic, and was bloating every project.
                 if "__pycache__" in source.parts or source.suffix == ".pyc":
                     continue
-                if source.is_file():
-                    relative = source.relative_to(fabrik_enforcement)
-                    destination = project_enforcement / relative
+                relative = source.relative_to(fabrik_enforcement)
+                destination = project_enforcement / relative
 
-                    if not dry_run:
-                        destination.parent.mkdir(parents=True, exist_ok=True)
+                if not dry_run:
+                    destination.parent.mkdir(parents=True, exist_ok=True)
 
-                    result = sync_single_file(
-                        source, destination, dry_run=dry_run, backup=backup, force=force
-                    )
-                    file_results.append(result)
+                result = sync_single_file(
+                    source, destination, dry_run=dry_run, backup=backup, force=force
+                )
+                file_results.append(result)
+            file_results.extend(
+                _prune_enforcement_orphans(
+                    project_dir, project_enforcement, fabrik_enforcement, enforcement_files, dry_run
+                )
+            )
 
         # Sync vendored fabrik-lib modules — whatever VENDORED_DIRS holds — recursive copy that keeps each file's relative path, bytecode
         # excluded (same rule as the enforcement dir), WITH orphan pruning: a Python module churns, so
@@ -2058,24 +2656,25 @@ def sync_scripts_to_project(
         for vendored_rel in VENDORED_DIRS:
             fabrik_vendored = FABRIK_ROOT / vendored_rel
             project_vendored = project_dir / vendored_rel
-            if not fabrik_vendored.is_dir():
-                continue  # missing or clobbered-to-a-file hub source → skip (never make an empty dir)
+            vendored_files = _hub_files(fabrik_vendored)
+            if not vendored_files:
+                continue  # nothing on disk or in HEAD → skip (never make an empty dir)
             if not dry_run:
                 project_vendored.mkdir(parents=True, exist_ok=True)
             live_rel: set[Path] = set()
-            for source in fabrik_vendored.rglob("*"):
+            for source in vendored_files:
                 if "__pycache__" in source.parts or source.suffix == ".pyc":
                     continue
-                if source.is_file():
-                    relative = source.relative_to(fabrik_vendored)
-                    live_rel.add(relative)
-                    destination = project_vendored / relative
-                    if not dry_run:
-                        destination.parent.mkdir(parents=True, exist_ok=True)
-                    result = sync_single_file(
-                        source, destination, dry_run=dry_run, backup=backup, force=force
-                    )
-                    file_results.append(result)
+                # on disk or in HEAD — the live set the prune below keeps (W-bb97199e)
+                relative = source.relative_to(fabrik_vendored)
+                live_rel.add(relative)
+                destination = project_vendored / relative
+                if not dry_run:
+                    destination.parent.mkdir(parents=True, exist_ok=True)
+                result = sync_single_file(
+                    source, destination, dry_run=dry_run, backup=backup, force=force
+                )
+                file_results.append(result)
             # Prune orphans: files in the project copy no longer present in the hub (skip project
             # bytecode so a stray .pyc never keeps a deleted source "alive" in the live set).
             if project_vendored.is_dir():
@@ -2098,7 +2697,7 @@ def sync_scripts_to_project(
         # Sync governance files (AGENTS.md, agents-fabrik*.md)
         for gov_file in GOVERNANCE_FILES:
             source = FABRIK_ROOT / gov_file
-            if source.exists():
+            if _hub_present(source):
                 destination = project_dir / gov_file
                 result = sync_single_file(
                     source, destination, dry_run=dry_run, backup=backup, force=force
@@ -2112,7 +2711,7 @@ def sync_scripts_to_project(
         # contract and is never distributed; projects receive the template copy.
         for src_rel, dest_rel in GOVERNANCE_TEMPLATES:
             source = FABRIK_ROOT / src_rel
-            if source.exists():
+            if _hub_present(source):
                 destination = project_dir / dest_rel
                 if not dry_run:
                     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -2126,10 +2725,13 @@ def sync_scripts_to_project(
                 )
                 file_results.append(result)
 
-        # Sync governance directories (.windsurf/rules/)
+        # Sync governance directories (.windsurf/rules/). One listing per dir serves the walk AND
+        # the orphan prune below — the same live set, at half the `ls-tree -r` calls (W-bb97199e).
+        gov_listing: dict[str, list[Path]] = {}
         for gov_dir in GOVERNANCE_DIRS:
             source_dir = FABRIK_ROOT / gov_dir
-            if source_dir.exists():
+            gov_files = gov_listing[gov_dir] = _hub_files(source_dir)
+            if gov_files:
                 dest_dir = project_dir / gov_dir
                 # Replace directory symlinks with real directories
                 if dest_dir.is_symlink():
@@ -2139,27 +2741,27 @@ def sync_scripts_to_project(
                 elif not dry_run:
                     dest_dir.mkdir(parents=True, exist_ok=True)
 
-                for source in source_dir.rglob("*"):
-                    if source.is_file():
-                        relative = source.relative_to(source_dir)
-                        destination = dest_dir / relative
+                for source in gov_files:
+                    relative = source.relative_to(source_dir)
+                    destination = dest_dir / relative
 
-                        if not dry_run:
-                            destination.parent.mkdir(parents=True, exist_ok=True)
+                    if not dry_run:
+                        destination.parent.mkdir(parents=True, exist_ok=True)
 
-                        result = sync_single_file(
-                            source, destination, dry_run=dry_run, backup=backup, force=force
-                        )
-                        file_results.append(result)
+                    result = sync_single_file(
+                        source, destination, dry_run=dry_run, backup=backup, force=force
+                    )
+                    file_results.append(result)
 
         # Delete orphan files in governance directories (files that exist in
         # project but no longer exist in fabrik source — stale from restructures)
         for gov_dir in GOVERNANCE_DIRS:
             source_dir = FABRIK_ROOT / gov_dir
             dest_dir = project_dir / gov_dir
-            if not source_dir.exists() or not dest_dir.exists():
+            # The live set is the walk's: a file HEAD still holds is never an orphan (W-bb97199e).
+            source_files = {f.relative_to(source_dir) for f in gov_listing.get(gov_dir, [])}
+            if not source_files or not dest_dir.exists():
                 continue
-            source_files = {f.relative_to(source_dir) for f in source_dir.rglob("*") if f.is_file()}
             for dest_file in list(dest_dir.rglob("*")):
                 if dest_file.is_file():
                     relative = dest_file.relative_to(dest_dir)
@@ -2178,7 +2780,7 @@ def sync_scripts_to_project(
         # Sync reference docs (REFERENCE_DOCS list)
         for source_rel, dest_rel in REFERENCE_DOCS:
             source = FABRIK_ROOT / source_rel
-            if source.exists():
+            if _hub_present(source):
                 destination = project_dir / dest_rel
                 if not dry_run:
                     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -2191,7 +2793,7 @@ def sync_scripts_to_project(
         # .windsurf/hooks.json). Nested paths → mkdir parents like reference docs.
         for rel in AGENT_HOOK_FILES:
             source = FABRIK_ROOT / rel
-            if source.exists():
+            if _hub_present(source):
                 destination = project_dir / rel
                 if not dry_run:
                     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -2308,7 +2910,7 @@ def sync_scripts_to_project(
         # Safe to delete: these were synced artifacts, never authored in projects.
         for stale_rel in (
             "docs/reference/fabrik-lifecycle.md",  # moved to docs/operations/
-            "docs/reference/fabrik-project-catalog.md",  # consolidated into docs/BUSINESS_MODEL.md
+            "docs/reference/fabrik-project-catalog.md",  # renamed docs/reference/opt-project-catalog.md
             "docs/reference/windsurf/cascade-models.md",  # Cascade retired 2026-07-19; doc archived, pipeline dismantled 2026-07-20
         ):
             stale_path = project_dir / stale_rel
@@ -2327,10 +2929,23 @@ def sync_scripts_to_project(
         # check degrades gracefully (skips) when the lock is absent.
         if not dry_run:
             try:
+                # The manifest's pairs walk the hub's WORKING TREE, so a file this run shipped from
+                # HEAD (deleted in the working tree) is added from the run's own results — or the
+                # gate would stop guarding exactly the copy it was just given (W-bb97199e). ONLY
+                # those: every COPY/SKIP result also took the project's own `.gitignore` (review).
+                shipped = {
+                    fr.destination
+                    for fr in file_results
+                    if fr.action in ("COPY", "BACKUP", "SKIP")
+                    and fr.source.is_relative_to(FABRIK_ROOT)
+                    and not fr.source.exists()
+                    and fr.destination.is_relative_to(project_dir)
+                }
                 lock = {
                     dest.relative_to(project_dir).as_posix(): compute_file_hash(dest)
-                    for _src, dest in iter_synced_pairs(project_dir, FABRIK_ROOT)
-                    if dest.exists()
+                    for dest in {d for _s, d in iter_synced_pairs(project_dir, FABRIK_ROOT)}
+                    | shipped
+                    if dest.is_file()
                 }
                 lock_path = project_dir / ".fabrik" / "synced.lock"
                 lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2461,9 +3076,9 @@ def _unreachable_vendored_copies(projects: list[Path]) -> list[str]:
     # both `libs/subagents` copies, so when D-196 delisted that dir the diagnostic silently
     # stopped reporting them — a load-bearing check quietly losing its only known subjects.
     # A retired dir is exactly when an unreachable copy matters MOST: nothing syncs it any
-    # more, so a stray is now permanently stale rather than merely mis-placed.
-    from fabrik_synced_manifest import RETIRED_VENDORED_DIRS, VENDORED_DIRS
-
+    # more, so a stray is now permanently stale rather than merely mis-placed. Both lists are the
+    # module globals `main()` rebinds from HEAD (W-8c57e84a) — never a local import, which read the
+    # working-tree module out of `sys.modules`.
     found: list[str] = []
     for project_dir in projects:
         # dict.fromkeys: order-preserving dedup. A name in BOTH lists is an incoherent state a
@@ -2495,13 +3110,40 @@ def _unreachable_vendored_copies(projects: list[Path]) -> list[str]:
     return sorted(found)
 
 
+def _file_lines(files: list[SyncResult], *, verbose: bool, dry_run: bool) -> list[str]:
+    """The per-file lines a project's sync prints. Safety decisions (SKIP/WARN) always print with
+    their canonical phrases; a DRY RUN also names every file it WOULD write or delete, because it exists to
+    answer "what would ship?" (it named none of them without --verbose — W-fe6e0ed3); the rest
+    print only under --verbose."""
+    lines: list[str] = []
+    for fr in files or []:
+        if fr.action == "WARN":
+            # "destination newer" was the only WARN until W-bb97199e added an unreadable gone source
+            lines.append(f"  WARN ({fr.reason}): {fr.destination.name}")
+        elif fr.action == "SKIP":
+            lines.append(f"  SKIP (identical): {fr.destination.name}")
+        elif verbose or (dry_run and fr.action in ("COPY", "BACKUP", "DELETE")):
+            icon = {"COPY": "  →", "BACKUP": "  ↻", "DELETE": "  −", "ERROR": "  ✗"}.get(
+                fr.action, "  ?"
+            )
+            lines.append(f"{icon} {fr.destination.name}: {fr.reason}")
+    return lines
+
+
 def main() -> int:
     # Reset the module-level tally. It is a mutable global; without this a second in-process call (a
     # future test, a wrapper, a dry-run-then-real flow) inherits the previous run's failures and returns
     # 1 forever.
     _SAFETY_FLOOR_FAILURES.clear()
     _head_drift.clear()  # same reason as the three below — a second in-process run inherits it
+    _head_drift_why.clear()  # before the manifest bind below, which records into all three
+    _head_unread.clear()
+    _head_time_cache.clear()
+    _link_refusal_cache.clear()
+    _link_refused.clear()
     _head_cache.clear()  # and its cache, or run 2 answers from run 1's stat of a since-edited file
+    _HUB_SOURCES.clear()  # built from the manifest, now rebound per run; its blob memo with it
+    _HUB_BLOBS.clear()
     # Same reasoning for the worktree tally (class 5, 2026-09-05 acceptance round 2): a
     # second in-process call must not accumulate a previous run's worktree numbers into
     # this run's final summary line.
@@ -2510,6 +3152,12 @@ def main() -> int:
     _GITIGNORE_PATCHED.clear()
     """Sync scripts to all /opt projects (excluding _* folders)."""
     args = parse_args()
+    # What ships and the .gitignore block come from HEAD's manifest (W-8c57e84a); after argparse,
+    # so `--help` never depends on the manifest.
+    refusal = _bind_manifest_from_head()
+    if refusal:
+        print(f"❌ {refusal}")
+        return 1
 
     if args.dry_run:
         print("DRY-RUN MODE: No files will be written\n")
@@ -2578,21 +3226,8 @@ def main() -> int:
         status = "✓" if result.success else "✗"
         print(f"{status} {project_dir.name:40} {result.message}")
 
-        # Always show safety decisions (SKIP/WARN), show all details in verbose mode
-        if result.files:
-            for fr in result.files:
-                # Always print safety decisions with canonical phrases
-                if fr.action == "WARN":
-                    print(f"  WARN (destination newer): {fr.destination.name}")
-                elif fr.action == "SKIP":
-                    print(f"  SKIP (identical): {fr.destination.name}")
-                elif args.verbose:
-                    action_icon = {
-                        "COPY": "  →",
-                        "BACKUP": "  ↻",
-                        "ERROR": "  ✗",
-                    }.get(fr.action, "  ?")
-                    print(f"{action_icon} {fr.destination.name}: {fr.reason}")
+        for line in _file_lines(result.files, verbose=args.verbose, dry_run=args.dry_run):
+            print(line)
 
         if result.success:
             success_count += 1
@@ -2622,7 +3257,7 @@ def main() -> int:
         )
     if _head_drift:
         names = sorted(_head_drift)
-        shown = ", ".join(names[:8]) + (f" … (+{len(names) - 8} more)" if len(names) > 8 else "")
+        shown = _named(names, _head_drift_why)
         # ⚠️ SAY WHAT THIS RUN ACTUALLY DID. `_head_source` is consulted on EVERY branch — including
         # the ones that write nothing (SKIP/identical, WARN/destination newer, and every path under
         # --dry-run) — so a flat "the COMMITTED bytes were synced" asserted a sync on runs where
@@ -2633,10 +3268,44 @@ def main() -> int:
             if args.dry_run
             else "wherever this run wrote, it wrote the COMMITTED bytes, not what is on disk"
         )
+        # The manifest is a hub file, never a synced one: name what it governs (W-8c57e84a review).
+        manifest_note = (
+            " (scripts/fabrik_synced_manifest.py is the manifest itself: what ships and the "
+            ".gitignore block were computed from HEAD's copy)"
+            if "scripts/fabrik_synced_manifest.py" in names
+            else ""
+        )
+        # An unreadable copy has nothing to commit; the advice names both remedies when it applies.
+        advice = (
+            "Commit them (or restore a deleted or unreadable copy) and re-run to distribute"
+            if _head_drift_why
+            else "Commit them and re-run to distribute"
+        )
         print(
-            f"\n⚠️  {len(names)} synced file(s) differ between the hub's WORKING TREE and HEAD; "
+            f"\n⚠️  {len(names)} hub file(s) differ between the hub's WORKING TREE and HEAD; "
             f"{verb} (T12.17 — an uncommitted edit used to ship to every project, 48 copies on "
-            f"2026-09-07). Commit them and re-run to distribute: {shown}"
+            f"2026-09-07). {advice}: {shown}{manifest_note}"
+        )
+    if _head_unread:
+        # W-ba306861: a git that cannot answer used to read as an untracked file, silently.
+        # Consulted on every branch, like the drift line above: say what the run did, never a flat
+        # "shipped" — an identical destination wrote nothing (W-ba306861 review).
+        unread_verb = (
+            "nothing was written (--dry-run); a real run would write the WORKING TREE's bytes "
+            "for them"
+            if args.dry_run
+            else "wherever this run wrote them, it wrote the WORKING TREE's bytes (a source "
+            "gone from the working tree wrote nothing)"
+        )
+        print(
+            f"\n⚠️  git could not read HEAD for {len(_head_unread)} hub source(s); {unread_verb}, "
+            f"not the committed ones (T12.17): {_named(sorted(_head_unread), _head_unread)}"
+        )
+    if _link_refused:
+        print(
+            f"\n⚠️  {len(_link_refused)} symlinked hub source(s) refused — nothing shipped for them; "
+            f"commit a regular file in their place (W-d537275a): "
+            f"{_named(sorted(_link_refused), _link_refused)}"
         )
     summary = f"Results: {success_count} projects synced, {fail_count} failed"
     summary += f" | Files: {total_copied} copied, {total_skipped} skipped"
@@ -2675,6 +3344,16 @@ def main() -> int:
             )
         if _WORKTREE_TALLY["warnings"] > 0:
             summary += f", {_WORKTREE_TALLY['warnings']} warning(s)"
+    # W-ba306861: the two HEAD-read findings join the folds above, on the one line `tail -3` keeps —
+    # printed only as stand-alone lines, a second one evicts the first from the wrapper's tail.
+    if _head_drift:
+        summary += f" | HEAD drift: {len(_head_drift)}"
+    if _link_refused:
+        summary += f" | symlinks refused: {len(_link_refused)}"
+    if _head_unread:
+        summary += f" | HEAD unread: {len(_head_unread)} (working tree " + (
+            "would be used)" if args.dry_run else "used)"
+        )
     print(summary)
 
     if args.dry_run:

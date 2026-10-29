@@ -464,7 +464,9 @@ class TestWatchdogConfig:
         ("value", "match"),
         [
             (["bogus"], "unknown"),
-            (["scale_concurrency"], "never offered"),
+            (["scale_concurrency"], "unknown"),  # retired in the sidecar (fabrik-lib SB-103)
+            (["drop_queue_items"], "WATCHDOG_DB_WRITE_ALLOWLIST"),
+            (["install_log_drop_rule"], "unknown"),  # removed from the sidecar (fabrik-lib D-465)
             (["create_fix_pr"], "propose_fix_prs"),
             (["escalate_apprise"], "default menu"),
             (["restart_container"], "default menu"),
@@ -516,6 +518,11 @@ class TestWatchdogConfig:
         never = set(ast.literal_eval(tables["NEVER_OFFERED"].args[0]))
         expected = {n: t for n, t in tiers.items() if t in ("A", "B") and n not in never | default}
         assert expected == WATCHDOG_LLM_OPT_INS
+        # a refusal row explains why a name the sidecar KNOWS cannot be enabled here; a name the
+        # sidecar removed belongs to the unknown branch, or its row keeps a stale reason
+        from fabrik.spec_loader import _LLM_ACTION_REFUSALS
+
+        assert set(_LLM_ACTION_REFUSALS) <= set(tiers), set(_LLM_ACTION_REFUSALS) - set(tiers)
 
     def test_negative_budget_rejected(self) -> None:
         """``ge=0.0`` on USD fields — negative budgets are nonsense."""
@@ -783,3 +790,72 @@ def test_load_spec_database_url_app_role_default_survives_load(
     assert spec.shape is not None
     assert spec.shape.needs_database is True
     assert spec.shape.database_url_app_role is False
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Owner split (D-754): a spec `env:` block never carries an owner key — the
+# templates render `env:` into every service's `environment:`, which would
+# hand the app the very key the split removes.
+# ──────────────────────────────────────────────────────────────────────────
+
+
+def _owner_split_spec(env: dict[str, str]) -> dict:
+    return {
+        "id": "demo",
+        "kind": "service",
+        "template": "python-api",
+        "domain": "demo.example.com",
+        "source": {"type": "template"},
+        "env": env,
+    }
+
+
+def test_spec_refuses_an_owner_key_in_env() -> None:
+    from pydantic import ValidationError
+
+    from fabrik.spec_loader import Spec
+
+    with pytest.raises(ValidationError) as exc:
+        Spec.model_validate(_owner_split_spec({"DATABASE_URL_OWNER": "postgresql://o:p@h/db"}))
+    message = str(exc.value)
+    assert "DATABASE_URL_OWNER" in message and ".env.owner" in message
+
+
+def test_spec_accepts_an_ordinary_env_key() -> None:
+    from fabrik.spec_loader import Spec
+
+    spec = Spec.model_validate(_owner_split_spec({"FOO": "bar"}))
+    assert spec.env == {"FOO": "bar"}
+
+
+def _companion(env_overrides: dict[str, str]) -> dict:
+    return {
+        "id": "audit-jobs",
+        "command": ["node", "jobs.js"],
+        "memory": "256M",
+        "env_overrides": env_overrides,
+    }
+
+
+def test_spec_refuses_an_owner_key_in_a_companion_env_overrides() -> None:
+    """G23 (owner split review, round 1 — scaffold-S1): the companion partial renders
+    `env_overrides` into that service's `environment:` verbatim, so an owner key there is the same
+    literal the split keeps out of compose — refused, naming `owner_env` as the way to load it."""
+    from pydantic import ValidationError
+
+    from fabrik.spec_loader import Spec
+
+    spec = _owner_split_spec({"FOO": "bar"})
+    spec["companion_services"] = [_companion({"DATABASE_URL_OWNER": "postgresql://o:p@h/db"})]
+    with pytest.raises(ValidationError) as exc:
+        Spec.model_validate(spec)
+    message = str(exc.value)
+    assert "audit-jobs" in message and "DATABASE_URL_OWNER" in message and "owner_env" in message
+
+
+def test_spec_accepts_an_ordinary_companion_env_override() -> None:
+    from fabrik.spec_loader import Spec
+
+    spec = _owner_split_spec({"FOO": "bar"})
+    spec["companion_services"] = [_companion({"JOB_INTERVAL": "60"})]
+    assert Spec.model_validate(spec).companion_services[0].env_overrides == {"JOB_INTERVAL": "60"}

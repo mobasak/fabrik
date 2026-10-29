@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "duplicate of W-46d148b0 (a worktree's uv run rewrites the shared .venv)",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "a `uv run` inside any linked worktree rewrites the MAIN checkout's .venv (symlinked .venv + gitignored uv.lock not in .worktreeinclude)"
 }

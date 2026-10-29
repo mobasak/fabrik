@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:22.022434Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-17f68690",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TXZN6XNN7ZBYBFQ7BCC77F",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — gate fail-open: prose Depends line waives the Gate-file rule (false green)",
+  "status": "open",
+  "title": "check_plan_tickets.py (hub 17343a943, D-687): a Depends line written as prose now waives the Gate-file rule (fail-open)"
+}

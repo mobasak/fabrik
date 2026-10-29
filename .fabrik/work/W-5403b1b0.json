@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T02:40:39.821314Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5403b1b0",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: validate memory/cpu as compose sizes at Spec load (Resources, CompanionService) and Volume.name/path as a volume name and an absolute path, red-first per field; reuse the HEALTH_PATH_RE pattern of refusing at load what sits inside another scalar",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Compose templates still paste spec strings raw into YAML scalars: volumes (vol.name:vol.path), resources.memory and resources.cpu (inside single quotes), companion memory, spec.domain (traefik Host label; Spec does not validate it — only the apply dict validator does), and health.interval/timeout; the docker-image writer (deployer_ssh._generate_docker_compose) pastes memory and health interval raw. A quote, newline, \" #\" or \": \" breaks or mangles compose (review B-1: interval \"10s\\n retries: 99\" renders a duplicate retries: key that PyYAML accepts). Found by the W-ff313a14 design critique (Opus) and review pass 1 (slice B)."
+}

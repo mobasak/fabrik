@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T18:21:43.600674Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a624f951",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen: reword the two packs from mail 01M5AKSQQ3 request 5",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: a rule update (pack wording) requested by another repo; effort low: six lines in two packs",
+  "status": "open",
+  "title": "fabrik-lib SB-103 follow-on 5 (kaizen, pack wording): .windsurf/rules/core/60-watchdog.md:74,:80 and core/self-healing.md:21,:33,:58,:99 still call scale_concurrency registered and the DB-write pair never offered; approved-write now means approved by configuration, autonomous once offered (fabrik-lib D-471)"
+}

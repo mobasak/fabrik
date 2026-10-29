@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T21:49:39.145708Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-503a4db5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4V37VFT5T88VWK4A4MGPAGR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "the review-loop seat preamble's PYTEST_PINS gives no route to git history; the catalogue now names a shared clone (mirror it in fabrik-review-loop.js)"
+}

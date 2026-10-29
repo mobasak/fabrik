@@ -318,6 +318,8 @@ def run_cmd(
             cwd=cwd or PROJECT_ROOT,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",  # display text: a tool echoing a non-UTF-8 name must not crash the gate
             timeout=timeout,
             env=env,
         )
@@ -327,6 +329,32 @@ def run_cmd(
         return RC_TIMEOUT, f"Command timed out after {timeout}s"
     except FileNotFoundError:
         return 1, f"Command not found: {cmd[0]}"
+
+
+def _git_names(args: list[str], timeout: int | None = None) -> list[str] | None:
+    """The paths a git command lists, read from STDOUT ONLY and split on NUL (`-z` is added after the
+    subcommand). `run_cmd` merges stderr into its output — right for display, wrong for parsing: a
+    git warning or `fatal:` line became a "filename" (the sqlfluff leg linted it, fleet 01M4RVW43D),
+    and a `--name-only` read without `-z` C-quotes a path holding a tab, a quote or a non-ASCII byte,
+    so the gate scoped a name no file has (W-5c688a41). None when git fails or cannot run."""
+    env = os.environ.copy()
+    env["PROJECT_ROOT"] = str(PROJECT_ROOT)
+    try:
+        result = subprocess.run(
+            ["git", args[0], "-z", *args[1:]],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="surrogateescape",  # -z hands over raw bytes: any name round-trips, never raises
+            timeout=timeout or TIMEOUTS["default"],
+            env=env,
+        )
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+    if result.returncode != 0:
+        return None
+    return [p for p in result.stdout.split("\0") if p]
 
 
 # ── TEST_DATABASE_URL for the pytest leg (W-e93160e3, mail 01M3S2A3) ──────────────────────────
@@ -500,6 +528,29 @@ def _suite_reads_test_database_url(root: Path) -> bool:
     return False
 
 
+def _tdb_missing_hint(where: str, consequence: str) -> str:
+    """The pytest leg's "key missing" sentence — ONE text for the green-skip advisory and the
+    exit-4 refusal row, so the two cannot drift (W-f46bca45): the key resolved to nothing, a file
+    under tests/ reads it, and the remedy is the gate's OWN channel (.env.local, D-597). The
+    sentinel row (`DB SUITE NOT RUN`) keeps its own copy deliberately: its remedy differs
+    (`or delete the sentinel`) and it fires before pytest runs."""
+    return (
+        f"\u26a0 {_TDB_KEY} is set in neither the environment nor {where}, and tests/ reads it "
+        f"\u2014 {consequence}. Add a disposable database URL (name ending `_test`, `throwaway` "
+        "or `scratch`) to .env.local to run it here."
+    )
+
+
+def _tdb_named_error_lines(out: str) -> list[str]:
+    """The lines of a pytest run's output that REFUSE and name TEST_DATABASE_URL: pytest prints
+    a UsageError as `ERROR: <message>` and a failing import or assertion as `E   <text>`. The
+    exit-4 row claims CAUSE only from these — a comment a conftest prints, or a traceback source
+    line that merely quotes the key, is not a refusal about it (review A-2)."""
+    return [
+        ln for ln in out.splitlines() if _TDB_KEY in ln and ln.lstrip().startswith(("ERROR", "E "))
+    ]
+
+
 # Rows whose check has NO failing exit path — declared at registration with
 # `warn_only=True`. They can never turn the gate red, and until 2026-08-16 they printed
 # the SAME `[PASS]` as a check that genuinely blocks, so a green gate could not be read:
@@ -552,7 +603,19 @@ _SKIP_MARKERS: tuple[str, ...] = (
     # (executed end-to-end, round 3 of the Phase E review — two real ruff errors, zero rows). A
     # narrowing that empties a leg is a SKIP, not a pass, and this marker is how it says so.
     " (SCOPE-NARROWED",
+    " (NOT PRESENT",  # the checker script itself is absent from the tree (`_not_present_row`)
 )
+
+
+def _not_present_row(check_name: str, script_path: str) -> tuple[str, bool, str]:
+    """A checker absent from the tree: green (an optional check a project lacks must not red its
+    gate), but a SKIP — never `[PASS]` — and ⚠-prefixed so `--json` `warnings` names the path
+    (kaizen 01M4DZCA2B: a gate run in a checker-less probe read `[PASS]`, roster `pass`). The row
+    registers its own name for the rerun hint. COBRA: a check deleted on purpose now sits in
+    `skipped_checks` forever — that count is the honest one; remove the registration instead."""
+    row = f"{check_name} (NOT PRESENT)"
+    _CHECK_SCRIPTS[row] = script_path
+    return (row, True, f"⚠ check not present, skipping: {script_path}")
 
 
 class _Skipped(TypedDict):
@@ -640,7 +703,7 @@ def run_optional_check(
         # green count. It still must not RED a project that legitimately lacks an optional
         # check — so it stays passed=True, but carries the ⚠ prefix the --json layer
         # collects into `warnings`, where an operator (and CI) can actually see it.
-        return (check_name, True, f"⚠ check not present, skipping: {script_path}")
+        return _not_present_row(check_name, script_path)
 
     cmd = [PYTHON, "-m", module, *args] if module else [PYTHON, str(full_path), *args]
     code, out = run_cmd(cmd)
@@ -808,23 +871,19 @@ def fix_trailing_whitespace(files: list[str]) -> tuple[bool, str, int]:
         if not path.exists():
             continue
         try:
-            content = path.read_text(encoding="utf-8")
-            # Preserve line endings (LF or CRLF) while stripping trailing whitespace
-            lines = content.splitlines(keepends=True)
-            fixed_lines = []
-            for line in lines:
-                # Strip trailing whitespace but preserve the line ending
-                if line.endswith("\r\n"):
-                    fixed_lines.append(line[:-2].rstrip() + "\r\n")
-                elif line.endswith("\n"):
-                    fixed_lines.append(line[:-1].rstrip() + "\n")
-                elif line.endswith("\r"):
-                    fixed_lines.append(line[:-1].rstrip() + "\r")
-                else:
-                    fixed_lines.append(line.rstrip())  # Last line without newline
-            fixed = "".join(fixed_lines)
+            # newline="" both ways: a plain read_text() translates "\r\n" to "\n", so the
+            # "preserves CRLF" promise was never kept and every fixed CRLF file came back LF
+            with open(path, encoding="utf-8", newline="") as fh:
+                content = fh.read()
+            # Lines end at "\n" ONLY and trailing whitespace is ASCII space and tab: Python's
+            # `splitlines()` also splits on U+2028/U+2029/\x0b/\x0c/\x85 and `rstrip()` strips
+            # them (and NBSP) — the fixer deleted a U+2028 a test exists to carry (01M4EPDF7F).
+            # Line terminators are \r\n, \n and a bare \r (classic Mac) — never U+2028 & co.
+            parts = re.split(r"(\r\n|\n|\r)", content)
+            fixed = "".join(part if i % 2 else part.rstrip(" \t") for i, part in enumerate(parts))
             if fixed != content:
-                path.write_text(fixed, encoding="utf-8")
+                with open(path, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(fixed)
                 files_fixed += 1
         except UnicodeDecodeError:
             continue  # Skip binary/non-UTF8 files
@@ -848,12 +907,20 @@ def fix_end_of_files(files: list[str]) -> tuple[bool, str, int]:
         if not path.exists():
             continue
         try:
-            content = path.read_text(encoding="utf-8")
+            with open(path, encoding="utf-8", newline="") as fh:  # see fix_trailing_whitespace
+                content = fh.read()
             # Check if file already ends with a newline
             if content and not content.endswith("\n"):
                 # Preserve line ending style: use CRLF if file contains CRLF, else LF
-                newline = "\r\n" if "\r\n" in content else "\n"
-                path.write_text(content + newline, encoding="utf-8")
+                newline = (
+                    "\r\n"
+                    if "\r\n" in content
+                    else "\r"
+                    if "\r" in content and "\n" not in content
+                    else "\n"
+                )
+                with open(path, "w", encoding="utf-8", newline="") as fh:
+                    fh.write(content + newline)
                 files_fixed += 1
         except UnicodeDecodeError:
             continue  # Skip binary/non-UTF8 files
@@ -932,13 +999,13 @@ def run_formatting_fixes(
     # Ruff format + fix — changed .py only; skip entirely when none changed.
     if ruff_py:
         code, out = run_cmd(
-            [RUFF, "format", *ruff_py],
+            [RUFF, "format", "--force-exclude", *ruff_py],
             timeout=TIMEOUTS["ruff"],
         )
         results.append(("ruff-format", code == 0, out if code != 0 else ""))
 
         code, out = run_cmd(
-            [RUFF, "check", "--fix", *ruff_py],
+            [RUFF, "check", "--fix", "--force-exclude", *ruff_py],
             timeout=TIMEOUTS["ruff"],
         )
         # returncode 0 = clean, 1 = issues found (some fixed), other = error — RC_TIMEOUT included
@@ -949,6 +1016,21 @@ def run_formatting_fixes(
             results.append(("ruff --fix", False, out))
 
     return results
+
+
+# What `ruff --force-exclude` prints when the repo's own config excludes every path it was given.
+_NO_FILES = "No Python files found"
+
+
+def _excluded_row(leg: str, files: list[str]) -> tuple[str, bool, str]:
+    """A ruff read leg whose every file the repo's ruff config excludes ran nothing; a plain PASS
+    there would assert a check that never happened (review A-S2), so it carries a skip marker."""
+    return (
+        f"{leg} (NOT RUN — excluded by the repo's ruff config)",
+        True,
+        f"⚠ the repo's [tool.ruff] exclude covers every changed file this leg was given: "
+        f"{', '.join(files[:6])}{' …' if len(files) > 6 else ''}",
+    )
 
 
 def _scope_narrowed_row(
@@ -1010,7 +1092,11 @@ def run_format_check(
     ruff_py = _changed_python(scope)
     if not ruff_py:
         return narrowed_row
-    code, out = run_cmd([RUFF, "format", "--check", *ruff_py], timeout=TIMEOUTS["ruff"])
+    code, out = run_cmd(
+        [RUFF, "format", "--check", "--force-exclude", *ruff_py], timeout=TIMEOUTS["ruff"]
+    )
+    if code == 0 and _NO_FILES in out:
+        return [*narrowed_row, _excluded_row("ruff-format (--check)", ruff_py)]
     if code == 0:
         return [*narrowed_row, ("ruff-format (--check)", True, "")]
     return [
@@ -1120,19 +1206,11 @@ def _uninvoked_test_dirs() -> list[str]:
     # `Path(".").glob("*/**/tests")` and died with OSError(ENOMEM) walking a repo that
     # carries a large untracked `vault/`. Tracked files are also the right SET: an
     # untracked scratch suite is nobody's contract.
-    try:
-        res = subprocess.run(
-            ["git", "ls-files", "*/test_*.py", "*/tests/*.py"],
-            capture_output=True,
-            text=True,
-            timeout=20,
-        )
-    except Exception:
-        return []
-    if res.returncode != 0:
+    listed = _git_names(["ls-files", "*/test_*.py", "*/tests/*.py"], timeout=20)
+    if listed is None:
         return []
     dirs = set()
-    for line in res.stdout.splitlines():
+    for line in listed:
         d = str(Path(line).parent)
         if d == "tests" or d.startswith("tests/"):
             continue  # the leg DOES invoke this one
@@ -1215,7 +1293,7 @@ def _run_pytest_suite() -> tuple[str, bool, str]:
     plural = "values" if len(sources) > 1 else "value"  # one key reads exactly as it always did
     note = f"{', '.join(sources)} ({plural} redacted)." if sources else ""
     child_env = ({_TDB_KEY: tdb} if tdb else {}) | extra
-    code, out = run_cmd(
+    code, out = _run_capped_pytest(
         [PYTHON, "-m", "pytest", "tests/", "-x", "-q", "--color=no", "-p", "no:cacheprovider"],
         timeout=TIMEOUTS["pytest"],
         extra_env=child_env or None,
@@ -1236,11 +1314,68 @@ def _run_pytest_suite() -> tuple[str, bool, str]:
         # Neither a pass nor a test failure — a plain red here sends the next agent
         # hunting for a broken test that does not exist (transdoc 01M171R8: their
         # conftest deliberately refuses without TEST_DATABASE_URL). Red, but named.
+        #
+        # W-f46bca45: the suite's own remedy is an `export` into a shell — an agent's Bash call
+        # does not persist it into the gate — and, in transdoc's case, a database name the
+        # disposable bar refuses (`transdoc_test_$USER`). So the gate's channel comes FIRST,
+        # inside clip_output's head (the 15-line tail below has already lost the suite's own
+        # headline), and it claims CAUSE only when the refusal's full output names the key; a
+        # suite that merely reads the key gets the hedged line, and any other refusal nothing.
+        hint = ""
+        named = _tdb_named_error_lines(out) if not tdb else []
+        if not tdb:
+            channel = (
+                "an export typed in an agent's shell does not persist into the gate, which reads "
+                "the key from .env.local (then .env), where the database name must end _test, "
+                "throwaway or scratch (<project>_<you>_test, not <project>_test_<you>)"
+            )
+            if named:
+                hint = _tdb_missing_hint(
+                    where,
+                    "the suite refused to run without it \u2014 its message names the key \u2014 "
+                    "and it refuses here on every completion gate: " + channel,
+                )
+            elif _suite_reads_test_database_url(PROJECT_ROOT):
+                hint = _tdb_missing_hint(
+                    where,
+                    "a suite that refuses without it refuses here on every completion gate: "
+                    + channel,
+                )
+        lines = out.splitlines()
+        tail_lines = lines[-15:]
+        # The tail has already lost the suite's headline (transdoc's refusal names the key on
+        # line 1 of 31): quote the FIRST key-naming line with its paragraph (to the next blank
+        # line, at most 4 lines — a wrapped sentence, never a fragment) above the tail, so the
+        # row never says "its message names the key" over a quote that does not show it
+        # (review A-3, A-X-1). One paragraph by design: a later key-naming line is in the tail
+        # or behind the `\u2026`.
+        above: list[str] = []
+        if named and named[0] not in tail_lines:
+            start = lines.index(named[0])
+            for ln in lines[start : start + 4]:
+                if not ln.strip() or ln in tail_lines:
+                    break
+                above.append(ln)
+        quoted = "\n".join(above + (["\u2026"] if above else []) + tail_lines)
+        if named:
+            follows = (
+                "The suite's own message follows (its export remedy is for a shell; the gate's "
+                "channel is the line above):"
+            )
+        elif hint:
+            follows = (
+                "The suite's own message follows (when it is about the key, the gate's channel "
+                "is the line above):"
+            )
+        else:
+            follows = "The refusal message names the remedy:"
+        # With no hint the row keeps its pre-W-f46bca45 one-line header, byte for byte: a repo
+        # that never resolves the key sees no change at all (review A-X-1).
+        head = "exit 4: the suite refused to run (conftest/usage error, not a failing test)."
         return (
             "pytest (SUITE REFUSED — usage error)",
             False,
-            "exit 4: the suite refused to run (conftest/usage error, not a failing "
-            "test). The refusal message names the remedy:\n" + "\n".join(out.splitlines()[-15:]),
+            (head + "\n" + hint + "\n" + follows if hint else head + " " + follows) + "\n" + quoted,
         )
     else:
         tail = "\n".join(out.splitlines()[-30:])
@@ -1255,11 +1390,8 @@ def _run_pytest_suite() -> tuple[str, bool, str]:
             )
         advised = skip_advisory(out, tail)
         if advised != tail and not tdb and _suite_reads_test_database_url(PROJECT_ROOT):
-            advised += (
-                f"\n\u26a0 TEST_DATABASE_URL is set in neither the environment nor {where}, and "
-                "tests/ reads it — the skips above likely include the DB-backed suite. Add a "
-                "disposable database URL (name ending `_test`, `throwaway` or `scratch`) to "
-                ".env.local to run it here."
+            advised += "\n" + _tdb_missing_hint(
+                where, "the skips above likely include the DB-backed suite"
             )
         tail = advised
         # T12.4 (01M2606BZ): the mail called this "a green over unreached tests". REFUTED by
@@ -1330,19 +1462,21 @@ def run_static_checks(
         results.extend(_scope_narrowed_row(changed, _writable, "ruff"))
     if ruff_py:
         code, out = run_cmd(
-            [RUFF, "check", *ruff_py],
+            [RUFF, "check", "--force-exclude", *ruff_py],
             timeout=TIMEOUTS["ruff"],
         )
-        results.append(("ruff", code == 0, out if code != 0 else ""))
+        if code == 0 and _NO_FILES in out:
+            results.append(_excluded_row("ruff", ruff_py))
+        else:
+            results.append(("ruff", code == 0, out if code != 0 else ""))
 
     # --- JSON validation (Tier 1 + Tier 2) ---
     import json
 
-    code, out = run_cmd(["git", "ls-files", "-z", "--", "*.json"])
     json_ok = True
     json_errors = []
-    if code == 0 and out:
-        files = [f for f in out.split("\0") if f]
+    files = _git_names(["ls-files", "--", "*.json"]) or []
+    if files:
         for f in files:
             path = PROJECT_ROOT / f
             if path.exists():
@@ -1357,8 +1491,7 @@ def run_static_checks(
     results.append(("check json", json_ok, "\n".join(json_errors)))
 
     # --- YAML validation (Tier 1 + Tier 2) ---
-    code, out = run_cmd(["git", "ls-files", "-z", "--", "*.yaml", "*.yml"])
-    yaml_files = [f for f in out.split("\0") if f] if code == 0 else []
+    yaml_files = _git_names(["ls-files", "--", "*.yaml", "*.yml"]) or []
     yaml_ok = True
     yaml_errors = []
     if yaml_files:
@@ -1600,9 +1733,11 @@ def run_static_checks(
 
     # SQLFluff (skip if no .sql files changed)
     if not changed or _has_extension(changed, ".sql"):
-        code, out = run_cmd(["git", "ls-files", "-z", "--", "*.sql"])
-        sql_files = [f for f in out.split("\0") if f]
-        if sql_files:
+        sql_files = _git_names(["ls-files", "--", "*.sql"])
+        if sql_files is None:
+            # git could not list them: say so, never a green "(no .sql files)" (review A-O3)
+            results.append(("sqlfluff-lint (NOT RUN — git ls-files failed)", True, ""))
+        elif sql_files:
             code, out = run_cmd(
                 [PYTHON, "-m", "sqlfluff", "lint", "--dialect", "postgres"] + sql_files,
                 timeout=TIMEOUTS["sqlfluff"],
@@ -1677,7 +1812,7 @@ def _work_sync_row() -> tuple[str, bool, str]:
     _CHECK_SCRIPTS[WORK_SYNC_CHECK] = rel
     script = PROJECT_ROOT / rel
     if not script.exists():
-        return (WORK_SYNC_CHECK, True, f"⚠ check not present, skipping: {rel}")
+        return _not_present_row(WORK_SYNC_CHECK, rel)
     code, out = run_cmd([PYTHON, str(script), "sync", "--check"], timeout=TIMEOUTS["work_sync"])
     # work.py labels classes 2-6 `(blocking)` even in the advisory window, so a crash AFTER such
     # a line is a broken run, not the blocking verdict.
@@ -1755,13 +1890,17 @@ def run_consistency_checks(
     # disposition cell carrying two verdicts. Passed NO arguments on purpose (the comment block at
     # the Coverage Checklist registration above says why): it self-selects the CHANGED receipts
     # from `git status` and is silent when none changed, so it is inert on every unrelated commit.
-    # ADVISORY by contract until infra measures its false-positive rate below 5 % over 20 receipts
-    # (DD6) — it never blocks, and its script has no failing exit path.
+    # `--strict` BLOCKS one shape (W-205934fb, DD6 met 2026-10-08): a staged or tracked-modified
+    # receipt row whose cells past the header's width carry text, which GFM discards — 63 of 64
+    # hand-read excess rows lose text, the one exception (an empty overflow) is exempt. Every other
+    # class stays advisory; `advisory=True` keeps their stdout on a green row (the script opens it
+    # with `⚠`, so --json lists it too).
     results.append(
         run_optional_check(
             "scripts/enforcement/check_review_hygiene.py",
-            "Review hygiene (advisory)",
-            warn_only=True,
+            "Review hygiene",
+            "--strict",
+            advisory=True,
         )
     )
 
@@ -1787,8 +1926,8 @@ def run_consistency_checks(
     # rule for every rendered reader while the raw file still reads fine. Measured 2026-09-10: the
     # denominator HARD STOP row had carried three of them since 2026-09-03 and rendered as 2 cells —
     # its FIFTH shape cut mid-sentence, its SIXTH gone — in the hub contract and in the template that
-    # ships to ~46 repos. Scoped to the governance
-    # contracts on purpose — the same rule over the wider markdown scope is wallpaper. The measured
+    # ships to ~46 repos. Scoped to the governance contracts + the synced rule packs
+    # (`.windsurf/rules/**`, W-80ffca68); docs/ and commands/ stay out — wallpaper there. The measured
     # fire rate and its denominator live in the check's own module docstring, single-sourced: a
     # comment restating another file's numbers is the drift class, and this one had already gone
     # stale against the docstring beside it. ADVISORY on landing per the standing rollout law.
@@ -2011,6 +2150,17 @@ def run_consistency_checks(
                 warn_only=True,
             )
         )
+        # Data-contract Backing legend (fleet 01M4TGT7N4): every Enum-registry `Backing` cell is
+        # one of the template's six tokens in its whole-cell grammar. warn_only — 107 cells in 9
+        # projects were off it on 2026-10-13; the FAIL flip waits for their re-freeze. Unconditional:
+        # a contract-only `.md` diff must reach it.
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_data_contract_legend.py",
+                "Data Contract Backing Legend",
+                warn_only=True,
+            )
+        )
         # Doc Sync Matrix — the single "update docs when code changes" gate
         # (consolidates CHANGELOG / INDEX / CONFIGURATION / schema / QUICKSTART /
         # FEATURES / PORTS touch-on-change). Tier 1+2 so it blocks in --lean.
@@ -2067,13 +2217,14 @@ def run_consistency_checks(
         finally:
             if _mutmut_leak is not None:
                 os.environ["FABRIK_MUTMUT"] = _mutmut_leak
-        # Doc stub force-fill — WARN when a seeded doc still carries template placeholders
-        # AFTER its Doc-Sync trigger fired (a scaffolded stub that rotted past relevance).
+        # Doc stub force-fill — WARN when a seeded doc is still unfilled (a template placeholder,
+        # or D-593's "left as its scaffold template" rule read from the hub) AFTER its Doc-Sync
+        # trigger fired (a scaffolded stub that rotted past relevance).
         # ADVISORY (B, 2026-08-16 registration audit). Fail-safe by design — every path of
         # `main()` returns 0 — so `warn_only=True` is a statement of the check's real
-        # contract, not a downgrade. Measured before deciding: 16 of 44 /opt repos still
-        # ship a stub `docs/QUICKSTART.md`, so promoting it would red a third of the fleet
-        # the next time any of them touches a route.
+        # contract, not a downgrade. Measured 2026-10-19 (W-ad71f248): 85 of the 174 covered
+        # docs are still unfilled, in 33 of the 40 /opt projects carrying one, so promoting it
+        # would red those 33 the next time each touches a trigger.
         results.append(
             run_optional_check(
                 "scripts/enforcement/check_doc_stubs.py",
@@ -2179,6 +2330,17 @@ def run_consistency_checks(
             run_optional_check(
                 "scripts/enforcement/check_spec_db_match.py",
                 "Spec <-> Project DB Name Match (Phase 1c)",
+                "--quiet",
+                advisory=True,  # keeps its ⚠ contradiction lines on a green run (01M4F7NVDZ)
+            )
+        )
+        # The hub's mail ownership map (.fabrik/beat-owners.json, D-818/D-820): every
+        # sender's synced mail.py routes by it, so an unknown owner, a dead or shadowed
+        # rule or an unknown switch fails here. Self-skips where the map does not exist.
+        results.append(
+            run_optional_check(
+                "scripts/enforcement/check_beat_owners.py",
+                "Mail Ownership Map (beat-owners.json)",
             )
         )
         # Undeclared-import guard (ci-parity): the app source imports a package
@@ -2620,7 +2782,11 @@ def run_consistency_checks(
             )
             results.append(("Fabrik Convention Validator", code == 0, out if code != 0 else ""))
         else:
-            results.append(("Fabrik Convention Validator", True, "(check not present, skipping)"))
+            results.append(
+                _not_present_row(
+                    "Fabrik Convention Validator", "scripts/enforcement/validate_conventions.py"
+                )
+            )
 
     # Kilo CLI Health Check (all tiers that reach here)
     if tier >= 2:
@@ -2629,7 +2795,9 @@ def run_consistency_checks(
             code, out = run_cmd(["./scripts/check_kilo_health.sh"])
             results.append(("Kilo CLI Health Check", code == 0, out if code != 0 else ""))
         else:
-            results.append(("Kilo CLI Health Check", True, "(check not present, skipping)"))
+            results.append(
+                _not_present_row("Kilo CLI Health Check", "scripts/check_kilo_health.sh")
+            )
 
     # transdoc finding 1.4 (2026-08-23): a project CANNOT add a check to its own
     # completion gate. The battery above is a hardcoded list of scripts/enforcement/
@@ -2753,10 +2921,7 @@ def get_staged_files() -> set[str]:
     files (picking up gate autofixes) without sweeping unrelated, concurrently
     edited files into the commit. See stage_changes().
     """
-    code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
-    if code != 0 or not out:
-        return set()
-    return {f for f in out.strip().split("\n") if f}
+    return set(_git_names(["diff", "--name-only", "--cached"]) or [])
 
 
 def stage_changes(paths: set[str] | None = None) -> tuple[bool, str]:
@@ -2843,6 +3008,55 @@ def _diff_base() -> str | None:
     return None
 
 
+def _published_refs() -> list[str]:
+    """Every ref whose commits are already somebody's published work: the upstream, a linked
+    worktree's base branch, origin/master, origin/main — each when it resolves."""
+    refs: list[str] = []
+    for cmd in (
+        ["git", "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
+        None,
+        ["git", "rev-parse", "--verify", "--quiet", "origin/master"],
+        ["git", "rev-parse", "--verify", "--quiet", "origin/main"],
+    ):
+        code, out = run_cmd(cmd) if cmd else (0, _linked_worktree_base())
+        if code == 0 and out.strip():
+            refs.append(out.strip().splitlines()[0])
+    return refs
+
+
+def _unpublished_files() -> set[str]:
+    """Files touched by commits on HEAD that are on NO published ref — this session's own work.
+
+    fleet 01M4EPDF7F: `{_diff_base()}...HEAD` is "what differs from the upstream", and a worktree
+    branch fast-forwarded onto origin/master carried 199 sibling commits inside it, so a bare run
+    auto-fixed two files no fleet commit touched (one fix deleted a U+2028 a test exists to carry).
+    A commit already on the upstream, the linked worktree's base or origin/master|main is
+    somebody's published work, never this session's to rewrite. `--diff-merges=remerge` keeps a
+    merge commit's conflict resolutions (what the session authored there) and nothing else.
+    """
+    refs = _published_refs()
+    if not refs:
+        return set()
+    logged = _git_names(
+        ["log", "--format=", "--name-only", "--diff-merges=remerge", "HEAD", "--not", *refs]
+    )
+    base = _diff_base()
+    if logged is None:
+        # a git that rejects --diff-merges (< 2.36) must not silently empty the scope: fall back
+        # to the previous `base...HEAD` diff, wider but never blind (review A-S3)
+        wide = _git_names(["diff", "--name-only", f"{base}...HEAD"]) if base else None
+        return set(wide or [])
+    touched = set(logged)
+    # NET change only: a file the session's own commits created and deleted again (or edited and
+    # reverted) is not something it publishes — keep what differs from a boundary commit (A-S2)
+    code, bnd = run_cmd(["git", "rev-list", "--boundary", "HEAD", "--not", *refs])
+    net: set[str] = set()
+    for line in bnd.split("\n") if code == 0 else []:
+        if line.startswith("-"):
+            net.update(_git_names(["diff", "--name-only", line[1:].strip(), "HEAD"]) or [])
+    return touched & net
+
+
 def get_changed_files() -> set[str]:
     """Get set of changed file paths from git.
 
@@ -2861,20 +3075,12 @@ def get_changed_files() -> set[str]:
     session's gate and was one bare run away from being auto-staged into its commit.
     """
     changed: set[str] = set()
-    # Committed but not yet pushed (the session's own commits) — see _diff_base.
-    base = _diff_base()
-    if base:
-        code, out = run_cmd(["git", "diff", "--name-only", f"{base}...HEAD"])
-        if code == 0 and out:
-            changed.update(f for f in out.strip().split("\n") if f)
+    # Committed but not yet published (the session's own commits) — see _unpublished_files.
+    changed.update(_unpublished_files())
     # Staged changes (includes staged-NEW files — the authored path for new files)
-    code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
-    if code == 0 and out:
-        changed.update(f for f in out.strip().split("\n") if f)
+    changed.update(_git_names(["diff", "--name-only", "--cached"]) or [])
     # Unstaged changes (modifications to tracked files)
-    code, out = run_cmd(["git", "diff", "--name-only"])
-    if code == 0 and out:
-        changed.update(f for f in out.strip().split("\n") if f)
+    changed.update(_git_names(["diff", "--name-only"]) or [])
     return changed
 
 
@@ -2895,15 +3101,8 @@ def get_writable_files() -> set[str]:
     contract stages explicit paths anyway, so an authored file is in the writable scope by gate
     time. `--fix-all` opts back into fixing the whole change set for a solo tree.
     """
-    writable: set[str] = set()
-    base = _diff_base()
-    if base:
-        code, out = run_cmd(["git", "diff", "--name-only", f"{base}...HEAD"])
-        if code == 0 and out:
-            writable.update(f for f in out.strip().split("\n") if f)
-    code, out = run_cmd(["git", "diff", "--name-only", "--cached"])
-    if code == 0 and out:
-        writable.update(f for f in out.strip().split("\n") if f)
+    writable: set[str] = set(_unpublished_files())
+    writable.update(_git_names(["diff", "--name-only", "--cached"]) or [])
     return writable
 
 
@@ -2921,12 +3120,12 @@ def _warn_untracked_sources(emit: bool = True) -> str | None:
     the caller passes emit=False and routes the message into the JSON `warnings` array
     instead (a bare print there would corrupt the JSON stream agents parse).
     """
-    code, out = run_cmd(["git", "ls-files", "--others", "--exclude-standard"])
-    if code != 0 or not out:
+    others = _git_names(["ls-files", "--others", "--exclude-standard"])
+    if not others:
         return None
     src = [
         f
-        for f in out.strip().split("\n")
+        for f in others
         # The gate's own scannable surface: lint/fix targets (_FIXABLE_TEXT_EXTS) + node/sql sources.
         if f.endswith((".py", ".js", ".ts", ".tsx", ".sql", ".sh", ".md", ".yaml", ".yml", ".json"))
     ]
@@ -2975,14 +3174,54 @@ def _synced_paths() -> set[str]:
         return set()
 
 
+def _added_files() -> set[str]:
+    """Files this session ADDED: new in the index (staged, or `git add -N` intent-to-add) or added
+    net of every boundary commit of the unpublished range (the refs `_unpublished_files` reads).
+    A RENAME counts when its source was under `_RUFF_ROOTS` — the file was ruffed before the move
+    and must not leave the legs silently (review A-S1); renaming a flat-layout file adds no new
+    enforcement. Untracked files never count."""
+
+    def _new(args: list[str]) -> set[str]:
+        # -z: git's own bytes, never C-quoted (a quoted name split on tabs stored escapes, A-S4)
+        found: set[str] = set()
+        tokens = _git_names(["diff", "--name-status", "--diff-filter=AR", *args]) or []
+        i = 0
+        while i < len(tokens):
+            status = tokens[i].strip()
+            if status == "A" and i + 1 < len(tokens):
+                found.add(tokens[i + 1])
+                i += 2
+            elif status.startswith("R") and i + 2 < len(tokens):
+                if tokens[i + 1].startswith(_RUFF_ROOTS):
+                    found.add(tokens[i + 2])
+                i += 3
+            else:
+                i += 1
+        return found
+
+    added = _new(["--cached"]) | _new([])  # the second picks up intent-to-add entries
+    refs = _published_refs()
+    if refs:
+        code, bnd = run_cmd(["git", "rev-list", "--boundary", "HEAD", "--not", *refs])
+        for line in bnd.split("\n") if code == 0 else []:
+            if line.startswith("-"):
+                added |= _new([line[1:].strip(), "HEAD"])
+    return added
+
+
 def _changed_python(changed_files: set[str]) -> list[str]:
-    """Changed .py under the ruff roots that exist on disk and are NOT Fabrik-synced."""
+    """Changed .py the ruff legs own: under the ruff roots, or ADDED by this session anywhere
+    (fleet 01M4F5F2WM — a file-worker's `worker/` was never ruffed; a new file carries no debt,
+    while a modified flat-layout file's lint stays the repo-wide ratchet's). Exists on disk and is
+    NOT Fabrik-synced; the legs pass `--force-exclude`, so the repo's own ruff `exclude` still wins."""
     synced = _synced_paths()
+    py = {f for f in changed_files if f.endswith(".py")}
+    outside = {f for f in py if not f.startswith(_RUFF_ROOTS)}
+    added = _added_files() if outside else set()
     return sorted(
         f
-        for f in changed_files
-        if f.endswith(".py")
-        and f.startswith(_RUFF_ROOTS)
+        for f in py
+        if (f.startswith(_RUFF_ROOTS) or f in added)
         and f not in synced
         and (PROJECT_ROOT / f).is_file()
     )
@@ -3161,6 +3400,13 @@ def run_iteration(
 
 def main() -> int:
     """Run the final gate checks with iteration loop."""
+    # a path `_git_names` read from raw bytes may hold a surrogate escape; printing it must never
+    # crash the gate (review A-O4) — the gate's own streams escape what they cannot encode
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="backslashreplace")
+        except (AttributeError, ValueError):
+            pass
     args = parse_args()
 
     # transdoc 1.2: fail SETUP loudly instead of returning a tree verdict the
@@ -3494,6 +3740,54 @@ def _module_absent(out: str, module: str) -> bool:
     into a green NOT INSTALLED skip (W-2cfa7b8e). The name must end there: no word char or dot.
     """
     return re.search(rf"No module named {re.escape(module)}(?![\w.])", out) is not None
+
+
+# ── The memory ceiling on the pytest leg (W-162398ef, D-935) ──────────────────────────────────
+# On 2026-10-17 a test process grew to ~32 GB and took the whole WSL box down twice; a wall clock
+# cannot stop ~300 MB/s in time. The leg runs under `capped_run.sh` (a cgroup ceiling per run plus a
+# shared slice total for the box), reached by its absolute hub path: every /opt repo shares this box,
+# and the runner is hub-only, never synced. Missing runner -> the leg runs as before, and says so.
+# Kept down here, after every line the contracts cite by number (tests/test_governance_template_split.py).
+_CAPPED_RUN_DEFAULT = "/opt/fabrik/scripts/capped_run.sh"
+_CEILING_MARK = "capped_run: killed at the memory ceiling"
+
+
+def _capped_argv(argv: list[str], timeout: int) -> tuple[list[str], str]:
+    """``argv`` wrapped in the box's capped runner, and a note when it could not be."""
+    sibling = (
+        Path(__file__).resolve().parent / "capped_run.sh"
+    )  # the hub's (or this worktree's) own
+    runner = os.getenv("FABRIK_CAPPED_RUN") or (
+        str(sibling) if sibling.is_file() else _CAPPED_RUN_DEFAULT
+    )
+    if os.path.isfile(runner) and os.access(runner, os.X_OK):
+        return [runner, "--timeout", str(int(timeout)), "--", *argv], ""
+    return list(argv), (
+        f"\u26a0 the suite ran uncapped (no memory ceiling): {runner} is missing (W-162398ef)."
+    )
+
+
+def _run_capped_pytest(
+    argv: list[str], timeout: int, extra_env: dict[str, str] | None = None
+) -> tuple[int, str]:
+    """`run_cmd` for the pytest leg, under the capped runner. The runner stops the suite at
+    ``timeout`` and names it; the outer bound only catches a runner that itself hangs (its own
+    backstop is +30 s, then +10 s to kill). A ceiling kill gets a plain-words line at the END, where
+    the row's tail keeps it; an uncapped run says so the same way."""
+    wrapped, note = _capped_argv(argv, timeout)
+    code, out = run_cmd(wrapped, timeout=timeout + (0 if note else 60), extra_env=extra_env)
+    # rc 137 AND the runner's own line among the last few: a failing test that merely QUOTES the
+    # runner's message (tests/test_capped_run.py does) must not read as a ceiling kill
+    if code == 137 and any(_CEILING_MARK in line for line in out.splitlines()[-5:]):
+        out += (
+            "\n\u26a0 KILLED AT THE MEMORY CEILING: a test grew past the run's memory ceiling and the "
+            "kernel killed the suite \u2014 a runaway allocation (an unpatched mock read in a loop is "
+            "the usual cause), not a host outage. Find it with `capped_run.sh -- python -m pytest -x "
+            "-q --durations=0 <dir>`; raise FABRIK_TEST_MEM_MAX only for a suite that measurably needs it."
+        )
+    if note:
+        out += "\n" + note
+    return code, out
 
 
 if __name__ == "__main__":

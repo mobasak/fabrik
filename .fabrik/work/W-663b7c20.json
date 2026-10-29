@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T22:07:59.295285Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-663b7c20",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4N1K909FYCD19NMYXJ3X1Y4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-task feedback queue — 21 verdict(s) that need CODE in your beat (kaizen one-pass triage, D-735)"
+}

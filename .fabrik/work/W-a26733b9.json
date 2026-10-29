@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T12:05:18.705868Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a26733b9",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: /fabrik-task after W-ea993618; the hook is fleet-synced, full review",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "a bug class in a fleet-synced hook that made the box treat disposable workers as agents to keep alive (the day's starvation); one guard plus a test",
+  "status": "open",
+  "title": "The ORIENT hook (session_orient.py) marks EVERY session that carries CLAUDE_MESH_AUTONOMOUS=1 as autonomous, headless 'claude -p' children included (youtube-coordinator 2026-10-20: start_all.sh exported it to a worker pool, so 52 disposable workers got markers and the reboot sweep resumed one forever). Guard the hook: mark only an interactive agent session (not a -p/headless run, not a child of a non-claude parent), so the class is closed fleet-wide instead of per repo"
+}

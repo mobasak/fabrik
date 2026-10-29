@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-07T06:21:53.512499Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "97279c72a7396afbd7cd21ca58a2afa23e7b9a5b",
   "id": "W-117b1916",
   "kind": "task",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "",
   "owner": "infra",
   "priority": 1,
-  "status": "open",
+  "status": "done",
   "tags": [
     "quota-relief-wake",
     "waits-2026-10-13"

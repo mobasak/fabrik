@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T08:01:13.239912Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-46d148b0",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -13,9 +15,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
-  "owner": "infra",
-  "priority": 2,
-  "status": "open",
+  "note": "mail ack: done",
+  "owner": "infra-3",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — worktree uv run corrupts shared .venv twice in a day; breaks agents",
+  "status": "done",
   "title": "a worktree's `uv run` rewrites the SHARED .venv — twice in one day, SQLAlchemy 2.1 and a mis-pointed editable install"
 }

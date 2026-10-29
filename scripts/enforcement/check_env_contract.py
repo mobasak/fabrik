@@ -27,8 +27,8 @@ CONFIG_DOC_PATTERN = re.compile(r"`([A-Z][A-Z0-9_]+)`")
 # A `#` at line start or after whitespace begins a YAML comment. Stripping these
 # before extraction is load-bearing (2026-08-16, on activating this check's
 # __main__): the scaffolder's compose template carries the literal boilerplate
-# `#   3. Environment variables (use ${VAR:?} for required vars)` and a commented-out
-# `# - DATABASE_URL=${DATABASE_URL}`. Parsing those as real references made every
+# `#   2. Environment variables (use ${VAR:?} for required vars)`, and carried a commented-out
+# `# - DATABASE_URL=${DATABASE_URL}` until W-9ead34bd. Parsing those as real references made every
 # scaffolded repo "require" a variable named VAR — 17 of 45 fleet repos red, on
 # comment text alone. A `#` glued inside a value (`pa#ss`) is deliberately kept.
 # KNOWN TRADEOFF, chosen deliberately: this is not a YAML parser, so a `${VAR}` that

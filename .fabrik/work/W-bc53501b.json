@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:31:41.331297Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-bc53501b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4YHQ17AHS7TAGD8ST1PBSFK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: Addendum to 01M4Y6ZXRS (D7) — the three source sites are folded into the gated D7 item, same gate"
+}

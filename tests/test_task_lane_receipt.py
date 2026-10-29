@@ -406,9 +406,12 @@ def test_a_status_below_the_header_zone_does_not_count(repo: Repo) -> None:
 
 
 def test_the_d252_scope_growth_wording_is_a_closed_status(repo: Repo) -> None:
-    """``CONVERGED … on the D-252 scope-growth stop`` is the third sanctioned exit; the checker's
-    own ledger half (two rounds that each confirmed something) is built here so (b)'s subprocess
-    passes too."""
+    """``CONVERGED … on the D-252 scope-growth stop`` is a closed Status. Since D-355 the receipt
+    still closes on a confirmed-zero row, so the ledger stays quiet and only the wording is under
+    test (kaizen 01M4CPWDK0)."""
+    _status(repo, "**Status:** CONVERGED (2026-10-02) on the D-252 scope-growth stop")
+    assert _check(repo, REL, [repo.last]) == []
+    # the MIRROR: the same wording over a non-quiet last row no longer closes (D-355)
     text = repo.text().replace(
         "found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation |",
         "found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | method: re-derivation |",
@@ -416,8 +419,7 @@ def test_the_d252_scope_growth_wording_is_a_closed_status(repo: Repo) -> None:
     )
     assert text != repo.text()
     repo.write(text)
-    _status(repo, "**Status:** CONVERGED (2026-10-02) on the D-252 scope-growth stop")
-    assert _check(repo, REL, [repo.last]) == []
+    _only(_check(repo, REL, [repo.last]), "b")
 
 
 def test_an_unloadable_status_reader_is_a_refusal(repo: Repo, monkeypatch, tmp_path: Path) -> None:
@@ -472,14 +474,7 @@ def test_a_suffixed_converged_with_d252_wording_is_refused(repo: Repo, value: st
     """``CONVERGED-ish`` / ``**CONVERGED**-ish`` / ``CONVERGED/partial`` ``… on the D-252
     scope-growth stop`` are not CONVERGED: a ``\\b`` match admits the hyphen, an end-only bold
     strip leaves ``CONVERGED**-ish``, and a negative look-ahead admits ``*`` and ``/`` (O7).
-    The ledger shows the stop's two confirming rounds, so ONLY the Status half can refuse."""
-    text = repo.text().replace(
-        "found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation |",
-        "found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0 | method: re-derivation |",
-        1,
-    )
-    assert text != repo.text()
-    repo.write(text)
+    The ledger stays quiet (D-355), so ONLY the Status half can refuse."""
     _status(repo, f"**Status:** {value} (2026-10-02) on the D-252 scope-growth stop")
     reasons = _check(repo, REL, [repo.last])
     _only(reasons, "b")
@@ -560,17 +555,18 @@ def test_a_command_token_with_trailing_text_is_refused(repo: Repo) -> None:
     _only(_check(repo, REL, [repo.last]), "c")
 
 
-# ── (d) the range tip resolves to the last --commit ───────────────────────────────────────
+# ── (d) the range tip resolves to one of the --commit values ──────────────────────────────
 
 
-def test_a_range_tip_that_is_not_the_last_commit_is_refused_by_check_d_alone(repo: Repo) -> None:
-    """The receipt ends at ``last``; the close's last ``--commit`` is ``first``."""
+def test_a_range_tip_absent_from_the_commits_is_refused_by_check_d_alone(repo: Repo) -> None:
+    """The receipt ends at ``last``; no ``--commit`` value is ``last``."""
     _only(_check(repo, REL, [repo.seed, repo.first]), "d")
 
 
-def test_the_last_commit_decides_not_any_commit(repo: Repo) -> None:
-    """``last`` is listed, but not LAST — the receipt does not cover the final commit."""
-    _only(_check(repo, REL, [repo.last, repo.first]), "d")
+def test_an_ancestor_listed_after_the_tip_passes(repo: Repo) -> None:
+    """``first`` is inside ``seed..last``: listing it after the tip changes nothing — coverage is
+    read from ancestry, never from the list's order (W-0b900e92)."""
+    assert _check(repo, REL, [repo.last, repo.first]) == []
 
 
 def test_a_short_sha_tip_of_the_last_commit_passes(repo: Repo) -> None:
@@ -592,7 +588,8 @@ def test_a_short_last_commit_is_compared_in_full(repo: Repo) -> None:
 
 
 def test_a_receipt_made_without_range_is_refused_by_check_d(repo: Repo) -> None:
-    """No ``range tip`` on the Surface line: the receipt reviewed the working tree, not the run."""
+    """A range-form line with its tip cut is neither form check (d) reads — `git diff A..B` is not
+    the working-tree `git diff HEAD` a receipt made without --range carries (W-ebbedc88)."""
     line = next(ln for ln in repo.text().splitlines() if ln.startswith("**Surface:**"))
     bare = line.replace(f"; range tip {repo.last}", "")
     assert bare != line
@@ -664,3 +661,390 @@ def test_an_ambiguous_short_sha_is_refused_never_guessed(repo: Repo) -> None:
     reasons = _check(repo, REL, [prefix])
     _only(reasons, "d")
     assert prefix in reasons[0] and "None" in reasons[0], reasons
+
+
+# ── a receipt made WITHOUT --range: the working-tree Surface (W-ebbedc88) ─────────────────────
+
+
+def _init_wt(r: Path, *changed: str) -> None:
+    made = subprocess.run(
+        [
+            sys.executable,
+            str(RECEIPT_SCRIPT),
+            "--init",
+            "--project-root",
+            str(r),
+            "--out",
+            str(r / REL),
+            "--changed",
+            *changed,
+        ],
+        cwd=r,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert made.returncode == 0, made.stderr
+    (r / REL).write_text(_complete((r / REL).read_text(encoding="utf-8")), encoding="utf-8")
+
+
+def _restamp(r: Path) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(RECEIPT_SCRIPT), "--restamp", REL, "--project-root", str(r)],
+        cwd=r,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+
+def _commit_all(r: Path, msg: str) -> str:
+    _git(r, "add", "-A")
+    _git(r, "commit", "-q", "-m", msg)
+    return _git(r, "rev-parse", "HEAD")
+
+
+@pytest.fixture
+def wt(tmp_path: Path) -> Repo:
+    """seed, then an uncommitted edit reviewed with ``--init`` (no --range); not yet committed."""
+    r = tmp_path / "wt"
+    r.mkdir()
+    _git(r, "init", "-q")
+    _git(r, "config", "user.email", "t@example.com")
+    _git(r, "config", "user.name", "t")
+    (r / "app.py").write_text("x = 1\n", encoding="utf-8")
+    _git(r, "add", "app.py")
+    _git(r, "commit", "-q", "-m", "seed")
+    seed = _git(r, "rev-parse", "HEAD")
+    (r / "app.py").write_text("x = 2\n", encoding="utf-8")
+    _init_wt(r, "app.py")
+    return Repo(r, seed, seed, seed)
+
+
+def _surface_line(repo: Repo) -> str:
+    return next(ln for ln in repo.text().splitlines() if ln.startswith("**Surface:**"))
+
+
+def test_a_working_tree_receipt_matching_its_commit_passes(wt: Repo) -> None:
+    last = _commit_all(wt.root, "the reviewed change")
+    assert _check(wt, REL, [last]) == []
+
+
+def test_a_fix_after_the_receipt_is_refused_and_restamp_reanchors_it(wt: Repo) -> None:
+    (wt.root / "app.py").write_text("x = 3\n", encoding="utf-8")  # a review fix after --init
+    reasons = _check(wt, REL, [_commit_all(wt.root, "drifted")])
+    assert len(reasons) == 1 and reasons[0].startswith("(d)")
+    assert "is not the reviewed one" in reasons[0] and "--restamp" in reasons[0], reasons
+    assert "range tip" not in reasons[0]
+    # the same flow, re-anchored before the commit
+    _git(wt.root, "reset", "-q", "--soft", "HEAD~1")
+    (wt.root / "app.py").write_text("x = 4\n", encoding="utf-8")
+    done = _restamp(wt.root)
+    assert done.returncode == 0, done.stderr
+    assert _check(wt, REL, [_commit_all(wt.root, "restamped")]) == []
+
+
+def test_an_untracked_file_in_the_review_is_rebuilt_from_the_commit(tmp_path: Path) -> None:
+    r = tmp_path / "u"
+    r.mkdir()
+    _git(r, "init", "-q")
+    _git(r, "config", "user.email", "t@example.com")
+    _git(r, "config", "user.name", "t")
+    (r / "app.py").write_text("x = 1\n", encoding="utf-8")
+    _git(r, "add", "app.py")
+    _git(r, "commit", "-q", "-m", "seed")
+    (r / "app.py").write_text("x = 2\n", encoding="utf-8")
+    (r / "new.py").write_text("y = 1\n", encoding="utf-8")
+    _init_wt(r, "app.py", "new.py")
+    repo = Repo(r, "", "", "")
+    assert "+ 1 untracked file(s)" in _surface_line(repo)
+    assert _check(repo, REL, [_commit_all(r, "with a new file")]) == []
+
+
+def test_an_untracked_count_that_cannot_be_rebuilt_is_refused(tmp_path: Path) -> None:
+    r = tmp_path / "u2"
+    r.mkdir()
+    _git(r, "init", "-q")
+    _git(r, "config", "user.email", "t@example.com")
+    _git(r, "config", "user.name", "t")
+    (r / "app.py").write_text("x = 1\n", encoding="utf-8")
+    _git(r, "add", "app.py")
+    _git(r, "commit", "-q", "-m", "seed")
+    (r / "new.py").write_text("y = 1\n", encoding="utf-8")
+    _init_wt(r, "new.py")
+    repo = Repo(r, "", "", "")
+    line = _surface_line(repo)
+    repo.write(repo.text().replace(line, line.replace("+ 1 untracked", "+ 2 untracked"), 1))
+    reasons = _check(repo, REL, [_commit_all(r, "new file")])
+    assert len(reasons) == 1 and "cannot be rebuilt" in reasons[0], reasons
+
+
+def test_an_unresolvable_surface_base_is_refused(wt: Repo) -> None:
+    line = _surface_line(wt)
+    head = line.split("= ", 1)[1].split(";", 1)[0]
+    wt.write(wt.text().replace(line, line.replace(head, "0" * 40), 1))
+    reasons = _check(wt, REL, [_commit_all(wt.root, "c")])
+    assert len(reasons) == 1 and "does not resolve to a commit" in reasons[0], reasons
+
+
+def test_a_receipt_anchored_to_an_empty_diff_is_refused(wt: Repo) -> None:
+    last = _commit_all(wt.root, "c")
+    line = _surface_line(wt)
+    head = line.split("= ", 1)[1].split(";", 1)[0]
+    empty = (
+        line.replace(head, last).rsplit(" md5 ", 1)[0]
+        + " md5 d41d8cd98f00b204e9800998ecf8427e (0 bytes)"
+    )
+    wt.write(wt.text().replace(line, empty, 1))
+    reasons = _check(wt, REL, [last])
+    assert len(reasons) == 1 and "is EMPTY" in reasons[0], reasons
+
+
+def test_the_writer_and_the_reader_agree_on_the_working_tree_line(wt: Repo) -> None:
+    """A change to `_surface`'s wording must red here, not silently refuse every close."""
+    spec = importlib.util.spec_from_file_location("review_receipt_rt", RECEIPT_SCRIPT)
+    assert spec and spec.loader
+    rr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rr)
+    body = _surface_line(wt).split("**Surface:** ", 1)[1]
+    assert rr._WT_SURFACE.fullmatch(body) and _module()._WT_SURFACE.fullmatch(body)
+
+
+def test_a_cited_design_path_names_its_file() -> None:
+    norm = _module()._norm_cited
+    for cited in (
+        "scripts/x.py:340-373",
+        "scripts/x.py::func",
+        "scripts/x.py:12:5",
+        "scripts/x.py:1,4-6",
+        "./scripts/x.py:9",
+    ):
+        assert norm(cited) == "scripts/x.py", cited
+    assert norm(":12") == ":12" and norm("a:b") == "a:b"
+
+
+def _repo_seeded(tmp_path: Path, name: str) -> Path:
+    r = tmp_path / name
+    r.mkdir()
+    _git(r, "init", "-q")
+    _git(r, "config", "user.email", "t@example.com")
+    _git(r, "config", "user.name", "t")
+    (r / "app.py").write_text("x = 1\n", encoding="utf-8")
+    _git(r, "add", "app.py")
+    _git(r, "commit", "-q", "-m", "seed")
+    return r
+
+
+def test_a_directory_token_with_new_files_is_rebuilt(tmp_path: Path) -> None:
+    """Review A-S1: `--changed newdir` with untracked files inside it."""
+    r = _repo_seeded(tmp_path, "dir")
+    (r / "newdir").mkdir()
+    (r / "newdir" / "b.txt").write_text("b\n", encoding="utf-8")
+    (r / "newdir" / "a.txt").write_text("a\n", encoding="utf-8")
+    (r / "app.py").write_text("x = 2\n", encoding="utf-8")
+    _init_wt(r, "app.py", "newdir")
+    repo = Repo(r, "", "", "")
+    assert "+ 2 untracked file(s)" in _surface_line(repo)
+    assert _check(repo, REL, [_commit_all(r, "dir")]) == []
+
+
+def test_a_path_with_a_space_survives_the_round_trip(tmp_path: Path) -> None:
+    """Review A-S3: the writer shell-quotes, the reader and --restamp shlex-split."""
+    r = _repo_seeded(tmp_path, "sp")
+    (r / "my file.py").write_text("y = 1\n", encoding="utf-8")
+    _git(r, "add", "my file.py")
+    _git(r, "commit", "-q", "-m", "add spaced")
+    (r / "my file.py").write_text("y = 2\n", encoding="utf-8")
+    (r / "new file.py").write_text("z = 1\n", encoding="utf-8")
+    _init_wt(r, "my file.py", "new file.py")
+    repo = Repo(r, "", "", "")
+    assert "'my file.py'" in _surface_line(repo)
+    (r / "my file.py").write_text("y = 3\n", encoding="utf-8")
+    assert _restamp(r).returncode == 0
+    assert _check(repo, REL, [_commit_all(r, "spaced")]) == []
+
+
+def test_a_new_file_staged_before_the_review_still_matches(tmp_path: Path) -> None:
+    r = _repo_seeded(tmp_path, "staged")
+    (r / "new.py").write_text("n = 1\n", encoding="utf-8")
+    _git(r, "add", "new.py")
+    _init_wt(r, "new.py")
+    repo = Repo(r, "", "", "")
+    assert "untracked" not in _surface_line(repo)
+    assert _check(repo, REL, [_commit_all(r, "staged")]) == []
+
+
+def test_restamp_keeps_the_file_line_endings(tmp_path: Path) -> None:
+    """Review: --restamp rewrites ONE line; a CRLF receipt stays CRLF everywhere else."""
+    r = _repo_seeded(tmp_path, "crlf")
+    (r / "app.py").write_text("x = 2\n", encoding="utf-8")
+    _init_wt(r, "app.py")
+    rec = r / REL
+    rec.write_bytes(rec.read_bytes().replace(b"\n", b"\r\n"))
+    before = rec.read_bytes().count(b"\r\n")
+    (r / "app.py").write_text("x = 3\n", encoding="utf-8")
+    assert _restamp(r).returncode == 0
+    after = rec.read_bytes()
+    assert after.count(b"\r\n") == before and b"\n" not in after.replace(b"\r\n", b"")
+
+
+# ── (d) coverage is read from ancestry and touched paths, never --commit order (W-0b900e92) ──
+
+_LEDGERS = {"CHANGELOG.md", "docs/DECISIONS.md"}
+
+
+def _exempt(p: str) -> bool:
+    return p in _LEDGERS or p.startswith("docs/development/reviews/")
+
+
+def _commit_file(repo: Repo, rel: str, text: str, msg: str) -> str:
+    repo.write(text, rel)
+    _git(repo.root, "add", rel)
+    _git(repo.root, "commit", "-q", "-m", msg)
+    return _git(repo.root, "rev-parse", "HEAD")
+
+
+def _check_x(repo: Repo, commits, exempt=_exempt) -> list[str]:
+    return _module().check_review_receipt(Path(REL), list(commits), root=repo.root, exempt=exempt)
+
+
+def test_exempt_commits_after_the_tip_pass_in_the_order_made(repo: Repo) -> None:
+    """site-provisioner 01M4F5HTPS: the receipt and the ledger commits land after the reviewed
+    tip and are listed in the order they were made."""
+    rc = _commit_file(repo, REL, repo.text(), "receipt")
+    lc = _commit_file(repo, "CHANGELOG.md", "## [Unreleased]\n", "ledger")
+    assert _check_x(repo, [repo.first, repo.last, rc, lc]) == []
+
+
+def test_a_later_code_commit_refuses_in_either_order(repo: Repo) -> None:
+    """An unreviewed code commit after the tip refuses listed last AND listed before the tip —
+    the reorder that used to pass."""
+    late = _commit_file(repo, "app.py", "x = 4\n", "unreviewed fix")
+    for commits in ([repo.last, late], [late, repo.last], [repo.last, late, late[:12]]):
+        reasons = _check_x(repo, commits)
+        _only(reasons, "d")
+        assert late[:12] in reasons[0] and "app.py" in reasons[0], reasons
+
+
+def test_without_an_exempt_rule_a_later_commit_refuses(repo: Repo) -> None:
+    """No rule exempts nothing; a raising rule refuses (never escapes); one exempt path does not
+    launder a code path in the same later commit."""
+    lc = _commit_file(repo, "CHANGELOG.md", "## [Unreleased]\n", "ledger")
+    _only(_check_x(repo, [repo.last, lc], exempt=None), "d")
+
+    def boom(p: str) -> bool:
+        raise RuntimeError(p)
+
+    reasons = _check_x(repo, [repo.last, lc], exempt=boom)
+    _only(reasons, "d")
+    assert "RuntimeError" in reasons[0], reasons
+    repo.write("## [Unreleased]\n- x\n", "CHANGELOG.md")
+    repo.write("x = 5\n", "app.py")
+    _git(repo.root, "add", "CHANGELOG.md", "app.py")
+    _git(repo.root, "commit", "-q", "-m", "mixed")
+    mixed = _git(repo.root, "rev-parse", "HEAD")
+    _only(_check_x(repo, [repo.last, lc, mixed]), "d")
+
+
+def _failing(tl, verb: str, mode: str):
+    """`_git` with one verb failing: no answer (a timeout or OSError) or git's own rc 128."""
+    real = tl._git
+
+    def flaky(root, *args):
+        if not (args and args[0] == verb):
+            return real(root, *args)
+        if mode == "none":
+            return None
+        return subprocess.CompletedProcess(["git", *args], 128, b"", b"fatal: probe")
+
+    return flaky
+
+
+@pytest.mark.parametrize("mode", ["none", "rc128"])
+@pytest.mark.parametrize(
+    ("verb", "says"),
+    [
+        ("merge-base", "cannot be checked"),
+        ("diff-tree", "cannot be read"),
+        ("rev-list", "cannot be read"),
+    ],
+)
+def test_a_failing_git_probe_refuses(
+    repo: Repo, monkeypatch, verb: str, says: str, mode: str
+) -> None:
+    """Every probe failing — no answer or a nonzero rc — refuses the later commit: fail closed,
+    never an exempt pass (review C-haiku-1/-2, C-sonnet 1, 3)."""
+    tl = _module()
+    lc = _commit_file(repo, "CHANGELOG.md", "## [Unreleased]\n", "ledger")
+    monkeypatch.setattr(tl, "_git", _failing(tl, verb, mode))
+    reasons = _check_x(repo, [repo.last, lc])
+    _only(reasons, "d")
+    assert says in reasons[0], reasons
+
+
+@pytest.mark.parametrize("mode", ["none", "rc128"])
+def test_a_failing_anchor_probe_refuses(wt: Repo, monkeypatch, mode: str) -> None:
+    """The working-tree anchor's ancestry probe fails closed too (review C-sonnet 2)."""
+    tip = _commit_all(wt.root, "the reviewed change")
+    lc = _commit_file(wt, "CHANGELOG.md", "## [Unreleased]\n", "ledger")
+    tl = _module()
+    monkeypatch.setattr(tl, "_git", _failing(tl, "merge-base", mode))
+    reasons = _check_x(wt, [tip, lc])
+    _only(reasons, "d")
+    assert "cannot be checked" in reasons[0], reasons
+
+
+def test_an_unresolvable_later_commit_refuses(repo: Repo) -> None:
+    """A listed value that names no commit refuses, beside a tip that resolves; an unresolvable
+    tip never matches an unresolvable listed value (review C-sonnet 3, 7)."""
+    for commits in ([repo.last, "0" * 40], [repo.last, "0" * 40, "0" * 40]):
+        reasons = _check_x(repo, commits)
+        _only(reasons, "d")
+        assert "does not resolve" in reasons[0], reasons
+    repo.write(repo.text().replace(f"range tip {repo.last}", "range tip ?", 1))
+    reasons = _check_x(repo, ["0" * 40])
+    _only(reasons, "d")
+    assert "range tip ?" in reasons[0], reasons
+
+
+def test_a_rename_onto_a_ledger_name_and_a_root_commit_refuse(repo: Repo) -> None:
+    """Both halves of a rename are read (`--no-renames`: code renamed onto an exempt name still
+    shows the code path), and a root commit is read against the empty tree (`--root`: without it
+    a root commit prints nothing and would pass) — review C-sonnet 4."""
+    _git(repo.root, "mv", "app.py", "CHANGELOG.md")
+    _git(repo.root, "commit", "-q", "-m", "rename code onto a ledger name")
+    moved = _git(repo.root, "rev-parse", "HEAD")
+    reasons = _check_x(repo, [repo.last, moved])
+    _only(reasons, "d")
+    assert "app.py" in reasons[0], reasons
+    root = _git(repo.root, "commit-tree", f"{repo.seed}^{{tree}}", "-m", "unrelated root")
+    reasons = _check_x(repo, [repo.last, root])
+    _only(reasons, "d")
+    assert "app.py" in reasons[0], reasons
+
+
+def test_a_later_merge_is_read_against_its_first_parent(repo: Repo) -> None:
+    """A merge after the tip that brings in a code path refuses; its paths come from the first
+    parent's diff (a merge read with no `-m` prints nothing and would pass vacuously)."""
+    _git(repo.root, "checkout", "-q", "-b", "side", repo.seed)
+    _commit_file(repo, "lib.py", "y = 1\n", "side work")
+    _git(repo.root, "checkout", "-q", "-")
+    _git(repo.root, "merge", "-q", "--no-ff", "-m", "merge side", "side")
+    merge = _git(repo.root, "rev-parse", "HEAD")
+    reasons = _check_x(repo, [repo.last, merge])
+    _only(reasons, "d")
+    assert "lib.py" in reasons[0] and "app.py" not in reasons[0], reasons
+
+
+def test_working_tree_form_is_order_independent(wt: Repo) -> None:
+    """The anchor is the listed commit containing every other, never the list's last element:
+    an unreviewed edit of the reviewed path refuses in both orders; sibling commits refuse."""
+    tip = _commit_all(wt.root, "the reviewed change")
+    (wt.root / "app.py").write_text("x = 9\n", encoding="utf-8")
+    late = _commit_all(wt.root, "unreviewed edit")
+    for commits in ([tip, late], [late, tip]):
+        _only(_check_x(wt, commits), "d")
+    sib = _git(wt.root, "commit-tree", f"{wt.seed}^{{tree}}", "-p", wt.seed, "-m", "sibling")
+    reasons = _check_x(wt, [tip, sib])
+    _only(reasons, "d")
+    assert "contains every other" in reasons[0], reasons

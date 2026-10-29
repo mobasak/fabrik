@@ -382,3 +382,107 @@ def test_neither_command_run_nor_dispatch_headroom_carries_a_delta_budget() -> N
     assert not hasattr(mods["cr_mirror"], "DELTA_BUDGET") and not hasattr(
         mods["dh_mirror"], "DELTA_BUDGET"
     )
+
+
+def test_rule_three_fires_per_site_and_stands_down_at_the_stop() -> None:
+    """W-cc2b8600 (and /fabrik-review queue rows 413, 415): rule (3) was round-shaped — `only` let one
+    site yield own-fix residue every round without a rewrite, and its third-yield exit needed the rewrite
+    to be ABSENT. Both termination fragments now carry a SITE arm inside rule (3), count a rewritten site's
+    repeat into the existing per-finding/per-axis escalation, and hand over to the scope-growth stop from
+    the first round it applies. Presence only, inside rule (3)'s span — the same limit as the parity loop."""
+    frag = REPO / "commands" / "_fragments"
+    te = " ".join((frag / "term-edit.md").read_text(encoding="utf-8").split())
+    tc = " ".join((frag / "term-coverage.md").read_text(encoding="utf-8").split())
+
+    def rule3(text: str) -> str:
+        s = text.index("(3) **TWO CONSECUTIVE RESIDUE PASSES FORCE A REWRITE**")
+        ends = [i for i in (text.find("(4) **", s), text.find("When a check reports", s)) if i > s]
+        return text[s : min(ends)]
+
+    for name, text, escalation, attempt in (
+        ("term-edit", te, "per-axis", "the rewrite counts as one more reconcile attempt on each claim it answers"),
+        ("term-coverage", tc, "per-finding", "the rewrite counts as one more fix attempt on each claim it answers"),
+    ):
+        r3 = rule3(text)
+        for phrase in (
+            "yields an own-fix defect in two consecutive delta rounds, whatever else those rounds found",
+            "the smallest enclosing unit: a sentence, bullet item or table row",
+            "`site: <a quotable anchor>`",
+            "`; class rewrite — <site or paragraph> (rounds k, k+1)`",
+            "a third residue pass without a rewrite is the non-convergence breaker's foundation error",
+            attempt,
+            f"is paused under the {escalation} BLOCKED escalation",
+        ):
+            assert phrase in r3, (name, phrase)
+        for phrase in (
+            "takes over from the FIRST round at which it applies — the first whose `round` prints "
+            "`SCOPE GROWTH —` or `SCOPE GROWTH (in-lane)`, never `SCOPE GROWTH UNCOMPUTABLE`, and for a command "
+            "`round` never prints it for, rule (3) governs throughout",
+            "a rewrite emits new text, new text is in-hunk",
+            "a rewrite triggered in or before that round is still owed before the CLOSING round and is the one "
+            "own-fix item the backlog exit does not take",
+            "any later yield, at a new site or a rewritten one, goes to the stop's exit",
+        ):
+            assert phrase in text, (name, phrase)
+    assert "the scope-growth stop below takes over" in rule3(tc)
+    assert "Rule (3) and this stop can fire in the same round, and the stop takes over" in te
+    assert "ONLY-residue pass" not in te and "rule 3 ever triggers" not in te
+    assert "(patch, patch, rewrite)" not in te and "(patch, patch, rewrite)" not in tc
+    assert "function or top-level statement" in rule3(tc) and "function or top-level statement" not in te
+
+
+def test_round_zero_probes_a_guard_on_five_legitimate_spellings_and_its_mutant_mirrors() -> None:
+    """/fabrik-review queue (5 verdicts over five days): a guard a fix added was proven on the one spelling the
+    fix answered, so the next round's seat met the bolded, slash or reordered form; and a re-cut was proven on
+    the new finding alone. The round-zero probe now points at the testing-strategy pack row that owns the
+    five-spellings floor and defines the re-cut's mirrors. The citation is graded against the pack itself: the row
+    must sit in the section the probe names and still say what the probe quotes."""
+    text = " ".join((REPO / "commands" / "_fragments" / "term-coverage.md").read_text().split())
+    assert (
+        "a guard against an input that shows the condition, one that does not, every error path and five "
+        "LEGITIMATE spellings of its subject (`45-testing-strategy` § Banned Patterns, the row *A GUARD proven only "
+        "by the ONE spelling*: under 5/5 is a finding), a re-cut guard against the mutant of the finding it answers "
+        "AND, for a phrase guard, that mutant's mirrors (its negation in the same word order and a reordered "
+        "rewording)," in text
+    )
+    assert "routed to the backlog rather than widened into its regex" not in text, (
+        "the pack makes a missed spelling a finding; a backlog route for it contradicts rule (3) and the row"
+    )
+    pack = (REPO / ".windsurf" / "rules" / "core" / "45-testing-strategy.md").read_text()
+    section = pack.split("\n## Banned Patterns\n", 1)
+    assert len(section) == 2, "the § Banned Patterns heading the probe cites is gone"
+    body = section[1].split("\n## ", 1)[0]
+    row = next((ln for ln in body.splitlines() if ln.startswith("| A GUARD proven only by the ONE spelling")), "")
+    assert row, "the cited row left § Banned Patterns — re-point the probe's citation"
+    assert "anything under 5/5 is a finding" in " ".join(row.split())
+
+
+
+def test_a_running_cert_ledger_is_told_the_in_progress_marker_check_file_honours(tmp_path) -> None:
+    """intel 01M4ECCQ2T (tryton-crm 01M3YD067C): a cert report carrying a Coverage Checklist is graded by
+    check_file, but no cert text named the header-zone `Status: IN-PROGRESS` marker that exempts a gauntlet still
+    running, nor how it closes, so authors learned both from a red gate. The fragment now names the marker and
+    the close order, and check_file is driven to show it skips exactly the report so marked in lines 1-10."""
+    text = " ".join((REPO / "commands" / "_fragments" / "term-coverage.md").read_text().split())
+    assert (
+        "While the gauntlet runs, the cert report carries a line-initial `Status: IN-PROGRESS` in its first 10 "
+        "lines (`check_file` skips a report marked so), and it closes in `/fabrik-review`'s order: the gate run "
+        "while it still reads IN-PROGRESS, the flip to `Status: CONVERGED` — which also arms "
+        "`check_convergence.py`'s embedded green `final_gate` and a per-phase verdict under a `## Phase`/`## Step` "
+        "heading — then the gate re-run and "
+        "embedded." in text
+    )
+    body = (
+        "## Coverage Checklist\n\n| Row | Status |\n|---|---|\n| auth | UNCHECKED |\n\n## Ledger\n\n"
+        "| Pass 1 | opus×1 | found: 3, new: 3, confirmed: 2, fixed: 0, unexecuted: 0 | method: gate |\n"
+    )
+
+    def errs(head: str) -> list[str]:
+        p = tmp_path / "2026-10-08-fabrik-user-test-cert.md"
+        p.write_text(head + body, encoding="utf-8")
+        return crc.check_file(p)
+
+    assert errs("# Cert ledger\n\n") != [], "the fixture must be red without the marker"
+    assert errs("# Cert ledger\n\nStatus: IN-PROGRESS\n\n") == []
+    assert errs("# Cert ledger\n" + "\n" * 8 + "Status: IN-PROGRESS\n") == [], "line 10 is inside the zone"
+    assert errs("# Cert ledger\n" + "\n" * 9 + "Status: IN-PROGRESS\n") != [], "line 11 is outside it"

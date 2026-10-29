@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T16:24:22.668683Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "471a9d123a4e1a3f9111a065ce274bfb3dd2a012",
+  "id": "W-d8592740",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add a case to tests/test_scratch_sweep_run_folders.py that calls _live_proc for a child process whose cwd is the session dir and asserts the session row reads live",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — missing test on scratch sweep held rule",
+  "status": "done",
+  "tags": [
+    "medium"
+  ],
+  "title": "No test pins the scratch sweep's held-session-dir rule: removing scratch_sweep.py's _session_dead_for_runs held check and _classify_sid's live-holder branch leaves both sweep test files green (seat-executed 2026-10-17, review of the harness /proc fix)"
+}

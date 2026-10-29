@@ -1,6 +1,6 @@
 # Troubleshooting
 
-**Last Updated:** 2026-06-02 (Coolify-flavored historical symptoms preserved as past-tense; symptoms now surface in `docker compose ps` / `docker inspect` instead of the Coolify UI which was removed 2026-05-30). Added B23 verifier 404 / Docusaurus terminal grace entries from B23–B46 proof mission; Backrest is the live backup tool since 2026-04-17.
+**Last Updated:** 2026-10-15 (added the WSL `registry.npmjs.org` resolver failure — truncated DNS answers plus blocked TCP/53 — under DNS Issues). Previously 2026-06-02 (Coolify-flavored historical symptoms preserved as past-tense; symptoms now surface in `docker compose ps` / `docker inspect` instead of the Coolify UI which was removed 2026-05-30). Added B23 verifier 404 / Docusaurus terminal grace entries from B23–B46 proof mission; Backrest is the live backup tool since 2026-04-17.
 
 Common issues and solutions.
 
@@ -41,6 +41,45 @@ Common issues and solutions.
 2. Check Namecheap API IP whitelist includes your current IP
 3. Verify API credentials are correct
 4. Check DNS manually: `dig +short yourdomain.com`
+
+### WSL cannot resolve `registry.npmjs.org` (pnpm/npm installs hang) while GitHub and the Claude API work
+
+**Symptom:** `getent hosts registry.npmjs.org` times out (rc 124), `curl https://registry.npmjs.org` returns `000`,
+every `pnpm install` stalls — yet `getent hosts github.com` and the Claude API resolve instantly. Recurrence of
+W-478049bc (closed with no recorded cause); diagnosed 2026-10-15 for W-f0fd555a.
+
+**Cause (measured):** two conditions together.
+
+1. **The IPv6 answer is too big for plain DNS.** `registry.npmjs.org` returns 12 A and 12 AAAA records; the A
+   answer fits in 512 bytes (444, so `getent ahostsv4` works) but the AAAA answer does not. glibc sends queries
+   WITHOUT EDNS, so a reply over 512 bytes comes back truncated —
+   `dig +noedns +ignore @10.255.255.254 registry.npmjs.org AAAA` shows `flags: qr tc` with 0 answers — and glibc
+   must retry over TCP. A small answer (`github.com`) fits in 512 bytes and never needs TCP, which is why only some
+   hosts fail.
+2. **Outbound TCP port 53 is blocked on this box's network path** — to WSL's proxy AND the public resolvers:
+   `dig +tcp @10.255.255.254`, `@1.1.1.1` and `@8.8.8.8` all time out, while the same queries over UDP answer at once.
+
+**Fix** (the file's history and lock: `docs/workstation/WSL2-DNS-FIX.md`): let glibc ask for a big UDP answer, so it never needs TCP — add `edns0` to the `options` line of
+`/etc/resolv.conf` (static on this box: `/etc/wsl.conf` sets `generateResolvConf = false`, and the file carries
+the immutable bit — `lsattr` shows `i` — so the edit must lift it and set it back; `sed -i` renames a temporary
+file over the target, which an immutable file refuses with `Operation not permitted`):
+
+```bash
+sudo cp -p /etc/resolv.conf /etc/resolv.conf.backup.$(date +%Y%m%d-%H%M%S)
+sudo chattr -i /etc/resolv.conf
+sudo sed -i 's/^options timeout:2 attempts:1$/options timeout:2 attempts:1 edns0/' /etc/resolv.conf
+sudo chattr +i /etc/resolv.conf
+grep '^options' /etc/resolv.conf  # ends in edns0
+getent hosts registry.npmjs.org   # answers now
+```
+
+Proven before editing the file: `RES_OPTIONS=edns0 getent hosts registry.npmjs.org` answers (rc 0) where plain
+`getent hosts` times out (rc 124). glibc reads `RES_OPTIONS` from the environment, so that one-off test touches
+nothing.
+
+**Not fixed by this:** whatever blocks outbound TCP/53 (a Windows-side firewall or VPN filter is the likely
+holder — a leftover ExpressVPN WFP callout once broke browser-to-WSL localhost on this box). A resolver answer too
+large even for the EDNS UDP buffer would still need TCP and still fail.
 
 ### SSL Certificate Not Issued
 
@@ -167,7 +206,7 @@ cat specs/services/<name>.yaml | grep -A2 '^health:'
 Then re-run with `--keep-on-failure` to leave the container alive for inspection:
 
 ```bash
-fabrik apply specs/services/<name>.yaml --use-orchestrator --keep-on-failure --yes
+fabrik apply specs/services/<name>.yaml --keep-on-failure --yes
 curl -fsS https://<name>.vps1.ocoron.com/api/health   # verify path manually
 ```
 
@@ -183,7 +222,7 @@ If the manual curl succeeds but the orchestrator still 404s, the verifier is rea
 
 **Cause:** Multi-stage Node builds (`docusaurus`, `saas-skeleton`) take 60–90s during which the container reports `exited:unhealthy` (old container removed, new one not yet running; pre-2026-05-30 this was visible as Coolify reporting `exited:unhealthy`). Pre-2026-04-28 the orchestrator's `terminal_grace_period` was 30s — it gave up before the new container even started. Fixed in B46 (now 180s).
 
-**Where this lived:** `terminal_grace_period` and `_wait_for_app_status` exist only in the retired `src/fabrik/orchestrator/deployer_coolify.py` (line 564) — there is no `deployer.py` in this repo, and the active `deployer_ssh.py` has no equivalent grace-period tunable.
+**Where this lived:** `terminal_grace_period` and `_wait_for_app_status` existed only in the retired `deployer_coolify.py`, removed at 9c02e8c86 (the Coolify retirement) — there is no `deployer.py` in this repo, and the active `deployer_ssh.py` has no equivalent grace-period tunable.
 
 ### Port Already in Use
 
@@ -199,13 +238,13 @@ If the manual curl succeeds but the orchestrator still 404s, the verifier is rea
 
 > **⚠️ Legacy-Coolify-era troubleshooting, retained for archaeology.** The quoted fail-fast
 > message and its B7 preflight check belonged to the retired Coolify orchestrator
-> (`deployer_coolify.py`) — the active `deployer_ssh.py` has no such preflight and never emits
+> (`deployer_coolify.py`, removed at 9c02e8c86) — the active `deployer_ssh.py` has no such preflight and never emits
 > this message, so this symptom cannot recur under the current deployer. The scaffold-time git
 > remote detection described below is still current and still worth checking.
 
 **Symptom:** `fabrik apply specs/services/<name>.yaml` fail-fasts before deploying with the message `source.type is 'template' (not 'git'). Coolify's inline-compose endpoint has no source for 'build:' to consume — the build will never run.`
 
-**Cause:** The project has no git remote. `spec_generator.detect_git_source()` (`src/fabrik/spec_generator.py` line 296) runs `git -C <project> remote get-url origin` with 5s timeout at scaffold time. Without a remote, the emitted spec keeps `source.type: template`. Under the retired Coolify orchestrator this tripped a B7 preflight that lived in `deployer_coolify.py`; the active `deployer_ssh.py` has no equivalent check. A `WARNING` is still logged at scaffold time (`spec_generator.py` around line 429): *"No git remote configured at `<path>` — emitting source.type=template..."* (older versions of the warning said "Coolify deploy").
+**Cause:** The project has no git remote. `spec_generator.detect_git_source()` (`src/fabrik/spec_generator.py` line 381) runs `git -C <project> remote get-url origin` with 5s timeout at scaffold time. Without a remote, the emitted spec keeps `source.type: template`. Under the retired Coolify orchestrator this tripped a B7 preflight that lived in `deployer_coolify.py` (removed at 9c02e8c86); the active `deployer_ssh.py` has no equivalent check. A `WARNING` is still logged at scaffold time (`spec_generator.py` around line 548): *"No git remote configured at `<path>` — emitting source.type=template..."* (older versions of the warning said "Coolify deploy").
 
 **Fix:** Add a remote and re-emit the spec.
 
@@ -218,7 +257,7 @@ fabrik scaffold <project-name> --type <type>   # if project tree exists, this re
 # OR cleanest: delete and rescaffold from a directory that already has a remote.
 ```
 
-Reference path used by automation: `scripts/proof_run.py` lines 410–423 demonstrate the canonical sequence (scaffold → push → regenerate spec → apply).
+Reference path used by automation: `scripts/proof_run.py`'s `scaffold()` → `push_to_github()` → `regenerate_spec()` → `apply()` (called in that order from `process_type()`) demonstrates the canonical sequence (scaffold → push → regenerate spec → apply); the harness itself runs only with `--live`.
 
 ## Database Issues
 
@@ -281,7 +320,7 @@ If issues persist:
 | `Agent stalled: no progress for 600s (stream watchdog did not recover)` — dispatched subagent dies, partial output discarded | Harness stream watchdog; measured across 3 repos in one day (wef 5, hub sibling 3, fabrik-lib 5-of-11) — clusters on `model: opus` finders with long inlined prompts during API-instability windows; it is a no-PROGRESS watchdog, not a duration cap | A dead finder's partition is NOT swept — re-dispatch or cover it (mandated in the review-command ledgers since bd9e2563). Mitigate by briefing long finders to emit a per-class progress line as they sweep; the discard-on-fire (no partial flush) is Anthropic's to fix |
 | `lint-ratchet — ruff errors ROSE N → M` (but *your* files pass `ruff` clean) | Before 2026-07-18: a **sibling agent's untracked WIP** raised the working-tree count (CI-parity defect — CI only sees tracked files) | Fixed: the ratchet + `final_gate` change-set now count **tracked/staged files only**. If it still fires, read the per-file list the failure now prints under the ERROR line: it gives a count per offending file and marks the ones inside YOUR diff, and says so explicitly when NONE of them is yours (a sibling's committed work, or a ruff config change — check `git log -1 --stat` on the offenders before fixing anything) |
 | `lint-ratchet — ruff changed X → Y, so the stored count was measured under a DIFFERENT ruleset` | The linter moved under the baseline. An absolute stored count is only comparable within one ruleset, so the comparison is unfounded in BOTH directions — a widened rule reads as fresh debt, a removed one silently lowers the floor | Re-seed explicitly with **the interpreter that produced the count** — the check prints `sys.executable` for exactly this reason, and a bare `python3` re-seeds under whatever ruff THAT interpreter has, which is a silent no-op when it is the already-stored version: `<your venv>/bin/python scripts/enforcement/check_lint_ratchet.py --reseed`, in a commit that says the linter moved. The re-seed CLEARS the block immediately and prints `NOT COMMITTED` until you commit `.fabrik/lint-baseline.json` — CI holds the old floor until then. ⚠️ `--check` never takes that relief: it describes the COMMITTED state. ⚠️ This used to re-seed itself and PASS, which meant real debt landing in the same change as a ruff bump was absorbed into the new floor and never seen (01M1RE497). Measured when the change landed: 17 of 49 repos carry a baseline, 15 of those have no version field (unaffected), and exactly one — site-provisioner, stored 0.14.10 against a live 0.15.10 — reds until re-seeded |
-| `⚠ corpus-weight: this change ADDS N B to <surface>` (the gate's advisory rows, or a standalone run) | This tree is bigger than the base branch on a governance surface the hub OWNS — `CLAUDE.md`, `templates/governance/CLAUDE.md`, `commands/_sources`, `commands/_fragments`, `commands/_agents`, `.windsurf/rules`. Every agent pays that growth on every session or invocation. It is advisory: the gate never passes `--strict`, and without it the check exits 0 on every path it can reach, so it cannot red a gate (`--strict`, which you may pass by hand, exits 1 on growth by design) | First find whose growth it is — the delta is the whole TREE against `origin/master`, so on a shared tree it includes a sibling's uncommitted and committed-but-unpushed work: `git status --short -- <surface>` for uncommitted, and `git log <ref>.. --format='%h %an %s' -- <surface>` for committed-but-unpushed, where `<ref>` is the ref the ⚠ line named (`@{upstream}` when the branch has one, else `origin/master`, else `origin/main`). If it is yours, cut what the growth retires; if you accept it, raise the trend record with `python3 scripts/enforcement/check_corpus_weight.py --reseed` in a commit citing the `docs/DECISIONS.md` row that names what the growth bought |
+| `⚠ corpus-weight: this change ADDS N B to <surface>` (the gate's advisory rows, or a standalone run) | This tree is bigger than the base branch on a governance surface the hub OWNS — `CLAUDE.md`, `templates/governance/CLAUDE.md`, `commands/_sources`, `commands/_fragments`, `commands/_agents`, `.windsurf/rules`. Every agent pays that growth on every session or invocation. It is advisory: the gate never passes `--strict`, and without it the check exits 0 on every path it can reach, so it cannot red a gate (`--strict`, which you may pass by hand, exits 1 on growth by design) | First find whose growth it is — the delta is the whole TREE against the base ref the ⚠ line named (`<ref>` below), so on a shared tree it includes a sibling's uncommitted and committed-but-unpushed work: `git status --short -- <surface>` for uncommitted, and `git log <ref>.. --format='%h %an %s' -- <surface>` for committed-but-unpushed, where `<ref>` is the ref the ⚠ line named (`@{upstream}` when the branch has one, else `origin/master`, else `origin/main`). If it is yours, cut what the growth retires; if you accept it, raise the trend record with `python3 scripts/enforcement/check_corpus_weight.py --reseed` in a commit citing the `docs/DECISIONS.md` row that names what the growth bought. The reseed writes (and stages) only the BASELINE file, the trend record — and only from the main checkout: a linked worktree's `--reseed` is skipped and says so. The ⚠ is measured against `<ref>`, never the baseline, so reseeding never silences it; it stops when the tree no longer exceeds `<ref>` on that surface — you cut the growth, or `<ref>` itself carries it (pushed to your upstream when the branch has one; otherwise merged AND pushed to `origin/master`, because a local merge never moves a remote-tracking ref) |
 | `401 Unauthorized` | Invalid API token | Regenerate token |
 | `DNS_PROBE_FINISHED_NXDOMAIN` | DNS not propagated | Wait or check records |
 | `ERR_CERT_DATE_INVALID` | SSL not issued | Check ports 80/443 |

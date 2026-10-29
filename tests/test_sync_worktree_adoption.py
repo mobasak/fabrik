@@ -82,6 +82,17 @@ sync = importlib.util.module_from_spec(_spec)
 sys.modules["sync_worktree_adoption_mod"] = sync  # dataclass field resolution needs the registry
 _spec.loader.exec_module(sync)
 
+# W-800579be: the ledger-gap refresh asks the HUB's git history whether a worktree copy is a
+# published version. Every test that does not build its own scratch hub must not consult the live
+# /opt/fabrik store — a fixture literal that is ever committed there would flip a WARN assertion.
+_REAL_IS_PUBLISHED = getattr(sync, "_is_published_version", None)
+
+
+@pytest.fixture(autouse=True)
+def _no_live_hub_proof(monkeypatch):
+    if _REAL_IS_PUBLISHED is not None:
+        monkeypatch.setattr(sync, "_is_published_version", lambda *a, **k: False)
+
 
 def _run(args: list[str], cwd: Path) -> subprocess.CompletedProcess:
     return subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True)
@@ -749,6 +760,10 @@ def test_real_run_names_the_gitignore_patch_and_folds_it_into_results(
 
     fake_fabrik_root = tmp_path / "fake-fabrik-root"
     fake_fabrik_root.mkdir()
+    # A git repo with no commit (unborn HEAD): `main()` reads the manifest from the hub's HEAD, and a
+    # hub whose git cannot answer is a refusal (W-ba306861); an unborn HEAD restores the import-time
+    # manifest, which is what these runs exercise.
+    _run(["git", "init", "-q"], fake_fabrik_root)
     monkeypatch.setattr(sync, "FABRIK_ROOT", fake_fabrik_root)
     monkeypatch.setattr(sync, "OPT_ROOT", fake_opt)
     monkeypatch.setattr(sys, "argv", ["sync_enforcement_to_projects.py"])
@@ -1016,6 +1031,10 @@ def test_corrupt_ledger_warn_reaches_the_surviving_results_line(tmp_path, monkey
 
     fake_fabrik_root = tmp_path / "fake-fabrik-root"
     fake_fabrik_root.mkdir()
+    # A git repo with no commit (unborn HEAD): `main()` reads the manifest from the hub's HEAD, and a
+    # hub whose git cannot answer is a refusal (W-ba306861); an unborn HEAD restores the import-time
+    # manifest, which is what these runs exercise.
+    _run(["git", "init", "-q"], fake_fabrik_root)
     monkeypatch.setattr(sync, "FABRIK_ROOT", fake_fabrik_root)
     monkeypatch.setattr(sync, "OPT_ROOT", fake_opt)
     monkeypatch.setattr(sys, "argv", ["sync_enforcement_to_projects.py"])
@@ -2288,6 +2307,10 @@ def test_worktree_tally_folds_into_the_final_summary_line(tmp_path, monkeypatch,
 
     fake_fabrik_root = tmp_path / "fake-fabrik-root"
     fake_fabrik_root.mkdir()
+    # A git repo with no commit (unborn HEAD): `main()` reads the manifest from the hub's HEAD, and a
+    # hub whose git cannot answer is a refusal (W-ba306861); an unborn HEAD restores the import-time
+    # manifest, which is what these runs exercise.
+    _run(["git", "init", "-q"], fake_fabrik_root)
     monkeypatch.setattr(sync, "FABRIK_ROOT", fake_fabrik_root)
     monkeypatch.setattr(sync, "OPT_ROOT", fake_opt)
     monkeypatch.setattr(sys, "argv", ["sync_enforcement_to_projects.py"])
@@ -2316,6 +2339,10 @@ def test_worktree_tally_folds_into_the_final_summary_line_under_dry_run(
 
     fake_fabrik_root = tmp_path / "fake-fabrik-root"
     fake_fabrik_root.mkdir()
+    # A git repo with no commit (unborn HEAD): `main()` reads the manifest from the hub's HEAD, and a
+    # hub whose git cannot answer is a refusal (W-ba306861); an unborn HEAD restores the import-time
+    # manifest, which is what these runs exercise.
+    _run(["git", "init", "-q"], fake_fabrik_root)
     monkeypatch.setattr(sync, "FABRIK_ROOT", fake_fabrik_root)
     monkeypatch.setattr(sync, "OPT_ROOT", fake_opt)
     monkeypatch.setattr(sys, "argv", ["sync_enforcement_to_projects.py", "--dry-run"])
@@ -2396,32 +2423,53 @@ def test_hub_settings_json_worktree_block_is_present_and_well_formed():
     round 12, class 3: "hooks/permissions present and non-empty" is a much weaker
     claim than the Behavior Contract row this test exists to satisfy — "byte-
     identical to before" — a hook silently ADDED alongside the worktree block would
-    still pass a bare non-empty check. `5fd58526` is the commit immediately before
-    T01a/T01b touched this file (confirmed: it has no `worktree` key at all), so its
-    `.claude/settings.json` is the real "before" — asserted via `git show`, not a
-    hand-copied literal, so a legitimate future edit to hooks/permissions updates
-    this test's baseline by moving the pinned commit forward, never by loosening the
-    assertion."""
+    still pass a bare non-empty check. That claim is about the commit that ADDED
+    the block, so it is asserted there: `18065037f` (T01b) against its own parent,
+    via `git show`. Pinning the whole file to a past commit instead reds on every
+    later sanctioned hook edit (61ebee4cd's seat guard did), and the cheapest way to
+    keep that pin green is never to touch settings.json (intel 01M4F1E8PX)."""
     raw = (REPO / ".claude" / "settings.json").read_text(encoding="utf-8")
     settings = json.loads(raw)  # raises if the file is not valid JSON
 
     assert settings["worktree"] == {"baseRef": "head", "symlinkDirectories": [".venv"]}
 
-    base_raw = subprocess.run(
-        ["git", "show", "5fd58526:.claude/settings.json"],
+    def _settings_at(rev: str) -> dict:
+        out = subprocess.run(
+            ["git", "show", f"{rev}:.claude/settings.json"],
+            cwd=REPO,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+
+        def _no_duplicate_keys(pairs: list) -> dict:
+            keys = [k for k, _ in pairs]
+            assert len(keys) == len(set(keys)), f"{rev}: duplicate key in settings.json {keys}"
+            return dict(pairs)
+
+        # json.loads keeps the LAST of two duplicate keys, so an inserted duplicate would hide
+        # behind the original and pass both checks below
+        return json.loads(out, object_pairs_hook=_no_duplicate_keys)
+
+    before, added = _settings_at("18065037f^"), _settings_at("18065037f")
+    assert "worktree" not in before, "guard: 18065037f must be the commit that added the block"
+    assert "worktree" in added, "guard: 18065037f must be the commit that added the block"
+    added.pop("worktree")
+    assert added == before, (
+        "the commit that added the worktree block changed another key of "
+        ".claude/settings.json — the block must be the ONLY change it made"
+    )
+    # parsed equality is blind to reordering and re-indentation; "byte-identical to before"
+    # also needs the commit to have DELETED no line of the file. Pure addition + no duplicate key
+    # + equality minus `worktree` leaves the inserted lines room for the block and whitespace only
+    numstat = subprocess.run(
+        ["git", "diff", "--numstat", "18065037f^", "18065037f", "--", ".claude/settings.json"],
         cwd=REPO,
         capture_output=True,
         text=True,
         check=True,
-    ).stdout
-    base_settings = json.loads(base_raw)
-    assert "worktree" not in base_settings, "guard: 5fd58526 must predate the worktree block"
-
-    for key in ("hooks", "permissions", "enableAllProjectMcpServers"):
-        assert settings[key] == base_settings[key], (
-            f"{key} must be byte-identical to its value at 5fd58526 — the worktree "
-            f"block is the ONLY sanctioned change to this file"
-        )
+    ).stdout.split()
+    assert numstat[1] == "0", f"18065037f deleted lines of .claude/settings.json: {numstat}"
 
     lines = raw.splitlines()
 
@@ -2539,3 +2587,203 @@ def test_a_retired_file_the_sync_wrote_into_a_worktree_is_pruned_there_too(
     assert (wt / "opencode.json").read_text() == '{"agent": "edited"}\n', "an edit is never pruned"
     assert (wt / ".windsurfrules").exists(), "a file the ledger never recorded is not the sync's"
     assert "AGENTS-compact.md" not in sync._read_worktree_ledger(wt), "no zombie row"
+
+
+# --------------------------------------------------------------------------- #
+# W-800579be: a ledger-gap copy that is a published hub version is stale      #
+# --------------------------------------------------------------------------- #
+
+
+def _hub_with(tmp_path: Path, files: dict[str, str]) -> Path:
+    """A scratch hub whose HEAD history published `files` (path -> content), one commit each."""
+    hub = _init_repo(tmp_path / "hub")
+    for rel, body in files.items():
+        (hub / rel).write_text(body)
+        _run(["git", "add", rel], hub)
+        _run(["git", "commit", "-q", "-m", f"publish {rel}"], hub)
+    return hub
+
+
+def _gap_copy(repo: Path, wt: Path, ledger: dict[str, str] | None = None):
+    return sync._copy_into_worktree_safely(
+        repo / "AGENTS.md",
+        wt / "AGENTS.md",
+        dry_run=False,
+        backup=False,
+        previously_authored_rel=ledger or {},
+        project_rel="AGENTS.md",
+        dst_root=wt,
+        project_dir=repo,
+    )
+
+
+def _use_hub(monkeypatch, hub: Path) -> None:
+    monkeypatch.setattr(sync, "FABRIK_ROOT", hub)
+    monkeypatch.setattr(sync, "_is_published_version", _REAL_IS_PUBLISHED)
+
+
+def test_published_stale_copy_is_refreshed(tmp_path: Path, monkeypatch):
+    """whatsapp-agent 01M4RQV6DA: a copy the resync never recorded (Claude Code's creation-time
+    `.worktreeinclude` copy) whose bytes ARE a version the hub published at that same path is
+    stale, not an edit — refreshed, and recorded so it converges on every later run."""
+    _use_hub(monkeypatch, _hub_with(tmp_path, {"AGENTS.md": "hub v1 governance\n"}))
+    repo = _init_repo(tmp_path / "proj")
+    (repo / "AGENTS.md").write_text("hub v2 governance\n")
+    wt = _add_worktree(repo, "agent-stale")
+    (wt / "AGENTS.md").write_text("hub v1 governance\n")
+    result = _gap_copy(repo, wt)
+    assert result.action == "COPY", result
+    assert "published hub version" in result.reason, result.reason
+    assert (wt / "AGENTS.md").read_text() == "hub v2 governance\n"
+    # end to end through the resync leg: the refreshed file gains a ledger row
+    (wt / "AGENTS.md").write_text("hub v1 governance\n")
+    sync.resync_worktree_artifacts(repo)
+    assert (wt / "AGENTS.md").read_text() == "hub v2 governance\n"
+    assert "AGENTS.md" in sync._read_worktree_ledger(wt)
+
+
+def test_unproven_gap_content_is_preserved(tmp_path: Path, monkeypatch):
+    """Nothing but a published version of the SAME path proves staleness: unknown bytes, an
+    emptied file (the empty blob IS in a real hub store), another path's published bytes, and a
+    ledger-MISMATCH copy (the sync wrote it, then it changed) all stay WARN'd and untouched."""
+    hub = _hub_with(tmp_path, {"AGENTS.md": "", "agents-fabrik.md": "another file\n"})
+    (hub / "AGENTS.md").write_text("hub v1 governance\n")  # AGENTS.md's own history holds ""
+    _run(["git", "commit", "-q", "-am", "v1"], hub)
+    _use_hub(monkeypatch, hub)
+    repo = _init_repo(tmp_path / "proj")
+    (repo / "AGENTS.md").write_text("hub v2 governance\n")
+    wt = _add_worktree(repo, "agent-edit")
+    for body in ("an agent's own edit\n", "", "another file\n"):
+        (wt / "AGENTS.md").write_text(body)
+        result = _gap_copy(repo, wt)
+        assert result.action == "WARN" and "no ledger record" in result.reason, (body, result)
+        assert (wt / "AGENTS.md").read_text() == body
+    (wt / "AGENTS.md").write_text("hub v1 governance\n")
+    mismatch = _gap_copy(repo, wt, ledger={"AGENTS.md": "0" * 32})
+    assert mismatch.action == "WARN" and "edit preserved" in mismatch.reason, mismatch
+    assert (wt / "AGENTS.md").read_text() == "hub v1 governance\n"
+
+
+def test_hub_project_or_missing_hub_takes_no_proof(tmp_path: Path, monkeypatch):
+    """The hub's own store holds its worktrees' COMMITTED edits, so it can never vouch for them;
+    a hub that is not a git repo proves nothing either."""
+    repo = _hub_with(tmp_path, {"AGENTS.md": "v1 text\n"})
+    (repo / "AGENTS.md").write_text("v2 text\n")
+    _run(["git", "commit", "-q", "-am", "v2"], repo)  # v1 is in history, HEAD ships v2
+    _use_hub(monkeypatch, repo)
+    wt = _add_worktree(repo, "agent-hub")
+    (wt / "AGENTS.md").write_text("v1 text\n")
+    assert _gap_copy(repo, wt).action == "WARN"
+    assert (wt / "AGENTS.md").read_text() == "v1 text\n"
+
+    _use_hub(monkeypatch, tmp_path / "no-such-hub")
+    proj = _init_repo(tmp_path / "proj")
+    (proj / "AGENTS.md").write_text("v2 text\n")
+    wt2 = _add_worktree(proj, "agent-nohub")
+    (wt2 / "AGENTS.md").write_text("v1 text\n")
+    assert _gap_copy(proj, wt2).action == "WARN"
+
+
+def _checker(hub: Path):
+    spec = importlib.util.spec_from_file_location(
+        "chk_synced_unmodified_w800579be",
+        REPO / "scripts" / "enforcement" / "check_synced_unmodified.py",
+    )
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    mod.FABRIK_ROOT = hub
+    return mod
+
+
+def test_checker_names_stale_worktree_remedy(tmp_path: Path, monkeypatch, capsys):
+    """In a linked worktree the gate stays RED (a stale rule is still a stale rule) but stops
+    saying only "you edited": it names the re-copy from the main checkout when main matches the
+    lock, else the re-sync. Outside a worktree the text is unchanged."""
+    import hashlib
+
+    chk = _checker(tmp_path / "hub")
+    repo = _init_repo(tmp_path / "proj")
+    wt = _add_worktree(repo, "agent-chk")
+    lock = json.dumps({"AGENTS.md": hashlib.md5(b"hub v2\n").hexdigest()})
+    for root in (repo, wt):
+        (root / ".fabrik").mkdir(exist_ok=True)
+        (root / ".fabrik" / "synced.lock").write_text(lock)
+    (repo / "AGENTS.md").write_text("hub v2\n")
+    (wt / "AGENTS.md").write_text("hub v1\n")
+
+    monkeypatch.setattr(sys, "argv", ["chk", "--project-root", str(wt)])
+    assert chk.main() == 1
+    out = capsys.readouterr().out
+    assert "STALE" in out and f"cp {repo.resolve()}/AGENTS.md AGENTS.md" in out, out
+
+    (repo / "AGENTS.md").write_text("main drifted too\n")
+    assert chk.main() == 1
+    out = capsys.readouterr().out
+    assert "STALE" in out and "re-run the sync" in out and "cp " not in out, out
+
+    (repo / "AGENTS.md").write_text("hub v1\n")
+    monkeypatch.setattr(sys, "argv", ["chk", "--project-root", str(repo)])
+    assert chk.main() == 1
+    assert "STALE" not in capsys.readouterr().out
+
+
+def test_a_merge_resolution_is_a_published_version(tmp_path: Path, monkeypatch):
+    """Review B-S3: a version that exists in hub history only as a merge's own resolution is
+    published too — `git log` without `-m` prints no diff for it."""
+    hub = _hub_with(tmp_path, {"AGENTS.md": "base\n"})
+    _run(["git", "checkout", "-q", "-b", "side"], hub)
+    (hub / "AGENTS.md").write_text("side\n")
+    _run(["git", "commit", "-q", "-am", "side"], hub)
+    _run(["git", "checkout", "-q", "-"], hub)
+    (hub / "AGENTS.md").write_text("main\n")
+    _run(["git", "commit", "-q", "-am", "main"], hub)
+    subprocess.run(["git", "merge", "-q", "side"], cwd=hub, capture_output=True)  # conflicts
+    (hub / "AGENTS.md").write_text("resolved\n")
+    _run(["git", "commit", "-q", "-am", "merge"], hub)
+    _use_hub(monkeypatch, hub)
+    assert sync._is_published_version("AGENTS.md", b"resolved\n", tmp_path / "proj")
+
+
+def test_a_failed_hub_read_is_not_cached(tmp_path: Path, monkeypatch):
+    """Review A-S3/A-S5: a transient failure reads as "no proof" for that call only — the next
+    call retries, so one blip never disables the heal for a whole sync run."""
+    hub = _hub_with(tmp_path, {"AGENTS.md": "v1\n"})
+    calls: list[int] = []
+    real_run = subprocess.run
+
+    def flaky(argv, *a, **kw):
+        calls.append(1)
+        if len(calls) == 1:
+            raise subprocess.TimeoutExpired(argv, 60)
+        return real_run(argv, *a, **kw)
+
+    monkeypatch.setattr(sync.subprocess, "run", flaky)
+    assert sync._published_blobs(str(hub), "AGENTS.md") == frozenset()
+    assert sync._published_blobs(str(hub), "AGENTS.md"), "the retry must read the history"
+
+
+def test_checker_remedy_quotes_paths_and_names_deletions(tmp_path: Path, monkeypatch, capsys):
+    """Review A-S1/A-S2: a deleted synced file gets the same re-copy line, and every printed
+    path is shell-quoted so a pasted line copies exactly one file."""
+    import hashlib
+    import shlex
+
+    chk = _checker(tmp_path / "hub")
+    repo = _init_repo(tmp_path / "proj")
+    wt = _add_worktree(repo, "agent-q")
+    body = b"hub v2\n"
+    lock = json.dumps(
+        {"a b.md": hashlib.md5(body).hexdigest(), "gone.md": hashlib.md5(body).hexdigest()}
+    )
+    for root in (repo, wt):
+        (root / ".fabrik").mkdir(exist_ok=True)
+        (root / ".fabrik" / "synced.lock").write_text(lock)
+    (repo / "a b.md").write_bytes(body)
+    (repo / "gone.md").write_bytes(body)
+    (wt / "a b.md").write_text("hub v1\n")
+    monkeypatch.setattr(sys, "argv", ["chk", "--project-root", str(wt)])
+    assert chk.main() == 1
+    out = capsys.readouterr().out
+    assert f"cp {shlex.quote(str(repo.resolve() / 'a b.md'))} 'a b.md'" in out, out
+    assert f"cp {shlex.quote(str(repo.resolve() / 'gone.md'))} gone.md" in out, out

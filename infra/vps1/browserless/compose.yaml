@@ -1,3 +1,11 @@
+# Browserless v2 (open source; https://docs.browserless.io/baas/start) — the live stack is
+# /opt/browserless/compose.yaml on vps1; this is its mirror. Image ghcr.io/browserless/chromium
+# (formerly browserless/chrome, v1). ARM64: supported (linux/amd64, linux/arm64).
+# TOKEN gates every WebSocket/REST client (they pass ?token=...). Compose interpolates it from the project
+# .env beside the live compose on vps1; nothing in Fabrik writes that file. The hub .env keeps a copy
+# as BROWSERLESS_TOKEN.
+# CONCURRENT and TIMEOUT are the v2 names (v1: MAX_CONCURRENT_SESSIONS, CONNECTION_TIMEOUT); the v1-only
+# PREBOOT_CHROME, ENABLE_DEBUGGER and USE_CHROME_STABLE are gone.
 services:
   browserless:
     image: ghcr.io/browserless/chromium:latest
@@ -20,7 +28,12 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
+          # 3G, a PROVISIONAL raise from 2G (W-30b7ce3f, 2026-10-21): over 7 days the working set's p99 was
+          # 1805 MiB and it was OOM-killed 5 times at the 2048 MiB limit — the peak is censored by that limit,
+          # so true demand at CONCURRENT 10 is unknown. If OOM kills continue at 3G, lower CONCURRENT rather
+          # than raising this again. vps1 had 6.0 GiB available and its limits summed to ~2x its RAM.
+          memory: 3G
+          cpus: '2.0'
 
 networks:
   fabrik:

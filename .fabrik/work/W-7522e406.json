@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T05:46:19.361736Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-7522e406",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4CS09BBTDKRMA0SPA7HFV3H",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: six /fabrik-review verdicts ask fabrik-review-loop.js to ENFORCE its pins (01M4CGJZAX) — landed (D-663); two rows partially answered, one wording step is yours"
+}

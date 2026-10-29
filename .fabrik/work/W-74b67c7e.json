@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T05:49:45.535150Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-74b67c7e",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/archived/2026-10-18-plan-1-external-services-inventory",
+    "spec": ""
+  },
+  "next": "give inventory.py a public epoch alias and point gen_dashboard at it; settle the static heading outline in T04's accessibility smoke; name the render failure in main()'s typed line (its F3 test asserts today's wording)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: test-coverage or rare-edge residue in infra's scripts; nobody blocked",
+  "status": "open",
+  "title": "T03 residue (W-3e9e2f4c): gen_dashboard.credit_cell calls the private inventory._epoch; the static page's h1 repeats the card's h3 title with no h2; a missing app.css reads 'registry unreadable'"
+}

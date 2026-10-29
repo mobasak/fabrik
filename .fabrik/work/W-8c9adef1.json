@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:20:50.597369Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8c9adef1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RPD9FSSQBYMX91DBW7KFBG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "RE 01M4NJGCN0 — DONE: the lussobotanica-contact Worker is LIVE (operator approved 2026-10-12); all four pieces settled"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T13:01:17.176564Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-56b9f312",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DSHQYN4NEGHHJ306NT16VB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "polarity-blind phrase pins in the command-pin graders — W-b95f5c5e item 2, forwarded to its stated destination"
+}

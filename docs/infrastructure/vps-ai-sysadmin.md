@@ -78,7 +78,6 @@ Per-project enablement is controlled by the `watchdog:` block in each spec. **A 
 | State queries | `sqlite3 -readonly /var/lib/watchdog/state.db` for incident/action history | Triple defense: `-readonly` flag + keyword deny (UPDATE/DELETE/DROP/etc.) + sandbox denyWrite. |
 | Env visibility | `printenv \| cut -d= -f1`, `compgen -e` — KEY names only | Raw `printenv`, `env`, `cat .env`, `cat secrets/*` denied. Hard-deny: "Never read or print environment variable VALUES." Defends against prompt-injection exfil. |
 | External docs | `WebSearch` always; `WebFetch` restricted to 29-domain allow-list (python/django/fastapi/redis/postgres/aws/gcp/azure/MDN/stripe/github/stackoverflow/readthedocs/pypi/npmjs/k8s/nginx/traefik/docker/anthropic/openrouter/hashicorp) | Direct `curl http://*`/`https://*` denied. |
-| Tier B log redaction | `actions.py::install_log_drop_rule(pattern, severity)` — being retired (fabrik-lib SB-095): never offered to the model regardless of `auto_tier_b` | Sidecar never edits Promtail config directly; see 60-watchdog.md § Action allow-list, Tier B. |
 | Tier C code-fix proposals | Open a PR on `watchdog/<incident_id>` branch using `/var/lib/watchdog/proposed/<project_id>/` workspace. `Edit`/`Write` allowed in workspace; safe git subcommands allowed | NEVER push to `main`/`master`/`develop`/`staging`/`production`; force-push, reset, rebase, tag, config, remote — all denied. Operator reviews + merges. Opt-in per project via `propose_fix_prs: true`. |
 | Deadman timer | If Tier C escalation unresponded > 300s (default), `agent.py` restarts `<main_container>` as bleed-stop + re-alerts with `[DEADMAN-TIMEOUT]` prefix | Bleed-stop is read-only deescalation; no new permission needed. Timeout configurable via `WatchdogConfig.deadman_timeout_seconds` (60–3600s). |
 
@@ -162,8 +161,8 @@ Claude Code reaches these from inside the Docker `fabrik` network via `sudo dock
 |---|---|---|
 | ContainerDown | Container disappeared | cAdvisor |
 | ContainerHighCPU | CPU >80% sustained | cAdvisor |
-| ContainerHighMemory | Memory >80% of limit | cAdvisor |
-| ContainerMemoryHighOfHost | Container using too much host RAM | cAdvisor + node-exporter |
+| ContainerHighMemory | Working set >85% of limit | cAdvisor |
+| ContainerMemoryHighOfHost | Container without a limit using >15% of its host's RAM | cAdvisor |
 | ContainerOOMKilled | OOM kill event | cAdvisor |
 | ContainerRestarting | >3 restarts in 15min | cAdvisor |
 | HostHighCPU | Host CPU >80% | node-exporter |
@@ -673,7 +672,9 @@ read-only detector, never a push. It compares the committed `HEAD` of the hub ch
 checkout, on master, when the rider runs it; never the working tree) against
 `/opt/fabrik/scripts/sysadmin/`, the two cron-called audit scripts and the two checklists they read
 (`audit-prompts/03-security-hardening.md`, `06-backup-disaster-recovery.md`), and `/usr/local/bin/fabrik-autoheal` on
-`vps`, `vps2` and `vps3`, one `ssh -o BatchMode=yes` session each, and prints `DRIFT` (content differs),
+`vps`, `vps2` and `vps3`, one `ssh -o BatchMode=yes` session each — through the D-973 jump when
+`FABRIK_SSH_JUMP_<ALIAS>` is set (exported, or a line in the hub `.env`, the only `.env` lines it reads; an exported
+value wins; a malformed or unreadable one is exit 3 before any ssh) — and prints `DRIFT` (content differs),
 `MISSING` (absent on the host), `MODE` (the host copy lost its exec bit) and `UNREADABLE` (the host could not
 read the file) lines. The same session reads the host's `/etc/cron.d/vps-sysadmin` — which the sync never
 writes — and compares the set of `/opt/fabrik/scripts/…` paths its non-comment lines schedule with the committed

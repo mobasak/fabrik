@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T11:06:02.768697Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7b14b684",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DFJDA4AAYVRKFX0AX2NC6T",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "42-docusaurus.md \"Done When\" checklist still lists only the D-664 nginx rules, not D-676's"
+}

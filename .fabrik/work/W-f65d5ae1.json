@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T01:52:39.350504Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-f65d5ae1",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-execute-plan",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: HELD:integration-browser-step-names-spec-set-and-config — valid as advice, held below the edit bar: one verdict, no recurrence (D-711 Opus audit 2026-10-17). Ch",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-execute-plan"
+}

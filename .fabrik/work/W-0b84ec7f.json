@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:41:03.260073Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-0b84ec7f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4S8EPBQ66QVZ8WZR9FJXAM0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "done — the flows commands' Pass-Ledger axes match their sources, graded (c54aff688)"
+}

@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:35:08.453726Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-0b900e92",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4F5HTPSZYXXQJTE399NF0E0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra-2",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — command_run done refuses a valid receipt: blocks agents closing runs",
+  "status": "done",
+  "title": "command_run.py done --command fabrik-task --review refuses a receipt whose range tip is the reviewed CODE tip, because the receipt and ledger commits always land after it"
+}

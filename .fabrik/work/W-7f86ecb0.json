@@ -12,9 +12,13 @@
     "spec": ""
   },
   "next": "measure: grep fleet mail and kaizen logs for same-file rewrite collisions outside plans; build only if more than one repo hit it",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "infra",
   "priority": 3,
-  "status": "open",
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "work.py has no path claim for an ad-hoc (non-plan) whole-file rewrite: two agents rewrote docs/QUICKSTART.md in one window (tryton-crm 01M3QJCV item 9); plan-locks cover plans only. Measure recurrence before adding a verb"
 }

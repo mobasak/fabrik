@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_work.py, tests/test_work_claims.py, tests/test_work_sync.py, tests/test_work_migrate.py, docs/reference/work-tracking.md, tests/test_work_coordinator.py, tests/test_stop_hook_coordinator.py
+# AFTER-EDIT: tests/test_work.py, tests/test_work_claims.py, tests/test_work_sync.py, tests/test_work_migrate.py, docs/reference/work-tracking.md, tests/test_work_coordinator.py, tests/test_stop_hook_coordinator.py, tests/test_merge_request_work_items.py
 """Work tracking — one open-work record per repo, shared by its agents (spec 2026-09-24).
 
 THE STORE. One pretty-printed, sorted-key JSON file per item under ``<repo>/.fabrik/work/``,
@@ -58,6 +58,7 @@ import json
 import os
 import re
 import secrets
+import stat
 import subprocess
 import sys
 import tempfile
@@ -162,11 +163,24 @@ _PLAN_STATUS_ALIASES = {
     "DONE": "EXECUTED",
     "SHIPPED": "EXECUTED",
     "PLANNED": "DRAFT",
+    # a BLOCKED synonym must not be the cheaper label once BLOCKED is checked (W-fbdd17c8 critiques;
+    # 0 live plans fleet-wide carried one, 2026-10-08)
+    "ON-HOLD": "BLOCKED",
+    "ON_HOLD": "BLOCKED",
+    "HOLD": "BLOCKED",
+    "PAUSED": "BLOCKED",
+    "WAITING": "BLOCKED",
+    "STALLED": "BLOCKED",
 }
-_PLAN_STATUSES = frozenset({"DRAFT", "IN-PROGRESS", "CONVERGED", "EXECUTED", "BLOCKED"})
+_PLAN_STATUS_ORDER = ("DRAFT", "IN-PROGRESS", "CONVERGED", "EXECUTED", "BLOCKED")  # lifecycle order
+_PLAN_STATUSES = frozenset(_PLAN_STATUS_ORDER)
 DECISIONS_PY = Path("/opt/fabrik/scripts/decisions.py")  # hub-only, by absolute path
 WHOAMI_PY = Path(__file__).with_name("whoami_agent.py")
 DOCS_UPDATER_PY = Path(__file__).with_name("docs_updater.py")  # T03: migrate-backlog / render
+# W-a12b03a2: the pane scan's home — the hub's own copy beside this file, else the hub's by absolute path (a
+# project's synced work.py; every agents_up grid on this box is the hub's)
+ROTATE_SESSION_PY = Path(__file__).parent / "sysadmin" / "rotate_session.py"
+HUB_ROTATE_SESSION_PY = Path("/opt/fabrik/scripts/sysadmin/rotate_session.py")
 NAME_RULE = "[a-z0-9-]{1,32}"  # whoami_agent.py's agent-name rule: owners are agent names only
 _NAME_RE = re.compile(NAME_RULE)
 # A tag is the constraint that must travel WITH an item (tryton-crm 01M3PM5H) — the repo's own
@@ -461,6 +475,72 @@ def _read_item(repo: Path, item_id: str) -> dict:
     return data
 
 
+def _main_only_hint(repo: Path, item_id: str) -> str:
+    """The refusal's remedy when a linked worktree lacks an item the main checkout holds: a verb that
+    WRITES the item (``done``, ``drop``, ``answer``, ``assign``) needs its file on this branch, which
+    only a merge brings — the claim taken from here (``_read_item_any``) is not enough. "" otherwise;
+    never raises (a refusal message must not fail on its own hint)."""
+    try:
+        main = _worktrees(repo)[0]
+        if (
+            main != repo.resolve()
+            and _item_path(main, item_id).is_file()
+            and not _deleted_here(repo, main, item_id)  # a merge would only bring it back
+        ):
+            return f" — the main checkout {main} holds it: merge its branch into this one first"
+    except Exception:
+        pass
+    return ""
+
+
+def _require_item(repo: Path, item_id: str) -> dict:
+    """``_read_item`` for a write verb's first check of its id: a refusal for a file this linked
+    worktree lacks while the main checkout holds it names the merge that brings it. Kept out of
+    ``_read_item`` itself, which listing loops call per id — the hint runs ``git worktree list``."""
+    try:
+        return _read_item(repo, item_id)
+    except WorkError as exc:
+        if _item_path(repo, item_id).exists():
+            raise
+        raise WorkError(f"{exc}{_main_only_hint(repo, item_id)}") from None
+
+
+def _deleted_here(repo: Path, main: Path, item_id: str) -> bool:
+    """True when this branch REMOVED the item: its file existed at the fork point (the merge base
+    of this tree's HEAD and the main checkout's) and is gone here. ANY git failure reads as True —
+    the fallback then refuses, the pre-W-98204c50 behaviour, never a resurrection. ``ls-tree``, not
+    ``cat-file -e``: it prints nothing for an absent path and fails only on a real error, so a
+    timeout can never read as "absent at the fork point"."""
+    rel = (STORE_REL / f"{item_id}.json").as_posix()
+    try:
+        base = _git(repo, "merge-base", "HEAD", _git(main, "rev-parse", "HEAD").strip()).strip()
+        listed = _git(repo, "ls-tree", "--name-only", base, "--", rel).strip()
+    except WorkError:
+        return True
+    return bool(listed)  # empty: absent at the fork point, the main checkout made it after
+
+
+def _read_item_any(repo: Path, item_id: str) -> tuple[dict, Path]:
+    """The item and the tree whose store holds it: this tree's store first, else the MAIN
+    checkout's — for the verbs that write only SHARED state (``claim``, ``release``: the claim lives
+    in the git common dir every tree reads). An item the coordinator created or scored on the main
+    checkout is absent from a builder's branch until a merge carries it, and refusing it there
+    left the claim held (W-98204c50: ``merge_request.py request --item`` printed PARTIAL). Only a
+    MISSING file falls back; a corrupt or mismatched one is this tree's own refusal, and an id in
+    neither store keeps this tree's ``no item`` message."""
+    try:
+        return _read_item(repo, item_id), repo
+    except WorkError:
+        if _item_path(repo, item_id).exists():
+            raise
+        main = _worktrees(repo)[0]
+        if main == repo.resolve() or not _item_path(main, item_id).is_file():
+            raise
+        if _deleted_here(repo, main, item_id):  # this branch removed it: never resurrect
+            raise
+        return _read_item(main, item_id), main
+
+
 def _write_item(repo: Path, item: dict, *, create: bool = False) -> Path:
     """Write ``item`` to its file (caller holds the store lock); returns the path."""
     path = _item_path(repo, str(item.get("id", "")))
@@ -672,7 +752,7 @@ def _is_ready(
     """Open here, not closed in another tree, and every blocker resolved (here or elsewhere)."""
     if item.get("status") != "open" or item["id"] in closed:
         return False
-    for dep in item.get("blocked_by") or []:
+    for dep in _dep_ids(item):
         blocker = by_id.get(str(dep))
         if str(dep) in closed:
             continue
@@ -871,6 +951,140 @@ def _claims_dir(repo: Path) -> Path:
 
 def _closed_dir(repo: Path) -> Path:
     return _shared_dir(repo) / "closed"
+
+
+# ── paused workers (W-da4bc702) ─────────────────────────────────────────────────────────────────
+# "Pause = the agent stops starting new work at its next turn boundary and says so (no kill, nothing
+# lost)" (operator 2026-10-15). A pause is a marker `<shared>/paused/<name>.json` beside claims and
+# closed markers, so every tree of the repo sees it at once, with no commit. Its PRESENCE is the pause:
+# an unreadable marker still pauses (the safe side for "start nothing"), while an unreadable directory
+# reads as no pauses (today's behaviour) and `queue` warns. Only the `*.json` files whose stem is a
+# valid name count, so `_write_temp`'s `<name>.json.<x>.tmp` is never a pause. The caller's own rungs
+# (`_stop_action`, the prompt block, the NEXT auto-claim) read `_is_paused`, which matches the window's
+# resolved name OR its worker tree's name, so a window named unlike its tree is caught by either; the
+# floor rung, triage and `queue` count WORKER TREES, so they honour a pause by the tree's name — a
+# pause by a name no tree carries reaches only that window's own rungs. COBRA: the cheapest way past
+# "the coordinator keeps a worker at the floor" is to pause every idle worker, so `pause`, `queue`,
+# triage and the prompt block show every pause with who set it and when.
+def _paused_dir(repo: Path) -> Path:
+    return _shared_dir(repo) / "paused"
+
+
+PAUSE_MARKER_MAX = (
+    4096  # bytes: a marker is three short fields; anything larger is read as unreadable
+)
+
+
+def _pause_record(raw: object) -> dict:
+    """A marker's fields, normalised for display and for the permission check: ``by`` (the label
+    shown), ``actor`` (the agent NAME that set it — "" for the operator, which only the distributor
+    or the operator can then lift), ``at`` (epoch seconds, 0 when unusable) and ``why``."""
+    rec = raw if isinstance(raw, dict) else {}
+    by = rec.get("by")
+    actor = rec.get("actor")
+    raw_at = rec.get("at")
+    try:  # a bool is no time (True would read as 1970-01-01)
+        at = 0.0 if isinstance(raw_at, bool) else float(raw_at or 0)
+    except (TypeError, ValueError, OverflowError):
+        at = 0.0
+    why = rec.get("why")
+    return {
+        "by": _one_line(by, 60) if isinstance(by, str) and by.strip() else "?",
+        "actor": actor if isinstance(actor, str) and _valid_name(actor) else "",
+        "at": at if at == at and 0 < at < 1e11 else 0.0,  # NaN and absurd stamps read as unknown
+        # one line: a newline here would print a forged `work:` line into the paused agent's prompt
+        "why": _one_line(why, 200) if isinstance(why, str) else "",
+    }
+
+
+def _one_line(text: str, cap: int) -> str:
+    return " ".join(text.split())[:cap]
+
+
+def _paused(repo: Path) -> dict[str, dict]:
+    """Every paused agent name → its normalised record (`_pause_record`); never raises. Only a
+    REGULAR file of at most PAUSE_MARKER_MAX bytes is read (a FIFO would block every Stop hook);
+    any other entry with a marker name still pauses — presence is the pause."""
+    out: dict[str, dict] = {}
+    try:
+        markers = sorted(_paused_dir(repo).glob("*.json"))
+    except Exception:  # no store, a git failure, an unreadable dir: no pauses (today's behaviour)
+        return out
+    unreadable = {"by": "?", "why": "unreadable pause marker — still a pause"}
+    for marker in markers:
+        name = marker.name[: -len(".json")]
+        if not _valid_name(name):
+            continue
+        raw: object = unreadable
+        try:
+            st = marker.lstat()
+            if stat.S_ISREG(st.st_mode) and st.st_size <= PAUSE_MARKER_MAX:
+                raw = json.loads(marker.read_text(encoding="utf-8"))
+                if not isinstance(raw, dict):
+                    raw = unreadable
+        except (OSError, ValueError):
+            raw = unreadable
+        out[name] = _pause_record(raw)
+    return out
+
+
+def _is_paused(paused: dict[str, dict], agent: str, tree: Path, workers: dict[str, Path]) -> str:
+    """The paused name that covers this caller — its resolved agent name, else its worker tree's
+    name — or "" when neither is paused."""
+    if agent and agent in paused:
+        return agent
+    by_tree = next((n for n, t in workers.items() if t == tree), "")
+    if by_tree and by_tree in paused:
+        return by_tree
+    # a linked tree re-keyed to its bound agent, or dropped as an agent's second window (W-84ad2ff1): a pause
+    # recorded under its directory name still covers it, unless a worker carries that name — then it is that
+    # agent's pause, not this tree's
+    linked = tree.parent.parts[-2:] == (".claude", "worktrees")
+    by_dir = linked and tree.name != by_tree and tree.name not in workers
+    return tree.name if by_dir and tree.name in paused else ""
+
+
+def _paused_workers(paused: dict[str, dict], workers: dict[str, Path]) -> dict[str, str]:
+    """{worker: the pause name covering it} — `_is_paused` per worker, so the floor, triage and status honour a
+    pause under a re-keyed tree's directory name exactly as the Stop hook does."""
+    out = {}
+    for name, tree in workers.items():
+        hit = _is_paused(paused, name, tree, workers)
+        if hit:
+            out[name] = hit
+    return out
+
+
+def _caller_pause(tree: Path, session: str) -> dict | None:
+    """The pause record covering the session working in ``tree`` (named as the Stop hook names it),
+    or None; never raises."""
+    try:
+        main = _worktrees(tree)[0].resolve()
+        paused = _paused(main)
+        if not paused:
+            return None
+        tree = tree.resolve()
+        workers = _workers(main)
+        coordinator = (
+            str(_read_config(main).get("distributor") or "").strip() if _has_store(main) else ""
+        )
+        name = _is_paused(
+            paused, _caller_name(main, tree, workers, coordinator, session), tree, workers
+        )
+        return {**paused[name], "name": name} if name else None
+    except Exception:
+        return None
+
+
+def _ago_text(at: object) -> str:
+    try:
+        stamp = float(at)  # type: ignore[arg-type]
+        if not stamp > 0:  # 0 is `_pause_record`'s "unknown"; NaN fails the comparison too
+            return "an unknown time"
+        s = max(0, int(time.time() - stamp))
+    except (TypeError, ValueError, OverflowError):
+        return "an unknown time"
+    return f"{s // 60} min" if s < 3600 else f"{s // 3600} h"
 
 
 def _iso(ts: float) -> str:
@@ -1703,6 +1917,38 @@ def _stale_marker_statuses(repo: Path, ids: list[str]) -> dict[str, str]:
     return out
 
 
+def _blocked_plan_has_its_block(
+    rel: str, status_line: str, linked: list[dict], items: list[dict], closed: set[str]
+) -> bool:
+    """A plan led with BLOCKED names what it waits on — one of, against OPEN items (never one
+    closed in another tree): (a) an item linking it that is `awaiting-operator`, or `blocked` with
+    an unresolved `blocked_by` id; (b) an item its Status line names by id (`W-…`) that is
+    `awaiting-operator`; (c) an `awaiting-operator` item — a Stop-hook DECISION item, minted with no
+    links — whose question or title names the plan's dated stem as a whole word (`plan-1` never
+    matches `plan-10`). Anything else is class 3 (web-ecommerce-factory 01M4EB8AX1: the BLOCKED
+    label passed every check, hid agent-owned work, and no question had been put to the operator).
+    COBRA (D-253): an `awaiting-operator` item minted to silence this sits on the operator's board,
+    which is the outcome; a hand-edited `blocked` status alone no longer passes, but a `blocked_by`
+    pointing at any open item still does — the cheapest remaining pass, recorded in the D-row."""
+    live = [it for it in items if it.get("id") not in closed]
+    open_ids = {it.get("id") for it in live if it.get("status") not in RESOLVED}
+    for li in linked:
+        if li.get("id") in closed:
+            continue
+        if li.get("status") == "awaiting-operator":
+            return True
+        if li.get("status") == "blocked" and any(d in open_ids for d in _dep_ids(li)):
+            return True
+    awaiting = [it for it in live if it.get("status") == "awaiting-operator"]
+    named = set(_ITEM_REF_RE.findall(status_line))
+    if any(it.get("id") in named for it in awaiting):
+        return True
+    stem = re.compile(rf"(?<![0-9A-Za-z_-]){re.escape(Path(rel).stem)}(?![0-9A-Za-z_-])")
+    return any(
+        stem.search(f"{it.get('question') or ''} {it.get('title') or ''}") for it in awaiting
+    )
+
+
 def _drift_report(repo: Path) -> dict[int, list[str]]:
     """The eight drift classes of spec § Spec and plan state is derived, never copied, each a
     sorted list of the relpaths (item files for 5-6, the backlog doc for 7) that trip it."""
@@ -1756,6 +2002,7 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
             report[1].append(rel)
 
     active_locks = _active_plan_locks(repo)
+    closed_ids: set[str] | None = None
     for rel, text in plan_texts.items():
         norm = _normalize_plan_status(_status_value(repo, text))
         if norm not in _PLAN_STATUSES:
@@ -1782,6 +2029,13 @@ def _drift_report(repo: Path) -> dict[int, list[str]]:
         elif norm == "EXECUTED":
             if any(li.get("status") not in RESOLVED for li in linked_plans.get(rel, [])):
                 report[4].append(rel)
+        elif norm == "BLOCKED":
+            if closed_ids is None:  # read lazily: only a BLOCKED plan needs the markers
+                closed_ids = _closed_ids(repo)
+            if not _blocked_plan_has_its_block(
+                rel, _status_line_raw(repo, text), linked_plans.get(rel, []), items, closed_ids
+            ):
+                report[3].append(rel)
     for rel, text in archived_texts.items():
         if _normalize_plan_status(_status_value(repo, text)) == "EXECUTED" and any(
             li.get("status") not in RESOLVED for li in linked_plans.get(rel, [])
@@ -2740,8 +2994,22 @@ def cmd_render(repo: Path, args: argparse.Namespace) -> int:
     LF line is left ENTIRELY alone outside the block: no normalization, no restoration, so the
     untouched prefix/suffix bytes pass through byte-for-byte and only the spliced block itself is
     new content — a single stray CRLF line elsewhere must never become the whole file's style
-    (previously a lone CRLF line anywhere flipped every other line to CRLF too)."""
+    (previously a lone CRLF line anywhere flipped every other line to CRLF too).
+
+    The block is the main checkout's view of the main store: outside it (a linked worktree, or
+    ``--repo`` naming a tree the caller is not in) render refuses unless ``--here`` (mail
+    01M55ZNVH7: a worktree render rewrote 433 rows of a block its branch then merges)."""
     _require_store(repo)
+    here = bool(getattr(args, "here", False))
+    elsewhere, linked = _render_refusal(repo)  # asked once, before any write (review A-opus-5)
+    if elsewhere:  # `--here` renders the caller's OWN tree only — never one `--repo` names
+        raise WorkError(elsewhere)
+    if linked and not here:
+        raise WorkError(
+            f"render refused: this is a linked worktree ({repo}). The backlog block is the main "
+            "checkout's view of the main store and is rendered there, at merge. Change an item "
+            "here with `work.py edit <id>`; `render --here` renders this tree's own store anyway"
+        )
     path = repo / _BACKLOG_REL
     if not path.is_file():
         # T09 review A-O5: a repo with no backlog file is a no-op, not an error — T10's adoption
@@ -2775,7 +3043,43 @@ def cmd_render(repo: Path, args: argparse.Namespace) -> int:
         print(f"work: render — updated {_rel(repo, path)}")
     else:
         print(f"work: render — {_rel(repo, path)} already current")
+    if linked:  # only `--here` reaches this in a linked worktree
+        print("work: render --here — this block is this tree's view — do not commit it")
     return 0
+
+
+def _is_file_inside(repo: Path, value: str) -> bool:
+    """True when ``value`` (repo-relative or absolute) names a regular file inside ``repo``. Never
+    raises: a name the filesystem refuses (too long, a NUL) or a symlink loop is simply not a file
+    inside."""
+    try:
+        target = (repo / value).resolve()
+        return target.is_relative_to(repo.resolve()) and target.is_file()
+    except (OSError, ValueError, RuntimeError):
+        return False
+
+
+def _render_refusal(repo: Path) -> tuple[str | None, bool]:
+    """``(elsewhere, linked)``, both answered before ``render`` writes. ``elsewhere`` is the refusal when
+    the caller's own tree is not ``repo`` (``--repo`` naming another tree, a cwd outside any repo or
+    one that no longer exists) — refused even with ``--here``, which renders only the caller's own
+    tree. ``linked`` is True in a linked worktree, refused there unless ``--here``."""
+    try:
+        cwd: Path | None = Path.cwd()
+    except OSError:
+        cwd = None
+    try:
+        caller = None if cwd is None else _repo_root(cwd)
+    except WorkError:
+        caller = None
+    if caller != repo:
+        where = "a directory that no longer exists" if cwd is None else str(cwd)
+        return (
+            f"render refused: the caller is in {where}, not in {repo}. The backlog block is the main "
+            "checkout's view of the main store and is rendered there, at merge, from inside that "
+            "tree; `render` (with or without `--here`) never writes a tree the caller is not in"
+        ), False
+    return None, _is_linked_worktree(repo)
 
 
 def _block_body_norm(body: str) -> str:
@@ -2894,12 +3198,36 @@ def cmd_assign(repo: Path, args: argparse.Namespace) -> int:
     both = set(add_tags) & set(drop_tags)
     if both:
         raise WorkError(f"--tag and --untag both name {', '.join(sorted(both))}; pick one")
-    if args.owner is None and args.priority is None and not add_tags and not drop_tags:
-        raise WorkError("assign needs --owner, --priority, --tag and/or --untag")
+    block_add = list(dict.fromkeys(args.blocked_by or []))
+    block_drop = list(dict.fromkeys(args.unblock or []))
+    both = set(block_add) & set(block_drop)
+    if both:
+        raise WorkError(f"--blocked-by and --unblock both name {', '.join(sorted(both))}; pick one")
+    scoring = args.impact is not None or args.effort is not None
+    if (
+        args.owner is None
+        and args.priority is None
+        and not add_tags
+        and not drop_tags
+        and not scoring
+        and not block_add
+        and not block_drop
+    ):
+        raise WorkError(
+            "assign needs --owner, --priority, --tag, --untag, --impact/--effort (with --why), "
+            "--blocked-by and/or --unblock"
+        )
+    why = " ".join((args.why or "").split())
+    if scoring and not why:
+        raise WorkError('--impact/--effort need --why "<one line>": every score carries its reason')
+    if why and not scoring:
+        raise WorkError("--why is the reason a score carries: give it with --impact/--effort")
     owner = None if args.owner is None else args.owner.strip()
     if owner and not _valid_name(owner):
         raise WorkError(f"--owner {owner!r} is not an agent name ({NAME_RULE}); owners are agents")
-    _read_item(repo, args.id)  # a missing id is named before any ownership check
+    _require_item(repo, args.id)  # a missing id is named before any ownership check
+    if owner and owner in _paused(repo):
+        _warn(f"{owner} is PAUSED — the item waits in its queue until the pause is lifted")
     with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="assign"):
         distributor = str(_read_config(repo).get("distributor") or "").strip()
         if distributor and _agent_name() != distributor:
@@ -2907,20 +3235,317 @@ def cmd_assign(repo: Path, args: argparse.Namespace) -> int:
                 f"assign is the distributor's ({distributor}); this caller is {_actor_label()}"
             )
         item = _read_item(repo, args.id)
+        held = _dep_ids(item)
+        for dep in block_drop:
+            if dep not in held:
+                raise WorkError(f"--unblock {dep}: {item['id']} is not blocked by it")
+        for dep in block_add:
+            if dep == item["id"]:
+                raise WorkError(f"--blocked-by {dep}: an item cannot block itself")
+            _read_item(repo, dep)  # an unknown id is refused, never stored
+            if item["id"] in _blockers_of(repo, dep):
+                raise WorkError(
+                    f"--blocked-by {dep} refused: {dep} already waits on {item['id']} — a cycle "
+                    "would leave both unworkable"
+                )
+        was_held_class = _in_one_major_hold_class(item)
+        note = _apply_score(item, args.impact, args.effort, why, args.priority)
+        hold_lines: list[str] = []
+        if was_held_class and _scored(item) and not _is_major(item):
+            # the one-major hold's reason ended with this re-score (W-0fe931b7)
+            hold_lines = _clear_one_major_holds(repo, item, set(block_add) | set(block_drop))
+            held = _dep_ids(item)
         if owner is not None:
             item["owner"] = owner
-        if args.priority is not None:
-            item["priority"] = args.priority
         if add_tags or drop_tags:
             tags = (set(item.get("tags") or []) | set(add_tags)) - set(drop_tags)
             if tags:
                 item["tags"] = sorted(tags)
             else:
                 item.pop("tags", None)
+        if block_add or block_drop:
+            deps = [d for d in held if d not in block_drop]
+            deps += [d for d in block_add if d not in deps]
+            item["blocked_by"] = deps  # every item carries the key; an emptied hold is []
         path = _write_item(repo, item)
         _after_write(repo, _session())
+    if note:
+        print(note, file=sys.stderr)
+    for line in hold_lines:
+        print(line, file=sys.stderr)
     print(_rel(repo, path))
     return 0
+
+
+# `edit` changes only the kinds `add` makes — an allowlist, so a hand-set or future kind is refused too.
+# The derived kinds carry the reason `add` gives for them: their title and links come from their
+# mechanism (the Stop harvest, the mail claim, the feedback queue), so a hand edit would fork them.
+_EDIT_KINDS = ("backlog", "task")
+_EDIT_REFUSED_KINDS = {
+    "decision": "decision items come only from DECISION blocks (the Stop-hook harvest)",
+    "next": "a next item comes only from the Stop harvest of a session's NEXT line",
+    "mail": "mail items are made and closed only by taking the obligation (a mail claim)",
+    "feedback": "feedback items are made and closed only by taking the obligation (a feedback queue)",
+}
+
+
+def cmd_edit(repo: Path, args: argparse.Namespace) -> int:
+    """Change what `add` writes — title, next, the spec/plan/decision links — on an item `add` could
+    have made, under the store lock, in the caller's own tree (as every item-field writer does).
+    `--next ""` clears next; a call that names no field is refused. A link or next edit never
+    changes the backlog block (it lists owner, title and id only), so it needs no render."""
+    _require_store(repo)
+    if args.title is None and args.next is None and not args.link and not args.unlink:
+        raise WorkError("edit needs --title, --next, --link and/or --unlink")
+    title = None if args.title is None else " ".join(args.title.split())
+    if title is not None and not title:
+        raise WorkError("--title is empty")
+    next_action = None if args.next is None else " ".join(args.next.split())
+    links = _parse_links(args.link or [])
+    unlink = list(dict.fromkeys(args.unlink or []))
+    for key in unlink:
+        if key not in LINK_KEYS:
+            raise WorkError(f"--unlink {key!r}: expected one of {'|'.join(LINK_KEYS)}")
+    both = sorted(set(links) & set(unlink))
+    if both:
+        raise WorkError(f"--link and --unlink both name {', '.join(both)}; pick one")
+    decision = links.get("decision")
+    if decision is not None and not _DECISION_ID_RE.fullmatch(decision):
+        raise WorkError(
+            f"--link decision={decision!r} is not a ledger id (D-NNN); mint the row first — "
+            "work.py never writes docs/DECISIONS.md"
+        )
+    for key in ("spec", "plan"):
+        value = links.get(key)
+        if value is not None and not _is_file_inside(repo, value):
+            _warn(f"--link {key}={value}: not a file inside {repo} — applied as given")
+
+    def _check_kind(item: dict) -> None:
+        kind = item.get("kind")
+        if kind in _EDIT_KINDS:
+            return
+        why = _EDIT_REFUSED_KINDS.get(kind) if isinstance(kind, str) else None
+        label = kind if isinstance(kind, str) and kind.isidentifier() else repr(kind)
+        raise WorkError(
+            f"edit {item['id']} refused: a {label} item — "
+            + (why or f"edit changes only the kinds `add` makes ({', '.join(_EDIT_KINDS)})")
+        )
+
+    def _new_links(item: dict) -> dict:
+        current = item.get("links", {})
+        if not isinstance(current, dict):
+            raise WorkError(
+                f"edit {item['id']} refused: its links is not a mapping ({type(current).__name__}) — "
+                "repair the item file by hand first"
+            )
+        # a stored LINK_KEYS value that is not a string is refused by name, never coerced: a link
+        # edit must not silently change a value the call did not name (review pass 3, A-haiku-p3-2)
+        bad = sorted(k for k in LINK_KEYS if k in current and not isinstance(current[k], str))
+        if bad:
+            raise WorkError(
+                f"edit {item['id']} refused: links.{', links.'.join(bad)} is not a string — "
+                "repair the item file by hand first"
+            )
+        merged = {**dict.fromkeys(LINK_KEYS, ""), **current, **links}
+        for key in unlink:
+            merged[key] = ""
+        return merged
+
+    linked = _is_linked_worktree(
+        repo
+    )  # every git answer is taken before the write (review A-opus-5)
+    first = _read_item(
+        repo, args.id
+    )  # a missing id, a refused kind or bad links is named before the lock
+    _check_kind(first)
+    if links or unlink:
+        _new_links(first)
+    with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="edit"):
+        item = _read_item(repo, args.id)
+        _check_kind(item)
+        if title is not None:
+            item["title"] = title
+        if next_action is not None:
+            item["next"] = next_action
+        if links or unlink:
+            item["links"] = _new_links(item)
+        _write_item(repo, item)
+        _after_write(repo, _session())
+    print(_line(item))
+    if title is None:
+        print("work: edit — the backlog block lists owner, title and id only — nothing to render")
+    if linked:
+        print(
+            "work: edit — this item merges with the branch; if the main checkout holds an uncommitted "
+            "write to it, run `work.py commit-items` there before the merge"
+        )
+    return 0
+
+
+# Impact x effort -> the stored integer priority (spec D4, plan 2026-10-15). Low impact + high
+# effort is a time sink: it is dropped with a reason, never scored. COBRA (D-253): the cheapest
+# way to look prioritised is to call everything a quick win — the reason travels with every
+# score (`score_reason`) and `triage` lists what is unscored, so a blanket score stays visible.
+SCORE_LEVELS = ("high", "low")
+_DERIVED_PRIORITY = {("high", "low"): 1, ("high", "high"): 2, ("low", "low"): 3}
+
+
+def _scored(item: dict) -> bool:
+    return item.get("impact") in SCORE_LEVELS and item.get("effort") in SCORE_LEVELS
+
+
+def _is_major(item: dict) -> bool:
+    """A major project: high impact AND high effort (spec D4)."""
+    return item.get("impact") == "high" and item.get("effort") == "high"
+
+
+def _in_flight_major(item: dict, live: dict, closed: set[str]) -> bool:
+    """A major that holds (or can hold) the one-major slot: owned or live-claimed — a claim on an
+    unowned major holds it too — `open` or `blocked`, and not closed elsewhere. `triage` reads its
+    candidates with it, and `assign` reads with it which holds a re-score clears (W-0fe931b7)."""
+    return (
+        _is_major(item)
+        and bool(item.get("owner") or item["id"] in live)
+        and item.get("status") in ("open", "blocked")
+        and item["id"] not in closed
+    )
+
+
+def _in_one_major_hold_class(item: dict) -> bool:
+    """An item the one-major rule holds `--blocked-by` the in-flight major (coordinator charter
+    step 4): a major, or an unscored item tagged `medium` — the charter's high-effort MEDIUM, which
+    takes the tag instead of a score (low impact with high effort is refused as a time sink)."""
+    return _is_major(item) or (not _scored(item) and "medium" in _tags(item))
+
+
+def _clear_one_major_holds(repo: Path, item: dict, keep: set[str]) -> list[str]:
+    """Drop from `item["blocked_by"]` (in place) every id naming an in-flight major, the hold the
+    one-major rule wrote, and return the stderr lines (W-0fe931b7). The caller runs it only when a
+    re-score takes the item out of that rule's class. `keep` (this call's --blocked-by/--unblock)
+    is the caller's own. The blocker, its claims and closed markers are read as `triage` reads them,
+    from the MAIN checkout (a builder tree's copy may be stale), and from this tree only for a
+    blocker the main checkout lacks. Each blocker is read alone: an unreadable one keeps its hold,
+    said aloud. COBRA: the cheapest way to satisfy "no stuck quick win" is to clear every hold on a
+    re-score; this clears only the in-flight-major ones, and a real prerequisite lost here is named
+    with its re-add command, since `blocked_by` cannot say why a hold was set."""
+    main = _worktrees(repo)[0].resolve()
+    live, closed = _live_claims(main), _closed_ids(main)
+    held, kept, lines = _dep_ids(item), [], []
+    for dep in held:
+        try:
+            blocker = None if dep in keep else _read_blocker(main, repo, dep)
+        except WorkError:
+            kept.append(dep)
+            lines.append(
+                f"one-major hold kept: {item['id']} still waits on {dep}, which is no readable item "
+                f"here or on the main checkout — if it should not hold it: "
+                f"work.py assign {item['id']} --unblock {dep}"
+            )
+            continue
+        if blocker is not None and _in_flight_major(blocker, live, closed):
+            lines.append(
+                f"one-major hold cleared: {item['id']} no longer waits on major {dep} — if it is "
+                f"a real prerequisite, re-add it: work.py assign {item['id']} --blocked-by {dep}"
+            )
+            continue
+        kept.append(dep)
+    if len(kept) < len(held):  # a hold that clears nothing stays exactly as stored
+        item["blocked_by"] = kept
+    return lines
+
+
+def _read_blocker(main: Path, repo: Path, dep: str) -> dict:
+    """`dep` as the main checkout stores it, else — only when main has NO file for it (a blocker
+    made on this branch and not yet merged) — as this tree does. A main copy that exists but
+    cannot be read raises, as an unknown id does: a branch copy is never read past it."""
+    try:
+        return _read_item(main, dep)
+    except WorkError:
+        if main == repo.resolve() or _item_path(main, dep).exists():
+            raise
+        return _read_item(repo, dep)
+
+
+def _dep_ids(item: dict) -> list[str]:
+    """`item["blocked_by"]` as a list of ids. A hand-edited non-list value is read as ONE blocker
+    id, so one malformed item never crashes `assign`, `ready`, `claim` or the awaiting check (all
+    read holds through here) and never silently drops its hold either."""
+    raw = item.get("blocked_by")
+    if isinstance(raw, list):
+        return [str(d) for d in raw]
+    # fail CLOSED: a hand-edited scalar is one blocker id (a junk one never resolves, so the item
+    # stays out of `ready` and `claim`; `assign --unblock <it>` repairs it) — never "no hold"
+    return [] if raw in (None, "") else [str(raw)]
+
+
+def _blockers_of(repo: Path, start: str) -> set[str]:
+    """Every id `start` waits on, transitively, through `blocked_by` (the cycle check of
+    `assign --blocked-by`). An unreadable item ends its branch of the walk."""
+    seen: set[str] = set()
+    todo = [start]
+    while todo:
+        current = todo.pop()
+        try:
+            deps = _dep_ids(_read_item(repo, current))
+        except WorkError:
+            continue
+        for dep in deps:
+            if dep not in seen:
+                seen.add(dep)
+                todo.append(dep)
+    return seen
+
+
+def _apply_score(
+    item: dict, impact: str | None, effort: str | None, why: str, priority: int | None
+) -> str:
+    """Write a score onto `item` (in place) and return a note for stderr ("" when none). Every
+    check runs on the item as it will be written, so a score split across two calls is judged
+    as one. An item that is not fully scored after the call keeps today's `--priority` rules.
+    Refuses (WorkError, nothing written) a time sink, and a `--priority` other than 0 on an item
+    whose priority is derived. A P0 set before the FIRST full score survives it; a re-score of an
+    already-scored item ends the override and says so."""
+    scoring = impact is not None or effort is not None
+    was_scored, was = _scored(item), _priority(item)
+    after = {
+        "impact": impact if impact is not None else item.get("impact"),
+        "effort": effort if effort is not None else item.get("effort"),
+    }
+    if scoring and after["impact"] == "low" and after["effort"] == "high":
+        raise WorkError(
+            f"{item['id']}: --impact low with --effort high is a time sink — drop it with "
+            f'`python3 scripts/work.py drop --why "<reason>" {item["id"]}`'
+        )
+    full = after["impact"] in SCORE_LEVELS and after["effort"] in SCORE_LEVELS
+    if not full:  # unscored before and after: today's --priority, untouched
+        if scoring:
+            for key, value in after.items():
+                if value is not None:
+                    item[key] = value
+            item["score_reason"] = why
+        if priority is not None:
+            item["priority"] = priority
+        return ""
+    if priority is not None and priority != 0:
+        raise WorkError(
+            f"--priority {priority} refused: {item['id']} is scored, so its priority is derived "
+            "— re-score it with --impact/--effort, or set --priority 0 for an incident"
+        )
+    if scoring:
+        item.update(after)
+        item["score_reason"] = why
+    if priority == 0 or (not scoring and was == 0):
+        item["priority"] = 0
+        return ""
+    if not scoring:
+        return ""
+    derived = _DERIVED_PRIORITY[(item["impact"], item["effort"])]
+    if was == 0 and not was_scored:
+        return f"P0 kept: the first score of {item['id']} would be P{derived}; re-score to end it"
+    item["priority"] = derived
+    if was == 0:
+        return f"P0 override cleared (now P{derived})"
+    return ""
 
 
 READY_OTHERS_SHOWN = 10
@@ -2933,7 +3558,8 @@ def cmd_ready(repo: Path, args: argparse.Namespace) -> int:
     COBRA (D-253): the cheapest crisp ``ready`` is one where nothing is ever assigned (so nothing
     is "owned") — ``status`` prints the unowned count to the distributor for exactly that."""
     _require_store(repo)
-    agent = _agent_name()
+    builder = _builder(repo)  # one name for `mine` and the builder filter (review round 1)
+    agent = builder or _agent_name()
     if args.all:
         for item in _ready_items(repo, mine=args.mine, agent=agent if args.mine else ""):
             print(_line(item))
@@ -2977,7 +3603,7 @@ def cmd_ready(repo: Path, args: argparse.Namespace) -> int:
     rest = [
         it
         for it in _ready_from(items, closed, claims, mine=args.mine, agent=agent)
-        if it["id"] not in shown
+        if it["id"] not in shown and (not builder or it.get("owner") == builder)
     ]
     for item in rest[:READY_OTHERS_SHOWN]:
         print(_line(item))
@@ -2988,7 +3614,11 @@ def cmd_ready(repo: Path, args: argparse.Namespace) -> int:
 
 def cmd_next(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
-    items = [i for i in _ready_items(repo, mine=True, agent=_agent_name()) if not _is_parked(i)]
+    builder = _builder(repo)  # its name resolves through the Stop hook's chain (`_caller_name`)
+    agent = builder or _agent_name()
+    items = [i for i in _ready_items(repo, mine=True, agent=agent) if not _is_parked(i)]
+    if builder:  # coordinator mode: a builder takes what the coordinator queued it (D-871)
+        items = [i for i in items if i.get("owner") == builder]
     if items:
         print(_line(items[0]))
     else:
@@ -3027,7 +3657,7 @@ def _refuse_blocked(repo: Path, item: dict) -> None:
     closed = _closed_ids(repo)
     waiting = [
         str(dep)
-        for dep in item.get("blocked_by") or []
+        for dep in _dep_ids(item)
         if str(dep) not in closed and by_id.get(str(dep), {}).get("status") not in RESOLVED
     ]
     if waiting:
@@ -3176,7 +3806,7 @@ def _claim_record(
 
 def cmd_claim(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
-    _read_item(repo, args.id)  # a missing id is named before anything else
+    _read_item_any(repo, args.id)  # a missing id is named before anything else
     session = _call_session(args)
     if not session:
         raise WorkError(
@@ -3184,9 +3814,9 @@ def cmd_claim(repo: Path, args: argparse.Namespace) -> int:
             "was given (cron and plain shells cannot hold a lease)"
         )
     with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="claim"):
-        item = _read_item(repo, args.id)
+        item, store = _read_item_any(repo, args.id)
         _refuse_closed(repo, item, "claim")
-        _refuse_blocked(repo, item)
+        _refuse_blocked(store, item)  # its blockers are read from the store that holds it
         held = _claim_of(repo, args.id)
         taken = _claim_record(held, session, time.time())
         if taken is None:  # only a live claim held by ANOTHER session refuses
@@ -3200,7 +3830,7 @@ def cmd_claim(repo: Path, args: argparse.Namespace) -> int:
 
 def cmd_release(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
-    _read_item(repo, args.id)
+    _read_item_any(repo, args.id)
     session = _call_session(args)
     with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="release"):
         claim = _fence(repo, args.id, session, "release")
@@ -3276,7 +3906,7 @@ def _cited_done(repo: Path, cited: str) -> tuple[dict, str]:
 
 def cmd_done(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
-    first = _read_item(repo, args.id)
+    first = _require_item(repo, args.id)
     kind = str(first.get("kind") or "")
     if kind in LINKED_KINDS:
         raise WorkError(
@@ -3328,7 +3958,7 @@ def _drop_duplicate(repo: Path, args: argparse.Namespace, keep_id: str, why: str
     verb = f"drop {item_id} --duplicate-of {keep_id}"
     if keep_id == item_id:
         raise WorkError(f"{verb} refused: an item cannot be a duplicate of itself")
-    _read_item(repo, keep_id)
+    _require_item(repo, keep_id)
     session = _call_session(args)
     with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="drop"):
         item = _read_item(repo, item_id)
@@ -3393,7 +4023,7 @@ def _drop_duplicate(repo: Path, args: argparse.Namespace, keep_id: str, why: str
 
 def cmd_drop(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
-    _read_item(repo, args.id)
+    _require_item(repo, args.id)
     why = " ".join((args.why or "").split())
     keep_id = (args.duplicate_of or "").strip()
     if keep_id:
@@ -3422,7 +4052,7 @@ def cmd_drop(repo: Path, args: argparse.Namespace) -> int:
 
 def cmd_answer(repo: Path, args: argparse.Namespace) -> int:
     _require_store(repo)
-    _read_item(repo, args.id)
+    _require_item(repo, args.id)
     note = " ".join((args.note or "").split())
     if not note:
         raise WorkError(f"answer {args.id} needs --note <the operator's words>")
@@ -3455,6 +4085,91 @@ def cmd_answer(repo: Path, args: argparse.Namespace) -> int:
             links["decision"] = decision
         item.update(status="done", note=note, links=links)
         path = _close(repo, item, session=session, note=note, decision=decision)
+        _after_write(repo, session)
+    print(_rel(repo, path))
+    return 0
+
+
+VERDICT_TEXT_MAX = 200  # characters of the operator's words kept per verdict
+OPERATOR_ACCEPTED = "operator-accepted"  # informational: no code reads it (the hold it lifts does)
+_REVIEW_HOLD = (
+    "waits-operator-review"  # the first operator review's hold (D-887; a HELD_PREFIX tag)
+)
+
+
+def _operator_only(verb: str) -> None:
+    """Refuse every caller but the operator: no agent name AND no Claude session id — stricter than
+    `_pause_actor`, which admits a named agent. COBRA (D-253): the cheapest way past it is an agent
+    that strips CLAUDE_AGENT and CLAUDE_CODE_SESSION_ID first; it is an audit rule that stops agents
+    using the operator's door by habit, never a security boundary (W-e1f1a1bd)."""
+    if _agent_name() or (os.environ.get("CLAUDE_AGENT") or "").strip():
+        raise WorkError(f"{verb} is the operator's alone; this caller is {_actor_label()}")
+    if _session():
+        raise WorkError(f"{verb} is the operator's alone; this caller is a Claude session")
+
+
+def cmd_verdict(repo: Path, args: argparse.Namespace) -> int:
+    """The operator's call on one item, from the dashboard or a shell (W-e1f1a1bd): every call that
+    is not refused is appended to the item's `comments` list as {at, by, via, action, text} (an item
+    whose `comments` is not a list is refused rather than overwritten). ``accept`` answers an
+    awaiting decision ("accepted: <text>"), and on any other open item adds `operator-accepted` and
+    lifts the `waits-operator-review` hold; ``reject`` answers an awaiting decision ("rejected:
+    <text>") and drops any other open item; ``comment`` only appends. An awaiting item that is no
+    decision takes comments only (answer cannot close it, drop refuses it); another session's live
+    claim refuses accept and reject. A resolved item, or one closed in another tree, is refused."""
+    _require_store(repo)
+    _operator_only("verdict")
+    action = args.action
+    text = _one_line(
+        "".join(c for c in (args.text or "") if c.isprintable() or c.isspace()), VERDICT_TEXT_MAX
+    )
+    if action in ("reject", "comment") and not text:
+        raise WorkError(f"verdict {action} needs --text <the operator's words>")
+    via = _one_line(args.by or "", 40) or "cli"
+    _require_item(repo, args.id)
+    session = _call_session(args)
+    with _store_lock(repo, CLI_LOCK_TIMEOUT_S, fail_open=False, label="verdict"):
+        item = _read_item(repo, args.id)
+        status = item.get("status")
+        if status in RESOLVED:
+            raise WorkError(f"verdict {args.id} refused: it is already {status}")
+        if args.id in _closed_ids(repo):
+            raise WorkError(f"verdict {args.id} refused: it was closed in another working tree")
+        awaiting = status == "awaiting-operator"
+        if action != "comment":
+            if awaiting and item.get("kind") != "decision":
+                raise WorkError(
+                    f"verdict {action} {args.id} refused: it awaits the operator but is no decision "
+                    "(only a decision is answered) — comment on it, or ask its owner"
+                )
+            _fence(repo, args.id, session, "verdict")
+        log = item.get("comments", [])
+        if not isinstance(log, list):
+            raise WorkError(
+                f"verdict {args.id} refused: its `comments` is not a list — fix the item file by hand"
+            )
+        item["comments"] = [
+            *log,
+            {"at": time.time(), "by": "operator", "via": via, "action": action, "text": text},
+        ]
+        if action == "comment":
+            path = _write_item(repo, item)
+        elif awaiting:
+            word = "accepted" if action == "accept" else "rejected"
+            note = f"{word}: {text}" if text else word
+            item.update(status="done", note=note)
+            path = _close(repo, item, session=session, note=note)
+        elif action == "accept":
+            raw = item.get("tags") or []
+            tags = (
+                set(raw) if isinstance(raw, list) else {str(raw)}
+            )  # a hand-edited string stays one tag
+            item["tags"] = sorted((tags | {OPERATOR_ACCEPTED}) - {_REVIEW_HOLD})
+            path = _write_item(repo, item)
+        else:
+            note = f"rejected by the operator: {text}"
+            item.update(status="dropped", note=note)
+            path = _close(repo, item, session=session, note=note)
         _after_write(repo, session)
     print(_rel(repo, path))
     return 0
@@ -3701,6 +4416,116 @@ def cmd_commit_items(repo: Path, args: argparse.Namespace) -> int:
     return 0
 
 
+def _pause_actor() -> tuple[str, str]:
+    """(name, label) of the caller of `pause`/`resume`. The OPERATOR is a caller with no agent name
+    AND no Claude session id — a real shell or the dashboard process; an unnamed Claude session is
+    refused. Audit, not a security boundary: anyone can delete the marker, the refusal stops agents."""
+    name = _agent_name()
+    if name:
+        return name, name
+    if (os.environ.get("CLAUDE_CODE_SESSION_ID") or "").strip():
+        raise WorkError(
+            "an unnamed Claude session cannot pause or resume — bind a name first "
+            "(`python3 scripts/whoami_agent.py --as <name>`), or ask the operator"
+        )
+    return "", "operator"
+
+
+def cmd_pause(repo: Path, args: argparse.Namespace) -> int:
+    """Mark an agent PAUSED in this repo (W-da4bc702), or list the pauses when no name is given."""
+    main = _worktrees(repo)[0].resolve()
+    _require_store(main)
+    paused = _paused(main)
+    if not args.name:
+        if not paused:
+            print("paused: none")
+        for name in sorted(paused):
+            rec = paused[name]
+            why = f" — {rec['why']}" if rec.get("why") else ""
+            print(f"paused: {name} — by {rec.get('by', '?')} {_ago_text(rec.get('at'))} ago{why}")
+        return 0
+    name = args.name.strip()
+    if not _valid_name(name):
+        raise WorkError(f"{name!r} is not an agent name ({NAME_RULE})")
+    actor, label = _pause_actor()
+    distributor = str(_read_config(main).get("distributor") or "").strip()
+    if actor and actor not in (name, distributor):
+        raise WorkError(
+            f"pausing {name} is {name}'s own, the distributor's ({distributor or 'none'}) "
+            f"or the operator's; this caller is {actor}"
+        )
+    # a linked tree's directory name stays a known pause target when the tree is re-keyed to its bound agent or
+    # dropped as a second window (W-84ad2ff1): `_is_paused` honours a pause under it
+    trees = {t.name for t in _worktrees(main)[1:]}
+    known = set(_workers(main)) | trees | {distributor, _feedback_owner(main)}
+    if name not in known:
+        _warn(
+            f"{name} is no worker tree, distributor or feedback owner here — the pause reaches only "
+            "a window that resolves to that name; the floor and triage count worker trees"
+        )
+    by = _one_line(args.by, 60) if not actor and args.by and args.by.strip() else label
+    marker = _paused_dir(main) / f"{name}.json"
+    with _store_lock(main, CLI_LOCK_TIMEOUT_S, fail_open=False, label="pause"):
+        _refuse_odd_marker(marker)
+        held = _paused(main).get(name)  # re-read under the lock: a pause may have landed meanwhile
+        if held is not None and actor and actor != distributor and held["actor"] != actor:
+            # re-pausing over someone else's pause would make it this agent's own, and so liftable by it
+            raise WorkError(
+                f"{name} is already paused by {held['by']}; only they, the distributor "
+                f"({distributor or 'none'}) or the operator may change that pause"
+            )
+        _paused_dir(main).mkdir(parents=True, exist_ok=True)
+        rec = {"by": by, "actor": actor, "at": time.time(), "why": _one_line(args.why or "", 200)}
+        _write_json(marker, rec)
+    print(f"paused: {name} — by {by}; its Stop rungs, the floor and triage now skip it")
+    return 0
+
+
+def _refuse_odd_marker(marker: Path) -> None:
+    """A marker path that exists but is no regular file (a directory, a FIFO) pauses by presence and
+    is never written or removed by the verbs — the operator removes it by hand."""
+    try:
+        st = marker.lstat()
+    except FileNotFoundError:
+        return
+    if not stat.S_ISREG(st.st_mode):
+        raise WorkError(
+            f"{marker} is not a regular file — it pauses by presence; remove it by hand"
+        )
+
+
+def cmd_resume(repo: Path, args: argparse.Namespace) -> int:
+    """Lift a pause: whoever set it (by agent name), the distributor or the operator (W-da4bc702).
+    The check reads the marker's ``actor`` — the NAME that set it — never its display label, so a
+    pause the operator set (``actor`` "") is lifted only by the distributor or the operator."""
+    main = _worktrees(repo)[0].resolve()
+    _require_store(main)
+    name = args.name.strip()
+    if not _valid_name(name):
+        raise WorkError(f"{name!r} is not an agent name ({NAME_RULE})")
+    actor, _label = _pause_actor()
+    distributor = str(_read_config(main).get("distributor") or "").strip()
+    marker = _paused_dir(main) / f"{name}.json"
+    with _store_lock(main, CLI_LOCK_TIMEOUT_S, fail_open=False, label="resume"):
+        rec = _paused(main).get(name)
+        if rec is None:
+            print(f"resume: {name} is not paused")
+            return 0
+        _refuse_odd_marker(marker)
+        if actor and actor != distributor and not (rec["actor"] and actor == rec["actor"]):
+            setter = f"{rec['actor']}'s, " if rec["actor"] else ""
+            raise WorkError(
+                f"{name} was paused by {rec['by']}: lifting it is {setter}the distributor's "
+                f"({distributor or 'none'}) or the operator's; this caller is {actor}"
+            )
+        try:
+            marker.unlink()
+        except FileNotFoundError:
+            pass
+    print(f"resumed: {name} — its queue and Stop rungs apply again")
+    return 0
+
+
 def cmd_status(repo: Path, args: argparse.Namespace) -> int:
     """The obligation lines and the distributor's lines (spec D1, D4), items by state,
     uncommitted item files (a listing, never a drift class), and the eight derived spec/plan
@@ -3729,10 +4554,51 @@ def cmd_status(repo: Path, args: argparse.Namespace) -> int:
             print(f"PLAN             {_rel(repo, spine)}  tickets {done}/{len(states)} done")
     report = _drift_report(repo)
     for cls in range(1, 9):
-        label = "blocking" if cls in BLOCKING_CLASSES else "advisory"
         for rel in report[cls]:
-            print(f"DRIFT {cls} ({label})  {rel}")
+            print(_drift_line(repo, cls, rel))
     return 0
+
+
+def _drift_line(repo: Path, cls: int, rel: str) -> str:
+    """One `DRIFT <n> (blocking|advisory)  <path>` line. Class 8 adds why: the value read, the
+    vocabulary, and the EXECUTED precondition a finished plan meets in check_convergence (the
+    reason a plan ends up outside the vocabulary — mail 01M5B996F3); `_drift_report`'s entries
+    stay bare paths, so the readings' counts and final_gate's blocking regex read them unchanged."""
+    label = "blocking" if cls in BLOCKING_CLASSES else "advisory"
+    line = f"DRIFT {cls} ({label})  {rel}"
+    if cls != 8:
+        return line
+    try:
+        text: str | None = (repo / rel).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        text = None
+    if text is None:
+        shown = "unreadable (the file cannot be read)"
+    elif _status_value(repo, text):
+        shown = f"'{_shown(_status_line_raw(repo, text))}'"
+    elif header := _STATUS_HEADER_RE.search(text[:4000]):  # the parser's own window
+        shown = f"unreadable ({_shown(header.group(0).strip())})"
+    else:
+        shown = "missing (no Status: line in its first 4000 characters)"
+    return (
+        f"{line}  — Status {shown} is none of {', '.join(_PLAN_STATUS_ORDER)}; "
+        "a finished plan reads EXECUTED, and check_convergence then wants it to cite its "
+        "whole-plan review under docs/development/reviews/ with a quiet Pass row (confirmed: 0); "
+        "a superseded or abandoned plan moves to plans/archived/"
+    )
+
+
+# The Python twin of `_PLAN_STATUS_GIT_PATTERN`'s header shape, for `_drift_line`'s wording only.
+_STATUS_HEADER_RE = re.compile(r"^[ \t]*(?:[-*>][ \t]+)?\*{0,2}Status\*{0,2}[ \t]*:.*$", re.M)
+
+
+def _shown(raw: str) -> str:
+    """A Status value as one printable line of at most 60 characters: control bytes (an ESC from a
+    pasted colour code) would reach every reader of the DRIFT line, final_gate's included."""
+    clean = "".join(
+        ch if ch.isprintable() else " " if ch.isspace() else "?" for ch in raw.strip()
+    )
+    return clean if len(clean) <= 60 else clean[:59] + "…"
 
 
 def cmd_sync(repo: Path, args: argparse.Namespace) -> int:
@@ -3744,9 +4610,8 @@ def cmd_sync(repo: Path, args: argparse.Namespace) -> int:
         return 0
     report = _drift_report(repo)
     for cls in range(1, 9):
-        label = "blocking" if cls in BLOCKING_CLASSES else "advisory"
         for rel in report[cls]:
-            print(f"DRIFT {cls} ({label})  {rel}")
+            print(_drift_line(repo, cls, rel))
     blocking_active = _sync_blocking_active(repo)
     _append_reading(
         repo,
@@ -4025,7 +4890,10 @@ def _claim_named(repo: Path, v: str, session: str, closed: set[str]) -> None:
     another session gets ``claim``'s own write (``_claim_record``, the agent resolved for
     ``session``) and nothing else: the item file is never written, because its ``next`` is the
     item's own authored next action (a migrated item's whole body lives there) and the session's
-    NEXT line is already kept by the thread-anchor register. When none qualifies nothing is."""
+    NEXT line is already kept by the thread-anchor register. When none qualifies nothing is. A
+    paused caller (W-da4bc702) claims nothing: its NEXT names what it will do once resumed."""
+    if _caller_pause(repo, session):
+        return
     by_id = {str(it["id"]): it for it in _iter_items(repo)}
     now = time.time()
     for ref in _next_refs(v):
@@ -4343,8 +5211,114 @@ def _on_it_lines(claims: dict[str, dict], session: str) -> list[str]:
 PROMPT_CLAIM_LINES = 3  # this session's claims named per prompt; the rest are one count line
 
 
+# the three line shapes above that name THIS session's own claims — all a headless session keeps
+_OWN_CLAIM_LINES = (
+    "work: your claim — ",
+    "work: … and ",
+    "work: your claims on items not in this tree",
+)
+
+# W-9bf5a363: the coordinator's live peer name, resolved on every builder prompt. The hub
+# coordinator runs in the code-server extension, where each rotation starts a new process with an
+# auto-generated name, and no program can rename a session — so a name a builder kept in its notes
+# goes dead (infra-3's rotate request to `fabrik-ec` sat 14 h). 1 s, not `_sessions_of`'s 5 s: the
+# prompt hook has 10 s for everything (thread_anchor's 3 s store deadline + 5 s for cmd_where).
+PEER_RESOLVE_TIMEOUT_S = 1.0
+# a printed peer name must be safe to paste: Claude Code auto-names a session from its content
+_PEER_NAME_RE = re.compile(r"[A-Za-z0-9._-]{1,64}")
+
+
+def _coordinator_address_line(tree: Path) -> str:
+    """One line naming the live sessions of the repo's distributor, or "" when none is live or
+    bound within the resolver's cap, the role is not an agent name, a name is unsafe to print, or
+    anything fails (fail open: no line is today's behaviour). Computed on every builder prompt,
+    never only on drift: its text changes exactly when the address does, so the prompt hook's
+    unchanged-block dedup re-shows it at each rotation. Several live names are all listed — an old
+    window still open answers too, and choosing one could pick the stale one — as many WHOLE names
+    as fit in LINE_MAX, the rest counted, so `_clip` never cuts an address. COBRA (D-253): the
+    cheapest way to "have the line" is printing the role name unresolved, which is the very address
+    that failed; the names here come only from the live registry, never from the store."""
+    try:
+        main = _worktrees(tree)[0].resolve()
+        role = str(_read_config(main).get("distributor") or "").strip()
+        # NAME_RULE admits a leading `-`, which mail.py's argv would read as an option
+        if not _valid_name(role) or role.startswith("-"):
+            return ""
+        names = [
+            n
+            for n in _sessions_of(role, main, timeout=PEER_RESOLVE_TIMEOUT_S)
+            if _PEER_NAME_RE.fullmatch(n)
+        ]
+    except Exception:
+        return ""
+    if not names:
+        return ""
+    head = f"work: coordinator ({role}) → SendMessage "
+    stale = " (several windows answer for it — one may be stale)" if len(names) > 1 else ""
+    for shown in range(len(names), 0, -1):
+        rest = f" … and {len(names) - shown} more" if shown < len(names) else ""
+        line = head + " · ".join(f"to={n}" for n in names[:shown]) + rest + stale
+        if len(line) <= LINE_MAX:
+            return line
+    return ""  # unreachable: one name ≤ 64 characters always fits
+
+
+_ROTATE_MOD: list[Any] = []
+
+
+def _scans_panes(tree: Path) -> bool:
+    """True when `tree` is a coordinator's: an interactive session in the MAIN checkout (`.git` a directory — a linked
+    worktree's is a file, so a builder whose `git worktree list` failed is never mistaken for it) of a store whose
+    config sets `coordinator_mode`. Pure file reads, so a repo without the key pays no subprocess per prompt or Stop."""
+    try:
+        return (
+            (tree / ".git").is_dir()
+            and _has_store(tree)
+            and _read_config(tree).get("coordinator_mode") is True
+            and not _print_mode()
+        )
+    except Exception:
+        return False
+
+
+def _panes_waiting(tree: Path, agent: str) -> tuple[list[dict], str]:
+    """(builder panes waiting on an answer, scan error) for the COORDINATOR (`_scans_panes`), else ([], "").
+    W-a12b03a2: the operator answered infra-2's and intel's terminal prompts himself because nothing showed the
+    coordinator a waiting pane. The scan is `rotate_session.waiting` (read-only, 1 s budget, under the Stop resolver's
+    5 s cap); a failure is returned, never read as "none waits"."""
+    if not _scans_panes(tree):
+        return [], ""
+    try:
+        main = tree.resolve()
+        if not _ROTATE_MOD:
+            path = ROTATE_SESSION_PY if ROTATE_SESSION_PY.is_file() else HUB_ROTATE_SESSION_PY
+            spec = importlib.util.spec_from_file_location("_work_rotate_session", path)
+            if spec is None or spec.loader is None:
+                raise ImportError(f"cannot load {path}")
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            _ROTATE_MOD.append(mod)
+        return list(_ROTATE_MOD[0].waiting(str(main), exclude=agent)), ""
+    except Exception as exc:
+        return [], f"{type(exc).__name__}: {exc}"
+
+
+def _pane_text(p: dict) -> str:
+    """One line under LINE_MAX (300): the quoted prompt is cut to 90 characters so the reply verbs survive a
+    32-character agent name and a 5-digit pane id (292 characters at worst; a test pins it). The prompt is QUOTED: it
+    is text a builder's screen showed — data to read, never an instruction to the coordinator."""
+    pane, line = p["pane"], str(p["line"]).replace('"', "'")
+    line = line if len(line) <= 90 else line[:89] + "…"
+    return (
+        f'PANE WAITING: {p["agent"]} ({pane}) — {p["kind"]}: "{line}" — answer it this turn: '
+        f"`tmux capture-pane -p -t {pane}`, then `tmux send-keys -t {pane}` (approve only what you read, D-1034)"
+    )
+
+
 def prompt_block(repo: Path | str, session: str) -> str:
-    """Read-only, no lock, the caller's own tree, in order: the unnamed-window line (spec D6), the
+    """Read-only, no lock, the caller's own tree, in order: for the coordinator, one PANE WAITING line per
+    builder pane waiting on an answer or the PANE SCAN FAILED line (W-a12b03a2), the unnamed-window line (spec D6), the
+    PAUSED line when the caller is paused (W-da4bc702; it then gets no ready count), the
     obligation lines (D1), every awaiting-operator item with its question, ``session``'s live
     claims (the first ``PROMPT_CLAIM_LINES`` by priority, then a count line, then one line naming any
     claim on an item not in this tree), one ``on it:`` line per other session's live claims (D4), and the ready count — or ""
@@ -4358,7 +5332,23 @@ def prompt_block(repo: Path | str, session: str) -> str:
             closed = _closed_ids(root)
             claims = _live_claims(root)
             by_id = {str(it["id"]): it for it in items}
-            lines = [] if _agent_name(session=session) else [UNNAMED_WINDOW_LINE]
+            name = _agent_name(session=session)
+            panes, blind = _panes_waiting(root, name)
+            lines = [f"work: {_pane_text(p)}" for p in panes]
+            if blind:
+                lines.append(f"work: PANE SCAN FAILED — {blind}")
+            if not name:
+                lines.append(UNNAMED_WINDOW_LINE)
+            pause = _caller_pause(root, session)
+            if pause:
+                # no resume command here: a paused agent lifts only a pause it set itself
+                why = f" ({pause['why']})" if pause.get("why") else ""
+                who = f"{pause['actor']}'s, " if pause.get("actor") else ""
+                lines.append(
+                    f"work: PAUSED by {pause['by']} {_ago_text(pause['at'])} ago{why}: start nothing "
+                    "new — finish or checkpoint what you hold, then stop; lifting it is "
+                    f"{who}the distributor's or the operator's"
+                )
             lines.extend(f"work: {line}" for line in obligations(root))
             # ready's ``(yours)`` rule: a claim whose close failed to end it stays live, but its
             # item is closed or resolved and prints nowhere (the ready count keeps every claim)
@@ -4403,9 +5393,24 @@ def prompt_block(repo: Path | str, session: str) -> str:
             if elsewhere:
                 lines.append(_fit_ids("work: your claims on items not in this tree — ", elsewhere))
             lines.extend(_on_it_lines(shown, session))
-            ready = len(_ready_from(items, closed, claims))
-            if ready:
+            builder = _builder(root, session)
+            # a headless session keeps only its own claim lines (below), so it never pays the lookup
+            if builder and not _print_mode():
+                address = _coordinator_address_line(root)
+                if address:
+                    lines.append(address)
+            ready = len(
+                [
+                    it
+                    for it in _ready_from(items, closed, claims)
+                    if not builder or it.get("owner") == builder
+                ]
+            )
+            if ready and not pause:  # a paused caller is not invited to start the next one
                 lines.append(f"work: {ready} ready — `work.py next`")
+            if _print_mode():
+                # a headless session sees only its OWN claims (01M4PAJWV1)
+                lines = [ln for ln in lines if ln.startswith(_OWN_CLAIM_LINES)]
             return "\n".join(_clip(" ".join(line.split())) for line in lines)
         except Exception as exc:
             _warn(f"prompt block skipped — {type(exc).__name__}: {exc}")
@@ -4442,7 +5447,20 @@ QUEUED_TAG = "queued"
 HELD_TAGS = frozenset({"runtime", "hold"})
 HELD_PREFIX = "waits-"
 _HARNESS_RE = re.compile(r"agent-[0-9a-f]{16,}")
-_PLAN_DONE = frozenset({"EXECUTED", "COMPLETE", "SUPERSEDED", "SHIPPED", "ARCHIVED"})
+_PLAN_DONE = frozenset(
+    {
+        "EXECUTED",
+        "COMPLETE",
+        "SUPERSEDED",
+        "SHIPPED",
+        "ARCHIVED",
+        "BUILT",
+        "IMPLEMENTED",
+        "RETIRED",
+        "FIXED",
+        "CLOSED",
+    }
+)  # the fallback when docs_updater has no PLAN_DONE; read through it otherwise
 
 
 def _tags(item: dict) -> set[str]:
@@ -4523,11 +5541,114 @@ def _feedback_owner(main: Path) -> str:
     return str(cfg.get("distributor") or "").strip()
 
 
+_PROC_CACHE: dict[str, tuple[float, list[tuple[int, Path]] | None]] = {}
+_PROC_TTL_S = (
+    2.0  # one Stop hook reads the roster and presence a few times; a new window is seen within 2 s
+)
+
+
+def _claude_procs() -> list[tuple[int, Path]] | None:
+    """(pid, cwd) of every windowed `claude` process — comm `claude`, not a `-p`/`--print` child — read from /proc
+    (or the root in FABRIK_WORK_PROC); None when the process table cannot be read. ONE scan, shared by `_workers`
+    and `_present` and cached for `_PROC_TTL_S` per proc root, so a test that re-points the root gets a fresh one."""
+    root_s = os.environ.get("FABRIK_WORK_PROC") or "/proc"
+    hit = _PROC_CACHE.get(root_s)
+    if hit and time.monotonic() - hit[0] < _PROC_TTL_S:
+        return hit[1]
+    root = Path(root_s)
+    try:
+        entries = [e for e in root.iterdir() if e.name.isdigit()]
+    except OSError:
+        _PROC_CACHE[root_s] = (time.monotonic(), None)
+        return None
+    found: list[tuple[int, Path]] = []
+    for entry in entries:
+        try:
+            if (entry / "comm").read_text(encoding="utf-8").strip() != "claude":
+                continue
+            argv = _proc_argv(entry)
+            if argv and _argv_prints(argv):
+                continue  # a `claude -p` child in the tree is not a window (01M4PAJWV1)
+            found.append((int(entry.name), Path(os.readlink(entry / "cwd")).resolve()))
+        except (OSError, RuntimeError, ValueError):
+            # RuntimeError: a symlink loop under resolve() on Python 3.12; ValueError: a comm that is not UTF-8
+            # (any bytes may be set by prctl PR_SET_NAME), or an entry name that is a non-ASCII numeral
+            continue
+    _PROC_CACHE[root_s] = (time.monotonic(), found)
+    return found
+
+
+def _proc_agent(pid: int, rows: Callable[[], list[dict]]) -> str:
+    """The agent a claude process is bound to (W-84ad2ff1): `CLAUDE_AGENT` in its environ (how agents_up launches a
+    builder), else the whoami store's LAST row with this pid AND this pid_start — field 22 of its stat, whoami's own
+    unit and pid-reuse guard (whoami_agent.py `_pid_start`), which a /clear keeps — under the name rule; "" when
+    neither reads. Fail-open: an unreadable environ or stat, or no matching row, is no name."""
+    root = Path(os.environ.get("FABRIK_WORK_PROC") or "/proc") / str(pid)
+    try:
+        for kv in (root / "environ").read_bytes().split(b"\0"):
+            if kv.startswith(b"CLAUDE_AGENT="):
+                name = kv.split(b"=", 1)[1].decode("utf-8", "replace").strip()
+                if _valid_name(name):
+                    return name
+    except OSError:
+        pass
+    try:
+        raw = (root / "stat").read_text(encoding="utf-8", errors="replace")
+        start = int(raw[raw.rindex(")") + 1 :].split()[19])
+    except (OSError, ValueError, IndexError):
+        return ""
+    bound = ""
+    for row in rows():
+        if _as_int(row.get("pid")) == pid and _as_int(row.get("pid_start")) == start:
+            bound = str(row.get("name") or "")  # LAST row wins, as whoami resolves
+    return bound if _valid_name(bound) else ""
+
+
+def _as_int(value: object) -> int | None:
+    """A stored pid or start time as an int (whoami_agent.py `_as_int`): a digit string counts, a bool never does."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        try:
+            return int(value.strip())
+        except ValueError:
+            return None  # a non-ASCII digit such as '²' passes isdigit but not int()
+    return None
+
+
+_WHOAMI_MOD: list = []  # whoami_agent.py, loaded once per process (a Stop hook builds the roster several times)
+
+
+def _whoami_rows() -> list[dict]:
+    """Every whoami store row, read through `WHOAMI_PY` (its own path and lock); [] when it cannot be read."""
+    try:
+        if not _WHOAMI_MOD:
+            spec = importlib.util.spec_from_file_location("_work_whoami_rows", WHOAMI_PY)
+            if spec is None or spec.loader is None:
+                return []
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            _WHOAMI_MOD.append(mod)
+        mod = _WHOAMI_MOD[0]
+        return list(mod._rows(mod.store_path()))
+    except Exception:
+        return []
+
+
 def _workers(main: Path) -> dict[str, Path]:
     """Registered `<main>/.claude/worktrees/<name>` trees that are not harness worktrees. A feedback
     owner that is not the distributor is NOT a pool worker: its tree is dropped here, so the doorbell
     rung never fires for it and the distributor's triage never routes general backlog to it — its
-    queue is the feedback ledger, not the pool (design critique, Opus #4)."""
+    queue is the feedback ledger, not the pool (design critique, Opus #4).
+
+    A tree holding a live window is named by the agent that window is bound to, not by its directory
+    (W-84ad2ff1: infra's window in `infra-uncapped` read as an empty worker below the floor). When every
+    named window in the tree gives one valid name N other than the directory: N is the distributor or
+    the (non-distributor) feedback owner → the tree leaves the pool; N's own-named tree is live too →
+    this is N's second window and leaves the pool; else the tree is keyed N, replacing an idle N tree.
+    Two stray live trees bound to one N, or an unreadable binding, keep their directory names."""
     base = (main / ".claude" / "worktrees").resolve()
     out: dict[str, Path] = {}
     owner = _feedback_owner(main)
@@ -4540,25 +5661,144 @@ def _workers(main: Path) -> dict[str, Path]:
             if owner and tree.name == owner and owner != distributor:
                 continue
             out[tree.name] = tree
+    procs = _claude_procs() if out else None
+    if not procs:
+        return out
+    try:
+        return _rekey(out, procs, distributor, owner)
+    except Exception:
+        return out  # fail-open: any surprise in the binding read leaves today's directory roster
+
+
+def _rekey(
+    orig: dict[str, Path], procs: list[tuple[int, Path]], distributor: str, owner: str
+) -> dict[str, Path]:
+    """`_workers`' re-key, decided against the unchanged directory map `orig` and independent of /proc order:
+    every live tree's bound name N is read first, then each tree gets one fate — DROPPED (bound to the distributor
+    or the non-distributor feedback owner, or N's own tree holds N's window: this is a second window), KEPT under
+    its directory (unbound, ambiguous, or N is held by a tree that itself keeps its name), or RENAMED to N, which
+    replaces an idle tree of that name. Kept names are found to a fixed point, so a rename never lands on a key a
+    kept tree still holds; two trees bound to each other's names swap."""
+    rows: list[dict] | None = None
+
+    def _rows() -> list[dict]:
+        nonlocal rows
+        if rows is None:
+            rows = _whoami_rows()  # read only when some window carries no CLAUDE_AGENT
+        return rows
+
+    names: dict[str, set[str]] = {}
+    live: set[str] = set()
+    for pid, cwd in procs:  # order-free: every fate below is decided on sets
+        for key in sorted(orig):
+            tree = orig[key]
+            if cwd == tree or tree in cwd.parents:
+                live.add(key)
+                # an unnamed window reads as its directory's agent (fail-open), so it counts as that name
+                names.setdefault(key, set()).add(_proc_agent(pid, _rows) or key)
+    bound = {k: next(iter(v)) for k, v in names.items() if len(v) == 1 and next(iter(v)) != k}
+    claims: dict[str, list[str]] = {}
+    for key in sorted(bound):
+        claims.setdefault(bound[key], []).append(key)
+    dropped = {
+        k
+        for k, n in bound.items()
+        if n == distributor
+        or (owner and n == owner and owner != distributor)
+        # N's own tree is live and holds only N's windows: this is N's second window
+        or names.get(n) == {n}
+    }
+    # a live tree with no single foreign name keeps its directory
+    kept = {k for k in live if k not in bound}
+    kept |= {k for k in bound if k not in dropped and len(claims[bound[k]]) > 1}
+    while True:  # a claim on a key a kept tree holds falls back to its own directory name
+        more = {k for k in bound if k not in dropped and k not in kept and bound[k] in kept}
+        if not more:
+            break
+        kept |= more
+    renamed = {bound[k]: k for k in bound if k not in dropped and k not in kept}
+    out: dict[str, Path] = {}
+    for key in sorted(orig):
+        if key in dropped or key in renamed.values():
+            continue
+        if key in renamed:
+            continue  # an idle (or bound-away) tree yields its name to the window bound to it
+        out[key] = orig[key]
+    for agent, key in renamed.items():
+        out[agent] = orig[key]
     return out
+
+
+_PRINT_FLAGS = frozenset({"-p", "--print"})
+_HEADLESS_LABELS = ("FABRIK_HEADLESS", "CLAUDE_MESH_HEADLESS")
+
+
+def _argv_prints(argv: list[str]) -> bool:
+    """`-p`/`--print` as a WHOLE token before any `--` (the VS Code claude's
+    `--permission-prompt-tool` holds the bytes `-p`, so a substring test would read every window
+    as headless)."""
+    head = argv[1 : argv.index("--")] if "--" in argv else argv[1:]
+    return any(a in _PRINT_FLAGS for a in head)
+
+
+def _proc_argv(entry: Path) -> list[str] | None:
+    try:
+        raw = (entry / "cmdline").read_bytes()
+    except OSError:
+        return None
+    return [a.decode("utf-8", "replace") for a in raw.split(b"\0") if a] or None
+
+
+def _is_claude(entry: Path, argv: list[str]) -> bool:
+    if any(os.path.basename(a) == "claude" for a in argv[:2]):
+        return True
+    # the npm launcher (`node …/@anthropic-ai/claude-code/cli.js`), never any tool's cli.js
+    if any(a.endswith("/claude-code/cli.js") for a in argv[:2]):
+        return True
+    try:
+        exe = os.readlink(entry / "exe")
+    except OSError:
+        return False
+    return exe.endswith("/claude") or "/claude/versions/" in exe
+
+
+def _print_mode() -> bool:
+    """True when this process runs under a HEADLESS claude: a labelled run (`FABRIK_HEADLESS=1`
+    or `CLAUDE_MESH_HEADLESS=1`), or the nearest `claude` ancestor holds `-p`/`--print` as an argv
+    token. Such a session takes no new work (iterative_image_editor 01M4PAJWV1): a `claude -p`
+    child a project's code spawns inherits the parent's env and entrypoint, so only its own argv
+    tells it apart from a window. The walk reads the proc root in FABRIK_WORK_PROC (default
+    /proc), at most 12 hops; any read failure or no claude ancestor is False — fail-open, today's
+    behaviour. Not visible: an SDK child that streams (`--input-format stream-json`, no `-p`) and
+    sets no label."""
+    if any(os.environ.get(k) == "1" for k in _HEADLESS_LABELS):
+        return True
+    root = Path(os.environ.get("FABRIK_WORK_PROC") or "/proc")
+    pid = os.getppid()
+    for _ in range(12):
+        if pid < 1:
+            return False
+        entry = root / str(pid)
+        argv = _proc_argv(entry)  # None for an unreadable or emptied cmdline: climb past it
+        if argv is not None and _is_claude(entry, argv):
+            return _argv_prints(argv)
+        if pid == 1:
+            return False  # pid 1 inspected (a container's `claude -p` entrypoint), nothing above
+        try:
+            pid = int((entry / "stat").read_text(encoding="utf-8").rsplit(")", 1)[1].split()[1])
+        except (OSError, IndexError, ValueError):
+            return False
+    return False
 
 
 def _present(workers: dict[str, Path]) -> set[str] | None:
     """Workers with a live `claude` process inside their tree, read from /proc (or the root in
     FABRIK_WORK_PROC); None when the process table cannot be read — then nobody is topped up."""
-    root = Path(os.environ.get("FABRIK_WORK_PROC") or "/proc")
-    try:
-        entries = [e for e in root.iterdir() if e.name.isdigit()]
-    except OSError:
+    procs = _claude_procs()
+    if procs is None:
         return None
     found: set[str] = set()
-    for entry in entries:
-        try:
-            if (entry / "comm").read_text(encoding="utf-8").strip() != "claude":
-                continue
-            cwd = Path(os.readlink(entry / "cwd")).resolve()
-        except OSError:
-            continue
+    for _pid, cwd in procs:
         for name, tree in workers.items():
             if cwd == tree or tree in cwd.parents:
                 found.add(name)
@@ -4573,6 +5813,41 @@ def _queued(tree: Path, agent: str) -> list[dict]:
         for i in _ready_items(tree)
         if i.get("owner") == agent and _is_work(i) and not _is_parked(i)
     ]
+
+
+def _worker_queues(main: Path, workers: dict[str, Path]) -> dict[str, list[dict]]:
+    """Each worker's queued items as the coordinator must count them (site-provisioner 01M4DNHWES).
+    The coordinator assigns on MAIN, the store of record for assignment (D-516); a worker's tree sees
+    those items only after it merges main, so counting from the tree read 0 and `triage` re-assigned
+    the floor on every call. Item files are per tree, closed markers and claims are shared: main's
+    item set is read ONCE, its file wins for every id it holds, the worker's tree adds only the ids
+    main lacks (its own unmerged items), and main's markers and claims filter both. A cross-tree READ
+    for a count — D-403's "every verb acts on the caller's own tree" governs verbs, not this."""
+    base = {i["id"]: i for i in _iter_items(main) if isinstance(i.get("id"), str)}
+    closed, claims = _closed_ids(main), _live_claims(main)
+    out: dict[str, list[dict]] = {}
+    for name, tree in workers.items():
+        items = dict(base)
+        if tree != main and _has_store(tree):
+            for i in _iter_items(tree):
+                if isinstance(i.get("id"), str) and i["id"] not in items:
+                    items[i["id"]] = i
+        out[name] = [
+            i
+            for i in _ready_from(list(items.values()), closed, claims)
+            if i.get("owner") == name and _is_work(i) and not _is_parked(i)
+        ]
+    return out
+
+
+def _merge_waiting(main: Path, tree: Path, agent: str) -> list[dict]:
+    """The items main assigns ``agent`` that its tree does not hold at all — what only a merge brings."""
+    held = (
+        {i["id"] for i in _iter_items(tree) if isinstance(i.get("id"), str)}
+        if _has_store(tree)
+        else set()
+    )
+    return [i for i in _queued(main, agent) if i["id"] not in held]
 
 
 def _pool(main: Path) -> dict[str, list[dict]]:
@@ -4601,7 +5876,7 @@ def _holds_claim(tree: Path, session: str) -> bool:
     return bool(session) and any(c.get("session") == session for c in _live_claims(tree).values())
 
 
-def _sessions_of(agent: str, main: Path) -> list[str]:
+def _sessions_of(agent: str, main: Path, *, timeout: float = 5) -> list[str]:
     """The agent's live Claude Code session names (`mail.py who`), [] when none or on any error."""
     try:
         r = subprocess.run(
@@ -4609,7 +5884,7 @@ def _sessions_of(agent: str, main: Path) -> list[str]:
             cwd=main,
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=timeout,
         )
     except (OSError, subprocess.SubprocessError):
         return []
@@ -4619,39 +5894,127 @@ def _sessions_of(agent: str, main: Path) -> list[str]:
 
 
 def _open_plans(main: Path) -> list[str]:
-    """Plan spines whose status is not terminal (docs_updater's own parser), [] on any error."""
+    """Plan spines whose status is not terminal (docs_updater's own parser). An error never empties
+    the view (W-f1412a11): a parser that cannot load, or a plans dir that cannot be read, is one line
+    saying so, and a plan the parser raises on is listed as open with the error, since its status is
+    unknown. No plans dir is no open plan."""
+    plans = main / "docs" / "development" / "plans"
     try:
+        # is_dir re-raises EACCES from an unreadable ancestor; a plain absence is no open plan,
+        # whether or not the parser would load
+        if not plans.is_dir():
+            return []
+        # Path.glob swallows a PermissionError (a dir it cannot list, or one it lists but cannot stat
+        # into), which read as no open plans
+        if not os.access(plans, os.R_OK | os.X_OK):
+            raise PermissionError("not readable and searchable")  # the line names the dir
         spec = importlib.util.spec_from_file_location(
             "_work_docs_updater", Path(__file__).with_name("docs_updater.py")
         )
         if spec is None or spec.loader is None:
-            return []
+            raise ImportError("no loader for docs_updater.py")
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        out = []
-        plans = main / "docs" / "development" / "plans"
-        # a plan SET is `plans/<stem>/<stem>.md` + T## tickets; its spine carries the status
-        # (web-ecommerce-factory 01M46V7T0CR4MAXBF3K5D0FSDD: a one-level glob never listed one).
-        # Sets are matched as `_iter_plan_spines` matches them; top-level files keep the wider
-        # `*.md` glob, so an undated plan this view always listed is not dropped
-        spines = [d / f"{d.name}.md" for d in plans.glob("*/") if _PLAN_DIR_NAME_RE.match(d.name)]
-        for path in sorted([*plans.glob("*.md"), *spines]):
-            # one unreadable plan is skipped, never the whole view (review round 1)
-            try:
-                if not path.is_file():
-                    continue  # a dated set directory holding tickets but no spine
-                status = str(mod.parse_plan_status(path)[0]).upper().strip()
-            except OSError:
-                continue
-            if (status.split() or [""])[0] not in _PLAN_DONE:
-                out.append(f"{path.relative_to(main).as_posix()} ({status})")
-        return out
-    except Exception:
-        return []
+    except Exception as exc:
+        return [f"{plans.relative_to(main).as_posix()} (open-plan view unavailable: {exc!r})"]
+    out = []
+    # a plan SET is `plans/<stem>/<stem>.md` + T## tickets; its spine carries the status
+    # (web-ecommerce-factory 01M46V7T0CR4MAXBF3K5D0FSDD: a one-level glob never listed one).
+    # Sets are matched as `_iter_plan_spines` matches them; top-level files keep the wider
+    # `*.md` glob, so an undated plan this view always listed is not dropped
+    spines = [d / f"{d.name}.md" for d in plans.glob("*/") if _PLAN_DIR_NAME_RE.match(d.name)]
+    for path in sorted([*plans.glob("*.md"), *spines]):
+        rel = path.relative_to(main).as_posix()
+        # a spine that cannot be stat'ed (inside an unreadable set dir) is skipped, never the whole
+        # view (review round 1); the parser itself grades an unreadable file UNKNOWN, which is open
+        try:
+            if not path.is_file():
+                continue  # a dated set directory holding tickets but no spine
+            status = str(mod.parse_plan_status(path)[0]).upper().strip()
+        except OSError:
+            continue
+        except Exception as exc:
+            out.append(f"{rel} (status unreadable: {exc!r})")
+            continue
+        if (status.split() or [""])[0] not in getattr(mod, "PLAN_DONE", _PLAN_DONE):
+            out.append(f"{rel} ({status})")
+    return out
 
 
 def _bucket(n: int) -> str:
     return "0" if n <= 0 else ("few" if n < 5 else "many")
+
+
+def _caller_name(
+    main: Path, tree: Path, workers: dict[str, Path], coordinator: str, session: str = ""
+) -> str:
+    """Who is working in `tree`: the session-aware `_agent_name`, else the worker tree's name, else
+    the feedback owner's tree, else the distributor in the main checkout. The Stop hook resolves
+    the caller through this one function; `_builder` names a worker tree's caller by its tree
+    first, the same tree test the Stop hook's `is_worker` makes, so the two never disagree."""
+    agent = _agent_name(session=session)
+    if not agent and tree in workers.values():
+        agent = next(n for n, t in workers.items() if t == tree)
+    if not agent:
+        # the feedback owner's tree is dropped from the pool, so it gets the same name fallback
+        # the pool workers have — else an unset CLAUDE_AGENT silences its whole ladder (pass 1, A-S3)
+        owner = _feedback_owner(main)
+        if owner and tree == (main / ".claude" / "worktrees" / owner).resolve():
+            agent = owner
+    if not agent and tree == main and coordinator:
+        agent = coordinator
+    return agent
+
+
+def _coordinator_mode(main: Path) -> bool:
+    """`config.json["coordinator_mode"] is true` in the main checkout's store (plan 2026-10-15,
+    D-871). `work.py` is fleet-synced, so every behaviour that changes what a builder sees is
+    opt-in per repo through this key; any read error is False (today's behaviour)."""
+    try:
+        return _has_store(main) and _read_config(main).get("coordinator_mode") is True
+    except Exception:
+        return False
+
+
+def _builder_mode_main(tree: Path) -> Path | None:
+    """The main checkout when coordinator mode governs `tree`, else None. BOTH the caller tree's
+    own `config.json` and main's must carry the key: the tree's copy is a cheap gate (a repo
+    without the key pays no `git worktree list` per prompt), and a builder whose branch predates
+    the flip keeps today's view until it merges — every builder-facing behaviour (`_builder` and
+    the Stop doorbell's lister) reads this one predicate, so they never disagree."""
+    try:
+        if not _has_store(tree) or _read_config(tree).get("coordinator_mode") is not True:
+            return None
+        main = _worktrees(tree)[0].resolve()
+        return main if _coordinator_mode(main) else None
+    except Exception:
+        return None
+
+
+def _builder(tree: Path, session: str = "") -> str:
+    """The caller's name when it is a BUILDER in a coordinator-mode repo — a multi-window repo
+    (`_workers(main)` non-empty) whose store sets `coordinator_mode`, and a caller who is not the
+    distributor — else "". `main` comes from `_worktrees`, never `tree`: `_workers` read from a
+    linked tree is empty. COBRA (D-253): a builder that unsets its name reads "" here only in the
+    main checkout, where the distributor fallback names it the coordinator anyway."""
+    try:
+        main = _builder_mode_main(tree)
+        if main is None:
+            return ""
+        workers = _workers(main)
+        if not workers:
+            return ""
+        coordinator = str(_read_config(main).get("distributor") or "").strip()
+        # a worker TREE decides, as the Stop hook's `is_worker` does, so a window whose
+        # CLAUDE_AGENT reads otherwise still gets its tree's view (Finish review pass 1)
+        here = tree.resolve()
+        by_tree = next((n for n, t in workers.items() if t == here), "")
+        agent = by_tree or _caller_name(main, here, workers, coordinator, session)
+        # only a POOL worker is a builder: the feedback owner's tree is dropped from the pool
+        # (`_workers`), so triage never queues it work and it keeps today's view
+        return agent if agent and agent != coordinator and agent in workers else ""
+    except Exception:
+        return ""
 
 
 def _stop_action(tree: Path, session: str) -> dict:
@@ -4663,22 +6026,60 @@ def _stop_action(tree: Path, session: str) -> dict:
     coordinator = (
         str(_read_config(main).get("distributor") or "").strip() if _has_store(main) else ""
     )
-    agent = _agent_name(session=session)
+    agent = _caller_name(main, tree, workers, coordinator, session)
     is_worker = tree in workers.values()
-    if not agent and is_worker:
+    if is_worker and _builder_mode_main(tree) is not None:
+        # coordinator mode names a worker by its TREE, as `_builder` does, so the ladder and the
+        # filtered `next`/`ready` speak about the same builder (Finish review pass 2)
         agent = next(n for n, t in workers.items() if t == tree)
-    if not agent:
-        # the feedback owner's tree is dropped from the pool, so it gets the same name fallback
-        # the pool workers have — else an unset CLAUDE_AGENT silences its whole ladder (pass 1, A-S3)
-        owner = _feedback_owner(main)
-        if owner and tree == (main / ".claude" / "worktrees" / owner).resolve():
-            agent = owner
-    if not agent and tree == main and coordinator:
-        agent = coordinator
     none = {"agent": agent, "role": "", "action": None, "fp": "", "text": ""}
     if not _has_store(main):
         return none
+    # FIRST on every path, a pause or a held claim included (W-a12b03a2): answering a builder's waiting pane starts no
+    # work; a blind scan adds nothing here (the prompt block reports it), so a broken tmux never blocks a Stop
+    found, blind = _panes_waiting(tree, agent)
+    panes = [{"action": "pane-waiting", "fp": p["fp"], "text": _pane_text(p) + "."} for p in found]
+    result = _stop_subject(tree, main, session, agent, is_worker, workers, coordinator, none)
+    if not panes and (not blind or "candidates" in result):
+        return result
+    # A ladder while a pane waits, so the hook moves on to the subject behind it after CAP blocks (on the classic path
+    # that subject is the single action, its fingerprint unchanged), and while the scan is BLIND, so a tmux blip never
+    # swaps the ladder's attempt map for the single-action state and re-arms an exhausted pane subject. A clean scan
+    # that finds no pane returns the classic result untouched: its idle reset (the hook unlinks the state on a null
+    # action) still re-arms a subject that comes back (W-a12b03a2 review, rounds 1 and 2).
+    behind = result.get("candidates")
+    if behind is None:
+        behind = []
+        if result.get("action"):  # the classic subject, copied whole — never a new action name
+            subject = {k: result.get(k) or "" for k in ("action", "fp", "text")}
+            subject["fp"] = subject["fp"] or subject["action"]
+            behind = [subject]
+    cands = [*panes, *[c for c in behind if c.get("fp") not in {p["fp"] for p in panes}]]
+    return {**result, **(panes[0] if panes else {}), "candidates": cands[:AUTONOMY_MAX_CANDIDATES]}
+
+
+def _stop_subject(
+    tree: Path,
+    main: Path,
+    session: str,
+    agent: str,
+    is_worker: bool,
+    workers: dict[str, Path],
+    coordinator: str,
+    none: dict,
+) -> dict:
+    """`_stop_action`'s ladder below the pane subjects: paused · autonomy · held claim · classic rungs."""
     commit = _commit_items_subject(tree, main)
+    if _is_paused(_paused(main), agent, tree, workers):
+        # paused (W-da4bc702): nothing that starts or continues work — not a held claim, mail, the
+        # queue or a coordinator rung; the claim stays held (nothing lost). Only the main checkout's
+        # commit-items, housekeeping that starts nothing, may still be named.
+        paused = {**none, "role": "paused"}
+        if not commit:
+            return paused
+        if _autonomy_on(main):
+            return {**paused, **commit, "candidates": [commit]}
+        return {**paused, **commit}
     if _autonomy_on(main):
         result = _autonomy_action(tree, main, session, agent, is_worker, workers, coordinator, none)
         if commit:
@@ -4746,7 +6147,7 @@ def _classic_rungs(
     coordinator: str,
     none: dict,
 ) -> dict:
-    """The coordinator rungs of D-521 — claim · doorbell · triage · self — for a session that holds
+    """The coordinator rungs of D-521 — claim · merge · doorbell · triage · self — for a session that holds
     no claim (the classic path) or, under autonomy, as the ladder's middle rungs."""
     pool = _pool(main)
     routable, backlog = len(pool["routable"]), len(pool["backlog"])
@@ -4763,19 +6164,47 @@ def _classic_rungs(
             f"`python3 scripts/work.py claim {first['id']}` and start it, or end on a formatted "
             "`BLOCKED:` escalation naming why it cannot start.",
         }
+    if is_worker and tree != main:
+        # The coordinator counts this worker from main, so once it is at the floor nothing else
+        # prompts the merge that brings those items into this tree (worker-queue design critiques).
+        waiting = _merge_waiting(main, tree, agent)
+        if waiting:
+            base = _base_branch(main) or "the main checkout's branch"
+            return {
+                "agent": agent,
+                "role": "worker",
+                "action": "merge",
+                "fp": f"merge:{_bucket(len(waiting))}",
+                "text": f"{len(waiting)} item(s) are assigned to you ({agent}) on the main checkout and "
+                f"your tree does not hold them — first {waiting[0]['id']} — "
+                f"{waiting[0].get('title', '')}. Merge `{base}` into your branch, then "
+                f"`python3 scripts/work.py claim {waiting[0]['id']}`.",
+            }
     if is_worker:
         if not (routable or backlog):
             return {**none, "role": "worker"}
-        names = _sessions_of(coordinator, main) if coordinator else []
+        # a paused coordinator is not rung (W-da4bc702): the worker self-serves instead, and is told why
+        coord_paused = bool(coordinator) and coordinator in _paused(main)
+        names = _sessions_of(coordinator, main) if coordinator and not coord_paused else []
         ring = " · ".join(
             f"`SendMessage to={n}: queue empty — {routable} routable, {backlog} backlog`"
             for n in names
         )
+        # in coordinator mode `next` offers a builder only its own items, so the self-service
+        # fallback names the list that still holds the unowned ones (D-871)
+        lister = (
+            "`python3 scripts/work.py ready --all --mine`"
+            if _builder_mode_main(tree) is not None
+            else "`python3 scripts/work.py next`"
+        )
         how = (
             f"ring the coordinator ({coordinator}): {ring}"
             if ring
+            else f"the coordinator ({coordinator}) is PAUSED — take the next unowned item your own "
+            f"tree shows ({lister}) and claim it"
+            if coord_paused
             else "the coordinator has no live window — take the next unowned item your own tree "
-            "shows (`python3 scripts/work.py next`) and claim it"
+            f"shows ({lister}) and claim it"
         )
         return {
             "agent": agent,
@@ -4786,9 +6215,11 @@ def _classic_rungs(
             f"wait in the main checkout: {how}. Message delivery is best effort.",
         }
     if workers and coordinator and agent == coordinator:
-        present = _present(workers) or set()
+        # a paused worker is never "below the floor" (W-da4bc702)
+        present = (_present(workers) or set()) - set(_paused_workers(_paused(main), workers))
         floor = _floor(main)
-        below = sorted(w for w in present if len(_queued(workers[w], w)) < floor)
+        counts = _worker_queues(main, {w: workers[w] for w in present})
+        below = sorted(w for w in present if len(counts[w]) < floor)
         own = len(_queued(main, coordinator))
         if below and (routable or backlog or own > floor):
             return {
@@ -4990,6 +6421,11 @@ def _autonomy_candidates(
         first = _queued(tree, agent)[:1] if classic["action"] == "claim" else []
         if first:
             fp = f"item:{first[0]['id']}"
+        elif classic["action"] == "merge":
+            # per first waiting item, like claim: a constant `rung:merge` stayed exhausted for the
+            # session once warned through, while new assignments kept arriving (review A-S1)
+            waiting = _merge_waiting(main, tree, agent)
+            fp = f"rung:merge:{waiting[0]['id']}" if waiting else "rung:merge"
         elif classic["action"] == "triage":
             fp = "rung:triage:" + str(classic["fp"])[len("triage:") :].rsplit(":", 2)[0]
         else:
@@ -5067,6 +6503,33 @@ def _parked_count(tree: Path, agent: str, session: str = "") -> int:
     )
 
 
+_PRINT_MODE_OWN = frozenset({"continue", "release"})  # subjects of THIS session's own claims
+
+
+def _print_mode_stop(result: dict) -> dict:
+    """A headless session keeps only the subjects of its OWN claims (a revived work session still
+    finishes its item); every other subject is dropped, and with none left it gets the bare null
+    action — never one still carrying `candidates`, which the hook's ladder would act on."""
+    cands = [
+        c
+        for c in (result.get("candidates") or [])
+        if isinstance(c, dict) and c.get("action") in _PRINT_MODE_OWN
+    ]
+    if cands:
+        return {**result, **cands[0], "candidates": cands}
+    null = {
+        "agent": result.get("agent", ""),
+        "role": result.get("role", ""),
+        "action": None,
+        "fp": "",
+        "text": "",
+        "reason": "print-mode",
+    }
+    if result.get("error"):
+        null["error"] = result["error"]  # a crashed Stop computation stays visible
+    return null
+
+
 def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
     if args.stop:
         try:
@@ -5080,6 +6543,8 @@ def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
                 "text": "",
                 "error": str(exc),
             }
+        if _print_mode():
+            result = _print_mode_stop(result)
         print(json.dumps(result, sort_keys=True))
         return 0
     main = _worktrees(repo)[0].resolve()
@@ -5101,22 +6566,34 @@ def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
                 "tree": str(main),
             }
         )
+    counts = _worker_queues(main, workers)
     for name, tree in sorted(workers.items()):
         agents.append(
             {
                 "agent": name,
                 "role": "worker",
                 "present": present is not None and name in present,
-                "queued": len(_queued(tree, name)),
+                "queued": len(counts[name]),
                 "parked": _parked_count(tree, name),
                 "tree": str(tree),
             }
         )
+    paused = _paused(main)
+    pdir = _paused_dir(main)
+    if pdir.exists() and not pdir.is_dir():
+        _warn(f"{pdir} is not a directory — no pause can be read, every agent reads as unpaused")
+    covered = _paused_workers(paused, workers)
+    for a in agents:
+        rec = paused.get(covered.get(str(a["agent"]), str(a["agent"])))
+        if rec is not None:
+            a["paused_by"] = str(rec.get("by") or "?")
+            a["paused_at"] = rec.get("at")
     open_plans = _open_plans(main)  # typed here: the mixed-value report dict widens it to a union
     report = {
         "coordinator": coordinator or None,
         "floor": floor,
         "agents": agents,
+        "paused": sorted(paused),
         "routable": len(pool["routable"]),
         "backlog_waiting": len(pool["backlog"]),
         "held": len(pool["held"]),
@@ -5129,6 +6606,8 @@ def cmd_queue(repo: Path, args: argparse.Namespace) -> int:
         print("coordinator: none — set distributor in .fabrik/work/config.json")
     for a in agents:
         mark = "" if a["present"] else " (no live window)"
+        if a.get("paused_by"):
+            mark += f" · PAUSED by {a['paused_by']}"
         print(
             f"{a['agent']:<16} {a['role']:<11} queued {a['queued']}/{floor} · "
             f"parked {a['parked']}{mark}"
@@ -5151,13 +6630,51 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
             f"triage --apply is the distributor's ({distributor}); this caller is {_actor_label()}"
         )
     workers = _workers(main)
-    present = _present(workers) or set()
+    paused = _paused(main)
+    # triage plans nothing for a paused worker
+    present = (_present(workers) or set()) - set(_paused_workers(paused, workers))
     floor = _floor(main)
     pool = _pool(main)
     free = list(pool["routable"])
+    everything = list(_iter_items(main))
+    closed = _closed_ids(main)
+    unscored = sorted(
+        str(it["id"])
+        for it in everything
+        if it.get("status") == "open"
+        and it.get("kind") != "next"
+        and it["id"] not in closed
+        and not _scored(it)
+    )
+    if _coordinator_mode(main):
+        # scored work first, each group in today's order (sorted() is stable): nothing starves
+        # while the backlog is scored, and a scored item wins over an unscored one (D-871)
+        free.sort(key=lambda it: 0 if _scored(it) else 1)
+    # ONE major project in flight per repo (spec D3 job 3): a fresh scan, because `_pool` and
+    # `_worker_queues` read only ready, unclaimed items and would miss a claimed or blocked major
+    live = _live_claims(main)
+    candidates = [it for it in everything if _in_flight_major(it, live, closed)]
+    # a major held behind ANOTHER candidate (`assign <id> --blocked-by <the in-flight id>`, the D3
+    # hold) waits, so it is not in flight; one waiting on anything else — its own prerequisite, an
+    # unknown id — still holds the slot. Every candidate held behind another is reachable only by
+    # hand edits (`assign` refuses cycles): then all count, failing closed.
+    ids = {str(it["id"]) for it in candidates}
+    held = [it for it in candidates if ids.intersection(_dep_ids(it))]
+    in_flight = [it for it in candidates if it not in held] or candidates
+    if in_flight is candidates:
+        held = []
+    kept, major_planned = [], bool(in_flight)
+    for it in free:
+        if _is_major(it):
+            if major_planned:
+                continue  # waits for the slot: at most one major per run, none while one flies
+            major_planned = True
+        kept.append(it)
+    free = kept
     plan: dict[str, list[dict]] = {}
+    counts = _worker_queues(main, {n: workers[n] for n in present})
     for name in sorted(present):
-        need = floor - len(_queued(workers[name], name))
+        need = floor - len(counts[name])
         if need > 0 and free:
             plan[name], free = free[:need], free[need:]
     for name, items in plan.items():
@@ -5168,6 +6685,9 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
             )
     if not plan:
         print("plan: nothing to assign (no present worker below the floor, or nothing routable)")
+    for name in sorted(paused):
+        rec = paused[name]
+        print(f"paused: {name} — by {rec.get('by', '?')} {_ago_text(rec.get('at'))} ago (skipped)")
     print(
         f"backlog waiting {len(pool['backlog'])} — promote with "
         "`assign <id> --owner <worker> --tag queued`"
@@ -5177,6 +6697,15 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
             f"your own queued items ({distributor}): {len(_queued(main, distributor))} — hand out or keep"
         )
     print(f"held {len(pool['held'])} (runtime/hold/waits-*) — assign by hand")
+    print(_fit_ids(f"unscored {len(unscored)}: ", unscored) if unscored else "unscored 0")
+    for it in in_flight:
+        print(
+            f"major in flight: {it['id']} ({it.get('owner') or 'claimed'}, {it.get('status')}) — "
+            "other majors wait for its slot"
+        )
+    for it in held:
+        behind = ", ".join(d for d in _dep_ids(it) if d in ids)
+        print(f"major held: {it['id']} ({it.get('owner') or 'claimed'}) behind {behind}")
     for line in _open_plans(main):
         print(f"plan not executed: {line}")
     if not args.apply or not plan:
@@ -5203,6 +6732,127 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
             print(
                 f"SendMessage to={session}: assigned {ids} — merge {base} into your branch, then claim"
             )
+    return 0
+
+
+# ── merge-item: the key-wise 3-way merge of one item file (W-5f3617e6) ───────────────────────
+
+_ABSENT = object()
+# `merge-item`'s conflict exit — distinct from 1 (a failure), so no caller parses stderr.
+MERGE_CONFLICT_RC = 3
+# The store's SET-valued lists (sorted, no duplicates): `assign` and `verdict` write `tags`, `assign
+# --blocked-by` writes `blocked_by`. Each merges as a set: the base, plus what either side added,
+# minus what either side removed — so two sides each adding a tag never conflict.
+_SET_KEYS = frozenset({"tags", "blocked_by"})
+
+
+def _merge_set(base: object, ours: list, theirs: list) -> list | None:
+    """The 3-way set merge of a list of strings, sorted; None when an entry is not a string (the
+    caller then treats the list as an ordinary value)."""
+    base_list = base if isinstance(base, list) else []
+    if not all(isinstance(x, str) for x in (*base_list, *ours, *theirs)):
+        return None
+    b, o, th = set(base_list), set(ours), set(theirs)
+    return sorted((b | (o - b) | (th - b)) - (b - o) - (b - th))
+
+
+def _merge_appended(base: object, ours: list, theirs: list) -> list | None:
+    """Two sides that only APPENDED to the base list (``comments``): the base, then every appended
+    entry, ordered by its ``at`` when every appended entry carries a numeric one (else ours, then
+    theirs), an entry both sides appended kept once. None when a side did anything but append."""
+    base_list = base if isinstance(base, list) else []
+    n = len(base_list)
+    if ours[:n] != base_list or theirs[:n] != base_list:
+        return None
+    added = list(ours[n:])
+    added += [x for x in theirs[n:] if x not in added]
+    stamps = [x.get("at") if isinstance(x, dict) else None for x in added]
+    if all(isinstance(s, (int, float)) and not isinstance(s, bool) for s in stamps):
+        added = [x for _, x in sorted(zip(stamps, added, strict=True), key=lambda pair: pair[0])]
+    return [*base_list, *added]
+
+
+def _merge_keys(base: object, ours: object, theirs: object, path: str, conflicts: list[str]):
+    """One value, 3-way: the side that changed it against the base wins, a change both sides made
+    identically merges, and two different changes are a conflict named by its key path. Objects
+    recurse key by key (``links`` edited on both sides merges per sub-key — against ``{}`` when
+    the key is new on both sides); a list in ``_SET_KEYS`` merges as a set, any other list merges
+    when both sides only appended; ``_ABSENT`` is a missing key, so a delete against a change
+    conflicts and a delete on both sides deletes."""
+    if ours == theirs:
+        return ours
+    if ours == base:
+        return theirs
+    if theirs == base:
+        return ours
+    gone = base is _ABSENT
+    if isinstance(ours, dict) and isinstance(theirs, dict) and (gone or isinstance(base, dict)):
+        base = {} if gone else base
+        merged = {}
+        for key in sorted(set(base) | set(ours) | set(theirs)):
+            value = _merge_keys(
+                base.get(key, _ABSENT),
+                ours.get(key, _ABSENT),
+                theirs.get(key, _ABSENT),
+                f"{path}.{key}" if path else key,
+                conflicts,
+            )
+            if value is not _ABSENT:
+                merged[key] = value
+        return merged
+    if isinstance(ours, list) and isinstance(theirs, list) and (gone or isinstance(base, list)):
+        merged_list = (_merge_set if path in _SET_KEYS else _merge_appended)(base, ours, theirs)
+        if merged_list is not None:
+            return merged_list
+    conflicts.append(path or "(the whole item)")
+    return ours
+
+
+def merge_item(base: dict, ours: dict, theirs: dict) -> tuple[dict, list[str]]:
+    """The merged item and the key paths both sides changed to different values (empty = clean).
+
+    Why key-wise and not git's line merge: ``_dump`` writes one key per line in sorted order, so two
+    sides changing DISJOINT keys that sort next to each other (the coordinator's ``effort`` beside
+    the builder's ``evidence``, ``score_reason`` beside ``status``) collide as adjacent hunks — four
+    refused merge requests in one day (W-5f3617e6). Cobra check (D-253): the cheap way to make every
+    item merge "clean" is to pick a side on a real conflict; that would silently drop one agent's
+    status or score, so a key both sides changed differently is returned as a conflict, never
+    resolved here."""
+    conflicts: list[str] = []
+    merged = _merge_keys(base, ours, theirs, "", conflicts)
+    return (merged if isinstance(merged, dict) else ours), conflicts
+
+
+def cmd_merge_item(repo: Path | None, args: argparse.Namespace) -> int:
+    """``merge-item <base> <ours> <theirs>`` — git's merge-driver convention (``%O %A %B``): the
+    merged item is written into ``<ours>`` and the exit is 0; a conflict leaves ``<ours>`` untouched,
+    names every conflicting key on stderr and exits ``MERGE_CONFLICT_RC``; an unreadable or
+    non-object side exits 1. An empty or missing base (an item both sides added) merges against
+    ``{}``. Needs no repo: ``main`` skips the git lookup for this verb."""
+    texts = {}
+    for name in ("base", "ours", "theirs"):
+        path = Path(getattr(args, name))
+        try:
+            raw = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            raw = ""
+        except UnicodeDecodeError as exc:
+            raise WorkError(f"merge-item: {name} ({path}) is not UTF-8: {exc}") from exc
+        if name == "base" and not raw.strip():
+            texts[name] = {}
+            continue
+        try:
+            data = json.loads(raw)
+        except ValueError as exc:
+            raise WorkError(f"merge-item: {name} ({path}) is not JSON: {exc}") from exc
+        if not isinstance(data, dict):
+            raise WorkError(f"merge-item: {name} ({path}) is not a JSON object")
+        texts[name] = data
+    merged, conflicts = merge_item(texts["base"], texts["ours"], texts["theirs"])
+    if conflicts:
+        _warn(f"merge-item: both sides changed {', '.join(conflicts)} to different values")
+        return MERGE_CONFLICT_RC
+    _write_json(Path(args.ours), merged)
     return 0
 
 
@@ -5243,7 +6893,22 @@ def _parser() -> argparse.ArgumentParser:
     s.add_argument("--priority", type=_priority_arg)
     s.add_argument("--tag", action="append", help="add a tag, repeatable")
     s.add_argument("--untag", action="append", help="remove a tag, repeatable")
+    s.add_argument("--impact", choices=SCORE_LEVELS, help="score: impact (needs --why)")
+    s.add_argument("--effort", choices=SCORE_LEVELS, help="score: effort in quota (needs --why)")
+    s.add_argument("--why", help="the one-line reason a score carries")
+    s.add_argument(
+        "--blocked-by", action="append", help="hold this item behind another id, repeatable"
+    )
+    s.add_argument("--unblock", action="append", help="remove a blocked-by id, repeatable")
     s.set_defaults(fn=cmd_assign)
+
+    s = sub.add_parser("edit", help="change an item's title, next or links (what `add` wrote)")
+    s.add_argument("id")
+    s.add_argument("--title")
+    s.add_argument("--next", help='the concrete next action, one line ("" clears it)')
+    s.add_argument("--link", action="append", help="spec=<path> | plan=<path> | decision=D-NNN")
+    s.add_argument("--unlink", action="append", help="clear spec, plan or decision, repeatable")
+    s.set_defaults(fn=cmd_edit)
 
     s = sub.add_parser(
         "ready", help="obligations, your claims, owned, awaiting, then the top 10 ready items"
@@ -5305,6 +6970,27 @@ def _parser() -> argparse.ArgumentParser:
     s = sub.add_parser("status", help="items, uncommitted item files, and spec/plan drift")
     s.set_defaults(fn=cmd_status)
 
+    s = sub.add_parser("pause", help="mark an agent PAUSED in this repo (no name: list the pauses)")
+    s.add_argument("name", nargs="?", default="", help="the agent or worker-tree name")
+    s.add_argument("--why", default="", help="one line kept with the pause")
+    s.add_argument("--by", default="", help="the operator's label (an unnamed caller only)")
+    s.set_defaults(fn=cmd_pause)
+
+    s = sub.add_parser("resume", help="lift a pause (the pauser, the distributor or the operator)")
+    s.add_argument("name", help="the paused agent or worker-tree name")
+    s.set_defaults(fn=cmd_resume)
+
+    s = sub.add_parser("verdict", help="the operator's accept / reject / comment on one item")
+    s.add_argument("id")
+    s.add_argument("action", choices=("accept", "reject", "comment"))
+    s.add_argument(
+        "--text", default="", help="the operator's words (one line; reject and comment need it)"
+    )
+    s.add_argument(
+        "--by", default="", help="where the call came from (e.g. dashboard), kept as `via`"
+    )
+    s.set_defaults(fn=cmd_verdict)
+
     s = sub.add_parser(
         "commit-items", help="commit the main store's uncommitted item files (main checkout only)"
     )
@@ -5316,7 +7002,21 @@ def _parser() -> argparse.ArgumentParser:
     )
     s.set_defaults(fn=cmd_sync)
 
+    s = sub.add_parser(
+        "merge-item",
+        help="key-wise 3-way merge of one item file (git merge-driver convention: %%O %%A %%B)",
+    )
+    s.add_argument("base", help="the merge base's copy (empty when both sides added the item)")
+    s.add_argument("ours", help="our copy — the merged item is written here on success")
+    s.add_argument("theirs", help="their copy")
+    s.set_defaults(fn=cmd_merge_item)
+
     s = sub.add_parser("render", help="regenerate the backlog's AUTO-GENERATED:BACKLOG block")
+    s.add_argument(
+        "--here",
+        action="store_true",
+        help="render this tree's own store outside the main checkout (never commit the result)",
+    )
     s.set_defaults(fn=cmd_render)
 
     s = sub.add_parser(
@@ -5329,7 +7029,7 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        repo = _repo_root(args.repo)
+        repo = None if args.fn is cmd_merge_item else _repo_root(args.repo)
         return int(args.fn(repo, args))
     except WorkError as exc:
         _warn(str(exc))

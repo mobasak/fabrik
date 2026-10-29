@@ -4,7 +4,7 @@ Spec: docs/superpowers/specs/2026-09-29-hub-worktree-cutover-design.md § The de
 
 Every fixture below builds its OWN throwaway git repo under `tmp_path` to stand in for the hub —
 never a worktree of the real /opt/fabrik (CLAUDE.md § Shared repo). `_HUB_PATH` (the module-level
-constant each of the four converted files carries) is monkeypatched to that fake repo so the
+constant each of the five converted files carries) is monkeypatched to that fake repo so the
 git-common-dir-parent comparison in `_resolve_fabrik_root` matches it instead of the real hub.
 """
 
@@ -21,7 +21,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-# The four converted files, keyed for parametrized cross-target tests below — every target must
+# The five converted files, keyed for parametrized cross-target tests below — every target must
 # answer the SAME `_resolve_fabrik_root` call the same way, config.py included, so a defect in any
 # one replica (not just config.py) turns its own parametrize case red.
 _TARGETS: dict[str, Path] = {
@@ -29,6 +29,7 @@ _TARGETS: dict[str, Path] = {
     "sync_projects": Path("scripts/sync_projects.py"),
     "vps_sync": Path("scripts/vps_sync.py"),
     "command_feedback_report": Path("scripts/command_feedback_report.py"),
+    "update_vps_docs": Path("scripts/update_vps_docs.py"),
 }
 
 _MODULE_TAG = itertools.count()
@@ -72,13 +73,13 @@ def _load_module(path: Path, name: str) -> ModuleType:
 
 
 def _load_target(key: str) -> ModuleType:
-    """Load one of the four converted files by its `_TARGETS` key, with a fresh, collision-free
+    """Load one of the five converted files by its `_TARGETS` key, with a fresh, collision-free
     module name every call (parametrized tests reload the same file repeatedly)."""
     rel = _TARGETS[key]
     return _load_module(REPO_ROOT / rel, f"_t01_{key}_{next(_MODULE_TAG)}")
 
 
-# ── Behavior Contract row 1 (cross-target): every one of the four converted files answers the
+# ── Behavior Contract row 1 (cross-target): every one of the five converted files answers the
 # SAME `_resolve_fabrik_root` call the same way — config.py's own function AND each replica's
 # independently-typed copy. A mutation to any single target's algorithm (not only config.py's)
 # must turn its own parametrize case red.
@@ -236,7 +237,10 @@ def test_vps_sync_writes_land_in_the_worktree_not_the_main_checkout(tmp_path, mo
     assert module.update_inventory_count(len(stub_containers)) is True
 
     # Tracked outputs changed in the WORKTREE...
-    assert "1 (Coolify stack" in (wt / "docs" / "infrastructure" / "vps-status.md").read_text()
+    assert (
+        "1 (infra + microservices)"
+        in (wt / "docs" / "infrastructure" / "vps-status.md").read_text()
+    )
     assert (
         "**Total Containers:** 1"
         in (wt / "docs" / "infrastructure" / "vps-complete-inventory.md").read_text()
@@ -284,6 +288,7 @@ CONVERTED_FILES = {
     "scripts/sync_projects.py",
     "scripts/vps_sync.py",
     "scripts/command_feedback_report.py",
+    "scripts/update_vps_docs.py",
 }
 
 # path -> one-line reason. Every reason is one of:
@@ -304,6 +309,9 @@ CONVERTED_FILES = {
 ALLOWLIST: dict[str, str] = {
     # ── reads, not write roots ──
     "scripts/lane_replay_capture.py": "read: `/opt/fabrik` is the git repo whose history the lane replay fixture is captured FROM (`git -C` reads, :189-196) — nothing is written under it",
+    "scripts/sysadmin/operator_setup.py": "no-write: `/opt/fabrik` is the hub main checkout `--apply`'s guard requires the script to RUN from (its .git/HEAD is read; its install_user_hooks.py is imported and install_session_archive_timer.sh run) — the script writes under $HOME and its dry-run mirror in the system temp dir, never the repo",
+    "scripts/sysadmin/vps1_ocoron_removal.py": "no-write: `/opt/fabrik/scripts/sysadmin/system-prompt.txt` is vps1's DEPLOYED copy, grepped read-only over ssh; its mv/rm run on vps1 under /opt/ocoron-com, never in the repo",
+    "scripts/sysadmin/kaizen_outcomes.py": "no-write: `/opt/fabrik/scripts/capped_run.sh` is the EXECUTABLE `_capped_run` falls back to after FABRIK_CAPPED_RUN and this tree's own copy (W-162398ef) — run, never written",
     # ── config: already follow fabrik.config.FABRIK_ROOT ──
     "scripts/audit_all_registrars.py": "config: `from fabrik.config import FABRIK_ROOT`",
     "src/fabrik/cli.py": "config: imports FABRIK_ROOT (ticket DO-NOT — scaffold.py/cli.py follow without edits)",
@@ -339,17 +347,22 @@ ALLOWLIST: dict[str, str] = {
     "scripts/snapshot_vps_state.py": "untracked: writes .tmp/vps-snapshot-<label>.json (gitignored `.tmp/`)",
     "scripts/sysadmin/archive_transcripts.py": "untracked: reads the gitignored .env (SESSION_ARCHIVE_ENV_FILE); writes the archive under ~/.claude/archive and uploads it to B2, no tracked-file write",
     "scripts/sysadmin/claude_rotate.py": "untracked: rotate-ledger.jsonl under ~/.claude/state, outside the repo",
+    "scripts/sysadmin/fabrik_deck.py": "untracked: `--hub` defaults to /opt/fabrik as the checkout the systemd unit runs it from; writes go to ~/.config/fabrik-deck and ~/.config/systemd/user, outside the repo",
     "scripts/sysadmin/detect_reversals.py": "untracked: writes logs/lessons-pending.jsonl + logs/sysadmin-actions.jsonl (gitignored `logs/`)",
-    "scripts/sysadmin/emit_mcp_project_config.py": "untracked: writes /opt/fabrik/.mcp.json (not tracked — `git ls-files .mcp.json` is empty)",
+    "scripts/sysadmin/emit_mcp_project_config.py": "untracked: writes /opt/fabrik/.mcp.json and its existing worktree copies under .claude/worktrees/ (not tracked — `git ls-files .mcp.json` is empty)",
     "scripts/sysadmin/install_user_hooks.py": "untracked: installs into the user's own ~/.claude hooks, outside the repo",
+    "scripts/sysadmin/prune_transcripts.py": "untracked: `/opt/fabrik/.env` is only the default SESSION_ARCHIVE_ENV_FILE it reads; its writes (prune ledger and logs under ~/.claude/archive, unlinks and rmtree under ~/.claude, `--restore` back into ~/.claude/projects) are all outside the repo",
     "scripts/sysadmin/quota_dashboard.py": "untracked: quota dashboard state under ~/.claude, outside the repo",
     "scripts/sysadmin/quota_posture_hook.py": "untracked: quota posture state under ~/.claude, outside the repo",
+    "scripts/sysadmin/rotate_session.py": "untracked: TYPES a resume prompt naming /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh and /opt/fabrik/scripts/whoami_agent.py into an agent's pane; its writes (request files, the rotations log) are under ~/.claude/state, outside the repo",
     "scripts/sysadmin/selfwatch_check.py": "untracked: self-watch arm marker under ~/.claude, outside the repo (invokes selfwatch_arm.sh by path)",
     "scripts/sysadmin/send-telegram.sh": "untracked: reads gitignored .env.sysadmin only; sends to the Telegram API, no local tracked-file write",
+    "scripts/sysadmin/transcript_size_check.py": "untracked: reads the default SESSION_ARCHIVE_ENV_FILE `/opt/fabrik/.env` and PRINTS a `/opt/fabrik/scripts/whoami_agent.py` command; its one write is the rotate-advised stamp under ~/.claude/state (the context sensor's under its .ctx/ subdir)",
+    "scripts/sysadmin/vps1_pg_scoped_logins.py": "untracked: operator-run credential rotation (D-1176), refused from any cwd but /opt/fabrik; its local writes go only there, to the gitignored .env and under backups/ (password files, the .env backup, the .env staging file); its other writes are vps1 files over ssh",
     "scripts/sysadmin/vps_script_drift.py": "untracked: reads the hub HEAD via git (honours $FABRIK_ROOT) and the VPS copies over ssh; its watermark lives under ~/.claude/state, no tracked-file write",
+    ".claude/hooks/mail_notify.py": "untracked: reads /opt/fabrik-mail (sanctioned exception, CLAUDE.md HARD STOPS); its one write is the per-session digest under ~/.claude/state/mail-notify, outside the repo",
     "src/fabrik/drivers/modal_provider.py": "untracked: reads gitignored .env.sysadmin + a fixed template dir; its Modal deployment output is written into the TARGET project, not a hub-hardcoded tracked path",
     # ── other-repo: the write target is a DIFFERENT store/repo than the hub's own tree ──
-    ".claude/hooks/mail_notify.py": "other-repo: writes /opt/fabrik-mail (sanctioned exception, CLAUDE.md HARD STOPS)",
     "scripts/bootstrap/bootstrap-hub.sh": "other-repo: reads/restores from /opt/fabrik-dr-store, the disaster-recovery env store",
     "scripts/bootstrap/bootstrap-spoke-restore.sh": "other-repo: reads/restores from /opt/fabrik-dr-store",
     "scripts/deploy_doc_policy.py": "other-repo: writes .doc-policy.md into every /opt/<project> repo, not the hub's own tree",
@@ -363,6 +376,7 @@ ALLOWLIST: dict[str, str] = {
     "scripts/sysadmin/feedback_relay.py": "other-repo: routes through mail.py to /opt/fabrik-mail; the daily relay itself is main-checkout cron",
     "src/fabrik/drivers/postgres.py": "other-repo: reads fixed /opt/fabrik-lib paths (vendored schema + subagents module) — not a hub write-root site",
     "src/fabrik/drivers/watchdog.py": "other-repo: reads fabrik-lib sidecar + hub sysadmin scripts to PROVISION a remote watchdog target — not a hub write-root site",
+    "src/fabrik/orchestrator/deployer_ssh.py": "other-repo: the literal is `/opt/fabrik-<name>`, the second REMOTE app-dir candidate `app_dir` yields (:197) — probed over SSH, its .env injected remotely — a downstream /opt/<project> on another host, never the hub's tree",
     "src/fabrik/orchestrator/sysadmin_tokens.py": "other-repo: writes /opt/fabrik-dr-store (already env-overridable via FABRIK_DR_STORE)",
     # ── main-only: cron/daemon/boot scripts invoked only against the fixed hub checkout ──
     "scripts/aro-wake/main.py": "main-only: standalone host daemon bound to /opt/fabrik (writes are to gitignored logs/ state)",
@@ -385,9 +399,11 @@ ALLOWLIST: dict[str, str] = {
     # ── no-write: comment, read-only reference, test fixture, or already __file__-derived ──
     "docs/reference/research/2026-09-23-stop-compaction/mine.py": "no-write: dated one-off research artifact, loads final_gate_stop.py by absolute path to inspect it, does not write a tracked hub file",
     "scripts/.scratch/test_env_consolidation.py": "no-write: dead scratch test (last touched 2026-05-25), force-tracked despite scripts/.scratch/ being gitignored",
+    "scripts/docs_updater.py": "no-write: the literal `/opt/fabrik/scripts/decisions.py` is the hub id allocator it RUNS (`$FABRIK_DECISIONS_PY` overrides it); the ledger that run appends is the cwd repo's (`PROJECT_ROOT = Path.cwd()`), never the literal",
     "scripts/enforcement/check_doc_links.py": "no-write: `/opt/fabrik/` is a READ-side prefix check classifying a doc link, not a write target",
     "scripts/enforcement/check_structure.py": "no-write: the matched lines are a COMMENT describing the pattern, no FABRIK_ROOT usage of its own",
     "scripts/enforcement/check_sync_trigger_coverage.py": "no-write: already resolves via its own `hub_root()` helper (falls back to DEFAULT_HUB); reads to verify sync-trigger regex coverage, writes no tracked hub file",
+    "scripts/enforcement/check_synced_unmodified.py": "no-write: `/opt/fabrik` is the hub source it self-exempts and imports the manifest from; its only subprocess is a read-only `git rev-parse` naming the main checkout of a linked worktree (W-800579be), and it writes nothing",
     "scripts/enforcement/check_vendored_drift.py": "no-write: `/opt/fabrik` is the hub-identity path it compares the git common dir against (`_is_hub`); its only subprocess is a read-only `git rev-parse`, and it writes nothing",
     "scripts/final_gate.py": "no-write: the gate's own hub-identity check (H4, a separate ticket) — computes the diff/staging root for the current run, not a tracked-output destination",
     "scripts/fleet_doc_audit.py": "no-write: `FABRIK_ROOT = Path(__file__).resolve().parents[1]` — already worktree-relative; the flagged literal is incidental",
@@ -403,6 +419,7 @@ ALLOWLIST: dict[str, str] = {
     "scripts/merge_request.py": "no-write: `DEFAULT_DECISIONS_PY` is the hub's absolute owner resolver it EXECUTES (D-466) and `HUB_CHECKOUT` is an identity compare gating the governance sync; its writes go under the repo's git common dir or the target main checkout",
     "scripts/rivals_run.py": "no-write: `HUB_LIBS = Path('/opt/fabrik/libs')` is a READ-side import path for the vendored subagents beat; its own report output is written relative to the target repo",
     "scripts/scratch_sweep.py": "no-write: sweeps/removes only untracked scratch paths (CLAUDE.md § EXIT) — the literal is a comparison base for classifying paths, not a write root",
+    "scripts/sysadmin/agents_bat.py": "no-write: `/opt/fabrik/scripts/sysadmin/agents_up.sh` is text baked into the .bat it generates, run inside WSL (D-1048); it writes only under the operator-named --desktop",
     "scripts/sysadmin/liveness_audit.py": "no-write: the matched text is a quoted STRING describing a symptom found in ANOTHER script (this audit tool's own finding text), not its own literal",
     "scripts/sysadmin/test_claude_rotate.py": "no-write: test fixture for scripts/sysadmin/claude_rotate.py's cwd/HUB_REPO handling",
     "scripts/tests/test_gather_envs.py": "no-write: test fixture — /opt/fabrik appears only as example credential-path test data",
@@ -414,10 +431,10 @@ ALLOWLIST: dict[str, str] = {
     "scripts/implement_self_review_workflow.py": "dead: one-off generator (last touched 2026-09-06), part of the same traycer_agents_fixed/ batch",
     "scripts/seed_real_ports.py": "dead: its own docstring says 'One-time script' — a historical migration, not ongoing automation",
     "scripts/fabrik_synced_manifest.py": "no-write: the canonical sync-manifest REGISTRY (a dict of source/dest pairs other scripts read) — the matched write-heuristic is a diagnostic self-check block, not a hub-root write site of its own",
-    # ── deferred: a real D3 candidate, outside T01's Touches — not silently dropped ──
-    "scripts/sysadmin/kaizen_digest.py": "deferred: writes tracked docs/reference/agents/kaizen-log-*.md, which fleet/intel worktree agents also need to write — a genuine D3 candidate outside T01's Touches",
-    "scripts/sysadmin/kaizen_shrink_audit.py": "deferred: same tracked kaizen-log-*.md write path as kaizen_digest.py, outside T01's Touches",
-    "scripts/update_vps_docs.py": "deferred: writes the same tracked docs/infrastructure/*.md as vps_sync.py via a hardcoded REPO — the same class of gap, outside T01's four named Touches",
+    # ── the former `deferred` rows, measured (W-319a83d7): update_vps_docs.py is CONVERTED ──
+    "scripts/sysadmin/kaizen_digest.py": "read: REPO only locates send-telegram.sh to execute (:123); it writes no tracked file — `kaizen-log-*.md` is text in its message (:115)",
+    "scripts/sysadmin/kaizen_shrink_audit.py": "no-write: REPO = Path(__file__).resolve().parents[2] (:53), so kaizen-shrink-audit.md (:1065) is already worktree-relative; its /opt/fabrik literals classify crontab lines (:512, :516)",
+    "scripts/review_loop_ledger.py": "read: its hits are a comment naming PIN_IMPORT's FABRIK_ROOT warning and stage's printed launcher text (FABRIK_ROOT set to the staged tree); it writes only under the caller's --pins-dir and stage's --out (refused inside a work tree unless ignored, or under home) with its sibling home/ and tmp/",
 }
 
 _EXCLUDED_DIR_PREFIXES = ("tests/", "libs/", "scripts/.archive/", "scripts/archived/")
@@ -463,7 +480,7 @@ def _has_write_call(text: str) -> bool:
 def test_every_hub_root_write_hit_is_converted_or_allowlisted():
     """The search: every tracked *.py/*.sh outside tests/, libs/, scripts/.archive/,
     scripts/archived/ containing a `/opt/fabrik` string-literal prefix or `FABRIK_ROOT`, AND a
-    write call. Each hit is the four converted files or carries a one-line ALLOWLIST reason —
+    write call. Each hit is the five converted files or carries a one-line ALLOWLIST reason —
     an unlisted new hit fails this test naming the file."""
     listed = subprocess.run(
         ["git", "ls-files", "--", "*.py", "*.sh"],
@@ -502,3 +519,37 @@ def test_every_hub_root_write_hit_is_converted_or_allowlisted():
         f"{len(stale)} ALLOWLIST entr(y/ies) name a file the search no longer hits: {stale} — "
         "remove the stale entry."
     )
+
+
+def test_update_vps_docs_skips_the_push_off_hub(tmp_path, monkeypatch):
+    """W-319a83d7, both design critiques: off the hub, update_vps_docs commits on the invoker's
+    branch but never pushes — a worktree-agent branch has no upstream (the ladder would fail) and a
+    named worktree's bare `git push` would publish the session's own unreviewed commits and could
+    leave its live tree mid-rebase. On the hub the ladder runs as before."""
+    hub = _init_fake_hub(tmp_path)
+    wt = _add_worktree(hub, tmp_path)
+    module = _load_target("update_vps_docs")
+    monkeypatch.setattr(module, "_HUB_PATH", hub)
+    calls: list[list[str]] = []
+
+    class _Done:
+        returncode = 0
+
+    monkeypatch.setattr(module.subprocess, "run", lambda argv, **kw: calls.append(argv) or _Done())
+    monkeypatch.setattr(module, "REPO", wt.resolve())
+    assert module._push_if_hub() is None
+    assert not calls, calls
+    monkeypatch.setattr(module, "REPO", hub.resolve())
+    assert module._push_if_hub() is True
+    assert calls and calls[0][-1] == "push", calls
+    # and main() reaches the push ONLY through the guard — a direct ladder call would bypass it
+    import ast
+
+    tree = ast.parse((REPO_ROOT / _TARGETS["update_vps_docs"]).read_text(encoding="utf-8"))
+    main = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main")
+    called = {
+        n.func.id
+        for n in ast.walk(main)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+    }
+    assert "_push_if_hub" in called and "_push_with_ladder" not in called, called

@@ -60,6 +60,7 @@ def test_archive_sources_are_excluded():
     assert not any(s.startswith("docs/archive/") for s in srcs)
     assert not any(s.startswith("docs/infrastructure/archive/") for s in srcs)
     assert "docs/LESSONS_LEARNT.md" not in srcs  # dated ledger exempt
+    assert "docs/DECISIONS.md" not in srcs  # immutable ledger exempt (W-e9c8a4df)
 
 
 def test_scaffold_templates_are_excluded_as_sources():
@@ -82,6 +83,41 @@ def test_scaffold_templates_are_excluded_as_sources():
 # in an empty-repo fixture this check scanned a single README with no links and still reported
 # "zero broken references in the live tree". True sentence, false impression. Exemplar to copy:
 # `check_traycer_chain: PASS - 0 files, all 3 classes clean`.
+
+
+def test_the_decision_ledger_is_not_a_link_source(tmp_path, capsys, monkeypatch):
+    """W-e9c8a4df: a D-row minted with a DRAFT plan cites files that do not exist yet, and rows are immutable, so
+    a broken cite there can never be fixed at the row; it redded every session's gate. The ledger is excluded as a
+    SOURCE beside LESSONS_LEARNT.md — through the real `_tracked_md_sources`, in a temp git repo — while the same
+    broken cite in any other docs file still reds (the control)."""
+    repo = tmp_path / "r"
+    (repo / "docs").mkdir(parents=True)
+    for args in (["init", "-q"], ["config", "user.email", "t@t"], ["config", "user.name", "t"]):
+        subprocess.run(["git", "-C", str(repo), *args], check=True, timeout=15)
+    cite = "`docs/development/plans/2026-10-18-plan-9-not-yet.md`"
+    (repo / "docs" / "DECISIONS.md").write_text(
+        f"| D-1 | 2026-10-18 | x | y | z | {cite} |\n", encoding="utf-8"
+    )
+    (repo / "docs" / "a.md").write_text(f"see {cite}\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(repo), "add", "docs"], check=True, timeout=15)
+    tracked = subprocess.run(
+        ["git", "-C", str(repo), "ls-files", "docs"], capture_output=True, text=True, timeout=15
+    ).stdout.split()
+    assert "docs/DECISIONS.md" in tracked, "an untracked ledger is no source on the base either"
+    assert not (
+        repo / ".fabrik" / "synced.lock"
+    ).exists()  # no lock exempts the ledger for another reason
+    monkeypatch.setattr(cdl, "REPO", repo)
+    # no main-checkout lock either: only the rule under test may exempt the ledger
+    monkeypatch.setattr(cdl, "_main_checkout", lambda: None)
+    monkeypatch.setattr(cdl, "_MAIN_CACHE", {})
+    monkeypatch.setattr(sys, "argv", ["check_doc_links.py"])
+    assert cdl.main() == 1
+    out = capsys.readouterr().out
+    assert (
+        "ERROR: docs/a.md: broken ref -> docs/development/plans/2026-10-18-plan-9-not-yet.md" in out
+    ), out
+    assert "docs/DECISIONS.md: broken ref" not in out, out
 
 
 def test_success_line_states_how_much_it_examined(tmp_path, capsys, monkeypatch):
@@ -355,3 +391,138 @@ def test_the_main_checkout_of_a_submodule_worktree_is_the_submodule_not_git_inte
     monkeypatch.setattr(cdl, "REPO", wt)
     monkeypatch.setattr(cdl, "_MAIN_CACHE", {})
     assert cdl._main_checkout() == sub.resolve()
+
+
+def test_a_fenced_link_to_a_missing_path_is_not_graded():
+    """W-f11e740e: a fenced EXAMPLE of a link was graded while fenced bare refs were not."""
+    text = "intro\n```\n[x](docs/nope-fenced.md)\n```\n"
+    assert "docs/nope-fenced.md" not in [t for t, _k in cdl._iter_refs(text)]
+
+
+def test_the_same_link_outside_a_fence_is_still_graded():
+    text = "```\ncode\n```\n[x](docs/nope-open.md)\n"
+    assert ("docs/nope-open.md", "link") in list(cdl._iter_refs(text))
+
+
+def test_a_four_backtick_fence_body_is_skipped():
+    """Review pass 1: the round-0 guard made a ```` ```` ```` opener (a backtick after its first
+    three) no fence, so its body was graded — bare paths included, which were skipped before."""
+    text = "````md\nSee docs/nope-four.md\n[x](docs/nope-four-link.md)\n````\n[y](docs/nope-after.md)\n"
+    refs = list(cdl._iter_refs(text))
+    assert ("docs/nope-four.md", "bare") not in refs
+    assert ("docs/nope-four-link.md", "link") not in refs
+    assert ("docs/nope-after.md", "link") in refs
+
+
+def test_an_inline_triple_backtick_span_does_not_open_a_fence():
+    """Review pass 2: a line-leading ```x``` span is inline code; read as a fence opener it hid every
+    link below it, which the pre-change check still graded."""
+    text = "```x``` is inline\n[x](docs/nope-after.md)\n"
+    assert ("docs/nope-after.md", "link") in list(cdl._iter_refs(text))
+
+
+def test_a_link_inside_an_inline_code_span_is_not_graded():
+    """W-b9af1d47: a link written inside an inline code span is a code EXAMPLE, like a fenced one,
+    so it is not graded; the spans are blanked by _fences.blank_code_spans for the link reader only."""
+    text = "Write `[a](docs/nope-span.md)` to link.\n"
+    assert "docs/nope-span.md" not in [t for t, k in cdl._iter_refs(text) if k == "link"]
+
+
+def test_a_link_beside_a_span_and_a_bare_path_in_one_are_still_graded():
+    """Only the link reader sees the blanked text: a link next to a span is graded, and a bare path
+    inside a span is graded as before (the bare scan reads the raw line)."""
+    text = "Run `x` then [b](docs/nope-beside.md); see `docs/nope-bare.md`.\n"
+    refs = list(cdl._iter_refs(text))
+    assert ("docs/nope-beside.md", "link") in refs
+    assert ("docs/nope-bare.md", "bare") in refs
+
+
+def test_a_code_span_across_lines_holds_its_link():
+    """A span that crosses a line break inside one paragraph holds the link on its first line —
+    the whole text is blanked once, then read line by line."""
+    text = "Write `[c](docs/nope-wrap.md)\ncontinued` here.\n[d](docs/nope-after-wrap.md)\n"
+    links = [t for t, k in cdl._iter_refs(text) if k == "link"]
+    assert "docs/nope-wrap.md" not in links
+    assert "docs/nope-after-wrap.md" in links
+
+
+def test_line_breaks_only_splitlines_knows_keep_the_lines_aligned():
+    """str.splitlines also breaks on \\f, \\v and U+2028, which the blanker turns into spaces when they
+    sit in a span: the blanked line is cut at the raw line's offsets, so line k reads line k. Shifted by
+    one, the stale-marked line's link would be read beside the unmarked line above it."""
+    for sep in ("\f", "\v", " ", "\r\n", "\r"):
+        text = f"`a{sep}b` x\n⚠ [e](docs/nope-stale.md)\n[f](docs/nope-kept.md)\n"
+        links = [t for t, k in cdl._iter_refs(text) if k == "link"]
+        assert links == ["docs/nope-kept.md"], (repr(sep), links)
+
+
+def test_check_doc_links_reads_raw_lines_without_the_scanner(tmp_path):
+    """In a project whose _fences.py lags the sync, the check still runs and grades the raw line
+    (the pre-W-b9af1d47 reading) — it never crashes on the missing blanker."""
+    enf = tmp_path / "scripts" / "enforcement"
+    enf.mkdir(parents=True)
+    (enf / "check_doc_links.py").write_bytes(
+        (REPO / "scripts" / "enforcement" / "check_doc_links.py").read_bytes()
+    )
+    code = (
+        "import importlib.util\n"
+        f"spec = importlib.util.spec_from_file_location('cdl', {str(enf / 'check_doc_links.py')!r})\n"
+        "m = importlib.util.module_from_spec(spec)\n"
+        "spec.loader.exec_module(m)\n"
+        "print(sorted(t for t, k in m._iter_refs('`[a](docs/nope-raw.md)`\\n') if k == 'link'))\n"
+    )
+    r = subprocess.run(
+        [sys.executable, "-I", "-c", code], capture_output=True, text=True, timeout=60, check=False
+    )
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "['docs/nope-raw.md']", r.stdout + r.stderr
+
+
+def test_a_closing_fence_never_pairs_with_an_inline_triple_backtick_below_it():
+    """Design critique (Opus): blanked whole, a fence's closing ``` paired with the inline ```x``` in the
+    paragraph after it and blanked the real link between them; fence lines are blanked first."""
+    text = "```\ncode\n```\nSee [real](docs/nope-after-fence.md) then ```x``` end\n"
+    assert ("docs/nope-after-fence.md", "link") in list(cdl._iter_refs(text))
+
+
+def test_an_old_scanner_without_the_blanker_reads_raw_lines(tmp_path):
+    """A _fences.py that predates blank_code_spans is present but lacks the name: the check reads raw lines."""
+    enf = tmp_path / "scripts" / "enforcement"
+    enf.mkdir(parents=True)
+    (enf / "check_doc_links.py").write_bytes(
+        (REPO / "scripts" / "enforcement" / "check_doc_links.py").read_bytes()
+    )
+    (enf / "_fences.py").write_text(
+        "def strip(text, repl=''):\n    return text\n", encoding="utf-8"
+    )
+    code = (
+        "import importlib.util\n"
+        f"spec = importlib.util.spec_from_file_location('cdl', {str(enf / 'check_doc_links.py')!r})\n"
+        "m = importlib.util.module_from_spec(spec)\n"
+        "spec.loader.exec_module(m)\n"
+        "print(sorted(t for t, k in m._iter_refs('`[a](docs/nope-old.md)`\\n') if k == 'link'))\n"
+    )
+    r = subprocess.run(
+        [sys.executable, "-I", "-B", "-c", code],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.strip() == "['docs/nope-old.md']", r.stdout + r.stderr
+
+
+def test_a_fence_body_never_pairs_with_an_opener_above_the_fence():
+    """Review pass 2 (W-b9af1d47): a fence opening after a form feed is a fence to this toggle but not a line
+    break to the span blanker, so with only the fence line blanked the body's `` closed the `` above it and hid
+    the link; fence bodies are blanked too."""
+    for sep in ("\f", "\v", "\u2028"):
+        text = f"``[a](docs/nope-above.md) {sep}```\nb ``\n"
+        assert ("docs/nope-above.md", "link") in list(cdl._iter_refs(text)), repr(sep)
+    # and below it: a closing fence ended by a lone \r or a U+2028 is not a line break to the blanker either
+    for text in (
+        "```\r`\r```\r[l](docs/nope-below.md) and `x`\r",
+        "```\n`\n```\u2028[l](docs/nope-below.md) and `x`\n",
+    ):
+        assert ("docs/nope-below.md", "link") in list(cdl._iter_refs(text)), repr(text)

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T03:05:43.138344Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a4272e57",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "set FABRIK_HEADLESS on the spawn (or declare it with a reason), red-first on the guard test",
+  "note": "already fixed on master by infra's b194ed5a9 (2026-10-16: FABRIK_HEADLESS in the child env, cloud_dispatch.py declared a spawner); intel re-ran tests/test_hooks_headless_guard.py 9/9 on master 5fb95ffb7; done refuses because that commit predates the item",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — red test on master, headless spawner unguarded",
+  "status": "dropped",
+  "title": "tests/test_hooks_headless_guard.py::test_no_undeclared_headless_spawner_appears is red on master: scripts/cloud_dispatch.py (D-857, 2026-10-14) runs claude -p without FABRIK_HEADLESS and is not in _UNADOPTED_SPAWNERS"
+}

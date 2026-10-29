@@ -9,6 +9,10 @@ domain: translator.vps1.ocoron.com
 # 2026-05-15 to match the registrar's standard `<id_with_underscores>` convention.
 shape:
   needs_database: true
+  exposes_metrics: false  # D-907: /metrics unverified, the repo is not on the hub — delete to opt in
+
+infra:
+  gatus: false  # D-907: no Gatus check until the owner confirms translator.vps1.ocoron.com/health — delete to opt in
 
 source:
   type: local

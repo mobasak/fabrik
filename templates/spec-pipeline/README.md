@@ -89,7 +89,7 @@ During spec generation, Traycer auto-injects these Fabrik defaults into the Stac
 | Frontend | Next.js 14 + TypeScript + Tailwind | — |
 | Backend | Python + FastAPI + Uvicorn | Node.js for web-adjacent workers |
 | Database | shared `postgres-main` (SSH+Compose) | Supabase for managed auth/realtime/pgvector |
-| Base images | `-slim-bookworm` | Never Alpine |
+| Base images | Debian `-slim` on `debian_codename` (`.windsurf/rules/versions.yaml`) | Never Alpine |
 | Platform | `linux/amd64` | Always amd64 |
 | Hosting | `fabrik apply` (SSH + Docker Compose) on x86_64 VPS | — |
 

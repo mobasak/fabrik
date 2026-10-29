@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T20:30:37.970661Z",
+  "creator": "infra",
+  "evidence": "2d3386a4cb60e3c005669e2791f551899167d26e",
+  "id": "W-6a3d8374",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "quota checkpoint line: verify or arm the self-watch so the relief wake is guaranteed (fabrik-spec verdicts 1791331861.707635 + 1791324900.6809704, kaizen 01M4EJQEEG)"
+}

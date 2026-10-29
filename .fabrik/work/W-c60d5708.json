@@ -12,9 +12,13 @@
     "spec": ""
   },
   "next": "decide: set the flag in those specs, or audit every deployed spec and report a volume-with-flag-false as reverse shape mismatch",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "Services that mount Docker volumes but do not set shape.has_persistent_data are never backup-audited: job-agent (job-agent-data, /opt/job-agent/compose.yaml:50) and seo (cost_wal, /opt/seo/compose.yaml:65) — found by the Opus 5.5 critique of the backrest coverage design (W-5c4ad6a6)"
 }

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:20:49.886639Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-12f2dfb8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RP2T32NH0TE7XNHQ3ETKKT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "RE 01M3WSN8S4 / 01M42YTAKM — FIXED on main: the Pages publish route now sends _headers and _redirects (W-4dd388cc, commits 8373008 + 4a00d5d + 27ae622)"
+}

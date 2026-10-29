@@ -2,6 +2,8 @@
 
 import os
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -16,6 +18,7 @@ from fabrik.scaffold import (
     create_project,
     fix_project,
 )
+from fabrik.version_registry import load_versions
 
 # Skip tests that require full fabrik environment (templates at /opt/fabrik)
 # These tests can only run locally where /opt/fabrik exists
@@ -393,7 +396,8 @@ class TestChromeExtensionScaffold:
 
         # Verify Dockerfile content
         dockerfile = (project_dir / "Dockerfile").read_text()
-        assert "python:3.12-slim-bookworm" in dockerfile
+        # The Debian variant comes from the version registry (W-3860ebf6), never a literal.
+        assert f"python:3.12-slim-{load_versions()['debian_codename']}" in dockerfile
         assert "PYTHONPATH=/app/server/src" in dockerfile
         assert "uvicorn test_ext.main:app" in dockerfile
 
@@ -495,9 +499,18 @@ class TestChromeExtensionScaffold:
 
         project_dir = tmp_path / "test-ext"
 
-        # Verify pytest in requirements.txt
-        reqs = (project_dir / "requirements.txt").read_text()
-        assert "pytest" in reqs, "pytest missing from requirements.txt"
+        # pytest reaches the dev venv through requirements-dev.txt, which `make install` installs; the
+        # image's requirements.txt carries runtime deps only (W-4d6a37c8)
+        dev = (project_dir / "requirements-dev.txt").read_text()
+        assert re.search(r"^-r requirements\.txt$", dev, re.M), dev
+        assert re.search(r"^pytest>=", dev, re.M) and re.search(r"^pytest-timeout>=", dev, re.M), (
+            dev
+        )
+        assert "pytest" not in (project_dir / "requirements.txt").read_text()
+        assert (
+            ".venv/bin/pip install -r requirements-dev.txt"
+            in (project_dir / "Makefile").read_text()
+        )
 
         # Verify Makefile test target has PYTHONPATH
         makefile = (project_dir / "Makefile").read_text()
@@ -508,6 +521,873 @@ class TestChromeExtensionScaffold:
         test_health = (project_dir / "tests" / "test_health.py").read_text()
         assert "from test_ext.main import app" in test_health, "test imports package incorrectly"
         assert "TestClient" in test_health, "TestClient not imported in tests"
+
+
+def _chrome_ext_project(base: Path) -> Path:
+    create_project(
+        name="test-ext",
+        project_type="chrome-extension",
+        description="Test Extension",
+        base=base,
+    )
+    return base / "test-ext"
+
+
+def _ext_id_from_pub(pub_b64: str) -> str:
+    """Chrome's derivation: SHA-256 of the decoded key, first 16 bytes, hex mapped to a-p."""
+    import base64
+    import hashlib
+
+    digest = hashlib.sha256(base64.b64decode(pub_b64)).hexdigest()[:32]
+    return "".join(chr(ord("a") + int(c, 16)) for c in digest)
+
+
+def _git(cwd: Path, *args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [
+            "git",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t.invalid",
+            "-c",
+            "commit.gpgsign=false",
+            *args,
+        ],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+
+def _make_target(makefile: str, target: str) -> str:
+    """The recipe of `target`: its rule line up to the next rule line."""
+    m = re.search(rf"^{re.escape(target)}:.*?(?=^[A-Za-z0-9_.-]+:|\Z)", makefile, re.M | re.S)
+    assert m, f"{target} target missing"
+    return m.group(0)
+
+
+def _node_major_minor() -> tuple[int, int]:
+    if shutil.which("node") is None:
+        return (0, 0)
+    out = subprocess.run(["node", "--version"], capture_output=True, text=True, timeout=30).stdout
+    m = re.match(r"v(\d+)\.(\d+)", out.strip())
+    return (int(m.group(1)), int(m.group(2))) if m else (0, 0)
+
+
+# 22.6 is the first node with --experimental-strip-types (the .ts rules) and has util.parseEnv
+needs_node = pytest.mark.skipif(_node_major_minor() < (22, 6), reason="needs node >= 22.6")
+
+
+def _node_json(cwd: Path, program: str, env: dict | None = None) -> subprocess.CompletedProcess:
+    """Run an ES-module `program` under node (type stripping on, so a .ts import works)."""
+    return subprocess.run(
+        [
+            "node",
+            "--experimental-strip-types",
+            "--no-warnings",
+            "--input-type=module",
+            "-e",
+            program,
+        ],
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=env,
+    )
+
+
+def _committed_release_project(tmp_path: Path, files: dict[str, str] | None = None) -> Path:
+    """A scaffold with a key, the given extension files, and everything committed."""
+    project = _chrome_ext_project(tmp_path)
+    ext = project / "extension"
+    keygen = subprocess.run(
+        ["node", "scripts/keygen.mjs"], cwd=ext, capture_output=True, timeout=60
+    )
+    assert keygen.returncode == 0, keygen.stderr
+    for name, body in (files or {}).items():
+        (ext / name).write_text(body)
+    _git(project, "add", "-A")
+    _git(
+        project,
+        "add",
+        "-f",
+        "extension/extension-key.pub",
+        *[f"extension/{n}" for n in files or {}],
+    )
+    assert _git(project, "commit", "-qm", "scaffold").returncode == 0
+    return project
+
+
+def _release_check(
+    project: Path, env_url: str | None = None, extra_env: dict | None = None, *args: str
+) -> subprocess.CompletedProcess:
+    env = {k: v for k, v in os.environ.items() if k not in ("VITE_PUBLIC_API_URL", "STORE_BUILD")}
+    if env_url is not None:
+        env["VITE_PUBLIC_API_URL"] = env_url
+    env.update(extra_env or {})
+    return subprocess.run(
+        ["node", "scripts/release-check.mjs", *args],
+        cwd=project / "extension",
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=env,
+    )
+
+
+@requires_fabrik_env
+class TestChromeExtensionReleaseKit:
+    """W-e2af3303: the developer-mode release kit the chrome-extension scaffold emits."""
+
+    @pytest.fixture(scope="class")
+    def project(self, tmp_path_factory) -> Path:
+        return _chrome_ext_project(tmp_path_factory.mktemp("cx"))
+
+    def test_a0_keygen_script_and_package_script(self, project):
+        """A0: the keygen script is emitted and `pnpm keygen` runs it."""
+        import json
+
+        assert (project / "extension" / "scripts" / "keygen.mjs").is_file()
+        scripts = json.loads((project / "extension" / "package.json").read_text())["scripts"]
+        assert scripts.get("keygen") == "node scripts/keygen.mjs"
+
+    @needs_node
+    def test_a1_keygen_writes_a_private_key_and_a_pub_with_the_chrome_id(self, tmp_path):
+        """A1: a fresh key — PEM 0600 under .keys/, a 392-char .pub, the derived ID, the backup warning."""
+        ext = _chrome_ext_project(tmp_path) / "extension"
+        r = subprocess.run(
+            ["node", "scripts/keygen.mjs"], cwd=ext, capture_output=True, text=True, timeout=60
+        )
+        assert r.returncode == 0, r.stderr
+        pem = ext / ".keys" / "extension-key.pem"
+        assert pem.is_file() and (pem.stat().st_mode & 0o777) == 0o600
+        assert (pem.parent.stat().st_mode & 0o777) == 0o700
+        assert "PRIVATE KEY" in pem.read_text()
+        pub = (ext / "extension-key.pub").read_text().strip()
+        assert len(pub) == 392 and "\n" not in pub
+        ext_id = _ext_id_from_pub(pub)
+        assert f"extension id: {ext_id}" in r.stdout
+        assert f"EXTENSION_ID={ext_id}" in r.stdout
+        assert "back up" in r.stdout.lower() and ".keys/extension-key.pem" in r.stdout
+
+    @needs_node
+    def test_a2_keygen_never_overwrites_an_existing_key(self, tmp_path):
+        """A2: a second run changes no byte and prints the same ID."""
+        ext = _chrome_ext_project(tmp_path) / "extension"
+        first = subprocess.run(
+            ["node", "scripts/keygen.mjs"], cwd=ext, capture_output=True, text=True, timeout=60
+        )
+        pem, pub = ext / ".keys" / "extension-key.pem", ext / "extension-key.pub"
+        before = (pem.read_bytes(), pub.read_bytes())
+        second = subprocess.run(
+            ["node", "scripts/keygen.mjs"], cwd=ext, capture_output=True, text=True, timeout=60
+        )
+        assert second.returncode == 0, second.stderr
+        assert (pem.read_bytes(), pub.read_bytes()) == before
+        ext_id = _ext_id_from_pub(pub.read_text().strip())
+        assert f"EXTENSION_ID={ext_id}" in first.stdout
+        assert f"EXTENSION_ID={ext_id}" in second.stdout
+
+    @needs_node
+    def test_a2b_keygen_with_a_pub_but_no_pem_warns_and_writes_nothing(self, tmp_path):
+        """A2 edge: a cloned repo has the .pub but not the private key — ID printed, warning, no new key."""
+        ext = _chrome_ext_project(tmp_path) / "extension"
+        subprocess.run(["node", "scripts/keygen.mjs"], cwd=ext, capture_output=True, timeout=60)
+        (ext / ".keys" / "extension-key.pem").unlink()
+        pub_before = (ext / "extension-key.pub").read_bytes()
+        r = subprocess.run(
+            ["node", "scripts/keygen.mjs"], cwd=ext, capture_output=True, text=True, timeout=60
+        )
+        assert r.returncode == 0
+        assert not (ext / ".keys" / "extension-key.pem").exists()
+        assert (ext / "extension-key.pub").read_bytes() == pub_before
+        assert "missing" in (r.stdout + r.stderr).lower()
+
+    @needs_node
+    @pytest.mark.parametrize("garbage", ["", "A" * 120])
+    def test_a2d_keygen_refuses_a_pub_that_is_not_a_key(self, tmp_path, garbage):
+        """A2 edge (review round 2): an empty or garbage .pub prints no ID — an operator would copy
+        a wrong EXTENSION_ID into the backend."""
+        ext = _chrome_ext_project(tmp_path) / "extension"
+        (ext / "extension-key.pub").write_text(garbage + "\n")
+        r = subprocess.run(
+            ["node", "scripts/keygen.mjs"], cwd=ext, capture_output=True, text=True, timeout=60
+        )
+        assert r.returncode != 0
+        assert "EXTENSION_ID=" not in r.stdout
+        assert "not a public key" in r.stderr
+        assert "restore it" in r.stderr
+        assert (
+            "delete extension-key.pub" not in r.stderr
+        )  # no .pem here: deleting would mint a new ID
+
+    @needs_node
+    def test_a2e_keygen_never_mints_over_a_tracked_pub(self, tmp_path):
+        """A2 edge (Finish review): a clone without the .pem whose .pub went missing locally must
+        not mint a new key — the committed .pub is the extension's identity."""
+        project = _committed_release_project(tmp_path)
+        ext = project / "extension"
+        (ext / "extension-key.pub").unlink()
+        shutil.rmtree(ext / ".keys")
+        r = subprocess.run(
+            ["node", "scripts/keygen.mjs"], cwd=ext, capture_output=True, text=True, timeout=60
+        )
+        assert r.returncode != 0
+        assert not (ext / ".keys").exists()
+        assert "git checkout" in r.stderr
+
+    @needs_node
+    def test_a2f_keygen_refuses_a_pub_that_does_not_match_the_pem(self, tmp_path):
+        """A2 edge (Finish review): a .pub from another key beside this .pem is refused, not echoed."""
+        ext = _chrome_ext_project(tmp_path / "one") / "extension"
+        other = _chrome_ext_project(tmp_path / "two") / "extension"
+        for e in (ext, other):
+            subprocess.run(["node", "scripts/keygen.mjs"], cwd=e, capture_output=True, timeout=60)
+        (ext / "extension-key.pub").write_text((other / "extension-key.pub").read_text())
+        r = subprocess.run(
+            ["node", "scripts/keygen.mjs"], cwd=ext, capture_output=True, text=True, timeout=60
+        )
+        assert r.returncode != 0
+        assert "does not match" in r.stderr
+        assert "EXTENSION_ID=" not in r.stdout
+
+    @needs_node
+    def test_a2c_keygen_with_a_pem_but_no_pub_rederives_the_same_pub(self, tmp_path):
+        """A2 edge (review round 1): the .pub was lost — keygen rebuilds it from the .pem, same ID."""
+        ext = _chrome_ext_project(tmp_path) / "extension"
+        subprocess.run(["node", "scripts/keygen.mjs"], cwd=ext, capture_output=True, timeout=60)
+        pub = ext / "extension-key.pub"
+        original = pub.read_text()
+        pem_before = (ext / ".keys" / "extension-key.pem").read_bytes()
+        pub.unlink()
+        r = subprocess.run(
+            ["node", "scripts/keygen.mjs"], cwd=ext, capture_output=True, text=True, timeout=60
+        )
+        assert r.returncode == 0, r.stdout + r.stderr
+        assert pub.read_text() == original
+        assert (ext / ".keys" / "extension-key.pem").read_bytes() == pem_before
+        assert f"EXTENSION_ID={_ext_id_from_pub(original.strip())}" in r.stdout
+
+    def test_a0b_emitted_scripts_sort_their_imports(self, project):
+        """Lint (Finish review): antfu's sort-imports wants the node: built-ins in order."""
+        for script in sorted((project / "extension" / "scripts").glob("*.mjs")):
+            specs = re.findall(r"^import .* from '(node:[^']+)';$", script.read_text(), re.M)
+            assert specs == sorted(specs), script.name
+
+    def test_a3_wxt_config_reads_the_key_through_the_shared_resolver(self, project):
+        """A3 (read half): wxt.config.ts takes `key` from scripts/manifest-key.mjs; alarms; no
+        host permissions. The resolver's behaviour is test_a3b; the built manifest is the WXT build test."""
+        cfg = (project / "extension" / "wxt.config.ts").read_text()
+        assert "from './scripts/manifest-key.mjs'" in cfg
+        assert "key: pinnedKey()," in cfg
+        assert "permissions: ['storage', 'activeTab', 'contextMenus', 'alarms']" in cfg
+        assert "host_permissions" not in cfg
+        assert (project / "extension" / "scripts" / "manifest-key.d.mts").is_file()
+
+    @needs_node
+    def test_a3b_manifest_key_resolver(self, tmp_path):
+        """A3 (behaviour): no .pub → none; a .pub → it, from any cwd; STORE_BUILD=1 → none; a
+        malformed .pub → the build fails loudly."""
+        import base64
+
+        ext = _chrome_ext_project(tmp_path) / "extension"
+        mod = (ext / "scripts" / "manifest-key.mjs").as_uri()
+        prog = f"import {{ pinnedKey }} from '{mod}'; console.log(JSON.stringify(pinnedKey() ?? null));"
+        base_env = {k: v for k, v in os.environ.items() if k != "STORE_BUILD"}
+        none = _node_json(tmp_path, prog, base_env)  # cwd OUTSIDE extension/ on purpose
+        assert none.returncode == 0 and none.stdout.strip() == "null", none.stderr
+        subprocess.run(["node", "scripts/keygen.mjs"], cwd=ext, capture_output=True, timeout=60)
+        pub = (ext / "extension-key.pub").read_text().strip()
+        got = _node_json(tmp_path, prog, base_env)
+        assert got.returncode == 0 and got.stdout.strip() == f'"{pub}"', got.stderr
+        store = _node_json(tmp_path, prog, {**base_env, "STORE_BUILD": "1"})
+        assert store.returncode == 0 and store.stdout.strip() == "null"
+        junk = base64.b64encode(base64.b64decode(pub) + b"\0\0\0").decode()
+        for garbage in ("not a key\n", "A" * 120 + "\n", junk + "\n"):
+            (ext / "extension-key.pub").write_text(garbage)
+            bad = _node_json(tmp_path, prog, base_env)
+            assert bad.returncode != 0 and "not a public key" in bad.stderr, garbage
+
+    @needs_node
+    def test_a4_update_rules_executed(self, project):
+        """A4 (behaviour): integer-wise comparison, untrusted-response validation, https-only base."""
+        import json
+
+        mod = (project / "extension" / "src" / "lib" / "update-version.ts").as_uri()
+        prog = (
+            f"import {{ isNewer, nextNotice, parseLatest, secureBase }} from '{mod}';"
+            "console.log(JSON.stringify({"
+            "newer: [isNewer('1.2', '1.1.9'), isNewer('1.10', '1.9'), isNewer('2', '1.9.9.9'),"
+            " isNewer('1.0.0', '1'), isNewer('1.1', '1.2'), isNewer('1.0', '1.0.0.0')],"
+            "ok: parseLatest({version: '1.2.3', download_url: 'https://x.invalid/a.zip', sha256: 'z'}),"
+            "bad: [parseLatest({version: '1.2.3.4.5', download_url: 'https://x.invalid/a'}),"
+            " parseLatest({version: 'v1', download_url: 'https://x.invalid/a'}),"
+            " parseLatest({version: '1', download_url: 'http://x.invalid/a'}),"
+            " parseLatest({version: '1', download_url: 'javascript:alert(1)'}),"
+            " parseLatest({version: '1'}), parseLatest(null), parseLatest('1')],"
+            "bases: [secureBase('https://api.invalid/v1/'), secureBase('http://api.invalid'),"
+            " secureBase('http://localhost:8000'), secureBase('http://127.0.0.1:8000/'),"
+            " secureBase(''), secureBase('not a url'), secureBase('https://api.invalid/v1/?x=1#h'),"
+            " secureBase('https://u:p@api.invalid')],"
+            "notice: [nextNotice(404, null, '1.0'), nextNotice(500, null, '1.0'),"
+            " nextNotice(200, {version: '1.1', download_url: 'https://x.invalid/a'}, '1.0'),"
+            " nextNotice(200, {version: '1.0', download_url: 'https://x.invalid/a'}, '1.0'),"
+            " nextNotice(200, {version: '1.1', download_url: 'http://x.invalid/a'}, '1.0')],"
+            "big: [parseLatest({version: '65535.1', download_url: 'https://x.invalid/a'}) !== null,"
+            " parseLatest({version: '65536', download_url: 'https://x.invalid/a'}),"
+            " parseLatest({version: '1.02', download_url: 'https://x.invalid/a'})]}));"
+        )
+        r = _node_json(project, prog)
+        assert r.returncode == 0, r.stderr
+        out = json.loads(r.stdout)
+        assert out["newer"] == [True, True, True, False, False, False]
+        assert out["ok"] == {"version": "1.2.3", "download_url": "https://x.invalid/a.zip"}
+        assert out["bad"] == [None] * 7
+        assert out["bases"] == [
+            "https://api.invalid/v1",
+            "",
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
+            "",
+            "",
+            "https://api.invalid/v1",
+            "",
+        ]
+        assert out["big"] == [True, None, None]
+        assert out["notice"] == [
+            {"action": "clear"},  # 404: the release was withdrawn — drop the stale notice
+            {"action": "keep"},  # a server error says nothing about the release
+            {"action": "set", "notice": {"version": "1.1", "download_url": "https://x.invalid/a"}},
+            {"action": "clear"},
+            {"action": "keep"},  # an untrusted body that fails validation changes nothing
+        ]
+
+    def test_a4b_update_checker_wiring(self, project):
+        """A4 (wiring): the checker uses those rules, skips store/policy installs, prefers the stored
+        backend, asks /extension/latest with a timeout and no credentials, and badges both ways."""
+        src = (project / "extension" / "src" / "lib" / "update-check.ts").read_text()
+        assert "from '@/lib/update-version'" in src
+        assert re.search(
+            r"if \(browser\.runtime\.getManifest\(\)\.update_url\)\s*\n\s*return;", src
+        )
+        assert "secureBase(stored || API_BASE_URL)" in src
+        assert "credentials: 'omit'" in src and "AbortSignal.timeout(10000)" in src
+        assert "nextNotice(res.status," in src
+        assert "setBadgeText({ text: '↑' })" in src and "setBadgeText({ text: '' })" in src
+
+    def test_a5_background_schedules_checks_without_resetting_the_alarm(self, project):
+        """A5: onStartup + onInstalled schedule checks; the alarm is created ONLY when absent;
+        onAlarm handles update-check."""
+        bg = (project / "extension" / "src" / "entrypoints" / "background.ts").read_text()
+        chk = (project / "extension" / "src" / "lib" / "update-check.ts").read_text()
+        assert re.search(
+            r"runtime\.onStartup\.addListener\(\(\) => void scheduleUpdateChecks\(\)\)", bg
+        )
+        installed = bg[bg.index("runtime.onInstalled.addListener(") :]
+        installed = installed[: installed.index("\n  });")]
+        assert "void scheduleUpdateChecks();" in installed
+        assert re.search(r"alarm\.name === 'update-check'\)\s*\n\s*void checkForUpdate\(\);", bg)
+        assert re.search(
+            r"if \(!\(await browser\.alarms\.get\('update-check'\)\)\)\s*\n"
+            r"\s*await browser\.alarms\.create\('update-check', \{ periodInMinutes: 360 \}\);",
+            chk,
+        )
+        assert chk.count("alarms.create(") == 1
+
+    def test_a5b_popup_shows_the_update_banner_in_both_locales(self, project):
+        """A4/A5 consumer: the popup reads updateNotice and labels it through the i18n locale."""
+        import json
+
+        popup = (project / "extension" / "src" / "entrypoints" / "popup" / "main.tsx").read_text()
+        assert "updateNotice" in popup and "i18n.t('updateAvailable')" in popup
+        assert "parseLatest(" in popup  # storage.local is writable by content scripts: re-check
+        assert (
+            "from '#i18n'" not in popup
+        )  # auto-imported by @wxt-dev/i18n; tsconfig paths drop '#i18n'
+        for loc in ("en", "tr"):
+            msgs = json.loads(
+                (project / "extension" / "src" / "locales" / f"{loc}.json").read_text()
+            )
+            assert msgs.get("updateAvailable"), loc
+
+    def test_a6_install_guide(self, project):
+        """A6: the guide names the four steps, keep Developer mode on, replace + Reload, the policy."""
+        guide = (project / "extension" / "INSTALL.md").read_text()
+        for needle in (
+            "chrome://extensions",
+            "Load unpacked",
+            "keep Developer mode on",
+            "manifest.json",
+            "replace the contents",
+            "Reload",
+            "ExtensionDeveloperModeSettings",
+            "Edge",
+            "Brave",
+        ):
+            assert needle in guide, needle
+
+    def test_a7_gitignore_phony_and_release_recipe(self, project):
+        """A7 (read half): .gitignore, .PHONY, and a recipe that checks first, zips, checksums, copies
+        the guide and publishes nothing."""
+        gitignore = (project / ".gitignore").read_text()
+        assert "extension/.keys/" in gitignore and ".env.*.local" in gitignore
+        makefile = (project / "Makefile").read_text()
+        assert "release-ext" in makefile.splitlines()[0]
+        recipe = _make_target(makefile, "release-ext")
+        lines = [ln.strip() for ln in recipe.splitlines()[1:] if ln.startswith("\t")]
+        assert lines[0] == "cd extension && node scripts/release-check.mjs"
+        assert "keygen" not in recipe
+        assert "pnpm zip" in lines[1]
+        assert 'sha256sum "$$zip" > "$$zip.sha256"' in lines[1]
+        assert "cp ../INSTALL.md ." in lines[1]
+        assert "release-check.mjs --summary" in lines[1]
+        for banned in ("scp", "rsync", "curl", "upload", "gh release"):
+            assert banned not in recipe, banned
+
+    @needs_node
+    def test_a7_release_refuses_without_a_committed_pub(self, tmp_path):
+        """A7 (run half): no committed .pub → `make release-ext` exits non-zero before any zip, naming
+        the missing key and the next steps."""
+        if shutil.which("make") is None:
+            pytest.skip("make not installed")
+        project = _chrome_ext_project(tmp_path)
+        (project / "extension" / ".env.production").write_text(
+            "VITE_PUBLIC_API_URL=https://ok.invalid\n"
+        )
+        _git(project, "add", "-A")
+        _git(project, "commit", "-qm", "scaffold")
+        r = subprocess.run(
+            ["make", "release-ext"], cwd=project, capture_output=True, text=True, timeout=120
+        )
+        assert r.returncode != 0
+        assert "extension-key.pub is missing or not committed" in r.stderr
+        assert "extension/.env.production and commit it" in r.stderr
+        assert "VITE_PUBLIC_API_URL" not in r.stderr.split("next steps")[0]  # only the key is wrong
+        assert not (project / "extension" / ".output").exists()
+
+    @needs_node
+    @pytest.mark.parametrize(
+        ("env_url", "files", "ok"),
+        [
+            # the environment wins over every file
+            (
+                "http://insecure.invalid",
+                {".env.production": "VITE_PUBLIC_API_URL=https://ok.invalid\n"},
+                False,
+            ),
+            (
+                "https://ok.invalid",
+                {".env.production": "VITE_PUBLIC_API_URL=http://bad.invalid\n"},
+                True,
+            ),
+            ("", {".env": "VITE_PUBLIC_API_URL=https://ok.invalid\n"}, False),  # defined but empty
+            # unset in the environment: WXT's order — later files win
+            (
+                None,
+                {
+                    ".env.production": "VITE_PUBLIC_API_URL=http://bad.invalid\n",
+                    ".env": "VITE_PUBLIC_API_URL=https://ok.invalid\n",
+                },
+                False,
+            ),
+            (
+                None,
+                {
+                    ".env.production.local": "VITE_PUBLIC_API_URL=http://bad.invalid\n",
+                    ".env.production": "VITE_PUBLIC_API_URL=https://ok.invalid\n",
+                },
+                False,
+            ),
+            # WXT also loads the browser-suffixed files, highest of all
+            (
+                None,
+                {
+                    ".env.production.chrome": "VITE_PUBLIC_API_URL=http://bad.invalid\n",
+                    ".env.production": "VITE_PUBLIC_API_URL=https://ok.invalid\n",
+                },
+                False,
+            ),
+            (None, {".env.chrome": "VITE_PUBLIC_API_URL=https://ok.invalid\n"}, True),
+            # dotenv forms the build reads
+            (None, {".env": "VITE_PUBLIC_API_URL='https://ok.invalid'\n"}, True),
+            (None, {".env": 'export VITE_PUBLIC_API_URL="https://ok.invalid" # prod\r\n'}, True),
+            # a colon form only Vite's dotenv reads — refused, never guessed
+            (
+                None,
+                {
+                    ".env.production": "VITE_PUBLIC_API_URL: http://bad.invalid\n",
+                    ".env": "VITE_PUBLIC_API_URL=https://ok.invalid\n",
+                },
+                False,
+            ),
+            (None, {".env": "VITE_PUBLIC_API_URL=https://\n"}, False),  # no host
+            (None, {".env.production": "VITE_PUBLIC_API_URL=https://${API_HOST}\n"}, False),
+            (None, {".env": "VITE_PUBLIC_API_URL=https:ok.invalid\n"}, False),  # no //
+            (None, {}, False),
+        ],
+    )
+    def test_a7b_release_checks_the_effective_api_url(self, tmp_path, env_url, files, ok):
+        """A7 (S1-P1): the URL gate reads the value the production build will use, the way WXT loads
+        it, and a refusal names the URL as the reason."""
+        project = _committed_release_project(tmp_path, files)
+        r = _release_check(project, env_url)
+        assert (r.returncode == 0) is ok, r.stdout + r.stderr
+        if not ok:
+            assert "VITE_PUBLIC_API_URL" in r.stderr.split("next steps")[0]
+
+    @needs_node
+    @pytest.mark.parametrize(
+        ("change", "reason"),
+        [
+            ("store", "STORE_BUILD"),
+            ("dirty", "not clean"),
+            ("prerelease", "not a Chrome version"),
+            ("toobig", "not a Chrome version"),
+            ("leadingzero", "not a Chrome version"),
+            ("badpub", "not a public key"),
+            ("untracked", "missing or not committed"),
+        ],
+    )
+    def test_a7c_release_refuses_a_store_build_a_dirty_tree_and_a_non_chrome_version(
+        self, tmp_path, change, reason
+    ):
+        """A7 (review round 1): a store build carries no key, a dirty tree is not what was committed,
+        and a version Chrome cannot parse never reaches the update checker."""
+        import json
+
+        good = {".env.production": "VITE_PUBLIC_API_URL=https://ok.invalid\n"}
+        project = _committed_release_project(tmp_path, good)
+        assert _release_check(project).returncode == 0  # the baseline passes
+        extra = {}
+        if change == "store":
+            extra = {"STORE_BUILD": "1"}
+        elif change == "dirty":
+            (project / "README.md").write_text("edited\n")
+        elif change == "badpub":
+            (project / "extension" / "extension-key.pub").write_text("A" * 120 + "\n")
+            _git(project, "commit", "-qam", "garbage pub")
+        elif change == "untracked":
+            _git(project, "rm", "-q", "--cached", "extension/extension-key.pub")
+            _git(project, "commit", "-qm", "untrack pub")
+            (project / ".git" / "info" / "exclude").write_text("extension/extension-key.pub\n")
+        else:
+            pkg = project / "extension" / "package.json"
+            data = json.loads(pkg.read_text())
+            data["version"] = {"prerelease": "1.2.0-beta.1", "toobig": "70000.0"}.get(
+                change, "1.02"
+            )
+            pkg.write_text(json.dumps(data))
+            _git(project, "commit", "-qam", "beta")
+        r = _release_check(project, None, extra)
+        assert r.returncode != 0 and reason in r.stderr.split("next steps")[0], r.stdout + r.stderr
+
+    @needs_node
+    def test_a7d_summary_prints_the_four_backend_values(self, tmp_path):
+        """A7: `--summary <zip>` prints EXTENSION_ID, the version, the URL placeholder and the SHA-256."""
+        import json
+
+        project = _committed_release_project(tmp_path)
+        out_dir = project / "extension" / ".output"
+        out_dir.mkdir()
+        (out_dir / "test-ext-1.0.0-chrome.zip").write_bytes(b"zip")
+        (out_dir / "test-ext-1.0.0-chrome.zip.sha256").write_text(
+            "abc123  test-ext-1.0.0-chrome.zip\n"
+        )
+        r = subprocess.run(
+            ["node", "../scripts/release-check.mjs", "--summary", "test-ext-1.0.0-chrome.zip"],
+            cwd=out_dir,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert r.returncode == 0, r.stderr
+        pub = (project / "extension" / "extension-key.pub").read_text().strip()
+        version = json.loads((project / "extension" / "package.json").read_text())["version"]
+        for line in (
+            f"EXTENSION_ID={_ext_id_from_pub(pub)}",
+            f"EXTENSION_LATEST_VERSION={version}",
+            "EXTENSION_LATEST_URL=<download-url>",
+            "EXTENSION_LATEST_SHA256=abc123",
+        ):
+            assert line in r.stdout, line
+
+
+_EXT_ID = "abcdefghijklmnopabcdefghijklmnop"
+_OTHER_ID = "ponmlkjihgfedcbaponmlkjihgfedcba"
+_SERVER_ENV_KEYS = (
+    "EXTENSION_ID",
+    "EXTENSION_LATEST_VERSION",
+    "EXTENSION_LATEST_URL",
+    "EXTENSION_LATEST_SHA256",
+    "CORS_ALLOW_ANY_EXTENSION",
+)
+
+
+def _run_server(project: Path, env: dict[str, str], program: str) -> tuple[dict, str]:
+    """Import the emitted server in a FRESH interpreter with `env` (CORS is fixed at import) and
+    run `program` inside `with TestClient(app) as client` (so lifespan runs). Returns the JSON the
+    program stored in `out`, and the process stdout (where the emitted structlog writes)."""
+    import json
+    import sys
+
+    base = {k: v for k, v in os.environ.items() if k not in _SERVER_ENV_KEYS}
+    prog = (
+        "import json, sys\n"
+        "from fastapi.testclient import TestClient\n"
+        "from test_ext.main import app\n"
+        "out = {}\n"
+        "with TestClient(app) as client:\n"
+        + "".join(f"    {line}\n" for line in program.strip().splitlines())
+        + "print('RESULT ' + json.dumps(out))\n"
+    )
+    r = subprocess.run(
+        [sys.executable, "-c", prog],
+        cwd=project / "server" / "src",
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env={**base, **env},
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    line = next(ln for ln in r.stdout.splitlines() if ln.startswith("RESULT "))
+    return json.loads(line[len("RESULT ") :]), r.stdout
+
+
+def _log_events(stdout: str) -> list[tuple[str, str]]:
+    """(event, level) for every JSON log line the emitted structlog wrote."""
+    import json
+
+    events = []
+    for line in stdout.splitlines():
+        try:
+            rec = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(rec, dict) and "event" in rec:
+            events.append((rec["event"], str(rec.get("level", "")).lower()))
+    return events
+
+
+_PREFLIGHT = f"""
+for name, origin in (("other", "chrome-extension://{_OTHER_ID}"), ("pinned", "chrome-extension://{_EXT_ID}")):
+    r = client.options("/health", headers={{"Origin": origin, "Access-Control-Request-Method": "GET"}})
+    out[name] = r.headers.get("access-control-allow-origin")
+    g = client.get("/health", headers={{"Origin": origin}})
+    out[name + "_get"] = g.headers.get("access-control-allow-origin")
+    out[name + "_cred"] = r.headers.get("access-control-allow-credentials")
+r = client.options("/extension/latest", headers={{"Origin": "chrome-extension://{_EXT_ID}", "Access-Control-Request-Method": "GET", "Access-Control-Request-Headers": "authorization"}})
+out["auth_origin"] = r.headers.get("access-control-allow-origin")
+out["auth_headers"] = (r.headers.get("access-control-allow-headers") or "").lower()
+"""
+
+
+@requires_fabrik_env
+class TestChromeExtensionBackendRelease:
+    """W-e2af3303 Phase B: GET /extension/latest and closed-by-default exact-origin CORS."""
+
+    @pytest.fixture(scope="class")
+    def project(self, tmp_path_factory) -> Path:
+        return _chrome_ext_project(tmp_path_factory.mktemp("cxb"))
+
+    @pytest.mark.parametrize(
+        "env",
+        [
+            {},
+            {
+                "EXTENSION_LATEST_VERSION": "",
+                "EXTENSION_LATEST_URL": "",
+                "EXTENSION_LATEST_SHA256": "",
+            },
+            {
+                "EXTENSION_LATEST_VERSION": "1.2.0",
+                "EXTENSION_LATEST_URL": "https://x.invalid/a.zip",
+            },
+            {"EXTENSION_LATEST_VERSION": "1.2.0", "EXTENSION_LATEST_SHA256": "ab" * 32},
+            {
+                "EXTENSION_LATEST_URL": "https://x.invalid/a.zip",
+                "EXTENSION_LATEST_SHA256": "ab" * 32,
+            },
+            {
+                "EXTENSION_LATEST_VERSION": "1.2.0",
+                "EXTENSION_LATEST_URL": "   ",
+                "EXTENSION_LATEST_SHA256": "ab" * 32,
+            },
+        ],
+    )
+    def test_b1_latest_is_404_until_all_three_are_set(self, project, env):
+        """B1: unset, empty, or two of three → 404 'no release published'."""
+        out, _ = _run_server(
+            project,
+            env,
+            "r = client.get('/extension/latest')\nout['status'] = r.status_code\nout['body'] = r.json()\n"
+            "out['cache'] = r.headers.get('cache-control')",
+        )
+        # no-store on the 404 too: a cached "no release" would hide the next release
+        assert out == {
+            "status": 404,
+            "body": {"detail": "no release published"},
+            "cache": "no-store",
+        }
+
+    def test_b2_latest_returns_exactly_the_three_values(self, project):
+        """B2: all three set → 200 with exactly those values."""
+        env = {
+            "EXTENSION_LATEST_VERSION": "1.2.0",
+            "EXTENSION_LATEST_URL": "https://x.invalid/a.zip",
+            "EXTENSION_LATEST_SHA256": "ab" * 32,
+        }
+        out, _ = _run_server(
+            project,
+            env,
+            "r = client.get('/extension/latest')\nout['status'] = r.status_code\nout['body'] = r.json()\n"
+            "out['cache'] = r.headers.get('cache-control')",
+        )
+        assert out["status"] == 200
+        assert out["body"] == {
+            "version": "1.2.0",
+            "download_url": "https://x.invalid/a.zip",
+            "sha256": "ab" * 32,
+        }
+        assert out["cache"] == "no-store"
+
+    def test_b2b_latest_is_read_per_request(self, project):
+        """B2: a new value set after import (a redeploy's .env) is served without a code change."""
+        out, _ = _run_server(
+            project,
+            {},
+            "import os\n"
+            "os.environ.update(EXTENSION_LATEST_VERSION='2.0', EXTENSION_LATEST_URL='https://x.invalid/b.zip', "
+            "EXTENSION_LATEST_SHA256='cd' * 32)\n"
+            "out['body'] = client.get('/extension/latest').json()",
+        )
+        assert out["body"]["version"] == "2.0"
+
+    @pytest.mark.parametrize("raw", [_EXT_ID, _EXT_ID + "\r"])
+    def test_b3_exact_extension_origin_only(self, project, raw):
+        """B3: a valid EXTENSION_ID (even with a trailing CR) admits that origin and no other."""
+        out, _ = _run_server(project, {"EXTENSION_ID": raw}, _PREFLIGHT)
+        assert out["other"] is None and out["other_get"] is None
+        assert out["pinned"] == f"chrome-extension://{_EXT_ID}"
+        assert out["pinned_get"] == f"chrome-extension://{_EXT_ID}"
+        assert (
+            out["pinned_cred"] == "true"
+        )  # the Bearer-carrying requests (70-chrome-ext.md § Auth)
+        assert out["auth_origin"] == f"chrome-extension://{_EXT_ID}"
+        assert "authorization" in out["auth_headers"]
+
+    @pytest.mark.parametrize(
+        ("env", "invalid"),
+        [
+            ({}, False),
+            ({"EXTENSION_ID": ""}, False),
+            ({"EXTENSION_ID": f"chrome-extension://{_EXT_ID}"}, True),
+            # the exact shape: 32 letters a-p — q-z, a wrong length or upper case is not an ID
+            ({"EXTENSION_ID": "z" * 32}, True),
+            ({"EXTENSION_ID": _EXT_ID[:31]}, True),
+            ({"EXTENSION_ID": _EXT_ID + "a"}, True),
+            ({"EXTENSION_ID": _EXT_ID.upper()}, True),
+        ],
+    )
+    def test_b4_no_valid_id_admits_no_extension(self, project, env, invalid):
+        """B4: no valid ID → cors_no_extension_id (and cors_extension_id_invalid for a bad value),
+        no allow-origin header for any extension."""
+        out, stdout = _run_server(project, env, _PREFLIGHT)
+        assert out["other"] is None and out["pinned"] is None
+        assert out["other_get"] is None and out["pinned_get"] is None
+        events = _log_events(stdout)
+        assert events.index(("service_starting", "info")) < events.index(
+            ("cors_no_extension_id", "warning")
+        )  # logged in lifespan, after startup — not at import
+        assert (("cors_extension_id_invalid", "error") in events) is invalid
+
+    def test_b4c_a_valid_id_beats_the_local_opt_in(self, project):
+        """B4 edge: EXTENSION_ID valid AND CORS_ALLOW_ANY_EXTENSION=1 → the exact ID only, no warning."""
+        out, stdout = _run_server(
+            project, {"EXTENSION_ID": _EXT_ID, "CORS_ALLOW_ANY_EXTENSION": "1"}, _PREFLIGHT
+        )
+        assert out["other"] is None and out["pinned"] == f"chrome-extension://{_EXT_ID}"
+        assert "cors_any_extension_origin" not in stdout and "cors_no_extension_id" not in stdout
+
+    def test_b4b_local_opt_in_admits_any_extension(self, project):
+        """B4b: CORS_ALLOW_ANY_EXTENSION=1 (local only) → the dev regex and its own warning."""
+        out, stdout = _run_server(project, {"CORS_ALLOW_ANY_EXTENSION": "1"}, _PREFLIGHT)
+        assert out["other"] == f"chrome-extension://{_OTHER_ID}"
+        assert out["pinned"] == f"chrome-extension://{_EXT_ID}"
+        assert ("cors_any_extension_origin", "warning") in _log_events(stdout)
+        assert "cors_no_extension_id" not in stdout
+
+    def test_b5_compose_template_defaults_and_env_example(self, project):
+        """B5: no Traefik CORS labels; the four ${VAR:-} env lines on both compose paths; no
+        CORS_ORIGINS anywhere; .env.example names the four and the commented local opt-in."""
+        template_dir = Path(__file__).resolve().parents[1] / "templates" / "chrome-extension"
+        compose = (project / "compose.yaml").read_text()
+        template = (template_dir / "compose.yaml.j2").read_text()
+        for text in (compose, template):
+            assert "-cors" not in text
+            assert "CORS_ORIGINS" not in text
+            for var in _SERVER_ENV_KEYS[:4]:
+                assert f"- {var}=${{{var}:-}}" in text, var
+        assert "CORS_ORIGINS" not in (template_dir / "defaults.yaml").read_text()
+        example = (project / ".env.example").read_text()
+        for var in _SERVER_ENV_KEYS[:4]:
+            assert re.search(rf"^{var}=", example, re.M), var
+        assert re.search(r"^# CORS_ALLOW_ANY_EXTENSION=1", example, re.M)
+        assert "never in a deploy" in example
+
+    def test_b5b_template_renders_each_extension_value_once(self, project, tmp_path):
+        """B5 (review round 1): the generated spec copies the four values into its env:, so the
+        template must not render them a second time from its env loop."""
+        from fabrik.spec_loader import load_spec
+        from fabrik.template_renderer import TemplateRenderer
+
+        templates = Path(__file__).resolve().parents[1] / "templates"
+        spec = load_spec(project.parent / "specs" / "services" / "test-ext.yaml")
+        # the precondition that makes this a test of the template filter, not of the generator
+        assert set(_SERVER_ENV_KEYS[:4]) <= set(spec.env)
+        rendered = TemplateRenderer(templates_dir=templates, output_dir=tmp_path).render(
+            spec, dry_run=True
+        )
+        compose = rendered["compose.yaml"]
+        for var in _SERVER_ENV_KEYS[:4]:
+            assert compose.count(f"- {var}=") == 1, var
+        # defaults.yaml carries these two as well; a second literal copy would override .env
+        for var in ("LOG_LEVEL", "PYTHONUNBUFFERED"):
+            assert compose.count(f"- {var}=") == 1, var
+
+    @pytest.mark.parametrize("value", ["0", "true", "yes", ""])
+    def test_b4d_the_local_opt_in_is_exactly_one(self, project, value):
+        """B4 edge (Finish review): only CORS_ALLOW_ANY_EXTENSION=1 opens CORS — 0/true/yes do not."""
+        out, stdout = _run_server(project, {"CORS_ALLOW_ANY_EXTENSION": value}, _PREFLIGHT)
+        assert out["other"] is None and out["pinned"] is None
+        assert ("cors_no_extension_id", "warning") in _log_events(stdout)
+
+    def test_b7_emitted_server_type_checks(self, project):
+        """The emitted server passes mypy under its own config (Finish review: the CORS branches)."""
+        import sys
+
+        server = project / "server"
+        r = subprocess.run(
+            [sys.executable, "-m", "mypy", "--config-file", "pyproject.toml", "src"],
+            cwd=server,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        assert r.returncode == 0, r.stdout + r.stderr
+
+    def test_b6_dev_targets_load_the_local_env(self, project):
+        """B6: `make dev` and `make dev-server` pass .env to uvicorn when it exists."""
+        makefile = (project / "Makefile").read_text()
+        for target in ("dev", "dev-server"):
+            recipe = _make_target(makefile, target)
+            uvicorn = [ln for ln in recipe.splitlines() if ln.startswith("\t") and "uvicorn" in ln]
+            assert uvicorn, target
+            assert all("$(if $(wildcard .env),--env-file .env,)" in ln for ln in uvicorn), target
 
 
 @requires_fabrik_env

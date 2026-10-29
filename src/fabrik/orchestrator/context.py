@@ -12,7 +12,7 @@ from fabrik.orchestrator.states import DeploymentState
 class ResourceRecord:
     """Track a created resource for potential rollback."""
 
-    resource_type: str  # "dns", "coolify", "monitor"
+    resource_type: str  # "dns", "compose", "monitor"
     resource_id: str
     created_at: datetime = field(default_factory=datetime.now)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -64,6 +64,10 @@ class DeploymentContext:
     # finishes, but a required step that did not happen must not exit green —
     # the CLI reads this to refuse the ✅ banner and exit nonzero; 01M1CKEK).
     registrar_failures: list[str] = field(default_factory=list)
+    # Applicable registrars that ran but could not finish yet for a reason outside the
+    # deploy (a payments grant `pending` until the project applies its schema). Printed
+    # under every summary, never a failure: the run still exits 0 on these alone.
+    registrar_warnings: list[str] = field(default_factory=list)
 
     @property
     def app_name(self) -> str | None:

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
+  "created": "2026-10-13T04:22:58.586482Z",
+  "creator": "infra",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-7e7759e9",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4PSYN6YBX4VS2AWN8HWXT60",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — 5 docs-review feedback verdicts needing code",
+  "status": "open",
+  "title": "/fabrik-docs-review feedback queue — 5 verdict(s) that need CODE in your beat (kaizen one-pass triage, D-735)"
+}

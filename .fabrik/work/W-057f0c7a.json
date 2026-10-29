@@ -1,9 +1,14 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-ab566484",
+    "W-d146dd3c"
+  ],
   "created": "2026-08-29T00:00:00.000000Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-057f0c7a",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,6 +20,7 @@
   "note": "migrated-digest:b9a48169c074",
   "owner": "infra",
   "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — final_gate lacks TS/JS checks, CI retired: gate false-green across projects",
   "status": "open",
   "title": "**`final_gate` has NO TypeScript/JS checks — and CI was the only thing running them** (surfaced 2026-08-29 when CI checks were retired fleet-wide). `grep -n \"tsc\\|eslint\\|vitest\\|npm test\\|type-che..."
 }

@@ -9,10 +9,10 @@ services:
 
     environment:
       # Core
-      - NODE_ENV={{ env.get('NODE_ENV', 'production') }}
-      - PORT={{ env.get('PORT', '3000') }}
-      - LOG_LEVEL={{ env.get('LOG_LEVEL', 'info') }}
-      - TZ={{ env.get('TZ', 'UTC') }}
+      - {{ 'NODE_ENV' | compose_env(env.get('NODE_ENV', 'production')) }}
+      - {{ 'PORT' | compose_env(env.get('PORT', '3000')) }}
+      - {{ 'LOG_LEVEL' | compose_env(env.get('LOG_LEVEL', 'info')) }}
+      - {{ 'TZ' | compose_env(env.get('TZ', 'UTC')) }}
 
       # Supabase
       - SUPABASE_URL=${SUPABASE_URL:?}
@@ -27,12 +27,12 @@ services:
       - R2_ENDPOINT=${R2_ENDPOINT:?}
 
       # Upload config
-      - MAX_FILE_SIZE_MB={{ env.get('MAX_FILE_SIZE_MB', '100') }}
-      - ALLOWED_CONTENT_TYPES={{ env.get('ALLOWED_CONTENT_TYPES', 'application/pdf,audio/mpeg,audio/wav') }}
-      - UPLOAD_URL_EXPIRY_SECONDS={{ env.get('UPLOAD_URL_EXPIRY_SECONDS', '3600') }}
-      - DOWNLOAD_URL_EXPIRY_SECONDS={{ env.get('DOWNLOAD_URL_EXPIRY_SECONDS', '3600') }}
+      - {{ 'MAX_FILE_SIZE_MB' | compose_env(env.get('MAX_FILE_SIZE_MB', '100')) }}
+      - {{ 'ALLOWED_CONTENT_TYPES' | compose_env(env.get('ALLOWED_CONTENT_TYPES', 'application/pdf,audio/mpeg,audio/wav')) }}
+      - {{ 'UPLOAD_URL_EXPIRY_SECONDS' | compose_env(env.get('UPLOAD_URL_EXPIRY_SECONDS', '3600')) }}
+      - {{ 'DOWNLOAD_URL_EXPIRY_SECONDS' | compose_env(env.get('DOWNLOAD_URL_EXPIRY_SECONDS', '3600')) }}
 {% for key, value in env.items() if key not in ['NODE_ENV', 'PORT', 'LOG_LEVEL', 'TZ', 'MAX_FILE_SIZE_MB', 'ALLOWED_CONTENT_TYPES', 'UPLOAD_URL_EXPIRY_SECONDS', 'DOWNLOAD_URL_EXPIRY_SECONDS'] %}
-      - {{ key }}={{ value }}
+      - {{ key | compose_env(value) }}
 {% endfor %}
 
     deploy:
@@ -43,11 +43,11 @@ services:
 
 {% if health %}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:{{ env.get('PORT', '3000') }}{{ health.path }}"]
+      test: ["CMD", "curl", "-f", "http://localhost:{{ env.get('PORT', '3000') | compose_port('PORT') }}{{ health.path }}"]
       interval: {{ health.interval | default('10s') }}
       timeout: {{ health.timeout | default('5s') }}
       retries: {{ health.retries | default(3) }}
-      start_period: 10s
+      start_period: {{ health.start_period or '10s' }}
 {% endif %}
 
 {% if spec.domain %}
@@ -57,7 +57,7 @@ services:
       - "traefik.http.routers.{{ spec.id }}.entrypoints=websecure"
       - "traefik.http.routers.{{ spec.id }}.tls=true"
       - "traefik.http.routers.{{ spec.id }}.tls.certresolver=letsencrypt"
-      - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port={{ env.get('PORT', '3000') }}"
+      - "traefik.http.services.{{ spec.id }}.loadbalancer.server.port={{ env.get('PORT', '3000') | compose_port('PORT') }}"
 {% endif %}
 
     networks:

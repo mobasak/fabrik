@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:54:28.780561Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-9d08cda2",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Z50991F5GZ76MT5NA55CRF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "Archive the EXECUTED coordinator-role plan (replaces the unstructured mail just sent)"
+}

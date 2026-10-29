@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:47:40.649711Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-24691c63",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M47597Z4BRNEVCCSA04TNYYE",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: core/55-observability.md vs the node-api scaffold, the file-api /metrics overclaim, and 12-node's drain pattern — fixed in 8db1ffee8 (D-603)"
+}

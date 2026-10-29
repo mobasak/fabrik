@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T22:44:36.179757Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-f8437df7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M55ZHTWQHEHXAGT8691CAZ1T",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Plan-review seat briefs should grade a pinned plan-set copy with check_plan_tickets.py --allow-external (fabrik-lib 01M41A605P finding 3)"
+}

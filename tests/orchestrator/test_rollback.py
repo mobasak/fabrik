@@ -3,6 +3,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.rollback import RollbackManager
 
@@ -12,20 +14,42 @@ class TestRollbackManager:
 
     def test_rollback_dry_run(self):
         """Dry run should not delete anything."""
-        mock_coolify = MagicMock()
-        manager = RollbackManager(coolify_client=mock_coolify)
+        mock_dns = MagicMock()
+        manager = RollbackManager(dns_client=mock_dns)
 
         ctx = DeploymentContext(
             spec_path=Path("test.yaml"),
             spec={"name": "test"},
             dry_run=True,
         )
+        ctx.add_resource("dns", "rec-123", zone="example.com")
+
+        errors = manager.rollback(ctx)
+
+        assert errors == []
+        mock_dns.delete_record_by_name.assert_not_called()
+
+    def test_rollback_unknown_resource_type_warns_and_does_not_raise(self, caplog):
+        """A retired resource type (e.g. the former 'coolify' branch) falls
+        to the generic unknown-type warning — no exception, no handler."""
+        manager = RollbackManager()
+
+        ctx = DeploymentContext(
+            spec_path=Path("test.yaml"),
+            spec={"name": "test"},
+        )
         ctx.add_resource("coolify", "uuid-123")
 
         errors = manager.rollback(ctx)
 
         assert errors == []
-        mock_coolify.delete_application.assert_not_called()
+        assert any("Unknown resource type" in r.message for r in caplog.records)
+
+    def test_rollback_manager_rejects_coolify_client_kwarg(self):
+        """The retired 'coolify_client' ctor kwarg is gone entirely."""
+        with pytest.raises(TypeError):
+            RollbackManager(coolify_client=object())
+        assert not hasattr(RollbackManager, "_rollback_coolify")
 
     def test_rollback_no_resources(self):
         """Should handle empty resources gracefully."""
@@ -39,68 +63,52 @@ class TestRollbackManager:
         errors = manager.rollback(ctx)
         assert errors == []
 
-    def test_rollback_coolify_resource(self):
-        """Should delete Coolify application."""
-        mock_coolify = MagicMock()
-        manager = RollbackManager(coolify_client=mock_coolify)
-
-        ctx = DeploymentContext(
-            spec_path=Path("test.yaml"),
-            spec={"name": "test"},
-        )
-        ctx.add_resource("coolify", "uuid-123", name="test-app")
-
-        errors = manager.rollback(ctx)
-
-        assert errors == []
-        mock_coolify.delete_application.assert_called_once_with("uuid-123")
-
     def test_rollback_multiple_resources_lifo(self):
         """Should rollback in reverse order (LIFO)."""
-        mock_coolify = MagicMock()
-        manager = RollbackManager(coolify_client=mock_coolify)
+        manager = RollbackManager()
 
         ctx = DeploymentContext(
             spec_path=Path("test.yaml"),
             spec={"name": "test"},
         )
-        ctx.add_resource("coolify", "uuid-1")
-        ctx.add_resource("coolify", "uuid-2")
-        ctx.add_resource("coolify", "uuid-3")
+        ctx.add_resource("monitor", "mon-1")
+        ctx.add_resource("monitor", "mon-2")
+        ctx.add_resource("monitor", "mon-3")
 
-        manager.rollback(ctx)
+        call_order: list[str] = []
+        with patch.object(
+            manager,
+            "_rollback_monitor",
+            side_effect=lambda r: call_order.append(r.resource_id),
+        ):
+            manager.rollback(ctx)
 
         # Should be called in reverse order
-        calls = mock_coolify.delete_application.call_args_list
-        assert len(calls) == 3
-        assert calls[0][0][0] == "uuid-3"
-        assert calls[1][0][0] == "uuid-2"
-        assert calls[2][0][0] == "uuid-1"
+        assert call_order == ["mon-3", "mon-2", "mon-1"]
 
     def test_rollback_continues_on_error(self):
         """Should continue rollback even if one resource fails."""
-        mock_coolify = MagicMock()
-        mock_coolify.delete_application.side_effect = [
-            None,  # First succeeds
-            Exception("API error"),  # Second fails
-            None,  # Third succeeds
-        ]
-        manager = RollbackManager(coolify_client=mock_coolify)
+        manager = RollbackManager()
 
         ctx = DeploymentContext(
             spec_path=Path("test.yaml"),
             spec={"name": "test"},
         )
-        ctx.add_resource("coolify", "uuid-1")
-        ctx.add_resource("coolify", "uuid-2")
-        ctx.add_resource("coolify", "uuid-3")
+        ctx.add_resource("monitor", "mon-1")
+        ctx.add_resource("monitor", "mon-2")
+        ctx.add_resource("monitor", "mon-3")
 
-        errors = manager.rollback(ctx)
+        with patch.object(
+            manager,
+            "_rollback_monitor",
+            side_effect=[None, Exception("API error"), None],
+        ) as mock_rollback_monitor:
+            errors = manager.rollback(ctx)
 
         # Should have one error but all three attempted
         assert len(errors) == 1
-        assert "uuid-2" in errors[0]
-        assert mock_coolify.delete_application.call_count == 3
+        assert "mon-2" in errors[0]
+        assert mock_rollback_monitor.call_count == 3
 
     def test_rollback_dns_resource(self):
         """Should delete DNS record with zone metadata."""
@@ -146,8 +154,8 @@ class TestRollbackManager:
 
 
 def _manager_and_ctx():
-    """Fresh RollbackManager + DeploymentContext (no Coolify/DNS touches)."""
-    manager = RollbackManager(coolify_client=MagicMock(), dns_client=MagicMock())
+    """Fresh RollbackManager + DeploymentContext (no DNS touches)."""
+    manager = RollbackManager(dns_client=MagicMock())
     ctx = DeploymentContext(spec_path=Path("test.yaml"), spec={"name": "test"})
     return manager, ctx
 
@@ -195,13 +203,25 @@ class TestPhase4iRegistrarRollback:
 
     def test_glitchtip_rollback_calls_delete_project(self):
         manager, ctx = _manager_and_ctx()
-        ctx.add_resource("glitchtip", "my-project")
+        ctx.add_resource("glitchtip", "my-project", status="created")
 
         with patch("fabrik.drivers.glitchtip.delete_project") as rm:
             errors = manager.rollback(ctx)
 
         assert errors == []
         rm.assert_called_once_with("my-project")
+
+    def test_glitchtip_rollback_keeps_a_project_the_run_found_existing(self):
+        """A project create_project reported as `exists` predates this run: rolling back must
+        never delete it (its issues and history are live data)."""
+        manager, ctx = _manager_and_ctx()
+        ctx.add_resource("glitchtip", "my-project", status="exists")
+
+        with patch("fabrik.drivers.glitchtip.delete_project") as rm:
+            errors = manager.rollback(ctx)
+
+        assert errors == []
+        rm.assert_not_called()
 
     def test_grafana_annotation_rollback_calls_delete_annotation(self):
         """ID is stored as str by ctx.add_resource but passed as int to driver."""
@@ -323,7 +343,7 @@ class TestPhase4iSoftFailures:
         the rollback's delete_project call then finds a 404. The driver
         treats 404 as success, but if it somehow raised, we'd still swallow."""
         manager, ctx = _manager_and_ctx()
-        ctx.add_resource("glitchtip", "my-project")
+        ctx.add_resource("glitchtip", "my-project", status="created")
 
         with patch(
             "fabrik.drivers.glitchtip.delete_project",
@@ -351,21 +371,20 @@ class TestPhase4iReverseOrderWalk:
 
     Plan §Validation Checklist: 'rollback after step 6f (authelia) unwinds
     handlers in the order authelia → grafana → glitchtip → backrest → gatus
-    → coolify → dns'. ctx.created_resources is a LIFO log, so reverse
+    → dns'. ctx.created_resources is a LIFO log, so reverse
     iteration gives us that order for free — this test locks it.
     """
 
     def test_full_deploy_rollback_reverse_order(self):
-        manager = RollbackManager(coolify_client=MagicMock(), dns_client=MagicMock())
+        manager = RollbackManager(dns_client=MagicMock())
         ctx = DeploymentContext(spec_path=Path("t.yaml"), spec={"name": "my-app"})
 
         # Simulate a full deploy's resource registrations in PROVISIONING order
         ctx.add_resource("dns", "rec-1", zone="vps1.ocoron.com")
-        ctx.add_resource("coolify", "uuid-1")
         ctx.add_resource("postgres", "my_app_db")
         ctx.add_resource("gatus", "my-app")
         ctx.add_resource("backrest", "my-app-data")
-        ctx.add_resource("glitchtip", "my-app")
+        ctx.add_resource("glitchtip", "my-app", status="created")
         ctx.add_resource("grafana_annotation_id", "42")
         ctx.add_resource("authelia_bypass", "my-app.vps1.ocoron.com")
         ctx.add_resource("authelia", "my-app.vps1.ocoron.com")
@@ -390,7 +409,7 @@ class TestPhase4iReverseOrderWalk:
         ):
             errors = manager.rollback(ctx)
 
-        # Coolify + DNS are MagicMock'd on the manager itself
+        # DNS is MagicMock'd on the manager itself
         assert errors == []
         # Authelia is deduped — the two records produce ONE driver call
         assert call_order == [
@@ -402,8 +421,7 @@ class TestPhase4iReverseOrderWalk:
             # postgres is destructive-no-op (no driver call)
             # meilisearch is destructive-no-op (no driver call)
         ]
-        # Coolify + DNS cleanup happened (legacy hard-stops, after soft registrars)
-        manager._coolify_client.delete_application.assert_called_once_with("uuid-1")
+        # DNS cleanup happened (legacy dns handler, after the registrars)
         manager._dns_client.delete_record_by_name.assert_called_once_with(
             "vps1.ocoron.com", "A", "rec-1"
         )

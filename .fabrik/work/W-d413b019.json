@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "health-probe: importing no longer loads .env — re-vendor libs/health_probe @ 2997674c (fabrik-lib D-364, executed D-366)"
 }

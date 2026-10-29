@@ -105,6 +105,9 @@ class Obligation:
     # the three underscore repos on this box were never told — while the sanitised names read
     # convincingly enough as "shadow mailboxes" that they were filed as a finding.
     repo_key: str = ""
+    # the `map-owner:` header's single owner when it differs from `agent` (mail routing, spec
+    # D6) — read from the header the send wrote, never recomputed here
+    map_owner: str = ""
 
 
 def _sanitize(text: str, cap: int = 40) -> str:
@@ -221,6 +224,7 @@ def _from_file(
     age = _mail._age_seconds(fm.get("ts", ""))
     if not _aged(age, threshold):
         return None
+    owner = _mail._header_owner(fm)
     return Obligation(
         ulid=_sanitize(fm.get("id", f.stem), 26),
         repo=repo,
@@ -229,6 +233,7 @@ def _from_file(
         age_days=age / 86400.0,
         kind=kind,
         repo_key=repo_key,
+        map_owner=owner if owner in _mail.HUB_BEATS and owner != fm.get("agent", "") else "",
     )
 
 
@@ -246,6 +251,7 @@ def build_digest(items: list[Obligation]) -> str:
         rows.append(
             f"{_sanitize(ob.ulid, 26)} · {_sanitize(ob.repo)} · {_sanitize(ob.sender)} · "
             f"{_fmt_age(ob.age_days)} · {_sanitize(ob.agent, 10)} ({_sanitize(ob.kind, 8)})"
+            + (f" · map: {_sanitize(ob.map_owner, 10)}" if ob.map_owner else "")
         )
     while rows and sum(len(r) + 1 for r in rows) > BODY_BUDGET - 80:
         rows.pop()  # fewer than 20 if the budget demands — the count line always survives
@@ -319,7 +325,7 @@ def _agent_body(
         "HOW: handle each per CLAUDE.md — read -> validate the cited path:line -> SIZE it -> do "
         "the work -> review -> reply -> `mail.py ack <id> --repo <repo> --disposition "
         "done|blocked|wontfix`. Not yours? `mail.py ack <id> --repo <repo> --disposition wontfix` naming the "
-        "owner, or `mail.py route <id> --repo <repo> --to-agent infra|fleet|intel`. Never sweep.\n"
+        "owner, or `mail.py route <id> --repo <repo> --to-agent coordinator|infra|fleet|intel|kaizen`. Never sweep.\n"
         "SYSTEMIC: the count falls only by ACKing — `sweep` never touches obligations. If it "
         "drops sharply with no commits behind it, read the archive, not the number.\n\n"
         f"{rows}"
@@ -409,17 +415,14 @@ def _deliver_to_agent(body: str) -> bool:
 _OWNER_MAX_ROWS = 30
 
 
-def _owners_done(today: str) -> bool:
-    """Has every repo that currently owns an overdue obligation already been told today?
+def _owners_done(today: str, items: list[Obligation]) -> bool:
+    """Has every repo that owns an obligation in `items` already been told today?
 
     ⚠️ The early exit in `main` short-circuits on the operator+agent stamps. Without this the
     owner leg would never run on any day those two had already fired — which, since they fire on
-    the day's FIRST run and the cron runs four times, is almost every day.
+    the day's FIRST run and the cron runs four times, is almost every day. `items` is the run's
+    ONE scan: a second scan here could disagree with the list `main` then sends (W-ef8cffc6).
     """
-    try:
-        items = collect_obligations(_mail._mail_root())
-    except Exception:  # noqa: BLE001 — never crash the cron on a scan; assume work remains
-        return False
     repos = {o.repo_key or o.repo for o in items if (o.repo_key or o.repo) != _HUB_MAILBOX}
     return all(_stamped(_owner_stamp(r), today) for r in repos)
 
@@ -575,10 +578,14 @@ def main() -> int:
         print(f"mail-escalate: WARNING — lock unavailable ({exc}); proceeding UNLOCKED")
     operator_done = _stamped(DAY_STAMP, today)
     agent_done = _stamped(DAY_STAMP_AGENT, today)
-    if operator_done and agent_done and _owners_done(today):
+    try:  # the run's ONE scan (W-ef8cffc6); a second scan used to mask a transient error
+        items = collect_obligations(_mail._mail_root())
+    except Exception as exc:  # noqa: BLE001 — a store bug is a logged line, never a traceback
+        print(f"mail-escalate: WARNING — scan raised {type(exc).__name__}: {exc}; next run retries")
+        return 0  # fail-soft (module docstring); never an empty list, which reads as a healthy day
+    if operator_done and agent_done and _owners_done(today, items):
         print(f"mail-escalate: already sent today — suppressed ({today})")
         return 0  # the print keeps the log's mtime fresh for the liveness budget
-    items = collect_obligations(_mail._mail_root())
     if not items:
         print(f"mail-escalate: 0 aged obligations — no send ({today})")
         return 0

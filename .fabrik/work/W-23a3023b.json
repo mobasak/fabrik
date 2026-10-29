@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T18:43:15.120245Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-23a3023b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1205",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Bound the non-test steps per invocation too, or stop serving the inbox after a stranded resume pushed: worst case is 3600 test budget + one PUSH_TIMEOUT_S 600 and SYNC_TIMEOUT_S 900 per record (W-347cd0c3 review finding B4, 2026-10-24)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "merge_request.py: one merge invocation that resumes stranded records and then serves a request can push and sync more than once, past the 5400 s wrapper D-1205 documents (only owner tests are budgeted)"
+}

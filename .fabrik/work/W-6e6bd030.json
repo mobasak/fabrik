@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:22:47.642042Z",
+  "creator": "infra",
+  "evidence": "d20bcec765c947e33beca41ef9dfa1ff2b53a771",
+  "id": "W-6e6bd030",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "pick the first non-blank DSN after stripping (the template's _first_set helper); grader with SENTRY_DSN=' '",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "status": "done",
+  "title": "Scaffold glitchtip_init.py: a whitespace-only SENTRY_DSN wins the 'or' and strips to empty, so a valid GLITCHTIP_DSN is ignored (whatsapp-agent 01M4SMZXCX)"
+}

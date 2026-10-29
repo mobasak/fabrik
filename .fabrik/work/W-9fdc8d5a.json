@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:31:40.193880Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-9fdc8d5a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4WW202WHSNMYKR689JEPRXK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: SB-id reservation — the carry gap (fabrik-lib SB-125) is closed on our side, no hub change needed (fabrik-lib D-440)"
+}

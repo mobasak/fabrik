@@ -347,8 +347,7 @@ def test_emitted_compose_names_no_retired_coolify_path(tmp_path, with_traefik):
         "svc",
         port=8000,
         with_traefik=with_traefik,
-        healthcheck_kind="http" if with_traefik else "process",
-        process_pattern=None if with_traefik else "worker",
+        healthcheck_kind="http" if with_traefik else "heartbeat",
     )
     content = (proj / "compose.yaml").read_text()
     assert "coolify" not in content.lower()

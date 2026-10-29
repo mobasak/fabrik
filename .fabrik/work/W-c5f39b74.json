@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T13:48:42.953295Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "c8ed396bb47134053244e57c65aeb1dd79182fb4",
+  "id": "W-c5f39b74",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one sentence in § Work items, byte-identical hub/template (D-888 test); a mail request to fabrik-lib",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — operator-asked CLAUDE.md rule widening",
+  "status": "done",
+  "tags": [
+    "queued"
+  ],
+  "title": "Operator 2026-10-17: every work-item, decision or mail id shown to the operator must carry a plain-words explanation in the same sentence — widen CLAUDE.md § Work items (today it covers only the NEXT: line) in the hub CLAUDE.md and templates/governance/CLAUDE.md, and send fabrik-lib a request to add the same rule to its own CLAUDE.md (it has none)"
+}

@@ -4,7 +4,7 @@
 **Source:** `src/fabrik/cli.py`
 **Live help:** `fabrik --help` (run from any directory)
 
-The `fabrik` CLI is the single entry point for the **4-stage Fabrik lifecycle**: Intent → Scaffolding → Deploy → Verify. It deploys across the 3-host fleet (vps1 hub + vps2/vps3 spokes; route with `--target-vps`, shared infra hub-only) via **SSH + Docker Compose** — no Coolify API layer, no PaaS, no Kubernetes.
+The `fabrik` CLI is the single entry point for the **4-stage Fabrik lifecycle**: Intent → Scaffolding → Deploy → Verify. It deploys across the 3-host fleet (vps1 hub + vps2/vps3 spokes; route with `--target-vps`, shared infra hub-only) via **SSH + Docker Compose** — no PaaS, no Kubernetes (the Coolify API layer was retired).
 
 This page documents **every command currently in `cli.py`** with what it does, when to use it, and the line in the source where it's defined. Commands are grouped by lifecycle stage rather than alphabetically, because that's how you'll actually invoke them.
 
@@ -113,8 +113,8 @@ fabrik plan specs/services/my-api.yaml -s API_KEY=preview
 **Purpose:** Run the full orchestrator pipeline end-to-end: validate spec → secrets resolution → DNS provisioning → SSH deploy (SCP compose.yaml + .env → `docker compose up -d --wait`) → 7 registrars based on `shape:` → health verification → rollback on failure.
 
 ```bash
-fabrik apply [<spec_path>] [--dry-run] [--skip-dns] [--skip-deploy] \
-             [-s KEY=VALUE] [--legacy] [--yes] [--keep-on-failure] \
+fabrik apply [<spec_path>] [--dry-run] [--skip-health-check] \
+             [-s KEY=VALUE] [--yes] [--keep-on-failure] \
              [--target-vps vps1|vps2|vps3]
 ```
 
@@ -122,12 +122,9 @@ fabrik apply [<spec_path>] [--dry-run] [--skip-dns] [--skip-deploy] \
 |---|---|
 | `<spec_path>` | Path to `specs/services/<name>.yaml`. If omitted, resolves from `project.yaml` in cwd. |
 | `--dry-run` | Simulate every mutation without executing. |
-| `--skip-dns` | Don't touch DNS records. Use for re-runs where DNS is already correct. |
 | `--skip-health-check` | Skip the post-deploy health verification step. |
-| `--skip-deploy` | Validate + prepare, but don't push the container. Diagnostic. |
 | `-s KEY=VALUE` | Override a single secret on the command line (highest precedence). |
-| `--legacy` | Force the deprecated Coolify-API path (render-only; not for new deploys). |
-| `--yes` / `-y` | Skip confirmation prompts. |
+| `--yes` / `-y` | Accepted for compatibility; `apply` never prompts. |
 | `--keep-on-failure` | Skip auto-rollback so the failed container + .env stay on the VPS for inspection. Use when iterating on a broken deploy. |
 | `--target-vps` | Which fleet host to deploy the container to: `vps1` (hub, default), `vps2`, `vps3`. Only the app container moves; shared infra (Postgres, monitoring, Authelia) stays on vps1. |
 
@@ -261,6 +258,8 @@ fabrik reconcile-all --filter my-api        # dry-run, scoped to one
 fabrik reconcile-all --yes                  # apply across fleet
 ```
 
+A spec counts as deployed when its target host's `docker compose ls -a` lists a project named `<name>`/`fabrik-<name>` or one whose config file lives in an `app_dir` candidate; a host that cannot be read becomes a row, never an abort. A dry run prints its failure rows and exits 0; `--yes` exits 1 on any `host-unreachable`, `error`, `spec-error`, `lock-timeout` or `registrar-failed` row (a refresh that recorded registrar failures), and either mode exits 1 when no host could be read. A refresh's registrar warnings (a payments grant left pending, a Prometheus target not loaded) print under the table and never fail a row; `fabrik status` and `fabrik audit-registrars` (its text output, not `--json`) show the last apply's recorded warnings from `.fabrik/state/<id>.json`.
+
 ---
 
 ## Status & Logs
@@ -272,6 +271,8 @@ fabrik reconcile-all --yes                  # apply across fleet
 ```bash
 fabrik status specs/services/my-api.yaml
 ```
+
+Output sections: **Generated files** (the local `apps/<id>/` scaffold, if any); **Last apply** (from the state record: `applied_at`, `git_sha`, `target_vps`, `registrars_applied` and any `registrar_failure` rows, or "no state record" when never applied from this checkout); **Live containers** (a read-only SSH probe of the spec's `target_vps` host: one `service · state · health · exit code` row per Compose service, or a row saying the host or the app directory could not be read).
 
 ### `fabrik logs <spec_path>` — centralized logs (Loki)
 
@@ -425,10 +426,10 @@ fabrik export [--output <path>] [--include-data] [--skip-remote]
 **Purpose:** Restore a previously-exported bundle.
 
 ```bash
-fabrik import <bundle.tar.gz> [--real-run]
+fabrik import <bundle.tar.gz> [--apply]
 ```
 
-`--real-run` actually mutates; without it, dry-run only.
+`--apply` executes the restore plan; without it, dry-run only (parse and print the plan). A pre-retirement bundle's `coolify/` members are counted and ignored.
 
 ---
 
@@ -444,7 +445,7 @@ wpf wp verify <site-id>
 
 (Cache flushing is internal to `wpf wp apply`/`verify`, not a standalone `wpf wp flush` subcommand. The full `wp` group is `plan | apply | verify | create | preview | promote`.)
 
-See `/opt/wpf/AGENTS.md` and `/opt/wpf/docs/DEPLOYMENT.md` for the WP-specific architecture (golden Docker image, deployed via SSH + Docker Compose as a 4-container per-site stack — e.g. the live `ocoron-com-{wordpress,db,redis,nginx,backup}` containers; Coolify was decommissioned 2026-05-30). WordPress is **out of scope for Fabrik planning** — `/opt/wpf` is the only source of truth (the former `domain-modules/wordpress.md` was deleted 2026-07-13 as fully dead: the scaffold and deploy paths both hard-error).
+See `/opt/wpf/AGENTS.md` and `/opt/wpf/docs/DEPLOYMENT.md` for the WP-specific architecture (golden Docker image, deployed via SSH + Docker Compose as a 4-container per-site stack — e.g. the live `ocoron-com-{wordpress,db,redis,nginx,backup}` containers; Coolify was decommissioned 2026-05-30 and its client is removed). WordPress is **out of scope for Fabrik planning** — `/opt/wpf` is the only source of truth (the former `domain-modules/wordpress.md` was deleted 2026-07-13 as fully dead: the scaffold and deploy paths both hard-error).
 
 ---
 
@@ -454,16 +455,17 @@ See `/opt/wpf/AGENTS.md` and `/opt/wpf/docs/DEPLOYMENT.md` for the WP-specific a
 |---|---|
 | `scaffold`, `new` | `src/fabrik/scaffold.py` |
 | `preplan` | `src/fabrik/preplan.py` |
-| `apply` | `orchestrator/DeploymentOrchestrator.deploy()` (default) — legacy `--legacy` path: `deploy.py::deploy_to_coolify` |
+| `apply` | `orchestrator/DeploymentOrchestrator.deploy()` — the only path (the former `--legacy` flag and `deploy.py` were removed in the Coolify retirement) |
 | `deploy` | `deploy_router.route_deploy()` — project-based dispatch over orchestrator |
 | `redeploy` | `orchestrator/deployer_ssh.SSHDeployer.redeploy()` |
 | `destroy` | `orchestrator/destroyer.destroy_deployment()` (default) or `destroy_from_state()` (`--use-state`) |
 | `verify` | `verify.py::PostconditionChecker` |
 | `audit-registrars` | `audit.py::audit_all` |
-| `reconcile-all` | `cli.py::reconcile_all()` (`cli.py:1487`) → `orchestrator/__init__.py::DeploymentOrchestrator.refresh_infrastructure()` (`:312`) |
+| `reconcile-all` | `cli.py::reconcile_all()` → `deployer_ssh.SSHDeployer.list_compose_projects()` (one `docker compose ls -a` per host) + `orchestrator/__init__.py::DeploymentOrchestrator.refresh_infrastructure()` per spec |
 | `validate-deploy`, `validate`, `fix` | `deploy_validator.py` + `scaffold.py` |
 | `vps-sync` | `scripts/vps_sync.py` |
-| `status`, `logs` | `cli.py` directly + `drivers/ssh.py` |
+| `status` | `cli.py` + `deployer_ssh.SSHDeployer.probe_app()` |
+| `logs` | `cli.py::logs()` — a Loki `query_range` call (`LOKI_URL`), or `docker compose -f compose.dev.yaml logs` with `--local` |
 | `domain *` | `drivers/dns.py::DNSClient` |
 | `dev`, `review`, `import`, `export` | `dev_tools.py` + `portability.py` |
 | `ai usage` | `ai/tracker.py::UsageTracker` |

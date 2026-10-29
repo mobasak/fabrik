@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:26:03.339897Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-329e762e",
+  "impact": "low",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4S6GNQQV0FFF5EHQE01W52J",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — print-ban marker missing for in-package CLI; rare",
+  "status": "open",
+  "title": "WHAT: scripts/enforcement/check_print_ban.py exempts scripts/, libs/health_probe/ and .claude/hooks/ because print() IS their output, but offers no marker for an operator CLI that must live INSIDE the package (python -m <pkg>.<cli> in the container: the image's PYTHONPATH is src/, DATABASE_URL/EVOLU"
+}

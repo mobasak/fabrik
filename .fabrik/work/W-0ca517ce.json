@@ -1,0 +1,26 @@
+{
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
+  "created": "2026-10-14T09:06:21.083469Z",
+  "creator": "infra",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-0ca517ce",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TK1J61WT3BFC2GQZNEEKVE",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — request from fabrik-lib agent on router design (D-818)",
+  "status": "open",
+  "title": "relay — fabrik-lib agrees to routing its mail from module-owners.json, with four refinements for the router design (re 01M4TCHSPX; your spec D-818)"
+}

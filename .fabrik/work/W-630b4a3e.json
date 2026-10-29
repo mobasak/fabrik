@@ -1,0 +1,28 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T22:50:45.672114Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-630b4a3e",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-18-saas-skeleton-chat-auth-design.md"
+  },
+  "next": "MEASURED 2026-10-21 (fleet): the route still exists in the repo, but the project is NOT deployed (no target_vps → vps1; 0 of vps1's 33 containers match; HTTPS probe gets no answer) — the exposure is not live. The hub's request mail sits UNREAD in the project's inbox (no agent session open). Waits on the project's own agent: open its session, it reads the mail and removes app/api/chat; ack when it replies",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "not live: none of the five is deployed (0 of vps1's 33 containers; no HTTPS answer); the fix is each project's own agent's; a deploy with the route present is refused",
+  "status": "open",
+  "tags": [
+    "security",
+    "waits-adoption-reply",
+    "waits-project-session"
+  ],
+  "title": "adopt W-ab242b11 in exam-coach: /opt/exam-coach/app/api/chat is the old unauthenticated chat route that spends the app's own key; mail exam-coach to delete it and adopt the auth-gated backend route (POST /api/v1/chat, D-1013/D-1022/D-1025, merge 8a3c13bdf)"
+}

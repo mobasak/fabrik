@@ -1,0 +1,494 @@
+command: fabrik-rules-review
+baseline_sentences: fabrik-rules-review.baseline.txt
+baseline_sha256: 158d1a5e09fe35af5a638f0a29578452399335f6f7680c38d04bfae8b398a45a
+entries:
+- id: cu-L1
+  baseline: '> ⚠️ POOL OFF — D-181 (operator, 2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control), so every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->` comments, for re-enable)'
+  class: prose
+  text:
+  - seat records nothing). Never write `NO-POOL:`
+  - '2026-09-07). The OpenRouter subagent pool is OFF by operator ruling (D-181; mechanism revised by D-182 — the provider credentials stay provisioned, so a `fanout` would still dispatch and SPEND: this text is the control). Every `fanout` / `pick_models` / `set_quality` / `record_agent_run` / `results_table` instruction in this command is SUSPENDED (left in place, or in `<!-- POOL OFF -->`'
+- id: cu-L2
+  baseline: 'Run every fan-out this command names NATIVELY — Claude Task subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose): same unit split, same author-blind rule, same decide/refute/merge by you — and skip every flywheel back-fill (a native seat records nothing)'
+  class: prose
+  text:
+  - run every fan-out this command names
+  - subagents (`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · general-purpose) — same unit split, same author-blind rule, same decide/refute/merge
+  - skip every flywheel back-fill (a native
+- id: cu-L3
+  baseline: 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182)'
+  class: ban
+  text:
+  - 'Never write `NO-POOL:` for it: `check_subagent_flywheel.py`''s pool-or-declare layer stands down by the same ruling (`_POOL_POLICY_ON = False`, D-182).'
+- id: cu-L4
+  baseline: 'Canonical: `62-using-subagents.md` § Dispatch policy'
+  current: 'Canonical: `62-using-subagents.md` § Dispatch policy'
+  class: prose
+  text:
+  - 'Canonical: `62-using-subagents.md` § Dispatch policy'
+- id: cu-L5
+  baseline: Run a `.windsurf/rules` COMPLIANCE GAP AUDIT
+  class: prose
+  text:
+  - Run a `.windsurf/rules` COMPLIANCE GAP AUDIT.
+- id: cu-L6
+  baseline: 'READ-ONLY — do NOT modify code, config, docs, or the rules; produce an audit only. And do NOT stop after one pass: iterate the audit until it converges (Phase 4) — the Termination contract''s closing round (a closing pass by the round-1 seats over their own slices that CONFIRMS zero new gaps, the gap list''s md5 unchanged) is the only proof the audit is complete'
+  class: ban
+  text:
+  - READ-ONLY
+  - modify code, config, docs,
+  - 'only. And do NOT stop after one pass: iterate the audit until it converges (Phase 4).'
+  - closing pass by the round-1 seats over their own slices that CONFIRMS zero new gaps, the gap list's md5 unchanged) is the only proof the audit is complete.
+- id: cu-L7
+  baseline: Propose nothing as fixed/done until I say so
+  class: prose
+  text:
+  - is complete. Propose nothing as fixed/done
+- id: cu-L8
+  baseline: 'Context is never a reason to stop: the harness auto-compacts and the run continues — keep going'
+  class: ban
+  text:
+  - 'never a reason to stop: the harness auto-compacts and the run continues'
+  - keep going
+- id: cu-L9
+  baseline: 'Where this sits vs `/fabrik-review`: every `/fabrik-review` already injects the rules floor into its finders (`scripts/review_rubric.py --changed <paths>`) — that covers the CHANGED DIFF'
+  class: prose
+  text:
+  - Every `/fabrik-review` already injects the rules floor into its finders (`scripts/review_rubric.py --changed <paths>`) — that covers the CHANGED DIFF; this
+  - that covers the CHANGED DIFF; this
+- id: cu-L10
+  baseline: 'This command is the whole-surface posture audit: every requirement of every applicable pack against the whole project, invoked deliberately (pre-release, post-adoption of a new pack, or when compliance drift is suspected) — not per-commit'
+  class: prose
+  text:
+  - 'the whole-surface posture audit: every requirement'
+  - compliance drift is suspected) — not per-commit
+- id: cu-L12
+  baseline: 'PROJECT mode (any `/opt/<project>` with a `project.yaml`): audit THIS project''s code against its synced packs'
+  class: prose
+  text:
+  - 'mode (any `/opt/<project>` with a `project.yaml`): audit THIS project''s code against its synced packs.'
+- id: cu-L13
+  baseline: 'The packs are a read-only synced copy here (gate: `check_synced_unmodified.py`) — never edit them locally; a defect IN a pack (contradiction, false-positive, dead glob) discovered mid-audit is recorded as a finding and filed upstream via `/fabrik-upstream`, never fixed in place'
+  class: ban
+  text:
+  - 'read-only synced copy here (gate: `check_synced_unmodified.py`)'
+  - never edit them locally;
+  - (contradiction, false-positive, dead glob) discovered mid-audit is recorded as a finding and filed upstream via `/fabrik-upstream`, never fixed in place
+- id: cu-L14
+  baseline: 'HUB mode (`/opt/fabrik`): the packs THEMSELVES are the audited surface — there is no `project.yaml` here (the hub is the platform, not a scaffold type), so Phase 0''s stack/spec steps are N/A and the audit runs the blast-radius checklist below across the pack corpus (optionally scoped by `$ARGUMENTS`)'
+  class: prose
+  text:
+  - 'mode (`/opt/fabrik`): the packs THEMSELVES are the audited'
+  - '`project.yaml` here (the hub is the platform, not a scaffold type), so Phase 0''s stack/spec steps are N/A and the audit runs the blast-radius checklist below across the pack corpus (optionally scoped by `$ARGUMENTS`).'
+- id: cu-L15
+  baseline: 'Review packs harder than product code — widest blast radius in the system (every pack + every enforcement check → every project on the next sync):'
+  class: prose
+  text:
+  - '`$ARGUMENTS`). Review packs harder than product'
+  - widest blast radius in the system (every pack
+- id: cu-L16
+  baseline: Does a rule contradict another pack?
+  class: prose
+  text:
+  - Does a rule contradict another pack?
+- id: cu-L18
+  baseline: Would it break a project that lacks feature X?
+  class: prose
+  text:
+  - break a project that lacks feature
+- id: cu-L19
+  baseline: Is it backward-compatible?
+  current: Is it backward-compatible?
+  class: prose
+  text:
+  - Is it backward-compatible?
+- id: cu-L20
+  baseline: Does it false-positive on a legitimate, mandated pattern?
+  class: prose
+  text:
+  - false-positive on a legitimate, mandated pattern
+- id: cu-L21
+  baseline: (e.g. banning "daemonize" must not condemn `tini` as PID 1; banning SQLite must not condemn `desktop-app`'s mandated SQLCipher store)
+  class: ban
+  text:
+  - must not condemn `tini` as PID 1; banning SQLite must not condemn `desktop-app`'s mandated SQLCipher store)?
+- id: cu-L23
+  baseline: Does the rule's `globs:` actually fire where the violation is written? A perfectly-worded rule in a pack whose glob never matches the offending file is theatre
+  class: ban
+  text:
+  - rule's `globs:` actually fire where the violation is written? A perfectly-worded rule in a pack whose glob never matches the offending file is theatre.
+- id: cu-L24
+  baseline: Verify against `python scripts/select_rules.py`
+  class: prose
+  text:
+  - is theatre. Verify against `python scripts/select_rules.py`
+- id: cu-L25
+  baseline: Verify globs via `python scripts/select_rules.py` — a plausible-looking glob is not proof it matches
+  class: prose
+  text:
+  - 'Verify globs via `python scripts/select_rules.py` — a plausible-looking glob is not proof it matches.'
+- id: cu-L27
+  baseline: Establish the real stack. Read `project.yaml::type`, then CONFIRM by grep (`package.json` vs `requirements.txt`/`pyproject.toml`, lockfiles) + the real entrypoint
+  class: prose
+  text:
+  - 'stack: read `project.yaml::type`, then CONFIRM by grep (`package.json` vs `requirements.txt`/`pyproject.toml`,'
+- id: cu-L28
+  baseline: Labels lie; the code is truth
+  class: prose
+  text:
+  - the real entrypoint. Labels lie; the
+  - Labels lie; the code is truth
+- id: cu-L29
+  baseline: Read the spec shape flags in `specs/services/<id>.yaml` (the live registry is `spec_loader.py::Shape` — e.g. `is_public` / `is_admin_dashboard` / `has_bearer_api` / `needs_database` / `needs_cache` / `has_persistent_data` / `has_search_feature` / `exposes_metrics`)
+  class: prose
+  text:
+  - flags in `specs/services/<id>.yaml` (the live registry is `spec_loader.py::Shape` — e.g. `is_public` / `is_admin_dashboard` / `has_bearer_api` / `needs_database` / `needs_cache` / `has_persistent_data` / `has_search_feature` / `exposes_metrics`).
+- id: cu-L30
+  baseline: These decide which features are INTENTIONALLY on/off — a feature that's off because its flag is false is spec-consistent, not a gap
+  class: prose
+  text:
+  - decide which features are INTENTIONALLY on/off
+  - because its flag is false is spec-consistent,
+- id: cu-L31
+  baseline: Read the project's ADR / architecture-decisions doc FIRST (e.g. `docs/reference/architecture-decisions.md`) AND grep `docs/DECISIONS.md` — the fleet-wide decision ledger (D-000) is the canonical decisions store, and a deviation accepted by a ledger row is exactly as deliberate as an ADR-accepted one
+  class: prose
+  text:
+  - the project's ADR / architecture-decisions doc FIRST (e.g. `docs/reference/architecture-decisions.md`) AND grep `docs/DECISIONS.md`
+  - fleet-wide decision ledger (D-000) is the canonical decisions store, and a deviation accepted by a ledger row is exactly as deliberate as an ADR-accepted one
+- id: cu-L32
+  baseline: 'The packs assume a particular stack (language, framework, DB, migration tool, id scheme); wherever the ADR or a ledger row records this project deliberately differs, that mismatch is an accepted deliberate decision, NOT a gap — and the same holds for ANY deviation either accepts (stack-shaped or not: a decided no-audit-log, no-`/metrics`, single-tenant)'
+  class: prose
+  text:
+  - packs assume a particular stack (language, framework,
+  - wherever the ADR or a ledger row records this project deliberately differs, that mismatch is an accepted deliberate decision, NOT a gap — and the same holds for ANY
+  - 'deviation either accepts (stack-shaped or not: a decided no-audit-log, no-`/metrics`,'
+- id: cu-L33
+  baseline: Capture the accepted-deviation list before auditing anything
+  class: prose
+  text:
+  - single-tenant). Capture the accepted-deviation list before
+- id: cu-L34
+  baseline: 'If an argument was given, scope the audit to it: `$ARGUMENTS` (a specific pack or rules subdir)'
+  class: prose
+  text:
+  - '`$ARGUMENTS` (a specific pack or rules subdir). Otherwise audit'
+- id: cu-L35
+  baseline: Otherwise audit all applicable packs
+  current: Otherwise audit all applicable packs
+  class: prose
+  text:
+  - Otherwise audit all applicable packs
+- id: cu-L37
+  baseline: List `.windsurf/rules/**/*.md` (core + any subdir packs matching this scaffold)
+  class: prose
+  text:
+  - List `.windsurf/rules/**/*.md` (core + any subdir packs
+- id: cu-L38
+  baseline: For each, read its frontmatter `globs:` and any "Per-Scaffold Applicability / Observability Matrix" to decide if it applies to THIS scaffold + stack
+  class: prose
+  text:
+  - each, read its frontmatter `globs:` and any "Per-Scaffold Applicability
+- id: cu-L39
+  baseline: SKIP non-applicable packs (e.g. mobile / chrome / docusaurus / file-api / gpu-workers / rag / payments / email) unless the code actually uses them
+  class: prose
+  text:
+  - SKIP non-applicable packs (e.g. mobile / chrome / docusaurus
+- id: cu-L40
+  baseline: STATE which you skipped and why
+  class: prose
+  text:
+  - uses them; STATE which you skipped
+- id: cu-L41
+  baseline: '(HUB mode: every pack is in scope unless `$ARGUMENTS` narrows it.)'
+  class: prose
+  text:
+  - every pack is in scope unless `$ARGUMENTS`
+- id: cu-L43
+  baseline: The packs are independent, so this step MUST fan out — sized, stamped and closed at THIS point (`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <packs>` prints the seats, `python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out, Phase 4's `round --seats <n>` closes; the recipe in § Subagents below is the same one) — one native `fabrik-reviewer` seat (Sonnet) per applicable pack, in parallel; Opus for any pack whose subject is authoritative/high-risk (auth, schema, migrations, secrets, concurrency)
+  class: ban
+  text:
+  - independent, so this step MUST fan out
+  - THIS point (`python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py --units <packs>` prints the seats, `python3 scripts/command_run.py dispatch --seats <n>` BEFORE they go out, Phase 4's `round --seats <n>` closes;
+  - native `fabrik-reviewer` seat (Sonnet) per applicable
+  - pack whose subject is authoritative/high-risk
+- id: cu-L44
+  baseline: 'The pool form is kept below for re-enable (D-181):'
+  class: prose
+  text:
+  - 'form is kept below for re-enable (D-181):'
+- id: cu-L45
+  baseline: 'Division of labor — read_only units cannot touch the filesystem, so build their prompts accordingly: each unit''s prompt inlines its pack''s text + the Phase-0 ground truth + the RELEVANT CODE EXCERPTS you (the orchestrator) select for that pack''s subject (grep-driven — config files, the entrypoint, the modules the pack governs)'
+  class: prose
+  text:
+  - 'touch the filesystem, so build their prompts accordingly: each unit''s prompt inlines its pack''s text + the Phase-0'
+  clauses:
+    1: narrative
+- id: cu-L46
+  baseline: 'Secrets carve-out (mirrors `/fabrik-repo-review`): never inline secret-material content (`.env` / `.env.*` values — `.env.example` is exempt, it carries names only — `secrets/`, key files) into a POOL unit''s excerpts — a pack whose audit needs those files gets the NATIVE finder, and an unavoidable config excerpt is redacted first; secret contents never go to pool APIs. The unit then:'
+  class: ban
+  text:
+  - '`/fabrik-repo-review`): never inline secret-material content (`.env` / `.env.*` values — `.env.example` is exempt, it carries names only — `secrets/`, key files) into a POOL unit''s excerpts'
+  - pack whose audit needs those files
+  - secret contents never go to pool APIs.
+- id: cu-L47
+  baseline: Extracts that pack's "Done When" / requirements / Banned Patterns
+  class: prose
+  text:
+  - Extracts that pack's "Done When" / requirements
+- id: cu-L48
+  baseline: For EACH requirement, judges it against the inlined excerpts and cites `path:line` from them — and explicitly flags any requirement its excerpts cannot decide (`UNVERIFIABLE-FROM-EXCERPTS`) instead of guessing
+  class: prose
+  text:
+  - judges it against the inlined excerpts and cites `path:line` from them — and explicitly flags any requirement its excerpts cannot decide (`UNVERIFIABLE-FROM-EXCERPTS`)
+  - requirement its excerpts cannot decide (`UNVERIFIABLE-FROM-EXCERPTS`)
+- id: cu-L49
+  baseline: YOU verify every flagged item AND every cited `path:line` yourself with real tools in Phase 3 — exhaustively, not a sample; a finder verdict on code it never saw is not evidence, and a fabricated citation survives exactly as long as nobody opens it
+  class: ban
+  text:
+  - item AND every cited `path:line` yourself with real tools in Phase 3
+  - exhaustively, not a sample;
+  - code it never saw is not evidence, and a fabricated citation survives exactly as long as nobody opens it
+- id: cu-L50
+  baseline: 'Classifies each item:'
+  current: 'Classifies each item:'
+  class: prose
+  text:
+  - 'Classifies each item:'
+- id: cu-L51
+  baseline: ✅ COMPLIANT — with `path:line` proof
+  current: ✅ COMPLIANT — with `path:line` proof
+  class: prose
+  text:
+  - ✅ COMPLIANT — with `path:line` proof
+- id: cu-L52
+  baseline: 🟡 DEVIATION — deliberate + ADR-accepted (cite the ADR line); NOT a gap
+  class: prose
+  text:
+  - DEVIATION — deliberate + ADR-accepted (cite the ADR
+  - ADR-accepted (cite the ADR line); NOT
+  - the ADR line); NOT a gap
+- id: cu-L53
+  baseline: ❌ GAP — applicable + not met
+  current: ❌ GAP — applicable + not met
+  class: prose
+  text:
+  - ❌ GAP — applicable + not met
+- id: cu-L54
+  baseline: Note (a) spec-consistency (e.g. no `/metrics` because `exposes_metrics:false` → not a gap), (b) severity, (c) where it's already tracked (the project's resilience/backlog/plan docs, e.g. `RESILIENCE.md`, `STRATEGIC_BACKLOG.md`, `docs/development/plans/*`)
+  class: prose
+  text:
+  - spec-consistency (e.g. no `/metrics` because `exposes_metrics:false` → not a gap), (b) severity, (c) where it's already tracked (the project's resilience/backlog/plan docs, e.g. `RESILIENCE.md`, `STRATEGIC_BACKLOG.md`, `docs/development/plans/*`)
+- id: cu-L55
+  baseline: Give each finder ONLY its pack + the Phase-0 ground truth (stack, spec flags, accepted deviations) + its selected excerpts — nothing else, so its verdicts are grounded, not guessed
+  class: ban
+  text:
+  - finder ONLY its pack + the Phase-0 ground truth (stack, spec flags, accepted deviations) + its selected excerpts
+  - nothing else, so its verdicts are grounded,
+- id: cu-L56
+  baseline: 'HUB mode: the per-pack unit''s requirement list IS the blast-radius checklist from the mode section (contradiction with sibling packs, backward-compatibility, false-positive risk on mandated patterns, glob reach) — judged against the pack''s own text + the sibling packs you inline + `python scripts/select_rules.py` output, since there is no project code to audit'
+  class: prose
+  text:
+  - per-pack unit's requirement list IS the blast-radius
+  - pack's own text + the sibling packs you inline + `python scripts/select_rules.py`
+- id: cu-L58
+  baseline: Merge and dedupe all per-pack findings
+  class: prose
+  text:
+  - Merge and dedupe all per-pack findings.
+- id: cu-L59
+  baseline: Resolve every `UNVERIFIABLE-FROM-EXCERPTS` flag yourself with real tools (grep/Read) — those items are finder QUESTIONS, never findings
+  class: ban
+  text:
+  - '`UNVERIFIABLE-FROM-EXCERPTS` flag yourself with real tools (grep/Read)'
+  - items are finder QUESTIONS, never findings.
+- id: cu-L60
+  baseline: 'Then adversarially try to REFUTE every ❌ GAP before it reaches the table: is it actually ADR-accepted (cite the ADR line) or spec-consistent-off (cite the shape flag)?'
+  class: prose
+  text:
+  - Then adversarially try to REFUTE every ❌ GAP before it reaches
+- id: cu-L61
+  baseline: If so, reclassify it as 🟡 DEVIATION
+  class: prose
+  text:
+  - If so, reclassify it as 🟡 DEVIATION.
+- id: cu-L62
+  baseline: Only gaps that survive this refutation are real
+  class: ban
+  text:
+  - Only gaps that survive this refutation are real.
+- id: cu-L63
+  baseline: Equally, do not let a finder's ✅ COMPLIANT stand without a `path:line` you spot-checked
+  class: prose
+  text:
+  - finder's ✅ COMPLIANT stand without a `path:line`
+- id: cu-L65
+  baseline: 'Do not stop after one pass. Re-run the fan-out + merge/refute (Phases 2–3) until a full pass is the Termination contract''s closing round: the round-1 seats, over their own slices, CONFIRMING no NEW gap and reclassifies none — `confirmed: 0`, the gap list''s md5 unchanged'
+  class: prose
+  text:
+  - '**Do not stop after one pass.** Re-run the fan-out + merge/refute (Phases 2–3) until a full pass is the Termination contract''s closing round: the round-1'
+  - '`confirmed: 0`, the gap list''s md5 unchanged.'
+- id: cu-L66
+  baseline: The pass in which the list *changed* is never the last; run one more, and if anything is added, removed, or reclassified, keep going
+  class: ban
+  text:
+  - which the list *changed* is never the last; run one more, and if anything is added, removed, or reclassified, keep going
+- id: cu-L67
+  baseline: A single pass, or "I think I caught them all," is not convergence — the stable (identical-to-prior) pass is
+  class: prose
+  text:
+  - single pass, or "I think I caught them
+  - the stable (identical-to-prior) pass is. This
+- id: cu-L68
+  baseline: This converges the AUDIT to completeness; it does not fix the gaps (fixing is a separate, user-authorized step)
+  class: prose
+  text:
+  - pass is. This converges the AUDIT to completeness; it does not fix the gaps
+  - (fixing is a separate, user-authorized step)
+- id: cu-L69
+  baseline: 'Record each pass in the run record: `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <raw gaps raised> --confirmed <n> --classes-swept <the packs swept> --classes-new <…>` — where `--findings` is raw recall and `--confirmed <n>` counts gaps that HELD (NEW or RECLASSIFIED this pass, executed against `path:line`); never the standing gap-table size: a standing gap re-listed by a later pass is CITED, not counted (D-206), so the closing pass honestly records `--confirmed 0` and the TERMINAL verdict is reachable while real gaps stand — the round ledger is what proves the stable pass, and it is this command''s persisted trace: the audit itself is deliberately chat-only (the GAP table lands in the final response for the operator to fold into a plan; a READ-ONLY command writes no artifact), so a run whose rounds are unrecorded has no evidence it converged'
+  class: ban
+  text:
+  - 'Record each pass in the run record: `python3 scripts/command_run.py round --seats <seats dispatched this pass> --findings <raw gaps raised> --confirmed <n> --classes-swept <the packs swept> --classes-new <…>`'
+  - '`--findings` is raw recall and `--confirmed <n>` counts gaps that HELD (NEW or RECLASSIFIED this pass, executed against `path:line`),'
+  - 'never the standing gap-table size: a standing gap re-listed by a later pass is CITED, not counted (D-206), so the closing pass honestly records `--confirmed 0` and the TERMINAL verdict is reachable while real gaps stand;'
+  - 'proves the stable pass, and it is this command''s persisted trace: the audit itself is deliberately chat-only (the GAP table lands in the final response for the operator to fold into a plan; a READ-ONLY command writes no artifact), so a run whose rounds are unrecorded has no evidence it converged'
+- id: cu-L70
+  baseline: Run that next pass UNPROMPTED — the moment a pass adds/removes/reclassifies anything you owe it, automatically. Never wait to be asked *"did the audit stabilize?"*; the obligation is yours and predates any challenge — reframing your own skipped rule as a *"fair challenge"* you then conceded to is itself the dodge
+  class: ban
+  text:
+  - that next pass
+  - adds/removes/reclassifies anything you owe it, automatically. Never wait to be asked *"did the audit stabilize?"*;
+  - obligation is yours and predates
+  - reframing your own skipped rule as a *"fair challenge"*
+- id: cu-L71
+  baseline: 'Three thoughts that each mean run the next pass now: *"I already audited that pack,"* *"only one item moved,"* *"it''s obviously stable."* Only the identical-to-prior pass is convergence'
+  class: ban
+  text:
+  - 'each mean run the next pass now: *"I already audited that pack,"* *"only one item moved,"* *"it''s obviously stable."* Only the identical-to-prior pass is convergence'
+- id: cu-L72
+  baseline: 'Then output:'
+  current: 'Then output:'
+  class: prose
+  text:
+  - 'Then output:'
+- id: cu-L73
+  baseline: 'A prioritized GAP table: `pack | requirement | status | evidence (path:line) | already-tracked?`'
+  class: prose
+  text:
+  - '`pack | requirement | status | evidence (path:line) | already-tracked?`'
+- id: cu-L74
+  baseline: A short "Deliberate deviations (not gaps)" list (each with its ADR/spec citation)
+  class: prose
+  text:
+  - deviations (not gaps)" list (each with its ADR/spec
+- id: cu-L75
+  baseline: A "Compliant" one-line summary per pack
+  class: prose
+  text:
+  - A "Compliant" one-line summary per pack
+- id: cu-L76
+  baseline: 'Pack-defect findings (PROJECT mode): anything wrong with a PACK itself → a `/fabrik-upstream` proposal, never a local edit'
+  class: ban
+  text:
+  - '(PROJECT mode): anything wrong with a PACK itself → a `/fabrik-upstream` proposal, never a local edit'
+- id: cu-L77
+  baseline: 'Honesty rules: don''t claim full compliance without embedded proof; don''t invent gaps; mark volatile/uncertain items as such; new/unverifiable behavior gets a residual-risk note'
+  class: prose
+  text:
+  - claim full compliance without embedded proof;
+  - without embedded proof; don't invent gaps;
+  - don't invent gaps; mark volatile/uncertain items
+  - such; new/unverifiable behavior gets a residual-risk
+- id: cu-L78
+  baseline: 'End with: which gaps are real TODOs vs deliberate, and which to fold into the active plan (`docs/development/plans/*`) — but do NOT edit anything unless I say so'
+  class: prose
+  text:
+  - real TODOs vs deliberate, and which to fold into the active plan (`docs/development/plans/*`)
+  - but do NOT edit anything unless
+vanished:
+  L1:
+    rule:
+    - cu-L1
+  L2:
+    rule:
+    - cu-L2
+  L6:
+    rule:
+    - cu-L6
+  L9:
+    rule:
+    - cu-L9
+  L10:
+    rule:
+    - cu-L10
+  L12:
+    rule:
+    - cu-L12
+  L13:
+    rule:
+    - cu-L13
+  L17: narrative
+  L20:
+    rule:
+    - cu-L20
+  L21:
+    rule:
+    - cu-L21
+  L22: narrative
+  L23:
+    rule:
+    - cu-L23
+  L24:
+    rule:
+    - cu-L24
+  L25:
+    rule:
+    - cu-L25
+  L27:
+    rule:
+    - cu-L27
+  L30:
+    rule:
+    - cu-L30
+  L31:
+    rule:
+    - cu-L31
+  L32:
+    rule:
+    - cu-L32
+  L37:
+    rule:
+    - cu-L37
+  L38:
+    rule:
+    - cu-L38
+  L39:
+    rule:
+    - cu-L39
+  L40:
+    rule:
+    - cu-L40
+  L46:
+    rule:
+    - cu-L46
+  L48:
+    rule:
+    - cu-L48
+  L56:
+    rule:
+    - cu-L56
+  L65:
+    rule:
+    - cu-L65
+  L66:
+    rule:
+    - cu-L66
+  L68:
+    rule:
+    - cu-L68
+  L69:
+    rule:
+    - cu-L69
+  L70:
+    rule:
+    - cu-L70

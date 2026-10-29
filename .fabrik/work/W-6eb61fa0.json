@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-01T20:45:03.275690Z",
   "creator": "fleet",
-  "evidence": "",
+  "effort": "low",
+  "evidence": "f3b576b326ee4396e070992c7aac7ef7d3a845ec",
   "id": "W-6eb61fa0",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,9 +15,10 @@
   },
   "next": "set autoescape=False (or select_autoescape on html/xml only) in template_renderer.py, prove a compose env value with quote and ampersand round-trips, check every template for a value that relied on escaping; found by the docusaurus Finish review, pass 1, A2 (pre-existing, outside that diff)",
   "note": "",
-  "owner": "",
-  "priority": 2,
-  "status": "open",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — double-escaped env values in every template deploy",
+  "status": "done",
   "tags": [
     "fleet"
   ],

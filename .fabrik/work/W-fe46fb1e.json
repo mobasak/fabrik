@@ -12,12 +12,14 @@
     "spec": ""
   },
   "next": "read-only: check whether live vps1 /opt/monitoring/compose.yaml carries 320479 (infra/vps1/monitoring/compose.yaml:115 does; the retired specs/infrastructure/monitoring-stack.yaml:103 at commit 766d284ab has the correct ($$|/)); if live, fix in the operator window (VPS write) and correct the mirror; if not, correct the mirror only",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
-    "vps"
+    "proposed-drop",
+    "vps",
+    "waits-operator-review"
   ],
   "title": "node-exporter mount-points-exclude regex reads (320479|/) — a shell $$ expanded to a PID — in the vps1 monitoring compose mirror"
 }

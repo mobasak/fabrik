@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T11:03:21.032409Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-ebca2c43",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "teach the localhost-ban and env-var checkers to skip remote-loopback constants and docstrings, with graders; drop the two noqa lines; ack mail 01M59WDCWB",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "blocking false positives: any master merge touching those files reds the gate; and the fix directive bans noqa as a fix; one checker change",
+  "status": "open",
+  "tags": [
+    "mail-01m59wdcwb"
+  ],
+  "title": "localhost-ban checker false positives: it flags VPS-side loopback constants (now noqa'd at src/fabrik/drivers/preflight.py:64 and prometheus.py:81 by d99ec675f) and check_env_vars flags docstring prose (image_broker.py, seo.py, tco.py; fleet mail 01M59WDCWB). Fix the checker so remote-loopback constants and docstrings pass, then remove the two noqa comments (fix directive: no noqa)"
+}

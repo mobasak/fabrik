@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:27:19.937657Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c098cfe8",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: claim mail 01M5BMDT38S08REF37CGS466EA, size it against the lane table, work it, review, reply, ack",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "kaizen work: two /fabrik-review rows need command_run.py code (start's brief path from a worktree; TERMINAL after a round that re-read no fix hunk)",
+  "status": "open",
+  "tags": [
+    "mail-01m5bmdt38s08ref37cgs466ea"
+  ],
+  "title": "Two /fabrik-review feedback rows ask for command_run.py code — start's brief path from a worktree, and TERMINAL after a round that re-read no fix hunk (mail 01M5BMDT38S08REF37CGS466EA, from kaizen)"
+}

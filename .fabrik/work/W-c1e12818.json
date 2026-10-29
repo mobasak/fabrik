@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T12:00:10.507364Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-c1e12818",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DMV3R93XT4G9CDYKB95RZ3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: 42-docusaurus.md Done When (01M4DFJDA4) — fixed at 16b3c1339, synced"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:07:11.898690Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1e34fb86",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4F7NVDZS4ZGCZG8NGTSR9JX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "check_spec_db_match.py skips every spec whose needs_database is falsy BEFORE it reads depends.postgres, so the 5 hub specs that name a database the registrar never creates pass the gate silently"
+}

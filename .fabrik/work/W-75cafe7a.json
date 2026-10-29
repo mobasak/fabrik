@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T15:31:00.062105Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "95f9b319293d5a9d1fc32f1d1094a107087ff02b",
+  "id": "W-75cafe7a",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "BRIEF (coordinator, D-923) — operator ask 2026-10-19, after a >1h hibernation: \"machine woken up. implement these close the gaps.\" Observed on this wake (coordinator, read-only, 18:57 +0330): G1. No builder resumes by itself: all 7 sessions (hub %0-%3, fabrik-lib %4-%6) were alive (Sl+) but idle at their prompts. Hibernation is not a death, so selfwatch never fires (D-163/D-356 arm = one wake per DEATH). G2. Coordinators do not wake on resume, so nothing nudges the builders unless the operator messages the coordinator. G3. The posture went stale across the sleep: claude_rotate --status read can session 2% (reset happened), but quota_posture still printed \"5h 96% no burn · band AMBER\", and the fleet-exhausted urgent-90 WARNING stamp (\"since Mon 18:56, resume promised Tue 06:32\") was still on, for ~5 min until the next tick. Agents act on AMBER and hold work for nothing. G4. A frozen TUI after resume: fleet's pane (%2) ignored two tmux C-m sends with \"go ahead\" in its input box; its status bar kept the pre-sleep 95% until a cross-session message arrived, then it redrew and cleared. The process was Sl+ throughout. G5. The hub launcher has hardcoded session ids (already W-66e2f6a7). 1. Settled: D-163/D-356 (selfwatch, one wake per death), D-880 (coordinator awareness), D-1034/D-1041/D-1042 (agents ask their coordinator; launcher layout). Search the ledger for a resume or wake ruling first. 2. Exists: scripts/wsl_startup_hook.sh (step 0 runs the MCP orphan reaper --report and appends one resume line, D-642), scripts/sysadmin/selfwatch_arm.sh and selfwatch_check.py, claude_rotate.py (_fleet_tick_inner, the posture writer), quota_posture_hook.py, the cron catch-up weekly_catchup.sh, agents_up.sh and its registries (.fabrik/session-agents.json), ListAgents/SendMessage. Authority: docs/workstation/hooks-index.md and liveness.md (the negative-age clock-jump rule). 3. Proposed lane: /fabrik-task (a reversible mechanism: a resume detector), with the full /fabrik-review if it touches hooks; your `start` decides. 4. Rules: a hook is registered only in the reviewed commit (never before review); never answer a peer's prompt that is the operator's; no Workflow tool (D-961). 5. Order: HIGH, after W-125b4e19 and before W-66e2f6a7 (G5 rides that item). 6. Gates: none from the closed list. 7. Done: after a hibernation (or any clock jump past N minutes), within ~2 minutes of resume and with no human: (a) the rotation tick re-reads every account and rewrites the posture and the exhausted stamp (G3); (b) every registered coordinator session gets one wake message naming the resume (G2), and every registered builder gets one \"resume your claimed item\" message, which also unsticks a frozen TUI (G1, G4); (c) a duplicate resume never double-sends; (d) proof is a test plus a simulated clock jump, and the operator's next real wake. 8. Best practice: how WSL signals resume (a clock jump against CLOCK_BOOTTIME vs CLOCK_MONOTONIC, or systemd's sleep targets under WSL) is your research gate's. ALSO (coordinator, 2026-10-20 00:50): a battery-hold lift left the posture at WALL until the next 5-min tick; rewrite the posture in the same tick that lifts any hold.",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: operator ask, and a block on every agent after each wake (all 7 sessions sat idle); LOW effort: one resume detector plus a forced tick, on existing pieces (wsl_startup_hook.sh, claude_rotate tick, the session registries)",
+  "status": "done",
+  "title": "Post-wake gaps (operator: 'machine woken up. implement these close the gaps.'): after a hibernation no builder or coordinator resumes by itself (selfwatch fires only on a death), the quota posture and fleet-exhausted stamp stay stale until the next tick, and a pane's TUI can freeze; add a resume detector that re-ticks the rotation and sends each registered coordinator and builder one wake message"
+}

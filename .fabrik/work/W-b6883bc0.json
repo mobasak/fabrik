@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T08:02:22.364036Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-b6883bc0",
+  "impact": "low",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -15,7 +17,11 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — merge_request refuses all-deselected tests; workaround exists",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "merge_request.py refuses a merge whose touched test files are all deselected (pytest rc 5)"
 }

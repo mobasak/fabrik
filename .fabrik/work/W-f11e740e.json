@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T04:33:24.089712Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "7f88d8bf8540365ba7b838ae7890fba3273cbe01",
+  "id": "W-f11e740e",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make docs_updater read through the same CommonMark link_targets shape, and decide (with a fleetdiff run, since it may REMOVE findings) whether check_doc_links' link loop moves under 'not in_fence' — W-dd091f0d design-critique residue; also reword check_doc_index's whole-text-read comment, whose 'exactly what the pre-change regex did' overstates the no-`[` case (a stray `](` with no earlier `[` is now skipped) — W-dd091f0d review pass 4",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: leftover edges from D-982 (docs_updater.py's own link regex, links in code fences, one comment); rare, advisory",
+  "status": "done",
+  "title": "Link readers outside link_targets still disagree with it: scripts/docs_updater.py:1966 check_link_integrity (its own \\[..\\]\\(([^)]+)\\) regex calls a titled or <angle> link to a live doc broken and skips a paren link; fleet-synced, advisory 'Documentation Drift' row) and check_doc_links reads links inside fenced blocks and code spans (pre-existing; a titled example of a missing path in a fence now reds)"
+}

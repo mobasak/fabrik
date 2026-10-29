@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T15:19:07.643354Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-eff97ae7",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 0,
+  "score_reason": "URGENT: the operator said 'yes it is urgent dispatch a new agent i need it asap.'; infra-3 resumed for it alone (W-29cc295e)",
+  "status": "open",
+  "tags": [
+    "waits-lean-program"
+  ],
+  "title": "REA (Reverse Engineer Anything, github.com/morluto/rea, MIT, ~377k stars) as an MCP for our agents — operator 2026-10-24: 'i need below feature asap' (Miles Deutscher, 'How to Reverse Engineer Anything with AI', x.com/milesdeutscher/article/2112924796866699336, 2026-10-21). Vet the package, add the roster row in docs/workstation/mcp-roster.md and roll it out through emit_mcp_project_config.py (never its own installer writing ~/.claude.json), health-check it, and ship the article's Look/Understand/Plan/Build/Iterate flow plus the Scout/Spec-Writer/Builder/Tester swarm as a usable skill or command"
+}

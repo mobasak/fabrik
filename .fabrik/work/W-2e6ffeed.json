@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T07:27:43.031869Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2e6ffeed",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4D09TQQBR9KAQZMRNN5J2V0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: term-edit.md scope-growth paragraph predates D-355 — fixed in cf6c298c0 (7 sites, reviewed 3 -> 0)"
+}

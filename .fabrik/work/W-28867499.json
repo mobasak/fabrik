@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T02:06:58.282919Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-28867499",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M56238ZK99NE7M9TFZQ34K64",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "D-484's stay-in-place rule lost its link-check ground — the ledger is no longer a check_doc_links source (D-965); retire or keep the rule?"
+}

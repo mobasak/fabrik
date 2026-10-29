@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T21:50:41.104145Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-023f3d2f",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "python3 scripts/sysadmin/mcp_health.py plus one real query per engine; board the key renewal as a credentials gate if confirmed",
+  "note": "not a hub defect — infra diagnosed 2026-10-17: the box's egress (CGNAT 100.116.136.1, public IP whois IR-MCI, country IR) is refused by Google Cloud/Cloudflare-fronted APIs; keyless probes fail identically; keys identical in all 7 configs. Fix is a different network path — the operator's call, relayed",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "assigned MCPs broken is FIX-FIRST (CLAUDE.md § Behavior); the research tier-2 ladder depends on exa/firecrawl",
+  "status": "dropped",
+  "title": "Three assigned research MCPs fail for review seats although they connect (infra W-573fae88 run, 2026-10-17): brave-search 422 SUBSCRIPTION_TOKEN_INVALID (key likely needs renewal), exa Cloudflare 403 on every fetch, firecrawl ETIMEDOUT — diagnose per docs/workstation/mcp-roster.md; a key renewal is the operator's (credentials)"
+}

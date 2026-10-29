@@ -1,8 +1,11 @@
 {# Companion service (deploy-readiness-gaps Phase 4). Included per item from a
    {% for c in companion_services %} loop in a parent compose.yaml.j2. Shares the
    parent's build/image + env + DATABASE_URL/REDIS_URL AND the project .env
-   (env_file — the only place registrar-injected keys such as DATABASE_URL_OWNER
-   live); overrides command + container_name + memory. No Traefik labels, and a
+   (env_file — where the registrar-injected app keys live); a companion with
+   owner_env (the audit-jobs companion) ALSO loads .env.owner, the only place
+   DATABASE_URL_OWNER lives on the VPS (owner split, D-754) — `required: false`
+   because the registrar writes it after the first `up`; overrides command +
+   container_name + memory. No Traefik labels, and a
    liveness probe in place of the image HEALTHCHECK — companions are workers/schedulers,
    not HTTP-routed, and the image's probe checks the parent app. Memory limit is mandatory (fabrik
    per-service invariant). #}
@@ -13,9 +16,13 @@
     platform: linux/amd64  # Mandatory for x86_64 VPS
     container_name: {{ c.id }}
     restart: unless-stopped
-    command: {{ c.command | tojson | safe }}
+    command: [{{ c.command | map('compose_str', 'companion command') | join(', ') }}]
     env_file:
       - .env
+      {% if c.owner_env %}
+      - path: .env.owner
+        required: false
+      {% endif %}
     healthcheck:
       # A liveness probe, never `disable: true`: compose `up --wait` refuses a service whose
       # healthcheck is disabled ("has no healthcheck configured", rc 1), and the image's own
@@ -27,16 +34,16 @@
       start_period: 10s
     environment:
       {% for key, value in env.items() %}
-      - {{ key }}={{ value | env_escape }}
+      - {{ key | compose_env(value) }}
       {% endfor %}
       {% if depends.postgres %}
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/{{ depends.postgres }}}
+      - {{ 'DATABASE_URL' | compose_env('${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/' ~ depends.postgres ~ '}') }}
       {% endif %}
       {% if depends.redis %}
       - REDIS_URL=${REDIS_URL:-redis://redis-main:6379/0}
       {% endif %}
       {% for key, value in (c.env_overrides or {}).items() %}
-      - {{ key }}={{ value | env_escape }}
+      - {{ key | compose_env(value) }}
       {% endfor %}
     deploy:
       resources:

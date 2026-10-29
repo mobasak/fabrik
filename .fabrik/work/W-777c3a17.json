@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T19:42:55.605619Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-777c3a17",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4EFH7PRA2YTNJ74BK5ZN1HE",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "check_spec_convergence.py:8-9 docstring says check_stage_artifacts \"merely\" checks a plan's cited spec HAS a status — false since _check_plan_spec_freshness"
+}

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-07-01T00:00:00.000000Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-6017dc33",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -12,10 +14,11 @@
     "spec": ""
   },
   "next": "**[fleet]** **CI-parity Phase 2 — spec-driven `shape.db_extensions: [pgvector]`**: deferred from [`archived/2026-07-01-plan-fabrik-ci-parity.md`](development/plans/archived/2026-07-01-plan-fabrik-ci-parity.md). The one-source CI generator (`src/fabrik/ci_scaffold.py`) already accepts `db_extensions=(\"pgvector\",)` → `pgvector/pgvector:pg16`, but scaffolding runs *before* a spec exists, so there's no spec→CI regen path to drive it — new scaffolds default to plain `postgres:16` (correct for most). Blocked by: a project that actually needs pgvector in CI AND a decision on the regen trigger (a `fabrik ci-refresh <spec>` step vs an apply-time registrar). Not urgent — the default is right for the common case.",
-  "note": "migrated-digest:a5d5ba68d5f5",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "fleet",
-  "priority": 2,
-  "status": "open",
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: waits for consumer — deferred until a pgvector CI consumer exists; ci_scaffold.py accepts db_extensions",
+  "status": "dropped",
   "tags": [
     "waits-pgvector-ci-consumer"
   ],

@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:25.223689Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-9850bd1b",
+  "impact": "low",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VWZE3YH5ZT7ASZPYA5JMJN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — stale counts and a red cite test in a rule pack",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "W-66f398a3 follow-ups in infra's beat — 58-resilience stale counts, a red gate-row cite test, and the unbuilt count reader"
+}

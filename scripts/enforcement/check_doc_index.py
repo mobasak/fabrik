@@ -6,8 +6,9 @@ Two directions:
 
 (a) every ``docs/``-prefixed markdown link target named in INDEX.md exists on disk
     (directories allowed);
-(b) every tracked live doc under ``docs/`` appears in INDEX.md by full path or
-    basename — excluding archives, the plan/epic/review/spec pipeline content,
+(b) every tracked live doc under ``docs/`` appears in INDEX.md by full path, or by
+    a basename no other Markdown file in the repo shares (a SHARED basename is an
+    advisory line until the flip, W-c256027a) — excluding archives, the plan/epic/review/spec pipeline content,
     and the daily-regenerated selection set (``docs/reference/kilo/*_SELECTION.md``
     plus KILO_MODEL_CAPABILITIES.md / KILO_AGENT_SELECTION_GUIDE.md and
     ``docs/traycer/kilo_selected_agents.md`` — sourced from daily_refresh.sh's
@@ -27,6 +28,7 @@ import stat as stat_module
 import subprocess
 import sys
 from pathlib import Path
+from urllib.parse import unquote
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -124,6 +126,134 @@ _PRISTINE_SEEDS: dict[str, frozenset[str]] = {
 _ABSENT_ERRNOS = frozenset({errno.ENOENT, errno.ENOTDIR, errno.ELOOP, errno.EBADF})
 
 
+def _pct_decode(text: str) -> str:
+    """Percent-decode, keeping `%2F` literal — the same one-liner as check_doc_links.pct_decode
+    (its docstring carries the why; a test pins the two to one output)."""
+    return unquote(re.sub(r"%2[Ff]", "%252F", text), errors="surrogateescape")
+
+
+# CommonMark: the whitespace before a title and before `)` holds spaces or tabs and up to ONE line
+# ending — `\r\n`, `\r` or `\n`, since check_doc_index reads INDEX.md as bytes (W-55905ee1); a blank
+# line (two line endings) ends the link.
+_LE = r"(?:\r\n|\r|\n)"
+_WS1 = r"[ \t]*(?:" + _LE + r"[ \t]*)?"
+# at least one whitespace before a title
+_SEP = r"(?:[ \t]+(?:" + _LE + r"[ \t]*)?|" + _LE + r"[ \t]*)"
+_TITLE_CLOSE_RE = re.compile(
+    r"(?:"
+    + _SEP
+    + r"""(?:"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|\((?:[^()\\\n]|\\.)*\)))?"""
+    + _WS1
+    + r"\)"
+)
+_ESCAPED_RE = re.compile(r"\\([!-/:-@\[-`{-~])")
+_PUNCT = frozenset("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~")  # CommonMark's escapable set
+
+
+def link_targets(text: str):
+    """Every inline link destination in `text` as CommonMark reads it — the same function as
+    check_doc_links.link_targets (its docstring carries the why, W-dd091f0d; a test pins the two
+    to one output)."""
+    n = len(text)
+    opened_at = n  # the first `[` behind an EVEN backslash run (`\\[` opens, `\[` does not)
+    o = text.find("[")
+    while o != -1:
+        b = o
+        while b > 0 and text[b - 1] == "\\":
+            b -= 1
+        if (o - b) % 2 == 0:
+            opened_at = o
+            break
+        o = text.find("[", o + 1)
+    i = text.find("](")
+    while i != -1:
+        # Not a link: a `]` escaped by an odd run of backslashes, or a `](` with no unescaped `[`
+        # anywhere before it — accepting one would consume a real link inside its "title".
+        b = i
+        while b > 0 and text[b - 1] == "\\":
+            b -= 1
+        if (i - b) % 2 or opened_at > i:
+            i = text.find("](", i + 2)
+            continue
+        j = i + 2
+        while j < n and text[j] in " \t":
+            j += 1
+        if j < n and text[j] in "\r\n":  # one line ending may precede the destination (W-55905ee1)
+            j += 2 if text[j : j + 2] == "\r\n" else 1
+            while j < n and text[j] in " \t":
+                j += 1
+        dest = None
+        if j < n and text[j] == "<":
+            k = j + 1
+            while k < n and text[k] not in "<>\n":
+                k += 2 if text[k] == "\\" and text[k + 1 : k + 2] in _PUNCT else 1
+            if k < n and text[k] == ">":
+                dest, k = text[j + 1 : k], k + 1
+        else:
+            k, depth = j, 0
+            while k < n:
+                c = text[k]
+                if c == "\\" and text[k + 1 : k + 2] in _PUNCT:
+                    k += 2
+                    continue
+                # Any str.isspace() char ends it (NBSP-class too, OUT); a NUL stays and is reported.
+                if c.isspace():
+                    break
+                if c == "(":
+                    depth += 1
+                elif c == ")":
+                    if depth == 0:
+                        break
+                    depth -= 1
+                k += 1
+            if depth == 0:
+                dest = text[j:k]
+        close = _TITLE_CLOSE_RE.match(text, k) if dest is not None else None
+        if dest is None or close is None:
+            i = text.find("](", i + 2)
+            continue
+        cut, p = len(dest), 0  # the fragment starts at the first UNESCAPED `#`
+        while p < len(dest):
+            if dest[p] == "\\" and dest[p + 1 : p + 2] in _PUNCT:
+                p += 2
+            elif dest[p] == "#":
+                cut = p
+                break
+            else:
+                p += 1
+        dest = _ESCAPED_RE.sub(r"\1", dest[:cut])
+        if dest:
+            yield dest
+        # Resume AFTER the link: a `](` inside its destination or title is not a second link.
+        i = text.find("](", close.end())
+
+
+_BLANKER: object = None  # unloaded; then _fences.blank_code_examples, or False where it is missing
+
+
+def _blank_examples(text: str) -> str:
+    """Fence lines, fence bodies and inline code spans blanked, length-preserving, by
+    `_fences.blank_code_examples` — the reading check_doc_links grades links on, so a fenced or span-held
+    INDEX.md link is skipped by both checks in one gate run (W-85bd72fa; the two still differ by
+    check_doc_links' stale-marker skip and its per-line read). Read raw, a quote inside a span opened a link
+    title that swallowed the real link after it (a missing doc passed (a)), and a span-held escaped link
+    indexed its decoded path for (b) and (c). Imported on first use by the sibling directory; where
+    `_fences.py` is missing (ImportError) or predates the name, the text comes back raw — the pre-W-85bd72fa
+    reading. A `_fences.py` that fails to import any other way raises, as it does in every check importing it."""
+    global _BLANKER
+    if _BLANKER is None:
+        here = str(Path(__file__).resolve().parent)
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        try:
+            import _fences
+        except ImportError:
+            _BLANKER = False
+        else:
+            _BLANKER = getattr(_fences, "blank_code_examples", False)
+    return _BLANKER(text) if _BLANKER else text  # type: ignore[operator]
+
+
 def _printable(text: str) -> str:
     """Render a surrogateescape string safely for a UTF-8 stdout.
 
@@ -219,24 +349,23 @@ def _added_code_paths() -> list[str]:
     reason `get_changed_files()` excludes untracked-unstaged paths.
 
     Returns [] on any git failure: an advisory that guesses is worse than one that is silent.
+    `-z` and bytes, decoded with surrogateescape, for the reason `_ls` gives: git C-quotes a
+    non-ASCII or quoted name (`"scripts/caf\\303\\251.py"`), which never starts with a code root,
+    so such an added file went unexamined (W-dd091f0d design critique).
     """
     try:
         proc = subprocess.run(
-            ["git", "diff", "--cached", "--name-only", "--diff-filter=A"],
+            ["git", "diff", "--cached", "--name-only", "-z", "--diff-filter=A"],
             cwd=REPO,
             capture_output=True,
-            text=True,
             check=False,
         )
     except OSError:
         return []
     if proc.returncode != 0:
         return []
-    return [
-        ln.strip()
-        for ln in proc.stdout.splitlines()
-        if ln.strip().startswith(_CODE_ROOTS) and not ln.strip().endswith("/")
-    ]
+    paths = [c.decode("utf-8", "surrogateescape") for c in proc.stdout.split(b"\0") if c]
+    return [p for p in paths if p.startswith(_CODE_ROOTS) and not p.endswith("/")]
 
 
 def main() -> int:
@@ -325,11 +454,46 @@ def main() -> int:
         # still tracebacked past the guard above. Catch the class, not the instance.
         return _fail(f"INDEX.md could not be read ({exc.__class__.__name__}): {exc}")
     problems: list[str] = []
+    # INDEX.md percent-decoded ONCE, for (b): a doc counts as indexed when its raw path or
+    # basename appears in the text as written OR as decoded, so any valid escaping an author
+    # writes (`R&D%20notes.md`, lowercase hex, a `%E9` byte) agrees with (a). surrogateescape on
+    # both sides because paths are read that way (`_printable`), and a strict decode would raise.
+    index_unq = _pct_decode(index_text)
+    # Every INDEX link destination as (a) reads it, as written and decoded: a link whose path
+    # differs from its text — a backslash escape (`docs/a\_b.md`) — must count for (b) and (c)
+    # exactly when it counts for (a), or the only remedy is to rewrite a correct link.
+    # The WHOLE text, not line by line: CommonMark link text may span a line break
+    # (`[Notes⏎](docs/gone.md)`), and a per-line read dropped that link unexamined. The cost,
+    # measured in the W-dd091f0d review: one `[` anywhere above lets a stray `](` on a later line
+    # read as a link, so it is graded, as the pre-change regex did (fail-closed). A stray `](` with
+    # no unescaped `[` anywhere before it, or an escaped `\](`, is not a link and is skipped
+    # (fail-open), where the pre-change regex graded both (W-f11e740e). Read through `_blank_examples`, as
+    # check_doc_links reads links: a fenced or span-held link is a code example, never graded, and its
+    # destination stays out of `linked` — though (b) and (c) still count a bare mention of its path in the raw
+    # text (W-85bd72fa); fence lines follow check_doc_links' toggle, whose costs its _iter_refs docstring states.
+    # Line endings become LF first: INDEX.md is read as bytes, so a lone CR reaches here, and the span blanker
+    # breaks lines only on LF — a span opened before a CR-ended line would pair across a heading and hide a
+    # real link (check_doc_links never sees a CR: read_text() translates it).
+    index_links = list(
+        link_targets(_blank_examples(index_text.replace("\r\n", "\n").replace("\r", "\n")))
+    )
+    linked = {s for t in index_links for s in (t, _pct_decode(t))}
 
     # (a) INDEX targets exist
-    for m in re.finditer(r"\]\((docs/[^)#\s]+?)(?:#[^)]*)?\)", index_text):
-        t = m.group(1).replace("%20", " ").rstrip("/")
+    # Every CommonMark link shape — balanced parens, a title, `<angle>` (W-dd091f0d): the old
+    # regex truncated `docs/a(b).md` and never saw a titled or angle link to a missing doc.
+    for target in dict.fromkeys(index_links):
+        if not target.startswith("docs/"):
+            continue
+        # Percent-DECODED (W-7ae1169a): `%20` alone left every other escape — a literal `%`
+        # (`%25`), a `#` (`%23`), a UTF-8 name — with no link spelling direction (b) could agree
+        # with; (b) reads the same contract through `index_unq`. The link as WRITTEN still counts
+        # when its decoded form is absent, so a file whose real name holds `%XX` stays reachable.
+        raw = target.rstrip("/")
+        t = _pct_decode(raw).rstrip("/")
         state = _target_state(REPO / t)
+        if state == "absent" and t != raw and _target_state(REPO / raw) != "absent":
+            t, state = raw, _target_state(REPO / raw)
         if state == "absent":
             problems.append(f"INDEX.md names missing path: {t}")
         elif state == "unknown":
@@ -342,7 +506,9 @@ def main() -> int:
     # (trade-intelligence upstream, 2026-08-05).
     _ls_failure: list[str] = []
 
-    def _ls(*extra: str) -> list[str] | None:
+    def _ls(
+        *extra: str, patterns: tuple[str, ...] = ("docs/**/*.md", "docs/*.md")
+    ) -> list[str] | None:
         """None when git could not answer — NOT an empty doc list.
 
         `check=False` plus `.stdout` alone silently turned git's exit 128 ("not a git
@@ -367,8 +533,7 @@ def main() -> int:
                     "ls-files",
                     "-z",
                     *extra,
-                    "docs/**/*.md",
-                    "docs/*.md",
+                    *patterns,
                 ],
                 cwd=REPO,
                 capture_output=True,
@@ -409,31 +574,72 @@ def main() -> int:
         )
     untracked = set(untracked_list)
     examined = 0  # the docs the loop actually graded — the lean row's denominator (round 3)
+
+    def _live(p: str) -> bool:
+        """The live-doc predicate the grading loop applies. The shared-name count below does NOT use
+        it on purpose: it reads EVERY tracked + untracked `*.md` (root, archived and excluded files
+        included), because a bare name in INDEX.md is ambiguous whenever any such file shares it
+        (W-c256027a design critiques). It is also built before the `--untracked-only` filter, so the
+        lean row counts the same population as the full gate."""
+        if p.startswith(EXCLUDE_PREFIXES) or p in EXCLUDE_EXACT or _SELECTION_RE.match(p):
+            return False
+        if p in _PRISTINE_SEEDS and _is_pristine_seed(p):
+            return False  # still the hub's own bytes — this repo has written no decision to index
+        # Tracked but deleted from the worktree. Demanding an INDEX row here puts the two
+        # directions in direct contradiction: add the natural `](docs/…)` link and direction
+        # (a) immediately reports the target as missing, so only a link-less bare-basename
+        # mention satisfies both — a nonsense edit to make a gate happy. `unknown` (an
+        # unreadable parent) deliberately falls through: the membership test below reads only
+        # the path STRING, so an unreadable doc still owes its row.
+        return _lstat_state(REPO / p) != "absent"
+
+    # W-c256027a: a BASENAME indexes a doc only when no other Markdown file in the repo shares it.
+    # Measured 2026-10-08 over 41 /opt repos (1,411 examined docs): 27 docs in 19 repos passed only on
+    # a SHARED name — 16 `docs/README.md` riding the ROOT README's row, two `docs/INDEX.md` riding
+    # INDEX.md naming itself, the hub's four nested READMEs riding the one indexed README. Counted over
+    # every tracked + untracked `*.md` (the root files included — counting only examined docs missed
+    # all of the root-row cases), and reported as an ADVISORY line until the fleet has indexed them
+    # (warn before block; the flip is work item W-84088533). COBRA: advisory lines are ignorable — the
+    # dated flip is the counter; at the flip the cheapest pass is a bare path mention, as today.
+    names: dict[str, list[str]] = {}
+    shared_problems: list[str] = []
+    all_md = _ls(patterns=("*.md",))
+    all_untracked_md = _ls("--others", "--exclude-standard", patterns=("*.md",))
+    if all_md is None or all_untracked_md is None:
+        # review A-S1: an empty fallback made the advisory go quiet with nothing to tell it from
+        # "no sharing" — say the sub-check examined nothing (advisory, so the run's verdict stands)
+        shared_problems.append(
+            "shared-name check skipped — git could not list the repo's *.md files, so no doc was "
+            "checked for riding a shared basename this run"
+        )
+    for rel in dict.fromkeys([*(all_md or []), *(all_untracked_md or [])]):
+        if _lstat_state(REPO / rel) != "absent":
+            names.setdefault(Path(rel).name, []).append(rel)
     # sorted(): `untracked` is a set, so the finding ORDER varied between runs on identical input.
     for p in dict.fromkeys([*tracked, *sorted(untracked)]):
         if untracked_only and p not in untracked:
             continue
-        if p.startswith(EXCLUDE_PREFIXES) or p in EXCLUDE_EXACT or _SELECTION_RE.match(p):
-            continue
-        if p in _PRISTINE_SEEDS and _is_pristine_seed(p):
-            continue  # still the hub's own bytes — this repo has written no decision to index
-        if _lstat_state(REPO / p) == "absent":
-            # Tracked but deleted from the worktree. Demanding an INDEX row here puts the two
-            # directions in direct contradiction: add the natural `](docs/…)` link and direction
-            # (a) immediately reports the target as missing, so only a link-less bare-basename
-            # mention satisfies both — a nonsense edit to make a gate happy. `unknown` (an
-            # unreadable parent) deliberately falls through: the membership test below reads only
-            # the path STRING, so an unreadable doc still owes its row.
+        if not _live(p):
             continue
         base = Path(p).name
         examined += 1
-        if p not in index_text and base not in index_text:
-            tag = (
-                " (untracked — the run that creates a doc owes its INDEX row)"
-                if p in untracked
-                else ""
-            )
+        tag = (
+            " (untracked — the run that creates a doc owes its INDEX row)" if p in untracked else ""
+        )
+        if p in index_text or p in index_unq or p in linked:
+            continue
+        if base not in index_text and base not in index_unq:
             problems.append(f"live doc not in INDEX.md: {p}{tag}")
+            continue
+        others = [o for o in names.get(base, []) if o != p]
+        if others:
+            shown = ", ".join(others[:3]) + (
+                f" (+{len(others) - 3} more)" if len(others) > 3 else ""
+            )
+            shared_problems.append(
+                f'doc indexed only by a shared name: {p} — "{base}" is also {shown}; INDEX.md must '
+                f"carry the path (advisory until the flip, W-84088533){tag}"
+            )
 
     # ---------------------------------------------------------------------------------
     # (c) CODE paths — ADVISORY, staged-scope, added-only (T12.10, 01M1VPEGG).
@@ -460,7 +666,8 @@ def main() -> int:
     code_problems: list[str] = []
     if not untracked_only:
         for rel in _added_code_paths():
-            if rel not in index_text:
+            # As written, percent-decoded or as a parsed link — the contract (a) and (b) read.
+            if rel not in index_text and rel not in index_unq and rel not in linked:
                 code_problems.append(
                     f"added code file not in INDEX.md: {rel} "
                     "(Doc Sync Matrix: File added/removed/renamed → INDEX.md; the row must name "
@@ -471,6 +678,8 @@ def main() -> int:
         payload = {"status": "success" if not problems else "failure", "drift": problems}
         if code_problems:
             payload["code_index_advisory"] = code_problems
+        if shared_problems:
+            payload["shared_name_advisory"] = shared_problems
         if untracked_only:
             payload["mode"] = "untracked-only"
             payload["examined"] = examined
@@ -478,7 +687,7 @@ def main() -> int:
     else:
         for x in problems:
             print(f"ERROR: {_printable(x)}")
-        for x in code_problems:
+        for x in shared_problems + code_problems:
             print(f"⚠ {_printable(x)}")
         if not problems and not quiet:
             print("check_doc_index: OK — INDEX.md and the live docs tree agree")

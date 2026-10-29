@@ -1,0 +1,22 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T23:30:47.624979Z",
+  "creator": "dd3c06d1-41b1-4610-bfd5-deb4f29fcc2e",
+  "evidence": "",
+  "id": "W-807da86d",
+  "kind": "next",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "session": "dd3c06d1-41b1-4610-bfd5-deb4f29fcc2e",
+    "spec": ""
+  },
+  "next": "/fabrik-execute-plan docs/development/plans/2026-10-15-plan-1-coordinator-role.md — ready to build. Per /fabrik-plan-review step 5 it is never started from an approval gate, so it is named here as the next command.",
+  "next_at": "2026-10-14T23:30:47.624979Z",
+  "note": "superseded",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "title": "/fabrik-execute-plan docs/development/plans/2026-10-15-plan-1-coordinator-role.md — ready to build. Per /fabrik-plan-review step 5 it is never started from an approval gate, so it is named here as the next command."
+}

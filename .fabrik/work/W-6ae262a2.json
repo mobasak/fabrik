@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-03T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "f1162c17cb82292a64e5a813f3296e2249e02b06",
   "id": "W-6ae262a2",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "migrated-digest:b20b4e365368",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "Fleet capability claims in `agents-fabrik.md` were written from intent, never probed — pgvector was false for months (2026-09-03, owner: operator decision + fleet)"
 }

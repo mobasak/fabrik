@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:23:05.821357Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-354a5866",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4PPW8D82CN1QVQGDW1Q61TT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "a quiet round 1's closing pass has no executable recipe — term-coverage D5 says its claims are open, the workflow head says refuted claims are closed, and an empty slices list is refused"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T13:07:20.735582Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-931dd88b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DSXX1YM7YK1Q41ZR1D7KDW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: 'the round-1 seat' needs its dispatch shape named (01M4DST0Z8, W-11b76a87) — not reproduced on 2.1.280; no edit"
+}

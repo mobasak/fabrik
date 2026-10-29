@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:28.190528Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-3c626697",
+  "impact": "low",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4WJ9CNJVSRRA5HMMQ0NAZVC",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — merge_request failure-list diff idea",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "/fabrik-execute-plan row 1791830129 needs code — merge_request.py should save a refused merge's full failure list (pytest -rf) and diff it against the base's"
+}

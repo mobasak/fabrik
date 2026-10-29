@@ -61,6 +61,28 @@ def test_render_emits_two_services():
         [{"id": "demo-svc-scheduler", "command": ["node", "dist/scheduler.js"], "memory": "256M"}]
     )
     assert set(doc["services"]) == {"demo-svc", "demo-svc-scheduler"}
+    # A companion that does not declare `owner_env` loads the project `.env` alone (owner split, D-754).
+    assert doc["services"]["demo-svc-scheduler"]["env_file"] == [".env"]
+
+
+def test_owner_env_companion_loads_the_owner_file_too():
+    """Owner split (D-754): `owner_env: true` adds `.env.owner` (long syntax, `required: false`)."""
+    doc, _ = _render(
+        [
+            {
+                "id": "demo-svc-jobs",
+                "command": ["node", "dist/jobs.js"],
+                "memory": "256M",
+                "owner_env": True,
+            }
+        ]
+    )
+    assert doc["services"]["demo-svc-jobs"]["env_file"] == [
+        ".env",
+        {"path": ".env.owner", "required": False},
+    ]
+    # the app service never loads the owner file (node-api's app renders no env_file key at all)
+    assert ".env.owner" not in str(doc["services"]["demo-svc"].get("env_file", []))
 
 
 def test_multiple_companions_all_render():

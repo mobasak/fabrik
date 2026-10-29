@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T20:02:12.912979Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-87cf3db3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4EGNPWHAHWZZPZ47SNR0A5T",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: /fabrik-plan-review verdicts needing code (01M4EG5F6D) + check_spec_convergence docstring (01M4EFH7PR) — boarded as infra items"
+}

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T13:54:21.693121Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "7c073a065d012b8c32dbe91471db3341f3e1595b",
+  "id": "W-393ffefa",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add the recipe branch for a test that scaffolds a project and reads fabrik-lib; red-prove with the create_project test kaizen's row 1792229873 names",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "HIGH: another agent's request (kaizen, routed twice) blocking scaffolding-test review seats; one recipe branch",
+  "status": "done",
+  "tags": [
+    "mail-01m54ykmf1"
+  ],
+  "title": "mail 01M54YKMF1 (kaizen): the review-loop seat pin recipe (PIN_IMPORT/PYTEST_PINS in .claude/workflows/fabrik-review-loop.js) has no layout for a scaffolding test (create_project) and resolves fabrik-lib beside the scratch archive, where nothing exists"
+}

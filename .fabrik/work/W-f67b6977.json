@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T02:25:32.846813Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f67b6977",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/archived/2026-10-18-plan-1-external-services-inventory/2026-10-18-plan-1-external-services-inventory.md",
+    "spec": ""
+  },
+  "next": "extend tests/test_quota_dashboard_page_layer.py::_option_labels to read the values of a dict literal passed through .items(), or refuse a non-pair options constructor in views; parametrised red-first test",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: test-coverage or rare-edge residue in infra's scripts; nobody blocked",
+  "status": "open",
+  "title": "Page-layer view-literal scan: option labels built through dict.items() (and any other non-pair constructor) are not scanned — the T01 _option_labels rule covers literal pairs, comprehensions, +, *, list/tuple/sorted and bound names only"
+}

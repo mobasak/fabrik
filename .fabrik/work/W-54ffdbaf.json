@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:31:01.815449Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-54ffdbaf",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: read mail 01M4YNHVH2GAJBZ3W7XBCBJM9A, claim it, act on it",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — Stop hook blames idle window; false block, mail from agents",
+  "status": "open",
+  "tags": [
+    "mail-01m4ynhvh2gajbz3w7xbcbjm9a",
+    "mail-01m4ynthkk1ja99eh7714xhe2s"
+  ],
+  "title": "Two windows on one session id fuse the transcript and the run record — the Stop hook blames the idle window for a sibling's work (with addendum 01M4YNTHKK1J) (mail 01M4YNHVH2GAJBZ3W7XBCBJM9A)"
+}

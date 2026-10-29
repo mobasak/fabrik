@@ -1,4 +1,4 @@
-# VENDORED-FROM fabrik-lib health-probe/health_probe.py @ cfd9215f — byte-identical below this 3-line header; re-vendor, never edit
+# VENDORED-FROM fabrik-lib health-probe/health_probe.py @ 8bedcaa4 — byte-identical below this 3-line header; re-vendor, never edit
 # ruff: noqa
 # fmt: off
 #!/usr/bin/env python3
@@ -67,11 +67,25 @@ def load_env(path: Optional[str] = None) -> bool:
     With ``path=None`` python-dotenv searches upward from this module's directory, so a
     vendored ``libs/health_probe/`` copy still finds the project-root ``.env`` (under
     ``python -c``, a REPL or a tracer it searches the current directory instead — pass
-    ``path`` to be explicit). Returns whether a file was loaded: ``False`` when no ``.env``
-    was found, and ``False`` (loading nothing) when python-dotenv is not installed. Once any
+    ``path`` to be explicit). Returns ``True`` when a file parsed to at least one key, even if
+    nothing changed: every key was already in the real environment, or a key has no ``=``
+    (``FOO`` alone parses with no value and is never set). Returns ``False``,
+    loading nothing, in four cases: no ``.env`` was found; the file parses to no key (empty or
+    comments only); python-dotenv is not installed; or ``PYTHON_DOTENV_DISABLED`` is one of
+    ``1``, ``true``, ``t``, ``yes`` or ``y`` in any case. That last switch exists from
+    python-dotenv 1.2.0; earlier versions ignore it and load the file, and other values such as
+    ``on`` or ``enabled`` leave loading ON. Once any
     ``load_env()`` call has run, ``cli()`` does not search again. An unreadable or
-    non-UTF-8 file raises (``OSError`` / ``UnicodeDecodeError``) from here; ``cli()`` reports
-    it on stderr and carries on.
+    non-UTF-8 file raises (``OSError`` / ``UnicodeDecodeError``) from here before any key is
+    set. python-dotenv parses the whole file first, keeps each key's LAST value in
+    first-appearance order, then sets the keys one by one; a key or value that is actually
+    SET and contains a NUL byte raises ``ValueError`` part-way. The keys already set are those
+    first seen before the bad one, not strictly the lines above it: a key redefined below the
+    bad line holds its below-the-line value. A NUL that is never set raises nothing: a key
+    already in the real environment is skipped (``override=False``), and a NUL value that a
+    later line redefines cleanly is replaced before any key is set. So this does not detect a
+    NUL byte reliably; do not use it to validate a ``.env``. ``cli()`` reports either error on
+    stderr and carries on.
     """
     global _ENV_LOAD_CALLED
     _ENV_LOAD_CALLED = True
@@ -628,6 +642,10 @@ def cli(
         except (OSError, UnicodeDecodeError) as exc:
             # A broken .env is a config problem, not an outage: never exit 1 for it.
             print(f"health_probe: .env not loaded ({type(exc).__name__})", file=sys.stderr)  # no message: it can quote a .env byte
+        except ValueError as exc:
+            # os.environ refuses a NUL byte mid-load: keys first seen before the bad one are set,
+            # each with its LAST value (python-dotenv's order); see load_env for when none is raised.
+            print(f"health_probe: .env load stopped part-way ({type(exc).__name__})", file=sys.stderr)  # no message: it can quote a .env byte
     critical = critical or set()
     ap = argparse.ArgumentParser(description=description)
     ap.add_argument("--json", action="store_true")

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T06:23:35.320158Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-3b9d40bd",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "red-first: a non-UTF-8 item file makes _read_item raise WorkError; then catch UnicodeDecodeError beside OSError at the read",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: a work-store edge from the W-0fe931b7 review, nobody blocked; one function",
+  "status": "open",
+  "tags": [
+    "infra"
+  ],
+  "title": "work.py _read_item lets UnicodeDecodeError escape: read_text(encoding='utf-8') sits inside an OSError-only try, so an item file holding invalid UTF-8 (e.g. b'\\xff\\xfe{}') aborts every reader (assign's one-major hold clear, ready, claim) with a traceback instead of the WorkError they catch; fails closed, no write. Found in the W-0fe931b7 review pass 2 (slice A, Haiku seat, executed probe)"
+}

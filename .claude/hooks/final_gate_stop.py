@@ -46,6 +46,15 @@ from collections.abc import Callable
 from pathlib import Path
 
 CAP = 3  # consecutive blocked stops before letting it stop anyway (anti-trap)
+# Every ORDINARY push order names the gate first (kaizen 01M4EP8A40): close-chain runs commit → gate →
+# push, and on a clean tree this hook never runs the gate, so a bare "push" published a red-gated
+# commit. The urgent-90 checkpoint item stays push-only on purpose (D-306; `_urgent_checkpoint`).
+# ⚠️ COBRA (D-253): the cheapest pass is to report every red as "inherited" and push anyway — the
+# clause names the way out so an unfixable red never traps the push, and the report is the counter.
+_GATE_BEFORE_PUSH = (
+    "gate green on your change first (`final_gate.py --check --json` from the repo root; an "
+    "inherited or sibling red is the repo's — report it, it does not hold the push), "
+)
 
 # --- Kaizen M1 event stream (additive sensor, fail-open at the IMPORT layer) ---
 # The emitter lives at ONE place per box, so both candidates are tried: this repo's own
@@ -670,8 +679,9 @@ def _seats_in_flight(rec: dict, transcript_path: str) -> bool:
     for that id. Only
     ``user`` lines' structured ``toolUseResult`` counts as a launch — Bash or Read output
     quoting the launch text carries no such field; notifications come from ``queue-operation``
-    enqueue lines, ``attachment`` lines and task-notification ``user`` lines, so an assistant
-    message quoting either never counts. Anything unreadable, absent or malformed returns False — the old block.
+    enqueue lines that START with the notice tag, ``attachment`` lines whose ``commandMode`` or
+    ``origin.kind`` is task-notification, and task-notification ``user`` lines, so an assistant message, a seat's
+    hand-back or a peer message quoting a notice never counts (W-1b9ae5f2). Anything unreadable, absent or malformed returns False — the old block.
 
     Cheapest way past it (D-253): stamp ``dispatch --seats 1`` and launch a real background
     Agent that does not report, again every 25 minutes — each launch is a real seat costing
@@ -741,9 +751,19 @@ def _seats_in_flight(rec: dict, transcript_path: str) -> bool:
                 if text is None:
                     continue
             elif kind == "queue-operation" and obj.get("operation") == "enqueue":
-                text = obj.get("content")
+                # every real notice enqueue starts with the tag; an agent or cross-session message may QUOTE one
+                content = obj.get("content")
+                if isinstance(content, str) and content.lstrip().startswith("<task-notification>"):
+                    text = content
             elif kind == "attachment" and isinstance(obj.get("attachment"), dict):
-                text = obj["attachment"].get("prompt")
+                att = obj["attachment"]
+                origin = att.get("origin")
+                if att.get("commandMode") == "task-notification" or (
+                    isinstance(origin, dict) and origin.get("kind") == "task-notification"
+                ):
+                    text = att.get(
+                        "prompt"
+                    )  # a seat's hand-back (origin peer) quoting a notice never closes one
             elif kind != "user":
                 continue
             if isinstance(text, str):
@@ -1003,12 +1023,28 @@ def _unpushed_log(root: Path, fmt: str, timeout: float = 30) -> str | None:
 
 
 def _has_upstream(root: Path, timeout: float = 30) -> bool:
-    """Does HEAD's branch have an upstream? Picks the UNPUSHED block's remedy; an error or a tree
-    with no worktree base keeps the wording the push law always carried."""
+    """Would a plain `git push` publish HEAD's branch under its own name? Picks the push remedy:
+    True → `git push`, False → `git push -u origin HEAD`. When an upstream resolves, the NAME
+    decides (W-43ccb000): a branch tracking a differently named one — `git worktree add -b x path
+    origin/master` sets `branch.x.merge` to refs/heads/master — is refused a plain push under
+    push.default=simple, so it is False unless there is no `origin` remote (then `-u origin HEAD`
+    cannot run either, and the old wording stays). Only when no upstream resolves does the
+    worktree-base rule apply: no worktree base keeps the wording the push law always carried.
+    An error is True, the pre-existing default."""
     deadline = time.monotonic() + timeout
     try:
         r = _git_by(root, deadline, "rev-parse", "--verify", "--quiet", "@{upstream}")
-        return r.returncode == 0 or _worktree_base(root, deadline) is None
+        if r.returncode != 0:
+            return _worktree_base(root, deadline) is None
+        head = _git_by(root, deadline, "symbolic-ref", "--quiet", "HEAD").stdout.strip()
+        if not head.startswith("refs/heads/"):
+            # defensive: `@{upstream}` resolving implies a branch, but HEAD can move between calls
+            return True
+        merge = _git_by(root, deadline, "config", "--get", f"branch.{head[11:]}.merge")
+        if merge.returncode == 0 and merge.stdout.strip() == head:
+            return True
+        origin = _git_by(root, deadline, "config", "--get", "remote.origin.url")
+        return origin.returncode != 0 or not origin.stdout.strip()
     except Exception:
         return True
 
@@ -1203,6 +1239,278 @@ def _hold_in_force(tick_age_s: float, stale_s: float) -> bool:
     return not (tick_age_s > stale_s)
 
 
+# COPIED from `.claude/hooks/quota_stop.py` (itself copied from `claude_rotate.py`, which WRITES the
+# stamp) — the FOURTH copy, graded with the other three by the parity tests in
+# `tests/test_quota_posture.py`. This hook is fleet-synced and standalone, so it imports none of them.
+# Here `walled` — anything not plainly saying urgent — means D-158's FULL yield, the reading this hook
+# has always had: the lenient one for a Stop hook, and the right pairing with quota_stop.py's deny.
+_STAMP_TIER_WALLED = "walled"
+_STAMP_TIER_URGENT = "urgent-90"
+_STAMP_TIERS = frozenset({_STAMP_TIER_WALLED, _STAMP_TIER_URGENT})
+
+
+def _stamp_tier(stamp: Path) -> str:
+    """Which arm wrote this stamp — line 2. `walled` for anything not plainly saying otherwise:
+    missing, unreadable, pre-tier (one numeric line), or a tier this version does not know."""
+    try:
+        # `is_file()` BEFORE the read: a FIFO at this path blocks forever, and a Stop hook that
+        # never returns hangs the end of every turn. `.split("\n")`, never `.splitlines()`, and
+        # `newline=""`: a control byte or a bare `\r` in line 1 must not shift line 2 into place.
+        if not stamp.is_file():
+            return _STAMP_TIER_WALLED
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            lines = fh.read().split("\n")
+    except OSError:
+        return _STAMP_TIER_WALLED
+    tier = lines[1].strip() if len(lines) > 1 else ""
+    return tier if tier in _STAMP_TIERS else _STAMP_TIER_WALLED
+
+
+_URGENT_PREFIX = "FLEET QUOTA AT THE URGENT TIER — checkpoint, then end the turn: "
+
+
+def _urgent_sidecar(sid: str | None) -> Path:
+    """`<tempdir>/fabrik-gate-stop-<sid>.urgent` — present once THIS urgent episode has had its one
+    block. Unlinked on every Stop where the urgent hold is not in force, so the next episode gets
+    its own block. A file, never an eighth counter slot: the 7-slot record stays byte-identical."""
+    return _counter_path(sid).with_suffix(".urgent")
+
+
+def _arm_sidecar(sid: str | None) -> Path:
+    """`<tempdir>/fabrik-gate-stop-<sid>.urgent-arm` — present once THIS consumption of the self-watch
+    has had its one arm block. Unlinked whenever the lock reads held (the next consumption gets its
+    own block) and when no hold is in force (W-117b1916)."""
+    return _counter_path(sid or "nosession").with_suffix(".urgent-arm")
+
+
+def _arm_order(sid: str | None, cwd: str) -> str | None:
+    """W-117b1916 — the ARM checkpoint item, or None. The rotation tick's relief wake (`.holdlifted`)
+    reaches ONLY a session whose selfwatch.lock is held, and one arm is one wake (D-356), so a
+    window that pauses at urgent-90 or at the wall with a consumed watch sleeps through the reset.
+    The decision is the prompt notice's own (`selfwatch_check.arm_state`, loaded by absolute path
+    from `$FABRIK_HUB_ROOT` or /opt/fabrik); a held lock clears this consumption's arm sidecar; any
+    load or probe failure adds nothing (fail-open). Supersedes D-718 at the Stop site.
+
+    ⚠️ COBRA (D-253): the item reads only "lock held", so a `nohup`, Agent-subagent or FOREGROUND
+    arm, or another session's sid, satisfies it without producing a wake (D-718: those wake
+    nothing); the item names the background form, and an unblocked owed arm lands in the kaizen
+    stream as `stood_down cause=unarmed`."""
+    if not sid or sid == "nosession":
+        return None
+    try:
+        hub = (os.environ.get("FABRIK_HUB_ROOT") or "/opt/fabrik").rstrip("/") or "/opt/fabrik"
+        spec = importlib.util.spec_from_file_location(
+            "_fgs_selfwatch", Path(hub) / "scripts" / "sysadmin" / "selfwatch_check.py"
+        )
+        if spec is None or spec.loader is None:
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        state = mod.arm_state(sid, cwd)
+        if state == "armed":
+            with contextlib.suppress(OSError):
+                _arm_sidecar(sid).unlink(missing_ok=True)
+            return None
+        if state != "arm":
+            return None
+        return (
+            "ARM the self-watch — the relief wake reaches only an armed watch: "
+            f'Bash(run_in_background: true, command: "bash {mod.ARM} {mod._safe(sid)}") '
+            "(a background task of this session, never nohup or foreground)"
+        )
+    except BaseException:  # a hub module that exits or raises at import must not cost the Stop
+        return None
+
+
+def _claim_arm_block(sid: str | None) -> bool:
+    """True when this consumption's arm sidecar was written NOW — the one arm block it gets."""
+    side = _arm_sidecar(sid)
+    if side.exists():
+        return False
+    try:
+        side.write_text(str(time.time()))
+    except OSError:
+        return False
+    return True
+
+
+def _lane_continues(sid: str | None, cwd: str) -> bool:
+    """W-18f559d9 (D-1113): True when quota_stop.py's LANE lets this session continue at
+    `urgent-90` (the bound merge owner of a coordinator_mode repo, or the bound owner of an open P0
+    item) — such a session takes the NORMAL Stop path. ONE source: `lane_exempt` is loaded from
+    quota_stop.py beside this hook by file path, never copied and never via sys.path. Any load or
+    call error is False, which keeps the urgent checkpoint — today's behaviour."""
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "_quota_stop_lane", Path(__file__).resolve().parent / "quota_stop.py"
+        )
+        if spec is None or spec.loader is None:
+            return False
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        exempt, _why = mod.lane_exempt(sid, mod._lane_project_dir(cwd))
+        return exempt is True
+    except Exception:
+        return False
+
+
+def _api_key_continues(stamp: Path) -> bool:
+    """W-effb7141: True when quota_stop.py does not hold this session at this stamp because it runs
+    on an Anthropic API key (`api_key_exempt` — a quota tier only, never the battery hold). Loaded
+    from quota_stop.py beside this hook by file path, like `_lane_continues`; any load or call
+    error is False, which keeps the wall's yield — today's behaviour. The env is read first, so a
+    plan session never pays the module load."""
+    if not (os.environ.get("ANTHROPIC_API_KEY") or "").strip():
+        return False
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "_quota_stop_api_key", Path(__file__).resolve().parent / "quota_stop.py"
+        )
+        if spec is None or spec.loader is None:
+            return False
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.api_key_exempt(stamp) is True
+    except Exception:
+        return False
+
+
+def _urgent_checkpoint(
+    root: Path,
+    sid: str | None,
+    ev_sid: str | None,
+    authored_map: dict[str, int],
+    own_commits: list[tuple[str, int, int]],
+    stall: tuple[str, str] | None,
+    transcript_p: str = "",
+) -> str | None:
+    """W-37003fa1 — the Stop at the `urgent-90` tier. Returns ONE block reason, or None to end the turn.
+
+    D-306, as the LANE refines it (W-18f559d9, D-1113): at `urgent-90` quota_stop.py PARKS this
+    session — the lane's exempt sessions never reach here (`_lane_continues`) — with the wall's
+    allow-list plus the finishing verbs, and ORDERS a checkpoint: commit, push, keep the run record
+    current. Every one of those is allowed while parked. So those three are the checkpoint items,
+    and they block ONCE per session per urgent episode, together; every other cause stands down
+    with its debt named. Never through the CAP-3 counters: a warn-through RE-ARMS a counter (attempts → 0), so cap 1 per cause
+    blocked seven stops in a row (executed by the design critique). The gate is not run — a full
+    `final_gate.py --lean` subprocess to name checks no one may fix now — and the coordinator is not
+    consulted; neither is counted as stood down, because neither was evaluated.
+
+    ⚠️ COBRA (D-253): the cheapest way past this block is to end the turn twice — the second stop
+    always passes. That is the design, not a hole: the tier is a WARNING, the wall comes next, and a
+    block that repeats spends the last of the quota on the argument. The debt is not forgiven: each
+    still-true item lands in the kaizen stream as `stood_down` with `tier=urgent-90`.
+    """
+    items: list[str] = []
+    owed: list[str] = []
+    stood: list[tuple[str, dict]] = []
+    arm = _arm_order(sid, str(root))
+    # No running-review exemption here (`_review_exempts_commit` is never asked): D-306's urgent
+    # tier orders the checkpoint commit before the wall — losing the work outranks the review order
+    mine = sorted(_own_uncommitted(root, authored_map))
+    if mine:
+        more = f" (+{len(mine) - 8} more)" if len(mine) > 8 else ""
+        items.append(
+            f"COMMIT your own work — {', '.join(mine[:8])}{more} — with explicit pathspecs and "
+            "Agent Provenance Trailers (git commit -m <msg> -- <your files>)"
+        )
+        stood.append(("uncommitted", {"files": len(mine)}))
+    ahead = _ahead_of_upstream(
+        root,
+        set(_this_sessions_edits(authored_map, _baseline_floor(sid))),
+        lambda: _session_agent(root, sid),
+    )
+    if ahead:
+        how = "`git push`" if _has_upstream(root) else "`git push -u origin HEAD`"
+        items.append(f"PUSH {ahead} commit(s) of yours not yet on origin — {how}, never --force")
+        stood.append(("unpushed", {"ahead": ahead}))
+    run = _run_record(sid) or {}
+    # the same predicate as `_stall_gate`'s `run_blocks`: a record whose own dispatched seats
+    # are verifiably in flight is not owed a step this turn (W-4c7edc74, review A-S2)
+    if run.get("state") == "running" and not _seats_in_flight(run, transcript_p):
+        name = str(run.get("command") or "?")
+        items.append(
+            f"KEEP the /{name} run record current — `python3 scripts/command_run.py step` (or "
+            "`round`) with where it stands; finish it after the reset, never at this tier"
+        )
+        stood.append(("run-record", {"command": name}))
+    if stall:
+        f = _stall_fields(stall)
+        owed.append(f"the {f['cause']} this stop caught ({stall[1][:80]})")
+        stood.append((f.pop("cause"), f))
+    unreviewed = _unreviewed_spontaneous_files(
+        _run_record_raw(sid), authored_map, _baseline_floor(sid), sid, root, own_commits
+    )
+    if unreviewed:
+        owed.append(f"a review of {len(unreviewed)} file(s) — /fabrik-review-scoped")
+        stood.append(("unreviewed-spontaneous", {"files": len(unreviewed)}))
+    if _merge_owner_duty(root, sid) is not None:
+        owed.append("the waiting merge request — python3 scripts/merge_request.py merge")
+        stood.append(("merge-request", {}))
+    side = _urgent_sidecar(sid)
+    if arm and not side.exists() and not _arm_sidecar(sid).exists():
+        items.append(arm)  # rides the episode's one block; the arm sidecar marks it spent below
+        stood.append(("unarmed", {}))
+    blockable = bool(items) and bool(sid) and sid != "nosession" and not side.exists()
+    if blockable:
+        # Write FIRST, block only if it landed: an unwritable sidecar would otherwise block every
+        # stop of the episode (review A-H2); an id-less payload shares `nosession` with every
+        # other id-less session, so it never owns an episode to block once in (review A-S3).
+        try:
+            side.write_text(str(time.time()))
+        except OSError:
+            blockable = False
+    if blockable and arm and arm in items:
+        _claim_arm_block(sid)
+    elif not blockable and arm and _claim_arm_block(sid):
+        # the episode's block is spent (or nothing else was owed with no sidecar to write) and the
+        # watch was consumed since: ONE arm-only block per consumption — the other debts still owed
+        # are recorded as stood down, exactly as on a Stop that blocks nothing
+        for cause, fields in stood:
+            if cause == "unarmed":
+                continue  # the arm is this block's own item, recorded once as blocked below
+            _kaizen(
+                "stop_block",
+                ev_sid,
+                cause=cause,
+                outcome="stood_down",
+                tier=_STAMP_TIER_URGENT,
+                **fields,
+            )
+        _kaizen("stop_block", ev_sid, cause="unarmed", outcome="blocked", tier=_STAMP_TIER_URGENT)
+        return _URGENT_PREFIX + arm + ". Then end the turn."
+    elif arm and ("unarmed", {}) not in stood:
+        stood.append(("unarmed", {}))
+    if blockable:
+        _kaizen(
+            "stop_block",
+            ev_sid,
+            cause="urgent-checkpoint",
+            outcome="blocked",
+            tier=_STAMP_TIER_URGENT,
+            items=[c for c, _ in stood],
+        )
+        return (
+            _URGENT_PREFIX
+            + " · ".join(items)
+            + ". "
+            + (f"Still owed after the reset: {'; '.join(owed)}. " if owed else "")
+            + "The gate was not evaluated at the urgent tier. This block fires ONCE per episode"
+            + (" (a self-watch consumed later earns one arm-only block)" if arm else "")
+            + " — after the checkpoint, end the turn; the wall tier follows if the quota runs out."
+        )
+    for cause, fields in stood:
+        _kaizen(
+            "stop_block",
+            ev_sid,
+            cause=cause,
+            outcome="stood_down",
+            tier=_STAMP_TIER_URGENT,
+            **fields,
+        )
+    return None
+
+
 def _finite(v: object) -> float | None:
     """`_run_record`'s own guard, lifted verbatim: json.loads accepts bare NaN/Infinity, and a bool
     is an int — `Infinity` gave a permanent exemption, `true` read as 1970 (review A-F6)."""
@@ -1337,7 +1645,45 @@ def _review_windows(rec: dict | None, sid: str | None = None) -> list[tuple[floa
 _SURFACE_SPLIT = re.compile(r"[^A-Za-z0-9_./\\-]+")
 
 
-def _surface_reviewed(rec: object, authored: dict[str, int], sid: str | None = None) -> set[str]:
+def _own_uncommitted(root: Path, authored: dict[str, int]) -> set[str]:
+    """The session-authored paths that are dirty and whose last edit is newer than their last
+    commit (an older edit's dirt is a pipeline's or a sibling's) — the uncommitted cause's set and
+    the urgent checkpoint's (ONE predicate, two callers; W-5ce56208)."""
+    dirty = _dirty_paths(root)
+    return {
+        rel
+        for rel, edit_ts in authored.items()
+        if rel in dirty and not (edit_ts and _last_commit_ts(root, rel) >= edit_ts)
+    }
+
+
+def _review_exempts_commit(sid: str, transcript_p: str) -> dict | None:
+    """The FRESH running record whose `--surface` the uncommitted cause stands down for, or None.
+
+    W-5ce56208: the session is never ordered to commit what its own running review is still
+    reviewing — but ONLY on a stop the fifth cause will block instead, so a file is never ordered
+    by neither cause. Hence None when:
+    - the record is not fresh (`_run_record`, never `_run_record_raw`: under the operator's
+      `COMMAND_RUN_STALE_H<=0` opt-out the fifth cause cannot block, and `_surface_reviewed` skips
+      its own staleness test, so a raw record would exempt the file for ever — critique C1/F1);
+    - the run's seats are in flight (the fifth cause stands down then, W-4c7edc74);
+    - this stop is the fifth cause's warn-through (its counter at the cap) — the commit order
+      comes back instead of a silent allow (review A-1).
+    The urgent-90 tier never asks: D-306's checkpoint commit outranks the review order.
+
+    Cobra (D-253): the cheapest way past it is to name the file in a running review's surface and
+    never close the review; the fifth cause then blocks to its cap, and at the warn-through stop
+    the commit cause fires again."""
+    run = _run_record(sid)
+    if not run or run.get("state") != "running" or _seats_in_flight(run, transcript_p):
+        return None
+    run_attempts = _read_counters(_counter_path(sid))[4]
+    return run if decide_stall(True, run_attempts)[0] == "block_stall" else None
+
+
+def _surface_reviewed(
+    rec: object, authored: dict[str, int], sid: str | None = None, root: Path | None = None
+) -> set[str]:
     """The authored paths a RUNNING review-family record already names as its `--surface`.
 
     T5.2 (01M28YN1F): the sixth cause fired on exactly those files. A review's window opens at its
@@ -1382,6 +1728,10 @@ def _surface_reviewed(rec: object, authored: dict[str, int], sid: str | None = N
     # (round 2, seat finding 2 — 14 parity cells, 2 disagreed, both writer-reachable).
     live = rec.get("state") == "running"
     surfaces: list[str] = []
+    # W-24ae7ecf: `command_run.py surface --add` widens a RUNNING review by path, mid-run, in its
+    # own field — the surface stays the ledger's run dimension. The writer normalises each path to
+    # this splitter's alphabet, so a path is one whole token here; anything malformed is skipped.
+    tokens: set[str] = set()
     for holder in [rec, *(_seq(rec, "stack") if live else [])]:
         if not isinstance(holder, dict):
             continue
@@ -1390,23 +1740,202 @@ def _surface_reviewed(rec: object, authored: dict[str, int], sid: str | None = N
         s = holder.get("surface")
         if isinstance(s, str) and s:
             surfaces.append(s)
-    if not surfaces:
+        adds = holder.get("surface_adds")
+        for a in adds if isinstance(adds, list) else []:
+            path = a.get("path") if isinstance(a, dict) else None
+            if isinstance(path, str) and path:
+                # the writer's own normalisation, repeated: a hand-edited or older record cannot
+                # carry a `./` or trailing `.` past it (round 1, B-S1)
+                while path.startswith("./"):
+                    path = path[2:]
+                path = path.rstrip(".")
+                if path:
+                    tokens.add(path)
+    if not surfaces and not tokens:
         return set()
-    tokens: set[str] = set()
     for s in surfaces:
-        for raw in _SURFACE_SPLIT.split(s):
-            if not raw:
-                continue
-            tok = raw[2:] if raw.startswith("./") else raw
-            # `.` is a path character, so a surface written as a SENTENCE keeps its full stop on
-            # the token and the exemption silently fails — a false BLOCK, the thing T5.2 exists to
-            # end (round 1, seat finding F7). ONLY `.`: `,`, `;` and `:` are not in the splitter's
-            # class, so it has already ended the token at them and stripping them here was dead
-            # (round 2, seat finding 10 — the same unreachable-code class as round 1's C-R3).
-            tok = tok.rstrip(".")
-            if tok:
-                tokens.add(tok)
+        tokens |= _surface_tokens(s, root)
     return {f for f in authored if f in tokens}
+
+
+# W-42ddde8f (mail 01M55CM91H): a commit RANGE in a surface — `<rev>..<rev>` or `<rev>...<rev>` —
+# matched on the RAW surface, because `_SURFACE_SPLIT` cuts the revision grammar the hub's own
+# commands prescribe (`@{upstream}...HEAD`, `HEAD~3..HEAD`) into half-tokens. A side is revision
+# characters and never starts with `-`, so nothing reaches git as an option; git resolves each side
+# (`_range_files`), so a half-token can never resolve to a different range.
+_RANGE_RAW = re.compile(
+    r"(?<![\w@{}~^./-])([\w@{}~^./][\w@{}~^./-]*?)(\.\.\.?)([\w@{}~^/][\w@{}~^./-]*)"
+)
+# A side a CLOSED record may resolve: an abbreviated or full commit id, which names the same commit
+# forever. A ref, `HEAD` or `@{u}` names whatever it points at NOW, so a closed `<a>..HEAD` would
+# grow after the close and clear a file committed later that the review never saw (design critique,
+# both seats executed it) — a closed record resolves only immutable sides.
+_RANGE_FIXED_SIDE = re.compile(r"[0-9a-fA-F]{7,40}")
+# (root, range) -> the paths it changed, for this process (one stop). Capped and on ONE shared
+# deadline, because a stop reads every closed review's surface: past `_RANGE_CAP` distinct ranges, or
+# past the deadline, a range names nothing.
+_RANGE_FILES: dict[tuple[str, str], frozenset[str]] = {}
+_RANGE_CAP = 16
+_RANGE_BUDGET_S = 3.0
+_RANGE_DEADLINE: list[float] = []  # set at the first resolution of this process
+
+
+def _range_files(root: Path, left: str, sep: str, right: str) -> frozenset[str]:
+    """The paths a range changed in `root`: each side resolved by `git rev-parse <side>^{commit}`
+    (so a tree id — the empty-tree constant — or a blob is refused), then `git diff --name-only
+    --no-renames <sha><sep><sha> --`, so a rename names both its paths. A git failure, a timeout,
+    a repo that lacks the commits, the cap or the spent budget → nothing: the pre-change behaviour
+    (the file stays blocked until the review closes), never a disarm."""
+    key = (str(root), f"{left}{sep}{right}")
+    if key in _RANGE_FILES:
+        return _RANGE_FILES[key]
+    if len(_RANGE_FILES) >= _RANGE_CAP:
+        return frozenset()
+    if not _RANGE_DEADLINE:
+        _RANGE_DEADLINE.append(time.monotonic() + _RANGE_BUDGET_S)
+    deadline = _RANGE_DEADLINE[0]
+    files: frozenset[str] = frozenset()
+    try:
+        shas: list[str] = []
+        for side in (left, right):
+            # `--verify` takes ONE revision; without it `rev-parse` echoes `--end-of-options` back
+            if time.monotonic() >= deadline:
+                break
+            rp = _git_by(
+                root, deadline, "rev-parse", "--verify", "--quiet", "--end-of-options",
+                f"{side}^{{commit}}",
+            )  # fmt: skip
+            sha = rp.stdout.strip() if rp.returncode == 0 else ""
+            if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", sha):
+                break
+            shas.append(sha)
+        if len(shas) == 2:  # past the deadline here, `_git_by` floors the diff's timeout at 0.1 s
+            r = _git_by(
+                root,
+                deadline,
+                "diff",
+                "--name-only",
+                "-z",
+                "--no-renames",
+                f"{shas[0]}{sep}{shas[1]}",
+                "--",
+            )
+            top = [p for p in r.stdout.split("\0") if p] if r.returncode == 0 else []
+            # The hook keys its two authorship legs from different bases: an Edit from the
+            # session's cwd (`_session_files`), a commit from the top level (`_commit_files`,
+            # `git log --name-only`). In a subdirectory session the range must name BOTH forms, or
+            # one leg matches nothing (review round 1 and its closing pass, both executed).
+            # RESIDUE, stated: there a top-level `x.py` the range changed also names `<cwd>/x.py`.
+            pre = _git_by(root, deadline, "rev-parse", "--show-prefix") if top else None
+            prefix = pre.stdout.strip() if pre is not None and pre.returncode == 0 else ""
+            files = frozenset(top) | frozenset(
+                p[len(prefix) :] for p in top if prefix and p.startswith(prefix)
+            )
+    except (OSError, subprocess.SubprocessError, ValueError):  # ValueError: a non-UTF-8 path
+        pass
+    _RANGE_FILES[key] = files
+    return files
+
+
+def _surface_range_files(surface: str, root: Path, moving: bool) -> set[str]:
+    """Every path the commit ranges in `surface` changed. `moving=False` (a CLOSED record) resolves
+    only ranges whose both sides are commit ids — `_RANGE_FIXED_SIDE`."""
+    out: set[str] = set()
+    for m in _RANGE_RAW.finditer(surface):
+        left, sep, right = m.group(1), m.group(2), m.group(3).rstrip(".")
+        if not right:
+            continue
+        if not moving and not (
+            _RANGE_FIXED_SIDE.fullmatch(left) and _RANGE_FIXED_SIDE.fullmatch(right)
+        ):
+            continue
+        out |= _range_files(root, left, sep, right)
+    return out
+
+
+def _surface_tokens(surface: str, root: Path | None = None, moving: bool = True) -> set[str]:
+    """The whole-token path names a free-text `--surface` carries — ONE parse for the running
+    review's exemption and the closed reviews' record (W-bdcff87a), so the two cannot disagree on
+    what a surface names. With `root`, a commit range also names every path it changed
+    (`_surface_range_files`): a right-now fix is committed BEFORE its review starts, and a surface
+    written as `range <a>..<b>` spelled no path at all (W-42ddde8f). A closed record passes
+    `moving=False`: only a range between two commit ids, which cannot grow after the close.
+
+    STATED COST: a running review's range wider than the fix (`<a>..HEAD`, `@{u}..HEAD`, HEAD
+    advancing) names every file committed in it, a sibling's included — the grant a surface listing
+    those paths already makes, and only while the record runs; a push that empties `@{u}..HEAD`
+    takes the exemption back. A closed record's `<a>..HEAD` names nothing (fails closed).
+    ⚠️ COBRA (D-253): the cheapest way past the sixth cause is a trivial running review whose
+    surface is `<first commit>..HEAD`; it still owes its rounds to reach `done`, as naming every path
+    does, and the block names the files."""
+    tokens: set[str] = _surface_range_files(surface, root, moving) if root is not None else set()
+    for raw in _SURFACE_SPLIT.split(surface):
+        if not raw:
+            continue
+        tok = raw[2:] if raw.startswith("./") else raw
+        # `.` is a path character, so a surface written as a SENTENCE keeps its full stop on
+        # the token and the exemption silently fails — a false BLOCK, the thing T5.2 exists to
+        # end (round 1, seat finding F7). ONLY `.`: `,`, `;` and `:` are not in the splitter's
+        # class, so it has already ended the token at them and stripping them here was dead
+        # (round 2, seat finding 10 — the same unreachable-code class as round 1's C-R3).
+        tok = tok.rstrip(".")
+        if tok:
+            tokens.add(tok)
+    return tokens
+
+
+def _closed_review_named(
+    rec: object, authored: dict[str, int], committed: dict[str, int], root: Path | None = None
+) -> set[str]:
+    """The paths a CLOSED `done` review of this session NAMED after they were last touched
+    (W-bdcff87a, site-provisioner 01M49X4BZT): `command_run.py` records `{surface, adds, closed}` in
+    `reviewed_surfaces` at every review-family `done`, nested included, and carries the list for the
+    session. A nested review stamps no reach and its window starts after an earlier edit, so before
+    this a file reviewed only by nested reviews stayed unreviewed for good.
+
+    An EDITED path is named when an entry closed at or after its edit — judged by the edit, never a
+    later commit, or the commit the uncommitted cause orders would re-block it. A COMMIT-ONLY path
+    is named within `_COMMIT_GRACE_S` after a close, the commit rule `_unreviewed_spontaneous_files`
+    already applies. The record and every parked `stack` frame are read, never `nested` (the pop
+    joins the same entries into the caller, so reading both would count them twice). Closed entries
+    are history, read whatever the live state — only a `done` writes them. An entry whose `closed`
+    is not a number, or lies beyond now + `_CLOCK_SKEW_TOLERANCE_S` (a clock ahead would clear
+    every later edit), is skipped, and so is a touch of 0 (an unreadable time): every malformed shape fails
+    CLOSED. Edits are the FLOORED set, so an edit older than the floor never shields a fresh commit.
+
+    ⚠️ COBRA (D-253), stated: naming a file in a trivial review's surface clears it — the contract a
+    RUNNING review already has (T5.2) and a top-level `done` review's whole-session reach-back
+    already grants (D-574); the review still owes its rounds to reach `done`. And a surface that
+    mentions a path to EXCLUDE it now clears it durably (the cost `_surface_reviewed` states, no
+    longer bounded by the run's life), still no wider than that reach-back."""
+    if not isinstance(rec, dict) or not (authored or committed):
+        return set()
+    ceiling = time.time() + _CLOCK_SKEW_TOLERANCE_S
+    named: set[str] = set()
+    for holder in [rec, *_seq(rec, "stack")]:
+        entries = holder.get("reviewed_surfaces") if isinstance(holder, dict) else None
+        for e in entries if isinstance(entries, list) else []:
+            if not isinstance(e, dict):
+                continue
+            closed = e.get("closed")
+            # a non-number would raise in the comparisons below; NaN compares false everywhere and
+            # a bool reads as 0/1, so neither can ever reach a real touch — no guard is owed them
+            if not isinstance(closed, (int, float)) or closed > ceiling:
+                continue
+            surface, adds = e.get("surface"), e.get("adds")
+            # moving=False: a closed `<a>..HEAD` would grow after the close (W-42ddde8f)
+            tokens = _surface_tokens(surface, root, False) if isinstance(surface, str) else set()
+            tokens |= {a for a in adds if isinstance(a, str)} if isinstance(adds, list) else set()
+            for f in tokens:
+                # a touch of 0 is an UNREADABLE time — no proof of order, so never cleared
+                if f in authored:
+                    if authored[f] > 0 and closed >= authored[f]:
+                        named.add(f)
+                elif (
+                    f in committed and committed[f] > 0 and closed + _COMMIT_GRACE_S >= committed[f]
+                ):
+                    named.add(f)
+    return named
 
 
 def _unreviewed_spontaneous(
@@ -1520,7 +2049,11 @@ def _unreviewed_spontaneous_files(
     # through Bash, so the Edit scan never saw them. Read first, so a running review's `--surface`
     # exempts them by name exactly as it exempts an Edit-written file (T5.2).
     committed = _commit_files(root, commits, floor) if commits and root is not None else {}
-    named = _surface_reviewed(rec, {**committed, **authored}, sid)  # once per stop, not per file
+    # `root` resolves a surface's commit-range tokens to the files they changed (W-42ddde8f)
+    named = _surface_reviewed(rec, {**committed, **authored}, sid, root)  # once per stop
+    # the FLOORED edits: an edit older than the floor is not this session's work, so a fresh commit
+    # of that path is judged by the commit leg, never shielded by a review of the old edit (C2)
+    named |= _closed_review_named(rec, _this_sessions_edits(authored, floor), committed, root)
     scoped = {f: ts for f, ts in _this_sessions_edits(authored, floor).items() if f not in named}
     names = _unreviewed_code_file_names(scoped, windows)
     if names and root is not None:
@@ -2047,17 +2580,113 @@ def _main_checkout_git(root: Path) -> tuple[Path, Path] | None:
 
 
 # EIGHTH cause — coordinator assignment (W-83021827, D-521): `work.py queue --stop` decides ONE action
-# (claim · doorbell · triage · self) for this session, and this hook only acts on it. Its attempts
+# (claim · merge · doorbell · triage · self) for this session, and this hook only acts on it. Its attempts
 # live in their OWN file keyed by a fingerprint (the action plus a count bucket, never item ids), so
 # the 7-slot counter is untouched and a churning queue does not re-arm it; after CAP blocks the cause
 # warns through ONCE and stays silent for that fingerprint until the queue changes, and a null action
 # clears the file. Silent under a running record, an accepted DECISION block, a formatted BLOCKED:
 # ending, a RED/WALL quota band (a missing or stale posture reads as GREEN — the posture hook's own
-# fail-open charter), and on any failure of the call. COBRA (D-253): the cheapest way past is to keep
+# fail-open charter), and on any failure of the call. At AMBER ("finish what you started, start nothing
+# heavy" — CLAUDE.md § Pointers) only the actions that START work stand down (`_COORD_AMBER_STARTS`,
+# W-05d3af0f): claim, owned, feedback, self, doorbell, merge (its text ends in a claim) and triage (it
+# fans work out to other windows); continue, release, commit-items and mail (a reply owed to a peer)
+# still block, and a Stop that stood work down (and blocked or warned on nothing) is one kaizen
+# `outcome=stood_down` event naming every action skipped, so a quiet queue at AMBER is never mistaken
+# for an empty one. COBRA (D-253): the cheapest way past is to keep
 # the fingerprint — every block and warn-through is a kaizen `stop_block cause=coordinator` event.
 _COORD_ARGV: tuple[str, ...] | None = None  # None → this repo's own scripts/work.py
 _COORD_QUIET_BANDS = frozenset({"RED", "WALL"})
+_COORD_AMBER_BANDS = frozenset({"AMBER"})
+_COORD_AMBER_STARTS = frozenset(
+    {"claim", "owned", "feedback", "self", "doorbell", "merge", "triage"}
+)
+_COORD_STOOD_DOWN: list[str] = []  # the start actions this Stop skipped, for the event
+_COORD_STOOD_WHY: list[str] = []  # which hold skipped them: "amber" and/or "rotation"
 _POSTURE_HOOK = Path("/opt/fabrik/scripts/sysadmin/quota_posture_hook.py")
+
+# W-0fae19b7 — the ROTATION BOUNDARY (D-1119, D-1123): "once a rotation is due, start no new item", and
+# the ROTATE-DUE line tells the session to end `NEXT: none — terminal; awaiting the rotation`. When a due
+# stamp AND that footer hold, the start actions of the session's OWN stand down as at AMBER (skipped,
+# attempts untouched); continue, release, commit-items and triage still block, and so does mail for a
+# coordinator or a repo's one agent (routing is its standing job) — a builder's mail claim would open a
+# new item, so `mail` is held for role=worker. The stamps are the writer's output
+# (scripts/sysadmin/transcript_size_check.py, a hub script this fleet-synced hook cannot import in a
+# project), so its constants are COPIED and pinned by test_rotation_constants_match_the_stamp_writer.
+# Fail direction: every doubt (no stamp, garbage, a sid the writer's grammar refuses, an OSError, no
+# footer) reads as NOT at the boundary, so the cause blocks as before. Two seams: a ctx stamp moves only
+# on a prompt, so after a mid-turn auto-compaction it reads due until the next prompt; the MB stamp is
+# never lowered, so a compacted session past the MB line stays due (compaction does not shrink the file).
+# COBRA (D-253): the cheapest way past is to type the footer without a due stamp — the stamp is the
+# counter; with both, the session has asked for its rotation, and every stand-down is a kaizen
+# `stood_down` event carrying `reason`.
+_ROTATION_HOLDS = frozenset({"claim", "owned", "feedback", "self", "doorbell", "merge"})
+_CTX_ROTATE_PCT = 40  # the writer's CTX_ROTATE_PCT: 85-100 are COMPACT-DUE steps past it, due too
+_ROTATE_SID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")  # the writer's `_SID_RE`
+_ROTATE_STAMP_DEFAULT = "~/.claude/state/rotate-advised"
+# The whole NEXT value, strict: `none`, an optional `terminal`, separators, then `awaiting the rotation`
+# and nothing after it but markup or a full stop — a negation (`not awaiting …`), a qualifier (`… of keys`)
+# or a successor named on the line reads as not at the boundary (review pass 1, A-1/B-2).
+_ROTATION_FOOTER_RE = re.compile(
+    r"[ \t*_`]*(?:none[ \t*_`]*[—–:;,.-]*[ \t]*(?:terminal[ \t*_`]*[—–:;,.-]*[ \t]*)?)?"
+    r"awaiting[ \t]+the[ \t]+rotation[ \t*_`.]*\r?$",
+    re.I | re.M,
+)
+
+
+def _rotation_due(sid: str) -> bool:
+    """True when the context stamp holds a step >= 40 or the MB stamp a step > 0 for this RAW sid."""
+    if not isinstance(sid, str) or not _ROTATE_SID_RE.fullmatch(sid):
+        return False
+    base = Path(os.environ.get("ROTATE_STAMP_DIR", _ROTATE_STAMP_DEFAULT)).expanduser()
+    for path, floor in ((base / ".ctx" / sid, _CTX_ROTATE_PCT), (base / sid, 1)):
+        try:
+            if not path.is_file():  # a FIFO or a directory never blocks the Stop
+                continue
+            raw = path.read_text(encoding="utf-8").strip()
+        except (OSError, ValueError):
+            continue
+        # the writer writes `f"{step}\n"`: ASCII digits only, so `+40`, `4_0` or other digits read not due,
+        # and at most 9 of them, so `int()` never meets Python's 4300-digit limit (review pass 2, A2-1)
+        if raw.isascii() and raw.isdigit() and len(raw) <= 9 and int(raw) >= floor:
+            return True
+    return False
+
+
+def _awaits_rotation(text: str | None) -> bool:
+    """True when the message's LAST `NEXT:` line outside a quoting fence awaits the rotation."""
+    if not text:
+        return False
+    fences = _fence_spans(text)
+    footer = _own_footer_fence(text, fences)
+    # stricter than `_own_footer_fence` alone: a trailing fence is this session's footer only with `NEXT:`
+    # and a second footer key, so a lone fenced example never reads as the boundary (review pass 1, A-3)
+    if footer and len({k.group(1) for k in _FOOTER_KEY_RE.finditer(text, *footer)}) < 2:
+        footer = None
+    fences = [f for f in fences if f != footer]
+    last = None
+    for m in _NEXT_LINE_RE.finditer(text):
+        if any(lo <= m.start() < hi for lo, hi in fences):
+            continue
+        # a `>` blockquote quotes a footer and a 4-space or tab indent is a markdown code block: neither
+        # makes one (review pass 1, A-2, B-4)
+        lead = text[m.start() : m.end()].split("NEXT", 1)[0]
+        quoted = ">" in lead or "\t" in lead or lead.startswith("    ")
+        last = None if quoted else m
+    return last is not None and _ROTATION_FOOTER_RE.match(text, last.end()) is not None
+
+
+def _coord_held(action: object, band: str | None, holds: frozenset[str]) -> bool:
+    """True (and recorded for the event) when AMBER or the rotation boundary holds this action."""
+    why = []
+    if band in _COORD_AMBER_BANDS and action in _COORD_AMBER_STARTS:
+        why.append("amber")
+    if action in holds:
+        why.append("rotation")
+    if not why:
+        return False
+    _COORD_STOOD_DOWN.append(str(action))
+    _COORD_STOOD_WHY.extend(why)
+    return True
 
 
 def _coord_state_path(sid: str) -> Path:
@@ -2085,7 +2714,9 @@ _COORD_MAP_MAX = 256
 _COORD_LAST_ACTION: list[str] = []  # the action the last block named, for the kaizen event
 
 
-def _coordinator_ladder(cands: list, state_path: Path) -> tuple[str, str] | None:
+def _coordinator_ladder(
+    cands: list, state_path: Path, band: str | None = None, *, holds: frozenset[str] = frozenset()
+) -> tuple[str, str] | None:
     """AUTONOMY (work.py `_autonomy_candidates`): act on the FIRST candidate whose subject has not
     used up its CAP blocks this session. One map entry per subject (`{fp: attempts}`, at most
     `_COORD_MAP_MAX`, oldest dropped), so a subject exhausted once is never re-armed — A→B→A
@@ -2099,6 +2730,8 @@ def _coordinator_ladder(cands: list, state_path: Path) -> tuple[str, str] | None
     for cand in cands:
         if not isinstance(cand, dict) or not cand.get("fp"):
             continue
+        if _coord_held(cand.get("action"), band, holds):
+            continue  # skipped, its attempts untouched
         fp = str(cand["fp"])
         try:
             att = int(seen.get(fp, 0))
@@ -2123,8 +2756,15 @@ def _coordinator_ladder(cands: list, state_path: Path) -> tuple[str, str] | None
     return None
 
 
-def _coordinator_duty(root: Path, sid: str, cwd: Path) -> tuple[str, str] | None:
-    """(block reason, warn line) when this Stop must be refused or warned through; None to pass."""
+def _coordinator_duty(
+    root: Path, sid: str, cwd: Path, band: str | None = None, *, rotation: bool = False
+) -> tuple[str, str] | None:
+    """(block reason, warn line) when this Stop must be refused or warned through; None to pass.
+
+    `rotation`: the Stop is at a rotation boundary, so `_ROTATION_HOLDS` (plus `mail` for a worker)
+    stand down as AMBER's starts do."""
+    _COORD_STOOD_DOWN.clear()  # this call's stand-downs only, whoever the caller (review pass 1, A-6)
+    _COORD_STOOD_WHY.clear()
     argv = _COORD_ARGV or (sys.executable, str(root / "scripts" / "work.py"))
     if _COORD_ARGV is None and not Path(argv[1]).is_file():
         return None
@@ -2138,11 +2778,16 @@ def _coordinator_duty(root: Path, sid: str, cwd: Path) -> tuple[str, str] | None
     except ValueError:
         result = None
     state_path = _coord_state_path(sid)
+    holds: frozenset[str] = frozenset()
+    if rotation and isinstance(result, dict):
+        holds = _ROTATION_HOLDS | ({"mail"} if result.get("role") == "worker" else frozenset())
     if isinstance(result, dict) and isinstance(result.get("candidates"), list):
-        return _coordinator_ladder(result["candidates"], state_path)
+        return _coordinator_ladder(result["candidates"], state_path, band, holds=holds)
     if not isinstance(result, dict) or not result.get("action"):
         state_path.unlink(missing_ok=True)
         return None
+    if _coord_held(result.get("action"), band, holds):
+        return None  # its attempt state is left as it is
     fp = str(result.get("fp") or result.get("action"))
     try:
         state = json.loads(state_path.read_text(encoding="utf-8"))
@@ -2157,6 +2802,7 @@ def _coordinator_duty(root: Path, sid: str, cwd: Path) -> tuple[str, str] | None
     att += 1
     state_path.write_text(json.dumps({"fp": fp, "att": att}), encoding="utf-8")
     text = str(result.get("text") or "")
+    _COORD_LAST_ACTION[:] = [str(result.get("action") or "")]  # the block event names THIS action
     if att > CAP:
         return (
             "",
@@ -2493,11 +3139,92 @@ _MENU_RE = re.compile(
     r"|^[ \t]*(?:1[.)]|\(1\))[ \t]+\S[^\n]*\n(?:[^\n]*\n){0,6}?[ \t]*(?:2[.)]|\(2\))[ \t]+\S",
     re.M,
 )
-_MENU_CUE_RE = re.compile(
-    r"\?|\b(?:pick|choose|prefer(?:ence|red)?|your (?:call|pick|choice)|up to you|you decide)\b"
-    r"|\bwhich (?:one|option|way|path|of (?:the|these))\b",
-    re.I,
+_MENU_WORD_CUE = (
+    r"\b(?:pick|choose|prefer(?:ence|red)?|your (?:call|pick|choice)|up to you|you decide)\b"
+    r"|\bwhich (?:one|option|way|path|of (?:the|these))\b"
 )
+_MENU_CUE_RE = re.compile(r"\?|" + _MENU_WORD_CUE, re.I)
+_MENU_WORD_CUE_RE = re.compile(_MENU_WORD_CUE, re.I)
+# A NUMBERED list's `?` is read AFTER the list (mail 01M5B996F3): a question inside a findings item
+# is that item's own text — a findings list reported while seats are out read as a menu. Only the
+# `?` is bounded; a choice WORD (pick, prefer, your call …) still hands off from anywhere, so a menu
+# whose choice sits inside an item still fires. The list keeps its in-item `?` when most items ask
+# or its LAST item asks ("3. Something else — what would you rather?"). Lettered `(a)` lists keep
+# the old rule. COBRA (D-253): a menu now passes D2 only as a numbered list whose questions sit in a
+# minority of its items, never the last, with no choice word anywhere — pinned as a known miss.
+# Not this rule's class (measured, left as before): a step list's imperative choice word ("and
+# choose **Ubuntu**", "pick it up") still fires — the choice-word vocabulary's own precision.
+_LIST_ITEM_RE = re.compile(r"[ \t]*(?:\d{1,3}[.)]|\(\d{1,3}\))[ \t]+\S")
+_LIST_BULLET_RE = re.compile(r"[ \t]*[-*•][ \t]+\S")
+_ITEM_ASKS_RE = re.compile(r"\?(?![\w=&])")  # a question's `?`, never a URL query's
+
+
+def _list_end(text: str, ls: int) -> int:
+    """Offset just past the numbered list whose first item line starts at ``ls``: its item lines,
+    their indented continuation and bullet lines, and a blank line only when another item follows."""
+    pos, n, first = ls, len(text), True
+    while pos < n:
+        le = text.find("\n", pos)
+        le = n if le == -1 else le
+        line = text[pos:le]
+        if (
+            first
+            or _LIST_ITEM_RE.match(line)
+            or _LIST_BULLET_RE.match(line)
+            or (line[:1] in (" ", "\t") and line.strip())
+        ):
+            first = False
+            pos = le + 1
+            continue
+        if not line.strip():
+            nxt = text.find("\n", le + 1)
+            if _LIST_ITEM_RE.match(text[le + 1 : n if nxt == -1 else nxt]):
+                pos = le + 1
+                continue
+        break
+    return min(pos, n)
+
+
+def _menu_question_start(text: str, start: int) -> int:
+    """Where D2 starts reading a `?` for the menu matched at ``start``: past the list when it is a
+    NUMBERED list (a `_MENU_RE` list match spans two item lines at least) whose questions sit in a
+    minority of its items and not in the last one, else ``start``."""
+    ls = text.rfind("\n", 0, start) + 1
+    if not _LIST_ITEM_RE.match(text, ls) or text[ls:start].strip():
+        return start
+    end = _list_end(text, ls)
+    items: list[str] = []
+    for line in text[ls:end].splitlines():
+        if _LIST_ITEM_RE.match(line):
+            items.append(line)
+        elif items:
+            items[-1] += "\n" + line
+    asks = [bool(_ITEM_ASKS_RE.search(it)) for it in items]
+    if sum(asks) * 2 > len(asks) or asks[-1]:
+        return start
+    return end
+
+
+_CODE_SPAN_RE = re.compile(r"`[^`\n]*`")
+
+
+def _menu_cue(text: str, start: int) -> bool:
+    """D2's hand-off cue for the menu matched at ``start``: a choice word anywhere from the match
+    on, or a `?` from where `_menu_question_start` says a question still hands off. Inline code
+    INSIDE a numbered list's items is blanked first (same length, so offsets hold): a `pick` or
+    `??` in an item names code, not a choice — while a reply syntax written after the list
+    (``Reply `pick 1` or `pick 2`.``) still hands off."""
+    ls = text.rfind("\n", 0, start) + 1
+    prose = text
+    if _LIST_ITEM_RE.match(text, ls) and not text[ls:start].strip():
+        end = _list_end(text, ls)
+        prose = text[:ls] + _CODE_SPAN_RE.sub(lambda c: " " * len(c.group(0)), text[ls:end]) + text[end:]
+    qs = _menu_question_start(prose, start)
+    if qs == start:
+        return _MENU_CUE_RE.search(prose, start) is not None
+    return _MENU_WORD_CUE_RE.search(prose, start) is not None or "?" in prose[qs:]
+
+
 # D3 — an offer to act (subsumes `_PERMISSION_RE`, which blocked ONLY mid-run; spec § C1 "the one
 # behaviour that moves").
 _OFFER_RE = re.compile(
@@ -2612,10 +3339,49 @@ _PANEL_RE = re.compile(
 # of `docs/DECISIONS.md` sees missing its `Panel:` line.
 _DESIGN_ASK_RE = re.compile(r"\bapprove\b[^?\n]*\b(?:design|spec|journeys)\b", re.I)
 _PANEL_BRIEF_RE = re.compile(r"^[#*\s]*PANEL\s+APPROVED\s*\(([^)\n]+)\)", re.M)
-# an approving seat's first line, quoted whole on a both-approve Panel line: its verdict and the artifact
+# an approving seat's first line, quoted whole on a both-approve Panel line: its verdict and the
+# artifact span after the dash — one path, or a joint `<plan> + <spec>` (W-f253a5eb: the capture
+# stopped at the first space, so a joint verdict named the plan alone and never matched)
 _PANEL_VERDICT_RE = re.compile(
-    r"VERDICT:\s*sound(?:-with-changes)?(?![\w-])\s*(?:—|–|-+|:)?\s*`?([^\s`]+)", re.I
+    r"VERDICT:\s*sound(?:-with-changes)?(?![\w-])\s*(?:—|–|-+|:)?\s*(.+)", re.I
 )
+_PATH_JOIN_RE = re.compile(r"\s+\+\s+")
+
+
+def _bare_path(token: str) -> str:
+    """``token`` with backticks, markdown bold and trailing ``.,;:)`` stripped until stable
+    (`` `x.md`. `` and ``x.md**`` → x.md)."""
+    prev = None
+    while prev != token:
+        prev, token = token, token.strip("`*").rstrip(".,;:)")
+    return token
+
+
+def _heading_paths(text: str) -> frozenset[str]:
+    """The brief's own claim, parsed STRICTLY: `<path>` or `<path> + <path> …`, each part ONE token.
+    Empty for an empty heading or any part that is not one token — a heading never shrinks to its
+    first path (`<plan> and <spec>` would certify the spec on a plan-only panel)."""
+    parts = [p.strip("`").strip() for p in _PATH_JOIN_RE.split(text.strip().strip("`").strip())]
+    if not parts or any(len(p.split()) != 1 for p in parts):
+        return frozenset()
+    paths = frozenset(_bare_path(p) for p in parts)
+    return paths if all(paths) else frozenset()
+
+
+def _verdict_paths(quote: str) -> frozenset[str]:
+    """The paths an APPROVING verdict line names — each ` + `-separated part's first token, so
+    trailing prose is tolerated and only ` + ` splits paths (a part's words after its first token are
+    prose: `<a> and <b>` reads as `<a>` alone, never as two paths). Empty when the
+    quote is no approving VERDICT line."""
+    v = _PANEL_VERDICT_RE.match(quote)
+    if not v:
+        return frozenset()
+    paths = frozenset(
+        _bare_path(p.split()[0]) for p in _PATH_JOIN_RE.split(v.group(1)) if p.split()
+    )
+    return paths if paths and all(paths) else frozenset()
+
+
 _PANEL_LINE_RE = re.compile(r"^\W*Panel:\s*(.+)$", re.M)
 # Operator-entry rows that are the harness's or a hook's words, never the operator's:
 # `scripts/render_chat_history.py`'s `_SKIP_USER_PREFIXES`, the prompt hook's wrapper, and the
@@ -3057,7 +3823,7 @@ def _deferral_match(text: str) -> tuple[str, str] | None:
         # The hand-off cue: a question or choice word from the menu on, or the menu sitting on
         # the NEXT: line itself — alternatives offered as the successor ARE the operator's pick.
         on_next = _NEXT_LINE_RE.match(text, text.rfind("\n", 0, m.start()) + 1) is not None
-        if on_next or _MENU_CUE_RE.search(text, m.start()):
+        if on_next or _menu_cue(text, m.start()):
             return "D2", " ".join(m.group(0).split())[:200]
     for m in _OFFER_RE.finditer(text, tail):
         if _defer_skip(text, m.start(), fences):
@@ -3257,17 +4023,18 @@ def _in_operator_entries(quote: str, transcript_path: str) -> bool | None:
     transcript? None when the transcript cannot be read — the caller fails OPEN on None.
 
     The WHOLE file is streamed, not the 2 MB tail: the operator's open question can be hours
-    old. It runs only when a block claims `ground: owned`, so the cost is paid rarely."""
+    old. It runs only when a block claims `ground: owned`, so the cost is paid rarely. A prompt the operator
+    queued while the agent was busy (a `queued_command` attachment) is the operator's word too (W-1b9ae5f2)."""
     if not transcript_path:
         return None
     want = _norm_ws(quote)
     try:
         with open(transcript_path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
-                if '"user"' not in line:
+                if '"user"' not in line and '"queued_command"' not in line:
                     continue
                 try:
-                    said = _operator_text(json.loads(line))
+                    said = _operator_said(json.loads(line))
                 except Exception:
                     continue  # one malformed row never disables the check (review A-O13)
                 if said and want in _norm_ws(said):
@@ -3325,6 +4092,71 @@ def _row_text(content: object) -> str:
     return "\n".join(out)
 
 
+_HANDBACK_WRAPPER_RE = re.compile(r"\A\s*<agent-message\b[^>]*>\s*|\s*</agent-message>\s*\Z")
+
+
+def _handback_text(att: dict, origin: dict) -> str:
+    """A seat's own report from a 2.1.304 hand-back attachment: `handbackReportText`, else the
+    `prompt` with the harness's `<agent-message>` wrapper stripped — so a quote of the wrapper
+    alone is never a seat's verdict. (The origin `body` is not used: it opens with the harness's
+    own hand-back preamble.)"""
+    report = origin.get("handbackReportText")
+    if isinstance(report, str) and report.strip():
+        return report
+    return _HANDBACK_WRAPPER_RE.sub("", str(att.get("prompt") or ""))
+
+
+def _queued_operator_prompt(att: object) -> bool:
+    """A prompt the operator typed while the agent was busy, as a `queued_command` attachment: no
+    peer or task-notification origin or mode, no harness wrapper tag. A queued `!` shell command
+    (commandMode bash) counts, as a typed one does in a `user` row — a reset only tightens. An `isMeta` row is
+    refused, as `_is_operator_row` refuses an `isMeta` user row (W-1b9ae5f2)."""
+    if not isinstance(att, dict) or att.get("type") != "queued_command" or att.get("isMeta"):
+        return False
+    if att.get("commandMode") == "task-notification":
+        return False
+    origin = att.get("origin")
+    if isinstance(origin, dict) and origin.get("kind") in ("peer", "task-notification"):
+        return False
+    prompt = att.get("prompt")
+    if not (prompt.strip() if isinstance(prompt, str) else prompt):
+        return False
+    text = _prompt_text(prompt)
+    return not any(
+        m in text for m in ("<agent-message", "<cross-session-message", "<task-notification")
+    )
+
+
+def _prompt_text(prompt: object) -> str:
+    """A queued prompt's words: the string, or the text blocks of a list (2.1.304 writes both)."""
+    if isinstance(prompt, list):
+        return "\n".join(
+            str(b.get("text") or "")
+            for b in prompt
+            if isinstance(b, dict) and b.get("type") == "text"
+        )
+    return str(prompt or "")
+
+
+def _operator_said(entry: object) -> str | None:
+    """The operator's own words from a `user` row (`_operator_text`) or from a prompt queued while the agent was
+    busy (a `queued_command` attachment `_queued_operator_prompt` accepts), filtered alike: system reminders
+    stripped, a harness prefix refused (W-1b9ae5f2). A quote-lookup reader only — a queued prompt lands MID-turn
+    with no Stop before it, so the turn-boundary readers (`_this_turn_text`, `_panel_brief_problem`, `_final_turn`)
+    keep `user` rows: stopping at a queued prompt would leave a block written before it judged by no Stop."""
+    if not isinstance(entry, dict):
+        return None
+    if entry.get("type") != "attachment":
+        return _operator_text(entry)
+    att = entry.get("attachment")
+    if not _queued_operator_prompt(att):
+        return None
+    text = _SYSTEM_REMINDER_RE.sub("", _prompt_text(att.get("prompt"))).strip()
+    if not text or text.startswith(_NOT_OPERATOR_PREFIXES):
+        return None
+    return text
+
+
 def _panel_problem(
     panel: str,
     transcript_path: str,
@@ -3332,10 +4164,16 @@ def _panel_problem(
     ground: str = "`ground: underivable`",
     outcomes: tuple[str, ...] = ("split", "both-underivable"),
     artifact: str = "",
+    stop_at: tuple[str, int] | None = None,
 ) -> str:
     """ "" when the `Panel:` line is backed by the transcript, else what is missing. ``outcomes``
     are the endings this caller accepts; `fable unavailable` in the line lets a SECOND, distinct
-    Opus seat stand in for the Fable one (D-613)."""
+    Opus seat stand in for the Fable one (D-613). ``stop_at`` = (uuid, k) judges the line against the
+    verdicts held just BEFORE the k-th-from-last queued operator prompt row carrying that uuid (W-6424f2e8):
+    a brief written before a prompt queued mid-turn is not judged after that prompt cleared the verdicts.
+    The position, not the uuid alone, names the row — Claude Code re-writes a queued row with the same uuid
+    (across compactions, sometimes twice in a turn), and a copy before the brief must reset while the copy
+    right after it is the cut."""
     if re.match(r"\s*unavailable\b", panel, re.I):
         if (_coord_band(transcript_path) or "") in _COORD_QUIET_BANDS:
             return ""
@@ -3349,21 +4187,26 @@ def _panel_problem(
             "panel that answers it is the decision"
         )
     quotes = [_norm_ws(m.group(1)), _norm_ws(m.group(2))]
+    line_local = False  # a both-approve quote is a seat's FIRST LINE: it may not span a line break
+    want: frozenset[str] = frozenset()  # the heading's paths, set on a both-approve line
     if m.group(3).lower() == "both-approve":
-        # an approval quotes each seat's `VERDICT: sound|sound-with-changes — <path>` line: a
+        # an approval quotes each seat's `VERDICT: sound|sound-with-changes — <path(s)>` line: a
         # disagreeing verdict, or one given on another artifact, never approves this one
-        def _names(q: str) -> str:
-            v = _PANEL_VERDICT_RE.match(q)
-            return v.group(1).rstrip(".,;:)") if v else ""
-
-        # the path the VERDICT line names must BE the artifact — a containing path is another file
-        bad = [q for q in quotes if _names(q) != artifact.strip("` ")]
+        want = _heading_paths(artifact)
+        if not want:
+            return (
+                f"{ground}: the PANEL APPROVED heading names no artifact path — it must read "
+                "`PANEL APPROVED (<path>)` or `PANEL APPROVED (<path> + <path>)`"
+            )
+        # the paths the VERDICT line names must BE the heading's — a containing path is another file
+        bad = [q for q in quotes if _verdict_paths(q) != want]
         if bad:
             return (
                 f"{ground}: a both-approve Panel line quotes each seat's first line, "
-                f"`VERDICT: sound|sound-with-changes — {artifact or '<artifact path>'}` — not: "
-                + "; ".join(repr(q[:60]) for q in bad)
+                f"`VERDICT: sound|sound-with-changes — {' + '.join(sorted(want))}` — not: "
+                + "; ".join(repr(q[:300]) for q in bad)
             )
+        line_local = True
     stand_in = bool(re.search(r"\bfable unavailable\b", panel, re.I))
     # Each quote must come from ITS seat's own returned text — never any tool result (round 1:
     # an `echo` of the wanted verdict passed). A seat is an Agent call whose result row carries
@@ -3372,21 +4215,69 @@ def _panel_problem(
     # hand-back row whose harness `origin` names that agentId. Only what follows the operator's
     # last word.
     said: dict[str, list[str]] = {"opus": [], "fable": []}
+    # the same texts one normalised LINE at a time: `_norm_ws` folds newlines, so without these a
+    # quote could be stitched from a plan-only verdict and a `+ <spec>` bullet on the next line
+    said_lines: dict[str, list[str]] = {"opus": [], "fable": []}
+    by_seat_lines: dict[str, list[str]] = {}
+
+    def _lines(text: str) -> list[str]:
+        return [_norm_ws(ln) for ln in text.splitlines() if ln.strip()]
+
     seats: dict[str, str] = {}
     by_seat: dict[str, list[str]] = {}
+    snapshots: list[tuple] = []  # the stores just before EACH queued row carrying `stop_at`'s uuid
     try:
         with open(transcript_path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
-                if '"user"' not in line:
+                if '"user"' not in line and '"attachment"' not in line:
                     continue
                 try:
                     entry = json.loads(line)
                 except Exception:
                     continue
+                if entry.get("type") == "attachment":
+                    # Claude Code 2.1.304 delivers a seat's hand-back as an `attachment` row
+                    # (`attachment.type` queued_command) whose `attachment.origin` names the seat —
+                    # kind peer, from = its agentId; `handback` is not always set (W-bc457e27).
+                    # Only the harness writes these rows, and `from` must be a seat this transcript
+                    # dispatched, so a peer that is not a seat, or a Bash echo, never counts.
+                    att = entry.get("attachment")
+                    origin = att.get("origin") if isinstance(att, dict) else None
+                    if _queued_operator_prompt(att):
+                        if stop_at and entry.get("uuid") == stop_at[0]:
+                            snapshots.append(
+                                (
+                                    {k: list(v) for k, v in said.items()},
+                                    dict(seats),
+                                    {k: list(v) for k, v in by_seat.items()},
+                                    {k: list(v) for k, v in said_lines.items()},
+                                    {k: list(v) for k, v in by_seat_lines.items()},
+                                )
+                            )
+                        # an operator prompt queued while the agent was busy is the operator's
+                        # word too: verdicts before it never back a panel written after it
+                        said, seats, by_seat = {"opus": [], "fable": []}, {}, {}
+                        said_lines, by_seat_lines = {"opus": [], "fable": []}, {}
+                        continue
+                    src = str(origin.get("from") or "") if isinstance(origin, dict) else ""
+                    if (
+                        isinstance(origin, dict)
+                        and origin.get("kind") == "peer"
+                        and origin.get("handback") is not False
+                        and src in seats
+                    ):
+                        text = _handback_text(att, origin)
+                        said[seats[src]].append(_norm_ws(text))
+                        by_seat.setdefault(src, []).append(_norm_ws(text))
+                        said_lines[seats[src]].extend(_lines(text))
+                        by_seat_lines.setdefault(src, []).extend(_lines(text))
+                    continue
                 if entry.get("type") != "user":
                     continue
                 if _is_operator_prompt(entry):
                     said, seats, by_seat = {"opus": [], "fable": []}, {}, {}
+                    # the line stores too, or a both-approve brief reads pre-operator verdicts
+                    said_lines, by_seat_lines = {"opus": [], "fable": []}, {}
                     continue
                 content = (entry.get("message") or {}).get("content")
                 text = _row_text(content)
@@ -3399,6 +4290,8 @@ def _panel_problem(
                         if meta.get("status") != "async_launched":
                             said[fam].append(_norm_ws(text))
                             by_seat.setdefault(str(meta["agentId"]), []).append(_norm_ws(text))
+                            said_lines[fam].extend(_lines(text))
+                            by_seat_lines.setdefault(str(meta["agentId"]), []).extend(_lines(text))
                     continue
                 # a hand-back is told by the HARNESS's own `origin` record (kind peer, handback,
                 # from = the agentId), never by the tag in its text: a `Bash` echo (round 2) and a
@@ -3412,13 +4305,29 @@ def _panel_problem(
                 ):
                     said[seats[str(origin["from"])]].append(_norm_ws(text))
                     by_seat.setdefault(str(origin["from"]), []).append(_norm_ws(text))
+                    said_lines[seats[str(origin["from"])]].extend(_lines(text))
+                    by_seat_lines.setdefault(str(origin["from"]), []).extend(_lines(text))
     except OSError:
         sys.stderr.write("[deferral] cannot read the transcript to verify the panel; allowing it\n")
         return ""
+    if stop_at and 0 < stop_at[1] <= len(snapshots):
+        said, seats, by_seat, said_lines, by_seat_lines = snapshots[-stop_at[1]]
+    seat_texts = by_seat_lines if line_local else by_seat
+    if line_local:
+        said = said_lines
+
+    def _holds(q: str, texts: list[str]) -> bool:
+        """``q`` is in one of ``texts``; on a both-approve line, in ONE line whose own verdict, read
+        from the quote on, names exactly the heading's paths — a quote that is a PREFIX of a wider
+        line (`…x.md` of `…x.md.bak`, `<plan> + <spec>` of `<plan> + <spec> + <other>`) never holds."""
+        if not line_local:
+            return any(q in t for t in texts)
+        return any(_verdict_paths(t[t.index(q) :]) == want for t in texts if q in t)
+
     if stand_in:
         opus_ids = [a for a, f in seats.items() if f == "opus"]
-        first = [a for a in opus_ids if any(quotes[0] in t for t in by_seat.get(a, []))]
-        second = [a for a in opus_ids if any(quotes[1] in t for t in by_seat.get(a, []))]
+        first = [a for a in opus_ids if _holds(quotes[0], seat_texts.get(a, []))]
+        second = [a for a in opus_ids if _holds(quotes[1], seat_texts.get(a, []))]
         if any(a != b for a in first for b in second):
             return ""
         return (
@@ -3432,7 +4341,7 @@ def _panel_problem(
             f"a {' or '.join(missing)} seat since the operator's last message"
         )
     for who, q in zip(("opus", "fable"), quotes, strict=True):
-        if not any(q in t for t in said[who]):
+        if not _holds(q, said[who]):
             return (
                 f"the {who} verdict quoted on the Panel: line is not in the {who} seat's own "
                 "returned text since the operator's last message"
@@ -3444,8 +4353,14 @@ def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
     """ "" unless a `PANEL APPROVED (<path>)` brief written THIS turn (any assistant text since the
     operator's last row, the final message included) lacks a transcript-verified
     `Panel: … → both-approve` line after its heading (D-613) — the brief is often followed by
-    the next design stage, so the final message alone would miss it."""
-    texts = [final_text] if final_text else []
+    the next design stage, so the final message alone would miss it. Each text is judged against the
+    verdicts held before the first operator prompt QUEUED after it (W-6424f2e8): a queued prompt lands
+    mid-turn, so a brief written before it is this turn's and its seats' verdicts still back it."""
+    texts: list[tuple[str, tuple[str, int] | None]] = []
+    # the nearest queued operator prompt AFTER the text being read, as (uuid, its copy count from the
+    # end) — the positional handle `_panel_problem(stop_at=)` resolves, immune to re-written copies
+    cut: tuple[str, int] | None = None
+    copies: dict[str, int] = {}
     for line in reversed(_tail_lines(transcript_path) or []):
         if '"type"' not in line:
             continue
@@ -3459,14 +4374,27 @@ def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
             if _operator_text(entry):
                 break
             continue
+        if entry.get("type") == "attachment":
+            if _queued_operator_prompt(entry.get("attachment")) and isinstance(
+                entry.get("uuid"), str
+            ):
+                copies[entry["uuid"]] = copies.get(entry["uuid"], 0) + 1
+                cut = (entry["uuid"], copies[entry["uuid"]])
+            continue
         content = (entry.get("message") or {}).get("content")
         if entry.get("type") == "assistant" and isinstance(content, list):
             texts.extend(
-                str(b.get("text") or "")
+                (str(b.get("text") or ""), cut)
                 for b in content
                 if isinstance(b, dict) and b.get("type") == "text"
             )
-    for text in texts:
+    if final_text:
+        # the hook passes the turn's last assistant text: when it is a walked text, it keeps that text's
+        # cut-off (otherwise a brief before a trailing queued prompt is judged with none — Fable critique)
+        # final_text joins the last entry's text blocks; walked texts are newest-first, one per block
+        own = next((c for t, c in texts if t.strip() and t.strip() in final_text), None)
+        texts.insert(0, (final_text, own))
+    for text, text_cut in texts:
         fences = _fence_spans(text)
         heads = [
             m
@@ -3483,6 +4411,7 @@ def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
                 ground=f"the PANEL APPROVED brief for {m.group(1)}",
                 outcomes=("both-approve",),
                 artifact=m.group(1).strip(),
+                stop_at=text_cut,
             )
             if problem:
                 return problem
@@ -4150,6 +5079,7 @@ def main(argv: list[str]) -> int:
         # end IS the graceful stop. Same stamp path and env override as quota_stop.py; fail-OPEN
         # on any doubt (a stale stamp makes this hook lenient for one dead-cron episode, which
         # costs nothing — the opposite mistake costs the last of the quota).
+        urgent = False  # W-37003fa1 — set only at the `urgent-90` tier with the hold in force
         try:
             _state = Path(os.environ.get("ROTATE_STATE_DIR") or Path.home() / ".claude" / "state")
             # A-F1 (review 2026-09-06, CRITICAL): quota_stop.py fails OPEN when the tick log is
@@ -4177,11 +5107,67 @@ def main(argv: list[str]) -> int:
                 # produced the held-and-blocked deadlock A-F1 exists to end (review P1-6)
                 and _hold_in_force(time.time() - _tick.stat().st_mtime, _stale)
             ):
-                _kaizen("stop_allowed_quota_hold", ev_sid)
-                _store_decision(_ta, sid, judged, _repo)
-                return 0
+                # D-306's two tiers. Only `walled` denies the tools that clear the causes below, so
+                # only a stamp that PLAINLY says `urgent-90` stops this yield — any doubt, an
+                # exception included, is the wall and the full yield of D-158 (W-37003fa1). At
+                # urgent-90 a SessionStart still records its baseline below (a gate subprocess, no
+                # tokens — and the baseline the post-relief causes need); only the Stop skips it.
+                try:
+                    urgent = _stamp_tier(_state / "fleet-exhausted") == _STAMP_TIER_URGENT
+                except Exception:
+                    urgent = False
+                # W-18f559d9 (D-1113): at the urgent tier the LANE's exempt session (the bound
+                # merge owner, or the owner of an open P0) is not parked, so it takes the NORMAL
+                # path below — gate and causes as outside the tier — never the wall's yield
+                lane_free = urgent and _lane_continues(sid, str(root))
+                # W-effb7141: an API-key session is not held by either quota tier, so it takes the
+                # NORMAL path too — its causes stay armed while it keeps editing (battery holds)
+                if not lane_free and _api_key_continues(_state / "fleet-exhausted"):
+                    lane_free = True
+                if lane_free:
+                    urgent = False
+                if not urgent and not lane_free:
+                    with contextlib.suppress(OSError):
+                        _urgent_sidecar(sid).unlink(missing_ok=True)
+                    # W-117b1916: the wall yields everything (D-158) — but one arm-only block per
+                    # consumption first, so the lift's wake has a watch to reach; the arm is one of
+                    # quota_stop.py's allowed calls. A SessionStart never blocks.
+                    _warm = None if "--baseline" in argv else _arm_order(sid, str(root))
+                    if _warm and _claim_arm_block(sid):
+                        _kaizen(
+                            "stop_block", ev_sid, cause="unarmed", outcome="blocked",
+                            tier=_STAMP_TIER_WALLED,
+                        )  # fmt: skip
+                        sys.stdout.write(
+                            json.dumps(
+                                {
+                                    "decision": "block",
+                                    "reason": "FLEET QUOTA AT THE WALL — before you stop: "
+                                    + _warm
+                                    + ". Then end the turn.",
+                                }
+                            )
+                            + "\n"
+                        )
+                        return 0
+                    if _warm:  # owed, but this consumption's block is spent: record the debt
+                        _kaizen(
+                            "stop_block",
+                            ev_sid,
+                            cause="unarmed",
+                            outcome="stood_down",
+                            tier=_STAMP_TIER_WALLED,
+                        )
+                    _kaizen("stop_allowed_quota_hold", ev_sid)
+                    _store_decision(_ta, sid, judged, _repo)
+                    return 0
         except Exception:
             pass
+        if not urgent:  # the episode is over (or never began): the next urgent one gets its block
+            with contextlib.suppress(OSError):
+                _urgent_sidecar(sid).unlink(missing_ok=True)
+            with contextlib.suppress(OSError):
+                _arm_sidecar(sid).unlink(missing_ok=True)
 
         # SessionStart: record the inherited failing set, then always allow.
         # RESUME/COMPACT keep the ORIGINAL baseline: a revived session (the
@@ -4230,6 +5216,22 @@ def main(argv: list[str]) -> int:
             else None
         )
         decision_ground = judged[1][1] if judged and judged[1][0] else None
+        if urgent:
+            try:
+                _ureason = _urgent_checkpoint(
+                    root, sid, ev_sid, authored_map, own_commits, stall, transcript_p
+                )
+            except Exception as e:  # fail-open, like every cause: never trap a session at the tier
+                sys.stderr.write(
+                    f"[final_gate_stop] urgent checkpoint failed, allowing stop: {e}\n"
+                )
+                _ureason = None
+            if _ureason:
+                sys.stdout.write(json.dumps({"decision": "block", "reason": _ureason}) + "\n")
+                return 0
+            _store_decision(_ta, sid, judged, _repo)
+            _kaizen_pass(ev_sid, transcript_p, waived, warned, decision_ground)
+            return 0
 
         def _stall_gate() -> int:
             """Final causes on an otherwise-allowed stop: the PUSH law (committed
@@ -4269,18 +5271,22 @@ def main(argv: list[str]) -> int:
                     reason = (
                         f"UNPUSHED WORK (attempt {p_att}/{CAP}). {ahead} committed commit(s) on "
                         "this branch are not on origin — an unpushed task is an "
-                        "OFF-BOX-UNPROTECTED task (CLAUDE.md § EXIT): push YOUR work now "
-                        "(`git push`). Rejected? dirty tree → defer (wip-net protects) · clean "
+                        "OFF-BOX-UNPROTECTED task (CLAUDE.md § EXIT): "
+                        + _GATE_BEFORE_PUSH
+                        + "then push YOUR work now (`git push`). Rejected? dirty tree → defer (wip-net protects) · clean "
                         "tree → `git pull --rebase=merges` then push · conflict → "
                         "`git rebase --abort` + report · NEVER --force."
                     )
                 else:
-                    # a worktree branch with no upstream: plain `git push` and a pull both fail
+                    # a branch a plain `git push` cannot publish under its own name: a worktree
+                    # branch with no upstream, or one tracking a differently named upstream
                     reason = (
                         f"UNPUSHED WORK (attempt {p_att}/{CAP}). {ahead} committed commit(s) on "
-                        "this worktree branch are not on the main checkout's branch and the "
-                        "branch has no upstream — an unpushed task is an OFF-BOX-UNPROTECTED "
-                        "task (CLAUDE.md § EXIT): publish it now (`git push -u origin HEAD`), "
+                        "this branch are not on origin under this branch's own name — its "
+                        "upstream is missing or named differently — an unpushed task is an OFF-BOX-UNPROTECTED "
+                        "task (CLAUDE.md § EXIT): "
+                        + _GATE_BEFORE_PUSH
+                        + "then publish it (`git push -u origin HEAD`), "
                         "then report the branch to the merge owner · NEVER --force."
                     )
                 _kaizen(
@@ -4477,8 +5483,26 @@ def main(argv: list[str]) -> int:
                 # EIGHTH cause — coordinator assignment (see `_coordinator_duty`). After the
                 # counter write, so the 7-slot record behaves exactly as before.
                 if not run_active and not decision_ground and not _blocked_header(lam or ""):
-                    if (_coord_band(transcript_p) or "") not in _COORD_QUIET_BANDS:
-                        duty = _coordinator_duty(root, sid, Path(data.get("cwd") or root))
+                    band = _coord_band(transcript_p) or ""
+                    if band not in _COORD_QUIET_BANDS:
+                        rotation = _awaits_rotation(lam) and _rotation_due(sid)
+                        duty = _coordinator_duty(
+                            root, sid, Path(data.get("cwd") or root), band, rotation=rotation
+                        )
+                        if duty is None and _COORD_STOOD_DOWN:
+                            # only when the cause neither blocked nor warned: one event per Stop,
+                            # naming every start action it stood down and which hold did it
+                            _kaizen(
+                                "stop_block",
+                                ev_sid,
+                                cause="coordinator",
+                                outcome="stood_down",
+                                band=band,
+                                action=",".join(dict.fromkeys(_COORD_STOOD_DOWN)),
+                                reason="+".join(
+                                    w for w in ("amber", "rotation") if w in _COORD_STOOD_WHY
+                                ),
+                            )
                         if duty and duty[0]:
                             _kaizen(
                                 "stop_block",
@@ -4572,16 +5596,23 @@ def main(argv: list[str]) -> int:
         authored: dict[str, int] = authored_map
         transcript = str(data.get("transcript_path") or "")
         if transcript:
-            dirty = _dirty_paths(root)
-            for rel, edit_ts in authored.items():
-                if rel not in dirty:
-                    continue
-                # The session's last edit already COMMITTED → today's dirt on the
-                # same file belongs to someone else (pipeline/sibling), not this
-                # session. Only an edit NEWER than the file's last commit counts.
-                if edit_ts and _last_commit_ts(root, rel) >= edit_ts:
-                    continue
-                own_uncommitted.add(rel)
+            # `_own_uncommitted` is the set; a file the running review names is that review's to
+            # finish first, on the stops its fifth cause blocks (W-5ce56208, `_review_exempts_commit`).
+            everything = _own_uncommitted(root, authored)
+            exempting = _review_exempts_commit(sid, transcript)
+            own_uncommitted = (
+                everything - _surface_reviewed(exempting, authored, sid, root)
+                if exempting
+                else everything
+            )
+            if everything - own_uncommitted:
+                _kaizen(
+                    "stop_block",
+                    ev_sid,
+                    cause="uncommitted",
+                    outcome="stood_down",
+                    files=len(everything - own_uncommitted),
+                )
 
         # Attribute NEW gate failures by CITED PATH, not just check name: on shared
         # master a sibling's staged/dirty files flip a check red mid-session, and
@@ -4695,7 +5726,9 @@ def main(argv: list[str]) -> int:
                 f"{listed}{f' (+{more} more)' if more > 0 else ''}. Commit YOUR OWN work "
                 "now with explicit pathspecs + Agent Provenance Trailers "
                 "(git commit -m <msg> -- <your files>); never bundle files you didn't author. "
-                "Then PUSH it — commit-and-push is the task-end law (never --force)."
+                "Then "
+                + _GATE_BEFORE_PUSH
+                + "then PUSH it — commit, gate, push is the task-end law (never --force)."
             )
             _kaizen(
                 "stop_block",

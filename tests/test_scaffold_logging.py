@@ -73,7 +73,9 @@ def mock_fabrik_root(temp_dir: Path) -> Path:
     shutil.copytree(
         Path(__file__).resolve().parents[1] / "templates" / "scaffold" / "python", python_dir
     )
-    (python_dir / "pyproject.toml.template").write_text('[project]\nname = "project-name"\n')
+    # The REAL pyproject template stays: _write_server_lint_config copies its [tool.*] tables into
+    # chrome-extension's server/ and file-worker's root config, and a stub without them made those
+    # scaffolds raise (the TestChromeExtensionLogging reds, then file-worker's, W-0859fd4b).
 
     # Create .windsurfrules and .windsurf/rules/ and .windsurf/workflows/
     (fabrik_root / ".windsurfrules").write_text("# rules\n")
@@ -253,6 +255,58 @@ class TestPythonApiLogging:
         # the old lie must be gone: no TODO stub, no bare 'configured' that skips the ping
         assert "TODO: Replace with actual async DB ping" not in content
         assert '    deps["database"] = "configured"\n' not in content
+
+    def test_emitted_health_suite_passes(self, mock_fabrik_root: Path, temp_dir: Path) -> None:
+        """The emitted tests/test_health.py PASSES in a fresh project with no database and no asyncpg, and pins
+        every DB branch of the emitted handler (ping ok / ping fails → 503 / no driver) — W-7cf353e1: the
+        handler gained a real ping (01M0WXQQ) while the starter test kept asserting a value it can no longer
+        return, and no hub test ran the emitted suite. Runs it with this interpreter in a subprocess whose env
+        drops the box's DB URLs and pytest/warning overrides, so a box setting can only turn it red."""
+        import os
+        import subprocess
+        import sys
+
+        project = _scaffold_python_api(mock_fabrik_root, temp_dir)
+        dropped = {
+            "DATABASE_URL",
+            "TEST_DATABASE_URL",
+            "PYTEST_ADDOPTS",
+            "PYTEST_PLUGINS",
+            "PYTHONWARNINGS",
+            "CI",
+        }
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in dropped and not k.startswith(("PYTEST_", "COV_CORE_"))
+        }
+        env["PYTHONPATH"] = str(project / "src")
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "-p",
+                "no:cacheprovider",
+                "-rA",
+                "-W",
+                "ignore::pytest.PytestConfigWarning",
+                "tests/test_health.py",
+            ],
+            cwd=project,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        assert result.returncode == 0, result.stdout[-3000:] + result.stderr[-1000:]
+        for name in (
+            "test_health_returns_200_when_db_ping_succeeds",
+            "test_health_returns_503_when_db_ping_fails",
+            "test_health_closes_the_connection_when_the_query_fails",
+            "test_health_reports_no_driver_without_asyncpg",
+        ):
+            assert f"PASSED tests/test_health.py::{name}" in result.stdout, result.stdout[-3000:]
 
     def test_requirements_includes_structlog(self, mock_fabrik_root: Path, temp_dir: Path) -> None:
         """requirements.txt includes structlog."""
@@ -463,7 +517,7 @@ class TestFileWorkerLogging:
         scaffold._scaffold_file_worker(project, "dev-probe", "probe")
         makefile = (project / "Makefile").read_text()
         dev_body = makefile.split("\ndev:", 1)[1].splitlines()[1]
-        assert dev_body == "\tpython -m worker.main", dev_body
+        assert dev_body == "\t.venv/bin/python -m worker.main", dev_body
 
     def test_logger_py_caches_on_first_use(self, mock_fabrik_root: Path, temp_dir: Path) -> None:
         """worker/logger.py sets cache_logger_on_first_use=True."""

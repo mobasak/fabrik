@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T17:00:01.474511Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "7264b845297c4e73d0619d4ef3e3690df95da2b0",
+  "id": "W-37dda1e1",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide the spoke alert path (mesh-publish apprise or route via the hub) and add a provision-time test -d/test -f probe of the Claude home on the target host, warning when missing",
+  "note": "W-fc3eddd8 review adds: a spoke app provisioned before the fix keeps a stale <id>-watchdog sidecar and overlay on vps1 (no cleanup); _rewrite_shared_infra_host matches only host:port, so a user-supplied redis_url/pg_dsn with no port stays unrewritten on a spoke; GlitchTip (vps1) posts error webhooks to http://<id>-watchdog:8889, which does not resolve for a spoke sidecar; create_project can POST then raise in _fetch_dsn, so the created project is never recorded or rolled back.",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — spoke watchdog alert gaps, no breakage named",
+  "status": "done",
+  "tags": [
+    "fleet",
+    "medium"
+  ],
+  "title": "Spoke watchdog runtime gaps after W-fc3eddd8: WATCHDOG_APPRISE_URL defaults to http://apprise:8000 (not mesh-published; apprise is not in _SHARED_INFRA_HOSTS), so a spoke sidecar cannot alert; the sidecar bind-mounts VPS_CLAUDE_HOME and .claude.json, which must already exist on the spoke or claude -p is dead"
+}

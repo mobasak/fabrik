@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:45:16.684675Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-0a6955c4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4SN7RN4VCRB4YMSC5RJN5X0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Done in ca87b0dd2 (synced): the RECORDED comment above VERDICT in check_review_coverage.py no longer restates the dispositions; it points at commands/_sources/fabrik-review.md § Phase 2 and says the regex checks spelling only. The module docstring's verdict list now names ROUTED and RECORDED. The re"
+}

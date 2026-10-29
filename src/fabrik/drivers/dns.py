@@ -5,16 +5,75 @@ This client calls the site-provisioner service at VPS (provision.vps1.ocoron.com
 which provides unified access to both Namecheap and Cloudflare DNS.
 """
 
+import ipaddress
 import json
 import logging
 import os
+import re
+import shlex
 import subprocess
 from dataclasses import dataclass
 from typing import Any
 
 import httpx
 
+from fabrik.drivers.ssh import _jump_opts, _one_line, _redact, _via, jump_for
+
 logger = logging.getLogger(__name__)
+
+# Docker's own container-name grammar (`[a-zA-Z0-9][a-zA-Z0-9_.-]+`): the name `docker ps` printed is remote
+# text, and only a name of
+# this shape may reach the second remote command or a log line unquoted (W-9a560686).
+_DOCKER_NAME = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_.-]+")
+
+
+def _is_ip(text: str) -> bool:
+    """True only for a bare dotted-quad IPv4 address — what `.NetworkSettings.Networks.<net>.IPAddress` prints.
+
+    IPv4 only, on purpose: `ipaddress.ip_address` accepts an IPv6 scope id, so `fe80::1%@attacker.example` passed
+    and became `http://fe80::1%@attacker.example:<port>` — host `attacker.example`, where the request and its
+    key would go; and that field never holds an IPv6 address, which the URL would need bracketed anyway.
+    """
+    try:
+        ipaddress.IPv4Address(text)
+    except ValueError:
+        return False
+    return True
+
+
+class ProvisionerHTTPError(RuntimeError):
+    """The site-provisioner answered outside 2xx through the SSH proxy (W-8bb683e6).
+
+    `curl -s` exits 0 on a 4xx/5xx, so the error body used to come back as the call's success; this
+    is the SSH path's ``raise_for_status``. ``status`` is the HTTP status; ``body`` the reply
+    cleaned of keys and stripped, its first 200 characters, unquoted (for matching); the message
+    carries the one-line quoted form, and only the message reaches ``RuntimeError``."""
+
+    def __init__(self, message: str, *, status: int = 0, body: str = "") -> None:
+        # defaults only so copy/pickle can rebuild it from args; __dict__ then restores both
+        super().__init__(message)
+        self.status = status
+        self.body = body
+
+
+# a header value echoed in a reply: the client's key is masked by value, a foreign one by its name —
+# `Name: v`, a quoted JSON/repr key (`"Name": "v"`) and `name=v`; the rest of the line goes
+_HEADER_SECRET = re.compile(r"(?im)\b(x-api-key|authorization)([\"']?\s*[:=]\s*)\S[^\r\n]*")
+
+
+def _curl_quoted(value: str, what: str) -> str:
+    """*value* as a curl config string: ``"…"`` with ``\\`` then ``"`` escaped.
+
+    CR, LF and NUL are refused, never escaped: curl cuts a header at a raw newline silently, and
+    a header holding one is header injection. The message names *what*, never the value — the
+    orchestrator's DNS fallback logs this exception.
+
+    Raises:
+        ValueError: *value* holds CR, LF or NUL.
+    """
+    if any(c in value for c in "\r\n\0"):
+        raise ValueError(f"{what} holds a CR, LF or NUL character — refused before ssh ran")
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
 @dataclass
@@ -108,105 +167,213 @@ class DNSClient:
     def _resolve_container_url(self) -> str | None:
         """Resolve the live internal URL via ``docker inspect`` over SSH.
 
-        Returns ``None`` when ``SITE_PROVISIONER_CONTAINER`` is unset or
-        the container can't be resolved (caller falls back to
-        ``SITE_PROVISIONER_INTERNAL_URL``). Result is cached per client
+        Returns ``None`` when ``SITE_PROVISIONER_CONTAINER`` is unset or the container can't be
+        found or its IP read (caller falls back to ``SITE_PROVISIONER_INTERNAL_URL``). Result is cached per client
         instance — create a fresh ``DNSClient`` after a Coolify redeploy.
+
+        A DEAD ssh path — a timeout, an ``OSError`` running ssh, ssh's own exit 255 (no
+        connection, auth, host key) or a kill by signal — is not a miss (W-894fdc5f): with
+        ``SITE_PROVISIONER_INTERNAL_URL`` set it is logged and the static URL is used; without it,
+        it raises rather than fall through to the public URL this box cannot reach.
+
+        Raises:
+            RuntimeError: the ssh path is dead and no ``SITE_PROVISIONER_INTERNAL_URL`` is set
+                (the message names the host and the cause, never the command).
         """
         if not self._container_prefix:
             return None
         if self._resolved_url_cache:
             return self._resolved_url_cache
+        # Outside the try below: a bad FABRIK_SSH_JUMP_<ALIAS> must fail loud, never be
+        # swallowed into the public-URL fallback (W-2b657bee).
+        jump_value = jump_for(self.ssh_host)  # read once: the argv and the message name one jump
+        jump = _jump_opts(jump_value)
+
+        def run(remote: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                ["ssh", *jump, self.ssh_host, remote],
+                capture_output=True,
+                text=True,
+                errors="replace",
+                stdin=subprocess.DEVNULL,
+                timeout=self.timeout,
+                check=False,
+            )
+
         # Find full container name by prefix, then read its IP on the
         # shared coolify network (avoids picking the per-app UUID net).
+        dead: str | None = None  # why the ssh path is dead, when it is
         try:
-            name_proc = subprocess.run(
-                [
-                    "ssh",
-                    self.ssh_host,
-                    f"sudo docker ps --filter name=^{self._container_prefix} "
-                    "--format '{{.Names}}' | head -1",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=int(self.timeout),
-                check=False,
+            name_proc = run(
+                f"sudo docker ps --filter name=^{self._container_prefix} "
+                "--format '{{.Names}}' | head -1"
             )
             container = name_proc.stdout.strip()
-            if name_proc.returncode != 0 or not container:
+            if name_proc.returncode == 255 or name_proc.returncode < 0:
+                dead = f"rc={name_proc.returncode}: {_one_line(name_proc.stderr)}"
+            elif name_proc.returncode != 0 or not container:
                 logger.warning(
-                    "DNS client: container prefix %r not found on VPS (stderr=%r)",
+                    "DNS client: container prefix %r not found on VPS (stderr=%s)",
                     self._container_prefix,
-                    name_proc.stderr.strip(),
+                    _one_line(name_proc.stderr),
                 )
                 return None
-            fmt = (
-                '{{(index .NetworkSettings.Networks "' + self._container_network + '").IPAddress}}'
-            )
-            ip_proc = subprocess.run(
-                [
-                    "ssh",
-                    self.ssh_host,
-                    f"sudo docker inspect {container} --format '{fmt}'",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=int(self.timeout),
-                check=False,
-            )
-            ip = ip_proc.stdout.strip()
-            if ip_proc.returncode != 0 or not ip or ip == "<no value>":
+            elif not _DOCKER_NAME.fullmatch(container):
                 logger.warning(
-                    "DNS client: could not resolve %s IP on %s (stderr=%r)",
-                    container,
-                    self._container_network,
-                    ip_proc.stderr.strip(),
+                    "DNS client: container prefix %r matched a name docker would not print (%s)",
+                    self._container_prefix,
+                    _one_line(container, empty="empty"),
                 )
                 return None
-            url = f"http://{ip}:{self._container_port}"
-            self._resolved_url_cache = url
-            logger.debug(
-                "DNS client: resolved %s → %s (container=%s)",
-                self._container_prefix,
-                url,
-                container,
-            )
-            return url
+            else:
+                fmt = (
+                    '{{(index .NetworkSettings.Networks "'
+                    + self._container_network
+                    + '").IPAddress}}'
+                )
+                ip_proc = run(f"sudo docker inspect {container} --format '{fmt}'")
+                ip = ip_proc.stdout.strip()
+                if ip_proc.returncode == 255 or ip_proc.returncode < 0:
+                    dead = f"rc={ip_proc.returncode}: {_one_line(ip_proc.stderr)}"
+                elif ip_proc.returncode != 0 or not ip or ip == "<no value>":
+                    logger.warning(
+                        "DNS client: could not resolve %s IP on %s (stderr=%s)",
+                        container,
+                        self._container_network,
+                        _one_line(ip_proc.stderr),
+                    )
+                    return None
+                elif not _is_ip(ip):
+                    # the IP is remote text too, and it becomes the request's target host
+                    logger.warning(
+                        "DNS client: %s on %s printed no IP address (%s)",
+                        container,
+                        self._container_network,
+                        _one_line(ip, empty="empty"),
+                    )
+                    return None
+                else:
+                    url = f"http://{ip}:{self._container_port}"
+                    self._resolved_url_cache = url
+                    logger.debug(
+                        "DNS client: resolved %s → %s (container=%s)",
+                        self._container_prefix,
+                        url,
+                        container,
+                    )
+                    return url
+        except subprocess.TimeoutExpired:
+            dead = f"no answer in {self.timeout:g}s"
+        except OSError as e:  # no ssh binary, not executable, …
+            dead = f"{type(e).__name__}: {e.strerror or e}"
         except Exception as e:  # noqa: BLE001
             logger.warning("DNS client: container resolution failed: %s", e)
             return None
+        where = f"ssh to {self.ssh_host!r}{_via(jump_value)}"
+        if self._internal_url:
+            logger.warning(
+                "DNS client: %s is dead (%s) — using SITE_PROVISIONER_INTERNAL_URL", where, dead
+            )
+            return None
+        # Raised OUTSIDE the except, so no __context__ carries the command.
+        raise RuntimeError(
+            f"DNS client: {where} is dead ({dead}) and SITE_PROVISIONER_INTERNAL_URL is unset — "
+            "not falling back to the public URL"
+        )
 
     def _request_via_ssh(
         self, method: str, url: str, body: dict | None = None, params: dict[str, Any] | None = None
     ) -> dict[str, Any]:
-        """Proxy an HTTP request through SSH to bypass Traefik IP allowlist."""
-        header_args = " ".join(f'-H "{k}: {v}"' for k, v in self._headers.items())
-        data_arg = ""
-        if body is not None:
-            escaped = json.dumps(body).replace("'", "'\\''")
-            data_arg = f"-d '{escaped}'"
+        """Proxy an HTTP request through SSH to bypass Traefik IP allowlist.
+
+        The API key and the body never touch an argv (W-894fdc5f): they reach the remote curl as a
+        ``-K -`` config on stdin, so neither appears in a ``ps`` listing on either host. So the ``vps`` alias must
+        not set ``StdinNull`` or ``ForkAfterAuthentication`` in ``~/.ssh/config`` — the request
+        would then go out keyless — and ``-T`` keeps a ``RequestTTY`` setting from echoing it back.
+        """
+        # Every argv word is shlex-quoted for the remote shell (W-6a96f699): a `'` in a domain or
+        # endpoint broke out of the old hand-quoted URL and ran the rest on the VPS.
+        secret = {"X-API-Key"}
+        header_args = " ".join(
+            f"-H {shlex.quote(f'{k}: {v}')}" for k, v in self._headers.items() if k not in secret
+        )
+        config = "".join(
+            f"header = {_curl_quoted(f'{k}: {v}', k)}\n"
+            for k, v in self._headers.items()
+            if k in secret
+        )
+        if body is not None:  # data-raw: a leading `@` never means a file
+            config += f"data-raw = {_curl_quoted(json.dumps(body), 'the request body')}\n"
         # Append query params to URL if present
         if params:
             from urllib.parse import urlencode
 
             query_string = urlencode(params)
             url = f"{url}?{query_string}"
-        cmd = f"curl -s -X {method} {header_args} {data_arg} '{url}'"
-        result = subprocess.run(
-            ["ssh", self.ssh_host, cmd],
-            capture_output=True,
-            text=True,
-            timeout=int(self.timeout),
-            check=False,
+        # -sS: curl's own error stays on stderr (cleaned below); -w appends the HTTP status as the
+        # reply's last line, the only way to see it — -f drops the body, --fail-with-body exits 22
+        # into the ssh-failure branch with no status (W-8bb683e6)
+        cmd = (
+            f"curl -sS -X {shlex.quote(method)} {header_args} {shlex.quote(url)} -K - "
+            f"-w {shlex.quote(chr(10) + '%{http_code}')}"
         )
-        if result.returncode != 0:
-            msg = f"SSH proxy request failed: {result.stderr.strip()}"
-            raise RuntimeError(msg)
+        host = self.ssh_host
+        jump = jump_for(host)  # read once: the argv and the error text name the same jump
         try:
-            return json.loads(result.stdout)
+            result = subprocess.run(
+                ["ssh", "-T", *_jump_opts(jump), host, cmd],
+                input=config,
+                encoding="utf-8",
+                errors="replace",
+                capture_output=True,
+                timeout=self.timeout,
+                check=False,
+            )
+            timed_out = False
+        except subprocess.TimeoutExpired:
+            timed_out = True
+        if timed_out:
+            # Raised OUTSIDE the except (W-6a96f699): TimeoutExpired's str/repr carry the argv, and
+            # `cmd` holds `-H "X-API-Key: …"`, which the orchestrator's DNS fallback logs via %s.
+            raise subprocess.TimeoutExpired(
+                ["ssh", *_jump_opts(jump), host, "<command redacted>"], self.timeout
+            )
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"SSH proxy request to {host!r}{_via(jump)} failed (rc={result.returncode}): "
+                f"{_one_line(self._clean(result.stderr))}"
+            )
+        # the rc check above comes FIRST: an aborted transfer leaves `partial\n200` on stdout
+        reply_text, sep, code = result.stdout.rpartition("\n")
+        if not sep or not re.fullmatch(r"\d{3}", code):
+            reply = _one_line(self._clean(result.stdout).strip()[:200], empty="empty reply")
+            raise RuntimeError(f"SSH proxy reply carried no HTTP status: {reply}")
+        status = int(code)
+        if not 200 <= status <= 299:  # raise_for_status's rule: a 3xx without -L is no success
+            # masked BEFORE the cut (a key straddling character 200 would otherwise escape it)
+            excerpt = self._clean(reply_text).strip()[:200]
+            raise ProvisionerHTTPError(
+                f"SSH proxy request to {host!r}{_via(jump)} returned HTTP {status}: "
+                f"{_one_line(excerpt, empty='empty body')}",
+                status=status,
+                body=excerpt,
+            )
+        try:
+            return json.loads(reply_text)
         except json.JSONDecodeError as exc:
-            msg = f"SSH proxy returned non-JSON: {result.stdout[:200]}"
+            # masked BEFORE the cut (a key straddling character 200 would otherwise escape it),
+            # then one line: the reply is remote text (W-9a560686)
+            reply = _one_line(self._clean(reply_text).strip()[:200], empty="empty reply")
+            msg = f"SSH proxy returned non-JSON: {reply}"
             raise RuntimeError(msg) from exc
+
+    def _clean(self, text: str) -> str:
+        """*text* with this client's API key masked, then ``_redact``-ed. A remote shell or a
+        server error page can echo the request — `-H "X-API-Key: …"` included — and _redact
+        cannot mask a `Key: value` header, so the key goes first."""
+        if self.api_key:
+            text = text.replace(self.api_key, "<redacted>")
+        return _redact(_HEADER_SECRET.sub(r"\1\2<redacted>", text))
 
     def _request(self, method: str, endpoint: str, **kwargs) -> dict[str, Any]:
         """Make HTTP request to Site Provisioner service.
@@ -354,20 +521,15 @@ class DNSClient:
         """
         Delete a Cloudflare DNS record by type and name.
 
-        Idempotent: site-provisioner returns HTTP 500 + plain-text
-        ``Internal Server Error`` body when the record doesn't exist
-        (instead of the more correct 404). The SSH-proxy layer then
-        surfaces that as ``RuntimeError("SSH proxy returned non-JSON:
-        Internal Server Error")``. For a DELETE this is the desired
-        end-state, not a failure — so catch the specific shape and
-        return ``{"status": "absent"}`` rather than re-raising.
-
-        Verified live during the vps4 DR drill 2026-06-08: the second
-        ``destroy --reverse-fleet-add`` against an already-cleaned vps4
-        emitted ``dns: error: SSH proxy returned non-JSON: Internal
-        Server Error`` even though ``dig`` confirmed the records were
-        already gone. With this guard, subsequent destroys (or re-runs
-        after a partial failure) report ``ok`` instead.
+        Idempotent. The provisioner's route answers an absent record 200
+        ``{"action": "not_found", …}``, returned as is. The vps4 DR drill (2026-06-08) also saw
+        its HTTP 500 + plain-text ``Internal Server Error`` on a re-run against records ``dig``
+        showed gone; the SSH proxy raises that as ``ProvisionerHTTPError`` (status 500, that exact
+        body), mapped here to ``{"status": "absent"}``. ⚠️ That plaintext 500 is the provisioner's
+        catch-all for ANY unhandled exception (a Cloudflare failure, a missing zone), so this
+        mapping can swallow a real failed delete; a typed status from the provisioner retires it
+        (requested of site-provisioner, 2026-10-19). Any other HTTP error raises, a 404 included
+        (a missing route).
 
         Args:
             domain: Root domain
@@ -375,8 +537,8 @@ class DNSClient:
             name: Record name (use "@" for root)
 
         Returns:
-            Result dict from site-provisioner, or ``{"status": "absent"}``
-            when the record didn't exist.
+            Result dict from site-provisioner (``{"action": "deleted" | "not_found", …}``), or
+            ``{"status": "absent"}`` for the plaintext 500 above.
         """
         try:
             return self._request(
@@ -384,12 +546,10 @@ class DNSClient:
                 f"/api/cloudflare/dns/{domain}",
                 params={"record_type": record_type, "name": name},
             )
-        except RuntimeError as e:
-            # Narrow match: the specific "not found surfaced as 500" shape
-            # site-provisioner emits. Any other RuntimeError (real SSH
-            # failure, malformed config, etc.) still propagates.
-            msg = str(e)
-            if "Internal Server Error" in msg and "non-JSON" in msg:
+        except ProvisionerHTTPError as e:
+            # the plaintext-500 shape only (see the docstring: a catch-all); every other HTTP error,
+            # and every non-HTTP failure (ssh, config), propagates
+            if e.status == 500 and e.body == "Internal Server Error":
                 logger.info(
                     "DNS delete_record(%s, %s, %s): record already absent "
                     "(site-provisioner 500 → treating as success)",

@@ -1,0 +1,26 @@
+{
+  "block_digest": "938fee2fa5cb075fc409bc4e880851b0240855842b46af8974c7d609a114c8bb",
+  "blocked_by": [],
+  "created": "2026-10-14T12:07:22.528534Z",
+  "creator": "infra",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-4e586b24",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "9c97fd535d21d2bfb1a46965c15dca6fcb6c6e8151dfbc72e5f6e88e76709e6c"
+  ],
+  "next": "",
+  "note": "operator 2026-10-14: 'we should not consume our account's quota' — backlog work goes through cloud dispatch on the credits, not local sessions; 'each has 250$ credits. when credits consumed, it must be paused'; 'sarp will be added later'",
+  "owner": "",
+  "priority": 2,
+  "question": "Should I keep working through my 22 claimed items now (next is W-acdb5d4c, a `--sources-only` mode for `assemble_commands.py --check`), or stop here so ob's quota is saved for when you need it?",
+  "status": "done",
+  "title": "Should I keep working through my 22 claimed items now (next is W-acdb5d4c, a `--sources-only` mode for `assemble_commands.py --check`), or stop here so ob's quota is saved for when you need it?"
+}

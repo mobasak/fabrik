@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T13:27:43.255450Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "14487a4a6922daeb9ecbf9100e95cbda8bfe582e",
+  "id": "W-9f3f097c",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "grader: start parent, write a file in its RUN-SCRATCH, start a nested child, assert the file survives (red first)",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "loses a live run's data on every nested review (command-improve→review-scoped, execute-plan→review), measured by kaizen 2026-10-15; one sweep condition; owner: command_run.py/scratch sweep = infra",
+  "status": "done",
+  "tags": [
+    "mail-01m4zvbx96hk7gt8d8wkm9jzg2",
+    "scratch-gap"
+  ],
+  "title": "Nested command_run.py start sweeps the STACKED parent run's live RUN-SCRATCH folder (pins and briefs lost mid-run, seats read the live tree) — start's own-session sweep must skip every record in the live record's stack (mail 01M4ZVBX96HK7GT8D8WKM9JZG2)"
+}

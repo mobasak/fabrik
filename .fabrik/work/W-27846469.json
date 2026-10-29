@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T22:11:13.286166Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-27846469",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VMNGGMY2DPVV4PQ5PD5XXF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "review-probe-catalogue § Seat isolation — two executed corrections to the shared-clone sentence (both B1 design critiques ran the clone)"
+}

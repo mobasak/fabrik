@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T18:04:43.834956Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-78db4449",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read the phase-count and NEXT-map code; render from master only",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — command corpus warn + NEXT entry from kaizen mail",
+  "status": "open",
+  "tags": [
+    "needs-split"
+  ],
+  "title": "assemble_commands.py: WARN when a source's phase count comes from the section fallback, not PHASE headings (1789423201); carry the five route-up triggers in /fabrik-review-scoped's wrapper NEXT entry (1789719869) — kaizen mail 01M4PHYRB6"
+}

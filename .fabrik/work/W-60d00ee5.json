@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:21:37.573195Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-60d00ee5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4PCARHD1849533Y24V1BWJY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: please relay to site-provisioner (sp1) — UPDATE 4 (lussobotanica.com quote form, D-384): ready to deploy; the Microsoft 365 side is proven end to end."
+}

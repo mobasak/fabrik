@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T22:19:05.288962Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "218fa04f6b7c285ab4d2ede0d673156c8cf2f7a1",
+  "id": "W-2d704438",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "MEASURED 2026-10-19 (mail 01M58H6DF7 claimed): scripts/command_run.py round handler (:6535-6549) validates --slices format only (_parse_slices :356, _zero_slice_refusal :414) and never compares a later round to the round-1 ledger nor echoes it; reproduced: round 2 of run fabrik-review-2026-10-19T02-07-40 accepted A:0/3,B:0/1 against round-1 A:6/11,B:0/2. FIX at GREEN as /fabrik-task: before recording a later round, print each round-1 slice's claims + last verified + still-open classes, WARN (not refuse — shrinking ledgers are legitimate, 2 of 26 measured in _parse_slices' docstring) on a slice name not in round 1 or a claims count that differs; test in tests/test_command_run.py; then ack the mail",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "another active agent's request (kaizen feedback row needing code); one verb's output, one session",
+  "status": "done",
+  "tags": [
+    "mail-01m58h6df71ssm1d358jtejw38"
+  ],
+  "title": "mail 01M58H6DF71SSM1D358JTEJW38: command_run.py round --slices accepts slice ids without echoing the round-1 claim totals or open classes it expects (feedback row 1792361103, /fabrik-review)"
+}

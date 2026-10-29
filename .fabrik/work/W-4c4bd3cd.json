@@ -12,12 +12,14 @@
     "spec": ""
   },
   "next": "re-point the citation to the UFW mesh rule's current line (grep the rule text, not a line number); found by the W-922fbee1 design critique",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "fleet",
   "priority": 3,
-  "status": "open",
+  "status": "dropped",
   "tags": [
-    "docs"
+    "docs",
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "scripts/aro-wake/main.py:762 cites bootstrap-vps.sh:1137 for the UFW mesh rule; that line moved (now step 15's scp)"
 }

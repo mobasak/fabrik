@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T16:37:30.749371Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "d8195d63070757cd8eac74770aa05ba96b43a3b1",
+  "id": "W-fc3eddd8",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide whether the watchdog builds on the spoke (wrap driver.provision in _target_vps_env after confirming no hub-side step), then make the refresh path keep an existing GlitchTip project on a failed verify and guard the fallback ssh; tests for each",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "a failed DSN verify on refresh deletes the EXISTING GlitchTip project (data loss) and spoke watchdog runs on the hub; one driver (drivers/watchdog.py) plus a guard, one session; owner: deploy registrars = fleet",
+  "status": "done",
+  "tags": [
+    "fleet",
+    "medium"
+  ],
+  "title": "Spoke registrar residue after W-1ee6341d: the watchdog registrar (infrastructure.py:1544 -> drivers/watchdog.py, ~20 ssh calls, 0 host swaps) builds, pushes its overlay, runs docker compose up and inspects the app container on the hub for a vps2/vps3 app; a failed GlitchTip DSN verify on refresh deletes the EXISTING project (infrastructure.py:1326); verify_dsn_injection's fallback docker ps ssh (glitchtip.py:460) is unguarded"
+}

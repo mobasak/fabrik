@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:20.070419Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-3fe27eed",
+  "impact": "low",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TC71RRHSDBFDQ1AK13J2H5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — routing correction",
+  "status": "open",
+  "title": "correction — kaizen mis-routed dispatch_headroom.py findings to intel; D-195 makes its code infra's"
+}

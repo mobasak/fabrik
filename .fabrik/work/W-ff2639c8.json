@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T02:22:56.819309Z",
+  "creator": "infra-2",
+  "evidence": "c1280ac4ca42c87b9bc09b4c1ebc614a90da96d8",
+  "id": "W-ff2639c8",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1226",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add a test: forbidden [\"**\"] with \"**\" present in the section gives LOSS forbidden phrase present (today only the absent case at test_a_phrase_that_normalises_to_nothing_is_refused is pinned)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "tags": [
+    "lean-residue"
+  ],
+  "title": "Lean tooling residue (W-a9b5e763 slice C review): pin the present-file LOSS case of a raw forbidden phrase such as \"**\" in tests/test_command_rules.py"
+}

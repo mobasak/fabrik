@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:23.294505Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-8bc61173",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VHFP7SS1CD3WA57DGRBRZ0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — researcher fetch-path rule gaps measured by four seats",
+  "status": "done",
+  "title": "fabrik-researcher fetch-path rules: three gaps measured by four seats in one /fabrik-spec-review pass (2026-10-14)"
+}

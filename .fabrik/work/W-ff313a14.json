@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T22:46:45.487917Z",
+  "creator": "fleet",
+  "evidence": "f83b80d6b6626444449051423f6a5f46a5a8f9c7",
+  "id": "W-ff313a14",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: route each through the compose_env-style PyYAML double-quoted emission (or validate the inputs as identifiers/ports), red-first per field; drop the depends.postgres exemption in tests/test_compose_env_quoting.py::_DB_DEFAULT_LINE; and harden that file's guards per the W-80aed026 review's recorded ideas: a key mixing text and a tag (PREFIX_{{ key }}=), a hyphenated key, a tag-only quoted key (\"{{ key }}\"=), and _COMPOSE_NAMES matched by endswith rather than exact name",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Compose values outside environment: are still unquoted: python-api command: {{ spec.source.image_command }} and its health test: scalars, file-api compose PORT inside the healthcheck flow sequence (:46) and the traefik label (:60), python-api svc_port label (:21), and the DATABASE_URL default lines embedding {{ depends.postgres }} (5 templates). A value with a quote, backslash, \" #\" or \": \" breaks or mangles compose. Found by the W-80aed026 design critiques (Opus + Fable)."
+}

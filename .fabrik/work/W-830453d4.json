@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:21:36.961167Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-830453d4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4PB9Q9VWPXXMMXQ7VTAGXNV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: please relay to site-provisioner (sp1) — UPDATE 3 to 01M4NHSE7J / 01M4NJA3AX (lussobotanica.com quote form, D-384): the operator's Microsoft 365 is set up."
+}

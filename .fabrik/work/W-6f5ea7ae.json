@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T13:32:48.199136Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-6f5ea7ae",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "isinstance(data, dict) check beside the JSONDecodeError fallback; flip the xfail in tests/test_cov_orchestrator_gpu_state.py",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "gpu_state.load_state raises TypeError on valid JSON that is not an object (src/fabrik/orchestrator/gpu_state.py:81) instead of falling back to the empty skeleton like a corrupt file"
+}

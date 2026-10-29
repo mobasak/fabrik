@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T19:18:55.192690Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-7528a979",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5FY1H6GVAMM3S2P519APG7Z",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "DONE — web-tools pins Firecrawl `proxy: \"basic\"` on every payload (fabrik-lib main c7ab67e4)"
+}

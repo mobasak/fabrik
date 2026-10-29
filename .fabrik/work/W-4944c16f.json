@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:20:49.120239Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-4944c16f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RM1DKFPT10NWVN0JK6741T",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "RE lussobotanica.com quote form (D-383) — Turnstile + rate limit LIVE, Worker built and gated on the operator's deploy approval, Email Routing withdrawn by your own D-384, mailbox blocked on Microsoft 365"
+}

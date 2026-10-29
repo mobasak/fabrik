@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T13:07:20.498423Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-f4cfc474",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DSNTD0VRA00NJYN6PR6DGA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: polarity-blind phrase pins (01M4DSHQYN) — boarded as W-901df64c, measure first"
+}

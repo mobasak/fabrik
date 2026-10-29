@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T04:07:01.545219Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "d5b2d9432d99540cba62ccb538e8cb787692ab00",
+  "id": "W-73044efc",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "give each a payload only its own guard stops (or drop it as subsumed), reword the metaclass-eq-true and list-iterates-differently comments to say the identity gate refuses them today, and assert 'failed to load or answer: K:' — W-3d6a6236 review pass 2-3 residue",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: test-quality leftover from the W-3d6a6236 review; 3 test cases now pass whatever the guard does and 1 asserts a 1-letter string; the fix itself is covered by 30 mutants",
+  "status": "done",
+  "title": "test_check_synced_unmodified_manifest: three post-load params no longer discriminate (class-property, module-getattr, list-iterates-differently pass under the wide catch whatever the per-guard code does) and the KeyboardInterrupt-subclass param asserts the one-letter substring 'K'"
+}

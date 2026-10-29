@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T13:22:40.029655Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "00bf077b296e75b674450dae41d16a0b699f43b8",
+  "id": "W-1ee6341d",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-10-14-plan-1-coolify-verb-retirement/2026-10-14-plan-1-coolify-verb-retirement.md",
+    "spec": ""
+  },
+  "next": "wrap verify_dsn_injection in _target_vps_env(ctx) like inject_env, with a test whose fake ssh dispatches docker inspect by FABRIK_VPS_SSH_HOST",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — spoke apply fails and deletes GlitchTip project; deploy blocker",
+  "status": "done",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Spoke refresh/apply: glitchtip's verify_dsn_injection runs docker inspect on the hub, so a vps2/vps3 app with glitchtip fails and its GlitchTip project is deleted (infrastructure.py:1315-1326, glitchtip.py:417-447); refresh reaches spokes since the Coolify retirement's T03"
+}

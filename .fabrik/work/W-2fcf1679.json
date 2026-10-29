@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T14:01:59.395255Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-2fcf1679",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5W5W9DTA71C6K1EA0STAVEH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: w-47d58d2c-seat-bullet"
+}

@@ -1,0 +1,26 @@
+{
+  "block_digest": "331f12230d7238d4836c04941f8c694001b9c2d6af2341c85136c0ca25c3c9f7",
+  "blocked_by": [],
+  "created": "2026-10-20T04:47:22.614432Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "underivable",
+  "id": "W-c78cdee3",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "81164230e6e81c63b83bb549fc37b1836edaa4552878b4f38907c2f0983ab1a2"
+  ],
+  "next": "",
+  "note": "panel unanimous: stop the deploy and leave the login as it is; the registrar never strips the grant itself. postgres.py:1110-1127 already fails closed; no code owed",
+  "owner": "",
+  "priority": 2,
+  "question": "When a deploy finds that someone has given a project's payments database login full admin rights, or made it a member of other roles, outside the normal process, should it remove those and carry on, or stop the deploy and leave the login as it is?",
+  "status": "done",
+  "title": "When a deploy finds that someone has given a project's payments database login full admin rights, or made it a member of other roles, outside the normal process, should it remove those and carry on, or stop the deploy and leave the login as it is?"
+}

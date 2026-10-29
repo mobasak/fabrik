@@ -1,0 +1,26 @@
+{
+  "block_digest": "ffc1c7ee925015d9dc3cee4cd6c8e1034a680974377012fa7c07ffc3f25d9202",
+  "blocked_by": [],
+  "created": "2026-10-28T22:05:55.201940Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-686647c8",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "D-1335",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "aa08eeadd545bc4de9eab98adbba86baa6f4c4c01688ff518d716b7bdeddad28"
+  ],
+  "next": "",
+  "note": "ok (kaizen and intel come off the pause)",
+  "owner": "",
+  "priority": 2,
+  "question": "Now that the lean rewrite is finished, may kaizen and intel come off the pause and work their own queues?",
+  "status": "done",
+  "title": "Now that the lean rewrite is finished, may kaizen and intel come off the pause and work their own queues?"
+}

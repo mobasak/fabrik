@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T13:38:01.118425Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-1b8a8b49",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DVPZ6TTXXE39NACB915WC3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: core/35-security-auth.md:402 is_admin_dashboard (01M4DSTKXX) — fixed at f563f224e, synced"
+}

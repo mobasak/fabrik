@@ -981,6 +981,62 @@ def test_deploy_commands_declare_the_container_leg_and_test_comparators_not_exam
     )  # the comparator's runtime dependency, named
 
 
+def _verify_norm() -> str:
+    return " ".join(
+        (REPO / "commands" / "_sources" / "fabrik-deploy-verify.md").read_text().split()
+    )
+
+
+def test_deploy_verify_recipe_stages_a_fresh_comparator_where_the_stub_reads_it():
+    """W-82cff1ac / fleet 01M4PKBYRV (A), W-4f902e2f: the host leg named no destination for the
+    comparator; a repeat `scp -r` nested the new copy under a stale one the stub then loaded; a 664
+    source made the stub's ownership guard refuse it; pre-D-744 stubs read only their clone; the
+    container leg's `docker cp` into a missing /app/libs made /app/libs the package, merged into a
+    long-lived container's last copy, and a silenced failure left an empty leg."""
+    verify = _verify_norm()
+    container = verify[verify.index("**container leg**") : verify.index("**host leg**")]
+    host = verify[
+        verify.index("**host leg**") : verify.index("**A site the contract has no rows for**")
+    ]
+    assert (
+        'rm -rf /tmp/health_probe" && scp -r libs/health_probe <vps>:/tmp/health_probe' in container
+    )
+    assert (
+        "docker exec -u 0 <leg> rm -rf /app/libs/health_probe && docker exec -u 0 <leg> mkdir -p"
+        " /app/scripts /app/libs && docker cp /opt/<project>/scripts/verify_prod_parity.py"
+        " <leg>:/app/scripts/ && docker cp /tmp/health_probe <leg>:/app/libs/" in container
+    )
+    assert "python /app/scripts/verify_prod_parity.py" in container
+    assert "2>/dev/null; true" not in verify  # a failed stage is visible, never swallowed
+    stage = (
+        'rm -rf /tmp/health_probe" && scp -r libs/health_probe <vps>:/tmp/health_probe && ssh <vps>'
+        ' "chmod -R go-w /tmp/health_probe"'
+    )
+    run = "python3 /tmp/verify_prod_parity.py --json --site host"
+    assert stage in host and run in host
+    assert host.index(stage) < host.index(run), "the host leg stages before it runs"
+    assert "grep -q _comparator_root scripts/verify_prod_parity.py" in host
+    one_line = (
+        'd=$(ssh <vps> mktemp -d) && ssh <vps> "mkdir -p $d/scripts $d/libs" && scp'
+        " scripts/verify_prod_parity.py <vps>:$d/scripts/ && scp -r libs/health_probe <vps>:$d/libs/"
+        ' && ssh <vps> "cd /opt/<project> && PARITY_FILESTORE_PATH=<mount> python3'
+        ' $d/scripts/verify_prod_parity.py --json --site host" > <run>/host.json; ssh <vps> "rm -rf $d"'
+    )
+    assert one_line in host, "the private clone layout is ONE command line: $d lives in one shell"
+
+
+def test_deploy_verify_header_zero_never_shrinks_the_denominator():
+    """W-82cff1ac (B), D-763: a header `sites` count of 0 saves the remote exec only — the hub still
+    emits that site through `--unreachable` and the merge takes it, so a wrong zero fails closed
+    instead of dropping the leg's rows."""
+    verify = _verify_norm()
+    rule = verify[verify.index("**A site the contract has no rows for**") :]
+    assert "skips its REMOTE exec only" in rule
+    assert '--unreachable "header: 0 rows" > <run>/<site>.json`, and merge it like any leg' in rule
+    assert "only the merge decides" in rule
+    assert "header without `sites` runs every leg" in rule
+
+
 def test_the_selftest_is_not_vacuous():
     """`--selftest` is the predicates' ONLY grader and nothing on the box ran it: three regex
     mutations that its canaries catch left this whole suite green (review 2026-09-03, DS2)."""
@@ -3627,3 +3683,46 @@ def test_pass_68_agent_description_is_a_key_and_a_closed_stdout_launch_is_green(
     )
     assert "its own wrapper is now the binding" not in proc.stdout, proc.stdout
     assert "left the process's stdout unusable" in proc.stdout, proc.stdout
+
+
+def test_a_fragment_is_cited_by_its_hub_absolute_path() -> None:
+    """W-aeb35e3a: the rendered commands run from every repo on the box, where `commands/_fragments/`,
+    `commands/_sources/` and `commands/_agents/` do not exist (only the rendered output is installed), so a source,
+    fragment or seat file cites one of their files as `/opt/fabrik/commands/<dir>/<f>.md`. Red on the twelve relative
+    citations this item fixed. A citation is a path ending in `.md`, so a glob, a placeholder and a name without `.md`
+    never read as one (review rounds 2-5 kept patching a tail that matched `.md`-less names; the branch was deleted,
+    0 such names in the corpus). Flagged: a `./` or `../` prefix, a bare `_fragments/` path, `_` or capitals, and
+    any markup around it. Allowed: the absolute form, a `git show <ref>:commands/...` recipe and `{{include:...}}`."""
+    relative = re.compile(
+        r"(?<![\w/.:-])(?:\.{1,2}/)*(?:commands/)?_(?:fragments|sources|agents)/[A-Za-z0-9_-]+\.md\b"
+    )
+    for spelling in (
+        "`commands/_agents/x.md`",
+        "./commands/_fragments/a.md",
+        "../_fragments/a.md",
+        "`_fragments/a.md`",
+        "commands/_sources/Term_x.md",
+        "see commands/_fragments/a.md.",
+        "**commands/_fragments/a.md**",
+        "|commands/_fragments/a.md|",
+    ):
+        assert relative.search(spelling), spelling
+    for spelling in (
+        "/opt/fabrik/commands/_fragments/a.md",
+        "git show HEAD:commands/_fragments/a.md",
+        "{{include:term-coverage}}",
+        "the `commands/_fragments/` directory",
+        "ls commands/_sources/fabrik-*",
+        "ls commands/_sources/fabrik.*",
+        "`commands/_sources/<command>.md`",
+        "commands/_sources/x.py",
+    ):
+        assert not relative.search(spelling), spelling
+    hits = [
+        f"{path.relative_to(REPO)}:{n}"
+        for sub in ("_sources", "_fragments", "_agents")
+        for path in sorted((REPO / "commands" / sub).glob("*.md"))
+        for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if relative.search(line)
+    ]
+    assert not hits, hits

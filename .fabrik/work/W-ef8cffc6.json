@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T17:09:49.914563Z",
+  "creator": "infra",
+  "evidence": "50db0433652b1487eb2a29c353fc276aa9aa2364",
+  "id": "W-ef8cffc6",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "collect once in main() and pass the list to _owners_done; a test that ages an obligation between the two calls",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "tags": [
+    "infra"
+  ],
+  "title": "mail_escalate.py: _owners_done() and main() each run collect_obligations(), so an obligation that ages in between can be skipped for one run (Finish review of plan 2026-10-13-plan-1 mail routing, B-S4; pre-existing, outside that plan's diff)"
+}

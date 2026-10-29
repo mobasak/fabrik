@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T20:30:40.034654Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0681c849",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "already landed in 015059505 — owner infra confirmed 2026-10-18 (records check D-954); closed as done-by-other-work",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "tags": [
+    "proposed-done"
+  ],
+  "title": "rotation/dispatch: exclude an account whose org disabled Claude Code subscription access (fabrik-spec-review verdict 1791303273.2769608, kaizen 01M4EKAZZF)"
+}

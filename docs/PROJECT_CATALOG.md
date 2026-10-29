@@ -11,9 +11,9 @@
 
 | Project | Purpose | Stack | Status | URL | Scaffold |
 |---------|---------|-------|--------|-----|----------|
-| **proxy** | **Status:** Production Ready - Proxy Management API ✅ | Python | ✅ Production | Multi-service proxy broker | ✅ Current |
+| **proxy** | **Status:** Production Ready - Proxy Management API ✅ | Python | ✅ Production | - | ✅ Current |
 | **site-provisioner** | Unified site provisioning API - domain registration, DNS, SSL, CDN, analytics, and webmaster to... | Python | ✅ Production | https://provision.vps1.ocoron.com | ✅ Current |
-| **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | Multi-tenant SaaS | ✅ Current |
+| **youtube** | **Status:** Production Ready - Multi-Tenant SaaS ✅ | Python | ✅ Production | - | ✅ Current |
 
 ### Active Development (27 projects)
 
@@ -53,7 +53,7 @@
 |---------|---------|-------|--------|-----|----------|
 | **Reference_Creator** | Automated reference document creator from source materials. | Python | 🔨 Development | https://reference-creator.vps1.ocoron.com | ✅ Current |
 | **apidoccreator** | External documentation registry. Scrapes, generates, stores and serves docs for AI agent consum... | FastAPI | 🔨 Development | - | ✅ Current |
-| **brand-identiy-creator** | AI-powered tool for creating comprehensive brand identities from customer inputs and existing m... | FastAPI | 🔨 Development | https://brand-identity-creator.vps1.ocoron.com | ✅ Current |
+| **brand-identiy-creator** | AI-powered tool for creating comprehensive brand identities from customer inputs and existing m... | FastAPI | 🔨 Development | https://brand-identiy-creator.vps1.ocoron.com | ✅ Current |
 | **email-reader** | A Python service to read Gmail and Microsoft 365 emails, extracting verification codes or login... | Python | 🔨 Development | https://email-reader.vps1.ocoron.com | ✅ Current |
 | **emailgateway** | No description available | Unknown | 🔨 Development | - | ⚠️ No project.yaml |
 | **fabrik-dr-store** | Plain mirror of `/opt/fabrik/.env` from the dev WSL machine. | Unknown | 🔨 Development | - | ⚠️ No project.yaml |

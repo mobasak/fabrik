@@ -1,0 +1,26 @@
+{
+  "block_digest": "1e7b5b12b526c635797097269e3939dd5b82e0407fa21acd56510f10be56c147",
+  "blocked_by": [],
+  "created": "2026-10-15T09:50:22.378661Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-f96cdef2",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "a6e69743d5563bf060e77a7250772e3f2e44e3f4bd953601fa03f5294b362c5b"
+  ],
+  "next": "",
+  "note": "operator gave the go in kaizen's pane; kaizen pushed and merge-requested, merged 9eafc08b8",
+  "owner": "",
+  "priority": 2,
+  "question": "Should kaizen resume now: push its finished fix (6c19dd70f), request the merge, then do W-a26c180b and W-2bc42fc3?",
+  "status": "done",
+  "title": "Should kaizen resume now: push its finished fix (6c19dd70f), request the merge, then do W-a26c180b and W-2bc42fc3?"
+}

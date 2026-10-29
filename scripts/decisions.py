@@ -51,20 +51,25 @@ HUB_LEDGER = Path(__file__).resolve().parent.parent / "docs" / "DECISIONS.md"
 # is a NEW row whose what-cell OPENS a supersedes clause (this ledger's own law), so that prefix is
 # optional before the phrase, in every spelling the ledger's real rows use (`supersedes D-258.`,
 # `Supersedes D-446's scope:`, `SUPERSEDES D-235 ON THE MECHANISM:`, any case, `**` allowed); the
-# un-adoption row is TOKEN-exact (`undeclared-team` is an owner, `UNDECLARED.` is prose).
+# un-adoption row is TOKEN-exact (`undeclared-team` and `UNDECLARED.team` are owners; a
+# sentence-ending `UNDECLARED.` un-adopts).
 # The prefix ends at the cell's FIRST `:` or `.` (the qualifier may hold neither), and the phrase
 # must follow it at once — so it cannot reach a `MERGE OWNER:` written later in the prose.
-# After a supersedes clause the phrase must be the exact UPPERCASE `MERGE OWNER:` (the lookahead's
-# `(?-i:...)`): a prose sentence such as `Supersedes D-001.** Merge owner: rotated weekly` is not a
-# declaration. A bare row with no prefix keeps the case-insensitive phrase it always had.
-_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+[^:.]{0,160}[:.][\s*]*(?=(?-i:MERGE OWNER:)))?"
+# D-934: the label is the exact upper-case `MERGE OWNER` on EVERY row (`(?-i:...)` — the supersedes
+# clause and the UNDECLARED token stay `re.I`), with one optional `**` on each side of its colon, so
+# `**MERGE OWNER:** x` and `**MERGE OWNER**: x` declare while `Merge owner: rotated weekly` is prose;
+# the first token after the label is the owner, whatever follows it.
+_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+[^:.]{0,160}[:.][\s*]*(?=(?-i:MERGE OWNER)))?"
 MERGE_OWNER_RE = re.compile(
-    r"^\**\s*" + _SUPERSEDES_PREFIX + r"MERGE OWNER:\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I
+    r"^\**\s*"
+    + _SUPERSEDES_PREFIX
+    + r"(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)",
+    re.I,
 )
 _UNDECLARED_RE = re.compile(
     r"^\**\s*"
     + _SUPERSEDES_PREFIX
-    + r"MERGE OWNER:\s*UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-])",
+    + r"(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-])",
     re.I,
 )
 
@@ -365,11 +370,14 @@ def _reserve_path(key: str) -> Path:
 
 
 @contextlib.contextmanager
-def _locked(path: Path) -> Iterator[bool]:
-    """flock *path*.lock. Yields True when held, False when it could not be taken.
+def _locked(path: Path) -> Iterator[bool | None]:
+    """flock *path*.lock. Yields True when held, False when it TIMED OUT, None when the lock file
+    could not even be opened (the store is unreachable: no state dir, or one that is read-only).
 
-    The CALLER decides the failure direction, because the two legs differ: a lock TIMEOUT fails
-    CLOSED (see :func:`_allocate`) while an unwritable state dir fails OPEN. An earlier draft let the
+    The CALLER decides the failure direction, because the legs differ: a lock TIMEOUT fails
+    CLOSED (see :func:`_allocate`) while an unreachable store fails OPEN — nobody can reserve, so
+    no id is stolen from a holder that does not exist. False and None were one value until
+    W-e1b1052e, so an existing-but-read-only store refused with the timeout's own message. An earlier draft let the
     timeout fall open to ``max+1``; executed, agent B then minted the exact id agent A was holding —
     a collision generator in precisely the two-agent condition the reservation exists for.
     """
@@ -379,7 +387,7 @@ def _locked(path: Path) -> Iterator[bool]:
         lock.parent.mkdir(parents=True, exist_ok=True)
         fh = lock.open("a+")
     except OSError:
-        yield False
+        yield None
         return
     try:
         for _ in range(_LOCK_TRIES):
@@ -495,18 +503,23 @@ def _allocate(ledger: Path, key: str, *, reserve: bool) -> tuple[int | None, str
     merge_base = _merge_base_ids(ledger)
     merged_ids = set(ids) | set(merge_base)
     path = _reserve_path(key)
+    # the fail-open id still counts the integration branch's rows: only the reservations are lost
+    open_base = max(ids + merge_base) + 1 if ids + merge_base else 1
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        base = max(ids) + 1 if ids else 1
-        return base, f"decisions: reservation dir unwritable ({exc}) — not reserved\n"
+        return open_base, f"decisions: reservation dir unwritable ({exc}) — not reserved\n"
     if not reserve:
         with _locked(path) as held:
+            if held is None:
+                return open_base, "decisions: reservation store unreachable — not reserved\n"
             if not held:
                 return None, "decisions: could not take the reservation lock — no id issued\n"
             pool = ids + _live_reservations(path, merged_ids) + merge_base
             return (max(pool) + 1 if pool else 1), ""
     with _locked(path) as held:
+        if held is None:
+            return open_base, "decisions: reservation store unreachable — not reserved\n"
         if not held:
             return None, "decisions: could not take the reservation lock — no id issued\n"
         pool = ids + _live_reservations(path, merged_ids) + merge_base
@@ -536,45 +549,62 @@ def _append_row(ledger: Path, fields: list[str], key: str) -> int:
     except OSError:
         pass
     with _locked(path) as held:
-        if not held:
+        if held is False:
             sys.stderr.write("decisions: could not take the lock — nothing written\n")
             return 1
-        ids = _ledger_ids(ledger)
-        merge_base = _merge_base_ids(ledger)
-        pool = ids + _live_reservations(path, set(ids) | set(merge_base)) + merge_base
-        nid = max(pool) + 1 if pool else 1
-        try:
-            lines = ledger.read_text(encoding="utf-8", errors="replace").split("\n")
-        except OSError as exc:
-            sys.stderr.write(f"decisions: cannot read {ledger} ({exc})\n")
-            return 1
-        sep = next(
-            (
-                n
-                for n, ln in enumerate(lines)
-                if re.match(r"^\|[\s:|-]+\|\s*$", ln.strip())
-                and n
-                and lines[n - 1].lstrip().startswith("|")
-            ),
-            None,
-        )
-        if sep is None:
-            sys.stderr.write(f"decisions: no table header found in {ledger}\n")
-            return 1
-        row = "| " + " | ".join([f"D-{nid:03d}", *(_escape_cell(f) for f in fields)]) + " |"
-        lines.insert(sep + 1, row)
-        try:
-            ledger.write_text("\n".join(lines), encoding="utf-8")
-        except OSError as exc:
-            sys.stderr.write(f"decisions: cannot write {ledger} ({exc})\n")
-            return 1
-        try:
-            with path.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps({"id": nid, "at": time.time()}) + "\n")
-        except OSError:
-            pass
-        print(f"D-{nid:03d}")
-        return 0
+        # held is None: the store is unreachable (no state dir, or a read-only one). Nobody can
+        # reserve, so write without the lock — `_allocate`'s documented fail-open, which this
+        # function used to refuse with the timeout's message (W-e1b1052e).
+        unlocked = held is None
+        with contextlib.ExitStack() as ledger_guard:
+            if unlocked:
+                # No store lock to serialize on: take the LEDGER's own flock for the read-modify-write,
+                # or two concurrent unlocked appends compute the same id and the later write drops a row.
+                with contextlib.suppress(OSError):
+                    lf = ledger_guard.enter_context(ledger.open("a"))
+                    fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
+            ids = _ledger_ids(ledger)
+            merge_base = _merge_base_ids(ledger)
+            live = [] if unlocked else _live_reservations(path, set(ids) | set(merge_base))
+            pool = ids + live + merge_base
+            nid = max(pool) + 1 if pool else 1
+            try:
+                lines = ledger.read_text(encoding="utf-8", errors="replace").split("\n")
+            except OSError as exc:
+                sys.stderr.write(f"decisions: cannot read {ledger} ({exc})\n")
+                return 1
+            sep = next(
+                (
+                    n
+                    for n, ln in enumerate(lines)
+                    if re.match(r"^\|[\s:|-]+\|\s*$", ln.strip())
+                    and n
+                    and lines[n - 1].lstrip().startswith("|")
+                ),
+                None,
+            )
+            if sep is None:
+                sys.stderr.write(f"decisions: no table header found in {ledger}\n")
+                return 1
+            row = "| " + " | ".join([f"D-{nid:03d}", *(_escape_cell(f) for f in fields)]) + " |"
+            lines.insert(sep + 1, row)
+            try:
+                ledger.write_text("\n".join(lines), encoding="utf-8")
+            except OSError as exc:
+                sys.stderr.write(f"decisions: cannot write {ledger} ({exc})\n")
+                return 1
+            if unlocked:
+                sys.stderr.write(
+                    "decisions: reservation store unreachable — written under the ledger's own lock, not reserved\n"
+                )
+            else:
+                try:
+                    with path.open("a", encoding="utf-8") as fh:
+                        fh.write(json.dumps({"id": nid, "at": time.time()}) + "\n")
+                except OSError:
+                    pass
+            print(f"D-{nid:03d}")
+            return 0
 
 
 def _next_id(repo: Path) -> int:

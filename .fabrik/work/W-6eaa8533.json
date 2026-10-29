@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T00:50:53.886330Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "f9cb60105e52f0417525dd0a2c2799b632c74d4f",
+  "id": "W-6eaa8533",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "re-vendor libs/health_probe from fabrik-lib at 8bedcaa4 (or newer) and confirm the test goes green",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — red test on master",
+  "status": "done",
+  "tags": [
+    "mail-01m53nbwpx"
+  ],
+  "title": "tests/test_scaffold_deploy_contract.py::test_hub_copy_differs… is red on master: the hub's vendored libs/health_probe is one fabrik-lib commit behind (8bedcaa4) (kaizen mail 01M53NBWPX, 2026-10-17)"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T08:18:00.767413Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-12fee57f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "spec the writer change (execute-plan squash template + hand merges) with scratch_sweep falling back to the W-69322546 time rule for the 109 historical trailers; both design critiques of W-69322546 proposed it",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "Merged-From trailers vouch by time only: the squash template and hand merges could write the vouched tip SHA (e.g. a Merged-Tip: trailer) so scratch_sweep vouches by ancestry, closing the squash-window, equal-second and re-dated-commit fail-opens W-69322546 accepted"
+}

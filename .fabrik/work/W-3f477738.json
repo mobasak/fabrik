@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T14:27:58.366315Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3f477738",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M56C2E4F6T8J9PBQQVG5DTBP",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-reviewer seats made live network ssh calls despite a brief that forbade it — the house rule has no executable guard for ssh"
+}

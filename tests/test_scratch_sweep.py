@@ -26,6 +26,7 @@ EXECUTION rather than by reading (plan 2026-09-08-plan-1-scratch-sweep, Pass Led
 from __future__ import annotations
 
 import fcntl
+import importlib.util
 import json
 import os
 import re
@@ -54,6 +55,13 @@ def _run(
         "PATH": "/usr/bin:/bin",
         "HOME": os.environ.get("HOME", "/tmp"),
         "SCRATCH_SWEEP_NOW": str(NOW),
+        # never the live hub's worktrees — the janitor pass (W-18e66a92) reads this seam
+        "SCRATCH_SWEEP_JANITOR_REPO": "",
+        # never the live disk — past 85 % the hook's SCRATCH ALARM line lands in the stdout of
+        # every `--hook` run that passes its gates (a valid session id, an `/opt` cwd, not headless
+        # or autonomous) and
+        # reds the tests that assert silence (three of them at 96 %, 2026-10-29)
+        "SCRATCH_SWEEP_DISK_USED_PCT": "10",
     }
     e.update(env or {})
     return subprocess.run(
@@ -370,6 +378,82 @@ def test_apply_removes_only_stale(scratch: Path) -> None:
         (pad / "fresh-dir").exists() and (pad / "kept-dir").exists() and (pad / "held-dir").exists()
     )
     assert (scratch / SLUG / SID / "tasks" / "a.output").exists(), "tasks/ is never the sweeper's"
+
+
+def test_apply_removes_a_stale_dir_holding_a_read_only_pin(scratch: Path, tmp_path: Path) -> None:
+    """intel 01M4E3M1JJ: a review seat's copied pin is a READ-ONLY tree (`dr-xr-xr-x`, files 0444,
+    dirs 0555); rmtree hit EACCES inside it, so `--apply` printed FAILED and the stale dir
+    stayed. Our own stale scratch is removed whatever its bits — and nothing outside it changes:
+    not the scratchpad above it, not a directory a symlink inside it points at."""
+    pad = scratch / SLUG / SID / "scratchpad"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    os.chmod(outside, 0o555)
+    stale = pad / "stale-dir"
+    pin = stale / "pin1" / "scripts"
+    sealed = stale / "pin1" / "sealed"
+    pin.mkdir(parents=True)
+    sealed.mkdir()
+    (pin / "x.py").write_text("x = 1\n", encoding="utf-8")
+    (sealed / "y.py").write_text("y = 1\n", encoding="utf-8")
+    (pin / "out").symlink_to(outside)
+    for p in (pin / "x.py", sealed / "y.py", pin, sealed, pin.parent, stale):
+        _age(p, 9 * HOUR)
+    os.utime(
+        pin / "out", (NOW - 9 * HOUR,) * 2, follow_symlinks=False
+    )  # the link, never its target
+    os.chmod(pin / "x.py", 0o444)
+    os.chmod(pin, 0o555)
+    os.chmod(sealed, 0o555)
+    os.chmod(pin.parent, 0o555)
+    pad_mode, outside_mode = pad.stat().st_mode, outside.stat().st_mode
+    try:
+        proc = _run("--session", SID, "--apply", env=_env(scratch))
+        outside_after = outside.stat().st_mode  # read BEFORE the cleanup below restores it
+    finally:
+        for p in (pin.parent, pin, sealed, outside):
+            if p.exists() and not p.is_symlink():
+                os.chmod(p, 0o755)
+    assert proc.returncode == 0, proc.stderr
+    assert "FAILED" not in proc.stdout and "Traceback" not in proc.stderr, proc.stdout + proc.stderr
+    assert not stale.exists(), proc.stdout
+    assert pad.stat().st_mode == pad_mode, "the scratchpad above the target is never chmodded"
+    assert outside_after == outside_mode == 0o40555, "a symlink's target is never touched"
+
+
+def test_apply_rows_removes_a_tree_holding_an_unreadable_dir(tmp_path: Path) -> None:
+    """A mode-000 directory inside the target sends rmtree's callback through `os.open`; a retry
+    that re-called it by path raised TypeError past the per-row handler (scoped review, pass 1).
+    The tree is owned in-place first, so the row is simply REMOVED."""
+    target = tmp_path / "stale"
+    sealed = target / "pin" / "sealed"
+    sealed.mkdir(parents=True)
+    (sealed / "f").write_text("f\n", encoding="utf-8")
+    os.chmod(sealed, 0o000)
+    os.chmod(target / "pin", 0o555)
+    spec = importlib.util.spec_from_file_location("scratch_sweep_unreadable_probe", SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    out: list[str] = []
+
+    class _Sink:
+        def write(self, s: str) -> None:
+            out.append(s)
+
+        def flush(self) -> None:
+            pass
+
+    try:
+        removed = mod.apply_rows(
+            [mod.Row(str(target), "entry", "stale", "a seat's sealed pin")], {"stale"}, out=_Sink()
+        )
+    finally:
+        for p in (target / "pin", sealed):
+            if p.exists():
+                os.chmod(p, 0o755)
+    assert removed == 1, "".join(out)
+    assert not target.exists()
 
 
 def test_apply_continues_past_a_row_that_vanished(scratch: Path) -> None:
@@ -874,6 +958,272 @@ def test_worktree_merge_states(repo: Path) -> None:
     assert seen.get("wt-dirty") == "wt-dirty", proc.stdout
 
 
+# ── W-69322546: a Merged-From trailer vouches only for the state it squashed ───────────────────
+#
+# Branch names are reused (worktree-fleet, worktree-intel, an agent branch that gained a wip snapshot
+# after its squash), so a trailer that names a branch says nothing about commits made after it.
+# Every commit below pins both of its dates, so the time order is the test's, not the clock's.
+
+
+def _dated(repo: Path, when: int, *args: str, committed: int | None = None) -> None:
+    env = {
+        **os.environ,
+        "GIT_AUTHOR_DATE": f"@{when} +0000",
+        "GIT_COMMITTER_DATE": f"@{committed if committed is not None else when} +0000",
+    }
+    proc = subprocess.run(
+        ["git", "-C", str(repo), *args], capture_output=True, text=True, timeout=30, env=env
+    )
+    assert proc.returncode == 0, proc.stderr
+
+
+def _vouch_repo(tmp_path: Path) -> Path:
+    """One branch per vouch shape; the main checkout keeps the squash and merge commits."""
+    main = tmp_path / "vouch"
+    main.mkdir()
+
+    def git(repo: Path, *args: str) -> None:  # a setup step that fails stops here, never later
+        _dated(repo, 1000, *args)
+
+    git(main, "init", "-q", "-b", "main")
+    git(main, "config", "user.email", "t@t")
+    git(main, "config", "user.name", "t")
+    (main / "a.txt").write_text("base", encoding="utf-8")
+    git(main, "add", "-A")
+    _dated(main, 1000, "commit", "-qm", "base")
+
+    def branch(name: str, *stamps: int) -> Path:
+        path = tmp_path / name
+        git(main, "worktree", "add", "-q", str(path), "-b", name)
+        for i, when in enumerate(stamps):
+            (path / f"{name}-{i}.txt").write_text(str(when), encoding="utf-8")
+            git(path, "add", "-A")
+            _dated(path, when, "commit", "-qm", f"{name} {i}")
+        return path
+
+    def work(path: Path, when: int, committed: int | None = None) -> None:
+        (path / f"late-{when}.txt").write_text(str(when), encoding="utf-8")
+        git(path, "add", "-A")
+        _dated(path, when, "commit", "-qm", f"work at {when}", committed=committed)
+
+    def squash(when: int, trailer: str, committed: int | None = None) -> None:
+        _dated(
+            main,
+            when,
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            f"squash\n\n{trailer}\n",
+            committed=committed,
+        )
+
+    # a merge commit of `branch~1` carries the trailer: its parents say the 1200 commit was never taken
+    branch("reused-merge", 1100, 1200)
+    _dated(
+        main,
+        1300,
+        "merge",
+        "-q",
+        "--no-ff",
+        "reused-merge~1",
+        "-m",
+        "merge\n\nMerged-From: reused-merge (hand merge)\n",
+    )
+    # squashed at 1300, then the reused name gains a commit at 1400
+    path = branch("reused-squash", 1100)
+    squash(1300, "Merged-From: reused-squash (x)")
+    work(path, 1400)
+    # squashed, gained a commit, squashed again: the newest vouch covers it
+    path = branch("resquashed", 1100)
+    squash(1200, "Merged-From: resquashed (first)")
+    work(path, 1300)
+    squash(1400, "Merged-From: resquashed (second)")
+    # the squash lands in the same second as the branch's last commit
+    branch("same-second", 1500)
+    squash(1500, "Merged-From: same-second (tie)")
+    # a squash authored at 1200 whose committer date an amend moved to 1900: the work at 1600 is new
+    path = branch("amended", 1100)
+    squash(1200, "Merged-From: amended (x)", committed=1900)
+    work(path, 1600)
+    # new work authored after the squash, committed on a slower clock: its author date counts
+    path = branch("slow-clock", 1100)
+    squash(1800, "Merged-From: slow-clock (x)")
+    work(path, 1850, committed=1750)
+    # one commit, two trailer lines: both names are vouched
+    branch("two-lines", 1100)
+    squash(1700, "Merged-From: other-branch (x)\nMerged-From: two-lines (y)")
+    # a trailer naming a branch that has no ref
+    squash(1800, "Merged-From: ghost-branch (gone)")
+    # squashed, then its owner merged the target back in with no work of its own: still merged
+    path = branch("merged-back", 1100)
+    squash(1200, "Merged-From: merged-back (x)")
+    _dated(path, 1300, "merge", "-q", "--no-ff", "main", "-m", "sync with main")
+    # a trailer value carrying the record bytes forges no vouch for `victim`, whose work is unmerged
+    path = branch("victim", 1100)
+    squash(1200, "Merged-From: decoy (x)\x1e9999999999\x1f9999999999\x1fvictim")
+    work(path, 1400)
+    # a comma inside a description names no branch; a name only inside a description is not vouched
+    branch("comma-desc", 1100)
+    squash(1200, "Merged-From: comma-desc (vendor, wiring), other-branch (y)")
+    branch("hotfix", 1100)
+    branch("feat", 1100)
+    squash(1300, "Merged-From: feat (see, hotfix (x))")
+    # after its squash the branch merges ANOTHER branch's old-dated, never-merged work: not merged
+    path = branch("merges-other", 1100)
+    squash(1300, "Merged-From: merges-other (x)")
+    branch("precious", 1100)
+    _dated(path, 1400, "merge", "-q", "--no-ff", "precious", "-m", "merge precious")
+    # a value with an unclosed `(` names nobody: past it a description word reads like a name
+    branch("unbal", 1100)
+    squash(1300, "Merged-From: feat2 (wip, unbal (y)")
+    branch("word-not-name", 1100)
+    squash(1300, "Merged-From: feat3 (wip, word-not-name")
+    branch("after-unclosed", 1100)
+    squash(1300, "Merged-From: feat4 (x), after-unclosed (y), feat5 (wip")
+    # a value split by the field byte is not the branch's name
+    branch("split-value", 1100)
+    squash(1300, "Merged-From: split-value\x1fz")
+    # the later squash in the log carries OLDER dates: the newest vouch by time still wins
+    path = branch("out-of-order", 1100)
+    work(path, 1300)
+    squash(1500, "Merged-From: out-of-order (a)")
+    squash(1150, "Merged-From: out-of-order (b)")
+    for meta in (main / ".git" / "worktrees").iterdir():
+        os.utime(meta / "gitdir", (NOW, NOW))
+    return main
+
+
+def test_merged_from_trusts_no_stale_vouch(tmp_path: Path) -> None:
+    """A trailer vouches for the squashed state only — never a merge commit's, never later work."""
+    main = _vouch_repo(tmp_path)
+    mod = _w18_module("w69322546_vouch")
+    verdict = {
+        b: mod._merged_from(main, "main", b)
+        for b in (
+            "reused-merge",
+            "reused-squash",
+            "resquashed",
+            "same-second",
+            "amended",
+            "slow-clock",
+            "two-lines",
+            "ghost-branch",
+            "merged-back",
+            "victim",
+            "comma-desc",
+            "hotfix",
+            "feat",
+            "split-value",
+            "out-of-order",
+            "merges-other",
+            "unbal",
+            "word-not-name",
+            "after-unclosed",
+        )
+    }
+    assert verdict == {
+        "reused-merge": False,  # a merge's parents decide, and the 1200 commit is not among them
+        "reused-squash": False,  # a commit newer than the squash
+        "resquashed": True,  # the newest vouch covers the later commit
+        "same-second": True,  # the tie vouches (strictly-later rule)
+        "amended": False,  # the vouch keeps the squash's author date, not the amend's
+        "slow-clock": False,  # a branch commit counts by its later date
+        "two-lines": True,  # the second trailer line is read too
+        "ghost-branch": False,  # `git log main..ghost-branch` fails: not merged
+        "merged-back": True,  # a merge of the target is not work
+        "victim": False,  # the forged record is skipped, never parsed as a vouch
+        "comma-desc": True,  # the comma sits inside the description
+        "hotfix": False,  # named only inside `feat`'s description
+        "feat": True,  # the description is cut at its FIRST ` (`
+        "split-value": False,  # the record does not parse, so it never vouches
+        "out-of-order": True,  # the 1500 vouch covers the 1300 commit
+        "merges-other": False,  # that merge brought in work the target never took
+        "unbal": False,  # the value holds an unclosed `(`: it vouches for nobody
+        "word-not-name": False,  # a word after an unclosed `(` is never a name
+        "after-unclosed": False,  # the whole value is unreadable, earlier names included
+    }
+
+
+def test_merged_from_reads_one_target_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The vouch and the commit count of one decision read the SAME target commit, never the name."""
+    main = _vouch_repo(tmp_path)
+    mod = _w18_module("w69322546_one_state")
+    seen: list[str] = []
+    seen_vouch: list[str] = []
+    real, real_vouch = mod._newer_than_vouch, mod._squash_vouch
+
+    def spy(repo: Path, target: str, branch: str, vouch: int) -> int | None:
+        seen.append(target)
+        return real(repo, target, branch, vouch)
+
+    def spy_vouch(repo: Path, target: str, branch: str) -> int | None:
+        seen_vouch.append(target)
+        return real_vouch(repo, target, branch)
+
+    monkeypatch.setattr(mod, "_newer_than_vouch", spy)
+    monkeypatch.setattr(mod, "_squash_vouch", spy_vouch)
+    mod._merged_from(main, "main", "reused-squash")
+    head = subprocess.run(
+        ["git", "-C", str(main), "rev-parse", "main"], capture_output=True, text=True, check=True
+    ).stdout.strip()
+    assert (seen_vouch, seen) == ([head], [head]), (seen_vouch, seen)
+
+
+def test_merged_from_rereads_a_rewound_target(tmp_path: Path) -> None:
+    """A squash dropped from the target after a first read no longer vouches in the same process."""
+    main = _vouch_repo(tmp_path)
+    mod = _w18_module("w69322546_rewind")
+    path = tmp_path / "rewound"
+    _dated(main, 1000, "worktree", "add", "-q", str(path), "-b", "rewound")
+    (path / "r.txt").write_text("r", encoding="utf-8")
+    _dated(path, 1000, "add", "-A")
+    _dated(path, 1100, "commit", "-qm", "rewound work")
+    _dated(
+        main, 1200, "commit", "-q", "--allow-empty", "-m", "squash\n\nMerged-From: rewound (x)\n"
+    )
+    assert mod._merged_from(main, "main", "rewound") is True
+    _dated(main, 1300, "reset", "-q", "--hard", "HEAD~1")
+    assert mod._merged_from(main, "main", "rewound") is False
+
+
+def test_merged_from_reads_the_trailer_log_once_per_sweep(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every branch's verdict, and the refusal text, share ONE scan of the target's history."""
+    main = _vouch_repo(tmp_path)
+    mod = _w18_module("w69322546_once")
+    real, scans = mod._git, []
+
+    def counting(repo: Path, *args: str, **kw: int) -> tuple[int, str]:
+        if args[:1] == ("log",) and any("trailers:key=Merged-From" in a for a in args):
+            scans.append(args)
+        return real(repo, *args, **kw)
+
+    monkeypatch.setattr(mod, "_git", counting)
+    for b in ("reused-squash", "resquashed", "victim", "comma-desc"):
+        mod._merged_from(main, "main", b)
+        mod._squash_vouch(main, "main", b)
+    assert len(scans) == 1, scans
+
+
+def test_worktree_reason_names_a_stale_vouch(tmp_path: Path) -> None:
+    """The refusal tells a stale trailer apart from a branch nothing vouches for."""
+    main = _vouch_repo(tmp_path)
+    proc = _run("--worktrees", str(main), env=_wt_env())
+    assert proc.returncode == 0, proc.stderr
+    seen = _classes(proc.stdout)
+    assert seen.get("reused-squash") == "wt-unmerged", proc.stdout
+    assert seen.get("reused-merge") == "wt-unmerged", proc.stdout
+    assert seen.get("resquashed") == "wt-removable", proc.stdout
+    row = next(line for line in proc.stdout.splitlines() if "/reused-squash " in line)
+    assert "1 commit(s) newer than the Merged-From squash" in row, row
+    row = next(line for line in proc.stdout.splitlines() if "/reused-merge " in line)
+    assert "newer than the Merged-From" not in row, row
+
+
 def test_worktree_data_guards(repo: Path) -> None:
     """A stash, ignored DATA and a harness tree are each spared; ignored CACHE is not data."""
     proc = _run("--worktrees", str(repo), env=_wt_env())
@@ -983,12 +1333,17 @@ def test_hook_line_fires_only_with_candidates_and_never_blocks(scratch: Path) ->
     assert "🧹 SCRATCH:" in proc.stdout, proc.stdout
     assert "never touches" in proc.stdout, "constraint 2 — the line says what it will not touch"
 
+    # a full disk on every gated leg: a gate must silence the SCRATCH ALARM line too, not only
+    # the candidate line — `_run`'s 10 % pin would otherwise let an alarm printed before the gate pass
+    full = {"SCRATCH_SWEEP_DISK_USED_PCT": "96"}
     for gate, value in (("CLAUDE_MESH_HEADLESS", "1"), ("CLAUDE_MESH_AUTONOMOUS", "1")):
-        gated = _hook(scratch, **{gate: value})
+        gated = _hook(scratch, **{gate: value}, **full)
         assert gated.returncode == 0 and gated.stdout == "", f"{gate} must silence it"
+        assert gated.stderr == "", f"{gate} must silence stderr too: {gated.stderr!r}"
 
-    outside = _hook(scratch, cwd="/home/somewhere")
+    outside = _hook(scratch, cwd="/home/somewhere", **full)
     assert outside.returncode == 0 and outside.stdout == "", "a non-/opt cwd is silent"
+    assert outside.stderr == "", f"a non-/opt cwd is silent on stderr too: {outside.stderr!r}"
 
 
 def test_the_hook_line_reprints_only_when_the_candidate_count_grows(scratch: Path) -> None:
@@ -2107,3 +2462,287 @@ def test_an_ignored_output_dir_is_data_only_tool_caches_go_by_name(repo: Path) -
     (tree / "dist" / "important-notes.txt").write_text("only copy\n", encoding="utf-8")
     rows = _rows(mod, repo)
     assert rows["wt-ign-dist"].cls == "wt-ignored-data", rows["wt-ign-dist"]
+
+
+# ── W-18e66a92: the janitor takes dead subagents' harness worktrees ────────────────────────────
+#
+# Every harness tree is born holding the `.worktreeinclude` copy of `.env`; once main's `.env` is
+# rotated that copy differs and the tree reads `wt-ignored-data` forever. A copy whose bytes are
+# preserved in the main checkout's `backups/` is not data, and `--dead` now runs a harness pass.
+
+
+def _w18_module(tag: str):
+    name = f"scratch_sweep_{tag}"
+    spec = importlib.util.spec_from_file_location(name, SCRIPT)
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod  # @dataclass resolves its module through sys.modules
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _janitor_repo(tmp_path: Path) -> Path:
+    main = tmp_path / "hub"
+    main.mkdir()
+    _git(main, "init", "-q", "-b", "main")
+    _git(main, "config", "user.email", "t@t")
+    _git(main, "config", "user.name", "t")
+    (main / "a.txt").write_text("base", encoding="utf-8")
+    (main / ".gitignore").write_text(".env\nbackups/\n", encoding="utf-8")
+    _git(main, "add", "-A")
+    _git(main, "commit", "-qm", "base")
+    (main / ".env").write_text("CURRENT=1\n", encoding="utf-8")
+    (main / "backups").mkdir()
+    (main / "backups" / "hub.env.retired.backup").write_text("RETIRED=1\n", encoding="utf-8")
+    return main
+
+
+def _harness_tree(main: Path, name: str, env: str | None, *, age_s: float, now: float) -> Path:
+    path = main / ".claude" / "worktrees" / name
+    _git(main, "worktree", "add", "-q", str(path), "-b", f"worktree-{name}")
+    if env is not None:
+        (path / ".env").write_text(env, encoding="utf-8")
+    meta = main / ".git" / "worktrees" / name
+    for f in ("gitdir", "index", "HEAD", "logs/HEAD"):
+        if (meta / f).exists():
+            os.utime(meta / f, (now - age_s, now - age_s))
+    return path
+
+
+def test_an_ignored_copy_preserved_in_backups_is_not_data(tmp_path: Path) -> None:
+    sweep = _w18_module("w18_rebuild")
+    main = _janitor_repo(tmp_path)
+    now = time.time()
+    wt = _harness_tree(main, "agent-aaaaaaaaaaaaaaaa", "RETIRED=1\n", age_s=0, now=now)
+    assert sweep._rebuildable(wt, ".env", main, ignored=True), "a preserved copy is not data"
+    assert not sweep._rebuildable(wt, ".env", main, ignored=False), "the untracked path never"
+    (wt / ".env").write_text("UNPRESERVED=1\n", encoding="utf-8")
+    assert not sweep._rebuildable(wt, ".env", main, ignored=True), "an unpreserved copy is data"
+    (wt / ".env").write_text("", encoding="utf-8")
+    (main / "backups" / "empty.backup").write_text("", encoding="utf-8")
+    assert not sweep._rebuildable(wt, ".env", main, ignored=True), "an empty file proves nothing"
+    (wt / ".env").write_text("LINKED=1\n", encoding="utf-8")
+    elsewhere = tmp_path / "elsewhere.txt"
+    elsewhere.write_text("LINKED=1\n", encoding="utf-8")
+    (main / "backups" / "link.backup").symlink_to(elsewhere)
+    assert not sweep._rebuildable(wt, ".env", main, ignored=True), "a symlinked backup never"
+
+
+def test_the_janitor_removes_a_dormant_harness_worktree(tmp_path: Path) -> None:
+    sweep = _w18_module("w18_remove")
+    main = _janitor_repo(tmp_path)
+    now = time.time()
+    old = 4 * DAY
+    dead = _harness_tree(main, "agent-aaaaaaaaaaaaaaaa", "RETIRED=1\n", age_s=old, now=now)
+    gone = _harness_tree(main, "agent-bbbbbbbbbbbbbbbb", "RETIRED=1\n", age_s=old, now=now)
+    subprocess.run(["rm", "-rf", str(gone)], check=True)  # a stale registration: prunable
+    _git(main, "merge", "-q", "worktree-agent-aaaaaaaaaaaaaaaa")
+    _git(main, "merge", "-q", "worktree-agent-bbbbbbbbbbbbbbbb")
+    sweep.janitor_worktrees(main, now, Path("/proc"), apply=True)
+    assert not dead.exists(), "a dormant, merged, clean harness tree whose .env is preserved goes"
+    assert "agent-bbbbbbbbbbbbbbbb" in _git(main, "worktree", "list", "--porcelain"), (
+        "no repo-wide `git worktree prune` from the janitor"
+    )
+
+
+def test_the_janitor_spares_named_fresh_and_unremovable_worktrees(tmp_path: Path) -> None:
+    sweep = _w18_module("w18_spare")
+    main = _janitor_repo(tmp_path)
+    now = time.time()
+    old = 4 * DAY
+    named = _harness_tree(main, "fleet", "RETIRED=1\n", age_s=old, now=now)
+    fresh = _harness_tree(main, "agent-cccccccccccccccc", "RETIRED=1\n", age_s=60, now=now)
+    active = _harness_tree(main, "agent-dddddddddddddddd", "RETIRED=1\n", age_s=old, now=now)
+    os.utime(main / ".git" / "worktrees" / "agent-dddddddddddddddd" / "logs" / "HEAD", (now, now))
+    unpreserved = _harness_tree(main, "agent-eeeeeeeeeeeeeeee", "SECRET=only\n", age_s=old, now=now)
+    dirty = _harness_tree(main, "agent-ffffffffffffffff", "RETIRED=1\n", age_s=old, now=now)
+    (dirty / "work.txt").write_text("in flight", encoding="utf-8")
+    for b in ("fleet", *(f"agent-{c * 16}" for c in "cdef")):
+        _git(main, "merge", "-q", f"worktree-{b}")
+    sweep.janitor_worktrees(main, now, Path("/proc"), apply=True)
+    for tree, why in (
+        (named, "a named worktree is a peer's, never the janitor's"),
+        (fresh, "a fresh tree may belong to a running subagent"),
+        (active, "recent git activity is not dormancy, whatever the creation time"),
+        (unpreserved, "an unpreserved .env is the only copy of its bytes"),
+        (dirty, "uncommitted work stays"),
+    ):
+        assert tree.exists(), why
+
+
+def test_the_dead_mode_runs_the_janitor_pass(monkeypatch, tmp_path: Path) -> None:
+    sweep = _w18_module("w18_wire")
+    calls: list[bool] = []
+    monkeypatch.setattr(
+        sweep, "janitor_worktrees", lambda *a, **k: calls.append(k.get("apply")) or []
+    )
+    monkeypatch.setattr(sweep, "dead_sessions", lambda *a, **k: ([], [], []))
+    monkeypatch.setattr(sweep, "_scratch_root", lambda: tmp_path)
+    monkeypatch.setattr(sweep, "_janitor_repo_root", lambda: tmp_path)
+    sweep.main(["--dead"])
+    assert calls == [False], "the dry run lists the janitor's harness rows"
+
+
+def test_the_janitor_repo_is_a_seam_never_the_live_hub(
+    graveyard: tuple[Path, Path, Path], tmp_path: Path, monkeypatch
+) -> None:
+    """Round 1, C1: the repo came from the script's own path, so every `--dead --apply` test ran
+    the real janitor against the live hub. `SCRATCH_SWEEP_JANITOR_REPO` names it; empty = skip."""
+    main = _janitor_repo(tmp_path)
+    now = time.time()
+    dead = _harness_tree(main, "agent-aaaaaaaaaaaaaaaa", "RETIRED=1\n", age_s=4 * DAY, now=now)
+    _git(main, "merge", "-q", "worktree-agent-aaaaaaaaaaaaaaaa")
+    env = _dead_env(graveyard, SCRATCH_SWEEP_NOW=str(now), SCRATCH_SWEEP_JANITOR_REPO=str(main))
+    proc = _run("--dead", "--apply", env=env)
+    assert proc.returncode == 0, proc.stderr
+    assert not dead.exists(), proc.stdout
+    sweep = _w18_module("w18_seam")
+    monkeypatch.setenv("SCRATCH_SWEEP_JANITOR_REPO", "")
+    assert sweep._janitor_repo_root() is None, "empty means no janitor pass"
+
+
+def test_the_janitor_reads_the_trees_own_registration(tmp_path: Path) -> None:
+    """Round 1, C2: two trees sharing a basename get suffixed registrations; the dormancy check
+    read `.git/worktrees/<basename>` and so judged a fresh tree by an old one's clock."""
+    sweep = _w18_module("w18_collide")
+    main = _janitor_repo(tmp_path)
+    now = time.time()
+    elsewhere = main / "elsewhere"
+    elsewhere.mkdir()
+    old = elsewhere / "agent-dddddddddddddddd"
+    _git(main, "worktree", "add", "-q", str(old), "-b", "worktree-old")
+    _git(main, "merge", "-q", "worktree-old")
+    meta_old = main / ".git" / "worktrees" / "agent-dddddddddddddddd"
+    fresh = _harness_tree(main, "agent-dddddddddddddddd", "RETIRED=1\n", age_s=0, now=now)
+    _git(main, "merge", "-q", "worktree-agent-dddddddddddddddd")
+    for f in ("gitdir", "HEAD", "logs/HEAD"):
+        if (meta_old / f).exists():
+            os.utime(meta_old / f, (now - 4 * DAY, now - 4 * DAY))
+    sweep.janitor_worktrees(main, now, Path("/proc"), apply=True)
+    assert fresh.exists(), "a fresh tree is never judged by another registration's clock"
+
+
+def test_a_backup_swapped_for_a_fifo_or_symlink_never_hangs_or_follows(tmp_path: Path) -> None:
+    """Round 1, C3: the index is cached on the directory's mtime, so an entry swapped for a FIFO
+    or a symlink inside one tick was read blind — a FIFO hung the janitor, a symlink was followed."""
+    import threading
+
+    sweep = _w18_module("w18_swap")
+    main = _janitor_repo(tmp_path)
+    data = b"RETIRED=1\n"
+    entry = main / "backups" / "hub.env.retired.backup"
+    st = (main / "backups").stat()
+    assert sweep._preserved_in_backups(main, data, ".env"), "control: the regular file matches"
+    entry.unlink()
+    target = tmp_path / "t.env"
+    target.write_bytes(data)
+    entry.symlink_to(target)
+    os.utime(main / "backups", ns=(st.st_atime_ns, st.st_mtime_ns))
+    assert not sweep._preserved_in_backups(main, data, ".env"), "a swapped-in symlink is followed"
+    entry.unlink()
+    os.mkfifo(entry)
+    os.utime(main / "backups", ns=(st.st_atime_ns, st.st_mtime_ns))
+    got: list[bool] = []
+    t = threading.Thread(
+        target=lambda: got.append(sweep._preserved_in_backups(main, data, ".env")), daemon=True
+    )
+    t.start()
+    t.join(5)
+    if t.is_alive():
+        os.close(os.open(entry, os.O_WRONLY | os.O_NONBLOCK))
+        t.join(5)
+        raise AssertionError("a swapped-in FIFO hung the backups match")
+    assert got == [False]
+
+
+def test_an_unrelated_backup_with_the_same_bytes_never_matches(tmp_path: Path) -> None:
+    """Round 1, S1: any top-level backup with equal bytes matched, whatever it was a backup OF; a
+    short generic file could collide. The backup's name must name the file it preserves."""
+    sweep = _w18_module("w18_unrelated")
+    main = _janitor_repo(tmp_path)
+    (main / "backups" / "settings.json.backup").write_text("DEBUG=1\n", encoding="utf-8")
+    assert not sweep._preserved_in_backups(main, b"DEBUG=1\n", ".env")
+    assert sweep._preserved_in_backups(main, b"RETIRED=1\n", ".env")
+
+
+# ── V6: untagged entries classify exactly as before run-bound scratch (scratch lifecycle plan B6) ──
+def _golden_rows(stdout: str, root: Path) -> list[tuple[str, str, str]]:
+    """`(path relative to the root, class, reason)` per table row — the summary line excluded."""
+    rows: list[tuple[str, str, str]] = []
+    for line in stdout.splitlines():
+        cells = [c.strip() for c in line.split(" · ")]
+        if len(cells) < 4 or not cells[0].startswith(str(root)):
+            continue
+        rows.append((str(Path(cells[0]).relative_to(root)), cells[2], cells[3]))
+    return sorted(rows)
+
+
+# Captured from the PRE-change code (Phase A commit 5bed978ff, before any Phase B edit).
+_S = "-opt-fixture/11111111-2222-3333-4444-555555555555/scratchpad/"
+GOLDEN_SESSION: list[tuple[str, str, str]] = [
+    (_S + ".keep", "kept", "the keep list itself — kept at any age"),
+    (_S + "a-link", "unclassified", "a symlink — never followed, never removed"),
+    (_S + "fresh-dir", "fresh", "newest file 60m old"),
+    (_S + "held-dir", "stale", "newest file 7.0h old"),
+    (_S + "kept-dir", "kept", "named in .keep"),
+    (
+        _S + "old.bak",
+        "holds-backups",
+        "stale, but holds a backup shape (--include-backups to remove)",
+    ),
+    (_S + "stale-dir", "stale", "newest file 7.0h old"),
+]
+GOLDEN_DEAD: list[tuple[str, str, str]] = [
+    (
+        "-opt-fixture/11111111-2222-3333-4444-555555555555",
+        "unclassified",
+        "no live signal and no death signal — never removed",
+    ),
+    (
+        "-opt-fixture/aaaaaaaa-1111-1111-1111-111111111111",
+        "live",
+        "a sessions file matches a running pid + procStart",
+    ),
+    (
+        "-opt-fixture/bbbbbbbb-2222-2222-2222-222222222222",
+        "dead",
+        "its sessions file names a pid that is gone; dir idle 30.0d",
+    ),
+    (
+        "-opt-fixture/cccccccc-3333-3333-3333-333333333333",
+        "unclassified",
+        "no live signal and no death signal — never removed",
+    ),
+    (
+        "-opt-fixture/dddddddd-4444-4444-4444-444444444444",
+        "unclassified",
+        "its sessions file names a pid that is gone, but its dir was touched 8m ago — a gone pid is not a finished session",
+    ),
+    (
+        "-opt-fixture/eeeeeeee-5555-5555-5555-555555555555",
+        "dead-holds-backups",
+        "its sessions file names a pid that is gone; holds a backup shape (--include-backups)",
+    ),
+    (
+        "-opt-old-project/ffffffff-6666-6666-6666-666666666666",
+        "unclassified",
+        "no live signal and no death signal — never removed",
+    ),
+    ("fe-pristine", "protected", "holds a backup shape — the root level is where baselines sit"),
+    ("mcp-health-cache", "protected", "live system state, by name"),
+    ("payments-c4", "unowned", "unowned residue — pass --unowned-older-than DAYS to remove"),
+    ("recent-thing", "unowned", "unowned residue — pass --unowned-older-than DAYS to remove"),
+]
+
+
+def test_untagged_classification_golden(scratch: Path, graveyard: tuple[Path, Path, Path]) -> None:
+    """Spec V6: a scratchpad with no `run-*` folder classifies row for row as it did before the
+    marker existed, in session mode and in `--dead` (plan B6)."""
+    pad = scratch / SLUG / SID / "scratchpad"
+    (pad / "old.bak").write_text("the only copy", encoding="utf-8")
+    _age(pad / "old.bak", 9 * HOUR)
+    (pad / "a-link").symlink_to(pad / "stale-dir")
+    session = _run("--session", SID, env=_env(scratch))
+    dead = _run("--dead", env=_dead_env(graveyard))
+    assert session.returncode == 0 and dead.returncode == 0, session.stderr + dead.stderr
+    assert _golden_rows(session.stdout, scratch) == GOLDEN_SESSION, session.stdout
+    assert _golden_rows(dead.stdout, graveyard[0]) == GOLDEN_DEAD, dead.stdout

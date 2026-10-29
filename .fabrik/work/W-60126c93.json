@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T01:49:45.824904Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-60126c93",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: replace both sentences with a pointer naming no flag; line 57's bare=True (OAuth lane) stays",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "mail-01m5r8d7z5"
+  ],
+  "title": "Stale flag in two rule packs: api_credit.py's child is --safe-mode behind a keyless pre-flight since 9bd626c06 (W-230abfd5, D-1223), not --bare — .windsurf/rules/ai/50-agentic.md:58 + 00-ai-model-selection.md:175 (mail 01M5R8D7Z5, intel); prefer intel's leaner pointer form (name scripts/api_credit.py + docs/workstation/api-credit.md, no flag)"
+}

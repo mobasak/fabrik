@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T22:23:07.275714Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-6af60fd5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M507VDFEDK02Y7XG9H0SP0GZ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: 01M505J6KG + 01M505VVEJ — scratch_sweep.gap_keeps NaN / bool / Cobra direction: FIXED (W-a39d4c86)"
+}

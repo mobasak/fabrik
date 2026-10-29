@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:54:15.699972Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-183edbd9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DEVJPA48SCE3HGNX5ZS66Q",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: assemble --check HAND-EDITED label — fixed in 0b4f5c4ea (D-680)"
+}

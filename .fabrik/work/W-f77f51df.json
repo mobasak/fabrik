@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T11:50:09.916605Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f77f51df",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: after W-9976a3e4 and W-732b33b3",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "advisory: a coupling check with a blind spot, no wrong output today",
+  "status": "open",
+  "title": "render_doc_script_links.py and check_script_headers.py scan only scripts/**/*.py (_listed(repo, 'scripts', '.py')), so an '# AFTER-EDIT:' header in a scripts/**/*.sh file (e.g. scripts/sysadmin/agents_up.sh:2) is ignored and its doc's Related scripts block never lists it; include .sh in both, with a test (fleet finding, verified by infra)"
+}

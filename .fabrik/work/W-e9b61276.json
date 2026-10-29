@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:35:08.819514Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e9b61276",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: task_lane.py:1077-1083 — accept a tip that is a listed commit when every listed commit after it touches only ledger/receipt paths (the _task_excluded set, passed in as an argument); red test for the reorder-free list; reply sp3",
+  "note": "duplicate of W-0b900e92 (the mail item mail.py claim created for 01M4F5HTPS); root cause and next step: /fabrik-task: task_lane.py:1077-1083 — accept a tip that is a listed commit when every listed commit after it touches only ledger/receipt paths (the _task_excluded set, passed in as an argument); red test for the reorder-free list; reply sp3",
+  "owner": "",
+  "priority": 1,
+  "status": "dropped",
+  "title": "done --review check (d) compares the receipt's range tip to the LAST --commit, so the receipt/ledger commits that must follow the reviewed tip force a reordered list (site-provisioner 01M4F5HTPS)"
+}

@@ -1,0 +1,26 @@
+{
+  "block_digest": "5460f94fb598b5934dec7236099bdde145c6adf34e511f60055db78011e49292",
+  "blocked_by": [],
+  "created": "2026-10-16T03:09:17.813930Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-5a1b8961",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "97ded60155333ac3a78bda329a888c5b225c9d70b252539d33b53d82deb9b3cd"
+  ],
+  "next": "",
+  "note": "operator 2026-10-17: \"it might be written by claude desktop. responsible agent should analyze the code, and commit or remove it by understanding its intention but most probably it was required\" — infra analyses and commits or removes (D-939)",
+  "owner": "",
+  "priority": 2,
+  "question": "Two copies of the account-rotation script have 35 uncommitted lines that nobody claims. They make quota checks give up quickly when the network is down, so the dashboard doesn't hang. Should infra take them onto its branch and review them, or should they be thrown away?",
+  "status": "done",
+  "title": "Two copies of the account-rotation script have 35 uncommitted lines that nobody claims. They make quota checks give up quickly when the network is down, so the dashboard doesn't hang. Should infra take them onto its branch and review them, or should they be thrown away?"
+}

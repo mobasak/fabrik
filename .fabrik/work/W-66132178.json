@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:22:30.541785Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-66132178",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4N31RD0BR7J0ZHY7ZF8T2MN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-mail: 26 of the hub's own obligation(s) aged past the threshold"
+}

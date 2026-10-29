@@ -20,7 +20,8 @@ What it compares
     ``scripts/vps-autoheal.sh`` (deployed as fabrik-autoheal).
   * Tier 2 is every other committed file under ``scripts/sysadmin/``: printed and counted, never mailed —
     it churns daily and most of it never runs on a VPS. A tier-2 difference still makes the exit 1.
-  * Per host, ONE read-only ``ssh -o BatchMode=yes`` session prints ``<mode> <md5> <path>`` per regular file
+  * Per host, ONE read-only ``ssh -o BatchMode=yes`` session (through ``FABRIK_SSH_JUMP_<ALIAS>`` when set,
+    exported or read from the hub ``.env``; W-714bb1a5, D-973) prints ``<mode> <md5> <path>`` per regular file
     (``find -exec``, so a path with spaces survives; ``stat -L``), or ``UNREADABLE - <path>`` when the mode or
     the md5 cannot be read. ssh rc 255 or a timeout is "unreachable"; any other rc still has its stdout parsed.
 
@@ -55,6 +56,7 @@ of a target must still be added to TIER1_DEPENDENCIES by hand — the mirror the
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -62,9 +64,15 @@ import subprocess
 import sys
 import time
 import traceback
+from collections.abc import Callable
 from pathlib import Path
 
 HOSTS_DEFAULT = ("vps", "vps2", "vps3")
+# W-714bb1a5: the per-alias jump (D-973) comes from the same variables the fabrik CLI reads. Cron loads no
+# .env, so only these lines are read from <root>/.env; an exported variable, even an empty one, wins.
+_JUMP_LINE = re.compile(r"\s*(?:export\s+)?(FABRIK_SSH_JUMP_[A-Za-z0-9_]+)\s*=(.*)")
+# A quoted value ends at its closing quote; an inline comment may follow it.
+_QUOTED = re.compile(r"""(["'])(.*?)\1(?:\s+#.*)?""")
 TEMPLATE = Path("scripts/bootstrap/templates/sysadmin-cron.template")
 AUTOHEAL_REPO = "scripts/vps-autoheal.sh"
 AUTOHEAL_REMOTE = "/usr/local/bin/fabrik-autoheal"
@@ -315,11 +323,55 @@ def committed_files(root: Path) -> dict[str, tuple[str, bool]]:
     return out
 
 
-def remote_listing(host: str) -> tuple[dict[str, tuple[str, str]], list[str] | None] | None:
+def _jump_env(root: Path) -> dict[str, str]:
+    """The ``FABRIK_SSH_JUMP_*`` lines of ``<root>/.env`` (stdlib only: a by-hand ``python3`` run has no
+    python-dotenv). A quoted value is taken inside its quotes, an unquoted one is cut at `` #``; a bare key
+    is no value. An absent file is ``{}``; any other read error propagates (no verdict, never a silent
+    direct path). No other key is read, so no hub secret enters this process."""
+    try:
+        text = (root / ".env").read_text(errors="replace")
+    except FileNotFoundError:
+        return {}
+    found: dict[str, str] = {}
+    for line in text.splitlines():
+        match = _JUMP_LINE.fullmatch(line)
+        if not match:
+            continue
+        value = match.group(2).strip()
+        quoted = _QUOTED.fullmatch(value)
+        value = quoted.group(2) if quoted else re.split(r"\s+#", value, maxsplit=1)[0].strip()
+        found[match.group(1)] = value
+    return found
+
+
+def _jump_resolver() -> Callable[[str], list[str]]:
+    """``jump_args`` from the hub's ``src/fabrik/drivers/ssh.py``, loaded by path: that file is stdlib-only,
+    and importing the ``fabrik`` package would run ``fabrik.config``'s ``load_dotenv()`` (every hub secret)."""
+    path = Path(__file__).resolve().parents[2] / "src" / "fabrik" / "drivers" / "ssh.py"
+    spec = importlib.util.spec_from_file_location("_fabrik_drivers_ssh", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load the ssh jump helpers from {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.jump_args
+
+
+def remote_listing(
+    host: str, jump: list[str] | None = None
+) -> tuple[dict[str, tuple[str, str]], list[str] | None] | None:
     """(repo path -> (octal mode, md5), active cron lines or None) on the host, or None when unreachable."""
     try:
         proc = subprocess.run(
-            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", host, REMOTE_CMD],
+            [
+                "ssh",
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "ConnectTimeout=10",
+                *(jump or []),
+                host,
+                REMOTE_CMD,
+            ],
             capture_output=True,
             text=True,
             timeout=SSH_TIMEOUT,
@@ -433,6 +485,11 @@ def _drift_body(tier1: list[str], tier2_count: int, unreachable: list[str]) -> s
 def run(mail: bool) -> int:
     root = _root()
     hosts = os.environ.get("FABRIK_DRIFT_HOSTS", " ".join(HOSTS_DEFAULT)).split()
+    for key, value in _jump_env(root).items():
+        os.environ.setdefault(key, value)  # present in the environment, even empty, wins
+    jump_args = _jump_resolver()
+    # every host's jump is resolved before any ssh: a malformed value raises (no verdict) up front
+    jumps = {host: jump_args(host) for host in hosts}
     expected = committed_files(root)
     tier1 = set(tier1_paths(root))
     cron_expected = cron_paths(template_text(root))
@@ -449,7 +506,7 @@ def run(mail: bool) -> int:
     unreachable: list[str] = []
     tier2_count = 0
     for host in hosts:
-        listing = remote_listing(host)
+        listing = remote_listing(host, jumps[host])
         if listing is None:
             unreachable.append(host)
             unreach_runs[host] = unreach_runs.get(host, 0) + 1
@@ -499,8 +556,8 @@ def run(mail: bool) -> int:
             body = (
                 f"Subject: VPS SCRIPT DRIFT check cannot reach {host}\n\n"
                 f"vps_script_drift.py has failed to ssh to {host} (BatchMode) on {unreach_runs[host]} consecutive "
-                "daily runs, so drift on that host is no longer being checked. Check the hub's key and the host's "
-                "known_hosts entry.\n"
+                "daily runs, so drift on that host is no longer being checked. Check the hub's key, the host's "
+                f"known_hosts entry and {_jump_name(host)} in /opt/fabrik/.env (the ProxyJump route, D-973).\n"
             )
             if _send(body):
                 unreach_mailed[host] = True
@@ -518,6 +575,11 @@ def run(mail: bool) -> int:
         tmp, state_file
     )  # atomic: a crash mid-write cannot leave a half state that resets the counters
     return rc
+
+
+def _jump_name(host: str) -> str:
+    """The variable naming *host*'s jump, as ``drivers/ssh.py::jump_env_name`` spells it."""
+    return "FABRIK_SSH_JUMP_" + re.sub(r"[^A-Z0-9]", "_", host.rpartition("@")[2].upper())
 
 
 def _num(value: object) -> float:

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_check_convergence.py, commands/_sources/fabrik-execute-plan.md, commands/_sources/fabrik-plan-review.md, docs/workflows/FINAL_GATE_WORKFLOW.md
+# AFTER-EDIT: tests/test_check_convergence.py, tests/enforcement/test_status_in_code_span.py, tests/enforcement/test_spec_convergence.py, commands/_sources/fabrik-execute-plan.md, commands/_sources/fabrik-plan-review.md, docs/workflows/FINAL_GATE_WORKFLOW.md
 """Convergence-evidence gate — run by final_gate via run_optional_check (non-zero = fail).
 
 A markdown artifact that CLAIMS convergence must PROVE it. Inspects only
@@ -21,7 +21,9 @@ changed/untracked files under the plans/ and reviews/ dirs (cheap — git status
          review file exists, so this is what forces one to exist.
   docs/development/reviews/*.md 'reviewed' / 'converged' / 'sign-off'
       -> requires an embedded fenced block containing '"status": "success"'
-         (a real `final_gate --json` run) and >=1 per-phase verdict.
+         (a real `final_gate --json` run) and >=1 per-phase verdict — EXCEPT a
+         /fabrik-spec-review or /fabrik-plan-review receipt, whose last Pass-Ledger
+         counter row must be a quiet round instead (W-39d8d1fd).
 
 Ceiling (by design): this enforces evidence *presence* and mechanical green —
 never truth. It makes an unproven convergence claim fail the gate and leaves an
@@ -177,8 +179,9 @@ def _mask_spans(s: str) -> str:
     a LINE: the closer is searched on the opener's line only (an unbounded search let a stray
     backtick before the ledger pair with one after it and swallow every row between). STATED COSTS:
     a code span that legitimately wraps across lines is read as two literal runs, so a `<!--` inside
-    it opens a comment and the rule then FAILS OPEN over every row that comment swallows (0 live
-    instances); and a single pathological line holding hundreds of runs of distinct lengths is still
+    it opens a comment that swallows the rows below it — no refusal reader FAILS OPEN on that any more,
+    because each also reads `_mask_spans_wrapped`'s view and refuses when either does (D-1131,
+    `_quoted_views`); and a single pathological line holding hundreds of runs of distinct lengths is still
     quadratic (a 721 KB line of 800 runs: ~11 s) — the bound moved the cliff from the document to
     the line, it did not remove it."""
     out = list(s)
@@ -212,17 +215,63 @@ def _mask_spans(s: str) -> str:
     return "".join(out)
 
 
-_HTML_COMMENT = re.compile(r"<!--.*?-->", re.S)
+def _mask_spans_wrapped(s: str) -> str:
+    """`_mask_spans` under the shared span model: the spans `_fences.blank_code_spans` pairs (a span may wrap across
+    lines inside a paragraph, never across a block start), re-filled the same way — delimiters and line breaks kept,
+    content to `x`. It is the second model of the D-1131 union (`_quoted_views`): each model fails open on a document
+    the other refuses (this one on a compact `|Pass N|` row inside a wrapped span; `_mask_spans` on a wrapped span
+    holding `<!--`), so a refusal reader reads both and refuses when either does."""
+    blanked = _fences.blank_code_spans(s)
+    out, i, n = list(s), 0, len(s)
+    while i < n:
+        if s[i] != "`" or blanked[i] == "`":  # not a backtick, or one the helper left literal
+            i += 1
+            continue
+        j = i
+        while j < n and s[j] == "`":
+            j += 1
+        k, close = j, -1
+        while k < n:  # the closer: the next run of the opener's length the helper also consumed
+            if s[k] != "`":
+                k += 1
+                continue
+            m = k
+            while m < n and s[m] == "`":
+                m += 1
+            if m - k == j - i and blanked[k] != "`":
+                close = k
+                break
+            k = m
+        if close < 0:
+            i = j
+            continue
+        for q in range(j, close):
+            if s[q] not in "\r\n":
+                out[q] = "x"
+        i = close + (j - i)
+    return "".join(out)
+
+
 _CONFIRMED_TOKEN = re.compile(r"(?<![\w-])confirmed\s*:\s*(\d+)", re.I)
 CLOSING_ROW_REFUSAL = "the flip is refused: the last Pass row does not read confirmed: 0"
 
 
-def _blank_quoted(text: str) -> str:
+def _blank_quoted(text: str, mask=_mask_spans) -> str:
     """The spine-set QUOTING policy, one definition for every check in `_check_spine_set`: fences
     stripped, then code spans masked, then HTML comments blanked — a parked (commented) Board row,
     ledger row or ticket `Status:` line is a quote, never live (W-98338ad4: the orphan-row loop and
-    the ticket Status ban read fence-stripped text only, so a parked Board row was an orphan)."""
-    return _HTML_COMMENT.sub("", _mask_spans(FENCE_STRIP.sub("", text)))
+    the ticket Status ban read fence-stripped text only, so a parked Board row was an orphan).
+    `mask` picks the span model; the one-argument call (check_spec_convergence's twin read) is today's."""
+    return _fences.strip_html_comments(mask(FENCE_STRIP.sub("", text)))
+
+
+def _quoted_views(text: str) -> tuple[str, str]:
+    """The text blanked under both span models (D-1131, W-f365c610). A reader that REFUSES reads both views and
+    refuses when either refuses; an exemption holds only when both views grant it. STATED COST: where one model is
+    wrong and refuses (`_mask_spans` on a wrapped span putting `Status:` at a line start), the refusal stands.
+    Replayed over every live doc: no verdict changes. COBRA (D-253): nothing is counted here; the cheapest way past a
+    refusal is to re-wrap the span onto one line, which both models then read alike."""
+    return _blank_quoted(text), _blank_quoted(text, _mask_spans_wrapped)
 
 
 def _closing_row_fail(text: str) -> str | None:
@@ -242,14 +291,14 @@ def _closing_row_fail(text: str) -> str | None:
     # population the `_PASS_ROW` comment states — change verdict), then HTML comments blanked.
     # The archived carve-out in the caller is the lowercase
     # DIRECTORY part `archived` — `Archived/` and a slug carrying the word are graded.
-    text = _blank_quoted(text)
-    last: str | None = None
-    for m in _PASS_ROW.finditer(text):
-        tokens = _CONFIRMED_TOKEN.findall(m.group(0))
-        if tokens:
-            last = tokens[-1]
-    if last is not None and int(last) != 0:
-        return f"{CLOSING_ROW_REFUSAL} (its last counter row reads confirmed: {last})"
+    for view in _quoted_views(text):  # refused when either span model refuses (D-1131)
+        last: str | None = None
+        for m in _PASS_ROW.finditer(view):
+            tokens = _CONFIRMED_TOKEN.findall(m.group(0))
+            if tokens:
+                last = tokens[-1]
+        if last is not None and int(last) != 0:
+            return f"{CLOSING_ROW_REFUSAL} (its last counter row reads confirmed: {last})"
     return None
 
 
@@ -287,7 +336,7 @@ def _cite_matches_plan(cite_name: str, plan_stem: str) -> bool:
     date must not PREDATE the plan's — a review written before the plan
     existed cannot be its validation (01M1DJYH: a 3-week-old readiness review
     was indistinguishable from the plan's verify review by name tokens alone).
-    Unparseable dates fall back to token-match-only.
+    An undated name on either side has no fuzzy path: only the exact-stem rule applies.
     """
     if plan_stem in cite_name:
         return True
@@ -354,6 +403,15 @@ _TICKET_REVIEW_RE = re.compile(r"-T\d{2}[a-z]?-review\.md$")
 # D-053 re-grounding (2026-08-31): the 40-char window made the GAP between the counters
 # load-bearing — a finder manifest between them failed an honest quiet round (13-round review
 # proof). Same-LINE is the constraint (``[^\n]``); the size of the gap is not.
+# `review_receipt.py --init`'s "Row shapes" EXAMPLE block: a fence under the line the template
+# writes to say the gate does not read it — every one of the 456 skeleton-born receipts on the box
+# carries that line (2026-10-08). Its sample `confirmed: 0 … fixed: 0` row is no pass, so the
+# citation scan removes the block first (kaizen 01M4E1MYFJ). COBRA: a real ledger pasted INTO
+# that fence stops counting — the template already tells the author it is never read.
+_ROW_SHAPES_EXAMPLE = re.compile(
+    r"^Row shapes \(quoted here[^\n]*\n(?:[ \t]*\n)*[ \t]*```[^\n]*\n.*?^[ \t]*```[^\n]*$",
+    re.M | re.S,
+)
 QUIET_PASS = re.compile(
     r"found:\s*0\b(?![^\n]*(?<![\w-])(?:confirmed\s*:\s*\d|unexecuted\s*:\s*\d*[1-9]))"
     r"[^\n]*?fixed:\s*0\b"
@@ -396,24 +454,19 @@ GATE_OUT_OF_SURFACE = re.compile(
 # PAIRS — the emitting commands write balanced 3-backtick fences and quote
 # templates with 4-backtick outers, both in-contract; no live fleet file
 # violates this (verified 2026-08-05).
-# Strip-purpose fence regex — newline NOT required (a single-line ```Status: X```
-# is still a quote). FENCE_BLOCK below stays as-is for _nontrivial_fences COUNTING.
-FENCE_STRIP = re.compile(
-    # Line-anchored blocks + inline single-line fences (never bare ```.*?``` —
-    # an unpaired backtick in prose swallows real body; see check_plan_tickets).
-    r"(?:^[ \t]*(`{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$|```[^`\n]+```)",
-    re.M | re.S,
-)
-# Fenced code blocks — capture inner content so we can demand non-trivial output
-# (an empty ``` ``` pair must not satisfy the "show the command output" rule).
-FENCE_BLOCK = re.compile(r"```[^\n]*\n(.*?)```", re.S)
-# Fence-CONTENT extraction under the same contract as FENCE_STRIP: balanced
-# line-anchored blocks (equal-length backreferenced closer) + inline
-# single-line quotes. Group 2 = block body, group 3 = inline body.
-_FENCED_CONTENTS = re.compile(
-    r"^[ \t]*(`{3,})[^\n]*\n(.*?)^[ \t]*\1[ \t]*$|```([^`\n]+)```",
-    re.M | re.S,
-)
+# Strip-purpose fences — newline NOT required (a single-line ```Status: X```
+# is still a quote); line-anchored blocks + inline single-line fences (never a
+# bare ```.*?``` — an unpaired backtick in prose swallows real body). The match
+# set, the fence-CONTENT extraction under the same contract (`fence_spans`), the
+# info-string read (`fence_blocks`), the naive COUNTING pair (`fence_block_bodies`
+# — an empty ``` ``` pair must not satisfy the "show the command output" rule)
+# and the HTML-comment blank are `_fences.py`'s, one linear scanner shared by
+# every check (W-276255e7: each regex it replaced was quadratic).
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _fences  # noqa: E402  (same-dir sibling, synced fleet-wide)
+
+FENCE_STRIP = _fences.FENCE_STRIP
 # Spine+ticket plan-set shape (canonical grammar — single definitions live in the
 # 2026-08-04 spine-ticket plan; keep these byte-identical with check_plan_tickets).
 PLAN_DIR_NAME = re.compile(r"^\d{4}-\d{2}-\d{2}-plan-[a-z0-9-]+$")
@@ -441,9 +494,13 @@ def _check_spine_set(root: Path, spine: Path, text: str) -> list[str]:
     if "archived" in rel.parts:
         return []  # settled history — never re-enforced
     fails: list[str] = []
-    text = _blank_quoted(text)  # fences, code spans and comments are quotes (W-98338ad4)
-    section = BOARD_SECTION.search(text)
-    rows = BOARD_ROW.findall(section.group(1)) if section else []
+    rows: list[str] = []
+    # fences, code spans and comments are quotes (W-98338ad4), read under both span models (D-1131)
+    for view in _quoted_views(text):
+        section = BOARD_SECTION.search(view)
+        rows += [
+            r for r in (BOARD_ROW.findall(section.group(1)) if section else []) if r not in rows
+        ]
     ticket_ids_on_disk = {
         f.name.split("-", 1)[0] for f in spine.parent.glob("*.md") if TICKET_FILE.match(f.name)
     }
@@ -456,7 +513,8 @@ def _check_spine_set(root: Path, spine: Path, text: str) -> list[str]:
     for f in sorted(spine.parent.glob("*.md")):
         if not TICKET_FILE.match(f.name):
             continue
-        if ANY_STATUS_LINE.search(_blank_quoted(f.read_text(encoding="utf-8", errors="replace"))):
+        ticket = f.read_text(encoding="utf-8", errors="replace")
+        if any(ANY_STATUS_LINE.search(view) for view in _quoted_views(ticket)):
             fails.append(
                 f"{rel}: ticket {f.name} carries a Status: line — ticket state lives ONLY "
                 "in the spine Board"
@@ -480,7 +538,7 @@ def _check_spine_set(root: Path, spine: Path, text: str) -> list[str]:
 
 def _nontrivial_fences(text: str) -> int:
     """Count fenced blocks whose inner content carries real output (>=20 non-ws chars)."""
-    return sum(1 for inner in FENCE_BLOCK.findall(text) if len(inner.strip()) >= 20)
+    return sum(1 for inner in _fences.fence_block_bodies(text) if len(inner.strip()) >= 20)
 
 
 # A probe is a fence whose command line starts `$ `; probe duty says re-run it and diff the
@@ -509,21 +567,20 @@ ELIDED_PROBE = re.compile(r"^[ \t]*\$[ \t]+\.\.\.", re.M)
 # demanding the info string BE "excerpt" would have traded a language tag for a marker. ```python
 # excerpt keeps both.
 BARE_ELLIPSIS = re.compile(r"^[ \t]*\.\.\.[ \t]*$", re.M)
-_INFO_FENCE = re.compile(r"^[ \t]*(`{3,})([^\n]*)\n(.*?)^[ \t]*\1[ \t]*$", re.M | re.S)
 
 
 def _unmarked_excerpts(text: str) -> int:
     """Count trimmed fences (a bare `...` line) whose info string is not ``excerpt``."""
     return sum(
         1
-        for _, info, body in _INFO_FENCE.findall(text)
-        if BARE_ELLIPSIS.search(body) and "excerpt" not in info.split()
+        for b in _fences.fence_blocks(text)
+        if BARE_ELLIPSIS.search(b.body) and "excerpt" not in b.info.split()
     )
 
 
 def _elided_probes(text: str) -> int:
     """Count `$ ...` command lines inside fenced blocks — probe-shaped, unrunnable."""
-    return sum(len(ELIDED_PROBE.findall(inner)) for inner in FENCE_BLOCK.findall(text))
+    return sum(len(ELIDED_PROBE.findall(inner)) for inner in _fences.fence_block_bodies(text))
 
 
 _NOTES: list[str] = []  # NOTE lines deferred until main() has printed the ⚠-first advisory
@@ -809,6 +866,20 @@ _STATUS_LINE = re.compile(r"^\s*\**Status\**:\**\s*\**\s*([A-Za-z][A-Za-z -]*)",
 _MIDFLIGHT = {"IN-PROGRESS", "IN PROGRESS", "DRAFT", "ACTIVE", "OPEN", "PLANNING"}
 
 
+def _archived_plan_status(text: str) -> str | None:
+    """An archived plan's own Status value: fences stripped, then the first Status line starting in the first 4000
+    characters whose key no inline code span hides. The match runs on the original text (`_fences.status_candidates`),
+    so a stray backtick cannot erase the real line. Both archived-plan reads go through here (W-a7cff030). They fail
+    CLOSED, so when only spanned candidates exist the strict branch returns a mid-flight value among them."""
+    candidates = _fences.status_candidates(FENCE_STRIP.sub("", text), _STATUS_LINE, endpos=4000)
+    shown = [m for m, hidden in candidates if not hidden]
+    if shown:
+        return shown[0].group(1).strip()
+    # only spanned candidates: this read fails CLOSED, so its strict branch flags a mid-flight value it can see
+    hidden_midflight = [m for m, _ in candidates if m.group(1).strip().upper() in _MIDFLIGHT]
+    return hidden_midflight[0].group(1).strip() if hidden_midflight else None
+
+
 def _archived_midflight(root: Path) -> list[str]:
     """Archived PLAN files whose own Status still claims work is in flight."""
     try:
@@ -832,12 +903,10 @@ def _archived_midflight(root: Path) -> list[str]:
         f = root / dst
         if not f.is_file():
             continue
-        m = _STATUS_LINE.search(
-            FENCE_STRIP.sub("", f.read_text(encoding="utf-8", errors="replace"))[:4000]
-        )
-        if m and m.group(1).strip().upper() in _MIDFLIGHT:
+        status = _archived_plan_status(f.read_text(encoding="utf-8", errors="replace"))
+        if status and status.upper() in _MIDFLIGHT:
             fails.append(
-                f"{dst}: archived while its own Status reads {m.group(1).strip()!r}. Archiving is "
+                f"{dst}: archived while its own Status reads {status!r}. Archiving is "
                 "the 'nothing is left' act. If the EXECUTED flip was lost by `git mv` (it moves "
                 "INDEXED content, not your working tree), re-stage: `git add <the archived path>`"
             )
@@ -992,17 +1061,31 @@ def _converged_targets(root: Path) -> list[Path]:
     return targets
 
 
-def _scope_growth_closed(rtext: str) -> bool:
-    """check_review_coverage's own `_scope_growth_exit` over the receipt's own ledger rows."""
+def _receipt_in_progress(rtext: str) -> bool:
+    """check_review_coverage's header-zone IN-PROGRESS reader — the ONE definition every grader uses."""
     try:
-        from .check_review_coverage import _ledger_shapes, _scope_growth_exit  # noqa: PLC0415
+        from .check_review_coverage import _in_progress  # noqa: PLC0415
+    except ImportError:  # direct-script invocation
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from scripts.enforcement.check_review_coverage import _in_progress  # noqa: PLC0415
+    return _in_progress(rtext)
+
+
+def _scope_growth_closed(root: Path, path: Path, rtext: str) -> bool:
+    """check_review_coverage's own `_legacy_scope_growth_exit` over the receipt's own ledger rows:
+    the D-252 stop closed a review only for a receipt first committed before D-355 (2026-09-23)."""
+    try:
+        from .check_review_coverage import (  # noqa: PLC0415
+            _ledger_shapes,
+            _legacy_scope_growth_exit,
+        )
     except ImportError:  # direct-script invocation
         sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
         from scripts.enforcement.check_review_coverage import (  # noqa: PLC0415
             _ledger_shapes,
-            _scope_growth_exit,
+            _legacy_scope_growth_exit,
         )
-    return _scope_growth_exit(rtext, _ledger_shapes(rtext)[2])
+    return _legacy_scope_growth_exit(root, path, rtext, _ledger_shapes(rtext)[2])
 
 
 # D-497 — the D-206 cut-over for whole-plan receipts that PREDATE the Pass-row grammar: a receipt
@@ -1015,25 +1098,24 @@ _D206_CUTOVER = "2026-09-09"
 
 
 def _first_commit_date(root: Path, relpath: str) -> str:
-    """Committer date (YYYY-MM-DD) of the OLDEST commit that added ``relpath``, or "" if none."""
+    """Committer date (YYYY-MM-DD) of the OLDEST commit that added ``relpath``, or "" if none —
+    check_review_coverage's one first-commit reader (``log.follow`` pinned off, git's location
+    environment scrubbed), so the D-206 and D-355 cut-overs date a receipt the same way."""
     try:
-        r = subprocess.run(
-            ["git", "log", "--diff-filter=A", "--format=%cs", "--", relpath],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=15,
+        from .check_review_coverage import _first_commit_date as _crc_first  # noqa: PLC0415
+    except ImportError:  # direct-script invocation
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from scripts.enforcement.check_review_coverage import (  # noqa: PLC0415
+            _first_commit_date as _crc_first,
         )
-    except Exception:
-        return ""
-    dates = r.stdout.split() if r.returncode == 0 else []
-    return dates[-1] if dates else ""
+    return _crc_first(root, root / relpath)
 
 
 def _legacy_receipt(root: Path, relpath: str, rtext: str) -> str:
     """The receipt's first-commit date when D-497 grandfathers it, else ""."""
     header = "".join(rtext.splitlines(keepends=True)[:10])  # the header zone (`_in_progress`'s)
-    if not _claims_converged(_blank_quoted(header)):  # one quoting policy (W-98338ad4)
+    # one quoting policy (W-98338ad4); an exemption, so it holds only when both span models agree (D-1131)
+    if not all(_claims_converged(v) for v in _quoted_views(header)):
         return ""
     first = _first_commit_date(root, relpath)
     return first if first and first < _D206_CUTOVER else ""
@@ -1101,6 +1183,12 @@ def _check_executed_plan(
         if not rp.is_file():
             continue
         rtext = rp.read_text(encoding="utf-8", errors="replace")
+        # A receipt whose header still says IN-PROGRESS proves no finished review (kaizen
+        # 01M4E1MYFJ). The skeleton's own example rows are removed below by their template
+        # anchor, so the citation never rests on how a Status line is spelled; stripping EVERY
+        # fence instead would drop the real ledgers older receipts wrote in ```text blocks (49).
+        if _receipt_in_progress(rtext):
+            continue
         # A quiet round (D-206's confirmed: 0 … fixed: 0, or the pre-D-206 found: 0 … fixed: 0)
         # appears somewhere → the cited review ran the loop to (at least one) quiet pass.
         # Zero-false-positive by design (see QUIET_PASS); DEPTH is
@@ -1108,14 +1196,16 @@ def _check_executed_plan(
         # T4.3 (01M1SQZ80): a Pass-Ledger ROW, never prose — the gate's own error message, a
         # negation ("never returned found: 0"), and a description of the requirement all matched
         # the whole-text search; the row grammar is the only witness of a round that ran
-        if any(QUIET_PASS.search(m.group(0)) for m in _LEDGER_LINE.finditer(rtext)):
+        scan = _ROW_SHAPES_EXAMPLE.sub("", rtext)
+        if any(QUIET_PASS.search(m.group(0)) for m in _LEDGER_LINE.finditer(scan)):
             return fails  # citation satisfied; spine-set findings (if any) still surface
-        # W-5b541aab: the D-252 scope-growth stop is a SANCTIONED exit at check_review_coverage —
-        # a receipt that closed on it carries no quiet row by design. The predicate is IMPORTED
+        # W-5b541aab: the D-252 scope-growth stop WAS a sanctioned exit at check_review_coverage —
+        # a receipt that closed on it carries no quiet row. D-355 retired it on 2026-09-23, so
+        # only a receipt first committed before that day still satisfies the citation. The predicate is IMPORTED
         # (one law, both graders): copying it is how the two gates came to disagree about the
         # same receipt. Its cobra cost is stated at its definition (the phrase alone never exits;
         # the ledger must show the trailing confirming rounds).
-        if _scope_growth_closed(rtext):
+        if _scope_growth_closed(root, rp, rtext):
             return fails
         first = _legacy_receipt(root, c, rtext)
         if first:
@@ -1187,6 +1277,121 @@ def _claims_reviewed(stripped: str) -> bool:
     return False
 
 
+# A review receipt's header Status CLAIMS the review finished unless its first word names an
+# unfinished state (W-41f20130): the claim-word check alone let CLOSED / DONE / CLEAN / APPLIED
+# through with no gate. Fail-closed on purpose — an enumeration of terminal words is bypassed by
+# the next new word, so a value the reader cannot place (a date, an emoji, an unknown word) is a
+# claim too. The label is read in every spelling a writer can choose: any case, behind a list or
+# blockquote marker, bold or not, a colon / dash / table cell after it.
+_REVIEW_STATUS_LINE = re.compile(
+    r"^[ \t]*(?:[-*>][ \t]*)*\|?[ \t]*\**[ \t]*status[ \t]*\**[ \t]*(?:[:|\u2014\u2013]|[ \t]-+[ \t])\**"
+    r"[^\S\n]*(?P<v>[^\n]*)",
+    re.I | re.M,
+)
+# Unfinished states — in flight, abandoned, or negated. BLOCKED is listed separately: it exempts
+# only a receipt that carries an EVIDENCED escalation (check_review_coverage._blocked_ok), so a
+# bare `Status: BLOCKED` is not a way out of the gate.
+_UNFINISHED_STATUS = re.compile(
+    r"(?:IN[- ]?PROGRESS|DRAFT|ACTIVE|OPEN|PLANNING|ABANDONED|SUPERSEDED|WITHDRAWN|FAILED"
+    r"|PAUSED|NOT|UNDER|UNCONVERGED|UNREVIEWED|UNFINISHED|UNRESOLVED|UNVERIFIED)\b",
+    re.I,
+)
+_STATUS_MARKUP = re.compile(r"^[\W_]+")
+
+
+def _header_status_claims(text: str) -> bool:
+    """True when the receipt's header Status names a finished state.
+
+    The header zone is `check_review_coverage`'s — the first 10 lines of the NORMALIZED text,
+    fence- and indent-stripped within the slice — so a U+2028 in the title, a zero-width
+    character in the label, or a quoted Status in a fence reads exactly as `_in_progress` reads
+    it. Cobra (D-253): the cheapest way past this rule is to drop the Status line or to label a
+    finished receipt with an unfinished state; a reader then sees an unfinished review rather
+    than a false claim, and the claim-word check still applies to the body.
+    """
+    try:
+        from .check_review_coverage import (  # noqa: PLC0415 — local: soft dep
+            _blocked_ok,
+            _normalized,
+            _strip_fences,
+        )
+    except ImportError:  # direct-script invocation
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from scripts.enforcement.check_review_coverage import (  # noqa: PLC0415
+            _blocked_ok,
+            _normalized,
+            _strip_fences,
+        )
+    header = _strip_fences("".join(_normalized(text).splitlines(keepends=True)[:10]))
+    # A table row is read even over a `|---|` separator: from the line alone a column header
+    # (`| Status | Notes |`) and a one-row key-value table (`| Status | DONE |`) are the same
+    # shape, and skipping both opens the gate. Measured 2026-10-08: 0 of 614 receipts carry a
+    # table-form Status in the header zone, so failing closed costs nothing real.
+    # The FIRST Status line in the zone is the receipt's own Status; later ones are sub-statuses
+    # (a receipt reading `Status: IN-PROGRESS` above a finished sub-phase's `Status: DONE` is
+    # live in the corpus). Reading every line would turn an honest DRAFT with a finished
+    # sub-phase into a false claim; a finished receipt labelled DRAFT is the Cobra line above.
+    m = _REVIEW_STATUS_LINE.search(header)
+    if not m:
+        return False
+    value = _STATUS_MARKUP.sub("", m.group("v")).strip()
+    if not value:
+        return False  # an empty Status slot claims nothing
+    if re.match(r"BLOCKED\b", value, re.I):
+        return not _blocked_ok(text)
+    return not _UNFINISHED_STATUS.match(value)
+
+
+# W-39d8d1fd (web-ecommerce-factory 01M493W8G3): a /fabrik-spec-review or /fabrik-plan-review
+# receipt reviews a DESIGN document, so a code-review final_gate embed proves nothing about it — and
+# check_review_coverage.py never grades it (no Coverage Checklist heading: not its subject). It is
+# routed by the FIRST `Command:` label in the header zone (any case, a list/quote marker or bold
+# allowed; a table cell, a dash separator or other exotic spellings do NOT route — they keep the
+# embed demand, fail-closed), when that label's first token is one of the two commands and the
+# receipt has no Coverage Checklist heading (a checklist marks a code review, whatever it is
+# labelled). Unlike the substring sniff check_review_coverage retired (COMMAND_MARK) the route never
+# SKIPS: a miss keeps the embed demand and a hit is graded by the design proof below. Cobra
+# (D-253): relabelling a checklist-free code receipt swaps the embed for a ledger whose last
+# counter row is quiet — a different proof, never none.
+_COMMAND_LABEL = re.compile(
+    r"^[ \t]*(?:[-*>][ \t]*)*\**[ \t]*command[ \t]*\**[ \t]*:[ \t]*\**[ \t]*(?P<v>[^\n]*)",
+    re.I | re.M,
+)
+_DESIGN_REVIEW_COMMAND = re.compile(r"`?/fabrik-(?:spec|plan)-review(?![\w/:-]|\.\w)", re.I)
+
+
+def _is_design_receipt(header: str, text: str, checklist_head: re.Pattern[str]) -> set[bool]:
+    """Routing, one answer per span view (D-1131): the FIRST header `Command:` label leads with a design-review
+    command, and no live (unquoted) Coverage Checklist heading marks the receipt a code review. A route is not a
+    refusal, so when the two views disagree the caller grades BOTH routes and keeps every refusal."""
+    m = _COMMAND_LABEL.search(header)
+    if not m or not _DESIGN_REVIEW_COMMAND.match(m.group("v")):
+        return {False}
+    return {not any(checklist_head.match(ln) for ln in v.splitlines()) for v in _quoted_views(text)}
+
+
+def _design_review_fails(rel: Path, text: str) -> list[str]:
+    """The design-receipt proof is the module's ONE Pass-Ledger law, the closing-row rule a plan's
+    flip already answers to (`_closing_row_fail`): the receipt carries `confirmed:` counters on its
+    `| Pass N |` rows (the D-206 grammar) and the LAST such row reads `confirmed: 0`. Rounds 2-4 of
+    the W-39d8d1fd review cut a bespoke section reader three ways and each cut opened a new hole, so
+    it was deleted, not patched (D-278). STATED COSTS (D-842): a pre-D-206 ledger with no
+    `confirmed:` counter is refused (fail-closed); a later table row elsewhere in the receipt that
+    carries a `confirmed:` counter is read as a round — a nonzero one refuses an honest receipt, a
+    zero one after a loud ledger passes it — exactly as on a plan spine."""
+    if not all(
+        any(_CONFIRMED_TOKEN.search(m.group(0)) for m in _PASS_ROW.finditer(v))
+        for v in _quoted_views(text)
+    ):
+        return [
+            f"{rel}: a /fabrik-spec-review or /fabrik-plan-review receipt claims a finished review "
+            "but no `| Pass N |` row carries a `confirmed:` counter (the D-206 grammar) — record "
+            "the rounds, or mark the header Status IN-PROGRESS"
+        ]
+    closing = _closing_row_fail(text)
+    return [f"{rel}: {closing} — a design review's Pass Ledger"] if closing else []
+
+
 def _check_review(root: Path, path: Path) -> list[str]:
     if not path.exists():
         return []
@@ -1198,26 +1403,50 @@ def _check_review(root: Path, path: Path) -> list[str]:
     # sanctioned mid-loop state (check_review_coverage._in_progress is the ONE
     # definition, imported so the two graders cannot drift); the flip re-arms this.
     try:
-        from .check_review_coverage import _in_progress  # noqa: PLC0415 — local: soft dep
+        from .check_review_coverage import (  # noqa: PLC0415 — local: soft dep
+            CHECKLIST_HEAD,
+            _in_progress,
+            _normalized,
+            _strip_fences,
+        )
     except ImportError:  # direct-script invocation
         sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-        from scripts.enforcement.check_review_coverage import _in_progress  # noqa: PLC0415
+        from scripts.enforcement.check_review_coverage import (  # noqa: PLC0415
+            CHECKLIST_HEAD,
+            _in_progress,
+            _normalized,
+            _strip_fences,
+        )
     if _in_progress(text):
         return []
     # Claims are read on fence-STRIPPED text — a fenced claim word is a quotation
     # (grammar template, example), not a claim.
-    if not _claims_reviewed(FENCE_STRIP.sub("", text)):
+    by_header = _header_status_claims(text)
+    if not by_header and not _claims_reviewed(FENCE_STRIP.sub("", text)):
         return []
     rel = path.relative_to(root)
+    header = _strip_fences("".join(_normalized(text).splitlines(keepends=True)[:10]))
+    routes = _is_design_receipt(header, text, CHECKLIST_HEAD)
+    design_fails = _design_review_fails(rel, text) if True in routes else []
+    if False not in routes:
+        return design_fails
     fails: list[str] = []
+    # A receipt graded only for its header Status has no claim WORD to explain the red, so the
+    # first failure names the trigger and the honest ways out.
+    why = (
+        "its header Status claims a finished review (an unfinished state — IN-PROGRESS, DRAFT, "
+        "NOT …, or BLOCKED with an evidenced ## BLOCKED section — claims nothing), so: "
+        if by_header
+        else ""
+    )
     # The gate embed must sit INSIDE a fenced block (the verbatim-embed
     # convention): a literal "status": "success" in prose satisfied this check
     # live while the surrounding sentence explained why faking it would be wrong.
     # Extraction uses the SAME fence contract as FENCE_STRIP (backreferenced
-    # closer + inline single-line quotes) — the naive FENCE_BLOCK mispairs when
+    # closer + inline single-line quotes) — the naive fence_block_bodies mispairs when
     # an in-contract inline ```…``` quote precedes the real embed, uncapturing a
     # genuine success JSON (fail-closed false-failure, review finding).
-    fenced = "\n".join(m.group(2) or m.group(3) or "" for m in _FENCED_CONTENTS.finditer(text))
+    fenced = "\n".join((b.body if b else inl) or "" for _, _, inl, b in _fences.fence_spans(text))
     # The out-of-surface declaration is read on FENCE-STRIPPED text — the same convention
     # `_claims_reviewed` uses, and for the same reason: a fenced copy of the grammar is a
     # QUOTATION (a template, a review documenting this very mechanism), not a declaration. The
@@ -1246,7 +1475,7 @@ def _check_review(root: Path, path: Path) -> list[str]:
         )
     if not PHASE.search(text):
         fails.append("no per-phase verdict (no Phase/Step reference)")
-    return [f"{rel}: {x}" for x in fails]
+    return design_fails + [f"{rel}: {why if i == 0 else ''}{x}" for i, x in enumerate(fails)]
 
 
 def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
@@ -1294,9 +1523,9 @@ def _committed_claims_advisory(root: Path, skip: set[Path]) -> list[str]:
         if not text:
             continue  # untracked, or unreadable at HEAD — not a committed claim
         if _ARCHIVED_PLAN.search("/" + str(rel)):
-            m = _STATUS_LINE.search(text[:4000])
-            if m and m.group(1).strip().upper() in _MIDFLIGHT:
-                out.append(f"{rel}: archived while its own Status reads {m.group(1).strip()!r}")
+            status = _archived_plan_status(text)
+            if status and status.upper() in _MIDFLIGHT:
+                out.append(f"{rel}: archived while its own Status reads {status!r}")
             continue
         if not EXECUTED.search(text):
             continue
@@ -1382,7 +1611,9 @@ def main() -> int:
             print(f"  - {x}")
         print(
             "Fix: supply the required evidence (Evidence section, file:line citations, a"
-            " fenced command-output block, an embedded final_gate success), or drop the claim."
+            " fenced command-output block, an embedded final_gate success — or, for a"
+            " /fabrik-spec-review or /fabrik-plan-review receipt, a quiet closing Pass-Ledger"
+            " round), or drop the claim."
         )
         return 1
     return 0

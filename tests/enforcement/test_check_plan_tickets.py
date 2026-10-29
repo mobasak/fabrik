@@ -11,6 +11,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import pytest
 from scripts.enforcement import check_plan_tickets as cpt
 
 DIRNAME = "2026-01-02-plan-1-widget"
@@ -739,9 +740,60 @@ def test_a_demoted_error_says_so_and_prints_the_full_severity_command(
     # the MIRROR of test_the_demotion_note_names_the_real_selection_reason: this fixture IS
     # lock-selected, so the reason text must say so. Without it, "always say upstream" — the same
     # defect in the opposite direction — passed the entire suite.
-    assert "via an active LOCK" in out, out[:600]
+    assert "via a mid-flight LOCK" in out, out[:600]
     assert "no lock is involved" not in out, out[:600]
     assert rc == 0, "this fix changes VISIBILITY, not severity — the demotion still stands"
+
+
+def test_a_malformed_lock_owned_paths_never_matches_by_letter(tmp_path, capsys) -> None:
+    """A lock's `owned_paths` written as a bare STRING used to iterate its characters, so the
+    one-letter entries covered any changed path under a directory of that letter (W-7caa8a90). A
+    string is read as that one path, a non-list is skipped, a non-string entry is dropped, and a
+    lock that is not a JSON object is skipped — each said in a NOTE, none a crash."""
+    root = _repo(tmp_path)
+    plan_dir = _build(root)
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "seed")
+    (root / "s").mkdir()
+    (root / "s" / "x.py").write_text("seed\n", encoding="utf-8")
+    (root / "src" / "app").mkdir(parents=True, exist_ok=True)
+    (root / "src" / "app" / "schema.py").write_text("seed\n", encoding="utf-8")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "track")
+    (root / "s" / "x.py").write_text("changed\n", encoding="utf-8")
+    locks = root / ".fabrik" / "plan-locks"
+    locks.mkdir(parents=True)
+    lock = locks / f"{DIRNAME}.json"
+
+    def selected(owned) -> bool:
+        lock.write_text(
+            json.dumps({"plan": "x", "status": "active", "owned_paths": owned}), encoding="utf-8"
+        )
+        _, advisory = cpt._discover_dirs(root)
+        return plan_dir.resolve() in {d.resolve() for d in advisory}
+
+    # "src/app/schema.py" has the letter "s"; read by letter it covered the changed s/x.py
+    assert not selected("src/app/schema.py")
+    said = capsys.readouterr()
+    assert "owned_paths is a string" in said.out + said.err, said
+    assert selected("s/x.py"), "a bare string is still read as that one path"
+    capsys.readouterr()
+    for bad in ({"s": 1}, 7):
+        assert not selected(bad), bad
+        said = capsys.readouterr()
+        assert "owned_paths is not a list — lock skipped" in said.out + said.err, (bad, said)
+    assert selected(["s/x.py", 3]), "the string entries still count when a non-string is dropped"
+    said = capsys.readouterr()
+    assert "owned_paths has a non-string entry — dropped" in said.out + said.err, said
+    lock.write_text(json.dumps(["s/x.py"]), encoding="utf-8")
+    _, advisory = cpt._discover_dirs(root)
+    assert plan_dir.resolve() not in {d.resolve() for d in advisory}
+    said = capsys.readouterr()
+    assert "is not a JSON object — skipped" in said.out + said.err, said
+    # a well-formed lock says nothing (the NOTEs are for malformed locks only, never wallpaper)
+    assert selected(["s/x.py"])
+    said = capsys.readouterr()
+    assert "plan_tickets discovery:" not in said.out + said.err, said
 
 
 def test_the_demotion_count_is_taken_at_full_severity_not_gate_severity(
@@ -837,7 +889,7 @@ def test_the_demotion_note_names_the_real_selection_reason(tmp_path, capsys, mon
     assert cpt.main() == 0
     out = capsys.readouterr().out
     assert "no lock is involved" in out, f"the NOTE must not blame a lock:\n{out[:500]}"
-    assert "via an active LOCK" not in out, out[:500]
+    assert "via a mid-flight LOCK" not in out, out[:500]
 
 
 def test_a_lock_only_dir_with_no_errors_prints_no_demotion_note(
@@ -997,6 +1049,43 @@ def test_env_example_is_not_never_route(tmp_path: Path) -> None:
     assert not cpt._never_route(".env.example")
     assert cpt._never_route(".env")
     assert cpt._never_route(".env.production")
+
+
+def test_final_gate_filename_family_is_never_route() -> None:
+    """W-2e6c1b0b (fabrik-lib 01M494TQ3E, SB-108): NEVER_ROUTE_PREFIXES named the hub's gate FILE only, and
+    `_covered_by` is component-literal containment, so a repo whose completion gate is
+    `scripts/final_gate_fabrik_lib.py` got no never-route cover — a `Complexity: simple` ticket touching it
+    passed the cross-check. The stem `scripts/final_gate` is a filename FAMILY (NEVER_ROUTE_FILE_FAMILIES):
+    every `scripts/final_gate*` path is never-route; the stem is rooted at `scripts/`, so a same-named file
+    elsewhere is not. RED on base: the first assertion."""
+    assert cpt._never_route("scripts/final_gate_fabrik_lib.py")
+    assert cpt._never_route("scripts/final_gate.py")
+    assert cpt._never_route("scripts/final_gate_tier_counts_helper.py")
+    assert cpt._never_route("scripts/final_gate")
+    assert not cpt._never_route("scripts/other.py")
+    assert not cpt._never_route("src/final_gate.py")
+    # The accepted over-match, pinned so a future word-boundary change is a deliberate test edit
+    # (review 2026-10-13 tests-S2): the stem is a character prefix, not a component.
+    assert cpt._never_route("scripts/final_gatekeeper.md")
+    # Membership, not the exact tuple (review check-S3/tests-S3): a second family stem added later
+    # must not red this grader while every behavioural assertion above still holds.
+    assert "scripts/final_gate" in cpt.NEVER_ROUTE_FILE_FAMILIES
+
+
+def test_pool_tier_ticket_touching_a_family_gate_errors(tmp_path: Path) -> None:
+    """End to end through check_plan_dir (the pool-tier never-route ERROR): the bc17 fixture pointed at the
+    family member fabrik-lib actually has. The EXACT message substring is asserted — a bare "never-route"
+    would also match the Never-Route label family. RED on base: 0 errors (the pass that handed a gate to a
+    pool coder)."""
+    t1 = T01.replace("- src/app/schema.py", "- scripts/final_gate_fabrik_lib.py")
+    spine = SPINE.replace("- src/app/schema.py", "- scripts/final_gate_fabrik_lib.py")
+    plan_dir = _build(
+        tmp_path,
+        spine=spine,
+        tickets={"T01-schema.md": t1, "T02-api.md": T02, "T99-integration.md": T99},
+    )
+    errors = _errors(cpt.check_plan_dir(plan_dir))
+    assert any("never-route path 'scripts/final_gate_fabrik_lib.py'" in m for m in errors), errors
 
 
 def test_bold_board_cell_is_parsed(tmp_path: Path) -> None:
@@ -3012,3 +3101,239 @@ def test_touches_shapes_round_three_quoted_prose_and_separated_continuations(
         tickets={"T01-schema.md": flagged, "T02-api.md": T02, "T99-integration.md": T99},
     )
     assert any("prose inside ## Touches" in m for m in _errors(cpt.check_plan_dir(plan_dir)))
+
+
+T03 = """# T03 — report
+
+Depends: T02
+Parallel: ⛓️
+Complexity: simple
+Docs: none
+Gate: pytest -q tests/test_report.py
+
+## Scope
+
+Report. DO-NOT touch the api.
+
+## Touches
+
+- src/app/report.py
+- tests/test_report.py
+
+## Behavior Contract
+
+- **Given** a widget, **When** reported, **Then** listed (src/app/report.py:1).
+
+## Context Files
+
+- docs/small-context.md
+"""
+
+
+def _build_chain(root: Path, t01: str = T01, t02: str = T02, t03: str = T03) -> Path:
+    """The fixture plan with a plain (non-integration) T03 between T02 and T99, so a Gate on T03
+    is graded — the per-ticket loop skips the integration ticket (W-b60b65a1 design critique)."""
+    spine = (
+        SPINE.replace(
+            "| T99 | integration | T02 |",
+            "| T03 | report | T02 | ⛓️ | ⬜ | |\n| T99 | integration | T03 |",
+        )
+        .replace("2. T02\n3. T99", "2. T02\n3. T03\n4. T99")
+        .replace(
+            "- tests/test_api.py\n",
+            "- tests/test_api.py\n- src/app/report.py\n- tests/test_report.py\n",
+        )
+        .replace(
+            "- **Given** the merged plan",
+            "- **Given** a widget, **When** reported, **Then** listed (src/app/report.py:1).\n- **Given** the merged plan",
+        )
+    )
+    t99 = T99.replace("Depends: T02", "Depends: T03")
+    return _build(
+        root,
+        spine=spine,
+        tickets={
+            "T01-schema.md": t01,
+            "T02-api.md": t02,
+            "T03-report.md": t03,
+            "T99-integration.md": t99,
+        },
+    )
+
+
+def _gate_refusals(plan_dir: Path) -> list[str]:
+    return [m for m in _errors(cpt.check_plan_dir(plan_dir)) if "Gate: runs" in m]
+
+
+_GUARD = "scripts/dist_identity.py"
+
+
+def test_a_gate_may_run_a_file_a_depends_ancestor_creates(tmp_path: Path) -> None:
+    """W-b60b65a1 (web-ecommerce-factory 01M4DHVXWA): a shared guard an earlier ticket creates can
+    gate the tickets that Depend on it, directly or transitively — the executor dispatches a ticket
+    only once every Depends row is ✅ (fabrik-execute-plan.md:470)."""
+    t01 = T01.replace("- tests/test_schema.py", f"- tests/test_schema.py\n- {_GUARD}")
+    assert _GUARD in t01
+    base = _build_chain(tmp_path / "base", t01=t01)
+    assert _gate_refusals(base) == [], "the chain fixture must be clean before a Gate is added"
+    t02 = T02.replace("Gate: pytest -q tests/test_api.py", f"Gate: python {_GUARD} compare")
+    assert _GUARD in t02
+    assert _gate_refusals(_build_chain(tmp_path / "direct", t01=t01, t02=t02)) == []
+    t03 = T03.replace("Gate: pytest -q tests/test_report.py", f"Gate: python {_GUARD} compare")
+    assert _GUARD in t03
+    assert _gate_refusals(_build_chain(tmp_path / "transitive", t01=t01, t03=t03)) == []
+
+
+def test_a_gate_on_a_file_a_non_ancestor_creates_is_still_refused(tmp_path: Path) -> None:
+    """Only a Depends ancestor orders the creating ticket first: a descendant's or an unrelated
+    ticket's Touches never names a Gate path, and the refusal keeps `exists nowhere` and names
+    the Depends remedy."""
+    # descendant: T01 gates on a file T02 (which Depends on T01) creates
+    t01 = T01.replace("Gate: pytest -q tests/test_schema.py", f"Gate: python {_GUARD} compare")
+    t02 = T02.replace("- tests/test_api.py", f"- tests/test_api.py\n- {_GUARD}")
+    assert _GUARD in t01 and _GUARD in t02
+    desc = _gate_refusals(_build_chain(tmp_path / "desc", t01=t01, t02=t02))
+    assert len(desc) == 1 and desc[0].startswith("T01:") and f"`{_GUARD}`" in desc[0], desc
+    assert "exists nowhere" in desc[0] and "a ticket it Depends on" in desc[0], desc
+    # unrelated: T03 no longer Depends on T02, and gates on a file T01 creates
+    t01 = T01.replace("- tests/test_schema.py", f"- tests/test_schema.py\n- {_GUARD}")
+    t03 = T03.replace("Depends: T02", "Depends: none").replace(
+        "Gate: pytest -q tests/test_report.py", f"Gate: python {_GUARD} compare"
+    )
+    assert "Depends: none" in t03 and _GUARD in t03
+    unrel = _gate_refusals(_build_chain(tmp_path / "unrel", t01=t01, t03=t03))
+    assert len(unrel) == 1 and unrel[0].startswith("T03:") and f"`{_GUARD}`" in unrel[0], unrel
+
+
+def test_a_depends_cycle_ends_the_ancestor_walk(tmp_path: Path) -> None:
+    """A Depends cycle (T01 ↔ T02) cannot hang the walk, and the walk still runs THROUGH it: T03
+    (Depends T02) may gate on a file T01 creates, while a file only T03 creates stays a ghost to
+    T02 — a descendant is never an ancestor, cycle or not (review pass 2, A-S1: the first cut
+    passed on the pre-fix code too)."""
+    import threading
+
+    other = "scripts/schema_guard.py"
+    t01 = T01.replace("Depends: none", "Depends: T02").replace(
+        "- tests/test_schema.py", f"- tests/test_schema.py\n- {other}"
+    )
+    t02 = T02.replace("Gate: pytest -q tests/test_api.py", f"Gate: python {_GUARD} compare")
+    t03 = T03.replace("- tests/test_report.py", f"- tests/test_report.py\n- {_GUARD}").replace(
+        "Gate: pytest -q tests/test_report.py", f"Gate: python {other}"
+    )
+    assert (
+        "Depends: T02" in t01 and other in t01 and _GUARD in t02 and _GUARD in t03 and other in t03
+    )
+    plan_dir = _build_chain(tmp_path, t01=t01, t02=t02, t03=t03)
+    box: list[list[str]] = []
+    worker = threading.Thread(target=lambda: box.append(_gate_refusals(plan_dir)), daemon=True)
+    worker.start()
+    worker.join(timeout=30)
+    assert box, "check_plan_dir did not return within 30 s on a Depends cycle"
+    assert len(box[0]) == 1 and box[0][0].startswith("T02:") and f"`{_GUARD}`" in box[0][0], box[0]
+
+
+def test_a_doubled_slash_collapses_before_never_route() -> None:
+    """fleet 01M4TQPCXT: `scripts//final_gate.py` reached _never_route unnormalised — a silent bypass."""
+    assert cpt._norm_path("scripts//final_gate.py") == "scripts/final_gate.py"
+    assert cpt._norm_path("./scripts///x//y.py") == "scripts/x/y.py"
+    assert cpt._never_route(cpt._norm_path("scripts//final_gate.py"))
+
+
+def test_a_repo_root_spelling_never_normalises_to_empty() -> None:
+    """`./`, `./.` and `.//.` are the repo root; an empty token is dropped by _list_paths with no signal,
+    so each must survive as `.` for the repo-root ERROR arm (closing pass of fleet 01M4TQPCXT)."""
+    for spelling in ("./", "./.", ".//.", ".//", ".//.//."):
+        assert cpt._norm_path(spelling) == ".", spelling
+    assert cpt._list_paths("- .//.\n") == ["."]
+
+
+@pytest.mark.parametrize(
+    ("entry", "selects"),
+    [
+        ("src/app/schema.py", True),
+        ("./src/app/schema.py", True),
+        ("`src/app/**`", True),
+        ("src/app/**", True),
+        ("src/*/schema.py", True),
+        ("src/app/", True),
+        ("src/app/schema.py/inner", False),
+        ("src/other/**", False),
+        ("Src/App/schema.py", True),
+        ("**", True),
+    ],
+    ids=[
+        "literal",
+        "dot-slash",
+        "backticked-glob",
+        "glob",
+        "star-segment",
+        "dir",
+        "below-the-file",
+        "other-glob",
+        "case-folded",
+        "bare-double-star",
+    ],
+)
+def test_a_lock_entry_selects_its_plan_in_every_written_shape(
+    tmp_path, entry: str, selects: bool
+) -> None:
+    """W-b2bbc1f1: lock discovery normalises each owned_paths entry like the epic reader does (`_norm_glob`) and
+    tests it DIRECTIONALLY and glob-aware (`_glob_covers`): a `./`-prefixed, backticked or globbed entry selects its
+    plan (live active locks own `apps/web/scripts/phase0/**`), and an entry BELOW a changed file never does."""
+    root = _repo(tmp_path)
+    plan_dir = _build(root)
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "seed")
+    locks = root / ".fabrik" / "plan-locks"
+    locks.mkdir(parents=True)
+    (locks / f"{DIRNAME}.json").write_text(
+        json.dumps({"plan": "x", "status": "active", "owned_paths": [entry]}), encoding="utf-8"
+    )
+    (root / "src" / "app").mkdir(parents=True, exist_ok=True)
+    (root / "src" / "app" / "schema.py").write_text("seed\n", encoding="utf-8")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "track schema")
+    (root / "src" / "app" / "schema.py").write_text("changed\n", encoding="utf-8")
+    _, lock_only = cpt._discover_dirs(root)
+    assert (plan_dir.resolve() in {d.resolve() for d in lock_only}) is selects, entry
+
+
+@pytest.mark.parametrize(
+    ("status", "selects"),
+    [
+        ("active", True),
+        ("paused", True),
+        ("blocked", True),
+        ("released", False),
+        (["active"], False),
+        ({"s": 1}, False),
+    ],
+)
+def test_a_paused_lock_still_selects_its_plan(tmp_path, status: str, selects: bool) -> None:
+    """Design critique (Opus, W-b2bbc1f1): `/fabrik-execute-plan` writes `paused` on a quota pause and the plan stays
+    mid-flight — a live web-ecommerce-factory lock owned 23 paths and was never selected. A non-string status skips the
+    lock and never aborts discovery (review pass 1: a list status raised TypeError in the frozenset test)."""
+    root = _repo(tmp_path)
+    plan_dir = _build(root)
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "seed")
+    locks = root / ".fabrik" / "plan-locks"
+    locks.mkdir(parents=True)
+    (locks / f"{DIRNAME}.json").write_text(
+        json.dumps({"plan": "x", "status": status, "owned_paths": ["src/app/**"]}), encoding="utf-8"
+    )
+    (root / "src" / "app").mkdir(parents=True, exist_ok=True)
+    (root / "src" / "app" / "schema.py").write_text("seed\n", encoding="utf-8")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-qm", "track schema")
+    (root / "src" / "app" / "schema.py").write_text("changed\n", encoding="utf-8")
+    _, lock_only = cpt._discover_dirs(root)
+    assert (plan_dir.resolve() in {d.resolve() for d in lock_only}) is selects, status
+
+
+def test_the_mid_flight_statuses_match_the_lock_release_partition() -> None:
+    """`_LOCK_MID_FLIGHT` is a copy (no check imports a sibling check): it must equal check_plan_lock_release's
+    NON_TERMINAL, the writer-derived partition."""
+    from scripts.enforcement import check_plan_lock_release as cplr
+
+    assert cpt._LOCK_MID_FLIGHT == cplr.NON_TERMINAL

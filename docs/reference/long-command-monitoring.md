@@ -41,7 +41,48 @@ scripts/runls --running                  # see everything in flight
 scripts/runk $(scripts/runlast)
 ```
 
-**Key rule for agents:** never block on a foreground long command. If you need the result before continuing, use `runwait <job> <bounded-seconds>` so the wall-clock cost is bounded.
+**Key rule for agents:** never block on a foreground long command. If you need the result before continuing, use `runwait <job> <bounded-seconds>` so the wall-clock cost is bounded. A coordinator (the merge owner) never waits on a long job in the foreground: it runs the job with `run_in_background`, ends its turn and is woken by the completion notification (D-1296; the merge owner's hook denies a foreground call over 120 s, D-1297), so every foreground wait in this doc — each `runwait` example, the agent pattern above included, and the multi-minute Bash `timeout` below — is builder-only.
+
+---
+
+## Test runs: `capped_run.sh` (a memory ceiling, not just a timeout)
+
+A test run is bounded by MEMORY as well as time, because a runaway test outruns any timeout. On
+2026-10-17 one test process grew at about 300 MB/s to 32 GB and took the WSL box, and every session
+on it, down twice (D-935). The hub's runner, `/opt/fabrik/scripts/capped_run.sh`, works from every
+repo on this box by that absolute path. It is not synced.
+
+```bash
+/opt/fabrik/scripts/capped_run.sh -- python -m pytest -x -q                 # foreground
+scripts/rund --name tests -- /opt/fabrik/scripts/capped_run.sh -- pytest -x  # backgrounded
+/opt/fabrik/scripts/capped_run.sh --mem 8G --timeout 3600 -- pytest          # a suite that needs more
+```
+
+What it does on every launch:
+
+- **Admission first.** It waits while MemAvailable is under 3 GiB or memory PSI `some avg10` is over 10, up to
+  `FABRIK_TEST_ADMIT_WAIT` seconds (default 300, and never more than half the run's time limit), then starts and says
+  so; the seconds waited count against the run's time limit; an unreadable meminfo or PSI starts at once
+  and says so.
+- **One total for the box.** It re-asserts a runtime-only ceiling on the shared `fabrik-agents-tests.slice`
+  (`FABRIK_TEST_SLICE_MAX`, default 12G), which nests under `fabrik-agents.slice` so the agents' parent ceiling bounds
+  it too. Every capped run on the box shares that total, nested or concurrent.
+- **A ceiling and a time limit per run.** It runs the command in its own scope in that slice, with a
+  memory ceiling (`--mem` or `FABRIK_TEST_MEM_MAX`, default 4G, no swap) and a time limit (`--timeout`
+  or `FABRIK_TEST_TIMEOUT`, default 1800 s).
+- **Exit codes:**
+  - `137`, with `capped_run: killed at the memory ceiling`, when the ceiling killed the run;
+  - `124`, with `stopped at the …s time limit`, when the time limit stopped it;
+  - `2` for a malformed or zero bound;
+  - otherwise the command's own exit code.
+- **No user systemd manager:** the command runs UNCAPPED with a stderr `WARNING`. It never falls back
+  to `ulimit -v`, because RLIMIT_AS kills chromium at launch.
+
+Three launchers already use it: the completion gate's pytest leg (`final_gate.py`, whose red row then
+says `KILLED AT THE MEMORY CEILING`), `merge_request.py`'s owner tests and `kaizen_outcomes.py`'s
+sweep. The hub's own suite also guards itself from inside (`tests/memguard.py`, a watchdog that kills
+the tree past `FABRIK_TEST_RSS_MAX`, default 3G, and prints the traceback) and has a per-test limit
+(`timeout = 600`, pytest-timeout; tests that run the real gate take over 120 s).
 
 ---
 
@@ -204,7 +245,7 @@ scripts/runc --quiet $(scripts/runlast)    # RUNNING? check log:
 scripts/runtail $(scripts/runlast)
 ```
 
-**Run a long test suite, only fail if it actually fails:**
+**Run a long test suite, only fail if it actually fails (builder-only; a coordinator backgrounds it, D-1296):**
 ```bash
 scripts/rund --name pytest --timeout 600 -- pytest -x
 scripts/runwait $(scripts/runlast) 600

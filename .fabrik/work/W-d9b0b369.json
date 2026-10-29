@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:03:43.374147Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-d9b0b369",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "find what launches maestro from a hub session (strace -f -e execve on the session for 60 s, or the session's --debug log), then fix the source or correct D-634's ruling with a superseding row",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — kill criterion failed, stray JVMs; resource waste",
+  "status": "dropped",
+  "tags": [
+    "medium"
+  ],
+  "title": "D-634 kill criterion FAILED 2026-10-14: 2 maestro.cli.AppKt JVMs with cwd /opt/fabrik (7 more in fabrik-lib, allowed), spawned and re-spawned within seconds by the hub VS Code session pid 100031 (started 2026-10-13, after the emission) — yet no config names maestro for the hub: /opt/fabrik/.mcp.json (11 servers), ~/.claude.json and ~/.claude-fleet/*/.claude.json (user + /opt/fabrik project scope), plugins/*.json and managed-mcp.json all clean"
+}

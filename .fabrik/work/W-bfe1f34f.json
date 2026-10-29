@@ -12,9 +12,13 @@
     "spec": ""
   },
   "next": "mail 01M39MZQ items 1-3: emit brand-neutral design-system-template slot values (or seed from the project's docs/design-system.md); docs-site custom.css is vendored from fabrik-lib (/opt/fabrik-lib/docs-site/src/css/custom.css:1) — fix upstream by mail or override at scaffold time; mobile-app light --text-muted fails AA; scaffold.py:4909 mislabels #4f46e5 as Ocoron",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "Scaffold outputs default to the Ocoron house brand (D-051): saas docs-site custom.css, mobile-app global.css, chrome-extension global.css"
 }

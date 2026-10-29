@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T18:02:07.579873Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-6411f6d0",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-719",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Harden tests/test_command_run.py::test_no_closing_pass_set_matches_the_command_sources (~:4625): join each line with the next, expand {{include:...}} before matching, and decide with D-719's owner whether a fragment-ordered round counts as the command's own; none is live today (W-eff97ae7 review seats 1 and 3, 2026-10-24)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "NO_CLOSING_PASS derivation test reads one line of raw source at a time: a loop round wrapped across two lines, 'rounds'/capital 'Round', an unexpanded include (subagents-core orders a --classes-swept round in fabrik-spec/epics/plan-after-chat/vision) and prose naming another command's round all misclassify"
+}

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T08:29:52.655306Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "1eb85902b5875f243dc8ce6dd5f9562d0598a98c",
+  "id": "W-cd8b8ead",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add the nginx mainline/stable -<codename> shape to _DEBIAN_BASE_RES with a test, and re-run the audit over a scaffolded docusaurus project",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — new docusaurus project fails audit as shipped, false red",
+  "status": "done",
+  "tags": [
+    "fleet"
+  ],
+  "title": "scripts/audit_all_projects.py _DEBIAN_BASE_RES knows only python, node and debian, so it grades D-664's docusaurus base nginx:mainline-trixie as noncompliant (critical) — a new docusaurus project fails the audit as shipped"
+}

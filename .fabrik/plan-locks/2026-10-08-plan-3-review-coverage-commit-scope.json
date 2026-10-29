@@ -1,0 +1,20 @@
+{
+  "plan": "docs/development/plans/2026-10-08-plan-3-review-coverage-commit-scope.md",
+  "owned_paths": [
+    "scripts/enforcement/check_review_coverage.py",
+    "tests/enforcement/test_review_coverage_unintegrated.py",
+    "docs/workflows/FINAL_GATE_WORKFLOW.md",
+    "docs/superpowers/specs/2026-10-08-review-coverage-commit-scope-design.md",
+    "docs/development/reviews/2026-10-08-plan-3-review-coverage-commit-scope-review.md"
+  ],
+  "branch": "worktree-intel",
+  "started_at": "2026-10-08T22:45:00Z",
+  "status": "released",
+  "baseline_commit": "4db122511",
+  "baseline_gate": {
+    "status": "success",
+    "red_checks": []
+  },
+  "completed_at": "2026-10-09T00:00:00Z",
+  "final_commit": "6054bf25c"
+}

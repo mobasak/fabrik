@@ -1,6 +1,49 @@
 # Fabrik — Features
 
-**Last Updated:** 2026-09-02
+**Last Updated:** 2026-10-17
+
+## The command centre — the box's quota and work board on one page layer (✅ Shipped, 2026-10-17)
+
+Plan `docs/development/plans/archived/2026-10-17-plan-1-command-centre-dashboard/` (spec approved D-925, i18n exemption D-926; whole-plan review `docs/development/reviews/2026-10-17-plan-1-command-centre-dashboard-review.md`). Box-local; the full behaviour is in `docs/workstation/quota-dashboard.md`.
+
+| Feature | Description | Endpoint / Module |
+|---|---|---|
+| Shell | One page with six views, one stylesheet and one script. Every view's markup comes from the escaped components in `dashboard_ui/components.py`. | `GET /` · `scripts/sysadmin/dashboard_ui/` |
+| Overview | The quota strip by serving account, the box budget, blocked merges with their owner, and the awaiting-operator cards with Accept / Reject / Comment. | `GET /v/overview` · `views/overview.py` |
+| Work | Every repo's open work items, with a per-repo picker. A repo that fails to load is named, never counted. | `GET /v/work` · `views/work.py` |
+| Accounts | Which account serves now, which comes next, and each account's caps and state. | `GET /v/accounts` · `views/accounts.py` |
+| Usage, Commands, Services | Spend and usage, the rendered command corpus, and the external services with their credit warnings. | `GET /v/usage` · `/v/commands` · `/v/services` |
+| Request guard | Only the loopback Host names and the configured `QUOTA_DASH_HOST` are answered (421 otherwise). Every POST needs the custom header (403 otherwise), and a card's verdict carries its snapshot token. | `quota_dashboard.py` |
+| Old page | The five-tab page is removed; `/repos.html` redirects to the shell for 14 days. | `quota_dashboard.py` |
+
+## The coordinator role — sort, prioritise, merge, keep the records; never build (📋 Planned, 2026-10-15)
+
+Planned by the approved spec `docs/superpowers/specs/2026-10-14-coordinator-role-design.md` (CONVERGED, approved
+D-868; design approved for writing D-863). Nothing below ships yet: every row is `(Planned)`, and the plan
+re-grounds each symbol. The spec's § Recorded, not applied (mail-noise changes, a `work.py reopen` verb, the
+item-to-cost join) is NOT planned here.
+
+| Feature | Description | Endpoint / Module |
+|---|---|---|
+| Where the role runs | (Planned) Multi-window repos (`scripts/work.py::_workers` non-empty — 9 today): the main-checkout agent is the coordinator and does only the coordinator's jobs; every other window builds. Single-window repos: the one agent keeps both roles and follows the same priority rules and the same one-major-project limit. A multi-window repo with no work store (fabrik-lib today): the store-based jobs (2, 3, 6 and job 7's store row) wait until the repo has a store; jobs 1, 4 and 5 run as today. Never one fleet-wide coordinator (spec D1). | `scripts/work.py::_workers` |
+| Model | (Planned) The coordinator runs on Sonnet; it calls a stronger model only through the Opus + Fable panel, for a priority call it cannot make (spec D2). | each repo's coordinator launch |
+| Job 1 — sort mail | (Planned) Claim each mail; read only as much of the cited code as it needs to name the owner; route it to that agent verbatim and turn it into a work item; answer routing-only mail; ack pure FYIs. Never answers technical content, never fixes (spec D3 job 1). | `scripts/mail.py` `claim` / `route` / `ack` |
+| Job 2 — priority on every item | (Planned) New items on arrival, the backlog once. Score `impact` (high/low, with a one-line reason — high when the item unblocks a project, protects production or data, or stops a recurring fleet-wide defect) and `effort` (high/low, the quota it will spend — low closes with one `/fabrik-review-scoped`; high owes a full `/fabrik-review`, a spec chain or a fleet-synced surface); place it in a quadrant; re-score when new evidence arrives, not on a calendar; keep the top band narrow (force-rank when everything reads high). Every score and every drop carries its reason (spec D3 job 2, D4). | new work-item fields `impact`, `effort` |
+| Derived priority | (Planned) The coordinator writes the existing integer `priority` from the quadrant: quick win (high/low) 1 — next; major project (high/high) 2 — one in flight per repo; fill-in (low/low) 3 — batched; time sink (low/high) — dropped. Priority 0 stays the override for production or data incidents. Within a band: dependencies first, then age. `add --priority` / `assign --priority` stay as today (the 0-override, and single-window repos' self-scoring) (spec D4, Contract deltas). | a new write path into the item's `priority`; read by `scripts/work.py::_priority` |
+| Unscored items | (Planned) An unscored item (no `impact`/`effort`) still carries the default P2 and so ranks with the major projects until it is scored; `work.py triage` additionally lists every open item that lacks the two fields, and the first re-score ends with that list empty (spec D4, Contract deltas). | `scripts/work.py::cmd_triage` (added listing) |
+| Time sinks dropped | (Planned) Status `dropped` via `work.py drop --why`; revived only as a new item whose text names the dropped id (spec D4). | `scripts/work.py::cmd_drop` |
+| Job 3 — assign | (Planned) One item per builder at a time — `queue_floor: 1` in a multi-window store and a builder claims what the coordinator queued it, a new D-row superseding D-442's self-service in part and `docs/reference/multi-agent-operating-model.md` § Claim or assign rewritten with it; highest score first, dependencies first. One major project in flight per repo — in flight = a major-project item with an owner and status `open` or `blocked` (a blocked one still counts); every other major project keeps its P2 and carries `blocked_by: <the in-flight id>`, so `ready` never offers it. Fill-ins batched into one session or sent to the cloud credit while it lasts (D-860). AMBER: start nothing heavy; RED: assign nothing new (spec D3 job 3, Contract deltas). | `.fabrik/work/config.json` `queue_floor` (read by `scripts/work.py::_floor`); `scripts/work.py::cmd_triage` / `cmd_assign`; the `ready` / `claim` path |
+| Job 4 — own merges | (Planned) Merge builder branches only when the branch merged onto current main passes its tests; hand a failing or conflicting branch back to its author with the reason — never fix it; keep main green and pushed; run the fleet sync after a merge that touches synced files, and render the command corpus at merge. Shared-runtime acts stay sequenced by the merge owner one at a time: the coordinator grants each turn, the builder whose ticket owns the act runs it (spec D3 job 4). | `scripts/merge_request.py` `merge` / `resume` |
+| Job 5 — single point of contact | (Planned) The only agent that boards decisions; batches them; relays the operator's answers back; relays cross-repo mail for its repo's agents, verbatim (spec D3 job 5). | `scripts/work.py` (awaiting-operator items) · `scripts/mail.py` `send` |
+| Job 6 — keep the books | (Planned) Commit work-store items; clear stale claims of dead sessions (only a claim whose session is not live). The daily comparison of each closed item's score with its real cost starts once the item-to-cost join exists (spec D3 job 6, D4 counters). | `scripts/work.py` `commit-items` |
+| Job 7 — keep the records correct (status, never content) | (Planned) Work store: priority, owner, status, links; closes items whose work landed; drops duplicates. `docs/STRATEGIC_BACKLOG.md`, `PLANS.md`: re-rendered so they match the store and the plans, new findings enter as `work.py add --kind backlog`, the rendered block never edited by hand. Plans: marks a FINISHED plan (no live run, every ticket merged) done and archives it; flags a live run's ticket board or lock that contradicts what merged to the plan's `Owner:` (and to the operator when the owning run looks dead). Specs: keeps each `Status:` value current with the values in use; flags a DRAFT with no review past a threshold. `docs/DECISIONS.md`: records each operator ruling it receives; a changed decision is a new row citing `supersedes D-NNN`. INDEX / CHANGELOG: a merged change with no author entry becomes a work item for its author. A record whose CONTENT is wrong becomes a scored work item for its owner (spec D3 job 7). | `scripts/work.py` `render` · `scripts/docs_updater.py --sync` · `scripts/decisions.py --check` |
+| Never | (Planned) Write or edit code, docs, specs, plans or rules, except the status edits and appends job 7 names; review, test or reproduce a bug (it routes "is this real?" to a builder); reword another agent's message; decide a design question (the panel or the operator does) (spec D3 **Never**). | `templates/governance/CLAUDE.md` (the fleet carrier; the hub charter points to it) |
+| Escalation | (Planned) A coin-flip score on a high-effort item → the Opus + Fable panel; a merge conflict between two builders' work → back to both authors, the later one rebases; an item that needs a design before scoring → a builder writes the spec, then the coordinator scores it; a gate (deploy, destructive, spend, credentials) → the operator, through the board (spec D3 escalation table). | `templates/governance/CLAUDE.md` (the fleet carrier; the hub charter points to it) |
+| The first re-score | (Planned) The hub's 535 open items (and each repo's own store) scored once under the impact × effort rules — the coordinator's first assignment, each drop with its reason. Drops are irreversible (a dropped item refuses every later verb), so whether the first re-score's drop list needs a batch check (the panel, or the operator) before `drop --why` runs is decided at planning, measured on the first 50 (spec D5, § Open unknowns). | `scripts/work.py` (every open item) |
+| Hub handover | (Planned) Agent name `coordinator` (`CLAUDE_AGENT=coordinator`), its charter to be written under `docs/reference/agents/`, launched in the main checkout; infra relaunched in `.claude/worktrees/infra`. `coordinator` joins every hard-coded hub beat list BEFORE a new row `supersedes D-453: MERGE OWNER: coordinator` lands, with `distributor: coordinator`; D-471 narrowed by a new row (in a multi-window repo the main-checkout agent coordinates and does nothing else), its mirrors rewritten (spec D1, Contract deltas). | `scripts/mail.py::HUB_BEATS` · `.claude/hooks/mail_notify.py::_HUB_BEATS` · `scripts/command_run.py::_BEATS` · `scripts/sysadmin/quota_dashboard.py::_HUB_OWNERS` / `_HUB_AGENTS` · `CLAUDE.md` trailer table · `scripts/decisions.py --merge-owner` · `.fabrik/work/config.json` `distributor` |
+| Fleet carrier | (Planned) Every project reads the seven jobs and the priority table from `templates/governance/CLAUDE.md` (fleet-synced), a short section beside the D-471 sentence; the hub charter points to it, never restates it; fabrik-lib's hand-kept CLAUDE.md by mail (spec Contract deltas). | `templates/governance/CLAUDE.md` |
+
+---
 
 ## Scaffold error-reporting — a deny-by-default GlitchTip scrubber, not a flag list (2026-09-05)
 
@@ -12,7 +55,12 @@ part that closes a channel nobody enumerated. Registered as **both** `before_sen
 (`client.py`: `event.get("type") != "transaction"`), so a scrubber on one hook leaves every sampled
 transaction unscrubbed. Alongside it: `include_local_variables=False`, `max_request_body_size="never"`,
 `include_source_context=False`, `max_breadcrumbs=0`, and the fleet logging default
-`LoggingIntegration(event_level=logging.ERROR, level=None)` (D-126).
+`LoggingIntegration(event_level=logging.ERROR, level=None)` (D-126). That default lets an
+eagerly built ERROR message (f-string, `.format`, `+`, `%`) ship its text — a URL-shaped
+credential in it is still redacted, a bare token is not — so the scaffold's ruff selects G001-G004,
+which refuse those inline shapes on a logger-shaped receiver (`logger`, `log`, `logging.getLogger(…)`).
+A message built into a variable first, `logger.error(str(e))`, a receiver ruff does not read as a
+logger, and a bare token inside a caught exception stay unseen by the lint (D-722).
 
 **It replaces a two-flag mandate that measurably was not enough.** Pointing the guard at the init the
 scaffold shipped under the old mandate produces
@@ -212,6 +260,7 @@ at the source beats routing at the destination (spec § Rejected alternative E).
 
 | Feature | Status | Audience | Headline |
 |---------|--------|----------|----------|
+| [The coordinator role](#the-coordinator-role--sort-prioritise-merge-keep-the-records-never-build--planned-2026-10-15) | 📋 Planned | Operator | One agent per multi-window repo sorts mail, scores every item on impact × effort, assigns, merges and keeps the records current — never builds (spec D-868) |
 | [fabrik-mail](#fabrik-mail--durable-hubproject-ai-mail-2026-08-11) | ✅ Shipped | Developer | Durable hub↔project AI mail — file mailbox + surfacing hook; addressing ENFORCED at send (2026-08-26) + daily obligation escalation; replaces operator-as-transport |
 | [Deployment Orchestration](#deployment-orchestration) | ✅ Shipped | Operator | `fabrik apply` — spec-driven deploy with 9 shape-gated registrars, saga rollback, state tracking |
 | [Deploy Command Triad](#deploy-command-triad) | ✅ Shipped | Operator | `/fabrik-deploy-plan` → `/fabrik-deploy-plan-review` → Gate-2 `/fabrik-deploy` — plan-governed, evidence-bound deploys wrapping `fabrik apply` |
@@ -258,6 +307,9 @@ The core of Fabrik. A spec at `specs/services/<id>.yaml` declares what a service
 ### The 9 Registrars
 
 Each registrar fires only when the spec's `shape:` block activates it. `infra: <registrar>: false` overrides to disable.
+The shape flags are the spec's own merged over its template's `templates/<template>/defaults.yaml` `shape:` block (the
+spec wins) — `fabrik apply`, `fabrik plan`, audit and destroy all resolve the same set; apply takes only the template's
+`shape:` keys, never its `env:`, so no template default reaches a deployed app's `.env` (W-989653a7, D-908).
 
 | Registrar | Fires when | What it provisions |
 |-----------|-----------|-------------------|
@@ -305,9 +357,9 @@ Every `fabrik apply` writes `.fabrik/state/<id>.json` — see [Deploy State Stor
 ### Technical Details
 
 - **Orchestrator:** `src/fabrik/orchestrator/` — `deployer_ssh.py` (SSH + Docker Compose deploys), `infrastructure.py` (registrar dispatch), `rollback.py` (reverse cleanup), `secrets.py`, `verifier.py`
-- **Drivers:** `src/fabrik/drivers/` — 20+ integrations (postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus, cloudflare, dns, ssh, r2, supabase, etc.) plus archived legacy `coolify` driver for `fabrik status`/`logs` against pre-2026-05-30 services
+- **Drivers:** `src/fabrik/drivers/` — 20+ integrations (postgres, redis, gatus, backrest, glitchtip, grafana, authelia, meilisearch, prometheus, cloudflare, dns, ssh, r2, supabase, etc.); the legacy `coolify` driver was removed with the Coolify-verb retirement (plan 2026-10-14-plan-1-coolify-verb-retirement, T09) — `fabrik status` and `reconcile-all` read the VPS over SSH + Compose
 - **Spec loader:** `src/fabrik/spec_loader.py` — YAML parsing, shape validation, template merging
-- **State:** `src/fabrik/state.py` — 10-field manifest written after each completed apply (dry runs write nothing), incl. the sanitised `registrar_failures`
+- **State:** `src/fabrik/state.py` — 11-field manifest written after each completed apply (dry runs write nothing), incl. the sanitised `registrar_failures` and `registrar_warnings`
 
 ---
 
@@ -616,7 +668,7 @@ and a project's `scripts/kilo_47_agents_final.json`; it leaves an existing `.dro
 
 ### What It Does
 
-Every completed `fabrik apply` / `redeploy --refresh-infra` writes a 10-field JSON manifest to `.fabrik/state/<id>.json` (a dry run writes nothing). This is the backbone of the deploy/destroy/audit pipeline:
+Every completed `fabrik apply` / `redeploy --refresh-infra` writes an 11-field JSON manifest to `.fabrik/state/<id>.json` (a dry run writes nothing). This is the backbone of the deploy/destroy/audit pipeline:
 
 ```json
 {
@@ -627,6 +679,9 @@ Every completed `fabrik apply` / `redeploy --refresh-infra` writes a 10-field JS
   "git_sha": "ce9d1ed...",
   "registrar_failures": [
     {"registrar": "redis", "error": "REDIS_URL injection failed: ..."}
+  ],
+  "registrar_warnings": [
+    "payments-ingest-role: grant pending — <db> has not applied the fabrik-lib payments schema yet; ..."
   ],
   "registrars_applied": [
     {"type": "gatus", "id": "my-api", "status": "created", "data_bearing": false},
@@ -649,10 +704,12 @@ these files.
 | Command | How it uses state |
 |---------|------------------|
 | `fabrik apply` | Writes state after successful deploy |
+| `fabrik status` | Prints a **Last apply** section from the state record (`applied_at`, `git_sha`, `target_vps`, `registrars_applied`, `registrar_failures`, `registrar_warnings`) beside a **Live containers** probe over SSH (`deployer_ssh.probe_app`) |
 | `fabrik destroy --use-state` | Reads state to replay exact teardown (see [State-Driven Destroy](#state-driven-destroy)) |
-| `fabrik audit-registrars` | Reads each state file's `target_vps` and reports recorded `registrar_failures` (exit 2) alongside the live drift check (see [Registrar Audit](#registrar-audit--reconcile)) |
+| `fabrik audit-registrars` | Reads each state file's `target_vps` and reports recorded `registrar_failures` (exit 2) and recorded `registrar_warnings` (never counted) alongside the live drift check (see [Registrar Audit](#registrar-audit--reconcile)) |
 | `fabrik verify --spec registrars` | Reads state for postcondition gate |
 | `fabrik export` | Bundles state files into portability tarball (UUIDs stripped) |
+| `fabrik projects --sync` | Runs `scripts/sync_projects.py`, which rescans `/opt/*` and merges each state file's deploy block into `data/projects.yaml` before the list prints |
 | `fabrik review` | Writes `.fabrik/review/<ts>.md` — diff + spec + registrars bundled for review |
 
 ### Directory Structure
@@ -693,7 +750,7 @@ Registrars that create persistent data (postgres, redis, meilisearch) are marked
 Every `fabrik apply` writes a per-spec state file (T2-01) capturing which registrars fired. T2-02 layers four operator commands on top of that foundation:
 
 - **`fabrik audit-registrars`** — Compares each spec's shape-resolved registrars (what SHOULD be live) to the VPS's actual state (postgres `\l`, gatus `apps/<id>.yaml`, authelia config rules, backrest `config.json` plans, glitchtip project API, meilisearch index, prometheus scrape jobs, redis `assignments.json`). Outputs a pivot table or JSON. Exit 2 if any `missing`.
-- **`fabrik reconcile-all`** — Walks every deployed spec, holds a per-spec file lock (T2-01 `locks_local.file_lock`), re-runs `DeploymentOrchestrator.refresh_infrastructure` per spec. Dry-run by default; `--yes` to apply. `--filter <substr>` to scope.
+- **`fabrik reconcile-all`** — Walks every deployed spec, holds a per-spec file lock (T2-01 `locks_local.file_lock`), re-runs `DeploymentOrchestrator.refresh_infrastructure` per spec. "Deployed" is what Compose knows: each target host is asked once for `docker compose ls -a` (`deployer_ssh.list_compose_projects`), and an unreachable host is a row, never an abort. Dry-run by default; `--yes` to apply. Either mode exits 1 when no host could be read; under `--yes` any failure row also exits 1, while a dry run prints its failure rows and exits 0. `--filter <substr>` to scope.
 - **`fabrik verify <domain> --spec registrars`** — Single-domain postcondition check using the YAML-driven `PostconditionChecker`. Fails on any `missing` registrar.
 - **`fabrik destroy --partial <reg>`** — Surgical un-registration without touching DNS, the running compose stack, or local files. Repeatable: `--partial gatus --partial backrest`. Backed by module-level `HANDLER_ARGS` / `HANDLER_FUNCS` exports in `orchestrator/destroyer.py` (also consumed by T4-02).
 
@@ -843,7 +900,7 @@ Two invariants the vision insists on (Stage 3 — Proper Registration) are now l
 
 - **Phase 0** — data-bearing guard. Scans state's `registrars_applied` for `data_bearing: true` entries; refuses pre-flight if `--drop-data` not set.
 - **Phase 1** — canonical reverse-order registrar teardown using `reversed(_REGISTRAR_ORDER)`: `prometheus → meilisearch → authelia → grafana → glitchtip → backrest → gatus → redis → postgres`. Order is enforced because postgres-last avoids FK violations against authelia session rows. Grafana is intentionally skipped (annotations are decorative). Dispatch uses T2-02's module-level `HANDLER_FUNCS` + `HANDLER_ARGS` maps.
-- **Phase 2** — Compose stack teardown on the VPS (always: `docker compose down -v` + `rm -rf /opt/<name>`), DNS (gated by `--keep-dns` + spec domain), local files (gated by `--keep-files`).
+- **Phase 2** — Compose stack teardown on the VPS (always: `docker compose down -v` + `rm -rf /opt/<name>`), DNS (gated by `--keep-dns` + spec domain); local project files are never deleted (`keep_files=True` is hard-coded).
 - **On success** — `state.archive_destroyed(spec.id)` moves `<id>.json` → `_destroyed/<id>.json.<UTC-ts>`. State file is the deploy-state record; the archive preserves the audit trail without leaving the file in place to confuse future audits.
 - **Mutually exclusive with `--partial`** — both flags exist for distinct surgical purposes (per-registrar vs. per-state-file). The combination errors out (exit 2).
 - **Handler exception → bounded error.** A single failing destroyer doesn't abort the rest of the teardown; the failure goes into the report as an `error` ActionResult and `--use-state` exits 2 so CI can catch it.
@@ -891,22 +948,23 @@ fabrik-export-vps1-YYYY-MM-DD.tar.gz
 ├── secrets-redacted.json          # .env KEY NAMES (never values)
 ├── specs/services/*.yaml          # every service spec
 ├── state/*.json                   # T2-01 state files, coolify_uuid stripped
-├── coolify/{applications,services,projects}.json    # UUIDs recursively stripped
-├── monitoring/{prometheus,alertmanager,redis-assignments,postgres-allocations}*
+├── monitoring/{prometheus,alertmanager,redis-assignments,postgres-allocations}*  # SSH-pulled, secrets redacted
 ├── monitoring/grafana-dashboards/  # repo-local mirrors
-├── authelia/configuration.yml      # SSH-pulled (best-effort)
-└── backrest/config.json            # SSH-pulled (best-effort)
+├── authelia/configuration.yml      # SSH-pulled from /opt/authelia/config (best-effort, secrets redacted)
+└── backrest/config.json            # SSH-pulled (best-effort, secrets redacted)
 ```
+
+Since the Coolify retirement (plan 2026-10-14-plan-1-coolify-verb-retirement, T06) the bundle carries no `coolify/` tree. A bundle exported before then still opens: `fabrik import` counts its `coolify/*` file members as `ignored legacy members (coolify/*): <n>` and restores none of them.
 
 ### Security Invariants (test-enforced)
 
 1. **No plaintext secret values.** `_redact_env_keys` reads only up to the first `=` of each `.env` line. The test byte-scans the entire gzip stream for known values and asserts zero hits.
-2. **No Coolify UUIDs.** `_strip_uuids` recurses both keys (14 known UUID-named fields including `private_key_uuid`, `server_uuid`, `deployment_uuid`) and bare 24-alphanum string values. The test scans 5 distinct UUID markers across all bundle entries.
-3. **No Coolify private-key UUIDs** (a special case of the above) — guarantees the target can't accidentally inherit the source's git deploy-key references.
+   The SSH-pulled configs (monitoring, Authelia, Backrest) are parsed and every field under a secret-shaped key name (password, token, secret, `*_key`, headers, Authorization, webhook and API URLs, Backrest hook commands and shoutrrr URLs) becomes `REDACTED`, as does the userinfo of any URL (`scheme://REDACTED@host`); a file that does not parse into a mapping or list, or a YAML file using an alias, is left out. The bundled copies are a structural restore reference, not byte copies: comments are dropped, and every plain YAML scalar value keeps its text (`17:00`, `on`, `1.10`; a multi-line plain value is folded onto one line, and a mapping key is read as PyYAML types it, so `on:` comes back `true:`).
+2. **No legacy deploy UUIDs in state.** `_collect_state` pops `coolify_uuid` from every state file and `_strip_uuids` recurses the rest (the UUID-named keys and bare 24-alphanumeric string values), so a target cannot inherit the source host's old deploy identifiers.
 
 ### Why Import Is Shipped Untested
 
-The real roundtrip needs a fresh Ubuntu VM with bootstrapped Coolify + postgres-main + redis-main. Pack §28 explicitly defers this to the vps2 stand-up. Until then:
+The real roundtrip needs a fresh Ubuntu VM with Docker Compose + postgres-main + redis-main. Pack §28 explicitly defers this to the vps2 stand-up. Until then:
 
 - The `import` pipeline parses the bundle, validates the manifest, and emits a restore plan.
 - The `--apply` flag runs but ends at a documented stub (`phase: real_run / status: stub`).
@@ -914,7 +972,7 @@ The real roundtrip needs a fresh Ubuntu VM with bootstrapped Coolify + postgres-
 
 ### Acceptance Reference
 
-Pack v3.2 §EPIC SCOPE Tier 4 G-J2 (effort revised v2: +0.5 day for secrets ergonomics). Live verification: `pytest tests/test_portability.py -v` (23/23 pass). Sample run on `/opt/fabrik` produced a 44 KB tarball with 26 Coolify applications, 348 redacted secret keys, and zero UUID leaks.
+Pack v3.2 §EPIC SCOPE Tier 4 G-J2 (effort revised v2: +0.5 day for secrets ergonomics). Live verification: `pytest tests/test_portability.py -v` (every test passes; the suite grew past the original 23 with the Coolify retirement's legacy-bundle and README cases). The original sample run on `/opt/fabrik` (before the retirement) produced a 44 KB tarball with 348 redacted secret keys and zero UUID leaks.
 
 ---
 

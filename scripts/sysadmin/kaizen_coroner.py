@@ -93,15 +93,22 @@ for _p in (str(_HERE), str(_HERE.parent)):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
+# A failed import is tolerated at load (a box mid-sync must still import this module), but it is
+# KEPT: `--sweep` exits non-zero naming it, so the daily job retries instead of stamping a blind
+# sweep done (W-4bd4ea3c).
+_IMPORT_ERRORS: dict[str, str] = {}
+
 try:
     import kaizen_events  # T01 emitter — same directory
-except Exception:  # pragma: no cover - a box mid-sync
+except Exception as _exc:  # a box mid-sync
     kaizen_events = None  # type: ignore[assignment]
+    _IMPORT_ERRORS["kaizen_events"] = f"{type(_exc).__name__}: {_exc}"
 
 try:
     import command_run  # scripts/command_run.py — the record load/save API
-except Exception:  # pragma: no cover - a box mid-sync
+except Exception as _exc:  # a box mid-sync
     command_run = None  # type: ignore[assignment]
+    _IMPORT_ERRORS["command_run"] = f"{type(_exc).__name__}: {_exc}"
 
 UNKNOWN = "unknown"
 EXPOSURE_KEYS = ("commit", "account", "model", "project", "headless", "plan_era")
@@ -278,27 +285,73 @@ def _lookback_s() -> float:
     return hours * 3600
 
 
+def _unjudgeable(path: Path) -> tuple[str | None, os.stat_result | None]:
+    """``(reason, stat)`` for an input the sweep is about to read: ``(None, st)`` for a readable
+    regular file, ``("", None)`` when it is absent, else why it cannot be judged (W-3cdc8bd6).
+
+    Opened non-blocking and without following a link: a plain read blocks forever on a FIFO, and
+    every reader here (`_tail_lines`, `open`, `command_run.load`) reads an unreadable file as
+    empty — a death or a record silently not judged. A dangling symlink is ELOOP, so only true
+    absence (a file cleared mid-sweep) stays silent.
+    """
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+    except FileNotFoundError:
+        return "", None
+    except OSError as exc:
+        return f"unreadable ({exc!r})", None
+    try:
+        st = os.fstat(fd)
+    finally:
+        os.close(fd)
+    if not stat.S_ISREG(st.st_mode):
+        return "not a regular file", None
+    return None, st
+
+
 # ── death evidence: the mesh's .errparked markers (hooks-index.md:36) ────────────────
 
 
-def _errparked_markers(lock_dir: Path) -> dict[str, tuple[str, float | None]]:
+def _errparked_markers(
+    lock_dir: Path, report: CoronerReport | None = None
+) -> dict[str, tuple[str, float | None]]:
     """``{safe_sid: (class, epoch|None)}`` from the lock dir's ``.errparked`` records.
 
     Content shape is ``<class> <epoch>`` (claude-sound.sh:146). A marker whose class
-    token does not look like a class is SKIPPED, never guessed at. Read-only.
+    token does not look like a class is SKIPPED, never guessed at. Read-only. A missing
+    lock dir or a marker cleared mid-sweep is no marker; a dir or marker that exists but
+    cannot be read is counted in ``report.errors`` (W-a14fd24f) — read as empty, it
+    hid a death and the sweep exited 0.
     """
     out: dict[str, tuple[str, float | None]] = {}
     try:
         entries = list(lock_dir.iterdir())
-    except OSError:
+    except FileNotFoundError:
+        if lock_dir.is_symlink() and report is not None:  # a dangling link is broken, not absent
+            report.errors.append(f"lock dir {lock_dir} is a dangling symlink — markers skipped")
+        return out
+    except OSError as exc:
+        if report is not None:
+            report.errors.append(f"lock dir unreadable ({exc!r}) — markers skipped")
         return out
     for path in entries:
         if not path.name.endswith(".errparked"):
             continue
+        reason, _ = _unjudgeable(path)
+        if reason == "":
+            continue  # the decider cleared it mid-sweep
+        if reason is not None:
+            if report is not None:
+                report.errors.append(f"marker {path.name} {reason} — not judged")
+            continue
         try:
             with open(path, "rb") as fh:
                 head = fh.read(256).decode("utf-8", "replace")
-        except OSError:
+        except FileNotFoundError:
+            continue  # cleared between the probe and the read
+        except OSError as exc:
+            if report is not None:
+                report.errors.append(f"marker {path.name} unreadable ({exc!r}) — not judged")
             continue
         parts = head.split()
         if not parts or not _CLASS_RE.fullmatch(parts[0]):
@@ -572,6 +625,21 @@ def _command_run_save(sid: str, rec: dict) -> bool:
     return bool(command_run.save(sid, rec))
 
 
+def _mark_run_folders_done(rec: dict, sid: str) -> None:
+    """A `died` close ends the run, so its run-bound scratch folder — and every parked parent's —
+    is marked `done` (scratch lifecycle plan P11). Only AFTER the record saved, and never on an
+    `expired` close: a 12 h-stale `updated_ts` is no death evidence, and the folder of an operator
+    away overnight must survive (P9's dead-session rule keeps judging it)."""
+    mark = getattr(command_run, "_mark_run_scratch", None)
+    if mark is None:  # a synced command_run.py older than the scratch lifecycle plan
+        return
+    for frame in [rec, *[fr for fr in (rec.get("stack") or []) if isinstance(fr, dict)]]:
+        try:
+            mark(frame, "done", sid)
+        except Exception as exc:  # noqa: BLE001 — a marker never fails the sweep
+            _warn(f"run folder mark for {sid} failed open: {exc!r}")
+
+
 def _close_records(sources: Sources, evidence: set[str], now: float, report: CoronerReport) -> None:
     """Close what can no longer close itself. The ONLY mutations, ever:
 
@@ -587,16 +655,39 @@ def _close_records(sources: Sources, evidence: set[str], now: float, report: Cor
     if command_run is None:
         report.errors.append("command_run unavailable — record closure skipped")
         return
+    # `os.listdir`, never `Path.glob`: glob returns [] for a dir it cannot read (it never
+    # raises), which closed no record and counted nothing (W-6f46cebd). A runs dir that does
+    # not exist is a box that never ran a command — no records, not an error.
     try:
-        record_files = sorted(sources.runs_dir.glob("*.json"))
-    except OSError:
+        names = os.listdir(sources.runs_dir)
+    except FileNotFoundError:
+        names = []
+    except OSError as exc:
+        report.errors.append(f"runs dir unreadable ({exc!r}) — record closure skipped")
         return
+    record_files = sorted(sources.runs_dir / n for n in names if n.endswith(".json"))
     ttl = _ttl_s()
     for path in record_files:
         stem = path.stem
+        # `command_run.load` returns {} for a missing, unreadable, empty or corrupt record alike, and
+        # its read blocks forever on a FIFO: each listed record is probed first, so one the sweep
+        # cannot judge is counted, never skipped as if closed (W-4c526386)
+        reason, _ = _unjudgeable(path)
+        if reason == "":
+            continue  # vanished mid-sweep
+        if reason is not None:
+            report.errors.append(f"record {stem} {reason} — not judged")
+            continue
+        if command_run._record_path(stem).name != path.name:
+            # `load(stem)` would read another file (a stem command_run's _safe_sid rewrites)
+            report.errors.append(f"record {stem} not addressable — not judged")
+            continue
         # Pre-lock read is a CANDIDATE FILTER only — never the state the close trusts.
         scan = command_run.load(stem)
-        if not scan or scan.get("state") != "running":
+        if not scan:
+            report.errors.append(f"record {stem} unparseable — not judged")
+            continue
+        if scan.get("state") != "running":
             continue
         try:
             # The close is lock-held end to end: re-load and re-check INSIDE
@@ -617,14 +708,21 @@ def _close_records(sources: Sources, evidence: set[str], now: float, report: Cor
                         continue  # freshness unprovable → never close on it (fail open)
                     if now - float(ts) <= ttl:
                         continue  # a live busy session — untouched
+                    # the session_end lands BEFORE the save: a lost emit leaves the record
+                    # running (updated_ts untouched), so the next sweep retries (W-3cdc8bd6)
+                    if not _emit_ttl_end(sources, raw_sid, report):
+                        continue
                     rec["state"] = "expired"
                     rec["closed_by"] = "ttl"
                 rec["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%S%z")
                 rec["updated_ts"] = int(now)
                 if _command_run_save(stem, rec):
                     (report.records_died if dead else report.records_expired).append(raw_sid)
-                    if not dead:
-                        _emit_ttl_end(sources, raw_sid, report)
+                    if dead:
+                        _mark_run_folders_done(rec, raw_sid)
+                else:
+                    # the record stays running, so the next sweep retries it (W-6f46cebd)
+                    report.errors.append(f"record close for {stem} not persisted")
         except Exception as exc:
             _warn(f"record close for {stem} failed open: {exc!r}")
             # counted, not only warned: the sweep line's `errors` must not read 0 after one
@@ -632,19 +730,20 @@ def _close_records(sources: Sources, evidence: set[str], now: float, report: Cor
             continue
 
 
-def _emit_ttl_end(sources: Sources, raw_sid: str, report: CoronerReport) -> None:
+def _emit_ttl_end(sources: Sources, raw_sid: str, report: CoronerReport) -> bool:
     """A TTL closure leaves an event trail too (M3): ``session_end`` with
     ``closed_by: ttl``, exposure joined from the session's own stream, idempotent
     (an existing ``session_end`` — this pass's or an earlier one's — is never
-    duplicated; a later sweep never re-reaches here because the record is no longer
-    ``running``)."""
+    duplicated). True when the stream holds the ``session_end`` (already, or now);
+    False is counted here, and the caller then leaves the record ``running`` so the
+    next sweep retries (W-3cdc8bd6)."""
     if kaizen_events is None:
         report.errors.append(f"kaizen_events unavailable — ttl session_end for {raw_sid} skipped")
-        return
+        return False
     try:
         has_end, _, _, last_exposure = _stream_state(sources.events_dir, raw_sid)
         if has_end:
-            return
+            return True
         if kaizen_events.emit(
             "session_end",
             sid=raw_sid,
@@ -654,9 +753,13 @@ def _emit_ttl_end(sources: Sources, raw_sid: str, report: CoronerReport) -> None
             closed_by="ttl",
         ):
             report.session_ends.append(raw_sid)
+            return True
+        report.errors.append(f"ttl session_end emit failed for {raw_sid}")
+        return False
     except Exception as exc:  # pragma: no cover - emit() itself never raises
         _warn(f"ttl session_end for {raw_sid} failed open: {exc!r}")
         report.errors.append(f"ttl session_end for {raw_sid} failed: {exc!r}")
+        return False
 
 
 # ── the hole metric — for T06 ────────────────────────────────────────────────────────
@@ -715,7 +818,8 @@ def _write_sweep_line(src: Sources, report: CoronerReport, clock: float) -> None
     and could see (W-97de2aa3). ``inconclusive`` counts only markers on sessions the Stop
     hook instruments (:func:`_instrumented`): a probe ping's undecidable API error is not an
     unjudged agent death. ``blind`` when holes() could not see, the lock dir exists but
-    cannot be read, or the event emitter is missing. Fail-open: a write error warns."""
+    cannot be read, or the event emitter is missing. A write error warns and is counted in
+    report.errors, so the sweep exits 3 (W-6f46cebd); it never raises."""
     if src.sweeps_log is None:
         return
     try:
@@ -744,6 +848,8 @@ def _write_sweep_line(src: Sources, report: CoronerReport, clock: float) -> None
             os.close(fd)
     except Exception as exc:
         _warn(f"sweep log write failed open: {exc!r}")
+        # the line that failed cannot carry it, but the exit code can (W-6f46cebd)
+        report.errors.append(f"sweep log write failed: {exc!r}")
 
 
 def holes(sources: Sources | None = None, day: dt.date | None = None) -> int | None:
@@ -815,6 +921,21 @@ def holes(sources: Sources | None = None, day: dt.date | None = None) -> int | N
 # ── the sweep ────────────────────────────────────────────────────────────────────────
 
 
+def _transcripts_present(path: Path) -> bool:
+    """Is there a transcripts dir to measure? Only a clean ENOENT says no. `Path.exists()`
+    RAISES PermissionError under an unsearchable parent — which aborted the sweep's repairs
+    (W-6f46cebd review) — and reads a dangling symlink or a file-for-a-parent (ENOTDIR) as
+    absent; each is an installation the sweep could not see, so each counts as present. `lstat`
+    answers all of them: it succeeds on a dangling link and raises everything else."""
+    try:
+        os.lstat(path)
+    except FileNotFoundError:
+        return False
+    except OSError:
+        return True
+    return True
+
+
 def sweep(sources: Sources | None = None, now: float | None = None) -> CoronerReport:
     """One coroner pass. Never raises — a broken source is a skipped source.
 
@@ -839,6 +960,13 @@ def sweep(sources: Sources | None = None, now: float | None = None) -> CoronerRe
             # session_ends, so a session dying today COUNTS as today's hole (the
             # instrument alarm) even though this very sweep then closes it.
             report.holes_today = holes(src)
+            # A blind reading over a transcripts dir that is not cleanly absent (unreadable, under
+            # an unsearchable or non-directory parent, a dangling link, or holes()'s own error) is
+            # a sweep that could not see — counted, so it exits 3 (W-6f46cebd). A host whose
+            # transcripts dir is cleanly absent (ENOENT) is not an installation to measure.
+            if report.holes_today is None and _transcripts_present(src.transcripts_dir):
+                report.errors.append("holes() unmeasurable (blind)")
+            _repair_open_streams(src, clock, report)
             _reconstruct(src, deaths, report)
             _close_records(src, evidence, clock, report)
     except Exception as exc:
@@ -884,7 +1012,7 @@ def _gather_deaths(src: Sources, now: float, report: CoronerReport | None = None
     deaths: list[_Death] = []
     seen: set[str] = set()
 
-    markers = _errparked_markers(src.lock_dir)
+    markers = _errparked_markers(src.lock_dir, report)
     if report is not None:
         report.markers_seen = len(markers)
     for safe_sid, (cls, epoch) in sorted(markers.items()):
@@ -953,16 +1081,20 @@ def _reconstruct(src: Sources, deaths: list[_Death], report: CoronerReport) -> N
                 continue
             report.deaths_reconstructed.append(death.sid)
             revived_at = _log_revival(src.mesh_log, death.sid)
-            if revived_at is not None and kaizen_events.emit(
-                "revival",
-                sid=death.sid,
-                exposure_override=joined,
-                sid_source="join",
-                reconstructed=True,
-                revived_at=revived_at,
-                **{"class": death.cls},
-            ):
-                report.revivals.append(death.sid)
+            if revived_at is not None:
+                if kaizen_events.emit(
+                    "revival",
+                    sid=death.sid,
+                    exposure_override=joined,
+                    sid_source="join",
+                    reconstructed=True,
+                    revived_at=revived_at,
+                    **{"class": death.cls},
+                ):
+                    report.revivals.append(death.sid)
+                else:
+                    # `has_recon` skips this block on a retry: _repair_open_streams re-emits it
+                    report.errors.append(f"revival emit failed for {death.sid}")
         if kaizen_events.emit(
             "session_end",
             sid=death.sid,
@@ -972,6 +1104,97 @@ def _reconstruct(src: Sources, deaths: list[_Death], report: CoronerReport) -> N
             closed_by="coroner",
         ):
             report.session_ends.append(death.sid)
+        else:
+            report.errors.append(f"session_end emit failed for {death.sid}")
+
+
+def _repair_open_streams(src: Sources, now: float, report: CoronerReport) -> None:
+    """Re-emit what a reconstruction lost, driven by the event STREAM (W-3cdc8bd6).
+
+    `_reconstruct` only revisits sessions still in this sweep's `deaths`, but a revived session
+    reads alive on the next sweep and an old marker ages out of the lookback — so a lost
+    ``revival`` or ``session_end`` used to stay lost, uncounted. Every stream touched inside the
+    lookback that holds a reconstructed ``death`` gets its missing ``revival`` (when the mesh log
+    still shows one) and its missing ``session_end``. A revival appended after its session_end
+    is fine: it carries its own ``revived_at``, and no reader depends on file order. Idempotent:
+    a stream with both is skipped, and `_reconstruct` re-reads the stream after this runs.
+    """
+    if kaizen_events is None:
+        return  # _reconstruct counts the missing emitter
+    try:
+        names = os.listdir(src.events_dir)
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        report.errors.append(f"events dir unreadable ({exc!r}) — stream repair skipped")
+        return
+    horizon = now - _lookback_s()
+    for name in sorted(names):
+        if not name.endswith(".jsonl"):
+            continue
+        path = src.events_dir / name
+        try:  # lstat never opens, so a FIFO cannot block it; an out-of-horizon stream is not judged
+            if path.lstat().st_mtime < horizon:
+                continue
+        except FileNotFoundError:
+            continue  # vanished mid-sweep
+        except OSError:
+            pass  # _unjudgeable names the reason
+        reason, st = _unjudgeable(path)
+        if reason == "":
+            continue  # vanished mid-sweep
+        if reason is not None or st is None:
+            report.errors.append(f"event stream {name} {reason} — not repaired")
+            continue
+        death_row: dict | None = None
+        has_end = has_revival = False
+        for raw in _tail_lines(path, EVENTS_SCAN_BYTES):
+            try:
+                row = json.loads(raw)
+            except ValueError:
+                continue
+            if not isinstance(row, dict):
+                continue
+            event = row.get("event")
+            if event == "session_end":
+                has_end = True
+            elif event == "death" and row.get("reconstructed"):
+                death_row = row
+            elif event == "revival" and row.get("reconstructed"):
+                has_revival = True
+        sid = death_row.get("sid") if death_row is not None else None
+        if not isinstance(sid, str) or not sid or (has_end and has_revival):
+            continue
+        _, _, _, last_exposure = _stream_state(src.events_dir, sid)
+        joined = _join_exposure(last_exposure)
+        cls = death_row.get("class") if death_row is not None else None
+        if not has_revival:
+            revived_at = _log_revival(src.mesh_log, sid)
+            if revived_at is not None:
+                if kaizen_events.emit(
+                    "revival",
+                    sid=sid,
+                    exposure_override=joined,
+                    sid_source="join",
+                    reconstructed=True,
+                    revived_at=revived_at,
+                    **({"class": cls} if isinstance(cls, str) else {}),
+                ):
+                    report.revivals.append(sid)
+                else:
+                    report.errors.append(f"revival emit failed for {sid}")
+        if not has_end:
+            if kaizen_events.emit(
+                "session_end",
+                sid=sid,
+                exposure_override=joined,
+                sid_source="join",
+                reconstructed=True,
+                closed_by="coroner",
+            ):
+                report.session_ends.append(sid)
+            else:
+                report.errors.append(f"session_end emit failed for {sid}")
 
 
 # ── duplex selftest ──────────────────────────────────────────────────────────────────
@@ -1086,7 +1309,36 @@ def main(argv: list[str] | None = None) -> int:
     if args.sweep:
         report = sweep()
         print(json.dumps(dataclasses.asdict(report), indent=1))
-        return 0
+        # A sweep that did not do its whole job exits 3, or weekly_catchup (OK_MAX=0) stamps the
+        # day and nothing retries until tomorrow (W-4bd4ea3c). Two causes, both already counted
+        # in the sweep line's `errors` (which the collector reads), never in the exit code: a
+        # failed import (no `command_run` → no record closes; no `kaizen_events` → no event), and
+        # any error the sweep itself counted — a crashed pass, a record close that raised or was
+        # not persisted, a lost event, an unreadable runs dir, a lost sweep line, a blind
+        # holes() (W-6f46cebd; each append site names itself in `report.errors`). The
+        # sweep is idempotent, so the hourly retry is safe; an error that persists keeps the job
+        # FAILED in its log every hour until it is fixed, which is the signal, not noise.
+        # Cobra check (D-253): the cheap way to turn this green without a working sweep is to
+        # stop appending to `report.errors` — the sweep line's `errors` count then lies too, and
+        # the collector's coverage reading (kaizen_collect_v2._coroner_swept) reads it.
+        missing = [
+            n
+            for n, m in (("kaizen_events", kaizen_events), ("command_run", command_run))
+            if m is None
+        ]
+        for name in missing:
+            print(
+                f"kaizen_coroner: --sweep ran without {name} "
+                f"({_IMPORT_ERRORS.get(name, 'import failed')}); exiting 3 so the job retries",
+                file=sys.stderr,
+            )
+        if report.errors:
+            print(
+                f"kaizen_coroner: --sweep counted {len(report.errors)} error(s), first: "
+                f"{report.errors[0]}; exiting 3 so the job retries",
+                file=sys.stderr,
+            )
+        return 3 if missing or report.errors else 0
     ap.print_usage()
     return 2
 

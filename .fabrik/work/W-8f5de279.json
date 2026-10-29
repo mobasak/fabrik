@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:28:38.301736Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-8f5de279",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5CG2QC2THZ6RDVCNQTRHNY5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: scripts/enforcement/check_undeclared_imports.py false-fires in every builder WORKTREE for a first-party editable package: `import mt_router -> package 'mt-router' (e.g. dashboard/app.py) is in no manifest`."
+}

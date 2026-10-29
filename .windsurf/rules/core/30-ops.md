@@ -158,7 +158,7 @@ networks:
 
 A service often needs a background companion (scheduler, queue worker). Pick the pattern by one test: **"does it ship from the same `git push` as the app?"**
 
-- **Companion service** (same image, different command) — *yes, same codebase.* Declare it in the spec; the scaffolder emits a 2nd compose service that shares the app's build/image + env + `DATABASE_URL`/`REDIS_URL`, overriding only `command` + `container_name` + `memory`. **No Traefik labels** — companions are workers, not HTTP-routed.
+- **Companion service** (same image, different command) — *yes, same codebase.* Declare it in the spec; the scaffolder emits a 2nd compose service that shares the app's build/image + env + `DATABASE_URL`/`REDIS_URL`, overriding only `command` + `container_name` + `memory`, plus the owner env file `.env.owner` in `env_file` where the companion needs the owner DSN (the audit-jobs companion does). **No Traefik labels** — companions are workers, not HTTP-routed.
   ```yaml
   companion_services:
     - id: <app>-scheduler
@@ -442,10 +442,10 @@ The VPS Traefik uses these entrypoint names:
 - Running admin tasks in the main app process
 
 **✅ Correct:**
-- `docker compose run --rm <svc> alembic upgrade head` (against deployed environment)
+- `docker compose run --rm <svc> alembic upgrade head` (against deployed environment) — `<svc>` is a service that declares `.env.owner` (a `migrate` service), never the app service — the owner DSN is not in the app service's environment after the owner split (D-754), and `run` replaces the service's `command`, so a hand-off written there is bypassed
 - A one-shot **`migrate` compose service** the app services gate on:
-  `depends_on: {migrate: {condition: service_completed_successfully}}`. Same image, same env, runs to
-  completion and exits. The deployer's only container step is `docker compose up -d --wait`
+  `depends_on: {migrate: {condition: service_completed_successfully}}`. Same image, same env plus `.env.owner` in its
+  `env_file` (it runs as the database owner, D-754), runs to completion and exits. The deployer's only container step is `docker compose up -d --wait`
   (`deployer_ssh.py:239`), and `up` honours `depends_on` — so this is automatic, with no operator step
   and no mechanism the platform lacks. A single `migrate` service also cannot be multiplied by
   `deploy.replicas` on `api`, so the Alembic version-table race is **structurally impossible** rather

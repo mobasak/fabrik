@@ -12,12 +12,14 @@
     "spec": ""
   },
   "next": "**[fleet]** **Apprise pre-route through aro-wake** (trio plan Phase 5, deferred): Gatus / GlitchTip / Backrest webhooks currently go straight to Telegram. AI never sees them. Wire Apprise to aro-wake first with `continue: true` semantics like Alertmanager Phase 4. Blocked by: first real incident proving Alertmanager-only triage missed something.",
-  "note": "migrated-digest:073b8f56267c",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
-    "waits-alertmanager-miss"
+    "proposed-drop",
+    "waits-alertmanager-miss",
+    "waits-operator-review"
   ],
   "title": "**Apprise pre-route through aro-wake** (trio plan Phase 5, deferred): Gatus / GlitchTip / Backrest webhooks currently go straight to Telegram. AI never sees them. Wire Apprise to aro-wake first wit..."
 }

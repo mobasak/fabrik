@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T20:54:01.757228Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "d99ec675f821e79b56046f1cee2b765288b2fe5b",
+  "id": "W-3cb69ae8",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read mail 01M57PDDZG0MVGEM0C8WNRRYJJ in the fabrik inbox, validate it, fix or answer it, then ack it",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "blocking bug: preflight.py:64 trips the localhost ban in every branch that merges master",
+  "status": "done",
+  "tags": [
+    "mail-01m57pddzg0mvgem0c8wnrryjj"
+  ],
+  "title": "mail 01M57PDDZG0MVGEM0C8WNRRYJJ: preflight.py:64's VPS-loopback Traefik URL trips the localhost ban in every branch that merges master"
+}

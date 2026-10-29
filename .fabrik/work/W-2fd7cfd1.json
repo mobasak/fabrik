@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T02:35:30.296519Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "24e3134648cbe6ba53b577e068008f67e6319683",
+  "id": "W-2fd7cfd1",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: reword core/12-node.md:245 to point at core/85 § Payment Providers for the TRY one-off rail",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: a rule update (D-956), core/12-node.md:245 says PayTR applies only to WooCommerce, contradicting core/85; LOW effort: one line",
+  "status": "done",
+  "tags": [
+    "rule-pack"
+  ],
+  "title": "core/12-node.md:245 says PayTR 'applies only to WooCommerce / physical D2C, not to Node SaaS backends', contradicting the core/85 lines it cites (:16 'PayTR is this pack's own Turkish one-off rail', :41 the one-off TRY row) — found by the W-693ee1ca Fable critique"
+}

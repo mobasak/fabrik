@@ -13,10 +13,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "resolved by 0ed93a977 (fix(check_convergence): monolith flips are held to the closing-row rule): _check_plan calls _closing_row_fail for a non-spine plan, scripts/enforcement/check_convergence.py:706-711; its mail 01M3VWXJNE is acked",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "handoff-2026-10-06"
   ],

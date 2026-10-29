@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T06:17:29.981535Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-6ac3e00f",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-service-test",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "answered by 503e4218",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "feedback queue /fabrik-service-test"
+}

@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "stale: /opt/fabrik/arch/ no longer exists (verified 2026-10-14)",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "# Untracked /opt/fabrik/arch/ reddens every session's main-checkout gate — whose is it?"
 }

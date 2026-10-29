@@ -18,10 +18,19 @@ THE COUNTABLE SUBSET this check owns, on CONVERGED plans named >= FLOOR_CUTOFF:
 - **QUOTE-NOT-FOUND** (integrity) — a digest row's quoted text does not exist in its cited file,
   after whitespace normalisation on BOTH sides (source lines wrap; a bare substring match flags a
   TRUE quote as fabricated — the inverse error, hit live on a martinfowler.com quote 2026-08-30).
+  An escaped `\\|` is one cell and compares un-escaped on both sides (a pack's own table carries it).
+- **The digest is read as a TABLE first** (W-31f488d9): a row whose source cell holds no file path
+  (no `/`, no trailing `.ext`, and no file of that name at the root) is bare. When MOST rows are bare
+  the columns are in an order this check cannot read — the plan is UNGRADED with one fixed reason,
+  never one "does not exist" per row, whose noise used to fill the only finding line the advisory
+  budget shows. A minority of bare rows is a sloppy cell: those rows are skipped and noted, and every
+  row that names a file is still graded.
 
 WHAT IT CANNOT GRADE, stated so the blind spot is visible: whether the reading was comprehension or
-transcription, whether the digest's implications are right, and whether packs beyond the MATCHED
-set should have been consulted — /fabrik-plan-review's audit row owns all three.
+transcription, whether the digest's implications are right, whether packs beyond the MATCHED set
+should have been consulted, and whether the cited `:line` is the quote's line (the quote is matched
+against the whole file) — /fabrik-plan-review's audit row owns all four. The line was measured and
+deferred (fleet 01M4DWQ1DH): 0 of 53 graded rows are off-line in the repos that run this check.
 
 NOT RETRO-GRADED: date-gated like its siblings (a day-one board-flooder is how an advisory earns
 being skipped). DRAFT plans are never graded — incomplete is what DRAFT means.
@@ -51,6 +60,19 @@ MATCHED_LINE_RE = re.compile(r"^###\s+(\S+\.md)\s+\(hit:", re.M)
 # none); output without it is a drifted or truncated run, never a graded empty set.
 MATCHED_HEADER_RE = re.compile(r"^## MATCHED\b", re.M)
 PATH_TOKEN_RE = re.compile(r"[\w./-]+")
+# a cell boundary is a `|` NOT preceded by a backslash — a quote may carry an escaped one
+_UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
+# a source token is a file path when it carries a directory or ENDS in an extension — so `e.g.`, `8.`
+# and `i.e.` are bare words, never a file (review A-S1)
+_PATH_LIKE = re.compile(r"/|\.\w+$")
+UNREAD_REASON = (
+    "integrity: the digest's source column holds no file path (head the columns Quote | Source; "
+    "an unescaped | in a quote also shifts cells)"
+)
+PARTIAL_REASON = (
+    "integrity: a digest row's source cell holds no file path - that row is not graded "
+    "(a Source is path:line alone in its cell)"
+)
 
 FLOOR_CUTOFF = "2026-08-30"
 
@@ -79,8 +101,10 @@ class Finding:
 
 
 def _norm(text: str) -> str:
-    """Whitespace-collapse + markup-strip, both sides of every quote comparison."""
-    text = text.replace("`", "").replace("**", "").replace("*", "")
+    """Whitespace-collapse + markup-strip, both sides of every quote comparison. An escaped table
+    pipe `\\|` is a literal `|` on BOTH sides (W-31f488d9), or a quote lifted from a pack's table
+    could never match it."""
+    text = text.replace("\\|", "|").replace("`", "").replace("**", "").replace("*", "")
     text = text.strip().strip('"').strip("“”").strip("'")
     return re.sub(r"\s+", " ", text)
 
@@ -106,9 +130,15 @@ def _digest_rows(section: str) -> list[tuple[str, str]]:
     """(quote, cited-path) per data row; header/separator rows skipped.
 
     Columns are found by EXACT header names (01M3T5RK): the quote is `Quote` (or `Verbatim`), the
-    source `Source`; an unnamed quote is column 0 and an unnamed source the column after the quote.
-    Exact names only — a substring word list mis-picked `Pack`/`Where it binds` on 21 of 55 measured
-    digests, while these names moved 224 -> 252 of 473 rows to green and turned none red."""
+    source `Source`, and an unnamed source is the column after the quote. A header whose first cell is
+    exactly `#` makes column 0 a row label (W-62875be3, iterative_image_editor 01M3WW5PFN). An unnamed
+    quote is the column just before a named `Source` that sits past the label, the column just after a
+    `Source` at or before it, else the first non-label column. Exact names only — a substring word list
+    mis-picked `Pack`/`Where it binds` on 21 of 55 measured digests; and naming `Rule` as a quote header
+    would regress the digests where `rule` is a name column after the quote. Measured 2026-10-13 over
+    every digest under /opt/*/docs (251 digests, 2085 rows): the label rule changed 22 digests, all
+    `#`-led, and moved found quotes 938 -> 963; every green it removed was a row label (`C1`, `D-5`)
+    matching a substring of the cited file."""
     rows: list[tuple[str, str]] = []
     seen_table_rows = 0  # rows are classified by POSITION: 1st = header, 2nd = separator (01M1GSBZ)
     qcol, scol = 0, 1
@@ -116,7 +146,7 @@ def _digest_rows(section: str) -> list[tuple[str, str]]:
         line = line.strip()
         if not line.startswith("|"):
             continue
-        cells = [c.strip() for c in line.strip("|").split("|")]
+        cells = [c.strip() for c in _UNESCAPED_PIPE.split(line.strip("|"))]
         if len(cells) < 2:
             continue
         seen_table_rows += 1
@@ -124,8 +154,14 @@ def _digest_rows(section: str) -> list[tuple[str, str]]:
             named_q = _column(cells, "quote")
             if named_q is None:
                 named_q = _column(cells, "verbatim")
-            qcol = named_q if named_q is not None else (1 if _column(cells, "source") == 0 else 0)
             named_s = _column(cells, "source")
+            lead = 1 if cells[0] == "#" else 0
+            if named_q is not None:
+                qcol = named_q
+            elif named_s is None:
+                qcol = lead
+            else:
+                qcol = named_s - 1 if named_s > lead else named_s + 1
             scol = qcol + 1 if named_s is None else named_s
         if seen_table_rows <= 2:
             continue  # the header row and the |---| separator, whatever their first cell says
@@ -198,6 +234,17 @@ def _candidate_plans(root: Path) -> list[Path]:
     return out
 
 
+def _names_a_file(root: Path, cited: str) -> bool:
+    """Does a source token read as a file path: a directory or an extension, or a regular file of that
+    name at the root (`Makefile`)? Never raises — an unreadable root reads as no file."""
+    if _PATH_LIKE.search(cited):
+        return True
+    try:
+        return (root / cited).is_file()
+    except OSError:
+        return False
+
+
 def _audit(root: Path) -> tuple[int, list[Finding]]:
     examined, findings, _ungraded = _audit_full(root)
     return examined, findings
@@ -236,6 +283,18 @@ def _audit_full(root: Path) -> tuple[int, list[Finding], list[tuple[str, str]]]:
         rows = _digest_rows(digest)
         if not rows:
             ungraded.append((name, "integrity: the digest has no parseable rows"))
+        else:
+            # the TABLE decides (W-31f488d9): when MOST rows name no file the columns are misread, and
+            # grading them would print a quote word as a missing file per row; a MINORITY of bare rows
+            # is a sloppy cell in a good table — skip those rows, never the rest (review A-S2: an
+            # all-or-nothing rule hid a fabricated quote in a correctly cited row)
+            bare = [cited for _quote, cited in rows if not _names_a_file(root, cited)]
+            if len(bare) * 2 > len(rows):
+                ungraded.append((name, UNREAD_REASON))
+                rows = []
+            elif bare:
+                ungraded.append((name, PARTIAL_REASON))
+                rows = [(q, c) for q, c in rows if _names_a_file(root, c)]
         for quote, cited in rows:
             if Path(cited).is_absolute() or ".." in Path(cited).parts:
                 findings.append(
@@ -293,6 +352,15 @@ def main(argv: list[str] | None = None) -> int:
         description="Advisory: a CONVERGED plan proves its rule reading."
     )
     parser.add_argument("--root", default=".", help="repo root to audit (default: cwd)")
+    # The budget below sizes the GATE's advisory row; a reviewer's run needs every finding at once, or a
+    # finding suppressed at a plan review's pass 1 surfaces only at the flip (web-ecommerce-factory
+    # 01M47T06VV: two extra review passes). Cobra (D-253): the flag helps only a run that passes it, so a
+    # command that has a reviewer run this check must say --all.
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="print every finding in full - no advisory budget, line cap or line truncation",
+    )
     # parse_KNOWN_args INSIDE the guard: argparse's SystemExit derives from BaseException — the
     # sibling checks' proven frame (a warn_only check may never exit non-zero).
     try:
@@ -335,9 +403,9 @@ def main(argv: list[str] | None = None) -> int:
     emitted = 0
     for f in findings:
         line = f"  {f.label}: {f.plan} {f.detail}".rstrip()
-        if len(line) > MAX_LINE:
+        if not args.all and len(line) > MAX_LINE:
             line = line[: MAX_LINE - 3] + "..."
-        if (budget - len(line) < 0 or emitted >= MAX_LINES - 3) and emitted:
+        if not args.all and (budget - len(line) < 0 or emitted >= MAX_LINES - 3) and emitted:
             break
         _say(line)
         budget -= len(line) + 1

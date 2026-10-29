@@ -13,10 +13,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "resolved: .claude/workflows/fabrik-review-loop.js is fleet-synced (scripts/fabrik_synced_manifest.py:285) and present in project repos (tryton-crm, web-ecommerce-factory), so the scriptPath is inside a project session's own roots",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "handoff-2026-10-06"
   ],

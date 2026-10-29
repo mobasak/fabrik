@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-07T00:52:45.155204Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-49f3515f",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -12,10 +14,11 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
-  "owner": "",
-  "priority": 2,
-  "status": "open",
+  "note": "already fixed by infra's 96e80067c (2026-10-08), older than the item, so done refuses it; kaizen verified 2026-10-17; the missing order-guard test is mailed to infra (01M53S190T)",
+  "owner": "kaizen",
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "status": "dropped",
   "tags": [
     "corpus"
   ],

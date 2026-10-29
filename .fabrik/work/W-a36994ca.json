@@ -1,9 +1,14 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-ab566484",
+    "W-d146dd3c"
+  ],
   "created": "2026-09-08T00:00:00.000000Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-a36994ca",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,6 +20,7 @@
   "note": "migrated-digest:4549224f6231",
   "owner": "infra",
   "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — mypy excludes scripts/, gate false green; surfaces error backlog",
   "status": "open",
   "title": "**`pyproject.toml` excludes `^scripts/` from mypy, so the Tier-2 gate's mypy leg asserts nothing about any `scripts/` file** — four real errors in `command_run.py` shipped green until a review seat..."
 }

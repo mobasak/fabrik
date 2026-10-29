@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:17:34.101893Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d633e612",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4WV5SW4HE5XVYWTMM7KZ1YW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: run scratch root (D-836) — /fabrik-task now names the SCRATCH path; done at f97ecaf5e on worktree-kaizen"
+}

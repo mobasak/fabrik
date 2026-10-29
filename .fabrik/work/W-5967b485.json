@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-14T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "6d482e1de1e8b4103bd39c90757be6b49e54f173",
   "id": "W-5967b485",
   "kind": "backlog",
   "legacy": false,
@@ -15,7 +15,7 @@
   "note": "migrated-digest:cccbd82d543f",
   "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "tags": [
     "handoff-2026-10-06"
   ],

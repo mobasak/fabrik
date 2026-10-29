@@ -1,0 +1,22 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T00:42:58.692306Z",
+  "creator": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+  "evidence": "",
+  "id": "W-b1a1b784",
+  "kind": "next",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "session": "1970a0ff-baa3-401b-ba52-fb0c5de43261",
+    "spec": ""
+  },
+  "next": "/fabrik-execute-plan docs/development/plans/2026-10-12-plan-1-owner-dsn-split.md",
+  "next_at": "2026-10-12T01:57:48.837311Z",
+  "note": "superseded",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "dropped",
+  "title": "/fabrik-execute-plan docs/development/plans/2026-10-12-plan-1-owner-dsn-split.md"
+}

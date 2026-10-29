@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T14:28:06.594133Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-b86596d7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5HP8FQQSJEMMBJBFR6GG7BX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-review feedback rows that ask for command_run.py / Stop-hook / review_receipt.py code — five rows routed from kaizen's queue pass (W-1e603dc4)"
+}

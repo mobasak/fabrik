@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T07:21:59.952122Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-034461b4",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1284",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure how often Claude Code leaves one session's transcript in two worktree folders (0 of 6 hub builders on 2026-10-27), then decide the cwd-field tiebreak; make an emptied grid refuse with exit 2",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fold-w-b9ad80ae"
+  ],
+  "title": "agents_up.sh pane resolution residue (W-456aa02a review): a worktree removed between the resolver and the shell loop skips the pane with no exit 2 (pre-existing, agents_up.sh dir_of '|| continue'); a session held by two worktrees keeps <name> — tiebreak by the transcript's last cwd field"
+}

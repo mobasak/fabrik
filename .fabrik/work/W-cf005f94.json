@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T10:11:35.242822Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-cf005f94",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1036",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "WAITS on repo sessions (measured 2026-10-27 ~09:45): briefs 01M5XVJG4F (tryton-crm) and 01M5XVJGKF (brand-identiy-creator) sit UNREAD in their inboxes, no session of either repo is live (ListAgents, 17 peers), no commit since 08:00; tryton-crm already has coordinator_mode+queue_floor, no charters; bic has neither. Coordinator: open a coordinator window in each main checkout, then fleet re-measures and closes the gaps they report.",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "score_reason": "operator 2026-10-28 requirements doc: every mechanism for all repos",
+  "status": "open",
+  "tags": [
+    "operator-ask",
+    "waits-repo-session"
+  ],
+  "title": "Operator ruling D-1036: roll the coordinator model out to every repo — per repo: a coordinator window in the main checkout, charters for coordinator and builders, builders in worktrees, agents_up launcher entry (.bat + WT profile), full autonomy (agents ask their coordinator, never the operator); after the fabrik-lib pilot proves out"
+}

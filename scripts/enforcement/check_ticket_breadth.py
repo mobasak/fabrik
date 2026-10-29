@@ -138,10 +138,12 @@ SPEARMAN_RHO = 0.45  # score vs actual rounds, n=14 (Pearson 0.31)
 PLAN_DIR_NAME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-plan-[a-z0-9-]+$")
 TICKET_FILE_RE = re.compile(r"^(T\d{2}[a-z]?)-[a-z0-9-]+\.md$")
 GIVEN_ROW_RE = re.compile(r"^\s*[-*]\s+(.*\*{0,2}Given\*{0,2}\b.*)$", re.I | re.M)
-_FENCE_RE = re.compile(
-    r"(?:^[ \t]*(`{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$|```[^`\n]+```)",
-    re.M | re.S,
-)
+# Fences: `_fences.py`'s match set, one linear scanner shared by every check that strips fences (W-276255e7).
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _fences  # noqa: E402  (same-dir sibling, synced fleet-wide)
+
+_FENCE_RE = _fences.FENCE_STRIP
 _BULLET_RE = re.compile(r"^\s*(?:[-*]|\d+[.)])\s+(\S+)")
 
 # TEST SURFACES — deliberately NOT an independent risk area, and never a split

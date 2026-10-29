@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T11:01:20.375184Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-959a36f3",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1333",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "prerequisite (operator, before --apply): the Cloudflare deploy of ocoron.com and the apex/www DNS cutover. hub: bootstrap-config.sh:130 DR start order + :209-219 volumes, bootstrap-hub.sh:80, infra/vps1/ocoron-com/ (plaintext DB + R2 secrets), generate_vps_inventory.py:35-39,138-139, scripts/vps_sync.py:154 (website_patterns, live code), scripts/audit/{03,05,08}*.sh, docs/SERVICES.md:92,97, infra/README.md:30, README.md:599-600, docs/FEATURES.md:1103, docs/reference/apis/EXTERNAL_SYSTEMS.md:259; vps1 (operator-run): Traefik acme.json ocoron.com/www certs (traefik stopped), the Backrest plan's ocoron-com paths, Authelia session domain if it covers the apex; operator's call: R2 bucket ocoron-com-backups + its access key, Backrest/restic snapshots holding /opt/ocoron-com and the ocoron-com volumes",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "waits-operator-run"
+  ],
+  "title": "ocoron.com off vps1, part 2 (D-1333): once the operator's vps1_ocoron_removal.py --apply shows 0 containers, remove the hub's live-stack references and the live config entries its REVIEW list names"
+}

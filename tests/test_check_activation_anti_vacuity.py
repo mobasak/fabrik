@@ -164,12 +164,12 @@ def test_check_env_contract_ignores_yaml_comments(tmp_path: Path) -> None:
     """A `${VAR:?}` inside a COMMENT is documentation, not a reference.
 
     The scaffolder's compose template ships the literal line
-    `#   3. Environment variables (use ${VAR:?} for required vars)`. Parsing it made
+    `#   2. Environment variables (use ${VAR:?} for required vars)`. Parsing it made
     17 of 45 fleet repos "require" a variable named VAR — on comment text alone.
     """
     (tmp_path / ".env.example").write_text("API_KEY=\n", encoding="utf-8")
     (tmp_path / "compose.yaml").write_text(
-        "#   3. Environment variables (use ${VAR:?} for required vars)\n"
+        "#   2. Environment variables (use ${VAR:?} for required vars)\n"
         "services:\n"
         "  app:\n"
         "    environment:\n"

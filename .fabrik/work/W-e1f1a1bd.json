@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:28:22.215255Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "5bcbf8f9653856b605fb19cf037b77b80932582e",
+  "id": "W-e1f1a1bd",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: Accept = keep/approve the item (an awaiting-operator gate item: work.py answer with the comment as the operator's words; any other item: mark operator-accepted so the coordinator assigns it). Reject = work.py drop --why <comment>. Comment = stored on the item, shown in the row, readable by the agents. Writes go through work.py in that repo's MAIN checkout store (never a worktree), then commit-items; same write guard as the quota board's /switch (custom header, only ids the page listed); every action logged with time and 'operator'. Build after W-7159f8e2, sharing its write path with the Pause/Resume buttons; plus a TAG filter on the Repos tab (chips or a box) so the operator can show only e.g. 'waits-operator-review' or 'needs-owner' items — the first operator review (D-887) is 225 held items mixed into 580, findable today only by Ctrl+F",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "Operator wants to steer the backlog from the board; today every accept/drop goes through chat",
+  "status": "done",
+  "tags": [
+    "dashboard",
+    "queued"
+  ],
+  "title": "Dashboard Repos tab: per work item, operator buttons to ACCEPT or REJECT it and a COMMENT box beside it (operator 2026-10-15: 'in the dashboard, repo i see work items assigned or unassigned. i want a way to accept or reject them manually also add a comment next to them'), for every repo under /opt"
+}

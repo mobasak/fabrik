@@ -1,0 +1,29 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T12:18:42.580295Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c0a1d324",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: batch these PARTIALs after F11 and F10",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-890: correctness gaps with no data loss named; small, batched",
+  "status": "open",
+  "tags": [
+    "mail-01m4zqxyefqm437hrzvrfz03d9",
+    "medium",
+    "queued",
+    "scratch-gap"
+  ],
+  "title": "F9/F8/F5/F12/F1/F3/F2: remaining scratch-lifecycle PARTIALs — nightly dead-session walk enters run folders; one shared seat-size deadline; --strict-proc never applies to run folders; --command '' makes an unclassifiable folder name; two graders that can never fail; an unbounded scan (mail 01M4ZQXYEFQM437HRZVRFZ03D9; intel conformance ledger docs/development/reviews/2026-10-15-scratch-lifecycle-conformance-review.md)"
+}

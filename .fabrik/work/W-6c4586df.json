@@ -1,0 +1,26 @@
+{
+  "block_digest": "e6ec256b152b9702eca06e5c3cc4f0e8fde8cd121d1f76723f74c3197615942d",
+  "blocked_by": [],
+  "created": "2026-10-15T10:03:34.205427Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-6c4586df",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "43062b5d18b553e5638ba04ba204d2069980467ec33673f5e8abe6e84a5189b9"
+  ],
+  "next": "",
+  "note": "operator: a — adopt the checks and definitions, run the pass (D-890)",
+  "owner": "",
+  "priority": 2,
+  "question": "Should I write these eligibility checks and impact/effort definitions into my charter, then validate, score and assign the 225 held items by them?",
+  "status": "done",
+  "title": "Should I write these eligibility checks and impact/effort definitions into my charter, then validate, score and assign the 225 held items by them?"
+}

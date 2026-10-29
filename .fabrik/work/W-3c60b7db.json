@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T22:22:36.550081Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "fa0ec77bee423350233911b2bddc71fa771ebc29",
+  "id": "W-3c60b7db",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "widen _seat_size_lines (scripts/command_run.py ~1777-1790) to every top-level directory of the run folder except the pins dirs; red-first test; full /fabrik-review (enforcement surface)",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "bug: seat-size advisory misses Agent-tool seat folders (D-958 HIGH: a bug on an agent tool); one script",
+  "status": "done",
+  "title": "command_run.py's seat-size advisory (D5, scratch-lifecycle plan) globs only seat-*; Agent-tool seats named seat2-<model>, split-seat-<model> etc. and the old review-loop workflow's <slice>-<model> folders escape it (kaizen mail 01M4Z543MQ)"
+}

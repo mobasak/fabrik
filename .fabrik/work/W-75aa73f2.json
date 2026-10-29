@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-02T17:21:51.228848Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-75aa73f2",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -12,9 +14,10 @@
     "spec": ""
   },
   "next": "make start refuse (or warn) when a new record's repo_root differs from the live parent's, and add the env -u CLAUDE_CODE_SESSION_ID isolation line to the review fragments' seat-brief lessons",
-  "note": "",
-  "owner": "",
-  "priority": 2,
-  "status": "open",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — stacking edge from a seat probe",
+  "status": "dropped",
   "title": "a /fabrik-review seat's probe opened a run record on the DISPATCHING session's live stack (fabrik-task, files x.py, a scratch repo's switch commit) during the D-LANEV2 review; command_run.py start stacks a record whose repo_root differs from its live parent's without a word"
 }

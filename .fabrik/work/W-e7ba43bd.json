@@ -1,9 +1,14 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-ab566484",
+    "W-d146dd3c"
+  ],
   "created": "2026-09-02T00:00:00.000000Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-e7ba43bd",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,6 +20,7 @@
   "note": "migrated-digest:cc73a6f33271",
   "owner": "infra",
   "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — mail relay can drop silently with no sender signal",
   "status": "open",
   "title": "fabrik-mail relay has no liveness guarantee and no sender-visible failure signal (peer report from the seo session, 2026-09-02)"
 }

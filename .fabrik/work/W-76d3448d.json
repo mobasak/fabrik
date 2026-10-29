@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T20:11:13.876255Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "765eca14d037bae2abea8f91f45900a78f368b4b",
+  "id": "W-76d3448d",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "scripts/backfill_ci.py:137/:186 — has_ci reads .github/workflows/ci.yml, which ci_files() stopped emitting on 2026-08-29, so a repo scaffolded or backfilled since then is rewritten on every --apply; the docstring (:3) still names ci.yml. Since 921e40b0a the regenerated scripts/ci_local.sh runs the gate's sqlfluff leg on every run, and apply() seeds only the ruff baseline (:153-157) — a repo with schema debt would newly red its replica. Lean close: key the guard on scripts/ci_local.sh (the file it writes), and have the dry-run table print the tracked-.sql count and, when sqlfluff is importable, the lint verdict, refusing --apply on a red unless --force. Exposure: 8 /opt repos carry scripts/ci_local.sh (tryton-crm, job-agent, longephedia-vault, fabrik-claim-validator, gmail-account-creator, trading-core, whatsapp-agent, session-recall), 13 .sql files among them (Opus seat, 2026-10-12). Lane: /fabrik-task (fleet, scaffolding beat; hub-only script, not a sync path).",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — backfill_ci guard bug",
+  "status": "done",
+  "tags": [
+    "ci-scaffold",
+    "fleet"
+  ],
+  "title": "backfill_ci.py: its skip guard keys on .github/workflows/ci.yml the generator no longer emits, and it seeds no sqlfluff state while regenerating a ci_local.sh that now lints every tracked .sql"
+}

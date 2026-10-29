@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:19.771354Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-26ee9496",
+  "impact": "low",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TBA6A5MQFPMF64V8KBM9VD",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — kaizen re-check FYI, routing correction",
+  "status": "open",
+  "title": "kaizen re-checked its 3 open mails to infra against master c67a68173 — all still true, and 01M4T0EV named the wrong file"
+}

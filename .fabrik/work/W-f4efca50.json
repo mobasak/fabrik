@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T15:34:33.245571Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-f4efca50",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4E12NQH3E84ANM7YZ6FDEW5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: REFUSAL_CLASSIFIER's cp keeps a pin's r--r--r-- mode (01M4DXXNYP) — fixed, recursive form, on worktree-intel"
+}

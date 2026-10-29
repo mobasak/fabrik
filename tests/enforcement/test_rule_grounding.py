@@ -156,6 +156,35 @@ def test_cli_always_exits_zero(tmp_path):
         assert r.returncode == 0, (args, r.returncode, r.stderr[:300])
 
 
+def test_all_prints_every_finding_the_advisory_budget_would_suppress(tmp_path):
+    """W-592f5fe4 (web-ecommerce-factory 01M47T06VV): the gate's budget showed a few findings "as earlier
+    ones are fixed", but /fabrik-plan-review re-runs the check only at pass 1 and the flip, so a finding
+    suppressed at pass 1 surfaced only at the flip and cost two review passes. `--all` lifts the budget,
+    the line cap and the line truncation; the bare run keeps them for the gate's advisory row."""
+    root = _root(tmp_path)
+    long_tail = "x" * 220
+    names = [f"2026-08-30-plan-{n}-fixture.md" for n in range(11)]
+    names.append(f"2026-08-30-plan-99-{long_tail}.md")
+    for name in names:
+        _plan(root, digest_rows=None, name=name)
+    script = str(REPO / "scripts" / "enforcement" / "check_rule_grounding.py")
+    capped, full = (
+        subprocess.run(
+            [sys.executable, script, "--root", str(root), *extra],
+            capture_output=True,
+            text=True,
+            cwd=str(root),
+            timeout=60,
+        )
+        for extra in ([], ["--all"])
+    )
+    assert capped.returncode == 0 and full.returncode == 0, (capped.stderr, full.stderr)
+    assert "suppressed by the advisory budget" in capped.stdout, capped.stdout
+    assert "suppressed by the advisory budget" not in full.stdout, full.stdout
+    for name in names:
+        assert name in full.stdout, name
+
+
 # ── 01M1GSBZ (fleet, 2026-09-02): rows are classified by POSITION, never by content — seen RED first ──
 
 
@@ -312,6 +341,82 @@ def test_a_non_exact_header_keeps_the_positional_reading():
     assert chk._digest_rows(named) == chk._digest_rows(unnamed) != []
 
 
+# ── iterative_image_editor 01M3WW5PFN (W-62875be3): a leading `#` column is a row label ──
+# `| # | Rule | Source | Binds |` graded its row numbers as quotes: false QUOTE-NOT-FOUND, or a label like
+# `C1` matching a substring of the cited file — a false green that hid a misquote (22 of 251 fleet digests).
+
+
+def _numbered(root: Path, header: str, rows: str) -> None:
+    sep = "|" + "---|" * (header.count("|") - 1)
+    (root / "docs" / "development" / "plans" / "2026-08-30-plan-9-fixture.md").write_text(
+        "# Plan fixture\n\nStatus: CONVERGED\n\n## Constraints Digest\n\n"
+        f"{header}\n{sep}\n{rows}\n\n## File Scope (owned paths)\n\n- scripts/x.py\n",
+        encoding="utf-8",
+    )
+
+
+def test_a_numbered_digest_grades_its_rule_column():
+    rows = f"| 1 | Use uv, never pip | {PACK_REL}:12 | T01 |\n"
+    for header in ("| # | Rule | Source | Binds |", "| # | Rule | pack | Binds |"):
+        section = header + "\n|---|---|---|---|\n" + rows
+        assert chk._digest_rows(section) == [("Use uv, never pip", PACK_REL)], header
+
+
+def test_a_numbered_misquote_is_found_even_when_its_label_is_in_the_file(tmp_path):
+    """Both labels (`Another`, `Use`) ARE substrings of the pack, so reading labels as quotes went green."""
+    root = _root(tmp_path)
+    _numbered(
+        root,
+        "| # | Rule | Source | Binds |",
+        f'| Another | "This sentence appears in no pack." | `{PACK_REL}:2` | T01 |\n'
+        f'| Use | "{WRAPPED_QUOTE}" | `{PACK_REL}:2` | T02 |',
+    )
+    labels = _labels(root)
+    assert labels.count("QUOTE-NOT-FOUND") == 1 and "PACK-NOT-IN-DIGEST" not in labels, labels
+
+
+def test_a_named_quote_column_wins_over_the_position_rule():
+    section = (
+        "| Rule | Quote | Notes | Source |\n|---|---|---|---|\n"
+        f"| uv only | Use uv, never pip | why | {PACK_REL}:12 |\n"
+    )
+    assert chk._digest_rows(section) == [("Use uv, never pip", PACK_REL)]
+
+
+def test_the_column_before_a_named_source_is_the_quote():
+    """The MIRROR the change accepts: with no Quote header, the column just before `Source` is graded."""
+    section = (
+        "| X | Pack | Source |\n|---|---|---|\n" + f"| x | Use uv, never pip | {PACK_REL}:12 |\n"
+    )
+    assert chk._digest_rows(section) == [("Use uv, never pip", PACK_REL)]
+    first = "| Source | Rule |\n|---|---|\n" + f"| {PACK_REL}:12 | Use uv, never pip |\n"
+    assert chk._digest_rows(first) == [("Use uv, never pip", PACK_REL)]
+    labelled = (
+        "| # | Source | Rule |\n|---|---|---|\n" + f"| 1 | {PACK_REL}:12 | Use uv, never pip |\n"
+    )
+    assert chk._digest_rows(labelled) == [("Use uv, never pip", PACK_REL)]
+
+
+def test_a_numbered_row_with_an_empty_rule_is_not_graded_on_its_label():
+    section = "| # | Rule | Source |\n|---|---|---|\n" + f"| 1 |  | {PACK_REL}:12 |\n"
+    assert chk._digest_rows(section) == []
+
+
+def test_a_numbered_digest_with_one_prose_source_stays_partial(tmp_path):
+    """D-703's split is untouched: the source column does not move, so one bare row is skipped, never the
+    whole table."""
+    root = _root(tmp_path)
+    _numbered(
+        root,
+        "| # | Rule | Source | Binds |",
+        f'| 1 | "{WRAPPED_QUOTE}" | `{PACK_REL}:2` | T01 |\n'
+        f'| 2 | "{WRAPPED_QUOTE}" | `{PACK_REL}:2` | T02 |\n'
+        "| 3 | Another mandate line entirely. | the python pack | T03 |",
+    )
+    assert _ungraded(root) == [chk.PARTIAL_REASON], _ungraded(root)
+    assert "QUOTE-NOT-FOUND" not in _labels(root), _labels(root)
+
+
 def test_an_absolute_cited_path_is_a_finding_not_a_crash(tmp_path):
     """An absolute Source escapes the repo: on 3.12 `is_file()` under an unreadable dir raised and
     the whole census aborted (promtail-to-alloy spec cites /var/lib/docker/containers/)."""
@@ -344,4 +449,178 @@ def test_an_unreadable_repo_relative_path_is_a_finding_not_a_crash(tmp_path):
         locked.chmod(0o755)
     assert [f.label for f in findings if "locked/pack.md" in f.detail] == ["QUOTE-NOT-FOUND"], (
         findings
+    )
+
+
+# ── W-31f488d9 (wef 01M3WRE0TS, infra W-fd0cd273): the digest's columns are read as a TABLE ──
+UNREAD = "integrity: the digest's source column holds no file path"
+
+
+def _write_digest(root: Path, table: str) -> None:
+    p = root / "docs" / "development" / "plans" / "2026-08-30-plan-9-fixture.md"
+    p.write_text(
+        "# Plan fixture\n\nStatus: CONVERGED\n\n## Constraints Digest\n\n"
+        + table
+        + "\n## File Scope (owned paths)\n\n- scripts/x.py\n",
+        encoding="utf-8",
+    )
+
+
+def _ungraded(root: Path) -> list[str]:
+    _, _, ungraded = chk._audit_full(root)
+    return [why for _plan, why in ungraded]
+
+
+def test_a_pack_first_digest_is_ungraded_once_never_a_row_of_missing_files(tmp_path):
+    """wef's shape: no exact Quote/Source header, so column 0 (the pack) read as the quote and the
+    quote's first word as the cited file — one 'digest cites Use which does not exist' per row, the
+    noise that hid that nothing was graded. Quotes opening with a dotted token (`8.`, `.venv`) used to
+    leak through a per-row test (350 of 3790 hub mandates start that way); the TABLE is classified."""
+    root = _root(tmp_path)
+    _write_digest(
+        root,
+        "| Pack | Rule (verbatim) | file:line | Binds |\n|---|---|---|---|\n"
+        f"| core/10-python.md | Use explicit extensions on local imports | {PACK_REL}:2 | T02 |\n"
+        f"| core/10-python.md | 8. Robotics is out of scope | {PACK_REL}:3 | T03 |\n"
+        f"| core/10-python.md | .venv is the only interpreter | {PACK_REL}:4 | T04 |\n",
+    )
+    assert "QUOTE-NOT-FOUND" not in _labels(root), _labels(root)
+    assert any(why.startswith(UNREAD) for why in _ungraded(root)), _ungraded(root)
+
+
+def test_a_prose_source_in_a_named_table_is_ungraded_not_a_missing_file(tmp_path):
+    root = _root(tmp_path)
+    _write_digest(
+        root,
+        f'| Quote | Source |\n|---|---|\n| "{WRAPPED_QUOTE}" | spec § Constraints |\n',
+    )
+    assert "QUOTE-NOT-FOUND" not in _labels(root), _labels(root)
+    assert any(why.startswith(UNREAD) for why in _ungraded(root)), _ungraded(root)
+
+
+def test_an_existing_extensionless_root_file_still_grades(tmp_path):
+    """`Makefile` has no `/` and no `.` — the path-like test alone would call it unread."""
+    root = _root(tmp_path)
+    (root / "Makefile").write_text(
+        "# build\nlint: run the linter on every push\n", encoding="utf-8"
+    )
+    _write_digest(
+        root, "| Quote | Source |\n|---|---|\n| lint: run the linter on every push | Makefile:2 |\n"
+    )
+    assert "QUOTE-NOT-FOUND" not in _labels(root), _labels(root)
+    assert not any(why.startswith(UNREAD) for why in _ungraded(root)), _ungraded(root)
+
+
+def test_an_escaped_pipe_is_one_cell_and_matches_on_both_sides(tmp_path):
+    """A pack table carried `\\|` (core/12-node.md's secrets row had `process.env.X \\|\\| 'default'` until W-80ffca68); a digest
+    quoting it must escape it to stay one cell, and `_norm` compares both sides un-escaped."""
+    root = _root(tmp_path)
+    pack = root / PACK_REL
+    pack.write_text(
+        PACK_TEXT + "| `process.env.X \\|\\| 'default'` for secrets | never |\n"
+        "- Prefer a || b for defaults in shell only.\n",
+        encoding="utf-8",
+    )
+    _write_digest(
+        root,
+        "| Quote | Source |\n|---|---|\n"
+        f"| process.env.X \\|\\| 'default' for secrets | {PACK_REL}:5 |\n"
+        f"| Prefer a \\|\\| b for defaults in shell only. | {PACK_REL}:6 |\n",
+    )
+    assert "QUOTE-NOT-FOUND" not in _labels(root), _labels(root)
+    assert not any(why.startswith(UNREAD) for why in _ungraded(root)), _ungraded(root)
+    # the rows were GRADED whole, not skipped: a split on every `|` left a quote fragment that is a
+    # substring of the pack line and a source cell with no path — a vacuous pass on the old code
+    section = (
+        "| Quote | Source |\n|---|---|\n"
+        f"| process.env.X \\|\\| 'default' for secrets | {PACK_REL}:5 |\n"
+    )
+    assert chk._digest_rows(section) == [("process.env.X || 'default' for secrets", PACK_REL)]
+
+
+PARTIAL = "integrity: a digest row's source cell holds no file path"
+
+
+def test_one_prose_source_never_hides_a_fabricated_quote_in_another_row(tmp_path):
+    """Review A-S2: the first cut classified the table all-or-nothing, so one sloppy Source cell in a
+    correctly built digest discarded every row — a fabricated quote in another row went unseen. A
+    minority of bare rows is skipped and noted; the rows that name a file are still graded."""
+    root = _root(tmp_path)
+    _write_digest(
+        root,
+        "| Quote | Source |\n|---|---|\n"
+        f'| "{WRAPPED_QUOTE}" | {PACK_REL}:2 |\n'
+        f'| "This sentence appears in no pack." | {PACK_REL}:3 |\n'
+        f"| Another mandate line entirely. | spec § Constraints |\n",
+    )
+    assert "QUOTE-NOT-FOUND" in _labels(root), _labels(root)
+    assert any(why.startswith(PARTIAL) for why in _ungraded(root)), _ungraded(root)
+    assert not any(why.startswith(UNREAD) for why in _ungraded(root)), _ungraded(root)
+
+
+def test_a_misread_table_stays_ungraded_when_a_few_quotes_open_with_a_dotted_word(tmp_path):
+    """Review A-S1: `.venv`, `e.g.` and `8.` read as path-like, so a misread table leaked a row of
+    'does not exist' noise; `e.g.`/`8.` are bare now, and a minority of dotted leaks no longer
+    decides the table — the majority does."""
+    root = _root(tmp_path)
+    _write_digest(
+        root,
+        "| Pack | Rule (verbatim) | file:line | Binds |\n|---|---|---|---|\n"
+        f"| core/10-python.md | e.g. never a bare star import | {PACK_REL}:2 | T02 |\n"
+        f"| core/10-python.md | i.e. one module per import line | {PACK_REL}:3 | T03 |\n"
+        f"| core/10-python.md | Node.js imports name their extension | {PACK_REL}:4 | T04 |\n",
+    )
+    assert "QUOTE-NOT-FOUND" not in _labels(root), _labels(root)
+    assert any(why.startswith(UNREAD) for why in _ungraded(root)), _ungraded(root)
+
+
+def test_the_digest_row_the_commands_teach_is_one_the_checker_grades(tmp_path):
+    """Plan queues (~20 verdicts) and intel 01M4E26N: the digest contract lived only in this checker.
+    `grounding-rules` now states the heading, the header + separator, a literal row and the matching rule,
+    and /fabrik-plan-review step 3 sends the reviewer to it. Each stated rule is driven through `_audit`."""
+    frag = " ".join((REPO / "commands" / "_fragments" / "grounding-rules.md").read_text().split())
+    review = " ".join(
+        (REPO / "commands" / "_sources" / "fabrik-plan-review.md").read_text().split()
+    )
+    for phrase in (
+        "Put it under a `## Constraints Digest` heading, and give the table its `| Quote | Source |` header and "
+        "`|---|---|` separator, because the checker takes the first two table lines as those.",
+        "``| <the pack's words> | `.windsurf/rules/<pack>.md:<line>` |``, with more columns after it if you like.",
+        "The quote is matched as one case-exact substring of the whole cited file, with whitespace collapsed and "
+        "backticks and `*` dropped. So no `…` elision, and a literal `|` in it is written `\\|`.",
+        # W-62875be3: the fallback the checker applies, stated where the digest is authored
+        "without those headers the checker treats a leading `#` column as a row label and reads the column "
+        "just before `Source` as the quote (the column after it when `Source` comes first, the first other "
+        "column when no `Source` is named), and the column after the quote as the source when `Source` is not named.",
+    ):
+        assert phrase in frag, phrase
+    for phrase in (
+        "columns `Quote` (or `Verbatim`) then `Source`, a Source `path:line` alone in its cell) — a table the "
+        "checker cannot read leaves its quotes ungraded.",
+        "so each spot-check also confirms the cited `:line` holds the quote.",
+    ):
+        assert phrase in review, phrase
+
+    def graded(quote: str, pack_extra: str = "") -> list[str]:
+        root = _root(tmp_path / str(abs(hash((quote, pack_extra)))))
+        if pack_extra:
+            (root / PACK_REL).write_text(PACK_TEXT + pack_extra, encoding="utf-8")
+        _write_digest(
+            root,
+            f"| Quote | Source | Rule | Why |\n|---|---|---|---|\n| {quote} | `{PACK_REL}:2` | r | w |\n",
+        )
+        assert not _ungraded(root), _ungraded(root)
+        return _labels(root)
+
+    assert "QUOTE-NOT-FOUND" not in graded(WRAPPED_QUOTE), (
+        "the taught row, wrapped in the pack, extra columns"
+    )
+    assert "QUOTE-NOT-FOUND" in graded(WRAPPED_QUOTE.lower()), "case-exact"
+    assert "QUOTE-NOT-FOUND" in graded("Use Pydantic BaseSettings … app setting."), "no elision"
+    assert "QUOTE-NOT-FOUND" not in graded(
+        "Never use a \\| b here", "- **Never** use `a | b` here.\n"
+    ), "backticks and * dropped, an escaped pipe matches a literal one"
+    headerless = f"| {WRAPPED_QUOTE} | {PACK_REL}:2 |\n" * 3
+    assert len(chk._digest_rows(headerless)) == 1, (
+        "the first two table lines are read as header + separator"
     )

@@ -47,14 +47,18 @@ from __future__ import annotations
 
 import argparse
 import calendar
+import collections
 import contextlib
+import copy
 import datetime as dt
 import fcntl
 import hashlib
 import json
 import math
 import os
+import posixpath
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -300,6 +304,32 @@ def pinned_line(rec: dict[str, Any]) -> str:
 # report, never past its first megabyte, and an unbounded read of a device never returns.
 _RESUME_READ_CAP = 1_000_000
 
+# The commands with NO closing pass: their own source orders no loop `round` (one carrying
+# `--classes-swept`/`--confirmed`/`--own-fix`) on its own record and includes no termination
+# fragment, so the round report's two-round rule and its "run the closing pass" prose do not apply
+# — a quiet round 1 is TERMINAL there (fabrik-spec verdict 1790969786.235392, W-29e3424f). DERIVED
+# from the corpus and pinned both ways by `tests/test_command_run.py`; a wording test put
+# /fabrik-command-improve in and left /fabrik-plan-after-chat out (both design critiques).
+NO_CLOSING_PASS = frozenset(
+    {
+        "fabrik-catchup",
+        "fabrik-decommission",
+        "fabrik-deploy",
+        "fabrik-deploy-plan",
+        "fabrik-deploy-verify",
+        "fabrik-epics",
+        "fabrik-generate-tests",
+        "fabrik-plan-after-chat",
+        "fabrik-release",
+        "fabrik-reverse-engineer",
+        "fabrik-spec",
+        "fabrik-task",
+        "fabrik-upstream",
+        "fabrik-vision",
+        "hibernate",
+    }
+)
+
 CONFIRMED_REQUIRED_COMMANDS = frozenset(
     {
         "fabrik-review",
@@ -328,10 +358,16 @@ _SLICE_NAME = r"([A-Za-z0-9_.\-]{1,40})"
 def _parse_slices(raw: str) -> list[dict[str, Any]] | None:
     """`A:12/12,B:5/6` → [{"name", "verified", "claims"}] — None when malformed (D-335 § 5 item 4).
 
-    COBRA (D-253): the cheapest way to satisfy "every slice verified" without verifying anything
-    is a ledger with nothing in it — `A:0/0` — or a later round that simply stops passing
-    `--slices`. So a slice carries at least one claim, a name appears once, and `_vanished_slices`
-    treats a slice ANY earlier round stated and the last round omits as OPEN, never as clean.
+    `A:0/0` is a slice whose candidates were all refuted or recorded — no claim to verify — so the
+    review commands' "restate every round-1 slice" can be obeyed (W-65fb308e). COBRA (D-253): the
+    cheapest way to satisfy "every slice verified" without verifying anything is a ledger with
+    nothing in it, or a later round that stops passing `--slices`. So a name appears once, the
+    `round` handler refuses a `0/0` for a slice an earlier round stated WITH claims and a round that
+    confirms defects while every slice it names is `0/0` (`_zero_slice_refusal`), and
+    `_vanished_slices` treats a slice ANY earlier round stated and the last round omits as OPEN.
+    What stays open, by measurement: a ledger that shrinks to a smaller non-zero count, and a first
+    round whose claims undercount `--confirmed` — both occur in real records (2 and 1 of 26 sliced
+    rounds, 2026-10-08), so neither is refused.
     """
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
@@ -341,7 +377,7 @@ def _parse_slices(raw: str) -> list[dict[str, Any]] | None:
         if not m:
             return None
         verified, claims = int(m.group(2)), int(m.group(3))
-        if claims < 1 or verified > claims or m.group(1) in seen:
+        if verified > claims or m.group(1) in seen:
             return None
         seen.add(m.group(1))
         out.append({"name": m.group(1), "verified": verified, "claims": claims})
@@ -358,7 +394,11 @@ def _slice_rows(row: Any) -> list[dict[str, Any]]:
         {
             "name": str(s.get("name", "?")),
             "verified": _int0(s.get("verified")),
-            "claims": _int0(s.get("claims")),
+            # a missing, null or non-integer count is -1, never 0: `0/0` is a CLEAN slice, so
+            # a hand-edited row that lost its count must not read as one (it stays OPEN)
+            "claims": c
+            if isinstance(c := s.get("claims"), int) and not isinstance(c, bool)
+            else -1,
         }
         for s in row["slices"]
         if isinstance(s, dict)
@@ -367,9 +407,158 @@ def _slice_rows(row: Any) -> list[dict[str, Any]]:
 
 def _failing_slices(row: Any) -> list[dict[str, Any]]:
     """The slices of a round row whose ledger still holds an open claim (verified < claims)."""
-    # a row with no claims at all (a hand-edited record — the CLI refuses `A:0/0`) is OPEN,
-    # never clean: fail-closed, and escapable by re-stating the ledger
-    return [s for s in _slice_rows(row) if s["verified"] < s["claims"] or s["claims"] < 1]
+    # `0/0` is clean (a slice with no claim to verify); a row whose count is missing or broken
+    # (`_slice_rows` reads it as -1 — a hand-edited record) is OPEN, never clean: fail-closed,
+    # and escapable by re-stating the ledger
+    return [s for s in _slice_rows(row) if s["verified"] < s["claims"] or s["claims"] < 0]
+
+
+def _repeats_round(last: Any, args: argparse.Namespace, slices: Any, phase: int) -> bool:
+    """True when this `round` call repeats ``last``, a round that closed seats (W-fe322585).
+
+    `findings`, `confirmed` and the phase must be equal; every other typed field must be equal
+    WHERE STATED ON BOTH sides — absent on either matches, so a retry that re-spells the call or
+    adds `--own-fix` after the NOTE asking for it is still a repeat. The class lists compare as
+    sets. A last round that closed no seats (an in-shell backfill, a pre-stamp record) or carries a
+    malformed seat count never repeats: the caller fails toward recording."""
+    if not isinstance(last, dict):
+        return False
+    seats = last.get("seats")
+    if isinstance(seats, bool) or not isinstance(seats, int) or seats <= 0:
+        return False
+    if (
+        last.get("findings") != args.findings
+        or last.get("confirmed") != args.confirmed
+        or _int0(last.get("phase")) != phase
+    ):
+        return False
+
+    def _set(v: Any) -> frozenset | None:
+        return frozenset(str(x) for x in v) if isinstance(v, list) and v else None
+
+    def _norm(v: Any) -> str | None:
+        return None if v is None else json.dumps(v, sort_keys=True)
+
+    pairs = (
+        (last.get("own_fix"), args.own_fix),
+        (_set(last.get("swept")), _set(_csv(args.classes_swept))),
+        (_set(last.get("new")), _set(_csv(args.classes_new))),
+        (last.get("new_count"), args.new),
+        (_norm(last.get("slices")), _norm(slices)),
+    )
+    return all(a is None or b is None or a == b for a, b in pairs)
+
+
+def _slice_expectation(
+    rounds: list[Any],
+    classes: dict[str, Any],
+    slices: list[dict[str, Any]] | None,
+    confirmed: int | None,
+) -> list[str]:
+    """The slice ledger a `round` is expected to state, said BEFORE it is recorded (W-2d704438,
+    kaizen mail 01M58H6DF7). The lead types `--slices` by hand each later pass; before this a
+    wrong ledger was accepted silently and surfaced only as a ✗ or NOT TERMINAL in the report.
+
+    On a record whose earlier rounds stated slices: one EXPECTED line (the first sliced round's
+    claims, each slice's LAST stated count, the classes still open), then a warning per mismatch
+    against each slice's LAST stated row — never against round 1, because a slice legitimately
+    gains claims after round 1 (a fix hunk opens one, `/fabrik-review` § later passes) and a
+    shrunk ledger stays shrunk, so a round-1 baseline would warn on every later correct round,
+    terminal one included (both design critiques executed it). Warned: claims that moved (and
+    which way), verified going DOWN, a name no earlier round stated (once, the round it appears),
+    an owed slice the flag omits — the same owed set `_vanished_slices` reads, so the echo and the
+    report agree — and a later round with no `--slices` at all. On a FIRST sliced round: claims
+    totalling less than `--confirmed` (the undercount `_parse_slices` records). ADVISORY, never
+    a refusal: shrinks and undercounts both occur in real records (`_parse_slices`).
+
+    ⚠️ COBRA (D-253): the cheapest way past the echo is to ignore it, which is why it warns only
+    on a real change — never on a ledger merely restated; the ✗ and NOT TERMINAL in the report
+    remain the enforcement."""
+    sliced = [(i, r) for i, r in enumerate(rounds, 1) if _slice_rows(r)]
+
+    def count(n: int) -> str:
+        return "?" if n < 0 else str(n)
+
+    if not sliced:
+        if slices and confirmed is not None:
+            total = sum(max(s["claims"], 0) for s in slices)
+            if total < confirmed:
+                return [
+                    f"[command_run] ⚠ round --slices: the claims total {total} < --confirmed "
+                    f"{confirmed} — round 1's ledger should hold every confirmed claim"
+                ]
+        return []
+    first_n, first_row = sliced[0]
+    last: dict[str, dict[str, Any]] = {}
+    for _, r in sliced:
+        for s in _slice_rows(r):
+            last[s["name"]] = s
+    open_c = sorted(k for k, v in classes.items() if v != "clean")
+    out = [
+        f"[command_run] EXPECTED — round-{first_n} slices: "
+        + " · ".join(f"{s['name']} claims {count(s['claims'])}" for s in _slice_rows(first_row))
+        + "; last stated: "
+        + " · ".join(
+            f"{n} {count(s['verified'])}/{count(s['claims'])}" for n, s in sorted(last.items())
+        )
+        + f"; classes open: {', '.join(open_c) or 'none'}"
+    ]
+    warn = "[command_run] ⚠ round --slices: "
+    if slices is None:
+        return [*out, warn + "absent — every earlier slice is owed this round (D-335)"]
+    for s in slices:
+        was = last.get(s["name"])
+        if was is None:
+            out.append(warn + f"{s['name']} is new — no earlier round stated it")
+            continue
+        if was["claims"] >= 0 and s["claims"] != was["claims"]:
+            way = "grew" if s["claims"] > was["claims"] else "shrank"
+            out.append(
+                warn + f"{s['name']} claims {way} {was['claims']} → {s['claims']} since it was "
+                "last stated — a fix-opened claim grows a ledger; a candidate count is not a ledger"
+            )
+        if s["verified"] < was["verified"]:
+            out.append(
+                warn + f"{s['name']} verified fell {was['verified']} → {s['verified']} "
+                "since it was last stated"
+            )
+    stated = {s["name"] for s in slices}
+    for n in _vanished_slices([*rounds, {"slices": slices}]):
+        if n not in stated:
+            out.append(warn + f"{n} is missing — an omitted slice is open, never clean (D-335)")
+    return out
+
+
+def _zero_slice_refusal(
+    slices: list[dict[str, Any]], confirmed: int | None, rounds: list[Any]
+) -> str | None:
+    """Why a `round --slices` holding a `0/0` slice is refused, or None (W-65fb308e).
+
+    A `0/0` is admitted only for a slice that never held a claim: one an earlier round stated with
+    claims ≥ 1 would close its open claims by restating them as nothing. And a round confirming
+    defects while EVERY slice it names is `0/0` holds those defects in no ledger — the all-zero
+    typo guard (omitting `--slices` altogether remains possible and is what `_vanished_slices`
+    and the receipt's coverage gate answer, not this)."""
+    zero = [s["name"] for s in slices if s["claims"] == 0]
+    if not zero:
+        return None
+    # an earlier count that no longer reads (`_slice_rows`' -1 — a hand-edited row) counts as
+    # HELD, fail-closed: an unreadable ledger can never be the reason a 0/0 is admitted
+    earlier = {
+        s["name"] for row in rounds for s in _slice_rows(row) if s["claims"] >= 1 or s["claims"] < 0
+    }
+    held = [n for n in zero if n in earlier]
+    if held:
+        return (
+            f"slice(s) {', '.join(held)} held claims in an earlier round and cannot be restated "
+            "as 0/0 — restate the ledger at its <verified>/<claims>"
+        )
+    if confirmed and len(zero) == len(slices):
+        return (
+            f"--confirmed {confirmed} with every slice 0/0 — assign each confirmed defect to the "
+            "slice whose files hold it: `<name>:0/<n>`"
+        )
+    return None
 
 
 def _vanished_slices(rounds: list[Any]) -> list[str]:
@@ -398,7 +587,7 @@ PER_UNIT_ROUND_COMMANDS = frozenset(
 
 
 def convergence_warning(
-    series: list[int],
+    series: list[int | None],
     command: str = "",
     label: str = "findings",
 ) -> str:
@@ -412,11 +601,15 @@ def convergence_warning(
         return ""  # per-unit rounds: consecutive counts describe different surfaces
     if len(series) < NON_CONVERGENCE_MIN_ROUNDS or len(series) < CONVERGENCE_WINDOW:
         return ""
-    window = series[-CONVERGENCE_WINDOW:]
+    window = [n for n in series[-CONVERGENCE_WINDOW:] if n is not None]
+    if len(window) < CONVERGENCE_WINDOW:
+        # a corrupt round (a None slot) sits in the window: the trend cannot be read, so it is never
+        # diagnosed — for at most CONVERGENCE_WINDOW rounds, after which the window is clean again
+        return ""
     if all(a >= b for a, b in zip(window, window[1:], strict=False)):
         return ""  # still non-increasing — converging, say nothing
     arrow = " → ".join(str(n) for n in window)
-    full = " → ".join(str(n) for n in series)
+    full = " → ".join("?" if n is None else str(n) for n in series)
     return (
         f"\n⚠️  NON-CONVERGENCE — {label} are OSCILLATING: {arrow} "
         f"(round {len(series)}; full series: {full}).\n"
@@ -526,14 +719,15 @@ def scope_growth_warning(rows: list[Any], command: str = "", *, lane: bool = Fal
     if str(command or "").strip().lower() in PER_UNIT_ROUND_COMMANDS:
         # per-unit rounds describe DIFFERENT surfaces (round 4 is T11's review, round 5 is
         # T08's), so two tickets each closing out their own residue is healthy, and this
-        # advisory's exit sentence — "close on the last round that swept the ORIGINAL surface" —
-        # has no referent when the rounds share no surface. Same stand-down, same reason, as the oscillation
+        # advisory's exit sentence — "re-verify the fixed set, then close on a confirmed-zero
+        # round" — has no single fixed set when the rounds share no surface. Same stand-down, same reason, as the oscillation
         # advisory above (review round 1, C4).
         return ""
-    # NO filtering: `_count` returns None for a non-dict, which BREAKS the run exactly as a
-    # missing counter does. Filtering them out closed the window ACROSS them and re-opened the
-    # very hole round 1 fixed (review round 2, C-1); `_trend_series` applies the same rule over
-    # the unfiltered list.
+    # NO filtering: `_count` returns None for a non-dict, which OCCUPIES its slot and never
+    # qualifies, exactly as a missing counter does. Filtering them out closed the window ACROSS
+    # them and re-opened the very hole round 1 fixed (review round 2, C-1); `_trend_series`
+    # keeps the slot the same way (as None, on both of its branches — W-1bba6b75), though the
+    # oscillation advisory goes silent over a window holding one where this rules UNCOMPUTABLE.
     if lane and len(rows) >= 2:
         # D8 (`task_lane.scope_growth_rounds`): a review nested directly under a running
         # `/fabrik-task` stops hunting at its FIRST own-fix-only round after the full pass. Only
@@ -548,9 +742,10 @@ def scope_growth_warning(rows: list[Any], command: str = "", *, lane: bool = Fal
                 f"text this review itself added (confirmed/own-fix: {c}/{o}) under a running "
                 "/fabrik-task.\n"
                 "    Exit (term-edit / term-coverage § Scope-growth stop, lane variant): STOP the "
-                "loop — route the remaining own-fix work to a backlog row with a named destination, "
-                "and close on the last round that swept the ORIGINAL surface; the receipt carries "
-                "`**Lane:** fabrik-task`.\n"
+                "hunt — fix the window's open defects, route the remaining own-fix work to "
+                "/fabrik-spec or a backlog row with a named destination, re-verify the fixed set "
+                "alone, and close on a `confirmed: 0 · fixed: 0 · unexecuted: 0` round (D-355); "
+                "the receipt carries `**Lane:** fabrik-task`.\n"
                 "    (Advisory only — nothing is blocked.)"
             )
     if len(rows) < SCOPE_GROWTH_ROUNDS:
@@ -596,10 +791,11 @@ def scope_growth_warning(rows: list[Any], command: str = "", *, lane: bool = Fal
             # the pointer names BOTH fragments: a term-coverage loop (`/fabrik-review`,
             # `/fabrik-repo-review`) never reads term-edit, and naming one sends the reader to a
             # section its command does not carry — the `_trend_label` incident's shape (round 1, S1)
-            "    Exit (term-edit / term-coverage § Scope-growth stop): STOP the loop — route the "
-            "remaining own-fix "
-            "work to a backlog row with a named destination, and close on the last round that "
-            "swept the ORIGINAL surface — its state is the one that matters.\n"
+            "    Exit (term-edit / term-coverage § Scope-growth stop): STOP the hunt — fix the "
+            "window's open defects, route the remaining own-fix work to /fabrik-spec or a backlog "
+            "row with a named destination, re-verify the fixed set alone, and close on a "
+            "`confirmed: 0 · fixed: 0 · unexecuted: 0` round (D-355) — a review never closes on "
+            "a round that confirmed something.\n"
             "    (Advisory only — nothing is blocked.)"
         )
 
@@ -706,7 +902,7 @@ def _int0(v: Any) -> int:
     return 0
 
 
-def _trend_series(rounds: list[Any]) -> list[int]:
+def _trend_series(rounds: list[Any]) -> list[int | None]:
     """The `confirmed` series when EVERY round states it, the `findings` series otherwise.
 
     EVERY round or none: a partial confirmed series is not a trend — it splices two different
@@ -714,20 +910,55 @@ def _trend_series(rounds: list[Any]) -> list[int]:
     oscillation advisory and the ``FEEDBACK:`` trend so the two can never disagree; the TERMINAL
     rule is deliberately NOT a caller — that one is a LAST-round-only test.
     """
-    if rounds and all(_confirmed(r) is not None for r in rounds):
-        return [_confirmed(r) or 0 for r in rounds]
-    return [_int0(r.get("findings", 0)) for r in rounds if isinstance(r, dict)]
+    # NO filtering, on either branch (W-1bba6b75): a non-dict round keeps its slot as None. Dropping it
+    # made the series shorter than the rounds and let a window read across it as if adjacent (9, 5, 0,
+    # corrupt, 5, 0 read as the oscillation 0 → 5 → 0 at "round 5"), the hole the scope-growth stop
+    # closed for its own window (`scope_growth_warning`); and letting it veto adoption sent a confirmed
+    # record down the findings series for the rest of its life.
+    if _confirmed_adopted(rounds):
+        return [(_confirmed(r) or 0) if isinstance(r, dict) else None for r in rounds]
+    return [_int0(r.get("findings", 0)) if isinstance(r, dict) else None for r in rounds]
+
+
+def _confirmed_adopted(rounds: list[Any]) -> bool:
+    """Every READABLE round states `confirmed` (at least one does) — a corrupt round takes a None slot
+    in the series instead of deciding which series it is."""
+    readable = [r for r in rounds if isinstance(r, dict)]
+    return bool(readable) and all(_confirmed(r) is not None for r in readable)
 
 
 def _trend_label(rounds: list[Any]) -> str:
     """Which series `_trend_series` just returned — the advisory must NAME it (review round 1):
     printing "findings are OSCILLATING: 4 → 1 → 3" over the CONFIRMED series sent the reader to a
     findings column that was strictly converging (50 → 10)."""
-    return (
-        "confirmed counts"
-        if rounds and all(_confirmed(r) is not None for r in rounds)
-        else "findings"
-    )
+    return "confirmed counts" if _confirmed_adopted(rounds) else "findings"
+
+
+def _stale_seat_round(rounds: list[Any]) -> tuple[int, int] | None:
+    """`(k, confirmed)` when every seat the LAST round closed was dispatched at or before round k —
+    the newest EARLIER round that confirmed defects — was recorded, else None (W-128df814, fleet row
+    1792465351: a wave round closing a round-1 seat printed TERMINAL before the fix was re-verified).
+
+    The anchor is the newest confirming round, never round N-1 alone: a quiet stale round between
+    them must not launder the next one. Fails OPEN — None — when the last round carries no
+    `dispatched_at` (no stamp, `--seats 0`, a record older than this field) or the confirming round
+    has no usable `ts`. The signal is the round's RECORD time, not the fix's: a seat dispatched
+    after the record but before the fix landed reads fresh (accepted risk). COBRA (D-253): the
+    cheapest way past it is `dispatch --seats 1` after the fix without reading it — that stamp is
+    the seats a sibling subtracts, and `dispatch --seats 0` adds no batch, so a zero stamp buys
+    nothing."""
+    if len(rounds) < 2 or not isinstance(rounds[-1], dict):
+        return None
+    at = _finite_ts(rounds[-1].get("dispatched_at"))
+    if at is None:
+        return None
+    for i in range(len(rounds) - 2, -1, -1):
+        r = rounds[i]
+        conf = _confirmed(r) if isinstance(r, dict) else None
+        if conf:
+            ts = _finite_ts(r.get("ts"))
+            return (i + 1, conf) if ts is not None and at <= ts else None
+    return None
 
 
 def _round_report(rec: dict[str, Any]) -> str:
@@ -765,6 +996,8 @@ def _round_report(rec: dict[str, Any]) -> str:
     # one-`Pass`-row receipt the coverage gate hard-refuses — the two halves of the same redesign
     # disagreeing about whether one clean pass can end a loop (D7 seam #1).
     quiet = swept_all and not lapsed and counter == 0
+    has_closing = _norm_command(rec.get("command")) not in NO_CLOSING_PASS
+    min_rounds = 2 if has_closing else 1
     slices = _slice_rows(last)
     failing = _failing_slices(last)
     vanished = _vanished_slices(rounds)
@@ -773,19 +1006,30 @@ def _round_report(rec: dict[str, Any]) -> str:
             "  slices: "
             + " · ".join(
                 f"{s['name']} {s['verified']}/{s['claims']} "
-                + ("✓" if s["claims"] >= 1 and s["verified"] >= s["claims"] else "✗")
+                + ("✓" if s["claims"] >= 0 and s["verified"] >= s["claims"] else "✗")
                 for s in slices
             )
         )
-    terminal = quiet and len(rounds) >= 2 and not failing and not vanished
-    if quiet and len(rounds) >= 2 and vanished:
+    stale = _stale_seat_round(rounds)
+    terminal = quiet and len(rounds) >= min_rounds and not failing and not vanished and not stale
+    if quiet and len(rounds) >= min_rounds and stale:
+        k, conf = stale
+        lines.append(
+            f"⛔ NOT TERMINAL — every seat this round closed was dispatched before round {k} "
+            f"RECORDED its {conf} confirmed defect(s), so none of them can have read that round's "
+            "fix; the closing pass owes a seat dispatched after it (`dispatch --seats <n>`, then "
+            "`round`) — W-128df814"
+        )
+    if quiet and len(rounds) >= min_rounds and vanished:
         lines.append(
             "⛔ NOT TERMINAL — slice ledger missing this round for ("
             + ", ".join(vanished)
             + "), stated by an earlier round; every later pass re-states `--slices` for every "
-            "slice an earlier round stated — an omitted slice is open, never clean (D-335)"
+            "slice an earlier round stated — an omitted slice is open, never clean (D-335). A slice "
+            "with no open claim needs no seat and no extra round: re-state it at its last "
+            "`<verified>/<claims>` in THIS round's `--slices` (W-c8069437)"
         )
-    if quiet and len(rounds) >= 2 and failing:
+    if quiet and len(rounds) >= min_rounds and failing:
         lines.append(
             "⛔ NOT TERMINAL — "
             + "; ".join(
@@ -808,9 +1052,11 @@ def _round_report(rec: dict[str, Any]) -> str:
                 "close with `handoff`, the failing slices and their claims named (D-335)"
                 if failing or vanished
                 else "run the closing pass now, or close with `handoff` naming what is unverified (D-335)"
+                if has_closing
+                else "close with `done`, or `handoff` naming what is unverified"
             )
         )
-    if quiet and len(rounds) < 2:
+    if quiet and len(rounds) < min_rounds:
         lines.append(
             "⛔ NOT TERMINAL — round 1 is the full pass, never the closing round; run the closing "
             "pass — the round-1 seats over their own slices (the receipt gate demands a confirming "
@@ -852,9 +1098,13 @@ def _round_report(rec: dict[str, Any]) -> str:
                 "`round --confirmed 0`)"
             )
             + (" — every slice verified" if slices else "")
-            + ". The closing pass is the round-1 seats confirming their own slices' ledgers, its "
-            "receipt citing the standing-clean classes from the last full pass (D-206, D-335). "
-            "Close the run: "
+            + (
+                ". The closing pass is the round-1 seats confirming their own slices' ledgers, its "
+                "receipt citing the standing-clean classes from the last full pass (D-206, D-335). "
+                if has_closing
+                else ". This command has no closing pass. "
+            )
+            + "Close the run: "
             f"python3 scripts/command_run.py done --command {rec.get('command') or '<name>'} "
             '--evidence "<proof>" --feedback "<what you filed, to whom | none — surfaces swept>"'
         )
@@ -905,7 +1155,12 @@ def _plan_stem(rec: dict[str, Any]) -> str | None:
 
 
 def _phase_review_exists(
-    root: str, phase: int, *, plan_stem: str | None = None, since: float | None = None
+    root: str,
+    phase: int,
+    *,
+    plan_stem: str | None = None,
+    since: float | None = None,
+    scan: tuple[list[Path], str, dict[str, str]] | None = None,
 ) -> bool:
     """Is there a review artifact for ``phase`` under docs/development/reviews/?
 
@@ -928,9 +1183,7 @@ def _phase_review_exists(
     job, and it can finally do it because it now has a subject.
     """
     if not root:
-        return False
-    d = Path(root) / "docs" / "development" / "reviews"
-    if not d.is_dir():
+        _REVIEW_SCAN["note"] = ""  # a call that scans nothing leaves no stale coverage note
         return False
     # DELIMITED, not substring: `phase-1` is a prefix of `phase-10`, so a bare `in`
     # let a phase-10 review satisfy phase 1 — a project that reviews only its last
@@ -982,38 +1235,208 @@ def _phase_review_exists(
     plan_prefix = (
         re.compile(re.escape(prefix_m.group(0)) + r"(?![0-9a-z])", re.I) if prefix_m else None
     )
-    try:
-        for f in d.rglob("*.md"):
-            if not f.is_file():
+    # a sibling's receipt binds to this plan by its dated `<date>-plan-<n>` prefix. STATED COST
+    # (review r4, D-278 delete-over-patch): a stem without that prefix binds nothing in a sibling —
+    # three rounds of whole-stem matching each cross-accepted another plan or refused an honest one
+    sibling_bind = plan_prefix
+    # W-9fca9008 (mail 01M48QZDFM): a plan built in a worktree commits its receipts on the worktree
+    # branch, so root (the record's repo_root, usually the main checkout) is searched FIRST and then
+    # every other registered worktree of the same repository. A SIBLING tree offers only NEW
+    # evidence: `git worktree add` re-stamps every checked-out file with the checkout time, so a
+    # receipt whose content root already tracks is replicated history and is skipped, and a
+    # sibling's receipt is aged by the AUTHOR time of the last commit that added or changed it,
+    # following renames (a rebase re-stamps the committer time; a rename is not new evidence;
+    # mtime only while untracked there). When the record names its plan, a sibling's receipt must
+    # carry that plan's stem or prefix — another worktree is usually another session's plan.
+    # Each tree is read on its own — an unreadable sibling never hides root's receipt.
+    # `step` asks once per earlier phase: it passes one `review_scan(root)` for all of them
+    trees, scan_note, root_tracked = scan if scan is not None else review_scan(root)
+    _REVIEW_SCAN["note"] = scan_note
+    for i, tree in enumerate(trees):
+        d = tree / "docs" / "development" / "reviews"
+        sibling = i > 0
+        try:
+            if not d.is_dir():
                 continue
-            is_ticket = bool(ticket.search(f.name))
-            phase_named = phase_pat.search(f.name) or (letter_pat and letter_pat.search(f.name))
-            if not (is_ticket or phase_named):
-                continue
-            try:
-                # NON-EMPTY: `touch` created a complete silent bypass. This still binds
-                # existence, not quality — but an empty file is not even existence.
-                st = f.stat()
-            except OSError:
-                continue
-            if st.st_size <= 0:
-                continue
-            if is_ticket and plan_stem:
-                return True
-            if since is None or st.st_mtime >= float(since) - 2.0:
-                return True
-            if plan_prefix and plan_prefix.match(f.name):
-                return True
-    except OSError:
-        return False  # unreadable → treat as absent; the refusal names how to waive
+            for f in d.rglob("*.md"):
+                if not f.is_file():
+                    continue
+                is_ticket = bool(ticket.search(f.name))
+                phase_named = phase_pat.search(f.name) or (letter_pat and letter_pat.search(f.name))
+                if not (is_ticket or phase_named):
+                    continue
+                try:
+                    # NON-EMPTY: `touch` created a complete silent bypass. This still binds
+                    # existence, not quality — but an empty file is not even existence.
+                    st = f.stat()
+                except OSError:
+                    continue
+                if st.st_size <= 0:
+                    continue
+                rel = f.relative_to(tree).as_posix()
+                if (
+                    sibling
+                    and rel in root_tracked
+                    and _blob_of(tree, rel, root_tracked[rel]) == root_tracked[rel]
+                ):
+                    continue  # replicated history, re-stamped by the checkout — not new evidence
+                if is_ticket and plan_stem:
+                    return True
+                if sibling and sibling_bind and not sibling_bind.match(f.name):
+                    continue  # another worktree's plan is not this plan's evidence
+                age = _committed_at(tree, f) if sibling else None
+                when = st.st_mtime if age is None else age
+                if since is None or when >= float(since) - 2.0:
+                    return True
+                if plan_prefix and plan_prefix.match(f.name):
+                    return True
+        except OSError:
+            continue  # an unreadable tree is skipped; the refusal names how to waive
     return False
+
+
+def _sibling_bind_label(plan_stem: str) -> str | None:
+    """The `<date>-plan-<n>` prefix a sibling worktree's receipt must start with for this plan, or
+    None when the stem has none (no sibling binding then — review r4)."""
+    m = re.match(r"\d{4}-\d{2}-\d{2}-plan-[^-\s]+", plan_stem, re.I)
+    return m.group(0) if m else None
+
+
+# The last `_phase_review_exists` scan's coverage, for the refusal to state (W-9fca9008 review).
+_REVIEW_SCAN: dict[str, str] = {"note": ""}
+
+
+def review_scan(root: str) -> tuple[list[Path], str, dict[str, str]]:
+    """``(trees, note, root_tracked)`` for `_phase_review_exists` — computed once per `step`."""
+    trees, note = _review_trees(root)
+    return trees, note, (_tracked_reviews(Path(root)) if len(trees) > 1 else {})
+
+
+_WORKTREE_LIST_TIMEOUT_S = 5
+
+
+def _review_trees(root: str) -> tuple[list[Path], str]:
+    """``(trees, note)``: root first, then every other registered worktree of its repository
+    (``git worktree list --porcelain -z``; ``bare`` and ``prunable`` entries skipped; de-duplicated
+    by resolved path). Any git failure or timeout falls back to ``[root]`` — today's refusal — and
+    the note says the scan was skipped."""
+    base = Path(root)
+    trees = [base]
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(base), "worktree", "list", "--porcelain", "-z"],
+            capture_output=True,
+            text=True,
+            timeout=_WORKTREE_LIST_TIMEOUT_S,
+            check=False,
+            env=_scrubbed_git_env(),
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return trees, f"worktree scan skipped ({type(exc).__name__}), root only"
+    if r.returncode != 0:
+        return trees, "root only (not a git worktree)"
+    seen = {base.resolve()}
+    path: Path | None = None
+    skip = False
+    for field in [*r.stdout.split("\0"), ""]:
+        if field.startswith("worktree "):
+            path, skip = Path(field[len("worktree ") :]), False
+        elif field in ("bare",) or field.startswith("prunable"):
+            skip = True
+        elif field == "" and path is not None:
+            if not skip and path.is_dir() and path.resolve() not in seen:
+                seen.add(path.resolve())
+                trees.append(path)
+            path = None
+    return trees, f"searched {len(trees)} tree(s): root and its registered worktrees"
+
+
+def _tracked_reviews(root: Path) -> dict[str, str]:
+    """The review receipts root's index tracks, as ``{repo-relative posix path: blob id}``; empty on
+    failure."""
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-s", "-z", "--", "docs/development/reviews"],
+            capture_output=True,
+            text=True,
+            timeout=_WORKTREE_LIST_TIMEOUT_S,
+            check=False,
+            env=_scrubbed_git_env(),
+        )
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    if r.returncode != 0:
+        return {}
+    out: dict[str, str] = {}
+    for rec in r.stdout.split("\0"):
+        meta, _, path = rec.partition("\t")  # `<mode> <blob> <stage>\t<path>`
+        parts = meta.split()
+        if path and len(parts) == 3:
+            out[path] = parts[1]
+    return out
+
+
+def _git_line(tree: Path, *args: str) -> str | None:
+    """One git query's stripped stdout in ``tree``, or None on any failure."""
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(tree), *args],
+            capture_output=True,
+            text=True,
+            timeout=_WORKTREE_LIST_TIMEOUT_S,
+            check=False,
+            env=_scrubbed_git_env(),
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def _blob_of(tree: Path, rel: str, like: str) -> str | None:
+    """The git blob id of ``rel``'s raw bytes in ``tree``, hashed in-process (one subprocess per
+    candidate cost ~25 s on a 25-tree hub — review r2), with sha256 when ``like`` (the index's id)
+    is 64 hex long. Clean/smudge filters (autocrlf) are not applied: such a copy reads as changed
+    and falls through to commit-time aging, which still refuses replicated history."""
+    p = tree / rel
+    try:
+        # git stores a symlink as a blob of its TARGET PATH, never the target's bytes (review r3)
+        data = os.fsencode(os.readlink(p)) if p.is_symlink() else p.read_bytes()
+    except OSError:
+        return None
+    h = hashlib.sha256() if len(like) == 64 else hashlib.sha1(usedforsecurity=False)
+    h.update(b"blob %d\0" % len(data))
+    h.update(data)
+    return h.hexdigest()
+
+
+def _committed_at(tree: Path, f: Path) -> float | None:
+    """The AUTHOR time of the last commit that added or changed ``f`` in ``tree``, following renames
+    (a pure rename is not new content), or None while it is untracked there (its mtime is then an
+    honest write time). A checkout re-stamps mtimes and a rebase re-stamps committer times; neither
+    moves the author time."""
+    try:
+        rel = f.relative_to(tree).as_posix()
+    except ValueError:
+        return None
+    # `--literal-pathspecs`: a `[x]` or `*` in a receipt name is a name, never a glob (review r3)
+    if not _git_line(tree, "--literal-pathspecs", "ls-files", "--", rel):
+        return None  # untracked here (new, or removed and rewritten): its mtime is honest
+    # `-M100%`: follow EXACT renames only — the default 50% similarity follows a fresh receipt
+    # into an older one written from the same template and dates it by that file's add (review r2)
+    out = _git_line(
+        tree, "--literal-pathspecs", "log", "-1", "--follow", "-M100%", "--diff-filter=AM",
+        "--format=%at", "--", rel,
+    )  # fmt: skip
+    return float(out) if out and out.isdigit() else None
 
 
 def _since_label(rec: dict[str, Any]) -> str:
     """The phase-form clause of the refusal: the time bound with the record's start as a local
     timestamp (zone named), or NO clause when the record carries no finite start — a bound that
-    is not in force is not stated (review round 2)."""
-    ts = _finite_ts(rec.get("started_epoch"))
+    is not in force is not stated (review round 2). The start it names is the one the gate binds
+    on: the ORIGIN of a resumed run (W-28f260c3 review code-S1 — the label read this sitting's
+    clock while `_phase_review_exists(since=…)` accepted a pre-wall artifact)."""
+    ts = _finite_ts(rec.get("origin_epoch") or rec.get("started_epoch"))
     if ts is None:
         return ""
     stamp = time.strftime("%Y-%m-%d %H:%M:%S %Z", time.localtime(ts))
@@ -1094,6 +1517,577 @@ def _scrubbed_git_env() -> dict[str, str]:
         for k, v in os.environ.items()
         if k not in _GIT_ENV_OVERRIDES and not k.startswith(_GIT_ENV_PREFIXES)
     }
+
+
+# A run's persistent scratch (kaizen 01M4V0B03B): the session scratchpad lives under /tmp, which a WSL
+# shutdown clears, and it held everything a resumed run needs beyond this record (phase-2 measure.md,
+# critique briefs, review pins). `start` gives every run a dir under the `.tmp/runs/` of the checkout it
+# runs in — a linked worktree's own (W-128df814: its session's Write tool refuses the main checkout's
+# path; a plain `git worktree remove` deletes it with the tree) — and seats may read it (never
+# $HOME/.claude*). scratch_sweep never prunes `.tmp`, so `start` prunes every checkout's `.tmp/runs/`
+# (a finished worktree never starts again). COBRA (D-253): the cheapest way to "have scratch" without
+# the outcome is to keep writing to the /tmp scratchpad; the counter is the printed SCRATCH path the
+# command text names, not this code.
+SCRATCH_RETENTION_S = 14 * 86400
+_SCRATCH_EXCLUDE_LINE = "/.tmp/runs/"
+
+
+def _git_out(cwd: Path, *args: str) -> tuple[int, str]:
+    r = subprocess.run(
+        ["git", "-C", str(cwd), *args],
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+        env=_scrubbed_git_env(),
+    )
+    return r.returncode, r.stdout.strip()
+
+
+def _other_checkouts(repo_root: Path) -> list[Path]:
+    """Every OTHER checkout `git worktree list --porcelain` names for `repo_root`'s repository (the
+    main one included when `repo_root` is a linked worktree) — [] when git cannot say."""
+    rc, out = _git_out(repo_root, "worktree", "list", "--porcelain")
+    if rc != 0:
+        return []
+    here = repo_root.resolve()
+    found = []
+    for line in out.splitlines():
+        if line.startswith("worktree "):
+            p = Path(line[len("worktree ") :])
+            if p.resolve() != here:
+                found.append(p)
+    return found
+
+
+def _ensure_scratch_ignored(main: Path) -> str:
+    """'' once git ignores `.tmp/runs/` in `main`, else the reason it does not. Appends the exclude
+    line (untracked, shared by every worktree) only when `check-ignore` answers a clean NO, and only
+    once; re-checks after, because a `.gitignore` negation outranks info/exclude."""
+    probe = ".tmp/runs/x"
+    rc, _ = _git_out(main, "check-ignore", "-q", "--", probe)
+    if rc == 0:
+        return ""
+    if rc != 1:
+        return f"`git check-ignore` answered rc {rc} (a symlinked `.tmp` or `.tmp/runs`?)"
+    rc, excl = _git_out(main, "rev-parse", "--path-format=absolute", "--git-path", "info/exclude")
+    if rc != 0 or not excl:
+        return "the repo's info/exclude path did not resolve"
+    exclude = Path(excl)
+    try:
+        lines = exclude.read_text(encoding="utf-8").splitlines() if exclude.exists() else []
+        if _SCRATCH_EXCLUDE_LINE not in lines:
+            exclude.parent.mkdir(parents=True, exist_ok=True)
+            with exclude.open("a", encoding="utf-8") as fh:
+                if lines and lines[-1] != "":
+                    fh.write("\n")
+                fh.write(_SCRATCH_EXCLUDE_LINE + "\n")
+    except OSError as exc:
+        return f"info/exclude unwritable ({exc})"
+    rc, _ = _git_out(main, "check-ignore", "-q", "--", probe)
+    return "" if rc == 0 else "`.tmp/runs/` is still not ignored (a .gitignore negation?)"
+
+
+def _scratch_name(command: str, key: str) -> str:
+    return re.sub(r"[^0-9A-Za-z_-]+", "-", f"{command}-{key}").strip("-") or "run"
+
+
+def _newest_mtime(path: Path, stop_at: float = math.inf) -> float:
+    """The newest mtime anywhere under `path` (a write in a subdir never touches the run dir's own
+    mtime); returns at the first entry at or past `stop_at`, so a fresh run costs one hit, not a walk."""
+    newest = path.lstat().st_mtime
+    for dirpath, dirnames, filenames in os.walk(path, followlinks=False):
+        for name in dirnames + filenames:
+            try:
+                newest = max(newest, (Path(dirpath) / name).lstat().st_mtime)
+            except OSError:
+                continue
+            if newest >= stop_at:
+                return newest
+    return newest
+
+
+def _prune_scratch(root: Path, keep: set[Path], now: float | None = None) -> list[str]:
+    """Remove `<root>/<sid>/<run>` dirs whose NEWEST file is older than the retention, except those in
+    `keep` and any holding `.git` (a worktree pin is reported, never rm-rf'd); then empty `<sid>`
+    dirs. Any doubt skips the dir. Returns NOTE lines."""
+    now = time.time() if now is None else now
+    notes: list[str] = []
+    # a dir that cannot be listed (another account's tree, a permission-mangled dir, a sibling prune
+    # that removed it mid-walk) is a NOTE, never a raise: `start` prunes every checkout now, and a
+    # raise here cost the run its own scratch (W-128df814 review A-sonnet-1)
+    try:
+        if not root.is_dir():
+            return notes
+        sid_dirs = sorted(root.iterdir())
+    except OSError as exc:
+        return [f"scratch root {root} not pruned ({exc})"]
+    for sid_dir in sid_dirs:
+        try:
+            if sid_dir.is_symlink() or not sid_dir.is_dir():
+                continue
+            runs = sorted(sid_dir.iterdir())
+        except OSError as exc:
+            notes.append(f"scratch {sid_dir} not pruned ({exc})")
+            continue
+        for run in runs:
+            try:
+                if run.is_symlink() or not run.is_dir() or run.resolve() in keep:
+                    continue
+                cutoff = now - SCRATCH_RETENTION_S
+                if _newest_mtime(run, stop_at=cutoff) >= cutoff:
+                    continue
+                if (run / ".git").exists():
+                    notes.append(
+                        f"stale scratch {run} holds a git worktree — kept; remove it with `git worktree remove`"
+                    )
+                    continue
+                shutil.rmtree(run)
+            except OSError as exc:
+                notes.append(f"stale scratch {run} not pruned ({exc})")
+        try:
+            if not any(sid_dir.iterdir()):
+                sid_dir.rmdir()
+        except OSError:
+            pass
+    return notes
+
+
+def _scratch_referenced() -> set[Path]:
+    """Every `scratch` a record or a kept resume seed in the state dir names — never pruned."""
+    out: set[Path] = set()
+    state = _state_dir()
+    for pattern in ("*.json", "seeds/*.json"):
+        for f in state.glob(pattern):
+            try:
+                data = json.loads(f.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            for rec in [data, *((data.get("stack") or []) if isinstance(data, dict) else [])]:
+                val = rec.get("scratch") if isinstance(rec, dict) else None
+                if isinstance(val, str) and val:
+                    out.add(Path(val).resolve())
+    return out
+
+
+def _make_scratch(
+    repo_root: str,
+    sid: str,
+    command: str,
+    key: str,
+    seed: dict[str, Any] | None,
+    *,
+    root: Path | None = None,
+) -> tuple[Path | None, list[str]]:
+    """The run's persistent scratch dir, created — or (None, reasons) when it cannot be made safely.
+    Fails closed on the DIR (never an un-ignored dir in a tree) and the caller fails open on the RUN.
+    A resumed run keeps its seed's dir, or derives the path from the SEED's session (a resume after a
+    restart runs in a new session). An explicit `root` skips the repo and its exclude step."""
+    notes: list[str] = []
+    why = ""
+    others: list[Path] = []
+    if root is None:
+        if not repo_root:
+            return None, []
+        # the checkout the session runs in, never the main one: a worktree-isolated session's Write
+        # tool refuses a path outside its own tree (W-128df814, superseding D-836's main-checkout root)
+        here = Path(repo_root)
+        why = _ensure_scratch_ignored(here)
+        root = here / ".tmp" / "runs"
+        others = _other_checkouts(here)
+    # a seed's dir is reused only when it lies under THIS root: never another repo's checkout, and
+    # never a live checkout while the test seam is on (review closing pass A)
+    prev = seed.get("scratch") if seed else None
+    kept: Path | None = None
+    if isinstance(prev, str) and prev and Path(prev).is_dir():
+        if Path(prev).resolve().is_relative_to(root.resolve()):
+            kept = Path(prev)
+        else:
+            notes.append(f"the seed's scratch {prev} is outside {root} — not reused")
+    elif isinstance(prev, str) and prev:
+        # a plain `git worktree remove` deletes ignored files with the tree: say the files are gone
+        # rather than hand back an empty dir at the same name (W-128df814)
+        notes.append(f"the seed's scratch {prev} no longer exists — its files are not carried")
+    if why and kept is None:
+        return None, [*notes, why]
+    if why:
+        # the seed's dir already exists and holds the run's artifacts: orphaning it would lose
+        # them, so it is reused — and the agent is told it is not ignored (review A3)
+        notes.append(f"{why} — reusing the seed's existing scratch {kept} anyway")
+    path: Path | None = kept
+    if seed and path is None:
+        if seed.get("session_id"):
+            path = root / _safe_sid(str(seed["session_id"])) / _scratch_name(command, key)
+    if path is None:
+        path = root / _safe_sid(sid) / _scratch_name(command, key)
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        return None, [f"cannot create {path} ({exc})"]
+    keep = {path.resolve(), *_scratch_referenced()}
+    notes += _prune_scratch(root, keep=keep)
+    # a finished worktree never starts again, so its own prune never fires: every start prunes every
+    # checkout's runs, else one stale dir pins that tree as `wt-ignored-data` for ever (W-128df814)
+    for other in others:
+        o_root = other / ".tmp" / "runs"
+        # a symlinked `.tmp` or `.tmp/runs` points outside that tree: never pruned through
+        if (other / ".tmp").is_symlink() or o_root.is_symlink():
+            continue
+        notes += _prune_scratch(o_root, keep=keep)
+    return path, notes
+
+
+# ── run-bound scratch (scratch lifecycle plan, D-870): mint, mark, heartbeat — never classify ──
+# A run's bulky work lives in `<harness session dir>/scratchpad/run-<key>/` beside a `.owner` marker
+# this file writes at `start` and rewrites at every close; `scripts/scratch_sweep.py` is the ONLY
+# reader that decides removal (plan P2). This file is fleet-synced and `scratch_sweep.py` is not, so
+# the hub copy is loaded by file location — never a `sys.path` insert (P15) — and every failure
+# mints nothing and says why: scratch never refuses a start or a close (spec D1).
+_SWEEP_MODULES: dict[str, Any] = {}
+
+
+def _run_scratch_key(command: str, started_at: str) -> str:
+    """`<command>-<started_at>-<6 hex>` — the record key has one-second resolution and a resumed run
+    reuses its origin key, so the folder key carries its own suffix (plan P4).
+
+    A command that sanitises to nothing (``""``, ``"/"``, ``"日本"``) would leave the key with no
+    command segment, and `scratch_sweep.RUN_KEY_RE` needs one — the live run's folder would read as
+    an ordinary entry and could be removed by age (W-c0a1d324 F12). It falls back to ``run``."""
+    import secrets  # noqa: PLC0415 — only a start mints
+
+    segment = re.sub(r"[^0-9A-Za-z_-]+", "-", command).strip("-") or "run"
+    return f"{_scratch_name(segment, started_at)}-{secrets.token_hex(3)}"
+
+
+def _sweep_module() -> Any:
+    """The hub's `scratch_sweep.py` from `FABRIK_SCRATCH_SWEEP_LIB` (default `/opt/fabrik/scripts`),
+    loaded under the private name `_cr_scratch_sweep` and registered in `sys.modules` before it
+    executes (its dataclasses resolve their module there). None when it cannot be loaded."""
+    import importlib.util  # noqa: PLC0415
+
+    src = (
+        Path(os.environ.get("FABRIK_SCRATCH_SWEEP_LIB") or "/opt/fabrik/scripts")
+        / "scratch_sweep.py"
+    )
+    key = str(src)
+    if key in _SWEEP_MODULES:
+        return _SWEEP_MODULES[key]
+    mod = None
+    if src.is_file():
+        spec = importlib.util.spec_from_file_location("_cr_scratch_sweep", src)
+        if spec is not None and spec.loader is not None:
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules[spec.name] = mod
+            try:
+                spec.loader.exec_module(mod)
+            except Exception:  # noqa: BLE001 — a broken hub copy mints nothing, never refuses
+                sys.modules.pop(spec.name, None)
+                mod = None
+    _SWEEP_MODULES[key] = mod
+    return mod
+
+
+def _write_owner(folder: Path, fields: dict[str, Any]) -> bool:
+    """Write `<folder>/.owner` atomically (temp file + `os.replace`); False on any OSError."""
+    target = folder / ".owner"
+    tmp = folder / f".owner.{os.getpid()}.tmp"
+    try:
+        tmp.write_text(json.dumps(fields, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(tmp, target)
+    except OSError:
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+        return False
+    return True
+
+
+def _read_owner(folder: Path) -> dict[str, Any] | None:
+    """The marker as a dict; None on ANY failure (a seat can clobber it — even a deeply nested
+    JSON raises RecursionError, not ValueError)."""
+    try:
+        data = json.loads((folder / ".owner").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 — an unreadable marker is no marker, never an error
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _session_pad(sid: str, cwd: str) -> tuple[Path | None, str, Any]:
+    """`(<session dir>/scratchpad, "", module)` or `(None, why, None)` — the session directory is
+    FOUND by the hub's `find_session_dirs`, never computed (spec D1)."""
+    if not os.environ.get("SCRATCH_SWEEP_ROOT") and (
+        os.environ.get("COMMAND_RUN_DIR") or os.environ.get("PYTEST_CURRENT_TEST")
+    ):
+        return (
+            None,
+            "a test seam is set without SCRATCH_SWEEP_ROOT — the live harness root stays untouched",
+            None,
+        )
+    mod = _sweep_module()
+    if mod is None:
+        lib = os.environ.get("FABRIK_SCRATCH_SWEEP_LIB") or "/opt/fabrik/scripts"
+        return None, f"the scratch sweep could not be loaded from {lib}", None
+    if not all(hasattr(mod, n) for n in ("RUN_PREFIX", "find_session_dirs", "_scratch_root")):
+        # a synced command_run.py newer than the hub's copy (or a hub copy mid-merge)
+        return (
+            None,
+            "the hub's scratch_sweep.py predates run-bound scratch — no folder minted",
+            None,
+        )
+    root = mod._scratch_root()
+    dirs = mod.find_session_dirs(root, sid, cwd)
+    if not dirs:
+        return None, f"no harness session directory for this session under {root}", None
+    if len(dirs) > 1:
+        return (
+            None,
+            f"{len(dirs)} session directories and none matches this cwd — not guessing",
+            None,
+        )
+    return dirs[0] / "scratchpad", "", mod
+
+
+def _mint_run_scratch(
+    sid: str, cwd: str, command: str, key: str, repo_root: str
+) -> tuple[Path | None, str]:
+    """Create `<session dir>/scratchpad/run-<key>/` with a `running` marker (spec D1). Returns
+    `(folder, "")`, or `(None, why)` — the caller prints the why and the start goes on."""
+    pad, why, mod = _session_pad(sid, cwd)
+    if pad is None:
+        return None, why
+    common = ""
+    if repo_root:
+        rc, out = _git_out(
+            Path(repo_root), "rev-parse", "--path-format=absolute", "--git-common-dir"
+        )
+        common = out if rc == 0 else ""
+    folder = pad / f"{mod.RUN_PREFIX}{key}"
+    try:
+        folder.mkdir(parents=True)
+    except OSError as exc:
+        return None, f"cannot create {folder} ({exc})"
+    owner = {
+        "sid": sid,
+        "key": key,
+        "command": command,
+        "repo": common,
+        "created": time.time(),
+        "state": "running",
+        "closed_at": None,
+    }
+    if not _write_owner(folder, owner):
+        shutil.rmtree(folder, ignore_errors=True)
+        return None, f"cannot write the marker in {folder}"
+    return folder, ""
+
+
+def _sane_epoch(value: object, now: float) -> bool:
+    """A numeric (not bool), finite epoch no later than `now` + 300 s — scratch_sweep's
+    GAP_CLOCK_MARGIN_S, the clock skew its D-900 rule tolerates."""
+    return (
+        isinstance(value, int | float)
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value <= now + 300
+    )
+
+
+def _mark_run_scratch(rec: dict[str, Any], state: str, sid: str) -> None:
+    """Rewrite the run folder's marker at a close (spec D2): `state` and `closed_at`, plus `sid` and
+    `key`, which heals an adoption whose own marker rewrite failed (plan P6). Silent when the record
+    has no folder or the folder is gone — a close never fails on scratch."""
+    folder_s = str(rec.get("run_scratch") or "")
+    if not folder_s:
+        return
+    try:
+        folder = Path(folder_s)
+        if not folder.is_dir():  # raises PermissionError on an unenterable parent
+            return
+        owner = _read_owner(folder) or {}
+        now = time.time()
+        created = owner.get("created")
+        if not _sane_epoch(created, now):
+            # a heal from an unreadable or `created`-less marker: the sweep believes a close only
+            # against a sane creation time (D-900), so without one the folder is kept for ever. The
+            # stamp is the run's TRUE start (`started_epoch`), never `now`: `gap_keeps` protects a
+            # folder from a same-uid process that started after `created`, so a `now` would strip
+            # that protection from every writer the run had (review of 2dd7ac9e6, A1). A record
+            # with no usable start (an adoption's bare `{"run_scratch": …}`) leaves `created`
+            # unknown — kept, the safe side. A real, sane `created` is never replaced.
+            # a resumed run's TRUE start is its `origin_epoch` (its `started_epoch` is the resume's),
+            # the same `origin_epoch or started_epoch` every other reader of a run's start uses
+            start = rec.get("origin_epoch")
+            if not _sane_epoch(start, now):
+                start = rec.get("started_epoch")
+            if _sane_epoch(start, now):
+                owner["created"] = float(start)
+            else:
+                owner.pop("created", None)
+        owner.update(
+            {
+                "state": state,
+                "closed_at": now,
+                "sid": sid,
+                "key": folder.name.removeprefix("run-"),
+            }
+        )
+        _write_owner(folder, owner)
+    except Exception:  # noqa: BLE001 — a close (or a start's P11 mark) never fails on scratch
+        return
+
+
+def _resume_names_run_folder(text: str, folder: str) -> bool:
+    """True when a handoff's `--resume` text names its own run folder (plan P7): the absolute path, or
+    the folder's basename as a WHOLE token — which also catches a relative path, a trailing `/`, a
+    realpath through a symlinked root and a pasted `RUN-SCRATCH:` line, and never `run-<key>2`."""
+    name = Path(folder).name if folder else ""
+    if not name:  # an empty pattern would match between any two non-word characters
+        return False
+    # the basename as a whole token covers the absolute path too; a bare substring test on the
+    # absolute path refused `<folder>2/…` — a sibling sharing this folder's prefix (review pass 1)
+    return re.search(rf"(?<![A-Za-z0-9_-]){re.escape(name)}(?![A-Za-z0-9_-])", text) is not None
+
+
+def _heartbeat(rec: dict[str, Any]) -> None:
+    """One `utime` on the run folder's marker — the heartbeat a dead-session judgement reads (spec D1).
+    A missing folder or marker is skipped silently."""
+    folder_s = str(rec.get("run_scratch") or "")
+    if folder_s:
+        with contextlib.suppress(OSError, ValueError):  # ValueError: a NUL in a corrupted record
+            os.utime(Path(folder_s) / ".owner")
+
+
+def _adopt_run_scratch(
+    seed: dict[str, Any], sid: str, cwd: str, key: str
+) -> tuple[Path | None, str]:
+    """`start --resume-from`: move the wall seed's `resumable` folder into THIS session as
+    `run-<key>` (one rename) and rewrite its marker's `sid`/`key` (plan P6). The marker is re-read
+    just before the rename; anything but `resumable` is not adopted and left as it is. Any other
+    refused or failed adoption marks the old folder `done` — this start ended its resume (P12) —
+    and the caller mints fresh."""
+    old_s = str(seed.get("run_scratch") or "")
+    if not old_s:
+        return None, ""
+    old = Path(old_s)
+    try:
+        owner = _read_owner(old)
+        if owner is None or owner.get("state") != "resumable":
+            return None, f"the seed's run folder {old} is gone or no longer resumable"
+        old_sid = str(owner.get("sid") or sid)
+        pad, why, mod = _session_pad(sid, cwd)
+        if pad is None:
+            _mark_run_scratch({"run_scratch": old_s}, "done", old_sid)
+            return None, f"{why} — the seed's run folder {old} is marked done"
+        # a worktree or submodule pointer some repo OUTSIDE the folder refers to would be stranded
+        # by the rename; a plain clone is self-contained and moves safely (review R1-2)
+        pointers = mod.git_pointer_files(old) if hasattr(mod, "git_pointer_files") else [old]
+        if pointers:
+            _mark_run_scratch({"run_scratch": old_s}, "done", old_sid)
+            return (
+                None,
+                f"the seed's run folder {old} holds a registered git tree — not moved; marked done",
+            )
+        dest = pad / f"{mod.RUN_PREFIX}{key}"
+        os.rename(old, dest)
+    except Exception as exc:  # noqa: BLE001 — ANY failure ends the resume (P12), never a stranded folder
+        _mark_run_scratch({"run_scratch": old_s}, "done", str((owner or {}).get("sid") or sid))
+        return None, f"cannot move the seed's run folder {old} ({exc}) — marked done"
+    owner.update({"sid": sid, "key": key})
+    _write_owner(dest, owner)  # a failure leaves a sid mismatch the next close heals (P6)
+    return dest, f"adopted from {old}"
+
+
+def _seat_size_lines(run_scratch: str, threshold: int, deadline_s: float) -> list[str]:
+    """D5: one advisory line per top-level FOLDER of the run larger than `threshold` apparent bytes
+    — a seat (or the lead) that copied a whole tree instead of an archive or a clone. Every folder,
+    not `seat-*` alone (W-3c60b7db): seats are named `seat2-opus`, `seat-p1-<pin>-A-haiku` and the
+    like, and a hand-made pin of a whole tree is the same defect, so a name pattern let a third of
+    the live top-level folders escape. A symlink and a plain file are skipped (in a folder that can be
+    listed but not searched — read without execute — every entry reads as unmeasured: its kind cannot
+    be told; a folder that cannot be LISTED at all — no read bit, or gone — yields no lines, because
+    there is nothing to name). Runs AFTER the record lock
+    drops; a `du` past ITS deadline says so. Each seat folder gets its own `deadline_s` (spec D5):
+    a shared one left a later seat whatever a slow earlier one did not spend, so one large copy
+    read every later seat as unmeasured (W-c0a1d324 F8). Cost: the worst case is the folder count
+    times `deadline_s` (measured 2026-10-18: at most 32 top-level folders in a live run folder, 0.31 s
+    warm). An entry that cannot be examined prints `size unmeasured — cannot be examined`; the others still print. Never
+    changes the exit code or the record."""
+    lines: list[str] = []
+    try:  # `glob` answered a vanished or unreadable folder with nothing; `iterdir` raises
+        entries = sorted(Path(run_scratch).iterdir())
+    except OSError:
+        return lines
+    for seat in entries:
+        try:  # an unsearchable run folder makes the stat raise: say so for that entry, keep the rest
+            if seat.is_symlink() or not seat.is_dir():
+                continue
+            # `review_loop_ledger.py pin --base` extracts a whole commit into `<pins>.base`: an
+            # archive extraction, the remedy this line recommends, never the defect. Known by its
+            # sibling's MANIFEST.json — an existence test, not a content check: an `x.base` with no
+            # `x/MANIFEST.json` FILE beside it is measured; any such file exempts it.
+            if seat.suffix == ".base" and (seat.with_suffix("") / "MANIFEST.json").is_file():
+                continue
+        except OSError:  # said, never silent: an entry the advisory cannot see is not "not large"
+            lines.append(f"{seat.name}: size unmeasured — cannot be examined")
+            continue
+        try:  # a zero deadline (timeout <= 0) raises TimeoutExpired at once — the same line
+            proc = subprocess.run(
+                ["du", "-s", "--apparent-size", "--block-size=1", str(seat)],
+                capture_output=True,
+                text=True,
+                timeout=deadline_s,
+            )
+            # W-2dadedfd review: a folder inside the seat that cannot be read makes `du` exit 1 yet
+            # still print the PARTIAL size it reached — a large tree under it read as small and
+            # dropped out silently. A non-zero exit is the "cannot be examined" line, never a size.
+            if proc.returncode != 0:
+                raise OSError(proc.stderr.strip()[:120] or f"du exit {proc.returncode}")
+            size = int(proc.stdout.split()[0])
+        except subprocess.TimeoutExpired:
+            lines.append(f"{seat.name}: size unmeasured — over the deadline")
+            continue
+        except (OSError, ValueError, IndexError, subprocess.SubprocessError):
+            # said, never silent — an entry the advisory cannot measure is not "not large"; one that
+            # was REMOVED between the listing and `du` (the sweep, the seat itself) is gone, not
+            # unmeasured: no line, as for a gone run folder
+            if os.path.lexists(seat):
+                lines.append(f"{seat.name}: size unmeasured — cannot be examined")
+            continue
+        if size > threshold:
+            lines.append(
+                f"{seat.name}: {size / 1024**2:.1f} MB — a copied tree? an archive or clone is leaner"
+            )
+    return lines
+
+
+def _launch_run_folder_sweep(sid: str, repo_root: str) -> None:
+    """D3 (plan P3, P16): this session's run-folder sweep, launched DETACHED after the record lock
+    drops — a start never waits on a multi-GB removal and never runs a subprocess under the lock.
+    `FABRIK_SCRATCH_SWEEP=0` disables it; under a test seam only an explicit script runs. Fail-open."""
+    if os.environ.get("FABRIK_SCRATCH_SWEEP") == "0" or not sid:
+        return
+    explicit = os.environ.get("FABRIK_SCRATCH_SWEEP_SCRIPT")
+    if not explicit and (
+        os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("COMMAND_RUN_DIR")
+    ):
+        return
+    script = explicit or "/opt/fabrik/scripts/scratch_sweep.py"
+    if not Path(script).is_file():
+        return
+    argv = [sys.executable, script, "--run-folders", "--session", sid]
+    if repo_root:
+        argv += ["--cwd", repo_root]
+    argv.append("--apply")
+    try:
+        subprocess.Popen(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            env={**os.environ, "CLAUDE_SESSION_ID": sid},
+        )
+    except (OSError, ValueError) as exc:
+        sys.stderr.write(f"[command_run] run-folder sweep not launched: {exc}\n")
 
 
 def _repo_root() -> str:
@@ -1179,9 +2173,192 @@ def _now() -> str:
 # `expired` are deliberately NOT here — a reaped run covered nothing.
 AGENT_CLOSED_STATES = frozenset({"done", "blocked", "handoff"})
 
+# ── the quota-wall resume (W-28f260c3, sp3 01M49B2E91) ──────────────────────────────────────
+# A record closed at the fleet quota wall was TERMINAL: the session's next `start` overwrote it,
+# so the successor lost the round and class ledgers, the design, the SIZE declaration and the
+# start clock — its quiet round read as "round 1 is the full pass" and `done --commit` refused
+# every pre-wall commit. `blocked --wall` (and an operator's `blocked --paused`, W-79638b4a) keeps
+# a JSON seed of the closed record under
+# `<state>/seeds/`; `start --resume-from <seed>` carries it forward. The explicit flag is the
+# gate; `_WALL_REASON` catches the hook's own phrase (quota_stop.py `_reason`) for an agent who
+# pasted it without the flag; `_WALL_HINT` only prints a NOTE naming the flag — a missed match is
+# SILENT otherwise, which is the fail direction this trio exists to close.
+_WALL_REASON = re.compile(r"quota wall|fleet quota exhausted|fleet-exhausted", re.I)
+# `RED` is the band name and upper-case only: under re.I a lowercase "red" — "tests red thrice",
+# the commonest sanctioned BLOCKED wording — drew the NOTE on every three-failures close (review
+# code-S3). The other alternatives stay broad on purpose: a vendor quota or a "wall-mounted" sensor
+# in a reason costs one self-qualifying stderr line; a missed fleet wall costs the run.
+_WALL_HINT = re.compile(r"quota|exhaust|\bwall\b|(?-i:\bRED\b)", re.I)
+# Carried from the seed as-is. NOT carried, by name: `started_at`/`started_epoch` (this
+# sitting's clock — budget, appetite, tokens and wall_s count ACTIVE time; the original start
+# rides beside it as `origin_epoch`/`origin_started_at` + `gap_s`), `dispatch` (a per-round
+# reservation siblings subtract for 25 min — stale by construction), `stack` (rebuilt from the
+# live record), `covered`/`first_review_reach`/`reviewed_surfaces`/`event_seq`/`session_id`/`repo_root`/`agent`/
+# `account` (the session's), `state`/`wall`/`paused`/`blocked_reason`/`resume`/`resume_copy`/
+# `resume_seed`/`usage`/`feedback`/`feedback_to`/`feedback_text`/`closed_by`/`evidence`/
+# `nested`/`child_closed_ts` (the closed sitting's own).
+_RESUME_CARRY = (
+    "phases",
+    "phase",
+    "phase_title",
+    "terminal",
+    "terminal_amends",
+    "surface",
+    "rounds",
+    "classes",
+    "declared",
+    "design",
+    "design_amends",
+    "budget_min",
+    "surface_adds",
+    "waived_reviews",
+    "phase_marks",
+    "scratch",
+)
+
+
+def _effective_start(rec: dict[str, Any]) -> float | None:
+    """The start every ELAPSED-time reader uses: the original start shifted by the quota-wall
+    gap(s), so budget, appetite and the lane's appetite breaker count active time only. For a
+    record that was never resumed this is `started_epoch` unchanged. The COMMIT binding and the
+    review windows read `origin_epoch or started_epoch` instead — a pre-wall commit or phase review
+    still counts, whatever the gap."""
+    origin = _finite_ts(rec.get("origin_epoch"))
+    started = origin if origin is not None else _finite_ts(rec.get("started_epoch"))
+    if started is None:
+        return None
+    gap = _finite_ts(rec.get("gap_s"))
+    return started + (gap if gap is not None and gap > 0 else 0.0)
+
+
 # The commands whose closed window reaches back to the previous covered window's close: a review
 # reviews the session's work SINCE the last run, so that span is covered by its contract.
 REVIEW_FAMILY = frozenset({"fabrik-review", "fabrik-review-scoped"})
+
+
+# The stored surface's cap (W-bdcff87a): an entry rides every later record of the session and the
+# Stop hook parses it on every stop. 4000 chars holds the longest surfaces the corpus writes; a path
+# past the cap is simply not named, so the cap fails CLOSED (the file stays owed a review).
+_REVIEWED_SURFACE_CAP = 4000
+
+
+def _carried_reviewed_surfaces(prev: dict) -> list:
+    """`prev`'s well-shaped `reviewed_surfaces` entries — a str surface, a list of str adds and a
+    positive int `closed`; anything else is dropped here, so one corrupt entry never rides on."""
+    out = []
+    rs = prev.get("reviewed_surfaces")
+    for e in rs if isinstance(rs, list) else []:
+        if not isinstance(e, dict):
+            continue
+        surface, adds, closed = e.get("surface"), e.get("adds"), e.get("closed")
+        if (
+            isinstance(surface, str)
+            and isinstance(adds, list)
+            and all(isinstance(x, str) for x in adds)
+            and isinstance(closed, int)
+            and not isinstance(closed, bool)
+            and closed > 0
+        ):
+            out.append({"surface": surface, "adds": list(adds), "closed": closed})
+    return out
+
+
+#: One repo path as the Stop hook's `_SURFACE_SPLIT` reads a token — the COMPLEMENT of that
+#: splitter's class, so a path `surface --add` accepts is exactly one token there. A second copy
+#: because the writer cannot import the hook; a parity grader binds the two (W-24ae7ecf).
+_SURFACE_PATH = re.compile(r"[A-Za-z0-9_./\\-]+")
+
+
+def _surface_token(t: str) -> str:
+    """A `surface` token EXACTLY as the hook reads one (`final_gate_stop._surface_reviewed`): ONE
+    leading `./` and every trailing `.` stripped. Used only to ask "does the surface already exempt
+    this path?" — a looser rule here would skip an add the hook then fails to match (`././x.py` reads
+    as `./x.py` there). Added paths never reach it: `posixpath.normpath` has already collapsed them."""
+    t = t[2:] if t.startswith("./") else t
+    return t.rstrip(".")
+
+
+def _surface_path(raw: str, root: str) -> tuple[str, str]:
+    """`(path, "")` for one repo FILE path as the hook will match it, or `("", why)`.
+
+    One normalisation, never a sequence of partial strips: an absolute path is resolved (symlinks
+    too) against the resolved repo root; a relative one is collapsed (`//`, `./`) by
+    `posixpath.normpath`; a `..` component, a backslash, a character outside the hook's token
+    alphabet, and anything that IS a directory in the repo are refused — a directory exempts
+    nothing, because the hook matches whole tokens against authored FILE paths."""
+    p = raw.strip()
+    if not p:
+        return "", "is empty"
+    if "\\" in p or not _SURFACE_PATH.fullmatch(p):
+        return "", "is not one repo path (letters, digits and `_./-` only — anything else splits)"
+    if p.startswith("/"):
+        real_root = os.path.realpath(root) if root else ""
+        real = os.path.realpath(p)
+        if not real_root or not real.startswith(real_root + "/"):
+            return "", f"is outside the repo ({root})"
+        p = real[len(real_root) + 1 :]
+    if ".." in p.split("/"):
+        return "", "has a `..` component"
+    p = _surface_token(posixpath.normpath(p))
+    # an empty `repo_root` (a record started outside git) is read relative to the cwd, never skipped
+    if not p or p == "." or os.path.isdir(os.path.join(root or ".", p)):
+        return "", "is a directory, not a file"
+    return p, ""
+
+
+def _surface_add(sid: str, rec: dict[str, Any], args: argparse.Namespace) -> int:
+    """`surface --add` (W-24ae7ecf): widen a RUNNING review's own sixth-cause exemption, mid-run.
+
+    A running review covers (start, inf), so its own edits are covered already; what it cannot
+    cover is a file last edited BEFORE its start that its `--surface` did not name. Each path goes
+    to `surface_adds` — never into `surface`, which stays the ledger's run dimension (see the
+    `--file` comment on `start`) — normalised as the hook reads a token. Every refusal is rc 1 with
+    nothing stored, including the no-record and closed-record cases `step` treats as warned no-ops.
+
+    COBRA (D-253): the cheapest misuse is to `--add` every file the sixth cause names and stop.
+    It buys nothing `start --surface` could not: the exemption lives only while the record runs
+    and is fresh, the running record keeps the fifth cause in force, `blocked`/`handoff` take it
+    back, and `done` covers the session anyway — and each add is kept with its time, so a widening
+    is countable, never invisible.
+    """
+    if not rec:
+        return _refuse("REFUSED — surface --add: no run record for this session")
+    if rec.get("state") != "running":
+        return _refuse(f"REFUSED — surface --add: this record is {rec.get('state')}, not running")
+    if _tokish(rec.get("command")).lstrip("/") not in REVIEW_FAMILY:
+        return _refuse(
+            "REFUSED — surface --add widens a running REVIEW only (fabrik-review, "
+            f"fabrik-review-scoped); this record is {rec.get('command')}"
+        )
+    root = str(rec.get("repo_root") or "").rstrip("/")
+    wanted: list[str] = []
+    for raw in args.add:
+        p, why = _surface_path(str(raw), root)
+        if why:
+            return _refuse(f"REFUSED — surface --add: {raw!r} {why}")
+        wanted.append(p)
+    named = {_surface_token(t) for t in _SURFACE_PATH.findall(str(rec.get("surface") or ""))}
+    prev = rec.get("surface_adds")
+    adds = [a for a in prev if isinstance(a, dict)] if isinstance(prev, list) else []
+    named |= {str(a.get("path")) for a in adds}
+    added: list[str] = []
+    for p in wanted:
+        if p in named:
+            continue
+        named.add(p)
+        adds.append({"path": p, "at": _now()})
+        added.append(p)
+    rec["surface_adds"] = adds
+    _touch(rec)
+    if not save(sid, rec):  # save() never raises: a False is an exemption that does not exist
+        return _refuse(
+            "REFUSED — surface --add: the run record could not be written; nothing added"
+        )
+    print(
+        f"SURFACE widened: {', '.join(added) if added else 'nothing new'} "
+        f"({len(adds)} path(s) added this run)"
+    )
+    return 0
 
 
 def _norm_command(value: object) -> str:
@@ -1197,6 +2374,58 @@ def _finite_ts(v: object) -> float | None:
     if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
         return None
     return float(v)
+
+
+def _stamp_batches(d: dict[str, Any], seats: int) -> list[list[Any]]:
+    """The live stamp's seats as `[dispatch time, n]` batches, oldest first (W-128df814).
+
+    A stamp whose `batches` do not sum to `seats` — one written before batches existed, or a
+    hand-edited one — is ONE batch at the stamp's `ts`: its seats were out at that time at the latest,
+    so a later `dispatch --seats 0` (which re-dates `ts`) can never make them read fresh. A batch time
+    that is not a finite number is kept as None: unknown, which the round report never reads as stale.
+    """
+    raw = d.get("batches")
+    out: list[list[Any]] = []
+    if isinstance(raw, list):
+        for b in raw:
+            if (
+                isinstance(b, list)
+                and len(b) == 2
+                and isinstance(b[1], int)
+                and not isinstance(b[1], bool)
+                and b[1] > 0
+            ):
+                out.append([_finite_ts(b[0]), b[1]])
+            else:
+                out = []
+                break
+    if sum(n for _t, n in out) != seats:
+        out = [[_finite_ts(d.get("ts")), seats]] if seats > 0 else []
+    return out
+
+
+def _consume_batches(batches: list[list[Any]], k: int) -> tuple[float | None, list[list[Any]]]:
+    """Close `k` seats OLDEST batch first: `(dispatch time of the newest batch touched, the batches
+    left)`. Oldest-first is the pessimistic attribution — a partial close cannot say WHICH seats
+    returned, so a stale wave seat closing alone is never credited with a fresh seat's time; when the
+    fresh one returned first instead, the close reads stale once and the next close reads fresh. A
+    touched batch with an unknown time makes the answer None (unknown, never stale)."""
+    left = [list(b) for b in batches]
+    newest: float | None = None
+    unknown = False
+    while k > 0 and left:
+        t, n = left[0]
+        if t is None:
+            unknown = True
+        else:
+            newest = t if newest is None else max(newest, t)
+        take = min(n, k)
+        k -= take
+        if take == n:
+            left.pop(0)
+        else:
+            left[0][1] = n - take
+    return (None if unknown else newest), left
 
 
 def _touch(rec: dict[str, Any]) -> None:
@@ -1445,8 +2674,10 @@ def _evidence_hash(text: str) -> str:
     return hashlib.blake2s((text or "").encode("utf-8", "replace"), digest_size=8).hexdigest()
 
 
-# The four hub beats a finding can be routed to (charters: docs/reference/agents/). Matched as
-# whole words so "infrastructure" does not read as a route to `infra`.
+# The four hub beats a finding can be routed to (charters: docs/reference/agents/) — the FEEDBACK
+# grammar's list, so the coordinator is not one: it owns no beat, and the word fills the closes of
+# every run that touches its role (D-875). Matched as whole words so "infrastructure" does not
+# read as a route to `infra`.
 _BEATS = ("infra", "fleet", "intel", "kaizen")
 
 # Runs STARTED before this instant close without a verdict, exactly as they always could. They
@@ -1539,6 +2770,15 @@ _USAGE_FIELDS = ("confusion", "waste", "change", "filed")
 _USAGE_LABEL_RE = re.compile(
     r"(?:^|[·|;\n])[^\S\n]*(confusion|waste|change|filed|cost)[^\S\n]*:", re.I | re.M
 )
+# The grammar prints its optional field as `[· cost: <…>]` (W-256d6877). Without these the `[`
+# landed in the previous field's value and the `]` in cost's, so the grammar did not round-trip
+# through its own parser and the cost gate refused `0.01]`. OPEN: a `[` right before a separator
+# and a label — always a label boundary already, so blanking it moves no mark. CLOSE: a `]` at the
+# end of the value the opener introduced, before at most one `.` and one trailing separator.
+_USAGE_OPT_OPEN_RE = re.compile(
+    r"\[(?=[^\S\n]*[·|;\n][^\S\n]*(?:confusion|waste|change|filed|cost)[^\S\n]*:)", re.I
+)
+_USAGE_OPT_CLOSE_RE = re.compile(r"\](?=\s*\.?\s*(?:[·|;]\s*)?$)")
 _USAGE_GRAMMAR = (
     "confusion: <what in the command text was ambiguous or misleading | none> · "
     "waste: <steps/turns/tokens spent without changing the outcome | none> · "
@@ -1679,6 +2919,12 @@ def _change_axis_verdict(value: str) -> str | None:
 # the short noun phrases below are ordinary English a genuine verdict ABOUT the close-out grammar
 # uses in its own sentence, and this loop's verdicts are exactly about that grammar. A paste
 # reproduces a whole clause; a verdict borrows three words and then says something.
+# the `filed:` template in every spelling it has had or will have — a beat LIST (`a|b|c`), bracketed or not, or the
+# contract's `a beat`, its brackets PAIRED — ending at the template's own ` | none` or the value's end, so a FILLED value in the
+# template's form (`mail id(s) to infra|fleet | 01M4…`) is a verdict, not a paste (D-627 regression; review A-H1)
+_FILED_TEMPLATE = re.compile(
+    r"mail id\(s\) to (?:<(?:a beat|[a-z]+(?:\|[a-z]+)+)>|(?:a beat|[a-z]+(?:\|[a-z]+)+))\s*(?:\|\s*none\b|$)"
+)
 _GRAMMAR_PHRASES = (
     "the one concrete edit to this command or a rule",
     "what in the command text was ambiguous or misleading",
@@ -1813,10 +3059,19 @@ def _parse_usage_feedback(
     discarded an honest value (round-1 finders)."""
     fields: dict[str, str] = {}
     dupes: list[str] = []
-    marks = list(_USAGE_LABEL_RE.finditer(text or ""))
+    text = text or ""
+    openers = [o.start() for o in _USAGE_OPT_OPEN_RE.finditer(text)]
+    text = _USAGE_OPT_OPEN_RE.sub(" ", text)  # one-for-one: every position stays put
+    marks = list(_USAGE_LABEL_RE.finditer(text))
+    # the field each opener introduced: the first mark at or after it
+    owns_closer = {next((i for i, m in enumerate(marks) if m.start() >= p), None) for p in openers}
     for i, m in enumerate(marks):
         end = marks[i + 1].start(1) if i + 1 < len(marks) else len(text)
-        value = text[m.end() : end].strip()
+        value = text[m.end() : end]
+        # ...and only an UNBALANCED `]`: `[· filed: mail [01M5ABC]` ends in the id's own bracket
+        if i in owns_closer and value.count("]") > value.count("["):
+            value = _USAGE_OPT_CLOSE_RE.sub("", value, count=1)
+        value = value.strip()
         value = value.rstrip("·|;, \t").strip()
         key = m.group(1).lower()
         if key in fields:
@@ -1855,7 +3110,9 @@ def _parse_usage_feedback(
             _cv = _att[1] if _att else " ".join(_raw.strip().lower().split())
         else:
             _cv = " ".join(_raw.strip().lower().split())
-        if any(_cv.lstrip("> -*\"'`(").startswith(_ph) for _ph in _GRAMMAR_PHRASES):
+        if any(
+            _cv.lstrip("> -*\"'`(").startswith(_ph) for _ph in _GRAMMAR_PHRASES
+        ) or _FILED_TEMPLATE.match(_cv.lstrip("> -*\"'`(")):
             placeholders.append(_f)
     missing += [f"{f} (placeholder)" for f in placeholders]
     # THE AXIS GATE — `change:` only, and only on a value that is not already the grammar's own
@@ -2103,7 +3360,8 @@ _ASSISTANT_RE = re.compile(rb'"type"\s*:\s*"assistant"')
 # seat's LAST turn only (`toolUseResult.usage` == one message; 251 of 251 checked against the seat's
 # own file, median 10x under), a background seat's completion notice repeats that number, and a
 # background LAUNCH carries no usage at all (630 of 631 seat lines since 2026-09-01). The whole seat
-# lives in its own transcript — `<transcript dir>/<sid>/subagents/agent-<id>.jsonl`, assistant lines
+# lives in its own transcript — `<transcript dir>/<sid>/subagents/agent-<id>.jsonl` (a Workflow seat one
+# level down, `subagents/workflows/wf_<id>/`), assistant lines
 # in the parent's per-message shape — so that is what is summed (review 2026-09-08, the Opus seat:
 # the parent-line sum saw 0 of the 40 seats run that day).
 _TOKEN_KEYS = (
@@ -2195,10 +3453,17 @@ def _seat_last_epoch(q: Path) -> float | str:
 
 def _seat_transcripts(path: Path, lo: float) -> list[Path]:
     """The per-seat transcripts under the parent's `<sid>/subagents/`, touched since the window
-    opened (an mtime prefilter — the window itself is applied per line)."""
+    opened (an mtime prefilter — the window itself is applied per line). RECURSIVE: an Agent-tool
+    seat writes `subagents/agent-<id>.jsonl`, a Workflow-tool seat one level down in
+    `subagents/workflows/wf_<id>/` — a top-level glob read every review-loop close as seen 0
+    (kaizen 01M4D35GZ9). Every file is a seat: no dedupe — a seat written at two paths would count
+    twice, measured 0 duplicate seat names in 5,479 transcripts, and a name or content key cost
+    more than it guarded (review rounds 1-2: a name key dropped distinct seats, a byte compare
+    double-counted on a read error). A subdirectory rglob cannot read is skipped silently, which
+    loses only that directory's seats, never the others."""
     d = path.parent / path.stem / "subagents"
     try:
-        found = list(d.glob("agent-*.jsonl"))
+        found = list(d.rglob("agent-*.jsonl"))
     except OSError:
         return []
     out: list[Path] = []
@@ -2209,6 +3474,42 @@ def _seat_transcripts(path: Path, lo: float) -> list[Path]:
         except OSError:
             continue  # one vanished/unreadable seat file must never null the others (round 5)
     return sorted(out)
+
+
+def _unstamped_seat_count(sid: str, rec: dict[str, Any], rounds: list) -> tuple[int, bool]:
+    """The seat transcripts whose newest IN-WINDOW line is newer than the previous round (or a
+    nested child's close, or the record's start), and whether the count completed.
+
+    Read by `round`'s unstamped-seat nudge and by its blind-retry refusal (W-fe322585), which treats
+    an incomplete count as "something ran" — it fails toward recording. A `step` writes no timestamp
+    the window reads, so it never narrows it. Counted by the seat's last line, not the file's mtime
+    (round-12 Opus: a stamped seat still flushing after its close re-fired the nudge on the next,
+    empty round); an UNREADABLE transcript ("skipped") has only its mtime to date it and counts.
+    A session transcript that cannot be found leaves the count incomplete too: its seat directory
+    may sit elsewhere, so no seat seen there is not evidence that none ran."""
+    n = 0
+    complete = True
+    try:
+        since = max(
+            [_finite_ts(r.get("ts")) or 0.0 for r in rounds if isinstance(r, dict)]
+            + [
+                _finite_ts(rec.get("started_epoch")) or 0.0,
+                _finite_ts(rec.get("child_closed_ts")) or 0.0,
+            ]
+        )
+        tp = _transcript_path(sid, str(rec.get("repo_root") or ""))
+        complete = tp is not None and tp.is_file()
+        if tp is not None:
+            for q in _seat_transcripts(tp, since):
+                e = _seat_last_epoch(q)
+                # strict `>`: a line ON the round's own sub-second `ts` is that round's
+                if (isinstance(e, float) and e > since) or e == "skipped":
+                    n += 1
+    except Exception:
+        # advisory for the nudge — it may never void the round (a non-numeric `started_epoch`
+        # voided one, silently); for the refusal an unfinished count means "do not refuse"
+        return n, False
+    return n, complete
 
 
 def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, float] | str | None:
@@ -2265,6 +3566,141 @@ def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, float] | str | None:
     return acc
 
 
+# ── W-93a9d22a: the Stop hook's seats-in-flight reader, copied VERBATIM with a `_hook_`/`_HOOK_`
+# prefix (`_SEAT_TAIL_BYTES` below already exists with another value — the unstamped-seat
+# nudge's). Never imported: the hook's presence and version beside this synced script is not
+# guaranteed in a project, so an import would leave `round`'s refusal silently inert there.
+# Parity is GRADED — `tests/test_command_run.py::test_seats_in_flight_matches_the_stop_hook`
+# compares source (prefix stripped), the four constants, the regex and a behaviour matrix.
+_HOOK_SEAT_STAMP_FRESH_S = 25 * 60
+
+_HOOK_SEAT_TAIL_BYTES = 8 * 1024 * 1024
+
+_HOOK_NOTIFY_RE = re.compile(r"<task-id>([^<\s]+)</task-id>.*?<status>([^<\s]+)</status>", re.S)
+
+_HOOK_CLOCK_SKEW_TOLERANCE_S = 60.0
+
+
+def _hook_line_age_s(obj: dict, now: float) -> float:
+    """Seconds since a transcript line's ISO ``timestamp``; +inf when absent or unparseable."""
+    import datetime as _dt
+
+    ts = obj.get("timestamp")
+    if not isinstance(ts, str):
+        return math.inf
+    try:
+        return now - _dt.datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return math.inf
+
+
+def _hook_seats_in_flight(rec: dict, transcript_path: str) -> bool:
+    """True when this run's dispatched background seats are verifiably still running.
+
+    The stamp (``rec["dispatch"]``) must be live: a dict, not released, ``seats`` a positive
+    int, ``ts`` finite and at most 25 minutes old, and its ``round`` equal to the record's
+    current round count (recording a round closes the stamp). The transcript tail must show a
+    background Agent launched (``toolUseResult.status == "async_launched"``) or resumed
+    (``toolUseResult.resumedAgentId``) at most 25 minutes ago, with no later task notification
+    for that id. Only
+    ``user`` lines' structured ``toolUseResult`` counts as a launch — Bash or Read output
+    quoting the launch text carries no such field; notifications come from ``queue-operation``
+    enqueue lines that START with the notice tag, ``attachment`` lines whose ``commandMode`` or
+    ``origin.kind`` is task-notification, and task-notification ``user`` lines, so an assistant message, a seat's
+    hand-back or a peer message quoting a notice never counts (W-1b9ae5f2). Anything unreadable, absent or malformed returns False — the old block.
+
+    Cheapest way past it (D-253): stamp ``dispatch --seats 1`` and launch a real background
+    Agent that does not report, again every 25 minutes — each launch is a real seat costing
+    real quota, which costs more than finishing or closing the run.
+    """
+    try:
+        d = rec.get("dispatch")
+        if not isinstance(d, dict) or d.get("released"):
+            return False
+        seats, ts = d.get("seats"), d.get("ts")
+        if isinstance(seats, bool) or not isinstance(seats, int) or seats <= 0:
+            return False
+        if isinstance(ts, bool) or not isinstance(ts, (int, float)) or not math.isfinite(ts):
+            return False
+        age = time.time() - float(ts)
+        if age > _HOOK_SEAT_STAMP_FRESH_S or age < -_HOOK_CLOCK_SKEW_TOLERANCE_S:
+            return False
+        if d.get("round") != len(rec.get("rounds") or []):
+            return False
+        if not transcript_path:
+            return False
+        with open(transcript_path, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - _HOOK_SEAT_TAIL_BYTES))
+            raw = f.read().decode("utf-8", errors="replace")
+        lines = raw.splitlines()
+        if size > _HOOK_SEAT_TAIL_BYTES and lines:
+            lines = lines[1:]  # the first line of a mid-file slice is almost surely partial
+        running: set[str] = set()
+        now = time.time()
+        for line in lines:
+            if not any(k in line for k in ("async_launched", "resumedAgentId", "<task-id>")):
+                continue
+            try:
+                obj = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(obj, dict):
+                continue
+            kind = obj.get("type")
+            text = None
+            if kind == "user":
+                tur = obj.get("toolUseResult")
+                if isinstance(tur, dict):
+                    aid = None
+                    if tur.get("status") == "async_launched":
+                        # an Agent seat carries `agentId`; the review-loop Workflow (the mandated
+                        # review fan-out) carries `taskId` with taskType `local_workflow`. Any other
+                        # async task (a background Bash) is not a seat and never counts.
+                        aid = tur.get("agentId") or (
+                            tur.get("taskId") if tur.get("taskType") == "local_workflow" else None
+                        )
+                    aid = aid or tur.get("resumedAgentId")
+                    # each seat is bounded by its OWN launch/resume line too: `dispatch` re-dates
+                    # the stamp, so a seat that never returns must not ride later stamps
+                    if (
+                        isinstance(aid, str)
+                        and aid
+                        and _hook_line_age_s(obj, now) <= _HOOK_SEAT_STAMP_FRESH_S
+                    ):
+                        running.add(aid)
+                origin = obj.get("origin")
+                content = (obj.get("message") or {}).get("content")
+                if isinstance(origin, dict) and origin.get("kind") == "task-notification":
+                    text = content if isinstance(content, str) else None
+                if text is None:
+                    continue
+            elif kind == "queue-operation" and obj.get("operation") == "enqueue":
+                # every real notice enqueue starts with the tag; an agent or cross-session message may QUOTE one
+                content = obj.get("content")
+                if isinstance(content, str) and content.lstrip().startswith("<task-notification>"):
+                    text = content
+            elif kind == "attachment" and isinstance(obj.get("attachment"), dict):
+                att = obj["attachment"]
+                origin = att.get("origin")
+                if att.get("commandMode") == "task-notification" or (
+                    isinstance(origin, dict) and origin.get("kind") == "task-notification"
+                ):
+                    text = att.get(
+                        "prompt"
+                    )  # a seat's hand-back (origin peer) quoting a notice never closes one
+            elif kind != "user":
+                continue
+            if isinstance(text, str):
+                for aid, status in _HOOK_NOTIFY_RE.findall(text):
+                    if status not in ("running", "in_progress"):
+                        running.discard(aid)
+        return bool(running)
+    except Exception:
+        return False
+
+
 def _transcript_path(sid: str, repo_root: str) -> Path | None:
     override = os.environ.get("COMMAND_RUN_TRANSCRIPT")
     if override:
@@ -2313,8 +3749,9 @@ def _iter_lines_backwards(path: Path, max_bytes: int):
 
 
 def _minutes_used(rec: dict[str, Any]) -> int:
-    """Whole minutes since the record's start (0 when the start epoch is unreadable)."""
-    started = rec.get("started_epoch") or 0.0
+    """Whole ACTIVE minutes since the record's start (0 when the start epoch is unreadable) — the
+    quota-wall gap of a resumed run is not time spent (`_effective_start`)."""
+    started = _effective_start(rec) or 0.0
     try:
         return max(0, int((time.time() - float(started)) // 60)) if started else 0
     except (TypeError, ValueError):
@@ -2357,7 +3794,9 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
     empty.update(
         {
             "tok_msgs": 0,
-            "seats_seen": 0,
+            # not measured: the transcript was never read (W-256d6877) — a 0 here read as a
+            # measured zero and printed a false declared-vs-seen mismatch at the close
+            "seats_seen": None,
             "seats_partial": False,
             "seats_skipped": 0,
             "models": [],
@@ -2576,7 +4015,7 @@ def _feedback_line(rec: dict[str, Any], fields: dict[str, str], wall_s: float) -
     rounds = rec.get("rounds") or []
     # the CONFIRMED trend when every round states it, the raw one otherwise (§ Close-out USAGE
     # feedback) — this string is the chat-visible 7th line of every close, fleet-wide
-    trend = "→".join(str(n) for n in _trend_series(rounds))
+    trend = "→".join("?" if n is None else str(n) for n in _trend_series(rounds))
     mins = f"{wall_s / 60:.0f} min" if wall_s >= 90 else f"{wall_s:.0f} s"
     head = f"FEEDBACK: /{rec.get('command')} · {mins} · rounds {len(rounds)}"
     if trend:
@@ -2662,14 +4101,15 @@ def _build_parser() -> argparse.ArgumentParser:
         "--file",
         action="append",
         metavar="PATH",
-        help="/fabrik-task only: one declared path (repeatable) — the CODE surface of the task",
+        help="/fabrik-task (and /fabrik-spec, opt-in): one declared path (repeatable) — the CODE "
+        "surface of the task",
     )
     p.add_argument(
         "--declare",
         default="",
         metavar="K=V,...",
-        help="/fabrik-task only: decision=,heavy=,mechanism=,oneway=,tradeoffs= (yes|no); at lane "
-        "v2 also consumers= (external|internal)",
+        help="/fabrik-task (and /fabrik-spec, opt-in): decision=,heavy=,mechanism=,oneway=,"
+        "tradeoffs= (yes|no); at lane v2 also consumers= (external|internal)",
     )
     # Lane v2 (D1, D4, D9; `task_lane.admit`). Read only when `.fabrik/lane.json` says version 2;
     # at v1 they are accepted and ignored with a note, so command text that names them works
@@ -2679,19 +4119,45 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         metavar="MIN",
-        help="/fabrik-task only (lane v2): the run's appetite in minutes (default 240, max 240)",
+        help="/fabrik-task, and /fabrik-spec with --file/--declare (lane v2): the run's appetite "
+        "in minutes (default 240, max 240)",
     )
     p.add_argument(
         "--why",
         default=None,
-        help="/fabrik-task only (lane v2): required with oneway=yes or tradeoffs=yes — what cannot "
-        "be undone, or '<approach A> vs <approach B>'",
+        help="/fabrik-task, and /fabrik-spec with --file/--declare (lane v2): required with "
+        "oneway=yes or tradeoffs=yes — what cannot be undone, or '<approach A> vs <approach B>'; "
+        "on a /fabrik-spec start it also overrides a `lane` verdict ('<the test the gate cannot "
+        "see>'), which the ledger records",
     )
     p.add_argument(
         "--from-downgrade",
         default=None,
         metavar="ID",
         help="/fabrik-task only (lane v2): the lane-refusal id a /fabrik-spec DOWNGRADE handed back",
+    )
+    p.add_argument(
+        "--resume-from",
+        default=None,
+        metavar="SEED",
+        help="reopen a run closed at the quota wall from the JSON seed its `blocked --wall` kept "
+        "(or the session's own blocked record file): rounds, classes, design, declaration, "
+        "phase and terminal are carried; the original start rides beside this sitting's clock "
+        "as the commit window (W-28f260c3). Never with --file/--declare — the SIZE gate ran once.",
+    )
+
+    p = sub.add_parser(
+        "surface",
+        help="widen a RUNNING review's own exemption by path, mid-run (W-24ae7ecf)",
+        parents=[common],
+    )
+    p.add_argument(
+        "--add",
+        action="append",
+        required=True,
+        metavar="PATH",
+        help="one repo path per occurrence (repeatable): a file this review came to cover that its "
+        "`--surface` did not name — recorded in `surface_adds`, never in `surface`",
     )
 
     p = sub.add_parser("step", help="advance to a phase", parents=[common])
@@ -2706,6 +4172,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--design",
         metavar="PATH",
         help="/fabrik-task only: record that file's TEXT as the run's design — once, whole (no cap — D-314)",
+    )
+    p.add_argument(
+        "--terminal-amend",
+        default=None,
+        metavar="TEXT",
+        help="/fabrik-task only: restate the run's terminal BEFORE or WITH its --design (the "
+        "critiques narrowed the work) — the old one is kept in terminal_amends, counted on the close row",
     )
     p.add_argument(
         "--design-amend",
@@ -2737,6 +4210,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="record one convergence round (--confirmed <n> is the exit counter)",
         parents=[common],
     )
+    p.add_argument(
+        "--command",
+        default=None,
+        help="the run this round is for — optional; when given it must be the LIVE one (rc 1 and "
+        "nothing recorded otherwise), the check the close verbs make (W-79638b4a)",
+    )
     p.add_argument("--findings", type=int, default=0)
     # D-206/D-203: quiet is zero CONFIRMED code or doc defects, never zero RAISED — a refuted or
     # recorded candidate never reopens the loop, so the raw candidate count cannot be the exit
@@ -2762,7 +4241,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "that omits it can never qualify, and when the other rounds are close enough that it "
         "would decide the verdict the stop prints UNCOMPUTABLE and names the round",
     )
-    p.add_argument("--classes-swept", default="", help="comma-separated, swept CLEAN")
+    p.add_argument(
+        "--classes-swept", default="", help="comma-separated, swept AND found clean this round"
+    )
     p.add_argument("--classes-new", default="", help="comma-separated, newly opened")
     p.add_argument(
         "--new",
@@ -2857,6 +4338,23 @@ def _build_parser() -> argparse.ArgumentParser:
         "--surface", default="", help="name the surface late if `start` omitted it (ledger)"
     )
     p.add_argument("--reason", required=True)
+    _resumable = p.add_mutually_exclusive_group()
+    _resumable.add_argument(
+        "--paused",
+        action="store_true",
+        help="this close is an OPERATOR PAUSE, not one of the three BLOCKED cases: --reason carries the "
+        "operator's words, and the record keeps the same resume seed `--wall` keeps, so `start "
+        "--resume-from` reopens it (W-79638b4a). A pause is never the quota wall, and the wall "
+        "regexes never read one into it.",
+    )
+    _resumable.add_argument(
+        "--wall",
+        action="store_true",
+        help="this close is the fleet QUOTA WALL, not one of the three BLOCKED cases: the record is "
+        "marked and a JSON seed of it is kept under <state>/seeds/ for `start --resume-from` "
+        "(W-28f260c3). The hook's own phrase in --reason implies it; a quota-shaped reason "
+        "without the flag gets a NOTE, never a seed.",
+    )
     p.add_argument("--commit", default=None, nargs="+", metavar="SHA", help=_TASK_COMMIT_HELP)
     p.add_argument(
         "--feedback",
@@ -2869,9 +4367,80 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     sub.add_parser("line", help="print the pinned status line (silent when idle)", parents=[common])
+    p = sub.add_parser(
+        "capture",
+        help="append the sha of the commit whose subject is --msg's first line to --out (phase 5)",
+        parents=[common],
+    )
+    p.add_argument("--msg", required=True, help="the commit message file the commit used (-F)")
+    p.add_argument("--out", required=True, help="the capture file; one sha is appended per call")
     p = sub.add_parser("status", help="print the record", parents=[common])
     p.add_argument("--json", action="store_true", default=True)
     return ap
+
+
+def _capture_commit(msg: Path, out: Path) -> int:
+    """Phase 5's capture as ONE plain command (kaizen 01M55GGMS5, feedback row 1792254064): find
+    the commit by its own SUBJECT — the message file's first paragraph, as git reads it — never by
+    `HEAD`, which a sibling's commit landing during the post-commit hook would move; check the found
+    commit's subject is that line exactly; append its sha to the capture file. A worktree session's
+    guard refuses the chained shell recipe this replaces. Runs in the cwd's repo, touches no run
+    record, and returns 1 (never main's fail-soft 0) on any miss.
+
+    `--grep` reads the whole message, so a NEWER commit merely quoting the subject in its body is
+    the match found, and its own subject differs: that refuses, never captures the wrong sha.
+
+    Cobra (D-253): the cheapest way past it is a subject another commit also carries — `-F --grep`
+    takes the NEWEST match, so two commits with one subject capture the later; a unique subject per
+    commit is the author's part, and the close's own binding check refuses a sha that is not this
+    run's."""
+    try:
+        text = msg.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as e:  # a decode error is a ValueError, not an OSError
+        sys.stderr.write(f"REFUSED — capture: cannot read --msg {msg}: {e}\n")
+        return 1
+    # git's subject (`%s`) is the whole FIRST PARAGRAPH, its lines joined by single spaces — a
+    # first line alone would refuse a legitimate commit whose subject wraps (review A-sonnet)
+    # a whitespace-only line ends the paragraph too, as git's subject does (review A-haiku N-1)
+    # git drops leading blank lines, so the subject is the first NON-blank paragraph
+    body = re.sub(r"\A(?:[ \t]*\n)+", "", text.replace("\r\n", "\n"))
+    first = re.split(r"\n[ \t]*\n", body, maxsplit=1)[0]
+    lines = [ln.strip() for ln in first.split("\n")]
+    lines = [ln for ln in lines if ln]
+    subj = " ".join(" ".join(lines).split())  # runs collapsed, as on git's side below
+    # `--grep` matches ONE line of the raw message, so it searches by the first line; the joined
+    # paragraph exists only in `%s`, where the equality check below reads it
+    needle = lines[0] if lines else ""
+    if not subj:
+        sys.stderr.write(f"REFUSED — capture: --msg {msg} has an empty subject (a blank message)\n")
+        return 1
+    try:
+        found = subprocess.run(
+            ["git", "log", "-1", "--format=%H%x00%s", "-F", "--grep", needle],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",  # a non-UTF-8 subject in the log must not raise into main()'s rc 0
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as e:  # no git on PATH, or a 30 s timeout
+        sys.stderr.write(f"REFUSED — capture: git log failed: {e}\n")
+        return 1
+    sha, _, got = found.stdout.strip().partition("\x00")
+    # git keeps a subject's LEADING spaces, and this side strips them: compare both with runs of
+    # whitespace collapsed, so a padded subject is still its own (review A-haiku)
+    if found.returncode != 0 or not sha or " ".join(got.split()) != subj:
+        sys.stderr.write(f"REFUSED — capture: no commit has the subject {subj!r}\n")
+        return 1
+    try:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("a", encoding="utf-8") as fh:
+            fh.write(sha + "\n")
+    except OSError as e:
+        sys.stderr.write(f"REFUSED — capture: cannot append to --out {out}: {e}\n")
+        return 1
+    print(sha)
+    return 0
 
 
 def main(argv: list[str]) -> int:
@@ -2880,6 +4449,8 @@ def main(argv: list[str]) -> int:
     except SystemExit as e:  # argparse's own exit — keep it, it is a usage error
         return int(e.code or 0)
     try:
+        if args.cmd == "capture":
+            return _capture_commit(Path(args.msg), Path(args.out))
         sid = _session_id(args.session)
 
         # Readers run lock-free: `line` is invoked on EVERY reply, so it must stay
@@ -2919,6 +4490,19 @@ def main(argv: list[str]) -> int:
             if text:  # `print("")` is a blank line; zero candidates print zero bytes
                 with contextlib.suppress(Exception):
                     print(text)
+        run_sweep = outbox.get("run_sweep")
+        if run_sweep:
+            with contextlib.suppress(Exception):
+                _launch_run_folder_sweep(*run_sweep)
+        seat_scan = outbox.get("seat_size")
+        if seat_scan:
+            with contextlib.suppress(Exception):
+                for line in _seat_size_lines(
+                    seat_scan,
+                    int(os.environ.get("COMMAND_RUN_SEAT_WARN_BYTES") or 2 * 1024**3),
+                    float(os.environ.get("COMMAND_RUN_SEAT_DU_DEADLINE_S") or 10),
+                ):
+                    print(line)
         return rc
     except Exception as e:  # fail-soft — a state bug must never wedge an agent
         sys.stderr.write(f"[command_run] error, continuing: {e}\n")
@@ -3211,7 +4795,8 @@ def _appetite_segment(rec: dict[str, Any], now: float) -> str:
             return seg
     d = rec.get("declared")
     if (rec.get("command") or "") == _TASK_COMMAND and isinstance(d, dict) and d.get("gate") == 2:
-        got = _over(rec.get("started_epoch"), d.get("appetite"), now)
+        # active time: a run resumed after the quota wall never counts the gap (W-28f260c3)
+        got = _over(_effective_start(rec), d.get("appetite"), now)
         if got is not None:
             mins, past = got
             seg = f" · elapsed {mins}/{d['appetite']}"
@@ -3287,6 +4872,10 @@ def _in_lane_review(rec: dict[str, Any]) -> bool:
 _REFUSAL_ID = re.compile(r"LR-[0-9a-f]{8}")
 # D9: `handoff --reason "DOWNGRADE: <refusal id> — …"` on a /fabrik-spec run.
 _DOWNGRADE_REASON = re.compile(r"\s*DOWNGRADE:\s*(LR-[0-9a-f]{8})\b")
+# D-858 (kaizen 01M4XQN131A897DAFH628FJFKJ): the form a spec with NO refusal row hands back with —
+# `downgrade: no-refusal` on the row and never a `from_downgrade` (an id field holds ids only).
+_DOWNGRADE_NOREF = re.compile(r"\s*DOWNGRADE:\s*no-refusal\b")
+_SPEC_COMMAND = "fabrik-spec"
 
 
 # W-25318990: the two reviews whose surface D10 joins on.
@@ -3362,7 +4951,87 @@ def _task_admit_v2(
     return 0, declared
 
 
-def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[str, Any] | None]:
+def _spec_admit_v2(
+    tl: Any,
+    args: argparse.Namespace,
+    sid: str,
+    root: Path,
+    rels: list[str],
+    answers: dict[str, str],
+    declared: dict[str, Any],
+    sync_hits: set[str],
+    switch: str | None,
+    dirty_paths: list[str],
+    command: str,
+) -> tuple[int, dict[str, Any] | None]:
+    """Lane v2 admission of a `/fabrik-spec` start — the gate's other side (D-858, kaizen
+    01M4XQN131A897DAFH628FJFKJ). The same `task_lane.admit`, the opposite reading of its verdict:
+    a ``chain`` verdict ADMITS the spec (no row — nothing was refused; the verdict rides the
+    record and the close row as ``lane_gate``); a ``right-now`` verdict REFUSES it outright (a
+    pure fix needs no spec, and no prose opens one over it); a ``lane`` verdict refuses it unless
+    ``--why`` names the test the gate cannot see, in which case the override is ledgered as a
+    ``spec-start`` row — the verdict, the why, the files and the restart — whose id the record
+    keeps as ``spec_refusal`` so Phase 0's DOWNGRADE check and the report's join can name it.
+
+    ⚠️ COBRA (D-253): the cheapest way to open a spec with the gate "run" is a chain-shaped lie
+    (`tradeoffs=yes --why "A vs B"`, `--appetite 241`), which writes no row — so the verdict is
+    stamped on every spec close row and the report prints the verdict distribution; the cheaper
+    lie still, omitting the flags, is counted there as ``lane_gate: none``."""
+    why = getattr(args, "why", None)
+    appetite = getattr(args, "appetite", None)
+    tag = f"REFUSED — {command}"
+    v = tl.admit(answers, rels, sync_hits=sync_hits, appetite=appetite, why=why, version=2)
+    if v.route == "refused":
+        return _refuse(f"{tag}: {v.reason}"), None
+    if v.route.startswith("right-now"):
+        return _refuse(
+            f"{tag}: {v.reason} → {v.route} (a pure fix needs no spec; re-declare decision=yes "
+            "if a decision exists)"
+        ), None
+    if v.route == "lane" and not (why or "").strip():
+        return _refuse(
+            f"{tag}: {v.reason} → lane; this brief is /fabrik-task work — pass "
+            '--why "<the test the gate cannot see>" to open the spec anyway (the override is '
+            "ledgered)"
+        ), None
+    # `declared` is COMPLETE before the ledger row is written: a failure between the two would
+    # otherwise leave an override row no record ever names (round-1 A-S-2).
+    declared["consumers"] = answers["consumers"]
+    declared["gate"] = 2
+    declared["verdict"] = v.route
+    declared["review"] = v.review
+    declared["review_reason"] = v.reason
+    declared["appetite"] = appetite if appetite is not None else tl.APPETITE_DEFAULT
+    declared["sync_hits"] = sorted(sync_hits)
+    declared["lane_switch"] = switch or ("" if (root / tl.LANE_FILE).is_file() else "default")
+    if dirty_paths:
+        declared["dirty"] = dirty_paths
+    if why:
+        declared["why"] = why
+    if v.route == "lane":
+        line = f"{tag}: {v.reason} → lane (overridden by --why)"
+        common = _task_git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")
+        declared["spec_refusal"] = tl.record_refusal(
+            _lane_ledger(),
+            {
+                "repo": common.stdout.strip() if common.returncode == 0 else str(root),
+                "session": sid,
+                "agent": _agent_name(),
+                "route": "spec-start",
+                "verdict": v.route,
+                "declared": dict(sorted(answers.items())),
+                "why": why or "",
+                "files": rels,
+                "restart": "/fabrik-task --from-downgrade {id}",
+                "refusal": line,
+            },
+        )
+    return 0, declared
+
+
+def _task_size_gate(
+    args: argparse.Namespace, sid: str = "", command: str = _TASK_COMMAND
+) -> tuple[int, dict[str, Any] | None]:
     """The SIZE inventory, in ORDER. The flag guards and the path/state checks SHORT-CIRCUIT —
     a missing flag, an invalid path or a dirty path makes every later test meaningless, so that
     correction prints alone and no lane verdict is printed. The two lane tests and the five
@@ -3375,6 +5044,8 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
     to — the counter-measure is the close's re-measure against `declared`, and the tripwire in
     the command's own § The decision rule, not a check that would only teach a better lie.
     """
+    tag = f"REFUSED — {command}"  # the same gate under /fabrik-spec names that command (D-858)
+    spec = command != _TASK_COMMAND
     paths = [str(p) for p in (getattr(args, "file", None) or [])]
     answers: dict[str, str] = {}
     malformed: list[str] = []
@@ -3396,19 +5067,19 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
     # into the other has paid two round trips for a single correction.
     gaps = []
     if not paths:
-        gaps.append("REFUSED — fabrik-task: missing --file")
+        gaps.append(f"{tag}: missing --file")
     if malformed:
-        gaps.append("REFUSED — fabrik-task: --declare members must be k=v: " + ", ".join(malformed))
+        gaps.append(f"{tag}: --declare members must be k=v: " + ", ".join(malformed))
     absent = [k for k in _TASK_DECLARE_KEYS if k not in answers]
     if absent:
-        gaps.append("REFUSED — fabrik-task: missing --declare keys: " + ", ".join(absent))
+        gaps.append(f"{tag}: missing --declare keys: " + ", ".join(absent))
     # VALIDATE the answers, or a typo fails OPEN in the direction of the cheapest lane: four keys
     # are tested `== "yes"`, so `yse`/`nope`/`1`/`true` all read as *no*, and `decision` is tested
     # `!= "yes"` and fails the other way. Executed: every typo persisted verbatim into the seam
     # dict the plan declares as "yes"|"no", where T01b re-measures against it.
     wrong = [f"{k}={answers[k]}" for k in _TASK_DECLARE_KEYS if answers.get(k, "yes") not in _YN]
     if wrong:
-        gaps.append("REFUSED — fabrik-task: --declare values must be yes|no: " + ", ".join(wrong))
+        gaps.append(f"{tag}: --declare values must be yes|no: " + ", ".join(wrong))
     if gaps:
         for g in gaps:
             _refuse(g)
@@ -3437,14 +5108,13 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
             try:
                 rel = full.resolve().relative_to(root)
             except (ValueError, OSError):
-                _refuse(
-                    f"REFUSED — fabrik-task: {p} is outside the repository — declare a repo path"
-                )
+                _refuse(f"{tag}: {p} is outside the repository — declare a repo path")
                 return 1, None
-        if full.is_dir() and not full.is_symlink():
+        if full.is_dir() and not full.is_symlink() and not spec:
             # A symlink TO a directory is still a declared file for git's purposes; only a real
-            # directory is the "declare files" correction.
-            _refuse(f"REFUSED — fabrik-task: {p} is a directory — declare files")
+            # directory is the "declare files" correction — on a task. A spec's surface is
+            # legitimately a directory (a new module), so a spec declares one as-is (D-858 fold 5).
+            _refuse(f"{tag}: {p} is a directory — declare files")
             return 1, None
         rels.append(rel.as_posix())
     # DISTINCT paths, not occurrences: `--file src/a.py` twice recorded the path twice (which
@@ -3463,6 +5133,7 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
     # unconditionally, that same absence raises here and the caller's arm refuses the start.
     head = _task_git(root, "rev-parse", "-q", "--verify", "HEAD")
     sha = head.stdout.strip() if head.returncode == 0 else ""
+    dirty_paths: list[str] = []
     if sha:
         for rel in rels:
             # LEXISTS, not `exists()`: a symlink whose target is gone is PRESENT to git and would
@@ -3474,9 +5145,19 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
                 # `git diff --quiet` reads an UNTRACKED path as CLEAN; ask git whether it tracks
                 # the path at all before believing that.
                 dirty = _task_git(root, "ls-files", "--error-unmatch", "--", rel).returncode != 0
+            if dirty and spec:
+                # A spec DESIGNS: the task's close re-measure this check protects never runs on
+                # it, and a sibling's WIP on the surface is exactly a design session's situation
+                # (D-858 fold 5) — a note and a recorded list, never a refusal.
+                dirty_paths.append(str(rel))
+                sys.stderr.write(
+                    f"[command_run] NOTE — {command}: {rel} dirty at start (a sibling's WIP on the "
+                    "declared surface) — recorded, not refused\n"
+                )
+                continue
             if dirty:
                 _refuse(
-                    f"REFUSED — fabrik-task: {rel} dirty at start; open the record before the "
+                    f"{tag}: {rel} dirty at start; open the record before the "
                     "work — or a sibling's WIP on your declared path: message the author"
                 )
                 return 1, None
@@ -3524,6 +5205,20 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
     if version == 2:
         hits = {r for r in rels if pat.search(r)} if sync_hit and pat is not None else set()
         # an unreadable or invalid switch file is labelled `invalid`, never `uncommitted`
+        if spec:
+            return _spec_admit_v2(
+                tl,
+                args,
+                sid,
+                root,
+                rels,
+                answers,
+                declared,
+                hits,
+                switch or ("invalid" if warn else None),
+                dirty_paths,
+                command,
+            )
         return _task_admit_v2(
             tl,
             args,
@@ -3535,7 +5230,7 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
             hits,
             switch or ("invalid" if warn else None),
         )
-    ignored = [
+    ignored = ([] if not spec else ["--file", "--declare"]) + [
         f"--{a.replace('_', '-')}"
         for a in ("appetite", "why", "from_downgrade")
         if getattr(args, a, None) is not None
@@ -3544,6 +5239,10 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
         sys.stderr.write(
             f"[command_run] note: {', '.join(ignored)} ignored — this repo runs lane v1\n"
         )
+    if spec:
+        # The v1 router below is the TASK's: it refuses `oneway` or a fourth file INTO
+        # /fabrik-spec, which on a spec start is refusing the spec into itself (D-858 fold 4).
+        return 0, None
 
     # The spec chain takes PRECEDENCE: oneway/tradeoffs or a fourth file name /fabrik-spec
     # even when the sync or heavy test also tripped. `mechanism=yes` is RECORDED, never a
@@ -3565,7 +5264,7 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
     elif answers["decision"] != "yes":
         lane = ("decision=no", "right-now + /fabrik-review-scoped")
     if lane:
-        _refuse(f"REFUSED — fabrik-task: {lane[0]} → {lane[1]}")
+        _refuse(f"{tag}: {lane[0]} → {lane[1]}")
         return 1, None
     return 0, declared
 
@@ -3578,7 +5277,8 @@ def _task_size_gate(args: argparse.Namespace, sid: str = "") -> tuple[int, dict[
 
 _TASK_COMMIT_HELP = (
     "the SHA of this run's commit, from phase 5's capture file — at lane v2 every commit of the "
-    "run, in order. `fabrik-task` ONLY: REQUIRED on `done` there, optional on `blocked`/`handoff` "
+    "run, in order, space- or comma-separated. `fabrik-task` ONLY: REQUIRED on `done` there, optional "
+    "on `blocked`/`handoff` "
     "(which may close before any commit exists), and REFUSED on every other command"
 )
 
@@ -3605,6 +5305,14 @@ _TASK_LEDGER_EXCL = (
     # items), and `task_lane` already excludes the store from its own measurement (W-b43ce8bc)
     ".fabrik/work/",
 )
+
+# A run's own review receipt is its evidence, as a Doc Sync destination is (kaizen 01M4RP9QCR): a
+# `.md` under this dir, `archived/` excepted — the set the pre-commit coverage hook grades — never
+# the bare prefix, which would hide an undeclared source file. One spelling with
+# `task_lane.REVIEWS_DIR` (graded in tests/test_command_run_fabrik_task.py). Being in
+# `_task_excluded`, it reaches every close measure that helper feeds: the v2 refusal and the v1
+# and unstamped `oversized_mini` records (D-789).
+_TASK_REVIEWS_DIR = "docs/development/reviews/"
 
 _TASK_BACKTICKED = re.compile(r"`([^`]+)`")
 # Root-level destinations the Doc Sync Matrix names WITHOUT a slash. A harvested token with no
@@ -3678,8 +5386,88 @@ def _task_excl(root: Path) -> set[str]:
     return excl
 
 
+def _task_unnamed(rec: dict, text: str) -> list[str]:
+    """The declared `--file` paths a v2 close would refuse as unnamed in ``text``'s APPROACH or
+    MIRROR, computed as `task_lane.measure_close` does (design paths and amendments through
+    `_norm_cited_all`, the files through `_norm_all`, the close's own exclusions) — checked at
+    `step --design`, before the design is stored, so the note is fixed, never amended after the
+    build (kaizen 01M4RNGC0H). A rename the close would let inherit is not modelled: backtick the
+    new name too. Empty when the lane module is absent."""
+    tl = _lane_module()
+    if tl is None:
+        return []
+    decl = rec.get("declared")
+    raw = decl.get("files") if isinstance(decl, dict) else None
+    files = tl._norm_all([str(f) for f in raw]) if isinstance(raw, list) else []
+    amends = rec.get("design_amends")
+    named = set(tl._norm_cited_all(_design_paths(text)))
+    named |= set(tl._norm_cited_all([str(a) for a in amends] if isinstance(amends, list) else []))
+    excl = _task_excl(Path(str(rec.get("repo_root") or ".")))
+    return [f for f in files if f not in named and not _task_excluded(f, excl)]
+
+
+_TASK_TESTS_SHOWN = 10
+_TASK_TESTS_MAX_BYTES = 1 << 20
+
+
+def _task_tests_note(root: Path, files: list[str]) -> None:
+    """ADVICE on stderr, never a refusal (kaizen 01M4RNGC0H row 1791827964): per declared `.py`
+    that is not itself a test, the TRACKED test files (any `tests/` directory) naming it — by its
+    repo path, by an anchored basename when that basename is unique among tracked `.py` files, or
+    by an anchored import of its stem. Fail-silent: an error here must never cost the record or
+    the advisories printed after it."""
+    with contextlib.suppress(Exception):
+        out = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z", "--", "*.py"],
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=20,
+        )
+        if out.returncode != 0:
+            return
+        tracked = [t for t in out.stdout.split("\0") if t]
+        tests = [t for t in tracked if "tests" in t.split("/")[:-1]]
+        names = collections.Counter(t.rsplit("/", 1)[-1] for t in tracked)
+        texts: dict[str, str] = {}
+        for t in tests:
+            fp = root / t
+            if fp.is_file() and fp.stat().st_size <= _TASK_TESTS_MAX_BYTES:
+                texts[t] = fp.read_bytes().decode("utf-8", "replace")
+        for f in files:
+            if not f.endswith(".py") or "tests" in f.split("/")[:-1]:
+                continue
+            base = f.rsplit("/", 1)[-1]
+            stem = re.escape(base[:-3])
+            # anchored both ends: `xsrc/c.py`, `src/c.py.bak`, `src/c.py-old` name another file,
+            # while a sentence-final `src/c.py.` still names this one (review A-S1, A-S3)
+            end = r"(?![\w-]|\.\w)"
+            pats = [rf"(?<![\w.-]){re.escape(f)}{end}"]
+            if names.get(base) == 1:
+                pats.append(rf"(?<![\w.-]){re.escape(base)}{end}")
+            pats.append(
+                rf"^\s*(?:from\s+(?:[\w.]+\.)?{stem}\s+import\b|import\s+(?:[\w.]+\.)?{stem}\b)"
+            )
+            rx = re.compile("|".join(f"(?:{x})" for x in pats), re.M)
+            hits = sorted(t for t, body in texts.items() if rx.search(body))
+            if hits:
+                more = len(hits) - _TASK_TESTS_SHOWN
+                tail = f" (+{more} more)" if more > 0 else ""
+                sys.stderr.write(
+                    f"[command_run] NOTE — fabrik-task: {len(hits)} test file(s) name {f}: "
+                    f"{', '.join(hits[:_TASK_TESTS_SHOWN])}{tail}\n"
+                )
+
+
 def _task_excluded(path: str, excl: set[str]) -> bool:
-    """A concrete path matches exactly; a `<name>` row's PREFIX matches its whole directory."""
+    """A concrete path matches exactly; a `<name>` row's PREFIX matches its whole directory; a
+    review receipt (`_TASK_REVIEWS_DIR`) matches too."""
+    if (
+        path.startswith(_TASK_REVIEWS_DIR)
+        and path.endswith(".md")
+        and not path.startswith(_TASK_REVIEWS_DIR + "archived/")
+    ):
+        return True
     return path in excl or any(t.endswith("/") and path.startswith(t) for t in excl)
 
 
@@ -3819,7 +5607,9 @@ def _task_run_commit(rec: dict[str, Any], rp: Path, sha_in: str) -> tuple[str | 
             ok = len(parents) <= 1
     if ok:
         ct = _task_git(rp, "log", "-1", "--format=%ct", sha_in)
-        started = _finite_ts(rec.get("started_epoch"))
+        # the ORIGINAL start on a run resumed after the quota wall: a pre-wall commit is this
+        # run's commit (W-28f260c3); `origin_epoch` is absent on a never-resumed record
+        started = _finite_ts(rec.get("origin_epoch") or rec.get("started_epoch"))
         raw = ct.stdout.strip()
         if ct.returncode != 0:
             if _git_unusable():
@@ -3870,8 +5660,15 @@ def _task_measure(
     sha, parents = _task_run_commit(rec, rp, sha_in)
     if sha is None:
         # The merge and the stale date SHARE this message: both answer the same question.
+        # A quoted multi-line capture (`--commit "$(cat commit.sha)"`) arrives as ONE value with
+        # whitespace inside; a sha never holds any (W-ebbedc88, kaizen 01M4N1K909 row 1791074435).
+        hint = (
+            " — the value holds whitespace: this close takes ONE sha, passed unquoted"
+            if any(ch.isspace() for ch in sha_in)
+            else ""
+        )
         return (
-            _refuse(f"REFUSED — fabrik-task: --commit {sha_in} is not this run's commit"),
+            _refuse(f"REFUSED — fabrik-task: --commit {sha_in} is not this run's commit{hint}"),
             "",
             False,
         )
@@ -3934,9 +5731,11 @@ def _task_measure(
             # A RENAME's DESTINATION inherits its source's membership — a declared file renamed
             # is still the declared work, and the source ceases to exist. The SOURCE is judged on
             # its OWN membership like any other path, so both tokens of the pair may contribute.
-            if _member(src):
+            # Only a DECLARED source lends membership: an exempt one (a ledger, a receipt) renamed
+            # onto `src/x.py` would launder it — v2's `task_lane._undeclared` agrees (D-789 A-H1).
+            if src in declared:
                 member = True
-            else:
+            elif not _member(src):
                 a.add(src)
         elif src is not None:
             # A COPY is NOT a rename. The source SURVIVES — its own edit, if any, arrives as its
@@ -4095,7 +5894,9 @@ def _task_close_v2(
         if not root:
             raise RuntimeError("no repo_root on record")
         rp = Path(root)
-        started = _finite_ts(rec.get("started_epoch"))
+        # the lane's appetite breaker reads ACTIVE time — the quota-wall gap of a resumed run is
+        # not time spent (W-28f260c3); the commit binding below reads the original start itself
+        started = _effective_start(rec)
         if started is None:
             raise RuntimeError("no started_epoch on record")
         resolved: list[str] = []
@@ -4104,7 +5905,15 @@ def _task_close_v2(
         for c in shas:
             sha, parents = _task_run_commit(rec, rp, c)
             if sha is None:
-                return _refuse(f"REFUSED — fabrik-task: --commit {c} is not this run's commit"), {}
+                hint = (
+                    " — --commit takes one sha per value: unquote the substitution, "
+                    "`--commit $(cat …/commit.sha)`"
+                    if any(ch.isspace() for ch in c)
+                    else ""
+                )
+                return _refuse(
+                    f"REFUSED — fabrik-task: --commit {c} is not this run's commit{hint}"
+                ), {}
             base = f"{sha}~1" if parents else _TASK_EMPTY_TREE
             # (kind, source, destination) → the spine's (status, path, old_path); a modify row
             # has no old path (T03a-O7).
@@ -4170,7 +5979,20 @@ def _task_close_v2(
                 "--review <a CONVERGED full /fabrik-review receipt over these commits>; "
                 "`blocked` closes without one"
             ), {}
-        reasons = tl.check_review_receipt(Path(review), resolved, root=rp)
+        # The commits a receipt may be followed by (W-0b900e92): the close's exclusion set narrowed
+        # to receipts and ledgers (`.md`/`.json`), contract and migration paths carved back out as
+        # `measure_close` does — a `.py` under a Doc Sync prefix row still refuses after the tip.
+        reasons = tl.check_review_receipt(
+            Path(review),
+            resolved,
+            root=rp,
+            exempt=lambda p: (
+                _task_excluded(p, excl)
+                and p.endswith((".md", ".json"))
+                and not tl.contract_hit(p)
+                and not tl.is_migration(p)
+            ),
+        )
         if reasons:
             return _refuse("REFUSED — fabrik-task: --review " + "; ".join(reasons)), {}
     paths = sorted(set(cv.oversized_mini))
@@ -4190,6 +6012,42 @@ def _task_close_v2(
     if d.get("from_downgrade"):
         fields["from_downgrade"] = _cap_field(str(d["from_downgrade"]))
     return 0, fields
+
+
+def _keep_resume_seed(sid: str, data: bytes, *, tag: str = "", ext: str = ".md") -> str:
+    """Write a handoff's `--resume` artifact — the bytes the close validated — to `<state dir>/seeds/`
+    and return the copy's absolute path, or a `REFUSED — …` line (intel 01M4EDB9TC). The successor must outlive
+    what wrote it: a /fabrik-task UPGRADE seed sits in the session's scratch, which dies with the
+    session, and the run record is overwritten by the session's NEXT `start`, which is the
+    /fabrik-spec the UPGRADE opens at once. The name is the record's own `_safe_sid` plus the
+    content hash, so a nested run's seed never overwrites its parent's and a retry of the same seed
+    lands on the same file; the caller read the bytes once, bounded, and refused one over the cap.
+    A copy that cannot be written refuses the close: a lost seed is the defect this exists to prevent, and
+    `blocked` stays the exit. Nothing prunes `seeds/` (one small file per handoff); a process
+    killed between the write and the rename leaves its pid-named `.tmp` there, which no reader globs."""
+    seeds = _state_dir().resolve() / "seeds"
+    tmp: Path | None = None
+    try:
+        # handoff keeps its `.md` seed under the unchanged name; a quota-wall `blocked` keeps a
+        # `-wall-…json` copy of the record beside it (W-28f260c3) — store readers glob `*.json`
+        # non-recursively on the store dir, so nothing under seeds/ is ever read as a record
+        copy = seeds / f"{_safe_sid(sid)}{tag}-{hashlib.sha256(data).hexdigest()[:16]}{ext}"
+        seeds.mkdir(parents=True, exist_ok=True)
+        tmp = copy.with_name(f"{copy.name}.{os.getpid()}.tmp")
+        tmp.write_bytes(data)
+        os.replace(tmp, copy)
+        return str(copy)
+    except (OSError, ValueError) as exc:
+        if tmp is not None:
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+        return (
+            f"REFUSED — handoff could not keep a copy of the --resume seed under {seeds} "
+            f"({type(exc).__name__}); the seed would die with the session — fix the state dir, "
+            "or close with `blocked`"
+        )
 
 
 def _task_close_fields(rec: dict[str, Any], args: argparse.Namespace) -> tuple[int, dict[str, str]]:
@@ -4215,6 +6073,16 @@ def _task_close_fields(rec: dict[str, Any], args: argparse.Namespace) -> tuple[i
             return _refuse("REFUSED — --review belongs to --command fabrik-task"), {}
         return 0, {}
 
+    # A sha never holds a comma, so `--commit a,b` is unambiguous: split it into the
+    # space-separated form both closes read (kaizen 01M55GGMS5, feedback row 1792251777). A value
+    # with no comma passes through whole, so `--commit ""` and a whitespace value keep their own
+    # refusals; empty pieces of a comma list (`a,`) are dropped.
+    if commits is not None:
+        commits = [
+            part
+            for c in commits
+            for part in ([c] if "," not in c else [p for p in c.split(",") if p.strip()] or [""])
+        ]
     declared = rec.get("declared")
     if isinstance(declared, dict) and declared.get("gate") == 2:
         return _task_close_v2(rec, args, commits, review)
@@ -4295,6 +6163,9 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
     rec = load(sid)
     outbox["started_at"] = rec.get("started_at") or ""
 
+    if args.cmd == "surface":  # before the closed-record no-op below: it refuses, rc 1
+        return _surface_add(sid, rec, args)
+
     if args.cmd in ("step", "round", "dispatch") and rec and rec.get("state") != "running":
         # A-F4 (review 2026-09-06): `_close` refuses to touch an already-closed record ("never
         # mutate; never resurrect") but these two had no such guard — a `step` on a done record
@@ -4325,8 +6196,109 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # REFUSED `--command /fabrik-task --file a.py`, which the same binding closes.
         _cmd = _norm_command(args.command)
         _declared: dict[str, Any] | None = None
+        _seed: dict[str, Any] | None = None
+        _superseded = ""
+        _seed_path = str(getattr(args, "resume_from", "") or "").strip()
+        if _seed_path:
+            # ── the quota-wall resume (W-28f260c3): the seed is read as handoff reads its artifact —
+            # a regular file, bounded, every refusal its own line, nothing on disk touched ────────
+            if (
+                getattr(args, "file", None)
+                or str(getattr(args, "declare", "") or "").strip()
+                or any(
+                    getattr(args, a, None) is not None
+                    for a in ("appetite", "why", "from_downgrade")
+                )
+            ):
+                return _refuse(
+                    "REFUSED — start --resume-from: the declaration is carried from the seed (the SIZE "
+                    "gate ran once) — drop --file/--declare/--appetite/--why/--from-downgrade"
+                )
+            sp = Path(_seed_path)
+            why = ""
+            raw = b""
+            try:
+                if not sp.is_file():
+                    why = "is not a regular file"
+                else:
+                    with sp.open("rb") as fh:
+                        raw = fh.read(_RESUME_READ_CAP + 1)
+            except Exception as exc:  # noqa: BLE001 — every failure refuses; none may reach main's rc 0
+                why = f"cannot be read ({type(exc).__name__})"
+            if not why and len(raw) > _RESUME_READ_CAP:
+                why = f"exceeds the {_RESUME_READ_CAP:,}-byte seed cap"
+            if not why:
+                try:
+                    loaded = json.loads(raw.decode("utf-8", errors="replace"))
+                except ValueError:
+                    loaded = None
+                if not isinstance(loaded, dict):
+                    why = "is not a JSON record"
+                elif loaded.get("state") != "blocked":
+                    why = f"is not a blocked record (state {loaded.get('state')!r})"
+                elif loaded.get("wall") is not True:
+                    why = (
+                        "was not closed at the quota wall or by an operator pause (no `wall` mark — "
+                        "`blocked --wall` and `blocked --paused` keep one)"
+                    )
+                elif _norm_command(str(loaded.get("command") or "")) != _cmd:
+                    why = f"belongs to /{loaded.get('command')}, not /{_cmd}"
+                else:
+                    _seed = loaded
+            if why:
+                return _refuse(f"REFUSED — start --resume-from {_seed_path} {why}")
+            # nested order: a child seed needs its parent LIVE; a parent seed cannot open under a live run
+            _stack_cmds = [str(c) for c in (_seed.get("stack_commands") or []) if c]
+            _live = rec if rec.get("state") == "running" else None
+            if _stack_cmds and (
+                _live is None
+                or _norm_command(str(_live.get("command") or "")) != _norm_command(_stack_cmds[-1])
+            ):
+                return _refuse(
+                    f"REFUSED — start --resume-from: this seed was nested under /{_stack_cmds[-1]} — "
+                    "resume the parent first (its own `--resume-from` seed), then this one"
+                )
+            if not _stack_cmds and _live is not None:
+                return _refuse(
+                    f"REFUSED — start --resume-from: /{_live.get('command')} is live in this session; a "
+                    "wall-blocked or paused run is resumed before its children — close or finish the "
+                    "live run first"
+                )
+            if _seed.get("declared") is not None:
+                _declared = dict(_seed["declared"])
+        elif (
+            rec.get("state") == "blocked"
+            and rec.get("wall") is True
+            and _norm_command(str(rec.get("command") or "")) == _cmd
+        ):
+            # P12: the wall run is not ended by this start (the resume is merely forgotten) —
+            # its folder stays `resumable` until THIS run's `done` declines the resume for good
+            _superseded = str(rec.get("run_scratch") or "")
+            # the forgotten flag is the common case: say where the seed is, then open as asked
+            sys.stderr.write(
+                f"[command_run] NOTE — this session's /{_cmd} record was closed "
+                f"{'by an operator pause' if rec.get('paused') else 'at the quota wall'}; "
+                f"a plain `start` restarts it from zero. To carry its rounds, design and commit "
+                f"window: start --command {_cmd} --phases {rec.get('phases')} --resume-from "
+                f"{rec.get('resume_seed') or _record_path(sid)}\n"
+            )
+        # one read per start — the ungated NOTE and the `lane_gate` stamp below share it (A-S-5)
+        _spec_v2 = _cmd == _SPEC_COMMAND and _lane_version_at({"repo_root": _repo_root()}) == 2
         try:
-            if _cmd != _TASK_COMMAND:
+            if _seed is not None:
+                pass  # the declaration is carried; neither the lane gate nor the flag guards run
+            elif _cmd == _SPEC_COMMAND and (
+                getattr(args, "file", None) or str(getattr(args, "declare", "") or "").strip()
+            ):
+                # The gate's other side (D-858): opt-in on the flags — a flagless spec start is
+                # today's, noted below as ungated. `--from-downgrade` names a TASK restarted
+                # from a spec and stays the task's.
+                if getattr(args, "from_downgrade", None) is not None:
+                    return _refuse("REFUSED — --from-downgrade belongs to --command fabrik-task")
+                _rc, _declared = _task_size_gate(args, sid, command=_SPEC_COMMAND)
+                if _rc:
+                    return _rc
+            elif _cmd != _TASK_COMMAND:
                 if getattr(args, "file", None) or str(getattr(args, "declare", "") or "").strip():
                     return _refuse("REFUSED — --file/--declare belong to --command fabrik-task")
                 if _cmd in _SURFACE_REQUIRED_V2 and not str(args.surface or "").strip():
@@ -4343,6 +6315,16 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 ):
                     return _refuse(
                         "REFUSED — --appetite/--why/--from-downgrade belong to --command fabrik-task"
+                        + (
+                            " (on a fabrik-spec start, --appetite/--why ride with --file/--declare)"
+                            if _cmd == _SPEC_COMMAND
+                            else ""
+                        )
+                    )
+                if _spec_v2:
+                    sys.stderr.write(
+                        "[command_run] NOTE — fabrik-spec: lane gate not run — pass "
+                        "--file/--declare to size the brief at start (D-858)\n"
                     )
             else:
                 _rc, _declared = _task_size_gate(args, sid)
@@ -4356,7 +6338,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             # `ValueError`/`KeyError` from the `--declare k=v` parse. An exception that escapes
             # here becomes rc 0 with NO record at `:2557-2559` — a start that LOOKS like it
             # opened one. Its own template, so the arm is assertable by string and not only rc.
-            return _refuse(f"REFUSED — fabrik-task: start could not complete ({type(e).__name__})")
+            return _refuse(f"REFUSED — {_cmd}: start could not complete ({type(e).__name__})")
 
         # the windows earlier commands of this session COVERED, carried across this overwrite
         # (review P1-1). A record closed BEFORE the ledger existed holds its window only in its own
@@ -4391,6 +6373,17 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
 
         parent = rec if rec.get("state") == "running" else None
         stack = list(rec.get("stack") or []) if parent else []
+        if rec and parent is None and not rec.get("wall"):
+            # scratch lifecycle plan P11: this start overwrites a closed record (`done`, `died`,
+            # `expired`, …) and drops its stack — a new run in the session proves those runs are
+            # over. Only a marker still reading `running` is marked (a closed folder keeps its own
+            # `closed_at`); a wall record is P12's alone, its folder stays `resumable`.
+            for _old in [rec, *[fr for fr in (rec.get("stack") or []) if isinstance(fr, dict)]]:
+                _old_folder = str(_old.get("run_scratch") or "")
+                if _old_folder and not _old.get("wall"):
+                    _owner = _read_owner(Path(_old_folder)) or {}
+                    if _owner.get("state") == "running":
+                        _mark_run_scratch(_old, "done", sid)
         if parent:
             # A nested command (/fabrik-execute-plan → /fabrik-review at a phase
             # boundary) must not ERASE its caller's record: park the parent and
@@ -4438,16 +6431,146 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             # by the next `start`. Without this the first review's reach lasted exactly until the
             # session's next command (Phase C review round 1, F5).
             "first_review_reach": None if parent else _finite_ts(rec.get("first_review_reach")),
+            # every review-family `done` of the session, by what it NAMED (W-bdcff87a) — carried
+            # like `covered` and for the same reason; a nested child starts empty and its entries
+            # join the caller at the pop
+            "reviewed_surfaces": [] if parent else _carried_reviewed_surfaces(rec),
         }
         # Set CONDITIONALLY, not as a key of the literal above: a `declared: None` on every
         # OTHER command's record would change the record shape in ~46 repos for no reader.
         if _declared is not None:
             new["declared"] = _declared
+        if _cmd == _SPEC_COMMAND and (
+            _spec_v2 or (isinstance(_declared, dict) and _declared.get("gate") == 2)
+        ):
+            # every spec at lane v2 says whether the gate ran — the ungated population is
+            # counted from day one (D-858 fold 3); a resumed record keeps its stamp even if the
+            # switch moved since (the close's `_stamped` rule, A-S-4)
+            new["lane_gate"] = (
+                str(_declared.get("verdict")) if isinstance(_declared, dict) else "none"
+            )
+        if _seed is not None:
+            # ── carry the wall-blocked sitting forward (W-28f260c3). The record's own clock is THIS
+            # sitting's; the original start rides beside it, and the gap is what active-time readers
+            # subtract. `--phases`/`--terminal`/`--surface` yield to the seed (a NOTE, an amend, a
+            # fallback — never a refusal: the command text's verbatim start line carries the
+            # ORIGINAL terminal, which a mid-run amend may have moved).
+            for key in _RESUME_CARRY:
+                if key in _seed:
+                    new[key] = copy.deepcopy(_seed[key])
+            if args.phases and new.get("phases") != max(1, args.phases):
+                sys.stderr.write(
+                    f"[command_run] NOTE — --phases {args.phases} ignored: the seed's {new.get('phases')} "
+                    "phase(s) are carried\n"
+                )
+            _seed_terminal = str(_seed.get("terminal") or "")
+            _given = (args.terminal or "").strip()
+            _known = {_seed_terminal, *(str(t) for t in (_seed.get("terminal_amends") or []))}
+            if _given and _given not in _known:
+                _prev_t = new.get("terminal_amends")
+                new["terminal_amends"] = (_prev_t if isinstance(_prev_t, list) else []) + [
+                    _seed_terminal
+                ]
+                new["terminal"] = _given
+                sys.stderr.write(
+                    "[command_run] NOTE — --terminal differs from the seed's: recorded as a terminal amend\n"
+                )
+            if (args.surface or "").strip():
+                new["surface"] = args.surface.strip()
+            _paused = _finite_ts(_seed.get("updated_ts"))
+            _now_ts = time.time()
+            _gap_prev = _finite_ts(_seed.get("gap_s")) or 0.0
+            new["origin_epoch"] = _finite_ts(_seed.get("origin_epoch")) or _finite_ts(
+                _seed.get("started_epoch")
+            )
+            new["origin_started_at"] = str(
+                _seed.get("origin_started_at") or _seed.get("started_at") or ""
+            )
+            new["gap_s"] = max(0.0, _gap_prev) + (
+                max(0.0, _now_ts - _paused) if _paused is not None else 0.0
+            )
+            # the open phase mark ends at the wall and re-opens now: a phase's appetite never counts the gap
+            _marks = [m for m in (new.get("phase_marks") or []) if isinstance(m, dict)]
+            if _marks and "ended" not in _marks[-1]:
+                _reopen_mark = dict(_marks[-1])
+                _marks[-1]["ended"] = _paused if _paused is not None else _now_ts
+                _reopen_mark.pop("ended", None)
+                _reopen_mark["started"] = _now_ts
+                _marks.append(_reopen_mark)
+            if _marks:
+                new["phase_marks"] = _marks
+            new["resumed_from"] = {
+                "session_id": str(_seed.get("session_id") or ""),
+                "started_at": str(_seed.get("started_at") or ""),
+                "blocked_at": str(_seed.get("updated_at") or ""),
+                "reason": str(_seed.get("blocked_reason") or "")[:200],
+                "seed": _seed_path,
+                "rounds": len(_seed.get("rounds") or []),
+                # W-79638b4a: the first sitting was an operator pause, not the quota wall
+                "paused": _seed.get("paused") is True,
+            }
         # The `start` verb's join window is the WHOLE store, so the anchor is cleared —
         # never this record's own start (that would exclude every candidate landing
         # microseconds earlier, and `started_at` is second-truncated so WHICH ones would
         # depend on the second boundary), and never the PREVIOUS record's start, which
         # would filter the store by a finished run's clock.
+        # the run's persistent scratch (kaizen 01M4V0B03B) — fail closed on the dir, open on the run
+        _scratch_line = ""
+        try:
+            _scratch, _scratch_notes = _make_scratch(
+                str(new.get("repo_root") or ""),
+                sid,
+                str(new.get("command") or ""),
+                str(new.get("origin_started_at") or new.get("started_at") or ""),
+                _seed,
+                # under a test (either isolation style: COMMAND_RUN_DIR, or a HOME override with
+                # PYTEST_CURRENT_TEST) the scratch lives beside the isolated records, never in the
+                # checkout the suite runs from
+                root=(
+                    _state_dir() / "scratch"
+                    if os.environ.get("COMMAND_RUN_DIR") or os.environ.get("PYTEST_CURRENT_TEST")
+                    else None
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001 — scratch must never refuse a start
+            _scratch, _scratch_notes = None, [f"{type(exc).__name__}: {exc}"]
+        if _scratch is not None:
+            new["scratch"] = str(_scratch)
+            _scratch_line = f"SCRATCH: {_scratch}"
+        else:
+            new.pop("scratch", None)
+        for _n in _scratch_notes:
+            sys.stderr.write(f"[command_run] NOTE — run scratch: {_n}\n")
+        # the run-bound disposable folder (scratch lifecycle plan D1) — fail-open, never refuses
+        _cmd_name = str(new.get("command") or "")
+        _rs_key = _run_scratch_key(_cmd_name, str(new.get("started_at") or ""))
+        _adopted = ""
+        _rs = None
+        if _seed is not None:
+            try:
+                _rs, _adopted = _adopt_run_scratch(_seed, sid, os.getcwd(), _rs_key)
+            except Exception as exc:  # noqa: BLE001 — scratch must never refuse a start
+                _rs, _adopted = None, f"{type(exc).__name__}: {exc}"
+            if _rs is None and _adopted:
+                sys.stderr.write(
+                    f"[command_run] NOTE — run scratch: {_adopted}; a fresh one is minted\n"
+                )
+                _adopted = ""
+        try:
+            if _rs is None:
+                _rs, _rs_why = _mint_run_scratch(
+                    sid, os.getcwd(), _cmd_name, _rs_key, str(new.get("repo_root") or "")
+                )
+        except Exception as exc:  # noqa: BLE001 — scratch must never refuse a start
+            _rs, _rs_why = None, f"{type(exc).__name__}: {exc}"
+        if _superseded:
+            new["superseded_run_scratch"] = _superseded
+        if _rs is not None:
+            new["run_scratch"] = str(_rs)
+            _run_scratch_line = f"RUN-SCRATCH: {_rs}" + (f" ({_adopted})" if _adopted else "")
+        else:
+            new.pop("run_scratch", None)
+            _run_scratch_line = f"RUN-SCRATCH: none — {_rs_why}"
         outbox["started_at"] = ""
         fields = _queue(
             new,
@@ -4461,15 +6584,63 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         )
         _touch(new)
         fields["persisted"] = save(sid, new)
+        if not fields["persisted"] and _rs is not None:
+            if _adopted:
+                # an ADOPTED folder holds the wall run's work: never removed here — it stays
+                # `resumable`, and the alarm names it after 72 h (`--retire` ends it)
+                _run_scratch_line = (
+                    f"RUN-SCRATCH: none — the run record could not be written; the adopted folder "
+                    f"stays at {_rs}"
+                )
+            else:
+                # nothing would ever heartbeat, mark or close a folder no record points at — the
+                # folder was minted a moment ago and holds only its marker
+                shutil.rmtree(_rs, ignore_errors=True)
+                _run_scratch_line = "RUN-SCRATCH: none — the run record could not be written"
+        elif fields["persisted"]:
+            if _adopted and _rs is not None:
+                # the resume is taken and recorded: the folder is this run's live folder now —
+                # `running` with its adoption time, never `resumable` with the wall run's age, which
+                # the nightly report would flag and `--retire` would end under a live run (F-A1)
+                with contextlib.suppress(Exception):
+                    _owner = _read_owner(_rs) or {}
+                    _owner.update({"state": "running", "adopted": time.time()})
+                    _write_owner(_rs, _owner)
+            outbox["run_sweep"] = (sid, str(new.get("repo_root") or ""))
         print(pinned_line(new))
+        if _seed is not None:
+            _rf = new.get("resumed_from") or {}
+            print(
+                f"RESUMED: from {_seed_path} · rounds {len(new.get('rounds') or [])} · phase "
+                f"{new.get('phase')}/{new.get('phases')} · commit window from "
+                f"{new.get('origin_started_at')} · gap {int((new.get('gap_s') or 0) // 60)} min"
+                + (
+                    (
+                        " · resumed in a new session — the run's persistent scratch is kept (SCRATCH below)"
+                        if new.get("scratch") and new.get("scratch") == _seed.get("scratch")
+                        else " · the seed's session is not this one — its session scratchpad belongs to "
+                        "a dead session"
+                    )
+                    if _rf.get("session_id") and _rf.get("session_id") != sid
+                    else ""
+                )
+            )
         if _declared is not None:
             # The record's own `started_at` (`%Y-%m-%dT%H:%M:%S%z`) keys phase 2's scratch
             # directory. Printing it is what lets the agent PASTE the id rather than retype a
-            # timestamp with a `%z` offset in it.
-            print(f"RECORD: {new['started_at']}")
+            # timestamp with a `%z` offset in it. A resumed run prints the ORIGINAL key: that is
+            # where its design.md and commit.sha already live (W-28f260c3).
+            print(f"RECORD: {new.get('origin_started_at') or new['started_at']}")
             # D12 / W-25318990: say which lane admitted the run and, at v2, the commit that set
             # the switch — who may change `.fabrik/lane.json` is answered by its history.
-            if _declared.get("gate") == 2:
+            if _cmd == _SPEC_COMMAND:
+                # the gate's other side (D-858): the verdict, and the override's row when one
+                _srid = _declared.get("spec_refusal")
+                print(
+                    f"lane gate: {_declared.get('verdict')}"
+                    + (f" · spec-start refusal {_srid}" if _srid else "")
+                )
+            elif _declared.get("gate") == 2:
                 sw = _declared.get("lane_switch") or "uncommitted"
                 print(
                     f"lane: v2 (switch {sw}) · review: {_declared.get('review')} · appetite: "
@@ -4477,6 +6648,10 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 )
             else:
                 print("lane: v1")
+            if _declared.get("gate") == 2 and _cmd == _TASK_COMMAND:
+                _task_tests_note(
+                    Path(str(new.get("repo_root") or ".")), list(_declared.get("files") or [])
+                )
         # A second `start` for the SAME command inside the join window is almost always a
         # DOUBLE-START, not a legitimate nest: a command invoking itself recursively is not a
         # shape we have, while an agent who missed the confirmation and re-ran is exactly what
@@ -4492,6 +6667,9 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 f"`done --command {new.get('command')}` and keep the outer: two records for "
                 "one invocation make the first `done` look like it failed.\n"
             )
+        if _scratch_line:
+            print(_scratch_line)
+        print(_run_scratch_line)
         _mcp_probe_advisory()
         return 0
 
@@ -4507,18 +6685,27 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # EVERY intermediate phase, not just the immediate predecessor: `step --phase 5`
         # from phase 1 only ever demanded phase 4's artifact, so 2 and 3 vanished
         # silently. Report the LOWEST unreviewed phase — that is the one to go back to.
-        prev = next(
-            (
-                n
-                for n in range(1, target)
-                if not _phase_review_exists(
-                    str(rec.get("repo_root") or ""),
-                    n,
-                    plan_stem=_plan_stem(rec),
-                    since=_finite_ts(rec.get("started_epoch")),
-                )
-            ),
-            0,
+        _root = str(rec.get("repo_root") or "")
+        _gated = str(rec.get("command") or "").strip().lower() in PHASE_REVIEW_COMMANDS
+        # the worktree scan costs ~0.5 s on a hub with 24 trees: only a gated command pays it
+        _scan = review_scan(_root) if _gated and _root and target > 1 else None
+        prev = (
+            0
+            if not _gated
+            else next(
+                (
+                    n
+                    for n in range(1, target)
+                    if not _phase_review_exists(
+                        _root,
+                        n,
+                        plan_stem=_plan_stem(rec),
+                        since=_finite_ts(rec.get("origin_epoch") or rec.get("started_epoch")),
+                        scan=_scan,
+                    )
+                ),
+                0,
+            )
         )
         if prev >= 1 and str(rec.get("command") or "").strip().lower() in PHASE_REVIEW_COMMANDS:
             if args.review_waived:
@@ -4534,7 +6721,17 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             else:
                 print(
                     f"REFUSED — phase {prev} has no review artifact under "
-                    "docs/development/reviews/, so there is nothing for the review gate to "
+                    "docs/development/reviews/"
+                    + (f" ({_REVIEW_SCAN['note']})" if _REVIEW_SCAN.get("note") else "")
+                    + (
+                        " — a receipt in another worktree counts only when its name starts "
+                        f"with `{_bind}`"
+                        if (_bind := _sibling_bind_label(_plan_stem(rec) or ""))
+                        and _scan
+                        and len(_scan[0]) > 1
+                        else ""
+                    )
+                    + ", so there is nothing for the review gate to "
                     "read. Emit it as either shape: PHASE mode a filename containing "
                     f"`phase-{prev}`"
                     + (f" (or `phase-{chr(64 + prev)}`)" if 1 <= prev <= 26 else "")
@@ -4570,20 +6767,9 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # legitimately steps through phases with zero rounds — firing there is noise that trains
         # scroll-past (youtube 01M153H14, hit on a 5-phase linear plan run). The terminal string
         # the run DECLARED at start is the honest signal for whether a loop was ever promised.
-        _terminal = str(rec.get("terminal") or "").lower()
-        # `confirmed:` is the D-206 exit vocabulary — a nudge keyed only to the retired words
-        # would go silent on exactly the review loops it was built for
-        _loop_shaped = any(
-            k in _terminal for k in ("round", "no-op", "noop", "found:", "new:", "confirmed:")
-        )
-        if target >= 3 and _loop_shaped and not (rec.get("rounds") or []):
-            sys.stderr.write(
-                f"[command_run] NOTICE — /{rec.get('command') or '?'} is at phase {target} with "
-                "ZERO rounds recorded. If this command has a convergence loop, every round "
-                "advisory (oscillation, terminal verdict) has been silent because it never ran, "
-                "not because the loop is healthy. Record them: `round --findings <n> "
-                "--confirmed <n> --classes-swept <…> --classes-new <…>`.\n"
-            )
+        # The check runs just before the `phase` event below, after every refusal: it then judges
+        # the terminal this step LEAVES (a same-step `--terminal-amend` included) and never a step
+        # that is about to be refused (review A-S1, A-S4).
         rec["phase"] = target
         rec["phase_title"] = args.title
         # STRICTLY before the `phase` event is queued below — never merely "before `save`":
@@ -4592,6 +6778,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # deletes its own `run_close` event to prevent. `rec["phase"]` above is in-memory only,
         # so returning here leaves the phase on disk exactly where it was.
         _design = str(getattr(args, "design", "") or "")
+        _tests_note_files: list[str] | None = None
         if _design and str(rec.get("command") or "").lstrip("/") != _TASK_COMMAND:
             # The MIRROR of `start`'s cross-command guard. Without it a `--design` on any other
             # record was rc 0 with the pinned line printed and nothing stored: every signal of
@@ -4612,6 +6799,36 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 return _refuse("REFUSED — fabrik-task: --design-amend needs a path")
             _prev = rec.get("design_amends")
             rec["design_amends"] = (_prev if isinstance(_prev, list) else []) + _amends
+        _ta = getattr(args, "terminal_amend", None)
+        if _ta is not None:
+            # kaizen 01M4DB7C7V (five /fabrik-task verdicts): the critiques narrow the work after
+            # `start --terminal` fixed it. Restated only BEFORE or WITH the design: `--design`
+            # lands once, after the critiques, while the phase number can be re-entered after the
+            # build — a phase gate would let a run move its goal to fit the result.
+            if str(rec.get("command") or "").lstrip("/") != _TASK_COMMAND:
+                return _refuse("REFUSED — --terminal-amend belongs to --command fabrik-task")
+            if "design" in rec:
+                return _refuse(
+                    "REFUSED — fabrik-task: the terminal is restated only before or with the design "
+                    '(`step --phase 2 --design <path> --terminal-amend "<t>"`); this run\'s design '
+                    "is already recorded"
+                )
+            _new_t = str(_ta).strip()
+            if not _new_t or "\n" in str(_ta) or "\r" in str(_ta):
+                return _refuse("REFUSED — fabrik-task: --terminal-amend needs one non-blank line")
+            _old_t = str(rec.get("terminal") or "")
+            if _new_t == _old_t.strip():
+                # a same-text amend would count a restatement that restated nothing
+                sys.stderr.write(
+                    "[command_run] NOTE — fabrik-task: --terminal-amend equals the current "
+                    "terminal; nothing recorded\n"
+                )
+            else:
+                _prev_t = rec.get("terminal_amends")
+                rec["terminal_amends"] = (_prev_t if isinstance(_prev_t, list) else []) + [
+                    {"from": _old_t, "to": _new_t, "at": _now()}
+                ]
+                rec["terminal"] = _new_t
         if _design:
             # PRESENCE, not truth. An EMPTY design file sets `design = ''`, which is falsy, so a
             # truthiness guard let the next `--design` overwrite it with no NOTE — defeating the
@@ -4634,7 +6851,18 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 # 2,000-char `_LEDGER_FIELD_CAP` that bounds a one-line usage verdict never
                 # applied to it, and it refused a sized six-field design at 3,588 chars on its
                 # first real use. An unreadable path still refuses above.
+                _decl = rec.get("declared")
+                if isinstance(_decl, dict) and _decl.get("gate") == 2:
+                    _unnamed = _task_unnamed(rec, _text)
+                    if _unnamed:
+                        return _refuse(
+                            "REFUSED — fabrik-task: declared --file path(s) not named in the "
+                            f"design note's APPROACH or MIRROR: {', '.join(_unnamed)} — backtick "
+                            "each in the design note and re-run --design (nothing was stored)"
+                        )
                 rec["design"] = _text
+                if isinstance(_decl, dict) and _decl.get("gate") == 2:
+                    _tests_note_files = [str(f) for f in _decl.get("files") or []]
         _ap = getattr(args, "appetite", None)
         if _ap is not None and _ap <= 0:
             return _refuse(f"REFUSED — step --appetite {_ap} must be a positive number of minutes")
@@ -4658,10 +6886,29 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             _marks.append({"phase": target, "appetite": _ap, "started": time.time()})
         if _marks:
             rec["phase_marks"] = _marks
+        _terminal = str(rec.get("terminal") or "").lower()
+        # `confirmed:` is the D-206 exit vocabulary — a nudge keyed only to the retired words
+        # would go silent on exactly the review loops it was built for
+        _loop_shaped = any(
+            k in _terminal for k in ("round", "no-op", "noop", "found:", "new:", "confirmed:")
+        )
+        if target >= 3 and _loop_shaped and not (rec.get("rounds") or []):
+            sys.stderr.write(
+                f"[command_run] NOTICE — /{rec.get('command') or '?'} is at phase {target} with "
+                "ZERO rounds recorded. If this command has a convergence loop, every round "
+                "advisory (oscillation, terminal verdict) has been silent because it never ran, "
+                "not because the loop is healthy. Record them: `round --findings <n> "
+                "--confirmed <n> --classes-swept <…> --classes-new <…>`.\n"
+            )
         fields = _queue(rec, outbox, "phase", {"n": rec["phase"], "title": rec["phase_title"]})
         _touch(rec)
+        _heartbeat(rec)  # scratch lifecycle plan D1: the run folder's heartbeat
         fields["persisted"] = save(sid, rec)
         print(pinned_line(rec))
+        if _tests_note_files is not None:
+            # after the save and every refusal: the design's test advice, where the grader path
+            # can still be backticked (Fable critique #1)
+            _task_tests_note(Path(str(rec.get("repo_root") or ".")), _tests_note_files)
         return 0
 
     if args.cmd == "dispatch":  # `rec` is live here: the generic no-record guard fired above
@@ -4679,18 +6926,27 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         prev_disp: dict = _pd if isinstance(_pd, dict) else {}
         n_rounds = len(rec.get("rounds") or [])
         carried = _int0(prev_disp.get("seats")) if prev_disp.get("round") == n_rounds else 0
+        _disp_ts = time.time()  # never `_now`: that local would shadow the module's `_now()` here
+        # W-128df814: each message's seats keep their OWN dispatch time, so a round can tell a seat
+        # sent before the last confirming round (it cannot have read that fix) from one sent after;
+        # `--seats 0` re-dates `ts` but adds no batch — a zero stamp never buys a fresh time
+        batches = (_stamp_batches(prev_disp, carried) if carried else []) + (
+            [[_disp_ts, args.seats]] if args.seats > 0 else []
+        )
         rec["dispatch"] = {
-            "ts": time.time(),
+            "ts": _disp_ts,
             "seats": carried + args.seats,
             "phase": rec.get("phase"),
             "round": n_rounds,
             # a deliberate `dispatch --seats 0` is a KNOWN zero, never "unrecorded" (round 12)
             "released": (carried + args.seats) == 0,
+            "batches": batches,
         }
         fields = _queue(
             rec, outbox, "dispatch", {"seats": rec["dispatch"]["seats"], "phase": rec.get("phase")}
         )
         _touch(rec)
+        _heartbeat(rec)  # scratch lifecycle plan D1: the run folder's heartbeat
         fields["persisted"] = save(sid, rec)
         print(
             f"DISPATCH recorded · {rec['dispatch']['seats']} seat(s) this round — reserved for "
@@ -4699,6 +6955,22 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         return 0
 
     if args.cmd == "round":
+        # W-79638b4a: a round can name its run, as every close does; a nested caller's round that
+        # names its parent while the child is live is refused before it lands on the wrong record
+        _named = getattr(args, "command", None)
+        if _named is not None and (
+            not _named.strip()
+            or _norm_command(_named) != _norm_command(str(rec.get("command") or ""))
+        ):
+            msg = (
+                f"REFUSED — round --command {('/' + _norm_command(_named)) if _named.strip() else '(empty)'}"
+                f", but the LIVE run is "
+                f"/{rec.get('command')} (phase {rec.get('phase')}/{rec.get('phases')}); nothing "
+                f"was recorded. Re-run with --command {rec.get('command')}, or close the live run first."
+            )
+            sys.stderr.write(f"[command_run] {msg}\n")
+            print(msg)
+            return 1
         rounds = list(rec.get("rounds") or [])
         # A COUNT THAT CANNOT BE TRUE is refused at the door, before any advisory or mutation:
         # a NEGATIVE count can never reach 0, so the loop either counter describes has no exit at
@@ -4719,10 +6991,14 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             if slices is None:
                 print(
                     f"[command_run] REFUSED — round --slices {args.slices!r} must be "
-                    "`<name>:<verified>/<claims>[,…]` with 0 <= verified <= claims, claims >= 1 "
+                    "`<name>:<verified>/<claims>[,…]` with 0 <= verified <= claims "
                     "and no duplicate name (D-335)",
                     file=sys.stderr,
                 )
+                return 2
+            why = _zero_slice_refusal(slices, args.confirmed, rec.get("rounds") or [])
+            if why:
+                print(f"[command_run] REFUSED — round --slices: {why}", file=sys.stderr)
                 return 2
         if args.confirmed is None and (rec.get("command") or "") in CONFIRMED_REQUIRED_COMMANDS:
             print(
@@ -4751,6 +7027,39 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 f"round's --confirmed ({args.confirmed}): it cannot be negative or exceed it",
                 file=sys.stderr,
             )
+            return 2
+        # W-93a9d22a: a round that confirms defects must leave them a class to live in — intel's
+        # (sits ABOVE every NOTE and advisory: a refused round prints nothing that says it went ahead)
+        # row 1792642621 swept the class its findings sat in and the record read "classes open:
+        # none". A ledger with NO class (per-unit and classless loops) is untouched; a round that
+        # opens any class with --classes-new passes (there is no per-finding class input, so a
+        # clean sweep beside a newly opened class is not checked).
+        _n_conf = args.confirmed if isinstance(args.confirmed, int) and args.confirmed > 0 else 0
+        _led = dict(rec.get("classes") or {})
+        _swept_now = _csv(args.classes_swept)
+        _after = {**_led, **dict.fromkeys(_swept_now, "clean")}
+        if (
+            _n_conf
+            and _after
+            and not _csv(args.classes_new)
+            and (_swept_now or all(v == "clean" for v in _after.values()))
+        ):
+            _named = [n for n in _swept_now if n in _led] or _swept_now
+            _how = (
+                f"swept {', '.join(_named)} clean"
+                if _swept_now
+                else "leaves every class the ledger knows clean"
+            )
+            msg = (
+                f"REFUSED — round --confirmed {_n_conf} but this round opens no class "
+                f"(--classes-new is empty) while it {_how}: a confirmed defect lives in a class — "
+                "open it with --classes-new <class> (a class both swept and re-found stays open; a class carried open from an earlier round is re-named the same way), "
+                "or leave its class out of --classes-swept, which marks a class swept AND found "
+                "clean (D-206: a fixing round is never the last look at the classes it touched); "
+                "nothing was recorded."
+            )
+            sys.stderr.write(f"[command_run] {msg}\n")
+            print(msg)
             return 2
         if args.own_fix is not None and args.confirmed is None:
             print(
@@ -4798,33 +7107,86 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             print("[command_run] round --seats must be >= 0", file=sys.stderr)  # round-10 finding
             return 2
         _seats = args.seats if args.seats is not None else _stamped
+        # W-fe322585: a BLIND RETRY — the call re-run because `2>&1 | tail -1` hid its output —
+        # landed as a second round, and a retried quiet round 1 printed TERMINAL with no closing
+        # pass run. Recognised by what it lacks: the last round closed seats, and nothing has run
+        # since — no stamp (`dispatch --seats 0` is a known zero), no newer seat transcript — while
+        # the figures repeat (`_repeats_round`). Refused before the in-flight check and every
+        # advisory, so the refusal is the call's LAST line; the landed verdict is printed above it.
+        # The record keeps everything but `event_seq` (no `_touch`: the Stop hook's review window
+        # reads `updated_ts`), so the `round_refused` event keeps the stream's seq dense.
+        # COBRA (D-253): retyping the retry with `--seats 0` passes — and records the truth of a
+        # retry, that nobody ran; a lead set on faking a closing pass could always type that.
+        _last = rounds[-1] if rounds else None
+        if (
+            not _stamped
+            and isinstance(_last, dict)
+            and (args.seats is None or args.seats == _last.get("seats"))
+            and _repeats_round(_last, args, slices, _phase_now)
+        ):
+            _n_seen, _counted = _unstamped_seat_count(sid, rec, rounds)
+            if _counted and not _n_seen:
+                _landed = _int0(_last.get("n")) or len(rounds)
+                _at = _finite_ts(_last.get("ts"))
+                _age = max(0, int(time.time() - _at)) if _at is not None else None
+                msg = (
+                    f"REFUSED — round {_landed} was already recorded "
+                    + (f"{_age}s ago" if _age is not None else "at an unknown time")
+                    + " with these "
+                    "figures (verdict above); no round was recorded. A new seat pass is stamped "
+                    "first (`dispatch --seats <n>`, then `round`); a pass you ran alone types "
+                    "`round --seats 0`."
+                )
+                sys.stderr.write(f"[command_run] {msg}\n")
+                _ev = _queue(rec, outbox, "round_refused", {"n": _landed, "age_s": _age})
+                _ev["persisted"] = save(sid, rec)
+                # the verdict is a courtesy; a report that raises must never swallow the refusal
+                # (main()'s outer handler would turn it into a silent rc 0)
+                with contextlib.suppress(Exception):
+                    print(_round_report(rec))
+                print(msg)
+                return 2
+        # W-93a9d22a: a FULL close typed while the stamp's seats are verifiably still out is a
+        # round nobody read — infra's row 1792629286 recorded one and the tool called it
+        # terminal. The hook's own reader decides (W-4c7edc74, `_hook_seats_in_flight`); a
+        # partial `--seats k` (0 < k < stamp) is the dispatcher-mode close and releases only
+        # what returned, so it is never refused here; `--seats 0` claims nobody ran and is.
+        _full_close = args.seats is None or args.seats <= 0 or args.seats >= _stamped
+        if _stamped and _full_close:
+            _tp_seats = _transcript_path(sid, str(rec.get("repo_root") or ""))
+            if _tp_seats is None or not _tp_seats.is_file() or not os.access(_tp_seats, os.R_OK):
+                _why_tp = (
+                    "no transcript for this session"
+                    if _tp_seats is None or not _tp_seats.is_file()
+                    else f"transcript unreadable: {_tp_seats}"
+                )
+                print(
+                    f"[command_run] NOTE — could not verify the {_stamped} stamped seat(s) returned "
+                    f"({_why_tp}); recording as typed",
+                    file=sys.stderr,
+                )
+            elif _hook_seats_in_flight(rec, str(_tp_seats)):
+                msg = (
+                    f"REFUSED — round while {_stamped} stamped seat(s) may still be in flight: a "
+                    "background Agent or Workflow of this session was launched or resumed <=25 min "
+                    "ago with no hand-back notification in the transcript; nothing was recorded. "
+                    "Wait for the notifications and record; a partial `round --seats <k>` (k below "
+                    "the stamp) releases only the seats that returned; a seat that never returns "
+                    "leaves the stamp 25 minutes after the dispatch."
+                )
+                sys.stderr.write(f"[command_run] {msg}\n")
+                print(msg)
+                return 2
+        # the ledger this round is expected to state, said after every refusal (a refused round
+        # prints none of it) and before the round is recorded (W-2d704438)
+        for _line in _slice_expectation(rounds, rec.get("classes") or {}, slices, args.confirmed):
+            print(_line, file=sys.stderr)
         _ran = 0
         if not _stamped and args.seats is None:
             # a fan-out that ran with NO stamp is silent until the close (fleet, 2026-09-08:
-            # declared 0 vs seen 12 on a live execute-plan) — name it where the agent stands:
-            # a seat transcript whose newest IN-WINDOW line is newer than the previous round (or
-            # a nested child's close) means seats ran unstamped. A `step` writes no timestamp the
-            # window reads — it never narrows it. Counted by the seat's last line, not the file's
-            # mtime (round-12 Opus: a stamped seat still flushing after its close re-fired the
-            # nudge on the next, empty round). Advisory only: it may never void the round, so
-            # every read here is guarded (a non-numeric `started_epoch` voided one, silently).
-            with contextlib.suppress(Exception):
-                _since = max(
-                    [_finite_ts(r.get("ts")) or 0.0 for r in rounds if isinstance(r, dict)]
-                    + [
-                        _finite_ts(rec.get("started_epoch")) or 0.0,
-                        _finite_ts(rec.get("child_closed_ts")) or 0.0,
-                    ]
-                )
-                _tp = _transcript_path(sid, str(rec.get("repo_root") or ""))
-                if _tp is not None:
-                    for _q in _seat_transcripts(_tp, _since):
-                        _e = _seat_last_epoch(_q)
-                        # strict `>`: a line ON the round's own sub-second `ts` is that round's;
-                        # an UNREADABLE transcript ("skipped") has only its mtime to date it, and
-                        # the nudge exists to stop silent under-reporting (round-13 Opus finding)
-                        if (isinstance(_e, float) and _e > _since) or _e == "skipped":
-                            _ran += 1
+            # declared 0 vs seen 12 on a live execute-plan) — name it where the agent stands
+            # (`_unstamped_seat_count`; advisory only, every read guarded inside it)
+            _ran, _ = _unstamped_seat_count(sid, rec, rounds)
             if _ran:
                 print(
                     f"[command_run] {_ran} seat transcript(s) since the last round and NO "
@@ -4836,6 +7198,18 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # one round and return independently — the first `round` must release only what closed,
         # never the whole accumulated stamp (siblings read 0 while the other tickets' seats ran)
         _remaining = max(_stamped - int(_seats or 0), 0) if _stamped else 0
+        # W-128df814: WHEN the seats this round closes went out — the newest batch they came from,
+        # attributed oldest first. Absent when no stamped seat closes (no stamp, or `--seats 0`): the
+        # round report then keeps its old verdict rather than guessing.
+        _batches = _stamp_batches(_d, _stamped) if _stamped else []
+        _closing = (
+            0
+            if not _stamped or (args.seats is not None and args.seats <= 0)
+            else (min(int(_seats or 0), _stamped))
+        )
+        _dispatched_at, _left = (
+            _consume_batches(_batches, _closing) if _closing else (None, _batches)
+        )
         if args.seats is not None and _stamped and args.seats != _stamped:  # 0 disagrees too
             print(
                 (
@@ -4886,6 +7260,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 # reads `rounds[-1].seats` off every fresh running record, and the first draft
                 # wrote seats to the event only — the guard read None everywhere and was inert
                 "seats": _seats,
+                **({} if _dispatched_at is None else {"dispatched_at": _dispatched_at}),
                 # the round's OWN stamp: dispatch_headroom.py dates the fallback reservation by it
                 # — `updated_ts` is a generic last-touch and re-dated a two-hour-old round on a
                 # bare `step` (round-5 finding)
@@ -4919,6 +7294,8 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             "phase": rec.get("phase"),
             "round": len(rounds),
             "released": _remaining == 0,
+            # the remainder keeps its own dispatch times (W-128df814)
+            "batches": _left if _remaining else [],
         }
         # ROUNDS SINCE THE LAST `step` — the signal job-agent identified. A counter that advances
         # while the phase never moves is either a convergence loop legitimately living inside one
@@ -4954,8 +7331,11 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             },
         )
         _touch(rec)
+        _heartbeat(rec)  # scratch lifecycle plan D1: the run folder's heartbeat
         fields["persisted"] = save(sid, rec)
         print(_round_report(rec))
+        if rec.get("run_scratch"):
+            outbox["seat_size"] = str(rec["run_scratch"])  # D5, measured after the lock drops
         return 0
 
     if args.cmd in ("done", "blocked", "handoff"):
@@ -5052,16 +7432,17 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
                 + "; ".join(
                     [
                         (
-                            f"slice {s['name']} has no claims in its ledger "
+                            f"slice {s['name']} has an unreadable claim count in its ledger "
                             f"({s['verified']}/{s['claims']}) on the last round"
-                            if s["claims"] < 1
+                            if s["claims"] < 0
                             else f"slice {s['name']} has {s['claims'] - s['verified']} open claim(s) "
                             f"({s['verified']}/{s['claims']} verified) on the last round"
                         )
                         for s in _fail
                     ]
                     + [
-                        f"slice {n}, stated by an earlier round, is missing from the last round's ledger"
+                        f"slice {n}, stated by an earlier round, is missing from the last round's ledger "
+                        "(re-state it at its last `<verified>/<claims>` in the round's `--slices` — no extra round)"
                         for n in _gone
                     ]
                 )
@@ -5117,7 +7498,9 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         # mtime binding is DECLARATIVE evidence (adjudicated round 33): os.utime forgery is
         # trivial and out of scope on a single-operator box — this is self-discipline, not a
         # security boundary; the same residual class as BLOCKED-section sincerity.
-        started_epoch = rec.get("started_epoch") or 0.0
+        # the ORIGINAL start on a run resumed after the quota wall: a pre-wall review artifact
+        # still counts (W-28f260c3)
+        started_epoch = rec.get("origin_epoch") or rec.get("started_epoch") or 0.0
         if not started_epoch:
             # legacy record without the numeric field: parse WITH the offset the string
             # carries (round 33: truncating %z re-interpreted the wall clock in the close
@@ -5412,6 +7795,35 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         print(msg)
         return 1
     rec["state"] = args.cmd
+    # the quota wall (W-28f260c3): the flag is the gate, the hook's own phrase implies it, and a
+    # quota-shaped reason WITHOUT either gets a NOTE — a silent miss here is a lost run
+    _wall = False
+    # an operator pause (W-79638b4a) keeps the wall's resume seed — `_wall` below drives the seed,
+    # the resumable folder and the reopen order — but is recorded as `paused`, its rows read
+    # `wall: paused`, and no quota regex runs on its reason (the operator's words are not a wall)
+    _paused = args.cmd == "blocked" and bool(getattr(args, "paused", False))
+    if _paused:
+        _wall = True
+        rec["wall"] = True
+        rec["paused"] = True
+        if _WALL_REASON.search(str(getattr(args, "reason", "") or "")):
+            sys.stderr.write(
+                "[command_run] NOTE — this pause's reason names the fleet quota wall. IF this close IS the "
+                "wall, close with `blocked --wall` instead: its row reads `wall: quota`, which the quota "
+                "readers count; this one is recorded as an operator pause.\n"
+            )
+    elif args.cmd == "blocked":
+        _reason_text = str(getattr(args, "reason", "") or "")
+        _wall = bool(getattr(args, "wall", False)) or bool(_WALL_REASON.search(_reason_text))
+        if _wall:
+            rec["wall"] = True
+        elif _WALL_HINT.search(_reason_text):
+            sys.stderr.write(
+                "[command_run] NOTE — this reason reads like the quota wall but --wall was not "
+                "passed, so no resume seed is kept. IF this close is the fleet quota wall, close with "
+                "`blocked --wall --reason '…'` instead — it keeps the record for `start --resume-from`; "
+                "if it is one of the three BLOCKED cases, ignore this line.\n"
+            )
     if isinstance(rec.get("dispatch"), dict):  # a closed run reserves nothing — say so, don't pop
         rec["dispatch"] = dict(rec["dispatch"], seats=0, released=True, ts=time.time())
     # `closed_by` is ADDITIVE and never read by an existing consumer (the Stop hook keys
@@ -5435,19 +7847,33 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         # A REGULAR file only, read BOUNDED, and ANY failure is the refusal: a FIFO with no writer
         # blocked the close forever, and `/dev/zero` under a memory cap raised MemoryError, which
         # `main`'s fail-soft catch-all turned into rc 0 — the very defect this check closes.
+        # ONE bounded read, and the copy kept below is these bytes: a second read (or a `stat`)
+        # outside this guard re-opened the window a vanished or growing file slips through.
         resume_path = Path(args.resume)
-        resume_text = ""
+        resume_bytes = b""
         why = ""
         try:
             if not resume_path.is_file():
                 why = "is not a regular file"
             else:
-                with resume_path.open(encoding="utf-8", errors="replace") as fh:
-                    resume_text = fh.read(_RESUME_READ_CAP)
+                with resume_path.open("rb") as fh:
+                    resume_bytes = fh.read(_RESUME_READ_CAP + 1)
         except Exception as exc:  # noqa: BLE001 — every failure refuses; none may reach main's rc 0
             why = f"cannot be read ({type(exc).__name__})"
+        if not why and len(resume_bytes) > _RESUME_READ_CAP:
+            # the copy kept below must be the WHOLE seed, never a silently cut one
+            why = f"exceeds the {_RESUME_READ_CAP:,}-byte handoff cap"
+        resume_text = resume_bytes.decode("utf-8", errors="replace")
         if not why and not re.search(r"(?m)^##\s+RESUME\b", resume_text):
             why = "has no `## RESUME` block naming the open rows and the next act"
+        if not why and _resume_names_run_folder(resume_text, str(rec.get("run_scratch") or "")):
+            # scratch lifecycle plan P7 / spec D2: a successor is a NEW run and this folder is
+            # removed after the grace — a resume that points into it would lose its own inputs
+            why = (
+                f"names this run's own scratch folder {rec.get('run_scratch')} — a successor is a new "
+                "run and this folder is removed after the grace; move what it needs to the durable run "
+                "dir (SCRATCH) or a commit"
+            )
         if why:
             msg = f"REFUSED — handoff --resume {args.resume} {why}; write the successor artifact first"
             sys.stderr.write(f"[command_run] {msg}\n")
@@ -5465,6 +7891,14 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     _task_rc, _task_fields = _task_close_fields(rec, args)
     if _task_rc:
         return _task_rc
+    if args.cmd == "handoff":
+        _kept = _keep_resume_seed(sid, resume_bytes)
+        if not _kept.startswith("/"):
+            sys.stderr.write(f"[command_run] {_kept}\n")
+            print(_kept)
+            return 1
+        rec["resume_copy"] = _kept
+        print(f"handoff: the resume artifact is kept at {_kept}")
     _touch(rec)
     _se = _finite_ts(rec.get("started_epoch"))
     if _se is not None and _se > 0:
@@ -5558,13 +7992,38 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         _size = _spec_size({**rec, "surface": _late} if _late else rec)
         if _size:
             _lane_extra["size"] = _size
-        if args.cmd == "handoff" and str(rec.get("command") or "").lstrip("/") == "fabrik-spec":
+        _is_spec = str(rec.get("command") or "").lstrip("/") == _SPEC_COMMAND
+        if _is_spec:
+            # D-858: every spec close says whether the gate ran (`none` when the flags were
+            # omitted; absent on a record older than the gate), and which override row it owns.
+            if rec.get("lane_gate") is not None:
+                _lane_extra["lane_gate"] = str(rec.get("lane_gate"))
+            _srid = (rec.get("declared") or {}).get("spec_refusal") if _decl else None
+            if _srid:
+                _lane_extra["spec_refusal"] = str(_srid)
+        if args.cmd == "handoff" and _is_spec:
             # D9: a /fabrik-spec DOWNGRADE hands the work back to /fabrik-task naming the refusal;
-            # the id on this row makes the report's spec↔task join exact (T06).
-            _dg = _DOWNGRADE_REASON.match(str(getattr(args, "reason", "") or ""))
-            if _dg:
-                _lane_extra["from_downgrade"] = _dg.group(1)
+            # the id on this row makes the report's spec↔task join exact (T06). D-858: the
+            # no-refusal form writes `downgrade: no-refusal` and NO id — unless the start's own
+            # override row exists, which is then the exact join (an id field holds ids only).
+            _reason_text = str(getattr(args, "reason", "") or "")
+            _dg = _DOWNGRADE_REASON.match(_reason_text)
+            _own_rid = (rec.get("declared") or {}).get("spec_refusal") if _decl else None
+            if _dg or _DOWNGRADE_NOREF.match(_reason_text):
+                # the record's OWN override row is the ground truth; a reason's id is read only
+                # when the start wrote none (a pasted or stale id cannot mis-join, C-S-2)
+                _rid_final = str(_own_rid) if _own_rid else (_dg.group(1) if _dg else None)
+                if _rid_final:
+                    _lane_extra["from_downgrade"] = _rid_final
+                    _lane_extra["downgrade"] = "refusal"
+                else:
+                    _lane_extra["downgrade"] = "no-refusal"
         _task_fields = {**_task_fields, **_lane_extra}
+    # Lane-independent and only when present, so a run that never restated its terminal keeps its
+    # row shape: every close of an amended run says how often its goal was restated (kaizen 01M4DB7C7V).
+    _t_amends = rec.get("terminal_amends")
+    if isinstance(_t_amends, list) and _t_amends:
+        _task_fields = {**_task_fields, "terminal_amends": str(len(_t_amends))}
     _fb_verdict, _fb_beats = _feedback_verdict(
         _filed_text if getattr(args, "feedback", None) is not None else None
     )
@@ -5585,6 +8044,13 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "closed_by": "agent",
             "evidence_hash": _evidence_hash(args.evidence if args.cmd == "done" else args.reason),
             "resume": getattr(args, "resume", "") or "",
+            "resume_copy": rec.get("resume_copy", "") if args.cmd == "handoff" else "",
+            # the quota-wall pair rides the event stream too (W-28f260c3). The event field is a
+            # SCALAR under its own name: `resumed_from` on the record and the ledger row is the
+            # dict (session_id, started_at, blocked_at, reason, seed, rounds); one name with two
+            # shapes across the two streams was review tests-docs-S1
+            "wall": ("paused" if _paused else "quota") if _wall else "",
+            "resumed_from_start": str((rec.get("resumed_from") or {}).get("started_at") or ""),
             # Kaizen's `Filed (spec/mail)` column has read "-" on every row since the 2026-08-12
             # baseline because nothing ever measured it. These three fields make it countable: the
             # verdict, which beats were routed to, and a HASH of the line (never the prose - the
@@ -5618,6 +8084,24 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     # (pre-cutoff) close records it on the record too, even though it writes no ledger row
     if (getattr(args, "surface", "") or "").strip():
         rec["surface"] = args.surface.strip()
+    if rec.get("command") in REVIEW_FAMILY and args.cmd == "done":
+        # W-bdcff87a: what this review NAMED, kept for the rest of the session. Written AFTER the
+        # late `--surface` above so a review named at its close counts; `done` only, for the
+        # reason the reach-back is done-only (reader F1) — a blocked review reviewed nothing.
+        _adds = [
+            a["path"]
+            for a in (rec.get("surface_adds") or [])
+            if isinstance(a, dict) and isinstance(a.get("path"), str) and a["path"]
+        ]
+        _rs = _carried_reviewed_surfaces(rec)
+        _rs.append(
+            {
+                "surface": str(rec.get("surface") or "")[:_REVIEWED_SURFACE_CAP],
+                "adds": _adds,
+                "closed": int(rec["updated_ts"]),
+            }
+        )
+        rec["reviewed_surfaces"] = _rs
     _pending_row: dict[str, Any] | None = None
     _fb_line: str | None = None
     if _usage_fields and _usage_is_required(rec):
@@ -5629,8 +8113,17 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         _declared = sum(
             _int0(r.get("seats")) for r in rec.get("rounds") or [] if isinstance(r, dict)
         )
-        _seen = _int0(_tok.get("seats_seen"))
-        if (_tok.get("tok_seat_in") is not None or _declared) and abs(_declared - _seen) > 1:
+        # an UNMEASURED count (None: the transcript was not read) is never compared — read as 0 it
+        # printed a false mismatch (W-256d6877)
+        _seen_raw = _tok.get("seats_seen")
+        _seen = _int0(_seen_raw)
+        if _seen_raw is None:
+            if _declared:
+                print(
+                    f"[command_run] seats declared {_declared}; seen unknown (transcript not read)",
+                    file=sys.stderr,
+                )
+        elif (_tok.get("tok_seat_in") is not None or _declared) and abs(_declared - _seen) > 1:
             print(
                 f"[command_run] seats declared {_declared} (round --seats) vs seen {_seen} (seat "
                 "transcripts in the window) — the reservation siblings subtract is only as true as "
@@ -5646,7 +8139,22 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             "state": args.cmd,
             "wall_s": round(_wall_s, 1),
             "rounds": len(rec.get("rounds") or []),
-            "findings": [_int0(r.get("findings", 0)) for r in rec.get("rounds") or []],
+            # the quota-wall pair (W-28f260c3): a wall close writes THIS sitting's row with
+            # `wall: quota`; the resumed run's close writes its own sitting's wall_s and names the
+            # seed it came from, the gap it never counted and the rounds it carried — a reader that
+            # sums rows per command subtracts on `resumed_from` instead of counting the first
+            # sitting twice. Tokens never span sessions (the transcript is this sid's).
+            "wall": ("paused" if _paused else "quota") if _wall else "",
+            "resumed_from": dict(rec.get("resumed_from") or {}) or "",
+            "gap_s": round(float(_finite_ts(rec.get("gap_s")) or 0.0), 1),
+            "rounds_before_resume": _int0((rec.get("resumed_from") or {}).get("rounds")),
+            # a non-dict round keeps its slot as null, like `confirmed` below and `_trend_series`
+            # (W-1bba6b75): a raise here was swallowed by main()'s fail-soft and left the record
+            # `running` for good, the Stop hook blocking every turn
+            "findings": [
+                _int0(r.get("findings", 0)) if isinstance(r, dict) else None
+                for r in rec.get("rounds") or []
+            ],
             # the durable exit-counter series beside the raw one; `null` for a round that never
             # stated it, never a fabricated 0 (no reader exists yet — this is the record)
             "confirmed": [_confirmed(r) for r in rec.get("rounds") or []],
@@ -5674,10 +8182,50 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         # them as an unstamped fan-out (fleet, 2026-09-08: a parent counted its nested review's 7)
         parent["child_closed_ts"] = time.time()
         parent.setdefault("nested", []).append(closed)
+        # the child's named surfaces join the caller, deduped (W-bdcff87a); `nested` keeps its
+        # whole-child copy, which the Stop hook never reads, so nothing is counted twice
+        _joined = _carried_reviewed_surfaces(parent)
+        for _e in _carried_reviewed_surfaces(rec):
+            if _e not in _joined:
+                _joined.append(_e)
+        parent["reviewed_surfaces"] = _joined
         # The counter belongs to the SESSION, not to the record that happens to hold it —
         # a restored parent must keep ascending from where the nested run left off.
         parent["event_seq"] = rec.get("event_seq")
         _touch(parent)
+    _reopen: str = ""
+    _seed_kept = False
+    if _wall:
+        # ── the quota-wall seed (W-28f260c3): the CLOSED record minus its parked parent, plus the
+        # parent chain by command so `start --resume-from` can refuse an inverted nest. Kept BEFORE
+        # the save so the record names it; a copy that cannot be written WARNS and the close
+        # proceeds — at the wall every tool is held and a refused close would leave the record
+        # `running`, the Stop hook blocking every turn after the lift (handoff's refusal is the
+        # inverse case: a voluntary close that can wait). The session's own record file stays a
+        # valid seed until the next `start` overwrites it.
+        _seed_rec = {k: v for k, v in rec.items() if k != "stack"}
+        # from the RECORD's stack (`stack` above already popped the parent off its copy)
+        _seed_rec["stack_commands"] = [
+            str(fr.get("command") or "") for fr in (rec.get("stack") or []) if isinstance(fr, dict)
+        ]
+        _kept_seed = _keep_resume_seed(
+            sid,
+            json.dumps(_seed_rec, indent=2).encode("utf-8"),
+            tag="-paused" if _paused else "-wall",
+            ext=".json",
+        )
+        if _kept_seed.startswith("/"):
+            rec["resume_seed"] = _kept_seed
+            _reopen = _kept_seed
+            _seed_kept = True
+        else:
+            sys.stderr.write(
+                f"[command_run] WARNING — the {'pause' if _paused else 'quota-wall'} seed could not be "
+                f"kept ({_kept_seed[:160]}); "
+                f"the record file itself is the seed until this session's next start: "
+                f"{_record_path(sid)}\n"
+            )
+            _reopen = str(_record_path(sid))
     fields["persisted"] = save(sid, parent if parent is not None else rec)
     if not fields["persisted"]:
         # The record on disk still says `running`: the Stop hook keeps blocking and a retry of
@@ -5691,6 +8239,16 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             f" fix the record dir and re-run `{args.cmd}` — no usage-ledger row was written."
         )
         return 1
+    # the run folder's marker (scratch lifecycle plan D2, P5): AFTER the record persisted and
+    # BEFORE the nested return, so a nested close marks its own folder too; a wall close — the
+    # flag OR the reason regex — or an operator pause (`--paused` sets the same `_wall` the seed keys
+    # on) keeps it `resumable`, unless
+    # its seed could not be kept (P12: no folder stays resumable with nobody to adopt it)
+    _mark_run_scratch(rec, "resumable" if _wall and _seed_kept else "done", sid)
+    _sup = str(rec.get("superseded_run_scratch") or "")
+    if args.cmd == "done" and _sup and (_read_owner(Path(_sup)) or {}).get("state") == "resumable":
+        # P12: this run started over a forgotten resume; finishing it declines that resume
+        _mark_run_scratch({"run_scratch": _sup}, "done", sid)
     if _pending_row is not None:
         try:
             _lp = _feedback_ledger_path()
@@ -5701,8 +8259,31 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
             _append_ledger_row(_lp, _pending_row)
         except OSError as exc:  # the ledger never blocks a close; the record still carries it
             sys.stderr.write(f"[command_run] usage ledger not written: {exc}\n")
+    if rec.get("resumed_from"):
+        _rf = rec.get("resumed_from") or {}
+        _first = ("paused", "paused") if _rf.get("paused") else ("wall-blocked", "quota")
+        print(
+            f"[command_run] NOTE — resumed run: rounds {_int0(_rf.get('rounds'))} carried from the "
+            f"{_first[0]} sitting ({_rf.get('started_at')}); wall-clock and tokens below are THIS "
+            f"sitting's — the first sitting has its own ledger row (wall: {_first[1]})"
+        )
     if _fb_line is not None:
         print(_fb_line)
+    if _reopen:
+        _why, _when, _flag = (
+            ("paused", "once the operator resumes", "--paused")
+            if _paused
+            else ("wall", "after the lift", "--wall")
+        )
+        print(
+            f"{_why}: the run is kept — reopen it {_when} with: start --command "
+            f"{rec.get('command')} --phases {rec.get('phases')} --resume-from {_reopen}"
+        )
+        if parent is not None:
+            print(
+                f"{_why}: the parent /{parent.get('command')} is live — close it too with `blocked {_flag}`; "
+                f"{_when}: resume the PARENT first, then this run"
+            )
     if parent is not None:
         print(f"{args.cmd.upper()} /{closed.get('command')} — resuming:")
         print(pinned_line(parent))

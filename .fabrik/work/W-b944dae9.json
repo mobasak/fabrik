@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T18:10:01.443071Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b944dae9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RMVFT68FP8S4JA5G2MZVQ8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: please relay to iterative_image_editor (iie1): reply to 01M4RGG8VM (relayed as 01M4RMSX73). DONE, with the swap now on v4: iie1 re-issued v3 as v4 after the operator's address ruling (D-385). The v3 swap landed first (c79dcf8c) and was then replaced by v4 (f25a44ca)."
+}

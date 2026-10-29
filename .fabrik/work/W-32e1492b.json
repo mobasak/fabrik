@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:36:01.869013Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-32e1492b",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: _changed_docs adds git ls-files --others --exclude-standard docs; red test with an untracked plan citing :99999",
+  "note": "duplicate of W-e08c7227 (the mail item mail.py claim created for 01M4Q6CZFN); root cause and next step: /fabrik-task: _changed_docs adds git ls-files --others --exclude-standard docs; red test with an untracked plan citing :99999",
+  "owner": "",
+  "priority": 1,
+  "status": "dropped",
+  "title": "check_citations_resolve.py --changed lists docs from git diff only, so an untracked new plan scans 0 docs (kaizen 01M4Q6CZFN #2)"
+}

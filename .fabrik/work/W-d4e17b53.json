@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T08:58:52.797374Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-d4e17b53",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: /fabrik-task; check other loopback-only box services the operator opens from Windows",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "operator ask; the operator's own dashboard is unreachable; bind and docs, one session",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "Quota dashboard unreachable from Windows under WSL NAT (D-1072, operator: 'now we decided to use nat, what is the new address of our dashboard'): it binds 127.0.0.1:5051, and NAT localhost forwarding from Windows times out (measured: localhost:8031 times out while 192.168.100.17:8031 answers). WSL's address is 192.168.100.17 (eth6), not the configured natIpAddress 10.90.0.2, so it may change per boot. Give the operator one stable address and update docs/workstation/quota-dashboard.md ('works from Windows too — WSL forwards loopback' is now false) and QUOTA_DASH_URL; keep the 421 Host check and never expose it beyond the Windows host"
+}

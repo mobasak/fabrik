@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T20:21:18.618576Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-3523b9ec",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RQ3FH6Y3A047RAWXSVZJWE",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "templates/scaffold/docs/PROJECT_README_TEMPLATE.md lacks the \"## Quick Start\" section check_readme_md.py requires — a converged README fails the gate (whatsapp-agent 01M4RNRXQJ)"
+}

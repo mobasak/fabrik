@@ -1,13 +1,13 @@
-# Fleet doc-freshness audit — 2026-10-07
+# Fleet doc-freshness audit — 2026-10-28
 
-Projects scanned: 43 · flagged: 37 · clean: 6
+Projects scanned: 42 · flagged: 36 · clean: 6
 
 Mechanical probes only (lag/stale/stubs/missing) — truth-level fixes are
 `/fabrik-docs-review` or `/fabrik-doc-converge <doc>` run IN the flagged project.
 
 | Project | Code-vs-docs lag | Stale key docs (≥14d behind code) | Stub sentinels | Missing obligated |
 |---|---|---|---|---|
-| fabrik-dr-store | 5d | — | — | — |
+| fabrik-dr-store | 25d | — | — | — |
 | ai-model-catalog | 0d | SERVICES.md (47d), RESILIENCE.md (46d), CONFIGURATION.md (47d), FEATURES.md (46d) | SERVICES.md (template text left: 100%), RESILIENCE.md (template text left: 96%), CONFIGURATION.md (template text left: 100%), QUICKSTART.md (template text left: 99%), TROUBLESHOOTING.md (template text left: 100%), OPERATIONS.md (template text left: 99%), BUSINESS_MODEL.md (template text left: 100%) | docs/DEPLOYMENT.md |
 | apidoccreator | 0d | SERVICES.md (151d), CONFIGURATION.md (151d), FEATURES.md (151d) | TROUBLESHOOTING.md (template text left: 100%), OPERATIONS.md (template text left: 100%) | docs/RESILIENCE.md, docs/DEPLOYMENT.md |
 | compliance-ops | 0d | SERVICES.md (79d), RESILIENCE.md (79d), CONFIGURATION.md (79d), FEATURES.md (79d) | SERVICES.md (template text left: 100%), RESILIENCE.md (template text left: 100%), CONFIGURATION.md (template text left: 100%), FEATURES.md (template text left: 100%), QUICKSTART.md (template text left: 100%), TROUBLESHOOTING.md (template text left: 100%), OPERATIONS.md (template text left: 100%), BUSINESS_MODEL.md (template text left: 100%) | docs/DEPLOYMENT.md |
@@ -32,8 +32,8 @@ Mechanical probes only (lag/stale/stubs/missing) — truth-level fixes are
 | gmail-account-creator | 0d | — | SERVICES.md (template text left: 100%), RESILIENCE.md (template text left: 100%), CONFIGURATION.md (template text left: 100%), FEATURES.md (template text left: 100%), README.md (template text left: 100%), QUICKSTART.md (template text left: 100%), TROUBLESHOOTING.md (template text left: 100%), OPERATIONS.md (template text left: 100%) | docs/DEPLOYMENT.md |
 | meb | 0d | — | — | docs/CONFIGURATION.md |
 | session-recall | 0d | — | SERVICES.md (template text left: 100%), RESILIENCE.md (template text left: 97%), CONFIGURATION.md (template text left: 100%), FEATURES.md (template text left: 84%), QUICKSTART.md (template text left: 99%), TROUBLESHOOTING.md (template text left: 100%), OPERATIONS.md (template text left: 99%) | docs/DEPLOYMENT.md |
-| site-provisioner | 0d | DEPLOYMENT.md (20d) | — | — |
 | test-saas-platform | 0d | — | SERVICES.md (3), RESILIENCE.md (template text left: 100%), CONFIGURATION.md (template text left: 100%), FEATURES.md (template text left: 100%), QUICKSTART.md (template text left: 100%), TROUBLESHOOTING.md (template text left: 100%), OPERATIONS.md (template text left: 100%) | docs/DEPLOYMENT.md |
+| fabrik-test-saas-skeleton | 0d | — | SERVICES.md (template text left: 100%), RESILIENCE.md (template text left: 100%), CONFIGURATION.md (template text left: 100%), DEPLOYMENT.md (template text left: 100%), FEATURES.md (template text left: 100%), QUICKSTART.md (template text left: 100%), TROUBLESHOOTING.md (template text left: 100%), OPERATIONS.md (template text left: 100%), BUSINESS_MODEL.md (template text left: 100%) | — |
 | iterative_image_editor | 0d | — | TROUBLESHOOTING.md (template text left: 100%), OPERATIONS.md (template text left: 99%) | — |
 | job-agent | 0d | — | SERVICES.md (1), CONFIGURATION.md (template text left: 95%), TROUBLESHOOTING.md (template text left: 100%), OPERATIONS.md (template text left: 98%) | — |
 | obsidian-agents | 0d | — | SERVICES.md (2), RESILIENCE.md (template text left: 100%), CONFIGURATION.md (template text left: 100%), FEATURES.md (template text left: 100%), README.md (template text left: 100%), QUICKSTART.md (template text left: 100%), TROUBLESHOOTING.md (template text left: 100%), OPERATIONS.md (template text left: 100%) | — |
@@ -42,5 +42,4 @@ Mechanical probes only (lag/stale/stubs/missing) — truth-level fixes are
 | transdoc | 0d | — | SERVICES.md (template text left: 100%), RESILIENCE.md (template text left: 90%), TROUBLESHOOTING.md (template text left: 100%), OPERATIONS.md (template text left: 99%) | — |
 | tryton-crm | 0d | — | RESILIENCE.md (template text left: 91%) | — |
 | web-ecommerce-factory | 0d | — | RESILIENCE.md (template text left: 97%), OPERATIONS.md (template text left: 99%), BUSINESS_MODEL.md (template text left: 100%) | — |
-| whatsapp-agent | 0d | — | SERVICES.md (template text left: 100%), RESILIENCE.md (template text left: 100%), CONFIGURATION.md (template text left: 92%), FEATURES.md (template text left: 100%), README.md (template text left: 100%), QUICKSTART.md (template text left: 100%), TROUBLESHOOTING.md (template text left: 100%), OPERATIONS.md (template text left: 100%) | — |
 | youtube | 0d | — | SERVICES.md (7), OPERATIONS.md (template text left: 97%) | — |

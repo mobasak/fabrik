@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T08:16:47.454101Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-063962eb",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4CV0VRE2A3TQPWG1VEY0Y4F",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "relay of kaizen 01M4CSZWF0 (O2, O4): dispatch_headroom.py --slices sizes finders only"
+}

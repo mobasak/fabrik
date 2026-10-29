@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T02:40:40.706856Z",
+  "creator": "fleet",
+  "evidence": "290c77e0630a2411d9db83e5894d424ad8d6ec12",
+  "id": "W-4b977f21",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: emit the command through TemplateRenderer._compose_str (or yaml.safe_dump double-quoted) in _generate_docker_compose, red-first with a newline and a non-BMP value; prove compose config argv unchanged for zitadel",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "done",
+  "tags": [
+    "fleet"
+  ],
+  "title": "Docker-image deployer: _generate_docker_compose writes source.image_command as a single-quoted YAML scalar (deployer_ssh.py:1594), which folds a newline to a space and passes DEL and lone surrogates raw; the template path now uses compose_str. Found by the W-ff313a14 design critique (Fable)."
+}

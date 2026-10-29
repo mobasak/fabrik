@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-09-29T22:15:36.336481Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "a5fa600bb407131dba5c85129acd39f775c84442",
   "id": "W-e6acc9ac",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "docs_updater.py --adopt, now always run with --single-window, no longer refuses a run from a linked worktree (the session-count guard was its only stop), so a worktree agent could mint the MERGE OWNER row on its branch"
 }

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T00:12:42.227624Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-d6bb9aa7",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "catch OverflowError in scripts/whoami_agent.py::_at with a regression test (found by the W-66e2f6a7 review, seat 2, out of scope)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: whoami_agent.py::_at raises OverflowError on an infinite 'at' value, a rare input; nobody blocked",
+  "status": "open",
+  "title": "whoami_agent.py::_at raises OverflowError on an \"at\" of 1e400 (inf), where agents_up.sh's reader returns 0 — the two readers of the identity store disagree"
+}

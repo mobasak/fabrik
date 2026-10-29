@@ -1,0 +1,29 @@
+{
+  "blocked_by": [
+    "W-ab566484",
+    "W-d146dd3c"
+  ],
+  "created": "2026-10-13T22:01:52.772212Z",
+  "creator": "fleet",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-9550a69c",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-14-coolify-verb-retirement-design.md"
+  },
+  "next": "/fabrik-task: route inject_env/read_env through the same app directory _deploy_local uses (app_dir from the W-36571dff spec once it lands), red-first on a local-source spec whose path basename differs from its id",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — deploy env path resolves wrong dir",
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "deploy's own path resolves read_env/inject_env at /opt/<ctx.app_name> (deployer_ssh.py:326, :363-364) while _deploy_local writes a local source's files at source.path (:668-671, :692): for fabrik-file-worker a registrar injection during apply lands in /opt/fabrik-file-worker/.env, not /opt/file-worker/.env — found by the Fable approval seat at the W-36571dff spec (2026-10-14)"
+}

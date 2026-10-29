@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T23:09:49.706364Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-480501ec",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reproduce by running --check --json twice in a row right after a commit; find the check that sets failed without a failures row (a timing read of a sibling's in-flight file, or a check whose failure text is swallowed); make every failed increment carry its row; regression test",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: an advisory-grade machinery defect (the gate flakes red without a reason); one check and a test",
+  "status": "open",
+  "title": "final_gate.py --check --json intermittently returns status failure with failed=1 and an EMPTY failures list, then success on an immediate identical rerun — observed four times 2026-10-21/22 by the coordinator, each time on the first run after a merge or a store commit (20:55, 22:40, 23:05, 02:20); a red that names no failure is unactionable and reads as flake"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T12:20:03.556265Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-ae3bea3e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DKWMHBNXT3TM5N2PCJSY49",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "site-provisioner: before the next deploy, place the Google service-account key on the VPS — it is no longer in git or the image"
+}

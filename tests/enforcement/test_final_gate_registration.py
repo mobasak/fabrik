@@ -217,11 +217,10 @@ def test_plan_lock_release_registered_every_tier():
     assert not _plan_lock_release_every_tier(_PLR_MUTANT_GE), "pin accepted the `tier >= 2` mutant"
 
 
-def _review_hygiene_warn_only(src: str) -> bool:
-    """True iff EVERY `check_review_hygiene.py` registration passes `warn_only=True` (and at
-    least one exists). AST, not `str.index` proximity: the textual pin in the check's own suite
-    reads 400 characters past the literal and would accept a `warn_only=True` belonging to the
-    NEXT registration."""
+def _review_hygiene_strict(src: str) -> bool:
+    """True iff EVERY `check_review_hygiene.py` registration passes the literal `"--strict"` and
+    no `warn_only=True` (and at least one exists). AST, not `str.index` proximity: a textual pin
+    reads past the literal into the NEXT registration (W-205934fb — DD6 met, the check blocks)."""
     tree = ast.parse(src)
     total = ok = 0
     for node in ast.walk(tree):
@@ -239,10 +238,12 @@ def _review_hygiene_warn_only(src: str) -> bool:
         ):
             continue
         total += 1
-        ok += any(
+        strict = any(isinstance(a, ast.Constant) and a.value == "--strict" for a in node.args)
+        warn = any(
             kw.arg == "warn_only" and isinstance(kw.value, ast.Constant) and kw.value.value is True
             for kw in node.keywords
         )
+        ok += strict and not warn
     return total >= 1 and ok == total
 
 
@@ -250,38 +251,36 @@ _RH_MUTANT_NO_FLAG = """
 def run_consistency_checks(tier):
     results = []
     results.append(
-        run_optional_check(
-            "scripts/enforcement/check_review_hygiene.py", "Review hygiene (advisory)"
-        )
+        run_optional_check("scripts/enforcement/check_review_hygiene.py", "Review hygiene")
     )
     return results
 """
 
-_RH_MUTANT_ADVISORY_ONLY = """
+_RH_MUTANT_STRICT_BUT_WARN_ONLY = """
 def run_consistency_checks(tier):
     results = []
     results.append(
         run_optional_check(
             "scripts/enforcement/check_review_hygiene.py",
-            "Review hygiene (advisory)",
-            advisory=True,
+            "Review hygiene",
+            "--strict",
+            warn_only=True,
         )
     )
     return results
 """
 
 
-def test_review_hygiene_registered_warn_only():
-    """The check has NO failing exit path by contract (it always exits 0). Registered without
-    `warn_only=True` it is graded as a blocking row in every output mode across ~46 repos, and
-    its advisory stdout is discarded on success — the visibility it exists for."""
+def test_review_hygiene_registered_strict():
+    """DD6 is met (W-205934fb): a text-overflow row in a changed receipt fails the gate. Without
+    `--strict` the script exits 0 on every path, so the row could never go red; with `warn_only`
+    the gate reports it as a non-blocking row in every output mode."""
     src = GATE.read_text(encoding="utf-8")
-    assert _review_hygiene_warn_only(src), (
-        "check_review_hygiene.py must be registered with warn_only=True — an always-exits-0 "
-        "check registered as blocking is a contract the gate cannot honour"
+    assert _review_hygiene_strict(src), (
+        'check_review_hygiene.py must be registered with "--strict" and without warn_only=True'
     )
     # Built-in red: the two mutants a careless edit produces.
-    assert not _review_hygiene_warn_only(_RH_MUTANT_NO_FLAG), "pin accepted a bare registration"
-    assert not _review_hygiene_warn_only(_RH_MUTANT_ADVISORY_ONLY), (
-        "pin accepted advisory=True — advisory preserves stdout but keeps the row BLOCKING"
+    assert not _review_hygiene_strict(_RH_MUTANT_NO_FLAG), "pin accepted a bare registration"
+    assert not _review_hygiene_strict(_RH_MUTANT_STRICT_BUT_WARN_ONLY), (
+        "pin accepted --strict under warn_only — the row would still never block"
     )

@@ -1,9 +1,20 @@
 {
   "blocked_by": [],
+  "comments": [
+    {
+      "action": "accept",
+      "at": 1792256994.318468,
+      "by": "operator",
+      "text": "",
+      "via": "dashboard"
+    }
+  ],
   "created": "2026-10-03T11:32:23.603834Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-40e6f88b",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -12,12 +23,16 @@
     "spec": ""
   },
   "next": "operator ruling first: incident text would leave the box to a third-party API; if allowed, shadow mode logging the probability vector with an explicit unknown option, threshold swept on past incidents, diagnosis stays on the LLM",
-  "note": "",
-  "owner": "",
-  "priority": 2,
-  "status": "open",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "records check 2026-10-17: advisory evaluation, optional — needs operator ruling (data leaves box); tag fleet, watchdog is monitoring; owner field empty; proposed-drop tag",
+  "status": "dropped",
   "tags": [
-    "fleet"
+    "fleet",
+    "needs-owner",
+    "operator-accepted",
+    "proposed-drop"
   ],
   "title": "Evaluate Jev as a severity/dedup pre-filter before the watchdog's LLM incident diagnosis (watchdog.py:577-590, incident_context.py:161-198) — intel advisory 01M3ZC4M (reported 39% lower cost; 15-33% of alerts closed at ~98% accuracy)"
 }

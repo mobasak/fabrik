@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T10:06:41.095558Z",
+  "creator": "fleet",
+  "evidence": "29b7466ff7b0cf5fe6195aaf03e1d9d7acecb5d2",
+  "id": "W-6dd44ffe",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "run tests/test_scaffold_deploy_contract.py::test_hub_copy_differs_from_fabrik_lib_only_by_the_vendoring_header and tests/test_parity_stub_loads_env.py on master; re-vendor libs/health_probe from /opt/fabrik-lib with the header; see whether the env-load reds share the cause",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "tags": [
+    "fleet"
+  ],
+  "title": "libs/health_probe drifted below its VENDORED-FROM header vs /opt/fabrik-lib (test_hub_copy_differs_from_fabrik_lib_only_by_the_vendoring_header red on master) and tests/test_parity_stub_loads_env.py has 2 red tests on master (env loaded 0 times, 1 expected) — re-vendor and re-check"
+}

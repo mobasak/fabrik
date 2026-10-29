@@ -12,9 +12,13 @@
     "spec": ""
   },
   "next": "saas/88:50,56,64 — iyzico/PayTR need these; the legal-pages spec covers the Paddle lane only",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "saas-skeleton TRY lane: distance-sales contract, delivery/return terms, About and Contact pages"
 }

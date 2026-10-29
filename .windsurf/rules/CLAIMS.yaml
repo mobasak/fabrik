@@ -2221,13 +2221,61 @@ claims:
     window_days: 365
     last_verified: 2026-09-24
 
+  - id: tailwind-css-first-theme-namespaces
+    pack: core/design-system-template.md
+    kind: platform
+    claim: "CSS-first Tailwind: @theme tokens generate utilities and :root variables do not; namespaces --color-*, --font-* (font family), --text-* (font SIZE, with --text-<step>--line-height), --tracking-*, --font-weight-*, --breakpoint-*, --container-*; @theme inline when a token references another variable; @theme static keeps a variable no utility uses; a --text-primary colour declared in @theme compiles to a font-size utility (executed on the current release, 2026-10-24); a --spacing-<step> alias replaces max-w-<step>'s container size; --text-<step>--letter-spacing and --font-weight compile; --font-weight-<role> is shadowed by --font-<role>"
+    verify: "https://tailwindcss.com/docs/theme (WebFetch, 2026-10-24) + re-run: import { compile } from <a project's node_modules/tailwindcss/dist/lib.mjs>; compile('@theme { --text-primary: #fff } @theme inline { --spacing-md: var(--space-md) } @tailwind utilities;', {base: '/', loadStylesheet: async () => ({content: '', base: '/'})}) then .build(['text-primary', 'max-w-md']) — a font-size utility and a spacing-valued max-width mean the claim still holds"
+    window_days: 180
+    last_verified: 2026-10-24
+
+  - id: tailwind-css-first-directives-and-reuse
+    pack: core/design-system-template.md
+    kind: practice
+    claim: "Tailwind's docs rank reuse as loops, then components or template partials, then custom CSS in @layer components; @apply is documented without deprecation (only theme() is deprecated); @plugin and @config exist for compatibility with the JS-config line; a separately bundled stylesheet (an Astro, Vue or Svelte <style> block, a CSS module) needs @reference to see theme variables, custom utilities and variants; dark mode is one @custom-variant (class or data-theme form)"
+    verify: "https://tailwindcss.com/docs/styling-with-utility-classes ; https://tailwindcss.com/docs/functions-and-directives ; https://tailwindcss.com/docs/upgrade-guide ; https://tailwindcss.com/docs/dark-mode (WebFetch, 2026-10-24)"
+    window_days: 180
+    last_verified: 2026-10-24
+
+  - id: tailwind-class-detection
+    pack: core/design-system-template.md
+    kind: platform
+    claim: "Tailwind scans source as plain text and cannot see concatenated or interpolated class names; .gitignore'd files, node_modules, binaries, CSS files and lock files are skipped; @source registers more, @import \"tailwindcss\" source(none) makes every source explicit, @source inline() replaces the safelist"
+    verify: "https://tailwindcss.com/docs/detecting-classes-in-source-files (WebFetch, 2026-10-24)"
+    window_days: 180
+    last_verified: 2026-10-24
+
+  - id: tailwind-upgrade-tool-and-layout
+    pack: core/design-system-template.md
+    kind: practice
+    claim: "npx @tailwindcss/upgrade migrates a JS-config project and is run on a new branch with the diff reviewed; the CSS-first line has a modern-browser floor stated in the upgrade guide; container queries (@container, @md:, @container/name) and grid-cols-subgrid are core utilities; responsive utilities are mobile-first (sm: means from the small breakpoint up)"
+    verify: "https://tailwindcss.com/docs/upgrade-guide ; https://tailwindcss.com/docs/responsive-design ; https://tailwindcss.com/docs/grid-template-columns (WebFetch, 2026-10-24)"
+    window_days: 180
+    last_verified: 2026-10-24
+
+  - id: prettier-plugin-tailwindcss-css-first
+    pack: core/design-system-template.md
+    kind: practice
+    claim: "prettier-plugin-tailwindcss sorts classes; on CSS-first Tailwind it needs the tailwindStylesheet option, tailwindFunctions extends sorting to clsx-style calls, prettier-plugin-astro is supported, and the Tailwind plugin must be loaded last"
+    verify: "https://github.com/tailwindlabs/prettier-plugin-tailwindcss (exa + WebFetch of the raw README, 2026-10-24)"
+    window_days: 180
+    last_verified: 2026-10-24
+
+  - id: astro-class-list-and-client-visible
+    pack: core/design-system-template.md
+    kind: platform
+    claim: "Astro's class:list builds a class string from an array/object; client:visible hydrates an island when it enters the viewport; <style> is scoped per component by default"
+    verify: "https://docs.astro.build/en/reference/directives-reference/ (WebFetch, 2026-10-24)"
+    window_days: 180
+    last_verified: 2026-10-24
+
   - id: ocoron-fonts-ofl
     pack: core/ocoron-design-system.md
     kind: practice
-    claim: "Space Grotesk (300-700), Inter (variable 100-900) and JetBrains Mono (incl. 300) are on Google Fonts under the SIL Open Font License 1.1"
-    verify: "https://fonts.google.com/specimen/Space+Grotesk ; https://fonts.google.com/specimen/JetBrains+Mono ; https://www.jetbrains.com/lp/mono/ (exa + WebSearch, 2026-09-24; ledger ut-15..ut-18)"
+    claim: "Arya (400 and 700 only; latin, latin-ext, devanagari), IBM Plex Sans (variable wght 100-700; latin, latin-ext, cyrillic, greek, vietnamese) and JetBrains Mono (incl. 300) are on Google Fonts under the SIL Open Font License 1.1; IBM Plex Sans Arabic covers arabic and IBM Plex Sans Devanagari covers devanagari"
+    verify: "https://fonts.googleapis.com/css2?family=Arya:wght@400;700&family=IBM+Plex+Sans:wght@400;500 and family=IBM+Plex+Sans+Arabic and family=IBM+Plex+Sans+Devanagari (curl, subset comments) ; https://raw.githubusercontent.com/google/fonts/main/ofl/arya/METADATA.pb ; https://raw.githubusercontent.com/google/fonts/main/ofl/ibmplexsans/METADATA.pb ; https://www.jetbrains.com/lp/mono/ (curl, 2026-10-24, W-eaa745f3)"
     window_days: 365
-    last_verified: 2026-09-24
+    last_verified: 2026-10-24
 
   - id: eu-billing-outside-store-terms
     pack: mobile-app/00-domain-mobile-app.md

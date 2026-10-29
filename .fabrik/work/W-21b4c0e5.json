@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T21:46:47.881576Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "ca94f95c6cb13dee553bc0fd987a51cdd9633974",
+  "id": "W-21b4c0e5",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: catch both at their call sites with the verb's own 'nothing moved' message, add a test per path proven red, extend test 3's spy to os.remove and os.symlink; scoped review ALSO from W-75cafe7a's review (06af04cd5): (4) a FIFO planted at the per-pid staging name; (5) an exception in the tick-row block skips the posture write (pre-existing).",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: two rare error paths that print a traceback instead of the verb's message (nothing is moved either way), plus a test-recall gap; nobody blocked",
+  "status": "done",
+  "title": "claude_rotate.py --merge-shared: (1) _cmd_merge_shared calls fcntl.flock outside any handler, so an ENOLCK prints a traceback instead of 'cannot lock … nothing moved'; (2) a ValueError/RuntimeError from _fleet_root escapes _merge_shared_pending → _fleet_dirs (which catches OSError only) before the guarded lock call; (3) test 3 does not watch os.remove or os.symlink (found by the W-b3bad109 review, outside its diff)"
+}

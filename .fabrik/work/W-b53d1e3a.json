@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T17:52:15.663252Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-b53d1e3a",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "strip trailing .,;: from each match before the distinct-URL set; grader: one URL cited with two endings stays 1 distinct (found by the W-7cdad5d5 review, A-S4)",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — URL_RE trailing punctuation in advisory floor check",
+  "status": "dropped",
+  "title": "check_spec_convergence URL_RE keeps trailing sentence punctuation, so one source cited twice ('...a,' and '...a.') counts as two distinct URLs and clears the APPROACH-FLOOR"
+}

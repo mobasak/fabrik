@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T22:44:09.702636Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-d437467a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M55G4RQHW2ACGAR92JDMGTC5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: review_receipt.py skeleton by-design sentence — FIXED, pointer plus whole-sentence pin (6db52029c on worktree-infra)"
+}

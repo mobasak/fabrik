@@ -21,6 +21,7 @@ yarn-error.log*
 
 # local env files
 .env
+.env.owner
 .env.local
 .env.development.local
 .env.test.local

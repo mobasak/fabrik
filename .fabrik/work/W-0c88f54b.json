@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T02:45:46.813860Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-0c88f54b",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-review-scoped",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "answered by 69f9b7d1",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "feedback queue /fabrik-review-scoped"
+}

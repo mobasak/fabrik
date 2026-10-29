@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T07:57:17.082534Z",
+  "creator": "infra",
+  "evidence": "25cb90c0776a29137ffbcd9ccfd14cf3ea91cd41",
+  "id": "W-cd77f476",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fix the class in scripts/wsl_startup_hook.sh:137-138: hold an flock around the install and remove a <hook>.legacy only when it carries pre-commit's own marker (mirror install_post_commit_hook.sh:63-66); same race shape for check_commit_trailers.py --install (:119) — check it; test red on HEAD with two concurrent installs; full /fabrik-review (hook surface)",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "status": "done",
+  "tags": [
+    "infra"
+  ],
+  "title": "wsl_startup_hook.sh races pre-commit install -t pre-push across concurrent shells: pre-commit truncates the hook in place (install_uninstall.py:92), a sibling shell's is_our_script reads the half-written file and moves it to pre-push.legacy (:77); the legacy then persists and every push fails 'installed in migration mode' (hit 2026-10-11, legacy written 2026-10-10 00:31; unblocked by deleting the byte-identical legacy)"
+}

@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
   "created": "2026-09-27T23:40:13.094216Z",
   "creator": "fleet",
+  "effort": "high",
   "evidence": "",
   "id": "W-2956e8ea",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,6 +19,10 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
+  "score_reason": "records check 2026-10-17: needs plan; per-repo production-data cutovers across fleet — only chore commit 89d0b6381 tracks it; no plan exists in docs/development/plans for waves",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "audit-log migration waves plan — the named follow-up of the executed audit-log-everywhere plan (archived 2026-09-24, D-410): pilot one low-risk database project, then cut the existing needs_database repos over to the <db>_app DSN in waves, one mail per repo; inventory fabrik-smoke-test, test-saas-log and translator first (plan I8/I9, line 508)"
 }

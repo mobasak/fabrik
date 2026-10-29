@@ -7,6 +7,7 @@ behaviors (b)-(d) are load-bearing: a project with no charters must see a silent
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -414,6 +415,84 @@ def test_a_whoami_bound_window_gets_its_charter_without_the_env_var(tmp_path: Pa
     assert out == "", "an unbound session still injects nothing"
 
 
+def test_the_binding_resolves_from_the_hook_payload_session_id(tmp_path: Path) -> None:
+    """W-629fe67a: a SessionStart hook is told its session on STDIN (`session_id`), and its
+    environment need not carry `CLAUDE_CODE_SESSION_ID` — the sibling hooks (`session_orient.py`,
+    `final_gate_stop.py`) feed the payload's id to the resolver for that reason. A tab bound as
+    `coordinator` with no `CLAUDE_AGENT` (VS Code's browser tunnel or desktop) must still get its
+    charter; and the payload's id wins over an inherited env id, as in `session_orient.py`."""
+    store = tmp_path / "agent-identity.jsonl"
+    store.write_text('{"session_id": "sid-tab", "name": "infra", "at": 1}\n', encoding="utf-8")
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("CLAUDE_AGENT", "CLAUDE_SESSION_ID", "CLAUDE_CODE_SESSION_ID")
+    }
+    env.update(CLAUDE_PROJECT_DIR=str(REPO), AGENT_IDENTITY_FILE=str(store))
+
+    def run(payload: str, **extra: str) -> str:
+        return subprocess.run(
+            [sys.executable, str(HOOK)],
+            input=payload,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env={**env, **extra},
+        ).stdout
+
+    assert "## AGENT ROLE: infra" in run('{"session_id": "sid-tab", "source": "startup"}')
+    assert "## AGENT ROLE: infra" in run(
+        '{"session_id": "sid-tab"}', CLAUDE_CODE_SESSION_ID="sid-other"
+    ), "the payload's session id wins over an inherited env id"
+    assert run('{"session_id": "sid-unbound"}') == "", "an unbound session injects nothing"
+    assert run("not json") == "" and run("") == "", "a bad or empty payload is a silent no-op"
+
+
+def test_a_held_open_stdin_never_hangs_the_hook_and_the_env_id_is_the_fallback(
+    tmp_path: Path,
+) -> None:
+    """Review of W-629fe67a: a plain `read()` waits for EOF, so a stdin held open hung the hook to
+    its timeout — it now reads against a 2 s deadline and judges what arrived. And when the
+    payload's id binds nothing, the inherited env id (the one the binding's writer keys on) is
+    tried, so a disagreement between the two never loses a real binding."""
+    import time
+
+    store = tmp_path / "agent-identity.jsonl"
+    store.write_text('{"session_id": "sid-env", "name": "infra", "at": 1}\n', encoding="utf-8")
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("CLAUDE_AGENT", "CLAUDE_SESSION_ID", "CLAUDE_CODE_SESSION_ID")
+    }
+    env.update(
+        CLAUDE_PROJECT_DIR=str(REPO),
+        AGENT_IDENTITY_FILE=str(store),
+        CLAUDE_CODE_SESSION_ID="sid-env",
+    )
+    proc = subprocess.Popen(
+        [sys.executable, str(HOOK)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+    assert proc.stdin is not None
+    proc.stdin.write('{"session_id": "sid-payload-unbound"}')
+    proc.stdin.flush()  # written, never closed: no EOF ever arrives
+    t0 = time.monotonic()
+    try:
+        proc.wait(timeout=6)  # its output is far below a pipe buffer: waiting first cannot deadlock
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+        raise AssertionError("the hook waited for an EOF that never came") from None
+    finally:
+        proc.stdin.close()
+    assert time.monotonic() - t0 < 6
+    assert proc.stdout is not None
+    assert "## AGENT ROLE: infra" in proc.stdout.read(), "the env id's binding was not the fallback"
+
+
 def _hook_in(repo: Path, env_extra: dict) -> str:
     env = {k: v for k, v in os.environ.items() if k not in ("CLAUDE_AGENT", "CLAUDE_SESSION_ID")}
     env.update(CLAUDE_PROJECT_DIR=str(repo), **env_extra)
@@ -461,3 +540,202 @@ def test_a_missing_or_old_resolver_is_a_silent_no_op(tmp_path: Path) -> None:
             [sys.executable, str(HOOK)], capture_output=True, text=True, timeout=30, env=env
         )
         assert r.returncode == 0 and r.stdout == "", (body, r.stdout, r.stderr)
+
+
+def test_every_charter_beat_points_at_the_mail_routing_map() -> None:
+    """The mail-routing spec (§ The refusal prose; D-818, D-825) has kaizen reword each charter's beat section to point
+    at `.fabrik/beat-owners.json`. The sentence is scoped to MAIL (the map names a mail's owner; it does not move write
+    ownership, D-627) and opens each Beat section as live text. The map cites charter lines as its rules' sources, so
+    each cited range must still start on the text it backs: an insertion above it would silently stale the citation.
+    Not seen: a beat list that drifts from the map; `check_beat_owners.py` owns path ownership."""
+    import json as _json
+    import re as _re
+
+    line = (
+        "Who receives mail about a path is named by `.fabrik/beat-owners.json` (D-818, D-825), the map `mail.py` reads"
+        " for a mail's `map-owner:`; where this section and the map disagree on a path's mail owner, the map holds and"
+        " this section is corrected, and where the map is silent, this section stands."
+    )
+    for name in ("infra", "fleet", "intel", "kaizen"):
+        live = _re.sub(r"<!--.*?-->", "", (AGENTS_DIR / f"{name}.md").read_text(), flags=_re.S)
+        after = live.split("## Beat (", 1)[1].split("\n", 1)[1]
+        first_paragraph = _re.sub(r"\s+", " ", after.strip().split("\n\n", 1)[0])
+        assert first_paragraph == line, name
+    expected = {
+        "fleet.md:18-24": ("- `specs/services/*.yaml`", "infra's (it is the governance-sync"),
+        "intel.md:84-86": ("- **Floater**", "you found beyond the fix back to them"),
+    }
+    rules = _json.loads((REPO / ".fabrik" / "beat-owners.json").read_text())["rules"]
+    cited = {
+        c
+        for r in rules
+        for c in _re.findall(
+            r"\b(?:infra|fleet|intel|kaizen)\.md:\d+(?:-\d+)?", r.get("source", "")
+        )
+    }
+    assert cited == set(expected), cited
+    for cite, (start, end) in expected.items():
+        name, rng = cite.split(":")
+        first, last = (int(n) for n in rng.split("-"))
+        lines = (AGENTS_DIR / name).read_text().splitlines()
+        assert lines[first - 1].startswith(start), cite
+        assert end in lines[last - 1], cite
+
+
+# ── Every charter names the current merge owner (W-cfff98dd d, D-891) ─────────────────────────────
+
+
+def _ledger_merge_owner() -> str:
+    """The owner the hooks and merge_request.py use: the highest-id MERGE OWNER row. Exit 3
+    (UNDECLARED) and exit 1 (unreadable ledger, empty stdout) both fail here, never pass."""
+    r = subprocess.run(
+        [sys.executable, str(REPO / "scripts" / "decisions.py"), "--merge-owner", str(REPO)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    owner = r.stdout.strip()
+    assert r.returncode == 0 and owner and owner != "UNDECLARED", (
+        r.returncode,
+        owner,
+        r.stderr[-300:],
+    )
+    return owner
+
+
+def _charter_units(text: str, *, prose_only: bool = True) -> list[str]:
+    """Blank-line paragraphs split again at bullet and numbered-item starts, whitespace collapsed —
+    a phrase wrapped across lines stays whole. `prose_only` drops HTML comments and ``` / ~~~ fences."""
+    if prose_only:
+        text = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+        text = re.sub(r"^(```|~~~).*?^\1[^\n]*$", "", text, flags=re.S | re.M)
+    units = []
+    for para in re.split(r"\n\s*\n", text):
+        for part in re.split(r"\n(?=\s*(?:[-*]|\d+\.)\s)", para):
+            unit = " ".join(part.split())
+            if unit:
+                units.append(unit)
+    return units
+
+
+def test_every_charter_names_the_current_merge_owner() -> None:
+    """Operator 2026-10-15: agents must know their duties after any loss of context. D-874 moved
+    the merge owner from infra to the coordinator, yet kaizen.md still routed "infra for merges",
+    coordinator.md said "until it arrives infra is the merge owner" and fleet.md named no owner.
+    Every charter (all of HUB_BEATS, the owner's own included) carries one canonical sentence for
+    the ledger's owner, and no unit names another hub agent as merger — so when the MERGE OWNER
+    row moves, every charter fails until it is brought along (D-891). The canonical sentence counts only in prose (a
+    fenced or commented copy is no instruction); the stale scan reads the raw text, comments and fences
+    included, because the hook injects the charter raw (review C1, C3)."""
+    import importlib.util
+
+    owner = _ledger_merge_owner()
+    spec = importlib.util.spec_from_file_location("_mail_for_roles", REPO / "scripts" / "mail.py")
+    assert spec is not None and spec.loader is not None
+    mail = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mail)
+    roles = tuple(mail.HUB_BEATS)
+    charters = {
+        p.stem: p.read_text(encoding="utf-8")
+        for p in REAL_AGENT_FILES
+        if p.read_text(encoding="utf-8").startswith("# Agent charter")
+    }
+    # a numbered builder of a beat (D-1128: infra-2, infra-3) carries its beat's charter, often as a symlink to it
+    builders = {name for name in charters if name not in roles and mail.is_hub_agent(name)}
+    assert set(charters) - builders == set(roles), (sorted(charters), roles)
+    canonical = (
+        f"**Merges:** the merge owner is `{owner}` (`scripts/decisions.py --merge-owner` reads it from the "
+        "ledger); a finished worktree branch reaches it with `scripts/merge_request.py request`."
+    )
+    others = [r for r in roles if r != owner]
+
+    def name(role: str) -> str:
+        return rf"`?\b{re.escape(role)}\b`?(?:\s+agent)?"
+
+    mo = r"merge[-\s]owner"
+    stale_shapes = (
+        [
+            re.compile(
+                rf"{name(o)}\s+(?:merges\s+(?:your\s+|the\s+|its\s+|every\s+|all\s+)?(?:branch(?:es)?|requests?|PRs?)\b|merges\s*[.;,)]|for\s+merges|(?:stays|is|remains)\s+(?:still\s+|now\s+)?(?:the\s+)?{mo}|"
+                rf"owns\s+(?:the\s+)?merges\b|\(the\s+{mo}\)|"
+                rf"(?:handles|does|takes|lands|runs)\s+(?:the\s+)?merges\b)",
+                re.I,
+            )
+            for o in others
+        ]
+        + [re.compile(rf"merges?\s+go(?:es)?\s+to\s+(?:the\s+)?{name(o)}", re.I) for o in others]
+        + [re.compile(rf"{name(o)},\s+the\s+{mo}", re.I) for o in others]
+        + [re.compile(rf"(?:ask|asks|tell|tells)\s+{name(o)}\s+to\s+merge\b", re.I) for o in others]
+        + [re.compile(rf"{name(o)}\s+will\s+merge\b", re.I) for o in others]
+        + [
+            re.compile(rf"merge\s+requests?\s+(?:go(?:es)?\s+)?to\s+(?:the\s+)?{name(o)}", re.I)
+            for o in others
+        ]
+        + [
+            re.compile(
+                rf"{mo}\s*(?:\(|=|:|\bis\b|\bremains\b|\bstays\b)\s*(?:still\s+)?(?:the\s+)?{name(o)}",
+                re.I,
+            )
+            for o in others
+        ]
+    )
+    # Accepted gaps (closing pass, measured): a table cell "| merges | infra |", "Merging is infra's job",
+    # a canonical sentence only in an indented code block, and "Ask kaizen for merges of feedback rows"
+    # (reads as stale - the price of catching "infra for merges"). Singular "merge" as a modifier
+    # ("runs the merge sync"), "merges it into" and comma lists stay legitimate.
+    # no "every unit saying merge owner must name the owner" rule: it fired on coordinator.md's
+    # legitimate "keep each charter true to ... the merge owner" (measured, D-891); the stale shapes
+    # above catch the wrong forms it was meant for ("infra is the merge owner", "infra (the merge owner)").
+    problems = []
+    for role, text in sorted(charters.items()):
+        n = sum(unit.count(canonical) for unit in _charter_units(text))
+        if n != 1:
+            problems.append(
+                f"{role}.md: the canonical merge-owner sentence appears {n} times in prose, want 1"
+            )
+        for unit in _charter_units(text, prose_only=False):
+            problems += [
+                f"{role}.md names another agent as merger: {unit[:120]}"
+                for rx in stale_shapes
+                if rx.search(unit)
+            ]
+    assert not problems, "\n".join(problems)
+
+
+CHARTER_NAMES = sorted(
+    p.stem
+    for p in REAL_AGENT_FILES
+    if p.read_text(encoding="utf-8").splitlines()[:1]
+    and p.read_text(encoding="utf-8").splitlines()[0].startswith("# Agent charter")
+)
+
+
+# Charters measured AT/OVER the cap when this guard landed: name -> measured size.
+_OVER_CAP = {"coordinator": "9,927 chars / 10,000 bytes (cap is strictly under 10,000)"}
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        pytest.param(
+            n,
+            marks=pytest.mark.xfail(
+                strict=True, reason=f"over the 10,000 hook cap: {_OVER_CAP[n]}"
+            ),
+        )
+        if n in _OVER_CAP
+        else n
+        for n in CHARTER_NAMES
+    ],
+)
+def test_charter_injection_stays_under_hook_cap(name: str) -> None:
+    """Claude Code truncates hook output past 10,000 characters to a 2,000-character
+    preview (D-888), so a charter edit past the cap silently degrades; guard it in both
+    characters and UTF-8 bytes."""
+    r = _run(name)
+    assert r.returncode == 0
+    assert "AGENT ROLE" in r.stdout, f"{name}: hook injected nothing"
+    assert len(r.stdout) < 10_000, f"{name}: {len(r.stdout)} chars"
+    assert len(r.stdout.encode("utf-8")) < 10_000, (
+        f"{name}: {len(r.stdout.encode('utf-8'))} bytes"
+    )

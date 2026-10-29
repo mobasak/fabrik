@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T15:26:56.551553Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-f8fafea5",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-task",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: HELD:census-shape-faked-callee-tests — valid one-off advice, first sighting (D-711, kaizen 2026-10-18, Opus audit HELD). fabrik-task.md:75-76 finds tests by gre",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-task"
+}

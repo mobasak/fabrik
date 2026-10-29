@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:27.160068Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c87e7681",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4WBJ6P3TYHDEE3NE9R0DJWY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — kaizen feedback rows needing code",
+  "status": "open",
+  "title": "/fabrik-task feedback — 5 rows need code in command_run.py / review_receipt.py (W-b4e1dfb2), routed from kaizen's pass over the queue"
+}

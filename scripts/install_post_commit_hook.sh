@@ -65,3 +65,59 @@ SHIM
   legacy="$common/hooks/$name.legacy"
   if [ -f "$legacy" ] && grep -qF "$MARK" "$legacy"; then rm -f "$legacy"; fi
 done
+
+# The work-item merge driver (W-c230cb2e): `.gitattributes` maps .fabrik/work/W-*.json to `workitem`,
+# and a hand merge, rebase or cherry-pick in any hub worktree then merges an item key-wise with
+# `work.py merge-item` — the tree's OWN copy, since git runs the driver at the worktree top level.
+# Any non-zero exit (a key both sides changed, a work.py without the verb, no python3) falls back to
+# git's text merge, so a conflict keeps its markers and never picks a side. `-X ours|theirs` reach no
+# custom driver. merge_request.py resolves item conflicts on its own (D-988) and needs none of this.
+DRIVER='python3 scripts/work.py merge-item %O %A %B || git merge-file --marker-size %L -L ours -L base -L theirs %A %O %B'
+# Written only when it differs: a same-value `git config` still replaces the shared file under
+# config.lock, and this runs on every shell, racing every sibling's own config write. A write that
+# fails (a sibling holds the lock, or a stale lock) is reported and the run goes on, so the
+# attributes below are still copied; the non-zero exit is what wsl_startup_hook.sh prints.
+rc=0
+set_config() {
+  [ "$(git -C "$ROOT" config --get-all "$1" 2>/dev/null)" = "$2" ] && return 0
+  git -C "$ROOT" config --replace-all "$1" "$2" ||
+    { echo "install_post_commit_hook: could not set $1 — the work-item merge driver is not registered; the next shell retries" >&2; rc=1; }
+}
+set_config merge.workitem.name "work.py merge-item (key-wise work-item merge)"
+set_config merge.workitem.driver "$DRIVER"
+# git reads .gitattributes from the tree as it was BEFORE the merge, so a branch cut before the file
+# existed would get no driver on the merge that brings it in; <common>/info/attributes applies to
+# every worktree at once. Its merge=workitem lines are a block this installer OWNS, rebuilt from
+# .gitattributes (the mapping's one hand-written home) on every run — so a line removed there leaves
+# here too — and replaced atomically only when it changed; every other line is kept.
+info="$common/info/attributes"
+BEGIN_MARK="# BEGIN work-item merge driver — managed by scripts/install_post_commit_hook.sh"
+END_MARK="# END work-item merge driver"
+want=""
+[ -f "$ROOT/.gitattributes" ] &&
+  want="$(grep -E '^[[:space:]]*[^#[:space:]].*[[:space:]]merge=workitem([[:space:]]|$)' "$ROOT/.gitattributes" || true)"
+current=""
+[ -f "$info" ] && current="$(cat "$info")"
+# A block's lines are dropped only when its END arrives; an unclosed BEGIN (a hand-trimmed END)
+# keeps every line after it — up to the next BEGIN too, which proves the first was never closed — so a
+# person's attribute lines are never deleted.
+kept="$(printf '%s\n' "$current" | awk -v b="$BEGIN_MARK" -v e="$END_MARK" '
+  $0 == b { for (i = 1; i <= n && inblk; i++) print held[i]; inblk = 1; n = 0; next }
+  inblk && $0 == e { inblk = 0; next }
+  inblk { held[++n] = $0; next }
+  { print }
+  END { for (i = 1; i <= n && inblk; i++) print held[i] }')"
+new="$kept"
+[ -n "$want" ] && new="${kept:+$kept
+}$BEGIN_MARK
+$want
+$END_MARK"
+if [ "$new" != "$current" ]; then
+  mkdir -p "$common/info"
+  tmp="$(mktemp "$common/info/.attributes.XXXXXX")"
+  if [ -n "$new" ]; then printf '%s\n' "$new" > "$tmp"; else : > "$tmp"; fi
+  chmod 644 "$tmp"
+  mv -f "$tmp" "$info"
+  tmp=""
+fi
+exit "$rc"

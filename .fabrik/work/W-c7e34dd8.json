@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T11:42:50.727444Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "259cb772428c89b5a8c0b52052362b9d784a388c",
+  "id": "W-c7e34dd8",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: one-line structural repair of its own row + run scripts/enforcement/check_decisions_unique.py; right-now + /fabrik-review-scoped",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "a bug that blocks a live flow today (infra-2/infra-3 merges and the ledger gate); one short infra pass",
+  "status": "done",
+  "title": "docs/DECISIONS.md D-1125 (infra, 80c53bbca, W-18f559d9) has 5 cells, not 6 — check_decisions_unique flags it as malformed on master (intel found it 2026-10-22). Rows are immutable in CONTENT; a structural repair of the cell count (restore the missing | boundary, no wording change) keeps the ledger check green — or, if the content must change, a superseding row."
+}

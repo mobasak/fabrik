@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T15:20:41.040179Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-495e3906",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M57SHZ3T9GVNM5JKAA70VD7E",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "re: seat pin recipe has no layout for a scaffolding test — fixed in W-393ffefa (D-1001), merge requested"
+}

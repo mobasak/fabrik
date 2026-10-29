@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T10:00:26.395400Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b075da45",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
+  "title": "mail.py route-report cannot see the map's own mistakes: mail auto-addressed by the map then re-routed by its receiver counts only in the overall re-route line, so spec's rollback rule (re-routed >10% of map-placed mail) cannot be computed — count 'map · - → X' first-trail mail separately (placed, re-routed of placed)"
+}

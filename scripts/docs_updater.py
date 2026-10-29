@@ -616,24 +616,23 @@ TEMPLATE_PATH = PROJECT_ROOT / "templates" / "docs" / "MODULE_REFERENCE_TEMPLATE
 # clean zero while the entry would fire everywhere. Measured both ways 2026-09-17: `PORTS.md` has the
 # marker in 47 of 47 repos (proxy says "safe to arm") and fires "Stale doc (93 days old)" in 47 of 47
 # (the real check), because the scaffolder seeded one date fleet-wide. That is ONE seeding artifact
-# wearing 47 hats, not 47 defects, so it is NOT in this list. The three added below were measured
-# through the real check: FUNNEL 0/47, AUTOMATION 0/47, API_REFERENCE 1/47 — and that single hit is a
-# TRUE POSITIVE kept deliberately, which is what the gate is for. The remaining candidates need their
-# markers added before they can be watched; measurements and destination are in
-# docs/STRATEGIC_BACKLOG.md. Re-measure before adding any entry; the numbers move.
-# (site-provisioner, 01M2NJGZGV20WP: 7 watched of 26 project-owned docs, and every defect their
-# two-command sweep found that day was in an unwatched one.)
+# wearing 47 hats, not 47 defects, so it is NOT in this list. API_REFERENCE was added through the
+# real check (1/47 — a TRUE POSITIVE kept deliberately, which is what the gate is for). The remaining
+# candidates need their markers added before they can be watched. Re-measure before adding any
+# entry; the numbers move.
+# An entry must be a doc the project can edit (not in fabrik_synced_manifest.review_readonly_paths(),
+# so AGENTS.md is out) and may keep where it is (check_structure.py allows its path, so docs/INDEX.md
+# is out, and so are docs/FUNNEL.md and docs/AUTOMATION.md, one repo's own docs — D-1273);
+# tests/test_docs_updater.py grades both. D-1272 records why the list stays hand-picked
+# rather than every project doc by default (site-provisioner, 01M2NJGZGV20WP): a date header
+# cannot see content, and the git-date signal lives in fleet_doc_audit.py and /fabrik-release.
 MANUAL_DOCS = [
     "README.md",
-    "AGENTS.md",
-    "docs/INDEX.md",
     "docs/QUICKSTART.md",
     "docs/CONFIGURATION.md",
     "docs/TROUBLESHOOTING.md",
     "docs/BUSINESS_MODEL.md",
     "docs/API_REFERENCE.md",
-    "docs/FUNNEL.md",
-    "docs/AUTOMATION.md",
 ]
 
 # Placeholder markers that indicate incomplete stubs
@@ -872,6 +871,14 @@ def _in_linked_worktree() -> bool:
     """True only in a linked worktree: its git dir differs from the common dir. Absolute paths on
     both sides, because a main checkout run from a subdirectory prints `--git-dir` absolute and
     `--git-common-dir` relative. Any git failure reads as a main checkout (today's walk)."""
+    return _linked_worktree_state() is True
+
+
+def _linked_worktree_state() -> bool | None:
+    """`_in_linked_worktree`'s answer, with None when git could not answer (a timeout, no git
+    binary, any other git failure) — for a caller that must fail CLOSED, `run_adopt`
+    (W-e6acc9ac). A directory that is not a git repository at all is False: it cannot be a
+    linked worktree."""
     try:
         proc = subprocess.run(
             ["git", "rev-parse", "--path-format=absolute", "--git-dir", "--git-common-dir"],
@@ -879,12 +886,15 @@ def _in_linked_worktree() -> bool:
             text=True,
             cwd=PROJECT_ROOT,
             timeout=15,
+            env={**os.environ, "LC_ALL": "C"},  # the stderr below is matched
         )
     except (OSError, subprocess.SubprocessError):
-        return False
+        return None
     lines = proc.stdout.splitlines()
-    if proc.returncode != 0 or len(lines) != 2:
+    if proc.returncode != 0 and "not a git repository" in proc.stderr:
         return False
+    if proc.returncode != 0 or len(lines) != 2:
+        return None
     return Path(lines[0]).resolve() != Path(lines[1]).resolve()
 
 
@@ -1027,15 +1037,85 @@ def _strip_quoted(content: str) -> str:
     bare ```.*?```, which swallows across an unpaired backtick), then blockquoted
     lines: a `> Status: DRAFT` grammar example above the real line must not win
     first-match (fail-open: misreported status + a defeated COMPLETE check). Same
-    consumer-side strip as check_plan_tickets/check_plan_quality; the blockquote
+    consumer-side strip as check_plan_tickets/check_plan_quality — the fences are
+    `scripts/enforcement/_fences.py`'s linear scanner (W-276255e7); the blockquote
     regex keeps `>` for cross-module byte-parity (Lesson 103)."""
-    scan = re.sub(
-        r"(?:^[ \t]*(`{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$|```[^`\n]+```)",
-        "",
-        content,
-        flags=re.M | re.S,
-    )
-    return re.sub(r"^[ \t]*>.*$", "", scan, flags=re.M)
+    return re.sub(r"^[ \t]*>.*$", "", _fences_module().strip(content), flags=re.M)
+
+
+def _fences_module() -> Any:
+    """The shared fence scanner, imported when `_strip_quoted` or `_blank_code_spans` first runs (W-276255e7, W-b9af1d47): in a project whose
+    `scripts/enforcement/` lags a sync, a call that never strips quoted text still runs, and one that does
+    raises an ImportError naming the file. Imported by the sibling directory, the way every check imports it,
+    so a by-path load (work.py) resolves it too; no bytecode is written, because `--dry-run` promises to write
+    nothing and a first import would write scripts/enforcement/__pycache__/."""
+    enforcement = str(Path(__file__).resolve().parent / "enforcement")
+    if enforcement not in sys.path:
+        sys.path.insert(0, enforcement)
+    prior = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        import _fences
+    except ImportError as exc:
+        raise ImportError(
+            f"docs_updater: cannot import scripts/enforcement/_fences.py ({exc})"
+        ) from exc
+    finally:
+        sys.dont_write_bytecode = prior
+    return _fences
+
+
+# Link-check only (W-69f51003): code EXAMPLES are blanked, never deleted — a deletion can glue
+# `[a](x.`foo`md)` into the link `[a](x.md)`, and the shared reader needs every line ending.
+# Both fence kinds go in ONE line walk so the outer fence wins: a ~~~ fence showing a ``` line must
+# not pair that line with the next real ``` fence (which `_strip_quoted` alone does). CommonMark's
+# rule: a ``` opener's info string holds no backtick; a closer is a run of the same character at
+# least as long with only whitespace after it; an unclosed fence is restored (its links stay graded).
+_FENCE_OPEN_RE = re.compile(r"[ \t]*(`{3,}|~{3,})([^\r\n]*)")
+
+
+def _blank(text: str) -> str:
+    return re.sub(r"[^\r\n]", " ", text)
+
+
+def _blank_code_fences(content: str) -> str:
+    out: list[str] = []
+    fence_at, closer = -1, None  # the open fence's first index in `out`, and its closer test
+    lines = content.split("\n")
+    lines = [line + "\n" for line in lines[:-1]] + ([lines[-1]] if lines[-1] else [])
+    for line in lines:
+        if closer is not None:
+            out.append(_blank(line))
+            if closer.fullmatch(line.rstrip("\r\n")):
+                fence_at, closer = -1, None
+            continue
+        m = _FENCE_OPEN_RE.match(line)
+        if m and not (m.group(1)[0] == "`" and "`" in m.group(2)):
+            fence_at = len(out)
+            closer = re.compile(rf"[ \t]*{re.escape(m.group(1))}{re.escape(m.group(1)[0])}*[ \t]*")
+            out.append(_blank(line))
+            continue
+        out.append(line)
+    if closer is not None:  # unclosed: restore what was blanked
+        out[fence_at:] = lines[fence_at:]
+    return "".join(out)
+
+
+def _blank_code_spans(content: str) -> str:
+    """Inline code spans blanked, length-preserving: `_fences.blank_code_spans`, the one copy check_doc_links
+    shares (W-b9af1d47; linear since W-16c00597)."""
+    blank = getattr(_fences_module(), "blank_code_spans", None)
+    if blank is None:  # a _fences.py older than W-b9af1d47: named, like a missing file
+        raise ImportError(
+            "docs_updater: scripts/enforcement/_fences.py has no blank_code_spans (it lags the sync)"
+        )
+    return blank(content)
+
+
+def _link_scan_text(content: str) -> str:
+    """The link check's scan surface: `_strip_quoted` with code fences of both kinds and inline
+    code spans blanked around it (W-69f51003)."""
+    return _blank_code_spans(_strip_quoted(_blank_code_fences(content)))
 
 
 _OWNER_LINE_RE = re.compile(
@@ -1046,6 +1126,28 @@ NO_OWNER = "—"  # an untagged row — `--adopt` fills it
 # The owner NAME is the line's leading token; live hub plans append prose
 # (`infra (build) — spec by fleet, …`) that must not become a table cell.
 _OWNER_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.@-]*")
+_STATUS_LINE_RE = re.compile(
+    r"^\s*(?:[-*>]\s+)?\*{0,2}Status\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(.+?)(?:\n|$)",
+    re.I | re.M,
+)
+
+
+def _first_header(rx: re.Pattern[str], scan: str) -> re.Match[str] | None:
+    """The first header-line match whose KEY no inline code span holds (W-8f9a7d2c): a span crossing a line
+    break with `Status: DRAFT` opening its second line is a quote, not the plan's header. The match runs on the
+    original text and the value is read from it, so a value in code font (`**Owner:** `[infra]``) keeps it;
+    `_blank_code_spans` is length-preserving, so only the key's bytes are compared against the blanked copy.
+    When every match's key sits in a span, the first match is returned as before — so the result differs from
+    a plain first match only when a span-held match precedes a header outside any span (two stray backticks
+    around the plan's only header still read it)."""
+    matches = list(rx.finditer(scan))
+    if not matches:
+        return None
+    blanked = _blank_code_spans(scan)
+    for m in matches:
+        if blanked[m.start() : m.start(1)] == scan[m.start() : m.start(1)]:
+            return m
+    return matches[0]
 
 
 def parse_plan_owner(plan_path: Path) -> str:
@@ -1057,11 +1159,61 @@ def parse_plan_owner(plan_path: Path) -> str:
         content = plan_path.read_text(encoding="utf-8")
     except Exception:
         return NO_OWNER
-    m = _OWNER_LINE_RE.search(_strip_quoted(content))
+    m = _first_header(_OWNER_LINE_RE, _strip_quoted(content))
     if not m:
         return NO_OWNER
     name = _OWNER_NAME_RE.search(m.group(1).strip().strip("*"))
     return name.group(0) if name else NO_OWNER
+
+
+# The status VALUES plans on the box write as their first token (census of /opt plans,
+# 2026-10-08: executed, converged, draft, superseded, shipped, implemented, approved, archived,
+# retired, built, …). Each is graded by itself; `complete`/`not_done`/`partial`/`in progress`
+# keep their legacy substring handling below.
+_PLAN_STATUS_WORDS = frozenset(
+    {
+        "converged",
+        "draft",
+        "planned",
+        "executed",
+        "blocked",
+        "superseded",
+        "built",
+        "shipped",
+        "implemented",
+        "approved",
+        "archived",
+        "retired",
+        "revised",
+        "ready",
+        "open",
+        "planning",
+        "historical",
+        "validated",
+        "resolved",
+        "fixed",
+        "closed",
+        "pinned",
+    }
+)
+_STATUS_DECORATION = re.compile(r"^[^\w]+")  # any leading non-word run: ✅ ✓ ⛔ ⭐ ** — …
+# A plan whose status says its work is finished — never handed an owner, never "active". work.py
+# reads this set through its import of this module. RESOLVED is deliberately absent, as in
+# check_plan_lock_release.FINISHED_TOKENS: it labels a resolved issue inside an unfinished plan.
+PLAN_DONE = frozenset(
+    {
+        "EXECUTED",
+        "COMPLETE",
+        "SUPERSEDED",
+        "SHIPPED",
+        "ARCHIVED",
+        "BUILT",
+        "IMPLEMENTED",
+        "RETIRED",
+        "FIXED",
+        "CLOSED",
+    }
+)
 
 
 def parse_plan_status(plan_path: Path) -> tuple[str, int, int]:
@@ -1084,22 +1236,31 @@ def parse_plan_status(plan_path: Path) -> tuple[str, int, int]:
     # RAW content (DONE-WHEN lists inside fences are live house style in this
     # repo's archived plans; uncounting them would fail-open the COMPLETE check).
     status_scan = _strip_quoted(content)
-    status_match = re.search(
-        r"^\s*(?:[-*>]\s+)?\*{0,2}Status\*{0,2}[^\S\n]*:[^\S\n]*\*{0,2}[^\S\n]*(.+?)(?:\n|$)",
-        status_scan,
-        re.I | re.M,
-    )
+    # A header line a code span holds is a quote too (W-8f9a7d2c).
+    status_match = _first_header(_STATUS_LINE_RE, status_scan)
     if status_match:
         raw_status = status_match.group(1).strip().lstrip("*:").strip()
-        lower = raw_status.lower()
-        first = lower.split()[0].rstrip(":*—–-") if lower.split() else ""
+        # Leading decoration (any non-word run: ✅ ✓ ⛔ emphasis, dashes) is not the value: `✅ EXECUTED … converged`
+        # graded CONVERGED by substring while its first word said EXECUTED (design critiques).
+        lower = _STATUS_DECORATION.sub("", raw_status).lower()
+        # The value is the first WORD; punctuation after it (`EXECUTED, converged …`,
+        # `BUILT, IN PART`) separates it from the rest (review A-S4, A-S5).
+        word = re.match(r"(\w+(?:-\w+)*)\W*(.*)", lower, re.S)
+        first, rest = (word.group(1), word.group(2)) if word else ("", "")
         # Exact-value-first (modern pipeline vocabulary, incl. BLOCKED): the status
         # VALUE is the first token. Substring fallbacks run LEGACY-first so a
         # free-text `COMPLETE — converged with baseline` stays COMPLETE (the
         # validate_plan_consistency check depends on it).
         # `superseded` is exact-first too: its rationale usually says "never executed",
         # which the substring fallback below graded EXECUTED (D-571: 2 plans misgraded).
-        if first in ("converged", "draft", "planned", "executed", "blocked", "superseded"):
+        # Every status WORD the fleet writes is exact-first (site-provisioner 01M4DBKECA:
+        # `BUILT … Earlier: CONVERGED` graded CONVERGED) — a value is never overridden by
+        # history text later in its own line.
+        if first in (_PLAN_STATUS_WORDS | {"done", "completed"}) and re.match(r"in\s+part\b", rest):
+            status = "PARTIAL"  # `BUILT IN PART, not EXECUTED` is not finished
+        elif first in ("done", "completed"):
+            status = "COMPLETE"
+        elif first in _PLAN_STATUS_WORDS:
             status = first.upper()
         elif first in ("in-progress", "in_progress"):
             status = "IN_PROGRESS"
@@ -1135,8 +1296,8 @@ _PLANS_TABLE_RULE = "|---|---|---|---|"
 # The Phase column has two DEFINED sources, stated in the block itself so the column is
 # never ambiguous (multi-agent-per-repo spec § Ownership surfaces names the header only).
 _PLANS_PHASE_NOTE = (
-    "<!-- Phase: epic rows = the epic's position in scripts/epic_order.py phased_order() "
-    "(1 = no upstream dependency; `cycle` = dependency cycle, see `epic_order.py --check`); "
+    "<!-- Phase: epic rows = the epic's phase in its `depends_on` order "
+    "(1 = no upstream dependency; `cycle` = a dependency cycle); "
     "plan rows = Board progress, checked/total task boxes (`-` = no boxes). "
     "Owner: the leading name token of a plan's **Owner:** line / a spine's Owner: header, "
     "or an epic's frontmatter `owner`; `—` = untagged (`--adopt` fills it). "
@@ -1152,17 +1313,21 @@ _EPIC_STATUS = {"0": "TODO", "1": "IN_PROGRESS", "2": "DONE"}  # EPIC-ARTIFACT-S
 # TOKEN-exact, as in decisions.py.
 # The prefix ends at the cell's FIRST `:` or `.` (the qualifier may hold neither), and the phrase
 # must follow it at once — so it cannot reach a `MERGE OWNER:` written later in the prose.
-# After a supersedes clause the phrase must be the exact UPPERCASE `MERGE OWNER:` (the lookahead's
-# `(?-i:...)`): a prose sentence such as `Supersedes D-001.** Merge owner: rotated weekly` is not a
-# declaration. A bare row with no prefix keeps the case-insensitive phrase it always had.
-_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+[^:.]{0,160}[:.][\s*]*(?=(?-i:MERGE OWNER:)))?"
+# D-934: the label is the exact upper-case `MERGE OWNER` on EVERY row (`(?-i:...)` — the supersedes
+# clause and the UNDECLARED token stay `re.I`), with one optional `**` on each side of its colon, so
+# `**MERGE OWNER:** x` and `**MERGE OWNER**: x` declare while `Merge owner: rotated weekly` is prose;
+# the first token after the label is the owner, whatever follows it.
+_SUPERSEDES_PREFIX = r"(?:supersedes\s+D-\d+[^:.]{0,160}[:.][\s*]*(?=(?-i:MERGE OWNER)))?"
 MERGE_OWNER_RE = re.compile(
-    r"^\**\s*" + _SUPERSEDES_PREFIX + r"MERGE OWNER:\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)", re.I
+    r"^\**\s*"
+    + _SUPERSEDES_PREFIX
+    + r"(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*([A-Za-z0-9][A-Za-z0-9_.@-]*)",
+    re.I,
 )
 _UNDECLARED_RE = re.compile(
     r"^\**\s*"
     + _SUPERSEDES_PREFIX
-    + r"MERGE OWNER:\s*UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-])",
+    + r"(?-i:MERGE OWNER)(?:\*\*)?:(?:\*\*)?\s*UNDECLARED(?![A-Za-z0-9_@-]|\.[A-Za-z0-9_@-])",
     re.I,
 )
 _DECISION_ROW_ID_RE = re.compile(r"^\|\s*D-\d+\s*\|", re.I)
@@ -1170,10 +1335,10 @@ _DECISION_ROW_ID_RE = re.compile(r"^\|\s*D-\d+\s*\|", re.I)
 # (`^[a-z0-9-]{1,32}$`, epic_order.py:748), not merely "the same class": a name
 # epic_order.py's own `--assign` would refuse (uppercase, `_`, `.`, `@`, or >32 chars)
 # must never get as far as markers + owner lines + the IMMUTABLE merge-owner ledger
-# row here, only to have the epic half fail afterward — a half-adopted repo. This is
-# ALSO narrower than MERGE_OWNER_RE's capture group (which stays permissive so it can
-# still READ a name minted before this tightening), so it never needs to round-trip
-# the other way.
+# row here, only to have the epic half fail afterward — a half-adopted repo. It is NOT
+# a subset of what the readers read back: a leading `-` and the `undeclared` token pass
+# it, so `run_adopt` round-trips the FIRST name through MERGE_OWNER_RE/_UNDECLARED_RE
+# before any write (W-2118e9c9).
 _ADOPT_NAME_RE = re.compile(r"^[a-z0-9-]{1,32}$")
 
 # T02b — STRATEGIC_BACKLOG.md row tagging (step (c') of --adopt). A "tag" is
@@ -1202,6 +1367,14 @@ _BACKLOG_BULLET_RE = re.compile(r"^(\s*[-*]\s+(?:\[[ xX]\]\s+)?)(.*)$")
 # A GFM separator row: every non-blank char is `-`, `:`, or `|` (Tag column, header
 # rows, and this row itself are all distinguished from ordinary data rows elsewhere).
 _BACKLOG_SEPARATOR_RE = re.compile(r"^\|?[\s:|-]*-[\s:|-]*\|?$")
+# W-e89d7983: an Item cell that is ONE bracketed phrase — `[Feature/Refactor]`,
+# `**[System Overhaul]**` — is the scaffold template's fill-in-the-blank, never a work
+# item (both template generations ship such rows as live table rows). Emphasis must be
+# balanced: `(?(1)\1)` repeats the opening run, since a plain `\1` never matches when
+# the optional group did not. An inline link `[a](x)`, a full reference link `[a][b]`,
+# `[[wiki]]` or any text outside the brackets is not a placeholder; a lone `[Title]` is,
+# whatever it says (0 real items are written that way across the fleet's backlogs).
+_BACKLOG_PLACEHOLDER_ITEM_RE = re.compile(r"^(\*{1,3}|_{1,3})?\[[^\]\n]*\](?(1)\1)$")
 _BACKLOG_TAG_HEADER = "Tag"
 # D5: the hub's own "Now" table names its owner cell `Owner`, never `Tag` (its
 # header row starts `| Effort | Owner | Item | Why Priority | ...` — grep
@@ -1278,8 +1451,9 @@ def classify_backlog_row(line: str, header_cells: list[str] | None) -> str:
     cell — tag prefixes that cell), or `"skip"` (every other table and every bullet,
     W-77e00147; already
     tagged AT ITS OWN POSITION — never anywhere else in the row, r2 DEFECT-1 — the
-    legend table — header cell 0 == `Tag`, the header/separator row itself, or a
-    struck-through Item). `header_cells` is the enclosing table's already-split
+    legend table — header cell 0 == `Tag`, the header/separator row itself, a
+    struck-through Item, or an Item that is only a bracketed template placeholder,
+    W-e89d7983). `header_cells` is the enclosing table's already-split
     header — supplied by the CALLER, which alone tracks fences and table
     boundaries; this function never infers table state from `line` alone, so it
     stays a pure per-line classifier callable directly in tests without
@@ -1301,6 +1475,12 @@ def classify_backlog_row(line: str, header_cells: list[str] | None) -> str:
         struck = [cells[item_idx]] if item_idx is not None and item_idx < len(cells) else cells
         if any(c.strip().startswith("~~") for c in struck):
             return "skip"
+        if (
+            item_idx is not None
+            and item_idx < len(cells)
+            and _BACKLOG_PLACEHOLDER_ITEM_RE.match(cells[item_idx].strip())
+        ):
+            return "skip"  # a template placeholder row, not a work item (W-e89d7983)
         tag_idx = _backlog_tag_header_index(names)
         if tag_idx is not None:
             if (
@@ -1878,6 +2058,32 @@ def _is_scaffold_template(rel: str) -> bool:
     return name.endswith("_TEMPLATE.md") or "scaffold-templates/" in rel
 
 
+# A URI that names no file: a scheme (two+ letters, digits, `+` or `-`, so a Windows `C:` is none)
+# then `:` — `mailto:`, `urn:`, `geo:`, `ms-settings:`, `HTTP://` alike. A dot or slash before the
+# colon makes it a path, so `notes.md:12` and `src/a.py:1` are graded (W-f11e740e review).
+_URI_SCHEME_RE = re.compile(r"[A-Za-z][A-Za-z0-9+-]+:")
+
+
+def _shared_link_targets() -> Any:
+    """check_doc_links.link_targets — the CommonMark link reader the gate and check_doc_index use
+    (W-f11e740e) — or None when neither import path resolves (a repo whose synced
+    scripts/enforcement is missing), said on stderr each time it is asked, so the advisory row still
+    runs on the old regex and stdout carries only the report."""
+    try:
+        from enforcement.check_doc_links import link_targets
+    except ImportError:  # imported as scripts.docs_updater — scripts/ not on sys.path
+        try:
+            from scripts.enforcement.check_doc_links import link_targets  # type: ignore[no-redef]
+        except ImportError:
+            print(
+                "docs_updater: link_targets unavailable (scripts/enforcement/check_doc_links.py) "
+                "— links read by the old regex",
+                file=sys.stderr,
+            )
+            return None
+    return link_targets
+
+
 def check_link_integrity() -> list[str]:
     """Check all internal markdown links are valid."""
     issues: list[str] = []
@@ -1902,6 +2108,7 @@ def check_link_integrity() -> list[str]:
         "factory-enterprise.md",
     )
 
+    link_targets = _shared_link_targets()
     all_docs = sorted(docs_dir.rglob("*.md"))
     # Fabrik-synced governance/reference copies are gitignored in consuming projects and their
     # links resolve only in the repo that owns them — same rationale as the cross-repo skip below.
@@ -1931,25 +2138,41 @@ def check_link_integrity() -> list[str]:
         # `_strip_quoted` is the same helper the owner-line and status scans already use.
         # ⚠️ COST, stated: it strips blockquotes as well as fences, so a REAL broken link inside a
         # `>` quote is no longer reported. That is the intended trade — a blockquote quotes another
-        # document, and its links resolve in that document's tree, not this one.
-        content = _strip_quoted(doc.read_text())
-        for match in link_pattern.finditer(content):
-            link_text, link_path = match.groups()
+        # document, and its links resolve in that document's tree, not this one. Code examples
+        # (both fence kinds, inline spans) are blanked around it, at this call site only
+        # (W-69f51003) — the same trade: code quotes a link, it does not make one.
+        content = _link_scan_text(doc.read_text())
+        # The shared reader yields each destination as CommonMark reads it — title and fragment
+        # dropped, escapes undone, balanced parens kept (W-f11e740e); the regex is the fallback,
+        # unchanged, and the only reader that sees link TEXT.
+        found: list[tuple[str, str | None]] = (
+            [(dest, None) for dest in link_targets(content)]
+            if link_targets is not None
+            else [(m.group(2), m.group(1)) for m in link_pattern.finditer(content)]
+        )
+        for link_path, link_text in found:
+            shared = link_text is None
 
             # Skip external links, anchors, mailto, and file:// URIs (usually cross-repo)
             if link_path.startswith(("http://", "https://", "#", "mailto:", "file://")):
                 continue
+            # Any other URI scheme (`javascript:`, `tel:`, `data:`) is no file either: to the shared
+            # reader a paren is a path character, so `javascript:alert(1)` reaches here now.
+            if shared and (_URI_SCHEME_RE.match(link_path) or link_path.startswith("//")):
+                continue  # `//host/x` is protocol-relative — another host's path, not a repo file
 
             # Skip external Factory doc paths
             if link_path.startswith(external_prefixes):
                 continue
 
-            # Skip regex patterns (contain special chars)
-            if any(c in link_path for c in ["[", "]", "(", ")", "*", "+", "?", "\\"]):
+            # Skip regex patterns (contain special chars). A paren is a path character to the
+            # shared reader, which yields only BALANCED ones; to the regex it is a cut match.
+            regexish = ["[", "]", "*", "+", "?", "\\"] + ([] if shared else ["(", ")"])
+            if any(c in link_path for c in regexish):
                 continue
 
             # Skip template placeholders and code examples
-            if link_path.startswith("../path") or "[" in link_text:
+            if link_path.startswith("../path") or (link_text is not None and "[" in link_text):
                 continue
             if "{" in link_path or "}" in link_path:
                 continue
@@ -1961,7 +2184,10 @@ def check_link_integrity() -> list[str]:
             if link_path.startswith("/"):
                 # A real absolute FS path OUTSIDE this repo (e.g. /opt/fabrik-lib/...) is a
                 # cross-repo reference, not a repo-root-relative link — not ours to validate.
-                literal = Path(urllib.parse.unquote(link_path.split("#")[0]))
+                # The shared reader already cut the fragment and undid `\#`: cutting again would
+                # cut a literal `#` in the name (check_doc_links.main says the same).
+                no_frag = link_path if shared else link_path.split("#")[0]
+                literal = Path(urllib.parse.unquote(no_frag))
                 if literal.is_absolute() and literal.exists():
                     try:
                         literal.relative_to(PROJECT_ROOT)
@@ -1971,7 +2197,7 @@ def check_link_integrity() -> list[str]:
                 target = PROJECT_ROOT / urllib.parse.unquote(link_path.lstrip("/"))
             else:
                 # Handle anchor in path
-                path_part = urllib.parse.unquote(link_path.split("#")[0])
+                path_part = urllib.parse.unquote(link_path if shared else link_path.split("#")[0])
                 if not path_part:
                     continue
                 target = (doc.parent / path_part).resolve()
@@ -1984,9 +2210,12 @@ def check_link_integrity() -> list[str]:
                 continue
 
             if not target.exists():
-                issues.append(
-                    f"Broken link in {doc.relative_to(PROJECT_ROOT)}: [{link_text}]({link_path})"
-                )
+                shown = link_path if link_text is None else f"[{link_text}]({link_path})"
+                issue = f"Broken link in {doc.relative_to(PROJECT_ROOT)}: {shown}"
+                # The shared reader's line carries no link text, so two links to one missing
+                # target in a doc would print twice, identically — report each once.
+                if not (shared and issue in issues):
+                    issues.append(issue)
     return issues
 
 
@@ -2119,7 +2348,7 @@ def _count_unowned_plans() -> int:
         if parse_plan_owner(p) != NO_OWNER:
             continue
         status, _checked, _total = parse_plan_status(p)
-        if status in ("EXECUTED", "COMPLETE"):
+        if status in PLAN_DONE:
             continue
         n += 1
     return n
@@ -2261,6 +2490,56 @@ def _insert_owner_line(path: Path, name: str, dry_run: bool = False) -> bool:
     return True
 
 
+_DECISIONS_PY_DEFAULT = Path("/opt/fabrik/scripts/decisions.py")
+_DID_RE = re.compile(r"D-\d+")
+_DECISION_ROW_ID_RE_ANY = re.compile(r"^\|\s*D-\d+\s*\|", re.M)
+# decisions.py `_append_row`'s own table test, copied EXACTLY (a split("\n"), never splitlines; a
+# separator line that is not line 0 and follows a `|` line) — tests pin the two against each other.
+_LEDGER_SEPARATOR_RE = re.compile(r"^\|[\s:|-]+\|\s*$")
+_LEDGER_HEAD = "# Decisions\n\n| id | when | who | what (the decision) | why | where |\n|---|---|---|---|---|---|\n"
+
+
+def _ledger_has_separator(text: str) -> bool:
+    lines = text.split("\n")
+    return any(
+        _LEDGER_SEPARATOR_RE.match(ln.strip()) and n and lines[n - 1].lstrip().startswith("|")
+        for n, ln in enumerate(lines)
+    )
+
+
+def _last_id(res: subprocess.CompletedProcess | None) -> str:
+    """The `D-NNN` decisions.py printed on its LAST stdout line, or "" — rc 0 only."""
+    if res is None or res.returncode != 0:
+        return ""
+    lines = [ln.strip() for ln in res.stdout.splitlines() if ln.strip()]
+    return lines[-1] if lines and _DID_RE.fullmatch(lines[-1]) else ""
+
+
+def _decisions_script() -> Path:
+    """The hub's decisions.py: `$FABRIK_DECISIONS_PY` when set and non-empty (merge_request.py's
+    override), else /opt/fabrik's. ⚠ Unlike merge_request.py, a set-but-missing path is treated as
+    "hub absent" (fail-open with a NOTE naming the path), not refused: tests pin it to a missing
+    path so no test reaches the real reservation store."""
+    env = os.environ.get("FABRIK_DECISIONS_PY")
+    return Path(env) if env else _DECISIONS_PY_DEFAULT
+
+
+_DECISIONS_TIMEOUT_S = 120.0  # git calls + the lock wait + up to five merge-base reads
+
+
+def _run_decisions(script: Path, args: list[str]) -> subprocess.CompletedProcess | None:
+    """One decisions.py call; None on a timeout."""
+    try:
+        return subprocess.run(
+            [sys.executable, str(script), *args],
+            capture_output=True,
+            text=True,
+            timeout=_DECISIONS_TIMEOUT_S,
+        )
+    except subprocess.TimeoutExpired:
+        return None
+
+
 def _mint_next_decision_id() -> str:
     """max existing `D-NNN` id + 1 in `docs/DECISIONS.md`, `D-001` when none/absent —
     the same `^\\|\\s*D-(\\d+)\\s*\\|` scan `decisions.py`'s `_next_id` (inline in both files; neither names the regex) uses,
@@ -2321,8 +2600,11 @@ def run_adopt(
     synced to projects — a repo with an epics dir but no vendored copy is skipped
     here; the hub adopts those epics separately, from /opt/fabrik, with `python3
     /opt/fabrik/scripts/epic_order.py --assign <names>`), then regenerate the PLANS
-    block. Refuses (exit 2, one stderr line) on any name failing `_ADOPT_NAME_RE`, or
-    on a checkout only this session shares unless `single_window` overrides it.
+    block. Refuses (exit 2, one stderr line) on any name failing `_ADOPT_NAME_RE`, on a first name
+    the merge-owner readers would not read back as that owner (`undeclared`, a leading `-` —
+    W-2118e9c9), in a linked
+    worktree or wherever git cannot tell (W-e6acc9ac — `single_window` and `dry_run` do not lift
+    it), or on a checkout only this session shares unless `single_window` overrides it.
     Returns 3 only when a PRESENT epic_order.py genuinely refused the assignment
     (rc≠0) — never for an absent script. Idempotent: a re-run with the same names
     touches no byte and prints `(nothing to adopt)`.
@@ -2339,6 +2621,34 @@ def run_adopt(
         sys.stderr.write(
             f"docs_updater --adopt: invalid agent name(s) {bad!r} — must match "
             f"{_ADOPT_NAME_RE.pattern!r}\n"
+        )
+        return 2
+    # W-2118e9c9: the first name is written as `MERGE OWNER: <name> — …` (step (c)), so it must read back as that
+    # owner: the grammar admits `undeclared` (the readers' case-insensitive un-adoption token) and a leading `-`
+    # (which MERGE_OWNER_RE's capture refuses), and either would mint a row every reader skips — no owner, exit 3
+    # from `--merge-owner`, another row on every later --adopt. The readers' own regexes decide, on the row's shape.
+    row = f"MERGE OWNER: {names[0]} — " if names else ""
+    read = MERGE_OWNER_RE.match(row)
+    if names and (_UNDECLARED_RE.match(row) or not read or read.group(1) != names[0]):
+        sys.stderr.write(
+            f"docs_updater --adopt: {names[0]!r} cannot be the merge owner — the readers do not read "
+            f"`MERGE OWNER: {names[0]}` back as that name (it is the un-adoption token `undeclared`, or it opens "
+            "with `-`); name an agent that starts with a letter or digit and is not `undeclared`\n"
+        )
+        return 2
+
+    # W-e6acc9ac: the owner row and the owner stamps belong to the main checkout; `--single-window`
+    # disarms the session guard below, so a linked worktree is refused here, first, either way.
+    state = _linked_worktree_state()
+    if state is not False:  # True, or None: git could not say — fail closed
+        why = (
+            "this is a linked worktree"
+            if state
+            else "git could not tell whether this is a linked worktree"
+        )
+        sys.stderr.write(
+            f"docs_updater --adopt: refused — {why}; run --adopt from the main "
+            "checkout, which owns the merge-owner row and the ledger\n"
         )
         return 2
 
@@ -2378,7 +2688,7 @@ def run_adopt(
         if parse_plan_owner(p) != NO_OWNER:
             continue
         status, _checked, _total = parse_plan_status(p)
-        if status in ("EXECUTED", "COMPLETE"):
+        if status in PLAN_DONE:
             continue
         owner_name = names[i % len(names)]
         if _insert_owner_line(p, owner_name, dry_run=dry_run):
@@ -2387,36 +2697,103 @@ def run_adopt(
 
     # (c) declare the merge owner (first name) — ONLY when the ledger has none yet; a
     # changed merge owner is a hand-minted superseding row, never --adopt's write.
+    # W-e1b1052e: the id is allocated by the hub's `decisions.py --append`, under its reservation
+    # lock, so --adopt can never take an id a sibling worktree holds via --reserve-id. Two cases
+    # no lock can help fall back to the local max+1 (with a NOTE): the hub script is absent (a
+    # box without the hub — nobody can reserve), or the ledger has rows but no table separator
+    # (`--append` cannot write that shape). Any other failure writes NO row and returns 3.
+    ledger_failed = False
     if read_merge_owner() is None:
         first = names[0]
-        did = _mint_next_decision_id()
         today = datetime.now(UTC).strftime("%Y-%m-%d")
-        cells = [
-            did,
-            today,
-            f"{first} (--adopt)",
+        who = f"{first} (--adopt)"
+        what = (
             f"MERGE OWNER: {first} — the only writer of the base branch; agents 2..N "
-            "commit to worktree branches (multi-agent-per-repo model)",
+            "commit to worktree branches (multi-agent-per-repo model)"
+        )
+        why = (
             "declared by `docs_updater.py --adopt` at adoption; a change is a NEW row "
-            "superseding this one",
-            "docs/development/PLANS.md (the AUTO-GENERATED:PLANS header prints it)",
-        ]
-        row = "| " + " | ".join(_cell(c) for c in cells) + " |"
+            "superseding this one"
+        )
+        where = "docs/development/PLANS.md (the AUTO-GENERATED:PLANS header prints it)"
         ledger = PROJECT_ROOT / "docs" / "DECISIONS.md"
-        if ledger.exists():
-            ledger_text = ledger.read_text(encoding="utf-8")
-            sep = "" if ledger_text.endswith("\n") else "\n"
-            if not dry_run:
-                ledger.write_text(f"{ledger_text}{sep}{row}\n", encoding="utf-8")
-        else:
-            if not dry_run:
-                ledger.parent.mkdir(parents=True, exist_ok=True)
-                ledger.write_text(
-                    "# Decisions\n\n| id | when | who | what (the decision) | why | where |\n"
-                    f"|---|---|---|---|---|---|\n{row}\n",
-                    encoding="utf-8",
+        ledger_text = ledger.read_text(encoding="utf-8") if ledger.exists() else None
+        has_rows = bool(ledger_text and _DECISION_ROW_ID_RE_ANY.search(ledger_text))
+        has_table = ledger_text is not None and _ledger_has_separator(ledger_text)
+        script = _decisions_script()
+        local_reason = None
+        if not script.is_file():
+            local_reason = f"{script} not found — nobody can reserve"
+        elif has_rows and not has_table:
+            local_reason = "the ledger has rows but no table separator line, which decisions.py --append cannot write"
+        if dry_run:
+            did = _mint_next_decision_id()
+            source = "ledger-row"
+            if local_reason is None and ledger_text is not None:
+                peek = _run_decisions(script, ["--next-id", str(PROJECT_ROOT)])
+                peek_id = _last_id(peek)
+                if peek_id:
+                    did = peek_id
+            elif local_reason is None:
+                # no ledger yet: --next-id refuses a missing ledger (a guessed D-001 could be taken),
+                # so this preview is local and the real run may number higher
+                source = (
+                    "ledger-row (local preview; no ledger yet — the real run may number higher)"
                 )
-        report.append((f"{did} (MERGE OWNER)", first, "ledger-row"))
+            report.append((f"{did} (MERGE OWNER)", first, source))
+        elif local_reason is not None:
+            print(
+                f"NOTE: the MERGE OWNER row is minted locally (max+1), not reserved: {local_reason}",
+                file=sys.stderr,
+            )
+            did = _mint_next_decision_id()
+            row = "| " + " | ".join(_cell(c) for c in (did, today, who, what, why, where)) + " |"
+            if ledger_text is not None:
+                sep = "" if ledger_text.endswith("\n") else "\n"
+                ledger.write_text(f"{ledger_text}{sep}{row}\n", encoding="utf-8")
+            else:
+                ledger.parent.mkdir(parents=True, exist_ok=True)
+                ledger.write_text(_LEDGER_HEAD + f"{row}\n", encoding="utf-8")
+            report.append((f"{did} (MERGE OWNER)", first, "ledger-row"))
+        else:
+            # --append needs a table: a missing, empty or prose-only ledger gets the header first.
+            if ledger_text is None:
+                ledger.parent.mkdir(parents=True, exist_ok=True)
+                ledger.write_text(_LEDGER_HEAD, encoding="utf-8")
+            elif not ledger_text.strip():
+                ledger.write_text(_LEDGER_HEAD, encoding="utf-8")  # empty file: the whole head
+            elif not has_table:
+                sep = "" if ledger_text.endswith("\n") else "\n"
+                ledger.write_text(
+                    f"{ledger_text}{sep}\n" + _LEDGER_HEAD.split("\n\n", 1)[1], encoding="utf-8"
+                )
+            # RAW cells: decisions.py escapes them; `--opt=value` so a value can never read as a flag.
+            res = _run_decisions(
+                script,
+                [
+                    "--append",
+                    str(PROJECT_ROOT),
+                    f"--when={today}",
+                    f"--who={who}",
+                    f"--what={what}",
+                    f"--why={why}",
+                    f"--where={where}",
+                ],
+            )
+            out = _last_id(res)
+            if res is not None and res.returncode == 0 and out:
+                if res.stderr.strip():
+                    print(res.stderr.strip(), file=sys.stderr)  # e.g. "not reserved"
+                report.append((f"{out} (MERGE OWNER)", first, "ledger-row"))
+            else:
+                ledger_failed = True
+                why_failed = (
+                    "timed out (the row may still have been written; a re-run reads it)"
+                    if res is None
+                    else f"rc={res.returncode}: "
+                    + ((res.stderr.strip().splitlines() or [out or "no id printed"])[0])
+                )
+                report.append(("docs/DECISIONS.md", first, f"decisions.py --append ({why_failed})"))
 
     # (c') tag every untagged work-item row of docs/STRATEGIC_BACKLOG.md — round-robin
     # over `names`, in the row's own shape (T02b; tables only, W-77e00147). A missing file is silently nothing (23
@@ -2493,13 +2870,13 @@ def run_adopt(
 
     if not report:
         print("(nothing to adopt)")
-        return 3 if epic_order_failed else 0
+        return 3 if epic_order_failed or ledger_failed else 0
 
     lines = ["| Item | Owner | Source |", "|---|---|---|"]
     for item, owner, source in report:
         lines.append(f"| {_cell(item)} | {_cell(owner)} | {_cell(source)} |")
     print("\n".join(lines))
-    return 3 if epic_order_failed else 0
+    return 3 if epic_order_failed or ledger_failed else 0
 
 
 def run_check(proc_root: Path = Path("/proc")) -> int:
@@ -2658,8 +3035,9 @@ def main() -> None:
         help=(
             "comma-separated agent name(s): seed the PLANS ownership markers, stamp "
             "every open unowned plan unit's Owner, declare the merge owner when "
-            "undeclared, delegate the epic half to epic_order.py --assign, and print "
-            "a table of what changed"
+            "undeclared (the first name; refused when the readers would not read it "
+            "back as the owner), delegate the epic half to epic_order.py --assign, "
+            "and print a table of what changed"
         ),
     )
     parser.add_argument(

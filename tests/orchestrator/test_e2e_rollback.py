@@ -93,7 +93,7 @@ def templates_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture(autouse=True)
 def _bypass_dns_and_external_clients():
-    """Block DNS / Coolify / Cloudflare network calls across all tests."""
+    """Block DNS / Cloudflare network calls across all tests."""
     mock_dns = MagicMock()
     mock_dns.add_subdomain.return_value = {"success": True}
     with (
@@ -109,7 +109,7 @@ def _bypass_dns_and_external_clients():
 
 
 def _mock_deployer() -> MagicMock:
-    """Deployer that registers Coolify like the real one would.
+    """Deployer that registers resources like the real one would.
 
     The real ``SSHDeployer.deploy`` adds a ``compose`` resource to
     ``ctx.created_resources`` and sets ``ctx.coolify_uuid``. The
@@ -137,34 +137,29 @@ def _mock_verifier() -> MagicMock:
     return verifier
 
 
-def _rollback_manager_with_mocks() -> tuple[RollbackManager, MagicMock, MagicMock, MagicMock]:
-    """RollbackManager wired to mocked Coolify + DNS + deployer clients.
+def _rollback_manager_with_mocks() -> tuple[RollbackManager, MagicMock, MagicMock]:
+    """RollbackManager wired to mocked DNS + deployer clients.
 
-    The real :class:`RollbackManager` lazy-loads CoolifyClient and
-    CloudflareClient from their driver modules on first use; in an
-    E2E test against a synthetic "example.com" domain those real
-    clients would make live HTTP calls (Cloudflare specifically
-    returns 'Could not route to /client/v4/zones/example.com/...'
-    which then counts as a rollback error and flips the final state
-    from ROLLED_BACK to FAILED).
+    The real :class:`RollbackManager` lazy-loads CloudflareClient from
+    its driver module on first use; in an E2E test against a synthetic
+    "example.com" domain that real client would make live HTTP calls
+    (Cloudflare returns 'Could not route to /client/v4/zones/example.com/...';
+    the handler logs it and moves on, but a unit test must not reach the network).
 
-    Pre-injecting MagicMocks for both clients avoids that — the
-    legacy hard-stop handlers ``_rollback_coolify`` and
-    ``_rollback_dns`` then exercise the real code path against fake
-    endpoints, and the final state matches the success contract.
-    The deployer mock avoids SSH calls during ``_rollback_compose``.
+    Pre-injecting a MagicMock for the client avoids that — the legacy
+    ``_rollback_dns`` handler then exercises the real code
+    path against a fake endpoint, and the final state matches the
+    success contract. The deployer mock avoids SSH calls during
+    ``_rollback_compose``.
 
     Returns:
-        (manager, mock_coolify, mock_dns, mock_deployer) — callers
-        can assert on these to verify the reverse walk reached them.
+        (manager, mock_dns, mock_deployer) — callers can assert on
+        these to verify the reverse walk reached them.
     """
-    mock_coolify = MagicMock()
     mock_dns = MagicMock()
     mock_deployer = MagicMock(spec=SSHDeployer)
-    manager = RollbackManager(
-        coolify_client=mock_coolify, dns_client=mock_dns, deployer=mock_deployer
-    )
-    return manager, mock_coolify, mock_dns, mock_deployer
+    manager = RollbackManager(dns_client=mock_dns, deployer=mock_deployer)
+    return manager, mock_dns, mock_deployer
 
 
 # ----------------------------------------------------------------------- #
@@ -191,7 +186,7 @@ class TestPhase4jEndToEndRollback:
         4. grafana / authelia / meilisearch NEVER run (they sit after
            glitchtip in the registrar order).
         5. Rollback walks reverse: glitchtip · gatus ·
-           postgres(log-only) · coolify · dns.
+           postgres(log-only) · dns.
         6. Final state == ``ROLLED_BACK`` (not FAILED — rollback
            completed with no driver errors).
         """
@@ -251,19 +246,11 @@ class TestPhase4jEndToEndRollback:
             patch(
                 "fabrik.drivers.meilisearch.delete_index", side_effect=rec("meilisearch")
             ) as m_meili_del,
-            patch(  # noqa: F841 — asserted below
-                # Coolify needed by _provision_glitchtip for DSN injection
-                # and by RollbackManager for app delete.
-                "fabrik.drivers.coolify.CoolifyClient"
-            ) as m_coolify_cls,
         ):
-            mock_coolify = MagicMock()
-            m_coolify_cls.return_value = mock_coolify
-
             # ------- Real orchestrator, real provisioner, mocked rollback clients -------
             # RollbackManager itself is real (Phase 4i code under test);
-            # only the Coolify + Cloudflare *clients* it uses are mocked.
-            rb_manager, rb_coolify, rb_dns, rb_deployer = _rollback_manager_with_mocks()
+            # only the Cloudflare *client* it uses is mocked.
+            rb_manager, rb_dns, rb_deployer = _rollback_manager_with_mocks()
             validator = SpecValidator(templates_dir=templates_dir)
             orchestrator = DeploymentOrchestrator(
                 validator=validator,
@@ -315,8 +302,8 @@ class TestPhase4jEndToEndRollback:
         )
 
         # (6) Rollback walk — reverse of registration, minus destructive
-        #     no-ops (postgres) and minus Coolify/DNS (handled by mocked
-        #     CoolifyClient + DNSClient, not tracked in rollback_calls).
+        #     no-ops (postgres) and minus DNS (handled by a mocked
+        #     DNSClient, not tracked in rollback_calls).
         #
         #     Note: ``glitchtip.delete_project`` is called TWICE — once
         #     inline by _provision_glitchtip's RuntimeError cleanup, and
@@ -392,9 +379,8 @@ class TestPhase4jEndToEndRollback:
             ),
             patch("fabrik.drivers.glitchtip.verify_dsn_injection", return_value=False),
             patch("fabrik.drivers.glitchtip.delete_project", return_value=True),
-            patch("fabrik.drivers.coolify.CoolifyClient"),
         ):
-            rb_manager, _, _, _ = _rollback_manager_with_mocks()
+            rb_manager, _, _ = _rollback_manager_with_mocks()
             validator = SpecValidator(templates_dir=templates_dir)
             orchestrator = DeploymentOrchestrator(
                 validator=validator,
@@ -447,7 +433,6 @@ class TestPhase4jEndToEndRollback:
                 "fabrik.drivers.grafana.post_deployment_annotation",
                 return_value={"annotation_id": 99, "status": "created"},
             ),
-            patch("fabrik.drivers.coolify.CoolifyClient"),
         ):
             validator = SpecValidator(templates_dir=templates_dir)
             orchestrator = DeploymentOrchestrator(

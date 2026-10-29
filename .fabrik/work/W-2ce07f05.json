@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T03:56:05.213851Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "654e7bdadc682fdb9b906c65ed60cc26c75698cd",
+  "id": "W-2ce07f05",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "after W-c0a1d324 is on master",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — record status flip",
+  "status": "done",
+  "title": "Flip the status of rows F1/F2/F3/F5/F8/F9/F12 in docs/development/reviews/2026-10-15-scratch-lifecycle-conformance-review.md to closed, citing infra's 53496f1f4/cded300a6 (W-c0a1d324), once that merge lands"
+}

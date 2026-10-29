@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T13:07:20.239512Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-0bd9cfbc",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4DSNT7JAM2AX6AWTE1RZE3P",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: re-route three wording items to kaizen (01M4DS0FDN) — done"
+}

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-07T06:39:57.239069Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-bab3b2a3",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -12,9 +14,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
-  "status": "open",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — researcher routing line",
+  "status": "dropped",
   "title": "fabrik-researcher fetch routing omits text/markdown (mail 01M49J7AY5): add `.md` / text/markdown to the 'JSON/XML/PDF -> WebFetch first' line in commands/_agents/fabrik-researcher.md (corpus source: render -> --check -> commit)"
 }

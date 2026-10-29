@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T05:28:38.919545Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "7e7e44b86c9ca9ba78c448200a01e256c9535367",
+  "id": "W-9a560686",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "escape CR/LF in the stderr tail of _resolve_container_url's dead and miss messages (one helper next to _redact), with a grader driving a two-line stderr",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "LOW: a CR/LF in raw ssh stderr can split one log line in the resolve path's messages; a rare edge, advisory",
+  "status": "done",
+  "tags": [
+    "fleet"
+  ],
+  "title": "DNS container-resolve: ssh stderr reaches the dead-path RuntimeError and the miss warnings raw — a CR/LF in it splits the log line (dns.py:173, :192), and the miss warnings skip _redact"
+}

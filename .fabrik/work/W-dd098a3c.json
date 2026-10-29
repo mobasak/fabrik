@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T08:02:26.099681Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-dd098a3c",
+  "impact": "low",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -13,12 +15,14 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "intel",
-  "priority": 2,
-  "status": "open",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — review machinery findings from fabrik-lib",
+  "status": "done",
   "tags": [
-    "handoff-2026-10-06"
+    "handoff-2026-10-06",
+    "medium"
   ],
   "title": "review machinery — three findings from fabrik-lib's /fabrik-plan-review of the decision-gate plan (2026-10-03)"
 }

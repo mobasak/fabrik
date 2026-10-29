@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T12:19:02.971870Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-bf7c2916",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1245",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "One spec-sized pass over command_rules.py's markdown readers so every reader shares one tokeniser: units()/_split_prose single-backtick parity vs _mask_code CommonMark spans; units() opening a fence on a prose line that starts with a code span; the path anchor taking and/or; one-line fence units splitting at ;; a ¦ inside a key; _ban_span's paren-join loop counting ( vs ) instead of matched pairs (an unclosed ( runs to the clause end, a stray ) before ( stops early — pin: span('Never push ) here (see D. 9) then') = 'Never push ) here (see D.'); an underscore-only clause counted as words by _words/_covered. Receipt docs/development/reviews/2026-10-26-d1236-lints-review.md § Residual names each; the `vanished:` key regex `L[1-9]\\d*` admits a non-ASCII digit (`L1٠`), whose label then names no baseline line, so that line reads unclassified (fail-closed) — routed from the W-0c38115e review, pass 2, as the sibling of the `clauses:` key fix there",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "D-1236 loader: markdown-parsing parity edge cases routed from the W-9cd8653d review's scope-growth stop"
+}

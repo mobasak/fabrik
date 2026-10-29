@@ -9,7 +9,7 @@ Per-type loop for each T in SCAFFOLD_TYPES:
   4. PUSH      — gh repo create mobasak/<name> --private --source=. --push
   5. REGENSPEC — call generate_and_save_spec() now that git remote exists
                  (spec will have source.type=git pointing at the GH remote)
-  6. APPLY     — fabrik apply <spec> --yes --use-orchestrator
+  6. APPLY     — fabrik apply <spec> --yes
   7. CURL      — curl -I https://<name>.vps1.ocoron.com<healthcheck.path>
                  must return 200 (or 301/302 for static docs landing pages)
   8. RECORD    — append to proof data; on failure, dump diagnostics and stop
@@ -19,10 +19,25 @@ On any failure → stop the loop, dump diagnostics, exit non-zero.
 
 Runs unattended. All output streamed to both stdout and
 /opt/fabrik/proof-logs/<type>-<ts>.log.
+
+LIVE AND DESTRUCTIVE -- ``--live`` is REQUIRED. Step 1 alone runs
+``fabrik destroy --yes --drop-data``, ``rm -rf /opt/<name>`` and ``gh repo
+delete`` against the real fleet, so the ``__main__`` block calls
+``parse_args()`` BEFORE ``main()``: a bare invocation exits 2 and ``--help``
+exits 0, both before any side effect (2026-10-14: four review seats ran
+``proof_run.py --help`` on the unguarded script and it destroyed and
+re-scaffolded the ``fabrik-test-saas-skeleton`` fixture). There is no dry
+run: the flag is an acknowledgement, not a mode. Cobra check (D-253): the
+cheapest way past the guard is to type ``--live`` reflexively, which is why
+the flag's help text says what the proof destroys, and why a review seat
+never runs this file at all -- only its grader (the 2026-10-14 plan-1 verb-retirement
+plan set under ``docs/development/plans/``, § Execution Discipline). Graded by
+``tests/test_proof_run_guard.py``.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import subprocess
@@ -62,8 +77,7 @@ SCAFFOLD_TYPES = [
 ]
 
 # `file-worker` has no Traefik / no HTTP surface. We can't curl it. Proof for
-# workers is `Coolify app status == running:healthy` after apply, which is
-# already validated inside `fabrik apply`'s verifier. Skip the curl phase.
+# workers is every Compose container `running` (`worker_running`). Skip the curl phase.
 NO_HTTP_TYPES = {"file-worker"}
 
 # Pre-populated accept codes per type. 200 is the contract for healthy. We do
@@ -195,11 +209,6 @@ def load_env() -> dict[str, str]:
     """
     keys_needed = {
         "VPS_IP",
-        "COOLIFY_API_URL",
-        "COOLIFY_API_TOKEN",
-        "COOLIFY_SERVER_UUID",
-        "COOLIFY_PROJECT_UUID",
-        "COOLIFY_ENVIRONMENT_UUID",
         "SITE_PROVISIONER_URL",
         "GITHUB_TOKEN",
         "GITHUB_USERNAME",
@@ -231,12 +240,12 @@ def cleanup(name: str, env: dict[str, str], log) -> None:
     # SCOPE LOCK: belt-and-suspenders against typo / env-var injection.
     # Every destructive call below assumes name is bounded to fabrik-test-*.
     # If anything ever passes a different name, blow up loudly before touching
-    # Coolify / DNS / GitHub / filesystem.
+    # DNS / GitHub / filesystem.
     assert name.startswith("fabrik-test-"), f"refusing to cleanup non-test resource: {name!r}"
     print(f"\n━━━━━ cleanup({name}) ━━━━━", flush=True)
     log.write(f"\n━━━━━ cleanup({name}) ━━━━━\n")
 
-    # 1. fabrik destroy (handles Coolify app + DNS + registrars + local tree)
+    # 1. fabrik destroy (handles the app + DNS + registrars + local tree)
     # CAVEAT: Postgres and Meilisearch data are preserved by default.
     # We pass --drop-data here because this is a throwaway-test-cleanup workflow.
     # For production teardowns, omit --drop-data to protect against accidental data loss.
@@ -253,8 +262,9 @@ def cleanup(name: str, env: dict[str, str], log) -> None:
         except CmdError:
             pass
     else:
-        # No spec → destroy can't run. Manually delete Coolify app if it exists.
-        _delete_coolify_app_by_name(name, env, log)
+        # No spec → destroy can't run; there is nothing to tear down by name.
+        print("no spec, nothing to destroy")
+        log.write("no spec, nothing to destroy\n")
 
     # 2. Remove local project tree (idempotent)
     local = PROJECT_BASE / name
@@ -330,30 +340,6 @@ def _cf_delete_dns_record(name: str, env: dict[str, str], log) -> None:
         log.write(f"  cloudflare DELETE crashed: {e}\n")
 
 
-def _delete_coolify_app_by_name(name: str, env: dict[str, str], log) -> None:
-    """Delete Coolify app matching ``name`` (if any) via Python driver."""
-    sys.path.insert(0, str(FABRIK_ROOT / "src"))
-    try:
-        from fabrik.drivers.coolify import CoolifyClient
-
-        c = CoolifyClient()
-        apps = c.list_applications()
-        for a in apps:
-            if a.get("name") == name:
-                uuid = a.get("uuid")
-                print(f"Deleting Coolify app {name} uuid={uuid}")
-                log.write(f"Deleting Coolify app {name} uuid={uuid}\n")
-                try:
-                    c.delete_application(uuid)
-                except Exception as e:
-                    msg = f"  (delete failed, non-fatal): {e}\n"
-                    print(msg)
-                    log.write(msg)
-                return
-    except Exception as e:
-        log.write(f"(coolify lookup failed, non-fatal): {e}\n")
-
-
 def assert_nxdomain(name: str, log, max_wait: int = 180) -> None:
     """Verify DNS has propagated NXDOMAIN before the next scaffold.
 
@@ -415,15 +401,7 @@ def scaffold(name: str, project_type: str, log) -> Path:
 def push_to_github(name: str, project_dir: Path, env: dict[str, str], log) -> str:
     """Create GH repo + push. Returns the remote URL.
 
-    B25: must be ``--public``. The fabrik deployer at
-    ``@/opt/fabrik/src/fabrik/drivers/coolify.py::create_git_application``
-    always POSTs to ``/applications/public`` (see comment at line 496-505 —
-    private-deploy-key and private-github-app endpoints exist but require
-    extra setup out of scope for this driver path). A ``--private`` repo
-    fails at Coolify's git clone with::
-
-        fatal: could not read Username for 'https://github.com':
-        No such device or address
+    The repo is created ``--public`` so the VPS ``git pull`` needs no deploy key.
 
     Throwaway ``fabrik-test-*`` repos are deleted on each loop iteration, so
     public visibility for the brief window of a proof run is acceptable.
@@ -501,9 +479,9 @@ def apply(spec_path: Path, log) -> subprocess.CompletedProcess:
     caller decides).
 
     H3: passes ``--keep-on-failure`` (B27) so that if the orchestrator's
-    health-check or build phase fails, the Coolify app, GlitchTip project,
+    health-check or build phase fails, the compose stack, GlitchTip project,
     DNS record, etc. are NOT auto-rolled-back. ``dump_diagnostics`` then has
-    a live Coolify app uuid to query for deployment logs. The harness's
+    live containers to inspect. The harness's
     ``cleanup`` step at the START of the next type-loop iteration is
     responsible for the deferred teardown.
     """
@@ -515,7 +493,6 @@ def apply(spec_path: Path, log) -> subprocess.CompletedProcess:
             "apply",
             str(spec_path),
             "--yes",
-            "--use-orchestrator",
             "--keep-on-failure",
         ],
         cwd=FABRIK_ROOT,
@@ -582,76 +559,15 @@ def curl_healthcheck(name: str, hc_path: str, log) -> tuple[int, str]:
 
 
 def dump_diagnostics(name: str, env: dict[str, str], log) -> None:
-    """Grab Coolify deployment logs + Traefik labels + container status.
+    """Grab the per-VPS docker ps + Traefik labels for the failed app.
 
-    H3: writes a separate ``<type>-<ts>-build.log`` next to the run log
-    containing the verbatim Coolify deployment-logs payload (parsed JSON
-    log entries, one per line, prefixed by stream + command). This is the
-    single most useful artifact for diagnosing build failures \u2014 it
-    contains the actual ``docker build`` / ``docker exec`` stdout/stderr
-    that Coolify captured. Requires ``--keep-on-failure`` to be in effect
-    so the Coolify app still exists at this point; the
-    ``/deployments/applications/{uuid}`` endpoint 404s once the app is gone.
-
-    Also dumps the application JSON (full Coolify state) and the per-VPS
-    docker ps + container labels for completeness.
+    Requires ``--keep-on-failure`` to be in effect so the containers still
+    exist at this point; the ``cleanup`` of the next type-loop iteration is
+    responsible for the deferred teardown.
     """
     print(f"\n━━━━━ diagnostics({name}) ━━━━━", flush=True)
     log.write(f"\n━━━━━ diagnostics({name}) ━━━━━\n")
     sys.path.insert(0, str(FABRIK_ROOT / "src"))
-    try:
-        from fabrik.drivers.coolify import CoolifyClient
-
-        c = CoolifyClient()
-        apps = c.list_applications()
-        app = next((a for a in apps if a.get("name") == name), None)
-        if app:
-            uuid = app.get("uuid")
-            log.write(f"Coolify app: {json.dumps(app, default=str, indent=2)}\n")
-            print(f"Coolify app status: {app.get('status')}, uuid={uuid}")
-            # Pull deployment logs via the documented Coolify v4 endpoint.
-            # CoolifyClient has no public helper for this so we go through
-            # the underlying ``_request`` to keep this scoped to the harness.
-            try:
-                resp = c._request("GET", f"/deployments/applications/{uuid}")
-                deps = resp.get("deployments", []) if isinstance(resp, dict) else []
-                build_log_path = log.name.replace(".log", "-build.log")
-                with open(build_log_path, "w") as bf:
-                    bf.write(f"# Coolify deployment logs for {name} (uuid={uuid})\n")
-                    bf.write(f"# {len(deps)} deployment(s) recorded\n\n")
-                    for i, d in enumerate(deps):
-                        bf.write(
-                            f"=== deployment {i + 1}/{len(deps)} "
-                            f"uuid={d.get('deployment_uuid')} "
-                            f"status={d.get('status')} "
-                            f"created={d.get('created_at')} ===\n"
-                        )
-                        try:
-                            entries = json.loads(d.get("logs") or "[]")
-                        except json.JSONDecodeError:
-                            bf.write("(unable to parse logs JSON)\n")
-                            continue
-                        for entry in entries:
-                            t = entry.get("type", "?")
-                            cmd = entry.get("command") or ""
-                            out = entry.get("output", "")
-                            if cmd:
-                                bf.write(f"[{t}] $ {cmd}\n")
-                            if out:
-                                bf.write(f"[{t}] {out}")
-                                if not out.endswith("\n"):
-                                    bf.write("\n")
-                        bf.write("\n")
-                log.write(f"\nCoolify deployment logs written to: {build_log_path}\n")
-                print(f"  build log: {build_log_path}")
-            except Exception as e:
-                log.write(f"(deployment-logs fetch failed: {e})\n")
-                print(f"  build log fetch FAILED: {e}")
-        else:
-            log.write(f"No Coolify app found for {name}\n")
-            print(f"  no Coolify app found for {name} (rollback fired despite --keep-on-failure?)")
-    except Exception as e:
-        log.write(f"diagnostics Coolify phase failed: {e}\n")
 
     # SSH to VPS for docker + traefik info (best-effort)
     try:
@@ -676,6 +592,29 @@ def dump_diagnostics(name: str, env: dict[str, str], log) -> None:
         log.write(f"diagnostics SSH phase failed: {e}\n")
 
 
+def worker_running(spec: dict) -> tuple[bool, str]:
+    """Return ``(ok, detail)``: True only when every Compose container of the app is ``running``.
+
+    Reads ``SSHDeployer().probe_app(app_dir(spec)[0])`` (read-only ssh) and every row's
+    ``State`` through ``_parse_compose_ps``; a missing compose file, a probe error and zero
+    rows are all False.
+    """
+    sys.path.insert(0, str(FABRIK_ROOT / "src"))
+    from fabrik.orchestrator.deployer_ssh import SSHDeployer, _parse_compose_ps, app_dir
+
+    path = app_dir(spec)[0]
+    probe = SSHDeployer().probe_app(path)
+    if probe.get("error"):
+        return False, f"probe of {path} failed: {probe['error']}"
+    if not probe.get("exists"):
+        return False, f"{path}/compose.yaml is absent"
+    rows = _parse_compose_ps(probe.get("ps") or "")
+    if not rows:
+        return False, f"{path} reports no containers"
+    detail = ", ".join(f"{r['Service']}={r['State'] or '?'}" for r in rows)
+    return all(r["State"] == "running" for r in rows), detail
+
+
 # --- main loop --------------------------------------------------------------
 
 
@@ -697,7 +636,6 @@ def process_type(
         "ok": False,
         "http_code": None,
         "curl_raw": "",
-        "coolify_uuid": None,
         "git_commit": None,
         "elapsed_s": None,
         "error": None,
@@ -735,33 +673,13 @@ def process_type(
             if proc.returncode != 0:
                 raise RuntimeError(f"fabrik apply exited rc={proc.returncode}")
 
-            # Pull Coolify UUID from the just-applied app — BEST-EFFORT only.
-            # The orchestrator deploys via SSH + Docker Compose (not Coolify), so the
-            # Coolify API is often unreachable here; a failure must NOT abort the real
-            # proof (the healthcheck curl below). It is used for a cosmetic UUID and
-            # the NO_HTTP worker-status check.
-            sys.path.insert(0, str(FABRIK_ROOT / "src"))
-            app = None
-            try:
-                from fabrik.drivers.coolify import CoolifyClient
-
-                c = CoolifyClient()
-                app = next(
-                    (a for a in c.list_applications() if a.get("name") == name),
-                    None,
-                )
-                if app:
-                    result["coolify_uuid"] = app.get("uuid")
-            except Exception as cx:  # noqa: BLE001 — diagnostic-only lookup
-                log.write(f"coolify uuid lookup skipped (non-fatal): {cx!r}\n")
-
             if project_type in NO_HTTP_TYPES:
-                # Worker: no HTTP surface. Proof = Coolify reports running:healthy.
-                status = (app or {}).get("status", "") or ""
+                # Worker: no HTTP surface. Proof = every Compose container is running.
+                ok, detail = worker_running(spec)
                 result["http_code"] = None
-                result["curl_raw"] = f"(worker, no curl) coolify status={status!r}"
-                if not status.startswith("running"):
-                    raise RuntimeError(f"worker not in running:* state after apply: {status!r}")
+                result["curl_raw"] = f"(worker, no curl) compose ps: {detail}"
+                if not ok:
+                    raise RuntimeError(f"worker not running after apply: {detail}")
                 result["ok"] = True
             else:
                 # Poll healthcheck with retries — cert + DNS may lag apply a bit
@@ -811,14 +729,13 @@ def write_proof(results: list[dict]) -> None:
         "",
         "## Summary",
         "",
-        "| Type | Result | HTTP | Coolify UUID | Elapsed |",
-        "|---|---|---|---|---|",
+        "| Type | Result | HTTP | Elapsed |",
+        "|---|---|---|---|",
     ]
     for r in results:
         status = "PASS" if r["ok"] else "FAIL"
         lines.append(
-            f"| `{r['type']}` | {status} | {r.get('http_code', '—')} | "
-            f"`{r.get('coolify_uuid', '—')}` | {r.get('elapsed_s', '—')}s |"
+            f"| `{r['type']}` | {status} | {r.get('http_code', '—')} | {r.get('elapsed_s', '—')}s |"
         )
     lines.append("")
     lines.append("## Raw curl output (per type)")
@@ -838,6 +755,50 @@ def write_proof(results: list[dict]) -> None:
             lines.append(f"**Error:** `{r.get('error')}`")
         lines.append("")
     PROOF_FILE.write_text("\n".join(lines) + "\n")
+
+
+# --- the live guard ---------------------------------------------------------
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Refuse the live proof without an explicit ``--live``.
+
+    ``main()`` destroys and re-creates real projects on the fleet, so the
+    ``__main__`` block calls this FIRST: a bare invocation exits 2 and
+    ``--help`` exits 0, both before ``main()`` runs (incident 2026-10-14); a
+    prefix such as ``--li`` is refused too (``allow_abbrev=False``), and the
+    caller reads ``.live`` rather than trusting the parser alone. Graded by
+    ``tests/test_proof_run_guard.py``, which runs the real ``__main__`` block
+    under ``runpy`` with the primitives behind every subprocess-run destroy,
+    scaffold and ``gh`` call and the Cloudflare ``urlopen`` faked (the ssh
+    driver, ``Path.open``, ``Path.exists``, ``open()`` and
+    ``time.sleep`` are not) -- ``load_env``'s ``.env`` read is the first call
+    ``main()`` makes, so a regression is caught there before any of those.
+    """
+    parser = argparse.ArgumentParser(
+        prog="proof_run.py",
+        allow_abbrev=False,  # `--li` is not an acknowledgement: the flag is typed whole or refused
+        description=(
+            "Live end-to-end deploy proof for every scaffold type. DESTRUCTIVE: "
+            "before each type it runs fabrik destroy --yes --drop-data, rm -rf "
+            "/opt/<fixture> and gh repo delete, then scaffolds, pushes and applies."
+        ),
+        epilog=(
+            "PROOF_ONLY=<type> limits the loop to that one scaffold type; a name not in "
+            "SCAFFOLD_TYPES runs no type at all and still writes PROOF.md with an empty table."
+        ),
+    )
+    parser.add_argument(
+        "--live",
+        action="store_true",
+        required=True,
+        help=(
+            "run the destructive live proof: per type, fabrik destroy --yes --drop-data, "
+            "rm -rf /opt/<fixture> and gh repo delete, then scaffold, push and apply "
+            "(required; there is no dry run)"
+        ),
+    )
+    return parser.parse_args(argv)
 
 
 def main() -> int:
@@ -866,4 +827,7 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    # argparse already refused a bare run; this holds even if the parser is ever loosened
+    if not parse_args().live:
+        sys.exit(2)
     sys.exit(main())

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:22:31.403586Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-60f77b3e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4PNBVJ1A0PJS5QDZXGQEA32",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-review feedback queue — 26 verdict(s) that need CODE in your beat (kaizen one-pass triage, D-735)"
+}

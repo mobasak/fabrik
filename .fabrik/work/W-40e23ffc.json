@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T02:12:23.741410Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-40e23ffc",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M564540ZT1EBQA0VC7AR9CA0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "D-484 decision for you: keep or retire execute-plan's stay-in-place archive rule, now that the ledger is not a link source (D-965)"
+}

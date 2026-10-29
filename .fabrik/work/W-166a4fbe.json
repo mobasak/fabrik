@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T21:18:42.516345Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-166a4fbe",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read the plan once and pass the text from _drift_report to _drift_line; test with a write between the two calls",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "infra's own follow-up from the infra-menu-cue review; a narrow fix with one test",
+  "status": "open",
+  "title": "work.py _drift_line re-reads the plan file after _drift_report classified it, so a write in between can print a line that contradicts its class (found by infra in the infra-menu-cue review, D-1264)"
+}

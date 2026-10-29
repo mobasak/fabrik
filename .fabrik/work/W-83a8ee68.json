@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T13:19:11.008595Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-83a8ee68",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reuse the fleet-exhausted stamp + quota_stop.py hold + selfwatch waker with a battery source; prove with a fake BAT1 reading",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — operator asked for battery hold to avoid losing work",
+  "status": "open",
+  "tags": [
+    "waits-merge-01m55cmct9"
+  ],
+  "title": "Battery hold like the quota hold: while the laptop is on battery and charge falls to 7% or below (/sys/class/power_supply/BAT1 capacity + status Discharging), every agent in every /opt repo gracefully stops: commit, push, close its run record with a resume seed (as blocked --wall does), and write where it left off assuming its context may be lost; new world-changing work is held until AC returns, then armed self-watches wake and resume"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T01:38:07.508490Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "121790faf92e8cecde1b3b97ba215f21e1301f92",
+  "id": "W-6a96f699",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-973",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fleet: one /fabrik-task over drivers/ssh.py, drivers/dns.py and tests/test_conftest_isolation.py",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "HIGH: security residue (argv exposure, unredacted error text) from the W-2b657bee review; drivers only",
+  "status": "done",
+  "title": "SSH residue from W-2b657bee review: validate FABRIK_VPS_SSH_HOST as an alias inside drivers/ssh.py::ssh (pre-existing argv exposure), redact + name the jump in dns._request_via_ssh's error text, and give the conftest FABRIK_SSH_JUMP_* scrub and the reachability-preflight pin their own graders"
+}

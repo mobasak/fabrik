@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-02T05:46:33.319405Z",
   "creator": "intel",
-  "evidence": "",
+  "effort": "low",
+  "evidence": "9f40a6d42b04fb6cfe2f96705cd8b9d9e5f53ead",
   "id": "W-61b60641",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,9 +15,10 @@
   },
   "next": "edit docs/reference/ai-media-generation-provider-map.md:152,163 to say Claude through claude -p on the subscription (llm-dispatch), OpenRouter only as the opted-in metered fallback",
   "note": "",
-  "owner": "",
-  "priority": 2,
-  "status": "open",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — rule pack contradicts ai/00 subscription-first rule",
+  "status": "done",
   "tags": [
     "rules"
   ],

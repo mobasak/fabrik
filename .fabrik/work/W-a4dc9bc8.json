@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:26.190859Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a4dc9bc8",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4W48W8MVG65VAYTB476P1KX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — doc-links gate false green",
+  "status": "open",
+  "title": "check_doc_links' \"does not exist\" marker skips the WHOLE line — a project contract's header hides 8 real refs; a per-reference marker would close it"
+}

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T17:29:59.151970Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "fe6624dcf6bd3a6c60f2f2b8e835df9230ab511f",
+  "id": "W-7f545f4a",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "wait for W-f0fd555a; then run, and update the receipt",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "the shipped kit's build has never been executed end to end; one session; blocked on the DNS fix",
+  "status": "done",
+  "tags": [
+    "queued"
+  ],
+  "title": "Re-run W-e2af3303's three network-blocked checks once npm DNS is back: pnpm install + compile + lint of an emitted chrome-extension project, and the WXT build test (-m needs_network); recorded UNEXECUTED (missing infra) in the plan and docs/development/reviews/2026-10-15-plan-1-chrome-extension-devmode-release-kit-review.md"
+}

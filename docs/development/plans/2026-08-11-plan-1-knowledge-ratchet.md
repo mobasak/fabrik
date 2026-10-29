@@ -1,9 +1,46 @@
 # Plan — Knowledge-surface ratchet: LESSONS graduation status + AFCL stub retirement
 
-Status: CONVERGED
+Status: DRAFT — revision required (D-721); was CONVERGED 2026-08-11, never built
 Owner: hub (governance + scaffolder + fleet audit)
 Operator directive (verbatim, 2026-08-11): "adopt the graduation-status convention and/or the AFCL
 stub cleanup as a small follow-up plan, afterwards /fabrik-plan-review"
+
+## Revision required (D-721) — the Opus 5.5 + Fable 5.1 panel, 2026-10-09, both verdict B
+
+Neither half was built (0 `Ratchet:` lines in `docs/LESSONS_LEARNT.md`; the three AFCL emitters and the
+template still live) and neither is superseded (no ledger row covers LESSONS graduation or AFCL), so the
+plan is BUILT — after this revision and a fresh `/fabrik-plan-review`, because its CONVERGED was earned on
+text that no longer holds:
+
+1. **Cross-repo law.** "What we already agreed" (the operator-directive authorisation) and Global
+   Constraints' cross-repo paragraph authorise a hub `--apply` that deletes, commits and pushes `AFCL.md` in
+   ~29 foreign repos. `CLAUDE.md` § HARD STOPS (cross-repo row) and D-441 now forbid that: the hub sends ONE
+   request per repo (fabrik-mail, naming the file, its md5 and this plan) and that repo's agent validates it
+   and runs `git rm AFCL.md` under its own gate. `cleanup_afcl_stubs.py` becomes census + `--request`; the
+   push-reachability preflight, the dirty/detached SKIP arms and the "committed and pushed" Behaviour row go;
+   Gate B checks "every MATCH repo has a sent request", not "0 MATCH".
+2. **The matcher** matches every historical version of `templates/scaffold/AFCL_TEMPLATE.md` enumerated from
+   `git log` (as `fleet_doc_audit.template_versions` does), not two frozen hashes: f563f224e (2026-10-08,
+   D-366 wording) made a third generation, md5 `d712b3372b05f7503697b258a1a6aece`. Re-run the census at build
+   time (2026-10-09: 39 `AFCL.md`, 29 stubs — 17 × `7521beff…`, 12 × `bbce548e…`).
+3. **AFCL consumers moved.** `scripts/fleet_doc_audit.py` names `AFCL.md` in `KEPT_SHAPE_DOCS` (which
+   `templated_docs()` uses to skip the registry row), so retiring the row and the template leaves a dangling
+   name there: add `scripts/fleet_doc_audit.py` and its test to scope and remove the entry with the row. State that retiring the template loses
+   no instruction because its § Spec contract awareness block duplicates the synced
+   `templates/governance/CLAUDE.md`.
+4. **Phase A's parser** takes both entry anchors — `**Date:** YYYY-MM-DD` and a `## <title> (YYYY-MM-DD)`
+   heading (the hub's form: 58 entries are heading-dated, 55 of them on or after 2026-08-11) — with a
+   fixture for each.
+5. **One graduation convention.** Reconcile the `Ratchet:` line with the scaffold LESSONS template's existing
+   `**Status:** Permanent Rule` and `## 5. Integration: Rule Update` fields
+   (`templates/scaffold/docs/LESSONS_LEARNT_TEMPLATE.md`) — accept them as equivalent or replace them, never
+   two side by side. Add the Cobra line (D-253): the cheapest pass is `Ratchet: local-only` on every entry;
+   the sweep reports the per-repo local-only ratio.
+6. **Re-ground every path:line at the build SHA** (scaffold.py emitters now :1401, :7798, :7843;
+   `_doc_registry.py:174`; `check_structure.py:45`; `fabrik_synced_manifest.py:98`; `40-documentation.md`
+   § LESSONS_LEARNT.md :146-152; `templates/governance/CLAUDE.md` read-mandate :83), and the cron citation
+   (now the hourly `weekly_catchup.sh fleet_doc_audit.py` stamp check; `fleet_doc_audit.py`'s docstring still
+   says "Monday 06:30").
 
 ## What we already agreed
 

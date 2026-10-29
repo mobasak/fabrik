@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-18T00:00:00.000000Z",
   "creator": "infra",
-  "evidence": "",
+  "effort": "low",
+  "evidence": "e03c3771d5628ae06547cb00f93702620398ed1e",
   "id": "W-696d4d7e",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,12 @@
   },
   "next": "**[infra] `.windsurf/rules/core/40-documentation.md:241` names blank lines around headings, lists and code blocks — but not TABLES (2026-09-18)** — a paragraph flush against a table's last row is absorbed as a `<tr>` (executed with `markdown_it`, commonmark + tables). `check_rule_grounding` is structurally blind to it (`if not line.startswith(\"|\"): continue`), so the rule pack and the only gate over that table both miss a live rendering defect. Add tables to the pack's list. Low.",
   "note": "migrated-digest:4c983d966adb",
-  "owner": "infra",
-  "priority": 2,
-  "status": "open",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — rule wording gap in 40-documentation",
+  "status": "done",
+  "tags": [
+    "queued"
+  ],
   "title": "**`.windsurf/rules/core/40-documentation.md:241` names blank lines around headings, lists and code blocks — but not TABLES (2026-09-18)** — a paragraph flush against a table's last row is absorbed ..."
 }

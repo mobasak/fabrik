@@ -12,9 +12,14 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "",
   "priority": 3,
-  "status": "open",
+  "status": "dropped",
+  "tags": [
+    "needs-owner",
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "docs_updater --sync: add --only plans|structure (refresh PLANS without rewriting STRUCTURE) and never expand plan-set directories (_PLAN_DIR_NAME_RE, one plan unit) — follow-up of W-961bede1, recommended by both design critiques; keep the bare --sync as the documented path (PLANS.md header) and note --check does not grade STRUCTURE freshness"
 }

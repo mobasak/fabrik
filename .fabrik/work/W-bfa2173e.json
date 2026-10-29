@@ -1,0 +1,25 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T05:59:33.407369Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-bfa2173e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-10-14-plan-1-coolify-verb-retirement/2026-10-14-plan-1-coolify-verb-retirement.md",
+    "spec": ""
+  },
+  "next": "Decide whether the hub image needs a readiness probe at all (W-2191a0f4 parks the hub image's fate) and, if so, which dependency /health should assert",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "dropped",
+  "tags": [
+    "fleet",
+    "proposed-drop",
+    "waits-operator-review"
+  ],
+  "title": "Hub compose.yaml HEALTHCHECK probes /health, a shallow liveness endpoint — a 58-resilience readiness probe would need a real dependency (found by the wave-1 review of plan 2026-10-14-plan-1-coolify-verb-retirement, F5; predates the wave)"
+}

@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T00:05:18.819059Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-6effedda",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: another repo's finding on a fragment every review reads; kaizen's beat (fragment wording); folds into the lean rewrite tickets",
+  "status": "open",
+  "tags": [
+    "mail-01m5q5gdzgdz6swaacyyd17415",
+    "waits-lean-program"
+  ],
+  "title": "Mail 01M5Q5GDZG (wef1 finding): the review-probe-catalogue § Seat isolation recipe (tests run from a git archive of the pin's base SHA) does not say a gitignored GENERATED file the code imports must be copied into the archive tree; fold into the fragment's lean rewrite"
+}

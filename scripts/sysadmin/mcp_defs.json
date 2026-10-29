@@ -29,6 +29,10 @@
       "type": "http",
       "url": "http://127.0.0.1:8033/mcp"
     },
+    "fabrik-scrape": {
+      "type": "http",
+      "url": "http://127.0.0.1:8034/mcp"
+    },
     "firecrawl": {
       "args": [],
       "command": "/home/ozgur/.nvm/versions/node/v24.18.0/bin/firecrawl-mcp",
@@ -108,6 +112,14 @@
       "env": {
         "PATH": "/home/ozgur/.nvm/versions/node/v24.16.0/bin:/usr/bin:/bin"
       },
+      "type": "stdio"
+    },
+    "rea": {
+      "args": [
+        "mcp"
+      ],
+      "command": "/home/ozgur/.nvm/versions/node/v24.18.0/bin/rea-agents",
+      "env": {},
       "type": "stdio"
     },
     "serena": {

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:07:02.850634Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-15e17d06",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reword check_docker.py:108 and :139 to 'debian_codename from .windsurf/rules/versions.yaml' (synced enforcement; scoped review)",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — check_docker message wording polish",
+  "status": "dropped",
+  "tags": [
+    "infra"
+  ],
+  "title": "check_docker.py messages say 'the registry's debian_codename' — ambiguous next to the container registry; name .windsurf/rules/versions.yaml"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T01:07:42.749492Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-a3b292f9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VVXJNN7WRHVZ73NYETJEF1",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Correction to 01M4VVWYVG: \"survive your grader too\" was not measured"
+}

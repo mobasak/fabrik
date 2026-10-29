@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T03:13:11.521867Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "96b0645b17dd5c3f6f4988a668d475506eccef10",
+  "id": "W-276255e7",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "replace the ^(`{3,}).*?^\\1 regex with a linear line walk in all six copies at once, parity test kept; measure the fleet diff",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "rare edge: quadratic only on unclosed backtick openers; one regex",
+  "status": "done",
+  "tags": [
+    "link-reader",
+    "queued"
+  ],
+  "title": "_strip_quoted's fence regex (and its six Lesson-103 parity copies) is quadratic on unclosed backtick openers: 93.6 s on 181 KB of distinct-length backtick lines, 12 s on a 200 KB backtick run (W-69f51003 pass 3)"
+}

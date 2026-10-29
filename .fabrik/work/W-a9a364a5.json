@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:35:22.528132Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a9a364a5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4FAAA26FBNSR66A76JJ1EDW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "already done: d5860f596 (W-28f260c3, on master) — a wall-closed run is resumed with resumed_from carrying the reason",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "title": "command_run.py keeps `blocked --reason` (blocked_reason) but nothing reads it back, and the next `start` overwrites the record"
+}

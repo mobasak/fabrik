@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T18:11:52.726711Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-dbe540ac",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RMZZ8GHAP97WKB7NS2RVA5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Box Postgres drops TCP 127.0.0.1:5432 (1/20 ok) while the socket is 20/20 — intermittent DB-test reds fleet-wide"
+}

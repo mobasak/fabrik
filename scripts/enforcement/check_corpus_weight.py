@@ -426,6 +426,8 @@ def _not_written_because(check: bool, usable: bool, main_checkout: bool) -> str:
             if (ROOT / ".git").exists()
             else "this tree is not a git checkout"
         )
+    # Unreachable while the three causes above stay exhaustive over writable=False — a terminal
+    # for the type checker, never a live state (fleet 01M4P514GR, W-ed63cd68).
     return "nothing was writable"
 
 
@@ -506,8 +508,8 @@ def _report(args: argparse.Namespace) -> int:
                 )
             for surface in unmeasured:
                 print(
-                    f"corpus-weight: would keep {surface} at its previous baseline — not measurable "
-                    "this run (--check: not written)"
+                    f"corpus-weight: would keep {surface} at its previous baseline — still a SURFACES "
+                    "entry, not measurable this run (--check: not written)"
                 )
         elif writable:
             write_baseline({**kept, **measured}, ref)
@@ -519,8 +521,9 @@ def _report(args: argparse.Namespace) -> int:
                 )
             for surface in unmeasured:
                 print(
-                    f"corpus-weight: {surface} kept at its previous baseline — not measurable this "
-                    "run, and a write never drops a surface's trend record"
+                    f"corpus-weight: {surface} kept at its previous baseline — still a SURFACES "
+                    "entry, not measurable this run; a write never drops a registered surface's "
+                    "trend record (retire it from SURFACES to drop the key)"
                 )
         else:
             why = _not_written_because(args.check, usable, main_checkout)

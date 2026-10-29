@@ -12,12 +12,14 @@
     "spec": ""
   },
   "next": "(1) fabrik-repo-review.md round recipes (:64 batch, :165 certification) never pass --slices — decide whether its rounds record slices, align with fabrik-review.md:480; (2) .windsurf/rules/core/62-using-subagents.md:51 'not re-dispatched' lacks the restatement instruction; (3) fabrik-review.md:481 TERMINAL sentence omits 'every --slices ledger verified, none omitted'; (4) shrink-claims cobra: a slice restated at fewer claims than an earlier round (B:0/3 then B:1/1) reads verified — measure whether a refuted claim may legitimately lower claims, then refuse or flag",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "intel",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
-    "enforcement"
+    "enforcement",
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "Slice-ledger text and cobra follow-ups after D-572/D-573"
 }

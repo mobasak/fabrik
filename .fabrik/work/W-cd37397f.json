@@ -12,9 +12,13 @@
     "spec": ""
   },
   "next": "## [fleet] The app-role cutover is refused for the four specs sharing `depends.postgres: main` (2026-09-24)\n\nai-model-catalog, compliance-ops, gmail-account-creator and exam-coach resolve to one database, so one `main_app`\npassword cannot be reset for one of them without breaking the others; the registrar refuses (D-408). A cutover for\nthem needs one coordinated apply that writes the same new app DSN into every sibling's `.env`, or per-spec app\nroles. Owner: fleet. Trigger: the first of the four that needs the append-only guarantee.",
-  "note": "migrated-digest:922cf2cf7798",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "The app-role cutover is refused for the four specs sharing `depends.postgres: main` (2026-09-24)"
 }

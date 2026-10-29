@@ -13,6 +13,8 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 _HOOK = Path(__file__).resolve().parents[1] / ".claude" / "hooks" / "quota_stop.py"
 _spec = importlib.util.spec_from_file_location("quota_stop", _HOOK)
 hook = importlib.util.module_from_spec(_spec)
@@ -56,7 +58,11 @@ def test_a_stale_stamp_from_a_dead_tick_never_freezes_the_fleet(monkeypatch):
 
 
 def _run(
-    tmp_path: Path, payload: object, stamp: bool, tick_fresh: bool
+    tmp_path: Path,
+    payload: object,
+    stamp: bool,
+    tick_fresh: bool,
+    extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess:
     state = tmp_path / "state"
     state.mkdir(exist_ok=True)
@@ -68,6 +74,7 @@ def _run(
         old = time.time() - 4000
         os.utime(log, (old, old))
     env = {**os.environ, "ROTATE_STATE_DIR": str(state), "QUOTA_STOP_TICK_LOG": str(log)}
+    env.update(extra_env or {})
     data = payload if isinstance(payload, str) else json.dumps(payload)
     return subprocess.run(
         [sys.executable, str(_HOOK)],
@@ -768,6 +775,32 @@ def test_the_hold_text_orders_the_self_watch_arm():
     assert len(with_sid) < 1000, len(with_sid)
 
 
+def test_reason_names_the_wall_block_and_the_resume_verb():
+    """W-28f260c3 (sp3 01M49B2E91): the wall text told a held session to close its run record and
+    named no way back, so the successor record lost its rounds, design and commit window. The
+    clause now names the wall close (`blocked --wall`, which keeps a seed) and the reopen
+    (`start --resume-from`) — inside the one-message length pin above, with every other pinned
+    phrase intact."""
+    reason = hook._reason("Bash")
+    assert "blocked --wall" in reason, reason
+    assert "start --resume-from" in reason, reason
+    assert "command_run.py done" in reason, "the done close is still named"
+    # the pins the clause must not displace
+    assert "git commit -m '<msg>' -- <paths>" in reason
+    assert "ARM the self-watch" in reason and "selfwatch_arm.sh" in reason
+    # the one-message pin measured where it is TIGHTEST — the arm order interpolates the sid, and
+    # `_reason`'s own validator admits 80 chars: a 7-char `abc-123` read 966 while an 80-char sid
+    # read 1039 (review code-S2); a real 36-char UUID sits between. Every admitted sid must fit.
+    uuid_sid = "1970a0ff-baa3-401b-ba52-fb0c5de43261"
+    # every built-in held tool, the longest name included (W-a77742db review r1, B-haiku-1: the pin
+    # read Edit alone while NotebookEdit crossed 1,000)
+    for tool in ("Edit", "Write", "MultiEdit", "NotebookEdit", "Agent", "Workflow"):
+        for sid in (uuid_sid, "a" * 80):
+            with_sid = hook.decide(tool, None, stamp_exists=True, tick_age_s=10.0, sid=sid)[1]
+            assert f"selfwatch_arm.sh {sid}" in with_sid
+            assert len(with_sid) < 1000, (tool, len(sid), len(with_sid))
+
+
 def test_the_hold_text_refuses_a_malformed_sid():
     """The sid is interpolated into the arm order the agent will copy verbatim — a payload sid
     carrying a quote, a space or a newline must fall back to the placeholder, never break the
@@ -838,20 +871,19 @@ def _run_tier(tmp_path: Path, payload: object, tier: str | None) -> subprocess.C
     )
 
 
-def test_the_urgent_ninety_tier_nudges_instead_of_holding(tmp_path):
-    """The 90-with-no-successor arm fires eight points before the wall — that runway is the
-    whole point of it (D-111). Holding there kills in-flight work with quota still on the clock,
-    which is the premature stop D-299 forbids. So: ALLOW, and say what is coming."""
-    r = _run_tier(tmp_path, {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}}, "urgent-90")
-    assert r.returncode == 0
-    assert "permissionDecision" not in r.stdout, (
-        f"the warning tier must not deny — it has runway left: {r.stdout!r}"
-    )
-    assert "checkpoint" in r.stderr.lower(), f"it must still say what to do: {r.stderr!r}"
-    assert "command_run.py" in r.stderr, "the nudge names the checkpoint verbs"
-    # and the heavy tool is allowed too — a seat mid-flight is exactly what must not be killed
-    a = _run_tier(tmp_path, {"tool_name": "Agent", "tool_input": {"prompt": "p"}}, "urgent-90")
-    assert "permissionDecision" not in a.stdout, a.stdout
+def test_the_urgent_ninety_tier_is_the_lane_not_a_free_pass(lane):
+    """The 90-with-no-successor arm fires nine points before the wall (D-111). D-306 let EVERY
+    session spend that runway, so the last points went to whoever asked first (D-1113). The lane
+    keeps the runway for the sessions that merge and keep the records — the exempt one is
+    ALLOWED (a seat mid-flight is not killed) and told to checkpoint; everyone else is held."""
+    r = lane.run({"tool_name": "Edit", "tool_input": {"file_path": "x.py"}, "session_id": "nob"})
+    assert r.returncode == 0 and _denied(r), r.stdout
+    lane.bind("sc", "coordinator")
+    for tool in ("Edit", "Agent"):
+        a = lane.run({"tool_name": tool, "tool_input": {"prompt": "p"}, "session_id": "sc"})
+        assert "permissionDecision" not in a.stdout, a.stdout
+        assert "checkpoint" in a.stderr.lower(), f"it must still say what to do: {a.stderr!r}"
+        assert "command_run.py" in a.stderr, "the nudge names the checkpoint verbs"
 
 
 def test_the_walled_tier_still_holds_every_world_changing_tool(tmp_path):
@@ -985,3 +1017,1080 @@ def test_every_arm_order_the_hold_prints_is_one_the_hold_allows():
         assert hook.decide("Bash", cmd, stamp_exists=True, tick_age_s=10.0) == ("allow", ""), cmd
     too_long = "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh " + "a" * 81
     assert hook.decide("Bash", too_long, stamp_exists=True, tick_age_s=10.0)[0] == "deny"
+
+
+def test_battery_stamp_message(tmp_path):
+    """W-83a8ee68 (D-898): a `battery`-tier stamp holds exactly like the wall — the decision is
+    the same deny — but the held session is told it is the BATTERY, and that mains power lifts it;
+    a quota stamp keeps the quota wording."""
+    state = tmp_path / "state"
+    state.mkdir()
+    log = tmp_path / "rotate-tick.log"
+    log.write_text("tick: ok\n")
+    env = {**os.environ, "ROTATE_STATE_DIR": str(state), "QUOTA_STOP_TICK_LOG": str(log)}
+    payload = json.dumps(
+        {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}, "session_id": "s1"}
+    )
+
+    def reason_for(body: str) -> str:
+        (state / "fleet-exhausted").write_text(body)
+        r = subprocess.run(
+            [sys.executable, str(_HOOK)],
+            input=payload,
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=20,
+        )
+        out = json.loads(r.stdout)["hookSpecificOutput"]
+        assert out["permissionDecision"] == "deny", out
+        return out["permissionDecisionReason"]
+
+    battery = reason_for("0\nbattery\n")
+    assert battery.startswith("BATTERY HOLD"), battery
+    assert "FLEET QUOTA EXHAUSTED" not in battery
+    assert "mains power" in battery and "blocked --wall" in battery
+    assert "selfwatch_arm.sh s1" in battery, "the arm order still names the literal sid"
+    quota = reason_for("0\nwalled\n")
+    assert quota.startswith("FLEET QUOTA EXHAUSTED"), quota
+
+
+# ── THE LANE (W-18f559d9, D-1113): at `urgent-90` builders park, coordinators continue ─────────
+#
+# Every fixture below is hermetic: a tmp repo (real `git init`), a tmp identity store, a tmp
+# rotation state dir and tick log, and the merge-owner resolver reached through the
+# `QUOTA_STOP_DECISIONS_PY` seam — never the live hub ledger, store or stamp.
+
+_DECISIONS_PY = Path(__file__).resolve().parents[1] / "scripts" / "decisions.py"
+_WHOAMI_PY = Path(__file__).resolve().parents[1] / "scripts" / "whoami_agent.py"
+
+
+def _git_q(cwd: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", *args],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    ).stdout.strip()
+
+
+class _Lane:
+    """One repo (with a linked worktree), one identity store, one quota state at `urgent-90`."""
+
+    def __init__(self, tmp: Path, monkeypatch) -> None:
+        self.tmp = tmp
+        self.main = tmp / "repo"
+        self.main.mkdir()
+        _git_q(self.main, "init", "-q", "-b", "master")
+        _git_q(self.main, "commit", "-q", "--allow-empty", "-m", "base")
+        self.wt = tmp / "repo-wt"
+        _git_q(self.main, "worktree", "add", "-q", str(self.wt), "-b", "wt")
+        self.common = Path(
+            _git_q(self.main, "rev-parse", "--path-format=absolute", "--git-common-dir")
+        )
+        self.work = self.main / ".fabrik" / "work"
+        self.work.mkdir(parents=True)
+        self.config({"coordinator_mode": True})
+        (self.main / "docs").mkdir()
+        self.owner("coordinator")
+        self.store = tmp / "agent-identity.jsonl"
+        self.store.write_text("")
+        self.state = tmp / "state"
+        self.state.mkdir()
+        self.tick = tmp / "rotate-tick.log"
+        self.tick.write_text("tick: ok\n")
+        self.stamp("0", "urgent-90")
+        self.decisions = _DECISIONS_PY
+        self.env = {
+            "ROTATE_STATE_DIR": str(self.state),
+            "QUOTA_STOP_TICK_LOG": str(self.tick),
+            "AGENT_IDENTITY_FILE": str(self.store),
+            "CLAUDE_PROJECT_DIR": str(self.main),
+            "QUOTA_STOP_DECISIONS_PY": str(self.decisions),
+        }
+        for k, v in self.env.items():
+            monkeypatch.setenv(k, v)
+        monkeypatch.delenv("CLAUDE_AGENT", raising=False)
+        monkeypatch.delenv("QUOTA_STOP_TICK_STALE_S", raising=False)
+        self.mp = monkeypatch
+
+    def config(self, cfg: object) -> None:
+        (self.work / "config.json").write_text(cfg if isinstance(cfg, str) else json.dumps(cfg))
+
+    def owner(self, name: str) -> None:
+        (self.main / "docs" / "DECISIONS.md").write_text(
+            "# Decisions\n\n| ID | When | Who | What | Why | Where |\n|---|---|---|---|---|---|\n"
+            f"| D-001 | 2026-10-22 | operator | MERGE OWNER: {name} — merges | test | here |\n"
+        )
+
+    def bind(
+        self,
+        sid: str,
+        name: str,
+        toplevel: Path | str | None = None,
+        **extra: object,
+    ) -> None:
+        row = {
+            "session_id": sid,
+            "name": name,
+            "toplevel": str(self.common if toplevel is None else toplevel),
+            "at": int(time.time()),
+            **extra,
+        }
+        with self.store.open("a") as fh:
+            fh.write(json.dumps(row) + "\n")
+
+    def item(self, iid: str, **fields: object) -> None:
+        doc = {"id": iid, "status": "open", "priority": 0, "owner": "infra", **fields}
+        (self.work / f"{iid}.json").write_text(json.dumps(doc))
+
+    def closed(self, iid: str) -> None:
+        d = self.common / "fabrik-work" / "closed"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{iid}.json").write_text(json.dumps({"id": iid, "status": "done"}))
+
+    def claim(self, iid: str, sid: str, lease_s: int = 7200) -> None:
+        d = self.common / "fabrik-work" / "claims"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / f"{iid}.json").write_text(
+            json.dumps({"session": sid, "at": time.time(), "lease_s": lease_s})
+        )
+
+    def stamp(self, promise: str, tier: str) -> None:
+        (self.state / "fleet-exhausted").write_text(f"{promise}\n{tier}\n")
+
+    def run(self, payload: dict, **extra_env: str) -> subprocess.CompletedProcess:
+        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_AGENT"}
+        env.update(self.env)
+        env.update(extra_env)
+        return subprocess.run(
+            [sys.executable, str(_HOOK)],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=30,
+        )
+
+
+@pytest.fixture
+def lane(tmp_path, monkeypatch):
+    return _Lane(tmp_path, monkeypatch)
+
+
+def _denied(r: subprocess.CompletedProcess) -> bool:
+    return '"permissionDecision": "deny"' in r.stdout
+
+
+def _at_lane(cmd: str) -> str:
+    return hook.decide(
+        "Bash", cmd, stamp_exists=True, tick_age_s=10.0, tier="urgent-90", exempt=False
+    )[0]
+
+
+def test_a_builder_is_parked_at_the_lane_with_the_finishing_verbs(lane):
+    """Behaviour 1: a bound builder (not the merge owner, owning no open P0) is HELD at `urgent-90`
+    — the wall's allow-list plus the finishing verbs — where D-306 used to allow everything."""
+    lane.bind("sb", "infra")
+    exempt, _why = hook.lane_exempt("sb", str(lane.main))
+    assert exempt is False
+    for tool, inp in (
+        ("Edit", {"file_path": "x.py"}),
+        ("Write", {"file_path": "x.py", "content": "x"}),
+        ("Agent", {"prompt": "p"}),
+        ("Bash", {"command": "python3 scripts/foo.py"}),
+        ("Bash", {"command": "pytest tests/"}),
+    ):
+        r = lane.run({"tool_name": tool, "tool_input": inp, "session_id": "sb"})
+        assert _denied(r), (tool, inp, r.stdout, r.stderr)
+    for tool in ("SubagentHandback", "Read", "SendMessage"):
+        r = lane.run({"tool_name": tool, "tool_input": {}, "session_id": "sb"})
+        assert not _denied(r), (tool, r.stdout)
+    for cmd in (
+        "git commit -m 'park' -- a.py",
+        "git push",
+        "python3 scripts/command_run.py blocked --wall --command fabrik-task --reason 'quota wall'",
+        "python3 scripts/merge_request.py request --review r.md --item W-0123abcd",
+        "python3 /opt/fabrik/scripts/merge_request.py request --review r.md",
+        "python3 scripts/work.py claim W-0123abcd",
+        "python3 scripts/work.py release W-0123abcd",
+        "python3 scripts/mail.py send --to fabrik --body x",
+        "bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh sb",
+    ):
+        assert _at_lane(cmd) == "allow", cmd
+    for cmd in (
+        "python3 scripts/work.py done W-0123abcd",
+        "python3 scripts/work.py claim W-0123abcd && touch m",
+        "python3 scripts/work.py claim",
+        "python3 x/scripts/work.py claim W-0123abcd",
+        "python3 scripts/merge_request.py merge",
+        "python3 scripts/merge_request.py request > out",
+    ):
+        assert _at_lane(cmd) == "deny", cmd
+    # the finishing verbs are the LANE's, never the wall's: at `walled` they stay held
+    for tool, cmd in (("Bash", "python3 scripts/work.py claim W-0123abcd"),
+                      ("SubagentHandback", None), ("SendMessage", None)):  # fmt: skip
+        assert (
+            hook.decide(tool, cmd, stamp_exists=True, tick_age_s=10.0, tier="walled")[0] == "deny"
+        ), tool
+
+
+def test_only_a_bound_coordinator_mode_merge_owner_continues(lane):
+    """Behaviour 2: the merge owner of a coordinator_mode repo, bound by session id in THIS repo's
+    scope, is exempt; the same name without coordinator_mode, a CLAUDE_AGENT with no binding, and a
+    binding scoped to another repo are all held (rulings 1-2: CLAUDE_AGENT is never read)."""
+    lane.bind("sc", "coordinator")
+    assert hook.lane_exempt("sc", str(lane.main))[0] is True
+    # from the linked worktree: one repo, one common dir
+    assert hook.lane_exempt("sc", str(lane.wt))[0] is True
+    r = lane.run({"tool_name": "Edit", "tool_input": {"file_path": "x.py"}, "session_id": "sc"})
+    assert not _denied(r), r.stdout
+    assert "lane" in r.stderr.lower() and "checkpoint" in r.stderr.lower(), r.stderr
+    # CLAUDE_PROJECT_DIR wins over the payload cwd (a coordinator working in a scratch dir)
+    r = lane.run(
+        {"tool_name": "Edit", "tool_input": {}, "session_id": "sc", "cwd": str(lane.tmp / "state")}
+    )
+    assert not _denied(r), r.stdout
+    # casefold on both sides of the comparison
+    lane.owner("Coordinator")
+    assert hook.lane_exempt("sc", str(lane.main))[0] is True
+    lane.owner("coordinator")
+    # no coordinator_mode → held
+    lane.config({"coordinator_mode": False})
+    assert hook.lane_exempt("sc", str(lane.main))[0] is False
+    lane.config({"coordinator_mode": "true"})  # a string is not the flag
+    assert hook.lane_exempt("sc", str(lane.main))[0] is False
+    lane.config({"coordinator_mode": True})
+    # CLAUDE_AGENT=coordinator with NO binding → held, in-process and end-to-end
+    lane.mp.setenv("CLAUDE_AGENT", "coordinator")
+    assert hook.lane_exempt("unbound", str(lane.main))[0] is False
+    r = lane.run(
+        {"tool_name": "Edit", "tool_input": {}, "session_id": "unbound"}, CLAUDE_AGENT="coordinator"
+    )
+    assert _denied(r), r.stdout
+    lane.mp.delenv("CLAUDE_AGENT")
+    # a binding for ANOTHER repo's toplevel → held
+    lane.bind("sx", "coordinator", toplevel=lane.tmp / "other" / ".git")
+    assert hook.lane_exempt("sx", str(lane.main))[0] is False
+    # a later row rebinding the sid wins
+    lane.bind("sc", "infra")
+    assert hook.lane_exempt("sc", str(lane.main))[0] is False
+
+
+def test_the_owner_of_an_open_p0_continues(lane):
+    """Behaviour 3 (ruling 1): the bound OWNER of an open P0 item is exempt — no live claim needed;
+    a P1 item, a done item and an item with a closed marker are not."""
+    lane.bind("sp", "infra")
+    lane.item("W-aaaaaaaa", priority=1)
+    assert hook.lane_exempt("sp", str(lane.main))[0] is False
+    lane.item("W-aaaaaaaa", priority=0, status="done")
+    assert hook.lane_exempt("sp", str(lane.main))[0] is False
+    lane.item("W-aaaaaaaa", priority=False)  # a bool is never the int 0
+    assert hook.lane_exempt("sp", str(lane.main))[0] is False
+    lane.item("W-aaaaaaaa", priority="0")
+    assert hook.lane_exempt("sp", str(lane.main))[0] is False
+    lane.item("W-aaaaaaaa", owner="fleet")
+    assert hook.lane_exempt("sp", str(lane.main))[0] is False
+    lane.item("W-aaaaaaaa", owner="INFRA")
+    exempt, why = hook.lane_exempt("sp", str(lane.main))
+    assert exempt is True and "W-aaaaaaaa" in why, why
+    r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "sp"})
+    assert not _denied(r), r.stdout
+    lane.closed("W-aaaaaaaa")
+    assert hook.lane_exempt("sp", str(lane.main))[0] is False
+    r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "sp"})
+    assert _denied(r), r.stdout
+
+
+def test_the_park_message_names_the_item_and_lift_and_orders_only_allowed_commands(lane):
+    """Behaviour 4: the park message names the session's claimed items (or none) and the lift —
+    the stamp's promised resume, else the posture's five_hour reset — and every command it orders
+    passes the lane's own allow-list (an order the hook then denies strands a parked session)."""
+    import re as _re
+
+    lane.bind("sm", "infra")
+
+    def reason() -> str:
+        r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "sm"}, TZ="UTC")
+        return json.loads(r.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+
+    promise = int(time.time()) + 3 * 3600
+    lane.stamp(str(promise), "urgent-90")
+    msg = reason()
+    assert time.strftime("%H:%M", time.gmtime(promise)) in msg, msg
+    assert "or earlier when a successor appears" in msg, msg
+    assert "your items: none" in msg, msg
+    assert "fleet-exhausted" in msg, "command_run.py's _WALL_REASON keys on this phrase"
+    assert "claude_rotate.py --status" not in msg, "--status is denied at the lane — never order it"
+    lane.claim("W-bbbbbbbb", "sm")
+    lane.claim("W-cccccccc", "someone-else")
+    lane.claim("W-dddddddd", "sm", lease_s=-10)  # expired
+    lane.stamp("0", "urgent-90")
+    resets = time.time() + 2 * 3600
+    (lane.state / "quota-posture.json").write_text(
+        json.dumps({"active": {"windows": {"five_hour": {"resets_at": resets}}}})
+    )
+    msg = reason()
+    assert "your items: W-bbbbbbbb" in msg and "W-cccccccc" not in msg, msg
+    assert "W-dddddddd" not in msg, msg
+    assert time.strftime("%H:%M", time.gmtime(resets)) in msg, msg
+    (lane.state / "quota-posture.json").unlink()
+    msg = reason()
+    assert "when the 5-hour window resets" in msg, msg
+    assert "selfwatch_arm.sh sm" in msg, "the arm order carries the literal sid"
+    fill = {"<msg>": "m", "<paths>": "a.py", "<command>": "fabrik-task", "<why>": "quota wall",
+            "<receipt>": "r.md", "<W-id>": "W-0123abcd"}  # fmt: skip
+    orders = _re.findall(r"`([^`]+)`", msg) + _re.findall(r'command: "(bash [^"]+)"', msg)
+    assert len(orders) >= 4, orders
+    for order in orders:
+        for k, v in fill.items():
+            order = order.replace(k, v)
+        assert "<" not in order, f"an unfilled placeholder in an order: {order!r}"
+        assert _at_lane(order) == "allow", order
+    assert "`python3 scripts/work.py next`" in msg, (
+        "the rotation resume step is ordered (W-cff56c52)"
+    )
+    assert "whoami_agent.py" in msg and "`python3 /opt/fabrik/scripts/whoami_agent.py" not in msg, (
+        "the re-bind passes only for the window's own name, so it is named in prose, never ordered"
+    )
+
+
+def test_every_lane_error_holds_and_never_raises(lane, tmp_path):
+    """Behaviour 5: every unreadable input — store, config, item, ledger, resolver — makes the
+    session NOT exempt (held, still able to commit, push and close), never raises, and returns
+    within the hook's budget even when the resolver hangs."""
+    lane.bind("se", "coordinator")
+    assert hook.lane_exempt("se", str(lane.main))[0] is True  # the positive control
+    (lane.state / "lane-owner-cache.json").unlink(missing_ok=True)
+    for sid, proj in ((None, str(lane.main)), ("", str(lane.main)), ("se", None),
+                      ("se", str(tmp_path / "nowhere")), ("se", "relative/dir")):  # fmt: skip
+        assert hook.lane_exempt(sid, proj)[0] is False, (sid, proj)
+    # the store: garbage, a directory, a FIFO (must not hang)
+    good = lane.store.read_text()
+    lane.store.write_text('not json\n{"session_id": 3}\n[1]\n')
+    assert hook.lane_exempt("se", str(lane.main))[0] is False
+    lane.store.unlink()
+    lane.store.mkdir()
+    assert hook.lane_exempt("se", str(lane.main))[0] is False
+    lane.store.rmdir()
+    os.mkfifo(lane.store)
+    t0 = time.time()
+    assert hook.lane_exempt("se", str(lane.main))[0] is False
+    assert time.time() - t0 < 3
+    lane.store.unlink()
+    lane.store.write_text(good)
+    # the config: corrupt, not a dict, missing
+    for cfg in ("{", "[]", "null"):
+        lane.config(cfg)
+        assert hook.lane_exempt("se", str(lane.main))[0] is False, cfg
+    (lane.work / "config.json").unlink()
+    assert hook.lane_exempt("se", str(lane.main))[0] is False
+    lane.config({"coordinator_mode": True})
+    # the ledger missing; the resolver missing, failing, printing UNDECLARED, hanging
+    (lane.main / "docs" / "DECISIONS.md").unlink()
+    assert hook.lane_exempt("se", str(lane.main))[0] is False
+    lane.owner("coordinator")
+    for n, body in enumerate(
+        (
+            "import sys; sys.exit(1)",
+            "print('UNDECLARED'); raise SystemExit(3)",
+            "import time; time.sleep(30)",
+        )
+    ):
+        stub = tmp_path / f"stub{n}.py"
+        stub.write_text(body + "\n")
+        lane.mp.setenv("QUOTA_STOP_DECISIONS_PY", str(stub))
+        t0 = time.time()
+        assert hook.lane_exempt("se", str(lane.main))[0] is False, body
+        assert time.time() - t0 < 3.5, f"the resolver ran past its budget: {body}"
+    lane.mp.setenv("QUOTA_STOP_DECISIONS_PY", str(tmp_path / "absent.py"))
+    assert hook.lane_exempt("se", str(lane.main))[0] is False
+    lane.mp.setenv("QUOTA_STOP_DECISIONS_PY", str(lane.decisions))
+    # a corrupt item is skipped, never fatal; a corrupt cache is ignored
+    lane.bind("se", "infra")
+    (lane.work / "W-eeeeeeee.json").write_text("{")
+    lane.item("W-ffffffff")
+    assert hook.lane_exempt("se", str(lane.main))[0] is True
+    lane.bind("se", "coordinator")
+    (lane.state / "lane-owner-cache.json").write_text("{ torn")
+    assert hook.lane_exempt("se", str(lane.main))[0] is True
+    # a `.git` that is neither a directory nor a gitdir file → held
+    odd = tmp_path / "odd"
+    odd.mkdir()
+    (odd / ".git").write_text("garbage\n")
+    assert hook.lane_exempt("se", str(odd))[0] is False
+    # end to end with the store gone: the hook still answers (held), exit 0
+    lane.store.unlink()
+    r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "se"})
+    assert r.returncode == 0 and _denied(r), (r.stdout, r.stderr)
+
+
+def test_the_merge_owner_is_cached_by_ledger_and_resolver_stamp(lane, tmp_path):
+    """The resolver spawns once per (ledger, resolver) state: a second call reads the cache, a
+    ledger edit re-resolves; a repo without coordinator_mode spawns nothing; the child never sees
+    CLAUDE_AGENT and runs isolated (`-I`)."""
+    calls = tmp_path / "calls"
+    stub = tmp_path / "stub_decisions.py"
+    stub.write_text(
+        "import pathlib\n"
+        f"with pathlib.Path({str(calls)!r}).open('a') as fh: fh.write('x')\n"
+        "print('coordinator')\n"
+    )
+    lane.mp.setenv("QUOTA_STOP_DECISIONS_PY", str(stub))
+    lane.bind("sk", "coordinator")
+    assert hook.lane_exempt("sk", str(lane.main))[0] is True
+    assert hook.lane_exempt("sk", str(lane.main))[0] is True
+    assert calls.read_text() == "x", "the second call must read the cache"
+    led = lane.main / "docs" / "DECISIONS.md"
+    st = led.stat()
+    os.utime(led, ns=(st.st_atime_ns, st.st_mtime_ns + 10**9))
+    assert hook.lane_exempt("sk", str(lane.main))[0] is True
+    assert calls.read_text() == "xx", "a ledger change must re-resolve"
+    lane.config({})
+    calls.unlink()
+    assert hook.lane_exempt("sk", str(lane.main))[0] is False
+    assert not calls.exists(), "no coordinator_mode: the resolver must not spawn"
+    probe = tmp_path / "probe_decisions.py"
+    seen = tmp_path / "seen"
+    probe.write_text(
+        "import os, pathlib, sys\n"
+        f"pathlib.Path({str(seen)!r}).write_text("
+        "repr((os.environ.get('CLAUDE_AGENT'), sys.flags.isolated)))\n"
+        "print('coordinator')\n"
+    )
+    lane.config({"coordinator_mode": True})
+    lane.mp.setenv("QUOTA_STOP_DECISIONS_PY", str(probe))
+    lane.mp.setenv("CLAUDE_AGENT", "coordinator")
+    assert hook.lane_exempt("sk", str(lane.main))[0] is True
+    assert seen.read_text() == "(None, 1)", seen.read_text()
+
+
+def test_the_hooks_identity_reader_agrees_with_whoami(lane):
+    """The hook reads the identity store itself (it is fleet-synced and imports nothing from
+    scripts/). Graded against `whoami_agent.py::resolve_agent_name` on one store with CLAUDE_AGENT
+    unset: several sids, a corrupt line, a malformed name, a later row winning."""
+    spec = importlib.util.spec_from_file_location("whoami_parity", _WHOAMI_PY)
+    who = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(who)
+    lane.bind("s1", "infra")
+    lane.bind("s2", "fleet")
+    with lane.store.open("a") as fh:
+        fh.write("{corrupt\n\n[]\n")
+        fh.write(json.dumps({"session_id": "s1", "name": "Bad Name", "toplevel": str(lane.common)}))
+        fh.write("\n")
+    lane.bind("s1", "kaizen")  # the later row wins
+    lane.bind("s3", "intel")
+    for sid in ("s1", "s2", "s3", "s4"):
+        lane.mp.setenv("CLAUDE_CODE_SESSION_ID", sid)
+        assert hook._bound_name(sid, lane.common) == who.resolve_agent_name(), sid
+    assert hook._bound_name("s1", lane.common) == "kaizen"
+
+
+def test_an_out_of_range_lift_epoch_never_crashes_the_park(lane):
+    """F1 (review round 1, executed): a stamp promise or a posture `five_hour.resets_at` outside the
+    platform's time_t range made `time.localtime` raise, `main()` exited 1 with no JSON, and Claude
+    Code ran the tool — a parked builder escaped. Every such epoch, a negative one and a past one
+    still give the deny JSON at rc 0, with the fallback lift text."""
+    lane.bind("so", "infra")
+    for promise in ("1e20", "1e300", "1e18", "-5", str(int(time.time()) - 3600)):
+        lane.stamp(promise, "urgent-90")
+        r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "so"})
+        assert r.returncode == 0 and _denied(r), (promise, r.returncode, r.stdout, r.stderr)
+        msg = json.loads(r.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+        assert "when the 5-hour window resets" in msg, (promise, msg)
+    lane.stamp("0", "urgent-90")
+    for resets in (1e20, 1e300, -5, time.time() - 3600):
+        (lane.state / "quota-posture.json").write_text(
+            json.dumps({"active": {"windows": {"five_hour": {"resets_at": resets}}}})
+        )
+        r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "so"})
+        assert r.returncode == 0 and _denied(r), (resets, r.returncode, r.stdout, r.stderr)
+        msg = json.loads(r.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+        assert "when the 5-hour window resets" in msg, (resets, msg)
+    # review round 2: an integer past float range (JSON reads it as an int, `float()` overflows) and a
+    # posture nested past the recursion limit (`json.loads` raises RecursionError) — neither may raise
+    for raw in (
+        '{"active":{"windows":{"five_hour":{"resets_at":1' + "0" * 400 + "}}}}",
+        "[" * 100_000 + "]" * 100_000,
+    ):
+        (lane.state / "quota-posture.json").write_text(raw)
+        r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "so"})
+        assert r.returncode == 0 and _denied(r), (raw[:40], r.returncode, r.stdout, r.stderr[-300:])
+        msg = json.loads(r.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+        assert "when the 5-hour window resets" in msg, (raw[:40], msg)
+    # a past stamp promise falls through to a live posture reset
+    lane.stamp(str(int(time.time()) - 3600), "urgent-90")
+    resets = time.time() + 2 * 3600
+    (lane.state / "quota-posture.json").write_text(
+        json.dumps({"active": {"windows": {"five_hour": {"resets_at": resets}}}})
+    )
+    r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "so"}, TZ="UTC")
+    msg = json.loads(r.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+    assert time.strftime("%H:%M", time.gmtime(resets)) in msg, msg
+
+
+def test_a_lift_on_another_day_names_the_date():
+    """F1: a lift that is not today names its date, or `at 08:30` reads as this morning."""
+    now = time.time()
+    later = now + 3 * 86400
+    lift = hook._render_lift(later, now)
+    assert time.strftime("%Y-%m-%d", time.localtime(later)) in lift, lift
+    assert time.strftime("%H:%M", time.localtime(later)) in lift, lift
+    soon = now + 60
+    if time.localtime(soon).tm_yday == time.localtime(now).tm_yday:
+        assert hook._render_lift(soon, now) == f"at {time.strftime('%H:%M', time.localtime(soon))}"
+    assert hook._render_lift(1e300, now) is None
+    assert hook._render_lift(now - 10, now) is None
+
+
+def test_the_finishing_verbs_take_no_trailing_arguments():
+    """F3 + F4 (review round 1, executed): `merge_request.py send` is no verb, and the claim branch
+    admitted any trailing args (`--session <other sid>`, `--repo /etc`, a second id). The claim
+    verbs take exactly one id; `request` takes only `--review`, `--item` and `--base`."""
+    for cmd in (
+        "python3 scripts/work.py claim W-0123abcd",
+        "python3 /opt/fabrik/scripts/work.py release W-0123abcd",
+        "python3 scripts/merge_request.py request --review r.md",
+        "python3 scripts/merge_request.py request --review /opt/fabrik/.tmp/runs/a/b.json "
+        "--item W-0123abcd --base master",
+        "python3 scripts/merge_request.py request --item W-0123abcd --review r.md",
+    ):
+        assert _at_lane(cmd) == "allow", cmd
+    for cmd in (
+        "python3 scripts/merge_request.py send",
+        "python3 scripts/merge_request.py send --to x",
+        "python3 scripts/work.py claim W-0123abcd --session other-sid",
+        "python3 scripts/work.py claim W-0123abcd --repo /etc",
+        "python3 scripts/work.py release W-0123abcd W-4567cdef",
+        "python3 scripts/work.py claim W-0123abcdx",
+        "python3 scripts/merge_request.py request --review r.md --force",
+        "python3 scripts/merge_request.py request --review r.md --item x",
+        "python3 scripts/merge_request.py request --review --base",
+        "python3 scripts/merge_request.py request extra",
+        "python3 scripts/merge_request.py requestx --review r.md",
+    ):
+        assert _at_lane(cmd) == "deny", cmd
+
+
+def test_a_p0_item_its_owner_cannot_work_exempts_nobody(lane):
+    """F5 (review round 1, executed): a `blocked` or `awaiting-operator` P0 still exempted its
+    owner, who cannot work it. Open is status exactly `open` (work.py STATUSES)."""
+    lane.bind("sq", "infra")
+    lane.item("W-abababab")
+    assert hook.lane_exempt("sq", str(lane.main))[0] is True  # the positive control
+    for status in ("blocked", "awaiting-operator", "done", "dropped", "", None, "OPEN"):
+        lane.item("W-abababab", status=status)
+        assert hook.lane_exempt("sq", str(lane.main))[0] is False, status
+    r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "sq"})
+    assert _denied(r), r.stdout
+
+
+# ── W-cff56c52: a /clear-rotated window re-binds its own name at the lane ──────────────────────
+_REBIND = "python3 /opt/fabrik/scripts/whoami_agent.py --as {} --force"
+_CLAUDE_PID, _CLAUDE_START = 4242, 777
+
+
+def _proc_stat(pid: int, start: int, name: str = "claude") -> str:
+    # field 22 (start time) is index 19 after the `)` — the layout `_pid_start` reads
+    return f"{pid} ({name}) " + " ".join(["S", *["0"] * 18, str(start), *["0"] * 5]) + "\n"
+
+
+def _fake_proc(
+    root: Path,
+    *,
+    chain: bool = True,
+    btime: int | None = 1,
+    live: dict[int, int] | None = None,
+    start: int = _CLAUDE_START,
+) -> Path:
+    """A /proc tree whose ancestry from THIS process climbs a shell (pid 4100, its own start
+    tick) to a `claude` (pid 4242, start 777) — the python3 -> sh -> claude shape a hook runs
+    under: `chain=False` ends the shell at pid 1 instead; `live` adds other running processes
+    {pid: start}."""
+    me = os.getpid()
+    (root / str(me)).mkdir(parents=True)
+    (root / str(me) / "status").write_text("Name:\tpython3\nPPid:\t4100\n")
+    (root / "4100").mkdir()
+    (root / "4100" / "status").write_text(f"Name:\tbash\nPPid:\t{_CLAUDE_PID if chain else 1}\n")
+    (root / "4100" / "stat").write_text(_proc_stat(4100, 555, name="bash"))
+    (root / str(_CLAUDE_PID)).mkdir()
+    (root / str(_CLAUDE_PID) / "status").write_text("Name:\tclaude\nPPid:\t1\n")
+    (root / str(_CLAUDE_PID) / "stat").write_text(_proc_stat(_CLAUDE_PID, start))
+    for pid, pstart in (live or {}).items():
+        (root / str(pid)).mkdir()
+        (root / str(pid) / "status").write_text("Name:\tclaude\nPPid:\t1\n")
+        (root / str(pid) / "stat").write_text(_proc_stat(pid, pstart))
+    if btime is not None:
+        (root / "stat").write_text(f"cpu  1 2 3\nbtime {btime}\n")
+    return root
+
+
+def _main_out(lane, monkeypatch, capsys, cmd: str, *, sid: str = "new-sid", cwd=None) -> str:
+    """Run the real `main()` in-process (so the fake /proc tree describes THIS process) and
+    return what it printed: a deny is a JSON object, an allow prints nothing on stdout."""
+    import io
+
+    payload = {
+        "tool_name": "Bash",
+        "tool_input": {"command": cmd},
+        "session_id": sid,
+        "cwd": str(lane.wt if cwd is None else cwd),
+    }
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(payload)))
+    capsys.readouterr()
+    assert hook.main() == 0
+    return capsys.readouterr().out
+
+
+def _mine(lane, sid: str, name: str, **extra: object) -> None:
+    lane.bind(sid, name, pid=_CLAUDE_PID, pid_start=_CLAUDE_START, **extra)
+
+
+def test_a_rotated_window_can_rebind_its_own_name_at_the_lane(lane, tmp_path, monkeypatch, capsys):
+    """Behaviour 1 (W-cff56c52): a `/clear` keeps the claude process and mints a new sid; the
+    re-bind of the name this process held last passes the lane through the real `main()`, in
+    the spelling the rotation prints and the two other shapes the lane admits — and the same
+    call with no claude ancestor is held, so the grader reaches the seam rather than an
+    allow-everything path."""
+    monkeypatch.delenv("CLAUDE_PID", raising=False)
+    monkeypatch.setenv("QUOTA_STOP_PROC_ROOT", str(_fake_proc(tmp_path / "proc")))
+    _mine(lane, "old-sid", "infra-3")
+    assert hook.lane_exempt("new-sid", str(lane.main))[0] is False  # parked before the re-bind
+    for cmd in (
+        _REBIND.format("infra-3"),
+        "python3 /opt/fabrik/scripts/whoami_agent.py --as infra-3",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --force --as infra-3",
+    ):
+        assert _main_out(lane, monkeypatch, capsys, cmd) == "", cmd
+        assert _main_out(lane, monkeypatch, capsys, cmd, cwd=lane.main) == "", cmd
+    monkeypatch.setenv("QUOTA_STOP_PROC_ROOT", str(_fake_proc(tmp_path / "p2", chain=False)))
+    assert '"deny"' in _main_out(lane, monkeypatch, capsys, _REBIND.format("infra-3"))
+
+
+def test_a_rebind_to_a_name_this_window_did_not_hold_last_is_held(
+    lane, tmp_path, monkeypatch, capsys
+):
+    """Behaviour 2: the lane's COBRA guard survives — a parked builder cannot bind the merge
+    owner's or another builder's name: never held here, held but not LAST, re-taken by another
+    window since, held by a LIVE foreign process (`--force` would override it), judged from
+    another repo's cwd, or reached through a nested claude (`CLAUDE_PID` disagreeing)."""
+    monkeypatch.delenv("CLAUDE_PID", raising=False)
+    monkeypatch.setenv("QUOTA_STOP_PROC_ROOT", str(_fake_proc(tmp_path / "proc")))
+
+    def held(name: str, **kw: object) -> bool:
+        return '"deny"' in _main_out(lane, monkeypatch, capsys, _REBIND.format(name), **kw)
+
+    lane.bind("coord-sid", "coordinator", pid=9001, pid_start=5)
+    _mine(lane, "s1", "infra-3")
+    assert held("coordinator")  # never this window's
+    _mine(lane, "s2", "infra-5")  # the operator moved this window to infra-5
+    assert held("infra-3") and not held("infra-5")
+    lane.bind("other", "infra-5", pid=5555, pid_start=1)  # another window took it since
+    assert held("infra-5")
+    _mine(lane, "s3", "infra-7")
+    assert not held("infra-7")
+    assert held("infra-7", cwd=tmp_path)  # a cwd outside the judged repo writes another scope
+    monkeypatch.setenv("CLAUDE_PID", "31337")
+    assert held("infra-7")
+    monkeypatch.setenv("CLAUDE_PID", str(_CLAUDE_PID))
+    assert not held("infra-7")
+    # an OLDER row of the name held by a live foreign process: --force would make two holders
+    lane.bind("live", "infra-8", pid=6666, pid_start=2)
+    _mine(lane, "s4", "infra-8")
+    assert not held("infra-8")  # 6666 is not running in the tree yet: a dead holder is no holder
+    live = _fake_proc(tmp_path / "p3", live={6666: 2})
+    monkeypatch.setenv("QUOTA_STOP_PROC_ROOT", str(live))
+    assert held("infra-8")
+    (live / "6666" / "stat").write_text(_proc_stat(6666, 3))  # pid reused by another process
+    assert not held("infra-8")
+    # a live holder row written before start ticks existed is pid-only, as whoami reads it
+    lane.bind("old", "infra-9", pid=6666)
+    _mine(lane, "s5", "infra-9")
+    assert held("infra-9")
+    # an unreadable /proc/<pid> is a live holder (fail closed)
+    real_is_dir = Path.is_dir
+
+    def is_dir(self: Path) -> bool:
+        if self.name == "6666":
+            raise PermissionError(13, "denied")
+        return real_is_dir(self)
+
+    monkeypatch.setattr(Path, "is_dir", is_dir)
+    (live / "6666" / "stat").write_text(_proc_stat(6666, 2))
+    lane.bind("old2", "infra-10", pid=6666, pid_start=2)
+    _mine(lane, "s6", "infra-10")
+    assert held("infra-10")
+
+
+def test_same_window_name_fails_closed(lane, tmp_path, monkeypatch):
+    """Behaviour 3: every doubt is "" (held) — no claude ancestor, rows without pid or start,
+    a bool pid, another scope; corrupt lines are skipped and digit strings count (whoami's
+    `_as_int`). A boot time is NOT a doubt (W-a77742db): WSL2's btime moves forward with each
+    host sleep, so a row written before the drifted btime — or a /proc with no btime at all —
+    still names its live window by pid + start tick. And the rows whoami's own `bind` writes
+    are the ones the hook reads (the writer/reader agreement)."""
+    monkeypatch.delenv("CLAUDE_PID", raising=False)
+    proc = _fake_proc(tmp_path / "proc", btime=1000)
+
+    def name(root: Path = proc, cwd: Path | None = None) -> str:
+        return hook._same_window_name(lane.common, str(lane.wt if cwd is None else cwd), root)
+
+    assert name() == ""  # an empty store
+    lane.bind("a", "infra-1")  # no pid at all
+    lane.bind("b", "infra-2", pid=_CLAUDE_PID)  # no start
+    lane.bind("c", "infra-3", pid=True, pid_start=_CLAUDE_START)
+    lane.bind("e", "infra-6", toplevel="/elsewhere/.git", pid=_CLAUDE_PID, pid_start=_CLAUDE_START)
+    assert name() == ""
+    with lane.store.open("a") as fh:
+        fh.write("{corrupt\n[]\n")
+    lane.bind("f", "infra-9", pid=str(_CLAUDE_PID), pid_start=str(_CLAUDE_START))
+    assert name() == "infra-9"
+    assert name(_fake_proc(tmp_path / "p2", chain=False)) == ""
+    # a bool start tick never equals a real one, even the tick 1 (`True == 1`)
+    lane.bind("g", "infra-12", pid=_CLAUDE_PID, pid_start=True)
+    assert name(_fake_proc(tmp_path / "p5", start=1)) == ""
+    lane.bind("h", "infra-12", pid=_CLAUDE_PID, pid_start=1)
+    assert name(_fake_proc(tmp_path / "p6", start=1)) == "infra-12"
+    assert name(_fake_proc(tmp_path / "p3", btime=None, start=1)) == "infra-12"  # no btime: no doubt
+    assert name(tmp_path / "missing") == ""
+    lane.bind("d", "infra-4", pid=_CLAUDE_PID, pid_start=1, at=999)  # before the drifted btime
+    assert name(_fake_proc(tmp_path / "p9", btime=1000, start=1)) == "infra-4"
+
+    # a hand-edited int name is read as its string, and the walk stops at `claude`, not the shell
+    lane.bind("i", 5, pid=_CLAUDE_PID, pid_start=_CLAUDE_START)
+    assert name(_fake_proc(tmp_path / "p7")) == "5"
+    lane.bind("j", "infra-13", pid=4100, pid_start=555)  # the shell's own key is not this window
+    assert name(_fake_proc(tmp_path / "p8")) == "5"
+
+    spec = importlib.util.spec_from_file_location("whoami_parity_rebind", _WHOAMI_PY)
+    who = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(who)
+    monkeypatch.setattr(who, "_session_pid", lambda: _CLAUDE_PID)
+    monkeypatch.setattr(who, "_pid_start", lambda pid: _CLAUDE_START if pid else None)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "fresh")
+    monkeypatch.chdir(lane.wt)
+    assert who.bind("infra-11", force=True)[0] == 0
+    assert name(_fake_proc(tmp_path / "p4", btime=1)) == "infra-11"
+
+
+def test_the_rebind_shape_is_exact():
+    """Behaviour 4: whoami's argparse binds `--a`, `--as=`, `--f` and the LAST of repeated
+    `--as` (executed by both critique seats), so the lane admits one literal shape: the hub's
+    absolute path, one `--as <name>`, at most one `--force`, nothing else — and only for the
+    name the hook resolved for this window."""
+
+    def at_lane(cmd: str, rebind: str = "infra-3") -> str:
+        return hook.decide(
+            "Bash", cmd, stamp_exists=True, tick_age_s=10.0, tier="urgent-90", exempt=False,
+            rebind=rebind,
+        )[0]  # fmt: skip
+
+    assert at_lane(_REBIND.format("infra-3")) == "allow"
+    assert at_lane(_REBIND.format("infra-3"), rebind="") == "deny"
+    assert at_lane(_REBIND.format("coordinator")) == "deny"
+    for cmd in (
+        "python3 /opt/fabrik/scripts/whoami_agent.py --as=infra-3 --force",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --a infra-3 --force",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --as infra-3 --as coordinator",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --as infra-3 --force --as coordinator",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --force --as infra-3 --force",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --force --as --force infra-3",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --as infra-3 --f",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --as infra-3 --force extra",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --as INFRA-3",
+        "python3 /opt/fabrik/scripts/whoami_agent.py --as -infra-3",
+        "python3 /opt/fabrik/scripts/whoami_agent.py infra-3",
+        "python3 scripts/whoami_agent.py --as infra-3 --force",
+        "python3 /opt/evil/scripts/whoami_agent.py --as infra-3 --force",
+        "python3 x/opt/fabrik/scripts/whoami_agent.py --as infra-3 --force",
+        _REBIND.format("infra-3") + " && touch m",
+        _REBIND.format("infra-3") + "; python3 scripts/foo.py",
+        "cd /tmp && " + _REBIND.format("infra-3"),
+        _REBIND.format("infra-3") + " > /tmp/x",
+    ):
+        assert at_lane(cmd) == "deny", cmd
+
+
+def test_the_lane_admits_work_next_only_bare_and_only_at_urgent():
+    """Behaviour 5: `work.py next` is read-only (`cmd_next` prints one line) and the rotation's
+    resume prompt runs it, so a parked session may; any argument is held, and at `walled` both
+    new verbs stay held like the claim verbs."""
+    for cmd in ("python3 scripts/work.py next", "python3 /opt/fabrik/scripts/work.py next"):
+        assert _at_lane(cmd) == "allow", cmd
+    for cmd in (
+        "python3 scripts/work.py next --repo /tmp",
+        "python3 scripts/work.py next W-0123abcd",
+        "python3 scripts/work.py nextx",
+        "python3 scripts/work.py next && touch m",
+    ):
+        assert _at_lane(cmd) == "deny", cmd
+    for cmd, rebind in (
+        ("python3 scripts/work.py next", ""),
+        (_REBIND.format("infra-3"), "infra-3"),
+    ):
+        assert (
+            hook.decide(
+                "Bash", cmd, stamp_exists=True, tick_age_s=10.0, tier="walled", rebind=rebind
+            )[0]
+            == "deny"
+        ), cmd
+
+
+def test_the_rebind_check_runs_only_on_the_rebind_call_and_fails_closed(
+    lane, tmp_path, monkeypatch, capsys
+):
+    """The /proc walk is lazy (only a Bash call naming whoami_agent.py, so every other parked call
+    keeps the hook's 5 s budget) and sits inside main()'s try: a raise there holds the re-bind,
+    where an escaped raise would exit 1 and let Claude Code run the tool (fail OPEN)."""
+    monkeypatch.delenv("CLAUDE_PID", raising=False)
+    monkeypatch.setenv("QUOTA_STOP_PROC_ROOT", str(_fake_proc(tmp_path / "proc")))
+    _mine(lane, "old-sid", "infra-3")
+    calls: list[str] = []
+
+    def boom(*a: object, **k: object) -> str:
+        calls.append("called")
+        raise RuntimeError("proc walk failed")
+
+    monkeypatch.setattr(hook, "_same_window_name", boom)
+    assert _main_out(lane, monkeypatch, capsys, "python3 scripts/work.py next") == ""
+    assert '"deny"' in _main_out(lane, monkeypatch, capsys, "python3 scripts/foo.py")
+    assert calls == []
+    assert '"deny"' in _main_out(lane, monkeypatch, capsys, _REBIND.format("infra-3"))
+    assert calls == ["called"]
+
+
+def test_proc_start_reads_past_a_paren_in_the_process_name(tmp_path):
+    """Field 22 is counted after the LAST `)`: a process named `a) b` must not shift it."""
+    (tmp_path / "77").mkdir()
+    (tmp_path / "77" / "stat").write_text(_proc_stat(77, 4321, name="a) S 9 9"))
+    assert hook._proc_start(tmp_path, 77) == 4321
+    assert hook._proc_start(tmp_path, 78) is None
+
+
+def test_the_scope_realpath_runs_once_per_distinct_scope(lane, monkeypatch):
+    """`_scoped_rows` runs on every parked call (through `_bound_name`), so a store of many rows
+    sharing one scope costs one realpath for it, never one per row (review pass 1: 0.60 -> 2.97
+    ms per call on the live 140-row store)."""
+    for i in range(30):
+        lane.bind(f"s{i}", "infra")
+    lane.bind("other", "infra", toplevel="/elsewhere/.git")
+    real = os.path.realpath
+    seen: list[str] = []
+
+    def counting(p: object, *a: object, **k: object) -> str:
+        seen.append(str(p))
+        return real(p, *a, **k)
+
+    monkeypatch.setattr(hook.os.path, "realpath", counting)
+    assert len(hook._scoped_rows(lane.common)) == 30
+    # the judged scope itself, then one per distinct row scope (2): 3, where per-row was 32
+    assert len(seen) == 3 and seen.count("/elsewhere/.git") == 1, seen
+
+
+# --- W-effb7141: a session on an Anthropic API key draws no plan quota --------------------------
+
+
+@pytest.mark.parametrize("tier", ["walled", "urgent-90"])
+def test_an_api_key_session_is_not_held_by_the_wall_or_the_lane(tmp_path, tier):
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "fleet-exhausted").write_text(f"1\n{tier}\n")
+    r = _run(
+        tmp_path,
+        {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}, "session_id": "s1"},
+        stamp=False,
+        tick_fresh=True,
+        extra_env={"ANTHROPIC_API_KEY": "sk-ant-api03-x"},
+    )
+    assert r.returncode == 0
+    assert r.stdout.strip() == "", r.stdout
+    assert "API key" in r.stderr
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"ANTHROPIC_API_KEY": "sk-ant-api03-x", "CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-x"},
+        {"ANTHROPIC_API_KEY": "sk-ant-api03-x", "ANTHROPIC_AUTH_TOKEN": "bearer"},
+        {"ANTHROPIC_API_KEY": "sk-ant-api03-x", "CLAUDE_CODE_USE_BEDROCK": "1"},
+        {"ANTHROPIC_API_KEY": "sk-ant-api03-x", "CLAUDE_CODE_USE_VERTEX": "1"},
+        {"ANTHROPIC_API_KEY": "sk-ant-api03-x", "CLAUDE_CODE_USE_FOUNDRY": "0"},
+        {"ANTHROPIC_API_KEY": "  "},
+        {},
+    ],
+    ids=[
+        "oauth-token-beside-the-key",
+        "auth-token-beside-the-key",
+        "bedrock",
+        "vertex",
+        "foundry-any-value",
+        "blank-key",
+        "no-key",
+    ],
+)
+def test_a_plan_session_is_still_held_at_the_wall(tmp_path, extra):
+    """On a PLAIN quota tier — the one stamp an API-key session passes — so each case grades the
+    env predicate alone, never the tier rule."""
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "fleet-exhausted").write_text("1\nwalled\n")
+    r = _run(
+        tmp_path,
+        {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}},
+        stamp=False,
+        tick_fresh=True,
+        extra_env=extra,
+    )
+    assert json.loads(r.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+@pytest.mark.parametrize(
+    "line2",
+    ["battery", "bogus", "", " BATTERY", "walled-ish"],
+    ids=["battery", "unknown-tier", "pre-tier", "padded-battery", "near-miss"],
+)
+def test_only_a_plain_quota_tier_lets_an_api_key_session_through(tmp_path, line2):
+    """The battery stamp (D-898) protects the BOX, not plan quota, and any line 2 that is not
+    plainly `walled` or `urgent-90` holds — the unknown case is never the lenient one."""
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "fleet-exhausted").write_text(f"1\n{line2}\n")
+    r = _run(
+        tmp_path,
+        {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}},
+        stamp=False,
+        tick_fresh=True,
+        extra_env={"ANTHROPIC_API_KEY": "sk-ant-api03-x"},
+    )
+    assert json.loads(r.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_a_battery_stamp_that_is_a_directory_still_holds_an_api_key_session(tmp_path):
+    state = tmp_path / "state"
+    (state / "fleet-exhausted").mkdir(parents=True)
+    r = _run(
+        tmp_path,
+        {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}},
+        stamp=False,
+        tick_fresh=True,
+        extra_env={"ANTHROPIC_API_KEY": "sk-ant-api03-x"},
+    )
+    assert json.loads(r.stdout)["hookSpecificOutput"]["permissionDecision"] == "deny"
+
+
+def test_a_stale_tick_keeps_its_own_warning_for_an_api_key_session(tmp_path):
+    """A stale tick means the hold is OFF: the session hears the dead-cron warning every plan
+    session hears, never a claim that the hold is in force."""
+    r = _run(
+        tmp_path,
+        {"tool_name": "Edit", "tool_input": {"file_path": "x.py"}},
+        stamp=True,
+        tick_fresh=False,
+        extra_env={"ANTHROPIC_API_KEY": "sk-ant-api03-x"},
+    )
+    assert r.stdout.strip() == ""
+    assert "rotation tick has not run" in r.stderr
+    assert "API key" not in r.stderr
+
+
+def test_an_allowed_call_prints_no_exemption_note(tmp_path):
+    r = _run(
+        tmp_path,
+        {"tool_name": "Read", "tool_input": {"file_path": "x.py"}},
+        stamp=True,
+        tick_fresh=True,
+        extra_env={"ANTHROPIC_API_KEY": "sk-ant-api03-x"},
+    )
+    assert r.stdout.strip() == "" and r.stderr == ""
+
+
+# ── W-a77742db: a window resumed into a new claude process re-binds after /clear ───────────────
+def test_a_window_resumed_into_a_new_process_rebinds_after_clear(
+    lane, tmp_path, monkeypatch, capsys
+):
+    """Behaviour 5 (mail 01M5X0TW6A, the hub coordinator 2026-10-26): the session was bound under
+    an EARLIER claude process and resumed into this one, then /cleared. Without a row under this
+    process the lane holds the re-bind (the incident, replayed); once whoami's `refresh()` — what
+    SessionStart runs on the resume — has re-recorded the session under this process, the real
+    lane `main()` lets the /clear successor re-bind its name, even with the host's btime drifted
+    past the refresh row (the design's Behaviour 6: WSL2's btime moves forward with each sleep)."""
+    monkeypatch.delenv("CLAUDE_PID", raising=False)
+    monkeypatch.setenv("QUOTA_STOP_PROC_ROOT", str(_fake_proc(tmp_path / "proc")))
+    lane.bind("old-sid", "coordinator", pid=9000, pid_start=5)  # the process before the resume
+    rebind = _REBIND.format("coordinator")
+    assert '"deny"' in _main_out(lane, monkeypatch, capsys, rebind)  # the incident
+    spec = importlib.util.spec_from_file_location("whoami_refresh_lane", _WHOAMI_PY)
+    who = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(who)
+    monkeypatch.setattr(who, "_session_pid", lambda: _CLAUDE_PID)
+    monkeypatch.setattr(who, "_pid_start", lambda pid: _CLAUDE_START if pid == _CLAUDE_PID else None)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "old-sid")
+    monkeypatch.chdir(lane.wt)  # whoami scopes by the git common dir of its cwd
+    assert who.refresh() == "coordinator"  # SessionStart on the resume
+    assert _main_out(lane, monkeypatch, capsys, rebind) == ""  # the /clear successor (new-sid)
+    drifted = int(time.time()) + 86_400  # a day of host sleep pushed btime past every row
+    monkeypatch.setenv("QUOTA_STOP_PROC_ROOT", str(_fake_proc(tmp_path / "p2", btime=drifted)))
+    assert _main_out(lane, monkeypatch, capsys, rebind) == ""
+    assert '"deny"' in _main_out(lane, monkeypatch, capsys, _REBIND.format("infra-3"))
+
+
+def test_the_hold_texts_promise_only_the_git_verbs_that_pass(lane):
+    """Behaviour 7 (mail 01M5X0TW6A): the texts said "Reads, git, …" stay allowed while only the
+    checkpoint and read verbs pass, so `git -C /opt/fabrik grep` was refused under a text that
+    promised it. Every git verb the lane and wall texts name passes both tiers in a plain shape,
+    every Bash read they name passes, only the read verbs pass through `git -C`, and `git grep`
+    stays held (the Grep tool already reads any path; `-O<pager>` runs a program)."""
+    import re as _re
+
+    lane.bind("sm", "infra")
+
+    def reason() -> str:
+        r = lane.run({"tool_name": "Edit", "tool_input": {}, "session_id": "sm"})
+        return json.loads(r.stdout)["hookSpecificOutput"]["permissionDecisionReason"]
+
+    lane_msg = reason()
+    lane.stamp("0", "walled")
+    wall_msg = reason()
+    assert lane_msg != wall_msg  # both tiers were read
+    sample = {
+        "add -- <paths>": "git add -- a.py",
+        "commit -m <msg> -- <paths>": "git commit -m 'x' -- a.py",
+        "push": "git push",
+        "fetch": "git fetch",
+        "status": "git status",
+        "diff": "git diff",
+        "log": "git log -1",
+        "show": "git show HEAD",
+        "rev-parse": "git rev-parse HEAD",
+        "reset HEAD -- <paths>": "git reset -q HEAD -- a.py",
+    }
+    read_verbs = ("status", "diff", "log", "show", "rev-parse")
+    # the wall's one message is pinned under 1,000 chars, so it carries the short true form
+    assert "Reads, git," not in wall_msg and "Reads, git checkpoints," in wall_msg, wall_msg
+    for msg in (lane_msg, hook.__doc__ or ""):
+        assert "Reads, git," not in msg and "git checkpointing" not in msg, msg
+        verbs = _re.search(r"git checkpoint and read verbs with their plain flags \(([^;)]*)", msg)
+        reads = _re.search(r"and Bash ([a-z, ]+) and stat\)", msg)
+        assert verbs and reads, msg
+        named = [v.strip() for v in verbs.group(1).replace(" and ", ", ").split(",") if v.strip()]
+        assert sorted(named) == sorted(sample), named
+        for verb in named:
+            assert hook._bash_allowed(sample[verb]), verb
+            assert _at_lane(sample[verb]) == "allow", verb
+        for tool in [t.strip() for t in reads.group(1).split(",")] + ["stat"]:
+            assert hook._bash_allowed(f"{tool} a.txt"), tool
+        assert "through git -C /opt/<repo>, the read verbs only" in msg, msg
+    for verb in read_verbs:
+        assert hook._bash_allowed(sample[verb].replace("git ", "git -C /opt/fabrik ", 1)), verb
+        # review r1 (B-haiku-3): only an /opt repo relocates
+        assert not hook._bash_allowed(sample[verb].replace("git ", "git -C /tmp/x ", 1)), verb
+    for verb in ("add -- <paths>", "commit -m <msg> -- <paths>", "push", "fetch"):
+        assert not hook._bash_allowed(sample[verb].replace("git ", "git -C /opt/fabrik ", 1)), verb
+    for cmd in ("git grep x", "git -C /opt/fabrik grep x", "git grep -Ols x"):
+        assert not hook._bash_allowed(cmd), cmd
+        assert _at_lane(cmd) == "deny", cmd
+    # review r1 (B-sonnet-2): the shapes the texts no longer promise stay held
+    for cmd in ("git add .", "git commit -m 'x'", "git commit -- a.py"):  # + review r2 (B-sonnet-2)
+        assert not hook._bash_allowed(cmd), cmd

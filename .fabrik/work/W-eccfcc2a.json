@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T08:10:57.007929Z",
   "creator": "fleet",
+  "effort": "low",
   "evidence": "",
   "id": "W-eccfcc2a",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -12,9 +14,13 @@
     "spec": ""
   },
   "next": "build the venv + ExecStart + docs change as a /fabrik-task, keeping the 22.7 pin",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "fleet",
   "priority": 3,
-  "status": "open",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — pip break-system-packages on spokes works today",
+  "status": "dropped",
+  "tags": [
+    "medium"
+  ],
   "title": "python-telegram-bot on the spokes still installs with pip --break-system-packages (deferred from W-1c322b9e): move it to a venv in ONE change with the bot unit's ExecStart (scripts/bootstrap/templates/vps-sysadmin-bot.service.template:12, ops/vps-sysadmin-bot.service:12) and the docs, or the bot breaks"
 }

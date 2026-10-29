@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T23:25:58.092142Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-7f129c09",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4PG62A9DGVH1R7X1VTA4ES5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: /fabrik-task feedback queue — 21 code verdicts: 18 rows boarded as 9 infra items, 3 rows rejected"
+}

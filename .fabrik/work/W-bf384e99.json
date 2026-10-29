@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T22:23:05.366825Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-bf384e99",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4YTHZ83GTWE7W46801HPS0H",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "mt-router — the .env autoload now loads the MT_CLAUDE_* tier switches (fabrik-lib D-447, SB-129)"
+}

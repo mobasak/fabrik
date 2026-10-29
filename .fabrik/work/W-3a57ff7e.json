@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
   "created": "2026-09-18T00:00:00.000000Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-3a57ff7e",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,6 +19,10 @@
   "note": "migrated-digest:43c0cd5f260e",
   "owner": "infra",
   "priority": 2,
+  "score_reason": "records check 2026-10-17: affects every repo's sync trigger, fleet-wide — measured 38/38 repos differ in governance-sync regex; no commit; not re-measured",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "**The governance-sync `files:` regex differs from the hub's in 38 of 38 non-hub `/opt/*` repos (2026-09-18)** — measured by parsing the `- id: governance-sync` block in each of the 39 `/opt/*/.pre-..."
 }

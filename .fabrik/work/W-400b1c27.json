@@ -1,0 +1,28 @@
+{
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
+  "created": "2026-10-12T18:04:40.076292Z",
+  "creator": "infra",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-400b1c27",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure each against final_gate_stop.py's sixth and second causes; heavy surface, full review",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — Stop hook false blocks across several causes; needs split",
+  "status": "open",
+  "tags": [
+    "needs-split"
+  ],
+  "title": "final_gate_stop.py spontaneous-work and uncommitted causes: exempt an untracked ignored file CLAUDE.md prescribes (1790758135); count docs/config and Bash-written files (1790714233, proposal 201f7ead); stand down while a review-family record runs with seats out (1790240906); a running review record whose --surface names the edited files covers the cause (1789155705) — kaizen mail 01M4PHYRB6"
+}

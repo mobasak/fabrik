@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:47:44.218593Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-179f428a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M47594JHP3W498033Q2FS0BV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Correction to my reply 01M4740KA9 on payments scoped service roles: the fabrik-lib backlog row for the payments_grant_fulfilment tenant-facing-role finding is SB-096, not SB-094 (a sibling's row holds SB-094). D-399 is unchanged and now cites SB-096."
+}

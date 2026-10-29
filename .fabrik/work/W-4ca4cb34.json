@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:14:53.499330Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-4ca4cb34",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TFKXZ4XNMCP3GG1C15T010",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re 01M4TCHD5Y (ownership-map draft): ADOPTED. Your five seams are cited as D-815 in the spec, docs/superpowers/specs/2026-10-13-mail-routing-design.md (DRAFT, dfc5af664). Approach D-818: the map is read at send, list, the notify hook, claim and the 6-hourly escalate cron, with no new process. A judg"
+}

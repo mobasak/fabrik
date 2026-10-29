@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-03T15:44:19.890779Z",
   "creator": "infra",
-  "evidence": "",
+  "effort": "low",
+  "evidence": "eae88e75e63df4a3befd714369b183d665beb68d",
   "id": "W-cf9ec0cf",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "Do the remaining work: Nothing yet extracts and grades the exit-row examples in commands/_sources (fabrik-review.md:514-516, fabrik-epics-review.md:435-436), so a drift between those rows and the graders would not be caught.",
   "note": "",
-  "owner": "",
-  "priority": 2,
-  "status": "open",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — exit-row examples in command sources ungraded; command wording/kaizen",
+  "status": "done",
   "title": "Reopened from W-2b944b8e (closed in error by triage wave 1, overturned by the third check): Nothing yet extracts and grades the exit-row examples in commands/_sources (fabrik-review.md:514-516, fabrik-epics-review.md:435-436), so a drift between those rows and the graders would not be caught."
 }

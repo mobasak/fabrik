@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T07:38:03.460311Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "de3c37b54a7852127e28347d31c34c4a395f3a0a",
+  "id": "W-cfff98dd",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: (a) load the coordinator's seven jobs (templates/governance/CLAUDE.md § The coordinator role) at every session start/compact/resume — agent_role.py include; (d) grader: every charter names the current merge owner; (e) one command printing each hub agent's NOW/DONE/NEXT from command-runs/*.json + the work store + git log, injected at the coordinator's SessionStart. (b) and (c) DONE by the coordinator at 3e021264e (D-880, D-882)",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "Operator-ordered: an agent that forgets its role after compaction mis-routes, merges or builds outside its beat; fix is one hook include plus four charter lines",
+  "status": "done",
+  "tags": [
+    "charters",
+    "queued"
+  ],
+  "title": "Every hub agent must load its full duties on every session start, compact and resume (operator 2026-10-15: 'you and all these agents will know their duties by heart even though they lose context? if not you must'). Gaps measured: (1) the coordinator charter only POINTS to templates/governance/CLAUDE.md § The coordinator role for the seven jobs / Never list / escalation / priority table, and that template section is never loaded in the hub, so after a compaction the coordinator has a pointer, not its duties; (2) stale charter text: kaizen.md says 'infra stays merge owner and coordinator' and 'infra merges' (D-874 moved both), intel.md says 'infra owns work.py assign', infra.md and fleet.md say native messaging is 'pending the server-side feature flag' (it is live); (3) a window launched without CLAUDE_AGENT and not yet bound by whoami gets no charter at all"
+}

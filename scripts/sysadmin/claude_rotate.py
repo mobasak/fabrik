@@ -37,6 +37,7 @@ import os
 import re
 import select
 import shutil
+import ssl
 import stat
 import subprocess
 import sys
@@ -57,6 +58,14 @@ ACCOUNTS_DIR = CLAUDE_DIR / "manager-accounts"
 # .credentials.json). It is the one file a new fleet dir is seeded from, so a fresh dir needs no
 # re-onboarding and no re-trusting; the operator's single /login replaces its OAuth section.
 USER_CLAUDE_JSON = Path.home() / ".claude.json"
+# W-b29a4f40 (D-1246): the user-level servers every `--sync-*` takes from the MCP catalog, whatever the source
+# roster holds — credential-free only (a `${VAR}` entry is refused). Found by REPO path so the aro-wake twin
+# reads the same catalog. COBRA: the cheapest pass is a sync that skips the overlay when the catalog is bad;
+# it refuses instead (rc 2, nothing written), since a roster pushed without rea removes it from every account.
+USER_CATALOG_SERVERS: Final = ("rea",)
+MCP_DEFS_PATH = Path(__file__).resolve().parents[1] / "sysadmin" / "mcp_defs.json"
+# The fleet root's park directory (`--merge-shared` parks copies under it) — not an account dir.
+_PARK_ROOT_NAME: Final = "backups"
 _CRED_MARGIN_S = 300  # never hand over a token that dies mid-switch
 BACKUP_CREDS = CLAUDE_DIR / ".credentials.json.prev"  # single rolling backup of outgoing active
 ROTATE_LOCK = CLAUDE_DIR / ".claude-rotate.lock"
@@ -1207,6 +1216,63 @@ a bound the test had pinned exactly 8 days earlier (627f8815) — the test then 
 red until fleet ran the full suite and reported it (01M1MG98SC90HB863AW18XJKQ6)."""
 
 
+# Per-process TRANSPORT-DEAD latch for `_oauth_get` (W-5a1b8961, D-939). When ONE call fails on
+# EVERY host with a transport error — an OSError (timeout, URLError, socket, ssl) on every attempt,
+# never an HTTP status — the link is down for this process, and every further call inside the TTL
+# returns None at once instead of spending its own `len(_OAUTH_HOSTS) * attempts * timeout_s`
+# budget. That keeps `--status --json` inside quota_dashboard.py's 60 s subprocess cap under a dead
+# uplink: observed 2026-10-12 (WSL NAT over a Tetrd USB-tether tunnel, every outbound TCP SYN
+# stalled, DNS/ICMP fine) — the fleet loop made N accounts × ~33 s of hopeless probes and the board
+# showed "Live probe failed — TimeoutExpired after 60s" instead of the cached last-good rows.
+# - Only POSITIVE evidence marks it: a non-OSError (a ValueError from a token holding "\n" — raised
+#   by http.client before any I/O —, a malformed body, a bug) is not a dead link, and one bad
+#   credential must not blank every other account (both design critiques executed this).
+# - Any contact clears it: an HTTP status of any kind, a success, or a TLS certificate refusal (a
+#   captive portal answered) proves the link is up — and a call that was in flight while contact
+#   landed never marks afterwards (the contact generation).
+# - Missed on purpose: http.client's BadStatusLine / IncompleteRead are not OSErrors, so a link that
+#   only ever fails that way never latches (fail open, the pre-latch cost).
+# - Sequential callers pay one hopeless call; concurrent callers already in flight when the first
+#   marks still finish their own budget. A link that answers within OAUTH_GET_TIMEOUT_S on any
+#   attempt never marks; one slower than it on EVERY attempt is indistinguishable from dead and
+#   does. The slow-but-answering shape overrunning the dashboard cap is W-afe30d1c's.
+# - The TTL is a safety net for a long-lived caller (the tick, aro-wake, bot.py): a short-lived
+#   `--status` process never outlives it.
+_OAUTH_TRANSPORT_DEAD_TTL_S: Final = 60.0
+_oauth_transport_dead_at: float | None = None
+_oauth_contact_gen = (
+    0  # bumped by every contact; a call that saw contact land meanwhile never marks
+)
+_oauth_transport_lock = threading.Lock()
+
+
+def _oauth_transport_dead() -> bool:
+    with _oauth_transport_lock:
+        at = _oauth_transport_dead_at
+    return at is not None and (time.monotonic() - at) < _OAUTH_TRANSPORT_DEAD_TTL_S
+
+
+def _oauth_contact_seen() -> int:
+    with _oauth_transport_lock:
+        return _oauth_contact_gen
+
+
+def _oauth_mark_transport_dead(since_gen: int | None = None) -> None:
+    """Mark the link dead — unless a contact landed after `since_gen` was read: a call that was
+    in flight when another call reached the API must not re-poison the latch that contact cleared."""
+    global _oauth_transport_dead_at
+    with _oauth_transport_lock:
+        if since_gen is None or since_gen == _oauth_contact_gen:
+            _oauth_transport_dead_at = time.monotonic()
+
+
+def _oauth_clear_transport_dead() -> None:
+    global _oauth_transport_dead_at, _oauth_contact_gen
+    with _oauth_transport_lock:
+        _oauth_transport_dead_at = None
+        _oauth_contact_gen += 1
+
+
 def _oauth_get(
     path: str,
     token: str,
@@ -1251,6 +1317,11 @@ def _oauth_get(
     # is a HOST verdict, not a token verdict — falling through to the sibling host turns a
     # permanently-throttled vantage into a working probe. 401/403 stays definitive (dead/wrong
     # token — no host will differ); 5xx retries the same host.
+    if _oauth_transport_dead():
+        return None  # the link is down for this process — do not spend another budget
+    gen = _oauth_contact_seen()  # a contact by another call after this point voids our mark
+    transport_only = True  # flips False on anything that is not a transport error
+    saw_transport = False  # flips True on an OSError — the only POSITIVE evidence of a dead link
     for host in _OAUTH_HOSTS:
         req = urllib.request.Request(
             f"https://{host}/api/oauth/{path}",
@@ -1266,17 +1337,32 @@ def _oauth_get(
         for i in range(attempts):
             try:
                 with urllib.request.urlopen(req, timeout=timeout_s) as r:
-                    return json.load(r)
+                    transport_only = False
+                    body = json.load(r)
+                    _oauth_clear_transport_dead()  # the link answered
+                    return body
             except urllib.error.HTTPError as e:
+                transport_only = False
+                _oauth_clear_transport_dead()  # any HTTP status: the transport is alive
                 if e.code in (401, 403):
                     return None  # definitive (dead/wrong token) — no other host will differ
                 if e.code < 500:
                     break  # 429/other-4xx: this HOST refuses — try the next host
                 # 5xx is a transient server error → fall through to the retry
+            except ssl.SSLCertVerificationError:
+                # something answered the TLS handshake (a captive portal, an intercepting proxy):
+                # the link is up, so this is contact, never transport evidence
+                transport_only = False
+                _oauth_clear_transport_dead()
+            except OSError:
+                saw_transport = True  # timeout / URLError / socket / ssl — transient, retry
             except Exception:
-                pass  # timeout / URLError / socket / malformed JSON — transient, retry
+                transport_only = False  # malformed JSON, a bad header, a bug — not a dead link
             if i < attempts - 1:
                 time.sleep(backoff_s * (i + 1))
+    if transport_only and saw_transport:
+        # every host, every attempt: a transport error, nothing else — and no contact meanwhile
+        _oauth_mark_transport_dead(since_gen=gen)
     return None
 
 
@@ -1551,6 +1637,13 @@ _FLEET_TOKEN_FRESH_S = 8 * 3600
 # --status/--tick warn inside _CHAIN_EXPIRY_WARN_S with the exact re-login block, and the tick
 # pushes once per chain (mesh-notify) inside _CHAIN_PUSH_S. The old --keepalive ping is retired.
 _CHAIN_PUSH_S = 3 * 86400
+# W-e8fc8685: an UNCONFIRMED chain push is re-attempted at the first tick at or past this many
+# seconds after the last attempt, never every tick — set equal to the notifier's own delivered-send
+# window (`claude-sound.sh mesh-notify`: `[ $((now - last)) -lt 1800 ]`), which no retry inside it
+# could beat after a delivered send; after a FAILED send it delays the next try by at most one
+# window plus the tick's 5 minutes, on a 3-day horizon. Restated, not derived: the notifier lives
+# outside the repo (~/.claude/bin). The printed strings take their minutes from this constant.
+_CHAIN_PUSH_BACKOFF_S = 1800.0
 
 
 def _pull_opts(args: list[str], names: tuple[str, ...]) -> tuple[list[str], dict[str, str], bool]:
@@ -1813,6 +1906,12 @@ def _cmd_new_dir(
             "symlink (scaffolding it would write INTO whichever account dir the pointer names)\n"
         )
         return 2
+    if slug == _PARK_ROOT_NAME:
+        sys.stderr.write(
+            f"claude_rotate: refusing slug {slug!r} — reserved for the fleet's park root (--merge-shared "
+            "parks copies there, and --sync-* skips it, so an account by that name would never be synced)\n"
+        )
+        return 2
     if "@" not in email:
         sys.stderr.write(f"claude_rotate: refusing account {email!r} — expected an email address\n")
         return 2
@@ -2029,10 +2128,15 @@ def _scaffold_dir(dest: Path, notes: list[str], source: Path) -> None:
         if link.exists():
             # a REAL dir where the link belongs is the D-287 state; a silent resume kept it
             # invisible (scoped review, seat A F2) — say it, never touch it (it may hold live records)
+            how = (
+                f"run `claude_rotate.py --merge-shared {name}` (it links the dir, merges its entries and "
+                "parks what differs; --dry-run shows the plan)"
+                if name in _MERGE_SHARED_NAMES
+                else f"merge it into {CLAUDE_DIR / name} by hand and replace it with the symlink"
+            )
             notes.append(
                 f"{name}/ is a REAL directory, not the shared link — its contents are invisible "
-                f"to every other account; merge it into {CLAUDE_DIR / name} by hand and replace "
-                "it with the symlink"
+                f"to every other account; {how}"
             )
             continue
         src = CLAUDE_DIR / name
@@ -2078,7 +2182,8 @@ def _merge_roster_once(target: Path, roster: dict) -> str | None:
     """
     for attempt in (0, 1):
         try:
-            before = target.stat().st_mtime_ns
+            st = target.stat()
+            before, mode = st.st_mtime_ns, st.st_mode & 0o777  # keep the file's own mode
             blob = json.loads(target.read_text())
             if not isinstance(blob, dict):
                 raise ValueError("not a JSON object")
@@ -2092,10 +2197,37 @@ def _merge_roster_once(target: Path, roster: dict) -> str | None:
                 if attempt == 0:
                     continue  # a live write landed under us — re-read and re-merge onto it
                 return "changed under us twice (a live session is writing it) — skipped"
-            _write_json_atomic(target, blob)
+            _write_json_atomic(target, blob, mode=mode)
         except (OSError, ValueError) as e:
             return f"write failed ({e})"
         return None
+
+
+def _catalog_overlay() -> tuple[dict | None, str]:
+    """({name: entry} for every USER_CATALOG_SERVERS name, "") from MCP_DEFS_PATH, or (None, why) when the
+    catalog is unreadable, lacks a name, or a named entry carries a `${` placeholder — a placeholder pushed
+    into the user-level roster would displace a real key there (the emitter's first credential donor)."""
+    try:
+        servers = json.loads(MCP_DEFS_PATH.read_text()).get("mcpServers")
+    except (OSError, ValueError, AttributeError) as e:
+        return None, f"the MCP catalog {MCP_DEFS_PATH} is unreadable ({e})"
+    if not isinstance(servers, dict):
+        return None, f"the MCP catalog {MCP_DEFS_PATH} has no 'mcpServers' object"
+    out: dict = {}
+    for name in USER_CATALOG_SERVERS:
+        entry = servers.get(name)
+        fields = (entry.get("command"), entry.get("url")) if isinstance(entry, dict) else ()
+        if not any(
+            isinstance(v, str) and v.strip() for v in fields
+        ):  # stdio needs a command, http a url
+            return None, f"the MCP catalog {MCP_DEFS_PATH} has no launchable {name!r} entry"
+        if "${" in json.dumps(entry):
+            return None, (
+                f"the MCP catalog's {name!r} entry carries a ${{VAR}} placeholder — the user-level roster "
+                "takes credential-free servers only"
+            )
+        out[name] = entry
+    return out, ""
 
 
 def _cmd_sync_shared(include_settings: bool, source: str | None = None) -> int:
@@ -2112,11 +2244,24 @@ def _cmd_sync_shared(include_settings: bool, source: str | None = None) -> int:
     becomes the ad-hoc leftover, so the default source goes stale and syncing from it would REVERT
     every dir to an old roster. Taking the default with dirs present prints a loud warning naming
     the fix.
+
+    The pushed roster is the source's with every ``USER_CATALOG_SERVERS`` entry taken from the MCP catalog
+    (W-b29a4f40, D-1246): a bad catalog refuses the whole sync at rc 2 before any write. ``~/.claude.json`` gets
+    the same roster (the source case included), and the ``active`` pointer and the ``backups`` park root are
+    not accounts, so they are skipped.
     """
+    overlay, why = _catalog_overlay()
+    if overlay is None:
+        sys.stderr.write(f"claude_rotate: {why} — nothing synced\n")
+        return 2
     src = _roster_source(source)
     root = _fleet_root()
     try:
-        dirs = sorted(d for d in root.iterdir() if d.is_dir())
+        dirs = sorted(
+            d
+            for d in root.iterdir()
+            if d.is_dir() and not d.is_symlink() and d.name != _PARK_ROOT_NAME
+        )
     except FileNotFoundError:
         sys.stderr.write(f"claude_rotate: no fleet root at {root} — nothing to sync\n")
         return 1
@@ -2140,6 +2285,7 @@ def _cmd_sync_shared(include_settings: bool, source: str | None = None) -> int:
     if not isinstance(roster, dict):
         sys.stderr.write(f"claude_rotate: {src} has no 'mcpServers' object — nothing to sync\n")
         return 1
+    roster = {**roster, **overlay}
 
     shared: dict[str, bytes] = {}
     if include_settings:
@@ -2167,7 +2313,466 @@ def _cmd_sync_shared(include_settings: bool, source: str | None = None) -> int:
                 failures += 1
         extra = (" + " + ", ".join(pushed)) if pushed else ""
         print(f"  {d.name}: {len(roster)} MCP servers{extra}")
+    # ~/.claude.json is what a process WITHOUT CLAUDE_CONFIG_DIR reads: it carries the same roster. An absent one is
+    # left absent (a bare file would read as an un-onboarded config); a symlink is written through to its target.
+    try:
+        home = USER_CLAUDE_JSON.resolve()  # a symlink loop raises RuntimeError on 3.12
+    except (OSError, RuntimeError) as e:
+        sys.stderr.write(f"  SKIP {USER_CLAUDE_JSON}: cannot resolve ({e})\n")
+        return 1
+    try:
+        home_roster = json.loads(home.read_text()).get("mcpServers")
+    except FileNotFoundError:
+        if USER_CLAUDE_JSON.is_symlink():  # a DANGLING link is a broken config, never "absent"
+            sys.stderr.write(f"  SKIP {USER_CLAUDE_JSON}: a symlink to the missing {home}\n")
+            return 1
+        return 1 if failures else 0
+    except (OSError, ValueError, AttributeError):
+        home_roster = None
+    if home_roster != roster:
+        reason = _merge_roster_once(home, roster)
+        if reason is not None:
+            sys.stderr.write(f"  SKIP {USER_CLAUDE_JSON}: {reason}\n")
+            failures += 1
+        else:
+            print(f"  {USER_CLAUDE_JSON}: {len(roster)} MCP servers")
     return 1 if failures else 0
+
+
+# The shared names `--merge-shared` may merge: each top-level entry of tasks/ is one session's task
+# list, a unit that moves or parks whole. sessions/ is refused for now: which pid record is right
+# depends on whether the pid is alive, not on which account holds it (review round 1, F8); projects/
+# holds whole transcripts and agents/commands/skills are operator content — no merge rule (W-125b4e19).
+_MERGE_SHARED_NAMES: Final = ("tasks",)
+
+_AT_FDCWD = -100
+_RENAME_NOREPLACE = 1
+_RENAME_EXCHANGE = 2
+
+
+def _renameat2(src: Path, dst: Path, flags: int) -> None:
+    """Linux renameat2(2): EXCHANGE swaps two paths in one syscall, NOREPLACE refuses an existing
+    destination instead of clobbering it. Python has no binding, so it goes through libc."""
+    import ctypes
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    fn = getattr(libc, "renameat2", None)
+    if fn is None:
+        raise OSError(38, "renameat2 is not available", str(src))  # ENOSYS
+    if fn(_AT_FDCWD, os.fsencode(src), _AT_FDCWD, os.fsencode(dst), flags) != 0:
+        err = ctypes.get_errno()
+        raise OSError(err, os.strerror(err), str(src))
+
+
+def _merge_aside_glob(name: str) -> str:
+    return f"{name}.merged-*"
+
+
+def _is_lock_part(part: str) -> bool:
+    # the CLI's proper-lockfile writes `<x>.lock` FILES and `<x>.lock` DIRS beside what it locks
+    return part.endswith(".lock")
+
+
+def _entry_files(p: Path) -> list[Path]:
+    if p.is_symlink() or p.is_file():
+        return [] if p.is_symlink() else [p]
+    return [
+        f
+        for f in sorted(p.rglob("*"))
+        if f.is_file()
+        and not f.is_symlink()
+        and not any(_is_lock_part(x) for x in f.relative_to(p).parts)
+    ]
+
+
+def _entry_signature(p: Path) -> dict[str, bytes]:
+    """An entry's content, lock files ignored: two copies with the same signature are the same. A
+    symlink is its target string, never what it points at (it is moved as the link)."""
+    if p.is_symlink():
+        return {"->": os.fsencode(os.readlink(p))}
+    if p.is_file():
+        return {"": p.read_bytes()}
+    sig = {str(f.relative_to(p)): f.read_bytes() for f in _entry_files(p)}
+    for f in sorted(p.rglob("*")):
+        if f.is_symlink() and not any(_is_lock_part(x) for x in f.relative_to(p).parts):
+            sig[f"{f.relative_to(p)} ->"] = os.fsencode(os.readlink(f))
+    return sig
+
+
+def _entry_age(p: Path) -> float:
+    """The newest mtime over an entry's files — never the dir's own, which moves on a create or a
+    delete but not on a rewrite in place."""
+    return max((f.stat().st_mtime for f in _entry_files(p)), default=0.0)
+
+
+def _task_files(p: Path) -> int:
+    return len(list(p.glob("*.json"))) if p.is_dir() and not p.is_symlink() else 0
+
+
+def _nearest_existing(p: Path) -> Path:
+    while not os.path.lexists(p) and p != p.parent:
+        p = p.parent
+    return p
+
+
+def _unfinished_asides(d: Path, name: str) -> list[Path]:
+    """`<name>.merged-*` dirs in *d* still holding an entry canonical lacks or holds differently —
+    a merge that stopped half way. Copies identical to canonical's are done and never count."""
+    canon = CLAUDE_DIR / name
+    out = []
+    for aside in sorted(d.glob(_merge_aside_glob(name))):
+        if not aside.is_dir() or aside.is_symlink():
+            continue
+        for e in aside.iterdir():
+            mine = canon / e.name
+            if not os.path.lexists(mine) or _entry_signature(e) != _entry_signature(mine):
+                out.append(aside)
+                break
+    return out
+
+
+def _cmd_merge_shared(name: str, dry_run: bool = False) -> int:
+    """Merge every fleet account's REAL ``<name>/`` dir into the canonical ``~/.claude/<name>`` and
+    link it — the step the scaffolder leaves to the operator (it never touches a real dir).
+
+    Every swap is a renameat2(RENAME_EXCHANGE), so no instant exists in which ``<account>/<name>``
+    is missing or dangling: the CLI ``mkdir -p``s its task dir before each write and realpath()s its
+    lock before retrying (bundle 2.1.303), so a rename-then-link gap let it recreate a REAL dir (round
+    1, F2) and a dangling link failed the write (round 2, NEW-4). The ACTIVE account's dir becomes
+    canonical WHOLE through a two-exchange link cycle (``_make_canonical``), so what live sessions
+    see through ``active`` never changes; if that swap fails, nothing else moves (round 2, NEW-3).
+    Every other account's swapped-out dir becomes ``<name>.merged-<stamp>`` (a failure after the
+    exchange swaps it back) and is merged entry by entry: absent from canonical → moved in
+    (no-replace: a live entry created meanwhile is never clobbered); otherwise moved WHOLE under
+    ``<fleet>/backups/<name>-merged-from/<stamp>/<account>/<aside>/`` — a different copy parked, a
+    byte-identical one (lock files ignored) kept there as a copy so the aside always drains — never
+    mixed in (the CLI numbers a session's tasks per config dir, so two ``1.json`` are two tasks).
+    Leftover aside dirs of a run that stopped are drained the same way and an account left with no
+    link beside one is linked, so the next run finishes any earlier one. Nothing is ever deleted; an
+    emptied aside dir is removed. It holds the fleet's assignments lock, so ``--new-dir`` cannot
+    interleave. ``--dry-run`` prints the plan and moves nothing; with nothing to merge, nothing at
+    all is touched.
+
+    COBRA (D-253): the cheapest way to clear the dashboard warning is to link every account and
+    merge nothing — every list becomes invisible and the warning reads clean. The counter is the
+    warning itself: it also names an aside dir still holding an entry canonical lacks or holds
+    differently.
+    """
+    if name not in _MERGE_SHARED_NAMES:
+        sys.stderr.write(
+            f"claude_rotate: --merge-shared takes {' or '.join(_MERGE_SHARED_NAMES)} — {name}/ has no "
+            "merge rule (merge it by hand)\n"
+        )
+        return 2
+    canon = CLAUDE_DIR / name
+    try:
+        # `_fleet_root` raises ValueError/RuntimeError, and an existing root that cannot be listed
+        # raises here too, where `_fleet_dirs` would read it as "no fleet" and say nothing to merge
+        pending = _merge_shared_pending(name, canon)
+        if dry_run:  # moves nothing, so a read error mid-plan is the same refusal
+            return _merge_shared_locked(name, canon, dry_run=True)
+    except _STATE_DIR_ERRORS as e:
+        sys.stderr.write(f"claude_rotate: cannot read the fleet root ({e}) — nothing moved\n")
+        return 1
+    if not pending:  # nothing to do: touch nothing, not even the lock
+        print(f"  nothing to merge — no account holds a REAL {name}/ dir or an unfinished merge")
+        for w in _shared_link_warnings():  # what the dashboard still says is not this verb's to fix
+            print(f"  {w}")
+        return 0
+    try:
+        lock_fd = _assignments_lock_fd()
+    except _STATE_DIR_ERRORS as e:
+        sys.stderr.write(f"claude_rotate: cannot lock the fleet root ({e}) — nothing moved\n")
+        return 1
+    try:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        except OSError as e:  # ENOLCK on a filesystem without locks: refused, never a traceback
+            sys.stderr.write(f"claude_rotate: cannot lock the fleet root ({e}) — nothing moved\n")
+            return 1
+        return _merge_shared_locked(name, canon, dry_run=False)
+    finally:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        finally:
+            os.close(lock_fd)
+
+
+def _aside_dirs(d: Path, name: str) -> list[Path]:
+    return [a for a in sorted(d.glob(_merge_aside_glob(name))) if a.is_dir() and not a.is_symlink()]
+
+
+def _strays(d: Path, name: str) -> list[Path]:
+    """The working names a swap killed mid-way leaves in *d* (every ERROR is rolled back)."""
+    return sorted([*d.glob(f".{name}.swap-*"), *d.glob(f".{name}.held-*")])
+
+
+def _merge_shared_pending(name: str, canon: Path) -> bool:
+    """Whether any state ``--merge-shared`` acts on exists: a REAL ``<name>/`` dir, an aside dir, a
+    working name a killed swap left, or a canonical that is still the swap's link."""
+    root = _fleet_root()
+    # an absent root is no fleet; an unreadable one RAISES (W-21b4c0e5) — checked before the
+    # canonical-link answer too, or a leftover link took the lock and merged over no dirs (W-973887d5)
+    if os.path.lexists(root):
+        next(iter(root.iterdir()), None)
+    if canon.is_symlink():
+        return True
+    for d in _fleet_dirs():
+        p = d / name
+        if (p.is_dir() and not p.is_symlink()) or _aside_dirs(d, name) or _strays(d, name):
+            return True
+    return False
+
+
+def _finish_interrupted_swaps(name: str, canon: Path, stamp: str) -> list[str]:
+    """Finish what a HARD kill mid-swap left, so the operator never has to hand-rename around a
+    live list (review round 3): canonical still the cycle's link to ``<acct>/.<name>.held-*`` → the
+    last exchange and unlink of ``_make_canonical``; a held name left as a self-loop link (killed
+    after that exchange) → unlinked; a prepared ``.swap-*`` link never exchanged → unlinked; a
+    ``.swap-*`` holding the real dir (killed before its aside rename) → renamed to an aside dir,
+    which this run then drains; canonical a link to a held name that holds NO real dir (killed
+    between the cycle's two symlinks, before any exchange) → unlinked, and this run merges afresh
+    (review round 4). A canonical link to anything else is not the cycle's and stays refused.
+    Returns what it did, one line each."""
+    done: list[str] = []
+    if canon.is_symlink():
+        target = Path(os.readlink(canon))
+        if target.name.startswith(f".{name}.held-"):
+            if target.is_dir() and not target.is_symlink():
+                _renameat2(
+                    target, canon, _RENAME_EXCHANGE
+                )  # canon: the real dir; target: the old link
+                target.unlink()
+                done.append(
+                    f"finished an interrupted swap: {canon} is the real dir again ({target.parent.name})"
+                )
+            else:
+                canon.unlink()  # the cycle's first link, before any exchange: it holds no data
+                done.append(f"removed {canon} (a swap's first link — no exchange had run)")
+    for d in _fleet_dirs():
+        for stray in _strays(d, name):
+            if stray.is_symlink():
+                stray.unlink()  # a link holds no data: the self-loop or an unexchanged prepared link
+                done.append(f"removed {d.name}/{stray.name} (a leftover link)")
+            elif stray.is_dir() and stray.name.startswith(f".{name}.swap-"):
+                aside = d / f"{name}.merged-{stamp}"
+                _renameat2(stray, aside, _RENAME_NOREPLACE)
+                done.append(f"{d.name}/{stray.name} → {aside.name} (drained below)")
+    return done
+
+
+def _merge_shared_locked(name: str, canon: Path, dry_run: bool) -> int:
+    fleet = _fleet_root()
+    park_root = fleet / _PARK_ROOT_NAME / f"{name}-merged-from"
+    active = _resolve_active()
+    dirs = _fleet_dirs()
+    stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime()) + f".{time.time_ns() % 10**9:09d}Z"
+    if dry_run:
+        for d in dirs:
+            for stray in _strays(d, name):
+                print(f"  {d.name}/{stray.name}: would finish a swap a hard kill interrupted")
+    else:
+        try:
+            for line in _finish_interrupted_swaps(name, canon, stamp):
+                print(f"  {line}")
+        except OSError as e:
+            sys.stderr.write(
+                f"claude_rotate: could not finish an interrupted swap ({e}) — nothing else moved\n"
+            )
+            return 1
+    if os.path.lexists(canon) and (canon.is_symlink() or not canon.is_dir()):
+        what = "a link" if canon.is_symlink() else "not a directory"
+        sys.stderr.write(f"claude_rotate: {canon} is {what} — nothing moved\n")
+        return 1
+    real = [d for d in dirs if (d / name).is_dir() and not (d / name).is_symlink()]
+    leftovers = [a for d in dirs for a in _aside_dirs(d, name)]
+    unlinked = [d for d in dirs if not os.path.lexists(d / name) and _aside_dirs(d, name)]
+    if not real and not leftovers and not unlinked:
+        print(f"  nothing to merge — no account holds a REAL {name}/ dir or an unfinished merge")
+        return 0
+    devices = {os.stat(d / name).st_dev for d in real}
+    devices |= {os.stat(a).st_dev for a in leftovers}
+    devices |= {
+        os.stat(_nearest_existing(canon)).st_dev,
+        os.stat(_nearest_existing(park_root)).st_dev,
+    }
+    if len(devices) > 1:
+        sys.stderr.write(
+            f"claude_rotate: the {name}/ dirs, {canon.parent} and {park_root} are not on one filesystem "
+            "— a rename cannot merge them; nothing moved\n"
+        )
+        return 1
+
+    takes_canon = (
+        None if os.path.lexists(canon) else next((d for d in real if d.name == active), None)
+    )
+    sources = [(d.name, d / name) for d in real if d is not takes_canon]
+    sources += [(a.parent.name, a) for a in leftovers]
+    failed: list[str] = []
+    if not dry_run:
+        if takes_canon is not None:
+            try:
+                _make_canonical(takes_canon / name, canon, stamp)
+            except OSError as e:
+                # nothing else moves: merging the others first would put their copies in front of
+                # the list live sessions see, and a re-run would then park it (review round 2, NEW-3)
+                sys.stderr.write(
+                    f"claude_rotate: {takes_canon.name}/{name} (the active account) not swapped ({e}) — "
+                    "nothing moved; re-run to finish\n"
+                )
+                return 1
+            print(
+                f"  {takes_canon.name}: {name}/ became {canon} (the active account's list, unchanged)"
+            )
+        if not os.path.lexists(canon):
+            canon.mkdir(mode=0o700, parents=True)
+        swapped = []
+        for acct, src in sources:
+            if src.name != name:  # a leftover aside of an earlier run
+                swapped.append((acct, src))
+                continue
+            try:
+                swapped.append(
+                    (
+                        acct,
+                        _swap_dir_for_link(
+                            src, canon, src.parent / f"{name}.merged-{stamp}", stamp
+                        ),
+                    )
+                )
+            except OSError as e:
+                failed.append(f"{acct}/{name} not swapped ({e}) — re-run to finish")
+        sources = swapped
+    for d in unlinked:  # an account a stopped run left with no link beside its aside dir
+        if not dry_run:
+            (d / name).symlink_to(canon, target_is_directory=True)
+        print(f"  {d.name}: {'would link' if dry_run else 'linked'} the missing {name}/")
+    # the plan's picture of canonical: each entry's signature and task-file count, so a dry run
+    # computes the same actions and flags as the real run without touching anything
+    kept = canon if canon.is_dir() else None
+    if dry_run and takes_canon is not None:
+        kept = takes_canon / name
+    view = {e.name: _entry_signature(e) for e in kept.iterdir()} if kept else {}
+    view_tasks = {e.name: _task_files(e) for e in kept.iterdir()} if kept else {}
+    if dry_run and takes_canon is not None:
+        for e in sorted(view):
+            print(f"  {e}: keep {takes_canon.name} ({view_tasks[e]} task files)")
+    entries = [(acct, src, e) for acct, src in sources for e in src.iterdir()]
+    # the active account's copy ranks first; among the rest, the newest files first
+    entries.sort(key=lambda t: (t[0] != active, -_entry_age(t[2]), t[0], t[2].name))
+    counts: dict[str, dict[str, int]] = {}
+    for acct, src, e in entries:
+        sig, n_tasks = _entry_signature(e), _task_files(e)
+        if e.name not in view:
+            action, view[e.name], view_tasks[e.name] = "move", sig, n_tasks
+        elif view[e.name] == sig:
+            action = "identical"
+        else:
+            action = "park"
+        flag = ""
+        if action == "park" and n_tasks and not view_tasks.get(e.name):
+            flag = f" ⚠ the kept list has no task file — this parked copy has {n_tasks}"
+        if not dry_run:
+            try:
+                if action == "move":
+                    try:
+                        _renameat2(e, canon / e.name, _RENAME_NOREPLACE)
+                    except FileExistsError:
+                        action = "park"  # a live session created it meanwhile: never clobber it
+                if action != "move":
+                    # an identical copy is parked too, so every aside dir drains and none goes stale
+                    # once the live list changes (review round 2, NEW-5)
+                    dest = park_root / stamp / acct / src.name / e.name
+                    dest.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                    _renameat2(e, dest, _RENAME_NOREPLACE)
+            except OSError as exc:
+                failed.append(f"{acct}/{src.name}/{e.name} not moved ({exc}) — re-run to finish")
+                continue
+        counts.setdefault(acct, {"move": 0, "identical": 0, "park": 0})[action] += 1
+        print(f"  {e.name}: {action} {acct} ({n_tasks} task files){flag}")
+    for acct, n in sorted(counts.items()):
+        print(
+            f"  {acct}: moved {n['move']} · identical (parked as a copy) {n['identical']} · parked {n['park']}"
+        )
+    if not dry_run:
+        for _acct, src in sources:
+            try:
+                src.rmdir()
+            except OSError:
+                failed.append(f"{src} still holds entries — re-run to finish")
+        if any(c["park"] or c["identical"] for c in counts.values()):
+            print(f"  parked under {park_root / stamp}")
+    # what is still wrong once the run is over — a dangling link this run made resolve is fine now
+    bad = list(failed)
+    for d in dirs:
+        p = d / name
+        if p.is_symlink() and not (
+            p.exists() and canon.is_dir() and p.resolve() == canon.resolve()
+        ):
+            if not (dry_run and not canon.is_dir()):
+                bad.append(f"{d.name}/{name} is a dangling or foreign link — left as it is")
+        elif os.path.lexists(p) and not p.is_dir():
+            bad.append(f"{d.name}/{name} is a file — left as it is")
+    for line in bad:
+        sys.stderr.write(f"claude_rotate: {line}\n")
+    return 1 if bad else 0
+
+
+def _swap_dir_for_link(real: Path, target: Path, aside: Path, stamp: str) -> Path:
+    """Replace the real dir at *real* with a symlink to *target* in ONE syscall and park the
+    swapped-out dir at *aside*; return *aside*. A failure after the exchange swaps it back, so the
+    real dir is never left under a hidden name nothing looks for (review round 2, NEW-1/NEW-2)."""
+    held = real.parent / f".{real.name}.swap-{stamp}"
+    held.symlink_to(target, target_is_directory=True)
+    try:
+        _renameat2(held, real, _RENAME_EXCHANGE)
+    except OSError:
+        held.unlink()
+        raise
+    try:
+        _renameat2(held, aside, _RENAME_NOREPLACE)
+    except OSError:
+        _renameat2(held, real, _RENAME_EXCHANGE)  # the real dir back where it was
+        held.unlink()
+        raise
+    return aside
+
+
+def _make_canonical(real: Path, canon: Path, stamp: str) -> None:
+    """Make the real dir at *real* the canonical dir and *real* a link to it, with no instant in
+    which *real* is missing OR dangling: a live session resolves ``<account>/<name>`` at every step
+    (the CLI's lockfile realpath()s the path before its retry loop, so a dangling moment fails a task
+    write — review round 2, NEW-4). Two exchanges through a link cycle:
+      1. canon → <real's dir>/.<name>.held and .<name>.held → canon (two links);
+      2. EXCHANGE .held with *real*: *real* is now the link to canon, which resolves through the
+         canon link to the real dir now at .held;
+      3. EXCHANGE .held with canon: canon is the real dir; the old canon link lands at .held;
+      4. unlink .held.
+    A failure undoes what was done and raises."""
+    held = real.parent / f".{real.name}.held-{stamp}"
+    canon.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    canon.symlink_to(held, target_is_directory=True)
+    try:
+        held.symlink_to(canon, target_is_directory=True)
+    except OSError:
+        canon.unlink()
+        raise
+    try:
+        _renameat2(held, real, _RENAME_EXCHANGE)
+    except OSError:
+        held.unlink()
+        canon.unlink()
+        raise
+    try:
+        _renameat2(held, canon, _RENAME_EXCHANGE)
+    except OSError:
+        _renameat2(held, real, _RENAME_EXCHANGE)  # the real dir back at *real*
+        held.unlink()
+        canon.unlink()
+        raise
+    held.unlink()
 
 
 def _is_claude_process(argv: list[str]) -> bool:
@@ -2699,7 +3304,8 @@ def _tick_telegram(msg: str, key: str = "quota-rotation") -> bool:
     planted) cannot read 0 first and as itself after with nothing written. The mirror is
     fail-closed: a forward clock step past the tolerance in the instant between that value and
     the notifier's own `date +%s` reads a delivered send as unconfirmed, and the caller
-    re-attempts it each tick — the notifier's own window suppresses the resend until it lapses,
+    re-attempts it at the first tick at or past `_CHAIN_PUSH_BACKOFF_S` — the notifier's own
+    window suppresses the resend until it lapses,
     so the operator may see one duplicate — never a silent stamp at the chain push, the one
     caller that reads this return (the other callers latch their own stamps regardless of it).
     `mesh-notify` exits 0 on every
@@ -2824,6 +3430,95 @@ def _cmd_touch(only: str | None = None) -> int:
     return 0
 
 
+# ── The tick WATCHDOG (W-010bb0d9) ─────────────────────────────────────────────────────────────
+# cron and the quota board both run the tick as `flock -n rotate.lock … --tick`, and flock(1)
+# hands the lock fd to the tick, so a tick that never ends holds the lock for ever and every later
+# tick exits silently: on 2026-10-22 no tick wrote a row or a posture from 18:02 to 01:06. The
+# watchdog bounds one tick's life; the process exit is what closes the inherited lock fd.
+# The bound: the worst LEGITIMATE offline tick is ~1000-1100 s — 3 refused pings x (150 s
+# `claude -p ok` + a 45 s park confirm) = 585 s, a 90 s active re-check (45 s probe + its confirm),
+# and the flip leg's probed pick at up to 90 s per candidate (4 siblings ≈ 360 s) — an online tick
+# ~2 s, so 1800 s; raise ROTATE_TICK_MAX_S with KEEPALIVE_TIMEOUT or ROTATE_REFRESH_MAX_PER_RUN.
+# The floor keeps a typo from killing real ticks; the ceiling (a day) keeps a giant value from
+# overflowing the Timer, whose thread then dies and bounds nothing (review pass 1, executed).
+# COBRA: a smaller bound "fixes" a stall by killing the tick that would have ended it, which is
+# why the floor exists and the watchdog never runs the tick's legs itself.
+_TICK_MAX_DEFAULT_S: Final = 1800.0
+_TICK_MAX_FLOOR_S = 600.0
+_TICK_MAX_CEILING_S: Final = 86400.0
+# Held across the stamp clear → wake transition (the advisory, the battery leg, the posture): an
+# exit between `_clear_stamp` and `_wake_held_sessions` would spend the one transition the relief
+# wake fires on (D-180), so the watchdog waits up to this long for it, then exits regardless.
+_TICK_CRITICAL = threading.Lock()
+_TICK_CRITICAL_WAIT_S = 60.0
+_EXIT = os._exit  # the hard exit, a seam the graders replace
+
+
+def _tick_max_s() -> float:
+    """``ROTATE_TICK_MAX_S``; garbage, non-finite, under ``_TICK_MAX_FLOOR_S`` or over
+    ``_TICK_MAX_CEILING_S`` → 1800."""
+    v = _env_float("ROTATE_TICK_MAX_S", _TICK_MAX_DEFAULT_S)
+    return v if _TICK_MAX_FLOOR_S <= v <= _TICK_MAX_CEILING_S else _TICK_MAX_DEFAULT_S
+
+
+def _flush_stdout_bounded(timeout: float = 5.0) -> None:
+    """Flush Python's stdout buffer before a hard exit, from a helper thread joined for at most
+    *timeout* seconds: cron's stdout is a FILE, block-buffered, so `os._exit` would drop every
+    `tick:` line the hung tick printed — the evidence of where it hung (review pass 1, executed);
+    a pipe whose reader stopped reading must not hang the exit instead."""
+
+    def flush() -> None:
+        with contextlib.suppress(Exception):
+            sys.stdout.flush()
+
+    t = threading.Thread(target=flush, daemon=True)
+    t.start()
+    t.join(timeout)
+
+
+def _tick_watchdog(limit: float, done: threading.Event | None = None) -> None:
+    """Fired by the tick's Timer when the tick outlives *limit*: wait for the critical section,
+    stand down if the tick's body has already finished (*done*, set by `_cmd_tick`'s `finally`
+    under the lock), else say so, record the tick's end (so the next tick's resume leg does not
+    read the kill as a box sleep) and exit 0. Every step but the exit swallows its error: the
+    board closes a timed-out tick's stdout pipe, and a `print` into it raised BrokenPipeError and
+    ended this thread with the tick still alive (design critique, executed). Costs, accepted: a
+    `_write_json_atomic` staging file may stay, and a `claude -p ok` grandchild outlives the exit
+    but holds no lock."""
+    acquired = stand_down = False
+    try:
+        acquired = _TICK_CRITICAL.acquire(timeout=_TICK_CRITICAL_WAIT_S)
+        # the body finished as the Timer fired: the `finally` legs are the tick's own
+        stand_down = done is not None and done.is_set()
+        if stand_down:
+            return
+        try:
+            _flush_stdout_bounded()
+        except BaseException:  # noqa: BLE001, S110 — nothing before the exit may stop it
+            pass
+        line = (
+            f"tick: WATCHDOG — still running after {limit:.0f} s; exiting so rotate.lock frees "
+            "and the next tick runs"
+            + ("" if acquired else " (the critical section never freed)")
+            + "\n"
+        )
+        try:
+            os.write(1, line.encode())
+        except BaseException:  # noqa: BLE001, S110 — a closed pipe must not stop the exit
+            pass
+        try:
+            _write_tick_last_end(_now())
+        except BaseException:  # noqa: BLE001, S110 — nor a failed record
+            pass
+    finally:
+        try:
+            if not stand_down:
+                _EXIT(0)
+        finally:  # reached on the stand-down, or when a grader's `_EXIT` returns
+            if acquired:
+                _TICK_CRITICAL.release()
+
+
 def _cmd_tick() -> int:
     """The 5-minute rotation daemon tick. Always exits 0 — ENFORCED by the outer guard
     (closer #11), not just documented. Every decision is one printed line.
@@ -2831,16 +3526,51 @@ def _cmd_tick() -> int:
     Fleet mode dispatches to :func:`_fleet_tick_inner` BEFORE :func:`_tick_inner` ever runs:
     the legacy tick is single-live-account-shaped (``live_name`` from ``_active_account()``
     matches no fleet slug) and could reach ``_tick_switch`` — the fleet branch must be
-    structurally unable to install anything."""
+    structurally unable to install anything.
+
+    The battery hold (W-83a8ee68) runs in the ``finally``: a quota tick that returns early or
+    raises must never skip it, and it runs AFTER the quota leg so its lift knows whether the quota
+    is hot this tick (``_QUOTA_HOT_THIS_TICK``) and never wakes the fleet into a wall. The fleet
+    tick also runs it in-line before its posture, so this call then arms and lifts nothing more
+    (it may repeat the "quota is unread" line when the advisory never read the quota).
+
+    The resume wake (W-75cafe7a) runs last in the ``finally``: :func:`_resume_leg` records this
+    tick's end and, after a sleep, wakes every armed self-watch."""
+    global _QUOTA_HOT_THIS_TICK
+    # UNKNOWN until the quota leg positively finds the active account cool on a real reading —
+    # a blackout, a raise before the advisory, or a skipped advisory keeps the battery hold
+    _QUOTA_HOT_THIS_TICK = _QUOTA_UNKNOWN
+    # the resume wake's inputs (W-75cafe7a): read before anything can raise, acted on last
+    start, prev_end = _now(), _read_tick_last_end()
+    # the WATCHDOG (W-010bb0d9) bounds the body — the network legs that can hang. The `finally`
+    # marks the body done under `_TICK_CRITICAL` before its local legs run: `cancel()` cannot stop a
+    # Timer that has already fired, so a watchdog that fired as the body ended finds `done` set and
+    # stands down instead of exiting inside the battery lift's clear→wake (review pass 1)
+    watchdog: threading.Timer | None = None
+    done = threading.Event()
     try:
+        limit = _tick_max_s()
+        watchdog = threading.Timer(limit, _tick_watchdog, args=(limit, done))
+        watchdog.daemon = True
+        watchdog.start()
         fleet_dirs = _fleet_dirs()
         if fleet_dirs:
             return _fleet_tick_inner(fleet_dirs)
+        _QUOTA_HOT_THIS_TICK = (
+            None  # the legacy tick writes no fleet-exhausted stamp: no quota hold
+        )
         return _tick_inner()
     except Exception as e:  # noqa: BLE001 — cron-hosted: a broken tick must never look
         #                     like a broken cron; the class+message is the diagnostic
         print(f"tick: INTERNAL ERROR {type(e).__name__}: {e}")
         return 0
+    finally:
+        if watchdog is not None:
+            with _TICK_CRITICAL:  # a watchdog already past its Timer waits here, then stands down
+                done.set()
+                watchdog.cancel()
+        _battery_leg(time.time(), lift=True)
+        _resume_leg(start, prev_end)
 
 
 def _env_float(name: str, default: float) -> float:
@@ -2865,7 +3595,7 @@ def _env_float(name: str, default: float) -> float:
 def _rotate_threshold() -> float:
     """The flip-away threshold on either quota window — ONE source for every call site.
 
-    Default **98** (operator rule 2026-09-08: "we can switch a lot faster now so i want to utilize
+    Default **99** since 2026-10-14 (below); before that **98** (operator rule 2026-09-08: "we can switch a lot faster now so i want to utilize
     them better — switch as soon as it reaches 98% session limit"). This SUPERSEDES the 95 of
     2026-09-03, and it is the same 98 that lost that day, so the reason it wins now is the part to
     keep: what changed is not the burst, it is the COST of losing the race.
@@ -2887,8 +3617,8 @@ def _rotate_threshold() -> float:
     before leaning on it.
 
     ⚠️ The 5 points this gives up were the margin, so the fallback carries the weight: with NO
-    eligible successor the URGENT-DRAIN mail fires at ``_urgent_drain_pct()`` = 90, eight points
-    below this line, and tells every repo when to resume. That ordering (90 < 98) is the design,
+    eligible successor the URGENT-DRAIN mail fires at ``_urgent_drain_pct()`` = 90, nine points
+    below this line, and tells every repo when to resume. That ordering (90 < 99) is the design,
     not a coincidence — if you raise this, check that one first. `ROTATE_THRESHOLD` overrides.
 
     ⚠️ The numbers above stop on 2026-08-15 because the FLEET tick never wrote the
@@ -2897,8 +3627,65 @@ def _rotate_threshold() -> float:
     NEXT move of this line can be measured instead of argued.
 
     The weekly leg is governed by the account's ``caps.json`` cap when one exists (the cap IS the
-    operator's weekly rule) and by this threshold otherwise — see ``_fleet_flip_leg``."""
-    return _env_float("ROTATE_THRESHOLD", 98.0)
+    operator's weekly rule) and by this threshold otherwise — see ``_fleet_flip_leg``.
+
+    2026-10-14: default **99** (operator: "98% hook is to restrictive, can we make it 99% except
+    ob@ocoron.com" — supersedes D-201's 98). The exception is a ROW, not a branch: an account may carry
+    its own line in ``<fleet_root>/thresholds.json`` (:func:`_thresholds_file`, editable from the quota
+    board), and every per-account decision reads it through :func:`_row_threshold`. The cost of the extra
+    point is the one this docstring measures: an account read AT the line walls before the next look a
+    little more often; the relief wake still holds a walled session instead of letting it die."""
+    return _env_float("ROTATE_THRESHOLD", 99.0)
+
+
+def _thresholds_file() -> dict[str, float]:
+    """Per-account flip lines: ``<fleet_root>/thresholds.json`` = {"email": pct} (operator 2026-10-14).
+
+    Overrides :func:`_rotate_threshold` for ONE account on the session leg (and on the weekly leg when
+    the account has no ``caps.json`` cap — the cap stays the weekly rule). Same fail direction as
+    :func:`_caps_file`: missing → none; unreadable or the wrong shape → loud stderr + none (a broken
+    file must never halt rotation); a non-number entry (a bool is a typo) is skipped with a warning;
+    values clamp to 0..100; keys lowercase. ⚠️ COBRA: the cheapest way to look "tuned" is to raise
+    every account's line to 100 — that is a wall, not a threshold; the board refuses values over 100
+    and under 50, this loader only clamps."""
+    path = _fleet_root() / "thresholds.json"
+    try:
+        raw = path.read_text()
+    except FileNotFoundError:
+        return {}
+    except (
+        OSError,
+        UnicodeDecodeError,
+    ) as e:  # a non-UTF-8 byte is an unreadable file, not a crash
+        sys.stderr.write(f"claude_rotate: cannot read {path} ({e}) — default thresholds\n")
+        return {}
+    try:
+        data = json.loads(raw)
+    except ValueError as e:
+        sys.stderr.write(f"claude_rotate: {path} is not valid JSON ({e}) — default thresholds\n")
+        return {}
+    if not isinstance(data, dict):
+        sys.stderr.write(f"claude_rotate: {path} is not a JSON object — default thresholds\n")
+        return {}
+    out: dict[str, float] = {}
+    for email, thr in data.items():
+        v = _usable_ts(thr)  # the ONE number validator: bool, non-finite AND a giant int read None
+        if v is None:
+            sys.stderr.write(
+                f"claude_rotate: {path}: threshold for {email!r} is not a number ({thr!r}) — skipped\n"
+            )
+            continue
+        out[str(email).lower()] = float(min(100.0, max(0.0, v)))
+    return out
+
+
+def _row_threshold(row: dict | None, default: float) -> float:
+    """The flip line for ONE account row: its ``session_threshold`` (from thresholds.json) when set,
+    else *default* (the fleet line). The one place the per-account exception is resolved."""
+    v = (row or {}).get("session_threshold")
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
+        return default
+    return float(v)
 
 
 def _tick_inner() -> int:
@@ -3123,9 +3910,14 @@ def _fleet_dirs() -> list[Path]:
     """Scaffolded fleet dirs (sorted). [] when the root is absent/unreadable — which IS the
     feature detection: no dirs, no fleet mode. SYMLINKS are excluded: the `active` pointer is
     itself a dir-symlink under the root, and counting it would double-count its target account
-    (a phantom pending-login row on --status, a double keepalive ping, an off-by-one dir count)."""
+    (a phantom pending-login row on --status, a double keepalive ping, an off-by-one dir count). The ``backups``
+    park root is no account either and is left out for the same reason (W-f7772267 (a))."""
     try:
-        return sorted(d for d in _fleet_root().iterdir() if d.is_dir() and not d.is_symlink())
+        return sorted(
+            d
+            for d in _fleet_root().iterdir()
+            if d.is_dir() and not d.is_symlink() and d.name != _PARK_ROOT_NAME
+        )
     except OSError:
         return []
 
@@ -3431,14 +4223,19 @@ def _account_flip_dir(slugs: list[str]) -> str | None:
 
 
 def _flip_churn_excluded(
-    utils: dict[str, float | None], cap: float | None, threshold: float
+    utils: dict[str, float | None], cap: float | None, threshold: float, *, active: bool = False
 ) -> bool:
     """The ONE candidate-exclusion predicate, shared by :func:`_pick_flip_target` (cached
     readings) and :func:`_validated_pick` (live re-verify) — F-C1: the two sites drifting
     apart IS the churn bug, so they cannot each carry their own copy. Excluded when: either
     window ≥100 (walled — revives on reset, never by a flip), weekly ≥ its ``caps.json`` cap
-    (cap-walled — the operator's reserve), or either window ≥ ``ROTATE_THRESHOLD`` (flipping
-    there just trips the flip-away next tick — pointless churn)."""
+    (cap-walled — the operator's reserve), or a window at the flip line *threshold* (flipping
+    there just trips the flip-away next tick — pointless churn): the session window always, the
+    weekly window too for a flip TARGET (refused until that window resets — the picture's
+    `over-threshold`), but for the ACTIVE account (*active*, :func:`_active_account_walled`) only
+    when it has NO cap — a cap IS its weekly rule, exactly the flip leg's ``weekly_thr`` (D-855
+    review: the line on a capped weekly window walled an account the flip leg kept, up to fifty
+    points early once per-account lines existed)."""
     if _is_parked(cap):
         return True  # parked is unconditional — it never waited on a reading being present
     if any(u is not None and u >= 100.0 for u in utils.values()):
@@ -3446,7 +4243,10 @@ def _flip_churn_excluded(
     wu = utils.get("seven_day")
     if cap is not None and wu is not None and wu >= cap:
         return True
-    return any(u is not None and u >= threshold for u in utils.values())
+    fu = utils.get("five_hour")
+    if fu is not None and fu >= threshold:
+        return True
+    return (cap is None or not active) and wu is not None and wu >= threshold
 
 
 def _pick_flip_target(
@@ -3567,6 +4367,7 @@ def _flip_candidate_verdict(
     an exclusion predicate drifting apart IS the churn bug). The cached-unverifiable outcome is
     not a predicate here — it is :func:`_validated_pick`'s live verdict — so the diagnostic
     names it from the row's ``source``/``age_s`` instead."""
+    threshold = _row_threshold(row, threshold)  # the account's own line (thresholds.json) wins
     slug = _account_flip_dir(row.get("slugs") or [])
     utils: dict[str, float | None] = {}
     for key in ("five_hour", "seven_day"):
@@ -3941,7 +4742,10 @@ def _caps_file() -> dict[str, int]:
         raw = path.read_text()
     except FileNotFoundError:
         return {}
-    except OSError as e:
+    except (
+        OSError,
+        UnicodeDecodeError,
+    ) as e:  # a non-UTF-8 byte is an unreadable file, not a crash
         sys.stderr.write(f"claude_rotate: cannot read {path} ({e}) — rotating UNCAPPED\n")
         return {}
     try:
@@ -3954,14 +4758,16 @@ def _caps_file() -> dict[str, int]:
         return {}
     caps: dict[str, int] = {}
     for email, cap in data.items():
-        # bool is an int subclass — `true` as a cap is a typo, never "cap at 1%"
-        if isinstance(cap, bool) or not isinstance(cap, (int, float)) or not math.isfinite(cap):
+        # bool is an int subclass — `true` as a cap is a typo, never "cap at 1%"; the ONE number
+        # validator also reads a giant JSON int as None (math.isfinite raised OverflowError on it)
+        v = _usable_ts(cap)
+        if v is None:
             sys.stderr.write(
                 f"claude_rotate: {path}: cap for {email!r} is not a number ({cap!r}) — "
                 "entry skipped\n"
             )
             continue
-        caps[str(email).lower()] = int(min(100, max(0, cap)))
+        caps[str(email).lower()] = int(min(100.0, max(0.0, v)))
     return caps
 
 
@@ -4333,6 +5139,7 @@ def _fleet_account_rows(
             pending.append(entry)
     cache = _load_usage_cache()
     caps = _account_caps()
+    thresholds = _thresholds_file()
     accounts: list[dict] = []
     cache_dirty = False
     # The stale-reading refresh pings are allocated BEFORE the pass below, oldest reading
@@ -4368,6 +5175,8 @@ def _fleet_account_rows(
             "refresh_expires_slug": soonest[1] if soonest else None,
             "identity_mismatches": [],
             "weekly_cap": caps.get(email.lower()),
+            # the account's own flip line (thresholds.json) — None = the fleet default
+            "session_threshold": thresholds.get(email.lower()),
             "cap_walled": False,
             # the operator's out-of-service mark (`--park`), so a reader need not re-derive it
             "parked": _is_parked(caps.get(email.lower())),
@@ -4475,6 +5284,9 @@ def _fleet_account_rows(
                     row["model_windows"] = c["model_windows"]
                 row["source"] = "cache"
                 row["age_s"] = max(0.0, now - float(c["ts"]))
+                # the reading's own time, for `_active_heat_view`: rebuilding it from `age_s` at a
+                # later `now` slid it by the tick's duration and missed a reset (review pass 1)
+                row["cached_at"] = float(c["ts"])
         # walled BY ITS CAP — a READABLE figure at or over the cap, the verdict's own cap arm;
         # an UNREADABLE figure is no reading here as it is for the pick (the relief writer alone
         # refuses to promise from it — `_weekly_blocked`), so the flag, the warning, the verdict
@@ -4595,13 +5407,32 @@ def _shared_link_warnings() -> list[str]:
                 bad.append(f"{d.name}/{name}")
             else:
                 bad.append(f"{d.name}/{name} (a FILE, not a dir)")
+        # a merge that stopped half way: an aside dir still holding an entry canonical lacks or holds
+        # differently, or an account left with no link beside its aside — never read clean (W-125b4e19)
+        for name in _MERGE_SHARED_NAMES:
+            for aside in _unfinished_asides(d, name):
+                bad.append(
+                    f"{d.name}/{aside.name} (an unfinished merge — run --merge-shared {name})"
+                )
+            if not os.path.lexists(d / name) and _aside_dirs(d, name):
+                bad.append(f"{d.name}/{name} (missing after a merge — run --merge-shared {name})")
+            # a swap killed mid-way (SIGKILL between two renames) leaves its working name behind;
+            # every rename is undone on an ERROR, so this is only ever a hard kill — the verb finishes it
+            for stray in _strays(d, name):
+                bad.append(
+                    f"{d.name}/{stray.name} (a swap a hard kill interrupted — run --merge-shared {name})"
+                )
+    for name in _MERGE_SHARED_NAMES:
+        if (CLAUDE_DIR / name).is_symlink():
+            bad.append(f"{CLAUDE_DIR / name} (a link, not the dir — run --merge-shared {name})")
     if not bad:
         return []
     return [
         f"⚠ shared state fragmented: {', '.join(bad)} — where the link to {CLAUDE_DIR}/<name>/ "
-        "belongs (sessions/: the peer list shrinks to one after a flip, D-287); a REAL dir is "
-        "merged into the canonical dir by hand and replaced with the symlink; a dangling link "
-        "heals on --new-dir resume when the canonical dir exists or the scaffolder creates it"
+        "belongs (sessions/: the peer list shrinks to one after a flip, D-287); a REAL tasks/ dir, "
+        "or an unfinished merge, is finished by `claude_rotate.py --merge-shared tasks` (--dry-run "
+        "first); any other REAL dir is merged by hand and replaced with the symlink; a dangling "
+        "link heals on --new-dir resume when the canonical dir exists or the scaffolder creates it"
     ]
 
 
@@ -4776,13 +5607,13 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
     # default the session trip line since 2026-10-06) — the first cut compared the SESSION window against the trip
     # threshold, so a row spent past the bar but under the trip read `unavailable` (non-author
     # pass over 58041dbd + the strict-bar grader, 2026-09-07)
-    session_bar = _env_float("ROTATE_TARGET_SESSION_MAX_PCT", thr)
     active_email = next(
         (str(r.get("email")) for r in accounts if active_slug in (r.get("slugs") or [])), None
     )
     rows: list[dict] = []
     for row in accounts:
         _slug, utils, reason = _flip_candidate_verdict(row, thr)
+        row_thr = _row_threshold(row, thr)
         fv, wv = utils.get("five_hour"), utils.get("seven_day")
         cap = row.get("weekly_cap")
         fh, wk = row.get("five_hour"), row.get("seven_day")
@@ -4793,7 +5624,9 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
         # strict at the picker's bar (`> session_max`, R5) OR at the trip threshold on the
         # session window (the picker refuses `a window >= thr` too) — replacing one with the
         # other left a row between a raised bar and the trip reading `unavailable` (native N7)
-        session_spent = fv is not None and (fv > session_bar or fv >= thr)
+        session_spent = fv is not None and (
+            fv > _env_float("ROTATE_TARGET_SESSION_MAX_PCT", row_thr) or fv >= row_thr
+        )
         weekly_walled = _weekly_blocked(row.get("seven_day"), cap)  # the relief writer's reading
         if active_slug is not None and active_slug in (row.get("slugs") or []):
             state = "active"
@@ -4810,7 +5643,7 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
             state = "weekly-exhausted"
         elif session_spent:
             state = "session-exhausted"
-        elif wv is not None and wv >= thr:
+        elif wv is not None and wv >= row_thr:
             # under its cap but over the picker's target line on the WEEKLY window: not a wall
             # (the tick keeps it active) and not a target either until that window resets —
             # mob@ at 0/97 under cap 99 read as "unavailable" on the first cut (scoped review)
@@ -4857,6 +5690,7 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
                 "session_resets_at": fr,  # already a float or None (the validator above)
                 "weekly_resets_at": wr,
                 "weekly_cap": cap,
+                "trip": row_thr,  # this account's flip line (thresholds.json, else the fleet's)
                 "returns_at": returns_at,
                 "in_drain_band": hot is not None and hot >= band,
                 "source": row.get("source"),
@@ -4928,7 +5762,7 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
 # probe; each treats an absent, unreadable or stale file as ABSENT and fails OPEN — the same posture
 # ``quota_stop.py`` takes for the fleet-exhausted stamp. The band has NO cap clause: a cap reached
 # trips the flip leg, and with no successor the wall predicate counts the account as walled and the
-# advisory stamps — the posture reads WALL one tick later, and only at the `walled` TIER (D-306); the forecast already says ``wall in ~0m``.
+# advisory stamps — the posture, built after the advisory, reads WALL in that same tick (W-75cafe7a), and only at the `walled` TIER (D-306); the forecast already says ``wall in ~0m``.
 # ``_tick_burn`` (the flip leg's single-tick projection) and this smoothed burn answer two different
 # questions and neither reads the other. No statistics live here — the ledger is the source.
 _POSTURE_SCHEMA = 1
@@ -4971,7 +5805,9 @@ def _write_quota_posture(posture: dict) -> None:
     ⚠️ The pid in the tmp name is load-bearing. ``os.replace`` makes the PUBLISH atomic; it says
     nothing about the STAGING. With one shared ``<file>.tmp``, two overlapping ticks truncate each
     other mid-write and whoever replaces first publishes the mixture — and nothing serialises them:
-    ``_cmd_tick`` has no single-instance lock and the picture's probes have no wall-clock bound, so
+    ``_cmd_tick`` takes no lock itself (the cron line and the quota dashboard serialise their runs
+    through ``flock -n rotate.lock``; a hand-run tick does not) and the picture's probes have no
+    wall-clock bound, so
     a slow tick straddles the next 5-minute cron one. That is exactly when the fleet is degraded
     enough to matter. Measured under a 6-writer race: 3,471 of 4,000 concurrent reads unparseable
     with the shared name (review round 1). Readers fail open on a torn file, so the cost is a whole
@@ -4988,7 +5824,7 @@ def _write_quota_posture(posture: dict) -> None:
     # under a pid that never returns. The old shared name self-healed by overwrite; this one
     # accumulates, so sweep anything of ours older than an hour before staging a new one.
     try:
-        cutoff = _now() - 3600.0
+        cutoff = time.time() - 3600.0  # WALL time, never `_now()` (W-43eb1e48's review, A-S1)
         for orphan in p.parent.glob(f"{p.name}.*.tmp"):
             if orphan != tmp and orphan.stat().st_mtime < cutoff:
                 orphan.unlink()
@@ -5665,6 +6501,31 @@ def _posture_status_line(posture: dict | None, now: float, stale_s: float = 900.
     ) + f" · written {age / 60:.0f}m ago"
 
 
+def _hold_not_in_force_clause() -> str:
+    """`` — NOT IN FORCE: …`` when the hooks have stopped enforcing the stamp, else "".
+
+    quota_stop.py (and final_gate_stop.py, mirroring it) treat a stamp as a STALE FLAG once the
+    tick log has not moved for ``QUOTA_STOP_TICK_STALE_S`` (default 900; a missing log counts):
+    every tool call is then allowed with a warning. `--status` kept printing "hold LANE … builders
+    parked" through the whole 2026-10-22 outage while no hook held anything (W-010bb0d9), so the
+    hold line reads the same file and the same bound (quota_stop.py:741-757) and says so."""
+    raw = os.environ.get("QUOTA_STOP_TICK_LOG") or str(Path.home() / ".claude" / "rotate-tick.log")
+    try:
+        bound = float(os.environ.get("QUOTA_STOP_TICK_STALE_S", "900"))
+    except ValueError:
+        bound = 900.0
+    if not math.isfinite(bound):
+        bound = 900.0
+    try:
+        age: float | None = _now() - Path(raw).stat().st_mtime
+    except OSError:
+        age = None
+    if age is not None and age <= bound:
+        return ""
+    when = "no tick log" if age is None else f"the tick has not run for {age / 60:.0f}m"
+    return f" — NOT IN FORCE: {when}, the hooks fail open"
+
+
 def _print_picture(pic: dict) -> None:
     if pic.get("error"):
         print(f"picture: unavailable ({pic['error']}) — the account lines above still hold")
@@ -5672,17 +6533,26 @@ def _print_picture(pic: dict) -> None:
     by = {r["email"]: r for r in pic["accounts"]}
     hold = pic.get("hold")
     if hold is not None and not isinstance(hold, dict):
-        hold = None  # `_hold_is_wall` is dict-guarded; the `.get` calls below are not
-    print(
-        "picture: hold "
-        + (
-            f"{'HELD' if _hold_is_wall(hold) else 'WARNING (urgent-90 — warning only, the wall-tier hold is not armed)'} since "
-            f"{_fmt_when(hold.get('since'))}, resume promised "
-            + (_fmt_when(hold["resume_promised"]) if hold.get("resume_promised") else "none named")
-            if hold
-            else "none"
+        # W-06733560 item 7: `_hold_is_wall` fails closed on a non-dict, so the display says the
+        # hold is unreadable and read as the wall instead of printing `none` (its `.get` calls
+        # below need a dict, so it never reaches them)
+        print(f"picture: hold unreadable ({type(hold).__name__}) — read as the WALL")
+    else:
+        print(
+            "picture: hold "
+            + (
+                f"{'HELD' if _hold_is_wall(hold) else 'LANE (urgent-90 — builders parked; coordinator_mode merge owners and open-P0 owners continue)'} since "
+                f"{_fmt_when(hold.get('since'))}, resume promised "
+                + (
+                    _fmt_when(hold["resume_promised"])
+                    if hold.get("resume_promised")
+                    else "none named"
+                )
+                if hold
+                else "none"
+            )
+            + (_hold_not_in_force_clause() if hold else "")
         )
-    )
     parts = []
     for i, email in enumerate(pic["queue"], 1):
         r = by.get(email) or {}
@@ -5781,7 +6651,7 @@ def _fleet_exhaustion_stamp() -> Path:
 # `_fleet_active_wall_advisory` writes it on `walled OR urgent`: `walled` is the real wall (a
 # window at/over `ROTATE_THRESHOLD`, its `caps.json` cap, or 100 — `_flip_churn_excluded`), while
 # `urgent` is the SESSION window at `_urgent_drain_pct()` = 90 with no VALIDATED successor, which
-# is EIGHT points earlier on the default `ROTATE_THRESHOLD` of 98 and exists precisely to give a
+# is NINE points earlier on the default `ROTATE_THRESHOLD` of 99 and exists precisely to give a
 # graceful stop its runway (D-111). That gap is on the SESSION window alone: `urgent` tests
 # `five_hour` while a `caps.json` cap is applied to `seven_day` (`_flip_churn_excluded`), so a cap
 # never shortens it — it walls the weekly window on its own axis.
@@ -5909,11 +6779,15 @@ def _upgrade_stamp_tier_to_walled(stamp: Path) -> None:
 
 def _hold_is_wall(hold: dict | None) -> bool:
     """Is the live hold the one that actually HOLDS? The WALL band asserts that
-    `quota_stop.py` is default-denying every world-changing tool, and since D-306 only the
-    `walled` tier does. A hold dict with no tier is a pre-tier stamp — fails closed, like
-    :func:`_stamp_tier`; no hold at all is no wall."""
-    if not isinstance(hold, dict):
+    `quota_stop.py` is default-denying every world-changing tool for EVERY session, and since
+    D-306 only the `walled` tier does; `urgent-90` is the D-1113 lane, which parks builders but
+    lets a coordinator_mode merge owner and an open-P0 owner continue. A hold dict with no tier
+    is a pre-tier stamp — fails closed, like :func:`_stamp_tier`; no hold at all is no wall, and a hold that is not a dict is one this
+    reader cannot read, so it fails closed too (W-06733560 item 7)."""
+    if hold is None:
         return False
+    if not isinstance(hold, dict):
+        return True
     return hold.get("tier", _STAMP_TIER_WALLED) != _STAMP_TIER_URGENT
 
 
@@ -5946,19 +6820,32 @@ def _reading_predates_a_reset(row: object, now: float) -> bool:
     Returns False on anything unparseable — a missing or malformed cache row falls through to
     the ordinary age rule rather than forcing a ping storm.
     """
+    return _rolled_at(row, now) is not None
+
+
+def _window_rolled(w: object, ts: object, now: float) -> bool:
+    """True when the window *w*, read at *ts*, has reset since: ``ts < resets_at_epoch <= now``.
+    False on anything unparseable — the one per-window rule `_rolled_at` and the active account's
+    heat view (:func:`_active_heat_view`) share."""
+    if not isinstance(w, dict) or not isinstance(ts, (int, float)) or isinstance(ts, bool):
+        return False
+    reset = w.get("resets_at_epoch")
+    return isinstance(reset, (int, float)) and not isinstance(reset, bool) and ts < reset <= now
+
+
+def _rolled_at(row: object, now: float) -> float | None:
+    """The latest reset a cached reading predates (its ``five_hour`` or ``seven_day`` window rolled
+    since ``row["ts"]``), or None when neither has — :func:`_ping_slots` compares the refresh
+    stamp against it, so a ping made after the roll does not bypass the cooldown again."""
     if not isinstance(row, dict):
-        return False
+        return None
     ts = row.get("ts")
-    if not isinstance(ts, (int, float)):
-        return False
-    for key in ("five_hour", "seven_day"):
-        w = row.get(key)
-        if not isinstance(w, dict):
-            continue
-        reset = w.get("resets_at_epoch")
-        if isinstance(reset, (int, float)) and ts < reset <= now:
-            return True
-    return False
+    rolls = [
+        float(w["resets_at_epoch"])
+        for w in (row.get("five_hour"), row.get("seven_day"))
+        if isinstance(w, dict) and _window_rolled(w, ts, now)
+    ]
+    return max(rolls) if rolls else None
 
 
 def _ping_slots(groups: dict[str, list[dict]], cache: dict, now: float) -> set[str]:
@@ -6008,9 +6895,12 @@ def _ping_slots(groups: dict[str, list[dict]], cache: dict, now: float) -> set[s
         # above is INERT. `_refresh_ping_due` uses the SAME 60-minute interval as the age gate,
         # so a reading young enough to be called fresh has necessarily been pinged inside the
         # hour — meaning every account this fix newly admits would be vetoed one line later.
-        # Bypassing is bounded: a window rolls once per 5 hours, so this can fire at most once
-        # per account per window, never a ping storm.
-        if not obsolete and not _refresh_ping_due(email, now):
+        # The bypass is ONCE PER ROLL, then a short retry (W-010bb0d9): only a ping that
+        # REFRESHES the cache ends an obsolete reading, and offline every ping fails, so the old
+        # every-tick bypass spent the whole budget (3 x `claude -p ok`, 150 s each) on every tick
+        # of the 2026-10-22 outage. `_obsolete_ping_due` admits it again after
+        # `ROTATE_OBSOLETE_RETRY_S` (600 s), so recovery after an outage waits at most that long.
+        if not (_obsolete_ping_due(email, c, now) if obsolete else _refresh_ping_due(email, now)):
             continue  # this account's own stamp budget says not yet
         # No cached reading at all is the STALEST state there is — it outranks any age. So does
         # a reading the clock calls fresh while the window it measured has already rolled: that
@@ -6032,6 +6922,27 @@ def _refresh_ping_due(email: str, now: float) -> bool:
         return True
     age = now - mtime
     return age >= interval or age < -_CLOCK_SKEW_TOLERANCE_S
+
+
+def _obsolete_ping_due(email: str, cached: object, now: float) -> bool:
+    """The refresh gate for an OBSOLETE reading (W-010bb0d9): due when the account's refresh stamp
+    is absent, predates the latest reset the reading missed (no ping since the roll — the
+    2026-09-06 stall), is future-dated past the skew tolerance (a WSL resume), or is older than
+    ``ROTATE_OBSOLETE_RETRY_S`` (default 600 s; non-positive → the default). It reads the stamp
+    itself, never through :func:`_refresh_ping_due`, whose 60-minute interval is the one this gate
+    shortens. Fail direction: an extra ping (cheap) over a skipped one — a missed refresh after an
+    outage leaves the picker with no successor."""
+    retry = _env_float("ROTATE_OBSOLETE_RETRY_S", 600.0)
+    if retry <= 0:
+        retry = 600.0
+    mtime = _regular_stamp_mtime(_fleet_refresh_stamp(email))
+    if mtime is None:
+        return True
+    rolled = _rolled_at(cached, now)
+    if rolled is not None and mtime < rolled:
+        return True
+    age = now - mtime
+    return age >= retry or age < -_CLOCK_SKEW_TOLERANCE_S
 
 
 def _touch_refresh_stamp(email: str) -> None:
@@ -6228,13 +7139,16 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
     # cap IS the operator's weekly rule; read the LIVE values from caps.json, never from here — an
     # earlier cut of this comment quoted four of them and two had gone stale) and at the threshold
     # otherwise.
+    # the active account's own line, when it has one — a SEPARATE name: `threshold` stays the fleet
+    # line handed to `_flip_exclusion_reasons`, which judges each sibling on its own line (D-855 review)
+    act_thr = _row_threshold(row, threshold)
     cap = row.get("weekly_cap")
-    weekly_thr = float(cap) if cap is not None else threshold
+    weekly_thr = float(cap) if cap is not None else act_thr
     # PROJECTED trip: reading + the burn since the previous tick (see _tick_burn) — a line that
     # is only checked every 5 minutes must be crossed BEFORE the wall, not observed after it.
     burn = _tick_burn(str(row.get("email")), row, _now())
     session_trip = (
-        utils["five_hour"] is not None and utils["five_hour"] + burn["five_hour"] >= threshold
+        utils["five_hour"] is not None and utils["five_hour"] + burn["five_hour"] >= act_thr
     )
     weekly_trip = (
         utils["seven_day"] is not None and utils["seven_day"] + burn["seven_day"] >= weekly_thr
@@ -6311,7 +7225,7 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
         print(
             f"tick: active {row['email']} at {hot:.0f}%"
             + (f" (+{proj:.0f} since last tick)" if proj > 0 else "")
-            + f" — session below {threshold:.0f}%"
+            + f" — session below {act_thr:.0f}%"
             + (f", weekly below cap {cap}" if cap is not None else "")
             + ", no flip"
         )
@@ -6364,7 +7278,20 @@ def _row_has_reading(row: dict | None) -> bool:
     return row is not None and not all(v is None for v in _row_utils(row).values())
 
 
-def _active_account_walled(accounts: list[dict], threshold: float) -> tuple[bool, dict | None]:
+def _wall_line(row: dict | None, threshold: float) -> float:
+    """The line that WALLS one active account: its own ``thresholds.json`` line when that sits at or
+    above the urgent tier, else the fleet line. D-201 orders urgent-90 BEFORE the wall; an own line
+    below it (the board accepts 50) is a rotation preference the flip leg honours at the line itself,
+    never a hard hold with points left. Flooring it AT the urgent tier instead made urgent and walled
+    fire on the same tick (D-855 review, closing round N1). Shared by :func:`_active_account_walled`
+    and :func:`_drain_trigger_reason` so the hold and its notice judge the same line."""
+    line = _row_threshold(row, threshold)
+    return line if line >= _urgent_drain_pct() else threshold
+
+
+def _active_account_walled(
+    accounts: list[dict], threshold: float, now: float | None = None
+) -> tuple[bool, dict | None]:
     """Is the account the fleet's ``active`` pointer resolves to (AFTER this tick's flip leg)
     walled? Uses the ONE shared exclusion predicate (:func:`_flip_churn_excluded`) — a pointer
     sitting on a ≥threshold / cap-walled / ≥100 account IS the real "no active quota left"
@@ -6378,17 +7305,65 @@ def _active_account_walled(accounts: list[dict], threshold: float) -> tuple[bool
     )
     if row is None:
         return False, None
-    utils = _row_utils(row)
-    if not _row_has_reading(row):
+    # decided on the heat view, the row itself returned; the tick passes ITS `now`, so the walled
+    # verdict and the advisory's heat read one clock (review pass 2)
+    heat = _active_heat_view(row, _now() if now is None else now)
+    utils = _row_utils(heat)
+    if not _row_has_reading(heat):
         return False, row  # no reading → no claim
-    return _flip_churn_excluded(utils, row.get("weekly_cap"), threshold), row
+    # the account's own line walls it only at/above the urgent tier (`_wall_line`, D-855 review)
+    return _flip_churn_excluded(
+        utils, heat.get("weekly_cap"), _wall_line(heat, threshold), active=True
+    ), row
 
 
-def _clear_stamp(stamp: Path) -> bool:
+def _active_heat_view(row: dict, now: float) -> dict:
+    """The ACTIVE account's row as its HEAT is judged (W-010bb0d9): a shallow copy in which a
+    CACHED window whose reset has passed since the reading (:func:`_window_rolled`) is None.
+
+    The usage since that reset is unknown, so the old figure is no evidence of heat: on
+    2026-10-22 a cached 93% outlived its 16:20 reset and re-armed the urgent-90 lane at 16:33.
+    None, not 0%: the standby rescue's premise ("an idle account cannot burn",
+    :func:`_flip_candidate_verdict`) does not hold for the account every agent is using. The rows
+    themselves stay as built — nulling them killed that rescue (both design critiques executed
+    it) — so this view is applied only where the active account's heat is decided: here and in
+    :func:`_fleet_active_wall_advisory`. One window rolled and another reading → not hot, and the
+    relief branch lifts the stamp; every window rolled → no reading, and the D-180 blackout rule
+    keeps it."""
+    if row.get("source") != "cache":
+        return row
+    ts = _usable_ts(row.get("cached_at"))  # the reading's own time, set by `_fleet_account_rows`
+    if ts is None:
+        return row  # no reading time: judge the row as it is (the pre-change behaviour)
+    view = dict(row)
+    for key in ("five_hour", "seven_day"):
+        if _window_rolled(row.get(key), ts, now):
+            view[key] = None
+    return view
+
+
+def _clear_stamp(stamp: Path, *, battery_lift: bool = False) -> bool:
     """Unlink the fleet-exhausted stamp; True when it is gone. A stamp that cannot be removed
     (permissions, a directory in its place) is reported and left — the hold then STANDS, so no
     wake may follow: the tick must never tell the fleet the hold lifted while the hook still reads
-    the stamp (scoped review of Phase A, 2026-09-07)."""
+    the stamp (scoped review of Phase A, 2026-09-07).
+
+    The battery hold (W-83a8ee68) shares this stamp, so the QUOTA leg's clears (relief, dwell)
+    must not end it: unless ``battery_lift``, a battery-tier stamp is KEPT, and a quota stamp
+    while the battery is low is REWRITTEN as battery-tier — both answer False, so no wake follows.
+    Only :func:`_battery_lift` passes ``battery_lift=True``."""
+    if not battery_lift:
+        if _stamp_is_battery(stamp):
+            print("tick: fleet-exhausted stamp KEPT — it is the battery hold's, not the quota's")
+            return False
+        if _battery_low():
+            try:
+                _touch_stamp(stamp, time.time(), _stamp_body("0", _STAMP_TIER_BATTERY))
+            except OSError as exc:
+                print(f"tick: battery hold could not take over the stamp ({exc}) — it stands")
+                return False
+            print("tick: quota relief on a low battery — the stamp is now the battery hold's")
+            return False
     try:
         stamp.unlink(missing_ok=True)
         return True
@@ -6398,6 +7373,270 @@ def _clear_stamp(stamp: Path) -> bool:
         )
         _ledger_append({"event": "hold-stuck", "ts": time.time(), "error": str(exc)[:200]})
         return False
+
+
+# ── the battery hold (W-83a8ee68, D-898) ─────────────────────────────────────────────────────
+# Operator 2026-10-15: "as like quota hold, if the laptop battery goes under 6% percent all agents
+# inside repos should gracefully stop without losing where they left by knowing they might lose
+# their context". The hold IS the quota hold: the same `fleet-exhausted` stamp with a third tier
+# line, `battery`, which every tier reader (this file's `_stamp_tier`, quota_stop.py,
+# quota_posture_hook.py, final_gate_stop.py) reads as `walled` because it is not a tier they know
+# — they all fail closed on an unknown one — so the hook holds, the Stop hook yields and dispatch
+# stops with no reader change. Armed by `--battery-tick` every minute AND by every tick; lifted
+# only by the tick, the one place that knows whether the quota is hot right now.
+# ⚠️ COBRA (D-253): the cheapest way to look done is a hold that arms on a low reading alone; the
+# hold keys on `Discharging` AND the line, and lifts on MAINS, never on the percentage, so a
+# charging laptop at 5% holds nothing and a flickering 7→8% never releases it.
+_STAMP_TIER_BATTERY: Final = "battery"
+_BATTERY_MAINS_STATUS: Final = frozenset({"Charging", "Full", "Not charging"})
+_QUOTA_UNKNOWN: Final = "unknown"
+# None = cool on a real reading; `walled`/`urgent-90` = hot; `_QUOTA_UNKNOWN` = not read this tick.
+# `_cmd_tick` resets it to UNKNOWN; `_fleet_active_wall_advisory` sets it.
+_QUOTA_HOT_THIS_TICK: str | None = None
+
+
+def _battery_hold_pct() -> float:
+    """The hold line, in percent — the operator's "6-7%" taken at its top (D-898)."""
+    return _env_float("CLAUDE_BATTERY_HOLD_PCT", 7.0)
+
+
+def _read_power_word(path: Path) -> str | None:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace").strip() or None
+    except OSError:
+        return None
+
+
+def _ac_online() -> str | None:
+    """AC1's `online` word — `1` mains, `0` explicitly offline, None unreadable."""
+    ac = Path(os.environ.get("CLAUDE_AC_DIR") or "/sys/class/power_supply/AC1")
+    return _read_power_word(ac / "online")
+
+
+def _power_state(status: str) -> str:
+    """The ONE power classifier — the arm and the lift both read it, so they can never disagree
+    (two review rounds found them disagreeing when each kept its own rule). The battery's own
+    status wins when it is definite: `Discharging` is battery, `Charging`/`Full`/`Not charging`
+    is mains, whatever AC1 says (a stuck AC flag can neither veto a draining battery nor fake one).
+    Any other status (`Unknown`, a driver's own word) defers to AC1: `1` mains, `0` battery,
+    unreadable `unknown` — which neither arms nor lifts, so a standing hold keeps (fail closed)."""
+    if status == "Discharging":
+        return "battery"
+    if status in _BATTERY_MAINS_STATUS:
+        return "mains"
+    ac = _ac_online()
+    return "mains" if ac == "1" else "battery" if ac == "0" else "unknown"
+
+
+def _battery_reading() -> tuple[str, float | None, str] | None:
+    """``(status, pct, power)`` from BAT1/AC1 — ``power`` is :func:`_power_state` — or None when
+    BAT1 has no readable status (no battery → no hold, fail open by design)."""
+    bat = Path(os.environ.get("CLAUDE_BATTERY_DIR") or "/sys/class/power_supply/BAT1")
+    status = _read_power_word(bat / "status")
+    if status is None:
+        return None
+    raw = _read_power_word(bat / "capacity")
+    try:
+        pct = float(raw) if raw is not None else None
+    except ValueError:
+        pct = None
+    if pct is not None and not math.isfinite(pct):
+        pct = None
+    return status, pct, _power_state(status)
+
+
+def _battery_low() -> bool:
+    """On battery power (per :func:`_power_state`) at or below the hold line. An unreadable
+    capacity is not low (no evidence of how much is left)."""
+    r = _battery_reading()
+    return r is not None and r[2] == "battery" and r[1] is not None and r[1] <= _battery_hold_pct()
+
+
+def _stamp_is_battery(stamp: Path) -> bool:
+    """Is the stamp the battery hold's? Line 2 read RAW, exactly the way `_stamp_tier` reads it
+    (`is_file()` first so a FIFO never blocks; `newline=""` and `split("\\n")` so a control byte
+    never shifts the line) — `_stamp_tier` itself folds `battery` into `walled`."""
+    try:
+        if not stamp.is_file():
+            return False
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            lines = fh.read().split("\n")
+    except OSError:
+        return False
+    return len(lines) > 1 and lines[1].strip() == _STAMP_TIER_BATTERY
+
+
+def _stamp_raw_tier(stamp: Path) -> str | None:
+    """Line 2 as written, or None — `_stamp_tier` answers `walled` for anything it does not know."""
+    try:
+        if not stamp.is_file():
+            return None
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            lines = fh.read().split("\n")
+    except OSError:
+        return None
+    return lines[1].strip() if len(lines) > 1 else None
+
+
+def _battery_arm(now: float) -> None:
+    """Low battery and no full hold (no stamp, or the quota's softer `urgent-90`, the D-1113 lane, which
+    parks builders only) → write the battery stamp. A `walled` quota stamp already holds and is left alone."""
+    if not _battery_low():
+        return
+    stamp = _fleet_exhaustion_stamp()
+    if stamp.exists() and _stamp_raw_tier(stamp) != _STAMP_TIER_URGENT:
+        return  # already holding: the battery's own, or the quota's wall
+    r = _battery_reading()
+    _touch_stamp(stamp, now, _stamp_body("0", _STAMP_TIER_BATTERY))
+    print(
+        f"tick: BATTERY HOLD armed — {r[1] if r else '?'}% on battery (line {_battery_hold_pct():g}%)"
+    )
+    _ledger_append({"event": "battery-hold", "ts": now, "pct": r[1] if r else None})
+
+
+def _battery_lift(now: float) -> None:
+    """Mains power and the battery's stamp → lift it and wake every armed self-watch, unless the
+    quota leg found the active account hot THIS tick: then the stamp becomes the quota's tier and
+    nobody is woken into the wall (its own relief wakes them)."""
+    stamp = _fleet_exhaustion_stamp()
+    if not _stamp_is_battery(stamp):
+        return
+    r = _battery_reading()
+    if r is None or r[2] != "mains":
+        return  # battery, unknown, or no reading: only mains power lifts it
+    if _QUOTA_HOT_THIS_TICK == _QUOTA_UNKNOWN:
+        # the quota leg never reached a real reading this tick (a blackout, a raise, a skipped
+        # advisory): waking now could wake the fleet into a wall — keep the hold, retry next tick
+        print(
+            "tick: mains power is back but the quota is unread this tick — the battery hold stays"
+        )
+        return
+    if _QUOTA_HOT_THIS_TICK is not None:
+        _touch_stamp(stamp, now, _stamp_body("0", _QUOTA_HOT_THIS_TICK))
+        print(
+            f"tick: mains power is back but the quota is {_QUOTA_HOT_THIS_TICK} — the hold stays the quota's, no wake"
+        )
+        return
+    if _clear_stamp(stamp, battery_lift=True):
+        print("tick: BATTERY HOLD lifted — mains power is back")
+        _wake_held_sessions(now, _STAMP_TIER_BATTERY, True)
+
+
+def _battery_leg(now: float, *, lift: bool) -> None:
+    """Arm, then (from the tick only) lift. Never raises: the battery must never kill a tick."""
+    try:
+        _battery_arm(now)
+        if lift:
+            _battery_lift(now)
+    except Exception as exc:  # noqa: BLE001 — cron-hosted, like `_cmd_tick`'s own guard
+        print(f"tick: battery hold leg ERROR {type(exc).__name__}: {exc}")
+
+
+def _cmd_battery_tick() -> int:
+    """`--battery-tick`, the 1-minute cron: ARM only, silent unless it acts, so the hold lands
+    within a minute of the crossing; the 5-minute tick owns the lift. Always exits 0."""
+    _battery_leg(time.time(), lift=False)
+    return 0
+
+
+# ── the resume wake (W-75cafe7a) ───────────────────────────────────────────────────────────────
+# After a host sleep nothing woke the idle sessions: the self-watch fires on a death or a hold
+# lift only. The guest kernel does not account a host sleep (CLOCK_BOOTTIME − CLOCK_MONOTONIC
+# read 0 across two WSL sleeps, 2026-10-19), so the WALL clock is the signal: the gap from the
+# last tick's END to this tick's start. Measured over 3 days of ledger rows: ordinary slips are
+# 10-11 minutes (one missed */5 slot), every sleep ≥ 50 — hence 15, never under 12.
+# COBRA (D-253): the cheapest way to satisfy "every session woke after a resume" is to wake on
+# every tick or on any small gap; the floor, the END-based gap (a slow tick is not a sleep) and
+# write-the-record-before-the-wake (an unwritable record wakes nobody, never every tick) are the
+# counter, and each `resume-wake` row carries its gap so a storm shows in the ledger.
+_RESUME_KIND: Final = "resume"  # the `.holdlifted` field 2 the self-watch reads
+_RESUME_EVENT: Final = "resume-wake"  # its ledger row — never `hold-lifted`, an episode end
+_RESUME_GAP_FLOOR_MIN: Final = 12.0
+
+
+def _tick_last_end_path() -> Path:
+    return _rotate_state_dir() / "tick-last-end"
+
+
+def _resume_gap_s() -> float:
+    """`CLAUDE_RESUME_GAP_MIN` (default 15) in seconds; under the floor the default stands."""
+    mins = _env_float("CLAUDE_RESUME_GAP_MIN", 15.0)
+    return (mins if mins >= _RESUME_GAP_FLOOR_MIN else 15.0) * 60.0
+
+
+def _read_tick_last_end() -> float | None:
+    """The previous tick's end, or None — missing, unreadable, not a finite number, or a state
+    dir that cannot be made, or not a regular file. Never raises: a missed wake, never a broken
+    tick. `is_file()` before the read, as `_stamp_tier` does: a FIFO at this path blocks the read
+    forever, and a hang is not an OSError, so every cron tick would stall on it."""
+    try:
+        path = _tick_last_end_path()
+        if not path.is_file():
+            return None
+        raw = path.read_text(encoding="utf-8", errors="replace").strip()
+        val = float(raw)
+    except (ValueError, *_STATE_DIR_ERRORS):
+        return None
+    return val if math.isfinite(val) else None
+
+
+def _write_tick_last_end(now: float) -> bool:
+    """Atomically record this tick's end; False when it could not be written. The per-process
+    staging name is cleared of anything but a directory, before the write and again on failure, so
+    a state dir that refuses the publish never fills with them; a DIRECTORY planted there is left in
+    place and the write fails closed."""
+    tmp = None
+    try:
+        path = _tick_last_end_path()
+        tmp = path.with_name(f".{path.name}.{os.getpid()}")
+        # a stale or planted staging entry that is not a directory (a FIFO would block an open for
+        # write; a link would be followed) is removed, and the file is created EXCLUSIVELY; a
+        # DIRECTORY there makes the unlink fail and this tick writes nothing and wakes nobody (fail
+        # closed — the name carries this tick's pid, so the next tick uses another)
+        if os.path.lexists(tmp):
+            os.unlink(tmp)
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o666)
+        with os.fdopen(fd, "w") as fh:
+            fh.write(f"{now}\n")
+        os.replace(tmp, path)
+    except _STATE_DIR_ERRORS:
+        if tmp is not None:
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
+        return False
+    return True
+
+
+def _resume_leg(start: float, prev_end: float | None) -> None:
+    """Record this tick's end, then — only when that write held and the gap from the previous
+    end to this tick's start is over the line — wake every armed self-watch with a `resume`
+    lift, unless a hold stands (its own lift wakes them; `_stamp_tier` reads a torn or unknown
+    stamp as walled). The quota is not consulted: no usage accrues while the box sleeps, and
+    the self-watch's connectivity gate waits for the API. Never raises."""
+    try:
+        if not _write_tick_last_end(_now()):
+            print("tick: the tick-end record could not be written — no resume wake this tick")
+            return
+        if prev_end is None:
+            return
+        gap = start - prev_end
+        if gap <= _resume_gap_s():
+            return
+        stamp = _fleet_exhaustion_stamp()
+        # `lexists`, not `exists`: a dangling link at the stamp path is a stamp `_stamp_tier`
+        # reads as walled (fail-closed), and `exists()` follows the link and says no
+        if os.path.lexists(stamp) and _stamp_tier(stamp) == _STAMP_TIER_WALLED:
+            print(
+                f"tick: resumed after {gap / 60:.0f} min — a hold stands; its lift wakes the sessions"
+            )
+            return
+        _wake_held_sessions(
+            _now(), _RESUME_KIND, True, event=_RESUME_EVENT, extra={"gap_s": round(gap)}
+        )
+    except Exception as exc:  # noqa: BLE001 — cron-hosted, like `_battery_leg`
+        print(f"tick: resume leg ERROR {type(exc).__name__}: {exc}")
 
 
 def _selfwatch_lock_dir() -> Path:
@@ -6479,7 +7718,14 @@ def _armed_sids() -> tuple[list[str], list[str], list[str]]:
     return armed, dead, broken
 
 
-def _wake_held_sessions(now: float, reason: str, reading_ok: bool) -> dict:
+def _wake_held_sessions(
+    now: float,
+    reason: str,
+    reading_ok: bool,
+    *,
+    event: str | None = None,
+    extra: dict | None = None,
+) -> dict:
     """The RELIEF WAKE (D-177/D-178): the fleet-exhausted stamp just went away, so every session
     that stopped for the hold must be told. For every sid whose self-watch is ARMED, create
     `<lockdir>/<safe>.holdlifted` holding the lift epoch — a file of its OWN, never the death
@@ -6489,7 +7735,12 @@ def _wake_held_sessions(now: float, reason: str, reading_ok: bool) -> dict:
     ``reading_ok`` False (a probe blackout — `_active_account_walled` answers "not walled" on no
     data) NO lift is written: a blackout is not relief, and waking the fleet into the wall burns
     the turn the hold saved. Either way ONE ledger row (`hold-lifted`) records the denominator.
-    Fails OPEN on the mesh: an unusable lock dir is counted in ``errors`` and the tick goes on. ``reading_ok`` is DEFENSIVE since D-180 — the relief site keeps the stamp on a blackout and never passes ``False``; the ``no-reading`` row is reachable only by a direct call (unit-tested, never taken by the tick)."""
+    Fails OPEN on the mesh: an unusable lock dir is counted in ``errors`` and the tick goes on. ``reading_ok`` is DEFENSIVE since D-180 — the relief site keeps the stamp on a blackout and never passes ``False``; the ``no-reading`` row is reachable only by a direct call (unit-tested, never taken by the tick).
+
+    ``event`` names the ledger row: the hold lifts write ``hold-lifted`` (the default, the wall
+    episode's end event); the resume wake writes ``resume-wake`` so a sleep never ends an open
+    wall episode (W-75cafe7a). ``extra`` adds fields to that row (the resume's gap)."""
+    event = event or _WAKE_EVENT
     counts = {"armed": 0, "dead": 0, "woken": 0, "pending": 0, "errors": 0}
     site = reason  # which unlink fired — kept even when the reason becomes "no-reading"
     try:
@@ -6507,8 +7758,13 @@ def _wake_held_sessions(now: float, reason: str, reading_ok: bool) -> dict:
                 except OSError:
                     counts["errors"] += 1
                     continue
+                # the battery lift and the resume wake name themselves so the self-watch's RESUME
+                # line can say which event woke it; a quota lift keeps its byte-exact one-field
+                # shape (W-83a8ee68, W-75cafe7a)
+                named = reason in (_STAMP_TIER_BATTERY, _RESUME_KIND)
+                body = f"{int(now)} {reason}\n" if named else f"{int(now)}\n"
                 try:
-                    os.write(fd, f"{int(now)}\n".encode())
+                    os.write(fd, body.encode())
                 finally:
                     os.close(fd)
                 counts["woken"] += 1
@@ -6516,9 +7772,12 @@ def _wake_held_sessions(now: float, reason: str, reading_ok: bool) -> dict:
             reason = "no-reading"
     except OSError:
         counts["errors"] += 1
-    _ledger_append({"event": "hold-lifted", "ts": now, "reason": reason, "site": site, **counts})
+    _ledger_append(
+        {"event": event, "ts": now, "reason": reason, "site": site, **counts, **(extra or {})}
+    )
+    what = "resumed from sleep" if event == _RESUME_EVENT else f"hold lifted ({reason})"
     print(
-        f"tick: hold lifted ({reason}) — woke {counts['woken']} of {counts['armed']} armed "
+        f"tick: {what} — woke {counts['woken']} of {counts['armed']} armed "
         f"self-watch(es); dead {counts['dead']}, pending {counts['pending']}, errors {counts['errors']}"
     )
     return counts
@@ -6544,18 +7803,22 @@ def _promised_resume(stamp: Path) -> float | None:
         # treats as a single token, and a bogus future promise suppresses the promise-came-due
         # re-arm until the week timer.
         with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
-            promised = float(fh.read().split("\n", 1)[0].strip())
+            raw = float(fh.read().split("\n", 1)[0].strip())
         written = stamp.stat().st_mtime
     except (OSError, ValueError, IndexError):
         return None
-    return promised if promised > written else None
+    # W-06733560 item 6: through the validator for an epoch that will be PROMISED — a bare
+    # float() let `inf` stand as a promise that never comes due, and a finite `1e20` passed and
+    # then killed `--status` in `_fmt_when` (OverflowError)
+    promised = _dateable_ts(raw)
+    return promised if promised is not None and promised > written else None
 
 
 def _urgent_drain_pct() -> float:
     """The SESSION line at which, with NO eligible successor, every repo is told to stop
     gracefully and hook itself to the next session reset. Default **90** (operator rule
     2026-09-03: "when we see 90% session limit reached and if no account is available we must
-    send an URGENT mail to repos"). Below the flip line on purpose: the flip (`_rotate_threshold`, 98 since D-201 — read it there,
+    send an URGENT mail to repos"). Below the flip line on purpose: the flip (`_rotate_threshold`, 99 since 2026-10-14 — read it there,
     never from this sentence) is the
     remedy when a successor exists; this is the remedy when none does, and it needs the five
     points of runway a graceful stop takes. ``ROTATE_URGENT_DRAIN_PCT`` overrides. The quota posture (D-269) reads it as the RED line too — on the hottest window, successor or not — so a session's band and the drain mail share one number."""
@@ -6622,7 +7885,9 @@ def _next_session_relief(
         # The PICKER's bar, not the drain threshold: `_flip_candidate_verdict` refuses a target
         # whose session is over ROTATE_TARGET_SESSION_MAX_PCT (default the trip line), so relief
         # promised past that bar named an instant at which nothing was pickable (closing review P3-2).
-        session_bar = _env_float("ROTATE_TARGET_SESSION_MAX_PCT", _rotate_threshold())
+        session_bar = _env_float(
+            "ROTATE_TARGET_SESSION_MAX_PCT", _row_threshold(row, _rotate_threshold())
+        )
         # STRICT, like the picker (`utils["five_hour"] > session_max`): at exactly the bar the
         # picker takes the account now, so it is not waiting on anything (R5)
         session_spent = su is not None and su > session_bar
@@ -6660,7 +7925,9 @@ def _next_session_relief(
     return best
 
 
-def _drain_trigger_reason(row: dict, session_pct: float | None, walled: bool) -> str:
+def _drain_trigger_reason(
+    row: dict, session_pct: float | None, walled: bool, threshold: float | None = None
+) -> str:
     """WHICH window actually triggered this notice, with its number and its UNIT.
 
     The notice used to hardcode "its 5-hour session window" and print whatever `session_pct` held,
@@ -6674,12 +7941,22 @@ def _drain_trigger_reason(row: dict, session_pct: float | None, walled: bool) ->
     wu = _usable_ts(wk.get("utilization")) if isinstance(wk, dict) else None
     cap = row.get("weekly_cap")
     if walled:
+        if _is_parked(cap):
+            return "it is PARKED (out of service — `--unpark` restores it)"
+        if wu is not None and wu >= 100.0:
+            # a real weekly wall outranks a session reading at the line (closing round R3-1)
+            return f"its weekly window is {wu:.0f}% CONSUMED (walled)"
+        if wu is not None and cap is not None and float(cap) <= wu < 100.0:
+            return (
+                f"its weekly window is {wu:.0f}% CONSUMED, at or over the "
+                f"{float(cap):.0f}% reserve we set for it in caps.json"
+            )
+        # the line is the wall (D-201), so a SESSION reading at the wall line walls too — judged on
+        # the SAME line the hold used (`_wall_line`), never by which window reads higher (D-855 review)
+        line = _wall_line(row, _rotate_threshold() if threshold is None else threshold)
+        if session_pct is not None and float(session_pct) >= line:
+            return f"its 5-hour session window is {float(session_pct):.0f}% CONSUMED (walled)"
         if wu is not None:
-            if cap is not None and wu < 100.0:
-                return (
-                    f"its weekly window is {wu:.0f}% CONSUMED, at or over the "
-                    f"{float(cap):.0f}% reserve we set for it in caps.json"
-                )
             return f"its weekly window is {wu:.0f}% CONSUMED (walled)"
         return "it is walled with no readable weekly figure"
     if session_pct is not None:
@@ -6728,12 +8005,17 @@ def _humanize_lead(seconds: int) -> str:
 def _urgent_drain_message(
     active_email: str, reason: str, relief: tuple[float, str, str] | None
 ) -> str:
-    """The operator's wording, with the concrete time the repos must hook themselves to."""
+    """The operator's wording, with the concrete time the repos must hook themselves to.
+
+    Latched once per episode, so the text must be true at BOTH tiers: an episode that opens at
+    `urgent-90` and later walls sends no second notice (W-18f559d9 F9)."""
     head = (
         f"URGENT — fleet quota: the active account {active_email} cannot continue — {reason} — "
         "and NO other account is available to switch to (every sibling is session-exhausted, "
-        "weekly-walled or cap-walled). STOP YOUR WORK ASAP, GRACEFULLY: reach a "
-        "commit-and-push checkpoint now, then stop."
+        "weekly-walled or cap-walled). BUILDERS — STOP YOUR WORK ASAP, GRACEFULLY: reach a "
+        "commit-and-push checkpoint now, then stop. Only a coordinator_mode repo's merge owner "
+        "and the owner of an open P0 item continue, checkpointing as they go, and only while the "
+        "hold is at its 90-line lane tier (D-1113) — at the wall every session stops."
     )
     if relief is None:
         # The board's URL is env-derived (the dashboard's own knobs), never a literal — the
@@ -6868,8 +8150,10 @@ def _open_wall_rows(now: float | None = None) -> tuple[dict[str, dict], bool]:
             if not expired:
                 open_rows[acct] = row
         elif ev in _EPISODE_END_EVENTS and open_rows:
-            if ev == _WAKE_EVENT and row.get("site") == "dwell":
-                continue  # a hold cleared on EXPECTATION — the account is still walled (F1)
+            if ev == _WAKE_EVENT and row.get("site") in ("dwell", _STAMP_TIER_BATTERY):
+                # dwell: a hold cleared on EXPECTATION — the account is still walled (F1);
+                # battery: mains power came back, which says nothing about the quota (W-83a8ee68)
+                continue
             open_rows.clear()
     return open_rows, True
 
@@ -6993,7 +8277,8 @@ def _advisory_ledger_latch(email: str, now: float) -> bool:
     # the ONE validator for the promise too: `float()` of a giant int raised out of this latch
     # (and the tick), and `Infinity` latched forever — an unusable promise reads as NO promise,
     # exactly as the re-arm writes it (Delta 21 seat A, A1 mirror)
-    promised = _usable_ts(last.get("resume_epoch"))
+    # `_dateable_ts`, the reader's own validator (`_promised_resume`, D-699), so one field reads alike
+    promised = _dateable_ts(last.get("resume_epoch"))
     # and the STAMP reader's relation on top (`_promised_resume`: a promise not in the future of
     # its own row is NO promise) — without it a promise at or before the row's ts read as
     # RELEASED here and as a week-long hold there, one field, two verdicts (Delta 22 seat A, A1)
@@ -7041,7 +8326,7 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
     at = float(ts)  # converts by `_open_wall_rows`'s INVARIANT; `os.utime` may still refuse it
     # unusable, or not in the future of its own row, = NO promise: the stamp reader's rule
     # (`_promised_resume`) and the ledger latch's, so one field reads the same everywhere (A1)
-    promised = _usable_ts(row.get("resume_epoch"))
+    promised = _dateable_ts(row.get("resume_epoch"))
     content = str(int(promised)) if promised is not None and promised > at else "0"
     # the tier rides back too: re-arming a WARNING as a full hold would reintroduce, from the
     # repair path, exactly the premature stop D-306 removes. Unknown → walled, as everywhere.
@@ -7066,7 +8351,9 @@ def _rearm_wall_stamp(stamp: Path, email: str, now: float) -> None:
         # a temp under a pid that never returns — so sweep ours older than an hour first, as
         # `_write_quota_posture` does for its staging file (Delta 22 seat A, A2)
         try:
-            cutoff = now - 3600.0
+            # WALL time, never the caller's `now` (W-43eb1e48): the sweep judges real files by their
+            # real mtimes — the class D-699's review fixed in `_replace_stamp`
+            cutoff = time.time() - 3600.0
             # BOTH suffixes: `_upgrade_stamp_tier_to_walled` leaves `.raise` temps on the same
             # failures, and until this glob covered them nothing on the box ever removed one
             for orphan in (
@@ -7111,19 +8398,28 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     week of unbroken exhaustion. Dedup is epoch-free: no reset-timestamp key to churn (the
     51181918 defect class — a raw sliding reset epoch re-fired every tick, mob@ 8x at a steady
     95%). (2026-08-26, operator directive: "only fire when we don't have any active quota left".)"""
-    walled, row = _active_account_walled(accounts, threshold)
+    walled, row = _active_account_walled(accounts, threshold, now)
+    # the heat view (W-010bb0d9): a cached window that reset since its reading is no heat
+    heat = _active_heat_view(row, now) if row is not None else {}  # {} reads as no reading
     # URGENT tier (operator rule 2026-09-03): the active account's SESSION at/over 90 with no
-    # eligible successor is the same emergency as the wall, EIGHT points earlier (five until D-201
-    # moved the flip line 95 -> 98 on 2026-09-08) — the runway a
+    # eligible successor is the same emergency as the wall, NINE points earlier (five until D-201
+    # moved the flip line 95 -> 98 on 2026-09-08, eight until it moved to 99 on 2026-10-14) — the runway a
     # graceful stop needs. Same latch, same re-arm, one message per episode.
     session_pct = None
-    if row is not None and isinstance(row.get("five_hour"), dict):
-        session_pct = _usable_ts(row["five_hour"].get("utilization"))
+    if isinstance(heat.get("five_hour"), dict):
+        session_pct = _usable_ts(heat["five_hour"].get("utilization"))
     urgent = session_pct is not None and session_pct >= _urgent_drain_pct()
     stamp = _fleet_exhaustion_stamp()
     # The RELIEF WAKE fires only on a real TRANSITION (stamp present → absent) and only with a
     # real reading: `row is None` / both windows `None` is a probe blackout, not relief.
-    reading_ok = _row_has_reading(row)
+    reading_ok = _row_has_reading(heat)
+    # the battery lift reads this after the quota leg, so it never wakes the fleet into a wall;
+    # COOL (None) only on a real reading — a blackout leaves it `_QUOTA_UNKNOWN` (D-180's rule)
+    global _QUOTA_HOT_THIS_TICK
+    if walled or urgent:
+        _QUOTA_HOT_THIS_TICK = _STAMP_TIER_WALLED if walled else _STAMP_TIER_URGENT
+    elif row is not None and reading_ok:
+        _QUOTA_HOT_THIS_TICK = None
     if row is None or not (walled or urgent):
         if stamp.exists() and not reading_ok:
             # D-180: a probe blackout is NOT relief — unlinking here consumed the one transition
@@ -7197,17 +8493,27 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
     # release is evaluated only on a tick, so a tick landing a hair early waits one more (the
     # strict `<` is what lets an exactly-aligned tick release — Delta 14 seat A, F4).
     inside_floor = age is not None and -_CLOCK_SKEW_TOLERANCE_S <= age < _ADVISORY_MIN_GAP_S
-    latched = stamp.exists() and (
-        inside_floor
-        or not (
-            (age is not None and (age > _FLEET_WALL_REARM_S or age < -_CLOCK_SKEW_TOLERANCE_S))
-            or (promised is not None and now >= promised)
+    # A BATTERY stamp (W-83a8ee68) says nothing about this wall: its presence is not the wall's
+    # latch, so the episode's own ledger row decides — the wall mails once during a battery hold,
+    # and the dwell branch's walled→battery hand-back never re-fires it (no storm).
+    battery_held = _stamp_is_battery(stamp)
+    latched = (
+        stamp.exists()
+        and not battery_held
+        and (
+            inside_floor
+            or not (
+                (age is not None and (age > _FLEET_WALL_REARM_S or age < -_CLOCK_SKEW_TOLERANCE_S))
+                or (promised is not None and now >= promised)
+            )
         )
     )
     # ⚠️ The stamp is a PRESENCE latch and presence can be lost — a failed write, a tempdir
     # fallback, a fresh state dir — and every loss re-fires the broadcast. The ledger row this
     # very function writes is the recomputable copy of the same fact (01M2P19KP9GE9S).
-    if latched or (not stamp.exists() and _advisory_ledger_latch(str(row["email"]), now)):
+    if latched or (
+        (not stamp.exists() or battery_held) and _advisory_ledger_latch(str(row["email"]), now)
+    ):
         # ⚠️ The MESSAGE is latched; the HOLD is not. The dwell branch clears the stamp on the
         # EXPECTATION of a flip, and since the dwell-site wake row ends no episode (Delta 9),
         # the ledger latch holds through that clear — so when the successor drained before the
@@ -7221,23 +8527,23 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
         if not stamp.exists():
             _rearm_wall_stamp(stamp, str(row["email"]), now)
         # ⚠️ The MESSAGE is latched; the TIER is not (D-306). An episode opens at whichever arm
-        # fired first, and `urgent` fires up to eight points before `walled` — so without this
-        # the stamp says `urgent-90` for the whole episode and `quota_stop.py` holds nothing once
-        # the account actually walls. One-way: never the reverse.
+        # fired first, and `urgent` fires up to nine points before `walled` — so without this
+        # the stamp says `urgent-90` for the whole episode and `quota_stop.py` keeps only the lane
+        # (D-1113: coordinators and P0 owners continue) once the account actually walls. One-way: never the reverse.
         if walled:
             _upgrade_stamp_tier_to_walled(stamp)
         return  # already advised for this wall episode — one fact, one message
     hot = max(
         (
             u
-            for w in (row.get("five_hour"), row.get("seven_day"))
+            for w in (heat.get("five_hour"), heat.get("seven_day"))
             if isinstance(w, dict) and (u := _usable_ts(w.get("utilization"))) is not None
         ),
         default=0.0,
     )
     relief = _next_session_relief(accounts, str(row["email"]), now)
     msg = _urgent_drain_message(
-        str(row["email"]), _drain_trigger_reason(row, session_pct, walled), relief
+        str(row["email"]), _drain_trigger_reason(row, session_pct, walled, threshold), relief
     )
     _tick_telegram(msg)
     repos = _mailbox_repos()  # a fleet-wide wall concerns every project → broadcast
@@ -7252,7 +8558,14 @@ def _fleet_active_wall_advisory(accounts: list[dict], now: float, threshold: flo
             now,
             _stamp_body(
                 str(int(relief[0]) + _drain_resume_lead_s() if relief else 0),
-                _STAMP_TIER_WALLED if walled else _STAMP_TIER_URGENT,
+                # on a low battery the stamp stays the battery's: a wall must never SOFTEN it to
+                # `urgent-90` (the D-1113 lane, which lets coordinators and P0 owners through), and
+                # only mains power may lift it (W-83a8ee68)
+                _STAMP_TIER_BATTERY
+                if _battery_low()
+                else _STAMP_TIER_WALLED
+                if walled
+                else _STAMP_TIER_URGENT,
             ),
         )
     except OSError as exc:
@@ -7286,7 +8599,7 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     never does. The flip leg (operator redesign 2026-08-15 — one active account for ALL
     projects): resolve the ``active`` pointer; missing/dangling → flip to the best account
     immediately (dwell-exempt repair — holding a dangling pointer is a fleet outage); the
-    active account ≥ROTATE_THRESHOLD (default 98 since D-201) on EITHER window → flip to the account with
+    active account ≥ROTATE_THRESHOLD (default 99 since 2026-10-14) on EITHER window → flip to the account with
     the most weekly-then-session headroom among credentialed, un-walled siblings. The flip
     moves zero credential bytes and is refused by the pause marker + the 30-min dwell (inside
     :func:`_flip_active`); telemetry and the wall advisory below run REGARDLESS (T01 semantics —
@@ -7340,7 +8653,58 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
     #      over two different row shapes, a span whose early weeks had no ticks at all), and they
     #      were never load-bearing for the code. Re-derive from the ledger when you need them;
     #      a hand-maintained statistic in a comment is a second source of truth that always rots.
-    _active_walled, _active_row = _active_account_walled(accounts, threshold)
+    try:
+        _tick_row(accounts, threshold, now)
+    except Exception as exc:  # noqa: BLE001 — the row is telemetry: it must never skip the posture
+        print(f"tick: tick row not written — {type(exc).__name__}: {exc}")
+    # the stamp clear → wake transition and the posture run under `_TICK_CRITICAL`, so the
+    # watchdog never exits between a clear and its wake (W-010bb0d9, D-180)
+    with _TICK_CRITICAL:
+        try:
+            # The advisory is FLEET-WIDE, not per-account: fire ONLY when the active account (the
+            # one every agent is using) is walled with no auto-relief. A single account crossing
+            # the threshold is a non-event — the flip leg above already re-pointed to a sibling.
+            _fleet_active_wall_advisory(accounts, now, threshold)
+        finally:
+            # the battery leg runs here too, after the advisory set `_QUOTA_HOT_THIS_TICK` (or
+            # raised, leaving it unknown), so the posture below carries a hold this tick lifted; it
+            # never raises, and `_cmd_tick`'s `finally` call then finds nothing left to do
+            # (W-75cafe7a)
+            _battery_leg(time.time(), lift=True)
+            # The quota posture (D-269): resolved AFTER the flip leg so it describes the POST-flip
+            # pointer, and AFTER the advisory and the battery leg so its hold is the stamp THIS
+            # tick left — built before them, every arm or clear reached the posture one tick late
+            # (W-75cafe7a: a battery lift at 00:50 still read band WALL until 00:55). In a
+            # `finally` so an advisory that raises still leaves a posture, and the no-reading path
+            # writes too (band null). A picture error prints one line and never takes the tick down.
+            try:
+                _pic = _fleet_picture(accounts, _resolve_active(), now)
+                _write_quota_posture(
+                    _quota_posture(
+                        accounts,
+                        _pic,
+                        now,
+                        _read_quota_posture(),
+                        hold=_hold_is_wall(_pic.get("hold")),
+                    )
+                )
+            except Exception as exc:  # noqa: BLE001 — never silent, never fatal
+                print(f"tick: quota-posture not written — {type(exc).__name__}: {exc}")
+    for warn in (
+        _fleet_row_warnings(accounts) + _posture_hook_wiring_warnings() + _shared_link_warnings()
+    ):
+        print(warn)
+    _chain_expiry_push(accounts, now)
+    for p in pending:
+        print(f"tick: {p['slug']} pending-login — excluded from account telemetry")
+    _ledger_rotate()
+    return 0
+
+
+def _tick_row(accounts, threshold, now) -> None:
+    """The ``{"event": "tick"}`` ledger row for the active account's reading. Called guarded: a
+    raise here is printed and the advisory and the posture still run (W-21b4c0e5)."""
+    _active_walled, _active_row = _active_account_walled(accounts, threshold, now)
     if _active_row is not None and isinstance(_active_row.get("five_hour"), dict):
         _sess = _usable_ts(_active_row["five_hour"].get("utilization"))
         if _sess is not None:
@@ -7369,32 +8733,6 @@ def _fleet_tick_inner(dirs: list[Path]) -> int:
             if _fv is not None:
                 _row["fable_pct"] = _fv
             _ledger_append(_row)
-    # The quota posture (D-269): resolved AFTER the flip leg so it describes the POST-flip pointer;
-    # at function level so the no-reading path writes too (band null). A picture error prints one
-    # line and never takes the tick down.
-    _active_slug = _resolve_active()
-    try:
-        _pic = _fleet_picture(accounts, _active_slug, now)
-        _write_quota_posture(
-            _quota_posture(
-                accounts, _pic, now, _read_quota_posture(), hold=_hold_is_wall(_pic.get("hold"))
-            )
-        )
-    except Exception as exc:  # noqa: BLE001 — never silent, never fatal
-        print(f"tick: quota-posture not written — {type(exc).__name__}: {exc}")
-    # The advisory is FLEET-WIDE, not per-account: fire ONLY when the active account (the one
-    # every agent is using) is walled with no auto-relief. A single account crossing the threshold is a
-    # non-event — the flip leg above already re-pointed to a sibling with headroom.
-    _fleet_active_wall_advisory(accounts, now, threshold)
-    for warn in (
-        _fleet_row_warnings(accounts) + _posture_hook_wiring_warnings() + _shared_link_warnings()
-    ):
-        print(warn)
-    _chain_expiry_push(accounts, now)
-    for p in pending:
-        print(f"tick: {p['slug']} pending-login — excluded from account telemetry")
-    _ledger_rotate()
-    return 0
 
 
 def _chain_push_digest(email: str) -> str:
@@ -7459,24 +8797,75 @@ def _touch_stamp(path: Path, now: float, content: str | None = None) -> None:
     without following a symlink or blocking on a FIFO, write *content* when given (truncating
     first) or leave the stored bytes alone when not (a touch), then set its mtime to *now* on the
     open descriptor. These stamps fall back to the shared temp dir, where a planted link would
-    otherwise have the tick write — and date — the link's target. Raises OSError on any refusal."""
-    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
+    otherwise have the tick write — and date — the link's target. Raises OSError on any refusal.
+
+    A content write never truncates the live file (W-06733560 item 3): an in-place O_TRUNC + write
+    that failed part-way left a TORN fleet-exhausted stamp, and `_promised_resume` then read no
+    promise. It builds `<name>.<pid>.touch` beside the path and replaces — the rule
+    `_rearm_wall_stamp` and the tier raise already follow — after refusing anything at the path
+    that is not a regular file, so a planted link or FIFO stays a loud refusal (never replaced)
+    and `_drop_planted_stamp` stays the one place that removes and reports a link."""
     if content is not None:
-        flags |= os.O_TRUNC
+        _replace_stamp(path, now, content)
+        return
+    flags = os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
     fd = os.open(path, flags, 0o600)
     try:
         if not stat.S_ISREG(os.fstat(fd).st_mode):
             raise OSError(f"{path}: not a regular file")
         os.fchmod(fd, 0o600)
-        buf = (content or "").encode()
-        while buf:
-            n = os.write(fd, buf)
-            if n <= 0:
-                raise OSError(f"{path}: zero-length write")
-            buf = buf[n:]
         os.utime(fd, (now, now))
     finally:
         os.close(fd)
+
+
+def _replace_stamp(path: Path, now: float, content: str) -> None:
+    """`_touch_stamp`'s content arm: refuse a non-regular file at *path*, write a 0600 per-pid
+    temp beside it, date it *now*, then `os.replace` it in. A live pid owns its temp's name, so
+    a stale same-pid temp (pid reuse after a SIGKILL) is truncated and reused, never an EEXIST;
+    an orphan older than an hour is swept first, the re-arm's litter rule. Our temp is unlinked
+    on any failure, so the live stamp is either the old bytes or the new ones."""
+    try:
+        st = os.lstat(path)
+    except FileNotFoundError:
+        st = None
+    if st is not None and not stat.S_ISREG(st.st_mode):
+        raise OSError(f"{path}: not a regular file")
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.touch")
+    try:
+        # WALL time, never the caller's `now` (review A-S1): the sweep judges real files by their
+        # real mtimes, and a tick clock running ahead would read a live sibling's temp as an orphan
+        cutoff = time.time() - 3600.0
+        for orphan in path.parent.glob(f"{path.name}.*.touch"):
+            if orphan != tmp and orphan.lstat().st_mtime < cutoff:
+                orphan.unlink()
+    except OSError:
+        pass  # housekeeping never costs the write
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW | os.O_CLOEXEC
+    pending = True
+    try:
+        fd = os.open(tmp, flags, 0o600)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise OSError(f"{tmp}: not a regular file")
+            os.fchmod(fd, 0o600)
+            buf = content.encode()
+            while buf:
+                n = os.write(fd, buf)
+                if n <= 0:
+                    raise OSError(f"{tmp}: zero-length write")
+                buf = buf[n:]
+            os.utime(fd, (now, now))
+        finally:
+            os.close(fd)
+        os.replace(tmp, path)
+        pending = False
+    finally:
+        if pending:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass  # never ours to leave, never worth masking the write's own error
 
 
 def _regular_stamp_mtime(path: Path) -> float | None:
@@ -7534,12 +8923,21 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
     chain (new expiry) re-arms by itself. The stamp is written ONLY after the notifier's own
     success artifact advanced (delivery is never inferred from its exit code) under the push's
     OWN key (`quota-rotation-chain-<digest>`) — a rotation notification's 30-minute window can
-    never eat it — and an unconfirmed push is retried next tick with every cause this side can
-    know printed. A state dir that refuses the stamp is printed and the push repeats, bounded by
-    the notifier's window. A LOCK dir that refuses the notifier's own artifact defeats both,
-    because the stamp is written only after the artifact ADVANCED (that is the confirmation) and
-    the notifier's window is read from that same file: every tick then re-attempts the push —
-    and delivers it again whenever the send itself succeeds — until the operator fixes the dir.
+    never eat it — and an unconfirmed push is retried at the first tick at or past
+    ``_CHAIN_PUSH_BACKOFF_S`` after the ATTEMPT, never every tick (W-e8fc8685): the attempt's
+    epoch is the mtime of a sibling stamp (`<stamp>.attempt`, dated with the tick's `now` BEFORE the
+    spawn, so a notifier that hangs or fails to start still counts), checked after the delivery
+    stamp so a delivered chain never touches it; a missing, future-dated or non-regular
+    sibling reads as "attempt now" and is re-dated (a regular sibling nobody can read still dates
+    by `lstat`, so it holds the backoff until it ages out); one the state dir refuses (or a planted
+    link or FIFO `_touch_stamp` refuses to write through) leaves the per-tick cadence, and the
+    UNCONFIRMED line says which cadence applies with every cause this side can know printed. A
+    state dir that refuses the delivery stamp is printed and the push repeats once per backoff
+    (per tick when the attempt sibling could not be recorded either). A LOCK dir that refuses the notifier's own artifact defeats the delivery
+    stamp, because it is written only after the artifact ADVANCED (that is the confirmation) and
+    the notifier's window is read from that same file: the push is then re-attempted — and
+    delivered again whenever the send itself succeeds — once per backoff until the operator
+    fixes the dir.
     Returns the number of pushes CONFIRMED — a delivered push whose artifact never advanced is
     not counted. Never raises."""
     sent = 0
@@ -7558,6 +8956,23 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
             stamp, why = None, e  # the state dir cannot be made: reported below, never raised
         if stamp is not None and _stamp_holds(stamp, key):
             continue
+        # The attempt backoff (W-e8fc8685). The sibling is read and dated with the SAME `now` the
+        # tick took; `0 <= age` makes a future-dated sibling (a clock step back) an attempt now.
+        attempt_note = (
+            f" (attempt epoch not recorded: state dir unavailable: {type(why).__name__}: {why})"
+            if stamp is None
+            else ""
+        )
+        if stamp is not None:
+            attempt = stamp.with_name(stamp.name + ".attempt")
+            age = None if (m := _regular_stamp_mtime(attempt)) is None else now - m
+            if age is not None and 0 <= age < _CHAIN_PUSH_BACKOFF_S:
+                continue  # inside the backoff: no spawn, no line
+            try:
+                _touch_stamp(attempt, now)
+                attempt_note = ""
+            except OSError as e:
+                attempt_note = f" (attempt epoch not recorded: {e})"
         slugs = row.get("slugs") or []
         slug = row.get("refresh_expires_slug") or (slugs[0] if slugs else "<slug>")
         left = exp - now
@@ -7573,10 +8988,13 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
             key=notify_key,
         )
         if delivered is not True:
-            print(
-                f"chain push: {email} push UNCONFIRMED — {_notify_failure_reason()}"
-                " — retried next tick"
+            cadence = (
+                f"retried next tick{attempt_note}"
+                if attempt_note
+                else "retried at the first tick at or past the "
+                f"{_CHAIN_PUSH_BACKOFF_S / 60:.0f}-minute backoff"
             )
+            print(f"chain push: {email} push UNCONFIRMED — {_notify_failure_reason()} — {cadence}")
             continue
         sent += 1
         try:
@@ -7584,10 +9002,12 @@ def _chain_expiry_push(accounts: list[dict], now: float) -> int:
                 raise OSError(f"state dir unavailable: {type(why).__name__}: {why}")
             _write_stamp(stamp, key)
         except OSError as e:
-            print(
-                f"chain push: {email} stamp unwritable ({e}) — the push repeats next tick, "
-                "bounded by the notifier's window"
+            repeat = (
+                f"repeats at the first tick at or past the {_CHAIN_PUSH_BACKOFF_S / 60:.0f}-minute backoff"
+                if not attempt_note
+                else f"repeats next tick{attempt_note}"
             )
+            print(f"chain push: {email} stamp unwritable ({e}) — the push {repeat}")
     return sent
 
 
@@ -7927,6 +9347,9 @@ def main(argv: list[str] | None = None) -> int:
         ``--new-dir <slug> <email> [--project /opt/<repo>]``  scaffold a dir + its carrier
         ``--sync-mcp``      re-push the MCP roster into every fleet dir
         ``--sync-shared``   …and the settings.json copy with it
+        ``--merge-shared tasks [--dry-run]``  merge every account's REAL tasks/ into
+                            ~/.claude/tasks and link it (the active account's copy wins; a
+                            different copy is parked, nothing deleted)
         ``--keepalive``     RETIRED 2026-09-12 — a no-op that says why (rc 0): a ping never
                             extends a refresh chain; re-login monthly per account instead
         ``--touch``         RETIRED 2026-09-13 — a no-op that says why (rc 0): the temp-dir COPY
@@ -7944,9 +9367,10 @@ def main(argv: list[str] | None = None) -> int:
     if not args:
         sys.stderr.write(
             "usage: claude_rotate.py [--list | --switch <name> | --park|--unpark <email> | --next | --capture-current"
-            " | --drift-check | --status | --probe-current | --tick | --touch | --pause-switch"
+            " | --drift-check | --status | --probe-current | --tick | --battery-tick | --touch | --pause-switch"
             " | --resume-switch | --new-dir <slug> <email> [--project <repo>]"
-            " | --sync-mcp | --sync-shared | --keepalive | <claude> args...]\n"
+            " | --sync-mcp | --sync-shared | --merge-shared tasks [--dry-run]"
+            " | --keepalive | <claude> args...]\n"
         )
         return 2
     if args[0] == "--list":
@@ -7973,6 +9397,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_probe_current(as_json="--json" in args[1:])
     if args[0] == "--tick":
         return _cmd_tick()
+    if args[0] == "--battery-tick":
+        return _cmd_battery_tick()
     if args[0] == "--touch":
         return _cmd_touch(args[1] if len(args) > 1 and not args[1].startswith("-") else None)
     if args[0] == "--new-dir":
@@ -7994,6 +9420,12 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_sync_shared(
             include_settings=args[0] == "--sync-shared", source=opts.get("--from")
         )
+    if args[0] == "--merge-shared":
+        rest = [a for a in args[1:] if a != "--dry-run"]
+        if len(rest) != 1 or rest[0].startswith("-"):
+            sys.stderr.write("usage: claude_rotate.py --merge-shared tasks [--dry-run]\n")
+            return 2
+        return _cmd_merge_shared(rest[0], dry_run="--dry-run" in args[1:])
     if args[0] == "--pause-switch":
         # A broken state dir is exactly the situation the fail-closed messages send the operator
         # here to fix — report it, never traceback out of main().

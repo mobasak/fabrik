@@ -8,6 +8,11 @@ shape:
   is_admin_dashboard: false
   has_bearer_api: false
   has_persistent_data: false
+  # No registrar store: the service connects through its own DB_* env below (DB_NAME
+  # proxy_management), and the former `depends.postgres: main` named the shared legacy database
+  # D-410 forbids pointing a registrar at — apply's depends-contradiction warning (D-805);
+  # disposition D-822. The service has not run on vps1 since 2026-05-31
+  # (docs/infrastructure/vps-complete-inventory.md § microservices table).
   needs_database: false
   has_search_feature: false
   needs_cache: false
@@ -19,8 +24,6 @@ source:
   type: git
   repository: git@github.com:mobasak/proxy.git
   branch: main
-depends:
-  postgres: main
 infrastructure:
   database: local
   storage: local

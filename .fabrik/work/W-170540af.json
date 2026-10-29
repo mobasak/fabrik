@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T05:37:51.782662Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-170540af",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "MEASURED 2026-10-21 (fleet): the premise is false — fabrik apply cannot load specs/infrastructure/browserless.yaml at all (spec_loader.load_spec raises ValidationError, 2 required fields missing), so it could never deploy browserless at 256M. The class: ALL 7 of 7 specs/infrastructure/*.yaml (apprise, authelia, browserless, glitchtip, gotenberg, meilisearch, n8n) fail load_spec (probe: scratchpad load_infra_specs.py), while docs/DEPLOYMENT_ARCHITECTURE.md §3.1 lists them as the deploy inputs (\"Deployed once when bootstrapping\"). Adding a memory key to one spec fixes nothing. Needs a scope decision before any build: (a) retire the non-appliable infra specs like D-595 did for the monitoring copies and make each infra/vps1/<svc>/compose.yaml mirror the single repo truth (docs updated), or (b) port all 7 to the Spec schema so fabrik apply can deploy them (larger; each needs its live config reconciled first, as docs/CONFIGURATION.md already warns for glitchtip).",
+  "note": "premise refuted by fleet's measurement: the spec never loaded, so a memory key fixed nothing; superseded by W-b64d9cd7 (retire the 7 specs, D-1097)",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "MEDIUM: a spec that would mis-size a live shared service if anyone ran fabrik apply on it; real value, nobody blocked today because the mirror is used; LOW effort: one spec and a validator pass",
+  "status": "dropped",
+  "tags": [
+    "medium"
+  ],
+  "title": "specs/infrastructure/browserless.yaml declares no memory limit and fails the compose validator, so 'fabrik apply' would default browserless to 256M — the live service is deployed from the repo's compose mirror instead (fleet, while raising the limit under W-30b7ce3f, 2026-10-21)"
+}

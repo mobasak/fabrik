@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:12:26.454134Z",
+  "creator": "infra",
+  "evidence": "679a7881ae57250fd33c81404f5c7c5750bc7c35",
+  "id": "W-23e8a0ba",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "work fabrik mail 01M3VSFP9DJXR5N6ZVX8G67745 (archived; read it with mail.py read 01M3VSFP9DJXR5N6ZVX8G67745); re-boarded from W-18964619, which closed when infra acked the mail as not its beat",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-plan-review / fabrik-execute-plan disagree on the Opus finder at the small-profile Finish review, and plan-review has no rule for a half-blocked plan"
+}

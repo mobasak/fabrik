@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T09:13:44.768494Z",
+  "creator": "infra-3",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-e7612bd7",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure the full-suite leg under 12 shards against the 1800 s budget, or select by conftest scope (a tests/<dir>/conftest.py selects tests/<dir>/)",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 3,
+  "score_reason": "LOW: review residue on the new merge-test leg (D-1189), no merge blocked; effort low",
+  "status": "open",
+  "tags": [
+    "review-residue"
+  ],
+  "title": "the hub merge-test selector (scripts/merge_test_select.py) selects only the tests that name a changed tests/conftest.py or pyproject.toml, though either can red every test (26 conftest commits in 30 days); the full suite with the confirm and base runs exceeds the 1800 s merge-lock budget — residue of W-4e756979's review"
+}

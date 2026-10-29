@@ -1,0 +1,26 @@
+{
+  "block_digest": "9cea37227f28d9e5d4920abe64ccb0fe0f83b680c20061eefc43e64ba7a8188c",
+  "blocked_by": [],
+  "created": "2026-10-11T08:02:21.979493Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-36737e84",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "27b66d611bd1979a9e2c7b526150934f847288479aacf855dbbb2010c1a76c9f"
+  ],
+  "next": "",
+  "note": "operator 2026-10-11 ruled retention first (implement asap); W-989653a7 stays released until the retention work ships.",
+  "owner": "",
+  "priority": 2,
+  "question": "Should I start W-989653a7 now, or keep holding at the recorded resume point until you come back?",
+  "status": "done",
+  "title": "Should I start W-989653a7 now, or keep holding at the recorded resume point until you come back?"
+}

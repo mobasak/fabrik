@@ -7,18 +7,39 @@ source:
   type: local
   path: /opt/trading-core
 
+# shape: python-api defaults plus the two stores the project's own docs name — the
+# NautilusTrader cache is backed by the shared postgres-main + redis-main, with DATABASE_URL and
+# REDIS_URL "provisioned to /opt/<name>/.env by the deployer" (/opt/trading-core/docs/CONFIGURATION.md
+# § State, :23-27). That provisioning IS the postgres and redis registrars, which run only on these
+# two flags; DATABASE_URL therefore left secrets.required (a required DSN is INVENTED when absent —
+# orchestrator/__init__.py _warn_fabricated_secrets). Disposition of apply's depends-contradiction
+# warning (D-805): D-822.
+shape:
+  kind: service
+  is_public: true
+  is_admin_dashboard: false
+  has_bearer_api: false
+  has_persistent_data: false
+  needs_database: true
+  has_search_feature: false
+  # No depends.redis pin: the redis registrar reserves a logical-DB index BY SPEC NAME
+  # (drivers/redis.py acquire_db_index) and injects REDIS_URL — an index is allocated, never named.
+  needs_cache: true
+  exposes_metrics: false
+
 env:
   PORT: "8023"
   LOG_LEVEL: INFO
 
 secrets:
   required:
-    - DATABASE_URL
     - CTRADER_API_KEY
     - CTRADER_SECRET
 
 depends:
-  postgres: trading
+  # The registrar's derived name (D-410); the project's .env.example declares no DB name, so
+  # check_spec_db_match.py has nothing to compare and the derived name is the contract.
+  postgres: trading_core
 
 resources:
   limits:

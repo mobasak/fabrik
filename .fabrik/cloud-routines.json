@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "repo": "https://github.com/mobasak/fabrik",
+  "routine": "fabrik-cloud-worker",
+  "credit_note": "per account: the $250 promotional cloud-session credit (claude.ai/settings/usage), applied automatically to cloud sessions before the plan's regular usage, expiring 2026-11-05 10:59 GMT+3 (claude.ai/settings/usage, read by the operator 2026-10-25); pause state and the web balance live in the ledger (kind pause|unpause|calibrate), never here; credit_margin_usd overrides max($10, 10% of claimed)",
+  "accounts": {
+    "ob": {"trigger": "trig_017R8tyRMuERiJUybgTu3uxG", "github": "/web-setup replaced with the local gh token 2026-10-14; probe branch pushed", "credit": {"claimed_usd": 250, "expires": "2026-11-05"}},
+    "ozgurbasak": {"trigger": "trig_01JjZvVkpqNyMLu2QiWUX9f6", "github": "/web-setup replaced with the local gh token 2026-10-14; probe branch pushed", "credit": {"claimed_usd": 250, "expires": "2026-11-05"}},
+    "can": {"trigger": "trig_01Gj9mnrWKTKs6zFXsVP2Hr5", "github": "/web-setup replaced with the local gh token 2026-10-14; probe branch pushed", "credit": {"claimed_usd": 250, "expires": "2026-11-05"}},
+    "mob": {"trigger": "trig_01Wq3b7n3dr6CnbVVg4RszeQ", "github": "/web-setup replaced with the local gh token 2026-10-14; probe branch pushed", "credit": {"claimed_usd": 250, "expires": "2026-11-05"}}
+  }
+}

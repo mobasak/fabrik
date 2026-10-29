@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T08:01:56.325695Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-e1201b6a",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -13,9 +15,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
-  "owner": "infra",
-  "priority": 2,
-  "status": "open",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — research engines fail while health reports live",
+  "status": "done",
   "title": "WHAT: both tier-2 research engines assigned to trade-intelligence fail on credentials while mcp_health.py reports them live."
 }

@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T13:35:03.222173Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-899ce7e4",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4ZVBX96HK7GT8D8WKM9JZG2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — nested start swept parent live run folder: lost work, agent-facing bug",
+  "status": "open",
+  "title": "a nested `command_run.py start` swept the STACKED parent run's live RUN-SCRATCH folder (pins and an audit brief lost mid-run)"
+}

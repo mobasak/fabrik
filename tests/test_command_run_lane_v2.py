@@ -281,6 +281,291 @@ def _started_v2(run_dir: Path, tmp_path: Path, *extra: str) -> Path:
     return repo
 
 
+_TESTS_NOTE = "[command_run] NOTE — fabrik-task: "
+
+
+def test_v2_design_refuses_a_declared_path_it_does_not_name(run_dir: Path, tmp_path: Path) -> None:
+    """kaizen 01M4RNGC0H row 1791764963: a declared `--file` the design note never backticks is
+    refused AT `--design`, before anything is stored, so the note is fixed before the build — not
+    amended (and counted) after it, as the close's refusal forces."""
+    repo = _started_v2(run_dir, tmp_path, "--file", "src/b.py")
+    d = repo.parent / "design.md"
+    d.write_text(
+        "PROBLEM: x\nAPPROACH: edit `src/a.py`\nDECISION: reversible\nMIRROR: none\n"
+        "OUT: none\nTERMINAL: green\n",
+        encoding="utf-8",
+    )
+    r = _cr(run_dir, "step", "--phase", "2", "--title", "design", "--design", str(d), cwd=repo)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "not named in the design note's APPROACH or MIRROR: src/b.py" in r.stdout
+    assert "design" not in _rec(run_dir)
+    _design(run_dir, repo, "edit `src/a.py` and `src/b.py`")
+    assert "design" in _rec(run_dir)
+
+
+def test_v2_start_lists_the_tests_that_name_a_declared_script(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """kaizen 01M4RNGC0H row 1791827964: `start` names the tracked tests that load a declared
+    script, so the grader path is declared the first time; a near-miss name lists nothing."""
+    repo = _repo(tmp_path, lane=2)
+    (repo / "tests").mkdir()
+    (repo / "tests" / "test_alpha.py").write_text("from a import x\n", encoding="utf-8")
+    (repo / "tests" / "test_near.py").write_text("# ab.py\nimport ab\n", encoding="utf-8")
+    _git(repo, "add", "tests")
+    _git(repo, "commit", "-qm", "tests")
+    r = _cr(
+        run_dir, *_start("--file", "src/a.py", "--file", "src/b.py", "--declare", _V2), cwd=repo
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _TESTS_NOTE + "1 test file(s) name src/a.py: tests/test_alpha.py" in r.stderr
+    assert "name src/b.py" not in r.stderr, r.stderr
+    # the same advice once the design is stored — the step where a grader can still be named
+    d = repo.parent / "design.md"
+    d.write_text("APPROACH: edit `src/a.py` and `src/b.py`\nMIRROR: none\n", encoding="utf-8")
+    r = _cr(run_dir, "step", "--phase", "2", "--title", "design", "--design", str(d), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _TESTS_NOTE + "1 test file(s) name src/a.py: tests/test_alpha.py" in r.stderr
+
+
+def test_v2_the_tests_note_anchors_a_declared_path(run_dir: Path, tmp_path: Path) -> None:
+    """D-796 review A-S1: the repo-path match is anchored like the basename match — a test that
+    names `xsrc/c.py`, `src/c.py.bak` or `src/c.py-old` does not name `src/c.py` (review A-S1,
+    A-S3), while a sentence ending `src/c.py.` still does. `c.py` is made non-unique, so only the path
+    pattern can match here."""
+    repo = _repo(tmp_path, lane=2)
+    (repo / "lib").mkdir()
+    (repo / "lib" / "c.py").write_text("x = 1\n", encoding="utf-8")
+    (repo / "tests").mkdir()
+    (repo / "tests" / "test_x.py").write_text(
+        "# xsrc/c.py\n# src/c.py.bak\n# src/c.py-old\n", encoding="utf-8"
+    )
+    (repo / "tests" / "test_y.py").write_text("# see src/c.py.\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "c")
+    r = _cr(run_dir, *_start("--file", "src/c.py", "--declare", _V2), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _TESTS_NOTE + "1 test file(s) name src/c.py: tests/test_y.py" in r.stderr
+
+
+def test_v2_done_accepts_an_undeclared_review_receipt(run_dir: Path, tmp_path: Path) -> None:
+    """A run's own nested-review receipt is its evidence, like a Doc Sync ledger: committing
+    `docs/development/reviews/<x>-review.md` without naming it in APPROACH/MIRROR (or passing it
+    as `--review`) no longer refuses `done` (kaizen 01M4RP9QCR). A `.py` hidden there still does."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py`")
+    a = _edit_commit(repo, "src/a.py", "x = 2\n")
+    b = _edit_commit(repo, "docs/development/reviews/2026-10-13-x-review.md", "# Review\n")
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", a, b)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def _commit_with_msg(repo: Path, rel: str, msg: Path, subject: str) -> str:
+    msg.write_text(f"{subject}\n\nbody\n", encoding="utf-8")
+    (repo / rel).write_text(subject + "\n", encoding="utf-8")
+    _git(repo, "add", "--", rel)
+    _git(repo, "commit", "-q", "-F", str(msg))
+    return _git(repo, "rev-parse", "HEAD")
+
+
+def test_capture_appends_the_sha_found_by_subject_never_head(run_dir: Path, tmp_path: Path) -> None:
+    """Phase 5's capture as one verb (kaizen 01M55GGMS5): each call appends the sha whose subject is
+    the message file's first line — so a sibling's commit landing on top (HEAD moved) is never
+    captured — and the file reads back as `done --commit $(cat …)` wants it."""
+    repo = _repo(tmp_path, lane=None)
+    cap = tmp_path / "durable" / "commit.sha"
+    m1, m2 = tmp_path / "m1.txt", tmp_path / "m2.txt"
+    a = _commit_with_msg(repo, "src/a.py", m1, "fix: the first change")
+    _commit_with_msg(repo, "src/b.py", tmp_path / "other.txt", "chore: a sibling lands on top")
+    r = _cr(run_dir, "capture", "--msg", str(m1), "--out", str(cap), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert r.stdout.strip() == a
+    b = _commit_with_msg(repo, "src/c.py", m2, "fix: the second change")
+    r = _cr(run_dir, "capture", "--msg", str(m2), "--out", str(cap), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert cap.read_text(encoding="utf-8").split() == [a, b]
+
+
+def test_capture_refuses_with_rc_1_and_appends_nothing(run_dir: Path, tmp_path: Path) -> None:
+    """A subject no commit carries, a missing message file and a blank subject each exit 1 —
+    never the CLI's fail-soft 0 — and leave the capture file untouched."""
+    repo = _repo(tmp_path, lane=None)
+    cap = tmp_path / "commit.sha"
+    unseen = tmp_path / "unseen.txt"
+    unseen.write_text("fix: never committed\n", encoding="utf-8")
+    empty = tmp_path / "empty.txt"
+    # an all-blank message: git drops leading blank lines, so `\\nbody` is the subject "body" and
+    # would refuse for a different reason (review B-haiku NEW-1)
+    empty.write_text("  \n\n \n", encoding="utf-8")
+    cases = (
+        (unseen, "no commit has"),
+        (tmp_path / "missing.txt", "cannot read"),
+        (empty, "empty subject"),
+    )
+    for msg, why in cases:  # each refusal for ITS reason, not merely refused
+        r = _cr(run_dir, "capture", "--msg", str(msg), "--out", str(cap), cwd=repo)
+        assert r.returncode == 1, (msg, r.stdout + r.stderr)
+        assert "REFUSED — capture" in r.stderr and why in r.stderr, (msg, r.stderr)
+    assert not cap.exists()
+
+
+def test_capture_exits_1_never_the_fail_soft_0_on_a_bad_message_or_no_git(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """A non-UTF-8 message file and a `git` missing from PATH both raised out of `_capture_commit`
+    into main()'s catch-all, which returns 0 with no sha (review A-sonnet): each is a refusal."""
+    repo = _repo(tmp_path, lane=None)
+    cap = tmp_path / "commit.sha"
+    bad = tmp_path / "bad.txt"
+    bad.write_bytes(b"\xff\xfe not utf-8\n")
+    r = _cr(run_dir, "capture", "--msg", str(bad), "--out", str(cap), cwd=repo)
+    assert r.returncode == 1 and "REFUSED — capture" in r.stderr, r.stdout + r.stderr
+    good = tmp_path / "good.txt"
+    _commit_with_msg(repo, "src/a.py", good, "fix: a real subject")
+    nogit = tmp_path / "empty-bin"
+    nogit.mkdir()
+    r = _cr(
+        run_dir,
+        "capture",
+        "--msg",
+        str(good),
+        "--out",
+        str(cap),
+        cwd=repo,
+        extra_env={"PATH": str(nogit)},
+    )
+    assert r.returncode == 1 and "git log failed" in r.stderr, r.stdout + r.stderr
+    assert not cap.exists()
+
+
+def test_capture_skips_leading_blank_lines_as_git_does(run_dir: Path, tmp_path: Path) -> None:
+    """git drops a message's leading blank lines, so its subject is the first non-blank paragraph;
+    capture read the blank lines as an empty subject (review round 2)."""
+    repo = _repo(tmp_path, lane=None)
+    msg = tmp_path / "lead.txt"
+    msg.write_text("  \n\nfix: after blank lines\n\nbody\n", encoding="utf-8")
+    (repo / "src" / "a.py").write_text("x = 6\n", encoding="utf-8")
+    _git(repo, "add", "--", "src/a.py")
+    _git(repo, "commit", "-q", "-F", str(msg))
+    sha = _git(repo, "rev-parse", "HEAD")
+    cap = tmp_path / "commit.sha"
+    r = _cr(run_dir, "capture", "--msg", str(msg), "--out", str(cap), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert cap.read_text(encoding="utf-8").split() == [sha]
+
+
+def test_capture_ends_the_subject_at_a_whitespace_only_line(run_dir: Path, tmp_path: Path) -> None:
+    """git ends the subject paragraph at a line holding only spaces; capture joined the body onto the
+    subject there and refused the commit (review A-haiku N-1)."""
+    repo = _repo(tmp_path, lane=None)
+    msg = tmp_path / "ws.txt"
+    msg.write_text("fix: the subject\n   \nthe body\n", encoding="utf-8")
+    (repo / "src" / "a.py").write_text("x = 8\n", encoding="utf-8")
+    _git(repo, "add", "--", "src/a.py")
+    _git(repo, "commit", "-q", "-F", str(msg))
+    sha = _git(repo, "rev-parse", "HEAD")
+    cap = tmp_path / "commit.sha"
+    r = _cr(run_dir, "capture", "--msg", str(msg), "--out", str(cap), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert cap.read_text(encoding="utf-8").split() == [sha]
+
+
+def test_capture_finds_a_subject_git_stored_with_leading_spaces(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """git keeps a subject's leading spaces in `%s`; capture strips its own side, so an exact
+    comparison could never match such a commit (review A-haiku)."""
+    repo = _repo(tmp_path, lane=None)
+    msg = tmp_path / "padded.txt"
+    msg.write_text("  fix:  a padded   subject  \n", encoding="utf-8")  # inner runs too
+    (repo / "src" / "a.py").write_text("x = 7\n", encoding="utf-8")
+    _git(repo, "add", "--", "src/a.py")
+    _git(repo, "commit", "-q", "-F", str(msg))
+    sha = _git(repo, "rev-parse", "HEAD")
+    cap = tmp_path / "commit.sha"
+    r = _cr(run_dir, "capture", "--msg", str(msg), "--out", str(cap), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert cap.read_text(encoding="utf-8").split() == [sha]
+
+
+def test_capture_reads_a_wrapped_subject_as_git_does(run_dir: Path, tmp_path: Path) -> None:
+    """git's `%s` joins the first paragraph's lines with spaces; a first-line-only read refused a
+    legitimate commit whose subject wraps (review A-sonnet)."""
+    repo = _repo(tmp_path, lane=None)
+    msg = tmp_path / "wrapped.txt"
+    msg.write_text("fix: a subject that\nwraps onto a second line\n\nbody\n", encoding="utf-8")
+    (repo / "src" / "a.py").write_text("x = 9\n", encoding="utf-8")
+    _git(repo, "add", "--", "src/a.py")
+    _git(repo, "commit", "-q", "-F", str(msg))
+    sha = _git(repo, "rev-parse", "HEAD")
+    cap = tmp_path / "commit.sha"
+    r = _cr(run_dir, "capture", "--msg", str(msg), "--out", str(cap), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert cap.read_text(encoding="utf-8").split() == [sha]
+
+
+def test_capture_refuses_when_the_newest_match_only_quotes_the_subject(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """`--grep` reads whole messages, so a NEWER commit quoting the subject in its body is the match
+    found; its own subject differs, and capture must refuse rather than append that sha (review
+    B-sonnet: no test reached the subject-equality check)."""
+    repo = _repo(tmp_path, lane=None)
+    msg = tmp_path / "m.txt"
+    _commit_with_msg(repo, "src/a.py", msg, "fix: the real change")
+    quoting = tmp_path / "q.txt"
+    quoting.write_text("chore: a later one\n\nfollows fix: the real change\n", encoding="utf-8")
+    (repo / "src" / "b.py").write_text("x = 3\n", encoding="utf-8")
+    _git(repo, "add", "--", "src/b.py")
+    _git(repo, "commit", "-q", "-F", str(quoting))
+    cap = tmp_path / "commit.sha"
+    r = _cr(run_dir, "capture", "--msg", str(msg), "--out", str(cap), cwd=repo)
+    assert r.returncode == 1 and "REFUSED — capture" in r.stderr, r.stdout + r.stderr
+    assert not cap.exists()
+
+
+def test_v2_done_drops_empty_comma_pieces_and_refuses_a_bare_comma(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """`--commit a,` closes as `--commit a`; `--commit ,` has nothing left and is refused as an
+    empty value, the same as `--commit ""` (review B-sonnet: empty pieces were untested)."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py`")
+    a = _edit_commit(repo, "src/a.py", "x = 2\n")
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", ",")
+    assert r.returncode == 1 and "--commit is empty" in r.stdout + r.stderr, r.stdout + r.stderr
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", f"{a},")
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_v2_done_takes_a_comma_list_of_commits_as_the_space_form(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """`--commit a,b` closes exactly as `--commit a b`: a sha never holds a comma, so the split is
+    unambiguous; before it, the comma list was refused as "not this run's commit", which reads
+    like a wrong sha (kaizen 01M55GGMS5, feedback row 1792251777)."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py`")
+    a = _edit_commit(repo, "src/a.py", "x = 2\n")
+    b = _edit_commit(repo, "docs/development/reviews/2026-10-13-x-review.md", "# Review\n")
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", f"{a},{b}")
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_v2_done_still_refuses_a_source_file_under_the_reviews_dir(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """The receipt exemption is `.md` only: an undeclared `.py` under the reviews dir is a
+    hiding place, never evidence (design critiques, Opus + Fable)."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py`")
+    a = _edit_commit(repo, "src/a.py", "x = 2\n")
+    b = _edit_commit(repo, "docs/development/reviews/helper.py", "x = 1\n")
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", a, b)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "docs/development/reviews/helper.py" in r.stdout
+
+
 def test_v2_done_refuses_an_undeclared_path_until_it_is_amended(
     run_dir: Path, tmp_path: Path
 ) -> None:
@@ -382,6 +667,59 @@ def test_v2_a_valid_full_review_receipt_buys_the_contract_close(
     r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", c, "--review", REL)
     assert r.returncode == 0, r.stdout + r.stderr
     assert _rows(run_dir)[-1]["upgrade"] == "contract"
+
+
+def test_v2_a_ledger_commit_after_the_reviewed_tip_closes(run_dir: Path, tmp_path: Path) -> None:
+    """W-0b900e92 (site-provisioner 01M4F5HTPS): a receipt over the code commit, followed by the
+    CHANGELOG commit made after the review, closes `done` with both listed in the order made; a
+    later `.py` under an excluded prefix row (`.fabrik/work/`) is not a ledger and refuses."""
+    import sys
+
+    from tests.test_review_receipt import _complete
+    from tests.test_task_lane_receipt import RECEIPT_SCRIPT, REL
+
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py` and `api/openapi.yaml`")
+    base = _git(repo, "rev-parse", "HEAD")
+    c = _edit_commit(repo, "api/openapi.yaml", "openapi: 3.1.1\n")
+    out = repo / REL
+    made = subprocess.run(
+        [
+            sys.executable,
+            str(RECEIPT_SCRIPT),
+            "--init",
+            "--project-root",
+            str(repo),
+            "--out",
+            str(out),
+            "--changed",
+            "api/openapi.yaml",
+            "--range",
+            f"{base}..{c}",
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert made.returncode == 0, made.stderr
+    out.write_text(_complete(out.read_text(encoding="utf-8")), encoding="utf-8")
+    ledger = _edit_commit(repo, "CHANGELOG.md", "## [Unreleased]\n")
+    late = _edit_commit(repo, ".fabrik/work/x.py", "x = 1\n")
+    r = _close(
+        run_dir, repo, "done", "--evidence", "g", "--commit", c, ledger, late, "--review", REL
+    )
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "REFUSED — fabrik-task: --review (d)" in r.stdout and ".fabrik/work/x.py" in r.stdout
+    # a contract file is `.json` under the excluded `.fabrik/work/` row, yet never a ledger (review B1)
+    schema = _edit_commit(repo, ".fabrik/work/x.schema.json", "{}\n")
+    r = _close(
+        run_dir, repo, "done", "--evidence", "g", "--commit", c, ledger, schema, "--review", REL
+    )
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "--review (d)" in r.stdout and ".fabrik/work/x.schema.json" in r.stdout
+    r = _close(run_dir, repo, "done", "--evidence", "g", "--commit", c, ledger, "--review", REL)
+    assert r.returncode == 0, r.stdout + r.stderr
 
 
 def test_v2_the_row_carries_from_downgrade_and_the_evidence_upgrade_token(
@@ -586,6 +924,18 @@ def test_v2_a_review_nested_under_a_task_stops_at_its_first_own_fix_round(
     out = _review_rounds(run_dir, repo)
     assert "SCOPE GROWTH (in-lane) — round 2 confirmed ONLY defects inside" in out
     assert "mostly" not in out.split("SCOPE GROWTH (in-lane)")[1].split("\n")[0]
+    # `round` prints the in-lane message whole (its text is pinned in test_command_run.py) and
+    # nothing but print's newline follows it
+    assert out.rstrip("\n").endswith(
+        "\n⚠️  SCOPE GROWTH (in-lane) — round 2 confirmed ONLY defects inside text this review "
+        "itself added (confirmed/own-fix: 2/2) under a running /fabrik-task.\n"
+        "    Exit (term-edit / term-coverage § Scope-growth stop, lane variant): STOP the hunt — "
+        "fix the window's open defects, route the remaining own-fix work to /fabrik-spec or a "
+        "backlog row with a named destination, re-verify the fixed set alone, and close on a "
+        "`confirmed: 0 · fixed: 0 · unexecuted: 0` round (D-355); the receipt carries "
+        "`**Lane:** fabrik-task`.\n"
+        "    (Advisory only — nothing is blocked.)"
+    ), out
 
     other = tmp_path / "other-state" / "command-runs"
     other.mkdir(parents=True)
@@ -687,8 +1037,12 @@ def test_the_documented_multi_commit_close_parses_as_separate_shas(tmp_path: Pat
 
     root = Path(__file__).resolve().parents[1]
     src = (root / "commands/_sources/fabrik-task.md").read_text(encoding="utf-8")
-    assert "git rev-parse -q --verify HEAD >> <scratchpad>" in src, "the capture must append"
-    m = _re.search(r"--commit (\$\(cat <scratchpad>[^)]*\))", src)
+    # D-1339: the text names the capture verb (a prose pin); that the verb APPENDS is executed by
+    # test_capture_appends_the_sha_found_by_subject_never_head above, and the --commit expansion below
+    assert "command_run.py capture --msg <msg> --out <durable>/commit.sha" in src, (
+        "the close must name the capture verb"
+    )
+    m = _re.search(r"--commit (\$\(cat <durable>[^)]*\))", src)
     assert m, "the done line must expand the capture file UNQUOTED"
     cap = tmp_path / "commit.sha"
     cap.write_text("aaaa111\nbbbb222\n", encoding="utf-8")
@@ -876,3 +1230,402 @@ def test_a_stamped_task_keeps_its_v2_row_fields_after_the_switch_is_removed(
     r = _close(run_dir, repo, "blocked", "--reason", "missing infra")
     assert r.returncode == 0, r.stdout + r.stderr
     assert _rows(run_dir)[-1].get("phase_marks") == "1"
+
+
+# ---------------------------------------------------------------- `step --terminal-amend` (kaizen 01M4DB7C7V)
+
+_START_TERMINAL = "the change ships with its grader"
+
+
+def _amend(run_dir: Path, repo: Path, text: str, *extra: str) -> subprocess.CompletedProcess[str]:
+    return _cr(run_dir, "step", "--phase", "2", *extra, "--terminal-amend", text, cwd=repo)
+
+
+def test_v2_a_terminal_amend_before_the_design_restates_the_run_and_keeps_its_history(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """The critiques narrow the work before the design lands: the terminal is restated, the pinned
+    RUN: line shows it, and the history keeps the original. A same-text amend changes nothing."""
+    repo = _started_v2(run_dir, tmp_path)
+    r = _amend(run_dir, repo, "only the parser ships")
+    assert r.returncode == 0, r.stdout + r.stderr
+    rec = _rec(run_dir)
+    assert rec["terminal"] == "only the parser ships"
+    (h,) = rec["terminal_amends"]
+    assert (h["from"], h["to"]) == (_START_TERMINAL, "only the parser ships") and h["at"], h
+    line = _cr(run_dir, "line", cwd=repo)
+    assert "terminal: only the parser ships" in line.stdout, line.stdout
+    r = _amend(run_dir, repo, "only the parser ships")
+    assert r.returncode == 0 and "NOTE" in (r.stdout + r.stderr), r.stdout + r.stderr
+    assert len(_rec(run_dir)["terminal_amends"]) == 1, "a same-text amend is a no-op"
+    d = repo.parent / "design.md"
+    d.write_text(
+        "PROBLEM: x\nAPPROACH: edit `src/a.py`\nDECISION: reversible\nMIRROR: none\nOUT: none\n"
+        "TERMINAL: green\n\n## Behaviours\n- one — `tests/test_x.py::test_one`\n",
+        encoding="utf-8",
+    )
+    r = _amend(run_dir, repo, "the parser and its grader ship", "--design", str(d))
+    assert r.returncode == 0, r.stdout + r.stderr
+    rec = _rec(run_dir)
+    assert rec["terminal"] == "the parser and its grader ship" and "design" in rec, rec
+    assert [x["to"] for x in rec["terminal_amends"]] == [
+        "only the parser ships",
+        "the parser and its grader ship",
+    ]
+
+
+def test_v2_a_terminal_amend_after_the_design_or_off_fabrik_task_is_refused(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Restating after the design lands would move the goal to fit the build — even on a re-entered
+    phase 2; another command, blank text and a newline are refused too, the record unchanged."""
+    repo = _started_v2(run_dir, tmp_path)
+    for bad in ("", "   ", "two\nlines"):
+        r = _amend(run_dir, repo, bad)
+        assert r.returncode == 1 and "REFUSED" in r.stdout, (bad, r.stdout + r.stderr)
+    _design(run_dir, repo, "edit `src/a.py`")
+    _edit_commit(repo, "src/a.py", "x = 2\n")
+    assert _cr(run_dir, "step", "--phase", "4", cwd=repo).returncode == 0
+    before = _rec(run_dir)
+    r = _amend(run_dir, repo, "whatever got built")
+    assert r.returncode == 1 and "REFUSED" in r.stdout and "design" in r.stdout, r.stdout + r.stderr
+    after = _rec(run_dir)
+    assert after["terminal"] == _START_TERMINAL and "terminal_amends" not in after
+    assert after["phase"] == before["phase"] == 4, "a refused step moves nothing"
+    other = _repo(tmp_path / "other", lane=2)
+    r = _cr(
+        run_dir,
+        "start",
+        "--command",
+        "fabrik-review",
+        "--phases",
+        "3",
+        "--terminal",
+        "quiet",
+        sid="s2",
+        cwd=other,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    r = _cr(run_dir, "step", "--phase", "2", "--terminal-amend", "x", sid="s2", cwd=other)
+    assert r.returncode == 1 and "fabrik-task" in r.stdout, r.stdout + r.stderr
+
+
+def test_v2_the_close_row_counts_terminal_amends(run_dir: Path, tmp_path: Path) -> None:
+    """Every close of an amended run counts the restatements — a `blocked` close with no commit
+    included — and a run that never amends keeps its row shape (no field)."""
+    repo = _started_v2(run_dir, tmp_path)
+    assert _amend(run_dir, repo, "narrower").returncode == 0
+    assert _amend(run_dir, repo, "narrower still").returncode == 0
+    r = _close(run_dir, repo, "blocked", "--reason", "missing infra — searched: x — missing: y")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _rows(run_dir)[-1]["terminal_amends"] == "2"
+    plain = _started_v2(run_dir, tmp_path / "plain")
+    r = _close(run_dir, plain, "blocked", "--reason", "missing infra — searched: x — missing: y")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "terminal_amends" not in _rows(run_dir)[-1]
+
+
+def test_v2_an_unreadable_design_beside_a_terminal_amend_refuses_the_whole_step(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Review A-S2: `--design <unreadable>` and `--terminal-amend` in one call refuse together — the
+    terminal is not restated by a step whose design never landed."""
+    repo = _started_v2(run_dir, tmp_path)
+    r = _amend(run_dir, repo, "narrower", "--design", str(repo.parent / "no-such-design.md"))
+    assert r.returncode == 1 and "cannot be read" in r.stdout, r.stdout + r.stderr
+    rec = _rec(run_dir)
+    assert (
+        rec["terminal"] == _START_TERMINAL and "terminal_amends" not in rec and "design" not in rec
+    )
+
+
+def test_v2_the_loop_notice_reads_the_terminal_a_same_step_amend_leaves(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Review A-S1: the zero-rounds NOTICE fires on a loop-shaped terminal; computed before the amend,
+    it judged the terminal being replaced. A run started loop-shaped and amended in the same step
+    to a linear terminal gets no notice."""
+    repo = _repo(tmp_path, lane=2)
+    argv = _start("--file", "src/a.py", "--declare", _V2)
+    argv[argv.index("--terminal") + 1] = "confirmed: 0 closing round"
+    assert _cr(run_dir, *argv, cwd=repo).returncode == 0
+    r = _cr(run_dir, "step", "--phase", "3", "--terminal-amend", "the parser ships", cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "ZERO rounds" not in r.stderr, r.stderr
+
+
+def test_v2_a_refused_terminal_amend_raises_no_loop_notice(run_dir: Path, tmp_path: Path) -> None:
+    """Review A-S4: the notice runs after every refusal, so a loop-shaped amend that is refused (the
+    design is already recorded) neither restates the terminal nor raises a notice about it."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py`")
+    r = _cr(
+        run_dir, "step", "--phase", "3", "--terminal-amend", "confirmed: 0 closing round", cwd=repo
+    )
+    assert r.returncode == 1 and "REFUSED" in r.stdout, r.stdout + r.stderr
+    assert "ZERO rounds" not in r.stderr, r.stderr
+    assert _rec(run_dir)["terminal"] == _START_TERMINAL
+
+
+def test_v2_a_design_that_cites_a_file_by_line_or_symbol_names_that_file(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """W-ebbedc88: a design note cites code as `path:N-M` or `path::symbol`; the citation names
+    the file, so the close admits its commit without a --design-amend."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py:1-3` and `src/b.py::helper`")
+    a = _edit_commit(repo, "src/a.py", "x = 2\n")
+    b = _edit_commit(repo, "src/b.py", "def helper():\n    return 1\n")
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", a, b)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _rows(run_dir)[-1]["design_amends"] == "0"
+
+
+def test_v2_a_quoted_multi_sha_commit_value_names_the_fix(run_dir: Path, tmp_path: Path) -> None:
+    """W-ebbedc88: `--commit "$(cat commit.sha)"` over a two-line capture arrives as ONE value;
+    the refusal says --commit takes one sha per value."""
+    repo = _started_v2(run_dir, tmp_path)
+    _design(run_dir, repo, "edit `src/a.py`")
+    a = _edit_commit(repo, "src/a.py", "x = 2\n")
+    b = _edit_commit(repo, "src/a.py", "x = 3\n")
+    r = _close(run_dir, repo, "done", "--evidence", "green", "--commit", f"{a}\n{b}")
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "takes one sha per value" in r.stdout, r.stdout
+    assert _rec(run_dir)["state"] == "running"
+
+
+# ── the two-sided gate (kaizen 01M4XQN131A897DAFH628FJFKJ, D-858): `/fabrik-spec start` through
+# `task_lane.admit`, opt-in on `--file`/`--declare` ──────────────────────────────────────────────
+
+
+def _spec_start(*extra: str) -> list[str]:
+    return ["start", "--command", "fabrik-spec", "--phases", "7", "--terminal", "a DRAFT", *extra]
+
+
+def _spec_handoff(run_dir: Path, repo: Path, reason: str, sid: str = "s1"):
+    seed = repo / "docs" / "seed.md"
+    seed.parent.mkdir(parents=True, exist_ok=True)
+    seed.write_text("# seed\n\n## RESUME\n- /fabrik-task the brief\n", encoding="utf-8")
+    return _cr(
+        run_dir,
+        "handoff",
+        "--command",
+        "fabrik-spec",
+        "--resume",
+        "docs/seed.md",
+        "--reason",
+        reason,
+        "--feedback",
+        _FB,
+        cwd=repo,
+        sid=sid,
+    )
+
+
+def test_spec_gate_a_flagless_spec_start_is_admitted_and_noted_as_ungated(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Behaviour 1 + fold 3: no `--file`/`--declare` keeps today's start, and the start says the
+    gate did not run; its close row carries `lane_gate: none` so the ungated population is
+    counted."""
+    repo = _repo(tmp_path, lane=2)
+    r = _cr(run_dir, *_spec_start(), cwd=repo)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "lane gate not run — pass --file/--declare" in r.stderr
+    assert _rec(run_dir).get("lane_gate") == "none" and "declared" not in _rec(run_dir)
+    assert _ledger(run_dir) == []
+    r = _spec_handoff(run_dir, repo, "the brief needs a design after all")
+    assert r.returncode == 0, r.stdout + r.stderr
+    row = _rows(run_dir)[-1]
+    assert row["lane_gate"] == "none" and "downgrade" not in row and "from_downgrade" not in row
+
+
+def test_spec_gate_a_lane_verdict_refuses_the_spec_naming_why(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Behaviour 2: the gate routes the declaration to the lane → refused, no record, no row."""
+    repo = _repo(tmp_path, lane=2)
+    r = _cr(run_dir, *_spec_start("--file", "src/a.py", "--declare", _V2), cwd=repo)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "REFUSED — fabrik-spec: admitted → lane" in r.stdout
+    assert '--why "<the test the gate cannot see>"' in r.stdout
+    assert not (run_dir / "s1.json").exists()
+    assert _ledger(run_dir) == []
+
+
+def test_spec_gate_an_overridden_spec_start_is_admitted_and_ledgered(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Behaviour 3 + folds 2, 3, 8: `--why` admits; one `spec-start` row with the verdict, the why
+    and the restart; the record carries the id; the close row joins it."""
+    repo = _repo(tmp_path, lane=2)
+    r = _cr(
+        run_dir,
+        *_spec_start("--file", "src/a.py", "--declare", _V2, "--why", "the UI contract is unknown"),
+        cwd=repo,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    rows = _ledger(run_dir)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["route"] == "spec-start" and row["verdict"] == "lane"
+    assert row["why"] == "the UI contract is unknown" and row["files"] == ["src/a.py"]
+    assert row["restart"] == f"/fabrik-task --from-downgrade {row['id']}"
+    assert row["session"] == "s1" and Path(row["repo"]) == (repo / ".git").resolve()
+    d = _rec(run_dir)["declared"]
+    assert (d["gate"], d["verdict"], d["spec_refusal"], d["why"]) == (
+        2,
+        "lane",
+        row["id"],
+        "the UI contract is unknown",
+    )
+    assert _rec(run_dir)["lane_gate"] == "lane"
+    assert f"lane gate: lane · spec-start refusal {row['id']}" in r.stdout
+    assert "review: None" not in r.stdout and "appetite: None" not in r.stdout
+    # the handoff joins the record's OWN refusal even in the no-refusal reason form
+    r = _spec_handoff(run_dir, repo, "DOWNGRADE: no-refusal — six answers, small")
+    assert r.returncode == 0, r.stdout + r.stderr
+    fb = _rows(run_dir)[-1]
+    assert (fb["lane_gate"], fb["spec_refusal"], fb["downgrade"], fb["from_downgrade"]) == (
+        "lane",
+        row["id"],
+        "refusal",
+        row["id"],
+    )
+    # C-S-2: a reason's LR- id never overrides the record's own row (a pasted id cannot mis-join)
+    r = _cr(
+        run_dir,
+        *_spec_start("--file", "src/b.py", "--declare", _V2, "--why", "unknown"),
+        cwd=repo,
+        sid="s2",
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    own = _rec(run_dir, "s2")["declared"]["spec_refusal"]
+    r = _spec_handoff(run_dir, repo, "DOWNGRADE: LR-0a1b2c3d — stale id pasted", sid="s2")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _rows(run_dir)[-1]["from_downgrade"] == own
+
+
+def test_spec_gate_a_chain_verdict_is_admitted_without_a_row_and_stamped(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Behaviour 4 + fold 3: the chain is where the work belongs — no row, but the verdict rides
+    the record and the close row (the chain-shaped cobra is a counted verdict)."""
+    repo = _repo(tmp_path, lane=2)
+    decl = _V2.replace("tradeoffs=no", "tradeoffs=yes")
+    r = _cr(
+        run_dir, *_spec_start("--file", "src/a.py", "--declare", decl, "--why", "A vs B"), cwd=repo
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _ledger(run_dir) == []
+    d = _rec(run_dir)["declared"]
+    assert (d["verdict"], d["why"], d.get("spec_refusal")) == ("chain: tradeoffs", "A vs B", None)
+    assert "lane gate: chain: tradeoffs" in r.stdout
+    # C-S-1: an explicit --appetite reaches the record (the `--appetite 241` lie is counted)
+    r = _cr(
+        run_dir,
+        *_spec_start(
+            "--file", "src/b.py", "--declare", decl, "--why", "A vs B", "--appetite", "60"
+        ),
+        cwd=repo,
+        sid="s2",
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert _rec(run_dir, "s2")["declared"]["appetite"] == 60
+    r = _spec_handoff(run_dir, repo, "the brief needs a design after all")
+    assert _rows(run_dir)[-1]["lane_gate"] == "chain: tradeoffs"
+
+
+def test_spec_gate_a_right_now_verdict_is_refused_outright(run_dir: Path, tmp_path: Path) -> None:
+    """Fold 6: `decision=no` is a pure fix — a spec is not openable over it by prose."""
+    repo = _repo(tmp_path, lane=2)
+    decl = _V2.replace("decision=yes", "decision=no")
+    for extra in ((), ("--why", "please")):
+        r = _cr(run_dir, *_spec_start("--file", "src/a.py", "--declare", decl, *extra), cwd=repo)
+        assert r.returncode == 1, r.stdout + r.stderr
+        assert "REFUSED — fabrik-spec: decision=no → right-now + /fabrik-review-scoped" in r.stdout
+        assert "re-declare decision=yes" in r.stdout
+    assert not (run_dir / "s1.json").exists() and _ledger(run_dir) == []
+
+
+def test_spec_gate_from_downgrade_stays_task_only_and_v1_ignores_the_flags(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Behaviour 5 + fold 4: `--from-downgrade` names a task restarted FROM a spec; a v1 repo takes
+    the flags, notes them and never runs the v1 router (which would refuse a spec INTO the
+    chain)."""
+    repo = _repo(tmp_path, lane=2)
+    r = _cr(run_dir, *_spec_start("--from-downgrade", "LR-0a1b2c3d"), cwd=repo)
+    assert r.returncode == 1 and "belong to --command fabrik-task" in r.stdout
+    v1 = _repo(tmp_path / "v1", lane=1)
+    four = _files("src/a.py", "src/b.py", "src/c.py", "src/d.py")
+    decl = _V2.replace("oneway=no", "oneway=yes")
+    r = _cr(run_dir, *_spec_start(*four, "--declare", decl), cwd=v1, sid="s9")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "--file, --declare ignored — this repo runs lane v1" in r.stderr
+    assert "declared" not in _rec(run_dir, "s9") and _ledger(run_dir) == []
+
+
+def test_spec_gate_a_dirty_path_or_a_directory_never_refuses_a_spec(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Fold 5: a spec designs — a sibling's WIP on the surface is a note, and a directory is a
+    legitimate surface."""
+    repo = _repo(tmp_path, lane=2)
+    (repo / "src" / "a.py").write_text("x = 2\n", encoding="utf-8")  # dirty
+    r = _cr(
+        run_dir,
+        *_spec_start(
+            "--file", "src/a.py", "--file", "api", "--declare", _V2, "--why", "unknown UI"
+        ),
+        cwd=repo,
+    )
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "src/a.py dirty at start" in r.stderr and "REFUSED" not in r.stdout
+    d = _rec(run_dir)["declared"]
+    assert d["dirty"] == ["src/a.py"] and d["files"] == ["src/a.py", "api"]
+
+
+def test_spec_gate_the_no_refusal_downgrade_writes_downgrade_never_a_fake_id(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """Behaviour 6 + fold 1: on a flagless spec the no-refusal form records `downgrade:
+    no-refusal` and NO `from_downgrade` (kaizen's text: "this form records no from_downgrade and
+    mis-joins nothing"); the `LR-` form records both."""
+    repo = _repo(tmp_path, lane=2)
+    for sid, reason, want in (
+        ("s1", "DOWNGRADE: no-refusal — six answers, small", ("no-refusal", None)),
+        ("s2", "DOWNGRADE: LR-0a1b2c3d — one reversible decision", ("refusal", "LR-0a1b2c3d")),
+        ("s3", "DOWNGRADE: none — nope", (None, None)),
+    ):
+        r = _cr(run_dir, *_spec_start(), cwd=repo, sid=sid)
+        assert r.returncode == 0, r.stdout + r.stderr
+        r = _spec_handoff(run_dir, repo, reason, sid=sid)
+        assert r.returncode == 0, r.stdout + r.stderr
+        row = _rows(run_dir)[-1]
+        assert (row.get("downgrade"), row.get("from_downgrade")) == want, reason
+
+
+def test_spec_gate_a_lone_flag_and_a_dead_git_name_the_spec_not_the_task(
+    run_dir: Path, tmp_path: Path
+) -> None:
+    """A-S-3/C-S-3: `--why` or `--appetite` without `--file/--declare` on a spec is refused and
+    the refusal says how they ride; A-S-1: an exception inside the gate names the command that
+    started."""
+    repo = _repo(tmp_path, lane=2)
+    for flag, val in (("--why", "x"), ("--appetite", "30")):
+        r = _cr(run_dir, *_spec_start(flag, val), cwd=repo)
+        assert r.returncode == 1, r.stdout + r.stderr
+        assert "belong to --command fabrik-task" in r.stdout
+        assert "ride with --file/--declare" in r.stdout
+    nobin = tmp_path / "nobin"
+    nobin.mkdir()
+    r = _cr(
+        run_dir,
+        *_spec_start("--file", "src/a.py", "--declare", _V2),
+        cwd=repo,
+        extra_env={"PATH": str(nobin)},
+    )
+    assert r.returncode == 1
+    assert "REFUSED — fabrik-spec: start could not complete (FileNotFoundError)" in r.stdout
+    assert "fabrik-task" not in r.stdout

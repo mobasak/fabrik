@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T19:20:26.720650Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-9417f840",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-review-scoped",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: decided, no hub mechanism (D-833, infra dc76de691, reply 01M4VPZ9FH): the hub's backlog has 0 SB-ids and both collisions (SB-117, SB-119) are in fabrik-lib's ba",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-review-scoped"
+}

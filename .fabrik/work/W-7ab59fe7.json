@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T01:08:01.938904Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-7ab59fe7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Y86A9RKAP0ASCAY85CSE2V",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Addendum to 01M4Y6ZXRS (D7): three command-source sites also tell seats where to write scratch"
+}

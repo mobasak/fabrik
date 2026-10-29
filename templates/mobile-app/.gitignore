@@ -11,6 +11,7 @@ expo-env.d.ts
 
 # Secrets & signing
 .env*.local
+.env.owner
 *.jks
 *.p8
 *.p12

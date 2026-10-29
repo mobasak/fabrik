@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T22:18:55.405481Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-62042fd4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M57GZF1JD205568YCX5M5TTH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "Coordinator role taken in tryton-crm: coordinator_mode true and queue_floor 1 committed in .fabrik/work/config.json (a7843aff, pushed). Scoring under way: the items routed today carry --impact/--effort/--why; the full-store re-score and its first-50 drop proposal follow as one awaiting-operator item"
+}

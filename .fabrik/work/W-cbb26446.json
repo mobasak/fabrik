@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T13:21:57.662779Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-cbb26446",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M57JN7K1YA5KFPGQSENEG91C",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "Operator proposal — a /fabrik-review routed up only by a fold's added file could adopt the scoped round's seats as round 1 (refused as a text edit: it shortens round 1)"
+}

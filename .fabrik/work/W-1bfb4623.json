@@ -1,0 +1,28 @@
+{
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
+  "created": "2026-10-17T20:56:03.875243Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-1bfb4623",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-958",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — D-958 levels in work.py: operator-ordered priority mechanism, store+interrupt",
+  "status": "open",
+  "tags": [
+    "rules"
+  ],
+  "title": "work.py: add a MEDIUM impact level (D-958 four levels: URGENT/HIGH/MEDIUM/LOW) and an URGENT interrupt that tells the holding builder to commit, push, park its run and take the item; until then MEDIUM is impact low + tag medium and URGENT is P0 plus a message"
+}

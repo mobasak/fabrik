@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:08:53.157226Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c842bf9a",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: work.py add/claim path + test; until it lands the coordinator files --kind task --tag mail-<id>",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — operator-ordered: coordinator cannot create work items for mail",
+  "status": "open",
+  "tags": [
+    "queued",
+    "work-store"
+  ],
+  "title": "work.py add refuses --kind mail ('mail items come only from taking the obligation'), so the coordinator — whose job is turning mail into work items (D-874, D-885) — cannot create the item for a mail it routes and must wait for the addressee to claim it (operator 2026-10-15: 'i want you to be able to create work items of course it is your existence reason here … this should not happen. fix'). Let the distributor create a mail item for a named mail id and owner (add --kind mail --link mail=<id> --owner <role>), and make the addressee's later claim adopt that item instead of minting a second"
+}

@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "a confirmation from fabrik-lib (lane v2 adopted, fabrik-lib D-370); its correction needs no hub change",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "Re: adopt /fabrik-task lane v2 — DONE in fabrik-lib (fabrik-lib D-370), with one correction to the request"
 }

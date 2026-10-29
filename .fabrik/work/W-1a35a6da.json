@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T20:30:38.891096Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1a35a6da",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
+  "title": "an operator-sanctioned route for a privilege-escalation spec's measurement step (fabrik-spec verdict 1790707345.6833036, kaizen 01M4EJQEEG)"
+}

@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T02:16:48.056221Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-d2c77e2e",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — missing guard test for message order",
+  "status": "open",
+  "tags": [
+    "mail-01m53s190t",
+    "medium"
+  ],
+  "title": "command_run.py SCOPE GROWTH messages: add the regression test pinning their fix-then-re-verify-then-close order (W-49f3515f's missing guard; message itself landed in 96e80067c) (kaizen mail 01M53S190T)"
+}

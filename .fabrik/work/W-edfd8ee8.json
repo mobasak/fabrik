@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T12:42:55.420782Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-edfd8ee8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5YP378Z0E5A91QEGE8WR607",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "open",
+  "title": "long-command-monitoring.md tells agents to runwait up to 600 s in the foreground — contradicts D-1296 for coordinators"
+}

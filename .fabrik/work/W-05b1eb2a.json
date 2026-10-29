@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:34:33.572062Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-05b1eb2a",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: reproduce in scratch (repo + .worktreeinclude worktree + hub change + resync), prove the copy is the distributed version (hash equals the worktree's own lock row) before refreshing, and name the stale-worktree case in the check's remedy text",
+  "note": "duplicate of W-800579be (the mail item mail.py claim created for 01M4RQV6DA); root cause and next step: /fabrik-task: reproduce in scratch (repo + .worktreeinclude worktree + hub change + resync), prove the copy is the distributed version (hash equals the worktree's own lock row) before refreshing, and name the stale-worktree case in the check's remedy text",
+  "owner": "",
+  "priority": 1,
+  "status": "dropped",
+  "title": "Worktree re-sync leaves files and the lock stale after a ledger gap, so check_synced_unmodified.py blames an edit nobody made (whatsapp-agent 01M4RQV6DA)"
+}

@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T21:33:46.820646Z",
+  "creator": "infra",
+  "effort": "high",
+  "evidence": "78a86bab9972599c5b944a84532a316598e82b17",
+  "id": "W-3e9e2f4c",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "spec or /fabrik-task: re-lay-out gen_dashboard.py's page on the command-centre components, or replace it with a Services sub-view",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "operator 2026-10-16 asked for the whole dashboard to be user-friendly; a second GUI redesign = major; held behind the one major in flight",
+  "status": "done",
+  "tags": [
+    "dashboard",
+    "medium"
+  ],
+  "title": "External-services page (scripts/gen_dashboard.py output, 28,719 px tall) needs the same treatment as the command-centre redesign — it is another generator's page, outside W-573fae88's page layer, so the board only links it"
+}

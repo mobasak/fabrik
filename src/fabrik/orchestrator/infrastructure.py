@@ -45,8 +45,8 @@ Error philosophy (mostly non-fatal):
   ``fabrik apply`` retries the idempotent registrars.
 * **The one exception is glitchtip's DSN-injection step** — if
   ``verify_dsn_injection`` returns False after .env injection + docker
-  compose restart, the method ROLLS BACK the GlitchTip project (to avoid an
-  orphan) and re-raises. A silent miss here would leave the deployed
+  compose restart, the method deletes the GlitchTip project if THIS run
+  created it (to avoid an orphan; a pre-existing project is kept) and raises. A silent miss here would leave the deployed
   app running with a stale/missing ``SENTRY_DSN`` and no errors would
   ever arrive in GlitchTip — worse than failing loud.
 
@@ -125,6 +125,12 @@ _HUB_MESH_IP = "10.99.0.1"
 # in a connection string is left untouched. (Meilisearch is absent by design —
 # it is not published on the mesh, so the registrar injects no meili host.)
 _SHARED_INFRA_HOSTS = ("postgres-main", "redis-main", "glitchtip-web")
+
+
+def _watchdog_target(ctx: Any, spec: dict[str, Any] | None) -> str:
+    """The host a watchdog sidecar would run on — ``ctx.target_vps``, else the spec's, else vps1 — resolved the
+    way ``drivers/watchdog.py`` does, so the registrar's spoke refusal (D-1153) and the driver never disagree."""
+    return getattr(ctx, "target_vps", None) or (spec or {}).get("target_vps") or "vps1"
 
 
 @overload
@@ -213,6 +219,51 @@ def _finite_budget(watchdog_cfg: dict[str, Any], key: str, default: float) -> fl
     return value
 
 
+# The ``depends:`` fields that name a store each registrar would create. The registrar keys
+# only on the shape flag, so a named store beside a false flag is provisioned by nobody.
+_DEPENDS_FIELDS: dict[str, tuple[str, ...]] = {
+    "postgres": ("postgres", "postgres_seed"),
+    "redis": ("redis",),
+}
+_DEPENDS_FLAG = {"postgres": "needs_database", "redis": "needs_cache"}
+
+
+def depends_contradiction(spec: dict[str, Any], registrar: str) -> str | None:
+    """The diagnostic clause when ``spec``'s ``depends:`` names a store ``registrar`` will skip.
+
+    Returns ``None`` when the shape flag is true or ``depends`` names nothing (absent, None, a
+    non-mapping, or values that are empty once whitespace is collapsed — the apply dict (raw YAML
+    with the template's ``shape:`` merged under it) and the model dump both reach here). A value is shown with its whitespace collapsed, so a
+    newline cannot split the one-line summary or the log record. The flag may be false or simply
+    ABSENT: the apply path merges only the template's ``shape:`` block (W-989653a7, D-908), so a flag
+    neither the spec nor its template sets is not there at all. Diagnostic only, never a prescription: flipping the flag on
+    ``depends.postgres: main`` would point the registrar at the shared legacy database (D-410),
+    so the clause names the live store as the thing to check (W-81524f52).
+    """
+    shape = spec.get("shape") or {}
+    flag = _DEPENDS_FLAG[registrar]
+    if not isinstance(shape, dict) or shape.get(flag, False):
+        return None
+    depends = spec.get("depends")
+    if not isinstance(depends, dict):
+        return None
+    named = []
+    for field in _DEPENDS_FIELDS[registrar]:
+        value = " ".join(str(depends.get(field) or "").split())
+        if value:
+            named.append(f"depends.{field}={value}")
+    if not named:
+        return None
+    return (
+        f"{', '.join(named)} names a store this registrar will NOT create, because "
+        f"shape.{flag} is false or absent; check the live store before changing either"
+    )
+
+
+def _clause_suffix(clause: str | None) -> str:
+    return f" — {clause}" if clause else ""
+
+
 def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
     """Resolve which registrars should run for ``spec`` and why.
 
@@ -245,22 +296,32 @@ def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
             + ("" if _enabled(infra, "postgres") else " (infra.postgres=false override)"),
         )
     else:
-        out["postgres"] = (False, "not applicable: shape.needs_database=false")
+        out["postgres"] = (
+            False,
+            "not applicable: shape.needs_database=false"
+            + _clause_suffix(depends_contradiction(spec, "postgres")),
+        )
 
-    # payments-ingest role (scoped non-BYPASSRLS cross-tenant role for fabrik-lib
-    # payments webhook ingest; provisioned inside the postgres block, so it needs the DB)
-    if shape.get("needs_payments_ingest", False) and shape.get("needs_database", False):
-        out["payments_ingest"] = (True, "shape.needs_payments_ingest=true")
-    elif shape.get("needs_payments_ingest", False):
-        out["payments_ingest"] = (
-            False,
-            "not applicable: needs_payments_ingest=true but needs_database=false",
-        )
-    else:
-        out["payments_ingest"] = (
-            False,
-            "not applicable: shape.needs_payments_ingest=false",
-        )
+    # payments roles (scoped non-BYPASSRLS roles for fabrik-lib payments: `ingest` for
+    # webhook ingest, `fulfilment` for the fulfilment worker). Both are provisioned INSIDE
+    # the postgres block, so each needs the DB and runs only when the postgres registrar
+    # runs: an `infra.postgres=false` override turns them off too, never a row that says
+    # RUNS while nothing runs.
+    for lane in ("ingest", "fulfilment"):
+        flag = f"needs_payments_{lane}"
+        if shape.get(flag, False) and shape.get("needs_database", False):
+            out[f"payments_{lane}"] = (
+                _enabled(infra, "postgres"),
+                f"shape.{flag}=true"
+                + ("" if _enabled(infra, "postgres") else " (infra.postgres=false override)"),
+            )
+        elif shape.get(flag, False):
+            out[f"payments_{lane}"] = (
+                False,
+                f"not applicable: {flag}=true but needs_database=false",
+            )
+        else:
+            out[f"payments_{lane}"] = (False, f"not applicable: shape.{flag}=false")
 
     # gatus
     if shape.get("is_public", False) and domain:
@@ -336,7 +397,11 @@ def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
             + ("" if _enabled(infra, "redis") else " (infra.redis=false override)"),
         )
     else:
-        out["redis"] = (False, "not applicable: shape.needs_cache=false")
+        out["redis"] = (
+            False,
+            "not applicable: shape.needs_cache=false"
+            + _clause_suffix(depends_contradiction(spec, "redis")),
+        )
 
     # prometheus (G5 — DEPLOYMENT.md §9.9)
     # Requires both the metrics flag AND a domain (we scrape over public HTTPS
@@ -390,7 +455,12 @@ def resolve_applicability(spec: dict[str, Any]) -> dict[str, tuple[bool, str]]:
         out["watchdog"] = (
             _enabled(infra, "watchdog"),
             "spec.watchdog.enabled=true"
-            + ("" if _enabled(infra, "watchdog") else " (infra.watchdog=false override)"),
+            + ("" if _enabled(infra, "watchdog") else " (infra.watchdog=false override)")
+            + (
+                f" — refused on spoke {spec['target_vps']} until apprise is mesh-published (D-1153)"
+                if _enabled(infra, "watchdog") and (spec.get("target_vps") or "vps1") != "vps1"
+                else ""
+            ),
         )
     else:
         out["watchdog"] = (False, "not applicable: spec.watchdog.enabled=false")
@@ -463,9 +533,10 @@ _APP_ROLE_FLAG = "database_url_app_role"
 
 
 def _app_role_flag(spec: dict[str, Any]) -> bool:
-    """``shape.database_url_app_role`` from the RAW spec dict — only a real ``true`` counts.
+    """``shape.database_url_app_role`` from the apply spec dict — only a real ``true`` counts.
 
-    ``ctx.spec`` never passes through ``Shape``, so its default does not apply and
+    ``ctx.spec`` is the raw YAML with the template's ``shape:`` merged under it (D-908); it never
+    passes through ``Shape``, so its default does not apply and
     nothing coerces the type: ``bool("false")`` is ``True``. Absent / ``null`` is
     ``False``; any other non-bool value (a string, a number) refuses — never a cutover.
     """
@@ -532,6 +603,7 @@ def _shared_db_siblings(db_name: str, spec_path: Path | None) -> list[str]:
     import yaml
 
     from fabrik.app_role_check import SpecResolutionError, _db_name_for_spec
+    from fabrik.spec_loader import merge_template_defaults
 
     if spec_path is None:
         raise AppRoleRefusalError(
@@ -545,7 +617,12 @@ def _shared_db_siblings(db_name: str, spec_path: Path | None) -> list[str]:
             continue
         try:
             data = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except (OSError, yaml.YAMLError) as e:
+            # The sibling's template shape too, as apply sees it (W-989653a7): a sibling
+            # whose needs_database comes from its template is still a database spec. A
+            # non-mapping stays a skip below; a malformed template file is a refusal here.
+            if isinstance(data, dict):
+                data = merge_template_defaults(data, keys=("shape",))
+        except (OSError, ValueError, yaml.YAMLError) as e:
             raise AppRoleRefusalError(
                 f"cannot read sibling spec {path.name} to rule out a shared database: "
                 f"{type(e).__name__}"
@@ -582,7 +659,7 @@ class InfrastructureProvisioner:
     a single driver's failure is logged at WARNING and does NOT break
     the deploy. The one exception is glitchtip's DSN-injection
     verification: if the DSN isn't propagated to the running container,
-    the project is rolled back and the method raises.
+    the method raises, deleting the project only if this run created it.
 
     The provisioner is stateless; it takes a :class:`DeploymentContext`
     and calls ``ctx.add_resource(type, id)`` for every successful step.
@@ -604,6 +681,57 @@ class InfrastructureProvisioner:
         logger.warning("%s provisioning failed (non-fatal): %s", registrar, e)
         ctx.registrar_failures.append(f"{registrar}: {e}")
 
+    def _provision_payments_role(
+        self, ctx: DeploymentContext, db_name: str, lane: str, dry_run: bool
+    ) -> None:
+        """Mint, deliver, then grant one payments role; record its status from the grant path.
+
+        The DSN is injected only on a fresh password (mirrors the watchdog lifecycle) and
+        BEFORE the grant runs, so a grant that raises never strands the one-time password
+        (D-464 item 2). The path decides the status (D-464 item 5): ``module``/``legacy`` →
+        ``provisioned``; ``pending`` (the project has not applied its payments schema yet) →
+        ``pending`` plus one ``registrar_warnings`` line, never a failure; anything else (a
+        ``legacy`` read from the fulfilment lane included), or a raise, → ``failed`` through
+        :meth:`_nonfatal`. Non-fatal: the deploy goes on.
+        """
+        resource = f"payments-{lane}-role"
+        env_key = f"PAYMENTS_{lane.upper()}_DATABASE_URL"
+        try:
+            from fabrik.drivers.postgres import (
+                _PAYMENTS_LANE_PATHS,
+                grant_payments_role,
+                mint_payments_role,
+            )
+
+            granted = tuple(p for p in _PAYMENTS_LANE_PATHS[lane] if p != "pending")
+            minted = mint_payments_role(db_name, lane, dry_run=dry_run)
+            if minted.get("password") and not dry_run:
+                url = (
+                    f"postgresql://{minted['user']}:{minted['password']}"
+                    f"@postgres-main:5432/{db_name}"  # noqa: runtime CSPRNG password, not a hardcoded secret
+                )
+                url = _rewrite_shared_infra_host(url, getattr(ctx, "target_vps", None))
+                self.deployer.inject_env(ctx, {env_key: url})
+                logger.info("postgres: %s injected for %s (%s)", env_key, db_name, minted["user"])
+            path = grant_payments_role(db_name, lane, dry_run=dry_run).get("grants")
+            if dry_run:
+                ctx.add_resource(resource, db_name, status="dry_run")
+            elif path in granted:
+                ctx.add_resource(resource, db_name, status="provisioned")
+            elif path == "pending":
+                warning = (
+                    f"{resource}: grant pending — {db_name} has not applied the fabrik-lib "
+                    "payments schema yet; re-run `fabrik apply` after it does"
+                )
+                logger.warning("postgres: %s", warning)
+                ctx.registrar_warnings.append(warning)
+                ctx.add_resource(resource, db_name, status="pending")
+            else:
+                raise RuntimeError(f"unknown grant path {path!r}")
+        except Exception as e:  # noqa: BLE001 — bounded non-fatal
+            self._nonfatal(ctx, resource, e)
+            ctx.add_resource(resource, db_name, status="failed")
+
     @property
     def deployer(self) -> Any:
         """Lazy-load SSHDeployer if not injected."""
@@ -624,8 +752,18 @@ class InfrastructureProvisioner:
         logger.info("Infrastructure provisioning for %s", name)
         for line in format_resolved_summary(resolved).splitlines():
             logger.info("%s", line)
+        # The summary is INFO, which no `fabrik apply` handler shows; a skipped store the spec
+        # names is the one line the operator must see (W-81524f52). A clause exists only when
+        # the flag is falsy, which is exactly when resolve_applicability skips the registrar.
+        for registrar in _DEPENDS_FIELDS:
+            clause = depends_contradiction(spec, registrar)
+            if clause:
+                logger.warning("%s registrar skipped for %s: %s", registrar, name, clause)
 
         should_run = {k: v[0] for k, v in resolved.items()}
+        # D-1153: a spoke watchdog is refused in _provision_watchdog; nothing it alone needs is provisioned
+        # for it either — no `<db>_wd_ro/_wd_rw` roles and DSNs in the app's .env, no analytics failure.
+        watchdog_lives = should_run["watchdog"] and _watchdog_target(ctx, spec) == "vps1"
 
         # P1 (watchdog platform): ensure the shared fabrik_analytics DB +
         # cost_ledger table exist BEFORE any per-spec registrar runs.
@@ -635,7 +773,7 @@ class InfrastructureProvisioner:
         # records only when the watchdog is applicable — that dependency is
         # what makes it required; a watchdog-disabled static site must not
         # exit 2 over a shared-analytics blip (review finding, pass 2).
-        self._provision_shared_analytics(ctx, dry_run, record_failure=should_run["watchdog"])
+        self._provision_shared_analytics(ctx, dry_run, record_failure=watchdog_lives)
 
         if should_run["postgres"]:
             self._provision_postgres(
@@ -643,8 +781,9 @@ class InfrastructureProvisioner:
                 spec,
                 ctx,
                 dry_run,
-                provision_watchdog_roles=should_run["watchdog"],
+                provision_watchdog_roles=watchdog_lives,
                 provision_payments_ingest=should_run["payments_ingest"],
+                provision_payments_fulfilment=should_run["payments_fulfilment"],
             )
 
         if should_run["redis"]:
@@ -735,6 +874,7 @@ class InfrastructureProvisioner:
         dry_run: bool,
         provision_watchdog_roles: bool = False,
         provision_payments_ingest: bool = False,
+        provision_payments_fulfilment: bool = False,
     ) -> None:
         try:
             from fabrik.drivers.postgres import create_database, database_exists
@@ -868,43 +1008,14 @@ class InfrastructureProvisioner:
                     self._nonfatal(ctx, "postgres/watchdog-roles", e)
                     ctx.add_resource("watchdog-db-roles", db_name, status="failed")
 
-            # Payments webhook-ingest role (fabrik-lib payments contract): when
-            # shape.needs_payments_ingest, mint a scoped NON-BYPASSRLS cross-tenant role
-            # + inject PAYMENTS_INGEST_DATABASE_URL so PgWebhookStore.resolve_org() can
-            # attribute unsigned-provider (iyzico) webhooks. DSN injected only on a fresh
-            # password (mirrors the watchdog lifecycle). Own try/except: non-fatal.
+            # Payments roles (fabrik-lib payments contract), ingest first then fulfilment
+            # (D-464 item 5): each a scoped NON-BYPASSRLS role whose DSN reaches the app as
+            # PAYMENTS_<LANE>_DATABASE_URL. Ingest lets PgWebhookStore.resolve_org()
+            # attribute unsigned-provider (iyzico) webhooks; fulfilment is the worker's.
             if provision_payments_ingest:
-                try:
-                    from fabrik.drivers.postgres import create_payments_ingest_role
-
-                    pi = create_payments_ingest_role(db_name, dry_run=dry_run)
-                    if pi.get("password") and not dry_run:
-                        pi_url = (
-                            f"postgresql://{pi['user']}:{pi['password']}"
-                            f"@postgres-main:5432/{db_name}"  # noqa: runtime CSPRNG password, not a hardcoded secret
-                        )
-                        pi_url = _rewrite_shared_infra_host(
-                            pi_url, getattr(ctx, "target_vps", None)
-                        )
-                        self.deployer.inject_env(ctx, {"PAYMENTS_INGEST_DATABASE_URL": pi_url})
-                        logger.info(
-                            "postgres: PAYMENTS_INGEST_DATABASE_URL injected for %s (%s)",
-                            db_name,
-                            pi["user"],
-                        )
-                    ctx.add_resource(
-                        "payments-ingest-role",
-                        db_name,
-                        status="dry_run" if dry_run else "provisioned",
-                    )
-                except Exception as e:  # noqa: BLE001 — bounded non-fatal
-                    self._nonfatal(ctx, "payments-ingest-role", e)
-                    logger.debug(
-                        "postgres: payments-ingest role provisioning failed for %s (recorded): %s",
-                        db_name,
-                        e,
-                    )
-                    ctx.add_resource("payments-ingest-role", db_name, status="failed")
+                self._provision_payments_role(ctx, db_name, "ingest", dry_run)
+            if provision_payments_fulfilment:
+                self._provision_payments_role(ctx, db_name, "fulfilment", dry_run)
 
             # The <db>_app runtime role + the declarative DATABASE_URL cutover/rollback.
             # AFTER the watchdog + payments blocks so its audit_log revokes land after
@@ -989,7 +1100,7 @@ class InfrastructureProvisioner:
         """Mint ``<db>_app`` and converge ``DATABASE_URL`` to the declared role.
 
         Declarative (spec § 2, D-390): the flag ``shape.database_url_app_role`` is
-        read from the RAW spec dict (``ctx.spec`` never passes through ``Shape``,
+        read from the apply spec dict (raw YAML with the template's ``shape:`` merged under it, D-908; ``ctx.spec`` never passes through ``Shape``,
         so a missing key is ``False``), the current ``DATABASE_URL`` user from the
         live ``.env`` (:meth:`SSHDeployer.read_env`). Then:
 
@@ -1103,8 +1214,9 @@ class InfrastructureProvisioner:
             raise AppRoleRefusalError(
                 f"cutover of {db_name} refused: DATABASE_URL is pinned by {pin}, which "
                 "rewrites it to the owner DSN on every apply (re-cutting over and resetting "
-                f"{app}'s password each time) — move the pinned value to DATABASE_URL_OWNER "
-                "first"
+                f"{app}'s password each time) — remove the pin: the registrar's .env and "
+                ".env.owner carry both DSNs, and an owner key in a spec's env: is refused by the "
+                "loader (D-754)"
             )
 
         siblings = _shared_db_siblings(db_name, getattr(ctx, "spec_path", None))
@@ -1209,8 +1321,9 @@ class InfrastructureProvisioner:
 
         This is the one registrar where a soft failure is unacceptable.
         If the DSN isn't actually in the running container after
-        .env injection + docker compose restart, the project is rolled
-        back and this method raises — the app was deployed, but its error
+        .env injection + docker compose restart, this method raises
+        :class:`DsnInjectionError`, first deleting the project only if this
+        run created it (a project found ``exists`` is kept) — the app was deployed, but its error
         reporting is broken and silently missing reports is worse than
         a visible deploy failure.
         """
@@ -1220,6 +1333,7 @@ class InfrastructureProvisioner:
                 delete_project,
                 verify_dsn_injection,
             )
+            from fabrik.orchestrator.deployer_ssh import _target_vps_env
 
             result = create_project(name, dry_run=dry_run)
             dsn = _rewrite_shared_infra_host(result.get("dsn"), getattr(ctx, "target_vps", None))
@@ -1253,15 +1367,22 @@ class InfrastructureProvisioner:
 
             self.deployer.inject_env(ctx, {"SENTRY_DSN": dsn, "GLITCHTIP_DSN": dsn})
 
-            if not verify_dsn_injection(name, dsn, max_wait=240):
-                # Ground-truth check failed: roll back the project so we
-                # don't leave an orphan, then raise so the caller can
-                # decide (typically: fail the deploy with full rollback).
-                delete_project(name)
+            # The container lives on ctx.target_vps, like the .env inject_env just wrote, so
+            # the docker-inspect verify runs there too; create/delete_project stay hub-side.
+            with _target_vps_env(ctx):
+                injected = verify_dsn_injection(name, dsn, max_wait=240)
+            if not injected:
+                # Ground-truth check failed: roll back a project THIS run created so we don't
+                # leave an orphan, then raise so the caller can decide (typically: fail the
+                # deploy with full rollback). A project create_project found `exists` predates
+                # the run (a refresh, a re-apply) and holds live issues — never delete it.
+                created = result.get("status") == "created"
+                if created:
+                    delete_project(name)
                 raise DsnInjectionError(
                     f"SENTRY_DSN not injected into {name!r} container "
-                    f"within 240s after .env injection + restart. Project "
-                    f"rolled back."
+                    f"within 240s after .env injection + restart. "
+                    + ("Project rolled back." if created else "Existing project kept.")
                 )
 
             logger.info("glitchtip: %s → DSN verified in container", name)
@@ -1426,8 +1547,31 @@ class InfrastructureProvisioner:
                 bearer_token=bearer_token,
                 dry_run=dry_run,
             )
-            ctx.add_resource("prometheus", name, status=result.get("status"))
-            logger.info("prometheus: %s -> %s", name, result.get("status"))
+            reload = result.get("reload")
+            # a config promtool refused is recorded failed, never created (review B-1)
+            status = "failed" if reload == "refused" else result.get("status")
+            # `job` keeps the driver's own verdict: rollback removes only a job this run created
+            ctx.add_resource("prometheus", name, status=status, job=result.get("status"))
+            logger.info("prometheus: %s -> %s", name, status)
+            # the reload outcome reaches the operator (W-cc9b0532): a config promtool refused is
+            # INVALID on vps1 (the next restart crash-loops Prometheus, D-513) — a failure; an
+            # unavailable Prometheus loads the valid config on its next reload — a warning,
+            # re-checked every apply because the exists branch reloads too
+            if reload == "refused":
+                raise RuntimeError(
+                    f"scrape target for {name} is in prometheus.yml, but promtool rejects the file "
+                    "on vps1, so Prometheus did not load it and its next restart would crash-loop; "
+                    "run `promtool check config` in the prometheus container (or "
+                    "scripts/sync_prometheus_to_vps.sh --verify-secrets), fix the file, re-apply"
+                )
+            if reload == "unavailable":
+                warning = (
+                    f"prometheus: scrape target for {name} is in prometheus.yml, but Prometheus did not load it "
+                    "(no running container, or the reload and restart failed); it scrapes once "
+                    "Prometheus reloads — re-run `fabrik apply` to re-check"
+                )
+                logger.warning("%s", warning)
+                ctx.registrar_warnings.append(warning)
         except Exception as e:  # noqa: BLE001
             self._nonfatal(ctx, "prometheus", e)
 
@@ -1453,7 +1597,26 @@ class InfrastructureProvisioner:
         to a WARNING (non-fatal — every registrar's failure is bounded) if the
         driver module isn't present yet. That keeps `fabrik apply` working on
         existing specs that don't depend on the watchdog while T-P2 finishes.
+
+        A spoke-targeted watchdog is refused, real and dry run alike (W-37dda1e1): its sidecar could not
+        alert — vps1's apprise has no mesh port and its Traefik route is 2FA-gated, and no legal spec can point
+        the sidecar elsewhere (WatchdogConfig has no apprise_url). Non-fatal, unlike the deploy-aborting
+        `_assert_error_webhook_colocated` (orchestrator/__init__.py): the app is healthy and stays up; only its
+        watchdog is withheld, and the apply ends red.
         """
+        target = _watchdog_target(ctx, getattr(ctx, "spec", None))
+        if target != "vps1":
+            self._nonfatal(
+                ctx,
+                "watchdog",
+                RuntimeError(
+                    f"a watchdog on {target} could not alert: vps1's apprise is not reachable from a spoke "
+                    "(no mesh port; its Traefik route is 2FA-gated), so the sidecar is not provisioned or "
+                    "refreshed (one already running there is left as it is). Set `watchdog.enabled: false` in "
+                    "this spec, or wait for W-5dcafaef (apprise mesh-published, a spoke login preflight)"
+                ),
+            )
+            return
         if dry_run:
             logger.info(
                 "[dry-run] watchdog: would build fabrik/watchdog:%s + inject sidecar service "
@@ -1474,8 +1637,14 @@ class InfrastructureProvisioner:
             )
             return
         try:
+            from fabrik.orchestrator.deployer_ssh import _target_vps_env
+
             driver = WatchdogDriver()
-            result = driver.provision(ctx, dry_run=dry_run)
+            # Every watchdog ssh step (build, overlay push, compose up, container inspect,
+            # cleanup) acts on the app's host and the image is a local tag, so the whole call
+            # runs on ctx.target_vps (decision panel, W-fc3eddd8); vps1 is a no-op.
+            with _target_vps_env(ctx):
+                result = driver.provision(ctx, dry_run=dry_run)
             ctx.add_resource("watchdog", name, status=result.get("status") if result else "ok")
             logger.info("watchdog: %s → %s", name, result.get("status") if result else "ok")
         except Exception as e:  # noqa: BLE001

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T10:47:39.812615Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-8d4ecc00",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4BYT64FNVKMF5FDZCYCRQWQ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Done in the commit now under review (ack carries the sha): agents-fabrik.md:402 reads \"writes `.fabrik/state/<spec.id>.json` (the G-F3 manifest — schema in `src/fabrik/state.py`'s docstring, incl. `registrar_failures`, the sanitised failures of the last completed apply; a dry run writes nothing)\". T"
+}

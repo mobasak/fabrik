@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T13:11:15.992568Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-b4fe7c08",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1338",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "commands/_fragments/term-coverage.md final-round rule (the 'every candidate ever raised adjudicated (CLEAN / FIXED / REFUTED / RECORDED)' line): add one clause that a candidate posted under ## BLOCKED by rule (1)'s never-run clause closes the review blocked instead, so the two never read as conflicting; also the fabrik-review and review-scoped pointers may carry rule (1)'s '(missing infra)' and 'never counts in unexecuted:' — kaizen wording beat",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "commands",
+    "fleet"
+  ],
+  "title": "term-coverage's final-round rule does not name the never-run BLOCKED close (W-a86563c9 review residue)"
+}

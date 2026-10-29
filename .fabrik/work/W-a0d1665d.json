@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T06:02:49.569524Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a0d1665d",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make the backlog renderer skip dropped items (or render them under a Dropped heading) and re-render; grader on a dropped fixture",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "a stale line in a rendered view; one filter in the renderer",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "docs/STRATEGIC_BACKLOG.md:127 still renders a DROPPED item's claim (the canary has the watchdog on) — the backlog render keeps rows from dropped items; a render-filter defect (fleet's seats, 2026-10-23)"
+}

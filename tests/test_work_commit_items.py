@@ -24,6 +24,7 @@ def _env(tmp_path: Path) -> dict[str, str]:
         (tmp_path / sub).mkdir(exist_ok=True)
     return {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "FABRIK_WORK_PROC": os.environ.get("FABRIK_WORK_PROC", ""),  # conftest pin
         "HOME": str(tmp_path / "home"),
         "TMPDIR": str(tmp_path / "tmp"),
         "GIT_CONFIG_NOSYSTEM": "1",

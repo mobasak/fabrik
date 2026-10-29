@@ -12,12 +12,14 @@
     "spec": ""
   },
   "next": "**[fleet]** **propose/ack peer-protocol verbs** (trio plan Phase 5, deferred): Today the cross-host destructive bridge is operator Telegram `reply \"go\"`. Build the `propose`/`ack` HTTP verbs in aro-wake only when a real incident proves the bridge is insufficient — don't speculate. The \"real cross-host destructive action\" use case hasn't shown up yet. Blocked by: first real incident where consult-only + operator-bridge is provably too slow.",
-  "note": "migrated-digest:3fe209aa2945",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
-    "waits-bridge-gap-incident"
+    "proposed-drop",
+    "waits-bridge-gap-incident",
+    "waits-operator-review"
   ],
   "title": "**propose/ack peer-protocol verbs** (trio plan Phase 5, deferred): Today the cross-host destructive bridge is operator Telegram `reply \"go\"`. Build the `propose`/`ack` HTTP verbs in aro-wake only w..."
 }

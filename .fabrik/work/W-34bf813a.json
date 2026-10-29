@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T15:57:27.013061Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-34bf813a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M57KNEZ2YQMM3AS4S68GQR4V",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "re: command_run.py requests — blocked --paused and round --command built (W-79638b4a, D-993)"
+}

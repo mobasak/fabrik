@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T05:58:55.621815Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-14c96fdc",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-844",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "once the uncommitted claude_rotate.py WIP lands, port _armed's one-open O_NONBLOCK|O_NOFOLLOW + fstat S_ISREG body into both copies and add a FIFO + symlink case to tests/test_claude_rotate_v2.py's lockstep grader",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — FIFO at lock hangs tick; rare and contrived",
+  "status": "dropped",
+  "tags": [
+    "medium"
+  ],
+  "title": "The rotation tick's vendored armed decider (claude_rotate.py::_sid_is_armed, both copies) follows symlinks and opens the lock blocking, so a FIFO at a selfwatch.lock hangs the tick; selfwatch_check._armed refuses a non-regular lock since W-117b1916"
+}

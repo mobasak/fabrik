@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:20:46.900602Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-5cf7b6fe",
+  "impact": "low",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4ETZ7QH99BH2GDYQB8KVMX6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — spec-review loop frictions",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "WHAT: two frictions in the D-335 spec-review loop machinery, hit during /fabrik-spec-review of docs/superpowers/specs/2026-10-08-ecommerce-storefront-template-design.md (web-ecommerce-factory, worktree wef3, 2026-10-09)."
+}

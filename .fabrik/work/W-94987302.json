@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T08:26:04.832977Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-94987302",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: add the pause marker to work.py + final_gate_stop.py triage rung; coordinator sets fleet paused per D-880",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — Stop hook false block every turn while builder paused",
+  "status": "open",
+  "tags": [
+    "coordinator",
+    "queued"
+  ],
+  "title": "work.py has no 'worker paused' state: the Stop hook's triage rung demands a queued item for a builder the operator has paused (fleet, D-880), three blocks per turn end, and the only way to quiet it is to queue work the builder must not start. Add a pause marker per worker (set/cleared by the coordinator, reason + D-row) that the triage floor and the doorbell skip"
+}

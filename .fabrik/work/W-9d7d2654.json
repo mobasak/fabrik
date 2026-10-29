@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-08-31T00:00:00.000000Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-9d7d2654",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -12,9 +14,10 @@
     "spec": ""
   },
   "next": "## [infra] release_cut.py stages only CHANGELOG.md — a same-commit DECISIONS.md cut-row is impossible; the versioning-adoption carve-out itself has no ledger row (found by T20's verifier, 2026-08-31)\n\n`release_cut.py:149,162` hardcodes `git add -- CHANGELOG.md` / `git commit -- CHANGELOG.md`, so the\nmanifesto-pass mint law (\"built X at vY\" → its `docs/DECISIONS.md` row) cannot ride the cut commit —\n`/fabrik-release` now instructs an ADJACENT commit in the same push and says why (the honest recipe,\nnot the preferred one). Fix direction when promoted: `release_cut.py` stages `docs/DECISIONS.md` when\nmodified (or gains `--extra-path`), restoring same-COMMIT atomicity. Related provenance gap the same\nverifier measured: the \"versioning adoption\" carve-out the command description cites (\"the one\nsanctioned publish-shaped act\") has ZERO hits in `docs/DECISIONS.md` — the standing policy lives only\nin prose; mint its provenance row when the operator confirms. Out of plan-1's File Scope (scripts/).\nPromotion trigger: the first cut that actually mints a row (proves the two-commit shape in anger).",
-  "note": "migrated-digest:b923919a4c42",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
-  "priority": 2,
-  "status": "open",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — narrow script fix",
+  "status": "dropped",
   "title": "release_cut.py stages only CHANGELOG.md — a same-commit DECISIONS.md cut-row is impossible; the versioning-adoption carve-out itself has no ledger row (found by T20's verifier, 2026-08-31)"
 }

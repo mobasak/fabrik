@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T07:14:34.107916Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a2361e7b",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "in start, when the previous record is not running, also carry each dict in rec['stack']'s covered pairs, first_review_reach (earliest) and reviewed_surfaces, deduped; grade with a reaped-nested fixture in tests/test_command_run.py",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — reaped record loses parent coverage, false Stop block",
+  "status": "open",
+  "title": "command_run.py start drops a coroner-reaped record's parked stack frames: when the live record is died/expired, parent=None and covered, first_review_reach and reviewed_surfaces are carried from the top record only, so a nested child's reaped session loses its parent's coverage (fails closed, a false Stop block)"
+}

@@ -1,0 +1,45 @@
+# fabrik-scrape MCP server — the research seats' raw-page fetch (docs/reference/fabrik-scrape-mcp.md, D-1100).
+# Installed by the operator gate of plan 3 Phase B into /etc/systemd/system/ (sudo install -m 644 …, daemon-reload,
+# enable --now). Modelled on the citation verifier's unit (/etc/systemd/system/fabrik-citation-verifier-mcp.service).
+#
+# No EnvironmentFile=: the server needs no credential (rendering is off in slice 1a), and a network-facing fetcher
+# must never hold the hub's secrets (the rule session-archive.service states). Only the three non-secret variables
+# serve.py reads are set here.
+#
+# Sandboxed beyond its precedent: this process fetches model-chosen URLs and parses untrusted HTML, so a parser bug
+# must not inherit the operator's files. The OS is read-only, /home (credentials, transcripts) is invisible, and the
+# only writable paths are the cache systemd creates for it and a private /tmp. That is why the venv is built on
+# /usr/bin/python3: a venv whose interpreter lives under /home (uv's managed Pythons) would not start here.
+[Unit]
+Description=Fabrik scrape MCP server (fabrik-scrape, streamable-http, loopback only)
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=ozgur
+WorkingDirectory=/opt/fabrik
+Environment=PYTHONPATH=/opt/fabrik/libs/web_scrape_mcp
+Environment=WEB_SCRAPE_MCP_HOST=127.0.0.1
+Environment=WEB_SCRAPE_MCP_PORT=8034
+Environment=WEB_SCRAPE_MCP_CACHE_DIR=/var/cache/fabrik-scrape-mcp
+CacheDirectory=fabrik-scrape-mcp
+ExecStart=/opt/fabrik/libs/web_scrape_mcp/.venv/bin/python /opt/fabrik/libs/web_scrape_mcp/serve.py
+Restart=always
+RestartSec=3
+MemoryMax=512M
+MemorySwapMax=0
+OOMPolicy=stop
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

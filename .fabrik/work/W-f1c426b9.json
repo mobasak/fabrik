@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-06T13:16:23.860606Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-f1c426b9",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -12,9 +14,10 @@
     "spec": ""
   },
   "next": "anchor each cite on the line plus its distinctive neighbour (e.g. the preceding comment or condition), or assert the enclosing def; measure the fire rate on the current table first",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
   "priority": 3,
-  "status": "open",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — test anchor weakness",
+  "status": "dropped",
   "title": "tests/test_governance_template_split.py _GATE_CITES anchors :1311/:1410 on 'return results' and :1294 on 'if tier == 3:' — non-unique lines in final_gate.py, so a cite drifting onto another occurrence stays green (W-42bde5ae review B-S1, pre-existing)"
 }

@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "core/42-docusaurus.md — the mandated `try_files $uri $uri/ /index.html` masks 404s and loops when no root page exists; the curl step is redundant; root vs unprivileged nginx is unstated"
 }

@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "follow-up to 01M3V92T8N — three more docusaurus-pack conflicts, a stale /fabrik-spec constraint line, and check_docker.py's dead bookworm-only APPROVED_BASES"
 }

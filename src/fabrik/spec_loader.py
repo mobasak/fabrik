@@ -5,14 +5,54 @@ This module is the single source of truth for spec file schema.
 All spec files are validated against Pydantic models before use.
 """
 
+import re
 from enum import Enum
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field, StrictBool, field_validator, model_validator
 
 from fabrik.config import FABRIK_ROOT
+
+HEALTH_PATH_RE = re.compile(r"/[A-Za-z0-9._~%/!&()*+,;=:@?-]*")
+"""A health-check path (fullmatch, W-ff313a14): RFC 3986 path characters plus a query, minus every
+character that would break where the path is pasted — `'` (the single-quoted URL in the CMD-SHELL
+probes), `"` and `\\` (the double-quoted YAML items), `$` (compose interpolation), `#`, a backtick, braces
+and whitespace. `&`, `;` and parentheses are admitted, so both shell probes single-quote the URL."""
+
+CPU_RE = re.compile(r"(?:0|[1-9][0-9]{0,3})(?:\.[0-9]{1,2})?")
+"""A ``resources.cpu`` value (fullmatch, W-f01710a0): a plain ASCII decimal of at most 4 integer and 2 fraction
+digits. Compose 2.40.3 reads ``0_5`` as 5 CPUs, ``0`` as no limit and ``-1`` as -1 without complaint, so the
+template path, the apply validator and the docker-image emitter all refuse anything else through
+:func:`cpu_in_grammar`. Two decimals is the daemon floor's step (0.01), and compose reads ``cpus`` as a 32-bit
+float (``0.123456789`` comes back ``0.12345679``) yet reads a value of this grammar back as the same number."""
+
+CPU_GRAMMAR_MESSAGE = (
+    "resources.cpu must be a quoted plain decimal CPU count from 0.01 to 1024 "
+    "with at most 2 decimals, e.g. '0.5'"
+)
+
+
+def cpu_in_grammar(value: object) -> bool:
+    """True for a str in :data:`CPU_RE` from 0.01 to 1024. The floor is the Docker daemon's ("Range of CPUs
+    is from 0.01 to N", N its CPU count). The 1024 ceiling only refuses absurd values: compose parses ``cpus``
+    before the daemon sees it, and reads a 300-digit value as +Inf. A YAML float (a bare ``0.5``) is refused,
+    as the ``str`` field always did on the Spec path."""
+    if not isinstance(value, str) or not CPU_RE.fullmatch(value):
+        return False
+    return 0.01 <= float(value) <= 1024
+
+
+POSTGRES_IDENT_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")
+"""PostgreSQL identifier validation — the registrar's rule (``drivers/postgres.py`` imports it).
+
+Matches the conservative subset of the SQL standard: leading letter or
+underscore, followed by up to 62 letters / digits / underscores. This is
+deliberately stricter than Postgres's own rules (which allow quoted
+identifiers with arbitrary content) — we never want the driver to need
+to emit a quoted identifier that a shell might unquote.
+"""
 
 
 class Kind(str, Enum):
@@ -129,6 +169,14 @@ class Resources(BaseModel):
     memory: str = "256M"
     cpu: str = "0.5"
 
+    @field_validator("cpu", mode="before")
+    @classmethod
+    def _cpu_in_grammar(cls, v: object) -> object:
+        # Before the str check, so a float, bool or None gets this message rather than pydantic's type error.
+        if not cpu_in_grammar(v):
+            raise ValueError(CPU_GRAMMAR_MESSAGE)
+        return v
+
 
 class Health(BaseModel):
     """Health check configuration."""
@@ -137,13 +185,32 @@ class Health(BaseModel):
     interval: str = "30s"
     timeout: str = "10s"
     retries: int = 3
+    start_period: str | None = None
+    """Compose ``start_period``; None renders the template's own default (W-3197a125)."""
     disabled: bool = False
     """When true, no HEALTHCHECK is emitted. Use only for images that lack
     shell tooling (e.g. ``traefik/whoami``) where any healthcheck would
     always fail and Traefik v3 would then filter the container out."""
     test: list[str] | None = None
     """Custom HEALTHCHECK test command (docker-compose ``test`` form).
-    Overrides the default wget/curl probe when set."""
+    Overrides the default wget/curl probe when set. Compose interpolates a ``$`` in it: a shell
+    variable is written ``$$VAR``."""
+
+    @field_validator("path")
+    @classmethod
+    def _path_in_grammar(cls, v: str) -> str:
+        if not HEALTH_PATH_RE.fullmatch(v):
+            raise ValueError(
+                "health.path must start with / and hold only URL path and query characters "
+                "(no quotes, backslash, $, #, backtick, braces or whitespace)"
+            )
+        return v
+
+    @field_validator("start_period")
+    @classmethod
+    def _blank_start_period_is_unset(cls, v: str | None) -> str | None:
+        # A whitespace-only value is truthy in Jinja and would render `start_period:` (YAML null).
+        return v.strip() or None if v is not None else None
 
 
 class Volume(BaseModel):
@@ -192,6 +259,17 @@ class Depends(BaseModel):
         default=None,
         description="Project-relative path to a .sql.gz dump used to seed the new DB",
     )
+
+    @field_validator("postgres")
+    @classmethod
+    def _postgres_is_an_identifier(cls, v: str | None) -> str | None:
+        # The name is pasted into the compose DATABASE_URL default `${DATABASE_URL:-…/<name>}`, where no
+        # quoting stops a `}` or `$` (W-ff313a14). An empty value keeps meaning "no database".
+        if v and not POSTGRES_IDENT_RE.fullmatch(v):
+            raise ValueError(
+                "depends.postgres must be a PostgreSQL identifier matching [a-zA-Z_][a-zA-Z0-9_]{0,62}"
+            )
+        return v
 
 
 class Infrastructure(BaseModel):
@@ -276,9 +354,16 @@ class Shape(BaseModel):
     is_admin_dashboard: bool = Field(
         default=False,
         description=(
-            "True if the service hosts an admin UI that must sit behind "
-            "Authelia 2FA forward-auth. When combined with has_bearer_api=true, "
-            "the dispatcher installs the ^/api/ bypass rule first (CSF §10)."
+            "True if the domain must sit behind Authelia 2FA forward-auth as a WHOLE: "
+            "the registrar adds a two_factor rule for the domain, and the python-api "
+            "and node-api templates put authelia-forward@docker on the service's "
+            "single router (other templates emit none, so a hand-written compose "
+            "must add it or the verifier fails the deploy). Every path is gated "
+            "except the standing /health and /metrics bypasses and, with "
+            "has_bearer_api=true, the bearer_bypass_prefix (default ^/api/), whose "
+            "bypass rule the dispatcher installs first (CSF §10). Never set it on a "
+            "host that serves customers: an admin surface of a customer-facing app "
+            "goes on its own hostname with its own spec (D-366, D-690)."
         ),
     )
     has_bearer_api: bool = Field(
@@ -340,7 +425,19 @@ class Shape(BaseModel):
             "subscriptions and a permissive INSERT+SELECT policy on webhook_events, "
             "so PgWebhookStore.resolve_org() can discover the tenant a webhook belongs "
             "to (its tenant is the unknown being resolved). Requires needs_database. "
-            "See drivers/postgres.py::create_payments_ingest_role."
+            "See drivers/postgres.py::mint_payments_role and grant_payments_role."
+        ),
+    )
+    needs_payments_fulfilment: bool = Field(
+        default=False,
+        description=(
+            "True if the service vendors fabrik-lib's `payments` module and runs its "
+            "fulfilment worker (claims `jobs`, records `purchases`). Gates the postgres "
+            "registrar to mint a scoped NOBYPASSRLS `<db>_payments_fulfilment` login, "
+            "granted ONLY by fabrik-lib's `payments_grant_fulfilment` (no hub-written "
+            "fallback), and to inject PAYMENTS_FULFILMENT_DATABASE_URL once. Independent "
+            "of needs_payments_ingest. Requires needs_database. See "
+            "drivers/postgres.py::mint_payments_role and grant_payments_role."
         ),
     )
     # StrictBool (D7-registrar-O6): the registrar's ``_app_role_flag`` refuses every
@@ -404,6 +501,18 @@ class Shape(BaseModel):
         return self
 
     @model_validator(mode="after")
+    def _payments_fulfilment_needs_database(self) -> "Shape":
+        """The fulfilment role is granted inside the project's DB, so
+        needs_payments_fulfilment is meaningless without needs_database. Fail loud
+        rather than mint a role against no DB."""
+        if self.needs_payments_fulfilment and not self.needs_database:
+            raise ValueError(
+                "shape.needs_payments_fulfilment requires needs_database: true "
+                "(the fulfilment role is granted on the project's DB)"
+            )
+        return self
+
+    @model_validator(mode="after")
     def _database_url_app_role_needs_database(self) -> "Shape":
         """The app-role cutover rewrites DATABASE_URL on the project's own DB, so
         database_url_app_role is meaningless — and would mis-provision — without
@@ -446,10 +555,8 @@ WATCHDOG_LLM_OPT_INS: dict[str, str] = {
 }
 # Names the sidecar knows but this variable cannot enable — refused with the reason, not as unknown.
 _LLM_ACTION_REFUSALS: dict[str, str] = {
-    "drop_queue_items": "is never offered to the model (fabrik-lib SB-103)",
-    "rotate_locks": "is never offered to the model (fabrik-lib SB-103)",
-    "install_log_drop_rule": "is never offered to the model (being retired, fabrik-lib SB-095)",
-    "scale_concurrency": "is never offered to the model (fabrik-lib SB-103)",
+    "drop_queue_items": "needs a WATCHDOG_DB_WRITE_ALLOWLIST entry, which no spec field carries — with this field unset, enable it in the project .env with that entry and WATCHDOG_ALLOW_DB_WRITES=true; it also needs the WATCHDOG_DB_URL_RW fabrik apply injects (fabrik-lib SB-103)",
+    "rotate_locks": "needs a WATCHDOG_DB_WRITE_ALLOWLIST entry, which no spec field carries — with this field unset, enable it in the project .env with that entry and WATCHDOG_ALLOW_DB_WRITES=true; it also needs the WATCHDOG_DB_URL_RW fabrik apply injects (fabrik-lib SB-103)",
     "create_fix_pr": "is offered by its own lane — set propose_fix_prs instead",
     "escalate_apprise": "is already in the default menu",
     "restart_container": "is already in the default menu",
@@ -807,6 +914,17 @@ class WatchdogConfig(BaseModel):
 
 # --- Main Spec Model ---
 
+# The owner DSN's home on the VPS (plan 2026-10-12-plan-1-owner-dsn-split, D-754): the keys the
+# deployer keeps OUT of ``/opt/<name>/.env`` and writes to ``/opt/<name>/.env.owner``, a file only
+# a compose service that declares it in ``env_file`` loads. One constant and one filename, defined
+# here — the lowest layer — so every Python consumer imports them and spells them nowhere else (the
+# Jinja companion partial cannot import; it spells the filename once, pinned by the rendered-template
+# grader in tests/test_scaffold_audit_log.py, and tests/test_scaffold_audit_log.py also refuses a
+# literal in scaffold.py). Reversal is
+# ``OWNER_ENV_KEYS = ()`` plus the checked per-project deletion the spec's § Decisions taken names.
+OWNER_ENV_KEYS: tuple[str, ...] = ("DATABASE_URL_OWNER",)
+OWNER_ENV_FILE = ".env.owner"
+
 
 class CompanionService(BaseModel):
     """A companion service that shares the parent app's image but runs a
@@ -845,6 +963,16 @@ class CompanionService(BaseModel):
     env_overrides: dict[str, str] | None = Field(
         default=None,
         description="Optional env merged ON TOP of the inherited parent env.",
+    )
+    owner_env: bool = Field(
+        default=False,
+        description=(
+            "Load the owner env file too: `.env.owner` with `required: false` beside `.env` (the "
+            "committed scaffold compose writes `.env` optional too; the deploy-time template keeps "
+            "a required `- .env`, rendered after the deploy writes it — D-938) — "
+            "the companion reads DATABASE_URL_OWNER (the audit-jobs companion does); every other "
+            "companion loads the project .env alone (D-754)."
+        ),
     )
 
 
@@ -957,6 +1085,35 @@ class Spec(BaseModel):
             raise ValueError("image is required for docker source type")
         return self
 
+    @model_validator(mode="after")
+    def validate_no_owner_key_in_env(self):
+        """An owner key never belongs in a spec's ``env:`` block (owner split, D-754): the compose
+        templates render ``env:`` into EVERY service's ``environment:``, which would hand the app
+        the very key the split keeps in ``.env.owner``. Nor in a companion's ``env_overrides``,
+        which the companion partial renders into that service's ``environment:`` the same way
+        (review of the split, round 1). The postgres registrar is the owner key's only source;
+        the deployer writes it to ``.env.owner`` and never to ``.env``."""
+        owner_keys = sorted(k for k in self.env if k in OWNER_ENV_KEYS)
+        if owner_keys:
+            raise ValueError(
+                f"env: must not set {', '.join(owner_keys)} — the templates render env: into every "
+                f"service's environment:, which would hand the app the owner DSN; the postgres "
+                f"registrar injects it into {OWNER_ENV_FILE}, which only a service declaring that "
+                "file loads (remove the key from env:)"
+            )
+        for companion in self.companion_services:
+            companion_keys = sorted(
+                k for k in (companion.env_overrides or {}) if k in OWNER_ENV_KEYS
+            )
+            if companion_keys:
+                raise ValueError(
+                    f"companion_services[{companion.id}].env_overrides must not set "
+                    f"{', '.join(companion_keys)} — the partial renders env_overrides into that "
+                    f"service's environment:, a literal the split keeps out of compose; set "
+                    f"owner_env: true instead, so the service loads {OWNER_ENV_FILE}"
+                )
+        return self
+
 
 # --- Public Functions ---
 
@@ -973,7 +1130,8 @@ def load_spec(spec_path: str | Path) -> Spec:
 
     Raises:
         FileNotFoundError: If spec file doesn't exist
-        ValueError: If spec validation fails
+        ValueError: If spec validation fails, or the template's defaults.yaml (or its
+            ``shape:``) is not a mapping (``merge_template_defaults``)
         yaml.YAMLError: If YAML parsing fails
     """
     path = Path(spec_path)
@@ -993,24 +1151,59 @@ def load_spec(spec_path: str | Path) -> Spec:
     if not isinstance(raw, dict):
         raise ValueError(f"Spec file must be a YAML mapping: {spec_path}")
 
-    # G-B1a (T1-02): merge template defaults into the raw spec before
-    # validation. Pre-G1 specs (captcha, file-api, translator, image-broker,
-    # emailgateway) were written before scaffolds emitted explicit shape:
-    # blocks; without this merge, `shape` stays None and
-    # `resolve_applicability` silently skips all 9 registrars on those
-    # deploys. Spec values win on conflicts (deep-merge, not shallow).
-    # Missing templates/<name>/defaults.yaml is tolerated silently — the
-    # raw spec is returned unchanged (no crash on typos / deleted templates).
-    template_name = raw.get("template")
-    if isinstance(template_name, str) and template_name:
-        defaults_path = FABRIK_ROOT / "templates" / template_name / "defaults.yaml"
-        if defaults_path.exists():
-            with open(defaults_path, encoding="utf-8") as df:
-                defaults = yaml.safe_load(df)
-            if isinstance(defaults, dict):
-                raw = _deep_merge(defaults, raw)
-
+    raw = merge_template_defaults(raw)
     return Spec(**raw)
+
+
+def merge_template_defaults(
+    raw: dict[str, Any],
+    templates_dir: Path | None = None,
+    keys: tuple[str, ...] | None = None,
+) -> dict[str, Any]:
+    """Merge ``<templates_dir>/<raw["template"]>/defaults.yaml`` under ``raw`` (the spec wins).
+
+    G-B1a (T1-02): pre-G1 specs (captcha, file-api, translator, image-broker,
+    emailgateway) were written before scaffolds emitted explicit ``shape:``
+    blocks; without this merge ``shape`` stays None and ``resolve_applicability``
+    silently skips every registrar on them. Spec values win on conflicts
+    (deep-merge, not shallow). A missing or empty defaults file returns ``raw``
+    unchanged, and so does a template name whose defaults file resolves outside
+    ``templates_dir`` (the escape ``SpecValidator.validate`` refuses). A defaults
+    file that parses to something other than a mapping, or whose ``shape:`` is not
+    a mapping, raises ``ValueError``: merging nothing would silently drop every
+    registrar the template's shape turns on (W-989653a7 review).
+
+    ``keys`` limits which top-level default keys merge (all when ``None``).
+    ``fabrik plan`` merges everything; ``fabrik apply`` passes ``("shape",)``,
+    because the deployer writes ``spec["env"]`` into each app's ``.env`` and a
+    template ``env:`` default must never reach a deployed app (D-908, which
+    narrows D-733's full merge to the shape block).
+    """
+    template_name = raw.get("template")
+    if not (isinstance(template_name, str) and template_name):
+        return raw
+    try:
+        root = (templates_dir or FABRIK_ROOT / "templates").resolve()
+        defaults_path = (root / template_name / "defaults.yaml").resolve()
+    except (OSError, ValueError, RuntimeError):  # NUL byte, symlink loop, over-long name
+        return raw
+    # The template must be a directory strictly inside the root ('.' names the root itself).
+    if defaults_path.parent == root or not defaults_path.is_relative_to(root):
+        return raw
+    if not defaults_path.is_file():
+        return raw
+    with open(defaults_path, encoding="utf-8") as df:
+        defaults = yaml.safe_load(df)
+    if defaults is None:
+        return raw
+    if not isinstance(defaults, dict):
+        raise ValueError(f"{defaults_path} is not a mapping ({type(defaults).__name__})")
+    shape = defaults.get("shape")
+    if shape is not None and not isinstance(shape, dict):
+        raise ValueError(f"{defaults_path} shape: is not a mapping ({type(shape).__name__})")
+    if keys is not None:
+        defaults = {k: v for k, v in defaults.items() if k in keys}
+    return _deep_merge(defaults, raw)
 
 
 def _deep_merge(base: dict, overlay: dict) -> dict:

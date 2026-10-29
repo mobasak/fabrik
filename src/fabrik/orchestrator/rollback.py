@@ -4,7 +4,6 @@ import logging
 from typing import Any
 
 from fabrik.orchestrator.context import DeploymentContext, ResourceRecord
-from fabrik.orchestrator.exceptions import RollbackError
 
 logger = logging.getLogger(__name__)
 
@@ -18,29 +17,17 @@ class RollbackManager:
 
     def __init__(
         self,
-        coolify_client: Any | None = None,
         dns_client: Any | None = None,
         deployer: Any | None = None,
     ):
         """Initialize rollback manager.
 
         Args:
-            coolify_client: CoolifyClient instance (legacy)
             dns_client: DNSClient instance
             deployer: SSHDeployer instance for compose rollbacks
         """
-        self._coolify_client = coolify_client
         self._dns_client = dns_client
         self._deployer = deployer
-
-    @property
-    def coolify_client(self) -> Any:
-        """Lazy-load Coolify client."""
-        if self._coolify_client is None:
-            from fabrik.drivers.coolify import CoolifyClient
-
-            self._coolify_client = CoolifyClient()
-        return self._coolify_client
 
     @property
     def dns_client(self) -> Any:
@@ -96,7 +83,8 @@ class RollbackManager:
         :class:`fabrik.orchestrator.infrastructure.InfrastructureProvisioner`
         are handled here (Phase 4i):
 
-        * ``coolify`` / ``dns`` / ``monitor`` — legacy pre-Phase-4 types.
+        * ``dns`` / ``monitor`` — legacy pre-Phase-4 types (``coolify`` was
+          retired with the Coolify API and now falls to the unknown-type warning).
         * ``postgres`` — **destructive-no-op by policy.** Logs WARNING
           directing the operator to drop the DB manually
           (Plan §Rollback Strategy, "Destructive-action policy"). DB
@@ -122,14 +110,13 @@ class RollbackManager:
         * ``meilisearch`` — **destructive-no-op by policy.** Index data
           may be populated; operator runs ``fabrik meili drop`` manually.
 
+        Every handler, the legacy ``dns`` one included, is best-effort: a
+        failed driver call is logged, not raised (the Coolify handler, the
+        one that raised, was retired), so one broken handler never aborts
+        the reverse-order walk.
+
         Args:
             resource: Resource record to rollback
-
-        Raises:
-            Exception: If rollback fails (only for legacy ``coolify``/
-            ``dns``/``monitor`` types; Phase-4 registrar handlers are
-            best-effort and swallow exceptions internally so one
-            broken handler never aborts the reverse-order walk).
         """
         logger.info(
             "Rolling back %s: %s",
@@ -140,8 +127,6 @@ class RollbackManager:
         rt = resource.resource_type
         if rt == "compose":
             self._rollback_compose(resource)
-        elif rt == "coolify":
-            self._rollback_coolify(resource)
         elif rt == "dns":
             self._rollback_dns(resource)
         elif rt == "monitor":
@@ -166,22 +151,6 @@ class RollbackManager:
             self._rollback_prometheus(resource)
         else:
             logger.warning("Unknown resource type: %s", resource.resource_type)
-
-    def _rollback_coolify(self, resource: ResourceRecord) -> None:
-        """Delete a Coolify application.
-
-        Args:
-            resource: Coolify resource record
-        """
-        uuid = resource.resource_id
-        try:
-            self.coolify_client.delete_application(uuid)
-            logger.info("Deleted Coolify application: %s", uuid)
-        except Exception as e:
-            raise RollbackError(
-                f"Failed to delete Coolify app {uuid}: {e}",
-                resource_type="coolify",
-            ) from e
 
     def _rollback_dns(self, resource: ResourceRecord) -> None:
         """Delete a DNS record.
@@ -264,11 +233,8 @@ class RollbackManager:
     # src/fabrik/orchestrator/infrastructure.py). All handlers are
     # best-effort: they log and swallow driver exceptions so that a
     # single broken handler cannot abort the reverse-order walk.
-    # This is a deliberate contrast with _rollback_coolify/_rollback_dns
-    # above, which raise RollbackError — those are hard-stops because
-    # a lingering Coolify app or DNS record is a billable/visible
-    # resource, whereas a lingering Gatus endpoint or Authelia rule is
-    # a config-level artefact the operator can clean up later.
+    # _rollback_dns above is best-effort too: a record that is already
+    # gone or a failed delete logs a warning (rollback stays idempotent).
     # =========================================================================
 
     def _rollback_postgres(self, resource: ResourceRecord) -> None:
@@ -328,6 +294,11 @@ class RollbackManager:
         from fabrik.drivers.glitchtip import delete_project
 
         name = resource.resource_id
+        if resource.metadata.get("status") != "created":
+            # Only a project THIS run created is rolled back: `exists` predates the run and
+            # holds live issues, and anything else is not ours to delete (fail toward keeping).
+            logger.info("glitchtip project %s was not created by this run — kept on rollback", name)
+            return
         try:
             delete_project(name)
             logger.info("Rolled back glitchtip project: %s", name)
@@ -423,6 +394,12 @@ class RollbackManager:
         from fabrik.drivers.prometheus import remove_scrape_target
 
         name = resource.resource_id
+        if resource.metadata.get("job", resource.metadata.get("status")) != "created":
+            # an `exists`/`updated` job predates the run and still monitors the live service;
+            # removing it would leave the service unmonitored (W-01815aee, as glitchtip above).
+            # An `updated` job keeps the run's new keys: the previous values are not restored.
+            logger.info("prometheus job %s predates this run — kept on rollback", name)
+            return
         try:
             remove_scrape_target(name)
             logger.info("Rolled back prometheus scrape target: %s", name)

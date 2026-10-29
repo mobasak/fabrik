@@ -598,3 +598,22 @@ def test_every_fastapi_backend_emits_a_leak_test_that_catches_a_leak(tmp_path):
     assert red.returncode != 0, red.stdout[-3000:]
     assert f"FAILED {leak}" in red.stdout, red.stdout[-3000:]
     assert f"PASSED {vacuity}" in red.stdout, red.stdout[-3000:]
+
+
+def test_blank_sentry_dsn_falls_through_to_glitchtip_dsn(tmp_path, monkeypatch):
+    """whatsapp-agent 01M4SQZBMT (2026-10-13): the DSN chain was `(SENTRY_DSN or GLITCHTIP_DSN or "").strip()` —
+    a whitespace-only SENTRY_DSN is truthy, won the `or`, then stripped to empty, so a valid GLITCHTIP_DSN was
+    ignored and GlitchTip stayed off. The init now takes the first NON-BLANK value after stripping."""
+    import sentry_sdk
+
+    monkeypatch.setenv("SENTRY_DSN", "   ")
+    monkeypatch.setenv("GLITCHTIP_DSN", "https://publickey@glitchtip.invalid/42")
+    module = _load_guard_module(tmp_path)
+    seen: dict = {}
+    monkeypatch.setattr(sentry_sdk, "init", lambda **kw: seen.update(kw))
+    assert module.init_glitchtip() is True
+    assert seen["dsn"] == "https://publickey@glitchtip.invalid/42"
+    # both blank → still a clean no-op, never a crash
+    monkeypatch.setenv("GLITCHTIP_DSN", " ")
+    seen.clear()
+    assert module.init_glitchtip() is False and not seen

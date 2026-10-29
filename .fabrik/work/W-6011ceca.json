@@ -1,0 +1,26 @@
+{
+  "block_digest": "468b174d41fc14f590b2fd89c5f6f5921bfbf5afa991ce4cd6435375d8d06535",
+  "blocked_by": [],
+  "created": "2026-10-14T13:47:06.854222Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-6011ceca",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "8f25eff8087fa2f1d6fa3eaceacdb61adf25aa6654ed99c5e0ad75b587d0bd7c"
+  ],
+  "next": "",
+  "note": "operator 2026-10-15: \"then finish it why do you keep stopping\" — resume the Coolify-verb retirement plan at T06 and run it to the end",
+  "owner": "",
+  "priority": 2,
+  "question": "Should fleet resume the Coolify-verb retirement plan at its next ticket, T06?",
+  "status": "done",
+  "title": "Should fleet resume the Coolify-verb retirement plan at its next ticket, T06?"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T03:20:34.210578Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-e89c3e09",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5KBPFYH3X1A8XB8W4KYRP6X",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "proposal (kaizen recommends DECLINE) — three /fabrik-review-scoped verdicts that would weaken the review loop"
+}

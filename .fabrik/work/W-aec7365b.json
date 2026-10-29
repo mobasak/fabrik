@@ -1,11 +1,14 @@
 {
   "blocked_by": [
-    "W-7fad0a57"
+    "W-7fad0a57",
+    "W-ab566484"
   ],
   "created": "2026-03-02T00:00:00.000000Z",
   "creator": "infra",
+  "effort": "high",
   "evidence": "",
   "id": "W-aec7365b",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -17,6 +20,10 @@
   "note": "migrated-digest:d6eed776e846",
   "owner": "fleet",
   "priority": 2,
+  "score_reason": "records check 2026-10-17: EOL log shipper fleet-wide, operator window — plan 2026-10-08-plan-1-promtail-to-alloy Status: CONVERGED; blocked by design gate W-7fad0a57 (commit 5acf39d31)",
   "status": "open",
+  "tags": [
+    "medium"
+  ],
   "title": "Promtail is END-OF-LIFE (2026-03-02) and the fleet still ships logs with it (2026-09-03, owner: fleet + operator window)"
 }

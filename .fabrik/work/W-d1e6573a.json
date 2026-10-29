@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:47:31.766805Z",
+  "creator": "infra",
+  "evidence": "4a26217a8243d8dffc56f83c5ab3f953ac3ce471",
+  "id": "W-d1e6573a",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "re-anchor the grader on MAIL_BEATS (assert the tuple holds every hub beat) and keep the addressed + no-broadcast assertions",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "done",
+  "tags": [
+    "infra"
+  ],
+  "title": "tests/test_mail_addressing.py::test_kaizen_sends_one_addressed_obligation_per_beat is red on master: it greps kaizen_collect_v2.py for for beat in (\"infra\", \"fleet\") but a90b35a3b changed the loop to for beat in MAIL_BEATS"
+}

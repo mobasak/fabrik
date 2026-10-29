@@ -1,0 +1,25 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T02:52:09.151258Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-62ae556c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-10-12-plan-1-owner-dsn-split.md",
+    "spec": ""
+  },
+  "next": "decide the escape the pair owes (compose reads \\\\n inside double quotes as a newline; a shell source does not) and grade the round trip over every value shape _format_env can emit — src/fabrik/orchestrator/deployer_ssh.py:836-895",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "fleet",
+  "priority": 3,
+  "status": "dropped",
+  "tags": [
+    "fleet",
+    "proposed-drop",
+    "waits-operator-review"
+  ],
+  "title": "deployer_ssh._format_env/_parse_env lose a value holding a newline: the pair quotes the value but does not escape the newline, and the line-based parser truncates it (a\\nb -> \"a) on the NEXT read of a written .env — pre-existing, surfaced by the owner-split review (Phase A pass 2, deployer-H1); the first-write regression the split added is fixed, the pair is not"
+}

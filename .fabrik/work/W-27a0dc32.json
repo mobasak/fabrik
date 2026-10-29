@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T05:15:11.354114Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "165fed26f8831a8b92c1a9819cb84703f4726519",
+  "id": "W-27a0dc32",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Decide whether fabrik-repo-review.md:66 gets the same SCRATCH: parenthesis as fabrik-review.md:173 (found by the W-7bd671f6 review, Opus+Sonnet seats); if yes, add it and widen subagents-core.md D8's named list and test_the_review_loops_d8_names_put_their_pins_under_scratch",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: kaizen work (D-956); fabrik-repo-review names no pins root, so an interrupted pass cannot resume; one command source, same fix the other three loops got",
+  "status": "done",
+  "title": "fabrik-repo-review names no root for its pins dir, so an interrupted pass cannot resume — the other three partitioned review loops put pins_dir under the durable SCRATCH: folder (D-836)"
+}

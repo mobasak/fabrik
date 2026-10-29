@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:23:00.216452Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-91117fc1",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4NE0WJ02CS6KB74GRDSYVRF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — Stop hook blocks with no deferral path",
+  "status": "open",
+  "title": "WHAT: final_gate_stop.py's UNREVIEWED SPONTANEOUS WORK cause has no path for an operator-ordered review deferral."
+}

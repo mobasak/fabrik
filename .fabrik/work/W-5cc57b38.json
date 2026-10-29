@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T07:31:41.126051Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-5cc57b38",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4W4ZWTZWWGV6CK2HEW8AXZ8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-spec-review and /fabrik-plan-review never tell the author to write a `**Command:**` header line or where the receipt goes, and the convergence gate now keys on that line (W-39d8d1fd)"
+}

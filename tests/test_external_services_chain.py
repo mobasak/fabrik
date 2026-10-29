@@ -23,6 +23,9 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parent.parent
+# The venv running this suite: the helper fixtures link it in as `<root>/.venv`. Never `REPO / ".venv"` —
+# a merge or probe worktree has no `.venv` of its own, and three tests then read "no interpreter".
+VENV = Path(sys.prefix)
 DAILY = REPO / "scripts" / "kilo-benchmarks" / "daily_refresh.sh"
 REGISTRY = REPO / ".fabrik" / "liveness-registry.json"
 
@@ -37,33 +40,16 @@ def _steps(text: str) -> list[str]:
 
 def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     text = CHAIN.read_text(encoding="utf-8")
-    assert _steps(text) == [
-        "gather_envs",
-        "classify_services",
-        "gather_envs_reconsolidate",
-        "registry_sync",
-        "gen_dashboard",
-    ]
-    assert re.search(r"_step classify_services.*--max-per-run \d+", text), (
-        "daily classify must be bounded"
-    )
+    # D-1046 retired the pool-only classify step and its reconsolidate re-run: a category comes
+    # from a hand-written service_catalog.json entry, so neither the step nor its budget remains
+    assert _steps(text) == ["gather_envs", "registry_sync", "gen_dashboard"]
+    code_only = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
+    assert "classify_services" not in code_only and "CLASSIFY_TIMEOUT" not in text
     assert re.search(r"_step registry_sync.*--fetch-credits", text)
-    # the paid step's budget covers its units: 10 per run, up to 7 model calls + web searches each,
-    # ALL in parallel — and a kill here LOSES the slice (the cursor moved before the dispatch, AC5) (DM1)
-    budget = re.search(r'^CLASSIFY_TIMEOUT="\$\{CLASSIFY_TIMEOUT:-(\d+)\}"', text, re.M)
-    # one unit's wall clock is the pool's default (1800 s) + 30 s of outer grace: the budget must
-    # EXCEED it, or the kill lands exactly when a hung unit would have returned (DO1)
-    wall = re.search(
-        r"^\s*wall_clock_s: float = (\d+)",
-        (REPO / "libs" / "subagents" / "agent.py").read_text(encoding="utf-8"),
-        re.M,
-    )
-    assert wall and budget and int(budget.group(1)) > int(wall.group(1)) + 30, (budget, wall)
     step_fn = re.search(r"^_step\(\) \{[^\n]*\n(.*?)^\}", text, re.M | re.S).group(
         1
     )  # scoped INSIDE _step (DO2)
-    assert re.search(r'\[ "\$label" = classify_services \] && budget="\$CLASSIFY_TIMEOUT"', step_fn)
-    assert 'timeout -k 30 "$budget"' in step_fn
+    assert 'local budget="$STEP_TIMEOUT"' in step_fn and 'timeout -k 30 "$budget"' in step_fn
     # the dashboard is written ONLY when every DATA step succeeded, and the liveness heartbeat is
     # stamped ONLY after the dashboard step succeeded — by this script, never by the dashboard's
     # own mtime (a manual gen_dashboard.py run refreshed that while the cron slept, CY1)
@@ -78,9 +64,9 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     code = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("#"))
     assert code.count('mv -fT "$HEARTBEAT.tmp.$$" "$HEARTBEAT"') == 1, "one atomic writer"
     assert '> "$HEARTBEAT"' not in code, "no direct (truncating) writer"
-    # the paid classify step is NOT a core step: its failure alerts, never ages the heartbeat (G9)
+    # the DATA steps the dashboard depends on — every step but the dashboard itself
     core = re.search(r'case "\$label" in ([^)]*)\) core_failed=1', text).group(1)
-    assert set(core.split("|")) == {"gather_envs", "gather_envs_reconsolidate", "registry_sync"}
+    assert set(core.split("|")) == {"gather_envs", "registry_sync"}
     assert (
         'timeout -k 30 "$budget"' in text and "send_alert(" in text
     )  # SIGKILL after SIGTERM (AF13)
@@ -93,13 +79,6 @@ def test_the_chain_is_one_script_in_order_with_a_gated_heartbeat():
     assert "125-127 wrapper" in alert_line, (
         alert_line
     )  # in the BODY the operator reads, not anywhere in the file (EU3/EY7)
-    # the paid classify step AND the reconsolidate are skipped after a failed scan (Z9, AC13)
-    assert re.search(
-        r'if \[ "\$core_failed" -eq 0 \]; then[^\n]*\n\s*_step gather_envs_reconsolidate', text
-    )
-    assert re.search(
-        r'if \[ "\$core_failed" -eq 0 \]; then[^\n]*\n\s*_step classify_services', text
-    )
 
 
 def _shell_code(text: str) -> str:
@@ -229,7 +208,7 @@ def test_gen_dashboard_help_writes_no_file(tmp_path, monkeypatch):
     work = tmp_path / "work"
     work.mkdir()
     monkeypatch.chdir(work)
-    monkeypatch.setattr(gd, "load", lambda: pytest.fail("--help must not touch the registry"))
+    monkeypatch.setattr(gd, "_read", lambda: pytest.fail("--help must not touch the registry"))
     with pytest.raises(SystemExit) as exc:
         gd.main(["--help"])
     assert exc.value.code == 0
@@ -238,8 +217,8 @@ def test_gen_dashboard_help_writes_no_file(tmp_path, monkeypatch):
 
 def test_gen_dashboard_writes_the_named_output(tmp_path, monkeypatch):
     gd = _load_gen_dashboard()
-    monkeypatch.setattr(gd, "load", lambda: [])
-    monkeypatch.setattr(gd, "render", lambda rows: "<p>ok</p>")
+    monkeypatch.setattr(gd, "_read", lambda: ([], None))
+    monkeypatch.setattr(gd, "render", lambda rows, **kw: "<p>ok</p>")
     out = tmp_path / "dash.html"
     assert gd.main([str(out)]) == 0
     assert out.read_text(encoding="utf-8") == "<p>ok</p>"
@@ -251,8 +230,8 @@ def test_gen_dashboard_write_is_atomic(tmp_path, monkeypatch):
     leaves the old file untouched (a half-written dashboard is never served). Discriminating: the pre-fix
     `out.write_text(render(rows))` makes no `os.replace` call and truncates the target (H9)."""
     gd = _load_gen_dashboard()
-    monkeypatch.setattr(gd, "load", lambda: [])
-    monkeypatch.setattr(gd, "render", lambda rows: "<p>new</p>")
+    monkeypatch.setattr(gd, "_read", lambda: ([], None))
+    monkeypatch.setattr(gd, "render", lambda rows, **kw: "<p>new</p>")
     out = tmp_path / "dash.html"
     out.write_text("old", encoding="utf-8")
     replaced: list[tuple[str, str]] = []
@@ -287,132 +266,8 @@ def test_gen_dashboard_write_is_atomic(tmp_path, monkeypatch):
     assert not list(out.parent.glob("dash.html.tmp*"))  # and no tmp is left behind (AC14)
 
 
-def test_dashboard_data_cannot_break_out_of_its_script_tag():
-    """A registry string carrying `</script>` (provider/url are model-authored upstream) is
-    escaped for the inline script and still round-trips as the same JSON value (AM4)."""
-    gd = _load_gen_dashboard()
-    row = {"provider": "evil</script><script>alert(1)</script>", "url": "https://x/?a=1&b=<2>"}
-    out = gd.json_for_script([row])
-    assert "</script>" not in out and "<" not in out and ">" not in out and "&" not in out
-    assert json.loads(out) == [row]
-    # the runtime side: `cpill` builds a class attribute from model-authored cost/status — the
-    # token is restricted to [A-Za-z0-9-], never interpolated raw (AP1)
-    assert "String(v).replace(/[^A-Za-z0-9]+/g,'-')" in gd.SCRIPT
-    assert "'unknown':v.replace('_','-')" not in gd.SCRIPT
-    assert (
-        "r.unattributed" in gd.SCRIPT
-    )  # an unattributed credential is visible on the row, not merely uncounted (BM9)
-    assert (
-        "provenance unknown at sync time" in gd.SCRIPT and "model-merged" in gd.SCRIPT
-    )  # BR8's floor: the node grader below skips without node, and a skip is never the only guard (AT1/BS6)
-    assert (
-        '<div class="l">unattributed keys</div>' in gd.render([])
-    )  # the degraded case in ONE number — a KEY count, labelled as one beside provider counts (BS16/BW9)
-    # the href scheme gate's always-on floor (AS5): the node test skips without node, and a skip
-    # must not be the only guard on an injection class (AT1)
-    assert "const href=u=>/^https?:\\/\\//i.test(String(u||''))?u:null;" in gd.SCRIPT
-    # the shipped escaper's floor: every node grader lifts THIS line, none substitutes its own (AY1)
-    esc_line = re.search(r"const esc=[^\n]*", gd.SCRIPT).group(0)
-    assert all(
-        tok in esc_line
-        for tok in ("'&':'&amp;'", "'<':'&lt;'", "'>':'&gt;'", "'\"':'&quot;'", "\"'\":'&#39;'")
-    ), esc_line  # `'` too (BB9)
-
-
-def test_cpill_class_token_is_sanitized_when_the_script_runs():
-    """The AP1 guard EXECUTED, not string-matched (AQ1): the `cpill` one-liner is lifted from the
-    page script and run under node with a hostile cost — the class token it builds is
-    `[A-Za-z0-9-]` only. The source-text assertion in the script-tag test stays as the floor."""
-    import subprocess
-
-    gd = _load_gen_dashboard()
-    m = re.search(r"const cpill=[^\n]*", gd.SCRIPT)
-    assert m, "cpill one-liner not found in SCRIPT"
-    node = shutil.which("node")
-    if not node:
-        pytest.skip("node not on PATH — only the source-text floor assertion ran")
-    esc_line = re.search(r"const esc=[^\n]*", gd.SCRIPT).group(0)  # the SHIPPED escaper (AY1)
-    js = (
-        esc_line + "\n" + m.group(0) + "\nprocess.stdout.write(cpill('x\"><svg/onload=alert(1)>'));"
-    )
-    out = subprocess.run([node, "-e", js], capture_output=True, text=True, check=True).stdout
-    # the WHOLE output must be one span whose class token is [A-Za-z0-9-] and whose text holds
-    # no raw angle bracket — a captured-prefix check stopped at the injected quote and passed
-    assert re.fullmatch(r'<span class="pill c-[A-Za-z0-9-]+">[^<>]*</span>', out), out
-
-
-def test_href_gate_rejects_non_http_schemes_when_the_script_runs():
-    """The render-time scheme gate for the provider link, EXECUTED under node (AS5): a
-    `javascript:` or `data:` url from a hand-edited catalog never becomes a live link."""
-    import subprocess
-
-    gd = _load_gen_dashboard()
-    m = re.search(r"const href=[^\n]*", gd.SCRIPT)
-    assert m, "href gate not found in SCRIPT"
-    node = shutil.which("node")
-    if not node:
-        pytest.skip("node not on PATH")
-    js = (
-        m.group(0)
-        + "\nprocess.stdout.write(JSON.stringify([href('javascript:alert(1)'),href('data:text/html,x'),href('https://ok.test/a'),href('?'),href(null)]));"
-    )
-    out = subprocess.run([node, "-e", js], capture_output=True, text=True, check=True).stdout
-    assert json.loads(out) == [None, None, "https://ok.test/a", None, None], out
-    # the CALL SITE, executed: the provider cell for a hostile url is plain text, never a link (AU3)
-    line = re.search(r"    const url=href\(r\.url\)\?[^\n]*", gd.SCRIPT)
-    assert line, "render() does not route the provider link through href()"
-    esc_line = re.search(r"const esc=[^\n]*", gd.SCRIPT).group(0)  # the SHIPPED escaper (AY1)
-    cell = re.search(r"out\+='<tr><td class=\"prov\">'\+url\+'</td>'", gd.SCRIPT)
-    assert cell, "the provider cell does not render `url` (AY2)"
-    js2 = (
-        esc_line
-        + "\n"
-        + m.group(0)
-        + "\nconst r={url:'javascript:alert(1)',provider:'p'};"
-        + line.group(0).strip()
-        + "\nlet out='';"
-        + cell.group(0)
-        + ";process.stdout.write(out);"
-    )
-    out2 = subprocess.run([node, "-e", js2], capture_output=True, text=True, check=True).stdout
-    assert out2 == '<tr><td class="prov">p</td>' and "<a" not in out2, (
-        out2
-    )  # the CELL, not the helper (AY2)
-
-
-def test_unattributed_count_renders_on_the_row_when_the_script_runs():
-    """BM9 EXECUTED, not string-matched (BQ3): the keys cell is lifted from the row template and
-    run under node — an unattributed count renders its pill next to the key count, zero renders
-    no pill. The `r.unattributed` source-text assertion stays as the always-on floor."""
-    import subprocess
-
-    gd = _load_gen_dashboard()
-    m = re.search(
-        r"'<td class=\"num mono\">'\+r\.keys\+\(r\.unattributed\?[^\n]*?'</td>'", gd.SCRIPT
-    )
-    assert m, "keys cell not found in SCRIPT"
-    node = shutil.which("node")
-    if not node:
-        pytest.skip("node not on PATH — only the source-text floor assertion ran")
-    js = (
-        "const cellFor=r=>" + m.group(0) + ";process.stdout.write(cellFor({keys:2,unattributed:1})"
-        "+'|'+cellFor({keys:2,unattributed:0}));"
-    )
-    with_, without = subprocess.run(
-        [node, "-e", js], capture_output=True, text=True, check=True
-    ).stdout.split("|")
-    assert re.fullmatch(
-        r'<td class="num mono">2 <span class="pill c-unknown"[^>]*>1 unattributed</span></td>',
-        with_,
-    ), with_
-    assert without == '<td class="num mono">2</td>', without
-    # the tooltip names BOTH causes — the unknown-provenance branch sets the kind too, and the
-    # live catalog has 0 merged prefixes, so "model-merged" alone blamed a merge that never happened (BR8)
-    assert "provenance unknown" in with_ and "model-merged" in with_, with_
-
-
 def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
-    """A failed scan skips the sync like it skips classify and the reconsolidate: a stale file
+    """A failed scan skips the sync (and the dashboard): a stale file
     re-pages the same cause and, on a catalog error, flips every credential unattributed (BR4).
     And the operator-facing reference doc names every `kind` the schema carries plus the sync's
     exit 2 — it named 3 of 4 and 0 of 1 (BR5)."""
@@ -460,14 +315,12 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
     # contract's ~500 chars (CC5)
     fixed = re.sub(r"\$\{?[A-Za-z_]+\}?", "", body)
     assert "*" not in fixed and "_" not in fixed, fixed
-    # the heartbeat clause is rendered PER LABEL: the paid step never ages the heartbeat, so its
-    # alert must not send the operator hunting a dead chain that is fresh (G9/DA2)
+    # every step is a DATA step now (D-1046 retired the paid classify step, the one label whose
+    # failure left the heartbeat fresh), so the heartbeat clause is one for every label
     hb_default = re.search(r'local hb="([^"]*)"', text)
-    hb_classify = re.search(r'\[ "\$label" = classify_services \] && hb="([^"]*)"', text)
-    assert hb_default and hb_classify and "$hb" in body, "the per-label heartbeat clause"
-    assert "DEAD" in hb_default.group(1) and "unaffected" in hb_classify.group(1)
-    for clause in (hb_default.group(1), hb_classify.group(1)):
-        assert "*" not in clause and "_" not in clause, clause
+    assert hb_default and "$hb" in body, "the heartbeat clause"
+    assert "DEAD" in hb_default.group(1) and "classify_services" not in text
+    assert "*" not in hb_default.group(1) and "_" not in hb_default.group(1), hb_default.group(1)
     # the contract (`libs/alerting`: body up to ~500 chars) is measured on the RENDERED body — every
     # step label and the production log path — not on the template with its variables erased (CD5)
     # every label the SCRIPT declares (never a hand-kept tuple — a renamed step passed it, CM2) ×
@@ -496,7 +349,7 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
     # underscores cancel); a copy-edit dropping one passed the template-level check (DE1)
     for label in _steps(text):
         for log_path in log_paths:
-            hb = hb_classify.group(1) if label == "classify_services" else hb_default.group(1)
+            hb = hb_default.group(1)
 
             def _render(tpl: str, label=label, log_path=log_path, hb=hb) -> str:
                 return (
@@ -549,7 +402,7 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
         clauses,
     )
     assert "cannot read or write its own output path" in doc, "the doc's step-1 cell (CC5)"
-    for step in ("classify_services.py", "gather_envs.py --apply` again", "registry_sync.py"):
+    for step in ("registry_sync.py", "gen_dashboard.py"):
         row = next(ln for ln in doc.splitlines() if ln.startswith("| ") and step in ln)
         assert "skipped after a failed scan" in row, (
             row
@@ -559,8 +412,8 @@ def test_registry_sync_is_gated_on_the_scan_and_the_doc_names_every_kind():
 def test_the_chain_script_executes_its_gating(tmp_path):
     """The chain EXECUTED under bash with a fake interpreter (every sibling test regex-matches the
     script; a bash syntax error or a gate that only LOOKS right passed them all — BU1): a failed
-    scan skips classify, the reconsolidate, the sync and the dashboard, alerts once, exits 1; a
-    clean run writes the dashboard and exits 0."""
+    scan skips the sync and the dashboard, alerts once, exits 1; a clean run writes the
+    dashboard and exits 0, and never runs the classifier (D-1046)."""
     import os
     import subprocess
 
@@ -575,14 +428,14 @@ def test_the_chain_script_executes_its_gating(tmp_path):
         f'echo "$*" >> "{log}"\n'
         'case "$*" in\n'
         '  *gather_envs.py*) [ "${FAIL_GATHER:-0}" = 1 ] && exit 1 ;;\n'
-        '  *classify_services.py*) [ "${FAIL_CLASSIFY:-0}" = 1 ] && exit 1 ;;\n'
+        '  *registry_sync.py*) [ "${FAIL_SYNC:-0}" = 1 ] && exit 1 ;;\n'
         '  *gen_dashboard.py*) [ "${FAIL_DASHBOARD:-0}" = 1 ] && exit 7; echo ok > "${@: -1}" ;;\n'
         "esac\n"
         "exit 0\n",
         encoding="utf-8",
     )
     fake.chmod(0o755)
-    # a fake `timeout` on PATH logs the budget each step ran under: the classify budget is proven
+    # a fake `timeout` on PATH logs the budget each step ran under: every step's budget is proven
     # by execution, not by a text pin (DO2)
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
@@ -601,7 +454,6 @@ def test_the_chain_script_executes_its_gating(tmp_path):
         "FABRIK_ROOT": str(root),
         "VENV_PY": str(fake),
         "STEP_TIMEOUT": "30",
-        "CLASSIFY_TIMEOUT": "4321",
         "LOG_FILE": str(tmp_path / "chain.log"),
     }
     dash = root / "external-services-dashboard.html"
@@ -628,40 +480,21 @@ def test_the_chain_script_executes_its_gating(tmp_path):
         r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", stamp.read_text(encoding="utf-8").strip()
     ), "the heartbeat is stamped by the chain after a clean run"
     assert (
-        calls.count("gather_envs.py") == 2
+        calls.count("gather_envs.py") == 1
         and "registry_sync.py" in calls
         and "send_alert(" not in calls
     )
     assert [re.search(r"scripts/(\S+\.py)", ln).group(1) for ln in calls.splitlines()] == [
         "gather_envs.py",
-        "classify_services.py",
-        "gather_envs.py",
         "registry_sync.py",
         "gen_dashboard.py",
-    ]
+    ]  # no classify, no reconsolidate (D-1046)
     by_step: dict[str, list[str]] = {}
     for b, script in (ln.split() for ln in budgets.read_text(encoding="utf-8").splitlines()):
         by_step.setdefault(Path(script).name, []).append(b)
-    assert by_step["classify_services.py"] == ["4321"], by_step
-    assert by_step["gather_envs.py"] == ["30", "30"], by_step  # BOTH gather runs, never collapsed
-    assert {b for k, v in by_step.items() if k != "classify_services.py" for b in v} == {"30"}, (
-        by_step
-    )
-    # 3. the PAID step fails: alerted, exit 1 — but the data steps run and the heartbeat is
-    # written (G9); a one-word edit to the core_failed case list passed every regex sibling (BX6)
-    log.write_text("", encoding="utf-8")
-    dash.unlink()
-    stamp.unlink()
-    r = subprocess.run(
-        ["bash", str(CHAIN)], env={**env, "FAIL_CLASSIFY": "1"}, capture_output=True, text=True
-    )
-    calls = log.read_text(encoding="utf-8")
-    assert r.returncode == 1, (r.returncode, r.stdout, r.stderr)
-    assert dash.exists() and stamp.exists() and "registry_sync.py" in calls
-    assert calls.count("gather_envs.py") == 2
-    assert calls.count("send_alert(") == 1 and "step classify_services FAILED (exit 1)" in calls
-    assert "liveness DEAD" not in calls and "heartbeat unaffected" in calls, calls  # DA2
-    # 4. the DASHBOARD step fails: exit 1, one alert, no dashboard, no stamp — the gate the stamp
+    assert set(by_step) == {"gather_envs.py", "registry_sync.py", "gen_dashboard.py"}, by_step
+    assert {b for v in by_step.values() for b in v} == {"30"}, by_step
+    # 3. the DASHBOARD step fails: exit 1, one alert, no dashboard, no stamp — the gate the stamp
     # sits behind, executed in the failing direction (a regex-only proof, DA3)
     log.write_text("", encoding="utf-8")
     dash.unlink()
@@ -672,7 +505,18 @@ def test_the_chain_script_executes_its_gating(tmp_path):
     calls = log.read_text(encoding="utf-8")
     assert r.returncode == 1 and not dash.exists() and not stamp.exists(), (r.returncode, calls)
     assert calls.count("send_alert(") == 1 and "step gen_dashboard FAILED (exit 7)" in calls
-    # 5. the stamp cannot be written (`.tmp` is a FILE): every step ran, the dashboard stands, the
+    # 3b. the SYNC step fails: a DATA step, so the dashboard is skipped and the heartbeat ages — the
+    # only EXECUTED proof of the core_failed case list since D-1046 removed the paid step whose
+    # failure case carried it (BX6; review W-7e467f2d B2)
+    log.write_text("", encoding="utf-8")
+    r = subprocess.run(
+        ["bash", str(CHAIN)], env={**env, "FAIL_SYNC": "1"}, capture_output=True, text=True
+    )
+    calls = log.read_text(encoding="utf-8")
+    assert r.returncode == 1 and not dash.exists() and not stamp.exists(), (r.returncode, calls)
+    assert "gen_dashboard.py" not in calls and "liveness DEAD" in calls, calls
+    assert calls.count("send_alert(") == 1 and "step registry_sync FAILED (exit 1)" in calls
+    # 4. the stamp cannot be written (`.tmp` is a FILE): every step ran, the dashboard stands, the
     # failure is ALERTED and exits 1 — it was the only silent failure in the script (DA3)
     log.write_text("", encoding="utf-8")
 
@@ -684,7 +528,7 @@ def test_the_chain_script_executes_its_gating(tmp_path):
     assert calls.count("send_alert(") == 1 and "heartbeat NOT stamped" in calls, calls
     assert "heartbeat NOT stamped" in r.stdout
     (root / ".tmp").unlink()
-    # 6. `date` fails: a bare `> "$HEARTBEAT"` truncated the stamp BEFORE date ran — a fresh EMPTY
+    # 5. `date` fails: a bare `> "$HEARTBEAT"` truncated the stamp BEFORE date ran — a fresh EMPTY
     # stamp that read LIVE. The previous stamp must survive untouched, no tmp left behind (DA3)
     stamp.parent.mkdir(parents=True)
     stamp.write_text("2026-08-01T00:00:00Z\n", encoding="utf-8")
@@ -884,7 +728,7 @@ def test_gen_dashboard_two_writers_both_succeed_and_a_bad_out_path_is_one_typed_
         "    time.sleep(0.7)\n"
         "    return r\n"
         "pathlib.Path.write_text = slow\n"
-        "gd.load = lambda: []\n",
+        "gd._read = lambda: ([], None)\n",
         encoding="utf-8",
     )
     out = tmp_path / "dash.html"
@@ -939,7 +783,7 @@ def test_gen_dashboard_reports_a_dead_registry_as_one_typed_line(monkeypatch, ca
     def dead():
         raise RuntimeError("connection refused (simulated)")
 
-    monkeypatch.setattr(gd, "load", dead)
+    monkeypatch.setattr(gd, "_read", dead)
     assert gd.main([str(tmp_path / "dash.html")]) == 1
     out = capsys.readouterr().out
     assert "ERROR: registry unreadable" in out and "nothing written" in out, out
@@ -1046,7 +890,7 @@ def test_gen_dashboard_reports_a_row_the_template_cannot_render_as_one_typed_lin
     """EY6 wrapped `load()` only; a row shape `render()` cannot take (a column drift) was still a
     raw traceback (EZ4)."""
     gd = _load_gen_dashboard()
-    monkeypatch.setattr(gd, "load", lambda: [{"provider": "x"}])  # every other key absent
+    monkeypatch.setattr(gd, "_read", lambda: ([{"provider": "x"}], None))  # every other key absent
     assert gd.main([str(tmp_path / "dash.html")]) == 1
     assert "ERROR: registry unreadable" in capsys.readouterr().out
     assert not (tmp_path / "dash.html").exists()
@@ -1078,6 +922,9 @@ def test_the_dashboard_flags_a_credit_balance_nobody_has_fetched_in_two_laps(mon
     answers = {
         "FROM services": [("apify", "Apify", "scraping", "paid", "https://apify.com", "active")],
         "information_schema": [(1,)],
+        "max(last_seen)": [
+            (fresh,)
+        ],  # BEFORE `FROM api_keys`: the fake answers by FIRST substring match
         "FROM api_keys": [],
         "credit_snapshots": [("apify", 12.5, "usd", old)],
         "FROM subscriptions": [],
@@ -1114,8 +961,11 @@ def test_the_dashboard_flags_a_credit_balance_nobody_has_fetched_in_two_laps(mon
             pass
 
     monkeypatch.setattr(gd.registry_db, "connect", lambda: _Conn())
-    rows = gd.load()
-    assert rows[0]["credit"].startswith("⚠ 12.5 usd (") and "d old)" in rows[0]["credit"], rows
+    rows, synced_at = gd._read()
+    assert rows[0]["balance"] == 12.5 and rows[0]["credit_at"] == old.timestamp(), rows
+    assert synced_at == fresh.timestamp()
+    page = gd.render(rows, synced_at=synced_at, now=now.timestamp())
+    assert "⚠ 12.5 usd (5d old)" in page, "the flagged credit is the renderer's, not the reader's"
 
 
 def test_a_non_delivered_alert_is_said_where_the_caller_logs(tmp_path):
@@ -1125,7 +975,7 @@ def test_a_non_delivered_alert_is_said_where_the_caller_logs(tmp_path):
 
     root = tmp_path / "root"
     (root / "scripts" / "kilo-benchmarks").mkdir(parents=True)
-    (root / ".venv").symlink_to(REPO / ".venv", target_is_directory=True)
+    (root / ".venv").symlink_to(VENV, target_is_directory=True)
     shutil.copytree(REPO / "libs" / "alerting", root / "libs" / "alerting")  # the ONE package (FC6)
     # a MINIMAL environment, never a filtered copy of the test process's: an earlier suite imports
     # `libs.subagents`, whose package autoload puts the hub's whole `.env` into `os.environ`, and a
@@ -1172,91 +1022,44 @@ def test_a_non_delivered_alert_is_said_where_the_caller_logs(tmp_path):
     assert "NOT delivered (no interpreter at" in proc.stderr, (proc.stdout, proc.stderr)
 
 
-def test_the_live_twin_renders_through_the_dashboards_own_helpers():
-    """`dashboard_server.py` carried a pre-repair copy of the escaper (no `'`), an unsanitised
-    pill class and no scheme gate — a live `<img onerror>` on :8770 (K 1–3/FC4). One source:
-    the page is assembled from gen_dashboard.HELPERS."""
-    import importlib.util
-
-    gd = _load_gen_dashboard()
-    spec = importlib.util.spec_from_file_location(
-        "dashboard_server", REPO / "scripts" / "dashboard_server.py"
-    )
-    ds = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(ds)
-    assert "__HELPERS__" in ds.PAGE and "const esc=" not in ds.PAGE and "href(r.url)" in ds.PAGE
-    # the SERVED page, through the handler — the first grader re-did the substitution itself and a
-    # deleted `.replace("__HELPERS__", …)` shipped a blank dashboard green (H-1/K64-3, FD7)
-    sent: dict[str, bytes] = {}
-
-    class _Probe(ds.Handler):
-        def __init__(self, path):  # no socket: only the routing + substitution is exercised
-            self.path = path
-
-        def _send(self, body, ctype):
-            sent[ctype] = body
-
-    _Probe("/").do_GET()
-    page = sent["text/html; charset=utf-8"].decode("utf-8")
-    assert gd.HELPERS in page and "'&#39;'" in gd.HELPERS and "/^https?:" in gd.HELPERS
-    assert not re.findall(r"__[A-Z_]+__", page), re.findall(r"__[A-Z_]+__", page)
-    assert page.count("const esc=") == 1
-    assert "credit stale" in page and f"older than {gd.STALE_AFTER_H} h" in page
-    assert "unattributed keys" in page and "unattributed</span>" in page, (
-        "the twin dropped the BM9 degraded-case signal (K64-7)"
-    )
-    assert "a model-merged prefix, or provenance unknown at sync time" in page, (
-        "the served row's tooltip names both causes (BR8) — the twin's own copy named one (FE1)"
-    )
-    assert page.count("keysCell(r)") == 1 and gd.SCRIPT.count("keysCell(r)") == 1, (
-        "both renders use the shared keys cell"
-    )
-    assert "<option value=\"'+esc(c)+'\"" in page, (
-        "an <option> without value= strips whitespace and filters zero rows (K64-15)"
-    )
-    assert _helpers_shape(gd.HELPERS)
-    assert "Localhost-only" not in (REPO / "scripts" / "dashboard_server.py").read_text(
-        encoding="utf-8"
-    )
+def _row(provider, **over):
+    base = {
+        "provider": provider,
+        "category": "c",
+        "cost": "paid",
+        "url": "",
+        "status": "active",
+        "keys": 1,
+        "unattributed": 0,
+        "projects": [],
+        "account": "",
+        "balance": None,
+        "unit": "",
+        "credit_at": None,
+        "renews": "",
+        "price": "",
+    }
+    return {**base, **over}
 
 
-def test_a_stale_credit_never_counts_as_tracked_and_the_page_explains_the_flag(monkeypatch):
+def _count(page: str, name: str) -> str:
+    m = re.search(rf'<tr data-count="{name}"><th scope="row">[^<]*</th><td[^>]*>(\d+)</td>', page)
+    assert m, (name, page[:200])
+    return m.group(1)
+
+
+def test_a_stale_credit_never_counts_as_tracked_and_the_page_explains_the_flag():
     """The headline `credit tracked` counted a `⚠` cell; nothing on the page said what `⚠` means (FC4)."""
     gd = _load_gen_dashboard()
+    now = 1_800_000_000.0
     rows = [
-        {
-            "provider": "a",
-            "category": "c",
-            "cost": "paid",
-            "url": "",
-            "status": "active",
-            "keys": 1,
-            "unattributed": 0,
-            "projects": [],
-            "account": "",
-            "credit": "⚠ 1 usd (5d old)",
-            "renews": "",
-            "price": "",
-        },
-        {
-            "provider": "b",
-            "category": "c",
-            "cost": "paid",
-            "url": "",
-            "status": "active",
-            "keys": 1,
-            "unattributed": 0,
-            "projects": [],
-            "account": "",
-            "credit": "2 usd",
-            "renews": "",
-            "price": "",
-        },
+        _row("a", balance=1.0, unit="usd", credit_at=now - 5 * 86400),
+        _row("b", balance=2.0, unit="usd", credit_at=now - 3600),
     ]
-    html = gd.render(rows)
-    assert "credit stale" in html and f"older than {gd.STALE_AFTER_H} h" in html
-    i = html.index("credit tracked")
-    assert html[i - 80 : i].count(">1<") == 1, html[i - 120 : i]
+    page = gd.render(rows, synced_at=now - 60, now=now)
+    assert "⚠ 1 usd (5d old)" in page and "No secret values" in page
+    assert f"⚠ credit = older than {gd.STALE_AFTER_H} h" in page
+    assert _count(page, "credit_tracked") == "1" and _count(page, "credit_stale") == "1"
 
 
 def test_the_chains_own_alert_says_why_it_was_not_delivered_and_survives_a_bad_env(
@@ -1349,13 +1152,13 @@ def test_a_zero_step_budget_never_disables_the_timeout():
     text = (REPO / "scripts" / "external_services_chain.sh").read_text(encoding="utf-8")
     head = text[: text.index("LOG_FILE=")]
     proc = subprocess.run(
-        ["bash", "-c", head + '\necho "$STEP_TIMEOUT $CLASSIFY_TIMEOUT"'],
-        env={**os.environ, "STEP_TIMEOUT": "0", "CLASSIFY_TIMEOUT": "abc"},
+        ["bash", "-c", head + '\necho "$STEP_TIMEOUT"'],
+        env={**os.environ, "STEP_TIMEOUT": "0"},
         capture_output=True,
         text=True,
         timeout=30,
     )
-    assert proc.stdout.strip() == "900 2100", (proc.stdout, proc.stderr)
+    assert proc.stdout.strip() == "900", (proc.stdout, proc.stderr)
 
 
 def test_import_alerting_from_the_kilo_directory_is_libs_alerting():
@@ -1555,88 +1358,23 @@ def test_every_alert_call_inside_the_hooks_outer_string_reaches_the_log():
         assert '>> \\"$LOG_FILE\\" 2>&1' in ln, ln
 
 
-def _helpers_shape(helpers: str) -> bool:
-    """The shared slice is exactly the five helper consts — a widened slice dragged `render()` into
-    the twin and defined it twice, quietly (K64-12, FD7)."""
-    consts = re.findall(r"^const (\w+)=", helpers, flags=re.M)
-    return (
-        consts == ["esc", "href", "cpill", "cell", "keysCell"]
-        and "function render" not in helpers
-        and "<script>" not in helpers
-    )  # keysCell joined the slice: the twin's keys cell had drifted from the static row in the same commit that fixed the previous drift (FE1)
-
-
-def test_the_live_twins_500_never_puts_the_exception_on_the_wire(monkeypatch, capsys):
-    """`send_error(500, str(exc))` wrote libpq's newline-bearing text into the STATUS LINE (response
-    splitting), raised UnicodeEncodeError inside the except on a `—` (zero bytes sent), and told
-    every LAN client the WireGuard host + role name (K64-1/2/5, FD7)."""
-    import importlib.util
-
-    _load_gen_dashboard()
-    spec = importlib.util.spec_from_file_location(
-        "dashboard_server", REPO / "scripts" / "dashboard_server.py"
-    )
-    ds = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(ds)
-    errors: list[tuple[int, str]] = []
-
-    class _Probe(ds.Handler):
-        def __init__(self, path):
-            self.path = path
-
-        def send_error(self, code, message=None, explain=None):
-            errors.append((code, message))
-
-    def boom():
-        raise RuntimeError(
-            'connection to server at "10.99.0.1", port 5432 failed\r\nX-Injected: yes — ⚠ café'
-        )
-
-    monkeypatch.setattr(ds.gen_dashboard, "load", boom)
-    _Probe("/api/services").do_GET()
-    assert errors == [(500, "registry query failed")], errors
-    err = capsys.readouterr().err
-    assert "dashboard: RuntimeError:" in err and "10.99.0.1" in err and "\r" not in err
-    import pytest as _pytest
-
-    with _pytest.raises(SystemExit) as exc:
-        ds.main(["abc"])
-    assert exc.value.code == 2
-    with _pytest.raises(SystemExit):
-        ds.main(["99999"])
-
-
-def test_the_stale_credit_count_and_the_nan_balance(monkeypatch):
+def test_the_stale_credit_count_and_the_nan_balance():
     """The `credit stale` NUMBER was never asserted (hardcoding 0 passed); a NaN balance rendered
     as a number and counted as tracked (K64-10/14, FD7)."""
     gd = _load_gen_dashboard()
-    row = {
-        "provider": "a",
-        "category": "c",
-        "cost": "paid",
-        "url": "",
-        "status": "active",
-        "keys": 1,
-        "unattributed": 0,
-        "projects": [],
-        "account": "",
-        "credit": "⚠ 1 usd (5d old)",
-        "renews": "",
-        "price": "",
-    }
-    html = gd.render(
+    now = 1_800_000_000.0
+    page = gd.render(
         [
-            row,
-            {**row, "provider": "b", "credit": "2 usd"},
-            {**row, "provider": "c", "credit": "⚠ 3 usd (6d old)"},
-        ]
+            _row("a", balance=1.0, unit="usd", credit_at=now - 5 * 86400),
+            _row("b", balance=2.0, unit="usd", credit_at=now - 60),
+            _row("c", balance=3.0, unit="usd", credit_at=now - 6 * 86400),
+            _row("d", balance=float("nan"), unit="usd", credit_at=now - 60),
+        ],
+        synced_at=now,
+        now=now,
     )
-    m = re.search(r'<div class="n">(\d+)</div><div class="l">credit stale</div>', html)
-    assert m and m.group(1) == "2", html[
-        html.index("credit stale") - 120 : html.index("credit stale")
-    ]
-    m = re.search(r'<div class="n">(\d+)</div><div class="l">credit tracked</div>', html)
-    assert m and m.group(1) == "1"
+    assert _count(page, "credit_stale") == "2" and _count(page, "credit_tracked") == "1"
+    assert "nan usd" not in page.lower()
     from decimal import Decimal
 
     assert (
@@ -1657,7 +1395,7 @@ def test_the_chain_alerts_a_credit_phase_failure_without_failing_the_step(tmp_pa
     fn = text[text.index("_step() {") : text.index("\n}\n", text.index("_step() {")) + 3]
     harness = tmp_path / "h.sh"
     harness.write_text(
-        "STEP_TIMEOUT=30\nCLASSIFY_TIMEOUT=30\nchain_failed=0\ncore_failed=0\n"
+        "STEP_TIMEOUT=30\nchain_failed=0\ncore_failed=0\n"
         '_alert() { echo "ALERT: $1 [$3]"; }\n'
         + fn
         + '\n_step registry_sync bash -c "exit 3"\necho "chain_failed=$chain_failed core_failed=$core_failed"\n'
@@ -1674,121 +1412,6 @@ def test_the_chain_alerts_a_credit_phase_failure_without_failing_the_step(tmp_pa
     assert out.rstrip().endswith("chain_failed=1"), (
         out
     )  # exit 3 from any OTHER step is still a failure
-
-
-def test_the_live_twin_bounds_its_port_error_names_a_bind_failure_and_survives_a_leaving_client(
-    monkeypatch, capsys
-):
-    """`choices=range(1, 65536)` printed every choice (447 KB for port 0); a port in use or below
-    1024 was a traceback; a client that left mid-response was logged as a registry failure plus a
-    stdlib traceback; an exception whose `__str__` raises sent zero bytes; nosniff had no grader (FE1)."""
-    import importlib.util
-    import socket
-
-    _load_gen_dashboard()
-    spec = importlib.util.spec_from_file_location(
-        "dashboard_server", REPO / "scripts" / "dashboard_server.py"
-    )
-    ds = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(ds)
-    for bad in ("0", "65536", "-1", "abc"):
-        with pytest.raises(SystemExit) as exc:
-            ds.main([bad])
-        assert exc.value.code == 2
-        err = capsys.readouterr().err
-        assert len(err) < 400 and "PORT must be" in err, (bad, len(err), err[:200])
-    with socket.socket() as holder:
-        holder.bind(("127.0.0.1", 0))
-        holder.listen(1)
-        port = holder.getsockname()[1]
-        monkeypatch.setattr(ds, "HOST", "127.0.0.1")
-        assert ds.main([str(port)]) == 1
-        err = capsys.readouterr().err
-        assert err.startswith("ERROR: cannot bind 127.0.0.1:") and "Traceback" not in err, err
-    errors: list[tuple[int, str]] = []
-    headers: list[tuple[str, str]] = []
-
-    class _Probe(ds.Handler):
-        def __init__(self, path, fail_send=False):
-            self.path, self.fail_send = path, fail_send
-
-        def send_error(self, code, message=None, explain=None):
-            errors.append((code, message))
-
-        def send_response(self, code, message=None):
-            headers.append(("status", str(code)))
-
-        def send_header(self, k, v):
-            headers.append((k, v))
-
-        def end_headers(self):
-            pass
-
-        @property
-        def wfile(self):
-            class _W:
-                @staticmethod
-                def write(b):
-                    if self.fail_send:
-                        raise ConnectionResetError(104, "Connection reset by peer")
-
-            return _W()
-
-    _Probe("/", fail_send=True).do_GET()
-    assert errors == [] and "dashboard:" not in capsys.readouterr().err, (
-        "a client that left is neither a registry failure nor a traceback"
-    )
-    assert ("X-Content-Type-Options", "nosniff") in headers, headers
-
-    class _UnrenderableError(Exception):
-        def __str__(self):
-            raise RuntimeError("no message")
-
-    def boom():
-        raise _UnrenderableError()
-
-    monkeypatch.setattr(ds.gen_dashboard, "load", boom)
-    _Probe("/api/services").do_GET()
-    assert errors == [(500, "registry query failed")], errors
-    assert "dashboard: _UnrenderableError: <str() failed>" in capsys.readouterr().err
-    assert (
-        ds.Handler.timeout == 30
-        and issubclass(ds.Server, __import__("socketserver").ThreadingTCPServer)
-        and ds.Server.daemon_threads
-    )
-
-
-def test_a_stalled_client_never_blocks_the_next_one(monkeypatch):
-    """`socketserver.TCPServer` is single-threaded with no handler timeout: one LAN host holding a
-    half-open socket froze the live dashboard for everyone (FE1)."""
-    import importlib.util
-    import socket
-    import threading
-
-    _load_gen_dashboard()
-    spec = importlib.util.spec_from_file_location(
-        "dashboard_server", REPO / "scripts" / "dashboard_server.py"
-    )
-    ds = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(ds)
-    monkeypatch.setattr(ds.gen_dashboard, "load", lambda: [])
-    srv = ds.Server(("127.0.0.1", 0), ds.Handler)
-    port = srv.server_address[1]
-    th = threading.Thread(target=srv.serve_forever, daemon=True)
-    th.start()
-    try:
-        stalled = socket.create_connection(("127.0.0.1", port))
-        stalled.sendall(b"GET /api/serv")  # and stops
-        with socket.create_connection(("127.0.0.1", port), timeout=5) as b:
-            b.sendall(b"GET /api/services HTTP/1.0\r\nHost: x\r\n\r\n")
-            data = b.recv(4096)
-        assert data.startswith(b"HTTP/1.0 200") and b"X-Content-Type-Options: nosniff" in data, (
-            data[:200]
-        )
-        stalled.close()
-    finally:
-        srv.shutdown()
-        srv.server_close()
 
 
 def test_the_chains_cd_failure_is_a_did_not_start_and_a_keyless_env_is_said(tmp_path):
@@ -1838,7 +1461,7 @@ def test_the_helper_names_a_directory_interpreter_a_keyless_env_and_an_explicit_
 
     root = tmp_path / "root"
     (root / "scripts" / "kilo-benchmarks").mkdir(parents=True)
-    (root / ".venv").symlink_to(REPO / ".venv", target_is_directory=True)
+    (root / ".venv").symlink_to(VENV, target_is_directory=True)
     shutil.copytree(REPO / "libs" / "alerting", root / "libs" / "alerting")
     helper = REPO / "scripts" / "kilo-benchmarks" / "pipeline_alert.sh"
     env = {
@@ -2056,20 +1679,17 @@ def test_the_root_conftest_mutes_alerting_for_every_child(monkeypatch):
 
 
 def test_the_dashboard_modules_insert_their_directory_once():
-    """`gen_dashboard.py` and `dashboard_server.py` inserted `scripts/` on every load — 7 → 24
-    entries over this suite, the class FD8 guarded at two other sites (B65-7, FF1)."""
+    """`gen_dashboard.py` inserted `scripts/` on every load — 7 → 24 entries over this suite, the class
+    FD8 guarded at two other sites (B65-7, FF1); it now also needs `scripts/sysadmin` (the page layer)
+    and must hold both once, and never import the board's own module (it runs as `__main__`)."""
     import importlib.util
 
     scripts = str(REPO / "scripts")
+    sysadmin = str(REPO / "scripts" / "sysadmin")
     before = list(sys.path)
     try:
         for _ in range(2):
             _load_gen_dashboard()
-            spec = importlib.util.spec_from_file_location(
-                "dashboard_server", REPO / "scripts" / "dashboard_server.py"
-            )
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
         for name in (
             "classify_services",
             "registry_sync",
@@ -2079,11 +1699,26 @@ def test_the_dashboard_modules_insert_their_directory_once():
                 mod = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(mod)
         assert sys.path.count(scripts) == max(1, before.count(scripts)), sys.path[:6]
+        assert sys.path.count(sysadmin) == max(1, before.count(sysadmin)), sys.path[:6]
         assert sys.path.count(str(REPO)) == max(1, before.count(str(REPO))), sys.path[:6]
     finally:
         sys.path[:] = before
-        for name in ("dashboard_server", "classify_services", "registry_sync"):
+        for name in ("classify_services", "registry_sync"):
             sys.modules.pop(name, None)
+    # a fresh interpreter: both directories exactly once, and the board's module never imported
+    gen = str(REPO / "scripts" / "gen_dashboard.py")
+    probe = (
+        "import sys, importlib.util as u\n"
+        f"sys.path[:] = [p for p in sys.path if p not in ({scripts!r}, {sysadmin!r})]\n"
+        f"sp = u.spec_from_file_location('gen_dashboard', {gen!r})\n"
+        "m = u.module_from_spec(sp); sys.modules['gen_dashboard'] = m\n"
+        "sp.loader.exec_module(m); sp.loader.exec_module(m)\n"
+        f"print(sys.path.count({scripts!r}), sys.path.count({sysadmin!r}), 'quota_dashboard' in sys.modules)\n"
+    )
+    out = subprocess.run(
+        [sys.executable, "-c", probe], capture_output=True, text=True, timeout=60, check=True
+    ).stdout.split()
+    assert out == ["1", "1", "False"], out
 
 
 def test_a_venv_without_python_dotenv_reads_the_env_file_through_the_stdlib_loader(tmp_path):
@@ -2101,7 +1736,7 @@ def test_a_venv_without_python_dotenv_reads_the_env_file_through_the_stdlib_load
     (root / "dotenv.py").write_text(
         shadow, encoding="utf-8"
     )  # the helper and the chain run their python with cwd = root, and '' leads their sys.path
-    (root / ".venv").symlink_to(REPO / ".venv", target_is_directory=True)
+    (root / ".venv").symlink_to(VENV, target_is_directory=True)
     env = {
         k: os.environ[k] for k in ("PATH", "HOME", "LANG", "LC_ALL", "TMPDIR") if k in os.environ
     }
@@ -2317,99 +1952,6 @@ def test_the_curated_env_loader_carries_every_key_the_alerting_package_reads():
             )  # every read shape, not only double-quoted getenv (M67-C9)
         )
     assert read and read <= set(DOTENV_KEYS), sorted(read - set(DOTENV_KEYS))
-
-
-def test_a_departing_client_before_the_500_and_a_broken_pipe_leave_no_traceback(
-    monkeypatch, capsys
-):
-    """`send_error(500)` in the `finally` had no guard: a tab closed during the refresh while the
-    registry was down printed a 17-frame stdlib traceback per aborted request — FE1 guarded `_send`
-    only; and FE1's own guard was graded with ConnectionResetError only, never EPIPE (K66-1/3/8, FF1)."""
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location(
-        "dashboard_server", REPO / "scripts" / "dashboard_server.py"
-    )
-    ds = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(ds)
-    seen = []
-
-    class _Probe(ds.Handler):
-        def __init__(self, path, raise_on_error=None, fail_send=None):
-            self.path, self.raise_on_error, self.fail_send = path, raise_on_error, fail_send
-
-        def send_error(self, code, message=None, explain=None):
-            seen.append((code, message))
-            if self.raise_on_error:
-                raise self.raise_on_error
-
-        def _send(self, body, ctype):
-            if self.fail_send:
-                raise self.fail_send
-            seen.append(("sent", ctype))
-
-    def boom():
-        raise RuntimeError("registry down")
-
-    monkeypatch.setattr(ds.gen_dashboard, "load", boom)
-    _Probe("/api/services", raise_on_error=ConnectionResetError(104, "reset")).do_GET()
-    _Probe("/api/services", raise_on_error=BrokenPipeError(32, "Broken pipe")).do_GET()
-    assert seen == [(500, "registry query failed")] * 2, seen
-    err = capsys.readouterr().err
-    assert err.count("dashboard: RuntimeError: registry down") == 2 and "Traceback" not in err, err
-
-    # a stderr that cannot be written: the 500 is still sent (the try/finally is load-bearing)
-    class _Dead:
-        def write(self, *_):
-            raise OSError("stderr gone")
-
-        def flush(self):
-            pass
-
-    monkeypatch.setattr(sys, "stderr", _Dead())
-    seen.clear()
-    with pytest.raises(OSError):
-        _Probe("/api/services").do_GET()
-    assert seen == [(500, "registry query failed")]
-    monkeypatch.undo()
-    monkeypatch.setattr(ds.gen_dashboard, "load", lambda: [])
-    seen.clear()
-    _Probe("/", fail_send=BrokenPipeError(32, "Broken pipe")).do_GET()  # the FE1 arm, EPIPE shape
-    assert seen == []
-
-
-def test_the_twin_rebinds_its_port_right_after_a_served_request(monkeypatch):
-    """`allow_reuse_address` was ungraded: without it a Ctrl-C then an immediate restart printed the
-    FE1 `cannot bind` line for a port nobody holds (the server's own TIME_WAIT) (K66-4, FF1)."""
-    import importlib.util
-    import threading
-
-    spec = importlib.util.spec_from_file_location(
-        "dashboard_server", REPO / "scripts" / "dashboard_server.py"
-    )
-    ds = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(ds)
-    assert ds.Server.allow_reuse_address is True
-    monkeypatch.setattr(ds.gen_dashboard, "load", lambda: [])
-    srv = ds.Server(("127.0.0.1", 0), ds.Handler)
-    port = srv.server_address[1]
-    t = threading.Thread(target=srv.handle_request, daemon=True)
-    t.start()
-    import socket
-
-    s = socket.create_connection(("127.0.0.1", port), timeout=10)
-    s.sendall(b"GET /api/services HTTP/1.0\r\n\r\n")
-    data = b""
-    while (
-        chunk := s.recv(65536)
-    ):  # to EOF: the server's FIN arrives first, so ITS side sits in TIME_WAIT — with the client closing first the rebind succeeded with or without SO_REUSEADDR and the grader proved a proxy (K67-2, FG1)
-        data += chunk
-    assert data.startswith(b"HTTP/1.0 200"), data[:80]
-    t.join(10)
-    s.close()
-    srv.server_close()
-    again = ds.Server(("127.0.0.1", port), ds.Handler)  # the same port, immediately
-    again.server_close()
 
 
 def test_a_negative_backfilled_balance_and_an_infinite_price_render_empty(monkeypatch):
@@ -2660,87 +2202,6 @@ def test_two_squatters_of_one_generation_inside_a_second_get_distinct_names(tmp_
     assert len(squatters) == 3 and len(set(squatters)) == 3, squatters
 
 
-def test_a_client_that_resets_before_its_request_is_read_leaves_no_traceback(monkeypatch, capfd):
-    """`handle_one_request` catches `TimeoutError` only: a client that RESETS with no bytes, mid
-    request line or mid-headers (a port scan, a NAT'd browser abort) printed a 12-frame stdlib
-    traceback per reset on the default 0.0.0.0 bind — FE1/FF6 guarded the WRITE side only (K67-1,
-    FG1)."""
-    import http.client
-    import importlib.util
-    import socket
-    import struct
-    import threading
-
-    spec = importlib.util.spec_from_file_location(
-        "dashboard_server", REPO / "scripts" / "dashboard_server.py"
-    )
-    ds = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(ds)
-    monkeypatch.setattr(ds.gen_dashboard, "load", lambda: [])
-    srv = ds.Server(("127.0.0.1", 0), ds.Handler)
-    port = srv.server_address[1]
-    t = threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
-    t.start()
-    try:
-        for payload in (b"", b"GET /api", b"GET / HTTP/1.0\r\nX: y"):
-            s = socket.create_connection(("127.0.0.1", port), timeout=5)
-            s.setsockopt(
-                socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii", 1, 0)
-            )  # RST, not FIN
-            if payload:
-                s.sendall(payload)
-            s.close()
-        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
-        conn.request("GET", "/api/services")
-        assert conn.getresponse().status == 200  # the server is still serving after the resets
-        conn.close()
-    finally:
-        srv.shutdown()
-        srv.server_close()
-        t.join(5)
-    err = capfd.readouterr().err
-    assert "Traceback" not in err and "Exception occurred" not in err, err
-
-
-def test_a_handler_bug_still_reaches_handle_error(monkeypatch):
-    """`handle()` guards the READ side against a client that resets (K67-1). It must catch socket
-    errors ONLY: an `except Exception: pass` there would swallow a real handler bug — the stdlib's
-    own `handle_error` is what makes one visible (K68-6/K68-8, FH1)."""
-    import contextlib
-    import http.client
-    import importlib.util
-    import threading
-
-    spec = importlib.util.spec_from_file_location(
-        "dashboard_server", REPO / "scripts" / "dashboard_server.py"
-    )
-    ds = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(ds)
-    monkeypatch.setattr(ds.gen_dashboard, "load", lambda: [])
-    monkeypatch.setattr(
-        ds.Handler, "handle_one_request", lambda self: (_ for _ in ()).throw(TypeError("bug"))
-    )
-    seen = []
-    monkeypatch.setattr(ds.Server, "handle_error", lambda self, req, addr: seen.append("handled"))
-    srv = ds.Server(("127.0.0.1", 0), ds.Handler)
-    port = srv.server_address[1]
-    t = threading.Thread(target=srv.handle_request, daemon=True)
-    t.start()
-    try:
-        conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
-        conn.request("GET", "/")
-        with contextlib.suppress(Exception):
-            conn.getresponse()
-        conn.close()
-    finally:
-        t.join(10)
-        srv.server_close()
-        sys.modules.pop("dashboard_server", None)
-    assert seen == ["handled"], (
-        "a handler BUG must reach handle_error — a blanket `except Exception` in handle() hides it"
-    )
-
-
 def test_the_boot_hooks_nohup_carries_its_own_redirect():
     """`nohup bash -c "…" &` with no redirect prints `nohup: appending output to 'nohup.out'` to the
     operator's terminal and mints that file in whatever cwd the login shell sat in — the D5/FC6
@@ -2772,3 +2233,516 @@ def test_the_boot_hooks_nohup_carries_its_own_redirect():
     assert writers == [], (
         f"a line inside the nohup string writes with no redirect of its own: {writers[:3]}"
     )
+
+
+# ---------------------------------------------------------------- the static file (W-3e9e2f4c, T03)
+@pytest.fixture
+def pinned_zone():
+    """TZ pinned for the test and restored after: the document prints a zone offset."""
+    import time
+
+    old = os.environ.get("TZ")
+    os.environ["TZ"] = "Etc/GMT-3"  # POSIX sign: this is UTC+03:00
+    time.tzset()
+    try:
+        yield
+    finally:
+        if old is None:
+            os.environ.pop("TZ", None)
+        else:
+            os.environ["TZ"] = old
+        time.tzset()
+
+
+_SYNCED = 1_792_236_600.0  # 2026-10-17 11:30 UTC = 14:30 at +03:00
+_NOW = _SYNCED + 3600
+
+
+_NAMES = [
+    "alpha",
+    "bravo",
+    "charlie",
+    "delta",
+    "echo",
+    "foxtrot",
+    "golf",
+    "hotel",
+    "india",
+    "juliet",
+    "kilo",
+    "lima",
+    "mike",
+]
+_COSTS = [
+    "paid",
+    "freemium",
+    "free",
+    "?",
+    "paid",
+    "freemium",
+    "paid",
+    "free",
+    "self-host",
+    "free",
+    "self-host",
+    "?",
+    "paid",
+]
+_CATS = ["?"] * 4 + ["ai", "ai", "infra", "infra", "data", "mail", "maps", "pay", "vcs"]
+
+
+def _fixture_rows() -> list[dict]:
+    """Thirteen rows whose twelve counted stats are twelve DIFFERENT numbers, so a stat that reads
+    another stat's formula cannot pass: total 13 · paid or freemium 6 · free or self-host 5 · untriaged 4
+    · categories 7 · projects 12 · credit tracked 9 · credit stale 1 · renewals set 10 · with credentials
+    11 · unattributed keys 2 · needing attention 3 (india stale credit, echo unattributed, golf retiring)."""
+    rows = []
+    for i, name in enumerate(_NAMES):
+        r = _row(
+            name,
+            category=_CATS[i],
+            cost=_COSTS[i],
+            url=f"https://{name}.test",
+            keys=0 if i in (0, 12) else 1,
+            projects=[f"p{i:02d}"] if i else [],
+            renews=f"2026-11-0{i % 9 + 1}" if i >= 3 else "",
+        )
+        if 2 <= i <= 11:
+            rows_balance = 3.0 if name == "india" else float(i)
+            r.update(
+                balance=rows_balance,
+                unit="usd",
+                credit_at=_NOW - (5 * 86400 if name == "india" else 3600),
+            )
+        rows.append(r)
+    by = {r["provider"]: r for r in rows}
+    by["echo"].update(unattributed=2)
+    by["golf"].update(status="retiring")
+    by["juliet"].update(
+        balance=12.5, account="me@x.test", price="10 usd", renews="2026-12-01", projects=["p09"]
+    )
+    return rows
+
+
+_DOC_PROBLEMS = (
+    r"\bsrc\s*=",
+    r"<script",
+    r"<link",
+    r"<iframe",
+    r"@import",
+    r"\burl\s*\(",
+    r"javascript:",
+)
+
+
+def _document_problems(page: str) -> list[str]:
+    """Everything that makes a file not self-contained, whatever the quoting."""
+    found = [pat for pat in _DOC_PROBLEMS if re.search(pat, page, re.I)]
+    for m in re.finditer(r"""\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))""", page, re.I):
+        target = next(g for g in m.groups() if g is not None)
+        if not re.match(r"https?://", target, re.I):
+            found.append(f"href={target!r}")
+    return found
+
+
+def test_the_static_file_is_a_scriptless_self_contained_document(pinned_zone):
+    gd = _load_gen_dashboard()
+    page = gd.render(_fixture_rows(), synced_at=_SYNCED, now=_NOW)
+    assert page.startswith('<!doctype html>\n<html lang="en">')
+    assert "<title>External services</title>" in page and "<h1>External services</h1>" in page
+    assert 'name="viewport"' in page
+    assert _document_problems(page) == []
+    assert page.count("href=") >= 13, "every provider links"
+    assert (
+        "--c-slate-900" in page
+        and (gd.dashboard_ui.STATIC_DIR / "app.css").read_text(encoding="utf-8") in page
+    ), "app.css is inlined whole"
+    assert "Registry synced 2026-10-17 14:30 +03:00" in page
+    assert "Snapshot written 2026-10-17 15:30 +03:00" in page
+    never = gd.render(_fixture_rows(), synced_at=None, now=_NOW)
+    assert "Registry never synced" in never and "Registry synced" not in never
+
+
+# each guard pattern -> a shape ONLY that pattern flags (no href, no src, no other token beside it)
+_ONLY_THIS = {
+    r"\bsrc\s*=": '<img SRC="https://x.test/a.png">',
+    r"<script": "<SCRIPT>1</SCRIPT>",
+    r"<link": '<LINK rel="stylesheet" href="https://cdn.test/x.css">',
+    r"<iframe": "<IFRAME></IFRAME>",
+    r"@import": "<style>@IMPORT 'x.css';</style>",
+    r"\burl\s*\(": "<style>a{background:URL (x.png)}</style>",
+    r"javascript:": "<p>JavaScript:void(0)</p>",
+}
+_BAD_HREFS = {
+    "<a href=ftp://x>x</a>": "ftp://x",
+    '<a HREF = "/relative">x</a>': "/relative",
+    '<a href="//host.test/x">x</a>': "//host.test/x",
+    "<a href=x.html>x</a>": "x.html",
+}
+
+
+def test_the_self_containment_check_sees_every_shape_it_guards():
+    clean = '<a href="https://x.test">x</a><a href=http://y.test>y</a>'
+    assert _document_problems(clean) == []
+    assert set(_ONLY_THIS) == set(_DOC_PROBLEMS), "every guard pattern owns a shape"
+    for pattern, shape in _ONLY_THIS.items():
+        assert _document_problems(shape) == [pattern], (pattern, shape)
+    both = _document_problems("<a href='javascript:alert(1)'>x</a>")
+    assert both == [r"javascript:", "href='javascript:alert(1)'"], both
+    for shape, target in _BAD_HREFS.items():
+        assert _document_problems(shape) == [f"href={target!r}"], shape
+
+
+def test_the_section_prints_each_stamp_and_the_legend_exactly_once(pinned_zone):
+    gd = _load_gen_dashboard()
+    page = gd.render(_fixture_rows(), synced_at=_SYNCED, now=_NOW)
+    assert page.count("Registry synced") == 1 and page.count("Snapshot written") == 1
+    assert page.count("No secret values") == 1 and page.count("<h1") == 1
+    assert page.rstrip().endswith("</html>") and page.index("No secret values") > page.index(
+        "Registry synced"
+    )
+
+
+def _table_row(page: str, name: str) -> tuple[str, list[str]]:
+    """The provider's own ``<tr>``: its name cell (with the detail block) and its other cells."""
+    rows = [r for r in re.findall(r"<tr>(.*?)</tr>", page, re.S) if f"{name}</a>" in r]
+    assert len(rows) == 1, (name, len(rows))
+    head, _, rest = rows[0].partition("</th>")
+    return head, re.findall(r"<td[^>]*>(.*?)</td>", rest, re.S)
+
+
+def test_every_one_of_todays_ten_stats_and_columns_has_its_home(pinned_zone):
+    gd = _load_gen_dashboard()
+    page = gd.render(_fixture_rows(), synced_at=_SYNCED, now=_NOW)
+    summary = dict(re.findall(r'<li data-count="(\w+)">[^<]*?(\d+)</li>', page))
+    assert summary == {
+        "attention": "3",
+        "paid": "6",
+        "free": "5",
+        "untriaged": "4",
+        "total": "13",
+    }, summary
+    more = {
+        n: _count(page, n)
+        for n in (
+            "categories",
+            "projects",
+            "credit_tracked",
+            "credit_stale",
+            "renewals",
+            "credentials",
+            "unattributed",
+        )
+    }
+    assert more == {
+        "categories": "7",
+        "projects": "12",
+        "credit_tracked": "9",
+        "credit_stale": "1",
+        "renewals": "10",
+        "credentials": "11",
+        "unattributed": "2",
+    }, more
+    everything = {**summary, **more}
+    assert len(set(everything.values())) == len(everything), "every stat has its own number"
+    for col in ("Provider", "Cost", "Status", "Keys", "Funding", "Used by"):
+        assert '<th scope="col"' in page and f">{col}</th>" in page, col
+    assert re.search(r"<summary>ai · 2 providers[^<]*</summary>", page)  # Category: its table
+    # one row, read inside its own cells: cost · status · keys · funding · used by
+    head, cells = _table_row(page, "juliet")
+    assert 'href="https://juliet.test"' in head
+    assert cells[0] == "Free" and cells[1] == "Active" and cells[2] == "1"
+    assert cells[3] == "12.5 usd" and cells[4] == "p09", cells
+    for detail in (  # Account, Price, Renews and Used by: the row's own detail block
+        "Account: me@x.test",
+        "Price: 10 usd",
+        "Renewal: 2026-12-01",
+        "Used by: p09",
+    ):
+        assert f"<li>{detail}</li>" in head, detail
+    assert _table_row(page, "india")[1][3] == "⚠ 3 usd (5d old)"  # a stale credit, in Funding
+    assert "Retiring" in _table_row(page, "golf")[1][1]  # Status
+    keys = _table_row(page, "echo")[1][2]
+    assert keys.startswith("1 ") and "2 unattributed" in keys, keys  # Keys + unattributed
+    # the untriaged queue entry keeps its link, key count and projects, in its own list item
+    entry = next(
+        li.split("</li>")[0] for li in page.split("<li") if "bravo" in li and "href=" in li
+    )
+    assert 'href="https://bravo.test"' in entry and "1 key" in entry, entry
+    assert "Used by: p01" in entry, entry
+    assert "No secret values, a credential count only. ⚠ credit = older than 48 h." in page
+
+
+def test_the_reader_closes_its_connection_on_both_paths(monkeypatch):
+    gd = _load_gen_dashboard()
+    closed: list[bool] = []
+
+    class _Conn:
+        def close(self):
+            closed.append(True)
+
+    monkeypatch.setattr(gd.registry_db, "connect", lambda: _Conn())
+    monkeypatch.setattr(gd.inventory, "load", lambda conn: ([{"provider": "x"}], 5.0))
+    assert gd._read()[0] == [{"provider": "x"}] and closed == [True]
+    assert gd.load() == [{"provider": "x"}] and closed == [True, True]
+
+    def boom(conn):
+        raise RuntimeError("query failed")
+
+    monkeypatch.setattr(gd.inventory, "load", boom)
+    with pytest.raises(RuntimeError):
+        gd._read()
+    assert closed == [True, True, True]
+
+
+def test_the_static_file_reads_no_classifier_stamp():
+    """D-1046 retired the classifier's source rule: gen_dashboard no longer stats
+    classify_last.json, and the section takes no classifier time (a caller still passing one is
+    a TypeError, never a silently ignored argument)."""
+    gd = _load_gen_dashboard()
+    assert not hasattr(gd, "_classified_at") and not hasattr(gd, "CLASSIFY_STAMP")
+    with pytest.raises(TypeError):
+        gd.render([], synced_at=_SYNCED, classified_at=_NOW, now=_NOW)
+
+
+def test_a_render_that_raises_leaves_the_previous_file_and_one_typed_line(
+    monkeypatch, capsys, tmp_path
+):
+    gd = _load_gen_dashboard()
+    out = tmp_path / "dash.html"
+    out.write_text("previous", encoding="utf-8")
+    monkeypatch.setattr(gd, "_read", lambda: ([_row("a")], None))
+
+    def boom(rows, **kw):
+        raise ValueError("cannot render")
+
+    monkeypatch.setattr(gd, "render", boom)
+    assert gd.main([str(out)]) == 1
+    printed = capsys.readouterr().out
+    assert printed.count("\n") == 1 and "ERROR: registry unreadable" in printed
+    assert out.read_text(encoding="utf-8") == "previous"
+    monkeypatch.setattr(gd, "_read", lambda: (_ for _ in ()).throw(RuntimeError("dead")))
+    assert gd.main([str(out)]) == 1 and out.read_text(encoding="utf-8") == "previous"
+
+
+def test_main_writes_the_whole_document_through_the_real_renderer(monkeypatch, tmp_path):
+    gd = _load_gen_dashboard()
+    monkeypatch.setattr(gd, "_read", lambda: (_fixture_rows(), _SYNCED))
+    out = tmp_path / "dash.html"
+    assert gd.main([str(out)]) == 0
+    page = out.read_text(encoding="utf-8")
+    assert "alpha" in page and "Registry synced" in page and "<script" not in page
+
+
+_RETIRED_NAME = re.compile(r"(?<![A-Za-z0-9_])dashboard_server(?![A-Za-z0-9_])")
+
+
+def _naming_the_retired_server(roots: list[Path], skip: Path) -> list[str]:
+    """Every file under ``roots`` that names the module `dashboard_server` as a word (the board's own
+    `quota_dashboard_server` stem is a different word and does not match)."""
+    hits = []
+    for root in roots:
+        for f in sorted(root.rglob("*")):
+            if not f.is_file() or f == skip or "__pycache__" in f.parts:
+                continue
+            if _RETIRED_NAME.search(f.read_bytes().decode("utf-8", errors="replace")):
+                hits.append(str(f))
+    return hits
+
+
+def test_the_retirement_scan_finds_a_real_hit_and_skips_only_the_named_file(tmp_path):
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "scripts" / "a.py").write_text("import dashboard_server\n", encoding="utf-8")
+    (tmp_path / "scripts" / "b.sh").write_text("python scripts/dashboard_server.py\n")
+    (tmp_path / "scripts" / "c.js").write_text("require('./dashboard_server')\n")
+    (tmp_path / "scripts" / "d.sql").write_text("-- dashboard_server\n")
+    (tmp_path / "scripts" / "launcher").write_text("exec dashboard_server\n")  # no suffix at all
+    (tmp_path / "scripts" / "__pycache__").mkdir()
+    (tmp_path / "scripts" / "__pycache__" / "x.py").write_text("dashboard_server\n")
+    (tmp_path / "tests" / "test_quota_dashboard_server.py").write_text("quota_dashboard_server\n")
+    mine = tmp_path / "tests" / "me.py"
+    mine.write_text("dashboard_server\n", encoding="utf-8")
+    roots = [tmp_path / "scripts", tmp_path / "tests"]
+    assert _naming_the_retired_server(roots, skip=mine) == [
+        str(tmp_path / "scripts" / name) for name in ("a.py", "b.sh", "c.js", "d.sql", "launcher")
+    ]
+    assert len(_naming_the_retired_server(roots, skip=tmp_path / "nothing")) == 6
+
+
+def test_the_server_is_retired_and_the_chain_still_runs_the_generator():
+    assert not (REPO / "scripts" / "dashboard_server.py").exists()
+    assert (
+        _naming_the_retired_server(
+            [REPO / "scripts", REPO / "tests"], skip=Path(__file__).resolve()
+        )
+        == []
+    )
+    chain = CHAIN.read_text(encoding="utf-8")
+    assert (
+        '_step gen_dashboard "$VENV_PY" "$FABRIK_ROOT/scripts/gen_dashboard.py" "$DASHBOARD"'
+        in chain
+    )
+    assert (
+        'date -u +%FT%TZ > "$HEARTBEAT.tmp.$$" && mv -fT "$HEARTBEAT.tmp.$$" "$HEARTBEAT"' in chain
+    )
+
+
+# ---- wave-review fixup 1
+def test_credit_cell_never_accepts_what_the_inventory_refuses(pinned_zone, monkeypatch):
+    import datetime as dt
+    from datetime import date
+    from decimal import Decimal
+    from types import SimpleNamespace
+
+    gd = _load_gen_dashboard()
+    wall = 1_800_000_000.0
+    monkeypatch.setattr(gd, "time", SimpleNamespace(time=lambda: wall))
+    balances = [
+        True,
+        False,
+        Decimal("1234567.5"),
+        Decimal("NaN"),
+        Decimal("-1"),
+        5,
+        5.5,
+        "5",
+        None,
+        float("inf"),
+    ]
+    fetched_at = [
+        dt.datetime(2020, 1, 1, tzinfo=dt.UTC),
+        dt.datetime(2020, 1, 1),  # naive: local time, as the inventory reads it
+        dt.datetime.fromtimestamp(wall - 3600, dt.UTC),
+        None,
+    ]
+    nows = [
+        (float("nan"), wall),
+        (float("inf"), wall),
+        (float("-inf"), wall),
+        (-5.0, wall),
+        (True, wall),
+        (None, wall),
+        (10**400, wall),
+        (1e300, wall),
+        (10**20, wall),
+        (gd.inventory._EDGE_S + 1e6, wall),
+        ("1800000000", wall),
+        (date(2026, 1, 1), wall),
+        (Decimal("1800000000"), wall),
+        (gd.inventory._EDGE_S - 1, gd.inventory._EDGE_S - 1),
+        (dt.datetime(2027, 1, 1), dt.datetime(2027, 1, 1).timestamp()),  # naive: local time
+        (wall + 86400, wall + 86400),
+        (dt.datetime.fromtimestamp(wall + 86400, dt.UTC), wall + 86400),
+    ]
+    seen = set()
+    for bal in balances:
+        for at in fetched_at:
+            for now, effective in nows:
+                want = gd.inventory.credit_cell(bal, "USD", at, effective)
+                got = gd.credit_cell(bal, "USD", at, now)
+                assert got == want, (bal, at, now, got, want)
+                seen.add(want)
+    assert "" in seen and any(x.startswith("⚠") for x in seen) and "5 USD" in seen
+    assert gd.credit_cell(True, "USD", None) == "" and gd.credit_cell(False, "USD", None) == ""
+    assert gd.credit_cell(
+        5, "usd", dt.datetime(2020, 1, 1, tzinfo=dt.UTC), now=float("nan")
+    ).startswith("⚠")
+
+
+class _RegistryConn:
+    """The reader's fake connection: answers by FIRST substring match, `max(last_seen)` before `FROM api_keys`."""
+
+    def __init__(self, last_seen):
+        self.answers = {
+            "FROM services": [
+                ("alpha", "Alpha", "ai", "paid", "https://alpha.test", "active"),
+                ("bravo", "Bravo", None, None, None, None),  # untriaged
+            ],
+            "information_schema": [(1,)],
+            "max(last_seen)": [(last_seen,)],
+            "FROM api_keys": [],
+            "credit_snapshots": [],
+            "FROM subscriptions": [],
+        }
+
+    def cursor(self):
+        conn = self
+
+        class _Cur:
+            rows: list = []
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def execute(self, sql, *a):
+                self.rows = next(v for k, v in conn.answers.items() if k in sql)
+
+            def fetchall(self):
+                return list(self.rows)
+
+            def fetchone(self):
+                return self.rows[0] if self.rows else None
+
+        return _Cur()
+
+    def close(self):
+        pass
+
+
+_STALL = "The classifier has not run for over 48 hours and 1 provider waits for a category."
+_NEVER = "The classifier has no recorded run and 1 provider waits for a category."
+
+
+def _write_through_main(monkeypatch, tmp_path):
+    """`main()` over the fake registry (its rows carry an untriaged provider), with the clock at _NOW."""
+    import datetime as dt
+    from types import SimpleNamespace
+
+    gd = _load_gen_dashboard()
+    tmp_path.mkdir(parents=True)
+    monkeypatch.setattr(gd, "time", SimpleNamespace(time=lambda: _NOW))
+    last_seen = dt.datetime.fromtimestamp(_SYNCED, dt.UTC)
+    monkeypatch.setattr(gd.registry_db, "connect", lambda: _RegistryConn(last_seen))
+    out = tmp_path / "dash.html"
+    assert gd.main([str(out)]) == 0
+    return out.read_text(encoding="utf-8")
+
+
+def test_the_registry_sync_time_reaches_the_written_file_and_no_classifier_entry_does(
+    pinned_zone, monkeypatch, tmp_path
+):
+    page = _write_through_main(monkeypatch, tmp_path / "a")
+    assert "Registry synced 2026-10-17 14:30 +03:00" in page, "the reader's max(last_seen)"
+    # D-1046: the untriaged row that used to raise the stalled-classifier entry raises none
+    assert _STALL not in page and _NEVER not in page and "The classifier" not in page
+
+
+def test_an_untriaged_provider_raises_no_classifier_entry(pinned_zone):
+    """The queue that used to raise the stalled-classifier entry renders without one (D-1046)."""
+    gd = _load_gen_dashboard()
+    page = gd.render([_row("a", category="?", cost="?")], synced_at=_SYNCED, now=_NOW)
+    assert _STALL not in page and _NEVER not in page and "The classifier" not in page
+
+
+def test_a_stylesheet_that_would_close_its_style_element_is_one_typed_line(
+    monkeypatch, capsys, tmp_path
+):
+    gd = _load_gen_dashboard()
+    for css in ("a{}</style><script>1</script>", "a{}</STYLE ><b>"):
+        d = tmp_path / str(abs(hash(css)))
+        d.mkdir()
+        (d / "app.css").write_text(css, encoding="utf-8")
+        monkeypatch.setattr(gd.dashboard_ui, "STATIC_DIR", d)
+        with pytest.raises(ValueError):
+            gd.render([], now=_NOW)
+        out = tmp_path / "dash.html"
+        out.write_text("previous", encoding="utf-8")
+        monkeypatch.setattr(gd, "_read", lambda: ([], None))
+        assert gd.main([str(out)]) == 1
+        printed = capsys.readouterr().out
+        assert printed.count("\n") == 1 and "ERROR: registry unreadable" in printed
+        assert out.read_text(encoding="utf-8") == "previous"

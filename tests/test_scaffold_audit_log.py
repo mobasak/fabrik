@@ -19,6 +19,7 @@ import importlib.util
 import os
 import re
 import secrets
+import shutil
 import string
 import subprocess
 import sys
@@ -55,7 +56,12 @@ _SAAS_FAMILY = ("saas-skeleton", "static-site", "office-extension")
 _NODE_DB = ("node-api", "file-api")
 _NOTHING = ("desktop-app", "docusaurus", "file-worker-nodb")
 
-_HEADER = 'psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql'
+_HEADER = 'u=$(pgurl "$v") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql'
+_RAW_OWNER_PSQL = '"$DATABASE_URL_OWNER" -f db/schema.sql'
+_PGURL_DEFINED = "sed -n '/^pgurl() /p' docs/TROUBLESHOOTING.md"
+_SOURCES_ENV = (
+    ". ./.env"  # fabrik-lib 01M4TGJ1CV: the recipe must never source the env files as shell code
+)
 
 
 def _name(kind: str) -> str:
@@ -142,6 +148,11 @@ def test_python_backend_gets_module_table_revokes_header_env(
 
     sql = (project / schema_rel).read_text()
     assert _HEADER in sql
+    assert _RAW_OWNER_PSQL not in sql  # the raw variable never reaches psql (01M464NPPB)
+    assert _PGURL_DEFINED in sql  # pgurl is a shell function: the root shell must define it first
+    assert (
+        _SOURCES_ENV not in sql
+    )  # the env files are read as data, never sourced (fabrik-lib 01M4TGJ1CV)
     table_at = sql.index("CREATE TABLE IF NOT EXISTS audit_log")
     for needle in (
         "current_database() || '_app'",
@@ -171,6 +182,40 @@ def test_python_backend_gets_module_table_revokes_header_env(
     assert "psycopg[binary]" in reqs.read_text()
 
 
+@requires_fabrik_env
+def test_folded_block_drops_the_modules_own_apply_hint() -> None:
+    """Folded into db/schema.sql, the module's hint to apply ``libs/audit_log/schema.sql`` on its
+    own is false: the file's header applies the fold. fabrik-lib reworded the hint (01M476P2), so
+    the fold matches the hint's ``-f libs/audit_log/schema.sql`` line, not its whole text."""
+    block = scaffold._audit_log_schema_block()
+    assert "-f libs/audit_log/schema.sql" not in block, block[:600]
+    assert "folded into db/schema.sql — applied by its header, as the owner" in block
+
+
+def test_fold_fails_loud_when_the_module_hint_is_gone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A module whose apply hint moved again raises rather than folding a stale hint silently."""
+    (tmp_path / "schema.sql").write_text(
+        "-- no apply hint here\nCREATE TABLE audit_log (id int);\n"
+    )
+    monkeypatch.setattr(scaffold, "APP_AUDIT_LOG_DIR", tmp_path)
+    with pytest.raises(ValueError, match="apply hint"):
+        scaffold._audit_log_schema_block()
+
+
+def test_fold_keeps_the_lines_around_the_hint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only the hint line is replaced: a blank line after it, and the next statement, survive."""
+    (tmp_path / "schema.sql").write_text(
+        "-- header\n--   psql -f libs/audit_log/schema.sql\n\nCREATE TABLE audit_log (id int);\n"
+    )
+    monkeypatch.setattr(scaffold, "APP_AUDIT_LOG_DIR", tmp_path)
+    block = scaffold._audit_log_schema_block()
+    assert "applied by its header, as the owner\n\nCREATE TABLE audit_log (id int);" in block, block
+
+
 # ── Row 2: node types get the table and revokes only; the rest nothing ─────
 
 
@@ -180,6 +225,11 @@ def test_node_type_gets_table_and_revokes_only(projects: dict[str, Path], kind: 
     project = projects[kind]
     sql = (project / "db" / "schema.sql").read_text()
     assert _HEADER in sql
+    assert _RAW_OWNER_PSQL not in sql  # the raw variable never reaches psql (01M464NPPB)
+    assert _PGURL_DEFINED in sql  # pgurl is a shell function: the root shell must define it first
+    assert (
+        _SOURCES_ENV not in sql
+    )  # the env files are read as data, never sourced (fabrik-lib 01M4TGJ1CV)
     table_at = sql.index("CREATE TABLE IF NOT EXISTS audit_log")
     assert "current_database() || '_app'" in sql[table_at:]
     assert not (project / "libs" / "audit_log").exists()
@@ -317,7 +367,8 @@ def _roles(s: ScratchPg, db: str) -> tuple[str, str]:
 def _apply_as_header_says(
     s: ScratchPg, schema: Path, db: str, owner_pw: str
 ) -> subprocess.CompletedProcess:
-    """``psql -1 -v ON_ERROR_STOP=1 "$DATABASE_URL_OWNER" -f db/schema.sql`` as the owner."""
+    """The emitted schema applies as the owner in one transaction (this test runs psql on a plain local
+    DSN; the header's pgurl form is pinned by ``_HEADER`` above)."""
     subprocess.run(
         ["docker", "cp", str(schema), f"{s.container}:/schema.sql"], check=True, timeout=60
     )
@@ -493,7 +544,18 @@ def test_committed_compose_carries_the_audit_jobs_companion(
     assert companion is not None
     svc = services[companion.id]
     assert svc["command"] == companion.command
-    assert svc["env_file"] == [".env"]
+    # Owner split (D-754): the companion loads `.env` AND `.env.owner` (long syntax, `required: false`
+    # — the registrar writes the owner file after the first `up`); the app service loads `.env` alone.
+    # Both optional (W-6f690b90): a fresh checkout has neither file, and `compose config` refuses a
+    # required one that is absent.
+    assert svc["env_file"] == [
+        {"path": ".env", "required": False},
+        {"path": ".env.owner", "required": False},
+    ]
+    # every OTHER service stays off the owner file (an app service may render no env_file key at all)
+    for other, cfg in services.items():
+        if other != companion.id:
+            assert ".env.owner" not in str(cfg.get("env_file", [])), (other, cfg.get("env_file"))
     assert svc["deploy"]["resources"]["limits"]["memory"] == companion.memory
     assert svc["networks"] == ["fabrik"] and svc["restart"] == "unless-stopped"
     assert svc["container_name"] == companion.id
@@ -510,6 +572,36 @@ def test_committed_compose_carries_the_audit_jobs_companion(
 
 
 @requires_fabrik_env
+@pytest.mark.skipif(shutil.which("docker") is None, reason="needs the docker compose CLI")
+@pytest.mark.parametrize("kind", [*_PY_BACKENDS, *_NODE_DB, *_NOTHING])
+def test_committed_compose_passes_compose_config_in_a_fresh_checkout(
+    projects: dict[str, Path], kind: str, tmp_path: Path
+) -> None:
+    """W-6f690b90: a fresh checkout has no .env (the scaffolder writes none; every deploy path
+    writes it before `up`), so a short-form `env_file: [.env]` makes `docker compose config`
+    refuse with "env file .../.env not found". The committed compose alone must parse. The
+    environment is stripped to what docker needs, so no variable exported in the caller's
+    shell can feed compose interpolation."""
+    keep = ("PATH", "HOME", "DOCKER_HOST", "DOCKER_CONFIG")
+    committed = projects[kind] / "compose.yaml"
+    if not committed.is_file():
+        pytest.skip(f"{kind} commits no compose.yaml")
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    (checkout / "compose.yaml").write_text(committed.read_text())
+    run = subprocess.run(
+        ["docker", "compose", "-f", "compose.yaml", "config", "-q"],
+        cwd=checkout,
+        env={k: v for k, v in os.environ.items() if k in keep},
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    assert run.returncode == 0, run.stderr
+
+
+@requires_fabrik_env
 @pytest.mark.parametrize("ptype", ["chrome-extension", "file-worker"])
 def test_rendered_template_carries_the_audit_jobs_companion(ptype: str, tmp_path: Path) -> None:
     """r1 item 1b: every companion type that HAS a compose .j2 renders the companion."""
@@ -519,9 +611,14 @@ def test_rendered_template_carries_the_audit_jobs_companion(ptype: str, tmp_path
     name = f"rt-{ptype}"
     spec = generate_spec(name, ptype, f"{name}.vps1.ocoron.com", use_database=True)
     rendered = TemplateRenderer(output_dir=tmp_path).render(spec, dry_run=True)
-    svc = yaml.safe_load(rendered["compose.yaml"])["services"][f"{name}-audit-jobs"]
+    services = yaml.safe_load(rendered["compose.yaml"])["services"]
+    svc = services[f"{name}-audit-jobs"]
     assert svc["command"] == spec.companion_services[0].command
-    assert ".env" in svc["env_file"]
+    assert svc["env_file"] == [".env", {"path": ".env.owner", "required": False}]
+    # every OTHER service (the app, whatever its template names it) stays off the owner file
+    for other, cfg in services.items():
+        if other != f"{name}-audit-jobs":
+            assert ".env.owner" not in str(cfg.get("env_file", [])), (other, cfg.get("env_file"))
 
 
 @requires_fabrik_env
@@ -662,3 +759,104 @@ def test_fresh_database_scaffold_scans_clean(projects: dict[str, Path], kind: st
     result = scan_repo(projects[kind])
     assert result.files_scanned > 0
     assert result.findings == [], result.findings
+
+
+def test_scaffold_spells_the_owner_file_only_through_the_constant() -> None:
+    """G31 (the Finish review, scaffold-S1/H1): `OWNER_ENV_FILE` is defined once in `spec_loader.py` "so
+    every Python consumer imports them and spells them nowhere else" — scaffold.py carries no literal
+    `.env.owner`, and the three emitted texts that name the file (the gitignore patterns, the two schema
+    headers, the .env.example block, the companion block) still spell it at run time."""
+    source = Path(scaffold.__file__).read_text()
+    assert '".env.owner' not in source and "'.env.owner" not in source
+    assert "OWNER_ENV_FILE" in source
+    for text in (
+        scaffold._SAAS_SCHEMA_SQL,
+        scaffold._SCHEMA_APPLY_HEADER,
+        scaffold._ENV_EXAMPLE_DSN_BLOCK,
+    ):
+        assert ".env.owner" in text and "__OWNER_ENV_FILE__" not in text
+    assert ".env.owner\n" in scaffold._COMMON_GITIGNORE_PATTERNS
+
+
+@requires_fabrik_env
+@pytest.mark.parametrize("kind", list(_PY_BACKENDS))
+def test_scaffolded_gitignore_lists_the_owner_env_file(
+    projects: dict[str, Path], kind: str
+) -> None:
+    """Owner split (D-754): `/opt/<name>` on the VPS is a git working tree, so an un-ignored
+    `.env.owner` would show as untracked there and in every clone."""
+    lines = (projects[kind] / ".gitignore").read_text().splitlines()
+    assert ".env" in lines and ".env.owner" in lines, lines[:12]
+
+
+def test_schema_apply_recipe_reads_the_owner_key_without_sourcing_the_env_files(tmp_path):
+    """fabrik-lib finding in 01M4TGJ1CV (2026-10-13): `. ./.env; . ./.env.owner` ran the env files as SHELL CODE, as
+    root — a value `X="$(touch f)"` executed, a value with an apostrophe aborted the line before psql. The recipe
+    printed by `_SCHEMA_APPLY_HEADER` now reads the one key it needs. EXECUTED here under `sh` (minus `sudo`) with a
+    stub `psql` on PATH and a hostile `.env.owner`: the hostile line must not run, the apostrophe must not abort, and
+    psql must receive the libpq-rewritten DSN; a missing key is refused before psql; a quoted value is unwrapped."""
+    import os
+    import re
+    import subprocess
+
+    header = scaffold._SCHEMA_APPLY_HEADER
+    m = re.search(r"^--   sudo (sh -c .+)$", header, re.M)
+    assert m, header
+    recipe = m.group(1)
+    proj = tmp_path / "proj"
+    (proj / "docs").mkdir(parents=True)
+    (proj / "db").mkdir()
+    (proj / "bin").mkdir()
+    pgurl_line = next(
+        ln
+        for ln in (
+            Path(__file__).resolve().parents[1]
+            / "templates/scaffold/docs/TROUBLESHOOTING_TEMPLATE.md"
+        )
+        .read_text()
+        .splitlines()
+        if ln.startswith("pgurl() ")
+    )
+    (proj / "docs/TROUBLESHOOTING.md").write_text(pgurl_line + "\n")
+    (proj / "db/schema.sql").write_text("-- schema\n")
+    stub = proj / "bin/psql"
+    stub.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > psql-argv.txt\n')
+    stub.chmod(0o755)
+    env = {**os.environ, "PATH": f"{proj / 'bin'}:{os.environ['PATH']}"}
+    (proj / ".env").write_text(
+        "APP=1\n"
+    )  # present, so a revert to the sourcing recipe fails for the HOSTILE reason
+    owner = proj / scaffold.OWNER_ENV_FILE
+    owner.write_text(
+        "X=$(touch marker-executed)\n"
+        "NOTE=it's a test\n"
+        'DATABASE_URL_OWNER="postgresql+asyncpg://owner:pw@postgres-main:5432/appdb"\n'
+        "TRAILING=1\n"
+    )
+    r = subprocess.run(recipe, shell=True, cwd=proj, env=env, capture_output=True, text=True)
+    assert r.returncode == 0, (r.returncode, r.stderr)
+    assert not (proj / "marker-executed").exists(), "a value was executed as shell code"
+    argv = (proj / "psql-argv.txt").read_text().splitlines()
+    assert "postgresql://owner:pw@postgres-main:5432/appdb" in argv, (
+        argv
+    )  # +asyncpg stripped, quotes unwrapped
+    assert argv[-2:] == ["-f", "db/schema.sql"], argv
+    # a missing key, and every hand-edited or still-escaped shape, is refused by pgurl BEFORE psql runs (review
+    # 2026-10-13 S3/S4/O4/O5): the value never reaches psql mangled
+    for shape, line in (
+        ("missing key", "OTHER=1\n"),
+        ("comment tail", 'DATABASE_URL_OWNER="postgresql://o:p@h/d" # note\n'),
+        ("single quotes", "DATABASE_URL_OWNER='postgresql://o:p@h/d'\n"),
+        ("escaped quote inside", 'DATABASE_URL_OWNER="postgresql://o:p\\"x@h/d"\n'),
+        # a _format_env-escaped backslash with NO quote beside it: the one shape only the backslash
+        # alternative of pgurl's case pattern refuses (pass-2 O7 — the mutant that drops `|*\\*` survived)
+        ("escaped backslash alone", 'DATABASE_URL_OWNER="postgresql://o:p\\\\x@h/d"\n'),
+        ("CRLF", "DATABASE_URL_OWNER=postgresql://o:p@h/d\r\n"),
+        ("export prefix", "export DATABASE_URL_OWNER=postgresql://o:p@h/d\n"),
+    ):
+        (proj / "psql-argv.txt").unlink(missing_ok=True)
+        owner.write_text(line)
+        r = subprocess.run(recipe, shell=True, cwd=proj, env=env, capture_output=True, text=True)
+        assert r.returncode != 0, (shape, r.returncode, r.stderr)
+        assert not (proj / "psql-argv.txt").exists(), (shape, "psql ran")
+        assert "pgurl:" in r.stderr, (shape, r.stderr)

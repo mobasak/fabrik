@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-07T21:12:22.112778Z",
   "creator": "infra",
-  "evidence": "",
+  "evidence": "c62b323daa1a87b797e80e1b4749d61ffddb74ef",
   "id": "W-191701d1",
   "kind": "task",
   "legacy": false,
@@ -13,9 +13,10 @@
   },
   "next": "find the commit that changed the chrome-extension pyproject template (git log -S'extend-exclude' -- templates/ src/fabrik/scaffold.py), repoint the patcher's anchor, run tests/test_scaffold_logging.py green",
   "note": "",
-  "owner": "",
+  "owner": "fleet",
   "priority": 1,
-  "status": "open",
+  "resolved_by": "W-0859fd4b",
+  "status": "done",
   "tags": [
     "fleet",
     "scaffold"

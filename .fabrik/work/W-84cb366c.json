@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T11:30:39.834014Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-84cb366c",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: one message string in scripts/command_run.py round's --own-fix refusal",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — one refusal message",
+  "status": "open",
+  "tags": [
+    "mail-01m4zk45cd4ez4xj1rcstn5rwk"
+  ],
+  "title": "command_run.py round: the --own-fix refusal text should say RECORDED observations folded into a diff are not own-fix (mail 01M4ZK45CD4EZ4XJ1RCSTN5RWK)"
+}

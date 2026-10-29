@@ -1,0 +1,28 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:30:58.600499Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-ea482960",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: read mail 01M4WWHVXRXFEC828WWFA9HYGJ, claim it, act on it",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "Coordinator mail sort 2026-10-15; proposed for operator review on the dashboard",
+  "status": "dropped",
+  "tags": [
+    "mail-01m4wwhvxrxfec828wwfa9hygj",
+    "proposed-drop",
+    "waits-operator-review"
+  ],
+  "title": "Lane gate's consumers=external refusal should name a 'Size: small' spec as the cheapest route (feedback row 1791969483) (mail 01M4WWHVXRXFEC828WWFA9HYGJ)"
+}

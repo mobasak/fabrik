@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-09T00:00:00.000000Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-28e4e2d4",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -12,9 +14,13 @@
     "spec": ""
   },
   "next": "**[infra]** **`command_run.py line` says nothing when the last round LAPSED** (2026-09-09, owner: infra) — an adopted record's round omitting `--confirmed` prints its lapse only on that round's streams; the pinned `RUN:` line a resumed session re-reads carries no ` · lapsed` token (T10 review round 2, recorded as a design call).",
-  "note": "migrated-digest:58f6bc34132d",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
-  "priority": 2,
-  "status": "open",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — line prints nothing on lapsed round; misleads",
+  "status": "dropped",
+  "tags": [
+    "medium"
+  ],
   "title": "**`command_run.py line` says nothing when the last round LAPSED** (2026-09-09, owner: infra) — an adopted record's round omitting `--confirmed` prints its lapse only on that round's streams; the pi..."
 }

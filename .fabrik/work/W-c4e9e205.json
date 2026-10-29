@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:21:49.874485Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c4e9e205",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "find the WSL layer (localhost port tracker, networkingMode=nat) that registers ephemeral binds late; until fixed, a test server fixture can poll-connect before use",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — WSL port-0 race in tests; poll-connect workaround known",
+  "status": "dropped",
+  "tags": [
+    "medium"
+  ],
+  "title": "WSL box: an IPv4 loopback listener bound to port 0 refuses connections for ~10-50 ms after listen() (explicit ports and ::1 are immediate), so ThreadingHTTPServer(('127.0.0.1',0)) tests race (wef 01M4RPGF7N)"
+}

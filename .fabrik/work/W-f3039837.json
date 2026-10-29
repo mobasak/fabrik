@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T17:10:42.467081Z",
+  "creator": "infra-2",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f3039837",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "filter dot-names in _summaries' file list too (one line) and assert the row set in tests/test_mail_notify.py::test_digest_shows_three_rows_under_the_total",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 3,
+  "score_reason": "LOW: a rare edge in the mail digest count (dot-named files); effort low, infra-2's hook",
+  "status": "open",
+  "tags": [
+    "waits-rotation"
+  ],
+  "title": "mail_notify.py: _summaries' glob (line 134) still renders a dot-named .md as a digest row while the header total skips dot-names as mail.py list does, so a foreign dot-file (an editor swap file) shows as the top row but not in the count — no fabrik writer makes one (mail.py temp files are .<id>.tmp, mail.py:482) (W-25f6b2a3 review pass 3, recorded after the scope-growth stop)"
+}

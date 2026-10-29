@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-09T01:27:20.615202Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "3658fde7e9b3f104b36134c1286ca1488829372a",
+  "id": "W-0259f23b",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide: drop the uv targets from the file-worker Makefile, or teach them to use requirements.txt (pip/uv pip install -r); measure which targets break first ALSO (review fw-O6, 2026-10-09): the root pyproject carries [tool.pytest] asyncio_mode=\"auto\" from the template, and file-worker ships no pytest/pytest-asyncio (no requirements-dev.txt, empty tests/), so a future pytest run warns \"Unknown config option: asyncio_mode\"; settle it with the dev-deps decision.",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — scaffolded Makefile target fails on every fresh file-worker",
+  "status": "done",
+  "title": "Scaffolded file-worker's Makefile 'uv sync' target fails: its root pyproject.toml is tool-only (no [project] table); deps live in requirements.txt"
+}

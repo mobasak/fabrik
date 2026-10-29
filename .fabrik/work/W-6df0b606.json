@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T23:27:18.555400Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "715b2bc8aabeb6eebb8d3559ed43052055f6f0ab",
+  "id": "W-6df0b606",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fleet: claim mail 01M5C8PZSVFJQMJZC33GJQKMDW, size it against the lane table, work it, review, reply, ack",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "incident residue: 48 hung Tryton xmlrpc one-liners belonging to no repo during the 2026-10-20 starvation; find the launcher and bound it",
+  "status": "done",
+  "tags": [
+    "mail-01m5c8pzsvfjqmjzc33gjqkmdw"
+  ],
+  "title": "box-wide — 48 hung python3 -c \"xmlrpc.client … localhost:8000/rpc\" (Tryton) one-liners during the 2026-10-20 incident belong to no /opt repo (mail 01M5C8PZSVFJQMJZC33GJQKMDW, from youtube)"
+}

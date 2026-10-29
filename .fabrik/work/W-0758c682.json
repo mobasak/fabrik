@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:36:01.671252Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0758c682",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: exit non-zero (or omit the header) when every floor pack is missing; red test from an empty dir",
+  "note": "duplicate of W-e08c7227 (the mail item mail.py claim created for 01M4Q6CZFN); root cause and next step: /fabrik-task: exit non-zero (or omit the header) when every floor pack is missing; red test from an empty dir",
+  "owner": "",
+  "priority": 1,
+  "status": "dropped",
+  "title": "review_rubric.py exits 0 with a rubric header when every pack is missing, so RUBRIC_RUN clears the CONVERGED flip on an empty rubric (kaizen 01M4Q6CZFN #1)"
+}

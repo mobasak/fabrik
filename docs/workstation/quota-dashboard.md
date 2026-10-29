@@ -1,280 +1,282 @@
-# Claude quota dashboard (box-local, `localhost:5051`)
+# Command centre — the quota dashboard (box-local, `localhost:5051`)
 
-**What it is:** the account-quota board rendered for a browser tab you leave open — every
-Claude account's session (5h) and weekly headroom, reset times, the active pointer, caps and
-warnings. It is a VIEW over `claude_rotate.py --status --json`; it owns no state, decides
-nothing, and never touches a credential file.
+**What it is:** the operator's command-and-control page for the box, in a browser tab you leave open.
+Six views behind one navigation — **Overview** (what needs you now), **Work**, **Accounts**, **Usage**,
+**Commands**, **Services** — over the same collectors the old five-tab board read: every Claude
+account's session (5h) and weekly headroom from `claude_rotate.py --status --json`, every repo's work
+store, every agent's run records, the box budget, the spend sidecar, the command corpus, the pool and
+search-API balances. It decides nothing and never touches a credential file; its only writes are the
+operator's own clicks, relayed to `work.py` and the rotation CLI (§ Boundaries).
 
-**Open it:** <http://localhost:5051/> (works from Windows too — WSL forwards loopback).
+**Open it:** <http://localhost:5051/> (works from Windows too — WSL forwards loopback). Each view has
+its own URL — `/#overview` (the default), `/#work`, `/#accounts`, `/#usage`, `/#commands`,
+`/#services` — so a link or a reload lands where it was; `/#work/<repo>` opens one repo's pane.
 
-Tool: `scripts/sysadmin/quota_dashboard.py` · Output: `~/.claude/quota-dashboard/`
-(`index.html` + `quota.json`) · Log: `~/.claude/quota-dashboard.log`
+Tool: `scripts/sysadmin/quota_dashboard.py` (the server, the collectors, the probe loop) and its page
+layer `scripts/sysadmin/dashboard_ui/` · Output: `~/.claude/quota-dashboard/quota.json` (and the
+pool/search-API caches beside it) · Log: `~/.claude/quota-dashboard.log`. The redesign is plan
+`docs/development/plans/archived/2026-10-17-plan-1-command-centre-dashboard/` over spec
+`docs/superpowers/specs/2026-10-16-command-centre-dashboard-design.md` (D-925).
 
-## How it stays current — the server probes on its own cadence
+## The page layer
 
-**The server probes every `QUOTA_DASH_PROBE_INTERVAL_S` (default 20s) whether or not a page is open**, on a
-thread `serve()` starts (`_start_probe_loop`), and after every probe hands the fresh payload to the
-rotation trigger (below). The page's health-gated reloader re-fetches every `QUOTA_DASH_REFRESH_S`
-(default 20s), so what you see is at most ~20s old. The on-view floor (`QUOTA_DASH_MAX_AGE_S`, now 20s)
-remains only as the fallback for a view that lands before the first loop iteration: the operator wants the board — and the rotation decision it feeds — current at 20s granularity, and a few usage probes every 20s is the price.
+```text
+scripts/sysadmin/dashboard_ui/
+  components.py   every HTML builder — the ONLY code that writes markup; every value escaped
+  strings.py      the string catalogue: every word the page shows (D-926); `t(key)`, `use(mapping)`
+  fmt.py          the shared formatters (ages, resets, the posture sub-line) — words from the catalogue
+  snapshot.py     the decision card's snapshot token
+  merges.py       the fleet-wide blocked-merge reader
+  views/          one module per view: render(data, ctx) -> ViewResult, optional collect(ctx)
+    overview.py work.py accounts.py usage.py commands.py services.py
+  static/app.css  one stylesheet: one palette, light / dark / system, computed contrast
+  static/app.js   every client behaviour, declared by markup attributes (posts, dialogs, filters, refresh)
+```
 
-**The rotation trigger — the fast path to a flip.** After each probe, if the ACTIVE account's 5h window is
-at/over `ROTATE_THRESHOLD` (default **98**, D-201 — the tick's own default, pinned equal by a grader) or the account is cap-walled — or, on the
-URGENT-DRAIN tier, at/over `ROTATE_URGENT_DRAIN_PCT` (default **90**: the tick then sends the operator's
-"stop gracefully, hook to the next reset" mail if NO successor exists; this tier has its OWN cooldown so a drain
-tick at 90 can never delay the flip tick at 98) — or, while
-the probe is BLIND (the payload carries `probe_failed`), at/over the drain line (`_drain_band()` — `ROTATE_DRAIN_THRESHOLD`, read lazily and guarded like the session bar; the import-time `BLIND_TRIGGER_THRESHOLD` constant is gone,
-`ROTATE_DRAIN_THRESHOLD` = 85 — a run of blind probes must not hide a wall approach behind the last good reading) — the
-server invokes `claude_rotate.py --tick` at once (`_maybe_trigger_rotation`; once per
-`QUOTA_DASH_TRIGGER_COOLDOWN_S`, default 120s) — on its own thread (a slow tick never stalls the probes)
-and under the cron's own lock (`flock -n ~/.claude/state/rotate.lock`, `QUOTA_DASH_ROTATE_LOCK`), so the
-board's tick and a cron tick never decide at once; while a cron tick holds the lock the board's is skipped.
-`generate()` is serialized: the loop, a view and a switch can never run two probes concurrently. The tick keeps every safety it has — dwell, pause,
-successor validation, its own state lock — so this shortens the latency from ≤5 minutes (the `*/5` cron
-tick, which stays as the backstop) to ≤ the probe interval. The invocation and the tick's exit line are
-written to the dashboard log.
+The package never imports `quota_dashboard` (that module runs as `__main__`; a second import would
+split its registries): the server hands each view its data (`_view_data`) and wraps the markup the view
+returns. Three invariants are graded, not hoped for: no string holding an HTML tag is built anywhere but
+`components.py` and no view hands a component a literal word (INV-4 —
+`tests/test_quota_dashboard_page_layer.py`, an AST scan); every view rendered under a stand-in
+catalogue shows no catalogue-owned English (the same file); and every datum and control the old five
+tabs showed renders in some view (INV-2 — the same file's inventory). The old page builders (31 of them,
+`_repos_page`, `render`, `_agents_block`, the panels and cells) were deleted with the redesign (T07).
 
-**Relief tier.** The tick's drain-band relief flip (D-171) keys on the active's HOTTEST window, session or weekly, so the fast path mirrors it: active at/over `ROTATE_DRAIN_THRESHOLD` (85) with another account eligible and below the band on both windows (`_relief_candidate`, a read-only mirror of the tick's precondition) → `--tick` now, under its own cooldown slot (tier order: flip/cap-walled, urgent drain, relief). The Quota tab's ghost `return` row renders for such an active too — it returns when its hottest window resets — so the queue shows it leaving rather than settled.
+**Render-time baseline** (the spec's growth trigger: a view whose render exceeds 500 ms moves its
+collector onto the probe loop's cache): measured at T01 on the live box, the old page's `generate()`
+took 1,619 ms and `_repos_page(fresh=True)` 1,505 ms — the costs the Overview and Work views now carry
+per refresh through the 20 s collector cache.
 
-**Row order = rotation order.** The active account is the first row; then the
-standby the tick would pick NEXT, then the one after, for any number of accounts (`_display_order`, the
-read-only mirror of the tick's `_pick_flip_target`: eligible = not cap-walled, no window ≥100, a known 5h
-reading ≤ the target budget and below the flip threshold; ranked soonest weekly reset first, then lower
-weekly, then lower session). Ineligible accounts (cap-walled, walled, no reading, no 5h budget) follow by
-the same key. Each row carries its rank badge — `ACTIVE`, `NEXT`, `#3 in line`, … or `not eligible`.
+## The views
 
-Properties that still hold:
+### Overview — what needs you now (the default)
 
-- `--status --json` makes **live API probes** for fresh-token dirs; the floor bounds probe volume, so refresh-spamming cannot multiply it.
-- The rendered page always states the age of its own data and, per account, whether the
-  reading is live or `cached Nh ago`. A stale render is visible, never silent: when the last
-  regeneration RAISED, or the page is older than one probe interval plus one probe timeout plus a
-  minute (140 s by default) with no regeneration finished, the served page carries a red
-  `Stale page` banner. It names the page's age and, for a failure, when it happened and the error
-  class, and it is injected at serve time, so `index.html` itself stays the last good render
-  (W-6a0f3c65 — on 2026-09-07 a TypeError froze the board for 16 cycles under a header still
-  reading "refreshes every 20s").
-- **A pointer flip beats the floor.** Every view compares the live `active` symlink with the
-  `active` of the last render; when they differ, the page regenerates synchronously ONCE (bounded
-  by the probe timeout) so the very next view shows the new account.
-- A failed probe does **not** blank the page: it renders the last good payload behind a red
-  "live probe failed" banner (`quota.json` is the fallback store, and the fallback carries `probe_failed`
-  so the rotation trigger lowers its bar — see above). Transient network blips are
-  first **retried at the HTTP layer** (`_oauth_get`, `OAUTH_GET_ATTEMPTS`/`OAUTH_GET_TIMEOUT_S`
-  — see `claude-account-rotation.md` § Transient-blip resilience) before this fallback triggers,
-  so a single stalled call under a flaky VPN no longer trips the 60s cap
-  (`QUOTA_DASH_PROBE_TIMEOUT_S`).
-- **Idle accounts show `cached Nh ago` by design** — `--status` (what this shells) is a fast,
-  ping-free read; only the *active* dir's fresh token is probed live. **Idle-cache freshness is
-  the `*/5` rotation tick's job**, not the dashboard's. So if idle ages climb without bound
-  (past the full window), the tick is either not running (check `crontab -l`) or
-  its refresh-ping is failing to resolve `claude` under cron's PATH — see
-  `claude-account-rotation.md` § Cron PATH.
+One summary strip (decisions waiting per repo with the oldest age, blocked merges, agents not working,
+the quota band and the active account, any health fault — each a link to its section), then, by
+urgency: **Decisions waiting** (every `awaiting-operator` item across `/opt/*/.fabrik/work`, grouped by
+repo with the hub's group first and expanded, the others collapsed to their count; a card per item with
+its ground, the question clamped to three lines with *Show all*, the asking agent, the wait; *Accept* and
+*Reject* on a decision, *Comment* on every card), **Blocked merges** (read-only; the card names the merge
+owner who must act), **Agents** (one table per repo — state, NOW, Holds, NEXT with its queued count,
+last merge or "merge owner", paused by / at / why and a partial pause, "not honoured here" until a repo's
+work.py syncs, windows, named-from, the dormant count per repo, and Pause / Resume), the **Quota** strip
+(band, active account, successor, the three windows with resets, the hold tier, the next relief) and the
+**Health** strip (stale views, failed collectors and probes, and the box-budget line). On a RED or WALL
+band, or a failed probe, the Quota and Health strips move above the decisions.
 
-## Reading the board
+The **box-budget line** is `dispatch_headroom.py --json` reduced to what the box AND the quota allow
+right now — read-only and heavy seats allowed, the box cap and the sibling reservation, the CLI cap, the
+quota line (or the fleet hold at 0 seats) — with the script's own degraded-state reasons as caveats
+(`_budget_reading`, `_budget_caveat_lines`; a heavy-only cause is labelled "heavy half —"). It is served
+from a 60 s cache that one background probe refreshes (`_budget_cached`); it never runs on a request
+thread, and an account switch bumps the cache's generation so a probe already in flight cannot land the
+old account's reading. `QUOTA_DASH_BUDGET=0` disables it (the tests).
+
+**Agents** are `scripts/agent_status.py`'s `collect_box`, loaded by path: a repo's agents are its open
+windows (interactive `claude` processes, named by `CLAUDE_AGENT`, else their worktree, else the newest
+run record's agent), plus the agents with a run record of that repo in the last 7 days and those holding
+a claim; older agents are counted as dormant, not listed. **Pause / Resume** (W-7159f8e2) appears on a
+row whose repo's store has `config.json`; Pause asks for an optional reason in its confirm dialog, Resume
+names every marker it lifts and who set the first. Both post `/agent-pause`; the board runs the HUB's
+`work.py --repo <repo> pause|resume` as the OPERATOR (the child gets only PATH, HOME, LANG, LC_* and
+TZ) and every rule about who may pause stays `work.py`'s (D-910).
+
+### Work — every repo's remaining work
+
+The repo picker (`fabrik` first, then by how much remains), the **Tag** filter, and per repo: a summary,
+owner chips with counts (**All**, the hub agents at 0 too, `operator` and other owners by name,
+**(unassigned)** last; an unowned awaiting decision counts under `operator`), the skipped-file list, and
+one closed section per owner — a table of id, kind, status, priority, title, next step (capped at 160
+characters, the rest behind a disclosure up to 600), tags, live claim and the **Operator** cell:
+*Accept* and *Reject* (each with its confirm dialog; Reject needs a reason) on every open item except an
+awaiting non-decision, and a comment box (Enter saves). Rows run awaiting-operator first, then priority,
+then id. "Remaining" is `work.py`'s own rule, imported by path. The chip, the tag and the picked repo are
+kept by `app.js` (the hash and `localStorage`), and the 20 s refresh keeps them.
+
+Every verdict posts `/item-verdict` with the card's **snapshot token** — a hash of what the card showed
+(question, status, ground, comment count, merged duplicates). The server re-derives it from the item as
+it stands and answers **409 `changed`** when they differ, or **409 `diverged`** when the board's tree and
+the repo's main checkout disagree about the item; the page then says so in its live region and reloads
+the view. A verdict with NO token — a page loaded before the redesign — is accepted only through
+`_LEGACY_TOKEN_UNTIL` (**2026-10-31**, the redesign's coding date plus 14 days, inclusive), then refused
+with the same 409. What accept and reject do to an item is `work.py verdict`'s
+(`docs/reference/work-tracking.md`).
+
+### Accounts — which account serves, which comes next
+
+The banners (live probe failed, auto-rotation paused by the operator marker, pause state unreadable, no
+accounts reporting), the fleet **Warnings**, the **quota governor**'s verdict, and the accounts in
+**rotation order** with a rank badge each — `#1 ACTIVE`, `#2 NEXT`, `#N in line`, `#N — returns <time>` —
+then the active account's own return slot (a ghost row when it will be flipped away and come back at its
+reset) and the scaffolded-but-unlogged `pending-login` dirs ("One /login in this directory pins it").
+Each row: session (5h), weekly and Fable meters, and an **Edit** disclosure holding Switch, Disable /
+Enable, the weekly cap and the rotate-at line, each behind a confirm dialog. Below the table, the rotation
+rule with the flip threshold and the probe interval.
 
 | Element | Meaning |
 |---|---|
-| `ACTIVE` badge + highlighted row | the account `~/.claude-fleet/active` points at — what every session uses |
-| red `Stale page` banner at the top | what you see is an old render: either the last regeneration failed (its time and error class are named; the traceback is in `~/.claude/quota-dashboard.log`), or no regeneration has finished for longer than a probe cycle (a probe may be hung). The next good regeneration removes it |
-| `N% left` + bar | **remaining** headroom (the CLI prints *used*; this prints what is left) |
-| green / amber / red | >25% · 6–25% · ≤5% remaining |
-| `cap N%` badge | a `caps.json` reserve exists for this account |
-| `#1 ACTIVE` … `#N` badges (rows in queue order) | the Quota tab is the ROTATION QUEUE: `#1` the active account, `#2 NEXT` the account the tick would pick now, then the rest in the order they would come up. Eligible accounts keep the picker's perishable-first order (still its read-only mirror); the ineligible tail is ordered by WHEN each returns — `#N — returns <time>` — a session-spent account back in two hours precedes a cap-walled one back next week even though its session reads 100%. Unknown return times sort last |
-| `↩ … returns here` ghost row (`is-return`, greyed, no switch button) | an active account at/over the flip line will be flipped away and comes back at its own reset, so it is "both #1 and #N": its return slot is drawn at position N, and the active row's badge says `also #N (returns <time>)`. A healthy active account gets no return row |
-| `pending-login` row (greyed, last, no switch button) | a dir `--new-dir` scaffolded that has not had its ONE `/login` yet — `--status --json` lists it under `pending`, not `accounts`. Shown so "not scaffolded" and "not logged in" are distinguishable |
-| `RESERVED — fleet excluded` | weekly ≥ its cap: automated flips skip it, the remainder is the operator's (browser use). `--switch` may still target it, deliberately |
-| `WALLED` | weekly ≥ 100%: unusable until its reset |
+| `N% left` | **remaining** headroom (the CLI prints *used*); green >25%, amber 6–25%, red ≤5% — red is where the fleet abandons the account |
+| `cap N%` · `RESERVED — fleet excluded` · `WALLED` · `PARKED — out of service` | a `caps.json` reserve · weekly at its cap (automated flips skip it; `--switch` may still target it) · weekly ≥ 100% · taken out of service (`--park`) |
 | `cached Nh ago` | the account is idle, so its token is stale; the reading is the last known one with its age |
-| `idle` in the session cell | the account is NOT the active pointer, so no session can be burning its quota — its 5-hour window is empty by construction, not by measurement. Shown when the cached reading is older than the window itself, **or when the reading's own reset time has already passed** (e.g. a ~47h cache of a 7-day window whose weekly reset date is now in the past — the window has rolled over even though the cache is younger than the full window). On a capped account it adds "browser use is not visible here", because that usage is the one thing no probe of ours can see |
-| `unknown` in the session cell | the ACTIVE account with a reading older than its 5-hour window — it CAN be burning quota, so nothing is derivable and no number is shown; it re-reads on next use |
-| `Fable 5 weekly remaining` column | Fable-5's separate weekly limit, its own 4th column with the same remaining-framing as Weekly (`N% left` + bar + `used% · resets`). Read from the usage payload's `limits` array — a `weekly_scoped` entry whose `scope.model.display_name == "Fable"` (it has **no** top-level window key — a top-level-only scan misses it). An account with no Fable reading yet (idle, access token unrefreshed) shows `no reading` until the tick re-probes it. Undocumented always-0 codename windows (`nimbus_quill`, …) are not surfaced |
-| Warnings section | the same `fleet_warnings` the CLI prints (carrier/occupancy/cap/identity-mismatch) |
-| `OpenRouter pool` banner | the metered pool's balance — **the fleet's other quota**. Shown on the **Quota** tab AND the **External services** tab, because OpenRouter is an external service before it is a quota and that page already lists it as a paid provider with an unfilled `credit` field — the operator looked for it there first, correctly. Green above `POOL_CREDITS_WARN_USD`, amber at or below it, red at zero with what the operator will actually see (`every fanout() returns HTTP 402 with no output and no spend`). Absent entirely when no key is configured. A balance served past its TTL says `endpoint unreachable` with its age rather than blanking — the same stale-beats-blank rule as the account rows |
+| `idle` in a window cell | the account is NOT the active pointer and its cached reading is older than the window (or the reading's own reset has passed): its window is empty by construction. On a capped account it adds "browser use is not visible here" |
+| `unknown` in a window cell | the ACTIVE account with a reading older than its window — it CAN be burning quota, so no number is shown |
+| Fable column | Fable-5's separate weekly limit, read from the usage payload's `limits` array (`scope.model.display_name == "Fable"`); `no reading` until the tick re-probes an idle account |
+| `0.60%/m, wall in ~48m` on the active row | the rotation tick's smoothed burn and whichever of the wall or the reset comes first, RELAYED from the `posture` key of `claude_rotate.py --status --json` (the tick's own reading, the one the `QUOTA:` prompt line shows — D-273); the board re-derives nothing. A standby row carries none, deliberately |
 
-| `switch →` button | on every row that is NOT the active pointer: one click flips the fleet to that account NOW — the same manual flip as `--switch <slug>` (pause-, dwell- and cap-exempt), confirmed in-page first; every session bound to the pointer (`CLAUDE_CONFIG_DIR` → the `active` symlink, § How a session binds to the pointer in `claude-account-rotation.md`) follows it without a restart. The active row carries no button (nothing to rotate to), and neither does a parked row |
-| `disable` / `enable` button | on every account row: **disable** parks the account (`--park <email>` — listed, never picked, no capacity counted; `claude-account-rotation.md` § Parking), **enable** puts it back (`--unpark`); confirmed in-page first. A parked row shows the `PARKED — out of service` badge in place of its cap and offers only **enable** |
+**Row order = rotation order** (`_queue`, the read-only mirror of the tick's `_pick_flip_target`):
+eligible standbys perishable-first (soonest weekly reset, then lower weekly, then lower session), then
+the ineligible tail by WHEN each returns — a session-spent account back in two hours precedes a
+cap-walled one back next week. A parked account is never shown returning.
 
-Rows sort by weekly headroom, so the fleet's next flip target is the top eligible row.
+### Usage — what did we spend
 
-**The forecast on the ACTIVE row (D-273).** Each window cell's sub-line — the one
-reading `N% used · resets <when>` — gains two more facts on the active account's row only:
-the burn rate the rotation tick smoothed over its last ~35 minutes of samples, and whichever of
-the wall or the reset comes FIRST, as `0.60%/m, wall in ~48m`. Both are READ from
-`~/.claude/state/quota-posture.json`, the same file the `QUOTA:` line injected into every prompt
-reads, so the board and that line can never disagree — the board re-derives nothing. `no burn
-yet` when the tick has only one sample or the window's reset epoch just moved; nothing at all
-when there is no posture, which is how the board rendered before this existed and how it still
-renders on a box where the tick has not run.
+The cost sidecar `claude_p_cost.json` (rebuilt by the 06:00 cron): tier-weighted subscription spend over
+its rolling window with `built_at`, the fee breakdown when the window's months carry fees, a reconcile
+line, and a daily calendar per month. Tokens no tier claimed are named in a warning that survives the
+no-tiers path; a missing or unreadable sidecar is said in words, never a zeroed table.
 
-⚠️ **A standby row carries no forecast, deliberately.** An account that is not the active pointer
-is not burning fleet quota, so a rate for it would be a number with nothing behind it — the same
-reasoning as the `idle — not the active pointer` cell above.
+### Commands — what each `/fabrik-*` command does
 
-### The box-budget banner (D-191)
+A searchable catalogue in pipeline order — `#`, command, stage, purpose, when to use, skip when, next,
+native subagents, model tiers — parsed live from each command's own `description:` under
+`commands/_sources/` (the successor from the assembler's `NEXT` map; the order from `PIPELINE_ORDER`),
+with per-command detail, and the **service matrix** as its own tab: which outside-the-box service each
+command actually reaches, a dot meaning the command names that service's own invocation token
+(`fanout(`, `WebSearch`, `mcp__firecrawl`, `fabrik apply`), never a prose mention.
 
-One muted line above the commands table, served from a 60 s cache that a background probe of
-`dispatch_headroom.py --json` refreshes (`_budget_probe`; `QUOTA_DASH_BUDGET=0` disables it for
-tests and headless renders). It prints the MAXIMUM the box and the quota allow right now — "read-only
-seats allowed now: N (box B …)" and the heavy twin — the CLI cap, and the quota line ("active X at
-P%, N cool standby(s) of M eligible"; "FLEET HOLD" at 0 seats). Two honesty rules the reviews forced:
-the label names a sibling reservation ("after K reserved by sibling sessions") and says when the
-number is the FLOOR rather than the remainder ("= the floor, K reserved"); and every degraded-state
-reason the script emits (a failed box/quota/sibling probe "held at the floor" / "not subtracted",
-sibling sessions with no seat figure = a LOWER bound, an env-only own id, a warm-only standby set)
-renders after a ⚠️ — a confident number over a failed probe is the defect the banner exists to end.
-The banner's closing sentence names how a fan-out sizes its seats from these numbers: a review loop
-partitions its files into slices (Opus on the risky slices, Sonnet on the rest, at most one Haiku
-class seat) and sizes by `--slices`; a grounding or adjudication surface sizes by `--units` with the
-three-seat floor (`tests/test_quota_dashboard_banner.py` is the grader for this sentence's wording).
-The probe carries three reason halves — the run's own, the read-only and the heavy budget's — and the caveat line merges them (a heavy-only cause is labelled "heavy half —"); a probe payload that predates the halves says so instead of passing as "no heavy caveats". An account switch bumps the cache generation: a probe already in flight may not land its
-old-account line, and an orphaned one re-kicks a probe for the current generation.
+⚠️ **The matrix reads `~/.claude/commands/`, the RENDERED corpus** (`QUOTA_DASH_RENDERED_COMMANDS`):
+the assembler appends the shared pool and mail fragments, so the sources under-report. A command with
+no rendered file falls back to its source and the caveat names which rows did. HTML comments (the
+corpus keeps the pool contract inside POOL OFF comments for re-enable, D-181/D-182) and the shared
+boilerplate are blanked before any detector runs; the `pool` and `flywheel` columns are tombstones whose
+expected count is 0. The intro states the method's limits: a literal match reads no negations, and a
+rewrite that keeps a file's mtime and size is invisible to the cache. **Adding an external service to
+the fleet means adding a row to `_EXT_SERVICES` in `quota_dashboard.py`** — the page says so too. The
+native-subagents cell leads with the command's own dispatch RULE (an Opus floor, the unit it fans over,
+or a fixed floor), then the seat types and their tiers.
 
-### The OpenRouter pool banner
+### Services — are the external services healthy and funded
 
-The board watches Claude account quota AND the **metered pool**: a pool that runs to zero is discovered by every repo at once as HTTP 402 mid-run, so the balance is polled on the board's own cadence from the key already on disk.
+The **OpenRouter pool** balance (shown once, here; a level, not a projection — HTTP 402 is issued on
+balance; amber at or under `POOL_CREDITS_WARN_USD`, red at zero with what you will see, "endpoint
+unreachable" with its age when served past its TTL, "not configured" when there is no key), the
+**search-API quotas** (Brave, Firecrawl, Exa — plan, remaining, renewal; every value that cannot be
+obtained says why), and the **external-services inventory** — the registry's providers rendered in place
+by `dashboard_ui/inventory.py` (the same function writes `external-services-dashboard.html` for the 06:00
+chain's `scripts/gen_dashboard.py`): a summary, the Needs-attention list, the categories as collapsed groups
+with a filter (a name, Cost, Status) and the untriaged queue.
 
-It is a **level, not a projection**. HTTP 402 "Insufficient credits" is issued on balance, so the
-number is the direct signal rather than a proxy for one. No runway is estimated here: the burn RATE
-lives in the flywheel's Postgres rows (intel's beat), and a days-remaining figure this file cannot
-defend is worse than none.
+**The registry read** runs in a CHILD PROCESS, `scripts/sysadmin/inventory_read.py` — the one place psycopg2
+is imported, so the board stays stdlib and a missing driver is only this section's error state. The
+collector (`_inventory`) spawns it under `sys.executable` with a deadline 4.5 s after the arrival of the
+request that spawns it and kills it at that deadline (a request that joins the read shares that deadline
+and waits up to its own 5 s), so the section answers inside the request's 5 s whatever Postgres does; the
+child also bounds itself with a SIGALRM a moment past that deadline, should the board be gone, and reads
+the registry in ONE read-only REPEATABLE READ snapshot, so a read that straddles `registry_sync`'s commit
+never shows pre-sync rows under the post-sync `synced_at` (W-a4bc74a6); one
+lock guards the last good read and the read in flight (never held across a read), concurrent requests
+share one child, and the last good read is served for 60 s from its start. A failed or killed read is
+the section's error state, `<ExceptionClass>: <first line>` and nothing more, with Retry; the pool and API
+cards render beside it. No connection is ever cancelled. The Services view has no timed refresh: it loads
+on navigation, on `visibilitychange` and on a forced refresh.
 
-It renders in TWO panes — Quota and External services — because the external-services page lists OpenRouter as a paid provider whose `credit` column nothing else fills, so "is my third-party spend OK" is a question people take to that tab.
+**The pool drain advisory.** When the balance falls to `POOL_CREDITS_WARN_USD` or below, the board sends
+ONE mesh-notify (the rotation tick's notify path) for the drain episode, latched by
+`<OUT_DIR>/pool-credits-drained`; the latch is cleared — re-armed — the moment the balance recovers
+above the line. An unknown balance (no key, an unreachable endpoint with nothing cached) is silence,
+never a false alarm.
 
-Three properties worth knowing:
-
-- **Off the critical path.** The GET runs in its own daemon thread on the probe loop's cadence,
-  never inside `_gen_lock` and never on a page load — an inline fetch puts a third-party endpoint on the board's critical path, where a stalled probe makes every page load sit for its full timeout and the board reads as "not reachable"; the cadence tests catch that shape.
-- **The drain advisory is latched.** One mesh-notify per drain episode, re-armed the instant the
-  balance recovers — the same rule as the fleet wall advisory, for the same reason: an alert that
-  repeats every 20s is an alert everyone filters, and a latch with no re-arm goes silent through the
-  next incident.
-- **Unknown is silence.** No key, or an unreachable endpoint with no cached balance, renders nothing
-  and alerts nothing. A box without the pool configured looks exactly as it did before.
-
-### The Commands tab
-
-The page has four tabs. **Quota** (default) is the board above. **Commands** lists every `/fabrik-*`
-command in pipeline order — `#`, command, stage badge, purpose, when to use, skip when, next — and
-none of it is typed into the dashboard: each row is parsed live from the command's own frontmatter
-`description:` under `commands/_sources/` (purpose = the text before `TRIGGER —`; when = the
-TRIGGER clause; skip = the `SKIP:` clause; stage = `Stage:`), and the successor comes from the
-assembler's `NEXT` map (`commands/assemble_commands.py`). The one hand-held fact is
-`PIPELINE_ORDER` in `quota_dashboard.py` (CLAUDE.md § Pipeline: stages, then gates, then
-utilities); a test refuses a source with no slot and a slot with no source, so it cannot drift from
-the corpus silently. Rows are cached on the sources' mtimes — and on the RENDERED corpus's, because
-the matrix below reads that. The chosen tab lives in the URL hash (`#commands`), so the 20-second
-reload lands on the same tab.
-
-#### The external-services matrix, under the table
-
-Below the command table, a **command × service matrix**: which outside-the-box service each command
-actually reaches — the OpenRouter pool (OFF by ruling), the flywheel (retired with it),
-session-recall, WebSearch/WebFetch,
-Brave, Firecrawl, Exa, a headless browser, GitHub via `gh`, the VPS fleet, ai-consult, the citation
-verifier, fabrik-mail. A dot means the command **names that service's own invocation token**
-(`fanout(`, `WebSearch`, `mcp__firecrawl`, `fabrik apply`), not that it mentions the service in
-prose — the distinction is load-bearing, because `VPS`, `GitHub` and `flywheel` all appear in the
-beat-routing table every command carries, and a prose match rated all 36 commands as VPS-touching.
-The footer row carries each column's total against its denominator (`of 35`).
-
-**Since D-181/D-182.** The OpenRouter pool is OFF by ruling and the corpus keeps its
-pool contract inside `<!-- POOL OFF -->` comments for re-enable, so every detector runs over the
-command's LIVE text only (HTML comments blanked first — `_command_live_text`). The `pool` and
-`flywheel` columns are **tombstones**: both stay on the board so the retirement is visible, and a
-dot in either means live usage survived outside the comments — the expected count is 0 of 35 for
-each. The pool probe reads BACKTICKED PROSE as well as code (`` `fanout` one grounder per axis ``
-is a dispatch instruction as surely as `fanout(`); a paren-only pattern misses them. The flywheel probe is the
-call form only (`record_agent_run(` / `set_quality(`) — the banner NAMES both symbols in the
-instructions it suspends. The first table's **Native subagents** column leads with the command's own **dispatch RULE** — the
-Opus authoritative floor where it carries one, plus the UNIT it fans over (`1 per screen`, `1 per
-persona`, `1 per claim`, `1 per rival`), because under D-186 the seat count IS the unit count and a
-leading type count read as "1 subagent" for commands that dispatch five. A command stating a FIXED
-floor instead shows the number (`/fabrik-review-scoped`: `2–3 readers`); one with neither shows `no
-per-unit rule`. The shared fragment's own sizing paragraph is blanked before the rule is read, or all
-20 commands that include it would report the same one. After the rule come the seat types its own
-steps name, which
-(`fabrik-reviewer` · `fabrik-researcher` · `fabrik-gui` · `design-review` · `general-purpose`,
-`_NATIVE_TYPES`), and **on which model tier** (`opus` / `sonnet` / `haiku` / `fable`, read from the
-text between that seat and its neighbours — and never across a paragraph break — so a paragraph's
-tiers are not smeared across every seat in it). A second column, **Model tiers**, carries every tier
-the command's own steps name whether or not a seat mention is near one: a tiering paragraph's "Haiku
-only for trivial-mechanical checks" is a real tier no seat is beside. Each tier is awarded to exactly ONE seat, the
-nearest; and `general-purpose` — the one type that is also an ordinary English adjective — counts only in code-span form, because its live mentions are `` `general-purpose` `` seat references bar fabrik-vision's "Never wire a general-purpose vendor SDK". Boilerplate every command carries by assembly — the D-181 banner (minus its per-command
-`{{FLOOR}}` sentence, which names a real seat and its tier), the subagents fragment's identical type
-enumeration, and the close-out fragment's "Subagents are ephemeral" paragraph — is blanked before
-ANY detector runs (`_BOILERPLATE`, applied to the dots and the native column alike): otherwise every command reads as naming four types and most as driving a browser. The Quota
-governor banner never advertises shedding to a pool that is off: while
-`check_subagent_flywheel.py::_POOL_POLICY_ON` is False the routine/incident routes read `ob@ (pool
-OFF by ruling …)`.
-
-⚠️ **It reads `~/.claude/commands/`, the RENDERED corpus — not `commands/_sources/`.**
-`assemble_commands.py` appends shared fragments (the pool dispatch policy, the close-out FEEDBACK
-block) to every command, so the source text under-reports badly (by half for the pool, by an order of magnitude for fabrik-mail). The rendered file is
-what the agent is handed, so it is what the board reports. A command with no rendered file falls back
-to its source and the intro line says how many rows did — an unrendered corpus under-reports, never
-silently. Override the location with `QUOTA_DASH_RENDERED_COMMANDS`.
-
-**How it is kept up to date — and the one thing a human owns.** The dots are derived on every page
-load, so a command that starts calling Firecrawl tomorrow grows its dot with no edit here; nothing
-about the *data* can rot. The single hand-held fact is the **`_EXT_SERVICES` registry** in
-`quota_dashboard.py` — key, column label, hover title, detection pattern. **Adding a new external
-service to the fleet means adding a row there**, and that instruction is printed on the page itself,
-above the matrix, so it is findable without reading this doc. `tests/test_quota_dashboard.py` holds
-the registry's shape (unique keys, compiling patterns, the three most-used services still present)
-and pins the rendered-vs-sources behaviour, but no test can know about a service nobody registered.
-
-#### Search-API quota & renewal, under the matrix
-
-A four-column strip below the matrix — service, plan, remaining, renews — for the three metered
-search APIs the matrix tracks. Fetched on a TTL **off the render path** and cached to
-`~/.claude/quota-dashboard/api-quotas.json`; the render reads that cache and never makes a network
-call, for the same reason the pool balance doesn't (a third-party endpoint on the critical path is how a board freezes). Each provider is fetched independently, so one outage cannot
-blank the other two. Keys come from the MCP servers' own `env` blocks in `~/.claude.json` /
-`.mcp.json` (environment wins) and are never rendered, logged or cached.
-
-**What each provider actually exposes — probed live 2026-09-07, not assumed:**
+Both balances are fetched OFF the render path, on the probe loop's cadence behind their TTLs, and cached
+beside `quota.json`; a view reads the cache only (`fetch=False`), so a third-party endpoint is never on a
+page load's critical path. Keys come from the MCP configs and the pool's key file and are never
+rendered, logged or cached.
 
 | Service | Endpoint | Gives us |
 |---|---|---|
-| **Firecrawl** | `GET https://api.firecrawl.dev/v1/team/credit-usage` | `remaining_credits`, `plan_credits`, `billing_period_end` — everything, one call, no credits spent |
-| **Brave** | none — the quota IS the rate-limit header on any search response | `X-RateLimit-Limit/Remaining/Reset`, comma-separated `"<per-second>, <monthly>"`. ⚠️ Probing **costs one search query** |
-| **Exa** | none reachable | usage lives at `admin-api.exa.ai/team-management/api-keys/{id}/usage`, needs a team-management **SERVICE** key (our search key gets 403 / Cloudflare 1010), and returns *spend* — never a balance or a renewal date. `POST /search` carries no quota headers at all |
+| **Firecrawl** | `GET https://api.firecrawl.dev/v1/team/credit-usage` | `remaining_credits`, `plan_credits`, `billing_period_end` — one call, no credits spent |
+| **Brave** | none — the quota IS the rate-limit header on a search response | `X-RateLimit-Limit/Remaining/Reset`, `"<per-second>, <monthly>"`. ⚠️ probing costs one search query |
+| **Exa** | none reachable | usage needs a team-management SERVICE key (ours gets 403) and returns spend, never a balance or a renewal |
 
-⚠️ **Brave's monthly `0` means UNLIMITED, not exhausted.** The docs say *"15,000 requests per month
-(0 for unlimited)"* ([rate limiting](https://api-dashboard.search.brave.com/documentation/guides/rate-limiting)),
-and this box's plan returns `x-ratelimit-limit: "50, 0"` — 50/second, no monthly cap. Read naively
-that renders as "0 remaining" and paints a healthy plan as a dead one, which is a false alarm on the
-board the operator checks *before* deciding whether work can run. `X-RateLimit-Reset` is likewise
-**seconds remaining in the window**, not a unix timestamp — treated as an epoch it dates the renewal
-to 1970. Both are pinned by graders.
+⚠️ **Brave's monthly `0` means UNLIMITED** ("15,000 requests per month (0 for unlimited)",
+[rate limiting](https://api-dashboard.search.brave.com/documentation/guides/rate-limiting)), and
+`X-RateLimit-Reset` is **seconds remaining**, not an epoch. Both are pinned by graders.
 
-A value that cannot be obtained is **stated, never blank**: an absent key, an unavailable provider
-API, a failed probe and a provider that stopped sending its headers are four different verdicts, and
-the row says which. A stale reading keeps the last good numbers and is badged `stale`.
+## How it stays current
 
-### The External services tab
+**The server probes every `QUOTA_DASH_PROBE_INTERVAL_S` (20 s) whether or not a page is open**
+(`_start_probe_loop`), writes `quota.json` and the in-memory reading (`_LAST_STATUS`), and hands the
+payload to the rotation trigger. `generate()` is that probe pass and nothing else — no page is written;
+it is serialized, so the loop, a view and a switch never run two probes at once. A failed probe keeps
+the last good payload (marked `probe_failed`, which lowers the trigger's bar) and records the failure's
+class; a pass that raises for any other reason records its class the same way (W-6a0f3c65).
 
-**External services** embeds the fleet's external-services & credentials inventory — the static
-`external-services-dashboard.html` at the repo root that infra's daily chain regenerates
-(`scripts/gen_dashboard.py`, run by `scripts/external_services_chain.sh` under the 06:00 cron; see
-`docs/reference/external-services-registry.md`). The board only SERVES that file on
-`/external-services.html` (byte-for-byte, never cached, 404 while it has not been generated) and shows
-it in a same-origin iframe whose `src` is set the first time the tab is opened, so the 20-second reload
-of the Quota tab never re-downloads it. The line above the frame stamps the file's age from its mtime —
-the chain's liveness contract is "mtime ≤ 30 h", so a stale stamp here is the same signal
-`liveness_audit.py` raises. Override the file's location with `QUOTA_DASH_EXT_SERVICES`. Tab hash:
-`#external`.
+**Each view refreshes its own region** by fetching `GET /v/<view>` at its cadence — Overview, Work and
+Accounts every 20 s (`data-refresh-s` on the fragment), the others on open and on demand — and swaps it
+only when its `data-stamp` changed. The refresh never clobbers the operator (INV-5): it is skipped while
+a field has focus, a dialog is open or text is selected; typed text, open disclosures, scroll and focus
+are carried across a swap; the refresh after the operator's own write is forced past the skips but
+waits for an open dialog. The work stores and the agents are read through one cache of
+`QUOTA_DASH_REPOS_TTL_S` (20 s) shared by every view and tab, dropped by every board write.
 
-## Endpoints
+**The quota views (Overview, Accounts) carry the stale banner** when the reading is old: the probe
+failed after the last good reading (it names when and the error class — never the message, which can
+carry paths), or no probe has finished for one interval plus one timeout plus a minute (140 s by
+default — what a hung probe or a restarted process looks like). That one bound (`_stale_after_s`) is
+also when the Overview's Health strip lists the reading as stale, so the strip and the banner never
+disagree. **No request ever waits on a probe:** a moved fleet pointer starts ONE background
+regeneration (at most once per `QUOTA_DASH_PROBE_TIMEOUT_S`, none while one is already running) and the
+NEXT refresh shows the new account; a reading older than `QUOTA_DASH_MAX_AGE_S` starts one too. A
+regeneration that raises records its error class (the banner names it) and its thread ends cleanly.
+
+**The rotation trigger — the fast path to a flip.** After each probe, if the ACTIVE account's 5h window
+is at/over its flip line (`thresholds.json`'s entry, else `ROTATE_THRESHOLD`, default 99 — pinned equal
+to the tick's own default) or it is cap-walled; or, on the urgent-drain tier, at/over
+`ROTATE_URGENT_DRAIN_PCT` (90); or, while the probe is blind, at/over the drain line
+(`ROTATE_DRAIN_THRESHOLD`, 85); or, on the relief tier, the active's hottest window at/over the drain
+line with another account eligible and cool (`_relief_candidate`) — the server runs
+`claude_rotate.py --tick` at once, on its own thread, under the cron's own lock, once per
+`QUOTA_DASH_TRIGGER_COOLDOWN_S` (120 s) per tier. The tick keeps every safety it has; this only shortens
+the latency from the `*/5` cron (the backstop) to the probe interval.
+
+**Idle accounts show `cached Nh ago` by design** — `--status` is a ping-free read; only the active dir's
+fresh token is probed live. Idle-cache freshness is the `*/5` rotation tick's job
+(`claude-account-rotation.md` § Cron PATH if idle ages climb without bound).
+
+## Routes and the request guard
+
+Every request first passes the **Host allowlist** (INV-6): the server answers only `127.0.0.1:<port>`,
+`localhost:<port>`, `[::1]:<port>` and the configured `QUOTA_DASH_HOST` at the bound port; anything else
+(a DNS-rebinding page reaching the socket under its own name) is `421` before anything runs. A POST — or
+a `GET /v/<view>`, which re-reads the stores and republishes targets — whose `Sec-Fetch-Site` is
+`cross-site` is `403` before its body is read — and so is a cross-site `GET /quota.json`, which can start a
+regeneration too. Every POST also needs the custom `X-Quota-Dash` header
+(a cross-origin page cannot add one without a preflight this server never answers), a body of at most
+4,096 bytes, and a target the board itself rendered.
 
 | Path | Serves |
 |---|---|
-| `/` | the dashboard (regenerates if the render is older than the floor) |
-| `/quota.json` | the raw `--status --json` payload behind the page |
-| `/health` | `ok` — liveness for the keepalive |
-| `POST /switch` | body `{"account": "<slug>"}` + the `X-Quota-Dash` header → shells `claude_rotate.py --switch <slug>`, re-renders synchronously, answers `{ok, output}` (200); every outcome is one line in `~/.claude/quota-dashboard.log` (`POST /switch 'can' -> 200 in 3.2s: …`) — a click that "did not work" now leaves its trace · `{ok:false, error}` — 403 without the header, 400 for a slug the board's last payload does not list, 502 when the CLI refuses (its stderr is the error). The custom header is the CSRF story: a cross-origin page cannot add one without a preflight this server never answers |
-| `POST /park` | body `{"account": "<email>", "park": true|false}` + the same `X-Quota-Dash` header → shells `claude_rotate.py --park|--unpark <email>` and re-renders, with `/switch`'s contract: 403 without the header, 400 for an email the board's last payload does not list or a non-boolean `park`, 502 with the CLI's stderr on refusal. Same `QUOTA_DASH_SWITCH_TIMEOUT_S`, same log line (`POST /park …`) |
+| `GET /`, `/index.html` | the app shell — skip link, top bar, the six-view navigation, one `<main>` that `app.js` fills with the view the URL names (Overview by default). It carries no data, so it answers at once whatever the probe is doing |
+| `GET /v/<view>` | one view's fragment (`overview`, `work`, `accounts`, `usage`, `commands`, `services`; anything else 404). A view that fails renders its error state in words; every other view is unaffected |
+| `GET /static/app.css`, `/static/app.js` | the two static files, `Cache-Control: no-cache` with an ETag (an edit shows at once) |
+| `GET /quota.json` | the last `--status --json` payload on disk, served at once; a payload older than `QUOTA_DASH_MAX_AGE_S`, or a fleet pointer that has moved since it was written, starts ONE background regeneration. A first call with nothing on disk returns `{}` and starts one background probe — a deliberate delta from the old page, which probed inline and made that caller wait |
+| `GET /health` | `ok` — liveness for the keepalive |
+| `GET /external-services.html` | `303` to `/#services`, empty body, on no removal date — the old static page's bookmark now lands on the inventory section (not tied to `_LEGACY_TOKEN_UNTIL`) |
+| `GET /repos.html` | the old Repos page's bookmark: `303` to `/#work` through `_LEGACY_TOKEN_UNTIL` (2026-10-31), `404` after it. A work item removes the redirect and the token's legacy branch on that date |
+| `POST /item-verdict` | `{repo, item, action: accept\|reject\|comment, text, token}` → `work.py verdict` as the operator against the repo's main checkout — 200, 400 (unknown pair or action, or no words), 409 (`changed` / `diverged`, nothing run) or 502 (work.py's refusal or a timeout) |
+| `POST /agent-pause` | `{repo, agent, action: pause\|resume, why}` → `work.py pause\|resume` as the operator — 200, 400 or 502 |
+| `POST /switch` | `{account: <slug>}` → `claude_rotate.py --switch <slug>`, then a fresh probe — 200, 400 (a slug the last payload does not list), 502 (the CLI's stderr) |
+| `POST /park` | `{account: <email>, park: true\|false}` → `--park\|--unpark <email>` — the same contract |
+| `POST /cap`, `POST /threshold` | `{account, cap}` (0–100, null clears, 0 parks) · `{account, threshold}` (50–100, null = the fleet default) → `~/.claude-fleet/caps.json` · `thresholds.json`, read-modify-write under a `<file>.lock` flock with an atomic replace; a file that does not parse is never rewritten (502) |
+
+**Refusals, before anything runs:** `421` a foreign `Host`; `403` a cross-site request, or a POST without
+the `X-Quota-Dash` header; `404` an unknown path; `400` a `Content-Length` outside 0–4,096 or a body that
+is not JSON. `GET /static/<file>` answers `304` to an `If-None-Match` that carries its current ETag.
+
+A POST for a target the board does not hold — a restarted server, or a frame older than the last render
+— rebuilds once through the view that shows it (`_rebuild_targets`: the Overview for a pause, the Work
+view for an item, then the Overview when the item's Work pane faulted and published nothing), so "not on
+the board" is never the answer for something the operator can see. Every
+POST outcome is one line in the log.
 
 ## Lifecycle
 
@@ -285,54 +287,96 @@ Self-healing, no systemd (WSL has no user bus). Two crontab lines:
 */10 * * * * /usr/bin/python3 /opt/fabrik/scripts/sysadmin/quota_dashboard.py --ensure >> $HOME/.claude/quota-dashboard.log 2>&1
 ```
 
-`--ensure` demands a real HTTP `ok` from `/health` (5s, `QUOTA_DASH_ENSURE_TIMEOUT_S`): a healthy
-server makes the 10-minute line a no-op; a dead port respawns; and a WEDGED server — one that
-accepts connections but never answers — is killed (only the PID holding our port, only after the
-probe fails) and respawned (a connect alone never counts as alive). Worst-case gap is one cron interval; tighten the
-`*/10` to `*/2` if a two-minute hole matters to you (crontab is the operator's file).
+`--ensure` demands a real HTTP `ok` from `/health` (`QUOTA_DASH_ENSURE_TIMEOUT_S`, 5 s): a healthy server
+makes the line a no-op, a dead port respawns, and a WEDGED server (accepts, never answers) is killed —
+only the PID holding our port, only after the probe fails — and respawned.
 
-Modes: `--serve` (foreground server) · `--ensure` (start if down) · `--once` (regenerate the
-files and exit — useful for a scripted refresh without a browser).
+Modes: `--serve` (the foreground server) · `--ensure` (start it if it is down) · `--once` (probe the
+fleet once, write `quota.json`, print its path and exit — a scripted refresh without a server).
 
 ## Configuration (all env, all defaulted)
 
+The board's own knobs, and the box and rotation knobs it reads; nothing is set in a file.
+
 | Variable | Default | Purpose |
 |---|---|---|
-| `QUOTA_DASH_BUDGET` | `1` | `0` disables the box-budget banner above the commands table (it shells out to `dispatch_headroom.py`, which probes the fleet) — set in the test suite, never on the served board |
 | `QUOTA_DASH_PORT` | `5051` | listen port (PORTS.md: WSL Python range) |
-| `QUOTA_DASH_HOST` | `127.0.0.1` | bind address — loopback by design |
-| `QUOTA_DASH_MAX_AGE_S` | `20` | regeneration floor (probe-volume bound) |
-| `QUOTA_DASH_REFRESH_S` | `20` | the page's own meta-refresh interval |
+| `QUOTA_DASH_HOST` | `127.0.0.1` | bind address — loopback by design; a configured name joins the Host allowlist, a wildcard bind never does |
+| `QUOTA_DASH_URL` | `http://<QUOTA_DASH_HOST>:<QUOTA_DASH_PORT>/` | the board's URL as `claude_rotate.py`'s no-successor drain mail names it — set it only when the board is reached at another address |
 | `QUOTA_DASH_PROBE_INTERVAL_S` | `20` | the server's own probe cadence, viewer or not — a PERIOD, not a pause after each probe |
-| `QUOTA_DASH_OUT_DIR` | `~/.claude/quota-dashboard` | render output |
-| `QUOTA_DASH_ROTATE_CLI` | `/opt/fabrik/scripts/sysadmin/claude_rotate.py` | the CLI it shells |
+| `QUOTA_DASH_MAX_AGE_S` | `20` | a reading older than this starts a background regeneration on the next quota view or `/quota.json` |
+| `QUOTA_DASH_REFRESH_S` | `20` | the Overview's and the Accounts view's refresh cadence |
+| `QUOTA_DASH_REPOS_TTL_S` | `20` | how long the work-store and agents reads are cached (the Work view's cadence too) |
 | `QUOTA_DASH_PROBE_TIMEOUT_S` | `60` | per-probe subprocess timeout |
-| `QUOTA_DASH_SWITCH_TIMEOUT_S` | `90` | `POST /switch` subprocess timeout (the CLI probes the target before flipping) |
+| `QUOTA_DASH_TICK_TIMEOUT_S` | `180` | the board-invoked `--tick`'s timeout |
+| `QUOTA_DASH_TRIGGER_COOLDOWN_S` | `120` | the rotation trigger's per-tier cooldown |
+| `QUOTA_DASH_ROTATE_LOCK` | `~/.claude/state/rotate.lock` | the cron tick's lock the board's tick takes too |
+| `QUOTA_DASH_SWITCH_TIMEOUT_S` | `90` | the account controls' subprocess timeout |
 | `QUOTA_DASH_SOCKET_TIMEOUT_S` | `15` | per-connection socket timeout — a client that under-sends its declared body is dropped, never parked |
-| `QUOTA_DASH_POINTER` | `~/.claude-fleet/active` | the fleet pointer symlink the board compares against its last render — a flip regenerates the page on the next view, floor or no floor |
-| `QUOTA_DASH_CREDITS_KEY_FILE` | `~/.config/fabrik/subagents.env` | where the OpenRouter key is read from (`OPENROUTER_API_KEY` in the environment wins). The key is never rendered, never logged and never written to the cache |
-| `QUOTA_DASH_CREDITS_TTL_S` | `300` | how long a balance is reused. Credits move only when something spends; at the 20s refresh an uncached read would be ~4,320 calls a day |
-| `QUOTA_DASH_CREDITS_TIMEOUT_S` | `10` | the balance GET's timeout — it runs OFF the render path, so this can never delay a page load |
-| `QUOTA_DASH_API_QUOTAS_TTL_S` | `1800` | how long a brave/firecrawl/exa quota reading is reused. Long on purpose: a Brave probe SPENDS one search query, since Brave has no balance endpoint |
-| `QUOTA_DASH_API_QUOTAS_TIMEOUT_S` | `12` | per-provider probe timeout — off the render path, so it can never delay a page load |
-| `QUOTA_DASH_RENDERED_COMMANDS` | `~/.claude/commands` | the RENDERED command corpus the external-services matrix reads (the sources under-report — the assembler appends shared fragments) |
+| `QUOTA_DASH_ENSURE_TIMEOUT_S` | `5` | `--ensure`'s `/health` timeout |
+| `QUOTA_DASH_LOG` | `~/.claude/quota-dashboard.log` | where `--ensure` points the respawned server's output |
+| `QUOTA_DASH_OUT_DIR` | `~/.claude/quota-dashboard` | `quota.json` and the balance caches |
+| `QUOTA_DASH_ROTATE_CLI` | `/opt/fabrik/scripts/sysadmin/claude_rotate.py` | the CLI it shells |
+| `QUOTA_DASH_POINTER` | `~/.claude-fleet/active` | the fleet pointer compared against the reading — a flip regenerates on the next quota view |
+| `QUOTA_DASH_CAPS_FILE`, `QUOTA_DASH_THRESHOLDS_FILE` | `~/.claude-fleet/caps.json`, `thresholds.json` | the files the cap and rotate-at controls write |
+| `QUOTA_DASH_BUDGET` | `1` | `0` disables the box-budget line (it shells out to `dispatch_headroom.py`, which probes the fleet) — set in the tests, never on the served board |
+| `QUOTA_DASH_CREDITS_KEY_FILE` | `~/.config/fabrik/subagents.env` | the OpenRouter key (`OPENROUTER_API_KEY` in the environment wins) |
 | `QUOTA_DASH_CREDITS_URL` | `https://openrouter.ai/api/v1/credits` | the balance endpoint |
-| `POOL_CREDITS_WARN_USD` | `5` | the drain line. An ABSOLUTE floor, not a percentage: after a top-up the percentage is meaningless ($20 of $245 reads as 8% and is the whole runway) |
+| `QUOTA_DASH_CREDITS_TTL_S` · `QUOTA_DASH_CREDITS_TIMEOUT_S` | `300` · `10` | the balance's reuse window and GET timeout (off the render path) |
+| `POOL_CREDITS_WARN_USD` | `5` | the pool's drain line — an absolute floor, not a percentage |
+| `QUOTA_DASH_API_QUOTAS_TTL_S` · `QUOTA_DASH_API_QUOTAS_TIMEOUT_S` | `1800` · `12` | the search-API readings' reuse window (long on purpose: a Brave probe spends a query) and per-provider timeout |
+| `QUOTA_DASH_RENDERED_COMMANDS` | `~/.claude/commands` | the RENDERED corpus the service matrix reads |
+| `CLAUDE_P_COST` | `scripts/kilo-benchmarks/claude_p_cost.json` | the spend sidecar the Usage view reads |
+| `FABRIK_OPT_DIR` | `/opt` | the root the Overview and Work views scan for `*/.fabrik/work` stores and merge records |
+| `CLAUDE_FLEET_ROOT` | `~/.claude-fleet` | where `caps.json` and `thresholds.json` live (unless their own `QUOTA_DASH_*_FILE` is set) |
+| `QUOTA_RESERVE_PCT` | `80` | the quota governor's reserve: routine work sheds to the pool at or over it |
+| `ROTATE_THRESHOLD` | `99` | the flip line the rotation trigger keys on (an account's `thresholds.json` entry wins) — the tick's own knob |
+| `ROTATE_URGENT_DRAIN_PCT` | `90` | the urgent-drain tier of the trigger |
+| `ROTATE_DRAIN_THRESHOLD` | `85` | the drain line: the blind-probe tier and the relief tier |
+| `ROTATE_TARGET_SESSION_MAX_PCT` | the drain line | the picker's session bar, which the queue's eligibility mirrors |
+| `BRAVE_API_KEY`, `FIRECRAWL_API_KEY`, `EXA_API_KEY` | — | a provider key in the environment wins over the MCP configs (`~/.claude.json`, the repo's `.mcp.json`); never rendered, logged or cached |
+
+## Testing
+
+Thirteen test files, none of which reaches the network, the fleet or the real home. They share one
+isolation module, `tests/quota_dashboard_isolation.py`: every loader points HOME at an empty directory and
+drops the provider keys, every proxy variable and the MCP configs, and an autouse guard each file imports
+cuts every non-loopback connect and lookup and fails the test that tried one. The Services view's registry
+read is guarded on both sides, because libpq connects in C and the socket guard cannot see it: the loader
+replaces the collector's spawn with a stub that answers the census fixture
+(`tests/external_services_fixture.py`), empties the 60 s slot, and sets `SERVICES_REGISTRY_DSN` to a socket
+directory that does not exist, so no board test reads the real registry:
+
+```bash
+.venv/bin/python -m pytest tests/test_quota_dashboard.py tests/test_quota_dashboard_render_failure.py \
+  tests/test_quota_dashboard_posture.py tests/test_quota_dashboard_banner.py tests/test_quota_dashboard_page_layer.py \
+  tests/test_quota_dashboard_browser.py tests/test_quota_dashboard_ui_kit.py tests/test_quota_dashboard_app_js.py \
+  tests/test_quota_dashboard_server.py tests/test_quota_dashboard_overview.py tests/test_quota_dashboard_work.py \
+  tests/test_quota_dashboard_accounts.py tests/test_quota_dashboard_views_misc.py -q
+```
+
+The two browser files launch chromium through playwright (in the `.venv`; skipped where it is missing); the
+inventory's axe cases also need `axe-core` (`AXE_CORE_JS`, else any `/opt/*/node_modules/axe-core/axe.min.js`;
+skipped where absent).
 
 ## Boundaries
 
-- **One write path, and it is a relay.** It shells `--status --json` to read, and — only on
-  the operator's click — `--switch <slug>` to flip. It never decides a rotation, never writes
-  `caps.json`, never reads or writes a credential file; the CLI owns every one of those
-  contracts (see `docs/workstation/claude-account-rotation.md`). The tick's own automation is
-  unchanged: it still flips at the line / the cap (98, D-201) — and the board itself invokes the tick within ~20s of the crossing, which is why the button exists: a fast burn can reach the wall before the cron tick does, and the operator can see it coming on this board.
-- **Loopback only.** No auth, because nothing off-box can reach it; do not rebind it to
-  `0.0.0.0` without putting auth in front.
-- **Stdlib only.** No dependencies to keep current.
+- **The writes are relays.** It reads by shelling `--status --json`, and — only on the operator's
+  click — relays `--switch`, `--park`/`--unpark`, the cap and rotate-at edits, `work.py pause|resume`
+  and `work.py verdict`. It never decides a rotation and never reads or writes a credential file; the
+  CLI and `work.py` own those contracts (`docs/workstation/claude-account-rotation.md`,
+  `docs/reference/work-tracking.md`). The written item files sit in each repo's main checkout until its
+  coordinator's `work.py commit-items`; the board never commits.
+- **Loopback only.** No auth, because nothing off-box can reach it; remote access is W-7def1b78, never a
+  rebind to `0.0.0.0` without auth in front.
+- **Stdlib only, no build step.** No dependencies to keep current — the board process imports neither
+  `registry_db` nor psycopg2 (the named exception, D9, lives in the `inventory_read.py` child); playwright is
+  in the `.venv` for the browser tests only (`tests/test_quota_dashboard_browser.py`, `tests/test_quota_dashboard_app_js.py`).
 
 ## Related
 
-- `docs/workstation/claude-account-rotation.md` — the rotation system this displays
+- `docs/workstation/claude-account-rotation.md` — the rotation system the Accounts view displays
+- `docs/reference/work-tracking.md` — the work stores the Overview and Work views read and write
 - `PORTS.md` — port 5051 allocation
 
 <!-- BEGIN related-scripts: generated by scripts/render_doc_script_links.py — do not hand-edit -->
@@ -342,5 +386,21 @@ Scripts that declare this document in their `# AFTER-EDIT:` header — editing o
 means updating this page in the same change. This list is generated from those headers
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
+- `scripts/gen_dashboard.py`
+- `scripts/sysadmin/dashboard_ui/__init__.py`
+- `scripts/sysadmin/dashboard_ui/components.py`
+- `scripts/sysadmin/dashboard_ui/fmt.py`
+- `scripts/sysadmin/dashboard_ui/inventory.py`
+- `scripts/sysadmin/dashboard_ui/merges.py`
+- `scripts/sysadmin/dashboard_ui/snapshot.py`
+- `scripts/sysadmin/dashboard_ui/strings.py`
+- `scripts/sysadmin/dashboard_ui/views/__init__.py`
+- `scripts/sysadmin/dashboard_ui/views/accounts.py`
+- `scripts/sysadmin/dashboard_ui/views/commands.py`
+- `scripts/sysadmin/dashboard_ui/views/overview.py`
+- `scripts/sysadmin/dashboard_ui/views/services.py`
+- `scripts/sysadmin/dashboard_ui/views/usage.py`
+- `scripts/sysadmin/dashboard_ui/views/work.py`
+- `scripts/sysadmin/inventory_read.py`
 - `scripts/sysadmin/quota_dashboard.py`
 <!-- END related-scripts -->

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T22:08:32.139112Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-aa47d91f",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task over .claude/hooks/final_gate_stop.py (fleet-synced, full review)",
+  "note": "duplicate of W-5ce56208, merged 1192f35e6 (8a493fadb, 261dab576, D-953) — infra confirmed 2026-10-18; built slightly narrower to close a review-found hole",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — Stop hook false block traps review sessions",
+  "status": "dropped",
+  "tags": [
+    "kaizen-01m4n1k909"
+  ],
+  "title": "Stop hook: stand down the uncommitted-file / DoD-uncommitted cause for files a RUNNING review-family record names in its --surface, as the sixth cause already does (kaizen 01M4N1K909 group 4; rows 1791232047, 1791200778)"
+}

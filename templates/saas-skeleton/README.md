@@ -2,13 +2,13 @@
 
 ## Overview
 
-A reusable Next.js SaaS starter with marketing pages, authenticated app shell, and AI chat integration.
+A reusable Next.js SaaS starter with marketing pages, authenticated app shell, and a signed-in, rate-limited chat (`POST /api/v1/chat`).
 
 ## Features
 
 - **Marketing Site**: Landing, pricing, FAQ, terms, privacy pages
 - **App Shell**: Sidebar navigation, dashboard, job workflow
-- **Chat UI**: SSE streaming component for AI chat integration
+- **Chat**: SSE streaming components wired to the backend's authenticated, rate-limited `POST /api/v1/chat`
 - **Self-hosted auth (Pattern A)**: the FastAPI backend (`server/`) is the IdP — issues its own JWTs via the vendored `fastapi_user_auth` (Argon2, refresh rotation, jti denylist, tenant RLS) on `postgres-main` + `redis-main`
 
 ## Quick Start
@@ -23,8 +23,8 @@ npm install
 
 # Configure environment
 cp .env.example .env
-# Edit .env — frontend needs NEXT_PUBLIC_API_URL + OpenRouter; the backend
-# (server/.env) holds DATABASE_URL, REDIS_URL, JWT_SECRET (Pattern A)
+# Edit .env — frontend needs NEXT_PUBLIC_API_URL; the same root .env (compose's
+# env_file for the api and worker) holds DATABASE_URL, REDIS_URL, JWT_SECRET (Pattern A)
 
 # Start development
 npm run dev
@@ -53,7 +53,6 @@ See `docs/QUICKSTART.md` for build instructions and local development, and `CLAU
 │   │   ├── items/[id]/   # Job detail
 │   │   └── settings/     # Settings
 │   ├── api/
-│   │   ├── chat/         # SSE streaming endpoint
 │   │   └── health/       # Health check endpoint
 │   └── layout.tsx        # Root layout
 ├── components/
@@ -70,23 +69,62 @@ See `docs/QUICKSTART.md` for build instructions and local development, and `CLAU
 
 ### Chat UI Component
 
-The template includes a pre-built chat component that streams AI responses:
+The backend serves chat at `POST /api/v1/chat` (`server/src/<pkg>/chat.py`). Only a signed-in user
+can spend the app's model key, and every request is rate-limited:
 
 ```tsx
 import { ChatUI } from "@/components/chat";
 
 export default function ChatPage() {
-  return (
-    <ChatUI
-      endpoint="/api/chat"
-      placeholder="Ask anything..."
-      systemPrompt="You are a helpful assistant."
-    />
-  );
+  return <ChatUI endpoint="/api/v1/chat" placeholder="Ask anything..." />;
 }
 ```
 
-The `/api/chat` endpoint streams responses via SSE, backed by the **OpenRouter API** (`openrouter.ai/api/v1` — one key, every provider; no vendor SDK). Set `OPENROUTER_API_KEY` and optionally `OPENROUTER_MODEL` (default `anthropic/claude-sonnet-4.6`; pick any slug from <https://openrouter.ai/models>). The route re-emits `text_delta` / `done` / `error` events the `ChatUI` consumes, and returns 503 if `OPENROUTER_API_KEY` is unset.
+`ChatUI` sends only `{ message }` with the session cookie and the `X-CSRF-Token` header, and renders
+the `text_delta` / `done` / `error` SSE events it receives. On a 401 it refreshes the session once
+through `/auth/refresh` and retries; a stream that ends without `done` or `error` shows "The reply
+was cut off", and a finished reply with no text shows "The model returned an empty reply". The
+model's instructions are the server constant `CHAT_SYSTEM_PROMPT`, never part of the request.
+
+### Turning chat on
+
+1. Set `OPENROUTER_API_KEY` (the spec's `secrets.from_env` lists it) and `OPENROUTER_MODEL` (in the
+   spec's `env:`, since it is not a secret; the root `.env` serves a local compose run only). Either
+   one empty means chat answers a signed-in user's valid request with 503 (a signed-out caller still
+   gets 401, a bad body 400 or 413).
+2. Keep `shape.needs_cache: true` (the default), so `REDIS_URL` is set. Without Redis, chat answers 503.
+3. Put the app's public URL in the origin allowlist web login already uses (`AUTH_ALLOWED_ORIGINS`,
+   else `CORS_ORIGINS` plus `NEXT_PUBLIC_APP_URL`). A cookie-borne chat request from an origin outside it,
+   or without the `X-CSRF-Token` header, is a 403; a bearer-token client skips both checks.
+4. Set a USD `limit` on the OpenRouter key itself. That caps spend on OpenRouter's side whatever the
+   app does.
+
+The template ships no login page: chat needs one, through `/auth/login/web` or passwordless.
+
+The relative `endpoint="/api/v1/chat"` relies on the same-host front the emitted compose sets up
+(Traefik sends `/api` and `/auth` to the backend, everything else to Next). `next dev` alone on its
+own port proxies neither, so a chat request there reaches Next and is a 404.
+
+### Limits and cost
+
+Up to four buckets must all pass, checked together before any is counted: the whole app
+(`CHAT_RATE_APP`, default 1200 per hour), the tenant (`CHAT_RATE_TENANT`, 600; only for a user who
+belongs to one), the user (`CHAT_RATE_USER`, 60) and the client IP (`CHAT_RATE_IP`, 120; IPv6 per
+/64; an IPv4-mapped, IPv4-compatible or NAT64 (`64:ff9b::/96`) address as its IPv4; only when the IP parses). A full bucket answers 429 with `Retry-After`. The windows are fixed,
+each starting at its bucket's first request, so at the defaults the app produces at most
+1200 × 1024 = 1,228,800 output tokens per window, and up to twice that in any one rolling hour that
+spans two windows; multiply by your model's price to get the ceiling in money.
+
+A message over `CHAT_MAX_MESSAGE_CHARS` (4000) is a 400, a body over `CHAT_MAX_BODY_BYTES` (64 KiB)
+a 413, and a malformed `CHAT_*` value fails the app at start.
+
+`CHAT_MAX_TOKENS` (default 1024) bounds each reply. On a reasoning model it covers the reasoning and
+the visible reply together, so a small value can return an empty reply that stopped at the limit;
+raise it there.
+
+Anyone with an email address can sign up while passwordless auto-signup is on, and a bot that mints
+users can fill the app bucket and refuse everyone until the hour ends. Set
+`AUTH_PASSWORDLESS_AUTO_SIGNUP=false` when sign-up should not be open.
 
 ### Kilo CLI for Development
 
@@ -130,18 +168,20 @@ deploy it as its own service (its `nginx.conf` serves the static build). See
 # Frontend (Pattern A: no DB/auth secrets — just the backend API base URL)
 NEXT_PUBLIC_API_URL=http://localhost:8000
 
-# Backend (server/.env) — the IdP owns these:
+# Backend (the same root .env; compose's env_file hands it to the api and worker) — the IdP owns these:
 #   DATABASE_URL=postgresql://…@postgres-main:5432/<db>
-#   REDIS_URL=redis://redis-main:6379/0
+#   REDIS_URL=redis://redis-main:6379/<n>   (fabrik apply assigns the app its own DB, 1-15)
 #   JWT_SECRET=<32+ char secret>
+#   OPENROUTER_API_KEY=, OPENROUTER_MODEL=   chat (see "Turning chat on" above)
+#   CHAT_RATE_*, CHAT_MAX_*, CHAT_UPSTREAM_READ_TIMEOUT   chat limits (see "Limits and cost")
+
+# Chat tests: export TEST_REDIS_URL in the test shell (never read from .env), a throwaway Redis DB
+# that server/tests/test_chat.py alone uses
 
 # App
 NEXT_PUBLIC_APP_NAME=Your SaaS
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 
-# AI chat (OpenRouter — required for /api/chat)
-OPENROUTER_API_KEY=your-openrouter-key
-OPENROUTER_MODEL=anthropic/claude-sonnet-4.6
 ```
 
 ## Customization

@@ -2,7 +2,7 @@
 
 **Purpose:** this file is the **single entry point** any AI coder or human operator reads to understand how Fabrik deploys services to the VPS. Every file involved in a deploy is cataloged below with its function and cross-references. If you are about to touch deployment behavior, **read this file end-to-end first**.
 
-**Last Updated:** 2026-05-29 (verified end-to-end against source; 2026-05-28 was the full rewrite: Coolify API → SSH + Docker Compose deployer)
+**Last Updated:** 2026-10-15 (Coolify retirement: the removed flags, modules and the dead `deploy.py` row dropped; CLI line anchors refreshed. 2026-05-29 verified end-to-end against source; 2026-05-28 was the full rewrite: Coolify API → SSH + Docker Compose deployer)
 **Previous version:** `docs/archive/2026-04-28-DEPLOYMENT.md.backup.20260419-144040`
 
 ## Table of Contents
@@ -71,15 +71,15 @@ Click-based CLI. The commands below are the only public entry points for deploym
 
 | Command | Line | Function | Delegates to |
 |---|---|---|---|
-| `fabrik scaffold <name> --type <t>` | 1779 | Create `/opt/<name>/` tree; generate spec at `specs/services/<name>.yaml`; allocate port; emit `.env.example`. | `scaffold.py` |
-| `fabrik apply <spec.yaml>` | 415 | **Primary deploy entry point. Orchestrator pipeline (full 9-registrar sweep).** Flags: `--dry-run`, `--skip-dns`, `--skip-deploy`, `-s KEY=VALUE`, `--legacy` (opt out, render-only path), `--keep-on-failure` (proof-run only). | `orchestrator/DeploymentOrchestrator.deploy()` (default) or `deploy.py::deploy_to_coolify()` (`--legacy`, dead code) |
-| `fabrik redeploy <app>` | 1279 | Rebuild-only SSH deploy by name. With `--refresh-infra --spec PATH` re-runs the `InfrastructureProvisioner` against the existing app (no rebuild). `--force`, `--dry-run`. | `SSHDeployer` (direct SSH commands) or `DeploymentOrchestrator.refresh_infrastructure()` |
-| `fabrik destroy <spec>` | 950 | Tear down **all 9 registrars** in reverse-of-provision order + compose app + DNS. `--keep-dns`, `--drop-data`, `--dry-run`, `--use-state`, `--partial`. | `orchestrator/destroyer.py::destroy_deployment()` or `destroy_from_state()` |
-| `fabrik vps-sync [--dry-run]` | 1224 | Refresh VPS docs (`vps-status.md`, `vps-urls.md`, `vps-complete-inventory.md`) from live `docker ps`; rerun `sync_projects.py`. Read-only on VPS. | `scripts/vps_sync.py` |
-| `fabrik validate-deploy <project>` | 1920 | Pre-flight readiness check for a scaffolded project. | `deploy_validator.validate()` |
-| `fabrik domain provision <domain>` | 2153 | Register domain + DNS + CDN via site-provisioner. | `drivers/dns.py::DNSClient` |
-| `fabrik domain ready <domain>` | 2240 | Poll DNS + SSL readiness before deploying. | `drivers/dns.py::DNSClient` |
-| `fabrik domain buy <domain>` | 2366 | Register a new domain via Namecheap. | `drivers/dns.py::DNSClient::register_domain()` |
+| `fabrik scaffold <name> --type <t>` | 1734 | Create `/opt/<name>/` tree; generate spec at `specs/services/<name>.yaml`; allocate port; emit `.env.example`. | `scaffold.py` |
+| `fabrik apply <spec.yaml>` | 428 | **Primary deploy entry point. Orchestrator pipeline (full 9-registrar sweep) — the only path.** Flags: `--dry-run`, `-s KEY=VALUE`, `--yes` (accepted for compatibility; the orchestrator path never prompts), `--skip-health-check`, `--keep-on-failure` (proof-run only), `--target-vps`. The legacy flags (`--legacy`, `--use-orchestrator`, `--skip-dns`, `--skip-deploy`) were retired 2026-10-14 (plan T05, spec D1) — a stale flag gets click's `No such option`. | `orchestrator/DeploymentOrchestrator.deploy()` |
+| `fabrik redeploy <app>` | 1115 | Rebuild-only SSH deploy by name. With `--refresh-infra --spec PATH` re-runs the `InfrastructureProvisioner` against the existing app (no rebuild). `--force`, `--dry-run`. | `SSHDeployer` (direct SSH commands) or `DeploymentOrchestrator.refresh_infrastructure()` |
+| `fabrik destroy <spec>` | 781 | Tear down **all 9 registrars** in reverse-of-provision order + compose app + DNS. `--keep-dns`, `--drop-data`, `--dry-run`, `--use-state`, `--partial`. | `orchestrator/destroyer.py::destroy_deployment()` or `destroy_from_state()` |
+| `fabrik vps-sync [--dry-run]` | 1059 | Refresh VPS docs (`vps-status.md`, `vps-urls.md`, `vps-complete-inventory.md`) from live `docker ps`; rerun `sync_projects.py`. Read-only on VPS. | `scripts/vps_sync.py` |
+| `fabrik validate-deploy <project>` | 1863 | Pre-flight readiness check for a scaffolded project. | `deploy_validator.validate()` |
+| `fabrik domain provision <domain>` | 2281 | Register domain + DNS + CDN via site-provisioner. | `drivers/dns.py::DNSClient` |
+| `fabrik domain ready <domain>` | 2368 | Poll DNS + SSL readiness before deploying. | `drivers/dns.py::DNSClient` |
+| `fabrik domain buy <domain>` | 2494 | Register a new domain via Namecheap. | `drivers/dns.py::DNSClient::register_domain()` |
 | `fabrik wp plan/apply/verify/flush` | — | WordPress sub-pipeline. **Moved to `/opt/wpf/`** standalone project (no longer in fabrik CLI). | `wpf/` (separate repo) |
 
 ### 2.2 Orchestrator — `src/fabrik/orchestrator/`
@@ -94,19 +94,18 @@ The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` (the si
 | `orchestrator/validator.py` | `SpecValidator.validate(spec)`, `validate_domain_security()`, `compute_spec_hash()` | Spec validation (required-field + type checks on the parsed dict) + SSRF check (no private IPs, no reserved ranges) + idempotency hash. |
 | `orchestrator/secrets.py` | `SecretsManager`, `generate_secret()`, `load_dotenv()` | Load secrets precedence: `os.environ` (checked first — includes `-s KEY=VALUE` flags injected by CLI) → project `.env` → auto-generate. CSPRNG for generated secrets (`secrets.choice()`, 32 chars). |
 | `orchestrator/deployer_ssh.py` | `SSHDeployer.deploy(ctx)`, `SSHDeployer.find_existing(name)` | SSH+Docker Compose deployer. Dispatches by source type (TEMPLATE, GIT, DOCKER, LOCAL). Writes compose.yaml + .env to VPS via SCP, runs `docker compose up -d --wait`. Returns app name (stored in `ctx.coolify_uuid` for backward compat). Also validates compose against rule-pack constraints before deploy. |
-| `orchestrator/infrastructure.py` | `InfrastructureProvisioner.provision(ctx)`, `resolve_applicability(shape)`, `format_resolved_summary()` | Shape-driven dispatcher. Invoked between Deploy and Verify. Decides per-registrar applicability (`postgres`, `redis`, `gatus`, `backrest`, `glitchtip`, `grafana`, `authelia`, `meilisearch`, `prometheus`), then calls each driver's `create_*`/`add_*` entry in contract order. Each registrar failure is logged non-fatal **except glitchtip's `verify_dsn_injection` mismatch**, which rolls back the GlitchTip project and re-raises. |
+| `orchestrator/infrastructure.py` | `InfrastructureProvisioner.provision(ctx)`, `resolve_applicability(shape)`, `format_resolved_summary()` | Shape-driven dispatcher. Invoked between Deploy and Verify. Decides per-registrar applicability (`postgres`, `redis`, `gatus`, `backrest`, `glitchtip`, `grafana`, `authelia`, `meilisearch`, `prometheus`), then calls each driver's `create_*`/`add_*` entry in contract order. Each registrar failure is logged non-fatal **except glitchtip's `verify_dsn_injection` mismatch**, which raises after deleting the GlitchTip project only if this run created it (a pre-existing project is kept). |
 | `orchestrator/verifier.py` | `DeploymentVerifier.verify(ctx)` | Post-conditions: HTTP 200 on `/health`; DNS resolves to VPS IP; SSL cert valid; `SENTRY_DSN` in container env (when GlitchTip provisioned) — verified via `docker inspect`, never `docker exec` (Lesson 31). |
 | `orchestrator/rollback.py` | `RollbackManager.rollback(ctx)` | Reverse-order cleanup of every `ctx.created_resources[*]`. Resource type `compose` → `SSHDeployer.delete()`. Destructive actions (DB drops, MeiliSearch index deletes) are **logged for operator**, not auto-executed. Config mutations and ephemeral resources are auto-cleaned. |
 | `orchestrator/destroyer.py` | `destroy_deployment()`, `destroy_from_state()` | Symmetric inverse of provisioner. Walks registrars in reverse order, calls each driver's remove/delete. Data-bearing registrars (postgres, redis, meilisearch) skipped unless `--drop-data`. |
 | `orchestrator/exceptions.py` | Typed exceptions | `DeploymentError`, `ValidationError`, `ProvisioningError`, `DeployError`, `VerificationError`, `RollbackError`, `InvalidStateTransitionError`. Orchestrator catches these and routes to rollback. |
 
-**Legacy file:** `orchestrator/deployer_coolify.py` — archived `git mv` of the old Coolify deployer. Available for reference only; not imported by any active code path.
 
 ### 2.3 Spec & template layer
 
 | File | Role |
 |---|---|
-| `src/fabrik/spec_loader.py` | Parse `.yaml` spec → pydantic `Spec` model. Defines every valid field: `DNSConfig` (+ `DNSRecord`), `Source` (with `path` field for LOCAL source), `Expose`, `Resources`, `Health`, `Volume`, `Backup`, `SecretsPolicy`, `CoolifyConfig` (legacy, unused by orchestrator), `Depends`, `Infrastructure`. The `Shape` sub-model enforces `model_config = {"extra": "forbid"}`; the top-level `Spec` model does not. Entry points: `load_spec(path)`, `save_spec(spec, path)`, `create_spec(name, kind, ...)`. |
+| `src/fabrik/spec_loader.py` | Parse `.yaml` spec → pydantic `Spec` model. Defines every valid field: `DNSConfig` (+ `DNSRecord`), `Source` (with `path` field for LOCAL source), `Expose`, `Resources`, `Health`, `Volume`, `Backup`, `SecretsPolicy`, `Depends`, `Infrastructure`. The `Shape` sub-model enforces `model_config = {"extra": "forbid"}`; the top-level `Spec` model does not. Entry points: `load_spec(path)`, `save_spec(spec, path)`, `create_spec(name, kind, ...)`. |
 | `src/fabrik/template_renderer.py` | `TemplateRenderer(spec).render(output_dir)` → writes `compose.yaml` + `Dockerfile` + auxiliary files from `templates/<type>/*.j2`. `list_templates()` enumerates available templates. |
 | `src/fabrik/scaffold.py` | The entire `fabrik scaffold` command. Generates `/opt/<name>/` tree; emits `project.yaml`, `specs/services/<name>.yaml`, `.env.example`, `README.md`, tests, CI workflow. Reads `templates/<type>/defaults.yaml` for shape flags. |
 | `src/fabrik/compose_linter.py` | `ComposeLinter.lint(compose_yaml)` — validates Fabrik deployment constraints: `container_name` **required** (warning), `restart` policy required, healthcheck recommended for databases, no unresolved `${VAR}` without defaults. |
@@ -130,12 +129,6 @@ The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` (the si
 | `drivers/wordpress.py` | `WordPressClient`, `WPSite`, `ContainerResolver` | WP-CLI via `docker exec` | WordPress-specific deploys (plugins, themes, settings). |
 | `drivers/wordpress_api.py` | `WordPressAPIClient`, `WPCredentials`, `WPPost` | WordPress REST API | Content CRUD for WordPress sites. |
 
-**Legacy driver (not on active deploy path):**
-
-| File | Status | Notes |
-|---|---|---|
-| `drivers/coolify.py` | Legacy | Coolify v4 API client (~927 lines). On the active deploy path, only used by the rollback legacy path (`_rollback_coolify()`). (The former `_destroy_coolify_legacy()` destroy fallback has been removed.) Also still imported by broken CLI commands (`status`, `logs`, `reconcile-all`, `registry --sync`), `health_app.py`, `deploy.py`, `portability.py`, `compose_updater.py`, and `drivers/__init__.py`. These are Phase 11-2 cleanup targets. |
-
 **Shape-driven registrar drivers (all implemented):**
 
 | File | Entry points | Purpose | Shape gate |
@@ -148,7 +141,7 @@ The deployment pipeline. **Default since 2026-05-05** for `fabrik apply` (the si
 | `drivers/grafana.py` | `post_deployment_annotation()`, `delete_annotation()` | Global deployment annotations (`POST /api/annotations`). Non-fatal (decorative). Env var `GRAFANA_SERVICE_ACCOUNT_TOKEN`. | Always (universal) |
 | `drivers/authelia.py` | `add_access_rule()`, `remove_access_rule()` | `docker exec` into Authelia to add/remove `access_control` rules. Uses `run_locked("authelia-config", ...)`. Supports `insert_before_twofactor=True` for `^/api/` bypass ordering. | `shape.is_admin_dashboard` + `domain` set (+ `^/api/` bypass when `shape.has_bearer_api`) |
 | `drivers/meilisearch.py` | `create_index()`, `delete_index()` | Index creation. Container-scoped `sh -c` evaluates `$MEILI_MASTER_KEY` inside the container — no secret on SSH wire. | `shape.has_search_feature` |
-| `drivers/prometheus.py` | `add_scrape_target()`, `remove_scrape_target()` | Appends scrape target for `/metrics` endpoint and reloads Prometheus. | `shape.exposes_metrics` |
+| `drivers/prometheus.py` | `add_scrape_target()`, `remove_scrape_target()` | Appends scrape target for `/metrics` endpoint and reloads Prometheus. Refuses a `monitoring.scheme` outside `http`/`https` or a `monitoring.target` that is not `<host>:<port>` before touching the file; an existing job whose scheme, path, target or (with a token) auth differs is updated in place, other keys kept (`status: updated`); rollback removes only a job the run created (W-01815aee). | `shape.exposes_metrics` |
 
 ### 2.5 Site provisioning — standalone microservice
 
@@ -158,34 +151,34 @@ Site provisioning (domain → DNS → initial deploy) is not implemented inside 
 
 | File | Role |
 |---|---|
-| `src/fabrik/deploy.py` | **Dead code.** `deploy_to_coolify(app_name, compose_content)` — legacy Coolify API deployment. Not wired to any active CLI command. Superseded by SSHDeployer. |
 | `src/fabrik/deploy_router.py` | `route_deploy(project_dir, project_type, dry_run=False)` — dispatches to WordPress pipeline vs. service pipeline based on `project_type`. Central switch used by `fabrik apply` when resolving a spec from `project.yaml`. |
 | `src/fabrik/deploy_validator.py` | `validate(project_dir)` — scaffold-level readiness (Dockerfile exists, `.env` populated, healthcheck declared, platform directive). Returns `ValidationResult` list; CLI prints them as warnings. |
 | `src/fabrik/verify.py` | `PostconditionChecker`, `verify_postconditions` decorator — general postcondition framework (HTTP 200, file-exists, env-var-set, etc.). Used by both legacy pipeline and orchestrator/verifier. |
 | `src/fabrik/notifications.py` | Thin wrapper over Apprise for in-Fabrik notifications (not infrastructure alerts). |
-| `src/fabrik/monitor.py` | Deployment monitor helpers used by `fabrik status/logs`. |
-| `src/fabrik/health_app.py` | Tiny FastAPI app exposing `/health` for Fabrik's own service health (scraped by Gatus). Note: still references `CoolifyClient` for legacy health checks — monitoring only, not on deploy path. |
+| `src/fabrik/monitor.py` | Deployment monitor helpers. Not imported by `cli.py` (`fabrik status` probes the VPS through `deployer_ssh.probe_app`; `fabrik logs` queries Loki). |
+| `src/fabrik/health_app.py` | Tiny FastAPI app exposing `/health` for Fabrik's own service health (scraped by Gatus). The health endpoint checks the DNS manager alone. |
 
 ---
 
 ## 3. Specs
 
-Specs are the **input** to every deploy. Two flavors: infrastructure specs (deploy shared services once) and service specs (one per app).
+Specs are the **input** to every `fabrik apply` deploy, one per app (§ 3.2); `specs/sites/` and `specs/verification/` hold other schemas (§ 3.3, § 3.4). Shared infrastructure services are hand-maintained compose stacks, not specs (§ 3.1).
 
-### 3.1 Infrastructure specs — `specs/infrastructure/`
+### 3.1 Infrastructure services — hand-maintained compose stacks
 
-Deployed once when bootstrapping the VPS; not touched by normal `fabrik apply` on apps.
+Each shared service runs from `/opt/<svc>/compose.yaml` on vps1 and never passes through `fabrik apply`. Its only repo copy is the mirror `infra/vps1/<svc>/compose.yaml` (nothing deploys from `infra/` — `infra/README.md`). A change is made on the host — back up the live file, apply the reviewed change, `docker compose up -d` — and the mirror is refreshed in the same change. The old `specs/infrastructure/*.yaml` files loaded nowhere and had drifted from these mirrors; they were retired (D-1097), and `tests/test_specs_all_load.py` keeps every YAML under `specs/` appliable.
 
-| File | Deploys | Current state |
+| Mirror | Service | Current state |
 |---|---|---|
-| `specs/infrastructure/authelia.yaml` | Authelia (SSO/2FA forward-auth) | ✅ deployed |
-| `specs/infrastructure/apprise.yaml` | Apprise (notifications gateway) | ✅ deployed |
-| `specs/infrastructure/browserless.yaml` | Browserless (headless Chrome) | ✅ deployed |
-| `specs/infrastructure/gotenberg.yaml` | Gotenberg (HTML/Office → PDF) | ✅ deployed |
-| `specs/infrastructure/meilisearch.yaml` | MeiliSearch | ✅ deployed |
-| `specs/infrastructure/n8n.yaml` | n8n (workflow automation) | ✅ deployed |
+| `infra/vps1/authelia/compose.yaml` | Authelia (SSO/2FA forward-auth) | ✅ deployed |
+| `infra/vps1/apprise/compose.yaml` | Apprise (notifications gateway) | ✅ deployed |
+| `infra/vps1/browserless/compose.yaml` | Browserless (headless Chrome) | ✅ deployed |
+| `infra/vps1/glitchtip/compose.yaml` | GlitchTip (error tracking, the watchdog's error source) | ✅ deployed |
+| `infra/vps1/gotenberg/compose.yaml` | Gotenberg (HTML/Office → PDF) | ✅ deployed |
+| `infra/vps1/meilisearch/compose.yaml` | MeiliSearch | ✅ deployed |
+| `infra/vps1/n8n/compose.yaml` | n8n (workflow automation) | ✅ deployed |
 
-The hub monitoring stack is **not a spec** and never passes through `fabrik apply`: it is a hand-maintained Compose stack at `/opt/monitoring/compose.yaml` on vps1 (prometheus, grafana, alertmanager, loki, alloy, node-exporter, cadvisor, pushgateway, postgres-exporter, redis-exporter — `promtail` stays defined under the `rollback` profile, stopped, until Gate S), mirrored in the repo at `infra/vps1/monitoring/compose.yaml` (nothing deploys from `infra/` — `infra/README.md`). Config: `/opt/monitoring/configs/prometheus/prometheus.yml`. Reload: hot-reload via `POST /-/reload` from inside the prometheus container, fallback to `docker restart <the prometheus container>` only if its config passes `promtool check config` (an invalid config is never restarted into — the running Prometheus keeps its last good one, W-5aa5e3d8) (`drivers/prometheus.py::_reload_prometheus`).
+The hub monitoring stack is **not a spec** and never passes through `fabrik apply`: it is a hand-maintained Compose stack at `/opt/monitoring/compose.yaml` on vps1 (prometheus, grafana, alertmanager, loki, alloy, node-exporter, cadvisor, pushgateway, postgres-exporter, redis-exporter — `promtail` stays defined under the `rollback` profile, stopped, until Gate S), mirrored in the repo at `infra/vps1/monitoring/compose.yaml` (nothing deploys from `infra/` — `infra/README.md`). Config: `/opt/monitoring/configs/prometheus/prometheus.yml`. Reload: hot-reload via `POST /-/reload` from inside the prometheus container, fallback to `docker restart <the prometheus container>` only if its config passes `promtool check config` (an invalid config is never restarted into — the running Prometheus keeps its last good one, W-5aa5e3d8) (`drivers/prometheus.py::_reload_prometheus_outcome`; `fabrik apply` fails on a refused config and warns on an unavailable Prometheus, W-cc9b0532).
 
 ### 3.2 Service specs — `specs/services/`
 
@@ -238,8 +231,8 @@ All compose templates emit `container_name: {{ spec.id }}` for stable Docker nam
 | `templates/scaffold/complex.yaml` | Canonical complex-service spec example (5+ env vars, db, storage, auth). |
 | `templates/scaffold/docker/compose.yaml.template` | Base compose template shared across service types. |
 | `templates/scaffold/docker/compose.dev.yaml.template` | Developer-mode override (ports exposed on `127.0.0.1` only). |
-| `templates/scaffold/docker/Dockerfile.node` | Canonical Node.js Dockerfile (`node:<LTS>-bookworm-slim`). |
-| `templates/scaffold/docker/Dockerfile.python` | Canonical Python Dockerfile (`python:<stable>-slim-bookworm`). |
+| `templates/scaffold/docker/Dockerfile.node` | Canonical Node.js Dockerfile (`node:<LTS>-<debian_codename>-slim`; `<debian_codename>` is the registry key in `.windsurf/rules/versions.yaml`, filled at scaffold time). |
+| `templates/scaffold/docker/Dockerfile.python` | Canonical Python Dockerfile (`python:<stable>-slim-<debian_codename>`; `<debian_codename>` is the registry key in `.windsurf/rules/versions.yaml`, filled at scaffold time). |
 | `templates/scaffold/*` (full shared asset set) | Tests, CI workflows, README, .env.example, .gitignore, AGENTS.md boilerplate. |
 
 ### 4.3 Template-defaults registrar matrix (what fires on `fabrik apply` by default)
@@ -277,7 +270,7 @@ Local copies of VPS-side config files. **Source of truth is on the VPS** (Docker
 | `configs/alertmanager/alertmanager.yml` | `/opt/monitoring/configs/alertmanager/alertmanager.yml` | Volume-mounted from host. Edit locally → `scp` → `docker restart alertmanager`. |
 | `configs/alertmanager/alertmanager.yml.example` | — | Template with `__PLACEHOLDERS__`; render into the real file with secrets from `.env`. |
 | `configs/prometheus/prometheus.yml` | `/opt/monitoring/configs/prometheus/prometheus.yml` | Same pattern as Alertmanager. |
-| `configs/prometheus/rules/alerts.yml` | `/opt/monitoring/configs/prometheus/rules/alerts.yml` | Contains alert rules. Edit → hot-reload via `POST /-/reload` (wget inside the prometheus container against localhost:9090 — the alertmanager route stopped resolving `prometheus`, 2026-10-02). On failure the driver (`drivers/prometheus.py::_reload_prometheus`) falls back to `docker restart <the ^prometheus(-|$) container>` only if its config passes `promtool check config` (an invalid config is never restarted into — the running Prometheus keeps its last good one, W-5aa5e3d8); `scripts/sync_prometheus_to_vps.sh` has no fallback — it prints a WARN and exits 1. |
+| `configs/prometheus/rules/alerts.yml` | `/opt/monitoring/configs/prometheus/rules/alerts.yml` | Contains alert rules. Edit → hot-reload via `POST /-/reload` (wget inside the prometheus container against localhost:9090 — the alertmanager route stopped resolving `prometheus`, 2026-10-02). On failure the driver (`drivers/prometheus.py::_reload_prometheus_outcome`) falls back to `docker restart <the ^prometheus(-|$) container>` only if its config passes `promtool check config` (an invalid config is never restarted into — the running Prometheus keeps its last good one, W-5aa5e3d8), and the outcome reaches the operator: `fabrik apply` fails when promtool refuses the config and warns when Prometheus is unavailable (W-cc9b0532); `scripts/sync_prometheus_to_vps.sh` has no fallback — it prints a WARN and exits 1. |
 | `configs/loki/loki-config.yaml` | Loki volume | Rarely edited. |
 | `configs/alloy/config.alloy` | Alloy volume (the running log shipper) | Rarely edited — `alloy convert` output, no hand edits (spec D1). |
 | `configs/promtail/promtail-config.yaml` | Promtail volume (`rollback`-profile service, stopped until Gate S) | Rarely edited; kept only for D6 rollback. |
@@ -309,7 +302,7 @@ Pre-deploy invariant checks. Called by `scripts/final_gate.py` as part of the qu
 | `check_env_example.py` | Every env var referenced in code appears in `.env.example`. |
 | `check_env_updates.py` | When `.env.example` changes, `CHANGELOG.md` is updated. |
 | `check_env_vars.py` | Env vars follow `UPPER_SNAKE_CASE`. |
-| `check_docker.py` | `compose.yaml` uses `platform: linux/amd64`; base images are `-slim-bookworm`; `HEALTHCHECK` present; no public `ports:` mappings. |
+| `check_docker.py` | `compose.yaml` uses `platform: linux/amd64`; base images are the Debian `-slim` variant on the registry's `debian_codename`; `HEALTHCHECK` present; no public `ports:` mappings. |
 | `check_compose_services.py` | Compose services declare `networks: [fabrik]` when behind Traefik. |
 | `check_ports.py` | Ports used fall in allocated ranges (8000–8099 Python, 3000–3099 frontend); no duplicates. |
 | `check_health.py` | Every service has a `/health` endpoint that tests real dependencies. |
@@ -342,7 +335,7 @@ Single entry point for all tier-based quality checks:
 | `scripts/audit_envs.py` | Audit all `/opt/*/.env` files. |
 | `scripts/audit_all_projects.py` | Full-fleet compliance report (every project vs. every enforcement check). |
 | `scripts/container_images.py` | Inventory of every Docker image in use on the VPS; detects outdated `:latest` tags. |
-| `scripts/health_summary.py`, `scripts/health_checker.py`, `scripts/health_check_autonomous.py` | Rollup health probes across all deployed services. |
+| `scripts/health_summary.py`, `scripts/health_checker.py` | Rollup health probes across all deployed services. |
 | `scripts/generate_vps_inventory.py` | Generates VPS container/service inventory. Called by `_post_deploy_sync()`. |
 | `scripts/update_vps_docs.py` | Refreshes VPS status documentation. Called by `_post_deploy_sync()`. |
 | `scripts/provision_grafana.sh` | One-shot Grafana setup (dashboards, datasources). |
@@ -385,7 +378,7 @@ Files that live **on the VPS only**, outside the Fabrik repo. Grouped by service
 | Path | Purpose | Edit mechanism |
 |---|---|---|
 | `/opt/monitoring/compose.yaml` | The whole monitoring stack (Prometheus, Grafana, Alertmanager, Loki, Alloy, node-exporter, cAdvisor, Pushgateway, postgres-exporter, redis-exporter; Promtail stays defined under the `rollback` profile — stopped — until Gate S); mirrored at `infra/vps1/monitoring/compose.yaml`. `/opt/prometheus/` was removed — Prometheus runs in this stack. | `cd /opt/monitoring && sudo docker compose up -d`. |
-| `/opt/monitoring/configs/prometheus/prometheus.yml` | Scrape targets + alerting config. Retention: `--storage.tsdb.retention.time=30d --storage.tsdb.retention.size=5GB`. | Edit → hot-reload via `POST /-/reload` (wget inside the prometheus container against localhost:9090 — the alertmanager route stopped resolving `prometheus`, 2026-10-02). On failure the driver (`drivers/prometheus.py::_reload_prometheus`) falls back to `docker restart <the ^prometheus(-|$) container>` only if its config passes `promtool check config` (an invalid config is never restarted into — the running Prometheus keeps its last good one, W-5aa5e3d8); `scripts/sync_prometheus_to_vps.sh` has no fallback — it prints a WARN and exits 1. |
+| `/opt/monitoring/configs/prometheus/prometheus.yml` | Scrape targets + alerting config. Retention: `--storage.tsdb.retention.time=30d --storage.tsdb.retention.size=5GB`. | Edit → hot-reload via `POST /-/reload` (wget inside the prometheus container against localhost:9090 — the alertmanager route stopped resolving `prometheus`, 2026-10-02). On failure the driver (`drivers/prometheus.py::_reload_prometheus_outcome`) falls back to `docker restart <the ^prometheus(-|$) container>` only if its config passes `promtool check config` (an invalid config is never restarted into — the running Prometheus keeps its last good one, W-5aa5e3d8), and the outcome reaches the operator: `fabrik apply` fails when promtool refuses the config and warns when Prometheus is unavailable (W-cc9b0532); `scripts/sync_prometheus_to_vps.sh` has no fallback — it prints a WARN and exits 1. |
 | `/opt/monitoring/configs/prometheus/rules/alerts.yml` | Alert rules (ContainerDown, HighCPU, HighMemory, OOMKilled, etc.) | Same pattern. |
 | `/opt/monitoring/configs/alertmanager/alertmanager.yml` | Routes, receivers (Telegram), inhibit rules. **Secret-bearing** (Telegram bot token). | Edit → `sudo docker restart alertmanager`. |
 | `/opt/monitoring/configs/gatus/` | Gatus blackbox monitoring. Per-service files in `apps/` subdir (one YAML per project). **Git-versioned** (whitelisted in `drivers/locks.py::git_commit_config()`). `_base.yaml` for global alerting → Apprise. | Edit → Gatus auto-reloads on file change. |
@@ -421,7 +414,7 @@ These are **hard rules** for every deploy. Violating any of them puts the VPS or
 
 - **VPS arch:** x86_64 (amd64), AMD EPYC-Genoa, 6 vCPU, 12 GB RAM, Ubuntu 24.04, TZ `Europe/Istanbul` (+03).
 - **Every compose service MUST declare** `platform: linux/amd64` (enforced by `check_docker.py` and `deployer_ssh._validate_compose()`).
-- **Base images:** `python:<current-stable>-slim-bookworm` or `node:<current-LTS>-bookworm-slim`. **Never Alpine**.
+- **Base images:** `python:<current-stable>-slim-<debian_codename>` or `node:<current-LTS>-<debian_codename>-slim`, the codename from `.windsurf/rules/versions.yaml`. **Never Alpine**.
 
 ### 8.2 Networking
 
@@ -526,7 +519,7 @@ fabrik validate-deploy /opt/my-api
 
 1. `SpecValidator.validate()` — required-field + type checks + SSRF + `compute_spec_hash()` for idempotency.
 2. `SecretsManager.load()` — precedence: `os.environ` (includes `-s` flags) → `.env` → auto-generate.
-3. `DNSClient.add_subdomain(base_domain, subdomain, vps_ip)` — skipped if `--skip-dns`. Falls back to `CloudflareClient.add_subdomain()` if site-provisioner is unavailable.
+3. `DNSClient.add_subdomain(base_domain, subdomain, vps_ip)` — falls back to `CloudflareClient.add_subdomain()` when that call raises; a `success: false` reply raises `ProvisioningError` with no fallback (`DeploymentOrchestrator._provision_dns`).
 4. `SSHDeployer.deploy(ctx)` — dispatches by source type:
    - **Template:** `TemplateRenderer.render()` → `_validate_compose()` → SCP compose.yaml + .env to VPS → `docker compose up -d --wait`
    - **Git:** `git clone` (new) or `git pull` (existing) → write .env → `docker compose build` → `docker compose up -d --wait`
@@ -546,8 +539,6 @@ fabrik apply /opt/fabrik/specs/services/my-api.yaml
 fabrik apply /opt/fabrik/specs/services/my-api.yaml --dry-run
 
 # Flags
-fabrik apply specs/services/my-api.yaml --skip-dns           # skip DNS record
-fabrik apply specs/services/my-api.yaml --skip-deploy        # render files only
 fabrik apply specs/services/my-api.yaml -s API_KEY=override  # override a secret
 fabrik apply specs/services/my-api.yaml --keep-on-failure    # suppress rollback (debugging)
 ```
@@ -704,7 +695,6 @@ python scripts/sync_projects.py
 Orchestrator catches any exception during deploy, transitions to `ROLLING_BACK`, and calls `RollbackManager.rollback(ctx)`. Reverse-order cleanup of every `ctx.created_resources[*]`:
 
 - `compose` → `SSHDeployer.delete()` (`docker compose down -v` + `rm -rf /opt/<name>`)
-- `coolify` → legacy Coolify app removal (pre-migration deployments only)
 - `dns` → `CloudflareClient.delete_record_by_name()`
 - `monitor` → legacy monitor resource cleanup
 - `glitchtip` → `delete_project()`
@@ -753,7 +743,9 @@ Errors during rollback are logged and accumulated — rollback never aborts, alw
    b. Process env vars       (already in os.environ when CLI starts)
    c. Fabrik .env             (/opt/fabrik/.env loaded into os.environ by config.py at import time
                                via python-dotenv — does NOT overwrite existing vars)
-2. Project .env file          (/opt/<project>/.env — SecretsManager.dotenv property)
+2. <cwd>/.env                 (SecretsManager.dotenv — the .env of the directory `fabrik` runs in, read
+                               with the compose codec, only for a key absent from or empty in
+                               os.environ; a malformed file stops a deploy that reads it)
 3. Auto-generate              (CSPRNG 32-char secret if generate_if_missing=True — lowest)
 ```
 
@@ -778,6 +770,7 @@ Python: always `python-dotenv` or `pydantic-settings`.
 | Variable | Used by | Source |
 |---|---|---|
 | `FABRIK_VPS_SSH_HOST` | `drivers/ssh.py`, `drivers/locks.py` | Defaults to `vps`; set in `~/.ssh/config` |
+| `FABRIK_SSH_JUMP_<ALIAS>` | `drivers/ssh.py`, `drivers/dns.py`, `audit.py`, `drivers/preflight.py` (called by `orchestrator/__init__.py`) | Opt-in, per box: a ProxyJump for one alias (`docs/CONFIGURATION.md` § SSH jump) |
 | `SITE_PROVISIONER_API_KEY` | `drivers/dns.py` | site-provisioner admin |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ZONE_ID` | `drivers/cloudflare.py` fallback | Cloudflare dashboard |
 | `GRAFANA_SERVICE_ACCOUNT_TOKEN` | `drivers/grafana.py` | Grafana → Service Accounts |

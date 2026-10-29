@@ -1,0 +1,25 @@
+{
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
+  "created": "2026-10-18T14:16:49.064212Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-f93bd9b3",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "UPGRADED to /fabrik-spec (tradeoffs): open it seeded with /home/ozgur/.claude/state/command-runs/seeds/8a498855-2354-4a33-84d2-a0b8cd2f01ca-30ea8f94bbf708d6.md — choose (A) the merge commit carries the close vs (B) a separate close commit on base before the push; the uncommitted close is refuted (it trips _preflight's dirty refusal on the next merge of the item); every guard both critiques require is listed in the seed's RESUME",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "UPGRADED to /fabrik-spec (D-1014, tradeoffs A vs B): spec chain = high effort, a major; held behind W-ab242b11 (one major in flight)",
+  "status": "open",
+  "title": "merge_request.py merge does not close the --item it merges: 28 items stayed open on master after a merge(coordinator) commit named each as delivered (fleet's audit 2026-10-18; 17 closed by the coordinator, 11 by fleet)"
+}

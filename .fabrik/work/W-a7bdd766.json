@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T06:29:45.224699Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "17d3b0b02ab959fff58cbef2d824c99909861239",
+  "id": "W-a7bdd766",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "one-sentence edit in both contracts via /fabrik-task (governance-sync path → full /fabrik-review), keep the anchor phrase verbatim, then mail fabrik-lib",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "Operator-flagged scratch-lifecycle gap (2026-10-15, 'asap'); lock released at 5ee0ea96f; fleet-3b's critiqued design ready",
+  "status": "done",
+  "tags": [
+    "queued"
+  ],
+  "title": "CLAUDE.md + templates/governance/CLAUDE.md: add the RUN-SCRATCH clause beside § EXIT 'CLEAN your own scratch' (run-bound scratch, 1da14fcd7; fleet-8e request; fabrik-lib told separately)"
+}

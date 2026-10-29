@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T14:58:18.322446Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-9c1eb25e",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-command-improve",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "rejected: HELD:recurrence-edit-lands-where-the-held-reason-names — valid advice, first sighting (kaizen 2026-10-18, D-711 Opus audit: ADVICE, lead decides the recurrence)",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "dropped",
+  "title": "feedback queue /fabrik-command-improve"
+}

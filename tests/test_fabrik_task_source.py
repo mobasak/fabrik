@@ -6,8 +6,11 @@ ticket T03 Behavior Contract), plus (T07, plan 2026-10-02-plan-1) the Revision-2
 
 1. SIZE + INCLUDES — the source is at most `SIZE_CAP` bytes (D-296 raised it to 8980 above C2's
    original 8,847; T07 raises it again to 11672 for D3/D6/D7/D8's required prose plus the v1/v2
-   scope tags and the O7 fix review round 1 found missing — a pending D-row, see the comment
-   above `SIZE_CAP`) and its only `{{include:}}` is `run-record`. The include half
+   scope tags and the O7 fix review round 1 found missing — D-501; D-657 raises it to 11974 for
+   phase 2's path-naming rule; D-675 to 12439 for its MIRROR rule; D-679 to 13610 for phase 1's MEASURE list, see the comments above
+   `SIZE_CAP`)
+   and its only `{{include:}}` is
+   `run-record`. The include half
    is C2's cobra counter (cobra 8): the cheapest way to satisfy a source-byte cap is to move the
    prose into a fragment, so a second include is refused whatever the byte count says.
 2. RENDER — the source renders: a temp-dir `render()` (never the installed corpus — the renderer
@@ -57,7 +60,102 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # keeps today's gate, so the text has to say which) plus the O7 contradiction fix — D-501.
 # D-517 (operator ruling 2026-10-03, two independent design critiques before design approval) added the
 # phase-2 `design-critique` include inside this cap — the cap did not move.
-SIZE_CAP = 11672
+# D-657 (kaizen, 2026-10-08): 11672 -> 11974 for phase 2's path-naming rule (the label form, one
+# bare repo-relative path per backtick pair, a field ends at a field-word or `#` line, tests/deletions/renames
+# included, only the --review receipt exempt — ~15 feedback rows), after retiring phase 5's
+# restatement of the same rule.
+# D-675 (kaizen, 2026-10-08): 11974 -> 12439 for phase 2's MIRROR rule (every reader of what changes,
+# found by an executed search, its failing shape and measured cost; untouched readers unbackticked —
+# 7 feedback rows).
+# D-679 (kaizen, 2026-10-08): 12439 -> 13610 for phase 1's MEASURE list (tests on HEAD, fetch + diff,
+# the prior record, the measured population, live contract probes — 25 feedback rows).
+# D-705 (kaizen, 2026-10-08): 13610 -> 13941 for phase 2's `--terminal-amend` sentence (infra built
+# the verb at 15423ef2f; MEASURE or the critiques can narrow what ends the run — 5 feedback rows).
+# D-734 (kaizen, 2026-10-11): 13941 -> 16326 for the one-pass answer to the whole /fabrik-task queue (D-735):
+# measure by executing the real path, MIRROR's whole-tree search and fail direction, the lane's critique-brief
+# additions, the pre-record checklist, graders, v1's single commit, phase 4's third question, and the
+# receipt's range tip — ~150 feedback rows.
+# D-747 (kaizen, 2026-10-12): 16326 -> 19497 for the second pass over the /fabrik-task queue (D-735): the
+# specific MEASURE, MIRROR, critique-brief, grader, review-sizing and receipt steps the first pass left open —
+# 53 feedback rows.
+# D-750 (infra, 2026-10-12): 19497 -> 19706 for the working-tree receipt route (W-ebbedc88): review before the
+# commit, `review_receipt.py --restamp` after the last fix, check (d) re-hashes the receipt's paths — 6 rows.
+# D-789 (infra, 2026-10-13): 19706 -> 19729 — the receipt exemption names its `archived/` carve-out
+# (review A-S4/B-S1: a `*.md` glob read as direct children only and hid the exception).
+# D-797 (kaizen, 2026-10-13): 19729 -> 19873 — phase 4 says up front that a nested full review over committed work
+# inits its receipt with `--range` and commits it alone (row 1791845646).
+# D-803 (kaizen, 2026-10-13): 19873 -> 19930 — phase 3 never runs a formatter by hand beyond the declared paths
+# (row 1791848436: a package-wide ruff format rewrote 8 untouched files).
+# D-811 (kaizen, 2026-10-13): 19930 -> 20060 — the plan-lock check runs before phase 2's `--design` over every
+# backticked path and again at phase 3 for amended paths and new locks (row 1791868540).
+# D-843 (kaizen, 2026-10-14): 20060 -> 20285 — MIRROR greps tests for exact-set and line-count asserts on what the change
+# extends, and a copied mechanism carries its source's settled failures as Behaviours (rows 1791935733, 1791933860).
+# D-856 (kaizen, 2026-10-14): 20285 -> 20904 — MEASURE finds subprocess-run tests and red-proves a relied-on grader;
+# MIRROR finds vendored copies off the tracked tree; phase 3 names the live-store pin and re-runs MEASURE's slice (6 rows).
+# D-928 (kaizen, 2026-10-17): 20904 -> 21753 — phase 2 tabulates every input the design branches on and a new
+# parser fails closed; MEASURE sizes a grown hook output against the 10,000-character cap; phase 3 rewrites a
+# pre-fold test; phase 5 captures the commit by its exact subject, failing closed (9 rows).
+# D-936 (kaizen, 2026-10-17): 21753 -> 22044 — MEASURE greps every config and env value a changed format can
+# sit in; phase 2 tries a rule another component applies as a read of its output before copying it (2 rows).
+# D-951 (kaizen, 2026-10-17): 22044 -> 22272 — MEASURE reads a new env var's transport on the started process,
+# keys only, row 1792258556 (a third verdict on held measure-the-env-writers).
+# D-974 (kaizen, 2026-10-18): 22272 -> 22410 — phase 4 names both receipt routes for a nested full review: --range
+# to the last --commit, committed alone, or a receipt the D-row cites made before that commit (row 1792287653).
+# D-979 (kaizen, 2026-10-18): 22410 -> 22662 — SIZE check-ignores each new file path and stages it just before the
+# pathspec commit; MEASURE runs the codec a change touches on non-UTF-8 bytes, NUL and that codec's own escape (rows
+# 1792293040, 1792291304; two held-subject recurrences).
+# D-984 (kaizen, 2026-10-18): 22662 -> 22917 — a linked-worktree session changes <durable> files as a scratchpad
+# copy cp'd back whole, since its Write tool refuses a main-checkout path (row 1792298605, a fourth sighting).
+# D-997 (kaizen, 2026-10-18): 22917 -> 23537 — phase 5's after-commit receipt form makes each review-fix commit
+# through step 5's capture line; MIRROR's ast.walk census sits beside the grep (rows 1792327651, 1792303601).
+# D-998 (kaizen, 2026-10-18): 23537 -> 23706 — MEASURE greps a work item's cited path:line for the symbol it names
+# before the design takes the item's wording (row 1792330126, a recurrence of held measure-refuted-ticket-premise).
+# D-999 (kaizen, 2026-10-18): 23706 -> 23744 — supersedes D-998: the cited-line grep runs in the cited file and a
+# miss is a finding PROBLEM states, never the item's wording (review round 1 on row 1792330126).
+# D-1008 (kaizen, 2026-10-18): 23744 -> 24006 — MEASURE replays a work item's cited failure on a copy beside the
+# grep (a grep hit can sit in dead code; row 1792348018, a recurrence); a phase-2 seat naming a second approach the
+# build cannot settle is the UPGRADE crossing before --design (row 1792339442).
+# D-1011 (kaizen, 2026-10-18): 24006 -> 24209 — supersedes D-1008's figure: the replay names the state it needs and
+# records an unreachable one unverified, never refuted; the phase-2 crossing carries the equivalent-implementation
+# guard, its seat's claim executed, and the `tradeoffs` token (review round 1 on rows 1792348018, 1792339442).
+# D-1012 (kaizen, 2026-10-18): 24209 -> 24260 — supersedes D-1011's replay outcomes: a replay on a copy carrying
+# the state that does not fail as claimed is a finding, one whose copy cannot carry it is unverified; the phase-2
+# seat's claim is executed and holding (review round 2 on rows 1792348018, 1792339442).
+# D-1021 (kaizen, 2026-10-19): 24260 -> 24348 — BUILD re-runs MEASURE's population measurement on the built tree
+# when the change adds or widens a check or guard (row 1792352977, a recurrence of held resweep-corpus-on-widened-guard).
+# D-1023 (kaizen, 2026-10-19): 24348 -> 24375 — supersedes D-1021's trigger: the re-measure fires when the change adds,
+# changes or removes a check, guard or threshold, and names MEASURE, since narrowing, re-thresholding or removing one moves a fire rate too (review round 1).
+# D-1035 (kaizen, 2026-10-19): 24375 -> 25020 — MEASURE executes the reported incident's next step on a copy, a range
+# tool where the merge target moved past the merge-base, each spelling the commands and docs feeding a parsed input
+# prescribe, and a copied mechanism read-only on each host's live state; phase 2's grammar admits those spellings and
+# the critiques run a copied mechanism (rows 1792361074, 1792363058, 1792365690, 1792401257).
+# D-1068 (kaizen, 2026-10-20): 25020 -> 25756 — MEASURE replays the fix a work item proposes and reads an
+# unreachable tool's server source before recording unverified, greps the prior record by the item's id, and runs a
+# surfaced outcome twice; phase 2 tables a marker-block or append-only file's malformed shapes, tells the brief a
+# fabrik-reviewer seat has no web tool, and says when --design-amend runs (rows 1792467014, 1792452880,
+# 1792445219, 1792459184, 1792451004, 1792412516, 1792418646; an Opus + Fable panel kept 6 of 11 insertions, for 7 rows).
+# D-1070 (infra, 2026-10-20): 25756 -> 26238 — a nested full /fabrik-review over committed work keeps its rows in a
+# `<durable>` draft during the passes and makes its receipt ONCE, after the last --commit, the gate run before that
+# --init (kaizen mail 01M5BSVANZ, rows 1792464865, 1792450211); the raise landed late — W-60629ce4 shipped over the cap.
+# D-1103 (kaizen, 2026-10-21): 26238 -> 26506 — an executed read of each input's live rows fills the inputs
+# table's counts and values; phase 2 tables each tag a parser it adds or extends reads, quoted inside its own
+# content; the census counts `.claude/worktrees/` apart (rows 1792587704, 1792574009, 1792544635, 1792573888, 1792585649); 53 bytes cut.
+# D-1162 (kaizen, 2026-10-23): 26506 -> 26951 — MEASURE runs every probe under an interpreter shown to import its
+# libraries and each extra it enables; MIRROR's search takes every other /opt main checkout's tests and CI files
+# citing a changed path; phase 4 runs phase 2's plan-lock check on each path a review fix touches, unnamed in
+# APPROACH/MIRROR, before the fix edits it, and amends it with `step --phase 4 --design-amend` once the nested review
+# has closed; phase 2's remedy names the current phase, since `step` sets the record's phase (rows 1792766698,
+# 1792734746, 1792731898, 1792765470; review rounds 1-2 folded).
+# D-1192 (kaizen, 2026-10-24): 26951 -> 27508 — phase 2 reads the plan locks before the critique fragment stamps the
+# seats, and the pre-`--design` checklist opens by re-reading `--terminal` against design.md's TERMINAL as MEASURE and
+# the critiques left it, then re-runs the lock check on every path; MEASURE replays a prior slice's stated reason the
+# design builds on and says a count is no fail direction (rows 1792835476, 1792831669, 1792834386, 1792830212,
+# 1792780963, 1792832940; review round 1 folded).
+# D-1339 (kaizen, 2026-10-29): 27508 -> 27649 — phase 5 step 5 runs the `command_run.py capture` verb as a plain call
+# once the commit exits 0 (the chained recipe and the worktree plain-calls paragraph retired), the after-commit close
+# is a numbered list between steps 5 and 6, and D-1336's check (d) correcting sentence joins it; phase 4 names the two
+# runs that review before the commit (review round 1 folded; 131 bytes cut).
+SIZE_CAP = 27649
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -253,12 +351,12 @@ def _asserted(text: str, pattern: str) -> bool:
 def test_source_size_and_single_include() -> None:
     """The byte ceiling, and `run-record` + `orient` + `design-critique` as the only includes.
 
-    ⚠️ The cap is 11672 B, NOT the spec's C2 figure of 8,847 nor D-296's 8980 (the latter stood
-    until T07, plan 2026-10-02-plan-1, which gained the Behaviours cap, multi-commit build,
-    `--design-amend`, the review flavour by surface, the close refusal, the four new UPGRADE
-    tokens, and (review round 1) the v1/v2 scope tags every one of those needed plus the O7
-    contradiction fix — all REQUIRED prose, not padding; see the `SIZE_CAP` comment above for
-    the pending D-row). Before T07: the three HIGH findings of T03's delta round cost more bytes than the
+    ⚠️ The cap is `SIZE_CAP` (11974 B since D-657's phase-2 path-naming rule), NOT the spec's C2
+    figure of 8,847 nor D-296's 8980 (the latter stood until T07, plan 2026-10-02-plan-1, which
+    gained the Behaviours cap, multi-commit build, `--design-amend`, the review flavour by
+    surface, the close refusal, the four new UPGRADE tokens, and (review round 1) the v1/v2 scope
+    tags every one of those needed plus the O7 contradiction fix — all REQUIRED prose, not
+    padding; D-501, see the `SIZE_CAP` comment above). Before T07: the three HIGH findings of T03's delta round cost more bytes than the
     compression that funded them: a polarity-INVERTED cobra counter (it fired on the honest run and
     was silent on the padded one), a pointer 42 of 43 repos could not follow, and a capture window
     that recorded a SIBLING's commit as this run's measurement — plus closing a fail-open on the
@@ -430,102 +528,22 @@ def _assert_governs(text: str, sentence: str, why: str) -> None:
     )
 
 
-def test_design_note_names_behaviours_cap_and_the_design_amend_remedy() -> None:
-    """Behavior Contract row 1 (part): the Behaviours cap (v2 UPGRADE), the v2 undeclared-path
-    REFUSAL (v1 only records), and the `--design-amend` remedy — each a FULL clause, bounded at
-    both ends by a real terminator (T07 review O8's ruling), not an arbitrary mid-sentence cut."""
+def test_the_command_source_shows_the_space_form_of_multi_commit_only() -> None:
+    """The multi-commit and review-flavour pins moved to commands/_rules/fabrik-task.yaml (T08); the absence of a
+    comma-joined `--commit` example stays a test."""
     text = _norm(_source_text())
-    cap_refuse = (
-        "Add a `## Behaviours` list — each naming its test, at most 7 (an 8th is the "
-        "`behaviours` UPGRADE, *(v2)*) — and name every path the build will touch in APPROACH "
-        "or MIRROR (backticked): *(v2)* a committed path missing from both REFUSES `done` at "
-        "close (v1 only RECORDS it, never refusing);"
-    )
-    amend = (
-        "the remedy is `step --phase 2 --design-amend <path>` *(v2)*, append-only — it never "
-        "overwrites a recorded field — and counted on the close as `design_amends`."
-    )
-    for sentence, why in (
-        (cap_refuse, "the Behaviours cap / v2 REFUSAL"),
-        (amend, "the --design-amend remedy"),
-    ):
-        _assert_governs(text, sentence, why)
-
-
-def test_build_and_review_sections_name_multicommit_sync_commit_and_full_review() -> None:
-    """Behavior Contract row 1 (part): the v1-single/v2-multi commit build, the sync-path single
-    commit (D7), and the review flavour by surface (v1 always scoped; v2 by surface) incl. the
-    D8 nested stop — each a full clause/sentence."""
-    text = _norm(_source_text())
-    multicommit = (
-        "One commit carries it at v1; *(v2)* several may, SPACE-separated — `done --commit shaA "
-        "shaB …` measures each in order; a sync-path run (D7) commits ONCE, after phase 4, in "
-        "the main checkout (`done` refuses more outside a worktree; `blocked`/`handoff` only "
-        "note it)."
-    )
-    review = (
-        "Invoke the review phase 0 already picked — at v1 always `/fabrik-review-scoped` (a v1 "
-        "sync/heavy surface never reaches the lane — it routes right-now instead); *(v2)* "
-        "`/fabrik-review-scoped`, or the full `/fabrik-review` for a sync, heavy, migration or "
-        ">5-file surface (D2, D7) — unchanged, never from memory; nested here, its own "
-        "scope-growth stop fires at the FIRST own-fix-only round, not the third (D8), still "
-        "closing only on a confirmed-zero pass."
-    )
-    for sentence, why in (
-        (multicommit, "the multi-commit/sync-once rule"),
-        (review, "the review flavour by surface"),
-    ):
-        _assert_governs(text, sentence, why)
-    # the comma-joined form this ticket's review found and REMOVED — never resurfaces; T07-S3
-    # (a parser-level test of this syntax) belongs to T08, where the space-separated parser
-    # lives, and is deliberately NOT added here.
+    # The command source shows the space form only. Since 6cff7527c the parser also splits one
+    # comma-joined value (scripts/command_run.py, the `--commit a,b` comment), which the protocol
+    # doc describes in prose; parser-level tests live with the parser, not here.
     assert "sha1,sha2" not in text, (
-        'a comma-joined --commit example returned (nargs="+" is SPACE-separated)'
+        "a comma-joined --commit example entered the command source (it shows the space form)"
     )
 
 
-def test_close_section_refuses_undeclared_and_close_time_contract_hits() -> None:
-    """Behavior Contract row 1 (part): the v2 close REFUSES (v1 still only records)."""
+def test_upgrade_section_never_describes_the_close_raised_tokens_as_typed_by_hand() -> None:
+    """The ten-token list and close-raised rule pins moved to commands/_rules/fabrik-task.yaml (T08). The absences stay:
+    ONE consistent rule, never "never typed by hand" (T07 review O7)."""
     text = _norm(_source_text())
-    undeclared = (
-        "*(v2)* a committed path missing from APPROACH/MIRROR/an amendment REFUSES `done` "
-        "(phase 2's remedy above); `blocked`/`handoff` record it as `oversized_mini` instead, "
-        "never refusing a sanctioned halt."
-    )
-    contract = (
-        "*(v2)* a contract or new-source hit found only here REFUSES `done` and `handoff` too, "
-        "until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none."
-    )
-    v1_records = "At v1 an undeclared path is RECORDED as `oversized_mini`, never refused."
-    for sentence, why in (
-        (undeclared, "the v2 undeclared-path REFUSAL"),
-        (contract, "the v2 contract/new-source REFUSAL"),
-        (v1_records, "the v1 record-only behaviour"),
-    ):
-        _assert_governs(text, sentence, why)
-
-
-def test_upgrade_section_gains_the_four_close_raised_tokens() -> None:
-    """Behavior Contract row 1 (part): the UPGRADE token list gains `contract`, `new-source`,
-    `behaviours`, `appetite` (tagged v2), and the close raises them WHETHER OR NOT typed by hand
-    — ONE consistent rule, never "never typed by hand" (T07 review O7: the lead sentence used to
-    cite "a contract path" as a hand-typed example while the close paragraph claimed the close-
-    raised four are "never typed by hand" — self-contradicting; fixed to the single rule below)."""
-    text = _norm(_source_text())
-    token_list = (
-        "lead with `files` · `oneway` · `tradeoffs` · `seat` · `sync` · `heavy` (v1 and v2) · "
-        "*(v2)* `contract` · `new-source` · `behaviours` · `appetite`, then a dash and the detail."
-    )
-    close_raised = (
-        "*(v2)* The last four — `contract` · `new-source` · `behaviours` · `appetite` — the "
-        "close ALSO raises itself, from the commit, WHETHER OR NOT you typed them: "
-        "`contract`/`new-source` REFUSE `done`/ `handoff` until `--review <receipt>` names one;"
-    )
-    for sentence, why in (
-        (token_list, "the ten-token list"),
-        (close_raised, "the close-raised rule"),
-    ):
-        _assert_governs(text, sentence, why)
     # O7's contradiction, as an executable refusal: "never typed by hand" must NOT recur anywhere
     # near the four close-raised tokens — the single rule is "whether or not you typed them".
     assert "never typed by hand" not in text, (
@@ -543,21 +561,12 @@ def test_upgrade_section_gains_the_four_close_raised_tokens() -> None:
     )
 
 
-def test_independent_slices_are_several_task_runs() -> None:
-    """Spec § The delta D6, named in this ticket's Scope."""
-    text = _norm(_source_text())
-    sentence = (
-        "A feature splitting into independently shippable slices is several of these runs, "
-        "never one bundling them (D6)."
-    )
-    _assert_governs(text, sentence, "D6")
-
-
 def test_protocol_doc_documents_every_flag_and_feedback_field_this_ticket_scopes() -> None:
     """Behavior Contract row 2: every flag and feedback field named in T07's Scope is documented
     in `docs/reference/command-run-protocol.md`, matching T08's actual writer at `e6944534f`
     (`scripts/command_run.py`, read via `git show`, never checked out) — grounded, not guessed:
-    `--commit`/`--review` are SPACE-separated (`nargs="+"`); `step --appetite` is accepted on ANY
+    `--commit` is `nargs="+"` and, since 6cff7527c, also splits one comma-joined value; `--review`
+    takes one receipt; `step --appetite` is accepted on ANY
     command at lane v2, refused if non-positive regardless of version, ignored-with-note at v1;
     the `start` line matches the exact printed format. The Revision-2 field names (`parent`,
     `size`, `from_downgrade`, `design_amends`, `loc_added`, `over_appetite`, `upgrades`,
@@ -609,10 +618,11 @@ def test_protocol_doc_documents_every_flag_and_feedback_field_this_ticket_scopes
         ),
         (
             "`--commit` is the `fabrik-task` lane's flag on the three close verbs "
-            '(`nargs="+"` — SPACE-separated, never comma-joined) — REQUIRED on `done` there, '
-            "optional on `blocked`/`handoff` (which may close before any commit exists), "
-            "REFUSED on every other command;",
-            "`done --commit` SPACE-separated, never comma-joined",
+            '(`nargs="+"` — space-separated, or one comma-joined value, which is split: a sha '
+            "never holds a comma) — REQUIRED on `done` there, optional on `blocked`/`handoff` "
+            "(which may close before any commit exists), REFUSED on every other command;",
+            # 6cff7527c (kaizen 01M55GGMS5) made a comma-joined value legal and split it.
+            "`done --commit` space-separated or one comma-joined value, split",
         ),
         (
             "at lane v1 more than one is REFUSED (pass ONE).",
@@ -669,7 +679,10 @@ def test_protocol_doc_documents_every_flag_and_feedback_field_this_ticket_scopes
         "`phase_marks`",
     ):
         assert field in text, f"the protocol doc's feedback-field list drops {field}"
-    assert "sha>[,<sha>" not in text, "a comma-joined --commit/--review example returned"
+    assert "sha>[,<sha>" not in text, (
+        "a comma-joined synopsis entered the protocol doc (the synopsis keeps the space form "
+        "`<sha> [<sha>…]`; the comma form of --commit is described in prose)"
+    )
 
 
 def test_scope_growth_fragment_names_the_lane_variant() -> None:
@@ -736,3 +749,38 @@ def test_the_description_skip_clause_names_both_lane_versions() -> None:
         assert scoped not in shared, f"{scoped!r} is stated before any lane-version scope"
     old = "anything the SIZE gate refuses: more than 3 files"
     assert old not in skip, "the SKIP clause still states the v1 file cap as unconditional"
+
+
+def test_phase_two_restates_the_terminal_with_the_design() -> None:
+    """D-705: MEASURE or the critiques can narrow what ends the run after `start --terminal` fixed it. Phase 2
+    names `step --terminal-amend`, and the real parser accepts it beside `--design`; its runtime refusals
+    are graded in tests/test_command_run_lane_v2.py."""
+    args = _parse(
+        'python3 scripts/command_run.py step --phase 2 --title "design: d" --design d.md '
+        '--terminal-amend "the narrowed terminal"'
+    )
+    assert args is not None and args.terminal_amend == "the narrowed terminal"
+
+
+def test_the_run_files_live_in_the_scratch_path_start_prints() -> None:
+    """Mail 01M4VV3BD3 (infra, D-836): /tmp died in a WSL shutdown, so the phase-2/5 files go under the
+    persistent SCRATCH path `start` prints; the session scratchpad is only the fallback when start prints no SCRATCH line."""
+    raw = _source_text()
+    # mail 01M4Z8X2JE: `<run-scratch>` read as the disposable `RUN-SCRATCH:` folder the sweeper removes
+    assert "<run-scratch>" not in raw
+    # D-984's heredoc and `cat >>` bans (a heredoc stops at a content line equal to its delimiter; `cat >>` of a
+    # revised copy duplicates it); D-1288: SCRATCH is the session's own checkout's since D-1268, so a worktree's
+    # removal takes it
+    assert "heredoc" not in raw and "`cat <it> >>`" not in raw
+    assert "surviving WSL `/tmp` wipe but not a worktree's removal" in raw
+    assert "and worktree's removal" not in raw and "and the worktree's removal" not in raw
+    assert "<scratchpad>/fabrik-task/<sid>/<started_at>" not in raw
+    for site in (
+        "`<durable>/measure.md`, beside phase 2's `design.md`",
+        "--design <durable>/design.md",
+        "mkdir -p <durable>\n",
+        "capture --msg <msg> --out <durable>/commit.sha",
+        "--commit $(cat <durable>/commit.sha)",
+        "--resume <durable>/design.md",
+    ):
+        assert site in raw, site

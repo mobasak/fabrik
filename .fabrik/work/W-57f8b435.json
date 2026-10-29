@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:21:49.452701Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-57f8b435",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RPGF7N0A1K5EF88J5M4WWJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Follow-up to 01M4RP527P (loopback refusals), narrowed:"
+}

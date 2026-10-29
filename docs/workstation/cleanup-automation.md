@@ -17,7 +17,7 @@ this page is where a new cleanup rule gets written.
 | `cleanup-weekly.ps1` | `C:\Users\user\scripts\` (Windows) | Task Scheduler `Fabrik-WeeklyCleanup`, **Sun 04:00** | Windows Temp, crash dumps, WU downloads |
 | `compact-wsl.bat` | `C:\Users\user\OneDrive - Tojlo Solutions LLC\Desktop\` | manual | WSL vhdx compaction |
 | `flush_subagent_outboxes.py` | `/opt/fabrik/scripts/kilo-benchmarks/` (WSL) | **daily 06:00** via `daily_refresh.sh` **+ every boot** via `wsl_startup_hook.sh` | drains `.tmp/subagents/pg_outbox*.jsonl` — see § E |
-| `scratch_sweep.py --dead --apply` | `/opt/fabrik/scripts/` (WSL) | cron **04:20 daily** — ✅ INSTALLED (verified in `crontab -l` 2026-09-20) | DEAD sessions' scratch under `/tmp/claude-<uid>` — see § F |
+| `scratch_sweep.py --dead --apply` | `/opt/fabrik/scripts/` (WSL) | cron **04:20 daily** — ✅ INSTALLED (verified in `crontab -l` 2026-09-20) | DEAD sessions' scratch under `/tmp/claude-<uid>`, and the hub's dormant `.claude/worktrees/agent-<hex>` harness trees — see § F |
 | `agent_memory.sh cron` | `/opt/fabrik/scripts/sysadmin/` (WSL) | **hourly** via `weekly_catchup.sh`, fires once a day — ✅ INSTALLED 2026-09-20 | RAM: asserts the four `vm.*` knobs and reports. It does NOT reclaim swap — that is operator-run (D-318) — see § G |
 
 ---
@@ -159,10 +159,15 @@ python3 /opt/fabrik/scripts/scratch_sweep.py --apply         # remove what it li
 python3 /opt/fabrik/scripts/scratch_sweep.py --worktrees     # this repo's agent worktrees
 python3 /opt/fabrik/scripts/scratch_sweep.py --dead          # the janitor, DRY RUN
 python3 /opt/fabrik/scripts/scratch_sweep.py --dead --apply  # what the cron line runs
+python3 /opt/fabrik/scripts/scratch_sweep.py --run-folders --session <sid>          # this session's run folders
+python3 /opt/fabrik/scripts/scratch_sweep.py --run-folders --session <sid> --apply  # what `command_run.py start` launches
+python3 /opt/fabrik/scripts/scratch_sweep.py --run-folders --session <sid> --retire run-<key>  # end one resume
 ```
 
 Every row carries a class, a reason and its evidence; `--apply` is opt-in and prints the refusal set
-before it removes anything. The operator's two constraints are the whole design: *"we should not
+before it removes anything. A stale directory with read-only parts — a review seat's copied pin — is made
+owner-writable inside itself (never its parent, never through a symlink) and removed; a tree that
+still refuses ends on its row's `FAILED` line. The operator's two constraints are the whole design: *"we should not
 cause data loss"* and *"agents must know what will this script do while using it."*
 
 **Its relation to § D is the point.** § D's DO-NOT-SWEEP list exists because a rule globbing
@@ -172,22 +177,101 @@ registers under `<repo>/.tmp` (fabrik-lib has one) is classified like any other 
 by the ordinary guards; it is never swept as a spool. And because `git worktree remove` deletes
 ignored files even without `--force`, a worktree holding ignored DATA outside the cache allowlist is
 `wt-ignored-data` and is never removed — which is what keeps § D's spools safe on that path too.
+
+**What "merged" means (D-1290).** A branch is merged when it is an ancestor of the main checkout's
+branch, or when a squash commit there (a non-merge commit) names it in a `Merged-From:` trailer AND
+none of the commits the main branch lacks is newer than that squash — a merge among them counts by
+its own time unless every parent after its first is already on the main branch (the branch
+catching up). Branch names are reused — hand merges
+once carried `Merged-From: worktree-fleet`, and agent branches gained a wip snapshot after their
+squash — so a trailer vouches for the state it squashed, never for later work: such a branch reads
+`wt-unmerged`, its row saying how many commits are newer than the squash. A merge commit's trailer is
+never read; its parents already answer. The rule is by commit time, so it can be fooled by work made
+during the squash itself, by a commit dated backwards or by a catch-up merge that carries edits of
+its own, and it keeps (never removes) a branch rebased after its squash.
 - **`wt-sync-only`** (added 2026-09-15, widened 2026-10-01) — nothing in the worktree is anyone's work: every untracked or ignored path is the governance sync's output (the current hub bytes, an OLDER version found in a hub commit on its sync-source path, or a file still matching its md5 in the worktree's own `.fabrik/worktree-synced.lock`), a creation copy byte-identical to the main checkout's file, the worktree's own `.claude/settings.local.json`, any symlink (removal unlinks it, never its target), or an IGNORED tool cache by path component (`.venv`, `node_modules`, `__pycache__`, `.pytest_cache`, `.ruff_cache`, `.mypy_cache`, `.astro`). Never an output directory such as `dist/` or `test-results/`, ignored or not: that is where a report or the one trace of a failing run lands, so such a tree stays `wt-ignored-data` for a human. A TRACKED edit is never judged this way — it stays `wt-dirty`. Removable only under `--include-unmerged`, and then with `--force`: the state is re-read at removal time and any authored path, a stash naming its branch, or ignored data refuses it.
 
 **What it never touches** (hard-coded, printed by `--help` and by every apply run): repo files, except
 a worktree it classified removable · transcripts and `~/.claude*/state`, beyond the one lock file it
-creates · `<repo>/.tmp/**` as a scan root · docker anything · another LIVE session's scratch · the
+creates and the size report beside it (`scratch-size-report.json`, written only by `--dead --apply`) · `<repo>/.tmp/**` as a scan root · docker anything · another LIVE session's scratch · the
 session's own `tasks/` dir · a symlink's target · a worktree another session registered (unless
 `--foreign-older-than`, below), one holding ignored data, or one git does not register · anything
 holding a backup shape (`*.bak`, `*.original`,
 `*pristine*`, `before.txt`/`after.txt`, `.keep`) — the entry's own NAME included, which is what keeps
 the operator's `pristine/` and `fe-pristine/` baselines.
 
+**Run-bound scratch — a run's folder is removed by its marker, never by its age** (2026-10-15, plan
+`2026-10-15-plan-1-scratch-lifecycle`, D-867/D-870/D-877). Every `command_run.py start` mints
+`<session dir>/scratchpad/run-<command>-<started_at>-<6 hex>/` with a `.owner` marker (`sid`, `key`,
+`command`, `repo`, `created`, `state`, `closed_at`); every close rewrites its `state` (`done`, or
+`resumable` at a quota wall), and `step`/`round`/`dispatch` refresh its mtime (the heartbeat). The
+operator's bar is the design: *"do not cause active scrathcpads to be removed but be sure the ones
+consumed will be done so"*. `classify_run_folder` is the ONE function that answers:
+
+- **ACTIVE, never removed** (spec INV-1): `running` in a session with a live signal or no death signal,
+  or with a heartbeat 7 days old or newer; `resumable`; `done` less than its grace ago — 30 minutes,
+  or 36 h when a seat of the session wrote after the close or that cannot be read, and 36 h counted
+  from the last change when an entry was created or removed in the folder itself more than 5 s after
+  its close (its own mtime, one stat: a folder still written into after its run closed, W-9f3f097c; an
+  unreadable or future time is doubt counted from the close, never a keep until that date —
+  a write that only modifies an existing file, or lands inside an existing subfolder, is not seen, and
+  a cleanup inside the folder after its close keeps it 36 h); a holder (fd or cwd)
+  inside; a same-uid `/proc` gap whose process started after the marker was written, or whose start is
+  unknown (D-877 — this box always carries three such daemons that started at boot, so "any gap keeps"
+  would keep everything; a zombie is no gap; that ruling is the operator's, interim until they rule);
+  a holder probe that did not complete; a `.keep`; a registered worktree it cannot remove; no
+  readable marker; a marker naming another session (D3 only).
+- **CONSUMED, removed walk-free** (INV-2): `done` past its grace, or `running` in a dead session with
+  a 7-day-stale heartbeat. Removal is a rename to `.trash-<key>`, then `rmtree`; the marker's
+  fingerprint, a `.keep`, holders and gaps are re-checked at removal time. A worktree pointer inside
+  (a `.git` FILE whose gitdir lies outside the folder, depths 0-3) keeps the folder unless the worktree
+  is merged and clean, or detached, clean and contained in a ref — then `git worktree remove` first. A
+  plain clone (a `.git` directory) is scratch. The pointer scan reads at most
+  `SCRATCH_SWEEP_GIT_SCAN_BUDGET` (200 000) entries; a folder wider than that is KEPT ("the .git pointer
+  scan stopped at its budget"), the size report lists it with that reason and a remedy, and a
+  resume never moves it (W-c0a1d324).
+- **Who removes:** `start` launches `--run-folders --session <sid> --apply` detached after its record
+  lock drops (D3; a per-session `flock` at `<session dir>/.run-folders.lock`, never the global lock, so
+  the nightly run is never skipped). `--dead --apply` consumes every session's run folders first (D4)
+  — the dead-session idleness walk never enters a marker-governed run folder (a direct child of
+  `scratchpad/`), it reads only each one's own mtime and `.owner` heartbeat, so a live run still marks
+  its session alive; a run-NAMED directory anywhere else is ordinary content and is walked — and keeps a dead session's directory while it holds an ACTIVE folder, removing everything else in
+  it — judged again after the run pass, so a folder the removal-time re-check kept keeps its directory
+  too. Session mode lists run folders as `kept`/`consumed` and never judges them by age; `--hook`
+  leaves them out. `--strict-proc` holds a `consumed` run folder back (`probe-error`) in session mode
+  and in `--dead`, like every other removable row. Only the mint's keyed name is marker-governed — an agent's own `run-tests/` stays an
+  ordinary entry.
+- **Adoption:** `start --resume-from` moves the wall run's `resumable` folder into the new session (one
+  rename; `sid`/`key` rewritten; `running`, with an `adopted` time the report ages from, once the
+  resumed record is saved). A folder holding a worktree pointer is not moved and is marked
+  `done`; one no longer `resumable` is left as it is; `--retire run-<key>` ends a forgotten resume by hand (`resumable` only).
+- **Advisory measures (D5, D6):** `round` prints `<folder>: <size> — a copied tree? an archive or clone
+  is leaner` for any top-level folder of the run folder over 2 GB (`COMMAND_RUN_SEAT_WARN_BYTES`; a
+  `pin --base` extraction beside its pins `MANIFEST.json` is exempt), each folder measured under its own `du`
+  deadline (`COMMAND_RUN_SEAT_DU_DEADLINE_S`, 10 s); `--dead --apply` writes
+  `~/.claude/state/scratch-size-report.json` (per-session apparent bytes outside running folders, run
+  folders older than 72 h and not `done`, `done` folders a worktree keeps), and the SessionStart hook
+  prints one `SCRATCH ALARM` line from it (or names it stale past 48 h, or a session too big to
+  measure in time), or when disk use passes 85 % (df's Use%). Neither removes anything.
+- **The legacy residue** (the untagged entries before this shipped — 1428 entries, 32.84 GB
+  apparent, measured 2026-10-15) is never automated: an operator-signed list (`docs/development/reviews/2026-10-15-plan-1-scratch-lifecycle-legacy-list.md`).
+
 **Why the janitor needs three signals.** A sid is `dead` only when it has no live signal, AND a death
 signal, AND its own directory is idle past 7 days. A gone pid is NOT a finished session: `--resume`
 keeps the sid across exactly the network deaths, context fills and quota holds this tool serves.
 Measured 2026-09-08: 18 sids had a gone-pid sessions file and a live directory, and all 18 were
 younger than 7 days — one of them 8 minutes old.
+
+**The janitor's harness pass (W-18e66a92).** A dead subagent's `.claude/worktrees/agent-<hex>` tree
+is never removed by the session that made it — that session is gone — so `--dead` also classifies
+the hub's MAIN checkout (`janitor_worktrees`): only `agent-` + 16 or more hex directly under
+`.claude/worktrees/` (the named `fleet`/`intel`/`kaizen` trees are peers' and never taken), only a
+`wt-removable` chain verdict, only after 3 days with no commit or checkout in the tree (the newest of
+its registration's `gitdir`, `HEAD` and `logs/HEAD` — never `index`, which the classifier's own
+`git status` rewrites), and never a repo-wide `git worktree prune`. Its merged branch goes with
+`git branch -d`. A tree's `.worktreeinclude` copy of `.env` counts as a creation copy when its bytes
+equal a top-level file in the hub's `backups/` whose NAME contains the copy's basename (`hub.env.retired-<md5>.backup.<ts>` for `.env`; `_preserved_in_backups`): after a `.env` rotation,
+archive the retired version there once, or every older tree stays `wt-ignored-data`.
 
 **The cron line — ✅ INSTALLED.** Verified present in `crontab -l` on 2026-09-20; the operator
 placed it after this section was written. Kept here because it is the line to restore if the
@@ -229,7 +313,10 @@ SQLite WALs, `data/`, `.env` that differs from the main checkout, any authored f
 
 **Test seams** (env vars, all with production defaults): `SCRATCH_SWEEP_ROOT` · `SCRATCH_SWEEP_NOW`
 · `SCRATCH_SWEEP_SESSIONS_DIRS` · `SCRATCH_SWEEP_TRANSCRIPT_DIRS` · `SCRATCH_SWEEP_BTIME` ·
-`SCRATCH_SWEEP_HOOK_BUDGET` · `FABRIK_PROC_ROOT` · `CLAUDE_SOUND_LOCKDIR`, plus
+`SCRATCH_SWEEP_HOOK_BUDGET` · `SCRATCH_SWEEP_WALK_BUDGET` · `SCRATCH_SWEEP_GIT_SCAN_BUDGET` · `SCRATCH_SWEEP_JANITOR_REPO` · `FABRIK_PROC_ROOT` · `CLAUDE_SOUND_LOCKDIR` ·
+`SCRATCH_RUN_GRACE_S`
+(36 h) · `SCRATCH_RUN_HEARTBEAT_S` (7 d) · `SCRATCH_SWEEP_DISK_USED_PCT` · `SCRATCH_SWEEP_REPORT_BUDGET_S`
+(600 s), plus
 `SCRATCH_SWEEP_FORCE_START`, which is gated behind `SCRATCH_SWEEP_TEST=1` because unlike the others
 it can authorize removing another session's worktree. A stray value in an operator's environment
 degrades the tool silently, so set none of them outside a test.
@@ -290,10 +377,11 @@ into RAM at once and stalls the box for up to a minute. This tree routinely runs
 sessions whose turns would freeze mid-tool-call, so it REFUSES while any `claude` process is alive,
 and refuses again if the swapped bytes exceed `MemAvailable` (where `swapoff` would abort with
 ENOMEM part-way) or if `/proc/meminfo` cannot be read at all. ⚠️ **`--force` overrides the
-live-session refusal ONLY** — the ENOMEM, unreadable-`/proc/meminfo` and no-device-to-restore
-refusals are absolute, because each of them means the tool cannot prove it could undo what it is
-about to do. (An earlier cut of this sentence said simply "`--force` overrides", which was true of
-one refusal in four.) A refused `swapoff` that leaves the box unchanged returns **11** — distinct
+live-session refusal ONLY** — the other refusals are absolute: a failed `pgrep` and a session
+count it cannot read (the live-session guard cannot be applied blind), an unreadable
+`/proc/meminfo`, ENOMEM, an unreadable `/proc/swaps`, and no device to restore — each means the
+tool cannot prove it could undo what it is about to do. (An earlier cut of this sentence said
+simply "`--force` overrides", which was true of one refusal of the set.) A refused `swapoff` that leaves the box unchanged returns **11** — distinct
 from the guard's own skip (**10**) and from a critical failure (**1**), because a box that never
 lost its swap must not break the heartbeat. The sysctl policy
 prevents FUTURE bad eviction; only this undoes what is already out there.

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:01.922316Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-16617da0",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reproduce with a transcript fixture (dispatch, notification, resume, late notification), then key the stand-down on the resume's own later notification",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — hook bug misreads resumed seat, seen live",
+  "status": "open",
+  "title": "Stop hook _seats_in_flight reads a RESUMED seat as finished when its earlier run's <task-notification> lands after the SendMessage resume line (fabrik-lib 01M4TJNA57, seen live): count a notification as ending a resumed seat only when it follows the resume and belongs to the resumed run"
+}

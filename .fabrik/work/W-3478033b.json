@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T21:32:09.171589Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-3478033b",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read mail 01M58D7QCC in the fabrik inbox, join the row's change: verdict text into --reasons output, test it, then ack the mail",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "another active agent's request (kaizen): one function in command_feedback_report.py, one session",
+  "status": "open",
+  "tags": [
+    "mail-01m58d7qcc9p6385sv10749ha6"
+  ],
+  "title": "mail 01M58D7QCC9P6385SV10749HA6: command_feedback_report.py --reasons prints no verdict text, so a D-711 audit seat matches held subjects on slugs alone (scripts/command_feedback_report.py:2412 reasons(); feedback row 1792356284)"
+}

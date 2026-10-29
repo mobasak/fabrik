@@ -1,0 +1,26 @@
+{
+  "block_digest": "be9b8b6b663b2909279f8ea81ad667a3f06aa64d6f01928eae695a6cd53cc698",
+  "blocked_by": [],
+  "created": "2026-10-08T19:43:54.027788Z",
+  "creator": "fleet",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-480681b9",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "ce6b68dee476902f2b232179595cc4e561ca72d31629b35720056cfb54227427"
+  ],
+  "next": "",
+  "note": "operator 2026-10-08: pasted the new B2 application key (keyName wsl) and said 'save it into .env file'; saved to /opt/fabrik/.env with a backup; archive runs green since (9ac92bd71, D-720)",
+  "owner": "",
+  "priority": 2,
+  "question": "Will you create a Backblaze B2 application key limited to the `wsl-ozgur` bucket (list, read and write files; no delete needed) and add it to `/opt/fabrik/.env` as `SESSION_ARCHIVE_B2_KEY_ID` and `SESSION_ARCHIVE_B2_APPLICATION_KEY`?",
+  "status": "done",
+  "title": "Will you create a Backblaze B2 application key limited to the `wsl-ozgur` bucket (list, read and write files; no delete needed) and add it to `/opt/fabrik/.env` as `SESSION_ARCHIVE_B2_KEY_ID` and `SESSION_ARCHIVE_B2_APPLICATION_KEY`?"
+}

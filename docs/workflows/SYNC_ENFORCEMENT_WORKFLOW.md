@@ -104,13 +104,13 @@ Long Command Monitoring System v1.1.0 - see `docs/reference/long-command-monitor
 
 ### Enforcement Directory
 
-All files in `scripts/enforcement/` are recursively synced (`ENFORCEMENT_DIR`, `fabrik_synced_manifest.py`) — 49 files as of 2026-07-20 (`git ls-files scripts/enforcement/ | wc -l`), a representative sample:
+All files in `scripts/enforcement/` are recursively synced (`ENFORCEMENT_DIR`, `fabrik_synced_manifest.py`; count them with `git ls-files scripts/enforcement/ | wc -l`). The walk also prunes: a project file the hub's listing no longer has — the working tree's files plus HEAD's, so a deletion counts only once committed — is deleted (a `--backup` copy is kept), a copy the project tracks in git is kept with a WARN, and nothing is pruned when HEAD could not be listed (W-47d91afa). A representative sample:
 
 - `check_docker.py` — Dockerfile amd64 compliance
 - `check_secrets.py` — Hardcoded secrets detection
 - `check_env_contract.py` — .env/.env.example sync
 - `check_health.py` — Health endpoint validation
-- ... (49 checks total; see [FINAL_GATE_WORKFLOW.md § Enforcement Scripts](FINAL_GATE_WORKFLOW.md) for the full gate-wired inventory)
+- ... (see [FINAL_GATE_WORKFLOW.md § Enforcement Scripts](FINAL_GATE_WORKFLOW.md) for the full gate-wired inventory)
 
 ### Vendored Modules
 
@@ -174,7 +174,7 @@ For each file:
 1. **Hash Comparison** — MD5 hash avoids unnecessary writes
 2. **Timestamp Check** — Won't overwrite if destination is newer
 3. **Backup Option** — Creates `.backup.YYYYMMDD-HHMMSS` before overwriting
-4. **Dry Run** — Preview changes without writing
+4. **Dry Run** — Preview changes without writing; names every file it WOULD copy or back up (`→`/`↻`) beside the SKIP and WARN lines, without needing `-v`
 5. **Permission Check** — Skips projects without write access
 6. **Symlink Replacement** — Replaces file and directory symlinks with real copies (workspace isolation)
 
@@ -257,7 +257,15 @@ For each file, in each worktree:
 ├── hash(dest) == the worktree's OWN ledger record for this path?
 │     → COPY (provably unmodified since a prior resync wrote it — safe to refresh)
 ├── no ledger record at all for this path (or a legacy list-shaped ledger's
-│     unverified "" sentinel — round 7, class 6)?
+│     unverified "" sentinel — round 7, class 6), and the destination's non-empty
+│     bytes are a version hub HEAD's history published at its own source path
+│     (`_is_published_version`, W-800579be)?
+│     → COPY ("a published hub version — stale, not an edit") — Claude Code's
+│     creation-time `.worktreeinclude` copy records no row, so without this the copy
+│     goes stale and the worktree's check_synced_unmodified reds against the fresh lock
+│     (2026-10-13: 83 of 214 worktrees, 281 files, every one this case)
+├── no ledger record, and no such proof (unknown bytes, an emptied file, another
+│     path's content)?
 │     → WARN ("no ledger record (first sync, or a prior record was lost) — left in
 │     place") — a LEDGER GAP, not necessarily an edit (round 5: 5 of 5 hash-sampled
 │     live instances of this exact case were stale copies from an older branch, never
@@ -271,8 +279,9 @@ For each file, in each worktree:
 
 **Bootstrapping a worktree stuck in the ledger-gap state** (the branch above, and the only one the
 first-ever resync of any worktree can take — there is no ledger yet to prove anything either way):
-this function will never overwrite it on its own — that decision does not change. An operator who
-has confirmed the worktree's copy carries no real edit clears the gap by hand: copy the MAIN
+a published hub version heals on the next sync by itself (the branch above it); anything else this
+function will never overwrite on its own. Inside such a worktree `check_synced_unmodified.py` stays
+red and names this remedy per file. An operator who has confirmed the worktree's copy carries no real edit clears the gap by hand: copy the MAIN
 CHECKOUT's current file over the worktree's copy at the same relative path
 (`cp <project>/<path> <worktree>/<path>`) and run the sync once — that resync's SKIP/COPY branch
 (hash now matches the fresh source) records a fresh ledger row, and the file converges normally on

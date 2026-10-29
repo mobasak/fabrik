@@ -22,6 +22,7 @@ first had been extended, so the step that actually OPENS the files never named t
 from __future__ import annotations
 
 import importlib.util
+import os
 import re
 import subprocess
 import sys
@@ -174,6 +175,32 @@ def test_edited_sources_render_clean_and_within_skill_cap():
             assert len(desc) <= SKILL_CAP, f"{name}: composed description {len(desc)} > {SKILL_CAP}"
 
 
+def test_assemble_commands_check_renders_cleanly_in_an_empty_home(tmp_path):
+    """The tree-only half of the `--check` invariant, split out of the live-box test below so a
+    merge check — which skips that one (W-c3177526) — still catches a render error: in an EMPTY
+    home every installed file is missing, yet the render itself must not crash, report a RENDER
+    ERROR, or leave a fan-out without its D-191 dispatch step."""
+    home = tmp_path / "home"
+    for sub in ("commands", "skills", "agents"):
+        (home / ".claude" / sub).mkdir(parents=True)
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    env["HOME"] = str(home)
+    result = subprocess.run(
+        [sys.executable, str(ASSEMBLER), "--check"],
+        cwd=REPO,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=300,
+    )
+    assert "Traceback" not in result.stderr, f"--check crashed:\n{result.stderr}"
+    assert "RENDER ERRORS" not in result.stdout, f"--check hit a render error:\n{result.stdout}"
+    assert "without the D-191 dispatch step" not in result.stdout, result.stdout
+    assert result.returncode == 1 and "MISSING in" in result.stdout, result.stdout + result.stderr
+
+
+@pytest.mark.live_box
 def test_assemble_commands_check_reports_no_render_error_and_only_expected_drift():
     """`assemble_commands.py --check` diffs the render against the INSTALLED corpus
     (`~/.claude/commands`) — from a worktree whose two sources are edited but not yet
@@ -199,15 +226,33 @@ def test_assemble_commands_check_reports_no_render_error_and_only_expected_drift
     assert result.returncode == 1, (
         f"unexpected exit {result.returncode} (stdout={result.stdout!r} stderr={result.stderr!r})"
     )
-    allowed = ("fabrik-vision", "fabrik-epics-review")
+    # Drift is legitimate only for a command whose source differs between this tree and the
+    # base the installed corpus was rendered from (origin/master): this tree's own unrendered
+    # edits, or a master change this tree has not merged yet. A fixed name list (the T05 ticket's
+    # two files) reds every later branch that edits a different command (W-10146d20).
+    changed = subprocess.run(
+        ["git", "diff", "--name-only", "origin/master", "--",
+         "commands/_sources", "commands/_agents", "commands/_fragments"],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if changed.returncode != 0:
+        pytest.skip(f"no origin/master to attribute drift against: {changed.stderr.strip()}")
+    paths = changed.stdout.split()
+    if any(p.startswith("commands/_fragments/") for p in paths):
+        return  # a fragment renders into many commands, so no single drift line can be attributed
+    allowed = {Path(p).stem for p in paths}
     lines = result.stdout.splitlines()
     assert "DRIFT:" in lines, f"exit 1 with no DRIFT: header — unexpected shape:\n{result.stdout}"
     # only the lines AFTER the "DRIFT:" header are per-item findings (`print(" -", x)`); the
     # line(s) before it are render()'s own "rendered N commands -> ..." status line(s).
     for raw in lines[lines.index("DRIFT:") + 1 :]:
         item = raw.strip(" -")
-        assert item.split(":", 1)[0].split("/")[-1].startswith(allowed), (
-            f"drift outside the two edited sources: {item}"
+        # exact stem, never a prefix: "fabrik-spec" must not admit "fabrik-spec-review"
+        assert Path(item.split(":", 1)[0]).stem in allowed, (
+            f"drift in a command whose source matches origin/master: {item}"
         )
 
 

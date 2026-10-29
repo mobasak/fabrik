@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-07T05:55:25.171490Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-7fb1683e",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -12,11 +14,13 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
   "priority": 3,
-  "status": "open",
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — blocked on other repo wiring",
+  "status": "dropped",
   "tags": [
+    "medium",
     "waits-fabrik-lib-sb110"
   ],
   "title": "Wire fabrik-lib refresh-governance.sh --reference-only after each hub sync — HOLD until fabrik-lib SB-110 lands (mail 01M49CM36X: today's script rewrites 14 tracked files incl. an ADAPTED vendored check and drops three .gitignore lines)"

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T21:19:37.840877Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-98289603",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -12,9 +14,10 @@
     "spec": ""
   },
   "next": "add a FABRIK_OPT_DIR seam to check_vendored_drift and pass --skills from the gate; then pin both in the kaizen emitter tests",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
   "priority": 3,
-  "status": "open",
+  "score_reason": "D-958 re-score 2026-10-18: LOW — gate advisory env seam",
+  "status": "dropped",
   "title": "final_gate advisory checks read live state outside PROJECT_ROOT: check_vendored_drift.py:44 iterates OPT=Path('/opt'), check_trigger_routing.py:45 reads ~/.claude/skills — no env seam, so a byte-compare of two gate runs (tests/test_kaizen_sensor_emitters.py) can race a sibling's edit to another repo"
 }

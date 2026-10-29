@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T06:18:34.395573Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-bf1d97d8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4SYAGHQ4F799NPT07RQS4DK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "assemble_commands.py's review-loop FLOOR string still says 'no Opus finder … never a seat' without execute-plan's per-round Opus floor (D-813 residue)"
+}

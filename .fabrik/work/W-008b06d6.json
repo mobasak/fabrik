@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-11T22:08:32.399026Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-008b06d6",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task over scripts/command_run.py start",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — rare stacking edge in one script",
+  "status": "dropped",
+  "tags": [
+    "kaizen-01m4n1k909"
+  ],
+  "title": "command_run.py start refuses to stack a record whose repo_root differs from its live parent's (kaizen 01M4N1K909 group 5c; row 1790961228)"
+}

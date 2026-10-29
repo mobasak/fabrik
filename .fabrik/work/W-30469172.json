@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T11:59:25.090134Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-30469172",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M474066WHJB4PG4M9ARYQF0K",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: watchdog install_log_drop_rule (01M46NMHM6, your W-1feb4dfa) — RETIRE it; you can drop the hub field and env line now (fabrik-lib D-398)."
+}

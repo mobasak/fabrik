@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T20:43:42.949873Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-629fe67a",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "red-first test: unset CLAUDE_AGENT + a whoami binding of coordinator injects the coordinator charter; no binding injects nothing",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — operator asked 2026-10-15 for coordinator charter loading",
+  "status": "open",
+  "tags": [
+    "after-w-835894a6"
+  ],
+  "title": "agent_role.py injects the role charter only from CLAUDE_AGENT; fall back to the session's whoami binding when it is unset, so a VS Code tab (browser tunnel or desktop) bound as coordinator loads its charter without a machine-wide claudeCode.environmentVariables setting (that setting is machine-scoped and would mislabel every Claude tab on the box)"
+}

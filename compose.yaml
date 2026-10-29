@@ -10,10 +10,6 @@ services:
       - LOG_FORMAT=${LOG_FORMAT:-json}
       - VPS_HOST=${VPS_HOST:?VPS_HOST is required}
       - VPS_USER=${VPS_USER:-deploy}
-      - COOLIFY_API_URL=${COOLIFY_API_URL:?COOLIFY_API_URL is required}
-      - COOLIFY_API_TOKEN=${COOLIFY_API_TOKEN:?COOLIFY_API_TOKEN is required}
-      - COOLIFY_SERVER_UUID=${COOLIFY_SERVER_UUID:-}
-      - COOLIFY_PROJECT_UUID=${COOLIFY_PROJECT_UUID:-}
       - SITE_PROVISIONER_URL=${SITE_PROVISIONER_URL:-https://provision.vps1.ocoron.com}
     ports:
       - "${PORT:-8000}:${PORT:-8000}"

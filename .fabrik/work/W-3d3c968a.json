@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-22T23:20:38.647887Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-3d3c968a",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task on scripts/review_receipt.py: run the gate --check --json at receipt write, embed it, refuse a receipt whose fence disagrees with the run",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "hand-pasted gate output in receipts can drift from the run; one write step in one script, no gate verdict changes",
+  "status": "open",
+  "tags": [
+    "queued"
+  ],
+  "title": "review_receipt.py writes the final_gate.py --json output into the receipt's fence itself, so a CONVERGED receipt carries the gate's verdict verbatim instead of the author pasting it (kaizen's mail 01M5HP8FQQ ask 5)"
+}

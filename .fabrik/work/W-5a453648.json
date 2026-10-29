@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-16T22:24:58.132709Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-5a453648",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "kaizen: on the next /fabrik-task queue verdict about a refused capture, add one clause to fabrik-task.md phase 5 step 5; scope-growth residue of the 2026-10-17 review (PLAUSIBLE, not confirmed)",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — kaizen command wording",
+  "status": "open",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "/fabrik-task phase 5: say what to do when the exact-subject capture refuses after the commit landed (re-run the capture lines only, never re-commit)"
+}

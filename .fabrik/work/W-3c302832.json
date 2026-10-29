@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T12:54:49.203754Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "73eec28ca7ad386e7388d16fb493263a3bed803f",
+  "id": "W-3c302832",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Build the two parts with red-first tests; the REVOKE / REASSIGN-DROP OWNED steps stay in W-98debf05 behind the operator's W-c78cdee3 answer; /fabrik-task, drivers/postgres.py is not a sync path but it is auth/schema-adjacent, so the full /fabrik-review",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "LOW: hardening with no live incident behind it (a never-firing guard and a per-database reset), split out so fleet is not idle while W-98debf05 waits on the operator's W-c78cdee3 answer; LOW effort: two small changes with tests",
+  "status": "done",
+  "title": "Split from W-98debf05 (payments-role re-apply hardening), the two parts independent of the W-c78cdee3 ruling: (1) a unit assert pinning mint_payments_role's r.rolname filter — today only the real-Postgres test catches a never-firing guard; (2) reset per-database role settings in EVERY database, not only the project's (fleet measurement 2026-10-21)"
+}

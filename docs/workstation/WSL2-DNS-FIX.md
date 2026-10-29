@@ -44,13 +44,20 @@ remove them when editing.)
 
 ### Step 2: Create Static DNS Configuration
 
-`/etc/resolv.conf` — the live file, verbatim:
+`/etc/resolv.conf` — the live file as of 2026-10-15, verbatim (on 2026-09-09 it went back to the WSL forwarder
+first, because public DNS stopped answering on UDP/53 from this network):
 ```
-# Static public DNS — WSL forwarder 10.255.255.254 hangs on A-record lookups (2026-05-31). Locked with chattr +i.
+# 2026-09-09: reverted to the WSL forwarder. Public DNS (1.1.1.1 / 8.8.8.8) is
+# now unreachable on UDP/53 from this network — every A-record lookup timed out,
+# which is what broke Claude Code. The forwarder resolves fine again.
+# Public resolvers kept as fallback only. Locked with chattr +i.
+nameserver 10.255.255.254
 nameserver 1.1.1.1
 nameserver 8.8.8.8
+options timeout:2 attempts:1
 ```
-There is no `options` line; resolver timeout/attempts run at glibc defaults.
+A large answer (`registry.npmjs.org`) also needs `edns0` on that options line, because outbound TCP/53 is
+blocked: see `docs/TROUBLESHOOTING.md` § "WSL cannot resolve `registry.npmjs.org`" (W-f0fd555a).
 
 ### Step 3: Make Immutable
 

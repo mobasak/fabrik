@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:31:05.342828Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-113339a1",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fleet: read mail 01M4WZMR2TQ6AX0S8VBTW1H476, claim it, act on it",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — extractor misses a rule and a hole; fabrik-lib mail, nobody blocked",
+  "status": "dropped",
+  "tags": [
+    "mail-01m4wzmr2tq6ax0s8vbtw1h476",
+    "medium"
+  ],
+  "title": "i18n extractor: fabrik-lib fixed findings 1-2 (SB-126) and names one rule beyond the hub version plus one remaining hole (mail 01M4WZMR2TQ6AX0S8VBTW1H476)"
+}

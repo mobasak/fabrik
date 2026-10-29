@@ -212,6 +212,40 @@ def test_v11_is_satisfiable_on_a_prose_ledger(repo: Path) -> None:
     assert any("names no finder seat before its counters" in e for e in errs), errs
 
 
+def test_a_fable_only_closing_row_names_a_seat(repo: Path) -> None:
+    """W-d90fe030 — a dispatched Fable seat re-verifies its own slice in the closing pass
+    (core/62 § The orchestrator), so a closing row naming only `fable×N` names a seat, in the
+    table grammar and in the prose one."""
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py", "new.py").returncode == 0
+    done = _complete(out.read_text(encoding="utf-8"))
+    table = done.replace(
+        "| Pass 2 | native opus×1 + sonnet×2 |", "| Pass 2 | native fable×1 |"
+    )
+    assert table != done
+    out.write_text(table, encoding="utf-8")
+    assert crc.check_file(out) == [], crc.check_file(out)
+    prose = done.replace(
+        "| Pass 1 | native opus×1 + sonnet×2 | found: 1, new: 1, confirmed: 1, fixed: 1 "
+        "| method: citation |\n"
+        "| Pass 2 | native opus×1 + sonnet×2 | found: 0, new: 0, confirmed: 0, fixed: 0, "
+        "unexecuted: 0 | method: re-derivation |\n",
+        "\nPass 1 (native fable×1 + sonnet×2): found: 1, confirmed: 1, fixed: 1\n"
+        "Pass 2 (native fable×1): found: 0, confirmed: 0, fixed: 0 — method: re-derivation\n\n",
+        1,
+    )
+    assert prose != done
+    out.write_text(prose, encoding="utf-8")
+    assert crc.check_file(out) == [], crc.check_file(out)
+    # a spelled-out version is no token, so a closing row naming only one is still refused
+    spelled = done.replace(
+        "| Pass 2 | native opus×1 + sonnet×2 |", "| Pass 2 | native Fable 5.1×1 |"
+    )
+    out.write_text(spelled, encoding="utf-8")
+    errs = crc.check_file(out)
+    assert any("names no finder seat" in e for e in errs), errs
+
+
 def test_a_checklist_row_citing_a_line_is_told_the_citation_repair(repo: Path) -> None:
     """ROUND 2 — where the citation-idiom refusal CAN fire (a receipt with a checklist section),
     the message must name an edit the row's author can make."""
@@ -302,6 +336,20 @@ def test_the_residual_grammar_example_sits_under_a_heading_that_says_example(rep
     text = out.read_text(encoding="utf-8")
     assert text.count("### Verdict grammar — an EXAMPLE, never rows") == 1
     assert text.index("### Verdict grammar") < text.index("| F12 | RECORDED — unexecuted")
+
+
+def test_the_gate_section_states_the_commands_close_order(repo: Path) -> None:
+    """kaizen 01M4F1KHBB (row 1791223902): the skeleton said paste the gate "at the CONVERGED flip",
+    so an agent ran it once, AFTER the flip. The command runs it at IN-PROGRESS first, flips, re-runs."""
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py").returncode == 0
+    gate = out.read_text(encoding="utf-8").split("## Gate", 1)[1]
+    assert "at the CONVERGED flip" not in gate and "pasted verbatim at the flip" not in gate
+    assert "/fabrik-review` § Reporting" in gate
+    first, flip, rerun = (
+        gate.index(t) for t in ("Status: IN-PROGRESS", "flip to CONVERGED", "re-run")
+    )
+    assert first < flip < rerun, gate
 
 
 # ── --command and --lane (plan T03b, W-0a89f069; spec D1 (c), D8) ──────────────────────────
@@ -419,10 +467,36 @@ def test_the_three_pass_row_texts_agree_on_cell_order_and_labels() -> None:
     root = Path(__file__).resolve().parents[1]
     inline = r"`(\| Pass [kN] \|[^`]*\|)`"
     per_text = {
-        "term-coverage": [m.group(1) for m in re.finditer(inline, (root / "commands" / "_fragments" / "term-coverage.md").read_text(encoding="utf-8"))],
-        "convergence-prompts": [m.group(1) for m in re.finditer(inline, (root / "docs" / "reference" / "convergence-prompts.md").read_text(encoding="utf-8"))],
-        "/fabrik-review": [ln for ln in (root / "commands" / "_sources" / "fabrik-review.md").read_text(encoding="utf-8").splitlines() if re.match(r"\| Pass \d+ \| ", ln)],
-        "receipt skeleton": [ln for ln in (root / "scripts" / "review_receipt.py").read_text(encoding="utf-8").splitlines() if re.match(r"\| Pass \d+ \| ", ln)],
+        "term-coverage": [
+            m.group(1)
+            for m in re.finditer(
+                inline,
+                (root / "commands" / "_fragments" / "term-coverage.md").read_text(encoding="utf-8"),
+            )
+        ],
+        "convergence-prompts": [
+            m.group(1)
+            for m in re.finditer(
+                inline,
+                (root / "docs" / "reference" / "convergence-prompts.md").read_text(
+                    encoding="utf-8"
+                ),
+            )
+        ],
+        "/fabrik-review": [
+            ln
+            for ln in (root / "commands" / "_sources" / "fabrik-review.md")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if re.match(r"\| Pass \d+ \| ", ln)
+        ],
+        "receipt skeleton": [
+            ln
+            for ln in (root / "scripts" / "review_receipt.py")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if re.match(r"\| Pass \d+ \| ", ln)
+        ],
     }
     empty = [name for name, found in per_text.items() if not found]
     assert not empty, ("a text whose rows are not found grades nothing", empty)
@@ -439,3 +513,92 @@ def test_the_three_pass_row_texts_agree_on_cell_order_and_labels() -> None:
         assert crc._MODEL_TOK.search(cells[1]) or "<" in cells[1], ("finders second", row)
         assert cells[2].startswith("found:"), ("counters third", row)
         assert cells[3].startswith("method: "), ("method fourth, labelled", row)
+
+
+def test_restamp_refuses_range_and_names_the_real_remedy(repo: Path) -> None:
+    """kaizen 01M4V0B03B row 1791907300: `--restamp` silently ignored `--range` while its refusal said
+    "pass --range instead". It refuses the pair, rc 2, and every refusal names the two real remedies."""
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py").returncode == 0
+    before = out.read_text(encoding="utf-8")
+    r = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--restamp",
+            str(out),
+            "--range",
+            "HEAD~0..HEAD",
+            "--project-root",
+            str(repo),
+        ],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert r.returncode == 2, r.stdout + r.stderr
+    assert "--init --range" in r.stderr and "already passes" in r.stderr, r.stderr
+    assert out.read_text(encoding="utf-8") == before, "a refused restamp writes nothing"
+
+    _git(repo, "add", "app.py")
+    _git(repo, "commit", "-q", "-m", "reviewed")
+    r = subprocess.run(
+        [sys.executable, str(SCRIPT), "--restamp", str(out), "--project-root", str(repo)],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "pass --range instead" not in r.stderr and "--init --range" in r.stderr, r.stderr
+
+
+def test_skeleton_states_the_by_design_owner_only_grammar(repo: Path) -> None:
+    """kaizen 01M4YMKN78 (feedback rows 1791889053, 1791944414, 1792029250): the skeleton the receipt
+    writer has open must say what `/fabrik-review` § Phase 2 and V5 enforce — a by-design verdict's
+    parentheses hold owner ids only, and its reason follows them."""
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py").returncode == 0
+    flat = " ".join(out.read_text(encoding="utf-8").split())
+    assert "every RECORDED reason is PARENTHESISED" not in flat
+    assert "parentheses hold owner ids only" in flat
+    assert "Every OTHER RECORDED reason is PARENTHESISED" in flat
+    assert "| F19 | RECORDED — by design (F4, round 3; D-203) — <why> |" in flat
+    assert "each `;`-part of a by-design parenthetical is an owner" in flat
+
+
+def test_skeleton_grammar_text_passes_v5(repo: Path) -> None:
+    """The unfenced verdict-grammar paragraph is V5-graded in every receipt that keeps it, so it must
+    never spell a by-design parenthetical itself (the Fable critique: a literal there reds every
+    new receipt)."""
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py").returncode == 0
+    text = crc._strip_fences(out.read_text(encoding="utf-8"))
+    assert crc._residual_errors(text, []) == []
+
+
+def test_check_file_resolves_d_owners_against_its_own_ledger(repo: Path, tmp_path: Path) -> None:
+    """kaizen 01M4YMKN78 § SYSTEMIC (2), end to end through `check_file`: a by-design `D-nnn` owner
+    is refused when the receipt's own checkout has no such ledger row, passes once the row exists
+    (zero-padded, as ledgers write it), and a receipt outside any checkout keeps the shape check."""
+    (repo / "docs").mkdir()
+    ledger = repo / "docs" / "DECISIONS.md"
+    ledger.write_text("| id | when |\n|---|---|\n| D-001 | x |\n", encoding="utf-8")
+    out = repo / "r-review.md"
+    assert _init(repo, "--out", str(out), "--changed", "app.py").returncode == 0
+    done = _complete(out.read_text(encoding="utf-8")).replace(
+        "## Residual\n",
+        "## Residual\n\n| F1 | RECORDED — by design (D-7) — licensed by that decision |\n",
+        1,
+    )
+    out.write_text(done, encoding="utf-8")
+    assert any("`D-7` is not a row in" in e for e in crc.check_file(out)), crc.check_file(out)
+    ledger.write_text(ledger.read_text(encoding="utf-8") + "| D-007 | y |\n", encoding="utf-8")
+    assert crc.check_file(out) == [], crc.check_file(out)
+    loose = tmp_path / "loose"  # no `.git` at or above it: its ledger is never consulted
+    (loose / "docs" / "development" / "reviews").mkdir(parents=True)
+    (loose / "docs" / "DECISIONS.md").write_text("| D-001 | x |\n", encoding="utf-8")
+    stray = loose / "docs" / "development" / "reviews" / "r-review.md"
+    stray.write_text(done, encoding="utf-8")
+    assert not any("is not a row" in e for e in crc.check_file(stray)), crc.check_file(stray)

@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T21:58:16.202070Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "33ba5be02875da705c701565c677b526480d095d",
+  "id": "W-2b657bee",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "D-956 bug that blocks every vps1 deploy from this box; a deployer fallback, few files",
+  "status": "done",
+  "tags": [
+    "deploy",
+    "waits-operator-env-jump-line"
+  ],
+  "title": "This box cannot reach vps1 directly (ssh to 172.93.160.197:22 times out at banner exchange, HTTPS times out; egress 178.131.188.95) while vps1 is healthy via vps2 over WireGuard — every fabrik apply to vps1 hangs. Add a ProxyJump-via-vps2 fallback (or a reachability check that names the path) in the deployer (fleet 2026-10-18)"
+}

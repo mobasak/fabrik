@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T07:07:46.124735Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "8fe5ed3301d87ef824df841747f1fdc2d611be3d",
+  "id": "W-1e9ae1e5",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: FIRST after the wake (operator paused by hand twice on 2026-10-20 and said 'the hibernate command still not developed. :/'); the Option C wrapper trial waits on the operator's clicks meanwhile",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "operator ask that reaches every repo; one new command plus a discovery step, one session; beat: commands/_sources + box mesh (infra)",
+  "status": "done",
+  "tags": [
+    "queued"
+  ],
+  "title": "Operator ask 2026-10-20: a /hibernate command — run by the operator in the hub coordinator's window, it sends an URGENT pause to every repo's coordinator (today's and future repos, found live, never a hand list); each coordinator pauses its own managed agents; every agent waits for its own subagents to finish, then pauses properly, knowing hibernation drops its cached tokens and it must resume exactly where it left off"
+}

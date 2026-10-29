@@ -1,0 +1,33 @@
+{
+  "alt_block_digests": [
+    "f0cecfef197463b44c7cbac9edb5e2902564d51c79ed14c374897699d0387dcd"
+  ],
+  "alt_ids": [
+    "W-ca382ec0"
+  ],
+  "block_digest": "e1508b7defa9009261557a6196215b4b6c179036041ec614ef84a59969597edc",
+  "blocked_by": [],
+  "created": "2026-10-16T07:28:43.690888Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-b14474d2",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "3fbb23186fe44ab43dcaecd76a58d8e81688a54087f8f69bf25ca10a9be87051",
+    "4d82ca0628e409353c2f5da2d8a8ef75543d2bea26a8fac1c87b686be60d49de"
+  ],
+  "next": "",
+  "note": "operator 2026-10-17: for tryton crm, it is not yet ready to be deployed. send message to tryton agents they can handle but its db and docker had translations did we lose them? — NOT deployed; tryton-crm mailed 01M55CA3HN",
+  "owner": "",
+  "priority": 2,
+  "question": "Redeploy tryton-crm to vps1 now at its current code (about 1,061 commits since the 2026-08-31 deploy), leaving DNS and the supporting services as they are?",
+  "status": "done",
+  "title": "Redeploy tryton-crm to vps1 now at its current code (about 1,061 commits since the 2026-08-31 deploy), leaving DNS and the supporting services as they are?"
+}

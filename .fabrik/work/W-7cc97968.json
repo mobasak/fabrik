@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T16:03:34.002744Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-7cc97968",
+  "kind": "feedback",
+  "legacy": false,
+  "links": {
+    "command": "fabrik-plan-after-chat",
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "answered by 7df7170c",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "feedback queue /fabrik-plan-after-chat"
+}

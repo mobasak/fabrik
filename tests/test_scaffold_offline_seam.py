@@ -4,7 +4,9 @@ Every `create_project` in the suite used to build a real venv and pip-install ov
 (~25 s each, 725 s for the scaffold files), probe the local Postgres with `sudo`, and run
 scripts/sync_projects.py against the HUB, rewriting data/projects.yaml and docs/PROJECT_CATALOG.md
 from inside a test. FABRIK_SCAFFOLD_OFFLINE=1, pinned for every test by tests/conftest.py, keeps
-every written file and skips those four side effects.
+every written file and skips those four side effects. Since W-e2f0b6e5 they also need an explicit opt-in
+(create_project(provision=True) or scaffold.provisioning()), so a test that wants the real steps deletes the
+variable AND opts in; tests/test_scaffold_provision_opt_in.py grades the opt-in.
 """
 
 import os
@@ -78,7 +80,9 @@ def test_the_suite_runs_with_the_offline_switch_pinned(_switch_seen_by_a_module_
 )
 def test_the_switch_values(monkeypatch, value, offline):
     monkeypatch.setenv("FABRIK_SCAFFOLD_OFFLINE", value)
-    assert scaffold._scaffold_offline() is offline
+    with scaffold.provisioning():  # the env switch only matters once provisioning is opted in
+        assert scaffold._scaffold_offline() is offline
+    assert scaffold._scaffold_offline() is True, "without the opt-in every value is offline"
 
 
 @pytest.mark.parametrize("project_type", ["python-api", "chrome-extension"])
@@ -111,6 +115,7 @@ def test_the_switch_is_what_skips_them(tmp_path, spawned, monkeypatch):
         project_type="python-api",
         generate_spec=False,
         use_database=True,
+        provision=True,
     )
 
     # sync_projects is reachable only for a project under /opt (see the scan-root tests below)
@@ -124,7 +129,7 @@ def test_a_scaffold_outside_the_scan_root_never_syncs_the_hub(tmp_path, spawned,
     monkeypatch.delenv("FABRIK_SCAFFOLD_OFFLINE", raising=False)
 
     scaffold.create_project(
-        name="elsewhere-probe", description="d", base=tmp_path, generate_spec=False
+        name="elsewhere-probe", description="d", base=tmp_path, generate_spec=False, provision=True
     )
 
     assert "sync_projects" not in spawned, spawned
@@ -142,7 +147,8 @@ def test_a_scaffold_outside_the_scan_root_never_syncs_the_hub(tmp_path, spawned,
 def test_the_sync_gate_is_the_resolved_direct_parent(spawned, monkeypatch, project_path, syncs):
     monkeypatch.delenv("FABRIK_SCAFFOLD_OFFLINE", raising=False)
 
-    scaffold._post_scaffold_sync(Path(project_path))
+    with scaffold.provisioning():
+        scaffold._post_scaffold_sync(Path(project_path))
 
     assert (spawned == ["sync_projects"]) is syncs, spawned
 
@@ -166,7 +172,8 @@ def test_a_scaffold_under_the_scan_root_still_syncs(spawned, monkeypatch):
     """Mirror: a project created under /opt is still registered (the spawn is faked)."""
     monkeypatch.delenv("FABRIK_SCAFFOLD_OFFLINE", raising=False)
 
-    scaffold._post_scaffold_sync(Path("/opt") / "never-created-sync-probe")
+    with scaffold.provisioning():
+        scaffold._post_scaffold_sync(Path("/opt") / "never-created-sync-probe")
 
     assert spawned == ["sync_projects"]
 
@@ -181,7 +188,8 @@ def test_a_symlinked_scan_root_still_matches(spawned, monkeypatch, tmp_path):
     link.symlink_to(real)
     monkeypatch.setattr(scaffold, "_SYNC_SCAN_ROOT", link)
 
-    scaffold._post_scaffold_sync(real / "probe-x")
+    with scaffold.provisioning():
+        scaffold._post_scaffold_sync(real / "probe-x")
 
     assert spawned == ["sync_projects"]
 
@@ -220,7 +228,7 @@ def test_the_spec_destination_follows_the_same_scan_root_test(
         monkeypatch.chdir(tmp_path)
         base = Path(root.name)
 
-    scaffold.create_project(name="spec-probe", description="d", base=base)
+    scaffold.create_project(name="spec-probe", description="d", base=base, provision=True)
 
     assert spec_dirs == [scaffold.FABRIK_ROOT / "specs" / "services"], spec_dirs
 

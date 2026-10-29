@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T13:04:08.646574Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-2ba753f9",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — allowlist avoids prompts/uncapped runs",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "Settings allowlist entry for scripts/capped_run.sh so agents' capped test runs need no permission prompt (residual of P0 W-162398ef); a settings change goes through review before registration"
+}

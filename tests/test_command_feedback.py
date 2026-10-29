@@ -1883,7 +1883,10 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
     assert "seat transcript(s) since" not in p.stderr
     time.sleep(1.1)
     (sub / "agent-t5.jsonl").touch()
-    p = _cr(run_dir, "round", "--findings", "0")
+    # a figure of its own: the same figures after a seated round with nothing new since are a
+    # blind retry, refused unrecorded (W-fe322585) — and a refusal prints no nudge either way
+    p = _cr(run_dir, "round", "--findings", "1")
+    assert p.returncode == 0, p.stdout + p.stderr
     assert "seat transcript(s) since" not in p.stderr
     # the OTHER live giant shape (round 17: 151 of 1,011 long seat lines): the envelope stamp
     # PRECEDES a giant `toolUseResult` — dated from the line's head; stamped, closed, touched →
@@ -1908,7 +1911,8 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
     p = _cr(run_dir, "round", "--seats", "1", "--findings", "0")
     time.sleep(1.1)
     (sub / "agent-t7.jsonl").touch()
-    p = _cr(run_dir, "round", "--findings", "0")
+    p = _cr(run_dir, "round", "--findings", "1")  # its own figure (W-fe322585, above)
+    assert p.returncode == 0, p.stdout + p.stderr
     assert "seat transcript(s) since" not in p.stderr
     # a TORN giant line (mid-flush, no newline) whose tail ends in a nested OLD stamp is "skipped"
     # — dated by mtime, so a LIVE seat still counts (round-16 Opus: the sentinel fired before the
@@ -1977,7 +1981,9 @@ def test_a_round_with_no_stamp_names_the_seats_that_ran_unstamped(
         "confusion: none · waste: none · change: none · filed: none — surfaces exercised: y",
     )
     assert p.returncode == 0, p.stderr
-    p = _cr(run_dir, "round", "--findings", "0", "--classes-swept", "a")
+    # its own figure: the parent's last round closed a seat and repeats otherwise (W-fe322585)
+    p = _cr(run_dir, "round", "--findings", "1", "--classes-swept", "a")
+    assert p.returncode == 0, p.stdout + p.stderr
     assert "seat transcript(s) since" not in p.stderr
     # round-12 Opus: a STAMPED seat still flushing after its close must not re-fire the nudge on
     # the next empty round — the count is by the seat's in-window last line, not the file mtime
@@ -2091,3 +2097,91 @@ def test_a_handoff_resume_that_is_a_device_or_fifo_refuses_fast_and_never_reads_
         r = _handoff(run_dir, target)  # _cr's own 30 s timeout turns a hang into a test error
         assert r.returncode == 1, (target, r.stdout, r.stderr)
         assert "not a regular file" in r.stdout
+
+
+def test_workflow_launched_seats_are_seen_like_agent_tool_seats(tmp_path: Path) -> None:
+    """A seat launched through the Workflow tool writes its transcript one level down —
+    `<sid>/subagents/workflows/wf_<id>/agent-<id>.jsonl` — and a top-level-only glob never saw it,
+    so every review-loop close read `seen 0` and dropped its seats' tokens (kaizen 01M4D35GZ9;
+    35% of one session's seat transcripts sat there). Both shapes count, the window still applies,
+    and a workflow's own `journal.jsonl` is not a seat."""
+    import os
+    import time
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _seat_transcripts, _sum_transcript_usage  # noqa: PLC0415
+
+    now = time.time()
+    start = now - 600
+    tr = tmp_path / "sid.jsonl"
+    tr.write_text(_usage_line(start + 10, "m1", tout=100) + "\n", encoding="utf-8")
+    sub = tmp_path / "sid" / "subagents"
+    _seat_file(sub, "top", [(start + 20, "s1", 1000, 10)])
+    wf = sub / "workflows" / "wf_abc-123"
+    _seat_file(wf, "wfseat", [(start + 30, "s2", 2000, 20)])
+    (wf / "journal.jsonl").write_text('{"type": "result"}\n', encoding="utf-8")
+    (wf / "agent-wfseat.meta.json").write_text("{}", encoding="utf-8")
+    (sub / "agent-top.meta.json").write_text("{}", encoding="utf-8")
+    # a resumed workflow's cached seat: touched now, every line before the window
+    old = _seat_file(sub / "workflows" / "wf_old", "old", [(start - 3600, "s9", 9999, 9)])
+    os.utime(old, (now, now))
+    names = sorted(p.name for p in _seat_transcripts(tr, start))
+    assert names == ["agent-old.jsonl", "agent-top.jsonl", "agent-wfseat.jsonl"], names
+    got = _sum_transcript_usage(tr, start, now)
+    assert got["seats_seen"] == 2 and got["tok_seat_out"] == 3000
+    # two DIFFERENT seats that share a file name are both seats (review A-S1)
+    _seat_file(sub / "workflows" / "wf_other", "wfseat", [(start + 40, "s3", 400, 30)])
+    got = _sum_transcript_usage(tr, start, now)
+    assert got["seats_seen"] == 3 and got["tok_seat_out"] == 3400
+
+
+def test_an_unread_transcript_leaves_seats_seen_unknown(tmp_path: Path) -> None:
+    """W-256d6877: the `empty` result (no transcript, not a file, start <= 0, a raise) wrote
+    `seats_seen: 0` — a count never measured read as a measured zero. A transcript READ with no seat
+    file is still a measured 0."""
+    import time
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from command_run import _sum_transcript_usage  # noqa: PLC0415
+
+    now = time.time()
+    start = now - 600
+    assert _sum_transcript_usage(None, start, now)["seats_seen"] is None
+    assert _sum_transcript_usage(tmp_path / "absent.jsonl", start, now)["seats_seen"] is None
+    tr = tmp_path / "t.jsonl"
+    tr.write_text(_usage_line(start + 10, "m1", tout=100) + "\n", encoding="utf-8")
+    assert _sum_transcript_usage(tr, 0, now)["seats_seen"] is None
+    assert _sum_transcript_usage(tr, start, now)["seats_seen"] == 0
+    tr.write_text("", encoding="utf-8")  # read, nothing in the window: the seat scan still ran
+    assert _sum_transcript_usage(tr, start, now)["seats_seen"] == 0
+
+
+def test_the_seats_advisory_reads_only_a_measured_count(run_dir: Path) -> None:
+    """W-256d6877: with no transcript the close printed `seats declared N vs seen 0` — a false
+    mismatch against a count it never measured. Unmeasured says `seen unknown`; a transcript that
+    was read and holds no seat still warns."""
+    import time
+
+    def _close(rd: Path) -> subprocess.CompletedProcess[str]:
+        _cr(rd, "start", "--command", "fabrik-features", "--phases", "1", "--surface", "x")
+        _cr(rd, "dispatch", "--seats", "5")
+        _cr(rd, "round", "--findings", "0", "--classes-swept", "a")
+        return rd
+
+    _close(run_dir)
+    p = _cr(run_dir, "done", "--command", "fabrik-features", "--evidence", "x", "--feedback", STRUCTURED)
+    assert p.returncode == 0, p.stderr
+    assert "vs seen" not in p.stderr, p.stderr
+    assert "seats declared 5; seen unknown (transcript not read)" in p.stderr, p.stderr
+    row = json.loads((run_dir.parent / "command-feedback.jsonl").read_text().splitlines()[-1])
+    assert row["seats_seen"] is None and row["seats_declared"] == 5
+    rd2 = run_dir.parent / "second"
+    rd2.mkdir()
+    _close(rd2)
+    (rd2 / "no-transcript.jsonl").write_text(
+        _usage_line(time.time(), "m1", tout=10) + "\n", encoding="utf-8"
+    )
+    p = _cr(rd2, "done", "--command", "fabrik-features", "--evidence", "x", "--feedback", STRUCTURED)
+    assert p.returncode == 0, p.stderr
+    assert "seats declared 5 (round --seats) vs seen 0" in p.stderr, p.stderr
+    assert "seen unknown" not in p.stderr

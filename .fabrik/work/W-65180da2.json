@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "already done: scripts/work.py _block_digest/_ensure_decision_locked (:3844) dedupe an identically worded DECISION block onto the same awaiting item",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "A DECISION block repeated across turns mints a new awaiting-operator item every time, even with identical wording — 6 items for one gate here"
 }

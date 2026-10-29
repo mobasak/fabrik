@@ -12,13 +12,15 @@
     "spec": ""
   },
   "next": "measure the warned_through share of stop verdicts on ~/.claude/state/events over 7 days; if it moves premature_stop_rate by more than a point, subtract warned_through from the event-level denominator only (keep it in the numerator) with a v6 bump — found by the Fable design critique of W-b0ab9675, rejected there as out of scope",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "infra",
   "priority": 3,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "infra",
-    "kaizen"
+    "kaizen",
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "kaizen premature_stop_rate double-counts a warned_through stop in its denominator: the Stop hook emits stop_block outcome=warned_through AND the turn's stop_pass (docs/workstation/kaizen-event-stream.md: 'A warned-through turn emits stop_block … and carries the cause in its stop_pass.warned'), so one stop is two verdicts; the numerator correctly keeps it (an agent that outlasted CAP refusals stopped prematurely)"
 }

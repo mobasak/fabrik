@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T00:24:21.999927Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "e7b1a5dca5f9e64b931e1329a365fa98e1730386",
+  "id": "W-36c2607c",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: stop review pins and seat copies from following the vault link (exclude it from pins, or copytree(symlinks=True) in the seat recipes, or untrack the link if nothing needs it), with a test that a pin's copy of a symlinked dir stays a link; check no other tracked symlink leaves the repo; full /fabrik-review MERGE STEP (coordinator): the merge untracks vault, so git unlinks /opt/fabrik/vault in the main checkout (the link only, never the notes); right after the merge run once: ln -s /mnt/c/ObsidianVault/OneNote /opt/fabrik/vault (then ignored via /vault).",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: security/privacy (the operator's private notes were copied into review scratch that seats read, by following a tracked symlink); LOW effort: one exclusion or one copytree flag plus a test",
+  "status": "done",
+  "tags": [
+    "mail-01m5bas68n8dywkskm30eg0dgj"
+  ],
+  "title": "the hub tracks 'vault' as a symlink to the operator's private Obsidian vault (/mnt/c/ObsidianVault/OneNote, mode 120000), so every git-archive review pin carries it and a seat's default shutil.copytree follows it: 946 MB of the operator's notes were copied into review scratch (intel stopped and deleted it; vault untouched). Mail 01M5BAS68N8DYWKSKM30EG0DGJ"
+}

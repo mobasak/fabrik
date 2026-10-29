@@ -28,7 +28,7 @@ operator as fact:
      sweep has NEVER run". Truth: the file holds one invalid UTF-8 byte, GNU grep called it
      BINARY and suppressed every match. `grep -a` shows 21 events, including that morning's.
   2. `ls specs/services/ | grep apprise` -> nothing -> "Apprise was never fabrik-managed".
-     Truth: the spec is `specs/infrastructure/apprise.yaml`. One directory, generalised.
+     Truth: the spec WAS `specs/infrastructure/apprise.yaml` (retired D-1097). One directory, generalised.
   3. `ssh vps docker ps` -> EMPTY -> "no apprise container, not even stopped". Truth: the
      ssh user is not in the `docker` group; every call failed with permission denied and
      printed NOTHING to stdout. With sudo: 31 containers, apprise healthy, HTTP 200.
@@ -1240,6 +1240,21 @@ CANARIES: dict[str, dict[str, Any]] = {
         "files": {"compose.yaml": "services:\n  app:\n    image: python:3.12\n"},
         "expect": "a composed service with no watchdog script",
     },
+    # 1c22b3de1 (D-634) registered check_mcp_scope with no canary, which the accounting test reds;
+    # the ruling comes from the hub (this checkout), the fake root holds one ruled repo
+    "check_mcp_scope": {
+        "form": "root",
+        "clean": {
+            "demo/project.yaml": "type: python-api\n",
+            "demo/.mcp.json": '{"mcpServers": {"serena": {}}}\n',
+        },
+        "files": {
+            "demo/project.yaml": "type: python-api\n",
+            "demo/.mcp.json": '{"mcpServers": {"serena": {}, "maestro": {}}}\n',
+        },
+        "speaks": "FAIL demo",
+        "expect": "a repo whose .mcp.json carries a server outside its ruling (maestro on a python-api)",
+    },
     "check_health": {
         "form": "root",
         "strict": True,
@@ -1624,11 +1639,18 @@ CANARIES: dict[str, dict[str, Any]] = {
         "form": "copy",
         "strict": True,
         "row_warn_only": "returns `1 if opts.strict else 0` (check_governance_tables.py main()); its registration passes no --strict",
-        "clean": {"CLAUDE.md": "# Project\n\n| Rule | Detail |\n|---|---|\n| Something | fine |\n"},
-        "files": {
-            "CLAUDE.md": "# Project\n\n| Rule | Detail |\n|---|---|\n| Something | a | pipe | without | escape |\n"
+        # Two rules, two files: the contract row for the WIDTH rule, the rule-pack row for the code-SPAN rule
+        # (W-76c49aa8 — the first fixture exercised only the width rule). The clean tree carries the same
+        # pack file with its span rephrased, so the control proves the span rule is silent on a clean span.
+        "clean": {
+            "CLAUDE.md": "# Project\n\n| Rule | Detail |\n|---|---|\n| Something | fine |\n",
+            ".windsurf/rules/core/x.md": "| Don't | Do |\n|---|---|\n| `Optional[str]` | `str` or `None` |\n",
         },
-        "expect": "an unescaped `|` makes a governance table row render past its header width",
+        "files": {
+            "CLAUDE.md": "# Project\n\n| Rule | Detail |\n|---|---|\n| Something | a | pipe | without | escape |\n",
+            ".windsurf/rules/core/x.md": "| Don't | Do |\n|---|---|\n| `Optional[str]` | `str \\| None` |\n",
+        },
+        "expect": "an unescaped `|` makes a governance table row render past its header width, and a rule-pack row's code span carries a table-escaped pipe (the second rule)",
     },
     "check_citations_resolve": {
         "form": "root",
@@ -1666,6 +1688,29 @@ CANARIES: dict[str, dict[str, Any]] = {
         "speaks": "stale pin",
         "expect": "flows.md's header pins data-contract.md@v1 while data-contract.md's own header is at v2 (a stale pin)",
     },
+    "check_beat_owners": {
+        "form": "cwd",
+        "git": "add",  # the dead-pattern and catch-all tests read `git ls-files`
+        "args": ["--root", "{fixture}"],
+        "base": {"README.md": "x\n"},
+        "clean": {".fabrik/beat-owners.json": '{"version": 1, "rules": []}\n'},
+        "files": {
+            ".fabrik/beat-owners.json": '{"version": 1, "rules": [{"owner": "nobody", "source": "D-1"}]}\n'
+        },
+        "expect": "a mail-ownership rule naming an owner that is not a hub beat",
+    },
+    "check_data_contract_legend": {
+        "form": "cwd",
+        "warn_only": "check_data_contract_legend.main() returns 0 on every path — a top-level `except Exception` guard prints the error as a WARN line",
+        "clean": {
+            "docs/data-contract.md": "# Data Contract\n\n## Enum registry\n\n| Enum | Backing | Allowed values |\n|---|---|---|\n| `status` | native | a, b |\n"
+        },
+        "files": {
+            "docs/data-contract.md": "# Data Contract\n\n## Enum registry\n\n| Enum | Backing | Allowed values |\n|---|---|---|\n| `status` | app-enforced | a, b |\n"
+        },
+        "speaks": "not legend tokens",
+        "expect": "an Enum-registry Backing cell `app-enforced` is not one of the template's six legend tokens",
+    },
     "check_pack_reachability": {
         "form": "cwd",
         "timeout": 90,
@@ -1690,7 +1735,10 @@ CANARIES: dict[str, dict[str, Any]] = {
     },
     "check_review_hygiene": {
         "form": "gitcwd",
-        "warn_only": "check_review_hygiene.main() returns 0 and its __main__ wrapper turns any exception into sys.exit(0) ('NO failing exit path')",
+        # W-205934fb: registered `--strict`, so the canary runs it so; the receipt is STAGED because
+        # an untracked draft never blocks (a sibling's in-flight file)
+        "strict": True,
+        "git": "add",
         "clean": {
             "docs/development/reviews/r-canary.md": "# Review -- canary\n\n| Class | Status |\n| --- | --- |\n| fail-open | CLEAN |\n"
         },

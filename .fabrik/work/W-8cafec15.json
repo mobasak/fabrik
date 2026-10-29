@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:23:06.068104Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-8cafec15",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RM8CYRVT34DZ5EYMP8GJ5A",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-review-scoped feedback queue — 3 verdicts that need review-loop CODE (kaizen, D-776)"
+}

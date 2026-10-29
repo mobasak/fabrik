@@ -2,7 +2,7 @@
 # AFTER-EDIT: none
 """Refresh VPS documentation from live state.
 
-Queries VPS via SSH (docker ps) and Coolify API, then rewrites the
+Queries VPS via SSH (docker ps), then rewrites the
 container tables in vps-status.md and updates timestamps in all three
 VPS docs. Run manually or via ``fabrik vps-sync``.
 
@@ -131,21 +131,12 @@ def categorize_containers(
     containers: list[dict[str, str]],
 ) -> dict[str, list[dict[str, str]]]:
     """Group containers into categories."""
-    coolify = []
     datastores = []
     monitoring = []
     infra = []
     microservices = []
     websites = []
-    other = []
 
-    coolify_names = {
-        "coolify",
-        "coolify-db",
-        "coolify-redis",
-        "coolify-realtime",
-        "coolify-sentinel",
-    }
     datastore_patterns = {"postgres-main", "redis-main"}
     monitoring_patterns = {
         "grafana",
@@ -165,16 +156,11 @@ def categorize_containers(
 
     for c in containers:
         name = c["name"].lower()
-        if any(name == cn or name.startswith(cn + "-") for cn in coolify_names):
-            if ("proxy" in name and "traefik" in c["image"].lower()) or name in coolify_names:
-                coolify.append(c)
-            else:
-                other.append(c)
-        elif any(p in name for p in datastore_patterns):
+        if any(p in name for p in datastore_patterns):
             datastores.append(c)
         elif any(p in name for p in monitoring_patterns):
             monitoring.append(c)
-        elif any(p in name for p in infra_patterns):
+        elif any(p in name for p in infra_patterns) or "traefik" in c["image"].lower():
             infra.append(c)
         elif any(p in name for p in website_patterns):
             websites.append(c)
@@ -182,7 +168,6 @@ def categorize_containers(
             microservices.append(c)
 
     return {
-        "Coolify Platform": coolify,
         "Data Stores": datastores,
         "Monitoring Stack": monitoring,
         "Infrastructure Services": infra,
@@ -191,14 +176,14 @@ def categorize_containers(
     }
 
 
-_COOLIFY_SUFFIX = re.compile(r"-[a-z0-9]{24,}(-\d+)?$")
+_UUID_SUFFIX = re.compile(r"-[a-z0-9]{24,}(-\d+)?$")
 
 
 def _display_name(raw_name: str) -> str:
-    """Strip Coolify UUID suffixes for cleaner table display."""
+    """Strip UUID suffixes for cleaner table display."""
     # e.g. 'postgres-main-l0k4gk0kggc8okcwk0s4c8s8' → 'postgres-main'
     # e.g. 'captcha-j8gg4ggskkossc4gkwowk4os-195201011254' → 'captcha'
-    cleaned = _COOLIFY_SUFFIX.sub("", raw_name)
+    cleaned = _UUID_SUFFIX.sub("", raw_name)
     return cleaned or raw_name
 
 
@@ -244,9 +229,7 @@ def update_vps_status(containers: list[dict[str, str]], dry_run: bool = False) -
     content = DATE_PATTERN.sub(rf"\g<1>{now}", content, count=1)
 
     # Update container count
-    content = CONTAINER_COUNT_PATTERN.sub(
-        rf"\g<1>{count} (Coolify stack + infra + microservices)\2", content
-    )
+    content = CONTAINER_COUNT_PATTERN.sub(rf"\g<1>{count} (infra + microservices)\2", content)
 
     # Replace container tables section
     categories = categorize_containers(containers)
@@ -317,18 +300,18 @@ def update_inventory_count(count: int, dry_run: bool = False) -> bool:
 
 # --- Drift detectors -------------------------------------------------------
 
-# Coolify auto-generated container DNS aliases follow the pattern
+# Auto-generated (UUID-suffixed) container DNS aliases follow the pattern
 # ``<service>-<24-char-base36-uuid>-<10-13-digit-timestamp>``. The UUID+timestamp
 # segment changes on every redeploy, silently breaking any config that pinned
 # to it (Gatus, Prometheus targets, custom proxies). This regex flags such
 # pinned hostnames so the drift detector can refuse to ship them.
-STALE_COOLIFY_ALIAS_RE = re.compile(r"://[a-z][a-z0-9_-]*-[a-z0-9]{24}-[0-9]{10,13}\b")
+STALE_ALIAS_RE = re.compile(r"://[a-z][a-z0-9_-]*-[a-z0-9]{24}-[0-9]{10,13}\b")
 
 GATUS_APPS_DIR = "/opt/monitoring/configs/gatus/apps"
 
 
 def verify_gatus_aliases() -> list[str]:
-    """Scan VPS Gatus configs for stale Coolify container aliases.
+    """Scan VPS Gatus configs for stale UUID-suffixed container aliases.
 
     Returns a list of human-readable findings. Empty list = no drift.
     """
@@ -353,17 +336,17 @@ def verify_gatus_aliases() -> list[str]:
             findings.append(f"{path}: read failed: {e}")
             continue
         for lineno, line in enumerate(body.splitlines(), 1):
-            m = STALE_COOLIFY_ALIAS_RE.search(line)
+            m = STALE_ALIAS_RE.search(line)
             if m:
                 findings.append(
-                    f"{path}:{lineno}  stale Coolify alias '{m.group(0)[3:]}' "
+                    f"{path}:{lineno}  stale container alias '{m.group(0)[3:]}' "
                     f"— use bare service name (e.g. http://captcha:8000/health)"
                 )
     return findings
 
 
 # ---------------------------------------------------------------------------
-# Residue audit — 12-point cleanup contract
+# Residue audit — 10-point cleanup contract
 # ---------------------------------------------------------------------------
 
 TEST_PREFIX_RE = __import__("re").compile(r"(?:^|[-_])test(?:[-_]|$)", __import__("re").IGNORECASE)
@@ -390,11 +373,31 @@ def _is_test_name(name: str) -> bool:
     return bool(TEST_PREFIX_RE.search(name))
 
 
-def verify_residue() -> list[str]:
-    """Full 12-point residue audit.
+def _legacy_lock_findings() -> list[str]:
+    """Report the VPS's legacy ``/tmp/fabrik-*.lock`` files.
 
-    Checks Coolify apps, GlitchTip projects, Gatus .bak files, Authelia
-    orphan rules, Postgres DBs, Meilisearch indexes, Cloudflare DNS records,
+    ``locks.run_locked`` takes its locks in the root-owned ``/var/lib/fabrik-locks`` since
+    W-3d834ded (D-1044), but a hub checkout still on older code takes the ``/tmp`` one, so each
+    is removable only once nothing holds it. That dir is NOT listed: its files persist by design
+    and may be held, and removing a held lock's file splits the lock.
+    """
+    findings: list[str] = []
+    locks = _ssh_lines(f"sudo find {_TMP_LOCK_DIR} -maxdepth 1 -name 'fabrik-*.lock' 2>/dev/null")
+    for lk in locks:
+        if lk.startswith("[SSH ERROR"):
+            findings.append(f"  {lk}")
+        else:
+            findings.append(
+                f"  legacy /tmp lock: {lk} — only pre-W-3d834ded code takes it; once "
+                f"`sudo fuser {lk}` shows no holder, rm {lk}"
+            )
+    return findings
+
+
+def verify_residue() -> list[str]:
+    """Full 10-point residue audit.
+
+    Checks GlitchTip projects, Gatus .bak files, Postgres DBs, Meilisearch indexes, Cloudflare DNS records,
     Docker dangling volumes/images, /tmp locks, /opt stale dirs, and Backrest
     repos — all for test-scoped names or dangling state.
 
@@ -407,22 +410,7 @@ def verify_residue() -> list[str]:
     def section(title: str) -> None:
         findings.append(f"\n── {title} ──")
 
-    # ── 1. Coolify: test-named apps/services ────────────────────────────────
-    section("Coolify apps")
-    try:
-        from fabrik.drivers.coolify import CoolifyClient
-
-        coolify = CoolifyClient()
-        for item in coolify.list_applications():
-            name = item.get("name", "")
-            if _is_test_name(name):
-                findings.append(
-                    f"  Coolify: test app/service '{name}' (uuid={item.get('uuid', '?')}) — run: fabrik destroy {name}"
-                )
-    except Exception as e:
-        findings.append(f"  Coolify check failed: {e}")
-
-    # ── 2. GlitchTip: test-named projects ───────────────────────────────────
+    # ── 1. GlitchTip: test-named projects ───────────────────────────────────
     section("GlitchTip projects")
     try:
         import requests as _req
@@ -444,7 +432,7 @@ def verify_residue() -> list[str]:
     except Exception as e:
         findings.append(f"  GlitchTip check failed: {e}")
 
-    # ── 3. Gatus: .bak files ─────────────────────────────────────────────────
+    # ── 2. Gatus: .bak files ─────────────────────────────────────────────────
     section("Gatus .bak files")
     baks = _ssh_lines(f"sudo find {_GATUS_APPS_DIR} -name '*.bak' 2>/dev/null")
     for b in baks:
@@ -453,41 +441,7 @@ def verify_residue() -> list[str]:
         else:
             findings.append(f"  Gatus leftover: {b} — rm {b}")
 
-    # ── 4. Authelia: rules for domains not in active Coolify apps ───────────
-    section("Authelia orphan rules")
-    try:
-        authelia_domains = _ssh_lines(
-            "sudo docker exec $(sudo docker ps --filter label=coolify.serviceName=authelia "
-            "--format '{{.Names}}' | head -1) "
-            "grep -oP '(?<=domain: )\\S+' /config/configuration.yml 2>/dev/null || true"
-        )
-        from fabrik.drivers.coolify import CoolifyClient
-
-        try:
-            coolify = CoolifyClient()
-            active_fqdns = set()
-            for item in coolify.list_applications():
-                fqdn = item.get("fqdn") or ""
-                for f in fqdn.split(","):
-                    f = f.strip()
-                    f = f.removeprefix("https://").removeprefix("http://").split("/")[0]
-                    if f:
-                        active_fqdns.add(f)
-        except Exception:
-            active_fqdns = set()
-
-        for domain in authelia_domains:
-            if domain.startswith("[SSH ERROR"):
-                findings.append(f"  {domain}")
-                break
-            if active_fqdns and domain not in active_fqdns:
-                findings.append(
-                    f"  Authelia: rule for '{domain}' has no active Coolify app — verify manually"
-                )
-    except Exception as e:
-        findings.append(f"  Authelia check failed: {e}")
-
-    # ── 5. Postgres: test-named databases ────────────────────────────────────
+    # ── 3. Postgres: test-named databases ────────────────────────────────────
     section("Postgres test databases")
     try:
         import base64 as _b64
@@ -506,12 +460,11 @@ def verify_residue() -> list[str]:
     except Exception as e:
         findings.append(f"  Postgres check failed: {e}")
 
-    # ── 6. Meilisearch: test-named indexes ──────────────────────────────────
+    # ── 4. Meilisearch: test-named indexes ──────────────────────────────────
     section("Meilisearch test indexes")
     try:
         meili_out = _ssh_lines(
-            "CONT=$(sudo docker ps --filter label=coolify.serviceName=meilisearch "
-            "--format '{{.Names}}' | head -1) && "
+            "CONT=$(sudo docker ps --format '{{.Names}}' | grep -x meilisearch | head -1) && "
             "sudo docker exec $CONT sh -c "
             "'curl -s http://localhost:7700/indexes -H \"Authorization: Bearer $MEILI_MASTER_KEY\"' 2>/dev/null"
         )
@@ -533,7 +486,7 @@ def verify_residue() -> list[str]:
     except Exception as e:
         findings.append(f"  Meilisearch check failed: {e}")
 
-    # ── 7. Cloudflare DNS: test subdomains ──────────────────────────────────
+    # ── 5. Cloudflare DNS: test subdomains ──────────────────────────────────
     section("Cloudflare DNS test records")
     try:
         import os as _os2
@@ -563,7 +516,7 @@ def verify_residue() -> list[str]:
     except Exception as e:
         findings.append(f"  DNS check failed: {e}")
 
-    # ── 8. Docker dangling volumes ───────────────────────────────────────────
+    # ── 6. Docker dangling volumes ───────────────────────────────────────────
     section("Docker dangling volumes")
     vols = _ssh_lines("sudo docker volume ls -q -f dangling=true 2>/dev/null")
     for v in vols:
@@ -572,7 +525,7 @@ def verify_residue() -> list[str]:
         else:
             findings.append(f"  Docker: dangling volume '{v}' — docker volume rm {v}")
 
-    # ── 9. Docker dangling images ────────────────────────────────────────────
+    # ── 7. Docker dangling images ────────────────────────────────────────────
     section("Docker dangling images")
     imgs = _ssh_lines("sudo docker images -q -f dangling=true 2>/dev/null")
     if imgs and not imgs[0].startswith("[SSH ERROR"):
@@ -580,16 +533,11 @@ def verify_residue() -> list[str]:
         if count > 0:
             findings.append(f"  Docker: {count} dangling image(s) — run: docker image prune -f")
 
-    # ── 10. /tmp lock files ──────────────────────────────────────────────────
-    section("/tmp lock files")
-    locks = _ssh_lines(f"sudo find {_TMP_LOCK_DIR} -maxdepth 1 -name 'fabrik-*.lock' 2>/dev/null")
-    for lk in locks:
-        if lk.startswith("[SSH ERROR"):
-            findings.append(f"  {lk}")
-        else:
-            findings.append(f"  /tmp lock: {lk} — verify no process holds it; rm {lk}")
+    # ── 8. legacy /tmp lock files ───────────────────────────────────────────
+    section("legacy /tmp lock files")
+    findings.extend(_legacy_lock_findings())
 
-    # ── 11. /opt stale test project dirs ────────────────────────────────────
+    # ── 9. /opt stale test project dirs ────────────────────────────────────
     section("/opt stale directories")
     dirs = _ssh_lines(
         f"sudo find {_OPT_PROJECTS_DIR} -maxdepth 1 -type d 2>/dev/null | grep -E '/(test[-_]|[-_]test)' || true"
@@ -600,7 +548,7 @@ def verify_residue() -> list[str]:
         elif d and _is_test_name(d.split("/")[-1]):
             findings.append(f"  /opt: stale test dir '{d}' — rm -rf {d}")
 
-    # ── 12. Backrest: test-named repos ──────────────────────────────────────
+    # ── 10. Backrest: test-named repos ──────────────────────────────────────
     section("Backrest repos")
     repos = _ssh_lines(f"sudo ls {_BACKREST_REPO_DIR} 2>/dev/null || true")
     for repo in repos:
@@ -725,17 +673,17 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.verify:
-        print("🔍 Verifying VPS config — gatus aliases + full 12-point residue audit...")
+        print("🔍 Verifying VPS config — gatus aliases + full 10-point residue audit...")
         all_findings: list[str] = []
 
-        # Part A: stale Coolify container aliases in Gatus
+        # Part A: stale UUID-suffixed container aliases in Gatus
         gatus_findings = verify_gatus_aliases()
         if gatus_findings:
-            all_findings.append("\n── Gatus stale Coolify aliases ──")
+            all_findings.append("\n── Gatus stale container aliases ──")
             all_findings.extend(gatus_findings)
 
         # Part B: full residue audit
-        print("   Running residue audit (Coolify/GlitchTip/Postgres/Meili/DNS/Docker/etc.)...")
+        print("   Running residue audit (GlitchTip/Postgres/Meili/DNS/Docker/etc.)...")
         residue_findings = verify_residue()
         all_findings.extend(residue_findings)
 
@@ -758,7 +706,7 @@ def main() -> int:
                 print(f"   • {f.strip()}")
         print(
             "\nRemediation commands are shown inline above. "
-            "Run each manually or use 'fabrik destroy <name>' for Coolify resources."
+            "Run each manually or use 'fabrik destroy <name>' for fabrik-managed apps."
         )
         return 1
 

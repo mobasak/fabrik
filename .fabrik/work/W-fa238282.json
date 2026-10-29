@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T00:02:56.321865Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-fa238282",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4ZR1B2CFA05X9MYAAQKFABA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: review-loop pins under /tmp (row 1791906916): no code change; it is a /fabrik-review wording edit, yours"
+}

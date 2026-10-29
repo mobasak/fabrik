@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:21.516314Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-094efbe5",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TN9ZJEJ8HG154ZD7Z6PKRC",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — kaizen feedback rows routed to infra code owner",
+  "status": "open",
+  "title": "routed from kaizen's D-735 triage to intel — 5 feedback rows that are infra's code (dispatch_headroom, review_rubric, command_run, the reviewer agent file)"
+}

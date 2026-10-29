@@ -12,12 +12,14 @@
     "spec": "docs/superpowers/specs/2026-10-06-rotation-capability-probe-design.md"
   },
   "next": "inventory scripts/sysadmin + scripts/kaizen probes that validate a token/usage reading but never exercise the call they guard; one row per probe with its real-capability check",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
-    "intel"
+    "intel",
+    "proposed-drop",
+    "waits-operator-review"
   ],
   "title": "Other box health probes may check credentials rather than the capability actually used — the blind spot the rotation capability probe closed for claude_rotate (spec U3, mail 01M3QG6G SYSTEMIC)"
 }

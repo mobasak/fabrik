@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T13:58:54.331387Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "d9d055ac9047d7ed76629b778648c1dfc0a7471a",
+  "id": "W-d90fe030",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add fable to _MODEL_TOK with a red-first test over a receipt whose last Pass row names only fable×1; full /fabrik-review (enforcement path, fleet-synced)",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: blocking bug, the review grader refuses a valid Fable-only closing seat; one pattern in check_review_coverage.py",
+  "status": "done",
+  "tags": [
+    "enforcement"
+  ],
+  "title": "check_review_coverage.py's seat-token pattern (_MODEL_TOK, :2445) knows opus/sonnet/haiku only, so a closing row whose authoritative seat was Fable (the seat D7 of /fabrik-execute-plan mandates) is refused as naming no seat"
+}

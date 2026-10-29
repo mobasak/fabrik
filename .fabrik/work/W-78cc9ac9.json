@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:14:55.187085Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-78cc9ac9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TGTT290YCQX5DG80KG0G16",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: half done in fleet's beat, half requested from infra — and the measurement changed the shape of the fix. templates/scaffold/docs/data-contract-template.md now carries an explicit CLOSED Backing legend — `native` · `CHECK` · `app` · `doc` · `file` · `unconstrained` — with the whole-cell grammar"
+}

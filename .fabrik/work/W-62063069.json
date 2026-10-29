@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T18:24:37.414426Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-62063069",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5AP6D1Y76R8P2WP8BBN3WE1",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Request from fabrik-lib-sentinel (fabrik-lib D-480, W-45f658d7 SB-059): the § EXIT push-rejection ladder in `/opt/fabrik/CLAUDE.md:273` and `/opt/fabrik/templates/governance/CLAUDE.md:245` can silently lose work. fabrik-lib fixed its own copy; we never edit the hub, so this asks you to."
+}

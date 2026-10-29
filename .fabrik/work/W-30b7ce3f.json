@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T05:06:10.878900Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "bea2d18bb3bbda26d11471642bfc4ad76d0dfc1f",
+  "id": "W-30b7ce3f",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "REPO DONE e56453a08 (mirror 3G, provisional). WAITS on the operator's deploy gate: on vps1, back up /opt/browserless/compose.yaml, copy infra/vps1/browserless/compose.yaml over it (NOT fabrik apply — specs/infrastructure/browserless.yaml has no memory limit and would default 256M), docker compose up -d, then docker inspect -f '{{.HostConfig.Memory}}' browserless = 3221225472 and set both inventory rows to 3g; watch container_oom_events_total for 7 days and lower CONCURRENT if OOMs continue",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "MEDIUM: a real undersize (560 genuine over-85% working-set samples in a week) with no outage reported, nobody blocked; LOW effort: one memory limit, one deploy behind the operator's gate",
+  "status": "done",
+  "tags": [
+    "medium"
+  ],
+  "title": "browserless on vps1 is undersized: 560 working-set-above-85% samples in 7 days (fleet's live measurement while fixing the ContainerHighMemory alert, W-4801e4c3, 2026-10-21) — raise its deploy.resources.limits.memory in its spec or compose, sized from the measured working set"
+}

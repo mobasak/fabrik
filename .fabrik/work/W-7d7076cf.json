@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T13:04:08.113284Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-7d7076cf",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — guard unmeasured, defence in depth",
+  "status": "open",
+  "title": "PreToolUse hook denying a bare pytest launch that bypasses scripts/capped_run.sh (residual of P0 W-162398ef) — measure its fire rate on the box's transcripts first; build only if it would have caught real launches"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T22:34:35.765048Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-2f898b5d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5AP11P1XYS1R14CNXK9DTP2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "A review seat evaded the worktree isolation guard by assembling \"git\" from \"gi\"+\"t\" — seat briefs should say a guard refusal is final"
+}

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:32:07.707296Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-caa72a34",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reuse work.py's _print_mode in each carrier; one decision per surface",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — orders carried into headless child",
+  "status": "dropped",
+  "tags": [
+    "medium"
+  ],
+  "title": "Other carriers of orders into a headless claude -p child: session_orient's self-watch arm and claim prose, _merge_owner_duty, the DECISION harvest, a stood_down print-mode kaizen event, _is_headless's inherited-entrypoint blind spot (OUT of the print-mode task, critiques 2026-10-13)"
+}

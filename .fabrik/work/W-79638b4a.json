@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:30:59.005458Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "cd9f6d7e19a2cd532531d0e742a61bc9fa28232b",
+  "id": "W-79638b4a",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: read mail 01M4X6XQH0R2PMPAF1RTBFXH1W, claim it, act on it",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — two feedback-verdict requests from kaizen on command_run",
+  "status": "done",
+  "tags": [
+    "mail-01m4x6xqh0r2pmpaf1rtbfxh1w"
+  ],
+  "title": "command_run.py: an operator-pause close, and --command on round (two feedback-verdict requests from kaizen) (mail 01M4X6XQH0R2PMPAF1RTBFXH1W)"
+}

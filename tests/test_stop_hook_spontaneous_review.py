@@ -668,7 +668,9 @@ def test_the_surface_is_parsed_once_per_stop_not_once_per_authored_file(monkeypa
     calls = []
     real = fgs._surface_reviewed
     monkeypatch.setattr(
-        fgs, "_surface_reviewed", lambda r, a, s=None: (calls.append(1), real(r, a, s))[1]
+        fgs,
+        "_surface_reviewed",
+        lambda r, a, s=None, root=None: (calls.append(1), real(r, a, s, root))[1],
     )
     rec = {
         "command": "fabrik-review",
@@ -925,3 +927,395 @@ def test_the_hooks_command_reading_matches_command_runs_normaliser():
     shapes = ("Fabrik-Review", "/fabrik-review-scoped", "//fabrik-review", "  /FABRIK-TASK ")
     for raw in (*shapes, "fabrik-spec", "/ x"):  # `//`: lstrip takes every leading slash
         assert fgs._command_name({"command": raw}) == cr._norm_command(raw), raw
+
+
+def test_a_running_review_widened_mid_run_exempts_a_pre_start_file_it_came_to_cover():
+    """W-24ae7ecf: a running review covers (start, inf), so its own post-start edits are covered
+    already; what it cannot cover is a file last edited BEFORE its start that its `--surface` did not
+    name. `command_run.py surface --add` records that path in `surface_adds`, which the exemption
+    reads as one whole token — red without the add, green with it, end to end through the reader the
+    sixth cause calls."""
+    t = float(int(time.time()))
+    rec = {
+        "command": "fabrik-review-scoped",
+        "state": "running",
+        "started_epoch": t - 60,
+        "surface": "scripts/a.py",
+    }
+    authored = {"scripts/pre.py": int(t - 600), "scripts/post.py": int(t - 30)}
+    floor = t - 7200
+    # the boundary the verb does not touch: a post-start edit is covered with no add at all
+    assert fgs._unreviewed_spontaneous_files(rec, authored, floor) == ["scripts/pre.py"]
+    widened = {**rec, "surface_adds": [{"path": "scripts/pre.py", "at": "2026-10-09T00:00:00Z"}]}
+    assert fgs._unreviewed_spontaneous_files(widened, authored, floor) == []
+    # a parked review's adds count exactly as its surface does
+    nested = {
+        "command": "fabrik-execute-plan",
+        "state": "running",
+        "started_epoch": t - 30,
+        "stack": [widened],
+    }
+    assert fgs._surface_reviewed(nested, authored) == {"scripts/pre.py"}
+    # never laundered by a record the exemption does not read
+    assert fgs._surface_reviewed({**widened, "state": "done"}, authored) == set()
+    assert fgs._surface_reviewed({**widened, "command": "fabrik-task"}, authored) == set()
+
+
+def test_malformed_surface_adds_are_inert_never_a_crash():
+    rec = {"command": "fabrik-review", "state": "running", "started_epoch": 1, "surface": "x.py"}
+    authored = {"scripts/pre.py": 1}
+    for bad in (None, 7, "scripts/pre.py", ["scripts/pre.py"], [{"path": 5}], [{}], [None]):
+        assert fgs._surface_reviewed({**rec, "surface_adds": bad}, authored) == set(), bad
+    # a hand-edited or older record's path is read the way the writer would have stored it
+    for spelled in ("./scripts/pre.py", "././scripts/pre.py", "scripts/pre.py."):
+        widened = {**rec, "surface_adds": [{"path": spelled, "at": "x"}]}
+        assert fgs._surface_reviewed(widened, authored) == {"scripts/pre.py"}, spelled
+
+
+# --- W-bdcff87a: a CLOSED review that named a path clears that path's earlier edit ----------------
+#
+# `reviewed_surfaces` is what `command_run.py` records at every review-family `done`, nested or
+# not: `{surface, adds, closed}`. The record below is the shape the writer leaves after a
+# /fabrik-execute-plan whose only review was nested: no reach, windows that start after the edit.
+
+
+def _plan_record(start: int, reviewed: object) -> dict:
+    return {
+        "command": "fabrik-execute-plan",
+        "state": "done",
+        "started_epoch": float(start),
+        "updated_ts": start + 20,
+        "covered": [[start, start + 10], [start, start + 20]],
+        "first_review_reach": None,
+        "reviewed_surfaces": reviewed,
+    }
+
+
+def test_a_closed_nested_review_that_named_the_file_clears_its_earlier_edit():
+    now = int(time.time())
+    start, edit = now - 600, now - 900
+    named = [{"surface": "uncommitted: api/x.py", "adds": [], "closed": start + 10}]
+    rec = _plan_record(start, named)
+    assert fgs._unreviewed_spontaneous_files(
+        _plan_record(start, []), {"api/x.py": edit}, edit - 60
+    ) == ["api/x.py"], (
+        "control: without the record of the review, the edit is unclearable (the reported bug)"
+    )
+    assert fgs._unreviewed_spontaneous_files(rec, {"api/x.py": edit}, edit - 60) == []
+    assert fgs._unreviewed_spontaneous_files(rec, {"api/other.py": edit}, edit - 60) == [
+        "api/other.py"
+    ], "only the NAMED path is cleared"
+    # an `adds` path is named exactly as a surface token is
+    rec_adds = _plan_record(start, [{"surface": "", "adds": ["api/z.py"], "closed": start + 10}])
+    assert fgs._unreviewed_spontaneous_files(rec_adds, {"api/z.py": edit}, edit - 60) == []
+    # the commit legs: an EDITED file committed after the close is still judged by its edit; a
+    # COMMIT-ONLY file is named within the existing commit grace after the close, never beyond it
+    closed = start + 10
+    got = fgs._closed_review_named(
+        rec,
+        {"api/x.py": edit},
+        {"api/x.py": closed + 60},
+    )
+    assert got == {"api/x.py"}, got
+    assert fgs._closed_review_named(rec, {}, {"api/x.py": closed + 60}) == {"api/x.py"}
+    late = int(closed + fgs._COMMIT_GRACE_S + 60)
+    assert fgs._closed_review_named(rec, {}, {"api/x.py": late}) == set()
+
+
+def test_an_edit_after_the_naming_review_closed_stays_unreviewed():
+    now = int(time.time())
+    start = now - 600
+    rec = _plan_record(start, [{"surface": "api/x.py", "adds": [], "closed": start + 10}])
+    after = start + 100  # outside every window and after the review that named the file
+    assert fgs._unreviewed_spontaneous_files(rec, {"api/x.py": after}, start - 600) == ["api/x.py"]
+
+
+def test_a_parked_frames_closed_review_still_names_its_files():
+    now = int(time.time())
+    start, edit = now - 600, now - 900
+    parent = {**_plan_record(start, [{"surface": "api/x.py", "adds": [], "closed": start + 10}])}
+    parent["state"] = "running"
+    child = {
+        "command": "fabrik-review-scoped",
+        "state": "running",
+        "started_epoch": float(now - 5),
+        "updated_ts": now,
+        "covered": [],
+        "first_review_reach": None,
+        "reviewed_surfaces": [],
+        "stack": [parent],
+    }
+    assert fgs._unreviewed_spontaneous_files(child, {"api/x.py": edit}, edit - 60) == []
+
+
+def test_a_corrupt_or_future_reviewed_surface_entry_is_skipped():
+    now = int(time.time())
+    start, edit = now - 600, now - 900
+    junk = [
+        "junk",
+        None,
+        {"surface": "api/x.py", "adds": [], "closed": True},
+        {"surface": "api/x.py", "adds": [], "closed": float("inf")},
+        {"surface": "api/x.py", "adds": [], "closed": float("nan")},
+        {"surface": "api/x.py", "adds": [], "closed": "1791960000"},
+        {"surface": "api/x.py", "adds": [], "closed": now + 3600},  # a clock ahead of real time
+        {"surface": 5, "adds": "api/x.py", "closed": start + 10},
+        {"surface": "api/x.py", "adds": [], "closed": edit - 10},  # closed BEFORE the edit
+    ]
+    for reviewed in (junk, "notalist", {"closed": start}, None):
+        rec = _plan_record(start, reviewed)
+        assert fgs._unreviewed_spontaneous_files(rec, {"api/x.py": edit}, edit - 60) == [
+            "api/x.py"
+        ], reviewed
+
+
+def test_an_edit_with_no_readable_timestamp_is_never_cleared_by_a_name():
+    """Round 1, C1: an unreadable edit time reads as 0, and `closed >= 0` held for every entry — a
+    review that closed BEFORE the edit would clear it. No proof of order, no clearing."""
+    now = int(time.time())
+    rec = _plan_record(now - 600, [{"surface": "api/x.py", "adds": [], "closed": now - 590}])
+    assert fgs._unreviewed_spontaneous_files(rec, {"api/x.py": 0}, now - 3600) == ["api/x.py"]
+    assert fgs._closed_review_named(rec, {}, {"api/x.py": 0}) == set()
+
+
+def test_an_old_edit_below_the_floor_never_shields_a_fresh_commit(monkeypatch):
+    """Round 1, C2: an edit older than the sixth cause's floor is not this session's work, so a
+    review that named it long ago must not clear a FRESH commit of the same path — the commit leg
+    judges it, as it did before."""
+    now = int(time.time())
+    rec = {
+        **_plan_record(
+            now - 7200, [{"surface": "api/x.py", "adds": [], "closed": now - 40 * 3600}]
+        ),
+        "covered": [[now - 7200, now - 7100]],
+    }
+    monkeypatch.setattr(fgs, "_commit_files", lambda root, commits, floor: {"api/x.py": now - 10})
+    monkeypatch.setattr(fgs, "_withdrawn_edits", lambda root, names, floor: set())
+    monkeypatch.setattr(fgs, "_ignored_paths", lambda root, names: set())
+    got = fgs._unreviewed_spontaneous_files(
+        rec,
+        {"api/x.py": now - 48 * 3600},
+        now - 3600,
+        None,
+        root=Path("."),
+        commits=[("abc", 1, 1)],
+    )
+    assert got == ["api/x.py"], got
+
+
+def _range_repo(root: Path) -> list[str]:
+    """A throwaway repo: c1 adds a.py, c2 adds b.py and c.py, c3 adds d.py — the shas, in order —
+    and a branch `base` at c1."""
+    import subprocess as sp
+
+    def git(*a: str) -> str:
+        return sp.run(
+            ["git", "-c", "user.name=t", "-c", "user.email=t@t", *a],
+            cwd=root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+    git("init", "-q")
+    shas = []
+    for files in (("a.py",), ("b.py", "c.py"), ("d.py",)):
+        for f in files:
+            (root / f).write_text(f"# {f}\n", encoding="utf-8")
+        git("add", *files)
+        git("commit", "-q", "-m", "+".join(files))
+        shas.append(git("rev-parse", "HEAD"))
+    git("branch", "base", shas[0])
+    return shas
+
+
+def _fresh_ranges(monkeypatch) -> None:
+    monkeypatch.setattr(fgs, "_RANGE_FILES", {})
+    monkeypatch.setattr(fgs, "_RANGE_DEADLINE", [])
+
+
+def test_a_running_reviews_range_surface_exempts_the_files_it_changed(tmp_path, monkeypatch):
+    """W-42ddde8f (mail 01M55CM91H): a right-now fix is committed BEFORE its review starts, and
+    intel's reviews wrote their surface as a RANGE with no path — `range ffbf417df..24e838b45 (5
+    files)`. The by-name exemption (T5.2) matched nothing, so the hook blocked the session for not
+    reviewing what it was at that moment reviewing. A range now names the files it changed — in
+    every spelling the hub's own commands prescribe, which git resolves, not this hook."""
+    _fresh_ranges(monkeypatch)
+    c1, c2, c3 = _range_repo(tmp_path)
+    rec = {
+        "command": "fabrik-review",
+        "state": "running",
+        "started_epoch": int(time.time()),
+        "surface": f"W-2118e9c9 un-adoption refusal, range {c1[:9]}..{c2[:9]} (2 files).",
+    }
+    authored = {"a.py": 1, "b.py": 1, "c.py": 1, "d.py": 1}
+    assert fgs._surface_reviewed(rec, authored, root=tmp_path) == {"b.py", "c.py"}
+    # without a repo to read the range from, the exemption is what it always was: names only
+    assert fgs._surface_reviewed(rec, authored) == set()
+    spellings = {
+        f"{c1[:9]}...{c2[:9]}": {"b.py", "c.py"},
+        f"{c1}..HEAD.": {"b.py", "c.py", "d.py"},
+        "ROUTED-UP: step 1 — hook · base...HEAD": {"b.py", "c.py", "d.py"},
+        "scoped: `HEAD~2..HEAD~1`": {"b.py", "c.py"},
+        f"{c2[:9].upper()}..{c3[:9].upper()}": {"d.py"},
+    }
+    for surface, want in spellings.items():
+        got = fgs._surface_reviewed({**rec, "surface": surface}, authored, root=tmp_path)
+        assert got == want, (surface, got)
+    # ...and the wiring: the sixth cause's composed reader passes its root through
+    monkeypatch.setattr(fgs, "_LEDGER_EPOCH", 0.0)
+    now = int(time.time())
+    edits = dict.fromkeys(authored, now - 60)
+    monkeypatch.setattr(fgs, "_withdrawn_edits", lambda root, names, floor: set())
+    got = fgs._unreviewed_spontaneous_files(
+        {**rec, "started_epoch": now}, edits, now - 3600, None, root=tmp_path
+    )
+    assert got == ["a.py", "d.py"], got
+    # a rename names BOTH its paths — the review is over the old file's removal and the new file
+    import subprocess as sp
+
+    sp.run(["git", "mv", "b.py", "e.py"], cwd=tmp_path, check=True)
+    sp.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "mv"],
+        cwd=tmp_path,
+        check=True,
+    )
+    got = fgs._surface_reviewed(
+        {**rec, "surface": f"{c3}..HEAD"}, {"b.py": 1, "e.py": 1, "d.py": 1}, root=tmp_path
+    )
+    assert got == {"b.py", "e.py"}, got
+    # a session started in a SUBDIRECTORY keys its edits from there (`_session_files`) but its
+    # commits from the top level (`_commit_files`), so the range names both forms of each path
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "sub" / "f.py").write_text("# f\n", encoding="utf-8")
+    sp.run(["git", "add", "sub/f.py"], cwd=tmp_path, check=True)
+    sp.run(
+        ["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "sub"],
+        cwd=tmp_path,
+        check=True,
+    )
+    got = fgs._surface_reviewed(
+        {**rec, "surface": "HEAD~1..HEAD"},
+        {"f.py": 1, "sub/f.py": 1, "e.py": 1},
+        root=tmp_path / "sub",
+    )
+    assert got == {"f.py", "sub/f.py"}, got
+    # ...and a stop whose surfaces carry no range runs no git call at all
+    sent: list[tuple[str, ...]] = []
+    monkeypatch.setattr(fgs, "_git_by", lambda r, d, *a: sent.append(a))
+    got = fgs._surface_reviewed(
+        {**rec, "surface": "scripts/a.py and tests/b.py, see W-1a2b3c4d."}, authored, root=tmp_path
+    )
+    assert got == set() and sent == [], (got, sent)
+
+
+def test_a_closed_reviews_range_surface_names_its_files(tmp_path, monkeypatch):
+    """The ONE parse (W-bdcff87a): a closed review's range names its files under the close rule, or
+    a nested range-surfaced review would re-block the moment it closed — but only a range between
+    two commit ids. A closed `<a>..HEAD` keeps growing after the close, so it would clear a file
+    edited before the close and committed after it, which the review never saw (both design
+    critiques executed that false green); it names nothing."""
+    _fresh_ranges(monkeypatch)
+    c1, c2, _c3 = _range_repo(tmp_path)
+    now = int(time.time())
+    rec = _plan_record(now - 600, [{"surface": f"{c1}..{c2}", "adds": [], "closed": now - 10}])
+    got = fgs._closed_review_named(rec, {"b.py": now - 60, "d.py": now - 60}, {}, root=tmp_path)
+    assert got == {"b.py"}, got
+    # an edit AFTER the close stays unreviewed, exactly as for a named path
+    assert fgs._closed_review_named(rec, {"b.py": now - 1}, {}, root=tmp_path) == set()
+    # a moving side names nothing once closed — d.py is in `<c1>..HEAD` today, not at the close
+    for moving in (f"{c1}..HEAD", "base..HEAD", f"{c1[:9]}...HEAD"):
+        drift = _plan_record(now - 600, [{"surface": moving, "adds": [], "closed": now - 10}])
+        got = fgs._closed_review_named(drift, {"d.py": now - 60}, {}, root=tmp_path)
+        assert got == set(), (moving, got)
+    # ...and the wiring: the composed reader hands the closed reader its root too
+    monkeypatch.setattr(fgs, "_LEDGER_EPOCH", 0.0)
+    monkeypatch.setattr(fgs, "_withdrawn_edits", lambda root, names, floor: set())
+    got = fgs._unreviewed_spontaneous_files(
+        rec, {"b.py": now - 60, "d.py": now - 60}, now - 3600, None, root=tmp_path
+    )
+    assert got == ["d.py"], got
+
+
+def test_a_range_that_does_not_resolve_exempts_nothing(tmp_path, tmp_path_factory, monkeypatch):
+    """Every unresolvable shape names nothing and never raises: the pre-change behaviour."""
+    _fresh_ranges(monkeypatch)
+    c1, c2, _c3 = _range_repo(tmp_path)
+    authored = {"a.py": 1, "b.py": 1, "c.py": 1, "d.py": 1}
+    rec = {"command": "fabrik-review", "state": "running", "started_epoch": int(time.time())}
+    sent: list[tuple[str, ...]] = []
+    real_git = fgs._git_by
+    monkeypatch.setattr(fgs, "_git_by", lambda r, d, *a: (sent.append(a), real_git(r, d, *a))[1])
+    # shapes that are not a range never reach git at all
+    for surface in (
+        f"-{c1[:9]}..{c2[:9]}",  # a side never starts with `-`, so nothing reaches git as an option
+        "HEAD..",  # half a range
+        "..HEAD",
+        f"{c1[:9]}..-{c2[:9]}",
+        "a single sha only: " + c1,
+    ):
+        got = fgs._surface_reviewed({**rec, "surface": surface}, authored, root=tmp_path)
+        assert got == set(), surface
+    assert sent == [], sent
+    # shapes git refuses: unknown commits, prose with dots, and a TREE — the empty-tree id exists in
+    # every repo, so `<empty tree>..HEAD` would name every file; `^{commit}` refuses it
+    for surface in (
+        "1234567..abcdef0",
+        "zzzzzzz..yyyyyyy",
+        "docs/../x.md",
+        "4b825dc642cb6eb9a060e54bf8d69288fbee4904..HEAD",
+    ):
+        got = fgs._surface_reviewed({**rec, "surface": surface}, authored, root=tmp_path)
+        assert got == set(), surface
+    # not a repository at all — a sibling of the repo, never inside it, where git would find it
+    plain = tmp_path_factory.mktemp("plain")
+    assert fgs._surface_reviewed({**rec, "surface": f"{c1}..{c2}"}, authored, root=plain) == set()
+
+    # git itself failing — a timeout or a missing binary — names nothing and raises nothing
+    def boom(*a, **k):
+        raise fgs.subprocess.TimeoutExpired("git", 2)
+
+    _fresh_ranges(monkeypatch)
+    monkeypatch.setattr(fgs, "_git_by", boom)
+    got = fgs._surface_reviewed({**rec, "surface": f"{c1}..{c2}"}, authored, root=tmp_path)
+    assert got == set(), got
+
+
+def test_range_resolution_is_cached_capped_and_on_one_deadline(tmp_path, monkeypatch):
+    """A stop reads every closed review's surface; the same range is resolved once, at most
+    `_RANGE_CAP` distinct ranges reach git per process, and all of them share ONE deadline — so a
+    slow git costs a stop `_RANGE_BUDGET_S`, never `_RANGE_CAP` times a per-call budget."""
+    _fresh_ranges(monkeypatch)
+    calls: list[tuple[str, ...]] = []
+    deadlines: list[float] = []
+
+    class _Out:
+        def __init__(self, stdout: str) -> None:
+            self.returncode, self.stdout = 0, stdout
+
+    def fake(root, deadline, *args):
+        calls.append(args)
+        deadlines.append(deadline)
+        if args[0] == "rev-parse":
+            return _Out(f"{'a' * 40}\n")
+        return _Out("x.py\0")
+
+    monkeypatch.setattr(fgs, "_git_by", fake)
+    for _ in range(3):
+        assert "x.py" in fgs._surface_tokens("aaaaaaa..bbbbbbb", root=tmp_path)
+    assert len(calls) == 4, calls  # one rev-parse per side, one diff, one --show-prefix
+    # no side can reach git as an option: `--end-of-options` before each revision, `--` after the diff's
+    assert all(c[:4] == ("rev-parse", "--verify", "--quiet", "--end-of-options") for c in calls[:2])
+    assert calls[2][0] == "diff" and calls[2][-1] == "--", calls[2]
+    assert calls[3] == ("rev-parse", "--show-prefix"), calls[3]
+    for i in range(fgs._RANGE_CAP + 5):
+        fgs._surface_tokens(f"{i:07x}..bbbbbbb", root=tmp_path)
+    assert len(calls) == 4 * fgs._RANGE_CAP, len(calls)
+    assert "x.py" not in fgs._surface_tokens("cccccc0..bbbbbbb", root=tmp_path)
+    assert len(set(deadlines)) == 1, "every git call of a stop shares one deadline"
+    # a spent budget resolves nothing more
+    _fresh_ranges(monkeypatch)
+    monkeypatch.setattr(fgs, "_RANGE_DEADLINE", [0.0])
+    before = len(calls)
+    assert "x.py" not in fgs._surface_tokens("ddddddd..bbbbbbb", root=tmp_path)
+    assert len(calls) == before, "a spent budget reaches git no more"

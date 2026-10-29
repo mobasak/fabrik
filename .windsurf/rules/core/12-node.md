@@ -242,7 +242,7 @@ For I/O parallelism the event loop is enough. For background jobs see `75-worker
 ## Turkish constraints
 
 - LLM gateway: **OpenRouter only.** Never import vendor SDKs (`openai`, `@anthropic-ai/sdk`) directly. See `core/65-rag-search.md`.
-- Payment processing: **iyzico** for TR domestic SaaS subscriptions; **Paddle Billing** (international MoR) for cross-border. PayTR applies only to WooCommerce / physical D2C (see `85-payments-billing.md:16`), not to Node SaaS backends. **Stripe is unavailable to a TR-resident LLC** — never wire the `stripe` npm SDK. Per-flow detail: `core/85-payments-billing.md`.
+- Payment processing: routed by billing model (`85-payments-billing.md` § Payment Providers) — **Paddle Billing** (international MoR) for every currency but TRY; **PayTR** for TR domestic one-off (TRY) charges; **iyzico** for TRY subscriptions only where `docs/DECISIONS.md` records the decision accepting iyzico's NON3D recurring charges; no provider falls back to another. **Stripe is unavailable to a TR-resident LLC** — never wire the `stripe` npm SDK. Per-flow detail: `core/85-payments-billing.md`.
 
 ## M2M authentication — `X-Internal-Token` (Node implementation)
 
@@ -294,7 +294,7 @@ export function requireInternalToken(req, res, next) {
 | `console.log` in production paths | `pino` with structured fields | Breaks Loki query model + wastes GlitchTip |
 | Alpine base image | the current-LTS `-slim` base per § Runtime + Docker | musl-libc compatibility issues with native modules |
 | Buffered payload > 10 MB in memory | streamed via `pipeline()` | OOM on shared 12 GB VPS |
-| `process.env.X \|\| 'default'` for secrets | Startup throw on missing | Silent prod misconfig |
+| A defaulted secret — `process.env.X` with the double-pipe or-fallback to a literal (the form § Configuration bans) | Startup throw on missing | Silent prod misconfig |
 | `npm install` of vendor SDK (`stripe`, `openai`, `@anthropic-ai/sdk`) | OpenRouter for LLM, PayTR/iyzico/Paddle for billing | TR entity rules; gateway abstraction rule |
 
 ---
@@ -337,5 +337,5 @@ export function requireInternalToken(req, res, next) {
 - [ ] TypeScript dev: `.ts` run natively via built-in type stripping; no `ts-node`/`tsx` in scripts (overlaps `20-typescript.md` prod-image ban).
 - [ ] TypeScript prod build: `esbuild`/`swc`; `tsc --noEmit` only in CI.
 - [ ] Tests: `vitest` (or `node:test` for stand-alone scripts); integration tests hit a real Postgres per `45-testing-strategy.md`.
-- [ ] No vendor LLM SDK imports (OpenRouter only per `65-rag-search.md`); no Stripe SDK; iyzico for TR SaaS, Paddle for international (per `85-payments-billing.md`).
+- [ ] No vendor LLM SDK imports (OpenRouter only per `65-rag-search.md`); no Stripe SDK; billing routed by model per `85-payments-billing.md` § Payment Providers (Paddle international, PayTR TRY one-off, iyzico TRY subscriptions only under the recorded NON3D decision).
 - [ ] `node_modules/` gitignored; `"private": true` in `package.json`.

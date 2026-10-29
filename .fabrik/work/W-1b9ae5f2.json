@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T04:17:14.999559Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "a850d49ca8f49ff9b244b7ca5bdb1d52d413a757",
+  "id": "W-1b9ae5f2",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "route _operator_text through _queued_operator_prompt for attachment rows at every caller, and restrict _seats_in_flight's notice scan to task-notification origins, with a test per reader (found by the W-bc457e27 review, pre-existing)",
+  "note": "",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "HIGH: a bug in the Stop hook — on Claude Code 2.1.304 it reads operator prompts only from type user rows, so a prompt queued as an attachment is mis-read (the same hand-back row class as W-bc457e27); LOW effort: three readers in one file. Given to intel under D-983: infra's queue is 90 deep",
+  "status": "done",
+  "tags": [
+    "queued"
+  ],
+  "title": "final_gate_stop.py on 2.1.304 attachment rows: _in_operator_entries, _panel_brief_problem and the :3274 reader find operator prompts only in type user rows (a prompt queued as a queued_command attachment is missed), and _seats_in_flight reads hand-back attachment prompts through _NOTIFY_RE, so a seat report quoting a task notice could mark a running seat done"
+}

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T12:02:11.001815Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-ca02e4eb",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — check_plan_tickets skip runs before ERROR: false green in gate",
+  "status": "dropped",
+  "tags": [
+    "medium"
+  ],
+  "title": "check_plan_tickets: the integration-ticket skip (:2355) runs before the gate-mask ERROR its comment says still grades; and the Board's Depends column is never cross-validated against a ticket's Depends: line (W-b60b65a1 critiques)"
+}

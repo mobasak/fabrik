@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T13:26:24.228557Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "b5c1abd69ba9c6c87ed6c41adfd2ac5fe82da922",
+  "id": "W-de2c34c1",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-900",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "red-first test with p6[0], p6[-1e308] and a dropped created; record the created=0+closed_at=0 co-clobber residual",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "loses data (a clobbered marker deletes its folder), found by the opus seat of infra's ce3a73b45 review; one function, design settled by D-900 panel; owner: scratch_sweep.py = infra (D-815)",
+  "status": "done",
+  "title": "F13 scratch data loss: a finite but absurd done-marker closed_at (0, -1e308, before created) reads as a long-past close and the folder is consumed; per D-900 set closed_at=None (ACTIVE) when created is missing/non-numeric/bool/future or closed_at < created - GAP_CLOCK_MARGIN_S, in judge_run_folder (scratch_sweep.py ~739-744), never in classify_run_folder (.trash-* would keep forever)"
+}

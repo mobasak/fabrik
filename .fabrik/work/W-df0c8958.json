@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T08:02:07.092827Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-df0c8958",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -15,7 +17,8 @@
   "next": "",
   "note": "",
   "owner": "infra",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — rule packs contradict on exception logging",
   "status": "open",
   "title": "WHAT: .windsurf/rules/core/10-python.md (fleet-synced) says that in an `except Exception` branch you should \"log a short event name + correlation_id — never logger.exception()\". That contradicts 55-observability.md:433, which says caught-and-handled exceptions are logged WITH the stack trace via exc"
 }

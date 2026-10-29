@@ -42,7 +42,8 @@ Implementation: `scripts/vps_sync.py::verify_residue()` (multi-point audit) + `v
 | 7 | DNS A records | Records pointing to destroyed services |
 | 8 | Docker volumes | `docker volume ls -f dangling=true`; especially `<svc>_postgres_data` left behind after moving to shared `postgres-main`; pre-migration legacy (`coolify-db`, `coolify-redis`, etc.) |
 | 9 | Dangling images | `docker images -f dangling=true` non-empty |
-| 10 | `/tmp` locks | Stale `/tmp/fabrik-*-test-*.lock` files (`run_locked` should clean; verify) |
+| 10 | Legacy `/tmp` locks | Any `/tmp/fabrik-*.lock` file. Since W-3d834ded `run_locked` locks in the root-owned `/var/lib/fabrik-locks` instead, so only a hub checkout still on older code takes a `/tmp` one; it is stale once `sudo fuser` shows no holder. The files in `/var/lib/fabrik-locks` persist by design and are never residue (removing a held lock's file splits the lock) |
+| 10b | Leaked mktemp stages | A `/tmp/fabrik-XXXXXXXXXX` file or dir (10 random alphanumerics) older than a day. A driver stages there and removes it on every exit it sees (D-1000, D-1038, D-1044), but a SIGKILLed, OOM-killed or disconnected run leaves it behind. An Authelia work dir is root 0700 and may hold the live config, so remove it with `sudo rm -rf` once no fabrik run is live |
 | 11 | `/opt/` | `test-*`, `*-test`, `wp-test` ad-hoc files / orphan project trees |
 | 12 | Backrest | 4 live plans on hub + 2 per spoke (W2/W11). Watch for stray test-named plans (`test-*`, `*-tmp`) and abandoned repos under `/srv/backrest/repos/<test-name>/` left over from one-off experiments. |
 | 13 | Memory limits | Containers with `HostConfig.Memory=0` (limits reset on reboot; rerun `vps_apply_limits.sh`) |
@@ -91,7 +92,7 @@ The script prints exact remediation commands per finding. Common patterns:
 | Orphan Gatus endpoint | delete the file under `/opt/monitoring/configs/gatus/apps/<svc>.yaml`; Gatus auto-reloads within 30 s |
 | Dangling Docker volume | `ssh vps 'sudo docker volume rm <name>'` after confirming no live container references it |
 | Memory limit reset (post-reboot) | `ssh vps 'bash /opt/fabrik/scripts/vps_apply_limits.sh'` |
-| `/tmp` lock | `ssh vps 'rm /tmp/fabrik-*-test-*.lock'` after confirming no live process holds it |
+| Legacy `/tmp` lock | per file, run `ssh vps 'sudo fuser <lk>'` and `rm <lk>` only when it exits 1 (no process holds it); exit 0 means held, any other exit (127: `fuser` missing) means leave it. Never touch `/var/lib/fabrik-locks` |
 
 ## Pre-migration residue still on disk (vps1)
 

@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T07:26:27.708343Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "be97fa0bf2658c913d69bc1d51653fc986590f61",
+  "id": "W-7159f8e2",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: (1) DONE — server restarted, coordinator owner shows. (2) operator 2026-10-15: 'i also want to see which agents is active and working on what in a good visually easy to understand table' — an Agents table on the dashboard for EVERY repo under /opt (operator 2026-10-15: 'i want to see it on dashboard for all repos'), grouped by repo, one row per named agent session (hub: coordinator, infra, intel, fleet, kaizen; projects: their own agents, e.g. wef1/wef3): live/idle (ListAgents or the claude process), NOW (live run record: command, phase x/y, surface, updated), the item it holds (work.py claims), NEXT (its queued items, top 3), last merge; colour per state. Reuse W-cfff98dd(e)'s now/done/next reader rather than a second one. Also: the open Repos frame does not refresh itself (it defers reload to keep scroll) — operator asked 'is the window kept always uptodate?'; auto-refresh the Agents table; each row's item ids must carry a plain-language one-line description beside them, never a bare W- id (operator: 'i cant understand what is W-41c1ec56 i need explanation for it too'); (3) operator 2026-10-15: 'i want a button to be added there to send pause command to running agent' + 'also the resume button' — a Pause and a Resume button per agent row. Pause = the agent stops starting new work at its next turn boundary and says so (no kill, nothing lost); Resume = it continues from its queue. Same write-path guard as the quota board's /switch button (custom header, only agents the board itself listed), and the action recorded in the work store/ledger so the coordinator sees who is paused; this is the 'paused worker' state W-da4bc702 asks work.py to honour, so build them together; (4) operator 2026-10-15 on the Repos tab: 'it must be uptodate all the time' — the open Repos view must refresh itself (it shows 557 while the store holds 580; today it defers reload to keep scroll — keep the scroll AND refresh, e.g. poll and patch counts/rows in place); and the awaiting-operator items must be counted under 'operator', not '(unassigned)' (all 12 gates show under unassigned today because a decision item carries no owner)",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "Operator cannot see the coordinator or the agents' roles on the board they watch; restart is minutes, the panel reads existing charters",
+  "status": "done",
+  "tags": [
+    "dashboard",
+    "queued"
+  ],
+  "title": "Quota dashboard Repos tab: (1) restart the server — PID 3808 started 2026-10-13 18:03 predates the coordinator chip merged at e22de9a7d (2026-10-15), so the live page has no coordinator owner (curl /repos.html lists hub/infra/fleet/intel/kaizen/operator only); (2) operator ask 2026-10-15: show every named live session and agent with its responsibilities (name, role, worktree, live/idle, charter mandate from docs/reference/agents/<role>.md) on the Repos tab"
+}

@@ -1,0 +1,25 @@
+{
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
+  "created": "2026-10-18T20:22:31.435130Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-ccec5dfc",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "spec it (lock the unlocked installs vs an inexact shared-venv sync, plus a worktree uv-sync guard). Census 2026-10-19: locked 191, installed 256, version drift 6, locked-not-installed 5, installed-not-locked 70 (bandit, playwright, psycopg, gitpython, lxml, modal, pexpect…); an exact uv sync uninstalls the 70. Script + output: .tmp/runs/8a498855-2354-4a33-84d2-a0b8cd2f01ca/W-ccec5dfc-census/",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "spec-sized per infra's census: 70 unlocked installs, lock-vs-inexact trade-off first, deps files + a guard on a heavy surface; held behind W-ab242b11",
+  "status": "open",
+  "title": "Shared /opt/fabrik/.venv drifts from master's uv.lock (a uv sync would swap coverage 7.13.1→7.13.0, librt 0.7.7→0.7.5, and upgrade hypothesis, mutmut, textual, libcst), and a uv sync run from a linked worktree repoints the editable fabrik package to that worktree for every hub session (fleet dry run, W-0ae9b7e1 Phase A)"
+}

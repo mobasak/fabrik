@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T12:14:56.936422Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-37741a8a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TJJDG2PHYTMGMDVZ9W1MQT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "the review commands could tell a running review to use `command_run.py surface --add` when it comes to cover a file it did not name at start (W-24ae7ecf, merged e789a1b24)"
+}

@@ -12,9 +12,13 @@
     "spec": "docs/superpowers/specs/2026-10-05-promtail-to-alloy-design.md"
   },
   "next": "in /fabrik-plan-after-chat for docs/superpowers/specs/2026-10-05-promtail-to-alloy-design.md: anchor V4/V5 windows on step (b) explicitly, and phrase D3's file-set checks as pass conditions with the action on a stray DRIFT/ORPHAN line",
-  "note": "",
-  "owner": "",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
   "title": "Promtail to Alloy plan: carry two wording notes from the spec review (V5's 'the switch' anchor; D3 check phrasing)"
 }

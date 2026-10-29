@@ -16,6 +16,7 @@ CLAUDE.md
 .claude/hooks/session_orient.py
 .claude/hooks/mail_notify.py
 .claude/hooks/quota_stop.py
+.claude/hooks/seat_guard.py
 .claude/hooks/agent_role.py
 .claude/hooks/mcp_watch.py
 .claude/workflows/fabrik-review-loop.js

@@ -42,7 +42,7 @@ The canonical doc set is the **type-aware registry** (`scripts/enforcement/_doc_
 
 ### B. Fabrik-hub-owned — do NOT edit locally (centrally synced, overwritten every sync)
 
-`CLAUDE.md` · `AGENTS.md` · `agents-fabrik*.md` · `.windsurf/rules/**` · `docs/reference/**` — including `docs/reference/opt-project-catalog.md` (the /opt inventory — **read** it to wire to a sibling project instead of rebuilding; Fabrik regenerates it via `sync_projects.py`). These are gate-protected byte-identical by `check_synced_unmodified`.
+`CLAUDE.md` · `AGENTS.md` · `agents-fabrik*.md` · `.windsurf/rules/**` · and under `docs/` ONLY what `scripts/fabrik_synced_manifest.py` distributes: its `REFERENCE_DOCS` files — among them `docs/reference/opt-project-catalog.md` (the /opt inventory — **read** it to wire to a sibling project instead of rebuilding; Fabrik regenerates it via `sync_projects.py`) — and the `docs/reference/kilo/` and `docs/reference/MD/` directories of its `GOVERNANCE_DIRS`. Any other `docs/reference/*.md` is this project's own to write. These are gate-protected byte-identical by `check_synced_unmodified` (the project's `.fabrik/synced.lock` lists every one).
 
 > Retired (do not create): `docs/API_REFERENCE.md` (→ `QUICKSTART` + the live `/docs` endpoint), `docs/DATABASE_SCHEMA.md` (→ `db/schema.sql` + `docs/data-contract.md`), `docs/DOCS_INDEX.md` (→ `docs/README.md`).
 
@@ -101,8 +101,8 @@ Git can't distinguish AI agents — every commit is authored by the same user. T
 
 | Trailer | Values | When |
 |---------|--------|------|
-| `Agent-Role` | `primary` · `orchestrator` · `subagent` · `review-fix` · `ci-fix` | every AI commit (`ci-fix` = automated dispatcher/cron commits) |
-| `Agent-Name` | `infra` · `fleet` · `intel` | hub sessions with `CLAUDE_AGENT` set (hub-side; most projects omit) |
+| `Agent-Role` | `primary` · `orchestrator` · `subagent` · `review-fix` · `ci-fix` | every AI commit (`ci-fix` ONLY when one of the hub's two unattended writers made the commit — the CI-fix dispatcher's `claude -p` run in THIS repo after a GitHub Actions failure, or the hub's own rules-version cron; any other session never writes it) |
+| `Agent-Name` | the name the operator gave your window — your `CLAUDE.md` § Agent Provenance Trailers owns the rule (in a project: write it by hand; never invent one) | every AI commit |
 | `Agent-Phase` | `A`, `B`, `C`, … | plan execution only |
 | `Agent-Task` | task number | subagent commits only |
 | `Agent-Context` | short description of what the agent did | every AI commit |
@@ -226,8 +226,9 @@ Decide on the reader you actually have:
   from AI bots — agents never go looking. It follows (inference, not measurement) that a file only
   gets read when something points at it: reference it from the docs index or README.
 - **Keep it an INDEX** — what this is, plus links to the pages that matter; not a dump.
-- ⚠️ **In THIS repo `llms.txt` is GENERATED** (`scripts/generate_capability_index.py`, refreshed
-  daily) — never hand-edit it; change the generator. A project writing one by hand owns it.
+- ⚠️ **In the hub (`/opt/fabrik`) `llms.txt` is GENERATED** (`scripts/generate_capability_index.py`,
+  refreshed daily) — never hand-edit it there; change the generator. A project has no such
+  generator; an `llms.txt` it ships, hand-written or built by its own code, is its own.
 - Status: a community convention, no standards body, no frontier-lab commitment on the record
   either way. Cheap and reversible — never at the expense of `OPERATIONS.md`/`DEPLOYMENT.md`, which
   are the load-bearing agent interfaces (D-065).
@@ -239,7 +240,7 @@ Follow these when writing ANY `.md` file — they affect AI parsing quality and 
 
 - **One H1 per document** — semantic root for chunking
 - **No skipped heading levels** — `##` to `###`, never `##` to `####`
-- **Blank lines around headings, lists, code blocks** — parser boundary signals
+- **Blank lines around headings, lists, code blocks, tables** — parser boundary signals (a paragraph line flush against a table's last row renders as one more row)
 - **Fenced code blocks only** — never indented code (AI treats it inconsistently)
 - **Always specify code language** — ` ```python `, ` ```bash `, ` ```json `
 - **Lists imply constraints or steps** — don't mix narrative paragraphs inside lists

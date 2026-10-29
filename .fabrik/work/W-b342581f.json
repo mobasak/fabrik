@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T16:38:33.716421Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-b342581f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4E59EHZT0XEBJ8PWZS4HZB7",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: check_convergence accepts an unreviewed --init skeleton (01M4E1MYFJ) — fixed at 34dad172c, synced (D-704)"
+}

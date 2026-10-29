@@ -1,14 +1,63 @@
 """Pytest configuration and Hypothesis profiles."""
 
+import ast
+import inspect
 import os
 import re
 import shutil
 import subprocess
 import tempfile
+import textwrap
 from datetime import timedelta
 from pathlib import Path
 
 from hypothesis import Phase, settings
+
+
+def _load_memguard():
+    """tests/memguard.py by file path: tests/ is not on sys.path here, and adding it for every test
+    would let a tests/ helper shadow an installed module."""
+    import importlib.util
+    import sys
+
+    if "memguard" in sys.modules:  # already loaded (`-p memguard`): one module, so one watchdog
+        return sys.modules["memguard"]
+    spec = importlib.util.spec_from_file_location(
+        "memguard", Path(__file__).with_name("memguard.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["memguard"] = module
+    try:
+        spec.loader.exec_module(module)
+    except BaseException:
+        sys.modules.pop("memguard", None)
+        raise
+    return module
+
+
+memguard = _load_memguard()
+
+# The session's own Claude Code subagent knobs (kaizen 01M4TBA449): dispatch_headroom reads the cap at import
+# and the model force per call, so either one set in the operator's shell turned 17-38 tests red. Stripped at
+# this module's top — before any later conftest statement, hook or collected module can import the reader;
+# a test that wants one sets it on its own call. Grader: tests/test_conftest_isolation.py.
+for _var in ("CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS", "CLAUDE_CODE_SUBAGENT_MODEL_FORCE"):
+    os.environ.pop(_var, None)
+
+# No test writes the live mailbox: a `monkeypatch.undo()` inside a test also undoes the fixture that
+# redirected FABRIK_MAIL_ROOT, and four test mails reached fabrik-lib's real inbox (01M4WZ36J6). The
+# process-level default below survives any undo; a test that wants a root still sets its own.
+os.environ["FABRIK_MAIL_ROOT"] = tempfile.mkdtemp(prefix="pytest-mail-root-")
+
+# The two prompt hooks keep a per-session digest of the block they last printed (W-25f6b2a3): pinned here so
+# no test that drives `mail_notify.main` or `thread_anchor.py line` with a session id writes ~/.claude/state.
+os.environ["MAIL_NOTIFY_STATE_DIR"] = tempfile.mkdtemp(prefix="pytest-mail-notify-")
+os.environ["THREAD_ANCHOR_DIR"] = tempfile.mkdtemp(prefix="pytest-thread-anchor-")
+
+# Likewise no test takes a lock in the operator's real lock dir (fabrik.locks_local, now ~/.cache/fabrik-locks,
+# W-1f70f2e9): tests that call state.save or an allocation without pinning one left state-*.lock files in the old
+# /tmp default. Set at the top, before any collected module imports locks_local and reads it.
+os.environ["FABRIK_LOCK_DIR"] = tempfile.mkdtemp(prefix="pytest-lock-dir-")
 
 settings.register_profile(
     "ci",
@@ -89,12 +138,29 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "live_fleet: reaches the real fleet; runs only when a person opts in"
     )
+    config.addinivalue_line(
+        "markers",
+        "live_box: reads the installed ~/.claude corpus the merge owner renders after a merge;"
+        " skipped inside a merge check (FABRIK_MERGE_CHECK=1) only when its own body reads"
+        " asm|ac|assemble_commands.AGENTS|OUT|SKILLS or Path.home() / '.claude' /"
+        " commands|skills|agents",
+    )
     for var in _GIT_ENV_LEAKS:
         os.environ.pop(var, None)
     # GIT_CONFIG_KEY_n / GIT_CONFIG_VALUE_n come in numbered pairs with no fixed bound.
     for key in [k for k in os.environ if k.startswith(("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_"))]:
         os.environ.pop(key, None)
+    # An exported FABRIK_SSH_JUMP_<ALIAS> (W-2b657bee) would shift every ssh/scp argv pin by
+    # two elements; tests that want a jump set it with monkeypatch.
+    for key in [k for k in os.environ if k.startswith("FABRIK_SSH_JUMP_")]:
+        os.environ.pop(key, None)
+    # A pretest or `merge --queue` leg exports FABRIK_MERGE_TESTS_RECORDS to redirect its OWN
+    # records; inherited by the shards, it redirected the selector tests' records too (W-bce8914b).
+    os.environ.pop("FABRIK_MERGE_TESTS_RECORDS", None)
     _install_fleet_guard()
+    # A runaway test is killed past FABRIK_TEST_RSS_MAX, never the host: two WSL crashes on
+    # 2026-10-17 came from one test process at ~32 GB (W-162398ef; tests/memguard.py).
+    memguard.start(config)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -129,12 +195,64 @@ def _private_monkeypatch():
 
 
 @pytest.fixture(autouse=True)
+def _reset_oauth_transport_latch():
+    """claude_rotate's `_oauth_get` keeps a per-PROCESS transport-dead latch (W-5a1b8961): a test
+    that makes every host fail (tests/test_claude_fleet.py::test_oauth_get_gives_up_after_attempts)
+    trips it, and every later `_oauth_get` in this process would read an instant None. Cleared on
+    every registered copy before each test, selected by FILE (never `hasattr` on arbitrary modules).
+    Out of reach, named: an instance never put in sys.modules (tests/test_claude_rotate_capture.py's
+    `rot`, which never calls `_oauth_get`)."""
+    import sys
+
+    for mod in list(sys.modules.values()):
+        if str(getattr(mod, "__file__", "") or "").endswith("claude_rotate.py") and hasattr(
+            mod, "_oauth_transport_dead_at"
+        ):
+            mod._oauth_transport_dead_at = None
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _isolated_sound_lock_dir(tmp_path, _private_monkeypatch):
     monkeypatch = _private_monkeypatch
     locks = tmp_path / "sound-locks"
     locks.mkdir(exist_ok=True)
     monkeypatch.setenv("CLAUDE_SOUND_LOCKDIR", str(locks))
     yield locks
+
+
+@pytest.fixture(autouse=True)
+def _isolated_print_mode(tmp_path, _private_monkeypatch):
+    """`work.py`'s `_print_mode()` (01M4PAJWV1) reads the headless labels and walks the proc root
+    to the nearest `claude` ancestor. Run under a `claude -p` dispatcher, the whole suite would
+    read as headless and every queue/prompt grader would go falsely red. One autouse pin: the
+    labels are removed and the proc root is an empty dir, so a walk finds no ancestor (False).
+    A test that wants print mode sets the label or its own FABRIK_WORK_PROC after this. Helpers
+    that build a subprocess env from scratch name their own proc root for the same reason."""
+    monkeypatch = _private_monkeypatch
+    for name in ("FABRIK_HEADLESS", "CLAUDE_MESH_HEADLESS"):
+        monkeypatch.delenv(name, raising=False)
+    proc = tmp_path / "no-proc"
+    proc.mkdir(exist_ok=True)
+    monkeypatch.setenv("FABRIK_WORK_PROC", str(proc))
+    yield proc
+
+
+@pytest.fixture(autouse=True)
+def _no_api_key_session(_private_monkeypatch):
+    """The quota hooks exempt a session on an Anthropic API key (W-effb7141), so a suite run from
+    such a session would see every hold lifted and every hold grader go falsely red. One autouse
+    pin: the key and every credential the hooks weigh beside it (`quota_stop.py::_OTHER_AUTH`)
+    removed; a test that wants an API-key session sets them after this."""
+    for name in (
+        "ANTHROPIC_API_KEY",
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "ANTHROPIC_AUTH_TOKEN",
+        "CLAUDE_CODE_USE_BEDROCK",
+        "CLAUDE_CODE_USE_VERTEX",
+        "CLAUDE_CODE_USE_FOUNDRY",
+    ):
+        _private_monkeypatch.delenv(name, raising=False)
 
 
 @pytest.fixture(autouse=True)
@@ -182,6 +300,10 @@ def _isolated_opt_dir(tmp_path, _private_monkeypatch):
     monkeypatch.setenv("ROTATE_STATE_DIR", str(state))
     # a refused rotate-ledger row goes to a fallback file in the system temp dir (W-16ebba0a)
     monkeypatch.setenv("ROTATE_LEDGER_FALLBACK", str(state / "ledger-fallback.jsonl"))
+    # the battery hold (W-83a8ee68) reads BAT1/AC1 on every tick: empty dirs read as "no battery",
+    # so no test arms or lifts a hold from the box's real charge
+    monkeypatch.setenv("CLAUDE_BATTERY_DIR", str(state / "no-battery"))
+    monkeypatch.setenv("CLAUDE_AC_DIR", str(state / "no-ac"))
     # ⚠️ The SECOND sink, and the one that fires FIRST: the fleet-exhausted branch calls
     # `_tick_telegram` before `_drain_mail`, and the notifier is resolved from `Path.home()`, which
     # nothing here pins. The first cut of this fixture closed only the mailbox half, leaving a test
@@ -203,6 +325,18 @@ def _isolated_opt_dir(tmp_path, _private_monkeypatch):
     # operator's real per-account files
     monkeypatch.setenv("QUOTA_POSTURE_SETTINGS", str(tmp_path / "isolated-settings.json"))
     yield opt
+
+
+@pytest.fixture(autouse=True)
+def _isolated_decisions_resolver(tmp_path, _private_monkeypatch):
+    """`docs_updater.py --adopt` writes its MERGE OWNER row through the hub's `decisions.py --append`,
+    which reserves the id in the box-wide store under the REAL `~/.claude/state/decision-ids`
+    (W-e1b1052e). Pinned to a missing script for every test, so an adopt run in a test takes the
+    local fallback and never touches that store; a test that wants the real resolver sets
+    `FABRIK_DECISIONS_PY` (and `HOME`) itself after this — as the merge_request tests already do."""
+    _private_monkeypatch.setenv(
+        "FABRIK_DECISIONS_PY", str(tmp_path / "no-decisions-py-in-tests.py")
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -231,6 +365,20 @@ def _isolated_command_run_dir(tmp_path, _private_monkeypatch):
     # graders would otherwise append to the operator's real ~/.claude/state/agent-identity.jsonl.
     # Same class as the three pins above: one autouse pin, no opt-in.
     monkeypatch.setenv("AGENT_IDENTITY_FILE", str(tmp_path / "agent-identity.jsonl"))
+    # The token-waste tier (W-02472911) runs inside every `kaizen_collect_v2.daily()` a grader drives:
+    # without these it reads the live transcript roots and this repo's live `git log` — a grader then
+    # passes or fails on the box's state, not the code. A missing repo is the tier's fail-open path.
+    monkeypatch.setenv("KAIZEN_TRANSCRIPT_ROOTS", str(tmp_path / "transcripts"))
+    monkeypatch.setenv("KAIZEN_WASTE_GIT_REPO", str(tmp_path / "no-git-repo"))
+    # The harness scratch root (scratch lifecycle plan, Phase A): `start` mints a run folder under
+    # `<root>/<slug>/<sid>/scratchpad/` and the sweep removes consumed ones — never the live
+    # /tmp/claude-<uid>. The hub module `start` loads for that is the tree under test, not /opt/fabrik.
+    monkeypatch.setenv("SCRATCH_SWEEP_ROOT", str(tmp_path / "harness"))
+    monkeypatch.delenv("SCRATCH_RUN_GRACE_S", raising=False)  # the thresholds' test seams
+    monkeypatch.delenv("SCRATCH_RUN_HEARTBEAT_S", raising=False)
+    monkeypatch.setenv(
+        "FABRIK_SCRATCH_SWEEP_LIB", str(Path(__file__).resolve().parents[1] / "scripts")
+    )
     # The caller's ROLE (`CLAUDE_AGENT`, the first source `whoami_agent.resolve_agent_name` reads):
     # a hub window runs with it set, and mail.py stamps it into every sent message's `from-agent:`
     # and reply addressing (01M3PT248G7A) — so a grader's verdict would depend on which window ran
@@ -281,6 +429,22 @@ def _no_live_app_role_step(request, _private_monkeypatch):
     _private_monkeypatch.setattr(
         InfrastructureProvisioner, "_provision_app_role", lambda *a, **k: None, raising=False
     )
+
+
+@pytest.fixture(autouse=True)
+def _no_live_reachability_preflight(request, _private_monkeypatch):
+    """`DeploymentOrchestrator.deploy` probes `ssh <alias> true` before anything else (W-2b657bee);
+    the fleet guard below refuses that probe, which would fail every non-dry orchestrator test.
+    The probe is a no-op for every test; a module that exercises it sets
+    `LIVE_REACHABILITY_PREFLIGHT = True` and mocks `subprocess.run` itself
+    (tests/orchestrator/test_reachability_preflight.py) — unmocked, the guard still refuses it."""
+    if getattr(request.module, "LIVE_REACHABILITY_PREFLIGHT", False):
+        return
+    try:
+        import fabrik.orchestrator as _orch
+    except ImportError:
+        return
+    _private_monkeypatch.setattr(_orch, "verify_host_reachable", lambda *a, **k: None)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -481,10 +645,84 @@ def _remove_fleet_guard() -> None:
 
 def pytest_unconfigure(config):  # noqa: ARG001 - pytest hook signature
     _remove_fleet_guard()
+    memguard.stop()
+
+
+# The installed corpus the merge owner renders into ~/.claude AFTER a merge lands (W-c3177526).
+_CORPUS_ATTRS = frozenset({"AGENTS", "OUT", "SKILLS"})
+_CORPUS_MODULES = frozenset({"asm", "ac", "assemble_commands"})  # the aliases tests/ imports it as
+_CORPUS_DIRS = frozenset({"commands", "skills", "agents"})
+
+
+def _home_chain_dir(node: ast.AST) -> bool:
+    """True for a `Path.home() / ".claude" / <commands|skills|agents>` chain (any depth below)."""
+    parts: list[str] = []
+    while isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        if isinstance(node.right, ast.Constant) and isinstance(node.right.value, str):
+            parts.append(node.right.value)
+        node = node.left
+    home = (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "home"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "Path"
+    )
+    parts.reverse()
+    return home and len(parts) >= 2 and parts[0] == ".claude" and parts[1] in _CORPUS_DIRS
+
+
+def _reads_installed_corpus(item) -> bool:
+    """Whether the test's OWN code reads the installed corpus: an `asm|ac|assemble_commands`
+    `.AGENTS|OUT|SKILLS` read (assemble_commands' installed trees) or a `Path.home() / ".claude"
+    / commands|skills|agents` chain, written in the test body itself. Docstrings and string
+    constants are never evidence, so a test that only MENTIONS the corpus, or renders into a tmp
+    dir, is not a reader. Any other spelling (a helper, `joinpath`, `expanduser`, another alias)
+    and an unreadable source answer False, which leaves the test to run (fail-closed): a merge
+    check then refuses on it exactly as it did before W-c3177526."""
+    try:
+        tree = ast.parse(textwrap.dedent(inspect.getsource(item.function)))
+    except (OSError, TypeError, SyntaxError, AttributeError):
+        return False
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.ctx, ast.Load)
+            and node.attr in _CORPUS_ATTRS
+            and isinstance(node.value, ast.Name)
+            and node.value.id in _CORPUS_MODULES
+        ):
+            return True
+        if isinstance(node, ast.BinOp) and _home_chain_dir(node):
+            return True
+    return False
+
+
+def pytest_report_header(config):  # noqa: ARG001 - pytest hook signature
+    """Say so in the header when the run is a merge check (pytest prints it unless `-q`; the
+    merge's own fallback leg runs `-q`, so there the skip shows only as `s` and its count)."""
+    if os.environ.get("FABRIK_MERGE_CHECK") == "1":
+        return (
+            "FABRIK_MERGE_CHECK=1: a merge check — live_box tests that read ~/.claude are skipped"
+        )
+    return None
 
 
 def pytest_collection_modifyitems(config, items):  # noqa: ARG001 - pytest hook signature
-    """A `live_fleet`-marked test is a deliberate live check: it runs only when a PERSON opted in."""
+    """A `live_box` test is skipped inside a merge check, which runs before the merge's render
+    reaches ~/.claude (W-c3177526) — only when its own code reads that corpus, so the marker alone
+    never skips (D-253). Applied BEFORE the live_fleet opt-in's early return, so a person's
+    FABRIK_TEST_ALLOW_FLEET inherited into a merge check cannot bring it back.
+
+    A `live_fleet`-marked test is a deliberate live check: it runs only when a PERSON opted in."""
+    if os.environ.get("FABRIK_MERGE_CHECK") == "1":
+        box = pytest.mark.skip(
+            reason="live_box: FABRIK_MERGE_CHECK=1 — a merge check runs before the merge owner"
+            " renders the corpus into ~/.claude, so the installed copy cannot match yet"
+        )
+        for item in items:
+            if item.get_closest_marker("live_box") and _reads_installed_corpus(item):
+                item.add_marker(box)
     if os.environ.get("FABRIK_TEST_ALLOW_FLEET") == "1":
         return
     skip = pytest.mark.skip(
@@ -530,7 +768,9 @@ def _tempfile_under_basetemp(tmp_path_factory):
 # function-scoped pin runs AFTER module-scoped fixtures, and tests/test_scaffold_saas_backend.py
 # builds its project in one, so it scaffolded online. Read at call time by
 # `scaffold._scaffold_offline()`; a test that wants the real steps deletes the variable with its own
-# monkeypatch, which restores it afterwards. Grader: tests/test_scaffold_offline_seam.py.
+# monkeypatch, which restores it afterwards, AND opts in (`create_project(provision=True)` or
+# `scaffold.provisioning()`, W-e2f0b6e5). Graders: tests/test_scaffold_offline_seam.py,
+# tests/test_scaffold_provision_opt_in.py.
 @pytest.fixture(autouse=True, scope="session")
 def _offline_scaffold():
     previous = os.environ.get("FABRIK_SCAFFOLD_OFFLINE")

@@ -1,4 +1,4 @@
-# AFTER-EDIT: tests/enforcement/test_plan_shape_gates.py | commands/_sources/fabrik-plan-after-chat.md
+# AFTER-EDIT: tests/enforcement/test_plan_shape_gates.py, tests/enforcement/test_status_in_code_span.py | commands/_sources/fabrik-plan-after-chat.md
 """Check plan document quality — shape-classified required sections.
 
 Classification precedence (ordered — a file matching an earlier shape is never
@@ -24,6 +24,7 @@ reclassified by a later rule):
 """
 
 import re
+import sys
 from pathlib import Path
 
 try:
@@ -124,21 +125,24 @@ TICKET_FIELDS = [
 
 # Fenced code blocks are QUOTED content — a ticket citing `Status: 200 OK` in an
 # API example must not trip the Status ban.
-_FENCE_RE = re.compile(
-    # PARSING CONTRACT (recorded, review round 9): fences are BALANCED backtick
-    # fences — a 3+-backtick opener closed by an EQUAL-length line-start closer —
-    # plus inline single-line ```…``` quotes. Out of contract (documented, not
-    # chased): tilde fences, over-long closers, and unpaired line-start fence
-    # PAIRS — the emitting commands write balanced 3-backtick fences and quote
-    # templates with 4-backtick outers, both in-contract; no live fleet file
-    # violates this (verified 2026-08-05).
-    # Line-anchored BLOCK fences + inline single-line fences. NEVER a bare
-    # ```.*?``` — an unpaired backtick in prose would pair with the NEXT
-    # block's opener and swallow real document body (live fleet regression:
-    # calendar-orchestration-engine 2026-07-25 plan lost ## File Scope).
-    r"(?:^[ \t]*(`{3,})[^\n]*\n.*?^[ \t]*\1[ \t]*$|```[^`\n]+```)",
-    re.M | re.S,
-)
+# PARSING CONTRACT (recorded, review round 9): fences are BALANCED backtick
+# fences — a 3+-backtick opener closed by an EQUAL-length line-start closer —
+# plus inline single-line ```…``` quotes. Out of contract (documented, not
+# chased): tilde fences, over-long closers, and unpaired line-start fence
+# PAIRS — the emitting commands write balanced 3-backtick fences and quote
+# templates with 4-backtick outers, both in-contract; no live fleet file
+# violates this (verified 2026-08-05).
+# Line-anchored BLOCK fences + inline single-line fences. NEVER a bare
+# ```.*?``` — an unpaired backtick in prose would pair with the NEXT
+# block's opener and swallow real document body (live fleet regression:
+# calendar-orchestration-engine 2026-07-25 plan lost ## File Scope).
+# The match set is `_fences.py`'s, one linear scanner shared by every check that
+# strips fences (W-276255e7: the regex it replaced was quadratic).
+if str(Path(__file__).resolve().parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+import _fences  # noqa: E402  (same-dir sibling, synced fleet-wide)
+
+_FENCE_RE = _fences.FENCE_STRIP
 
 
 def _strip_fences(text: str) -> str:
@@ -164,13 +168,23 @@ def _sibling_spine_is_draft(file_path: Path) -> bool:
     except OSError:
         return True
     scan = _BLOCKQUOTE_RE.sub("", scan)  # quoted Status examples never downgrade
-    m = MODERN_STATUS_RE.search(scan)
-    if m:
-        return m.group(1).upper() in ("DRAFT", "PLANNED")
-    # ABSENT Status = mid-authoring (draft-like). PRESENT-but-unrecognized
-    # (`Status: COMPLETE`, a typo) FAILS CLOSED — one bad token must not silence
-    # the ticket contract (mirrors check_plan_tickets' UNRECOGNIZED branch).
-    return not ANY_STATUS_RE.search(scan)
+    value, hidden = _modern_status(scan)
+    if value:
+        return value in ("DRAFT", "PLANNED")
+    # A Status line only a code span holds is a rejected candidate: this read fails OPEN (draft downgrades the ticket
+    # checks), so it takes its strict branch — not draft (W-a7cff030). ABSENT Status = mid-authoring (draft-like).
+    # PRESENT-but-unrecognized (`Status: COMPLETE`, a typo) FAILS CLOSED — one bad token must not silence the ticket
+    # contract (mirrors check_plan_tickets' UNRECOGNIZED branch).
+    return not (hidden or _fences.status_candidates(scan, ANY_STATUS_RE))
+
+
+def _modern_status(scan: str) -> tuple[str | None, bool]:
+    """The plan's own modern Status value (upper-cased) from the first match no inline code span hides, and whether
+    any hidden candidate was seen (W-a7cff030). The match runs on the original text, so a stray backtick can never
+    erase a real Status line. Each caller resolves a hidden-only header in its own strict direction."""
+    candidates = _fences.status_candidates(scan, MODERN_STATUS_RE)
+    shown = [m for m, hidden in candidates if not hidden]
+    return (shown[0].group(1).upper() if shown else None), any(hidden for _, hidden in candidates)
 
 
 def _check_ticket(file_path: Path, content: str) -> list[CheckResult]:
@@ -230,10 +244,8 @@ def _check_modern(file_path: Path, content: str) -> list[CheckResult]:
     # A DRAFT/PLANNED plan is mid-authoring on shared master — missing sections
     # are WARN (sibling-session protection, matching every other downgrade path);
     # full ERROR from CONVERGED onward (the convergence flip enforces regardless).
-    m = MODERN_STATUS_RE.search(_BLOCKQUOTE_RE.sub("", scan))  # quoted → never own status
-    severity = (
-        Severity.WARN if (m and m.group(1).upper() in ("DRAFT", "PLANNED")) else Severity.ERROR
-    )
+    own, _ = _modern_status(_BLOCKQUOTE_RE.sub("", scan))  # quoted or spanned → never own status
+    severity = Severity.WARN if own in ("DRAFT", "PLANNED") else Severity.ERROR
     required = list(PILLAR_SECTIONS)
     if SPINE_MARKER_RE.search(scan):
         required += SPINE_SECTIONS
@@ -445,9 +457,12 @@ def check_file(file_path: Path) -> list[CheckResult]:
     # Precedence 3: grandfather — but a plan dated on or after the lane rollout still owes the
     # D10/D11 rules (a pillar-less post-rollout plan must not escape them); advisory while the
     # plan is draft-like (DRAFT/PLANNED or no status), the same downgrade _check_modern applies.
-    gm = MODERN_STATUS_RE.search(_BLOCKQUOTE_RE.sub("", scan))
+    own, hidden = _modern_status(_BLOCKQUOTE_RE.sub("", scan))
+    # absent = draft-like (WARN); a header only a code span holds takes the strict branch (ERROR, W-a7cff030)
     lane_severity = (
-        Severity.WARN if (not gm or gm.group(1).upper() in ("DRAFT", "PLANNED")) else Severity.ERROR
+        Severity.WARN
+        if ((own is None and not hidden) or own in ("DRAFT", "PLANNED"))
+        else Severity.ERROR
     )
     return _lane_rules(file_path, content, lane_severity) + [
         CheckResult(

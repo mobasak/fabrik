@@ -188,7 +188,9 @@ When the vendor didn't answer, we determined this empirically:
   `audit_jobs: not_configured` persisting after the first deploy.
 - **Steps:**
   1. Run a job by hand: `python -m <package>.audit_jobs verify` (or `retention`), with
-     `DATABASE_URL_OWNER` set. `verify` exits non-zero when it finds an incident.
+     `DATABASE_URL_OWNER` set — on the VPS from the service that declares `.env.owner`:
+     `docker compose run --rm <name>-audit-jobs python -m <package>.audit_jobs verify` (the app
+     service holds no owner DSN, D-754). `verify` exits non-zero when it finds an incident.
   2. For a chain break, follow `core/app-audit-log.md` § Hash-Chain Verification: freeze
      writes, list breaks via the `audit_log_chain_check` view over the post-retention
      window, and treat the break as a security incident.

@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-d146dd3c"
+  ],
   "created": "2026-09-29T14:42:36.283732Z",
   "creator": "fleet",
+  "effort": "high",
   "evidence": "",
   "id": "W-73c5a25b",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -15,6 +19,7 @@
   "note": "",
   "owner": "fleet",
   "priority": 2,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — tenant isolation RLS on every emitted saas project, needs spec",
   "status": "open",
   "title": "saas-skeleton tenant schema: one current_tenant_id() (vendored IdP rls/native.sql), RLS on tenants, cascade-delete blast radius, tenants.deleted_at, jobs exception"
 }

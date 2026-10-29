@@ -2160,20 +2160,34 @@ def _crc():
     return mod
 
 
-def test_a_review_closed_on_the_scope_growth_stop_satisfies_the_executed_citation(
+def _cite_scope_growth_review(repo: Path, committed_on: str) -> int:
+    """Commit the scope-growth review on `committed_on`, then stage the EXECUTED plan citing it."""
+    review = _scope_growth_review([5, 4, 5])
+    path = repo / "docs/development/reviews/2026-08-03-plan-x-review.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(review, encoding="utf-8")
+    _commit_at(repo, committed_on, "review")
+    return _run_files(repo, {"docs/development/plans/2026-08-03-plan-x.md": EXECUTED_PLAN_CITES})
+
+
+def test_a_pre_d355_review_closed_on_the_scope_growth_stop_satisfies_the_executed_citation(
     repo: Path,
 ) -> None:
-    """W-5b541aab: check_review_coverage accepts a receipt that closed on the D-252 scope-growth
-    stop (`_scope_growth_exit`), while this gate demanded a quiet row from the SAME receipt — the
-    two gates disagreed about one artifact. The predicate is imported, never copied."""
+    """W-5b541aab: the D-252 stop was a sanctioned close, and check_review_coverage still honours
+    it for a receipt first committed before D-355 (2026-09-23) — so must this gate, one law. The
+    predicate is imported, never copied."""
     review = _scope_growth_review([5, 4, 5])
     crc = _crc()
     assert crc._scope_growth_exit(review, crc._ledger_shapes(review)[2])
-    files = {
-        "docs/development/plans/2026-08-03-plan-x.md": EXECUTED_PLAN_CITES,
-        "docs/development/reviews/2026-08-03-plan-x-review.md": review,
-    }
-    assert _run_files(repo, files) == 0
+    assert _cite_scope_growth_review(repo, "2026-09-20") == 0
+
+
+def test_a_post_d355_review_closed_on_the_scope_growth_stop_does_not_satisfy_the_citation(
+    repo: Path,
+) -> None:
+    """D-355 (kaizen 01M4CPWDK0): after 2026-09-23 a review closes only on a confirmed-zero round,
+    so a receipt first committed later that closed on the stop certifies no EXECUTED plan."""
+    assert _cite_scope_growth_review(repo, "2026-10-02") == 1
 
 
 def test_the_scope_growth_phrase_alone_never_satisfies_the_executed_citation(repo: Path) -> None:
@@ -2478,3 +2492,426 @@ def test_a_missing_project_root_is_not_a_traceback(tmp_path, kind):
         timeout=60,
     )
     assert proc.returncode == 0 and "Traceback" not in proc.stderr, proc.stderr
+
+
+# --- a terminal header Status is itself a review claim (W-41f20130, kaizen 01M4C57A55): the
+# gate keyed on claim WORDS only, so a receipt flipped to CLOSED / DONE / CLEAN / APPLIED with no
+# embedded gate and no claim word passed. Anything outside the in-flight set plus BLOCKED claims.
+
+_TERMINAL_REVIEW = "docs/development/reviews/2026-10-08-terminal-status-review.md"
+_TERMINAL_GATE = '```json\n{"status": "success", "passed": 20, "failed": 0}\n```\n'
+
+
+def _terminal_receipt(status: str, *, gate: bool) -> str:
+    body = f"# Receipt for X\n\n**Status:** {status}\n\n### Phase 1 — wiring: CLEAN\n\n"
+    return body + (_TERMINAL_GATE if gate else "")
+
+
+def test_terminal_status_without_gate_fails(repo: Path) -> None:
+    for status in ("CLOSED", "DONE", "CLEAN", "APPLIED", "COMPLETE"):
+        assert _run(repo, _TERMINAL_REVIEW, _terminal_receipt(status, gate=False)) == 1, status
+
+
+def test_terminal_status_with_gate_passes(repo: Path) -> None:
+    for status in ("CLOSED", "DONE", "CLEAN", "APPLIED", "COMPLETE", "UNANIMOUSLY APPROVED"):
+        assert _run(repo, _TERMINAL_REVIEW, _terminal_receipt(status, gate=True)) == 0, status
+
+
+def test_non_claim_status_is_not_graded(repo: Path) -> None:
+    for status in (
+        "DRAFT",
+        "OPEN",
+        "IN-PROGRESS",
+        "DRAFT - pass 1 pending",
+        "NOT CONVERGED",
+        "ABANDONED",
+    ):
+        assert _run(repo, _TERMINAL_REVIEW, _terminal_receipt(status, gate=False)) == 0, status
+    no_status = "# Receipt for X\n\nNotes only.\n\n### Phase 1 — wiring\n"
+    assert _run(repo, _TERMINAL_REVIEW, no_status) == 0
+    empty_slot = "# Receipt for X\n\n**Status:**\nReviewer notes follow\n\n### Phase 1\n"
+    assert _run(repo, _TERMINAL_REVIEW, empty_slot) == 0
+
+
+def test_blocked_exempts_only_an_evidenced_escalation(repo: Path) -> None:
+    """A bare `Status: BLOCKED` is not a way out of the gate; an evidenced escalation is."""
+    bare = _terminal_receipt("BLOCKED on finding F3", gate=False)
+    assert _run(repo, _TERMINAL_REVIEW, bare) == 1
+    evidenced = (
+        bare + "\n## BLOCKED: F3\n\nThe fix failed after 3 attempts; the probe output is above.\n"
+    )
+    assert _run(repo, _TERMINAL_REVIEW, evidenced) == 0
+
+
+def test_every_status_spelling_is_read(repo: Path) -> None:
+    """Re-spelling the Status line is no cheaper than dropping it: each shape is a claim."""
+    for line in (
+        "- **Status:** DONE",
+        "> **Status:** DONE",
+        "STATUS: DONE",
+        "status: done",
+        "**Status:** `DONE`",
+        "**Status:** \u2705 DONE",
+        "**Status:** 2026-10-08 DONE",
+        "**Status** \u2014 DONE",
+        "| Status | DONE |",
+        "Status: **DONE**",
+        "**Status:** UNANIMOUSLY APPROVED",
+        "| Field | Value |\n|---|---|\n| Status | DONE |",
+    ):
+        doc = f"# Receipt for X\n\n{line}\n\n### Phase 1 — wiring: CLEAN\n"
+        assert _run(repo, _TERMINAL_REVIEW, doc) == 1, line
+
+
+def test_status_outside_header_or_fenced_is_not_read(repo: Path) -> None:
+    for doc in (
+        "# Receipt for X\n\n```text\n**Status:** CLOSED\n```\n\n### Phase 1 — notes\n",
+        "# Receipt for X\n\n~~~\n**Status:** CLOSED\n~~~\n\n### Phase 1 — notes\n",
+        "# Receipt for X\n\n    Status: CLOSED\n\n### Phase 1 — notes\n",
+        # a fence OPENED in the header zone and closed past line 10: the zone slice holds an
+        # unterminated fence, and _strip_fences drops its body — the quoted Status is not read
+        "# Receipt for X\n```\nStatus: CLOSED\n" + "x\n" * 12 + "```\n\n### Phase 1\n",
+        "# Receipt for X\n" + "\nfiller line" * 12 + "\n\n**Status:** CLOSED\n\n### Phase 1\n",
+    ):
+        assert _run(repo, _TERMINAL_REVIEW, doc) == 0, doc[:60]
+
+
+def test_invisible_characters_do_not_hide_the_status(repo: Path) -> None:
+    """The header zone is normalized like `_in_progress`'s: U+2028 and zero-width chars."""
+    for doc in (
+        "# Receipt" + "\u2028" * 12 + "\n**Status:** DONE\n\n### Phase 1\n",
+        "# Receipt\n**Sta\u200btus:** DONE\n\n### Phase 1\n",
+    ):
+        assert _run(repo, _TERMINAL_REVIEW, doc) == 1, repr(doc[:40])
+
+
+def test_a_header_triggered_red_names_the_header(repo: Path) -> None:
+    _run(repo, _TERMINAL_REVIEW, _terminal_receipt("CLOSED", gate=False))
+    rc, out = _check_out(repo)
+    assert rc == 1 and "header Status claims a finished review" in out
+
+
+def test_a_hyphenated_word_after_status_is_not_a_label(repo: Path) -> None:
+    doc = "# Receipt for X\n\nStatus-quo analysis: notes on the old flow.\n\n### Phase 1\n"
+    assert _run(repo, _TERMINAL_REVIEW, doc) == 0
+    assert _run(repo, _TERMINAL_REVIEW, "# R\n\nStatus - DONE\n\n### Phase 1\n") == 1
+
+
+def test_a_one_row_status_table_over_a_separator_claims(repo: Path) -> None:
+    """`| Status | DONE |` directly over `|---|` is a finished claim; a table row is never skipped."""
+    doc = "# Receipt for X\n\n| Status | DONE |\n| --- | --- |\n\n### Phase 1\n"
+    assert _run(repo, _TERMINAL_REVIEW, doc) == 1
+
+
+def test_a_rule_under_the_status_does_not_hide_it(repo: Path) -> None:
+    """A `---` thematic break directly under `**Status:** DONE` leaves the claim standing."""
+    doc = "# Receipt for X\n\n**Status:** DONE\n---\n\n### Phase 1 — wiring: CLEAN\n"
+    assert _run(repo, _TERMINAL_REVIEW, doc) == 1
+
+
+def test_the_first_status_line_is_the_receipts_own(repo: Path) -> None:
+    """A finished sub-phase's `Status: DONE` below the receipt's own `Status: DRAFT` claims nothing."""
+    doc = "# Receipt for X\n\n**Status:** DRAFT\n**Status:** DONE — sub-phase A\n\n### Phase 1 — wiring\n"
+    assert _run(repo, _TERMINAL_REVIEW, doc) == 0
+
+
+@pytest.mark.parametrize(
+    "status_line",
+    [
+        None,  # the skeleton as born: `**Status:** IN-PROGRESS`
+        "**Status**: IN-PROGRESS",  # a spelling the header-zone reader does not know
+        "**Status:** CONVERGED",  # flipped by hand, nothing filled
+    ],
+)
+def test_executed_plan_citing_an_unfilled_init_skeleton_fails(
+    repo: Path, status_line: str | None
+) -> None:
+    """kaizen 01M4E1MYFJ: `review_receipt.py --init` writes a skeleton whose FENCED "Row shapes"
+    example holds a `found: 0 … confirmed: 0 … fixed: 0` Pass row; scanned raw, that example read
+    as a quiet pass, so a plan could claim EXECUTED citing a review nobody ran. The template's own
+    example block is never a row, whatever the receipt's Status line says."""
+    review = "docs/development/reviews/2026-08-03-plan-x-review.md"
+    (repo / review).parent.mkdir(parents=True, exist_ok=True)
+    (repo / "src").mkdir(exist_ok=True)
+    (repo / "src" / "x.py").write_text("x = 1\n", encoding="utf-8")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "seed")
+    (repo / "src" / "x.py").write_text(
+        "x = 2\n", encoding="utf-8"
+    )  # the change the skeleton anchors to
+    proc = subprocess.run(
+        [
+            sys.executable,
+            str(CHECK.parents[1] / "review_receipt.py"),
+            "--init",
+            "--changed",
+            "src/x.py",
+            "--out",
+            str(repo / review),
+            "--project-root",
+            str(repo),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    skeleton = (repo / review).read_text(encoding="utf-8")
+    assert "**Status:** IN-PROGRESS" in skeleton and "confirmed: 0" in skeleton, (
+        "the skeleton carries the example"
+    )
+    if status_line is not None:
+        (repo / review).write_text(
+            skeleton.replace("**Status:** IN-PROGRESS", status_line, 1), encoding="utf-8"
+        )
+    plan = repo / "docs/development/plans/2026-08-03-plan-x.md"
+    plan.parent.mkdir(parents=True, exist_ok=True)
+    plan.write_text(EXECUTED_PLAN_CITES, encoding="utf-8")
+    _git(repo, "add", "-A")
+    gate = subprocess.run(
+        [sys.executable, str(CHECK), "--project-root", str(repo)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    # The CITATION refuses — not some other check that also dislikes an unfilled receipt.
+    assert gate.returncode == 1
+    assert "plan-x.md: claims EXECUTED but its cited whole-plan review" in gate.stdout, gate.stdout
+
+
+# W-39d8d1fd (web-ecommerce-factory 01M493W8G3): a /fabrik-spec-review or /fabrik-plan-review
+# receipt converges by its own Pass Ledger, never by a code-review final_gate embed.
+_DESIGN_LEDGER = (
+    "\n## Pass Ledger\n\n| Pass | Finders | Counters | Method |\n|---|---|---|---|\n"
+    "| Pass 1 | opus×1 | found: 4, new: 4, confirmed: 3, fixed: 3 | method: citation |\n"
+    "| Pass 2 | opus×1 | found: 0, new: 0, confirmed: 0, fixed: 0 | method: re-derivation |\n"
+)
+
+
+def _design_receipt(tmp_path: Path, command_line: str, ledger: str = _DESIGN_LEDGER) -> Path:
+    d = tmp_path / "docs" / "development" / "reviews"
+    d.mkdir(parents=True, exist_ok=True)
+    f = d / "2026-10-14-x-spec-review.md"
+    f.write_text(
+        "# Spec review — x\n\nStatus: CONVERGED\n\n**Spec:** `docs/superpowers/specs/x.md`\n\n"
+        f"{command_line}\n" + ledger,
+        encoding="utf-8",
+    )
+    return f
+
+
+def test_a_design_review_receipt_is_graded_by_its_ledger(tmp_path: Path) -> None:
+    cc = _cc()
+    for cmd in ("/fabrik-spec-review", "/fabrik-plan-review"):
+        f = _design_receipt(tmp_path, f"**Command:** `{cmd}` (2026-10-14).")
+        assert cc._check_review(tmp_path, f) == [], cmd
+
+
+def test_a_design_review_receipt_without_a_quiet_round_fails(tmp_path: Path) -> None:
+    cc = _cc()
+    loud = _DESIGN_LEDGER.replace(
+        "found: 0, new: 0, confirmed: 0, fixed: 0", "found: 2, new: 2, confirmed: 1, fixed: 1"
+    )
+    f = _design_receipt(tmp_path, "**Command:** `/fabrik-spec-review`", loud)
+    fails = cc._check_review(tmp_path, f)
+    assert fails and "Pass Ledger" in fails[0], fails
+    assert not any("final_gate" in x for x in fails), (
+        "a design receipt is never asked for a gate embed"
+    )
+
+
+def test_a_code_review_receipt_still_needs_the_embed(tmp_path: Path) -> None:
+    cc = _cc()
+    f = _design_receipt(tmp_path, "**Command:** /fabrik-review · **Changed:** `a.py`")
+    assert any("final_gate" in x for x in cc._check_review(tmp_path, f))
+
+
+@pytest.mark.parametrize(
+    "command_line",
+    [
+        "Reviewed with `/fabrik-spec-review` in spirit.",  # body prose, no label
+        "**Command:** /fabrik-review of `commands/_sources/fabrik-spec-review.md`",  # second token
+        "**Command:** /fabrik-spec-review-scoped",  # a longer name
+        "**Command:** /fabrik-plan-review.md",  # a file name
+        "**Command:** /fabrik-plan-after-chat + /fabrik-plan-review",  # not the first token
+    ],
+)
+def test_the_design_route_keys_on_the_header_command_only(
+    tmp_path: Path, command_line: str
+) -> None:
+    cc = _cc()
+    f = _design_receipt(tmp_path, command_line)
+    assert any("final_gate" in x for x in cc._check_review(tmp_path, f)), command_line
+    # past the header zone (line 10) the label routes nothing
+    late = _design_receipt(tmp_path, "\n" * 8 + "**Command:** /fabrik-spec-review")
+    assert any("final_gate" in x for x in cc._check_review(tmp_path, late))
+
+
+@pytest.mark.parametrize(
+    "command_line",
+    [
+        "**Command:** /fabrik-spec-review",
+        "**command:** `/Fabrik-Plan-Review`, nested under `/fabrik-plan-after-chat`",
+        "- **Command:** `/fabrik-spec-review` · **Owner:** a",
+        "> Command: /fabrik-plan-review",
+        "Command: `/fabrik-spec-review`,",
+        "**Command**: /fabrik-spec-review",
+    ],
+)
+def test_the_command_label_tolerates_markup(tmp_path: Path, command_line: str) -> None:
+    cc = _cc()
+    assert cc._check_review(tmp_path, _design_receipt(tmp_path, command_line)) == [], command_line
+
+
+def test_a_design_review_receipt_whose_last_round_confirmed_fails(tmp_path: Path) -> None:
+    """A quiet round is not the end of the loop when a LATER round confirmed defects."""
+    cc = _cc()
+    reopened = _DESIGN_LEDGER + (
+        "| Pass 3 | opus×1 | found: 1, new: 1, confirmed: 1, fixed: 1 | method: delta |\n"
+    )
+    f = _design_receipt(tmp_path, "**Command:** `/fabrik-plan-review`", reopened)
+    fails = cc._check_review(tmp_path, f)
+    assert fails and "confirmed: 1" in fails[0], fails
+
+
+def test_a_design_review_receipt_never_quiet_under_the_old_grammar_fails(tmp_path: Path) -> None:
+    """A ledger with no `confirmed:` counter (the pre-D-206 grammar) has no closing row to read, so
+    it is refused (D-842's stated cost) — never passed on a `found: 0` row."""
+    cc = _cc()
+    old = (
+        "\n## Pass Ledger\n\n| Pass | Counters |\n|---|---|\n"
+        "| Pass 1 | found: 4, fixed: 4 |\n| Pass 2 | found: 1, fixed: 1 |\n"
+    )
+    fails = cc._check_review(
+        tmp_path, _design_receipt(tmp_path, "**Command:** /fabrik-spec-review", old)
+    )
+    assert fails and "`confirmed:` counter" in fails[0], fails
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        # a SECOND Command line in the header must not reroute a /fabrik-review receipt
+        "header:**Command:** /fabrik-spec-review (nested citation)",
+        # a Coverage Checklist marks a code review, whatever it is labelled
+        "body:\n## Coverage Checklist\n\n| Class | Status |\n|---|---|\n",
+    ],
+)
+def test_a_code_receipt_is_never_rerouted(tmp_path: Path, extra: str) -> None:
+    cc = _cc()
+    where, line = extra.split(":", 1)
+    if where == "header":
+        f = _design_receipt(tmp_path, "**Command:** /fabrik-review\n" + line)
+    else:
+        f = _design_receipt(tmp_path, "**Command:** /fabrik-spec-review", _DESIGN_LEDGER + line)
+    assert any("final_gate" in x for x in cc._check_review(tmp_path, f)), extra
+
+
+@pytest.mark.parametrize(
+    "quoted",
+    [
+        "```\n| Pass 3 | found: 0, fixed: 0 |\n```\n",  # a fence
+        "<!--\n| Pass 3 | found: 0, fixed: 0 |\n-->\n",  # a multi-line HTML comment
+        "`Pass 3 - found: 0, fixed: 0` is the quiet shape.\n",  # a code span
+    ],
+)
+def test_a_quoted_quiet_row_never_closes_a_design_loop(tmp_path: Path, quoted: str) -> None:
+    cc = _cc()
+    old = "\n## Pass Ledger\n\n| Pass | Counters |\n|---|---|\n| Pass 1 | found: 4, fixed: 4 |\n"
+    f = _design_receipt(tmp_path, "**Command:** /fabrik-plan-review", old + quoted)
+    assert cc._check_review(tmp_path, f), quoted
+
+
+def test_a_later_loud_list_row_reopens_a_design_loop(tmp_path: Path) -> None:
+    """The LAST `confirmed:` row decides — a later loud round after a quiet one reopens the loop."""
+    cc = _cc()
+    f = _design_receipt(
+        tmp_path,
+        "**Command:** /fabrik-spec-review",
+        _DESIGN_LEDGER + "| Pass 3 | opus×1 | found: 2, new: 2, confirmed: 2, fixed: 2 | m |\n",
+    )
+    assert cc._check_review(tmp_path, f)
+
+
+@pytest.mark.parametrize("tail", ["/", ":foo"])
+def test_a_command_path_suffix_does_not_route(tmp_path: Path, tail: str) -> None:
+    cc = _cc()
+    f = _design_receipt(tmp_path, f"**Command:** /fabrik-spec-review{tail}")
+    assert any("final_gate" in x for x in cc._check_review(tmp_path, f))
+
+
+def test_a_round_heading_after_the_ledger_is_not_a_round(tmp_path: Path) -> None:
+    """A `## Round 1 — dispositions` heading is ledger-shaped but counts nothing (the live
+    web-ecommerce-factory bhdtrade receipt's shape) — only a COUNTER row closes the loop."""
+    cc = _cc()
+    f = _design_receipt(
+        tmp_path,
+        "**Command:** /fabrik-spec-review",
+        _DESIGN_LEDGER + "\n## Round 1 — dispositions\n\nO1 fixed.\n",
+    )
+    assert cc._check_review(tmp_path, f) == []
+
+
+@pytest.mark.parametrize(
+    "after",
+    [
+        "\n## Notes\n\n| Pass | Note |\n|---|---|\n| Pass 1 | found 3 stale anchors, all fixed |\n",
+        "\n## What changed\n\nRound 2 — confirmed: 2 of the round-1 claims were re-verified.\n",
+        "\n## Round 1 — found 4\n",
+        "\n## Panel\n\n- Pass 1: found 2 nits, RECORDED\n",
+    ],
+)
+def test_a_counter_outside_a_confirmed_pass_row_is_not_a_round(tmp_path: Path, after: str) -> None:
+    """Review r2: prose, headings, list items and rows without a `confirmed:` counter never reopen a
+    quiet loop — only a `| Pass N |` row carrying `confirmed:` is a round."""
+    cc = _cc()
+    f = _design_receipt(tmp_path, "**Command:** /fabrik-spec-review", _DESIGN_LEDGER + after)
+    assert cc._check_review(tmp_path, f) == [], after
+
+
+def test_a_commented_out_checklist_does_not_unroute_a_design_receipt(tmp_path: Path) -> None:
+    cc = _cc()
+    f = _design_receipt(
+        tmp_path,
+        "**Command:** /fabrik-plan-review",
+        _DESIGN_LEDGER + "\n<!--\n## Coverage Checklist\n-->\n",
+    )
+    assert cc._check_review(tmp_path, f) == []
+
+
+def test_a_reopened_ledger_continuation_is_graded(tmp_path: Path) -> None:
+    """Review r3: a `(continued)` ledger in the pre-D-206 grammar is refused for its missing
+    `confirmed:` counters — never passed on an earlier `found: 0` row."""
+    cc = _cc()
+    old = (
+        "\n## Pass Ledger\n\n| Pass | Counters |\n|---|---|\n| Pass 1 | found: 0, fixed: 0 |\n"
+        "\n## Pass Ledger (continued)\n\n| Pass 2 | found: 3, fixed: 3 |\n"
+    )
+    assert cc._check_review(
+        tmp_path, _design_receipt(tmp_path, "**Command:** /fabrik-spec-review", old)
+    )
+
+
+def test_a_later_pass_row_with_a_confirmed_counter_is_read_as_a_round(tmp_path: Path) -> None:
+    """D-842's stated cost, pinned: the one Pass-Ledger law reads every `| Pass N |` row, so a later
+    Notes row carrying `confirmed: 9` refuses the receipt — fail-closed, exactly as on a plan spine."""
+    cc = _cc()
+    notes = "\n## Notes\n\n| Pass 1 | found: 9, confirmed: 9, fixed: 9 |\n"
+    f = _design_receipt(tmp_path, "**Command:** /fabrik-plan-review", _DESIGN_LEDGER + notes)
+    assert cc._check_review(tmp_path, f)
+
+
+@pytest.mark.parametrize(
+    "quoted",
+    [
+        "```\n| Pass 2 | found: 0, confirmed: 0, fixed: 0 |\n```\n",
+        "<!--\n| Pass 2 | found: 0, confirmed: 0, fixed: 0 |\n-->\n",
+    ],
+)
+def test_a_quoted_confirmed_row_is_not_a_live_round(tmp_path: Path, quoted: str) -> None:
+    """A `confirmed:` row that exists only inside a fence or an HTML comment is a quotation — it
+    never stands in for the live ledger the pre-D-206 rows lack."""
+    cc = _cc()
+    old = "\n## Pass Ledger\n\n| Pass | Counters |\n|---|---|\n| Pass 1 | found: 4, fixed: 4 |\n"
+    f = _design_receipt(tmp_path, "**Command:** /fabrik-spec-review", old + quoted)
+    assert cc._check_review(tmp_path, f), quoted

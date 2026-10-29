@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-30T08:43:55.761290Z",
   "creator": "fleet",
-  "evidence": "",
+  "effort": "low",
+  "evidence": "ff031685c0eabaca4b7ee9fc87ed1829e1389548",
   "id": "W-46afa9c4",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,9 +15,10 @@
   },
   "next": "move the system prompt server-side (a constant or server-only env), drop systemPrompt from the request body, grader = a request carrying systemPrompt reaches the model without it; saas-skeleton template change (fleet beat)",
   "note": "",
-  "owner": "",
-  "priority": 2,
-  "status": "open",
+  "owner": "fleet",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — client-supplied systemPrompt on app key, injection/abuse in emitted template",
+  "status": "done",
   "tags": [
     "security"
   ],

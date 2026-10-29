@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-09T02:49:37.727598Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0f76c52a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4EW8ZJG5XNNJN52TS2W7WKB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "command_feedback_report --mark-answered closes the run's --take work item on the FIRST mark, even with rows still open"
+}

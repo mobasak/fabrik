@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-23T17:09:03.128592Z",
+  "creator": "infra-2",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-59c8aa03",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure the dirs' growth per day, then add an age-based prune (dead sessions only) to an existing janitor (scripts/sysadmin/prune_transcripts.py or scripts/scratch_sweep.py) — reversible, read-only dry run first",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: housekeeping, 912K of hook state; effort low: add the dir to the janitor",
+  "status": "open",
+  "title": "No janitor prunes per-session hook state: ~/.claude/state/threads holds 2,199 unpruned files (912K) and now a <session>.prompt-digest beside each session's state, plus ~/.claude/state/mail-notify/<session>.json (W-25f6b2a3 slice 2); a hook killed between mkstemp and os.replace leaves a .tmp orphan in either dir"
+}

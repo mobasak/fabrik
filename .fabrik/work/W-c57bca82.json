@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T18:04:41.727674Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c57bca82",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure how many live rows cite a missing path before adding a check (FIX DIRECTIVE 5 fire rate)",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — ledger hygiene check",
+  "status": "dropped",
+  "tags": [
+    "medium"
+  ],
+  "title": "decisions.py --check: flag a row whose enforcement path no longer exists (1791230749) and validate column count against the header (1789485954) — kaizen mail 01M4PHYRB6"
+}

@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:36:41.166874Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-b9fe3e75",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Q4D69MKD649D644VKTQR0Y",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — kaizen feedback on command",
+  "status": "open",
+  "title": "/fabrik-ui-design-review feedback — a resumed run record should inherit the handed-off record's rounds and slice ledger (kaizen D-711 triage)"
+}

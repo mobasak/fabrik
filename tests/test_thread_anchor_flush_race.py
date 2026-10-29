@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -87,7 +88,11 @@ def test_prompt_side_line_hook_harvests_from_the_transcript(tmp_path):
         text=True,
         capture_output=True,
         timeout=30,
-        env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
+        env={
+            "HOME": str(home),
+            "PATH": "/usr/bin:/bin",
+            "FABRIK_WORK_PROC": os.environ.get("FABRIK_WORK_PROC", ""),  # conftest pin
+        },
     )
     reg = home / ".claude" / "state" / "threads" / "probe-race.json"
     assert reg.exists(), "line --hook must harvest, not just print"
@@ -107,7 +112,11 @@ def test_harvest_hook_uses_transcript_when_nothing_is_piped(tmp_path):
         text=True,
         capture_output=True,
         timeout=30,
-        env={"HOME": str(home), "PATH": "/usr/bin:/bin"},
+        env={
+            "HOME": str(home),
+            "PATH": "/usr/bin:/bin",
+            "FABRIK_WORK_PROC": os.environ.get("FABRIK_WORK_PROC", ""),  # conftest pin
+        },
     )
     reg = home / ".claude" / "state" / "threads" / "probe-race2.json"
     assert reg.exists()

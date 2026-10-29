@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-20T11:18:08.428659Z",
+  "creator": "kaizen",
+  "effort": "low",
+  "evidence": "b5fbcdb2f6d5aeda89585f40fb1c4e02b99cb403",
+  "id": "W-2a1a7c22",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-command-improve fabrik-execute-plan, next pass: 'when it starts with a <date>-plan-<n>- prefix, that prefix keeps it findable after a resume (item 3b)'",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 3,
+  "score_reason": "LOW: wording — fabrik-execute-plan.md:461 overstates the plan-stem prefix for 2 of 26 plans; a rare edge, nobody blocked",
+  "status": "done",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "fabrik-execute-plan.md:461 says every plan's whole stem starts with a <date>-plan-<n>- prefix; 2 of 26 plans (2026-06-20-scaffold-deployment-test, 2026-06-23-transdoc-converged) have none, so the resume promise overstates item 3b. Make it conditional and re-pin tests/test_execute_plan_queue_pass.py"
+}

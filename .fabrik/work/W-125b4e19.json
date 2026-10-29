@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-19T13:15:45.246554Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "c97ae928d7b60a0ae3bdb5b0443eb1b6617a5cba",
+  "id": "W-125b4e19",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "BRIEF (coordinator, D-923) — operator ask 2026-10-19: the dashboard quota tab shows \"shared state fragmented: can/tasks, mob/tasks, ob/tasks, ozgurbasak/tasks, sarp/tasks\"; operator: \"i think it must be fixed urgently\". 1. Settled: D-399 (c6fbcba08) added tasks/ to the shared fleet dirs; D-287 (the shared peer registry, sessions/). The warning comes from scripts/sysadmin/claude_rotate.py (_SHARED_DIR_LINKS :1588, _SHARED_DIR_MKDIR :1593). 2. Exists (coordinator read-only check): every ~/.claude-fleet/<acct>/tasks is a REAL dir, not the link: can 1 entry, mob 1, ob 3, ozgurbasak 3, sarp 3. The canonical ~/.claude/tasks does NOT exist. ozgurbasak and sarp both hold an entry named 4e90716e-…, so a merge collides by name. sessions/ is not in the warning, so the peer list (D-287) is intact. 3. Proposed lane: right-now fix + /fabrik-review-scoped (box state plus, if the scaffolder should have created ~/.claude/tasks, a small claude_rotate.py fix); your `start` decides. 4. Rules: the hooks-index authority docs/workstation/hooks-index.md; back up before moving (cp -a each tasks dir to ~/.claude-fleet/backups/); never delete an entry; resolve the name collision by comparing contents, keeping both when they differ. 5. Order: your beat (box mesh, account rotation); after W-bb6c9d9a unless it is long. Quota: the fleet is at the urgent-drain line now, so do it after the 5h reset if a checkpoint is due. 6. Gates: none from the closed list (box-local state, no credentials touched; credentials files in those dirs are NOT moved). 7. Done: ~/.claude/tasks exists, holding every entry from the five account dirs, collisions resolved; each <acct>/tasks is a symlink to it; the dashboard warning is gone; find the root cause of why the link was missing (was ~/.claude/tasks never created, so the scaffolder kept real dirs?) and fix it so it cannot recur, with a test. 8. Best practice: none external.",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: operator ask (dashboard warning); LOW effort: five small dirs plus a root-cause check in claude_rotate.py; not URGENT: only the CLI's native task lists fragment (1-3 entries per account), the peer list (sessions/) is intact, so no agent is blocked",
+  "status": "done",
+  "title": "Shared-state fragmentation on the dashboard quota tab: every ~/.claude-fleet/<acct>/tasks is a real dir, not the link to ~/.claude/tasks (which does not exist); merge the five into ~/.claude/tasks (backup first, resolve the ozgurbasak/sarp name collision), replace each with the symlink, and fix the root cause so it cannot recur (D-399)"
+}

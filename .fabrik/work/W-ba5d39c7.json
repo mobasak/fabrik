@@ -1,9 +1,13 @@
 {
-  "blocked_by": [],
+  "blocked_by": [
+    "W-ab566484"
+  ],
   "created": "2026-08-11T00:00:00.000000Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-ba5d39c7",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -12,11 +16,13 @@
     "spec": ""
   },
   "next": "**[fleet]** **Fleet container-name/alias reconciliation check** (deploy-triad root-cause #1, 2026-08-11): nothing mechanically reconciles a project compose's `container_name`/service keys against LIVE fleet container names + fabrik-net aliases — the tryton-crm `gotenberg` collision (a standalone container squatting the name for 4 weeks, the compose's own \"no such service exists anywhere on the fleet\" comment false when written) reached a deploy plan before anything caught it. Candidate shapes: a `/fabrik-deploy-plan` Phase-2 mandatory probe (it now does this for tryton-crm ad hoc), a `fabrik validate` extension, or an enforcement check. Blocked by: next deploy plan for a multi-service stack, or a spare S-window.",
-  "note": "migrated-digest:03918597d05f",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "fleet",
-  "priority": 2,
-  "status": "open",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — deploy collision prevention check, waits on deploy plan",
+  "status": "dropped",
   "tags": [
+    "medium",
     "waits-multiservice-deploy-plan"
   ],
   "title": "**Fleet container-name/alias reconciliation check** (deploy-triad root-cause #1, 2026-08-11): nothing mechanically reconciles a project compose's `container_name`/service keys against LIVE fleet co..."

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-12T18:33:32.746513Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-8081064f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Measure first (2026-10-12 text search over the 27 clones on this box: whatsapp-agent false-but-serving — flipped in the same commit; session-recall false-but-serving — NOT flipped: its spec header says NOT DEPLOYED / `fabrik apply` must NOT run it and the /metrics mount lives in the dead scaffold FastAPI app, a false the grader must treat as by design, so the grader needs a spec-side 'not deployed' marker it can read, not a comment; tojlo-mail read as true-but-no-/metrics-text, but it is a saas-skeleton whose registrar scrapes the internal `<name>-api:8000` container (infrastructure.py:1478-1480), so that reading is UNVERIFIED, not a mismatch — verify on the live target before touching it). Then a hub-side grader in scripts/enforcement/ (or fabrik audit) that, for every specs/services/*.yaml with a clone under /opt/<id>, compares shape.exposes_metrics with a /metrics mount in the clone (make_asgi_app/metrics_app/prom-client; saas-skeleton: the server/ backend), WARN tier — the project-side mirror is /fabrik-catchup probe 5. Lane: /fabrik-task (mechanism=yes, heavy=no; scripts/enforcement is a sync path → the full /fabrik-review at phase 4; infra's beat for the check, fleet's for the specs — mail infra first). ALSO MEASURED (the review's Opus seat, 2026-10-12): tojlo-mail is `template: saas-skeleton`, so its Prometheus job targets `tojlo-mail-api:8000` (infrastructure.py:1478-1480), but /opt/tojlo-mail/compose.yaml defines no such service (its services are tojlo-mail, tojlo-mail-worker, ai-document-service and clamd; `fabrik` is its network) — if that job is registered on vps1 it is `up` 0 forever and `max_over_time(up[10m])==0` in scripts/sysadmin/proactive-check.sh:147 alerts on it every 15 minutes; verify against the live prometheus.yml and fix with a `monitoring.target` as tryton-crm.yaml:136-138 does. And the default public-domain scrape for an `is_admin_dashboard: true` spec depends on the vps1 Authelia access_control rule 5 (`^/metrics$` bypass on `*.vps1.ocoron.com`, docs/infrastructure/vps-complete-inventory.md:385) — nothing in src/fabrik emits that bypass (`_provision_authelia` emits only the bearer `^/api/` bypass + the two_factor rule), so the grader must also flag an admin-dashboard spec scraped on the public domain without `monitoring.target`; infrastructure.py:1453-1457's docstring ('rely on X-Internal-Token at the Traefik layer for the public path') misdescribes that gate.",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "fleet",
+  "priority": 3,
+  "status": "dropped",
+  "tags": [
+    "fleet",
+    "proposed-drop",
+    "spec-shape",
+    "waits-operator-review"
+  ],
+  "title": "A spec's shape.exposes_metrics has no check against the code that serves /metrics (measured 2026-10-12: 2 of 27 'false' specs served it — whatsapp-agent flipped; session-recall by design, NOT DEPLOYED)"
+}

@@ -23,6 +23,7 @@ services:
       resources:
         limits:
           memory: 256M
+          cpus: '0.5'
     healthcheck:
       disable: true   # distroless image — no shell/wget available
 

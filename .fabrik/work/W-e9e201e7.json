@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T00:26:10.455280Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-e9e201e7",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-10-14-plan-1-coolify-verb-retirement/2026-10-14-plan-1-coolify-verb-retirement.md",
+    "spec": ""
+  },
+  "next": "re-read the spine's Pass Ledger rows 3-5 at the next touch of the plan (execution's first ticket); fix wording residue then, in the ticket's own commit",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "kaizen",
+  "priority": 3,
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
+  "title": "Coolify-verb-retirement plan review: own-fix residue after the D-355 scope-growth stop (fired at pass 3) — any further wording defect inside the review's own fix hunks of docs/development/plans/2026-10-14-plan-1-coolify-verb-retirement/ is recorded here, never re-opened in the loop"
+}

@@ -1,0 +1,33 @@
+{
+  "plan": "docs/development/plans/2026-10-13-plan-1-mail-routing.md",
+  "owned_paths": [
+    "scripts/mail.py",
+    ".claude/hooks/mail_notify.py",
+    "scripts/sysadmin/mail_escalate.py",
+    "scripts/enforcement/check_beat_owners.py",
+    "scripts/final_gate.py",
+    ".fabrik/beat-owners.json",
+    "tests/test_mail_routing.py",
+    "tests/test_mail_notify.py",
+    "tests/test_mail_escalate.py",
+    "tests/test_mail_who.py",
+    "tests/test_mail_items.py",
+    "docs/reference/fabrik-mail.md",
+    "docs/workstation/fabrik-mail.md",
+    "docs/reference/work-tracking.md",
+    "docs/workflows/FINAL_GATE_WORKFLOW.md",
+    "INDEX.md",
+    "CHANGELOG.md",
+    "docs/DECISIONS.md",
+    "docs/superpowers/specs/2026-10-13-mail-routing-design.md",
+    "docs/development/reviews/2026-10-13-plan-1-mail-routing-review.md",
+    "docs/workstation/hooks-index.md",
+    ".fabrik/plan-locks/2026-09-06-plan-1-session-history-retention.json"
+  ],
+  "branch": "master",
+  "started_at": "2026-10-13T12:37:00Z",
+  "status": "released",
+  "baseline_commit": "a0c1cbb5b6d130a98ded97faad783b05159772e3",
+  "note": "hooks-index.md released by fleet (a) 2026-10-13; fleet calls 2026-09-06-plan-1-session-history-retention EXECUTED and its lock stale \u2014 removed in this plan's commit",
+  "completed_at": "2026-10-13T17:16:23Z"
+}

@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T16:30:59.570469Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c8a76b53",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M505VVEJ924S6R9Y7ESGTQAQ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "mail-claim item for fleet's gap_keeps finding; the work is W-a39d4c86 (P1); closes on infra's ack",
+  "status": "done",
+  "title": "follow-up to 01M505J6KG — scratch_sweep's .trash ctime fallback skips a bool created"
+}

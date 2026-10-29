@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T16:57:16.833052Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9b75cfc2",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M53S190TJB258GQ4ZSNHHTGN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "command_run.py SCOPE GROWTH messages: nothing pins their fix-then-re-verify-then-close order (W-49f3515f's missing guard)"
+}

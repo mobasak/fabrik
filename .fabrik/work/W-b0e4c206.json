@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T04:22:56.798374Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-b0e4c206",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4QAEGABY19D4CGYVJSJXWCQ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — 2 data-contract feedback verdicts needing code",
+  "status": "open",
+  "title": "/fabrik-data-contract feedback queue — 2 verdicts that need CODE in your beat (kaizen D-711 triage)"
+}

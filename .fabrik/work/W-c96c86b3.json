@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T05:46:19.535431Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-c96c86b3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4CV19C3F238VHK6K8RTC40Z",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: dispatch_headroom never sizes the refuters or the class seat (01M4CSZWF0) — routed by beat"
+}

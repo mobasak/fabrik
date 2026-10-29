@@ -99,3 +99,25 @@ def test_provider_failover_breaker_granularity_is_per_model() -> None:
         "76-gpu-workers.md still mandates a per-provider (not per-model) circuit breaker — "
         "the granularity that made youtube's model-specific provider death invisible."
     )
+
+
+def test_resilience_counts_live_at_their_lists() -> None:
+    """W-f8d45bea: two counts sat away from their lists. The latch paragraph said "the bullet below enumerates — the
+    four numbered" for points numbered ABOVE it, and the Workers checklist said "All five" about 170 lines from the
+    table it counted, so the next added mechanism would leave both stale. The heading that states the count must
+    match its table, and the far-away restatements must not come back (CLAUDE.md § Behavior, a count lives at its
+    list)."""
+    text = (RULES / "58-resilience.md").read_text(encoding="utf-8")
+    section = text.split("### Queue Bloat Prevention — The Five Mechanisms", 1)[1].split(
+        "\n### ", 1
+    )[0]
+    rows = [line for line in section.splitlines() if line.startswith("| **")]
+    assert len(rows) == 5, f"the heading says Five but its table has {len(rows)} mechanism rows"
+    flat = re.sub(r"\s+", " ", text)
+    assert "All five queue-bloat-prevention mechanisms" not in flat
+    assert "the bullet below enumerates" not in flat
+    assert "Every mechanism in § Queue Bloat Prevention is wired (§3a)." in flat
+    assert (
+        '"the module does it" is wrong in every way this item names above — each numbered point, the per-process'
+        " dict, and a key that is not stable across the fleet." in flat
+    )

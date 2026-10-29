@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T18:28:54.140791Z",
+  "creator": "intel",
+  "evidence": "b28dc65573fdc5dd52a02a176c9dd18b5e8b01df",
+  "id": "W-f847a317",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-spec seeded with the W-23b86f9e UPGRADE design (tryton-crm 01M3YD067C; Opus+Fable critiques 2026-10-08)",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "tags": [
+    "maybe-done",
+    "waits-operator-review"
+  ],
+  "title": "Spec: whose committed review may the blocking check_review_coverage scan red (commit-then-gate bypass; final_gate's base...HEAD holds siblings' commits; push-first cobra) + the non-ASCII quotePath skip"
+}

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-30T23:17:34.809137Z",
   "creator": "infra",
-  "evidence": "",
+  "effort": "low",
+  "evidence": "3ae906f45d091bb002c6a632ec57943353258be4",
   "id": "W-5d3ed438",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,11 +15,14 @@
   },
   "next": "decide the declaration grammar (uppercase MERGE OWNER: as the only declaration signal on bare rows too, and allow the bold-wrapped label) in decisions.py/docs_updater.py/session_orient.py with the shared-fixture parity test; found by the wave-1 review of plan 2026-09-30-plan-1-merge-request-loop, pass 3",
   "note": "",
-  "owner": "",
-  "priority": 2,
-  "status": "open",
+  "owner": "intel",
+  "priority": 1,
+  "score_reason": "infra checked 2026-10-15: not fixed — 5412871e0 only routed it here; a misread MERGE OWNER row can send merges to the wrong agent; grammar fix in decisions.py",
+  "status": "done",
   "tags": [
-    "hub"
+    "hub",
+    "needs-owner",
+    "queued"
   ],
   "title": "Merge-owner grammar gaps predating W-076ff4a9: a bold-wrapped **MERGE OWNER:** label never matches; a bare what-cell opening with prose 'Merge owner: rotated weekly' reads 'rotated' as owner"
 }

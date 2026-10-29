@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-15T09:31:43.154178Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-e11d2452",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4ZDR33C4QSK0RR7RKJX7JP5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: Seat briefs still send seats to the bare scratchpad — FIXED on worktree-infra (D-886), merge requested"
+}

@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T23:19:34.704337Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-53f8a3f3",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-14-coolify-verb-retirement-design.md"
+  },
+  "next": "run scripts/update_vps_docs.py and scripts/vps_sync.py --dry-run from the main checkout once W-36571dff's plan is EXECUTED (read-only ssh; fleet beat), commit the regenerated docs",
+  "note": "operator 2026-10-17 \"ok starting from the most urgent ones, handle them all\" answering W-c160abfb: low impact, high effort (time sink); reopen if it becomes urgent",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "dropped",
+  "tags": [
+    "proposed-drop",
+    "waits-operator-review"
+  ],
+  "title": "docs/infrastructure/vps-status.md, vps-urls.md and vps-complete-inventory.md still carry Coolify-era generated content (79 live 'coolify' lines, measured 2026-10-14 at the Coolify-verb-retirement plan): the rebased scripts/update_vps_docs.py and vps_sync.py (D11) only change what a FUTURE run writes — regenerate them with one read-only ssh to vps1 after the retirement plan executes"
+}

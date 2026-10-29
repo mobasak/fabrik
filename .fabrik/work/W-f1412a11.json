@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-08T11:20:40.468729Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "7839adf23b4a8f41738ed3124200f712d5951e22",
+  "id": "W-f1412a11",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — silent except hides open plans",
+  "status": "done",
+  "title": "work.py _open_plans: the outer except Exception returns [] on any error, hiding every open plan when one file breaks parse_plan_status (review B-S1, receipt 2026-10-08-docs-updater-plan-status-review.md)"
+}

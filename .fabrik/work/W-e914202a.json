@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-04T08:01:18.909033Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-e914202a",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -13,9 +15,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
-  "priority": 2,
-  "status": "open",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — merge commits lack trailers and gate",
+  "status": "done",
   "title": "merge_request.py merge: merge commits carry no Agent Provenance Trailers and no gate runs."
 }

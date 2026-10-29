@@ -1,0 +1,26 @@
+{
+  "block_digest": "2a183e425e141de39e6400a585034b6bd46d0483226d890228b9c91bab9524f7",
+  "blocked_by": [],
+  "created": "2026-10-27T09:17:00.098056Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-41bb1191",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "d7c6fd0cfa1c4292414ac7779e8f189ba4e51d410c5cc18f132b3ae687e9bcd0"
+  ],
+  "next": "",
+  "note": "operator 2026-10-27: 'we are not deploying bhdtrade.com as it is not ready yet' — hold; no redeploy or first deploy of the quote-forms relay",
+  "owner": "",
+  "priority": 2,
+  "question": "May fleet redeploy web-ecommerce-factory's bhdtrade-forms relay (`services/quote-forms`) from wef trunk 88914cdb3, the form retry/dedup fix, as wef's mail 01M5Y8M077 asks?",
+  "status": "done",
+  "title": "May fleet redeploy web-ecommerce-factory's bhdtrade-forms relay (`services/quote-forms`) from wef trunk 88914cdb3, the form retry/dedup fix, as wef's mail 01M5Y8M077 asks?"
+}

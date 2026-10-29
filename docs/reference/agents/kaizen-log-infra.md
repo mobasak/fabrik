@@ -22,3 +22,6 @@ means no real source supports that metric — the reason is in the hand-off mail
 | 2026-09-20 | — | 0 occ / 0 cls | — | 6.3 (n=49) | — | — | 491 filed / 240 none / 0 unstated |
 | 2026-09-26 | — | — | — | 32.7 (n=9) | — | — | 5 filed / 4 none / 0 unstated |
 | 2026-10-04 | — | — | — | 23.7 (n=19) | — | none fixed in-pass — top friction is the run-record Stop block firing every turn while background review seats run (premature_stop_rate 53%, 461/865; ~40 such blocks in one infra session 2026-10-05); a synced-hook change owing a full review, so W-4c7edc74 raised to P1 | 18 filed / 15 none / 0 unstated · W-4c7edc74 (P1), W-54b0e523, W-67fc4aad |
+| 2026-10-11 | — | 0 occ / 0 cls | — | 23.8 (n=24) | — | merge requests refused on a fetch timeout during network blips (4 re-sends on 2026-10-12): an unreachable remote now defers and the next run retries it (b03ba9505, D-775); a 0-row parity leg could shrink the merge denominator (6ecb3e4cc, D-763) | 32 filed / 124 none / 0 unstated; W-cd73ac65 (hole_count 105 vs coroner 0 for 10-11), W-6c06c35d (collector leaves kaizen logs dirty), W-5713c693 |
+| 2026-10-25 | 67% (4/6) | 0 occ / 0 cls | — | 5.1 (n=105) | — | — | 98 filed / 248 none / 0 unstated |
+| 2026-10-27 | 100% (4/4) | 0 occ / 0 cls | — | 3.3 (n=95) | — | — | 16 filed / 73 none / 0 unstated |

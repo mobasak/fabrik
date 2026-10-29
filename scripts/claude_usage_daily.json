@@ -573,14 +573,14 @@
     "2026-09-08": {
       "claude-opus-5": 4114809889,
       "claude-sonnet-5": 956852240,
-      "claude-fable-5-1": 528025223,
+      "claude-fable-5-1": 545188023,
       "claude-haiku-4-5-20251001": 82817358,
       "claude-fable-5": 15661561
     },
     "2026-09-09": {
       "claude-opus-5": 1840983485,
       "claude-sonnet-5": 696219437,
-      "claude-fable-5-1": 372118136,
+      "claude-fable-5-1": 377540173,
       "claude-haiku-4-5-20251001": 58693861,
       "claude-opus-4-8": 710433
     },
@@ -594,7 +594,7 @@
     "2026-09-11": {
       "claude-opus-5": 1427509625,
       "claude-sonnet-5": 393739337,
-      "claude-fable-5-1": 707760591,
+      "claude-fable-5-1": 712604251,
       "claude-haiku-4-5-20251001": 1205723
     },
     "2026-09-12": {
@@ -607,7 +607,7 @@
     "2026-09-13": {
       "claude-opus-5": 441623942,
       "claude-sonnet-5": 200951310,
-      "claude-fable-5-1": 379870939,
+      "claude-fable-5-1": 418388683,
       "claude-haiku-4-5-20251001": 1196260,
       "claude-sonnet-4-6": 1952691
     },
@@ -626,8 +626,8 @@
     "2026-09-16": {
       "claude-opus-5": 2863876808,
       "claude-sonnet-5": 299925116,
-      "claude-fable-5-1": 331991486,
-      "claude-sonnet-4-6": 4337012,
+      "claude-fable-5-1": 337072819,
+      "claude-sonnet-4-6": 4876121,
       "claude-haiku-4-5-20251001": 21892276
     },
     "2026-09-17": {
@@ -639,7 +639,7 @@
     "2026-09-18": {
       "claude-opus-5": 1328360435,
       "claude-sonnet-5": 346747736,
-      "claude-fable-5-1": 312686211,
+      "claude-fable-5-1": 317710931,
       "claude-haiku-4-5-20251001": 20496259,
       "claude-sonnet-4-6": 131604
     },
@@ -653,7 +653,7 @@
     },
     "2026-09-20": {
       "claude-opus-5": 984344212,
-      "claude-fable-5-1": 312636951,
+      "claude-fable-5-1": 340024189,
       "claude-haiku-4-5-20251001": 61047740,
       "claude-sonnet-5": 428604211,
       "claude-sonnet-4-6": 246472
@@ -716,7 +716,7 @@
       "claude-sonnet-5": 833109500,
       "claude-haiku-4-5-20251001": 146328144,
       "claude-opus-5-5": 3981073533,
-      "claude-opus-5": 74931455,
+      "claude-opus-5": 89693049,
       "claude-fable-5-1": 11152476
     },
     "2026-10-01": {
@@ -732,7 +732,7 @@
       "claude-sonnet-5": 1899245606,
       "claude-haiku-4-5-20251001": 412385834,
       "claude-fable-5-1": 20906673,
-      "claude-sonnet-4-6": 4534107
+      "claude-sonnet-4-6": 4565883
     },
     "2026-10-03": {
       "claude-opus-5-5": 9698514563,
@@ -760,14 +760,152 @@
       "claude-opus-5": 4884316
     },
     "2026-10-07": {
-      "claude-opus-5-5": 2624863298,
-      "claude-sonnet-5": 289485276,
-      "claude-haiku-4-5-20251001": 58477586,
-      "claude-fable-5-1": 224378039
+      "claude-opus-5-5": 3360907049,
+      "claude-sonnet-5": 371287154,
+      "claude-haiku-4-5-20251001": 137289926,
+      "claude-fable-5-1": 342455619
+    },
+    "2026-10-08": {
+      "claude-opus-5-5": 7018861385,
+      "claude-fable-5-1": 42037304,
+      "claude-haiku-4-5-20251001": 515146442,
+      "claude-sonnet-5": 2114834190
+    },
+    "2026-10-09": {
+      "claude-opus-5-5": 2767550304,
+      "claude-fable-5-1": 18938571,
+      "claude-haiku-4-5-20251001": 151913670,
+      "claude-sonnet-5": 334405317
+    },
+    "2026-10-10": {
+      "claude-opus-5-5": 12952676
+    },
+    "2026-10-11": {
+      "claude-opus-5-5": 667341433,
+      "claude-fable-5-1": 408810285,
+      "claude-sonnet-5": 153400368,
+      "claude-haiku-4-5-20251001": 112988058,
+      "claude-haiku-5-5": 672344
+    },
+    "2026-10-12": {
+      "claude-opus-5-5": 2509417678,
+      "claude-fable-5-1": 552886509,
+      "claude-haiku-4-5-20251001": 169090584,
+      "claude-sonnet-5": 332712740
+    },
+    "2026-10-13": {
+      "claude-opus-5-5": 5053009799,
+      "claude-fable-5-1": 551340498,
+      "claude-haiku-4-5-20251001": 336113040,
+      "claude-sonnet-5": 759019391,
+      "claude-haiku-5-5": 4675670
+    },
+    "2026-10-14": {
+      "claude-opus-5-5": 5188105434,
+      "claude-fable-5-1": 783248645,
+      "claude-haiku-4-5-20251001": 239367581,
+      "claude-sonnet-5": 1253908944,
+      "claude-haiku-5-5": 2388820
+    },
+    "2026-10-15": {
+      "claude-opus-5-5": 5118742216,
+      "claude-fable-5-1": 356217321,
+      "claude-haiku-4-5-20251001": 121451818,
+      "claude-sonnet-5": 1032960477,
+      "claude-sonnet-5-5": 101842259,
+      "claude-haiku-5-5": 115961630
+    },
+    "2026-10-16": {
+      "claude-opus-5-5": 931267384,
+      "claude-fable-5-1": 3334634,
+      "claude-sonnet-5-5": 15491723,
+      "claude-haiku-5-5": 24254775,
+      "claude-sonnet-5": 352524247,
+      "claude-haiku-4-5-20251001": 10082231
+    },
+    "2026-10-17": {
+      "claude-opus-5-5": 3992384146,
+      "claude-sonnet-5-5": 195299870,
+      "claude-haiku-5-5": 165039919,
+      "claude-fable-5-1": 10795562,
+      "claude-haiku-4-5-20251001": 259220
+    },
+    "2026-10-18": {
+      "claude-opus-5-5": 6166698278,
+      "claude-haiku-5-5": 290472946,
+      "claude-sonnet-5-5": 262887669,
+      "claude-fable-5-1": 29731038
+    },
+    "2026-10-19": {
+      "claude-opus-5-5": 5413181418,
+      "claude-haiku-5-5": 220936409,
+      "claude-sonnet-5-5": 167969037,
+      "claude-fable-5-1": 22040401
+    },
+    "2026-10-20": {
+      "claude-opus-5-5": 5854910518,
+      "claude-sonnet-5-5": 179566391,
+      "claude-haiku-5-5": 214294714,
+      "claude-fable-5-1": 70646965
+    },
+    "2026-10-21": {
+      "claude-opus-5-5": 7748058703,
+      "claude-fable-5-1": 321443295,
+      "claude-haiku-5-5": 275858796,
+      "claude-sonnet-5-5": 277691939
+    },
+    "2026-10-22": {
+      "claude-opus-5-5": 3578259599,
+      "claude-fable-5-1": 302588851,
+      "claude-sonnet-5-5": 181846444,
+      "claude-haiku-5-5": 178514957
+    },
+    "2026-10-23": {
+      "claude-opus-5-5": 2828374942,
+      "claude-fable-5-1": 695647741,
+      "claude-haiku-5-5": 205433818,
+      "claude-sonnet-5-5": 108399992
+    },
+    "2026-10-24": {
+      "claude-opus-5-5": 5534597364,
+      "claude-fable-5-1": 28308574,
+      "claude-haiku-5-5": 301400923,
+      "claude-sonnet-5-5": 167241981
+    },
+    "2026-10-25": {
+      "claude-opus-5-5": 1477453031,
+      "claude-fable-5-1": 158966666,
+      "claude-haiku-5-5": 45225162,
+      "claude-sonnet-5-5": 102860928
+    },
+    "2026-10-26": {
+      "claude-opus-5-5": 2921958306,
+      "claude-fable-5-1": 12733741,
+      "claude-haiku-5-5": 128316628,
+      "claude-sonnet-5-5": 65672570,
+      "claude-haiku-4-5-20251001": 91780
+    },
+    "2026-10-27": {
+      "claude-opus-5-5": 6756176527,
+      "claude-sonnet-5-5": 180417021,
+      "claude-fable-5-1": 50091205,
+      "claude-haiku-5-5": 367550353
+    },
+    "2026-10-28": {
+      "claude-opus-5-5": 2626513019,
+      "claude-sonnet-5-5": 137040698,
+      "claude-haiku-5-5": 218526487,
+      "claude-fable-5-1": 70944523
+    },
+    "2026-10-29": {
+      "claude-opus-5-5": 817190970,
+      "claude-haiku-5-5": 42511250,
+      "claude-fable-5-1": 20993781,
+      "claude-sonnet-5-5": 16698264
     }
   },
   "source": "/home/ozgur/.claude/.claude-manager/usage-history.json",
-  "merged_at": "2026-10-07T11:47:58+03:00",
+  "merged_at": "2026-10-29T06:02:01+03:00",
   "source_by_day": {
     "2026-05-13": "extension",
     "2026-05-14": "extension",
@@ -912,36 +1050,58 @@
     "2026-10-04": "transcripts",
     "2026-10-05": "transcripts",
     "2026-10-06": "transcripts",
-    "2026-10-07": "transcripts"
+    "2026-10-07": "transcripts",
+    "2026-10-08": "transcripts",
+    "2026-10-09": "transcripts",
+    "2026-10-10": "transcripts",
+    "2026-10-11": "transcripts",
+    "2026-10-12": "transcripts",
+    "2026-10-13": "transcripts",
+    "2026-10-14": "transcripts",
+    "2026-10-15": "transcripts",
+    "2026-10-16": "transcripts",
+    "2026-10-17": "transcripts",
+    "2026-10-18": "transcripts",
+    "2026-10-19": "transcripts",
+    "2026-10-20": "transcripts",
+    "2026-10-21": "transcripts",
+    "2026-10-22": "transcripts",
+    "2026-10-23": "transcripts",
+    "2026-10-24": "transcripts",
+    "2026-10-25": "transcripts",
+    "2026-10-26": "transcripts",
+    "2026-10-27": "transcripts",
+    "2026-10-28": "transcripts",
+    "2026-10-29": "transcripts"
   },
   "_discrepancy": {
     "2026-08-29": {
       "extension": 9114327083,
-      "transcripts": 6033360423
+      "transcripts": 4074185608
     },
     "2026-08-30": {
       "extension": 5690264053,
-      "transcripts": 3781135436
+      "transcripts": 3166307198
     },
     "2026-08-31": {
       "extension": 5722954580,
-      "transcripts": 3750472729
+      "transcripts": 3130226836
     },
     "2026-09-01": {
       "extension": 1589061808,
-      "transcripts": 1966945882
+      "transcripts": 1345597615
     },
     "2026-09-02": {
       "extension": 9047971726,
-      "transcripts": 7295720039
+      "transcripts": 4000627661
     },
     "2026-09-03": {
       "extension": 7905971878,
-      "transcripts": 7790999793
+      "transcripts": 3865727454
     },
     "2026-09-04": {
       "extension": 1164249864,
-      "transcripts": 2240261408
+      "transcripts": 1292780680
     }
   },
   "transcript_source": "/home/ozgur/.claude/projects",
@@ -949,8 +1109,8 @@
   "collector_version": 3,
   "_unusable": {},
   "_added": 0,
-  "_total_days": 144,
-  "_transcript_added": 0,
+  "_total_days": 166,
+  "_transcript_added": 1,
   "_transcript_refreshed": 1,
   "extension_source_present": true,
   "extension_last_day": "2026-09-04"

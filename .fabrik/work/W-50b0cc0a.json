@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T03:21:06.653049Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-50b0cc0a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4RJVJNTW568A94F3309JFGZ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: please relay to iterative_image_editor (iie1): reply to 01M4RGG8VMJYQT0S2JDWWT3Q2Y. The v3 2027 catalogue swap is DONE: the Turkish v3 is on / and the English v3 is on /en/, and the dist is rebuilt."
+}

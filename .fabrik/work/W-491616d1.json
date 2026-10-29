@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:36:01.432544Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-491616d1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Q6DJP1TK2ZK9Q2VF3HGZFC",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "a correction: the READ budget total is already printed for an over-budget ticket — nothing to do",
+  "owner": "infra",
+  "priority": 2,
+  "status": "dropped",
+  "title": "correction to 01M4Q6CZFN item 4 — the READ budget total is already printed for an over-budget ticket"
+}

@@ -27,6 +27,14 @@ uv add httpx                    # Add dependency
 uv run pytest                   # Run via uv
 ```
 
+**A subagent seat is the one exception, for every `uv` command a pack tells a reader to run** — every one in this
+pack, and in `45-testing-strategy.md` and `50-code-review.md` (a Dockerfile's `RUN uv sync` is the image build's,
+not a reader's). Its brief bans every
+package-manager verb — `uv run`, `uv sync`, `uv add`, `uv lock`, `pip install`, `uv pip install` — because `uv run`
+syncs the environment by default and a linked worktree's `.venv` is normally a symlink to the shared one, so one
+seat's sync changes every agent's interpreter. A seat runs Python as `.venv/bin/python …` (`python3 …` where there
+is no `.venv`): `.venv/bin/python -m pytest tests/`, `.venv/bin/python scripts/final_gate.py --check`.
+
 Dependencies live in `pyproject.toml` + `uv.lock`. Do not modify these files unless the ticket authorises it.
 
 **Pinning policy:** `uv.lock` IS the pin — `pyproject.toml` uses `>=` floors, no routine upper
@@ -294,7 +302,7 @@ These three fire in `**/*.py` — the only glob that catches where config is loa
 **BANNED:** `logging.FileHandler`, `logging.handlers.RotatingFileHandler`, `TimedRotatingFileHandler`, `loguru` file sinks, any `*.log` file write, any in-app log rotation/retention/cleanup. The app never decides where logs are stored or routed — Docker → Promtail → Loki does. Full rule: `55-observability.md` § Logs.
 
 **Factor XII — Admin processes. NEVER migrate from app startup.**
-**BANNED: `alembic upgrade head` in FastAPI's `lifespan`, in an `@app.on_event("startup")`, or as an import side-effect.** With more than one replica (or a restart storm) two containers run `upgrade head` **concurrently** → they race the Alembic version table → duplicate DDL → **wedged deploy**. Migrations are a **one-off admin process against the deployed release**: `docker compose run --rm <svc> alembic upgrade head` (see `30-ops.md` § Release & Admin Processes).
+**BANNED: `alembic upgrade head` in FastAPI's `lifespan`, in an `@app.on_event("startup")`, or as an import side-effect.** With more than one replica (or a restart storm) two containers run `upgrade head` **concurrently** → they race the Alembic version table → duplicate DDL → **wedged deploy**. Migrations are a **one-off admin process against the deployed release**: `docker compose run --rm <svc> alembic upgrade head` (`<svc>` is a service that declares `.env.owner` (a `migrate` service), never the app service — the owner DSN is not in the app service's environment after the owner split (D-754), and `run` replaces the service's `command`, so a hand-off written there is bypassed) (see `30-ops.md` § Release & Admin Processes).
 
 ---
 
@@ -302,7 +310,7 @@ These three fire in `**/*.py` — the only glob that catches where config is loa
 
 | Pattern | Use Instead |
 |---------|-------------|
-| `alembic upgrade head` in `lifespan` / startup hook | One-off admin process against the deployed release: `docker compose run --rm <svc> alembic upgrade head` (concurrent replicas race the version table) |
+| `alembic upgrade head` in `lifespan` / startup hook | One-off admin process against the deployed release: `docker compose run --rm <svc> alembic upgrade head`, `<svc>` a service that declares `.env.owner` (a `migrate` service), never the app service (D-754) (concurrent replicas race the version table) |
 | `logging.FileHandler` / `RotatingFileHandler` / loguru file sink / any `*.log` write | Structured JSON → `stdout`, unbuffered (`PYTHONUNBUFFERED=1`). The platform routes logs, not the app |
 | `config/production.yml` / `settings.production` grouped env sets | Granular, orthogonal env vars set per deploy (12-Factor III) |
 | `pip` / `poetry` / `pipenv` | `uv` (`uv sync`, `uv add`, `uv run`) |
@@ -310,7 +318,7 @@ These three fire in `**/*.py` — the only glob that catches where config is loa
 | `localhost` for DB/Redis host | `postgres-main` / `redis-main` via `DATABASE_URL` / `REDIS_URL` |
 | Discrete `DB_HOST`/`DB_PORT`/`DB_NAME` env vars for the app | Single `DATABASE_URL` — env provides the full URL |
 | `tempfile.gettempdir()` / `/tmp` | Project-relative `.tmp` (volume-mounted if persistence needed) |
-| `List[str]` / `Optional[str]` | `list[str]` / `str \| None` |
+| `List[str]` / `Optional[str]` | `list[str]` / `str` unioned with `None` by the PEP 604 pipe operator (§ Typing Standards spells it) |
 | `async def` mixed with sync `.query().all()` | SQLAlchemy async: `select()` + `await session.execute()` |
 | Bare-string `.execute("SELECT 1")` | `text("SELECT 1")` (modern SQLAlchemy requires it) |
 | Sync HTTP/IO in an async route (blocks the event loop) | `httpx.AsyncClient`; `run_in_executor` for unavoidable sync libs |

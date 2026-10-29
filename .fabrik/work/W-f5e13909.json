@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:20.394698Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f5e13909",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4TF2Z3MN0FZQ5HRSRBECXAG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — by-design example teaches shape gate refuses; command wording",
+  "status": "open",
+  "title": "review_receipt.py's by-design example teaches a residual shape the coverage gate refuses — /fabrik-review row 1791889053"
+}

@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-14T09:06:24.714013Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-9a3583bb",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4VQMVHJ8N101DNCJDY6W8KJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — NEXT line auto-claims another agent's item; review finding",
+  "status": "open",
+  "title": "/fabrik-review row 1791931950 — a NEXT line naming another agent's work item auto-claims it"
+}

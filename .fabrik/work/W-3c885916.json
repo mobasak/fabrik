@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-09-30T08:48:59.900102Z",
   "creator": "intel",
+  "effort": "low",
   "evidence": "",
   "id": "W-3c885916",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -12,11 +14,13 @@
     "spec": ""
   },
   "next": "exclude harness/tool worktree copies (.kilo/worktrees, .claude/worktrees) from rules_match._tree_paths, with a test",
-  "note": "",
+  "note": "operator 2026-10-22 ('2 ok'): P3 items older than 7 days dropped in one ruling to clear the hub's queue for today's work; re-file with work.py add if it still matters (D-955)",
   "owner": "infra",
-  "priority": 2,
-  "status": "open",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: MEDIUM — rule activation false positive from worktree copies",
+  "status": "dropped",
   "tags": [
+    "medium",
     "rules"
   ],
   "title": "select_rules/rules_match count paths inside .kilo/worktrees copies: trade-intelligence activates saas/87 only through .kilo/worktrees/berry-oatmeal/web/app/api/auth/signup"

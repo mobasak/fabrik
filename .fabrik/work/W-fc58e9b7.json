@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T14:06:31.722825Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "85526131d1ae8e5374b1b542603a913fff46baf0",
+  "id": "W-fc58e9b7",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "run the mobile template pnpm install + lint once under a cgroup memory cap, then choose the eslint-config line (7.7.x or 9.x), align the peers, and add or drop the missing action; once mobile lint has run green, plugin drift beyond the direct pins this step chooses follows D-1322 (no lockfile, no blanket overrides; red on an unchanged template: fix the template first; a one-plugin override only for a broken plugin release, with a lift condition)",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — template toolchain drift",
+  "status": "done",
+  "title": "mobile-app template toolchain: @antfu/eslint-config still ^7.2.0 (W-70d9c609 left it: lint unexercised here), eslint-plugin-react-refresh ^0.4.26 vs 7.7.3 peer ^0.5.0, direct eslint-plugin-unicorn ^62.0.0 vs its ^63.0.0, and .github/workflows reference ./.github/actions/setup-node-pnpm-install which the template does not ship"
+}

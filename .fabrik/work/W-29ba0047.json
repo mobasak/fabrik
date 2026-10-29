@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "infra",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "BLOCKER for fabrik-lib's adoption: merge_request.py `_throwaway` raises FileExistsError on every merge in /opt/fabrik-lib (the repo is NAMED fabrik-lib); plus one false line in 01M3TTTCTW and one correction from me"
 }

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-18T05:53:01.647956Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-336ed219",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M55ZNVH7K00N6HKSMD7ZVVS1",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "work.py — no verb edits an item's title/next/links, and `render` in a linked worktree renders that tree's own store"
+}

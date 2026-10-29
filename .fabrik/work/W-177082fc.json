@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-06T19:40:25.927936Z",
   "creator": "intel",
-  "evidence": "",
+  "effort": "low",
+  "evidence": "ffbf417dff41374cac5b0f8c6f6f586f0053d183",
   "id": "W-177082fc",
+  "impact": "low",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -13,9 +15,10 @@
   },
   "next": "normalise c.file through the same root strip as readsFile when unionSlice takes a candidate in; one harness test with two seats citing one defect in two shapes",
   "note": "",
-  "owner": "",
-  "priority": 2,
-  "status": "open",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "impact LOW: clean-up/edge, no breakage named; effort LOW: one change, no spec/plan named (D-890 rules, coordinator pass 2026-10-15)",
+  "status": "done",
   "tags": [
     "intel"
   ],

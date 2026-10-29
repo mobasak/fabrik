@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-13T02:36:01.188256Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-e08c7227",
+  "impact": "high",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4Q6CZFNKPRZG532RPJPKTJB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "D-958 re-score 2026-10-18: HIGH — 6 plan-after-chat feedback asks needing code",
+  "status": "open",
+  "title": "/fabrik-plan-after-chat feedback queue — 6 asks that need CODE in your beat, two of them executed (kaizen D-711 triage)"
+}

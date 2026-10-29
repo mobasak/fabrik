@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T05:18:52.517208Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-b4d89231",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M631GHZP0CJBSS7B747SZXHB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: blocked",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: fleet-docker-cpu"
+}

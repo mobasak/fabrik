@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-21T20:26:33.562390Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-4a03df79",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1110",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "rewrite CLAUDE.md § Autonomy (the sentence 'gate and owned stay the operator's') and the § FINAL OUTPUT gate paragraph in BOTH contracts (CLAUDE.md and templates/governance/CLAUDE.md, D-888 twin test), keeping D-054's three grounds; parameters: spend ceiling = 0 until the operator sets a number, customer-facing production deploys stay the operator's until ruled; the Stop hook token regex (.claude/hooks/final_gate_stop.py:3064-3070, 4261) is infra's — mail infra the exact change if one is needed; /fabrik-task row 1 (governance-sync path) with the full /fabrik-review; D-row minted by the coordinator",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 0,
+  "score_reason": "re-scored on kaizen's measure: 14 places encode the old gate model across both contracts, a fragment, 8 command sources, the NEXT map and the hook — row 5 (template read by ~46 repos, more than one session): spec chain, kaizen's one major in flight",
+  "status": "open",
+  "tags": [
+    "waits-operator-phasea"
+  ],
+  "title": "Operator 2026-10-21/22: least operator approval — the Opus+Fable panel decides every gate class a coordinator can validate (design, plan, Gate 1, Gate 2 to our own VPS with backup+rollback, destructive with a verified backup, production data with a dump and the old volume kept, credentials we mint ourselves, publish to our own surfaces, spend inside a ceiling the operator sets); only money above the ceiling or recurring contracts, credentials only the operator can mint, publishing to customers or the public, deletion with no backup, and split panels reach the operator — always through a coordinator, never from a builder window"
+}

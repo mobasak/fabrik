@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-17T02:16:48.483218Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-b964d700",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "D-958 re-score 2026-10-18: LOW — generated skeleton sentence",
+  "status": "open",
+  "tags": [
+    "mail-01m53sbc2d"
+  ],
+  "title": "review_receipt.py skeleton (:310-311): its by-design refusal sentence lists 3 of the gate's 6 refusals and 'refuses' overclaims the ledger check's fail-open — name all six from check_review_coverage.py::_residual_errors (kaizen mail 01M53SBC2D)"
+}

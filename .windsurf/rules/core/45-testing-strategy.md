@@ -46,7 +46,8 @@ The Behavior Contract goes beyond one-test-per-behavior for these high-risk doma
 
 - **Framework**: `pytest` + `pytest-asyncio` + `httpx.AsyncClient`.
 - **Run tests**: `uv run pytest tests/` (never bare `pytest` — Fabrik uses `uv`) — **when the project has
-  a `pyproject.toml`/`uv.lock`**. A `requirements.txt`-only project (no manifest) runs
+  a `pyproject.toml`/`uv.lock`**. A subagent seat runs no package-manager verb and runs `.venv/bin/python -m pytest` instead
+  (`10-python.md` § Package Manager). A `requirements.txt`-only project (no manifest) runs
   `.venv/bin/python -m pytest tests/` — the manifest clause chooses the RUNNER, it never disarms the mandate to run
   the suite (web-ecommerce-factory 01M1QEY5, 2026-09-05: the clause read as "does not apply here"). ⚠️ **Gate this on the manifest, because this line is FLOOR-injected into
   finder prompts and a vendored fabrik-lib MODULE has neither by design**: the module recipe ships
@@ -187,7 +188,7 @@ Tests run against the **same backing services as production** — real PostgreSQ
 |---------|-------------|
 | Mocking SQLAlchemy / DB sessions | Real PostgreSQL + async transactional rollback fixtures |
 | Sync `TestClient` with async FastAPI app | `httpx.AsyncClient` with `ASGITransport` |
-| Bare `pytest` command **in a project with a `pyproject.toml`/`uv.lock`** | `uv run pytest` (a fabrik-lib module ships `requirements.txt` and has neither — `python3 -m pytest` is correct there) |
+| Bare `pytest` command **in a project with a `pyproject.toml`/`uv.lock`** | `uv run pytest` (a fabrik-lib module ships `requirements.txt` and has neither — `python3 -m pytest` is correct there; a subagent seat runs `.venv/bin/python -m pytest`, `10-python.md` § Package Manager) |
 | `print()` in test files | `structlog` logger or remove |
 | Jest / Vitest / RTL for ASYNC Server Components or full flows | Playwright E2E (sync/props-only components + server-action logic may unit-test via Vitest where it pays) |
 | Detox for React Native | Maestro YAML |
@@ -223,9 +224,9 @@ Tests run against the **same backing services as production** — real PostgreSQ
 - [ ] Backend tests run against real PostgreSQL — no DB mocks in test files.
 - [ ] Test session uses `join_transaction_mode="create_savepoint"` — inner commits don't leak past rollback.
 - [ ] Test DB URL from `TEST_DATABASE_URL` env var — not hardcoded.
-- [ ] Destructive DB tests call `require_throwaway(TEST_DATABASE_URL)` before connecting — never point them at a dev/shared DB.
+- [ ] Destructive DB tests pass the throwaway guard before connecting — `require_throwaway(TEST_DATABASE_URL)` where the scaffold emitted `tests/conftest.py`; where it did not (an unscaffolded repo has no such helper), this anchored predicate, verbatim: `dbname = urlparse(url).path.lstrip('/'); assert dbname.lower().endswith(('_test', 'throwaway', 'scratch')), dbname` — never point them at a dev/shared DB.
 - [ ] Backend tests use `httpx.AsyncClient` + `ASGITransport` — not sync `TestClient`.
-- [ ] Tests run via `uv run pytest` — not bare `pytest`.
+- [ ] Tests run via `uv run pytest` — not bare `pytest` (a subagent seat: `.venv/bin/python -m pytest`, `10-python.md` § Package Manager).
 - [ ] Multi-tenant projects have tenant isolation tests (query as A, verify B invisible).
 - [ ] Playwright tests use only semantic locators (`getByRole`, `getByLabel`, `getByText`).
 - [ ] No Vitest/RTL rendering of ASYNC Server Components (unit lane only for sync/props-only components + action logic); no Enzyme anywhere.
