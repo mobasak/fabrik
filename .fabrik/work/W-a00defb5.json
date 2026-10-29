@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "re-point each at Path(__file__).resolve().parents[2] or the imported module's __file__, red-prove one per file in a throwaway worktree; then a grader that refuses a new '/opt/fabrik' literal in tests/enforcement/",
+  "next": "re-point each at Path(__file__).resolve().parents[2] or the imported module's __file__, red-prove one per file in a throwaway worktree; also test_check_decisions_unique.py: its ~70 tests take their detector from the imported module, which under --import-mode=importlib/--noconftest is another tree's (scoped review 2026-10-29 round 2) — a module-level assert Path(_mod.__file__).resolve().parents[2] == _TREE fails loudly; then a grader refusing a new '/opt/fabrik' literal in tests/enforcement/",
   "note": "",
   "owner": "",
   "priority": 3,

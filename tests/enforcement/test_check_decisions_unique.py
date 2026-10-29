@@ -174,7 +174,7 @@ def test_a_stray_row_reds_the_gate(tmp_path, monkeypatch, capsys):
 
 
 # The tree this test file sits in, read off the test's own path: `_mod.__file__` names whichever
-# tree `scripts` resolved from, which is the cwd's under --import-mode=importlib or --noconftest.
+# tree `scripts` resolved from, which can be another tree under --import-mode=importlib or --noconftest.
 _TREE = Path(__file__).resolve().parents[2]
 
 
