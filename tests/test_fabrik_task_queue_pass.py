@@ -54,9 +54,9 @@ def test_the_receipt_range_tip_is_the_last_commit_and_check_d_is_looser() -> Non
     close = _section("## Phase 5", "## UPGRADE")
     assert "Its range tip must be the LAST `--commit` (`task_lane.py` check (d))" in close
     assert (
-        "Check (d) itself is looser than that order: it takes any listed commit as the tip when every"
-        " listed commit after it carries only receipts and ledgers, and list order decides nothing,"
-        " so never reorder the `--commit` list to pass it." in close
+        "Check (d) itself is looser than this LAST rule: it takes any listed commit as the tip when every"
+        " other listed commit that is not its git ancestor carries only receipts and ledgers, and list"
+        " order decides nothing, so never reorder the `--commit` list to pass it." in close
     )
     phase4 = _section("## Phase 4", "## Phase 5")
     assert "that commit its `--range` tip" not in phase4
