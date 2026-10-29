@@ -61,9 +61,10 @@ prints one undo line per file — `cp -p <backup> "$HOME"/<path>` for a file tha
 it created. When the archive installer ran, the lines open with `systemctl --user stop session-archive.timer` when the timer was
 not active before, then put the timer's persistent link (`timers.target.wants/session-archive.timer` in the unit dir —
 `~/.config/systemd/user` unless `XDG_CONFIG_HOME` is set) back as it was: `rm -f` when the installer's `enable` added
-it, `ln -sfn <old target>` when `enable` rewrote a link that pointed elsewhere, nothing when it already pointed at the
-unit (never `systemctl --user disable`, which would also delete an alias you made to the unit; W-88173de4); a
-non-symlink at that path is refused at planning. They end with `systemctl --user daemon-reload`. The archive installer runs FIRST, so
+it, `ln -sfn -- <old target>` when `enable` rewrote a link that pointed elsewhere, nothing when it already pointed at
+the unit (never `systemctl --user disable`, which would also delete an alias you made to the unit; W-88173de4); a
+non-symlink at that path is refused at planning, and so is a link whose old target is not UTF-8 or holds a newline,
+which cannot be printed as one undo line (W-b3192e98). They end with `systemctl --user daemon-reload`. The archive installer runs FIRST, so
 when it fails the other steps are unwritten and the undo lines name the units it changed. Any parent directory a step
 has to create (`~/.ssh`, `~/.claude/bin`) is made 0700 and left in place, empty, by the undo. The tab router's fast rollback stays
 `"CLAUDE_TAB_ROUTER": "off"` in `claudeCode.environmentVariables`.

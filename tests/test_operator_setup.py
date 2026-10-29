@@ -488,6 +488,19 @@ def test_a_non_symlink_at_the_timer_link_path_is_refused(tmp_path):
     assert _digest(home) == before, "something was written"
 
 
+@pytest.mark.parametrize("old", [b"\xff-bad.timer", b"two\nlines.timer"])
+def test_a_timer_link_whose_undo_cannot_print_on_one_line_is_refused(tmp_path, old):
+    # a non-UTF-8 target crashed the undo print under a strict UTF-8 stdout after the installer ran, losing every
+    # undo line; a newline split the one `ln` line in two
+    home, hub = _home(tmp_path), _hub(tmp_path)
+    _wants(home).unlink()
+    os.symlink(old, os.fsencode(_wants(home)))
+    before = _digest(home)
+    r = _run(home, hub, "--apply")
+    assert r.returncode == 1 and "cannot be printed as one undo line — refused" in r.stderr, r.stdout + r.stderr
+    assert _digest(home) == before, "something was written"
+
+
 def test_a_symlinked_timer_unit_is_refused_before_any_systemctl_call(tmp_path):
     # a symlink AT the unit path (a link, alias or mask made in ~/.config): an atomic write would turn it into a file
     home, hub = _home(tmp_path), _hub(tmp_path)
