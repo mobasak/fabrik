@@ -8,6 +8,8 @@
 set -u
 
 SRC="${MESH_TEST_SRC:-$HOME/.claude/bin}"  # MESH_TEST_SRC: run the suite on pinned or mutant copies (review W-5279e834)
+LIVE="$HOME/.claude/bin"  # each file comes from SRC when it is there, else from the live dir (W-6e656dac T04: the
+# tracked scripts/sysadmin/mesh holds three of the mesh files; sound.sh, the decider, autoresume and quota stay untracked)
 PASS=0; FAIL=0
 ok()   { PASS=$((PASS+1)); }
 bad()  { FAIL=$((FAIL+1)); echo "FAIL: $*"; }
@@ -16,9 +18,14 @@ T=$(mktemp -d /tmp/mesh-test.XXXXXX)
 trap 'rm -rf "$T"' EXIT
 export HOME_REAL="$HOME"
 SBHOME="$T/home"; mkdir -p "$SBHOME/.claude/bin"
-cp "$SRC/claude-sound.sh" "$SRC/claude-stop-decider.py" "$SBHOME/.claude/bin/"
+for f in claude-sound.sh claude-stop-decider.py; do  # required: the suite cannot run without either
+  if [ -f "$SRC/$f" ]; then cp "$SRC/$f" "$SBHOME/.claude/bin/"
+  elif [ -f "$LIVE/$f" ]; then cp "$LIVE/$f" "$SBHOME/.claude/bin/"
+  else echo "mesh-test: $f is in neither $SRC nor $LIVE — cannot run"; exit 2; fi
+done
 for f in claude-autoresume.sh claude-selfwatch.sh claude-quota.py claude-reboot-sweep.sh; do
-  [ -f "$SRC/$f" ] && cp "$SRC/$f" "$SBHOME/.claude/bin/"
+  if [ -f "$SRC/$f" ]; then cp "$SRC/$f" "$SBHOME/.claude/bin/"
+  elif [ -f "$LIVE/$f" ]; then cp "$LIVE/$f" "$SBHOME/.claude/bin/"; fi
 done
 LOCKS="$T/locks"; mkdir -p "$LOCKS"
 SHIM="$T/shim"; mkdir -p "$SHIM"
@@ -466,6 +473,51 @@ EOF
   sleep 1
   [ "$(grep -c '^RESUME: the fleet-quota hold LIFTED at' "$T/w10d.out")" = "1" ] && ok || bad "W10d: the lift did not fire once the network returned: $(cat "$T/w10d.out")"
   kill "$w10dpid" 2>/dev/null; wait "$w10dpid" 2>/dev/null
+  # W10f (W-6e656dac T04, spec L3): a HIBERNATE lift (`<epoch> hibernate`) waits for MESH_UP_STREAK (3)
+  # CONSECUTIVE answers like a death (a flapping restore must be fully read before the wake), then
+  # prints the hibernate line naming the marker's lift_path and the woke command, ending in the STAYS
+  # ARMED clause selfwatch_arm.sh cuts at; the watch stays armed. A marker lacking lift_path reads `unknown`.
+  HSTATE="$T/hstate"; mkdir -p "$HSTATE"
+  printf '{"paused_at": 1, "lifted_at": 2, "lift_path": "sleep"}' > "$HSTATE/hibernate.json"
+  printf 'up\ndown\nup\nup\nup\n' > "$T/w10f.seq"
+  env HOME="$SBHOME" PATH="$T/seqshim:$SHIM:/usr/bin:/bin" CLAUDE_SOUND_MEDIA="$T/nomedia" \
+      CLAUDE_SOUND_PULSE="$T/nopulse" CLAUDE_SOUND_LOCKDIR="$LOCKS" MESH_NET_SEQ="$T/w10f.seq" \
+      ROTATE_STATE_DIR="$HSTATE" MESH_JITTER_MAX=0 MESH_BACKOFF_OVERRIDE=0 MESH_POLL=1 MESH_UP_STREAK=3 \
+      timeout 40 bash "$SBHOME/.claude/bin/claude-selfwatch.sh" sW10f > "$T/w10f.out" &
+  w10fpid=$!
+  sleep 2; LIFT=$(( $(date +%s) - 180 )); printf '%s hibernate\n' "$LIFT" > "$LOCKS/sW10f.holdlifted"
+  for _ in $(seq 1 20); do grep -q '^RESUME:' "$T/w10f.out" && break; sleep 1; done
+  w10f_left=$(grep -c . "$T/w10f.seq" 2>/dev/null); w10f_left=${w10f_left:-0}
+  [ "$(grep -c "^RESUME: the hibernate pause ended at $(date -d @"$LIFT" +%H:%M) (sleep) — run python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke --self sW10f and resume your item from its seed" "$T/w10f.out")" = "1" ] && ok || bad "W10f: no hibernate line naming the lift minute and lift_path: $(cat "$T/w10f.out")"
+  [ "$w10f_left" = "0" ] && ok || bad "W10f: the hibernate wake fired with $w10f_left probe(s) of the flapping sequence unread (no 3-answer gate)"
+  grep '^RESUME: the hibernate' "$T/w10f.out" | grep -q ' — this self-watch STAYS ARMED (' && ok || bad "W10f: the hibernate line lost the STAYS ARMED clause: $(cat "$T/w10f.out")"
+  grep -q 'fleet-quota' "$T/w10f.out" && bad "W10f: a hibernate lift named the quota hold" || ok
+  [ ! -f "$LOCKS/sW10f.holdlifted" ] && ok || bad "W10f: the hibernate lift file was not consumed"
+  printf '{"paused_at": 1}' > "$HSTATE/hibernate.json"
+  printf '%s hibernate\n' "$(date +%s)" > "$LOCKS/sW10f.holdlifted"
+  for _ in $(seq 1 15); do [ "$(grep -c '^RESUME:' "$T/w10f.out")" -ge 2 ] && break; sleep 1; done
+  [ "$(grep -c '^RESUME: the hibernate pause ended at [0-9][0-9]:[0-9][0-9] (unknown) — ' "$T/w10f.out")" = "1" ] && ok || bad "W10f: the watch did not stay armed, or a marker with no lift_path did not read unknown: $(cat "$T/w10f.out")"
+  kill "$w10fpid" 2>/dev/null; wait "$w10fpid" 2>/dev/null
+  # W10g (W-6e656dac T04, routed I13): the kind is read AFTER the gate — a `resume` wake the tick
+  # replaces with `hibernate` while the gate waits on a dead network prints the hibernate line with the
+  # replacing file's minute; a plain `resume` wake reads "the box RESUMED from sleep at HH:MM"
+  printf '{"paused_at": 1, "lifted_at": 2, "lift_path": "outage"}' > "$HSTATE/hibernate.json"
+  rm -f "$MESH_NET"
+  env HOME="$SBHOME" PATH="$SHIM:/usr/bin:/bin" CLAUDE_SOUND_MEDIA="$T/nomedia" CLAUDE_SOUND_PULSE="$T/nopulse" \
+      CLAUDE_SOUND_LOCKDIR="$LOCKS" MESH_NET="$MESH_NET" ROTATE_STATE_DIR="$HSTATE" MESH_JITTER_MAX=0 \
+      MESH_BACKOFF_OVERRIDE=0 MESH_POLL=1 timeout 40 bash "$SBHOME/.claude/bin/claude-selfwatch.sh" sW10g > "$T/w10g.out" &
+  w10gpid=$!
+  sleep 2; printf '%s resume\n' "$(( $(date +%s) - 7200 ))" > "$LOCKS/sW10g.holdlifted"
+  sleep 3; LIFT=$(( $(date +%s) - 240 )); printf '%s hibernate\n' "$LIFT" > "$LOCKS/sW10g.holdlifted"
+  sleep 1; touch "$MESH_NET"
+  for _ in $(seq 1 15); do grep -q '^RESUME:' "$T/w10g.out" && break; sleep 1; done
+  [ "$(grep -c "^RESUME: the hibernate pause ended at $(date -d @"$LIFT" +%H:%M) (outage) — " "$T/w10g.out")" = "1" ] && ok || bad "W10g: the line did not use the kind and epoch read after the gate: $(cat "$T/w10g.out")"
+  grep -q 'RESUMED from sleep' "$T/w10g.out" && bad "W10g: printed the replaced (pre-gate) kind" || ok
+  LIFT=$(( $(date +%s) - 60 )); printf '%s resume\n' "$LIFT" > "$LOCKS/sW10g.holdlifted"
+  for _ in $(seq 1 15); do [ "$(grep -c '^RESUME:' "$T/w10g.out")" -ge 2 ] && break; sleep 1; done
+  [ "$(grep -c "^RESUME: the box RESUMED from sleep at $(date -d @"$LIFT" +%H:%M)" "$T/w10g.out")" = "1" ] && ok || bad "W10g: a resume wake did not say the box resumed from sleep: $(cat "$T/w10g.out")"
+  grep 'RESUMED from sleep' "$T/w10g.out" | grep -q ' — this self-watch STAYS ARMED (' && ok || bad "W10g: the resume line lost the STAYS ARMED clause"
+  kill "$w10gpid" 2>/dev/null; wait "$w10gpid" 2>/dev/null
   # W11 (2026-09-07, heavy review R1): a watch whose LOCK FILE vanishes (the Stop decider's 2h mtime
   # prune, or a manual rm) must EXIT with one line — an orphan holding a deleted inode is invisible
   # to the tick's armed census and steals the next death marker from the re-armed watch.
@@ -883,6 +935,47 @@ if [ -f "$SBHOME/.claude/bin/claude-reboot-sweep.sh" ]; then
   RLOCKS="$T/rlocks"; mkdir -p "$RLOCKS"
   RLOG="$T/sweep.log"; : > "$RLOG"
   : > "$MESH_CLAUDELOG"
+  # W-6e656dac T04: the sweep's builder leg calls agents_bat.py --list, agents_up.sh --print/--detach and
+  # `systemctl --user show-environment` — EVERY sweep below runs against these stubs, never the real tmux
+  # server, user bus or a real repo (the env seams are exported, and tmux/systemctl stubs lead $SHIM)
+  cat > "$SHIM/systemctl" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${MESH_SYSTEMCTL_LOG:-/dev/null}"
+exit "${MESH_SYSTEMCTL_RC:-0}"
+EOF
+  cat > "$SHIM/tmux" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${MESH_TMUX_LOG:-/dev/null}"
+exit 1
+EOF
+  cat > "$T/stub-agents-bat.py" <<'EOF'
+import os, sys
+assert sys.argv[1:] == ["--list"], sys.argv
+p = os.environ.get("MESH_BAT_LIST", "")
+if p and os.path.isfile(p):
+    sys.stdout.write(open(p).read())
+EOF
+  cat > "$T/stub-agents-up.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "${MESH_UPLOG:-/dev/null}"
+case "$1" in
+  --print) f="$2/panes"; [ -f "$f" ] && cat "$f"; exit 0 ;;
+  --detach) [ -n "${MESH_UP_LINGER:-}" ] && { sleep "$MESH_UP_LINGER" & }; exit 0 ;;
+esac
+exit 2
+EOF
+  chmod +x "$SHIM/systemctl" "$SHIM/tmux" "$T/stub-agents-up.sh"
+  export MESH_AGENTS_BAT="$T/stub-agents-bat.py" MESH_AGENTS_UP="$T/stub-agents-up.sh" MESH_BUS_WAIT=0 \
+         MESH_BAT_LIST="$T/bat-list.empty" MESH_UPLOG="$T/up.log" MESH_SYSTEMCTL_LOG="$T/systemctl.log" \
+         MESH_TMUX_LOG="$T/tmux.log"
+  : > "$MESH_BAT_LIST"; : > "$MESH_UPLOG"
+  # the fence: a sweep must find the stubs first, or nothing below runs
+  if ! { [ -x "$SHIM/systemctl" ] && [ -x "$SHIM/tmux" ] && [ -x "$MESH_AGENTS_UP" ] && [ -f "$MESH_AGENTS_BAT" ] \
+       && [ "$(PATH="$SHIM:/usr/bin:/bin" command -v systemctl)" = "$SHIM/systemctl" ] \
+       && [ "$(PATH="$SHIM:/usr/bin:/bin" command -v tmux)" = "$SHIM/tmux" ]; }; then
+    echo "mesh-test: the sweep stubs are not first on PATH — Section R refused"; exit 2
+  fi
+  consumed() { grep -q "verdict=autonomous-consumed sess=$1 " "$RLOG"; }  # Leg A consumes, never resumes
   # a busy transcript (pending background task) and a cleanly-parked one
   RB="$T/r-busy.jsonl"
   printf '{"type":"user","timestamp":"%s","toolUseResult":{"backgroundTaskId":"rtask"},"message":{"content":[]}}\n' \
@@ -900,7 +993,8 @@ if [ -f "$SBHOME/.claude/bin/claude-reboot-sweep.sh" ]; then
       MESH_SWEEP_LIVE_WINDOW=0 \
       MESH_SWEEP_LOG="$RLOG" MESH_CLAUDELOG="$MESH_CLAUDELOG" \
       bash "$SBHOME/.claude/bin/claude-reboot-sweep.sh"; }
-  # R1: marked + mid-work → resumed, marker consumed, headless+no-revive env carried
+  # R1 (W-6e656dac T04, spec L4): marked + mid-work → CONSUMED with a note, never resumed — no
+  # `claude -p` at all (one session in two processes forks it) and no CLAUDE_MESH_AUTONOMOUS re-export
   mk sR1 "$RB"
   # BOOT-RELATIVE, not absolute-age (round-7: an absolute 99999s age straddles boot on any
   # box up >27.7h and flips the guard's verdict — the fixture must pin its relation to boot)
@@ -908,10 +1002,10 @@ if [ -f "$SBHOME/.claude/bin/claude-reboot-sweep.sh" ]; then
   printf '%s' "$(( R1BOOT - 100 ))" > "$RLOCKS/sR1.reviving"   # pre-reboot corpse
   touch -d "@$(( R1BOOT - 100 ))" "$RLOCKS/sR1.reviving"
   SWEEP; sleep 1
-  grep -q -- "--resume sR1" "$MESH_CLAUDELOG" && ok || bad "R1: mid-work session not resumed"
+  consumed sR1 && grep -q "sess=sR1 why=busy" "$RLOG" && ok || bad "R1: mid-work marker not consumed with its note | log: $(tail -3 "$RLOG")"
   [ ! -f "$RLOCKS/sR1.autonomous" ] && ok || bad "R1b: marker not consumed"
   [ ! -f "$RLOCKS/sR1.reviving" ] && ok || bad "R1c: pre-reboot .reviving not cleared"
-  grep -q "headless=1 .*--resume sR1" "$MESH_CLAUDELOG" && ok || bad "R1d: resume not headless-tagged"
+  [ ! -s "$MESH_CLAUDELOG" ] && ok || bad "R1d: the sweep started claude: $(cat "$MESH_CLAUDELOG")"
   # R2: marked but cleanly PARKED → skipped (nothing was in flight), marker consumed
   : > "$MESH_CLAUDELOG"; mk sR2 "$RP"
   SWEEP; sleep 1
@@ -922,11 +1016,12 @@ if [ -f "$SBHOME/.claude/bin/claude-reboot-sweep.sh" ]; then
   printf 'unknown %s\n' "$(date +%s)" > "$RLOCKS/sR3.errparked"   # mid-work but unmarked
   SWEEP; sleep 1
   grep -q -- "--resume sR3" "$MESH_CLAUDELOG" && bad "R3: swept an unmarked (pane) session" || ok
-  # R4: errparked marked session resumes even without a transcript
+  # R4: errparked marked session is classified mid-work even without a transcript — consumed, not resumed
   : > "$MESH_CLAUDELOG"; mk sR4 "$T/nope.jsonl"
   printf 'rate_limit %s\n' "$(date +%s)" > "$RLOCKS/sR4.errparked"
   SWEEP; sleep 1
-  grep -q -- "--resume sR4" "$MESH_CLAUDELOG" && ok || bad "R4: errparked session not resumed"
+  grep -q "verdict=autonomous-consumed sess=sR4 why=errparked" "$RLOG" && ok || bad "R4: errparked marker not consumed with its note"
+  grep -q -- "--resume sR4" "$MESH_CLAUDELOG" && bad "R4b: errparked session resumed with claude -p" || ok
   # R5: a SECOND sweep is a no-op (markers already consumed — idempotent)
   : > "$MESH_CLAUDELOG"
   SWEEP; sleep 1
@@ -940,23 +1035,24 @@ if [ -f "$SBHOME/.claude/bin/claude-reboot-sweep.sh" ]; then
   # R7: every decision is logged (the sweep is never a silent black box)
   # per-DECISION lines, not just the unconditional summary (the old assertion passed even
   # if every decision note were deleted — review finding)
-  grep -q "resume-spawned" "$RLOG" && ok || bad "R7: no per-session resume decision logged"
+  grep -q "autonomous-consumed" "$RLOG" && ok || bad "R7: no per-session consume decision logged"
   grep -q "skip-not-midwork" "$RLOG" && ok || bad "R7b: no per-session skip decision logged"
   grep -q "sweep-done" "$RLOG" && ok || bad "R7c: sweep did not log its summary"
-  # R8: the plan-mandated SPACING fixture — two eligible markers in ONE sweep must start
-  # staggered (the "does not stampede the API at boot" claim was entirely untested)
+  # R8 (W-6e656dac T04): two eligible markers in ONE sweep are BOTH consumed, and none is started —
+  # the old start spacing is gone with the starts (an old MESH_START_SPACING slows nothing)
   : > "$MESH_CLAUDELOG"
   mk sR8a "$RB"; mk sR8b "$RB"
   printf 'unknown %s\n' "$(date +%s)" > "$RLOCKS/sR8a.errparked"
   printf 'unknown %s\n' "$(date +%s)" > "$RLOCKS/sR8b.errparked"
   r8_t0=$SECONDS
   env HOME="$SBHOME" PATH="$SHIM:/usr/bin:/bin" CLAUDE_SOUND_LOCKDIR="$RLOCKS" \
-    MESH_DECIDER_CMD="$SBHOME/.claude/bin/claude-stop-decider.py" MESH_START_SPACING=2 \
+    MESH_DECIDER_CMD="$SBHOME/.claude/bin/claude-stop-decider.py" MESH_START_SPACING=3 \
     MESH_SWEEP_LIVE_WINDOW=0 MESH_SWEEP_LOG="$RLOG" MESH_CLAUDELOG="$MESH_CLAUDELOG" \
     bash "$SBHOME/.claude/bin/claude-reboot-sweep.sh"
   r8_el=$(( SECONDS - r8_t0 ))
-  [ "$(grep -c -- "--resume sR8" "$MESH_CLAUDELOG")" = "2" ] && ok || bad "R8: both markers not resumed"
-  [ "$r8_el" -ge 2 ] && ok || bad "R8b: starts not spaced (elapsed ${r8_el}s, spacing 2)"
+  consumed sR8a && consumed sR8b && [ ! -f "$RLOCKS/sR8a.autonomous" ] && [ ! -f "$RLOCKS/sR8b.autonomous" ] \
+    && ok || bad "R8: both markers not consumed"
+  [ ! -s "$MESH_CLAUDELOG" ] && [ "$r8_el" -lt 3 ] && ok || bad "R8b: the sweep started or spaced a resume (elapsed ${r8_el}s): $(cat "$MESH_CLAUDELOG")"
   # R9: a STILL-LIVE session (transcript touched just now) is never resumed — @reboot also
   # fires on a cron-daemon restart, when siblings are alive (review finding)
   : > "$MESH_CLAUDELOG"
@@ -966,7 +1062,7 @@ if [ -f "$SBHOME/.claude/bin/claude-reboot-sweep.sh" ]; then
     MESH_DECIDER_CMD="$SBHOME/.claude/bin/claude-stop-decider.py" MESH_START_SPACING=0 \
     MESH_SWEEP_LIVE_WINDOW=300 MESH_SWEEP_LOG="$RLOG" MESH_CLAUDELOG="$MESH_CLAUDELOG" \
     bash "$SBHOME/.claude/bin/claude-reboot-sweep.sh"
-  grep -q -- "--resume sR9" "$MESH_CLAUDELOG" && bad "R9: resumed a STILL-LIVE session" || ok
+  consumed sR9 && bad "R9: consumed a STILL-LIVE session's marker" || ok
   [ -f "$RLOCKS/sR9.autonomous" ] && ok || bad "R9b: live-skip consumed the marker (must keep it)"
 
   # ── Section RS: standby-survivable sweep (plan 2026-08-13-plan-1) ──────────
@@ -992,26 +1088,26 @@ if [ -f "$SBHOME/.claude/bin/claude-reboot-sweep.sh" ]; then
   rm -rf "$RLOCKS"
   SWEEPS; sleep 1
   grep -q "vm-cut" "$RLOG" && ok || bad "RS1: vm-cut not classified (no-lockdir dead end?)"
-  grep -q -- "--resume sRS1" "$MESH_CLAUDELOG" && ok || bad "RS1b: cut session not resumed"
+  consumed sRS1 && ok || bad "RS1b: cut session's marker not consumed"
   mkdir -p "$RLOCKS"
   # RS2 (Gap 2): stalled-api-error tail (REAL decider, synthetic death transcript) → eligible
-  : > "$MESH_CLAUDELOG"; mks sRS2 "$RSTALL"
+  : > "$MESH_CLAUDELOG"; : > "$RLOG"; mks sRS2 "$RSTALL"
   SWEEPS; sleep 1
-  grep -q -- "--resume sRS2" "$MESH_CLAUDELOG" && ok || bad "RS2: death-class tail not eligible"
+  consumed sRS2 && ok || bad "RS2: death-class tail not eligible"
   grep -q "why=stalled-api-error" "$RLOG" && ok || bad "RS2b: eligibility reason not logged"
   # RS3 (guard): cleanly-parked stays ineligible even via the persistent dir
   : > "$MESH_CLAUDELOG"; mks sRS3 "$RP"
   SWEEPS; sleep 1
-  grep -q -- "--resume sRS3" "$MESH_CLAUDELOG" && bad "RS3: parked wrongly resumed" || ok
+  consumed sRS3 && bad "RS3: parked classified as mid-work" || ok
   # RS4 (compat): marker in the LEGACY lock dir only (persistent dir EMPTY — the glob-break
   # trap, pool F2/closer F4) → still swept
   : > "$MESH_CLAUDELOG"; mk sRS4 "$RB"
   SWEEPS; sleep 1
-  grep -q -- "--resume sRS4" "$MESH_CLAUDELOG" && ok || bad "RS4: legacy-dir marker skipped (glob break?)"
+  consumed sRS4 && ok || bad "RS4: legacy-dir marker skipped (glob break?)"
   # RS5 (dedupe): same sid in BOTH dirs → exactly ONE spawn, both copies consumed
-  : > "$MESH_CLAUDELOG"; mks sRS5 "$RB"; mk sRS5 "$RB"
+  : > "$MESH_CLAUDELOG"; : > "$RLOG"; mks sRS5 "$RB"; mk sRS5 "$RB"
   SWEEPS; sleep 1
-  [ "$(grep -c -- "--resume sRS5" "$MESH_CLAUDELOG")" = "1" ] && ok || bad "RS5: dedupe failed"
+  [ "$(grep -c "verdict=autonomous-consumed sess=sRS5 " "$RLOG")" = "1" ] && ok || bad "RS5: dedupe failed"
   [ ! -f "$RSTATE/sRS5.autonomous" ] && [ ! -f "$RLOCKS/sRS5.autonomous" ] && ok || bad "RS5b: a copy survived"
   # RS5c (closer F14): an INELIGIBLE (parked) sid marked in BOTH dirs — both copies consumed
   : > "$MESH_CLAUDELOG"; mks sRS5c "$RP"; mk sRS5c "$RP"
@@ -1021,7 +1117,7 @@ if [ -f "$SBHOME/.claude/bin/claude-reboot-sweep.sh" ]; then
   : > "$RLOG"; rm -rf "$RLOCKS"
   SWEEPS
   grep -q "no-lockdir" "$RLOG" && ok || bad "RS6: empty-state no-lockdir note gone"
-  grep -q "resume-spawned\|cut-notified" "$RLOG" && bad "RS6b: empty sweep did WORK" || ok
+  grep -q "autonomous-consumed\|cut-notified" "$RLOG" && bad "RS6b: empty sweep did WORK" || ok
   mkdir -p "$RLOCKS"
   # RS8: concurrent sweep excluded by the self-lock — and consumes NOTHING (closer F9)
   : > "$RLOG"; mks sRS8 "$RB"
@@ -1033,36 +1129,33 @@ if [ -f "$SBHOME/.claude/bin/claude-reboot-sweep.sh" ]; then
   grep -q "skip-concurrent" "$RLOG" && ok || bad "RS8: concurrent sweep not excluded"
   [ -f "$RSTATE/sRS8.autonomous" ] && ok || bad "RS8b: excluded sweep consumed a marker"
   rm -f "$RSTATE/sRS8.autonomous"
-  # RS8c (closer F3): the backgrounded RESUME must not inherit the lock fd — a second sweep
-  # during the resumed child's lifetime must run, not skip-concurrent
-  SLOWSHIM="$T/slowshim"; mkdir -p "$SLOWSHIM"
-  cat > "$SLOWSHIM/claude" <<'SLOW'
-#!/usr/bin/env bash
-printf 'headless=%s args: %s\n' "${CLAUDE_MESH_HEADLESS:-0}" "$*" >> "${MESH_CLAUDELOG:-/dev/null}"
-sleep 4
-SLOW
-  chmod +x "$SLOWSHIM/claude"
-  : > "$RLOG"; : > "$MESH_CLAUDELOG"; mks sRS8c "$RB"
-  env HOME="$SBHOME" PATH="$SLOWSHIM:/usr/bin:/bin" CLAUDE_SOUND_LOCKDIR="$RLOCKS" \
-      MESH_STATE_DIR="$RSTATE" \
-      MESH_DECIDER_CMD="$SBHOME/.claude/bin/claude-stop-decider.py" MESH_START_SPACING=0 \
+  # RS8c (closer F3, W-6e656dac T04): what the builder leg starts must not inherit the lock fd — a
+  # detached grid's tmux server lives for days, so a second sweep during its lifetime must run, not
+  # skip-concurrent (the stub agents_up leaves a 4 s child holding every fd it inherited)
+  mkdir -p "$T/repo8c"; printf '%s\n' "$T/repo8c" > "$T/bat-list.8c"
+  : > "$RLOG"
+  env MESH_BAT_LIST="$T/bat-list.8c" MESH_UP_LINGER=4 MESH_SWEEP_FRESH_WINDOW=999999999 HOME="$SBHOME" \
+      PATH="$SHIM:/usr/bin:/bin" CLAUDE_SOUND_LOCKDIR="$RLOCKS" MESH_STATE_DIR="$RSTATE" \
+      MESH_DECIDER_CMD="$SBHOME/.claude/bin/claude-stop-decider.py" \
       MESH_SWEEP_LIVE_WINDOW=0 MESH_SWEEP_LOG="$RLOG" MESH_CLAUDELOG="$MESH_CLAUDELOG" \
       bash "$SBHOME/.claude/bin/claude-reboot-sweep.sh"
-  sleep 1   # the slow stub child (4s) is still alive holding whatever fds it inherited
+  sleep 1   # the stub's child (4s) is still alive holding whatever fds it inherited
+  grep -q "builder-grid .*repo=$T/repo8c" "$RLOG" && ok || bad "RS8c-pre: the builder leg did not run | log: $(tail -3 "$RLOG")"
   : > "$RLOG"
   SWEEPS
-  grep -q "skip-concurrent" "$RLOG" && bad "RS8c: resumed child holds the sweep lock" || ok
+  grep -q "skip-concurrent" "$RLOG" && bad "RS8c: the builder leg's child holds the sweep lock" || ok
   # RS9: unremovable marker → consume-failed, ZERO spawns (never a boot-loop of resumes)
   : > "$MESH_CLAUDELOG"; : > "$RLOG"; mks sRS9 "$RB"
   chmod 555 "$RSTATE"
   SWEEPS; sleep 1
   chmod 755 "$RSTATE"
   grep -q "consume-failed" "$RLOG" && ok || bad "RS9: unremovable marker not refused"
-  grep -q -- "--resume sRS9" "$MESH_CLAUDELOG" && bad "RS9b: spawned despite failed claim" || ok
+  consumed sRS9 && bad "RS9b: consumed despite failed claim" || ok
+  [ -f "$RSTATE/sRS9.autonomous" ] && ok || bad "RS9b: the refused marker is gone"
   # RS9c (closer F10): permissions restored → the SAME marker is processed next boot
-  : > "$MESH_CLAUDELOG"
+  : > "$MESH_CLAUDELOG"; : > "$RLOG"
   SWEEPS; sleep 1
-  grep -q -- "--resume sRS9" "$MESH_CLAUDELOG" && ok || bad "RS9c: refused marker not re-processed"
+  consumed sRS9 && ok || bad "RS9c: refused marker not re-processed"
   # RS10 (Leg B): cut-mid-work transcripts in the projects tree → one notify each via the
   # MESH_NOTIFY_CMD seam; cleanly-parked neighbours stay silent
   RSPROJ="$SBHOME/.claude/projects/-opt-rstest"; mkdir -p "$RSPROJ"
@@ -1133,7 +1226,8 @@ STUB
   grep -q "claude --resume aaaa1111" "$RSNOTES" && bad "RS11b-pre: stamp did not survive" || true
   grep -q "claude --resume dddd4444" "$RSNOTES" && ok || bad "RS11b: young-uptime boot with present lockdir did not scan"
   rm -f "$RSTATE/notified-dddd4444"
-  # RS12 (pin fix 5): claude binary ABSENT → marker leg skipped LOUDLY, notify leg LIVES
+  # RS12 (pin fix 5, W-6e656dac T04): claude binary ABSENT → the marker leg needs no claude now (it
+  # consumes, never resumes), so it still runs; the notify leg LIVES
   NOCLAUDE="$T/noclaude"; mkdir -p "$NOCLAUDE"
   cp "$SHIM"/* "$NOCLAUDE"/ 2>/dev/null || true; rm -f "$NOCLAUDE/claude"
   mks sRS12 "$RB"
@@ -1144,8 +1238,8 @@ STUB
       MESH_SWEEP_LIVE_WINDOW=0 MESH_SWEEP_LOG="$RLOG" MESH_CLAUDELOG="$MESH_CLAUDELOG" \
       bash "$SBHOME/.claude/bin/claude-reboot-sweep.sh"
   mkdir -p "$RLOCKS"
-  grep -q "no-claude" "$RLOG" && ok || bad "RS12: missing claude not noted"
-  [ -f "$RSTATE/sRS12.autonomous" ] && ok || bad "RS12b: marker consumed without claude"
+  consumed sRS12 && ok || bad "RS12: the marker leg did not run without claude"
+  [ ! -f "$RSTATE/sRS12.autonomous" ] && ok || bad "RS12b: marker kept without claude"
   grep -q "claude --resume dddd4444" "$RSNOTES" && ok || bad "RS12c: notify leg died with claude"
   rm -f "$RSTATE/sRS12.autonomous" "$RSPROJ/dddd4444.jsonl"
   # RS13 (pin fix 6 stale half): a STALE sid marked in BOTH dirs → both copies consumed
@@ -1154,7 +1248,7 @@ STUB
   SWEEPS
   [ ! -f "$RSTATE/sRS13.autonomous" ] && [ ! -f "$RLOCKS/sRS13.autonomous" ] && ok || bad "RS13: stale twin survived"
   # RS14 (pin fix 4): a marker whose sid HAS a cut transcript in the projects tree —
-  # Leg A resumes it, Leg B must NOT also notify it (the two-writer guard)
+  # Leg A consumes it as a disposable worker, Leg B must NOT tell the operator to resume it by hand
   cp "$RB" "$RSPROJ/cccc3333.jsonl"; touch -d "@$(( RSBOOT - 600 ))" "$RSPROJ/cccc3333.jsonl"
   printf '{"sid":"cccc3333","cwd":"%s","transcript_path":"%s","marked_at":%s}' "$T" "$RSPROJ/cccc3333.jsonl" "$(date +%s)" > "$RSTATE/cccc3333.autonomous"
   : > "$RSNOTES"; : > "$MESH_CLAUDELOG"; rm -rf "$RLOCKS"
@@ -1164,7 +1258,7 @@ STUB
       MESH_SWEEP_LIVE_WINDOW=0 MESH_SWEEP_LOG="$RLOG" MESH_CLAUDELOG="$MESH_CLAUDELOG" \
       bash "$SBHOME/.claude/bin/claude-reboot-sweep.sh"
   mkdir -p "$RLOCKS"; sleep 1
-  grep -q -- "--resume cccc3333" "$MESH_CLAUDELOG" && ok || bad "RS14: marked cut session not resumed"
+  consumed cccc3333 && [ ! -s "$MESH_CLAUDELOG" ] && ok || bad "RS14: marked cut session not consumed, or resumed"
   grep -q "cccc3333" "$RSNOTES" && bad "RS14b: Leg B notified a sid Leg A just resumed" || ok
   # RS15 (closing-round #1): a FRESH .reviving (live reviver) must SURVIVE the sweep and
   # make its sid ineligible — deleting it or double-spawning is the second-writer failure
@@ -1172,7 +1266,7 @@ STUB
   touch "$RLOCKS/sRS15.reviving"
   SWEEPS; sleep 1
   [ -f "$RLOCKS/sRS15.reviving" ] && ok || bad "RS15: fresh .reviving deleted by the sweep"
-  grep -q -- "--resume sRS15" "$MESH_CLAUDELOG" && bad "RS15b: spawned despite a live reviver" || ok
+  consumed sRS15 && bad "RS15b: consumed despite a live reviver" || ok
   [ -f "$RSTATE/sRS15.autonomous" ] && ok || bad "RS15c: reviver-pending marker consumed"
   rm -f "$RLOCKS/sRS15.reviving" "$RSTATE/sRS15.autonomous"
   # RS15d (round-7 #2): the union's DISTINCT branch — post-boot AND stale (>2100s) → still
@@ -1184,7 +1278,7 @@ STUB
     printf x > "$RLOCKS/sRS15d.reviving"; touch -d "@$(( R15BOOT + 10 ))" "$RLOCKS/sRS15d.reviving"
     SWEEPS; sleep 1
     [ -f "$RLOCKS/sRS15d.reviving" ] && ok || bad "RS15d: post-boot stale reviving deleted (union leg 2 dead)"
-    grep -q -- "--resume sRS15d" "$MESH_CLAUDELOG" && bad "RS15d-b: spawned over a post-boot reviver" || ok
+    consumed sRS15d && bad "RS15d-b: consumed over a post-boot reviver" || ok
     rm -f "$RLOCKS/sRS15d.reviving" "$RSTATE/sRS15d.autonomous"
   fi
   # RS16 (closing-round #3): a cut session OUTSIDE /opt is logged honestly, never falsely
@@ -1218,6 +1312,53 @@ STUB
   mkdir -p "$RLOCKS"
   grep -q "claude --resume ffff6666" "$RSNOTES" && grep -q "claude --resume gggg7777" "$RSNOTES" \
     && ok || bad "RS17: multi-session notify drained (got: $(grep -c resume "$RSNOTES") of 2+)"
+  # R20 (W-6e656dac T04, spec L4, Interface G): the BUILDER LEG — on a boot, once the user bus answers,
+  # every repo `agents_bat.py --list` prints is built DETACHED (`agents_up.sh --detach <repo>`), each
+  # after its `--print` pane lines are read and their sids recorded in <lockdir>/.boot-relaunched;
+  # Leg B then sends no resume-by-hand notice for those sids (an unrelated cut session still gets one),
+  # and nothing is resumed with `claude -p`
+  mkdir -p "$T/repoA" "$T/repoB"
+  printf 'session x\npane a-1 iiii9999 /x launch\npane a-2 jjjj0000 /x running\n' > "$T/repoA/panes"
+  printf 'session y\npane b-1 kkkk1111 /y launch\n' > "$T/repoB/panes"
+  printf '%s\n%s\n' "$T/repoA" "$T/repoB" > "$T/bat-list.r20"
+  rm -f "$RSTATE"/notified-*
+  for s in iiii9999 kkkk1111 hhhh8888; do cp "$RSTALL" "$RSPROJ/$s.jsonl"; done
+  touch -d "@$(( RSBOOT - 1 ))" "$RSPROJ/iiii9999.jsonl" "$RSPROJ/kkkk1111.jsonl" "$RSPROJ/hhhh8888.jsonl"
+  R20() { env MESH_BAT_LIST="$T/bat-list.r20" RS_NOTES_FILE="$RSNOTES" MESH_NOTIFY_CMD="$T/rs-notify-stub" \
+      HOME="$SBHOME" PATH="$SHIM:/usr/bin:/bin" CLAUDE_SOUND_LOCKDIR="$RLOCKS" MESH_STATE_DIR="$RSTATE" \
+      MESH_DECIDER_CMD="$SBHOME/.claude/bin/claude-stop-decider.py" MESH_SWEEP_LIVE_WINDOW=0 \
+      MESH_SWEEP_LOG="$RLOG" MESH_CLAUDELOG="$MESH_CLAUDELOG" "$@" bash "$SBHOME/.claude/bin/claude-reboot-sweep.sh"; }
+  : > "$RSNOTES"; : > "$RLOG"; : > "$MESH_CLAUDELOG"; : > "$MESH_UPLOG"; : > "$MESH_SYSTEMCTL_LOG"; rm -rf "$RLOCKS"
+  R20
+  [ "$(grep -c '^--detach ' "$MESH_UPLOG")" = "2" ] && grep -qx -- "--detach $T/repoA" "$MESH_UPLOG" \
+    && grep -qx -- "--detach $T/repoB" "$MESH_UPLOG" && ok || bad "R20: not every registered grid built detached: $(cat "$MESH_UPLOG")"
+  r20_pa=$(grep -nx -- "--print $T/repoA" "$MESH_UPLOG" | cut -d: -f1); r20_da=$(grep -nx -- "--detach $T/repoA" "$MESH_UPLOG" | cut -d: -f1)
+  [ -n "$r20_pa" ] && [ -n "$r20_da" ] && [ "$r20_pa" -lt "$r20_da" ] && ok || bad "R20b: the pane lines were not read before the --detach: $(cat "$MESH_UPLOG")"
+  [ "$(sort "$RLOCKS/.boot-relaunched" 2>/dev/null | tr '\n' ' ')" = "iiii9999 jjjj0000 kkkk1111 " ] && ok || bad "R20c: .boot-relaunched does not hold the grids' sids: $(cat "$RLOCKS/.boot-relaunched" 2>/dev/null)"
+  grep -q "iiii9999\|kkkk1111" "$RSNOTES" && bad "R20d: Leg B told the operator to resume a relaunched builder by hand: $(cat "$RSNOTES")" || ok
+  grep -q "claude --resume hhhh8888" "$RSNOTES" && ok || bad "R20e: Leg B stopped notifying an unrelated cut session: $(cat "$RSNOTES")"
+  [ ! -s "$MESH_CLAUDELOG" ] && ok || bad "R20f: the boot sweep started claude: $(cat "$MESH_CLAUDELOG")"
+  grep -q "show-environment" "$MESH_SYSTEMCTL_LOG" && ok || bad "R20g: the builder leg never asked the user bus"
+  grep -q "uncapped-boot" "$RLOG" && bad "R20h: an answering bus was logged uncapped-boot" || ok
+  # R20i: the bus never answers within MESH_BUS_WAIT → note `uncapped-boot`, and the grids are STILL built
+  : > "$RLOG"; : > "$MESH_UPLOG"; rm -rf "$RLOCKS"; rm -f "$RSTATE"/notified-*
+  r20_t0=$SECONDS
+  R20 MESH_SYSTEMCTL_RC=1 MESH_BUS_WAIT=2 MESH_BUS_POLL=1
+  r20_el=$(( SECONDS - r20_t0 ))
+  grep -q "verdict=uncapped-boot" "$RLOG" && ok || bad "R20i: an expired bus wait was not noted uncapped-boot | log: $(tail -4 "$RLOG")"
+  [ "$(grep -c '^--detach ' "$MESH_UPLOG")" = "2" ] && ok || bad "R20j: an expired bus wait left builders down: $(cat "$MESH_UPLOG")"
+  [ "$r20_el" -ge 2 ] && ok || bad "R20k: the sweep did not wait MESH_BUS_WAIT for the bus (${r20_el}s)"
+  # R20l: the next boot's sweep TRUNCATES .boot-relaunched — a repo list now empty records no sid
+  : > "$T/bat-list.r20"; mkdir -p "$RLOCKS"
+  R20 MESH_SWEEP_FRESH_WINDOW=999999999
+  [ -f "$RLOCKS/.boot-relaunched" ] && [ ! -s "$RLOCKS/.boot-relaunched" ] && ok || bad "R20l: the next boot did not truncate .boot-relaunched: $(cat "$RLOCKS/.boot-relaunched" 2>/dev/null)"
+  grep -q "verdict=builders-none" "$RLOG" && ok || bad "R20m: an empty registry was not noted"
+  # R20n: no agents_bat.py → noted, never a crash, and Leg B still runs
+  : > "$RLOG"; rm -rf "$RLOCKS"
+  R20 MESH_AGENTS_BAT="$T/no-such-agents-bat.py"
+  grep -q "verdict=no-agents-bat" "$RLOG" && grep -q "sweep-done" "$RLOG" && ok || bad "R20n: a missing agents_bat.py was not noted, or ended the sweep | log: $(tail -3 "$RLOG")"
+  mkdir -p "$RLOCKS"
+  rm -f "$RSPROJ/iiii9999.jsonl" "$RSPROJ/kkkk1111.jsonl" "$RSPROJ/hhhh8888.jsonl"
 fi
 
 echo "mesh-test: $PASS ok, $FAIL fail"
