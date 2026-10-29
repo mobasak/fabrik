@@ -420,6 +420,7 @@ ALLOWLIST: dict[str, str] = {
     "scripts/rivals_run.py": "no-write: `HUB_LIBS = Path('/opt/fabrik/libs')` is a READ-side import path for the vendored subagents beat; its own report output is written relative to the target repo",
     "scripts/scratch_sweep.py": "no-write: sweeps/removes only untracked scratch paths (CLAUDE.md § EXIT) — the literal is a comparison base for classifying paths, not a write root",
     "scripts/sysadmin/agents_bat.py": "no-write: `/opt/fabrik/scripts/sysadmin/agents_up.sh` is text baked into the .bat it generates, run inside WSL (D-1048); it writes only under the operator-named --desktop",
+    "scripts/sysadmin/mcp_health.py": "no-write: `HUB_EMITTER` and `INSTALL_DOCS` are hub-absolute paths PRINTED in a withheld-server remedy line (the probe runs from every repo); its Popen spawns the configured MCP server and its one file write is the caller's `--cache-out` (mcp_watch's cache under ~/.claude)",
     "scripts/sysadmin/liveness_audit.py": "no-write: the matched text is a quoted STRING describing a symptom found in ANOTHER script (this audit tool's own finding text), not its own literal",
     "scripts/sysadmin/test_claude_rotate.py": "no-write: test fixture for scripts/sysadmin/claude_rotate.py's cwd/HUB_REPO handling",
     "scripts/tests/test_gather_envs.py": "no-write: test fixture — /opt/fabrik appears only as example credential-path test data",
