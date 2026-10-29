@@ -150,13 +150,27 @@ def test_hub_d3_checks_sit_between_a_and_b_as_stop_conditions() -> None:
     i_b = next(i for i, t in enumerate(titles) if t.startswith("(b)"))
     assert i_a < i_chk < i_b
     chk = _child(hub, "D3 read-only checks")
-    assert "git diff --stat master HEAD -- configs/prometheus configs/gatus" in chk.all_fences()
+    # origin/master, the ref the preflight's fetch refreshes — a stale local master hides master's
+    # newer watcher changes from the check while the push still reverts them.
+    assert "git diff --stat origin/master HEAD -- configs/prometheus configs/gatus" in chk.all_fences()
     assert "master...HEAD" not in chk.all_fences(), "the check must be two-dot"
     for script in ("sync_prometheus_to_vps.sh --diff", "sync_gatus_to_vps.sh --diff"):
         assert f"FABRIK_ROOT={WORKTREE} bash scripts/{script}" in chk.all_fences()
     prose = chk.all_prose()
-    assert "STOP" in prose and "DRIFT or ORPHAN" in prose
-    assert "Pass" in prose
+    assert "STOP on any other DRIFT line" in prose
+    # the pass condition names the exact file set the two-dot diff must list, and nothing else
+    passes = prose.split("- Pass:")[1:]
+    assert passes and all(
+        f in passes[0]
+        for f in (
+            "configs/prometheus/prometheus.yml",
+            "configs/gatus/apps/observability-agents.yaml",
+            "configs/gatus/README.md",
+            "nothing else",
+        )
+    ), passes[:1]
+    # an ORPHAN (live-only file) is never pushed, so it must not stop the window (W-86850d3d review)
+    assert "ORPHAN" in prose and "never touches it" in prose
 
 
 def test_hub_pushes_follow_c_with_the_branch_worktree_root() -> None:

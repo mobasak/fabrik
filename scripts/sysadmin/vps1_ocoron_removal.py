@@ -55,7 +55,8 @@ SITE_ERE = (
     r"|ocoron-com([^A-Za-z0-9.]|$)"
 )
 KNOWN_BENIGN = (
-    "the Gatus status-page title, the promtail drop filter for the backup container and an Authelia session cookie "
+    "the Gatus status-page title, the log shipper's drop filter for the backup container (Promtail, Alloy after the "
+    "switch window) and an Authelia session cookie "
     "domain match by design"
 )
 # a Traefik rule naming the site anywhere in a Host(...) argument list; hosts match case-insensitively

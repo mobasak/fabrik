@@ -12,7 +12,7 @@ container with no network.
 Per core/45-testing-strategy.md, this is Chore/Infrastructure-shaped (the configs ARE the
 converter's output, nothing to unit-test) but carries a drift guard per the ticket's own Behavior
 Contract, and skips with a stated reason rather than passing silently when docker or the pinned
-image is unavailable (core/45-testing-strategy.md § skip discipline; the ticket's fourth row).
+image is unavailable (the ticket's fourth row).
 """
 
 from __future__ import annotations

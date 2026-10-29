@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T16:22:14.960677Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-ede94e4e",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "re-count job_name in configs/prometheus/prometheus.yml, correct every count and live/not-live sentence in docs/infrastructure, and replace the presence grep with a test that runs the branch",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "docs"
+  ],
+  "title": "Master-side stale monitoring prose (found by the W-86850d3d review): docs say '17 job_names / 16 active' while configs/prometheus/prometheus.yml has 19; audit-prompts/05-observability-pipeline.md:17,166,208 and grafana-dashboards-setup.md:61 say node-spokes/cadvisor-spokes are not in prometheus.yml (live since 2026-07-12); vps-complete-inventory.md lists live jobs under 'Historical / NOT live'; vps-fleet-architecture.md:83 credits DOCKER-USER for host-network listeners (node-exporter, cadvisor), which it does not gate; tests/test_vps_apply_limits.py:293-307 greps proactive-check.sh text instead of driving the dead-daemon branch"
+}

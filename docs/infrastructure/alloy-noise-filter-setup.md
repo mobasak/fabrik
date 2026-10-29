@@ -11,7 +11,7 @@ operators read those locally via `sudo tail /var/log/aro-wake.log`.
 **Status:** ✅ Live on vps1. Alloy's `stage.drop` carries the same single-entry regex the Promtail config carried
 (`configs/alloy/config.alloy`) — no behavior change intended by the shipper swap (spec D1: the committed config
 is the converter's own output, no hand edits). Spoke-side Alloy containers run at `/opt/monitoring-agent/` on
-vps2/vps3 and push logs to `loki:3100` via mesh. The Prometheus job `alloy` (hub + both spokes, `prometheus.yml`
+vps2/vps3 and push logs to the hub's Loki (`10.99.0.1:3100`) via mesh. The Prometheus job `alloy` (hub + both spokes, `prometheus.yml`
 job `alloy`, 3 targets) scrapes the shipper's own `/metrics` on all three hosts — unlike Promtail's old
 `promtail-spokes` job, Alloy's hub instance is scraped too, not just the spokes (spec D3).
 **Container:** `alloy` (stable name; was `promtail` — `promtail` stays **defined** under the `rollback` profile,

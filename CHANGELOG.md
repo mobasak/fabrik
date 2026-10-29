@@ -53,6 +53,7 @@ vps1 only in the operator's window (plan 2026-10-08-plan-1, T04a).
 `configs/alloy/config.alloy` (hub) and `scripts/bootstrap/templates/alloy.alloy.template` (spoke) are committed as the exact
 output of `alloy convert --source-format=promtail` (grafana/alloy:v1.20.1), and `tests/test_alloy_configs.py` re-runs the
 converter and `alloy run` in containers so any drift fails (plan 2026-10-08-plan-1, T01).
+
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
   `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`

@@ -189,7 +189,8 @@ def test_observability_audit_container_health_list_names_alloy_not_promtail() ->
 
 
 def test_observability_audit_uses_fabrik_network_not_coolify() -> None:
-    # O2: `coolify` was renamed to `fabrik` 2026-05-31 (infra/vps1/monitoring/compose.yaml:244-246;
+    # O2: `coolify` was renamed to `fabrik` 2026-05-31 (the external `fabrik` network under the
+    # top-level `networks:` of infra/vps1/monitoring/compose.yaml;
     # scripts/sysadmin/test_claude_run.py:223 bans the stale name for the same reason) — a
     # `--network coolify` docker run fails silently (2>/dev/null) and every fabrik_curl call
     # in this script would print nothing, reading as a clean audit.

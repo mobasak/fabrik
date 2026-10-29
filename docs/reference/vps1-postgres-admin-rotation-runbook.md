@@ -86,7 +86,8 @@ with `umask 077`, so the files are mode 0600. Keep them until step 6.
 
 A password never goes on a command line, into the SQL text, or into the server log:
 - A failing statement is logged verbatim (`log_min_error_statement`).
-- promtail mounts the Docker container logs (`infra/vps1/monitoring/compose.yaml:35`) and ships them to Loki.
+- The log shipper (Alloy; Promtail before the 2026-10 switch window) mounts the Docker container logs (the
+  `/var/lib/docker/containers` volume of its service in `infra/vps1/monitoring/compose.yaml`) and ships them to Loki.
 
 So roles are created without a password, and each password is set at psql's no-echo prompt, which sends only a
 SCRAM hash. Feed the SQL file on stdin from a `chmod 600` copy on vps1, then delete the copy:

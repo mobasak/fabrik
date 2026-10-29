@@ -23,8 +23,8 @@ RUNNING container is not an orphan, so a rerun on an un-switched spoke would sta
 beside a live promtail (spec D2 forbids the parallel run) — step 11 now runs
 `docker compose rm -sf promtail` before `up -d`, asserted here to precede it in the script
 text. O3 — the verify step only printed `docker ps` and always logged success; it now fails
-closed (`grep -q '^alloy Up' || { err …; return 1; }`) unless a container named `alloy` is
-`Up`, asserted at the text level. O1 — the row-3 test below now asserts the exact scp
+closed unless `alloy` reads running with an unchanged restart count across two `docker inspect`
+reads 15 s apart (the double-sample tests below drive it). O1 — the row-3 test below now asserts the exact scp
 argument, the exact remote `mv` destination and the exact volume mount, not just substring
 presence. O8 — the sed-set comment below cites the function, not line numbers, which drift.
 O4 — the restore inventory's monitoring-agent row and UFW-mesh-rule row still named promtail
@@ -403,9 +403,7 @@ def test_bash_dash_n_parses_clean(script: Path) -> None:
 
 def test_spoke_restore_comment_names_alloy_depends_on_loki() -> None:
     text = BOOTSTRAP_RESTORE.read_text(encoding="utf-8")
-    assert "alloy depends on vps1's Loki" in text or (
-        "alloy depends on" in text and "Loki" in text
-    )
+    assert "alloy depends on vps1's Loki" in text
     assert "promtail depends on vps1's Loki" not in text
 
 

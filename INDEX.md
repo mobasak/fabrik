@@ -1387,6 +1387,7 @@ docs/
 │       ├── docs-truth-workflows-reference-traycer-review.md
 │       └── mega-00-command-review.md
 ├── infrastructure                  # Infrastructure docs
+│   ├── alloy-noise-filter-setup.md
 │   ├── archive                     # Archived and completed documentation
 │   ├── audit-prompts
 │   │   ├── 01-full-system-audit.md
@@ -1427,7 +1428,6 @@ docs/
 │   │   ├── infra-probe-2026-06-07T20-20Z.yaml
 │   │   └── infra-probe-2026-08-03T18-37Z.yaml
 │   ├── prometheus-app-metrics-setup.md
-│   ├── alloy-noise-filter-setup.md
 │   ├── vps-ai-sysadmin.md
 │   ├── vps-bootstrap-plan.md
 │   ├── vps-complete-inventory.md

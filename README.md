@@ -340,7 +340,7 @@ class ProvisionState(str, Enum):
 | **Gatus** | https://status.vps1.ocoron.com | Status monitoring |
 | **Grafana** | https://monitor.vps1.ocoron.com | Dashboards (Prometheus + Loki) |
 | **Prometheus + Alertmanager** | (internal :9090 / :9093) | Metrics, 13 alert rules (`configs/prometheus/rules/`) → Telegram, and ARO wake for routed alerts |
-| **Loki + Promtail** | (internal :3100) | Log aggregation from all containers |
+| **Loki + Alloy** | (internal :3100) | Log aggregation from all containers (Alloy ships; Promtail stays defined under the `rollback` profile until Gate S) |
 | **Backrest** | https://backup.vps1.ocoron.com | Restic-based backups to Backblaze B2 (replaced Duplicati 2026-04-17) |
 | **File API** | (retired) | File uploads (R2 storage) — retired; only live Fabrik microservice is Site Provisioner |
 

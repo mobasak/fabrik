@@ -84,6 +84,17 @@ for n in 1 2 3 4 5; do ssh "$S" "sudo docker exec alloy-canary sh -c 'echo alloy
 
 ### (a) Keep the old file, place the new files
 
+First prove the live compose file is master's mirror, because this step replaces it and live copies are
+hand-edited (D-1324): a line only the live file holds would be lost, and the rollback's `.pre-alloy` copy would
+hold it without anyone having seen it. Read-only.
+
+```bash
+ssh "$S" 'sudo cat /opt/monitoring-agent/compose.yaml' | diff - <(git show "origin/master:infra/$H/monitoring-agent/compose.yaml") && echo MIRROR
+```
+
+Pass condition: `MIRROR`. **STOP on any diff line:** carry it into `infra/$H/monitoring-agent/compose.yaml` and the
+spoke template on master, merge master into `fleet-alloy`, and re-run this check.
+
 ```bash
 R=$(mktemp -d)
 for t in monitoring-agent.compose.yaml promtail.yaml alloy.alloy; do
@@ -92,13 +103,14 @@ for t in monitoring-agent.compose.yaml promtail.yaml alloy.alloy; do
 done
 mv "$R/monitoring-agent.compose.yaml" "$R/compose.yaml"
 scp -q "$R/compose.yaml" "$R/promtail.yaml" "$R/alloy.alloy" "$S:/tmp/"
-ssh "$S" 'cd /opt/monitoring-agent && sudo cp compose.yaml compose.yaml.pre-alloy && \
+ssh "$S" 'cd /opt/monitoring-agent && { sudo test -e compose.yaml.pre-alloy || sudo cp compose.yaml compose.yaml.pre-alloy; } && \
   sudo mv /tmp/compose.yaml compose.yaml && sudo mv /tmp/promtail.yaml promtail.yaml && sudo mv /tmp/alloy.alloy alloy.alloy && \
   sudo chown root:root compose.yaml promtail.yaml alloy.alloy && sudo chmod 644 compose.yaml promtail.yaml alloy.alloy && \
   sudo docker compose config -q && echo PLACED'
 ```
 
-Pass condition: `PLACED`. Nothing is started or stopped in this step.
+Pass condition: `PLACED`. Nothing is started or stopped in this step. The backup is taken only when none exists: a
+re-run of this step after the new file was placed never overwrites the only copy of the old one.
 
 ### (b) Stop Promtail
 
@@ -205,10 +217,19 @@ for n in 1 2 3 4 5; do ssh "$S" "sudo docker exec alloy-canary sh -c 'echo alloy
 
 ### (a) Keep the old file, place the new files
 
+First the same read-only mirror check as § 1 (a), against the hub mirror:
+
+```bash
+ssh vps 'sudo cat /opt/monitoring/compose.yaml' | diff - <(git show origin/master:infra/vps1/monitoring/compose.yaml) && echo MIRROR
+```
+
+Pass condition: `MIRROR`. **STOP on any diff line:** carry it into `infra/vps1/monitoring/compose.yaml` on master,
+merge master into `fleet-alloy`, and re-run this check.
+
 ```bash
 scp -q infra/vps1/monitoring/compose.yaml vps:/tmp/compose.yaml
 scp -q configs/alloy/config.alloy vps:/tmp/config.alloy
-ssh vps 'cd /opt/monitoring && sudo cp compose.yaml compose.yaml.pre-alloy && sudo mkdir -p configs/alloy && \
+ssh vps 'cd /opt/monitoring && { sudo test -e compose.yaml.pre-alloy || sudo cp compose.yaml compose.yaml.pre-alloy; } && sudo mkdir -p configs/alloy && \
   sudo mv /tmp/config.alloy configs/alloy/config.alloy && sudo mv /tmp/compose.yaml compose.yaml && \
   sudo chown root:root compose.yaml configs/alloy/config.alloy && sudo chmod 644 compose.yaml configs/alloy/config.alloy && \
   sudo docker compose config -q && echo PLACED'
@@ -222,19 +243,22 @@ Both are PASS CONDITIONS. They prove that the two `--push` runs right after step
 files (spec § The delta › D3; W-332b562c note 2).
 
 ```bash
-git diff --stat master HEAD -- configs/prometheus configs/gatus
+git diff --stat origin/master HEAD -- configs/prometheus configs/gatus
 FABRIK_ROOT=/opt/fabrik/.claude/worktrees/fleet-alloy bash scripts/sync_prometheus_to_vps.sh --diff
 FABRIK_ROOT=/opt/fabrik/.claude/worktrees/fleet-alloy bash scripts/sync_gatus_to_vps.sh --diff
 ```
 
-- Pass: the two-dot `git diff master HEAD` lists `configs/prometheus/prometheus.yml`,
-  `configs/gatus/apps/observability-agents.yaml` and `configs/gatus/README.md` and nothing else. It is two-dot on
-  purpose: the three-dot form diffs from the merge-base and hides what master changed since the branch point,
-  which is exactly what a push from the branch would revert.
-- Pass: the Prometheus `--diff` lists only `prometheus.yml`, and the Gatus `--diff` lists only
-  `apps/observability-agents.yaml` (the scripts compare per-file md5s against vps1, so they confirm the file set).
-- **STOP on any other DRIFT or ORPHAN line.** Do not push. Merge master into `fleet-alloy`, re-run both checks,
-  and continue only when they pass. vps1 is still on Promtail at this point, so stopping costs nothing.
+- Pass: the two-dot `git diff origin/master HEAD` lists `configs/prometheus/prometheus.yml`,
+  `configs/gatus/apps/observability-agents.yaml` and `configs/gatus/README.md` and nothing else. It diffs against
+  `origin/master`, the ref the preflight's fetch refreshed (a local `master` nobody fast-forwarded hides master's
+  newer watcher changes). It is two-dot on purpose: the three-dot form diffs from the merge-base and hides what
+  master changed since the branch point, which is exactly what a push from the branch would revert.
+- Pass: the Prometheus `--diff` lists only `prometheus.yml` as DRIFT, and the Gatus `--diff` lists only
+  `apps/observability-agents.yaml` as DRIFT (the scripts compare per-file md5s against vps1, so they confirm the
+  file set). An ORPHAN line is a file on vps1 that git lacks (one a Gatus driver call wrote live): a push copies
+  only git's files and never touches it, so note it for a later mirror into `configs/` and go on.
+- **STOP on any other DRIFT line.** Do not push. Merge master into `fleet-alloy`, re-run both checks, and
+  continue only when they pass. vps1 is still on Promtail at this point, so stopping costs nothing.
 
 ### (b) Stop Promtail
 
@@ -320,7 +344,8 @@ later window passes.
 hub, `monitoring-agent_alloy-data` on a spoke), which holds this attempt's positions. Alloy converts Promtail's
 legacy positions only when it has no positions file of its own, so with the volume kept the next step (c)
 resumes where this attempt stopped, re-ships the rollback span, and V6 reads every pre-marker twice. The volume
-is classified recomputable (`scripts/bootstrap/bootstrap-config.sh:220`). Removing it before the next window —
+is classified recomputable (the hub's in `scripts/bootstrap/bootstrap-config.sh`, the spoke's in
+`docs/operations/spoke-restore-inventory.md`). Removing it before the next window —
 `sudo docker volume rm <name>` after `sudo docker volume inspect <name>` shows it is the one Alloy mounted, on
 the operator's word — lets the import run again. Volumes are data: never remove it as a reflex.
 
@@ -370,7 +395,7 @@ sent; `scripts/mail.py`'s D-035 check reads every section.
 <!-- infra-mail:begin -->
 WHAT: The fleet's log shipper is now Grafana Alloy v1.20.1 on vps1, vps2 and vps3 (Promtail reached end of life on 2026-03-02). Infra-owned text still names Promtail as the running shipper and needs the edits below.
 
-WHERE: .windsurf/rules/core/55-observability.md:53, :476, :604 and :616; .windsurf/rules/core/12-node.md:69, :71, :89 and :291; .windsurf/rules/core/10-python.md:294; .windsurf/rules/core/60-watchdog.md:101; .windsurf/rules/CLAIMS.yaml (the claim that names Promtail, near :740); agents-fabrik.md:30, :143, :209 and :223; docs/reference/prebuilt-app-containers.md:85 (governance-synced); and six command sources: commands/_sources/fabrik-deploy-verify.md, fabrik-plan-after-chat.md, fabrik-review.md, fabrik-spec.md, fabrik-spec-review.md and fabrik-vision.md.
+WHERE: every line `grep -n -i promtail` finds in .windsurf/rules/core/55-observability.md, .windsurf/rules/core/12-node.md, .windsurf/rules/core/10-python.md, .windsurf/rules/core/60-watchdog.md, .windsurf/rules/CLAIMS.yaml, agents-fabrik.md and docs/reference/prebuilt-app-containers.md (governance-synced) — line numbers are left out because these files move between this runbook's commit and the window; and six command sources: commands/_sources/fabrik-deploy-verify.md, fabrik-plan-after-chat.md, fabrik-review.md, fabrik-spec.md, fabrik-spec-review.md and fabrik-vision.md.
 
 WHEN: The switch window passed its battery on all three hosts; Promtail stays defined under the compose profile `rollback`, stopped, until Gate S (V8 and V9 green for 14 days).
 

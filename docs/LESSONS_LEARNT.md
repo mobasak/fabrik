@@ -13,6 +13,7 @@ took four fixes to make bootstrap step 11 fail a crash-looping Alloy.
   (W-0913992c) rather than promise a later check that does not exist.
 - **Each fix was reproduced on a throwaway container before it was written.** Reasoning about Docker's state machine got
   it wrong twice.
+
 ## On this fleet a `compose down` is not a removal (2026-10-29, W-80a1f9fd)
 
 **What happened:** D-121 took the ocoron-com stack down with `docker compose down`, and the stack was found running again weeks later. `fabrik-compose-boot.sh` runs `up -d` on every `/opt/*/compose.yaml` at each boot, and D-121 had left the file in place. A second reviver was waiting too: the vps1 sysadmin bot's prompt still ranked the stack P0 and gave it "full autonomous management".
