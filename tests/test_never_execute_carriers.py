@@ -30,34 +30,57 @@ def _section(text: str, start: str, end: str) -> str:
     return text[head : text.index(end, head)]
 
 
+POINTER = "`/opt/fabrik/commands/_fragments/term-coverage.md` rule (1)'s never-live clause"
+INLINE = "a script that deletes, deploys, provisions, writes outside scratch or contacts a non-local host is never run live"
+
+
 def test_orchestrator_execute_rules_carry_the_carve_out() -> None:
-    for rel in ("_fragments/term-coverage.md", "_fragments/term-edit.md"):
+    residue = {
+        "_fragments/term-coverage.md": "BLOCKED-escalated as missing infra",
+        "_fragments/term-edit.md": "DELETED or reworded to what the pinned lines say",
+    }
+    for rel, fail_closed in residue.items():
         text = _read(rel)
         assert ORCHESTRATOR in text, rel
-        rule = text[text.index(ORCHESTRATOR) :]
-        assert CLAUSE in rule[:1200], rel
-        assert "hard-codes" in rule[:1200], rel
+        rule = text[text.index(ORCHESTRATOR) :][:1600]
+        assert CLAUSE in rule and "hard-codes" in rule, rel
+        assert "replaced by a fake that RAISES" in rule, rel
+        assert fail_closed in rule, rel
 
 
-def test_fabrik_review_phase_2_points_at_the_carve_out() -> None:
+def test_lead_execute_rules_point_at_the_carve_out() -> None:
     phase2 = _section(_read("_sources/fabrik-review.md"), "## Phase 2", "## Phase 3")
-    assert "term-coverage.md` rule (1)" in phase2
-    assert "destructive" in phase2
+    assert POINTER in phase2
+    # the two inline forms cite no path: a cited fragment counts as a read against every includer's word ceiling
+    scoped = _read("_sources/fabrik-review-scoped.md")
+    assert "yourself before you fix. In such a check " + INLINE in scoped
+    assert "a candidate no such run settles is BLOCKED-escalated" in scoped
+    delegated = _read("_fragments/delegated-reads.md")
+    assert "EXECUTES every claim it writes" in delegated
+    assert "In executing a claim, " + INLINE in delegated
+    assert "a claim no such run settles is deleted or reworded" in delegated
 
 
 def test_bash_agents_carry_the_never_execute_clause() -> None:
-    for rel in ("_agents/design-review.md", "_agents/fabrik-gui.md"):
+    fit = {
+        "_agents/design-review.md": "your scratch dir is the folder your brief names",
+        "_agents/fabrik-gui.md": "the local preview server you drive is not a non-local host",
+    }
+    for rel, own in fit.items():
         text = _read(rel)
         assert "read a script before you execute it, its `--help` included" in text, rel
         assert "never execute one that " + CLAUSE in text, rel
         assert "executing includes importing it and calling a function, `runpy`, a test that runs it" in text, rel
+        assert own in text, rel
 
 
-def test_subagents_core_roots_final_gate_in_the_copy() -> None:
+def test_subagents_core_keeps_final_gate_off_read_only_seats() -> None:
     text = _read("_fragments/subagents-core.md")
-    rule = text[text.index("a tool that roots itself at the working directory") :][:900]
-    assert "`scripts/final_gate.py`" in rule
+    assert "`-m pytest`, `scripts/final_gate.py --check` (bare," not in text
+    rule = text[text.index("`scripts/final_gate.py --check` (never bare") :][:900]
+    assert "is a WRITER seat's line" in rule and "a read-only seat never runs it" in rule
     assert "`.mypy_cache`" in rule and "`.ruff_cache`" in rule
+    assert "`ruff check --no-cache`" in text and "`-m mypy --cache-dir=<its scratch dir>/mypy`" in text
 
 
 def test_command_improve_scratch_repo_rule_names_hard_coded_paths() -> None:
@@ -81,6 +104,8 @@ def test_the_render_carries_every_clause(tmp_path: Path) -> None:
     _renderer().render(out, None, agents_dest=out / "_agents")
     for name in ("fabrik-review", "fabrik-repo-review", "fabrik-plan-review", "fabrik-spec-review"):
         assert ORCHESTRATOR in (out / f"{name}.md").read_text(encoding="utf-8"), name
+    for name in ("fabrik-review-scoped", "fabrik-spec", "fabrik-plan-after-chat"):
+        assert INLINE in (out / f"{name}.md").read_text(encoding="utf-8"), name
     for agent in ("design-review", "fabrik-gui", "fabrik-reviewer"):
         assert "never execute one that " + CLAUSE in (out / "_agents" / f"{agent}.md").read_text(encoding="utf-8"), agent
     assert "hard-codes" in (out / "fabrik-command-improve.md").read_text(encoding="utf-8")
