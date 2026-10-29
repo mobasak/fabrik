@@ -522,6 +522,13 @@ def test_apply_runtime_never_touches_a_differs_container(
         "sudo -n docker inspect x",
         "sudo -n sh -c 'docker restart x' sh",
         "sudo -n cat /opt/a/compose.yaml; docker restart x",
+        "sudo -n cat /opt/x/compose.yaml;reboot",
+        "sudo -n cat /opt/x/compose.yaml|sh",
+        "sudo -n sha256sum $(docker${IFS}rm${IFS}-f${IFS}web)",
+        "sudo -n cat `docker${IFS}kill${IFS}web`",
+        "sudo -n docker inspect --type container x ; docker compose -f /opt/x/compose.yaml up -d",
+        "sudo -n docker inspect --type container x && docker restart y",
+        "sudo -n docker update --cpus 0.5 x;docker${IFS}stop${IFS}y",
     ],
 )
 def test_the_transport_refuses_every_command_outside_its_allowlist(
@@ -673,3 +680,87 @@ def test_apply_file_write_script_refuses_a_taken_backup_name(tmp_path: Path) -> 
     (stack / "compose.yaml.cpu-bak-t").write_text("older\n")
     assert _write(f, b"a: 2\n").returncode == 5
     assert f.read_text() == "a: 1\n"
+
+
+# pass-2 review regressions (the round-1 fixes' own defects)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "services:\n  web:\n    container_name: web-c\n    deploy: &d\n      resources:\n        limits:\n"
+        "          memory: 64M\n  other:\n    image: x\n    deploy: *d\n",
+        "services:\n  web:\n    container_name: web-c\n    deploy:\n      resources: &r\n        limits:\n"
+        "          memory: 64M\n  other:\n    image: x\n    deploy:\n      resources: *r\n",
+        "services:\n  web: &w\n    container_name: web-c\n    deploy:\n      resources:\n        limits:\n"
+        "          memory: 64M\nx-copy: *w\n",
+    ],
+)
+def test_insert_refuses_an_alias_of_any_node_above_limits(text: str) -> None:
+    """Given the service, its deploy or its resources anchored inside the edited service and aliased elsewhere,
+    when inserted, then the file is refused — the line would also land wherever the alias is used."""
+    with pytest.raises(m.RefusedError, match="anchor or alias"):
+        m.insert_cpus(text.encode(), WANT)
+
+
+def test_every_shape_the_script_sends_is_canonical(tmp_path: Path) -> None:
+    """Given the script's own command shapes, a path with a space included, then each is allowed."""
+    for cmd in (
+        "sudo -n docker inspect --type container a-c b-c",
+        "sudo -n docker update --cpus 0.5 web-c",
+        f"sudo -n docker compose -f {m.shlex.quote('/opt/a b/compose.yaml')} config --format json",
+        "sudo -n cat /opt/a/compose.yaml",
+        f"sudo -n sh -c {m.shlex.quote(m.WRITE_SH)} sh /opt/a/compose.yaml {'0' * 64} {'1' * 64} t",
+        f"sudo -n sh -c {m.shlex.quote(m.RESTORE_SH)} sh /opt/a/compose.yaml /opt/a/compose.yaml.b {'0' * 64}",
+    ):
+        assert m.allowed(cmd), cmd
+    extra = f"sudo -n sh -c {m.shlex.quote(m.WRITE_SH)} sh /opt/a/compose.yaml {'0' * 64} {'1' * 64} t x"
+    assert not m.allowed(extra)
+
+
+def test_a_cpus_text_longer_than_nine_decimals_is_refused() -> None:
+    """Given a text whose Decimal product a 28-digit context would round to whole nanoCPUs, then it is refused."""
+    assert m.cpus_value("1.0000000000000000000000000001") is None
+    assert m.cpus_value("0.123456789") == Decimal("0.123456789")
+
+
+def test_a_write_refused_by_its_own_script_does_not_stop_the_run(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Given a live file changed between the read and the write (WRITE_SH exit 3), then that file is REFUSED as
+    unchanged and the run goes on to the next file and the result table."""
+    real = vps.__call__
+
+    def edit_first(cmd: str, stdin: bytes | None = None, timeout: int = 120):
+        if "sh -c" in cmd and "/opt/db/" in cmd and stdin is not None:
+            vps.local("/opt/db/compose.yaml").write_text(
+                vps.local("/opt/db/compose.yaml").read_text() + "# hand edit\n"
+            )
+        return real(cmd, stdin, timeout)
+
+    monkeypatch.setattr(m, "run", edit_first)
+    _answer(monkeypatch, "yes", "yes")
+    assert m.main(["--apply"]) == 1
+    out = capsys.readouterr().out
+    assert "changed since it was read" in out and "the file is unchanged" in out
+    assert "web-c                    updated   written" in out.split("Result:")[1]
+
+
+def test_a_dropped_write_that_reads_unchanged_is_not_called_unchanged(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Given ssh dropping on the write before the remote write ran, then the file is reported not confirmed —
+    the write may still land — never as unchanged."""
+    real = vps.__call__
+
+    def drop_before(cmd: str, stdin: bytes | None = None, timeout: int = 120):
+        if "sh -c" in cmd and stdin is not None:
+            vps.commands.append(cmd)
+            raise m.TransportError("timed out after 120s: write")
+        return real(cmd, stdin, timeout)
+
+    monkeypatch.setattr(m, "run", drop_before)
+    _answer(monkeypatch, "yes", "yes")
+    assert m.main(["--apply"]) == 1
+    out = capsys.readouterr().out
+    assert "not confirmed" in out and "the file is unchanged" not in out

@@ -119,6 +119,10 @@ def allowed(cmd: str) -> bool:
         argv = shlex.split(cmd)
     except ValueError:
         return False
+    # the remote shell runs the raw string, so it must be exactly the quoted form of its tokens: a `;`, `&&`, `|`,
+    # `$(` or backtick glued onto a token is a second command the token check would not see
+    if shlex.join(argv) != cmd:
+        return False
     if argv[:2] != ["sudo", "-n"]:
         return False
     a = argv[2:]
@@ -134,10 +138,10 @@ def allowed(cmd: str) -> bool:
         )
         or (len(a) == 2 and a[0] in ("cat", "sha256sum"))
         or (
-            len(a) >= 4
-            and a[:2] == ["sh", "-c"]
-            and a[2] in (WRITE_SH, RESTORE_SH)
-            and a[3] == "sh"
+            a[:2] == ["sh", "-c"]
+            and a[3:4] == ["sh"]
+            # WRITE_SH takes F old new stamp, RESTORE_SH takes F backup old
+            and ((a[2] == WRITE_SH and len(a) == 8) or (a[2] == RESTORE_SH and len(a) == 7))
         )
     )
 
@@ -174,7 +178,8 @@ def cpus_value(text: object) -> Decimal | None:
         return None
     value = Decimal(text)
     # docker counts whole nanoCPUs, so a finer text could never read back equal (NanoCpus == cpus * 10**9)
-    return value if 0 < value <= MAX_CPUS and (value * 10**9) % 1 == 0 else None
+    fraction = text.partition(".")[2]
+    return value if 0 < value <= MAX_CPUS and len(fraction) <= 9 else None
 
 
 def _child(node: yaml.Node | None, key: str) -> yaml.Node | None:
@@ -386,7 +391,15 @@ def insert_cpus(
             raise RefusedError(f"service {name} has no deploy.resources.limits mapping")
         if limits.flow_style:
             raise RefusedError(f"service {name}'s limits is a flow mapping")
-        if refs[id(limits)] > 1 or not (
+        # an alias of the limits OR of any node above it (the service, its deploy, its resources) would carry the
+        # inserted line into every place that alias is used
+        chain = (
+            service,
+            _child(service, "deploy"),
+            _child(_child(service, "deploy"), "resources"),
+            limits,
+        )
+        if any(refs[id(n)] > 1 for n in chain) or not (
             service.start_mark.line <= limits.start_mark.line
             and limits.end_mark.line <= service.end_mark.line
         ):
@@ -512,13 +525,23 @@ def apply_file(path: str, data: bytes, new: bytes, edited: dict[str, str]) -> st
             f"sudo -n sh -c {shlex.quote(WRITE_SH)} sh {shlex.quote(path)} {old_sha} {new_sha} {STAMP}",
             stdin=new,
         )
+        # WRITE_SH's own refusals (3, 4, 5): each exits before the mv, so F is untouched
+        if r.returncode in (3, 4, 5):
+            raise RefusedError(f"not written ({_err(r)}); the file is unchanged")
         why = None if r.returncode == 0 else _err(r)
+        dropped = False
     except TransportError as exc:
-        why = str(exc)
+        why, dropped = str(exc), True
     if why is not None:
         now = _remote_sha(path)
-        if now == old_sha:
+        if now == old_sha and not dropped:
             raise RefusedError(f"not written ({why}); the file is unchanged")
+        if now == old_sha:
+            # ssh dropped mid-write: the remote write may still finish after this read
+            raise RefusedError(
+                f"not confirmed ({why}): the file read unchanged, but the write may still land — re-run the dry "
+                f"run to see its state ({backup} holds the original if it was taken)"
+            )
         if now != new_sha:
             die(
                 f"{path}: the write failed ({why}) and the file's state is unconfirmed (sha256 {now}); "
