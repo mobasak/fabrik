@@ -426,6 +426,7 @@ def test_every_green_not_run_row_the_gate_emits_is_summarized():
         - {"auto-fix scope (advisory)"}
     ) | {
         fg.EPIC_ORDER_NA,  # T05b: the hub-conditional epic_order row's labelled skip
+        fg.LEAN_NOT_RUN_ROW,  # W-d488bbbf: what --lean never runs, named on every lean run
         "bandit (NOT INSTALLED — skipped)",
         "sqlfluff (NOT INSTALLED — skipped)",
         "vulture (NOT INSTALLED — skipped)",
@@ -1154,3 +1155,36 @@ def test_every_inline_missing_checker_row_uses_the_one_shape() -> None:
         "an inline `(check not present, skipping)` row"
     )
     assert src.count("_not_present_row(") >= 5, "the helper's definition plus its four call sites"
+
+
+# ── W-d488bbbf (feedback row 1791309119, kaizen mail 01M4PHYRB6): a lean green must say what it
+# did not run, so no merge request is sent on it ──────────────────────────────────────────────
+
+
+def _static_rows(monkeypatch, tier: int) -> list[tuple[str, bool, str]]:
+    """The rows `run_static_checks` builds for a one-.py change, with every tool stubbed green."""
+    monkeypatch.setattr(fg, "run_cmd", lambda cmd, **kw: (0, ""))
+    monkeypatch.setattr(fg, "get_writable_files", lambda: {"scripts/x.py"})
+    monkeypatch.setattr(fg, "_changed_python", lambda scope: sorted(scope))
+    monkeypatch.setattr(fg, "run_mypy_with_recovery", lambda *a, **k: (0, ""))
+    return fg.run_static_checks(tier=tier, changed_files={"scripts/x.py"})
+
+
+def test_the_lean_tier_names_the_checks_it_never_ran(monkeypatch) -> None:
+    rows = _static_rows(monkeypatch, 1)
+    lean = [r for r in rows if r[0] == getattr(fg, "LEAN_NOT_RUN_ROW", "<missing>")]
+    assert len(lean) == 1, [r[0] for r in rows]
+    _, ok, text = lean[0]
+    assert ok is True, "a lean run must stay green — the row says what it skipped, it never reds"
+    assert text.startswith("⚠"), "the ⚠ prefix is what carries it into --json `warnings`"
+    assert "mypy" in text and "final_gate.py --json" in text and "merge request" in text, text
+    # the existing skip channels carry it: `skipped_checks`, the roster, the human Skipped line
+    assert fg._summarize_skipped(rows)["skipped_checks"] == ["Tier-2 checks"], rows
+    assert fg._check_roster([lean[0]])[0]["outcome"] == "skipped"
+
+
+def test_the_full_tier_carries_no_lean_row(monkeypatch) -> None:
+    """Tier 2 RUNS mypy; a row saying it did not would be false in the other direction."""
+    names = [r[0] for r in _static_rows(monkeypatch, 2)]
+    assert getattr(fg, "LEAN_NOT_RUN_ROW", "<missing>") not in names
+    assert "mypy" in names, "the premise: tier 2 runs mypy"

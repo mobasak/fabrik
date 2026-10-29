@@ -207,7 +207,7 @@ second declaration could drift from the first (T12.8, 01M23CRZZ).
 - **Undeclared Imports (requirements.txt)** - `check_undeclared_imports.py`
 - **Fabrik-Synced Files Unmodified** - `check_synced_unmodified.py`
 
-**Phase 2: Static Analysis** — Tier 1 also runs `ruff` (only if changed `.py` files), `check json`, `check yaml`; mypy/bandit/semgrep/sqlfluff/vulture are Tier-2-only (`final_gate.py:1124-1126`).
+**Phase 2: Static Analysis** — Tier 1 also runs `ruff` (only if changed `.py` files), `check json`, `check yaml`; mypy/bandit/semgrep/sqlfluff/vulture are Tier-2-only (`run_static_checks`' `if tier == 1:` return). Every lean run with a non-docs diff says so in one green skip row, `Tier-2 checks (NOT RUN — --lean)`: its ⚠ text reaches `--json` `warnings`, its name reaches `skipped_checks` and the roster as `skipped`, and human mode prints it on the `Skipped:` line. So a lean green always reads `skipped` ≥ 1 and is never grounds for a commit or a merge request (W-d488bbbf).
 
 ### Tier 2 (FULL) - Default - Phase Handover
 

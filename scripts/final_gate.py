@@ -607,6 +607,10 @@ _SKIP_MARKERS: tuple[str, ...] = (
 )
 
 
+# The one row `--lean` adds to say what Tier 2 runs and it does not (W-d488bbbf).
+LEAN_NOT_RUN_ROW = "Tier-2 checks (NOT RUN — --lean)"
+
+
 def _not_present_row(check_name: str, script_path: str) -> tuple[str, bool, str]:
     """A checker absent from the tree: green (an optional check a project lacks must not red its
     gate), but a SKIP — never `[PASS]` — and ⚠-prefixed so `--json` `warnings` names the path
@@ -1540,6 +1544,20 @@ def run_static_checks(
 
     # --- Everything below is Tier 2 only ---
     if tier == 1:
+        # W-d488bbbf (feedback row 1791309119): a lean green printed the same verdict as a full one,
+        # so a merge request went out on a run that never type-checked. A green skip row says so in
+        # every channel at once — ⚠ for --json `warnings`, the marker for `skipped_checks`, the
+        # roster and the human Skipped line. COBRA: every lean run now reports `skipped: 1`, so a
+        # reader keying on `skipped == 0` for "all checks ran" correctly never sees it from --lean.
+        results.append(
+            (
+                LEAN_NOT_RUN_ROW,
+                True,
+                "⚠ --lean is the in-iteration self-check, not the completion gate: it ran no "
+                "mypy, bandit, semgrep or pytest. A lean green is not grounds for a commit or a "
+                "merge request — run `python scripts/final_gate.py --json` first.",
+            )
+        )
         return results
 
     # Mypy (skip if pyproject.toml doesn't exist for non-Python projects)

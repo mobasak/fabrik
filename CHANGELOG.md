@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a `--lean` green says plainly it ran no mypy (2026-10-29)
+- `scripts/final_gate.py`: every Tier-1 run with a non-docs diff adds the green skip row
+  `Tier-2 checks (NOT RUN — --lean)` (W-d488bbbf, feedback row 1791309119). It names mypy, bandit,
+  semgrep and pytest and points at `final_gate.py --json`, so a merge request is never sent on a
+  lean-only green. It travels through the existing channels (`warnings`, `skipped_checks`, the roster,
+  the human `Skipped:` line); no JSON key was added. Lean runs now report `skipped` ≥ 1.
+
 ### Fixed — hub mail auto-replies tell one agent from another (2026-10-29)
 - `scripts/mail.py`: in the hub's shared `fabrik` mailbox the `--auto` self-guard and rate cap key on
   `(from, from-agent)` (W-19b57b9a, D-1329). A fleet request auto-replied by infra was held as infra's
