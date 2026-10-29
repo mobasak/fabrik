@@ -291,7 +291,8 @@ every run after.
 check but never the lock, and this sync copies the lock in only under `<project>/.claude/worktrees/`)
 is graded against its MAIN checkout's `.fabrik/synced.lock` (`synced_lock()` in the check, which
 `final_gate._synced_paths` reads too, W-c77f91c6): present copies are compared, an absent row is
-"not yet received", never DELETED (a dangling symlink is present, so it reds DELETED). A worktree
+"not yet received", never DELETED (a dangling symlink at the file or a parent, or a plain file
+where a synced directory was, was received and broken, so it reds DELETED). A worktree
 outside `.claude/worktrees/` (`git worktree add`, traycer, kilo) stays in that mode for its life:
 a red clears by the printed `cp`, or by deleting the copy, which then reads not received. A hub
 worktree is the source; a bare-repo worktree, a subdirectory, or a main checkout with no lock

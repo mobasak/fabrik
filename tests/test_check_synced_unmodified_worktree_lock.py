@@ -214,6 +214,36 @@ def test_a_dangling_symlink_is_present_not_unreceived(tmp_path, hub, monkeypatch
     assert "rules/a.md — DELETED locally" in out
 
 
+def test_a_dangling_parent_symlink_is_present_not_unreceived(tmp_path, hub, monkeypatch, capsys):
+    """The same holds one level up: a synced file under a dangling DIRECTORY symlink was received
+    and broken, while a file missing under a real directory was never received."""
+    main = _repo(
+        tmp_path / "main", {"rules/a.md": "same\n", "docs/b.md": "same\n", "tools/t.py": "t\n"}
+    )
+    _lock(
+        main,
+        {
+            "rules/a.md": _md5("same\n"),
+            "docs/b.md": _md5("same\n"),
+            "docs/c.md": _md5("x\n"),
+            "tools/t.py": _md5("t\n"),
+        },
+    )
+    wt = _worktree(main, tmp_path / "wt")
+    (wt / "rules/a.md").unlink()
+    (wt / "rules").rmdir()
+    (wt / "rules").symlink_to(tmp_path / "nowhere-dir")
+    (wt / "tools/t.py").unlink()
+    (wt / "tools").rmdir()
+    (wt / "tools").write_text("a file where the synced directory was\n")
+    rc, out = _run(_load(monkeypatch, hub), wt, monkeypatch, capsys)
+    assert rc == 1, out
+    assert "rules/a.md — DELETED locally" in out
+    assert "tools/t.py — DELETED locally" in out
+    assert "docs/c.md" not in out
+    assert "1 not yet received" in out
+
+
 def test_a_borrowed_red_asks_git_for_the_main_checkout_once(tmp_path, hub, monkeypatch, capsys):
     """The borrowed header and the `cp` remedy name ONE main checkout: the remedy reuses the one
     the lock was borrowed from instead of asking git a second time."""

@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed — the synced-files check grades a fresh worktree instead of skipping it (2026-10-29)
 - `scripts/enforcement/check_synced_unmodified.py` used to skip and pass every linked worktree that had no `.fabrik/synced.lock` of its own, which is every worktree at birth. Such a worktree is now graded against its main checkout's lock (`synced_lock()`): the copies it holds are compared, an absent row counts as not yet received, and the red header names the borrowed lock instead of claiming an edit. A hub worktree is the source (W-c77f91c6).
-- `_main_checkout` takes command_run's identity rule (the GIT_* environment stripped, the common dir named `.git`) and adds one of its own (the toplevel must be the project root). A bare-repo worktree or a subdirectory therefore keeps the old skip; a dangling symlink at a synced path reds DELETED in both modes.
+- `_main_checkout` takes command_run's identity rule (GIT_DIR, GIT_WORK_TREE, GIT_COMMON_DIR and GIT_INDEX_FILE stripped, the common dir named `.git`) and adds one of its own (the toplevel must be the project root). A bare-repo worktree or a subdirectory therefore keeps the old skip; a dangling symlink at a synced path or a parent, or a plain file where a synced directory was, reds DELETED in both modes.
 - `scripts/final_gate.py::_synced_paths` reads the same resolver, so the gate never reformats a file the check grades. Over 224 live worktrees, 2 lockless ones go red, both on genuinely stale copies.
 
 ### Fixed — a wide merge-test leg declares its memory ceiling, and a ceiling kill says so (2026-10-29)

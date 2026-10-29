@@ -235,6 +235,19 @@ def _main_checkout(project_root: Path) -> Path | None:
     return common.parent
 
 
+def _never_received(dest: Path) -> bool:
+    """True when nothing at or above `dest` shows it was ever written: `dest` has no entry and its
+    nearest ancestor that has one is a directory. A dangling symlink at `dest`, or an ancestor that
+    is a dangling symlink or a plain file, means the path was received and broken (W-c77f91c6
+    review), which reds DELETED as it does under an own lock."""
+    if os.path.lexists(dest):
+        return False
+    for ancestor in dest.parents:
+        if os.path.lexists(ancestor):
+            return ancestor.is_dir()
+    return True
+
+
 def synced_lock(project_root: Path) -> tuple[Path | None, bool, str]:
     """(the lock to grade `project_root` against, borrowed?, why there is none).
 
@@ -308,9 +321,9 @@ def main() -> int:
         # that is absent or cannot be examined) degrades to the old behaviour with no special case — verified, not assumed.
         if rel.startswith(retired):
             continue
-        # `lexists`, never `exists`: a dangling symlink was received and broken, so it reds DELETED
-        # below exactly as under an own lock — only a path with no entry at all was never received.
-        if borrowed and not os.path.lexists(dest):
+        # A dangling symlink, at the file or a parent, was received and broken, so it reds DELETED
+        # below exactly as under an own lock — only `_never_received` paths are not received.
+        if borrowed and _never_received(dest):
             not_received += 1
         elif not dest.exists():
             drifted.append(f"{rel} — DELETED locally (a Fabrik-synced file must exist)")
