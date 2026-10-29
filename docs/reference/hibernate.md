@@ -71,8 +71,10 @@ at once (the tick's lift and the hub's `lift`) both land.
 - **T-3.** Three minutes before T the hard hold arms. `brief --deadline` names T-3 and T as clock times in the pause
   text (it refuses with exit 2 when no deadline is marked).
 - **T.** The operator closes the lid.
-- **The lift.** The rotation tick lifts the pause after a sleep, after a network outage once the API answers again,
-  or 30 minutes past T (the pause cancelled). `hibernate.py lift` is the manual override.
+- **The lift.** The hub coordinator, once awake, always runs `hibernate.py lift`, then `targets`, and sends every
+  session "RESUME — the hibernate is over". The rotation tick's own lift — after a sleep, after a network outage once
+  the API answers again, or 30 minutes past T — arrives with the plan's T06 and is not built yet; until it lands,
+  `lift` is the only lift.
 
 `hibernate.py paused` is the launchers' and dispatchers' check: exit 0 while a pause is marked and not lifted, 1
 otherwise (no marker file included), and 2 when the marker file exists but cannot be read or parsed (it reads the file
@@ -101,8 +103,8 @@ another session, a headless `sdk-*` session (refused before its name is read, si
 pid 1. A row the ledger cannot take goes to the fallback file (`ROTATE_LEDGER_FALLBACK`, else
 `<tempdir>/claude-rotate-ledger-fallback-<uid>.jsonl`), with one stderr line.
 
-A pass writes `lifted_at` and `lift_path=hub` and nothing else: it touches no stamp, and the tick clears the
-`hibernate` tier. A second lift leaves `lifted_at` where it was, so a session that already resumed is not told to
+A pass writes `lifted_at` and `lift_path=hub` and nothing else: it touches no stamp (clearing the `hibernate`
+tier is the rotation tick's, T06, not built yet). A second lift leaves `lifted_at` where it was, so a session that already resumed is not told to
 resume again. A marker file that cannot be parsed would stand paused (exit 2) forever. A passing lift therefore
 replaces it with a well-formed lifted marker (`paused_at` = the file's mtime, `words` = `(unreadable marker replaced
 by lift)`), writes a `hibernate-lift-replaced-marker` ledger row and says so. A refused caller changes nothing.

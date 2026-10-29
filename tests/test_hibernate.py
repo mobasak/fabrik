@@ -1606,6 +1606,8 @@ def test_k3_a_fifo_at_the_lock_path_is_not_armed_even_when_flocked(tmp_path: Pat
         assert "self-watch not armed" in out.stdout, out.stdout
     finally:
         os.close(holder)
+
+
 def test_lift_prints_rotation_offers_and_survives_their_fault(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
@@ -1643,7 +1645,9 @@ def test_lift_prints_rotation_offers_and_survives_their_fault(
     monkeypatch.setenv("ROTATE_STATE_DIR", str(box.state))  # where box.run marks
     monkeypatch.setenv("FABRIK_DECISIONS_PY", stub)
     monkeypatch.setattr(hib.os, "getppid", lambda: 9001)
+    monkeypatch.setenv("SESSION_ARCHIVE_ENV_FILE", str(tmp_path / "none.env"))
     argv = ["--home", str(box.home), "--proc", str(box.proc), "--opt", str(box.opt), "lift"]
+    real_loader = hib._load_rotate
     box.run("mark", "--words", "w2")
 
     def boom():
@@ -1667,9 +1671,12 @@ def test_lift_prints_rotation_offers_and_survives_their_fault(
         monkeypatch.setattr(hib, "_load_rotate", lambda: Rs)
         assert hib.main(argv) == 0
         assert "rotation offers unavailable" in capsys.readouterr().err
-    # a REFUSED lift offers nothing: the offers follow only a lift that happened
+    # a REFUSED lift offers nothing: the offers follow only a lift that exited 0. The REAL loader, so an offer
+    # wrongly made would print dev1's line on stdout (the subprocess run above proves it would)
     box.run("mark", "--words", "w4")
-    monkeypatch.setattr(hib, "_load_rotate", boom)
+    monkeypatch.setattr(hib, "_load_rotate", real_loader)
     monkeypatch.setattr(hib.os, "getppid", lambda: 4242)  # dev1's session: not the merge owner
+    capsys.readouterr()
     assert hib.main(argv) == 3
-    assert "rotation offers" not in capsys.readouterr().err
+    cap = capsys.readouterr()
+    assert "rotation offers" not in cap.out + cap.err, (cap.out, cap.err)

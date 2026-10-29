@@ -742,7 +742,8 @@ def _api_key_session() -> bool:
 def api_key_exempt(stamp: Path) -> bool:
     """True when a hold this stamp would place does not bind this session: an API-key session
     (`_api_key_session`) and a stamp whose line 2 PLAINLY reads one of the two quota tiers. The
-    battery tier (D-898) protects the box, not plan quota, and every other line 2 — pre-tier,
+    battery tier (D-898) and the hibernate tier (W-6e656dac) protect the box, not plan quota, and
+    every other line 2 — pre-tier,
     unknown, unreadable — holds: the unknown case is never the lenient one. The same raw read as
     `_stamp_tier` (`is_file()` first, `newline=""`, `split("\n")`)."""
     if not _api_key_session():

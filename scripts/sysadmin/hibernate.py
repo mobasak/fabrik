@@ -1253,6 +1253,8 @@ def _default_home() -> Path:
                 "hibernate: no passwd entry for this uid and no usable $HOME — the pause marker cannot be located"
             ) from None
         return Path(fallback)
+
+
 def _load_rotate():
     """rotate_session, loaded at the call: it loads this module at import, so a top-level import would be circular."""
     spec = importlib.util.spec_from_file_location(

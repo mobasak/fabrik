@@ -259,8 +259,10 @@ def test_request_aborts_on_each_check_in_order(world, monkeypatch, capsys, spoil
         }
         world["transcript"].write_text(rows + json.dumps(row) + "\n")
     elif spoil == "record":
-        rec = world["home"] / ".claude" / "state" / "command-runs" / f"{SID}.json"
-        rec.parent.mkdir(parents=True)
+        rec = (
+            rs.hib._runs_dir(world["home"]) / f"{SID}.json"
+        )  # $COMMAND_RUN_DIR first, as the reader
+        rec.parent.mkdir(parents=True, exist_ok=True)
         rec.write_text(json.dumps({"command": "fabrik-task", "state": "running"}))
     elif spoil == "seat":
         launch = {
