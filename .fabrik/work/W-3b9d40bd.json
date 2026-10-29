@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-29T06:23:35.320158Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-3b9d40bd",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "red-first: a non-UTF-8 item file makes _read_item raise WorkError; then catch UnicodeDecodeError beside OSError at the read",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: a work-store edge from the W-0fe931b7 review, nobody blocked; one function",
   "status": "open",
   "tags": [
     "infra"

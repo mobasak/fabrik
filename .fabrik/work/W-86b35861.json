@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-29T06:11:45.362168Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-86b35861",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "measure: how often an owned major is re-scored down while others are held behind it; then a stderr notice from cmd_assign naming those ids",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: a work-store edge from the W-0fe931b7 review, nobody blocked; one function",
   "status": "open",
   "tags": [
     "infra"
