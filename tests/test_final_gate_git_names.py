@@ -131,8 +131,8 @@ def test_the_gate_prints_a_non_utf8_name_without_crashing(tmp_path):
 
 
 def test_a_stream_whose_reconfigure_fails_never_stops_the_gate(monkeypatch):
-    """W-f42efcc2 review: a reconfigure that raises AttributeError from inside (a proxy stream
-    forwarding to a missing attribute) or ValueError is skipped, so main() still reaches parse_args."""
+    """W-f42efcc2 review: a stream whose reconfigure lookup or call raises AttributeError or
+    ValueError (as the pre-change `try` swallowed both) is skipped, so main() still reaches parse_args."""
     import io
 
     class _Inner(io.StringIO):
@@ -143,6 +143,11 @@ def test_a_stream_whose_reconfigure_fails_never_stops_the_gate(monkeypatch):
         def reconfigure(self, **kw):
             raise ValueError("refused")
 
+    class _LookupRefuses(io.StringIO):
+        @property
+        def reconfigure(self):
+            raise ValueError("refused at lookup")
+
     class _ReachedParseArgsError(Exception):
         pass
 
@@ -150,7 +155,11 @@ def test_a_stream_whose_reconfigure_fails_never_stops_the_gate(monkeypatch):
         raise _ReachedParseArgsError
 
     monkeypatch.setattr(final_gate, "parse_args", _stop)
-    for out, err in ((_Inner(), _Refuses()), (io.StringIO(), _Inner())):
+    for out, err in (
+        (_Inner(), _Refuses()),
+        (io.StringIO(), _Inner()),
+        (_LookupRefuses(), io.StringIO()),
+    ):
         monkeypatch.setattr(sys, "stdout", out)
         monkeypatch.setattr(sys, "stderr", err)
         try:

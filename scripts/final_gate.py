@@ -3404,13 +3404,12 @@ def main() -> int:
     # crash the gate (review A-O4) — the gate's own streams escape what they cannot encode
     for stream in (sys.stdout, sys.stderr):
         # typed TextIO, which declares no reconfigure: a replaced stream (a capture, a pipe
-        # wrapper) may lack it, so look it up rather than narrow to TextIOWrapper; a reconfigure
-        # that raises AttributeError or ValueError is skipped too, any other error propagates
-        reconfigure = getattr(stream, "reconfigure", None)
-        if reconfigure is None:
-            continue
+        # wrapper) may lack it, so look it up rather than narrow to TextIOWrapper; a lookup or
+        # call that raises AttributeError or ValueError is skipped, any other error propagates
         try:
-            reconfigure(errors="backslashreplace")
+            reconfigure = getattr(stream, "reconfigure", None)
+            if reconfigure is not None:
+                reconfigure(errors="backslashreplace")
         except (AttributeError, ValueError):
             pass
     args = parse_args()
