@@ -441,6 +441,19 @@ def test_a_marker_asks_only_where_it_opens_and_tool_rows_never_ask():
     assert rs._waiting_on(footer("awaiting your reply"))[0] == "question"
     heading = _idle(["● DECISION NEEDED (ground: gate)", "  - Question: deploy now"])
     assert rs._waiting_on(heading)[0] == "question"
+    # the house footer forms that hand the reader a decision (round 2: a block two paragraphs up was missed)
+    multi = _idle(
+        ["● DECISION NEEDED (ground: gate)", "  Option A or B.", "", "  Details.", "", "  STATE: x"]
+        + ["  NEXT: DECISION NEEDED above"]
+    )
+    assert rs._waiting_on(multi)[0] == "question"
+    assert (
+        rs._waiting_on(footer("operator decision: deploy now — see DECISION NEEDED above"))[0]
+        == "question"
+    )
+    # a message that opens with `name(` is text, not a tool call (round 2)
+    assert rs._waiting_on(_idle(["● foo(bar) is fine, ok? Use it?"]))[0] == "question"
+    assert rs._waiting_on(_idle(["● mcp__serena__find_symbol(name: x)", "  ⎿  found?"])) is None
     # what the agent RAN is not what it asks: a tool call and its result rows
     assert rs._waiting_on(_idle(["● Bash(ls)", "  ⎿  what is this?"])) is None
     assert rs._waiting_on(_idle(["● Keep it?", "", "● Bash(ls)", "  ⎿  done"]))[1] == "Keep it?"

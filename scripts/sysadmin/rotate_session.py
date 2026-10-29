@@ -755,9 +755,13 @@ _SPINNER = re.compile(r"…\s*\(|Waiting for \d+ background")
 _FOOTER_ROW = re.compile(r"(?:RUN|STATE|NEXT):")
 # the two house markers of a turn that waits on its reader — only where they OPEN the paragraph (a DECISION block's
 # heading, a NEXT: whose value is the wait), so a footer that names them in passing ("no DECISION NEEDED") never asks
-_ASKS = re.compile(r"(?:DECISION NEEDED\b|NEXT:\s*awaiting your reply\b)", re.I)
-# a tool call (`● Bash(ls)`) and its result rows (`⎿  …`): what the agent RAN, never what it asks
-_TOOL_ROW = re.compile(r"^(?:●\s*[A-Za-z_][\w.:-]*\(|⎿)")
+_ASKS = re.compile(
+    r"(?:DECISION NEEDED\b|NEXT:\s*(?:awaiting your reply|operator decision|(?:see\s+)?DECISION NEEDED above)\b)",
+    re.I,
+)
+# a tool call (`● Bash(ls)`, `● mcp__x__y(…)` — a capitalised or `mcp__` name, the row closing on its `)`) and its
+# result rows (`⎿  …`): what the agent RAN, never what it asks; a message that opens `foo(bar) …?` stays text
+_TOOL_ROW = re.compile(r"^(?:●\s*(?:[A-Z][\w.:-]*|mcp__[\w.:-]+)\(.*\)$|⎿)")
 # activity below a turn end that is not a new turn: a seat's completion notice (measured live, idle pane)
 _IDLE_NOTICE = re.compile(r'^●\s*Agent ".*" (?:finished|completed)')
 # the turn-end row up to its `done <time>`: a trailing note (`· 1 shell still running`) changes without a new turn
