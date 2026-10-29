@@ -342,6 +342,7 @@ def test_an_open_plan_set_is_listed_by_its_spine(tmp_path):
     joined = " ".join(listed)
     assert "2026-01-03-plan-1-open-set/2026-01-03-plan-1-open-set.md" in joined, listed
     assert "tickets-only" not in joined and "plan-5-archived" not in joined, listed
+    assert "plan-6-locked" not in joined, listed  # a spine that cannot be stat'ed is skipped
     assert "done-set" not in joined and "plan-3-old" not in joined, listed
     assert "T01-ticket" not in joined and "notes/" not in joined, listed
 

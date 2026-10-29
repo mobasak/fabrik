@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## On this fleet a `compose down` is not a removal (2026-10-29, W-80a1f9fd)
+
+**What happened:** D-121 took the ocoron-com stack down with `docker compose down`, and the stack was found running again weeks later. `fabrik-compose-boot.sh` runs `up -d` on every `/opt/*/compose.yaml` at each boot, and D-121 had left the file in place. A second reviver was waiting too: the vps1 sysadmin bot's prompt still ranked the stack P0 and gave it "full autonomous management".
+
+**Lesson:** a removal on a fleet host must also remove what would start the stack again. That means the compose file in the boot glob (rename it out) and every autonomous actor told to keep the stack up (its prompt or config). Grep the host's boot units and the bot prompt for the stack's name before calling it gone.
+
 ## A scope condition written twice hides from every single mutant (2026-10-29, W-19b57b9a)
 
 **What happened:** the hub-only self-guard first checked `self_repo == "fabrik"` on BOTH sides it compared (the parent's agent and the caller's). Deleting either check alone changed nothing, because the other one still emptied the comparison, so two mutants survived a battery that killed everything else. The tests were complete; the code made each half redundant.
@@ -18,6 +24,12 @@
 **What happened:** a review fix for the docker cpu grammar wrote into a docstring that the daemon stores every grammar value exactly, citing a probe of six values (0.01, 0.02, 0.07, 0.1, 0.29, 1.5), all exact. An Opus seat modelled compose's 32-bit read and predicted 0.13 → NanoCpus 129999992; the daemon then stored exactly that, and 2.15 and 3.33 were off too. Two review rounds went to one sentence.
 
 **Lesson:** before a fix states a property of a whole input space, generate the space (here 102,400 two-decimal strings) or find a model that predicts which members fail, and probe the ones the model says fail, never only the round numbers at hand. A claim that cannot be checked that way is narrowed to the values actually executed, or deleted.
+
+## A population counted from the files you are about to change misses the ones you are about to reach (2026-10-29, W-76d3448d)
+
+**What happened:** to measure who a re-keyed skip guard would affect, the first census walked the 9 repos that already carried the generated CI files. The Opus design critic re-walked every git repo under /opt (44) and found the 36 the guard would newly make backfill targets, 32 of them tracking SQL. The same census had also read "sqlfluff red" as "the replica is red today" without grepping the replica for the sqlfluff step it lacked, and the wrong claim was relayed to the coordinator and corrected an hour later.
+
+**Lesson:** a guard's population is the set its NEW verdict reaches, not the set its old verdict marked; count the whole space the predicate ranges over. And a lint verdict about a file a tool would write says nothing about the copy already there: check that the live artifact runs the step before claiming it fails.
 
 ## An exact-signature probe is not a call-resolvability probe (2026-10-29, W-d8505af5)
 
@@ -8097,3 +8109,9 @@ document.
 **What happened:** fleet-docker-cpu's merge leg died at capped_run's 4G ceiling twice (W-e64a7b8e), and both refusals read "exit 137" followed by shell comments. capped_run prints `killed at the memory ceiling (…) — $*`, and `$*` was the multi-line `sh -c <script>`, so the refusal's 3-line tail of stderr was the script's last lines; the word "memory" never reached the requester. The pretest path then replaced even that text with a fixed "timed out or was killed (exit 137)".
 **Why:** a "last N lines" tail assumes the verdict is the last thing printed; a verdict line that echoes its own command pushes itself out of the window, and a second path that rewrites the error for its own wording drops whatever the first path learned.
 **How to apply:** when a wrapper has its own verdict line, find THAT line by its prefix and cut it before the echoed argv; carry the one cause string on every path that re-raises it (here `base_alone_skip`); and give the stand-in runner the incident's exact shape — the cut survived a mutant until the fixture's script put text on the kill line's own first line.
+
+## A screen parser's fixtures were written from memory — open the real dialog before trusting "already tested" (2026-10-29)
+
+**What happened:** W-a12b03a2 planned to reuse rotate_session's `_dialog` ("already tested") to spot builder panes waiting on a dialog. Its fixtures were three hand-written lines (`Allow?\n❯ 1. Yes\n  2. No`). One critique seat argued that real dialogs are bordered; neither seat could open one. A throwaway Haiku session in a scratch tmux session showed the real shapes on Claude Code v2.1.312: no dialog is bordered, but `_dialog` misses two of the three — the workspace-trust prompt (its options are not numbered) and an AskUserQuestion whose wrapped option descriptions put the next option four rows away.
+**Why:** a parser of another program's screen is only as good as the screens its fixtures came from; hand-written fixtures encode the author's memory of the UI, and every reviewer reading them inherits that memory.
+**How to apply:** before relying on a screen parser, produce the real screen it parses in a disposable session (your own scratch tmux session; never a live agent's pane) and run the parser on it; keep the captures out of the repo — another session's screen is not yours to commit — and write fixtures that reproduce the measured row shapes.

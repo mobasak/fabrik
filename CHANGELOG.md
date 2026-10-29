@@ -11,6 +11,79 @@ All notable changes to this project will be documented in this file.
   like grounds for a merge request. It is advice, not enforcement, and travels through the existing
   channels (`warnings`, `skipped_checks`, the roster, the human `Skipped:` line); no JSON key was
   added. Those lean runs now report `skipped` ≥ 1.
+### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
+- `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
+  `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`
+  (1 s cap) and listing every live name that fits the line whole, with a stale warning, when
+  several answer (W-9bf5a363,
+  D-1337). The hub coordinator's extension window gets a new auto-generated peer name at each
+  rotation, so a name kept in a builder's notes went dead (a rotate request sat 14 h). Unsafe names
+  are dropped and any error adds no line.
+
+### Fixed — the real-Postgres test fixture no longer leaks a 50 MB volume per container (2026-10-29)
+- `tests/test_app_role_real_pg.py::scratch_pg` tore its container down with `docker rm -f`, which
+  removes the running container itself and keeps the image's anonymous data volume, so every
+  container it started left one PostgreSQL 18 data volume behind (W-2786800d). It was the live
+  half of the anonymous volumes that filled the WSL disk to 97% (the PostgreSQL 16 half came from
+  an older generator that stopped on 2026-10-21). The teardown is now `docker rm -f -v`, and
+  `docker run` sits inside the `try`. `test_scratch_pg_leaves_no_anonymous_data_volume_behind`
+  guards it (red on the old teardown); it reads only "no such volume" as gone and waits out an
+  in-flight `--rm` removal. `tests/test_docusaurus_static_runtime.py` takes the same flag.
+
+### Added — the coordinator sees every builder pane waiting on an answer (2026-10-29)
+- `scripts/sysadmin/rotate_session.py::waiting`: a read-only scan of the repo's agents_up tmux grid that names each
+  builder pane on a dialog (a permission dialog, the workspace-trust prompt, an AskUserQuestion) or idle after a turn
+  that ended with a question. 1 s budget; no tmux or no server reads as no grid.
+- `scripts/work.py`: the coordinator's prompt block opens with one `work: PANE WAITING: <agent> (<pane>) — …` line per
+  such pane (`PANE SCAN FAILED` when tmux fails), and its Stop hook blocks on a `pane-waiting` subject per pane ahead
+  of every other subject, re-armed by each distinct prompt. A headless session never scans. Before this the operator
+  answered builders' terminal prompts himself. `docs/reference/agents/coordinator.md` says how to answer.
+  W-a12b03a2, D-1331.
+- `scripts/sysadmin/rotate_session.py::_undimmed`: the arguments of an extended colour (`38;5;2`, `38;2;r;g;b`) are no
+  longer read as the dim attribute, which dropped every cell after them.
+
+### Changed — the never-execute rule binds the orchestrator and every Bash agent (2026-10-29)
+- `commands/_fragments/term-coverage.md`, `commands/_fragments/term-edit.md`: round-zero rule (1) never runs a script
+  that deletes, deploys, provisions, writes outside scratch or contacts a non-local host to settle a claim, faked
+  or not; an unsettled claim is BLOCKED (code) or deleted (documents) (D-1338).
+- `commands/_sources/fabrik-review.md`, `commands/_sources/fabrik-review-scoped.md`,
+  `commands/_fragments/delegated-reads.md`: the lead's own "execute every claim" rules carry the same carve-out.
+- `commands/_agents/design-review.md`, `commands/_agents/fabrik-gui.md`: fabrik-reviewer's house-rule clause, fitted to each.
+- `commands/_fragments/subagents-core.md`: `final_gate.py --check` is a writer seat's line only; read-only seats run
+  ruff, mypy and pytest with their caches off or in scratch, every path absolute into their copy.
+- `commands/_sources/fabrik-command-improve.md`: a script that hard-codes a live path and writes there, deletes, deploys, provisions or contacts a non-local
+  host is read, never run.
+- `tests/test_never_execute_carriers.py`: pins every carrier and the rendered corpus.
+
+### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)
+- `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the
+  box at 96 % the hook's `SCRATCH ALARM` line landed in the stdout of every `--hook` run that passes its
+  gates (a valid session id, an `/opt` cwd, not headless or autonomous), and the three tests asserting
+  silence went red on master in every merge-test leg that runs this file (MR 01M63G10MT was refused on
+  one of them). The headless, autonomous and non-`/opt` legs now run at a 96 % reading and assert empty
+  stdout and stderr, so a gate that let the alarm through still fails.
+
+### Fixed — the coordinator's open-plan view no longer goes blank on one error (2026-10-29)
+- `scripts/work.py` `_open_plans` (shown by `work.py queue` and `triage` as `plan not executed:`):
+  an outer `except Exception` returned an empty list on any error, so a `docs_updater.py` that
+  failed to load, or one plan its parser raised on, read as "no open plans", and a plans directory
+  that could not be read did too (`Path.glob` swallows its `PermissionError`). Now a parser that
+  cannot load, or an unreadable plans directory, prints one line saying the view is unavailable,
+  and a plan the parser raises on is listed as open with the error. A repo with no plans directory
+  still lists nothing. Item W-f1412a11
+  (review B-S1 of the 2026-10-08 docs-updater plan-status receipt); tests in
+  `tests/test_docs_updater.py`.
+
+### Added — operator script that removes ocoron.com from vps1 (2026-10-29)
+- `scripts/sysadmin/vps1_ocoron_removal.py` (D-1333, D-1334, W-80a1f9fd): operator-run, dry run by default. It finds
+  the ocoron.com stack by compose project, name or Traefik route and lists its data with class, size and users, plus
+  the config lines still naming the site. `--apply` takes it down, moves `/opt/ocoron-com/compose.yaml` out of the
+  boot glob (fabrik-compose-boot.sh restarted D-121's down at the next boot) and drops its images. `--delete-volumes`
+  deletes only exact ids from that list.
+- `scripts/sysadmin/system-prompt.txt`: the vps1 sysadmin bot no longer manages ocoron-com as an application or a P0
+  service, and is told never to restore it. `--apply` refuses until this copy is on vps1 (`bash
+  scripts/sync-vps-sysadmin.sh`).
+- Graded by `tests/test_vps1_ocoron_removal.py`.
 
 ### Fixed — hub mail auto-replies tell one agent from another (2026-10-29)
 - `scripts/mail.py`: in the hub's shared `fabrik` mailbox the `--auto` self-guard and rate cap key on
@@ -27,6 +100,10 @@ All notable changes to this project will be documented in this file.
   (…)" / "stopped at the …s time limit") on the merge, pretest, queue and base-alone paths alike (its tail
   had been the script's last comment lines); a 137 without that line says it was a SIGKILL inside the leg.
   A merge-test-mem line the grammar refuses is named in the leg's own verdict.
+
+### Fixed — backfill_ci.py keys on ci_local.sh and grades the SQL its replica will lint (2026-10-29)
+
+- `scripts/backfill_ci.py` decided "already has CI" from `.github/workflows/ci.yml`, which the generator stopped emitting on 2026-08-29, so a newer repo was rewritten on every `--apply`; and it wrote a `scripts/ci_local.sh` that lints every tracked `*.sql` with sqlfluff without checking that SQL first. A project with anything at `scripts/ci_local.sh` is now skipped (its row names a stale or non-fabrik-managed replica); each target's SQL is graded by the pinned sqlfluff the replica's way, and `--apply` refuses a red or unknown verdict unless `--force`, which records the verdict. An existing `.fabrik/run-pytest` or lint baseline is kept, a symlinked parent directory or dangling leaf fails the project before any write, and the exit is 1 on a refusal, failure or missing project. Graded by `tests/test_backfill_ci.py` (D-1332, W-76d3448d).
 
 ### Fixed — the project audit accepts the docusaurus serve stage `nginx:mainline-<codename>` (2026-10-29)
 

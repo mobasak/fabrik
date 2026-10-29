@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T13:52:16.828764Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-0a9b0edb",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "LOW: rare edge (resumed sessions idle 7 days), no loss seen yet; effort low: one signal",
+  "status": "open",
+  "title": "scratch_sweep: a session resumed with --resume X writes tasks/ under the OLD sid X while its sessions record names a NEW sid, so the old sid's dir has no live signal and can be called dead after 7 idle days (3 live sessions in that state 2026-10-29 16:30; infra-2 from W-d1a4a8f5's Opus critique). Fix: a live signal for 'a running process argv names this sid'."
+}
