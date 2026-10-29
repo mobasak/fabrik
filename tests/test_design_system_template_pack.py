@@ -234,10 +234,11 @@ _ALIAS_DECL = re.compile(r"--color-(?:surface-\d+|text-[\w-]+)\s*:\s*var\(")
 
 
 def test_alias_of_a_root_slot_stays_in_theme_inline() -> None:
-    section = _section()
-    assert ALIAS_SENTENCE in " ".join(section.split())
-    line = next(ln for ln in section.splitlines() if "`--color-surface-0: var(--surface-0)` →" in ln)
+    lines = [ln for ln in _section().splitlines() if "`--color-surface-0: var(--surface-0)` →" in ln]
+    assert len(lines) == 1, lines
+    line = " ".join(lines[0].split())
     assert "goes in `@theme static inline`" in line and "with an `@theme inline` alias:" in line, line
+    assert ALIAS_SENTENCE in line  # on the example's own bullet line, never moved to another bullet
 
 
 def _static_theme_blocks(text: str) -> list[str]:
