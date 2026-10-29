@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T19:14:58.798842Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-04fadfd3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M64CSW26K3E4N88CP7ZRFKKP",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "open",
+  "title": "30-ops.md:149 and :419 state only the memory half of an invariant the deploy validator now enforces for cpus too (hub D-1352)"
+}
