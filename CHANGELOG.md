@@ -48,6 +48,14 @@ When `docs/reference/agents/<name>.md` is absent (a dangling symlink counts as p
 
 ### Added — whoami spawner-only binding: `--spawned` with a held-lock caller proof (2026-10-28)
 `whoami_agent.py --spawned <name> --session-id <uuid> --repo <dir> --lock-fd <n>` binds a NEW session id for a spawner that holds `<common dir>/fabrik-agents.lock` (W-b9ad80ae, plan T01). The proof reads `/proc/self/fdinfo/<fd>` for an exclusive flock on the literal lock file and takes, converts or releases no lock, so a shared or POSIX holder, an unlocked copy and a symlinked lock are refused. The row carries `spawned: true` and a null pid; prefix-abbreviated flags are refused. Exits 0 written · 1 live holder · 2 refused (an unenterable `--repo` included) · 3 git could not run, or a crash. `--as`/`--who` are unchanged.
+### Fixed — the docusaurus pack no longer offers, as an alternative, a serve image its audit grades CRITICAL (2026-10-29)
+
+`.windsurf/rules/core/42-docusaurus.md` (fleet-synced) named `nginxinc/nginx-unprivileged` as "the alternative"
+serve image while its checklist and the hub audit accept only the stock `nginx:mainline-<codename>`. The serve-stage
+paragraph now says the alternative is outside the mandate and routes a project that wants it to the hub by mail.
+`tests/test_docusaurus_pack.py` pins the paragraph and runs the audit (D-1344, supersedes D-664 in part; fleet mail
+01M632SH6W).
+
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
   `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`
