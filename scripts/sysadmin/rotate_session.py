@@ -935,7 +935,8 @@ def waiting(repo: str, exclude: str = "", budget: float = 1.0) -> list[dict]:
         if hit is None:
             continue
         kind, line, body = hit
-        digest = hashlib.sha1(f"{kind}\n{body}".encode()).hexdigest()[:12]
+        # a fingerprint for the Stop hook's attempt map, never a security digest
+        digest = hashlib.sha1(f"{kind}\n{body}".encode(), usedforsecurity=False).hexdigest()[:12]
         found.append(
             {
                 "agent": agent,
