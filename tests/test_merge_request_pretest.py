@@ -402,7 +402,7 @@ def test_which_mem_lines_are_named_as_ignored(world, script, noted):
         (
             137,
             "no verdict line\n",
-            "exit 137 (a SIGKILL inside the leg; capped_run reported no memory-ceiling kill)",
+            "a SIGKILL inside the leg; capped_run reported no memory-ceiling kill",
         ),
         (1, "capped_run: killed at the memory ceiling (4G per run, 12G for x) — y\n", ""),
     ],
@@ -513,7 +513,11 @@ def test_a_bare_137_is_not_called_a_ceiling_kill(world):
     assert world.run("merge") != 0
 
     reason = world.record(msg_id)["reason"]
-    assert "a SIGKILL inside the leg; capped_run reported no memory-ceiling kill" in reason, reason
+    sigkill = "a SIGKILL inside the leg; capped_run reported no memory-ceiling kill"
+    # the exit code is stated once, by the refusal, never again inside the cause
+    assert f"exit 137): {sigkill}" in reason, reason
+    assert f"exit 137 — {sigkill}" in reason, reason  # the base-alone skip names it once too
+    assert "exit 137 (a SIGKILL" not in reason and ": exit 137" not in reason, reason
     assert "killed at the memory ceiling (" not in reason, reason
 
 
@@ -525,7 +529,10 @@ def test_a_pretest_137_names_the_memory_ceiling(world, monkeypatch, capsys):
     assert _pretest(world, monkeypatch) != 0
 
     err = capsys.readouterr().err
-    assert _KILL.format("6144M") in err, err
+    # the pretest's own "(…)" wraps the cause, and capped_run's line carries one: two levels, no third
+    cause = f"(the merged run timed out or was killed, exit 137 — {_KILL.format('6144M')})"
+    assert cause in err, err
+    assert "(((" not in err.replace(" ", "") and ")))" not in err.replace(" ", ""), err
 
 
 _IGNORED = "merge-test-mem line outside the grammar"

@@ -1468,9 +1468,10 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
         red.base_old = old  # type: ignore[attr-defined]
         red.base_alone = {"script": script, "touched": touched}  # type: ignore[attr-defined]
         if run.returncode in _KILLED_EXITS:
+            # callers wrap this in their own "(…)" and the verdict carries one: no third level
             red.base_alone_skip = (  # type: ignore[attr-defined]
-                f"the merged run timed out or was killed (exit {run.returncode}"
-                + (f": {verdict})" if verdict else ")")
+                f"the merged run timed out or was killed, exit {run.returncode}"
+                + (f" — {verdict}" if verdict else "")
             )
         raise red
     return f"{label}: green{ignored}{mem_note}"
@@ -1704,7 +1705,7 @@ def _capped_verdict(rc: int, stderr: str) -> str:
         if line.startswith(prefix):
             return line.split(" — ", 1)[0].rstrip()
     if rc == 137:
-        return "exit 137 (a SIGKILL inside the leg; capped_run reported no memory-ceiling kill)"
+        return "a SIGKILL inside the leg; capped_run reported no memory-ceiling kill"
     return ""
 
 
