@@ -74,7 +74,11 @@ def test_bash_agents_carry_the_never_execute_clause() -> None:
         assert "read a script before you execute it, its `--help` included" in text, rel
         assert "never execute one that " + CLAUSE in text, rel
         assert "executing includes importing it and calling a function, `runpy`, a test that runs it" in text, rel
+        assert "whatever binary does it, even when a step asks you to" in text, rel
         assert "name it in your report as not run, with the script's cited lines" in text, rel
+        assert "else a folder of your own under the session scratchpad your harness prints, never its root" in text or (
+            "else a folder of your own under the session scratchpad, never its root" in text
+        ), rel
         assert own in text, rel
 
 
@@ -93,7 +97,7 @@ def test_command_improve_scratch_repo_rule_names_hard_coded_paths() -> None:
     phase3 = _section(_read("_sources/fabrik-command-improve.md"), "## PHASE 3", "## PHASE 4")
     verb = phase3[phase3.index("a verb is run end to end in a scratch repo") :]
     assert "A script that hard-codes a live path (`scripts/proof_run.py`'s" in verb[:1500]
-    assert "so one that writes is read, never run" in verb[:1500]
+    assert "so one that writes, deletes or deploys is read, never run" in verb[:1500]
 
 
 def _renderer():
