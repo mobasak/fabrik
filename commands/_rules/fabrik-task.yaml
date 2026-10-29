@@ -557,16 +557,32 @@ entries:
   # class: prose
   section: '## Phase 5 — CLOSE, in this order'
   baseline: Commit with explicit pathspecs + provenance trailers, chaining the capture off the commit, found by its own subject
-  current: 'Commit with explicit pathspecs + provenance trailers, chaining capture off commit, found by its own subject — a `HEAD` read would capture a sibling''s commit landing while the post-commit hook runs:'
+  current: 'Commit with explicit pathspecs + provenance trailers (§ EXIT: trailers via -F <msg>, private-index for shared-append files), then capture it, found by its own subject — a `HEAD` read would capture a sibling''s commit landing while the post-commit hook runs'
+  changed-by:
+  - D-1339
   text:
-  - 'Commit with explicit pathspecs + provenance trailers, chaining capture off commit, found by its own subject — a `HEAD` read would capture a sibling''s commit landing while the post-commit hook runs:'
+  - 'Commit with explicit pathspecs + provenance trailers (§ EXIT: trailers via -F <msg>, private-index for shared-append files), then capture it, found by its own subject — a `HEAD` read would capture a sibling''s commit landing while the post-commit hook runs'
+- id: ft-close-capture-plain-calls
+  # class: ban
+  section: '## Phase 5 — CLOSE, in this order'
+  current: 'Each line is its own plain call, never chained to the commit, which a linked worktree''s isolation guard refuses:'
+  text:
+  - 'Each line is its own plain call, never chained to the commit, which a linked worktree''s isolation guard refuses:'
 - id: ft-close-capture-line
   # class: behavioural
   section: '## Phase 5 — CLOSE, in this order'
   baseline: 'mkdir -p <durable> \ ⏎ && <your § EXIT commit: pathspecs, trailers via -F <msg>, private-index for shared-append files> \ ⏎ && subj=$(head -n1 <msg>) && sha=$(git log -1 --format=%H -F --grep "$subj") && [ -n "$sha" ] \ ⏎ && [ "$(git log -1 --format=%s "$sha")" = "$subj" ] && echo "$sha" >> <durable>/commit.sha || exit 1'
-  current: 'mkdir -p <durable> \ ⏎ && <your § EXIT commit: pathspecs, trailers via -F <msg>, private-index for shared-append files> \ ⏎ && subj=$(head -n1 <msg>) && sha=$(git log -1 --format=%H -F --grep "$subj") && [ -n "$sha" ] \ ⏎ && [ "$(git log -1 --format=%s "$sha")" = "$subj" ] && echo "$sha" >> <durable>/commit.sha || exit 1'
+  current: 'mkdir -p <durable> ⏎ python3 scripts/command_run.py capture --msg <msg> --out <durable>/commit.sha'
+  changed-by:
+  - D-1339
   text:
-  - 'mkdir -p <durable> \ ⏎ && <your § EXIT commit: pathspecs, trailers via -F <msg>, private-index for shared-append files> \ ⏎ && subj=$(head -n1 <msg>) && sha=$(git log -1 --format=%H -F --grep "$subj") && [ -n "$sha" ] \ ⏎ && [ "$(git log -1 --format=%s "$sha")" = "$subj" ] && echo "$sha" >> <durable>/commit.sha || exit 1'
+  - 'mkdir -p <durable> ⏎ python3 scripts/command_run.py capture --msg <msg> --out <durable>/commit.sha'
+- id: ft-close-capture-verb
+  # class: prose
+  section: '## Phase 5 — CLOSE, in this order'
+  current: '`capture` appends the sha of the newest commit whose subject is `<msg>`''s, and exits 1 appending nothing when that commit''s subject differs or no commit has it; every run commit — the build''s, the ledgers'', each a review fix makes — is captured this way'
+  text:
+  - '`capture` appends the sha of the newest commit whose subject is `<msg>`''s, and exits 1 appending nothing when that commit''s subject differs or no commit has it; every run commit — the build''s, the ledgers'', each a review fix makes — is captured this way'
 - id: ft-close-push-then-close
   # class: ban
   section: '## Phase 5 — CLOSE, in this order'
@@ -606,9 +622,53 @@ entries:
   # class: ban
   section: '## Phase 5 — CLOSE, in this order'
   baseline: 'Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5''s capture line so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one; `/fabrik-review`''s committed-fix form (a sync-path run in the main checkout, which `done` holds to one commit, reviews BEFORE that commit instead; the `--restamp` form below): run the full `/fabrik-review` (skipping its own `--init`) with its rows in a draft, `review_receipt.py --init --lane --range <base>..HEAD --changed <paths> --out <durable>/<slug>-receipt-draft.md`, until its closing pass; then, after the last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug> --range <base>..<that sha>`; the Surface line it writes is what check (d) reads; run `final_gate.py --check --json` BEFORE that `--init`, so a fix the gate forces is a run commit that lands first; carry the draft''s rows into it (a rubric class the draft lacked is a hunt still owed), run `/fabrik-review`''s close ORDER on it (the gate while IN-PROGRESS, embedded, flipped to `Status: CONVERGED`, re-run), then commit that receipt alone (outside D7''s one-commit sync-path rule) and push it; never captured or passed to `--commit`'
-  current: 'Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5''s capture line so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one — `/fabrik-review`''s committed-fix form (sync-path run in main checkout, which `done` holds to one commit, reviews BEFORE that commit instead — `--restamp` form below): run full `/fabrik-review` (skipping its own `--init`) with its rows in draft, `review_receipt.py --init --lane --range <base>..HEAD --changed <paths> --out <durable>/<slug>-receipt-draft.md`, until its closing pass; then, after last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug> --range <base>..<that sha>` — Surface line it writes is what check (d) reads; run `final_gate.py --check --json` BEFORE that `--init`, so fix gate forces is run commit that lands first — carry draft''s rows into it (rubric class draft lacked is hunt still owed), run `/fabrik-review`''s close ORDER on it (gate while IN-PROGRESS, embedded, flipped to `Status: CONVERGED`, re-run), then commit that receipt alone (outside D7''s one-commit sync-path rule) and push it — never captured or passed to `--commit`'
+  current: 'Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5''s capture line so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one, committed alone and never captured or passed to `--commit`; a full `/fabrik-review` over committed work — that form, `/fabrik-review`''s committed-fix form — closes in this order, after step 5''s ledger commit:'
+  changed-by:
+  - D-1339
+  clauses:
+    2: {duplicate-of: ft-close-after-commit-review}
+    3: {duplicate-of: ft-close-after-commit-receipt}
+    4: {duplicate-of: ft-close-after-commit-receipt}
+    5: {duplicate-of: ft-close-after-commit-gate}
+    6: {duplicate-of: ft-close-after-commit-close-order}
   text:
-  - 'Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5''s capture line so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one — `/fabrik-review`''s committed-fix form (sync-path run in main checkout, which `done` holds to one commit, reviews BEFORE that commit instead — `--restamp` form below): run full `/fabrik-review` (skipping its own `--init`) with its rows in draft, `review_receipt.py --init --lane --range <base>..HEAD --changed <paths> --out <durable>/<slug>-receipt-draft.md`, until its closing pass; then, after last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug> --range <base>..<that sha>` — Surface line it writes is what check (d) reads; run `final_gate.py --check --json` BEFORE that `--init`, so fix gate forces is run commit that lands first — carry draft''s rows into it (rubric class draft lacked is hunt still owed), run `/fabrik-review`''s close ORDER on it (gate while IN-PROGRESS, embedded, flipped to `Status: CONVERGED`, re-run), then commit that receipt alone (outside D7''s one-commit sync-path rule) and push it — never captured or passed to `--commit`'
+  - 'Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5''s capture line so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one, committed alone and never captured or passed to `--commit`; a full `/fabrik-review` over committed work — that form, `/fabrik-review`''s committed-fix form — closes in this order, after step 5''s ledger commit:'
+- id: ft-close-after-commit-review
+  # class: prose
+  section: '## Phase 5 — CLOSE, in this order'
+  current: 'Run full `/fabrik-review` (skipping its own `--init`) with its rows in draft, `review_receipt.py --init --lane --range <base>..HEAD --changed <paths> --out <durable>/<slug>-receipt-draft.md`, until its closing pass — a sync-path run in main checkout, which `done` holds to one commit, takes the `--restamp` form below instead'
+  text:
+  - 'Run full `/fabrik-review` (skipping its own `--init`) with its rows in draft, `review_receipt.py --init --lane --range <base>..HEAD --changed <paths> --out <durable>/<slug>-receipt-draft.md`, until its closing pass — a sync-path run in main checkout, which `done` holds to one commit, takes the `--restamp` form below instead'
+  ordered:
+  - ft-close-after-commit-review
+  - ft-close-after-commit-gate
+  - ft-close-after-commit-receipt
+  - ft-close-after-commit-close-order
+  - ft-close-after-commit-done
+- id: ft-close-after-commit-gate
+  # class: prose
+  section: '## Phase 5 — CLOSE, in this order'
+  current: 'Run `final_gate.py --check --json` BEFORE step 3''s `--init`, so fix gate forces is run commit that lands, captured, first'
+  text:
+  - 'Run `final_gate.py --check --json` BEFORE step 3''s `--init`, so fix gate forces is run commit that lands, captured, first'
+- id: ft-close-after-commit-receipt
+  # class: prose
+  section: '## Phase 5 — CLOSE, in this order'
+  current: 'After last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug> --range <base>..<that sha>` — Surface line it writes is what check (d) reads'
+  text:
+  - 'After last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug> --range <base>..<that sha>` — Surface line it writes is what check (d) reads'
+- id: ft-close-after-commit-close-order
+  # class: prose
+  section: '## Phase 5 — CLOSE, in this order'
+  current: 'Carry draft''s rows into it (rubric class draft lacked is hunt still owed), run `/fabrik-review`''s close ORDER on it (gate while IN-PROGRESS, embedded, flipped to `Status: CONVERGED`, re-run), then commit that receipt alone (outside D7''s one-commit sync-path rule) and push it'
+  text:
+  - 'Carry draft''s rows into it (rubric class draft lacked is hunt still owed), run `/fabrik-review`''s close ORDER on it (gate while IN-PROGRESS, embedded, flipped to `Status: CONVERGED`, re-run), then commit that receipt alone (outside D7''s one-commit sync-path rule) and push it'
+- id: ft-close-after-commit-done
+  # class: prose
+  section: '## Phase 5 — CLOSE, in this order'
+  current: 'Close the nested review''s record, then step 6''s `done`'
+  text:
+  - 'Close the nested review''s record, then step 6''s `done`'
 - id: ft-close-review-before-commit
   # class: prose
   section: '## Phase 5 — CLOSE, in this order'
@@ -759,12 +819,13 @@ vanished:
   L81: {rule: [ft-close-d-row]}
   L82: {rule: [ft-close-changelog]}
   L84: {rule: [ft-close-commit-capture]}
+  L85: narrative
   L86: {rule: [ft-close-push-then-close]}
   L88: {rule: [ft-close-v1-undeclared]}
   L89: {rule: [ft-close-v1-undeclared]}
   L90: {rule: [ft-close-v2-undeclared-refuses]}
   L91: {rule: [ft-close-contract-newsource-refuses]}
-  L92: {rule: [ft-close-receipt-range-tip]}
+  L92: {rule: [ft-close-receipt-range-tip, ft-close-after-commit-review, ft-close-after-commit-gate, ft-close-after-commit-receipt, ft-close-after-commit-close-order]}
   L93: {rule: [ft-close-review-before-commit]}
   L94: {rule: [ft-close-evidence-split]}
   L96: {rule: [ft-upgrade-crossing]}

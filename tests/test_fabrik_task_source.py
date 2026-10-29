@@ -774,8 +774,8 @@ def test_the_run_files_live_in_the_scratch_path_start_prints() -> None:
     for site in (
         "`<durable>/measure.md`, beside phase 2's `design.md`",
         "--design <durable>/design.md",
-        "mkdir -p <durable> \\",
-        ">> <durable>/commit.sha || exit 1",
+        "mkdir -p <durable>\n",
+        "capture --msg <msg> --out <durable>/commit.sha",
         "--commit $(cat <durable>/commit.sha)",
         "--resume <durable>/design.md",
     ):

@@ -171,7 +171,7 @@ Invoke review phase 0 already picked — at v1 always `/fabrik-review-scoped` (v
 
 Full `/fabrik-review` over committed work runs after phase 5 step 5 on draft in `<durable>`, its receipt made once, after last `--commit` (the ledger commit or a later fix), that commit its `--range` tip, and committed alone; receipt D-row cites is made before that commit instead (`--restamp`, phase 5); scoped one needs none.
 
-*(v2)* Seats still out at a turn end meet the Stop hook's uncommitted-work block (three times, then it warns through), so a review that will outlive the turn is dispatched only after the build is committed through phase 5 step 5's capture line, a full `/fabrik-review` then taking the after-commit `--range` form; one that finishes inside the turn may still review BEFORE commit.
+*(v2)* Seats still out at a turn end meet the Stop hook's uncommitted-work block (three times, then it warns through), so the review is dispatched AFTER phase 5 steps 1-5 by default — every run commit captured as step 5 says — a full `/fabrik-review` then taking the after-commit `--range` form phase 5 numbers; a review that finishes inside the turn may still run BEFORE commit, and a sync-path run in main checkout must (phase 5).
 
 Give its seat briefs phase-2 `design.md` path and phase-0 declaration, plus three questions: *does change ESCAPE declared files? did it add mechanism declaration said `no` to? can you name second approach whose merits build cannot settle (an equivalent implementation is not one)?* `yes` to first or third is that seat's UPGRADE verdict — take it; `yes` to second corrects D-row (name mechanism there), never the lane (D-315).
 
@@ -189,16 +189,14 @@ Under urgent-90 CHECKPOINT record stays open, *(v2)* build is committed through 
 2. D-row in `docs/DECISIONS.md` from phase-2 draft, if there was decision — minting and reversible/ONE-WAY classification stay decision-ledger rule's.
 3. `CHANGELOG.md` atop `[Unreleased]`; `docs/LESSONS_LEARNT.md` or explicit `none`.
 4. `python scripts/final_gate.py --json` → `status: "success"`.
-5. Commit with explicit pathspecs + provenance trailers, **chaining capture off commit**, found by its own subject — a `HEAD` read would capture a sibling's commit landing while the post-commit hook runs:
+5. Commit with explicit pathspecs + provenance trailers (§ EXIT: trailers via -F <msg>, private-index for shared-append files), then capture it, found by its own subject — a `HEAD` read would capture a sibling's commit landing while the post-commit hook runs. Each line is its own plain call, never chained to the commit, which a linked worktree's isolation guard refuses:
 
 ```bash
-mkdir -p <durable> \
-  && <your § EXIT commit: pathspecs, trailers via -F <msg>, private-index for shared-append files> \
-  && subj=$(head -n1 <msg>) && sha=$(git log -1 --format=%H -F --grep "$subj") && [ -n "$sha" ] \
-  && [ "$(git log -1 --format=%s "$sha")" = "$subj" ] && echo "$sha" >> <durable>/commit.sha || exit 1
+mkdir -p <durable>
+python3 scripts/command_run.py capture --msg <msg> --out <durable>/commit.sha
 ```
 
-A linked worktree's isolation guard refuses that chained line, so a worktree session runs it as plain calls: `mkdir -p <durable>`; the commit, which must exit 0; `git log -5 --format='%H %s' -F --grep '<a fragment of the subject holding no apostrophe>'`, where the ONE line whose subject is exactly yours names the sha (a newer sibling whose subject contains yours prints above it; no such line, or two, stops the capture); then `printf '%s\n' <that sha> >> <durable>/commit.sha`.
+`capture` appends the sha of the newest commit whose subject is `<msg>`'s, and exits 1 appending nothing when that commit's subject differs or no commit has it; every run commit — the build's, the ledgers', each a review fix makes — is captured this way.
 
 6. § EXIT's push ladder (never `--force`), then close — capture file, not post-ladder `HEAD` read, is what names YOUR commit:
 
@@ -214,7 +212,13 @@ Close re-measures every commit: at v1 undeclared path is RECORDED as `oversized_
 
 *(v2)* contract or new-source hit found only here REFUSES `done` and `handoff` too, until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none.
 
-Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5's capture line so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one — `/fabrik-review`'s committed-fix form (sync-path run in main checkout, which `done` holds to one commit, reviews BEFORE that commit instead — `--restamp` form below): run full `/fabrik-review` (skipping its own `--init`) with its rows in draft, `review_receipt.py --init --lane --range <base>..HEAD --changed <paths> --out <durable>/<slug>-receipt-draft.md`, until its closing pass; then, after last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug> --range <base>..<that sha>` — Surface line it writes is what check (d) reads; run `final_gate.py --check --json` BEFORE that `--init`, so fix gate forces is run commit that lands first — carry draft's rows into it (rubric class draft lacked is hunt still owed), run `/fabrik-review`'s close ORDER on it (gate while IN-PROGRESS, embedded, flipped to `Status: CONVERGED`, re-run), then commit that receipt alone (outside D7's one-commit sync-path rule) and push it — never captured or passed to `--commit`.
+Its range tip must be the LAST `--commit` (`task_lane.py` check (d)), and in the after-commit `--range` form each commit a review fix makes is a run commit: make it through step 5's capture line so its sha lands in `commit.sha`, and the receipt is made ONCE, after the last one, committed alone and never captured or passed to `--commit`; a full `/fabrik-review` over committed work — that form, `/fabrik-review`'s committed-fix form — closes in this order, after step 5's ledger commit:
+
+1. Run full `/fabrik-review` (skipping its own `--init`) with its rows in draft, `review_receipt.py --init --lane --range <base>..HEAD --changed <paths> --out <durable>/<slug>-receipt-draft.md`, until its closing pass — a sync-path run in main checkout, which `done` holds to one commit, takes the `--restamp` form below instead.
+2. Run `final_gate.py --check --json` BEFORE step 3's `--init`, so fix gate forces is run commit that lands, captured, first.
+3. After last sha in `commit.sha`, `review_receipt.py --init --lane --changed <every path in base..that sha> --scope <slug> --range <base>..<that sha>` — Surface line it writes is what check (d) reads.
+4. Carry draft's rows into it (rubric class draft lacked is hunt still owed), run `/fabrik-review`'s close ORDER on it (gate while IN-PROGRESS, embedded, flipped to `Status: CONVERGED`, re-run), then commit that receipt alone (outside D7's one-commit sync-path rule) and push it.
+5. Close the nested review's record, then step 6's `done`.
 
 Or review BEFORE commit: `--init` without `--range`, then `review_receipt.py --restamp <receipt>` after review's last fix — receipt rides in that commit and (d) re-hashes its paths (W-ebbedc88).
 

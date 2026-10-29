@@ -59,6 +59,25 @@ def test_the_receipt_range_tip_is_the_last_commit() -> None:
     )
 
 
+def test_review_after_commit_is_the_default_and_its_close_is_numbered() -> None:
+    """D-1339 (W-b21ced51): rows asked phase 4 to say up front that the review runs after the build commit (the Stop
+    hook blocks an uncommitted tree while seats run) and phase 5 to number the after-commit close. Mutants: restore
+    the outlive-the-turn condition, or swap two numbered steps."""
+    phase4 = _section("## Phase 4", "## Phase 5")
+    assert "the review is dispatched AFTER phase 5 steps 1-5 by default" in phase4
+    assert "will outlive the turn" not in phase4
+    close = _section("## Phase 5", "## UPGRADE")
+    steps = [
+        "1. Run full `/fabrik-review` (skipping its own `--init`)",
+        "2. Run `final_gate.py --check --json` BEFORE step 3's `--init`",
+        "3. After last sha in `commit.sha`, `review_receipt.py --init --lane",
+        "4. Carry draft's rows into it",
+        "5. Close the nested review's record, then step 6's `done`",
+    ]
+    at = [close.index(s) for s in steps]
+    assert at == sorted(at), "the after-commit close steps are out of order"
+
+
 def test_critique_is_not_rerun_on_the_folded_version() -> None:
     """Row 1791070230: 'once per artifact version' read as re-critiquing every folded design.md."""
     text = _norm(CRITIQUE)
@@ -93,16 +112,12 @@ def test_design_tabulates_its_inputs_and_the_close_captures_by_subject() -> None
     design = _section("## Phase 2", "## Phase 3")
     assert "up to that call" not in design
     close = _section("## Phase 5", "## UPGRADE")
-    # the subject comes from the -F message file (a pasted one would run its backticks); the grep finds a
-    # candidate; the exact %s comparison refuses a body-quoting sibling, a prefix and a miss
+    # the subject comes from the -F message file (a pasted one would run its backticks); D-1339: the capture is
+    # command_run.py's own verb, run as a plain call (its find-by-subject and exact %s check are tested in
+    # test_command_run_lane_v2.py's test_capture_*), never the chained shell recipe a worktree guard refuses
     assert "trailers via -F <msg>," in close
-    assert (
-        '&& subj=$(head -n1 <msg>) && sha=$(git log -1 --format=%H -F --grep "$subj") && [ -n "$sha" ] \\'
-        in close
-    )
-    assert (
-        '&& [ "$(git log -1 --format=%s "$sha")" = "$subj" ] && echo "$sha" >> <durable>/commit.sha || exit 1'
-    ) in close
+    assert "mkdir -p <durable> python3 scripts/command_run.py capture --msg <msg> --out <durable>/commit.sha" in close
+    assert "subj=$(head" not in close and "&& echo" not in close
     assert '"<your subject>"' not in close
     assert "rev-parse -q --verify HEAD" not in close
     assert (
