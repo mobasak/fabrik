@@ -496,8 +496,8 @@ def test_leg_fits_budgets_the_longest_timed_leg(world):
     assert mod._leg_fits(now - late, HUB, 697.0)  # a 697 s green leg leaves a landing after it
     # budgeted at 1.5 x the timed leg: hub legs under load spread ~30 % (D-1312)
     timed_edge = mod.QUEUE_WALL_S - mod.LANDING_WORST_S - 1.5 * 697 - mod.LEG_OVERHEAD_S
-    assert mod._leg_fits(now - timed_edge + 1, HUB, 697.0)
-    assert not mod._leg_fits(now - timed_edge - 1, HUB, 697.0)  # no landing could follow it
+    assert mod._leg_fits(now - timed_edge + 5, HUB, 697.0)  # 5 s slack: a stall never flips it
+    assert not mod._leg_fits(now - timed_edge - 5, HUB, 697.0)  # no landing could follow it
     # never budgeted above the declared limit, however long a timed leg was
     assert mod._leg_fits(now, HUB, 2600.0) == mod._leg_fits(now, HUB)
 
@@ -562,19 +562,69 @@ def test_queue_times_only_green_legs(world, monkeypatch):
     assert all(_record(world, m)["outcome"] == "merged" for m in sends)
 
 
+def test_queue_keeps_the_longest_timed_leg(world, monkeypatch):
+    """A slow green leg then faster ones: the budget stays at the SLOW leg's recorded seconds, so a
+    later quick leg never shrinks it below what this run already saw (review r1 B1)."""
+    script = (  # keyed on the REQUEST's own subject: a stacked tree carries every earlier file
+        "python3 - <<'PY'\n"
+        "import subprocess, time\n"
+        "s = subprocess.run(['git', 'log', '-1', '--format=%s', 'HEAD^2'], capture_output=True, text=True).stdout\n"
+        "time.sleep(2.3 if s.startswith('slow') else 1.2)\n"
+        "PY\n"
+    )
+    _owner_tests(world, script)
+    sends = []
+    for name, files in (
+        ("slow", {"slow.txt": "x\n"}),
+        ("fast", {"f.txt": "f\n"}),
+        ("last", {"l.txt": "l\n"}),
+    ):
+        h, b = _new_branch(world, name, files)
+        sends.append(world.send(h, branch=b))
+    seen = _spy_fits(world, monkeypatch)
+    timed: list[float] = []  # each green queue leg's seconds, in the order the queue read them
+    real_seconds = world.mod._leg_seconds
+
+    def keep(*a):
+        s = real_seconds(*a)
+        if s:
+            timed.append(s)
+        return s
+
+    monkeypatch.setattr(world.mod, "_leg_seconds", keep)
+
+    assert _queue(world) == 0
+
+    assert len(timed) >= 2 and timed[0] > min(timed), timed  # a faster leg came after the slow one
+    assert seen[-1] == max(timed), (seen, timed)  # the budget kept the slow one
+    assert all(_record(world, m)["outcome"] == "merged" for m in sends)
+
+
 def test_queue_never_times_a_leg_without_a_record(world, monkeypatch):
-    """One's queue leg exits 124 (no record): the fork check for two, after one's leg was joined, still
-    reads a zero budget."""
+    """One's queue leg exits 124 (no record): every budget the queue reads is zero or a GREEN queue
+    leg's own recorded seconds (two's), never anything one's failed leg left."""
     log = _kind_log(world, fail_queue_on="slow.txt")
     h1, b1 = _new_branch(world, "one", {"slow.txt": "x\n"})
     h2, b2 = _new_branch(world, "two", {"b.txt": "b\n"})
     m1, m2 = world.send(h1, branch=b1), world.send(h2, branch=b2)
     seen = _spy_fits(world, monkeypatch)
+    green: list[float] = []
+    real_seconds = world.mod._leg_seconds
+
+    def keep(ctx, el, script, runner):
+        s = real_seconds(ctx, el, script, runner)
+        if s:
+            assert el["head"] == h2, el  # only two's green leg is ever timed
+            green.append(s)
+        return s
+
+    monkeypatch.setattr(world.mod, "_leg_seconds", keep)
 
     assert _queue(world) == 0
 
     assert any(h == h2 and k == "queue" for h, k, _, _ in _kinds(log))  # two's fork was checked
-    assert len(seen) >= 2 and all(t == 0.0 for t in seen), seen
+    assert len(seen) >= 2 and seen[0] == 0.0, seen
+    assert set(seen) <= {0.0, *green}, (seen, green)  # nothing but two's own green seconds
     assert _record(world, m1)["outcome"] == "merged" and _record(world, m2)["outcome"] == "merged"
 
 
