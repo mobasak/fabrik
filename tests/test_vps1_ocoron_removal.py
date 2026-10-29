@@ -613,9 +613,13 @@ def test_stack_identity_needs_the_name_separator_or_the_label_or_the_route(vps: 
         _container(11, "ocoron-com-web-1", None, IMG["wp"], []),
         _container(12, "web-1", "ocoron-com", IMG["db"], []),
         _container(13, "edge-1", "edge", IMG["nginx"], [], route="Host(`a.example`, `OCORON.com`)"),
+        # pass 2: the bare name (A-N1) and a double-quoted rule (N3)
+        _container(17, "ocoron-com", None, IMG["wp"], []),
+        _container(18, "edge-2", "edge2", IMG["nginx"], [], route='Host("www.ocoron.com")'),
+        _container(19, "edge-3", "edge3", IMG["nginx"], [], route="Host(`auth.vps1.ocoron.com`)"),
     ]
     stack = {c["Name"].lstrip("/") for c in vps.containers if m.in_stack(c)}
-    assert stack == {"ocoron-com-web-1", "web-1", "edge-1"}
+    assert stack == {"ocoron-com-web-1", "web-1", "edge-1", "ocoron-com", "edge-2"}
 
 
 def test_apply_stops_on_a_mixed_project_before_any_down(
@@ -861,3 +865,62 @@ def test_an_unreadable_grep_with_empty_stderr_still_reads_unreadable(
     vps._r = lambda rc, out="", err="": real(rc, out, "" if rc == 2 else err)  # type: ignore[method-assign]
     assert m.main([]) == 0
     assert "UNREADABLE: grep rc 2" in capsys.readouterr().out
+
+
+# pass 2 of the /fabrik-review (W-80a1f9fd): the closing seats' own-fix findings
+
+
+def test_the_printed_delete_line_runs_for_a_volume_found_by_another_projects_label(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """N1: a volume found only through the route-matched project's label is printed by --apply with that project,
+    and the printed --delete-volumes line, run as printed, deletes it."""
+    vps.volumes["site_cache"] = "f dump.rdb\n"
+    vps.volume_labels["site_cache"] = "ocoron-site"
+    _answer(monkeypatch, "yes")
+    assert m.main(["--apply"]) == 0
+    line = next(
+        ln for ln in capsys.readouterr().out.splitlines() if ln.lstrip().startswith("python3 -I ")
+    )
+    args = shlex.split(line)[3:]  # drop python3 -I <script>
+    assert (
+        args[:1] == ["--delete-volumes"]
+        and "site_cache" in args
+        and args[-2:] == ["--project", "ocoron-site"]
+    )
+    _answer(monkeypatch, "yes")
+    assert m.main(args) == 0
+    assert "site_cache" not in vps.volumes
+
+
+def test_unclassified_data_is_left_out_of_the_printed_delete_line(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A-N2: a symlinked data dir is named as unclassifiable after --apply, never offered to --delete-volumes."""
+    vps.data_dir_symlink = True
+    _answer(monkeypatch, "yes")
+    assert m.main(["--apply"]) == 0
+    out = capsys.readouterr().out
+    delete_line = next(ln for ln in out.splitlines() if ln.lstrip().startswith("python3 -I "))
+    assert m.DATA_DIR not in delete_line
+    assert f"could not classify and will not delete (handle by hand): {m.DATA_DIR}" in out
+
+
+def test_a_rename_that_finds_the_file_already_aside_completes(
+    vps: FakeVps, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """B-N1: the real rc-4 state (compose.yaml absent, so test -f reads no) finishes with exit 0."""
+    vps.rename_rc = 4
+    vps.compose = False
+    _answer(monkeypatch, "yes")
+    assert m.main(["--apply"]) == 0
+    out = capsys.readouterr().out
+    assert "compose.yaml: already aside" in out and "stack removed" in out
+
+
+def test_a_project_name_that_is_not_a_name_is_refused(capsys: pytest.CaptureFixture[str]) -> None:
+    """--project takes a compose project name only: it reaches a root command line."""
+    with pytest.raises(SystemExit) as exc:
+        m.main(["--delete-volumes", "x", "--project", "a;reboot"])
+    assert exc.value.code == 2
+    assert "is not a compose project name" in capsys.readouterr().err

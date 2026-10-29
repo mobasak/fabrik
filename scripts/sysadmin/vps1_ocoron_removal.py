@@ -11,7 +11,7 @@ copy still names `ocoron-com-` containers):
     python3 -I scripts/sysadmin/vps1_ocoron_removal.py --apply                 # down + out of the boot glob + images
     python3 -I scripts/sysadmin/vps1_ocoron_removal.py --delete-volumes ID …   # only ids the dry run printed
 
-The stack is every container whose compose project is ocoron-com, whose name starts ocoron-com, or whose Traefik
+The stack is every container whose compose project is ocoron-com, whose name is ocoron-com or starts ocoron-com- or ocoron-com_, or whose Traefik
 rule routes ocoron.com or www.ocoron.com; its projects are read from those containers, never assumed. `--apply` runs
 `docker compose -p <project> down` (no -v: volumes stay), then moves /opt/ocoron-com/compose.yaml aside, because
 fabrik-compose-boot.sh runs `up -d` on every /opt/*/compose.yaml at boot (that is how D-121's down came undone), then
@@ -59,9 +59,10 @@ KNOWN_BENIGN = (
     "domain match by design"
 )
 # a Traefik rule naming the site anywhere in a Host(...) argument list; hosts match case-insensitively
-_HOST_RULE = re.compile(r"Host\([^)]*`(www\.)?ocoron\.com`", re.IGNORECASE)
-# a container named for the stack: compose's `<project>-<service>-<n>` or a `_` form, never ocoron-community-…
-_STACK_NAME = re.compile(r"ocoron-com[-_]")
+_HOST_RULE = re.compile(r"Host\([^)]*[`\"](www\.)?ocoron\.com[`\"]", re.IGNORECASE)
+# a container named for the stack: `ocoron-com` itself, compose's `<project>-<service>-<n>` or a `_` form, never
+# ocoron-community-…
+_STACK_NAME = re.compile(r"ocoron-com([-_]|$)")
 _PROJECT_LABEL = "com.docker.compose.project"
 _CONFIG_LABEL = "com.docker.compose.project.config_files"
 _HEX64 = re.compile(r"[0-9a-f]{64}")
@@ -559,19 +560,26 @@ def apply() -> None:
         raise StopError(
             f"still present after the down: {', '.join(left + ([COMPOSE + ' in the boot glob'] if after['in_boot_glob'] else []))}"
         )
-    ids = [d["id"] for d in after["volumes"]] + (
-        [after["data_dir"]["id"]] if after["data_dir"] else []
-    )
+    data = after["volumes"] + ([after["data_dir"]] if after["data_dir"] else [])
+    ids = [d["id"] for d in data if d["class"] != "UNREADABLE"]
+    unreadable = [d["id"] for d in data if d["class"] == "UNREADABLE"]
+    # the delete run re-reads the box: name every project this run searched, or a volume found only by another
+    # project's label is not found there
+    projects = "".join(f" --project {p}" for p in after["searched"] if p != PROJECT)
     print("\nstack removed: 0 containers, 0 networks, compose.yaml out of the boot glob.")
     if ids:
         print("data left (review the classes above, then, only on the operator's word):")
         print(
-            f"  python3 -I scripts/sysadmin/vps1_ocoron_removal.py --delete-volumes {' '.join(ids)}"
+            f"  python3 -I scripts/sysadmin/vps1_ocoron_removal.py --delete-volumes {' '.join(ids)}{projects}"
+        )
+    if unreadable:
+        print(
+            f"data this script could not classify and will not delete (handle by hand): {', '.join(unreadable)}"
         )
 
 
-def delete_volumes(ids: list[str]) -> None:
-    inv = inventory()
+def delete_volumes(ids: list[str], projects: tuple[str, ...] = ()) -> None:
+    inv = inventory(projects)
     report(inv)
     if inv["stack"] or inv["networks"]:
         raise StopError("the stack is still up: run --apply first")
@@ -628,14 +636,25 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument(
         "--delete-volumes", nargs="+", metavar="ID", help="delete these volumes / the data dir"
     )
+    ap.add_argument(
+        "--project",
+        action="append",
+        default=[],
+        metavar="P",
+        help="also search this compose project's networks and labelled volumes (as --apply prints it)",
+    )
     args = ap.parse_args(argv)
+    bad = [p for p in args.project if not _name(p)]
+    if bad:
+        ap.error(f"--project {bad[0]!r} is not a compose project name")
+    projects = tuple(args.project)
     try:
         if args.apply:
             apply()
         elif args.delete_volumes:
-            delete_volumes(args.delete_volumes)
+            delete_volumes(args.delete_volumes, projects)
         else:
-            report(inventory())
+            report(inventory(projects))
             print("\ndry run: nothing changed. Next: --apply (after the prompt sync).")
     except StopError as exc:
         print(f"\nSTOP: {exc}", file=sys.stderr)
