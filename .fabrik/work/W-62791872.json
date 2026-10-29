@@ -3,7 +3,7 @@
   "created": "2026-10-29T12:47:27.180684Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "d0895f7d4807ff356c4456a331b7f382197f4b30",
   "id": "W-62791872",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "LOW: cosmetic error text ([object Object]); effort low",
-  "status": "open",
+  "status": "done",
   "tags": [
     "review-loop"
   ],

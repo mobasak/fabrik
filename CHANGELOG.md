@@ -162,6 +162,14 @@ paragraph now says the alternative is outside the mandate and routes a project t
   projects already refuse for lacking any limits); each gets a request mail. The five docker apps deployed
   before D-1326 pick the line up at their re-apply.
 
+### Added — the review loop queues a pass's seats under `max_seats` (2026-10-29)
+- `.claude/workflows/fabrik-review-loop.js`: an optional `max_seats` caps the seats running at once, so a
+  partition larger than the seat stamp runs as one pass instead of a trimmed or hand-split one; an invalid value
+  stops the launch; the `DISPATCH:` line appends the cap. A refuter whose agent call throws at the call is retried
+  instead of dropping its slice. `firstLine` no longer prints `[object Object]` for a rejection whose message is
+  blank (D-1354 states the rule). `docs/reference/review-loop-workflow.md`: the `max_seats` row; `box_minutes` is the brief's
+  box, enforced by nothing (D-1354; W-bc394d0b, W-62791872).
+
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
   `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`
