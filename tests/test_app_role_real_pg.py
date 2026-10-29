@@ -662,8 +662,8 @@ def test_o11_docker_unavailable_fails_when_real_pg_is_required(monkeypatch) -> N
 
 def test_scratch_pg_leaves_no_anonymous_data_volume_behind() -> None:
     """W-2786800d: the image declares VOLUME, so every container gets an anonymous data volume.
-    The teardown's `docker rm -f` raced `--rm`'s own removal and, winning, kept that volume — 4,171
-    of them (232 GB) filled the WSL disk to 97%. The volume must be gone once the context exits."""
+    The teardown's plain `docker rm -f` removed the running container itself and kept that volume,
+    one per run, until they filled the WSL disk. The volume must be gone once the context exits."""
     with scratch_pg() as s:
         mounts = subprocess.run(
             ["docker", "inspect", "-f", "{{range .Mounts}}{{.Name}} {{end}}", s.container],
