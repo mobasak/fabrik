@@ -38,13 +38,15 @@ GUIDE_ENABLED_TYPES = frozenset(
 # The fleet's Debian codename is pinned in ONE place, rendered into core/30-ops.md (D-064);
 # reading it here keeps the audit from carrying a second, rotting literal (W-f7882a97).
 VERSIONS_FILE = Path(__file__).resolve().parents[1] / ".windsurf" / "rules" / "versions.yaml"
-# The three shapes core/30-ops.md lists, each capturing its Debian codename; a patch version
-# and a `@sha256:` digest pin are the same image written more strictly.
+# The three shapes core/30-ops.md lists, plus the docusaurus serve stage core/42-docusaurus.md
+# mandates (D-664), each capturing its Debian codename; a patch version and a `@sha256:` digest
+# pin are the same image written more strictly.
 _DIGEST = r"(?:@sha256:[0-9a-f]{64})?"
 _DEBIAN_BASE_RES = (
     re.compile(r"^python:3\.\d+(?:\.\d+)?-slim-([a-z]+)" + _DIGEST + "$"),
     re.compile(r"^node:\d+(?:\.\d+)*-([a-z]+)-slim" + _DIGEST + "$"),
     re.compile(r"^debian:([a-z]+)-slim" + _DIGEST + "$"),
+    re.compile(r"^nginx:mainline-([a-z]+)" + _DIGEST + "$"),
 )
 # Debian's release order, oldest first. The release just BEFORE the pin is the one a pin flip
 # retired (D-064: bookworm when trixie was pinned): its images move on their next rebuild, so it
@@ -384,9 +386,13 @@ def _final_stage_label(audit: "ProjectAudit") -> str:
 
 
 def _pinned_base_hint() -> str:
-    """The 30-ops base shapes, on the pinned codename, for a fix hint."""
+    """The 30-ops base shapes and the docusaurus serve stage, on the pinned codename, for a fix
+    hint."""
     cn = _pinned_codename()
-    return f"`python:3.x-slim-{cn}` · `node:N-{cn}-slim` · `debian:{cn}-slim`"
+    return (
+        f"`python:3.x-slim-{cn}` · `node:N-{cn}-slim` · `debian:{cn}-slim` · "
+        f"`nginx:mainline-{cn}` (docusaurus serve stage)"
+    )
 
 
 def _find_code_dirs(project_path: Path) -> list[Path]:

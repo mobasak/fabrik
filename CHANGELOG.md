@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the project audit accepts the docusaurus serve stage `nginx:mainline-<codename>` (2026-10-29)
+
+- `scripts/audit_all_projects.py` knew only the python, node and debian base shapes, so a scaffolded docusaurus project, whose final stage is the `nginx:mainline-<codename>` that `core/42-docusaurus.md` mandates (D-664), was graded critical. The shape is now a fourth base pattern on the same pinned codename (pinned, superseded one release back, otherwise noncompliant), and the fix hint names it. Graded by `tests/test_audit_all_projects_base_image.py` (W-cd8b8ead).
+
 ### Fixed — mobile-app scaffold lints clean out of the box and its EAS delivery workflows can run (2026-10-29)
 
 - A fresh mobile-app scaffold's `pnpm lint` exited 1 (76 errors, all antfu TOML rules on the scaffold-emitted `server/pyproject.toml`); the template now ignores `server/**` in ESLint, pins `@antfu/eslint-config ~7.7.3` with its peers (`eslint-plugin-react-refresh ^0.5.0`, `@eslint-react/eslint-plugin ^2.11.0`) and drops the duplicate direct unicorn. The eas-build-prod, eas-build-preview and new-app-version workflows used two composite actions the template never shipped; `setup-node-pnpm-install` and `eas-build` now ship (from the upstream template, Node 24, no silent APP_ENV/EXPO_TOKEN defaults, inputs passed as env vars so a release tag cannot inject shell). Graded by `tests/test_scaffold_mobile_toolchain.py` (D-1323, W-fc58e9b7).

@@ -348,6 +348,40 @@ def test_the_noncompliant_hint_names_the_image_it_replaces(audit):
     assert "`python:3.14-alpine`" in issue.fix
 
 
+# ── W-cd8b8ead: the docusaurus pack's serve stage (core/42-docusaurus.md, D-664) ─────────────
+
+
+@pytest.mark.parametrize(
+    ("image", "status"),
+    [
+        ("nginx:mainline-trixie", "pinned"),
+        ("nginx:mainline-trixie@sha256:" + "d" * 64, "pinned"),
+        ("nginx:mainline-bookworm", "superseded"),
+        ("nginx:stable-trixie", "noncompliant"),  # the pack names mainline
+        ("nginx:mainline-alpine", "noncompliant"),
+        ("nginx:mainline", "noncompliant"),  # no codename: floats with upstream
+        ("nginx:1.29-trixie", "noncompliant"),
+    ],
+)
+def test_the_docusaurus_serve_stage_follows_the_pin(audit, image, status):
+    assert audit._base_status(image) == status
+
+
+def test_a_scaffolded_docusaurus_dockerfile_passes_the_audit(audit, tmp_path):
+    """The emitted two-stage Dockerfile's FINAL stage is the nginx serve stage."""
+    final = _final(
+        audit,
+        tmp_path,
+        "FROM node:24-trixie-slim AS builder\nFROM nginx:mainline-trixie\n",
+    )
+    assert final == "nginx:mainline-trixie"
+    assert _issues_for(audit, final) == []
+
+
+def test_the_fix_hint_names_the_serve_stage(audit):
+    assert "`nginx:mainline-trixie`" in audit._pinned_base_hint()
+
+
 def test_a_stage_built_from_an_alias_is_marked_by_its_image(audit):
     a = audit.ProjectAudit(name="p", path=Path("/nonexistent"))
     a.dockerfile_from_lines = [
