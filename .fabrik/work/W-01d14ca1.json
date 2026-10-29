@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T01:11:40.033370Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-01d14ca1",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "spec-chain decision: validate the RESOLVED compose (sudo docker compose config in /opt/<name> over the ssh transport _read_compose_from_vps uses) vs refuse override files + COMPOSE_* env keys statically; the on-target form also covers include/extends/interpolation",
+  "note": "folds into W-2907ccef's spec question (validate the docker compose config output vs refuse override files + COMPOSE_* keys statically), which the coordinator dropped as a time sink (D-955): 0 override files under /opt today; re-file with work.py add if one appears",
+  "owner": "",
+  "priority": 2,
+  "status": "dropped",
+  "tags": [
+    "medium"
+  ],
+  "title": "Compose override files (compose.override.y*ml, docker-compose.override.y*ml) beside a deployed compose and a COMPOSE_FILE / COMPOSE_PATH_SEPARATOR / COMPOSE_PROFILES key in the project .env are merged or honoured by every bare 'cd /opt/<name> && docker compose up' (deployer_ssh.py ~:79/81/528/752/828/924) and never validated: an override adding ports:, a 64G memory or a whole service passes _validate_compose (W-2907ccef critiques, executed with docker compose config 2.40.3; 0 override files under /opt today)"
+}
