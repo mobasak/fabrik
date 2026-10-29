@@ -511,6 +511,8 @@ def test_no_default_coordinator_without_a_no_owner_answer(r, box, monkeypatch):
     failed = _no_owner_ledger(_git(box.repo("failed", owner=None)))
     boom = _no_owner_ledger(_git(box.repo("boom", owner=None)))
     _no_owner_ledger(box.repo("scratch", owner=None))  # a ledger but no git entry
+    # positive control: a real lookup in the same call still names its owner
+    ok = _git(box.repo("ok", owner="ok1"))
     real = r.hibernate.merge_owner
 
     def fake(repo, **kw):
@@ -526,7 +528,9 @@ def test_no_default_coordinator_without_a_no_owner_answer(r, box, monkeypatch):
     want = {"New session in noledger", "New session in failed", "New session in boom"}
     assert want <= set(labels)
     assert "New session in scratch" not in labels
-    assert not [x for x in rows if x.get("role")], "no repo here may offer a coordinator"
+    assert [x["role"] for x in _role_rows(rows, ok)] == ["ok1"]
+    others = [x for x in rows if x.get("role") and x["repo"] != ok]
+    assert not others, "no repo but the control may offer a coordinator"
 
 
 def test_a_hung_lookup_costs_only_its_own_row(r, box, monkeypatch):
@@ -577,6 +581,18 @@ def test_a_git_file_lists_the_repo_once_beside_its_known_agents(r, box):
         "builder",
         "lk1",
     ]
+
+
+def test_a_trailing_slash_repo_key_lists_the_repo_once(r, box):
+    """A registry row naming `/opt/x/` and the git entry `/opt/x` are one repo, not two."""
+    x = _git(box.repo("x", owner="x1"))
+    box.store.append({"session_id": SID_SX, "name": "xb", "toplevel": x + "/"})
+    (box.home / ".claude" / "state" / "agent-identity.jsonl").write_text(
+        "".join(json.dumps(s) + "\n" for s in box.store), encoding="utf-8"
+    )
+    rows = r.entries(box.home, box.proc, str(box.opt))
+    assert [x["label"] for x in rows].count("New session in x") == 1
+    assert sorted(y["role"] for y in _role_rows(rows, x) if y["kind"] == r.NEW_ROLE) == ["x1", "xb"]
 
 
 def test_merge_owner_timeout_keyword(r, box, monkeypatch):

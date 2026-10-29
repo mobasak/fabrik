@@ -16,7 +16,7 @@ installed at ~/.claude/bin/claude-agent-wrapper.sh); on a stream-json chat launc
 operator's history pick and launches as today; one whose transcript lives under another project directory is a
 restored routed tab, RE-ROOTED silently to that session's own cwd with the role recorded for it. Otherwise it shows a
 Tk list (Enter or double-click picks; Esc, closing it, the 30 s deadline or the wrapper's death cancels):
-"Plain chat — as today" first, then per repo (every git repo under /opt, and any repo with a known agent):
+"Plain chat — as today" first, then per repo (every git repo directly under /opt, and any repo with a known agent):
   a role whose session runs in a live process            listed "live elsewhere (pid N)", REFUSED on pick (one
                                                           process per session id — coordinator ruling 2026-10-21)
   a role not live, with a transcript                     "Resume <role>" — its newest session; the tab runs in the
@@ -155,6 +155,8 @@ def known_agents(home: Path, opt: str) -> dict[str, dict[str, list[str]]]:
     out: dict[str, dict[str, list[str]]] = {}
 
     def add(repo: str, role: str, sid: str) -> None:
+        # one key per repo: git_repos() keys never carry a trailing slash
+        repo = os.path.normpath(repo)
         sids = out.setdefault(repo, {}).setdefault(role, [])
         if sid and sid not in sids:
             sids.append(sid)

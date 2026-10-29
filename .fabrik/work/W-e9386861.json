@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T21:12:16.290814Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-e9386861",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "give the picker deadline its own clock seam and drive the watchdog through a fake Tk or an injected loop; replace the global time patch",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "tests/test_claude_tab_router.py: two pre-existing tests prove less than their names (found by W-5f4b0972's review, slice B Haiku): test_router_exits_when_the_wrapper_dies checks only wrapper_alive(), never the picker watchdog (pick_with_tk's watch closure is untested); test_picker_deadline_counts_from_the_router_start patches the global time.monotonic, against the file's own W-1e0f4229 rule"
+}
