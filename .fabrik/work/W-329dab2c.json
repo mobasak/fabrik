@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T11:46:13.485328Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-329dab2c",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "the operator's bash scripts/sync-vps-sysadmin.sh run (shared with the ocoron gate's prompt-sync step, after the fleet-ocoron-removal merge) covers vps1; read the script for whether it reaches vps2/vps3 (it rsyncs scripts/sysadmin only to vps) and give the coordinator the exact spoke commands; check the main checkout for sibling WIP before the run (it pushes the working tree wholesale); re-run vps_script_drift.py read-only afterwards",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "waits-operator-run"
+  ],
+  "title": "VPS script drift (mail 01M63PMSB7, vps_script_drift.py 2026-10-29): bot.py, claude_rotate.py, quota_governor.py, claude-keepalive-rotate.sh differ on vps/vps2/vps3, proactive-check.sh and vps-autoheal.sh on the spokes; 4 audit files MISSING on vps2 and vps3; detect_reversals.py lost its exec bit on vps3"
+}
