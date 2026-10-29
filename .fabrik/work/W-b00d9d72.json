@@ -20,7 +20,6 @@
   "score_reason": "HIGH: operator ask with a fixed 2026-11-04 deadline; LOW effort: cloud_dispatch.py exists (D-857/D-860), only sarp's routine and dispatching remain",
   "status": "open",
   "tags": [
-    "waits-2026-10-28",
     "waits-cloud-batch-1",
     "waits-cloud-batch-4"
   ],
