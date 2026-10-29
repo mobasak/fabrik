@@ -971,6 +971,10 @@ def test_an_ordered_cut_runs_to_the_last_red_and_collects_every_file(tmp_path, m
         "tests/test_b.py::test_next",
     ]
     assert (tmp_path / "mark.txt").read_text() == "c imported\n"
+    # several listed reds: the cut follows the LAST of them, so the first never stops the run short
+    # of a later one (review pass 1, B1: a `min` cut left test_later unrun, read FLAKY)
+    _cut_run(runner, _ABC, ["tests/test_a.py::test_pollute", "tests/test_b.py::test_later"])
+    assert "tests/test_b.py::test_later" in _ran(runner), _ran(runner)
 
 
 @pytest.mark.parametrize(
@@ -1017,22 +1021,41 @@ def test_an_until_the_run_cannot_honour_cuts_nothing(tmp_path, monkeypatch, cont
     assert "1 failed, 4 passed" in r.stdout and "deselected" not in r.stdout, r.stdout
 
 
-def test_the_cut_follows_a_conftest_reorder(tmp_path, monkeypatch):
-    """A conftest's trylast reorder registers after the `-p` plugin, so a plain trylast cut ran
-    BEFORE it and deselected the polluter the reorder had moved first: a false green (Fable
-    critique). The wrapper cut acts on the final order."""
+_REORDERS = {
+    # registered after the `-p` plugin: a plain trylast cut ran BEFORE it (Fable critique)
+    "trylast": "@pytest.hookimpl(trylast=True)\ndef pytest_collection_modifyitems(items):\n"
+    "    items.reverse()\n",
+    # a wrapper reordering after `yield` ran AFTER a wrapper cut (review pass 1, A1)
+    "wrapper": "@pytest.hookimpl(wrapper=True)\ndef pytest_collection_modifyitems(items):\n"
+    "    res = yield\n    items.reverse()\n    return res\n",
+    "tryfirst-wrapper": "@pytest.hookimpl(wrapper=True, tryfirst=True)\n"
+    "def pytest_collection_modifyitems(items):\n    res = yield\n    items.reverse()\n"
+    "    return res\n",
+}
+
+
+@pytest.mark.parametrize("hook", sorted(_REORDERS))
+def test_the_cut_follows_a_conftest_reorder(tmp_path, monkeypatch, hook):
+    """A conftest reorder that runs after the cut would move the polluter past it and deselect it:
+    a false green. The cut acts in pytest_collection_finish, on the order every
+    pytest_collection_modifyitems impl — plain, trylast or wrapper — left."""
     files = {
         "tests/state.py": "polluted = False\n",
-        "tests/conftest.py": "import pytest\n\n\n@pytest.hookimpl(trylast=True)\n"
-        "def pytest_collection_modifyitems(items):\n    items.reverse()\n",
+        "tests/conftest.py": "import pytest\n\n\n" + _REORDERS[hook],
         "tests/test_a.py": _STATE_IMPORT + "def test_red():\n    assert not state.polluted\n",
         "tests/test_m.py": "def test_mid():\n    pass\n",
         "tests/test_z.py": _STATE_IMPORT + "def test_pollute():\n    state.polluted = True\n",
+        "tests/test_0.py": "def test_zero():\n    pass\n",
+        "tests/test_1.py": "def test_one():\n    pass\n",
     }
     runner = _cut_runner(tmp_path, monkeypatch, files)
-    paths = ["tests/test_a.py", "tests/test_m.py", "tests/test_z.py"]
+    # reversed, the run is z, m, a, 1, 0: the cut keeps one past the red and drops test_0 — so it
+    # is shown cutting on the reordered list, not merely standing down (review pass 1, B2)
+    paths = ["tests/test_0.py", "tests/test_1.py", "tests/test_a.py", "tests/test_m.py"]
+    paths.append("tests/test_z.py")
     rc, reds, tail = _cut_run(runner, paths, ["tests/test_a.py::test_red"])
     assert rc == 1 and ("tests/test_a.py::test_red", "call") in reds, tail
+    assert "1 deselected" in tail and "tests/test_0.py::test_zero" not in _ran(runner), tail
 
 
 def test_the_last_listed_red_keeps_its_teardown_line(tmp_path, monkeypatch):
@@ -1113,10 +1136,18 @@ def test_a_run_without_until_drops_an_inherited_cut(tmp_path, monkeypatch):
     rc, _reds, _tail = runner.run(_ABC)
     assert rc == 1 and "tests/test_c.py::test_c" in _ran(runner)
     assert (tmp_path / "mark.txt").read_text() == "None\n"
-    big = [f"tests/test_b.py::test_absent_{i:05d}[a long parametrized id {i}]" for i in range(2500)]
+    # every listed id collected, so the cut is honoured, not merely survived (review pass 1, C2)
+    pad = "a-long-parametrized-id-" * 3
+    (tmp_path / "tests" / "test_wide.py").write_text(
+        "import pytest\n\n\n"
+        f"@pytest.mark.parametrize('i', range(2600), ids=lambda i: f'{pad}{{i:05d}}')\n"
+        "def test_wide(i):\n    pass\n",
+        encoding="utf-8",
+    )
+    big = [f"tests/test_wide.py::test_wide[{pad}{i:05d}]" for i in range(2500)]
     assert len(json.dumps(big)) > 128 * 1024
-    rc, _reds, tail = _cut_run(runner, _ABC, big)
-    assert rc == 1 and "deselected" not in tail, tail
+    rc, _reds, tail = _cut_run(runner, ["tests/test_wide.py"], big)
+    assert rc == 0 and "2501 passed, 99 deselected" in tail, tail
 
 
 # ── W-c832e59f: shards balanced by recorded per-file duration ──────────────────────────────

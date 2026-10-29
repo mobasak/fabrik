@@ -89,13 +89,13 @@ _LEG_MARK = "#leg-failed"
 # Under FABRIK_MERGE_TESTS_UNTIL (a JSON file of node ids, W-c80361e4) an ordered re-run stops one
 # item past the last listed red: every file is still collected and the order up to there is the
 # shard's, so an earlier file's pollution still shows, and the listed item's teardown sees the
-# whole run's next item. The cut is a wrapper that acts after `yield` — after every plain
-# modifyitems, a conftest's reorder registered later included (a plain trylast impl ran before one
-# and read a polluted red green). Any input it cannot honour cuts nothing: a cut too early reads an
-# order-dependent red FLAKY, a false green; a cut not taken only costs the old whole-shard run.
+# whole run's next item. The cut acts in pytest_collection_finish, on the order every
+# pytest_collection_modifyitems impl left: a cut inside that hook ran before some reorder — a
+# later-registered trylast impl, or any wrapper reordering after `yield` — and read a polluted red
+# green. Any input it cannot honour cuts nothing: a cut too early reads an order-dependent red
+# FLAKY, a false green; a cut not taken only costs the old whole-shard run.
 _PLUGIN = """
 import json, os
-import pytest
 
 def _crash(report):
     rc = getattr(getattr(report, "longrepr", None), "reprcrash", None)
@@ -136,17 +136,15 @@ def _until():
         return set(want)
     return None
 
-@pytest.hookimpl(wrapper=True, trylast=True)
-def pytest_collection_modifyitems(session, config, items):
-    res = yield
+def pytest_collection_finish(session):
     want = _until()
+    items = session.items
     ids = [item.nodeid for item in items]
     if want and want <= set(ids):
         keep = max(i for i, nid in enumerate(ids) if nid in want) + 2
         if keep < len(items):
-            config.hook.pytest_deselected(items=items[keep:])
+            session.config.hook.pytest_deselected(items=items[keep:])
             del items[keep:]
-    return res
 """
 
 
@@ -842,8 +840,9 @@ def differential(
         if base_ordered:
             _checkout(base)
             in_order = [_on_base(g, split) for g in base_ordered]
-            # cut at the order reds the base still runs: one whose file or id the base lacks would
-            # disable the cut for the whole group
+            # cut at the order reds whose file (or split-file id) the base group still runs: one the
+            # base dropped would disable the cut for the whole group; an id gone from a file the base
+            # still has disables it all the same (no cut, the whole group: cost, never a false green)
             cuts = [
                 [k[0] for k in by_order if group_of[k] is g and _owns(members, k[0])]
                 for g, members in zip(base_ordered, in_order, strict=True)
