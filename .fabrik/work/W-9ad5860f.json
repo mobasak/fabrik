@@ -3,7 +3,7 @@
   "created": "2026-10-25T00:05:19.034567Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "3fc1d08059012030469cad9ff423fe6091518d22",
   "id": "W-9ad5860f",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "HIGH: another repo's finding; map-owner intel (fabrik-review-loop.js recipe); the fragment half folds into kaizen's rewrite",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m5qkg9y78thdmcdz5bkvjre7",
     "queued",

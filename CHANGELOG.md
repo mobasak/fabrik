@@ -163,6 +163,16 @@ grace window. The pack now names `AUTH_REFRESH_ROTATION` (`delete` by default, `
 and preconditions, and that a grace session is a token family revoked whole. Pinned by `tests/test_security_auth_pack.py`
 (D-1342, fabrik-lib request 01M4AGEK7Y, W-ec16d1f4).
 
+### Fixed — review seats save a git blob by redirect and report a node_modules test as unverifiable (2026-10-29)
+- `.claude/workflows/fabrik-review-loop.js`: `SEAT_ISOLATION` says a blob is saved with a shell `>` redirect, never
+  `--output=<file>` on `git show`, which leaves the file empty and prints the blob. `PYTEST_PINS` says a test that
+  needs a gitignored `node_modules/` (a module-not-found failure, or a skip on the missing tree) is unverifiable:
+  never selected by a `-k` filter, never a red or a pass, a ledger claim on it stays open for the lead, and a test
+  run never copies, links or points an env var at the live tree (a gate row keeps GATE_PINS's copy rule). Both reach
+  shell seats only. wef1's mail 01M5QKG9Y7; D-1343.
+- `tests/test_review_loop_workflow.py`: two prompt tests (each clause red on its own mutant, the researcher finder and
+  refuter graded to carry neither rule) and a git fact tripwire on `git show --output`.
+
 ### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)
 - `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the
   box at 96 % the hook's `SCRATCH ALARM` line landed in the stdout of every `--hook` run that passes its
