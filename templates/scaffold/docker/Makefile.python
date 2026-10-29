@@ -64,7 +64,7 @@ docker-smoke: docker-build
 	@sleep 3
 	@echo "Health check..."
 	@curl -sf http://localhost:$(PORT)/health && echo " ✓ Health OK" || echo " ✗ Health FAILED"
-	@docker stop smoke-test && docker rm smoke-test
+	@docker stop smoke-test && docker rm -v smoke-test
 
 docker-dev:
 	docker compose -f compose.yaml -f compose.dev.yaml up --build
@@ -75,7 +75,7 @@ docker-dev:
 
 clean:
 	docker stop smoke-test 2>/dev/null || true
-	docker rm smoke-test 2>/dev/null || true
+	docker rm -v smoke-test 2>/dev/null || true
 	docker rmi $(PROJECT_NAME) 2>/dev/null || true
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
