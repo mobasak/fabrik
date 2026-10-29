@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — review remainder rounds revert a regression and record every other own-fix defect (2026-10-29)
+After a review's scope-growth stop, its remainder rounds RECORD a defect in the review's own fixes, with one
+exception (D-1184, refined in D-1359): an input that, run on the code before the review's first fix and on the
+current code, the first handles correctly and the second wrongly — the lead reverts that hunk, counts the revert in
+the round's `--confirmed`, and routes the defect it answered to the backlog row. `commands/_fragments/term-coverage.md`,
+`/fabrik-review-scoped` step 5 and the probe catalogue's Loop bookkeeping line now say so (the catalogue said the
+opposite); `term-edit.md`, whose reviews execute no input, carries no exception. Grader:
+`tests/test_review_scoped_queue_pass.py::test_a_remainder_round_reverts_a_regression_and_records_every_other_own_fix_defect`.
+
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
 `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.
