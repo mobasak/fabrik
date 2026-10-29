@@ -93,6 +93,11 @@ under `rund` 11200 / `capped_run` 11100, W-d5d1d394), then render + `--ratchet` 
 changed) when `commands/` changed, and the fleet sync after a synced merge; push master; message and mail any agent; dispatch
 the Opus + Fable panel for a decision (CLAUDE.md § Autonomy). **Address a builder by ROLE, resolved live:** `ListAgents`, then the session named
 exactly as its role; fix a duplicate or missing role first.
+**Answer a builder's waiting pane the same turn (W-a12b03a2):** a `work: PANE WAITING: <agent> (<pane>) — dialog|question: …`
+line on your prompt, and the Stop hook's `pane-waiting` block, name a builder on a dialog or ending its turn with a
+question. Read it (`tmux capture-pane -p -t <pane>`), then answer with `tmux send-keys -t <pane>` — a dialog takes its
+option digit; you clear your builders' prompts (D-1034), reading the command before you allow it. `PANE SCAN FAILED`
+means the scan is blind: read the panes yourself.
 
 **Never name another agent's item in your `NEXT:` line** — naming it claims it from its builder. End on `none —
 terminal`, an `operator decision — W-<id> — <what it decides>` awaiting item, or your own work; on a slip, `work.py release <id>`.

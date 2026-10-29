@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — the coordinator sees every builder pane waiting on an answer (2026-10-29)
+- `scripts/sysadmin/rotate_session.py::waiting`: a read-only scan of the repo's agents_up tmux grid that names each
+  builder pane on a dialog (a permission dialog, the workspace-trust prompt, an AskUserQuestion) or idle after a turn
+  that ended with a question. 1 s budget; no tmux or no server reads as no grid.
+- `scripts/work.py`: the coordinator's prompt block opens with one `work: PANE WAITING: <agent> (<pane>) — …` line per
+  such pane (`PANE SCAN FAILED` when tmux fails), and its Stop hook blocks on a `pane-waiting` subject per pane ahead
+  of every other subject, re-armed by each new prompt. Before this the operator answered builders' terminal prompts
+  himself. `docs/reference/agents/coordinator.md` says how to answer. W-a12b03a2, D-1331.
+
 ### Fixed — hub mail auto-replies tell one agent from another (2026-10-29)
 - `scripts/mail.py`: in the hub's shared `fabrik` mailbox the `--auto` self-guard and rate cap key on
   `(from, from-agent)` (W-19b57b9a, D-1329). A fleet request auto-replied by infra was held as infra's
