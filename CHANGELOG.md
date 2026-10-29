@@ -145,6 +145,13 @@ paragraph now says the alternative is outside the mandate and routes a project t
   of 155 real briefs) — follow-up W-9e067e18; a re-written operator `user` row still resets the panel's verdicts —
   follow-up W-432e07dc.
 
+### Changed — /fabrik-task sizes its seats to a defined quota runway (2026-10-29)
+- `commands/_sources/fabrik-task.md` phase 2: the quota runway phase 4 already named is now defined and read before
+  stamping seats in phase 2 and phase 4 — with `successor none`, the minutes until the 5h reading reaches 90 (the wall
+  for a merge or P0 owner the urgent-90 lane lets through) or the window resets, at `claude_rotate.py --status`'s
+  `burn 5h` rate; seats are sized to it and never skipped, and those that cannot fit wait for the lane's park and
+  resume (D-1350; 8 feedback rows).
+
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
   `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`

@@ -108,6 +108,8 @@ This lane's brief has each seat EXECUTE: replay reported incident and real corpu
 
 It pins tree (commit or `git archive` copy) and any live state file design reads, names unmerged branch owning mirrored file, bars live-provider credentials (no `.env` loaded, no provider client built) and asks for small outputs.
 
+Quota runway, read before stamping seats here and at phase 4: with `successor none` on `QUOTA:` line, minutes until 5h `<n>%` hits 90 (100, the wall, for merge or P0 owner urgent-90 lane lets through) or window resets, whichever first, at `claude_rotate.py --status`'s `burn 5h <r>%/m` (`—`/`0.00`: runway runs to reset). Seats are sized to it, never skipped; those that would outlast it wait for that park and resume, or reset (`CLAUDE.md` § Pointers), run meanwhile starting nothing needing them.
+
 Wait for both in-turn: with stamped seats out, Stop hook's run-record block stands down and will not hold you.
 
 Concern is ACCEPTED only after the tests are grepped for every line it touches; optional one adding behaviour only when provable inside the declared files, else filed to its owner; later executed review finding may override it, recorded in D-row with the drift noted.
