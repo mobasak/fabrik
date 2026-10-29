@@ -8,8 +8,11 @@ Type=oneshot
 # Through bash, not the script directly: verify refuses a direct ExecStart= of a file the main checkout
 # lacks (rc 1, "is not executable"), so the installer checks the script's existence itself.
 ExecStart=/usr/bin/bash /opt/fabrik/scripts/sysadmin/wsl_net_heartbeat.sh
-# Bounds a slow curl or DNS (curl itself stops at 5 s). A 9p write stuck in D state outlives it; the
-# timer then skips while the unit deactivates, wsl-net-ran stops changing, and the watchdog reads the
-# heartbeat as broken, never as a dead network.
+# Bounds a slow curl or DNS (curl itself stops at 5 s). A 9p write stuck in D state outlives it: the
+# timer's next start waits behind the deactivating unit, wsl-net-ran stops changing, and the watchdog
+# reads the heartbeat as broken, never as a dead network. TimeoutStopSec bounds each stop stage so a
+# stuck run is given up in seconds, not 90 s per stage; a writer that cannot be killed stays until
+# the 9p stall clears, and the next one may queue behind it.
 TimeoutStartSec=30
+TimeoutStopSec=10
 Nice=10

@@ -7,7 +7,7 @@ watchdog no longer launches `wsl.exe` to probe it (W-960d68a8).
 
 The Windows task `WSL-NatWatchdog` (`C:\Users\user\hotel-wifi\wsl-nat-watchdog.ps1`, D-773) used to
 check WSL's network by running `wsl.exe -d Ubuntu-24.04 -u ozgur -e curl … msftconnecttest` every
-interval. Measured on 2026-10-29 (W-97557e65): about one run in seven, the session's relay `/init`
+interval. Measured on 2026-10-29 (W-97557e65, the measurements are in commit 97066cd1e's message): about one run in seven, the session's relay `/init`
 never ran curl, and the orphaned root relay kept three hv_sock channels open to the host forever:
 641 channels from about 210 relays. Each channel pins an unmovable 512 KB ring. That fragmentation is
 why a new `wsl.exe` session eventually cannot get its 512 KB ring and hangs with no prompt
@@ -15,13 +15,18 @@ why a new `wsl.exe` session eventually cannot get its 512 KB ring and hangs with
 
 ## What runs
 
-- `scripts/sysadmin/wsl_net_heartbeat.sh`, every 60 s, from `wsl-net-heartbeat.timer`:
-  1. touches `C:\Users\user\hotel-wifi\wsl-net-ran` on every run, which proves the heartbeat itself is alive;
-  2. runs `curl -sSf -m 5 -o /dev/null http://www.msftconnecttest.com/connecttest.txt`, the same
-     success rule as the old probe (any HTTP status below 400);
-  3. touches `wsl-net-ok` only when curl succeeds.
-- A failed probe is an outage, not a fault. curl's own reason goes to the journal and the run exits 0,
-  so the unit is not marked failed every minute of an outage. Only a failed write exits nonzero.
+- `scripts/sysadmin/wsl_net_heartbeat.sh` runs every 60 s, from `wsl-net-heartbeat.timer`. It runs
+  `curl -q -sSf -m 5 -o /dev/null http://www.msftconnecttest.com/connecttest.txt`, the same success
+  rule as the old probe (any HTTP status below 400; `-q` ignores a user's `~/.curlrc`), then sorts
+  curl's exit code three ways:
+  1. **0** (the probe fetched): touches both `C:\Users\user\hotel-wifi\wsl-net-ran` and `wsl-net-ok`.
+  2. **a network failure** (curl exit 5, 6, 7, 22, 28, 35, 52, 55 or 56): touches only `wsl-net-ran`,
+     writes curl's reason to the journal, and exits 0. An outage is not a fault, so the unit is not
+     marked failed every minute of one.
+  3. **anything else** (a malformed URL, curl missing, an option error): a local fault that an adapter
+     restart cannot cure. Neither file moves and the run exits 1, so the watchdog reads the heartbeat
+     as broken, never as "no network".
+- A failed write exits nonzero too.
 - `/mnt/c` is a 9p mount, not the NAT network, so `wsl-net-ran` keeps changing while the NAT is dead.
 
 Check it: `systemctl --user list-timers wsl-net-heartbeat.timer` and
@@ -90,7 +95,7 @@ while ($true) {
     $hb = WslHeartbeat
     if ($hb -eq 'broken') {
         $broken++; $fails = 0
-        if ($broken -eq 2) { Log 'WSL heartbeat not updating - systemctl --user status wsl-net-heartbeat.timer'; Toast 'WSL heartbeat stopped' 'The WSL heartbeat timer is not running. The NAT watchdog is paused.' }
+        if ($broken -eq 2) { Log 'WSL heartbeat not updating - systemctl --user status wsl-net-heartbeat.timer'; Toast 'WSL heartbeat stopped' 'The WSL heartbeat is not updating. The NAT watchdog is paused.' }
         Start-Sleep $Interval; continue
     }
     $broken = 0

@@ -77,15 +77,18 @@ def _closed_port() -> int:
     return port
 
 
-def _run(beat: Path, url: str) -> subprocess.CompletedProcess[str]:
+def _run(
+    beat: Path, url: str, path: str = "/usr/bin:/bin", **extra: str
+) -> subprocess.CompletedProcess[str]:
     env = {
-        "PATH": "/usr/bin:/bin",
+        "PATH": path,
         "HOME": str(beat.parent),
         "WSL_NET_HEARTBEAT_DIR": str(beat),
         "WSL_NET_HEARTBEAT_URL": url,
+        **extra,
     }
     return subprocess.run(
-        ["bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=60
+        ["/usr/bin/bash", str(SCRIPT)], env=env, capture_output=True, text=True, timeout=60
     )
 
 
@@ -137,9 +140,48 @@ def test_an_unreachable_probe_refreshes_only_the_ran_file(
     assert "curl: (" in r.stderr, "curl's own reason reaches the journal: " + r.stderr
 
 
+@pytest.mark.parametrize("case", ["malformed-url", "no-curl"])
+def test_a_local_curl_fault_moves_neither_file(tmp_path: Path, case: str) -> None:
+    # A fault an adapter restart cannot cure must read as a broken heartbeat (ran still), never as
+    # "no network" (ran moved, ok still) — the watchdog restarts the WSL adapter on the latter.
+    beat = tmp_path / "beat"
+    _aged(beat)
+    if case == "no-curl":
+        bin_ = tmp_path / "nocurl"
+        bin_.mkdir()
+        (bin_ / "touch").symlink_to("/usr/bin/touch")
+        r = _run(beat, "http://127.0.0.1:1/", path=str(bin_))
+    else:
+        r = _run(beat, "htp:/bad url")
+    assert r.returncode != 0, r.stderr
+    for name in ("wsl-net-ran", "wsl-net-ok"):
+        assert (beat / name).stat().st_mtime == OLD, f"{case}: {name} must not move"
+    assert "local fault" in r.stderr, r.stderr
+
+
+def test_a_user_curlrc_cannot_change_the_probe(tmp_path: Path, server: str) -> None:
+    home = tmp_path / "curlhome"
+    home.mkdir()
+    (home / ".curlrc").write_text(f'proxy = "http://127.0.0.1:{_closed_port()}"\n')
+    beat = tmp_path / "beat"
+    _aged(beat)
+    r = _run(beat, server + "/ok", CURL_HOME=str(home))
+    assert r.returncode == 0, r.stderr
+    assert (beat / "wsl-net-ok").stat().st_mtime > OLD, "curl -q ignores the user's curlrc"
+
+
 def test_an_unwritable_heartbeat_dir_fails_the_run(tmp_path: Path, server: str) -> None:
-    r = _run(tmp_path / "no" / "such" / "dir", server + "/ok")
-    assert r.returncode != 0, "a heartbeat that cannot be written is a real fault"
+    for url in (server + "/ok", f"http://127.0.0.1:{_closed_port()}/"):
+        r = _run(tmp_path / "no" / "such" / "dir", url)
+        assert r.returncode != 0, f"a heartbeat that cannot be written is a real fault ({url})"
+
+    # ran writable, ok not: the ok write's failure alone must fail the run
+    beat = tmp_path / "okfails"
+    _aged(beat)
+    (beat / "wsl-net-ok").unlink()
+    (beat / "wsl-net-ok").symlink_to(tmp_path / "no" / "such" / "target")
+    r = _run(beat, server + "/ok")
+    assert r.returncode != 0, "a failed ok write fails the run"
 
     beat = tmp_path / "ro"
     _aged(beat)
@@ -172,6 +214,8 @@ def _sections(name: str) -> dict[str, list[str]]:
 def test_the_units_verify_and_run_the_script_every_minute() -> None:
     svc = _sections("wsl-net-heartbeat.service")["[Service]"]
     assert "Type=oneshot" in svc
+    # a hung run must end: TimeoutStartSec ends the start, TimeoutStopSec bounds each stop stage
+    assert "TimeoutStartSec=30" in svc and "TimeoutStopSec=10" in svc, svc
     # bash-wrapped: verify refuses a direct ExecStart= of a script the main checkout lacks before merge
     assert [v for v in svc if v.startswith("ExecStart=")] == [
         "ExecStart=/usr/bin/bash /opt/fabrik/scripts/sysadmin/wsl_net_heartbeat.sh"
@@ -210,8 +254,13 @@ def _installer_world(
     shutil.copy2(INSTALLER, root / INSTALLER.name)
     for f in UNITS.glob("wsl-net-heartbeat.*"):
         shutil.copy2(f, root / "systemd" / f.name)
+    # the installer checks the script the unit's ExecStart= names, so the world points it at a tmp copy
     script = tmp_path / "wsl_net_heartbeat.sh"
     script.write_text("#!/usr/bin/env bash\n")
+    svc = root / "systemd" / "wsl-net-heartbeat.service"
+    svc.write_text(
+        svc.read_text().replace("/opt/fabrik/scripts/sysadmin/wsl_net_heartbeat.sh", str(script))
+    )
     bin_ = tmp_path / "ibin"
     bin_.mkdir()
     log = tmp_path / "calls.log"
@@ -227,7 +276,6 @@ def _installer_world(
         "PATH": f"{bin_}:/usr/bin:/bin",
         "HOME": str(tmp_path),
         "XDG_CONFIG_HOME": str(tmp_path / "cfg"),
-        "WSL_NET_HEARTBEAT_SCRIPT": str(script),
     }
     return root, env, log
 
@@ -244,11 +292,13 @@ def test_the_installer_installs_and_enables_the_timer(tmp_path: Path) -> None:
     assert r.returncode == 0, r.stderr
     dest = tmp_path / "cfg" / "systemd" / "user"
     for name in ("wsl-net-heartbeat.service", "wsl-net-heartbeat.timer"):
-        assert (dest / name).read_bytes() == (UNITS / name).read_bytes(), name
+        assert (dest / name).read_bytes() == (root / "systemd" / name).read_bytes(), name
     calls = log.read_text().splitlines()
     reload_at = calls.index("systemctl --user daemon-reload")
-    enable_at = calls.index("systemctl --user enable --now wsl-net-heartbeat.timer")
-    assert reload_at < enable_at, calls
+    enable_at = calls.index("systemctl --user enable wsl-net-heartbeat.timer")
+    # a re-run must apply changed timer settings: enable alone leaves a running timer on the old ones
+    restart_at = calls.index("systemctl --user restart wsl-net-heartbeat.timer")
+    assert reload_at < enable_at < restart_at, calls
 
 
 def test_the_installer_refuses_without_linger_script_or_a_clean_verify(tmp_path: Path) -> None:
@@ -266,7 +316,7 @@ def test_the_installer_refuses_without_linger_script_or_a_clean_verify(tmp_path:
         base = tmp_path / case
         root, env, log = _installer_world(base, **kw)  # type: ignore[arg-type]
         if case == "script":
-            Path(env["WSL_NET_HEARTBEAT_SCRIPT"]).unlink()
+            (base / "wsl_net_heartbeat.sh").unlink()
         r = _install(root, env)
         assert r.returncode != 0, case
         assert says in r.stderr, (case, r.stderr)
