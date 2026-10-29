@@ -79,6 +79,15 @@ paragraph now says the alternative is outside the mandate and routes a project t
   `-v` on each emitted removal and a leading `-v` removal after each started container's run, and runs each
   removal against a throwaway container of its own where a docker daemon answers.
 
+### Changed — builders address the coordinator by a live name, never a remembered one (2026-10-29)
+- Both contracts' Session history bullet and the four builder charter files' Escalation paragraph (fleet, infra
+  with its infra-2/infra-3 symlinks, intel, kaizen) name the order: by `SendMessage` to every `to=`
+  name the latest `work: coordinator (<role>)` prompt line prints, else (or when the line is cut short) every name
+  `mail.py who <role>` prints (`<role>` the store's distributor, else the merge owner), and only when no coordinator
+  session is live a `mail.py send --kind request --ack required --to-agent <role>` with the ask on stdin (W-9bf5a363,
+  D-1346).
+  Graded whole by `tests/test_coordinator_live_address_rule.py`.
+
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
   `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`
