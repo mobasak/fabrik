@@ -46,6 +46,10 @@ _DEBIAN_BASE_RES = (
     re.compile(r"^node:\d+(?:\.\d+)*-([a-z]+)-slim" + _DIGEST + "$"),
     re.compile(r"^debian:([a-z]+)-slim" + _DIGEST + "$"),
 )
+# A docusaurus project's final stage is the serve stage core/42-docusaurus.md names (D-664):
+# `nginx:mainline-<codename>`, a tag with no version in it, so only a digest pin is stricter.
+# It is a base for that type alone; any other type finishing on nginx stays noncompliant.
+_DOCUSAURUS_SERVE_RE = re.compile(r"^nginx:mainline-([a-z]+)" + _DIGEST + "$")
 # Debian's release order, oldest first. The release just BEFORE the pin is the one a pin flip
 # retired (D-064: bookworm when trixie was pinned): its images move on their next rebuild, so it
 # reads as migration debt. Every other codename (bullseye, sid, stable…) was never compliant.
@@ -329,11 +333,13 @@ def _image_ref(from_value: str) -> str:
     return re.sub(r"^--platform=\S+\s+", "", _strip_as_alias(from_value))
 
 
-def _base_status(image: str) -> str:
-    """``pinned`` (a core/30-ops shape on the pinned codename), ``superseded`` (that shape on a
-    codename D-064 retired — moved on the next rebuild) or ``noncompliant`` (anything else)."""
+def _base_status(image: str, project_type: str = "") -> str:
+    """``pinned`` (a core/30-ops shape, or for a docusaurus project its 42-docusaurus serve
+    stage, on the pinned codename), ``superseded`` (that shape on a codename D-064 retired —
+    moved on the next rebuild) or ``noncompliant`` (anything else)."""
     clean = _image_ref(image)
-    for pat in _DEBIAN_BASE_RES:
+    serve = (_DOCUSAURUS_SERVE_RE,) if project_type == "docusaurus" else ()
+    for pat in _DEBIAN_BASE_RES + serve:
         m = pat.match(clean)
         if m:
             if m.group(1) == _pinned_codename():
@@ -342,9 +348,9 @@ def _base_status(image: str) -> str:
     return "noncompliant"
 
 
-def _is_base_compliant(image: str) -> bool:
+def _is_base_compliant(image: str, project_type: str = "") -> bool:
     """Check if a base image string matches Fabrik conventions."""
-    return _base_status(image) == "pinned"
+    return _base_status(image, project_type) == "pinned"
 
 
 _SEVERITY_RANK = {"critical": 0, "medium": 1, "low": 2}
@@ -383,9 +389,12 @@ def _final_stage_label(audit: "ProjectAudit") -> str:
     return label
 
 
-def _pinned_base_hint() -> str:
-    """The 30-ops base shapes, on the pinned codename, for a fix hint."""
+def _pinned_base_hint(project_type: str = "") -> str:
+    """The 30-ops base shapes, plus a docusaurus project's serve stage, on the pinned codename,
+    for a fix hint."""
     cn = _pinned_codename()
+    if project_type == "docusaurus":
+        return f"`nginx:mainline-{cn}` (the serve stage, built from `node:N-{cn}-slim`)"
     return f"`python:3.x-slim-{cn}` · `node:N-{cn}-slim` · `debian:{cn}-slim`"
 
 
@@ -941,6 +950,7 @@ def audit_project(name: str) -> ProjectAudit | None:
 def build_issues(audit: ProjectAudit):
     issues = []
     final = audit.dockerfile_final_base
+    ptype = audit.project_type
 
     # ── CRITICAL ──────────────────────────────────────────────────────────
 
@@ -952,7 +962,7 @@ def build_issues(audit: ProjectAudit):
                 "No Dockerfile",
                 "Dockerfile",
                 "File missing",
-                f"Dockerfile on {_pinned_base_hint()} with HEALTHCHECK",
+                f"Dockerfile on {_pinned_base_hint(ptype)} with HEALTHCHECK",
                 "Create Dockerfile following Fabrik template",
             )
         )
@@ -963,11 +973,11 @@ def build_issues(audit: ProjectAudit):
                 "Dockerfile is a comment-only template",
                 "Dockerfile",
                 f"`{final}`",
-                f"Real multi-stage Dockerfile on {_pinned_base_hint()}",
+                f"Real multi-stage Dockerfile on {_pinned_base_hint(ptype)}",
                 "Replace template with actual Dockerfile for this project's stack",
             )
         )
-    elif _base_status(final) == "superseded":
+    elif _base_status(final, ptype) == "superseded":
         all_bases = " → ".join(f"`{b}`" for b in audit.dockerfile_from_lines)
         issues.append(
             Issue(
@@ -976,10 +986,10 @@ def build_issues(audit: ProjectAudit):
                 "Dockerfile",
                 f"{_final_stage_label(audit)} (stages: {all_bases})",
                 f"The fleet pin, `{_pinned_codename()}` (versions.yaml, D-064)",
-                f"Move to {_pinned_base_hint()} on the next rebuild",
+                f"Move to {_pinned_base_hint(ptype)} on the next rebuild",
             )
         )
-    elif _base_status(final) == "noncompliant":
+    elif _base_status(final, ptype) == "noncompliant":
         clean = _strip_as_alias(final)
         all_bases = " → ".join(f"`{b}`" for b in audit.dockerfile_from_lines)
         issues.append(
@@ -988,8 +998,8 @@ def build_issues(audit: ProjectAudit):
                 "Dockerfile base image non-compliant",
                 "Dockerfile",
                 f"{_final_stage_label(audit)} (stages: {all_bases})",
-                f"A Debian slim base: {_pinned_base_hint()}",
-                f"Replace `{clean}` with one of {_pinned_base_hint()}",
+                f"A pinned Debian base: {_pinned_base_hint(ptype)}",
+                f"Replace `{clean}` with one of {_pinned_base_hint(ptype)}",
             )
         )
 
@@ -1398,18 +1408,19 @@ def build_constraints(audit: ProjectAudit):
     c["coolify"] = "✅ Compliant" if audit.compose_has_coolify_net else "⚠️ No coolify network"
 
     final = _strip_as_alias(audit.dockerfile_final_base)
-    if _is_base_compliant(audit.dockerfile_final_base):
+    ptype = audit.project_type
+    if _is_base_compliant(audit.dockerfile_final_base, ptype):
         c["no_alpine"] = "✅ Compliant"
     elif "alpine" in final.lower():
-        c["no_alpine"] = f"🔴 Alpine detected — must use {_pinned_base_hint()}"
+        c["no_alpine"] = f"🔴 Alpine detected — must use {_pinned_base_hint(ptype)}"
     elif final == "NO_DOCKERFILE":
         c["no_alpine"] = "⚠️ No Dockerfile"
     elif final.startswith("TEMPLATE:"):
         c["no_alpine"] = "⚠️ Template — needs real Dockerfile"
-    elif _base_status(final) == "superseded":
+    elif _base_status(final, ptype) == "superseded":
         c["no_alpine"] = f"⚠️ `{final}` — move to `{_pinned_codename()}` on the next rebuild"
     else:
-        c["no_alpine"] = f"⚠️ `{final}` — needs {_pinned_base_hint()}"
+        c["no_alpine"] = f"⚠️ `{final}` — needs {_pinned_base_hint(ptype)}"
 
     c["module_deps"] = "✅ No incomplete dependencies"
     c["duplicate"] = "✅ Unique"
@@ -1494,7 +1505,8 @@ def generate_research_md(audit: ProjectAudit) -> str:
     if audit.dockerfile_from_lines:
         resolved = _resolve_stages(audit.dockerfile_from_lines)
         for i, fr in enumerate(audit.dockerfile_from_lines, 1):
-            compliant = {"pinned": "✅", "superseded": "⚠️"}.get(_base_status(resolved[i - 1]), "❌")
+            status = _base_status(resolved[i - 1], audit.project_type)
+            compliant = {"pinned": "✅", "superseded": "⚠️"}.get(status, "❌")
             lines.append(f"- **Stage {i}:** `FROM {fr}` {compliant}")
         lines.append(
             f"- **HEALTHCHECK:** {'✅ Present' if audit.dockerfile_has_healthcheck else '❌ Missing'}"

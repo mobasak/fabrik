@@ -3,7 +3,7 @@
   "created": "2026-10-08T08:29:52.655306Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "1eb85902b5875f243dc8ce6dd5f9562d0598a98c",
   "id": "W-cd8b8ead",
   "impact": "high",
   "kind": "backlog",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — new docusaurus project fails audit as shipped, false red",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fleet"
   ],
