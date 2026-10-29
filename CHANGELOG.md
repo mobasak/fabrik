@@ -92,6 +92,18 @@ paragraph now says the alternative is outside the mandate and routes a project t
 
 - `scripts/sysadmin/kaizen_collect_v2.py` kept the collector's own first `Filed (spec/mail)` value as if an analyst had typed it, so the cell froze for the rest of the ISO week. A cell that is exactly the collector's bare `N filed / N none / N unstated` is now refreshed (a dash or a golden refusal included); any text an analyst adds still wins. `docs/workstation/kaizen.md` states the rule (W-90163961, D-1347).
 
+### Changed — the review lead runs a node_modules test its seats cannot (2026-10-29)
+- `commands/_fragments/review-probe-catalogue.md` § Seat isolation: a test that needs a gitignored
+  dependency tree (`node_modules/`) runs on no seat tree (an archive or clone holds none; a link or
+  variable pointing at the live one lets the run write inside it; a copy is the barred copy of the
+  live checkout). The seat reports it unverifiable and the lead runs it when the change touches it,
+  the code it tests or the config, manifest or lockfile its run reads, in the throwaway worktree at
+  the pin's base with the pins laid over it, after an install from the lockfile that governs the
+  tree (its own or its workspace root's; the manifest alone when none does). A tree outside the
+  repo is used only by a run that writes nothing inside it, else it stays unverifiable; every tree
+  no lockfile installed is named UNPINNED (intel mail 01M640TVJY, W-9ad5860f's lead half). Ledger
+  entry `cat-a-node-harness-test-is-the-leads-to-run`, grader in `tests/test_seat_recipe_readable.py`.
+
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
   `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`
