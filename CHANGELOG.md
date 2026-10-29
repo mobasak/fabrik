@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — rotate_session tests: the fake clock no longer drifts under load (2026-10-29)
+`tests/test_rotate_session.py`'s late-bind test failed one or two runs in eight on a busy box, and 12 in 16 under the
+capped runner (W-1e0f4229), so every merge leg paid a confirm re-run. The tests set their fake clock on the global `time`
+module, where `subprocess` polls a child's exit with `time.sleep`; each fake-tmux call then moved the fake clock by the
+child's exit tail. A `_RsTime` proxy now gives `rotate_session` its own `time`, and all six patch sites use it. Three
+guards keep it that way: a slow-exiting fake tmux must leave the fake clock still, the global module must keep its real
+`sleep`, and a syntax-tree scan (`_clock_patches`, with a 22-case probe list) refuses any patch of `time` in the file
+outside `_rs_time`. Review residue: W-f0cbce0d.
+
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
 `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.
