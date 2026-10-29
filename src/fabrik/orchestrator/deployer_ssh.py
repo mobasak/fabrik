@@ -1374,13 +1374,17 @@ def _validate_compose(content: str) -> list[str]:
         deploy = svc_config.get("deploy", {})
         resources = deploy.get("resources", {}) if isinstance(deploy, dict) else {}
         limits = resources.get("limits", {}) if isinstance(resources, dict) else {}
+        # A non-mapping limits (null, a scalar, a list, a string) holds no limit: read it as empty,
+        # so both checks refuse it as missing — never a TypeError, which escapes the git redeploy's
+        # (DeployError, ssh-failure) handler and skips its reset (W-43c850b1).
+        if not isinstance(limits, dict):
+            limits = {}
         if "memory" not in limits:
             errors.append(f"Service '{svc_name}': missing 'deploy.resources.limits.memory'")
         # deploy.resources.limits.cpus (W-43c850b1, 30-ops.md:187): only the compose line holds a
-        # cap — a recreate drops one set by `docker update --cpus`. Read from a mapping only, so a
-        # list/str limits is "missing", never a TypeError past the git redeploy's reset.
-        cpus = limits.get("cpus") if isinstance(limits, dict) else None
-        if not isinstance(limits, dict) or "cpus" not in limits:
+        # cap — a recreate drops one set by `docker update --cpus`.
+        cpus = limits.get("cpus")
+        if "cpus" not in limits:
             errors.append(
                 f"Service '{svc_name}': missing 'deploy.resources.limits.cpus' (a quoted decimal, "
                 "e.g. cpus: '0.5'; a service-level cpus: is not read)"

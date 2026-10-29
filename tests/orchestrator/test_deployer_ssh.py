@@ -284,25 +284,33 @@ class TestValidateCompose:
 
     def _with_limits(self, limits_yaml: str) -> str:
         """The valid compose with its `limits:` block replaced by *limits_yaml* (W-43c850b1)."""
-        return self._valid_compose().replace(
-            "        limits:\n          memory: 256M\n          cpus: '0.5'\n",
-            "        limits:" + limits_yaml,
-        )
+        base = self._valid_compose()
+        block = "        limits:\n          memory: 256M\n          cpus: '0.5'\n"
+        assert base.count(block) == 1, "the fixture's limits block moved: nothing would be injected"
+        return base.replace(block, "        limits:" + limits_yaml)
+
+    def test_missing_cpus_is_refused(self):
+        """W-43c850b1: 30-ops.md:187 mandates cpus beside memory; a service without one is refused
+        by name."""
+        errors = _validate_compose(self._with_limits("\n          memory: 256M\n"))
+        assert errors == [
+            "Service 'web': missing 'deploy.resources.limits.cpus' (a quoted decimal, "
+            "e.g. cpus: '0.5'; a service-level cpus: is not read)"
+        ], errors
 
     @pytest.mark.parametrize(
         "limits_yaml",
-        [
-            "\n          memory: 256M\n",  # no cpus key
-            " [memory, cpus]\n",  # a list names the key: no TypeError, refused as missing
-            " 'memory cpus'\n",  # a string names the key: same
-        ],
+        [" [memory, cpus]\n", " 'memory cpus'\n", " 5\n", " true\n", " 0.5\n", "\n"],
+        ids=["list", "str", "int", "bool", "float", "null"],
     )
-    def test_missing_cpus_is_refused(self, limits_yaml):
-        """W-43c850b1: 30-ops.md:187 mandates cpus beside memory; a service without one is refused
-        by name, and a non-mapping limits is read as missing rather than crashing past the git
-        redeploy's DeployError reset."""
+    def test_a_non_mapping_limits_is_refused_as_missing_both(self, limits_yaml):
+        """A limits that is not a mapping holds no limit: it is refused as missing memory AND
+        missing cpus — never a TypeError, which would escape the git redeploy's
+        (DeployError, ssh-failure) handler and skip its reset to the old commit (:572)."""
         errors = _validate_compose(self._with_limits(limits_yaml))
-        assert "Service 'web': missing 'deploy.resources.limits.cpus'" in "\n".join(errors), errors
+        joined = "\n".join(errors)
+        assert "Service 'web': missing 'deploy.resources.limits.memory'" in joined, errors
+        assert "Service 'web': missing 'deploy.resources.limits.cpus'" in joined, errors
 
     @pytest.mark.parametrize(
         "value",

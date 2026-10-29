@@ -8,9 +8,11 @@ All notable changes to this project will be documented in this file.
 - `src/fabrik/orchestrator/deployer_ssh.py::_validate_compose` now refuses a service whose
   `deploy.resources.limits` lacks `cpus`, or holds a value outside `spec_loader.cpu_in_grammar`, the same way
   it refuses a missing memory limit: on the four apply paths, the git redeploy (which resets to the old
-  commit), the non-git redeploy and restart (D-1352, W-43c850b1). A list or string `limits` is read as
-  missing instead of raising TypeError. Five git/local projects lack the line today and get request mails;
-  the five docker apps deployed before D-1326 pick it up at their re-apply.
+  commit), the non-git redeploy and restart (D-1352, W-43c850b1). A `limits` that is not a mapping (null,
+  a scalar, a list, a string) is refused as missing memory and cpus instead of raising TypeError past the
+  git redeploy's reset. calendar-orchestration-engine newly refuses until it adds the line (four more
+  projects already refuse for lacking any limits); each gets a request mail. The five docker apps deployed
+  before D-1326 pick the line up at their re-apply.
 
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
