@@ -54,9 +54,10 @@ NODE_HARNESS = (
     " it is a copy of the live checkout, which this section bars; so a seat reports that test unverifiable and"
     " never runs it, and the lead runs it when the change touches it, the code it tests, or the config, manifest"
     " or lockfile its run reads, in CLAUDE.md's throwaway worktree at the pin's `base_sha` with the pins laid over"
-    " it, after an install from that tree's own lockfile (a repo tree with no lockfile is installed from its"
-    " manifest alone, and a tree outside the repo is read in place: the lead then names the tree the run read"
-    " UNPINNED)."
+    " it, after an install from the lockfile that governs that tree, its own or its workspace root's, run at that"
+    " root (from the manifest alone when none governs it); a tree outside the repo is used only by a run that"
+    " writes nothing inside it, its cache directory set under scratch, else the lead too reports the test"
+    " unverifiable; the lead names UNPINNED every tree its run read that no lockfile installed."
 )
 
 
