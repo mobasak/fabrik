@@ -5,4 +5,9 @@
 # as ~900 s, after a first leg that used its full 2700 s), so one that re-tests in full may refuse as budget-spent (retry); `merge --queue` forks a leg only in
 # its first 1080 s. If a full-width leg still dies at 2700, raise it to 3000 (the coordinator's ruling).
 # merge-test-timeout: 2700
+# The leg's 8 shards share ONE capped_run scope, whose default ceiling is 4G (W-e64a7b8e): fleet-docker-cpu's
+# 244-file selection died at exit 137 twice on 2026-10-29, and the same leg measured a 6,009 MiB peak (one run,
+# slice memory.current with page cache, under a 12G probe cap). merge_request.py clamps this to 8G, the slice's
+# 12G less one default run. Keep the declaration alone on its line: a reason after it is outside the grammar.
+# merge-test-mem: 8G
 exec "$(git rev-parse --path-format=absolute --git-common-dir)/../.venv/bin/python" scripts/merge_test_select.py

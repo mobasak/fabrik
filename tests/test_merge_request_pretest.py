@@ -316,7 +316,9 @@ def test_the_hub_declares_its_own_longer_leg(world):
     # W-418c9d9f, D-1310: the hub leg outgrew TEST_TIMEOUT_S (exit 124 on the base copy, 2026-10-28; one file,
     # tests/test_assemble_dispatch_step.py, cannot be split across shards — the duration record read 1,466 s
     # and later 1,248 s that day, since every leg rewrites it)
-    script = (Path(__file__).resolve().parents[1] / ".fabrik" / "merge-tests").read_text(encoding="utf-8")
+    script = (Path(__file__).resolve().parents[1] / ".fabrik" / "merge-tests").read_text(
+        encoding="utf-8"
+    )
     assert world.mod._declared_leg(script) == 2700
 
 
@@ -351,17 +353,32 @@ def test_the_declared_mem_grammar(world, script, expected):
 
 def test_the_hub_declares_its_own_leg_ceiling(world):
     # W-e64a7b8e: the hub leg runs 8 pytest shards in ONE capped scope; a 244-file selection died at 4G
-    script = (Path(__file__).resolve().parents[1] / ".fabrik" / "merge-tests").read_text(encoding="utf-8")
+    script = (Path(__file__).resolve().parents[1] / ".fabrik" / "merge-tests").read_text(
+        encoding="utf-8"
+    )
     assert world.mod._declared_mem(script) == "8192M"
 
 
-def _mem_runner(world, rc: int = 0) -> Path:
-    """A stand-in for capped_run.sh that logs its argv, then exits ``rc`` (137: capped_run's
-    memory-ceiling verdict) or runs the command."""
+def _mem_runner(world, rc: int = 0, ceiling_kill: bool = True) -> Path:
+    """A stand-in for capped_run.sh that logs its argv's first line, then runs the command, or exits
+    ``rc``. At 137 with ``ceiling_kill`` it first prints capped_run's own verdict line
+    (capped_run.sh:160), which ends with the whole argv — the multi-line ``sh -c`` script, as in the
+    incident; without it the 137 is a SIGKILL inside the leg, which capped_run passes through."""
     log = world.tmp / "mem-runner.log"
     runner = world.tmp / "mem-runner.sh"
-    tail = f"exit {rc}" if rc else 'while [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"'
-    runner.write_text(f'#!/bin/sh\nprintf "%s\\n" "$*" | head -n1 >> {log}\n{tail}\n', encoding="utf-8")
+    head = f'printf "%s\\n" "$*" | head -n1 >> {log}\nmem=4G\n'
+    head += 'case "$3" in --mem) mem=$4 ;; esac\n'
+    if not rc:
+        tail = 'while [ "$1" != "--" ]; do shift; done\nshift\nexec "$@"'
+    elif rc == 137 and ceiling_kill:
+        tail = (
+            'while [ "$1" != "--" ]; do shift; done\nshift\n'
+            'echo "capped_run: killed at the memory ceiling ($mem per run, 12G for '
+            'fabrik-agents-tests.slice) — $*" >&2\nexit 137'
+        )
+    else:
+        tail = f"exit {rc}"
+    runner.write_text(f"#!/bin/sh\n{head}{tail}\n", encoding="utf-8")
     runner.chmod(0o755)
     world.mp.setenv("FABRIK_CAPPED_RUN", str(runner))
     return log
@@ -403,11 +420,16 @@ def test_a_branch_cannot_raise_its_own_leg_ceiling(world):
     assert _runner_flags(log) == ["--timeout 1800"]
 
 
+_KILL = "capped_run: killed at the memory ceiling ({} per run, 12G for fabrik-agents-tests.slice)"
+# the incident's script: comment lines last, so a 3-line tail of the kill line is shell comments
+_SCRIPT_TAIL = "exit 0\n# a comment line\n# another comment line\n"
+
+
 @pytest.mark.parametrize(
     ("script", "ceiling"),
     [
-        ("# merge-test-mem: 6G\nexit 0\n", "6144M declared"),
-        ("exit 0\n", "capped_run's default"),
+        ("# merge-test-mem: 6G\n" + _SCRIPT_TAIL, "6144M"),
+        (_SCRIPT_TAIL, "4G"),  # no declaration: capped_run's own default, which its line states
     ],
 )
 def test_a_137_refusal_names_the_memory_ceiling(world, script, ceiling):
@@ -418,7 +440,45 @@ def test_a_137_refusal_names_the_memory_ceiling(world, script, ceiling):
     assert world.run("merge") != 0
 
     reason = world.record(msg_id)["reason"]
-    assert f"exit 137 — killed at the memory ceiling ({ceiling})" in reason, reason
+    assert f"exit 137): {_KILL.format(ceiling)}" in reason, reason
+    assert "a comment line" not in reason, reason  # the tail is the verdict, not the script
+
+
+def test_a_bare_137_is_not_called_a_ceiling_kill(world):
+    _mem_runner(world, rc=137, ceiling_kill=False)
+    _counting_tests(world, "# merge-test-mem: 6G\nexit 0\n")
+    msg_id = world.send(_branch(world))
+
+    assert world.run("merge") != 0
+
+    reason = world.record(msg_id)["reason"]
+    assert "a SIGKILL inside the leg; capped_run reported no memory-ceiling kill" in reason, reason
+    assert "killed at the memory ceiling (" not in reason, reason
+
+
+def test_a_pretest_137_names_the_memory_ceiling(world, monkeypatch, capsys):
+    _mem_runner(world, rc=137)
+    _counting_tests(world, "# merge-test-mem: 6G\n" + _SCRIPT_TAIL)
+    _branch(world)
+
+    assert _pretest(world, monkeypatch) != 0
+
+    err = capsys.readouterr().err
+    assert _KILL.format("6144M") in err, err
+
+
+def test_an_ignored_mem_line_is_named(world, capsys):
+    """A reason on the declaration's own line falls outside the grammar: the merge owner, who owns
+    the base's script, is told on the run's stderr rather than the leg silently keeping 4G."""
+    log = _mem_runner(world)
+    _counting_tests(world, "# merge-test-mem: 8G  # measured 6 GiB\nexit 0\n")
+    world.send(_branch(world))
+
+    assert world.run("merge") == 0
+
+    err = capsys.readouterr().err
+    assert "merge-test-mem line outside the grammar" in err and "ignored" in err, err
+    assert _runner_flags(log) == ["--timeout 1800"]
 
 
 def _limits(world, monkeypatch) -> list[int]:
