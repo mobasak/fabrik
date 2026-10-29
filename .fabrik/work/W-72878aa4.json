@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-29T18:11:10.379760Z",
   "creator": "infra-2",
-  "evidence": "",
+  "evidence": "df1b69dcb7f6a7557d9e544275662cdcd03ce9d0",
   "id": "W-72878aa4",
   "kind": "backlog",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 3,
-  "status": "open",
+  "status": "done",
   "title": "check_decisions_unique.py pre-existing reader gaps (W-c25fd20f review pass 1, RECORDED - identical on the pre-change checker): a GFM table with no outer pipes is no table to it (A-haiku-3); rows of a table inside a blockquote are never read (A-haiku-5); an emphasised id cell (_D-1_) is no id (A-haiku-6); tests read live /opt/fabrik paths instead of the module under test (test_the_live_hub_ledger_has_no_stray_rows, test_the_cobra_path_is_written_down..., B-sonnet-4); mail_notify.py's total counts an unreadable or mid-scan-claimed file that rows skip (C-sonnet-1/2, same on the base hook)"
 }
