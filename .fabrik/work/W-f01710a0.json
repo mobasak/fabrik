@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T02:47:41.223440Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-f01710a0",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "emit cpus from spec.resources.cpu in _generate_docker_compose with a red-first test, then re-apply docker-source specs at the coordinator's deploy gate",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "deploy"
+  ],
+  "title": "fabrik apply drops resources.cpu for every source.type=docker spec — _generate_docker_compose (src/fabrik/orchestrator/deployer_ssh.py:1583) writes only memory, so zitadel's spec cpu 0.5 runs unlimited on vps1 (NanoCpus 0, 2026-10-29)"
+}

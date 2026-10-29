@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T02:55:30.320398Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-fdc9d593",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure host CPU saturation episodes over 30 days and, if any, trial cpu_shares 2048 on postgres-main and traefik with docker update --cpu-shares",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "deploy"
+  ],
+  "title": "Under correlated load postgres-main and traefik compete for vps1 CPU at the default weight (sum of caps 21.5 on 6 CPUs) — decide whether cpu_shares above 1024 should give the shared critical path priority, from a contention measurement"
+}
