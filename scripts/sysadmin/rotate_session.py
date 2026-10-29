@@ -69,26 +69,32 @@ CLEAR_WAIT_S = 60  # the registry shows the new session after /clear
 COMPACT_WAIT_S = 60  # the compact boundary lands (the compact path has no re-bind wait, so it is the shorter one)
 # The re-bind wait after the resume prompt: the one late bind measured since W-b92aa5cf landed 98 s after the submit.
 REBIND_GRACE_S = 180
-# The worst /clear request: the discard's re-check sleep and its wait, two sends, the clear wait and the re-bind grace;
-# the sleep each loop may take after its last check (0.5 s in the five capture loops, 1 s in the clear and re-bind loops
-# — 4.5 s, rounded up to 5); and 17 tmux calls that can each take TMUX_TIMEOUT_S past any deadline — 12 outside every
-# wait (resolve 1, the two run_checks 1 each, _one's box read 1, the discard's three box reads and its Escape pair 4,
-# two pastes and two C-m 4) and the last capture of each of the five capture loops (the discard wait, two settles, two
-# submits) — 487 s.
+# T07: the registry re-point waits this long for the repo's agents lock (`agents_spawn.py add|remove` hold it across
+# their registry write), polling every AGENTS_LOCK_POLL_S. Not counted, like run_checks' git calls: the one git call
+# that resolves the lock's path (agents_spawn.GIT_TIMEOUT_S).
+AGENTS_LOCK_WAIT_S = 30
+AGENTS_LOCK_POLL_S = 0.2
+# The worst /clear request: the discard's re-check sleep and its wait, two sends, the clear wait, the agents-lock wait
+# and the re-bind grace; the sleep each loop may take after its last check (0.5 s in the five capture loops, 1 s in the
+# clear and re-bind loops, 0.2 s in the lock loop — 4.7 s, rounded up to 5); and 17 tmux calls that can each take
+# TMUX_TIMEOUT_S past any deadline — 12 outside every wait (resolve 1, the two run_checks 1 each, _one's box read 1, the
+# discard's three box reads and its Escape pair 4, two pastes and two C-m 4) and the last capture of each of the five
+# capture loops (the discard wait, two settles, two submits) — 517 s.
 REQUEST_WORST_S = (
     DISCARD_RECHECK_S
     + DISCARD_WAIT_S
     + 2 * (SEND_SETTLE_S + SEND_SUBMIT_S)
     + CLEAR_WAIT_S
+    + AGENTS_LOCK_WAIT_S
     + REBIND_GRACE_S
     + 5
     + 17 * TMUX_TIMEOUT_S
 )
 # `execute` claims no new request after this long, so the last request it starts ends inside the unit's
-# TimeoutStartSec=600 with at least 60 s to spare (50 + 487 + 60 <= 600), the git calls above aside. A file left unclaimed
+# TimeoutStartSec=600 with at least 60 s to spare (20 + 517 + 60 <= 600), the git calls above aside. A file left unclaimed
 # stays for the path unit, which starts `execute` again when this one exits; two requests can only meet in one run by
 # racing past `_pending`.
-CLAIM_CUTOFF_S = 50
+CLAIM_CUTOFF_S = 20
 VETO_S = 300  # a registry flip after the last turn end vetoes this long; measured flips led a turn's first write by 0.02 s
 SEAT_TAIL = 8 * 1024 * 1024
 TURN_END = ("turn_duration", "stop_hook_summary")
@@ -250,11 +256,70 @@ def _session_registry(repo: str, sid: str) -> Path | None:
     return p / ".fabrik" / "session-agents.json"
 
 
+_agents_spawn_mod: Any = None
+
+
+def _agents_spawn() -> Any:
+    """agents_spawn.py, loaded once from this script's own directory (raises when it is missing or fails to import)."""
+    global _agents_spawn_mod
+    if _agents_spawn_mod is None:
+        name = "_rot_agents_spawn"
+        spec = importlib.util.spec_from_file_location(name, HERE / "agents_spawn.py")
+        if spec is None or spec.loader is None:
+            raise ImportError("cannot load agents_spawn.py beside rotate_session.py")
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[name] = mod  # its @dataclass classes resolve their module through sys.modules
+        try:
+            spec.loader.exec_module(mod)
+        except BaseException:
+            sys.modules.pop(name, None)
+            raise
+        _agents_spawn_mod = mod
+    return _agents_spawn_mod
+
+
+def _agents_lock_file(registry: Path) -> str:
+    """The repo's agents lock — `agents_spawn.lock_path(<repo>)`, the repo being `<repo>/.fabrik/session-agents.json`'s
+    `parents[1]` — so both scripts name ONE file (spec § The delta D2). Raises when it cannot be resolved."""
+    return str(_agents_spawn().lock_path(str(registry.parents[1])))
+
+
 def _repoint_registry(path: Path, old_sid: str, new_sid: str, name: str) -> str:
     """Re-point `name`'s registry entry from `old_sid` to `new_sid` in place (W-b72231b8: the coordinator did it by hand
     after every rotation) and return the state the row records. Nothing agents_up.sh refuses is ever written — a file
     it would refuse is refused here unchanged — a missing entry is never added, and every failure is a returned state,
-    never an exception: the rotation itself already happened."""
+    never an exception: the rotation itself already happened.
+
+    T07: the whole read-modify-write runs under the repo's agents lock, taken before the first lstat and read, so an
+    `agents_spawn.py add|remove` (which hold it across their own registry write) never loses a write to a rotation or
+    the reverse. A lock that cannot be resolved or opened is `refused:agents lock unavailable` (checked first, so it
+    outranks `absent`); one not obtained within `_wait_s(AGENTS_LOCK_WAIT_S)` is `refused:agents lock busy` — the row
+    stays on the old id and the next `add`/`remove` heals it (agents_spawn.heal_registry, PF3)."""
+    try:
+        fd = os.open(_agents_lock_file(path), os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o644)
+    # a missing or broken agents_spawn.py (one that calls sys.exit at import included — SystemExit is no Exception), a
+    # git failure, an unopenable lock: a state, never a raise; KeyboardInterrupt still propagates
+    except (Exception, SystemExit):
+        return "refused:agents lock unavailable"
+    try:
+        deadline = time.monotonic() + _wait_s(AGENTS_LOCK_WAIT_S)
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    return "refused:agents lock busy"
+                time.sleep(AGENTS_LOCK_POLL_S)
+            except OSError:
+                return "refused:agents lock unavailable"
+        return _repoint_locked(path, old_sid, new_sid, name)
+    finally:
+        os.close(fd)  # closing the only description releases the flock
+
+
+def _repoint_locked(path: Path, old_sid: str, new_sid: str, name: str) -> str:
+    """`_repoint_registry`'s body; the caller holds the repo's agents lock."""
     try:
         st = os.lstat(path)
     except FileNotFoundError:
@@ -303,7 +368,8 @@ def _repoint_registry(path: Path, old_sid: str, new_sid: str, name: str) -> str:
             len(text.encode("utf-8")) > REGISTRY_MAX
         ):  # its readers stop at REGISTRY_MAX and would read a torn file
             return "refused:over 1 MiB"
-        # a hand edit landing between the re-read below and os.replace is still lost: hand edits are what this retires
+        # the agents lock (held by the caller) excludes its other holders, agents_spawn.py add|remove; a HAND edit takes
+        # no lock, so one landing between the re-read below and os.replace is still lost: hand edits are what this retires
         fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".session-agents.", suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:

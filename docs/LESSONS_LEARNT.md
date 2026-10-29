@@ -13,6 +13,20 @@
 
 **Lesson:** when a step writes a file and the next step reads it back through a real parser, test the pair with that parser. Run the step's own commands on a copy and let the real reader (here `docker compose config`) decide; a fake reader hands back the answer the test expects and proves nothing about the writer. Feed the writer exactly what its caller builds, never a line written for the test.
 
+## "Nothing to lose" must pass `--untracked-files=all` — git's clean checks obey the user's config (2026-10-29, W-b9ad80ae T10)
+
+**What happened:** the dynamic-builders whole-plan review found that `agents_up.sh remove` read a worktree as clean with `git status --porcelain`, which honours `status.showUntrackedFiles=no`; `git worktree remove` makes the same check internally, so under that config an untracked source file passed both and was deleted at rc 0 (reproduced in scratch). Every per-ticket review had missed it, and so had the green gate, whose static tier was skipped as "diff-sensed" because only markdown was uncommitted.
+**Lesson:** a check that decides "nothing would be lost" passes `--untracked-files=all` (and `--ignore-submodules=none`), and the destructive git call itself runs with `-c status.showUntrackedFiles=all`, or a user's config turns it into a silent delete. A green `final_gate --check` with `skipped_checks: ['static tier']` says nothing about lint, types or format: run ruff, ruff format and mypy by hand on the plan's files before calling a whole plan green.
+
+## A fix's own wording is the next round's surface: three review rounds on one "main checkout" rule (2026-10-29, W-b9ad80ae T05+T06)
+
+**What happened:** the wave-4 review confirmed 14 defects in round 1, then 3 and 2 more, every one of the later five in the previous round's fixes. `add` first accepted a linked worktree, then refused a legitimate main checkout whose `.git` is a `gitdir:` file (`dirname(common dir)` is not the checkout there), then named the git dir as "the main checkout" in its refusal hint. A module loaded by file path with a `@dataclass` also had to be put in `sys.modules` before `exec_module`, or annotation resolution crashes.
+**Lesson:** when a fix derives a path ("the main checkout"), probe it on every repo shape git allows — separate git dir, `gitdir:` file, submodule, bare repo with worktrees — before the next round does, and print a path in a message only after checking it is what the message calls it. Register a file-loaded module in `sys.modules` before running it.
+
+## A live claude probe on tmux 3.4 needs `=name:` targets and a 150 s wait (2026-10-28, W-b9ad80ae T02)
+
+**What happened:** T02's blocking probe launched one claude on a private tmux server to prove the `--settings` suppression. It took four launches: `capture-pane -t =probe-1` fails on tmux 3.4 ("can't find pane"), and a 60 s wait found no transcript, because a fresh worktree's first turn spends about 57 s in SessionStart hooks.
+**Lesson:** target tmux panes as `=<session>:`, never a bare `=<session>`; a probe that waits for a new session's transcript waits 150 s, not 60. The wave's review then found that a validation moved "before the first side effect" also has to stay off paths that make no side effect at all: decide where a refusal belongs by which paths build the thing it guards.
 ## On this fleet a `compose down` is not a removal (2026-10-29, W-80a1f9fd)
 
 **What happened:** D-121 took the ocoron-com stack down with `docker compose down`, and the stack was found running again weeks later. `fabrik-compose-boot.sh` runs `up -d` on every `/opt/*/compose.yaml` at each boot, and D-121 had left the file in place. A second reviver was waiting too: the vps1 sysadmin bot's prompt still ranked the stack P0 and gave it "full autonomous management".

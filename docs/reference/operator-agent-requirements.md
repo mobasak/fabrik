@@ -39,14 +39,14 @@ Then a /clear or crash needs nothing from you."
 
 | # | Requirement | Operator's words | Record |
 |---|---|---|---|
-| 3.1 | Every coordinator creates new agents when needed | "as being coordinator, you and any coordinator. i want you to be able to create new agents when needed" | D-1301, D-1128, W-b9ad80ae |
-| 3.2 | Each new agent gets a proper charter | "give them proper charters" | D-1301, D-1128 |
-| 3.3 | The coordinator uses them, and clears them when they finish | "use them, when they finish clear them" | D-1301 |
-| 3.4 | The agent count adjusts dynamically to the work | "so dynamically adjust needed agent count" | D-1301; *relayed* from D-1092: no fixed count, quota and memory are the ceiling |
-| 3.5 | Agents bind and wire themselves properly at launch | "they must bind/wire themselves properly" | D-1301 |
-| 3.6 | Agents are disposable working units | "you must use the agents as disposable working units" | D-1301 |
-| 3.7 | A cleared agent's session stays stored in B2 and searchable through session-recall | "but their sessions are stored in b2 and sesssion recall can be used to search their chat history" | D-1301, D-736, D-1182 |
-| 3.8 | "All Agents (tabbed).bat" always shows the live agent set, for all repos | "also i want to see them always uptodate in All Agents (tabbed).bat for all repos" | D-1301, D-1128 |
+| 3.1 | Every coordinator creates new agents when needed | "as being coordinator, you and any coordinator. i want you to be able to create new agents when needed" | D-1301, D-1128, W-b9ad80ae, D-1306, `docs/development/plans/2026-10-28-plan-1-dynamic-builders/` |
+| 3.2 | Each new agent gets a proper charter | "give them proper charters" | D-1301, D-1128, D-1306, `docs/development/plans/2026-10-28-plan-1-dynamic-builders/` |
+| 3.3 | The coordinator uses them, and clears them when they finish | "use them, when they finish clear them" | D-1301, D-1306, `docs/development/plans/2026-10-28-plan-1-dynamic-builders/` |
+| 3.4 | The agent count adjusts dynamically to the work | "so dynamically adjust needed agent count" | D-1301; *relayed* from D-1092: no fixed count, quota and memory are the ceiling, D-1306, `docs/development/plans/2026-10-28-plan-1-dynamic-builders/` |
+| 3.5 | Agents bind and wire themselves properly at launch | "they must bind/wire themselves properly" | D-1301, D-1306, `docs/development/plans/2026-10-28-plan-1-dynamic-builders/` |
+| 3.6 | Agents are disposable working units | "you must use the agents as disposable working units" | D-1301, D-1306, `docs/development/plans/2026-10-28-plan-1-dynamic-builders/` |
+| 3.7 | A cleared agent's session stays stored in B2 and searchable through session-recall | "but their sessions are stored in b2 and sesssion recall can be used to search their chat history" | D-1301, D-736, D-1182, D-1306, `docs/development/plans/2026-10-28-plan-1-dynamic-builders/` |
+| 3.8 | "All Agents (tabbed).bat" always shows the live agent set, for all repos | "also i want to see them always uptodate in All Agents (tabbed).bat for all repos" | D-1301, D-1128, D-1306, `docs/development/plans/2026-10-28-plan-1-dynamic-builders/` |
 
 ### Coordinator suggestions (*proposed*; the operator asked "what other suggestions you can add to these?")
 

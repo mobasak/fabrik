@@ -14,6 +14,8 @@ import json
 import os
 import re
 import subprocess
+import sys
+import threading
 import time
 from pathlib import Path
 
@@ -1171,7 +1173,16 @@ def _clear_hook(world, monkeypatch, bind: bool):
     _set(world, on_send=hook)
 
 
-def test_wb72231b8_registry_is_repointed(world, monkeypatch, tmp_path):
+@pytest.fixture
+def free_lock(tmp_path, monkeypatch):
+    """T07: the registry tests below predate the agents lock and write registries outside any git repo — the lock is
+    resolved to a free scratch file, so they keep grading the re-point itself (the lock has its own rows, T07 below)."""
+    lock = tmp_path / "fabrik-agents.lock"
+    monkeypatch.setattr(rs, "_agents_lock_file", lambda registry: str(lock))
+    return lock
+
+
+def test_wb72231b8_registry_is_repointed(world, monkeypatch, tmp_path, free_lock):
     """W-b72231b8: the verb re-points the repo's session registry from the old session id to the new one itself —
     key order kept, every other entry untouched — so nobody re-points it by hand."""
     other, third = "33333333-3333-4333-8333-333333333333", "44444444-4444-4444-8444-444444444444"
@@ -1191,7 +1202,7 @@ def test_wb72231b8_registry_is_repointed(world, monkeypatch, tmp_path):
     assert regf.read_text().endswith("}\n") and not list(regf.parent.glob(".session-agents.*"))
 
 
-def test_wb72231b8_an_unsent_resume_still_repoints(world, monkeypatch, tmp_path):
+def test_wb72231b8_an_unsent_resume_still_repoints(world, monkeypatch, tmp_path, free_lock):
     """Critique r1: the re-point runs as soon as the new session is seen, before the resume prompt, so a resume that
     never submits still leaves the registry naming the session the pane now runs."""
     regf = tmp_path / "repo" / ".fabrik" / "session-agents.json"
@@ -1245,7 +1256,7 @@ def test_wb72231b8_a_damaged_identity_store_never_raises(world):
     assert rs._session_registry("/x", SID) == Path("/x/.fabrik/session-agents.json")
 
 
-def test_wb72231b8_registry_os_errors_are_a_recorded_state(tmp_path):
+def test_wb72231b8_registry_os_errors_are_a_recorded_state(tmp_path, free_lock):
     """Review r2: an OSError on the write (a read-only folder) is the `error:<name>` state, never a raise."""
     d = tmp_path / "ro"
     d.mkdir()
@@ -1259,7 +1270,7 @@ def test_wb72231b8_registry_os_errors_are_a_recorded_state(tmp_path):
     assert json.loads(regf.read_text()) == {SID: "dev1"}
 
 
-def test_wb72231b8_registry_over_the_readers_cap_is_refused(tmp_path, monkeypatch):
+def test_wb72231b8_registry_over_the_readers_cap_is_refused(tmp_path, monkeypatch, free_lock):
     """Review r1: the readers stop at REGISTRY_MAX bytes, so neither an input over it nor an output that indentation
     grows past it is written."""
     regf = tmp_path / "session-agents.json"
@@ -1293,7 +1304,7 @@ def test_wb72231b8_registry_over_the_readers_cap_is_refused(tmp_path, monkeypatc
         ),
     ],
 )
-def test_wb72231b8_registry_states_never_write_a_bad_file(tmp_path, content, state):
+def test_wb72231b8_registry_states_never_write_a_bad_file(tmp_path, content, state, free_lock):
     """W-b72231b8: every registry state other than a re-pointable entry is recorded and leaves the file
     byte-identical; nothing the writer emits is a shape agents_up.sh refuses."""
     regf = tmp_path / "session-agents.json"
@@ -1304,7 +1315,7 @@ def test_wb72231b8_registry_states_never_write_a_bad_file(tmp_path, content, sta
     assert (regf.read_bytes() if regf.exists() else None) == before
 
 
-def test_wb72231b8_registry_refuses_a_symlink_and_a_bad_new_id(tmp_path):
+def test_wb72231b8_registry_refuses_a_symlink_and_a_bad_new_id(tmp_path, free_lock):
     target = tmp_path / "real.json"
     target.write_text(json.dumps({SID: "dev1"}))
     link = tmp_path / "session-agents.json"
@@ -1320,7 +1331,7 @@ def test_wb72231b8_registry_refuses_a_symlink_and_a_bad_new_id(tmp_path):
 
 
 def test_wb72231b8_repoint_keeps_the_mode_drops_a_doubled_name_and_never_overwrites_a_hand_edit(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, free_lock
 ):
     regf = tmp_path / "session-agents.json"
     regf.write_text(json.dumps({SID: "dev1"}))
@@ -1342,6 +1353,227 @@ def test_wb72231b8_repoint_keeps_the_mode_drops_a_doubled_name_and_never_overwri
     monkeypatch.setattr(rs.os, "chmod", chmod_then_hand_edit)
     assert rs._repoint_registry(regf, SID, NEW, "dev1") == "refused:changed on disk"
     assert NEW not in json.loads(regf.read_text()) and not list(tmp_path.glob(".session-agents.*"))
+
+
+# ── T07: the re-point runs under the repo's agents lock (W-14219e6f point 3; plan-review A4, A5, A14; panel PF3) ──────
+
+_AS_SPEC = importlib.util.spec_from_file_location(
+    "_t07_agents_spawn", REPO / "scripts" / "sysadmin" / "agents_spawn.py"
+)
+AS = importlib.util.module_from_spec(_AS_SPEC)
+sys.modules["_t07_agents_spawn"] = (
+    AS  # its @dataclass classes resolve their module through sys.modules
+)
+_AS_SPEC.loader.exec_module(AS)
+OTHER = "33333333-3333-4333-8333-333333333333"
+
+
+def _git(*args: str) -> None:
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    subprocess.run(["git", *args], check=True, capture_output=True, env=env)
+
+
+def _git_repo(repo: Path, registry: dict | None) -> Path:
+    """A real `git init` repo (so `lock_path` resolves its git common dir) with `.fabrik/session-agents.json`."""
+    _git("init", "-q", str(repo))
+    (repo / ".fabrik").mkdir()
+    regf = repo / ".fabrik" / "session-agents.json"
+    if registry is not None:
+        regf.write_text(json.dumps(registry, indent=2) + "\n")
+    return regf
+
+
+def test_t07_a_rotation_waits_for_an_add_holding_the_lock_and_both_changes_hold(tmp_path):
+    """W-14219e6f point 3: an `add` holds the agents lock across its registry read and write; a rotation landing
+    inside it waits, so the file afterwards holds the added row AND the re-pointed one."""
+    repo = tmp_path / "repo"
+    regf = _git_repo(repo, {SID: "dev1"})
+    held = threading.Event()
+
+    def add() -> None:
+        with AS.agents_lock(str(repo)):
+            reg = json.loads(regf.read_text())
+            held.set()
+            time.sleep(0.6)  # the add's work between its read and its write
+            reg[OTHER] = "dev2"
+            regf.write_text(json.dumps(reg, indent=2) + "\n")
+
+    t = threading.Thread(target=add)
+    t.start()
+    assert held.wait(5)
+    started = time.monotonic()
+    out = rs._repoint_registry(regf, SID, NEW, "dev1")
+    waited = time.monotonic() - started
+    t.join(5)
+    assert out == "repointed"
+    assert json.loads(regf.read_text()) == {NEW: "dev1", OTHER: "dev2"}
+    assert waited >= 0.3, waited
+
+
+def test_t07_the_lock_precedes_the_first_lstat_and_read(tmp_path, monkeypatch):
+    """A4: a writer that takes the lock and rewrites the registry after the rotation's first read WOULD have happened
+    (the rotation already waiting) loses nothing — the rotation reads only once it holds the lock."""
+    repo = tmp_path / "repo"
+    regf = _git_repo(repo, {SID: "dev1"})
+    real_sleep = time.sleep
+    waiting = threading.Event()
+
+    def sleep(s: float) -> None:
+        if threading.current_thread() is not threading.main_thread():
+            waiting.set()
+        real_sleep(s)
+
+    monkeypatch.setattr(rs.time, "sleep", sleep)
+    out: list[str] = []
+    with AS.agents_lock(str(repo)):
+        t = threading.Thread(
+            target=lambda: out.append(rs._repoint_registry(regf, SID, NEW, "dev1"))
+        )
+        t.start()
+        assert waiting.wait(5), "the rotation never waited for the agents lock"
+        reg = json.loads(regf.read_text())
+        reg[OTHER] = "dev2"
+        regf.write_text(json.dumps(reg, indent=2) + "\n")
+    t.join(5)
+    assert out == ["repointed"]
+    assert json.loads(regf.read_text()) == {NEW: "dev1", OTHER: "dev2"}
+
+
+def test_t07_a_lock_held_past_the_bound_is_refused_busy(tmp_path, monkeypatch):
+    """A14: the wait is bounded by `_wait_s(AGENTS_LOCK_WAIT_S)`; never obtained, nothing is written."""
+    monkeypatch.setenv("ROTATE_WAIT_S", "1")
+    repo = tmp_path / "repo"
+    regf = _git_repo(repo, {SID: "dev1"})
+    before = regf.read_bytes()
+    with AS.agents_lock(str(repo)):
+        started = time.monotonic()
+        out = rs._repoint_registry(regf, SID, NEW, "dev1")
+        waited = time.monotonic() - started
+    assert out == "refused:agents lock busy"
+    assert regf.read_bytes() == before and not list(regf.parent.glob(".session-agents.*"))
+    assert 0.9 <= waited < 3, waited
+
+
+def _rotate_copy(tmp_path: Path, agents_spawn: str | None) -> object:
+    """rotate_session.py loaded from a directory of its own, beside the two scripts it loads at import and, when
+    given, an `agents_spawn.py` with that text."""
+    d = tmp_path / "copy"
+    d.mkdir()
+    for name in ("rotate_session.py", "hibernate.py", "transcript_size_check.py"):
+        (d / name).write_bytes((SCRIPT.parent / name).read_bytes())
+    if agents_spawn is not None:
+        (d / "agents_spawn.py").write_text(agents_spawn)
+    sp = importlib.util.spec_from_file_location("_t07_rotate_copy", d / "rotate_session.py")
+    mod = importlib.util.module_from_spec(sp)
+    sp.loader.exec_module(mod)
+    return mod
+
+
+def _boom(root: str) -> str:
+    raise RuntimeError("git failed")
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        "agents_spawn.py missing",
+        "agents_spawn.py fails to import",
+        "agents_spawn.py exits at import",
+        "agents_spawn.py has no lock_path",
+        "lock_path raises",
+        "not a git repository",
+        "the lock file cannot be opened",
+        "registry missing and not a git repository",
+    ],
+)
+def test_t07_an_unresolvable_lock_is_refused_unavailable(tmp_path, monkeypatch, shape):
+    """A5 (and pass 2, record-only): every way the lock cannot be had is the returned state `refused:agents lock
+    unavailable` — never an exception, never a write; the lock comes first, so a missing registry in a repo whose lock
+    cannot be resolved is not `absent`."""
+    mod = rs
+    regf = _git_repo(tmp_path / "repo", {SID: "dev1"})
+    if shape == "agents_spawn.py missing":
+        mod = _rotate_copy(tmp_path, None)
+    elif shape == "agents_spawn.py fails to import":
+        mod = _rotate_copy(tmp_path, "def lock_path(root:\n")
+    elif (
+        shape == "agents_spawn.py exits at import"
+    ):  # review pass 1, F1: SystemExit is no Exception
+        mod = _rotate_copy(tmp_path, "import sys\nsys.exit(3)\n")
+    elif shape == "agents_spawn.py has no lock_path":
+        mod = _rotate_copy(tmp_path, "X = 1\n")
+    elif shape == "lock_path raises":
+        monkeypatch.setattr(rs._agents_spawn(), "lock_path", _boom)
+    elif shape == "the lock file cannot be opened":
+        monkeypatch.setattr(
+            rs._agents_spawn(), "lock_path", lambda root: str(tmp_path / "no-such-dir" / "lock")
+        )
+    else:
+        plain = tmp_path / "plain" / ".fabrik"
+        plain.mkdir(parents=True)
+        regf = plain / "session-agents.json"
+        if shape == "not a git repository":
+            regf.write_text(json.dumps({SID: "dev1"}))
+    before = regf.read_bytes() if regf.exists() else None
+    assert mod._repoint_registry(regf, SID, NEW, "dev1") == "refused:agents lock unavailable"
+    assert (regf.read_bytes() if regf.exists() else None) == before
+    assert not list(regf.parent.glob(".session-agents.*"))
+
+
+def test_t07_pf3_a_busy_refusal_is_healed_by_the_next_add(tmp_path, monkeypatch):
+    """PF3 seam with T08b: a rotation refused `agents lock busy` leaves the row on the old id while the pane's claude
+    already runs the new session (its argv still names the old one — a /clear keeps the process); the next `add`'s
+    heal, under the same lock, re-points the row from the claude's live session record."""
+    monkeypatch.setenv("ROTATE_WAIT_S", "1")
+    repo = tmp_path / "repo"
+    regf = _git_repo(repo, {SID: "dev1", OTHER: "dev2"})
+    with AS.agents_lock(str(repo)):
+        assert rs._repoint_registry(regf, SID, NEW, "dev1") == "refused:agents lock busy"
+    assert json.loads(regf.read_text()) == {SID: "dev1", OTHER: "dev2"}
+    proc, home = tmp_path / "proc", tmp_path / "home"
+    for pid, kids, argv in ((500, "501 ", ["sh"]), (501, "", ["claude", "--resume", SID])):
+        (proc / str(pid) / "task" / str(pid)).mkdir(parents=True)
+        (proc / str(pid) / "task" / str(pid) / "children").write_text(kids)
+        (proc / str(pid) / "cmdline").write_bytes(b"\0".join(a.encode() for a in argv) + b"\0")
+    fields = ["S"] + ["1"] * 18 + ["777"] + ["0"] * 6
+    (proc / "501" / "stat").write_text(f"501 (claude) {' '.join(fields)}\n")
+    (home / ".claude" / "sessions").mkdir(parents=True)
+    (home / ".claude" / "sessions" / "501.json").write_text(
+        json.dumps({"pid": 501, "procStart": "777", "sessionId": NEW})
+    )
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(proc))
+    monkeypatch.setenv("HOME", str(home))
+    with AS.agents_lock(str(repo)):
+        AS.heal_registry(str(repo), [AS._Pane("@1", "agents", "%1", 500, "dev1")])
+    assert json.loads(regf.read_text()) == {OTHER: "dev2", NEW: "dev1"}
+
+
+def test_t07_rotate_and_agents_spawn_resolve_the_same_lock(tmp_path):
+    """Spec D2 seam: the lock rotate_session resolves from `<repo>/.fabrik/session-agents.json` is the very file
+    `agents_spawn.lock_path(<repo>)` names — for the main checkout and for a linked worktree (one common dir)."""
+    repo = tmp_path / "repo"
+    regf = _git_repo(repo, {SID: "dev1"})
+    _git(
+        "-C",
+        str(repo),
+        "-c",
+        "user.email=t@t",
+        "-c",
+        "user.name=t",
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "x",
+    )
+    wt = tmp_path / "wt"
+    _git("-C", str(repo), "worktree", "add", "-q", str(wt))
+    (wt / ".fabrik").mkdir()
+    want = AS.lock_path(str(repo))
+    assert want == str(Path(want))  # an absolute path inside the common dir
+    assert rs._agents_lock_file(regf) == want
+    assert rs._agents_lock_file(wt / ".fabrik" / "session-agents.json") == want
+    assert AS.lock_path(str(wt)) == want
 
 
 def _late_bind(world, monkeypatch, bind_after: float | None) -> dict:
@@ -1439,12 +1671,14 @@ def test_wb72231b8_the_worst_request_fits_the_units_timeout():
         + rs.DISCARD_WAIT_S
         + 2 * (rs.SEND_SETTLE_S + rs.SEND_SUBMIT_S)
         + rs.CLEAR_WAIT_S
+        + rs.AGENTS_LOCK_WAIT_S  # T07: the registry re-point's wait for the agents lock
         + rs.REBIND_GRACE_S
-        + 5  # the loops' sleeps after their last check: 5 x 0.5 + 2 x 1 = 4.5, rounded up
+        + 5  # the loops' sleeps after their last check: 5 x 0.5 + 2 x 1 + 0.2 = 4.7, rounded up
         + 17 * rs.TMUX_TIMEOUT_S
     )
     assert timeout >= rs.CLAIM_CUTOFF_S + rs.REQUEST_WORST_S + 60, (rs.REQUEST_WORST_S, timeout)
     assert rs.REBIND_GRACE_S >= 98
+    assert rs.AGENTS_LOCK_POLL_S <= 0.2  # the rounded-up 5 above holds it
     src = SCRIPT.read_text()
     assert not re.findall(r"_wait_s\(\s*[-+.\d]", src), (
         "a wait passed as a literal escapes REQUEST_WORST_S"

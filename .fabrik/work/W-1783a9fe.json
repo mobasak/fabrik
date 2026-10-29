@@ -3,7 +3,7 @@
   "created": "2026-10-23T17:20:16.998487Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "6c72a264b4662b856e5ac2a8c578fe5388cdd53b",
   "id": "W-1783a9fe",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra-3",
   "priority": 1,
   "score_reason": "HIGH: an operator ask, and it blocks every rotated builder on a permission prompt until a human presses a key (breaks D-1034 hands-free rotation); effort low: resume-prompt wording or output size, one script",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fold-w-b9ad80ae"
   ],
