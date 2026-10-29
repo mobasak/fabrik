@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T18:20:15.747625Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-03c53d11",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1357",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "compare the spoke cadvisor flags/mounts in infra/vps2/monitoring-agent/compose.yaml with vps1's working one (docker_only, /var/lib/docker, cgroup driver) and fix the spoke container discovery",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet",
+    "monitoring"
+  ],
+  "title": "Spoke cAdvisor (job cadvisor-spokes, vps2/vps3 :8080) exports 38 series per host and none carries a container name — only cgroup slices — so no spoke container's CPU or memory can be sized or watched (count by (instance) (container_cpu_usage_seconds_total{job=\"cadvisor-spokes\",name!=\"\"}) empty, 2026-10-29)"
+}
