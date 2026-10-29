@@ -137,7 +137,7 @@ def _theme_blocks(text: str) -> list[str]:
     """Every `@theme [modifiers] { … }` body, any case, with nested braces (a `@keyframes` inside) counted; comments are stripped
     inside the body only, so glob prose like `**/*.tsx … **/*.css` outside it cannot pair into a fake comment."""
     bodies = []
-    for m in re.finditer(r"@theme\b[\w \t-]*\{", text, re.IGNORECASE):
+    for m in re.finditer(r"@theme\b[\w\s-]*\{", text, re.IGNORECASE):
         depth, i = 1, m.end()
         while i < len(text) and depth:
             depth += {"{": 1, "}": -1}.get(text[i], 0)
@@ -227,8 +227,8 @@ ALIAS_SENTENCE = (
     "(the template lists `--surface-0`, not `--color-surface-0`), so the `@theme static inline` rule never binds the "
     "alias — `static` would also write `--color-surface-0: var(--surface-0)` under `:root, :host` (executed), while "
     "hand-written CSS references the slot (`var(--surface-0)`), never the alias, which `@theme inline` emits as no "
-    "variable at all (executed); a listed slot whose value is a `var()`, such as `--color-danger: var(--red-600)`, stays "
-    "in `@theme static inline`."
+    "variable at all (executed); a listed `--color-*`, `--font-*`, `--radius-*` or `--ease-*` slot whose value is a "
+    "`var()`, such as `--color-danger: var(--red-600)`, stays in `@theme static inline`."
 )
 _ALIAS_DECL = re.compile(r"--color-(?:surface-\d+|text-[\w-]+)\s*:\s*var\(")
 
@@ -242,11 +242,12 @@ def test_alias_of_a_root_slot_stays_in_theme_inline() -> None:
 
 
 def _static_theme_blocks(text: str) -> list[str]:
-    return [b for m, b in zip(re.finditer(r"@theme\b([\w \t-]*)\{", text, re.IGNORECASE), _theme_blocks(text)) if "static" in m.group(1).lower()]
+    return [b for m, b in zip(re.finditer(r"@theme\b([\w\s-]*)\{", text, re.IGNORECASE), _theme_blocks(text)) if "static" in m.group(1).lower()]
 
 
 def test_no_alias_in_a_static_theme_block() -> None:
     assert _static_theme_blocks("@theme static inline {\n  --color-surface-0: var(--surface-0);\n}")  # the scan sees one
+    assert _static_theme_blocks("@theme static\n  inline {\n  --color-surface-0: var(--surface-0);\n}")  # a wrapped prelude too
     assert _ALIAS_DECL.search(_static_theme_blocks("@theme static inline { --color-surface-0: var(--surface-0); }")[0])
     for pack in sorted(RULES.rglob("*.md")):
         for block in _static_theme_blocks(pack.read_text(encoding="utf-8")):
