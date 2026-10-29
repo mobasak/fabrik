@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T06:48:42.612110Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-7c508448",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5X8DT0QS6MYZZZX3R2DM3QJ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "repo-coordinator-rollout.md step 11 asks an agent to write per-builder settings.local.json — that is session config a peer request cannot authorise; name who does it"
+}

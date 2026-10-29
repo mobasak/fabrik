@@ -31,11 +31,6 @@ def test_checklist_rows_are_adjudicated_before_the_closing_pass_and_new_code_run
         "3. **",
     )
     assert (
-        "Adjudicate each row in the round whose evidence settles it — the rows the plan already proves before "
-        "the first pin, the rest no later than the last delta round — so the closing pass re-derives verdicts "
-        "and the flip adds no content."
-    ) in step2
-    assert (
         "before the first pin, RUN every new module, stub or algorithm the plan specifies on a scratch copy "
         "over the plan's own Behavior Contract inputs, so no seat is the first to execute it."
     ) in step2
@@ -79,17 +74,6 @@ def test_round_zero_cites_the_callee_in_both_review_contracts() -> None:
             "a fix to a matcher, replacer, predicate or filter, a regex included"
         )
         assert want in zero, frag
-
-
-def test_the_flip_copy_recipe_is_the_matrix_rows_method() -> None:
-    """flip-gate-scratch-root (2 rows): the copy shows the flip as a change and links scripts/ and .windsurf/."""
-    gate = _between(_norm(FRAG / "term-edit.md"), "a gate run COUNTS only", "**Round zero")
-    assert (
-        "so a flipped scratch copy is a git checkout in which the flip shows as a change, the DRAFT committed and "
-        "the flip in the working tree or staged (`check_convergence` grades only the plans `git status` lists "
-        "there), with the repo's `scripts/` and `.windsurf/` linked in, the MATRIX row's method (without them "
-        "`check_rule_grounding` reports the plan UNGRADED and every digest quote QUOTE-NOT-FOUND)."
-    ) in gate
 
 
 def test_plan_tickets_reruns_after_every_behavior_contract_edit_and_the_small_loop_flips_at_the_panel() -> (

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T13:16:24.770992Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-65ef69ee",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1251",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reword the parenthetical in scripts/api_write.py repo(): 'the calls that run before the clone exists or never read it — the main checkout's origin URL, the git clone that creates it, ls-remote, check-ref-format — read nothing the child can write'",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "api_write.py repo() docstring calls the git clone that creates the clone one of the calls that never touch the clone (W-174b8543 scoped review pass 4, RECORDED own-fix under the scope-growth stop)"
+}

@@ -7,7 +7,9 @@ Canonical content lives here: _fragments/ (shared blocks) + _sources/ (per-comma
 bodies with {{include:NAME}} markers) + PARAMS below (per-command variance).
   --extract   regenerate _sources/ from the pristine backup (one-time / re-baseline)
   (default)   render _sources + _fragments -> ~/.claude/commands/*.md
-  --check     render to temp, diff against installed; non-zero exit on drift
+  --check     render to temp, diff against installed; non-zero exit on drift (4 LOSS > 5 ceiling > 1 drift)
+  --ratchet   render to temp, lower commands/_size_ceiling.json (silent, exit 0, when nothing changed;
+              exit 5 on a malformed ceiling file); the three modes are mutually exclusive
 Rendered files carry a DO-NOT-HAND-EDIT banner. Edit fragments/sources, re-render.
 """
 
@@ -16,6 +18,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import difflib
+import io
 import re
 import subprocess
 import sys
@@ -23,6 +26,10 @@ import tempfile
 from pathlib import Path
 
 import yaml
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import command_measure  # noqa: E402 — the L1 size measure and ceiling, beside this script
+import command_rules  # noqa: E402 — the rule ledgers' one module, beside this script
 
 ROOT = Path(__file__).resolve().parent
 FRAG, SRC = ROOT / "_fragments", ROOT / "_sources"
@@ -1051,6 +1058,22 @@ def _render_agent(src: Path, frags: dict[str, str]) -> str:
     return BANNER + text
 
 
+_NOT_REGULAR = (
+    "not a regular file (a directory, FIFO, socket, device or symlink) — remove it by hand, then re-render"
+)
+
+
+def _installed_text(inst: Path) -> str | None:
+    """An installed KEPT file's text, or None when it is not a regular file: a FIFO there blocks the
+    read forever and a directory raises IsADirectoryError, so the gate reports it instead of reading
+    it (W-21f88ec3). A symlink is refused too, whatever it points at: the render refuses to write
+    through one (`_preflight`'s `_no_link`), so the gate must not pass it. The caller has already
+    reported an absent path, a dangling link included, as MISSING."""
+    if inst.is_symlink() or not inst.is_file():
+        return None
+    return inst.read_text(errors="replace")
+
+
 def agent_drift(dest: Path) -> list[str]:
     """Installed agent definitions vs a fresh render — the check that makes the repo CANONICAL.
 
@@ -1067,7 +1090,11 @@ def agent_drift(dest: Path) -> list[str]:
             continue
         # an INSTALLED file: read with errors="replace" like every other installed-tree read, so a
         # corrupted agent definition is reported as drift instead of killing the read-only gate
-        want, have = _render_agent(src, frags), live.read_text(errors="replace")
+        have = _installed_text(live)
+        if have is None:
+            drift.append(f"agents/{src.name}: {_NOT_REGULAR}")
+            continue
+        want = _render_agent(src, frags)
         if want != have:
             drift.append(f"agents/{src.name}: {_differs(want, have)}")
     return drift
@@ -1137,10 +1164,21 @@ def _preflight(
                 "(no file was written)"
             )
 
+    def _regular_or_absent(p: Path, leaf: str) -> None:
+        # a KEPT name is opened for write: a FIFO there blocks until a reader comes, a socket or a
+        # device fails or writes somewhere else — refuse every non-regular type (W-21f88ec3). The
+        # orphan walks keep `_file_or_absent`: an orphan FIFO is the prune's to leave in place.
+        _file_or_absent(p, leaf)
+        if p.exists() and not p.is_file():
+            raise SystemExit(
+                f"{p} is not a regular file (a FIFO, socket or device) where the {leaf} belongs — "
+                "remove it, then re-render (no file was written)"
+            )
+
     _tree(dest, "commands tree")
     _tree(agents_dest, "agents tree")
     for f in files:
-        _file_or_absent(f, "command file" if f.parent == dest else "agent file")
+        _regular_or_absent(f, "command file" if f.parent == dest else "agent file")
     # the prune loops read every `*.md` entry of each tree — a DIRECTORY wearing that name breaks
     # them after the writes; refuse it up front (a symlink there is an orphan the prune unlinks)
     for tree in (dest, agents_dest):
@@ -1153,7 +1191,7 @@ def _preflight(
         _tree(skills_dest, "skills tree")
         for name in names:
             _dir_or_absent(skills_dest / name, "skill directory")
-            _file_or_absent(skills_dest / name / "SKILL.md", "SKILL.md wrapper")
+            _regular_or_absent(skills_dest / name / "SKILL.md", "SKILL.md wrapper")
         if skills_dest.is_dir():
             for entry in sorted(skills_dest.glob("*/SKILL.md")):
                 if entry.is_symlink() or entry.parent.is_symlink():
@@ -1326,6 +1364,13 @@ def check():
         tmp_sk = tmp / "_skills"
         tmp_ag = tmp / "_agents"
         render(tmp, tmp_sk, agents_dest=tmp_ag)
+        # The lean program's rule ledgers (commands/command_rules.py): a LOSS outranks drift, so a
+        # mid-rewrite drift never masks it; both are printed, LOSS first, and a LOSS exits 4. A render
+        # error exits 2 inside render() above: with no render there is nothing to check.
+        losses = command_rules.losses(tmp, ROOT.parent, SRC)
+        # L1, the size ceiling (commands/command_measure.py): after the LOSS gate, before drift, so
+        # no render is paid for by deleting a rule; never raises (a failed measure is a breach).
+        breaches, reports = command_measure.findings(tmp, ROOT.parent, SRC, (_CLOSE_FEEDBACK, _AGENT_FEEDBACK))
         # Agent definitions are part of the corpus now: a hand-edit on the box must show up here,
         # or the repo sources are merely FIRST rather than canonical.
         drift = list(agent_drift(AGENTS))
@@ -1339,7 +1384,11 @@ def check():
             if not inst.exists():
                 drift.append(f"{f.name}: MISSING in {OUT}")
                 continue
-            want, have = f.read_text(), inst.read_text(errors="replace")
+            have = _installed_text(inst)
+            if have is None:
+                drift.append(f"{f.name}: {_NOT_REGULAR}")
+                continue
+            want = f.read_text()
             if have != want:
                 drift.append(f"{f.name}: {_differs(want, have)}")
         # every command must ALSO have an in-sync SKILL.md
@@ -1348,7 +1397,18 @@ def check():
             if not inst.exists():
                 drift.append(f"skills/{sd.parent.name}: MISSING SKILL.md in {SKILLS}")
                 continue
-            want, have = sd.read_text(), inst.read_text(errors="replace")
+            if inst.parent.is_symlink():
+                # the render refuses to write through a symlinked skill directory (`_dir_or_absent`),
+                # so the gate must not pass one either
+                drift.append(
+                    f"skills/{sd.parent.name}: the skill directory is a symlink — remove it by hand, then re-render"
+                )
+                continue
+            have = _installed_text(inst)
+            if have is None:
+                drift.append(f"skills/{sd.parent.name}: SKILL.md {_NOT_REGULAR}")
+                continue
+            want = sd.read_text()
             if have != want:
                 drift.append(f"skills/{sd.parent.name}: SKILL.md {_differs(want, have)}")
         # orphan detection: an installed GENERATED command/skill whose _source is gone
@@ -1376,12 +1436,48 @@ def check():
                 drift.append(
                     f"skills/{sk.parent.name}: ORPHAN (generated, no _source — re-render to prune)"
                 )
+        if losses:
+            print("LOSS:")
+            for x in losses:
+                print(" -", x)
+        if breaches:
+            print("CEILING:")
+            for x in breaches:
+                print(" -", x)
         if drift:
             print("DRIFT:")
             for x in drift:
                 print(" -", x)
-            sys.exit(1)
+        for x in reports:
+            print(x)
+        if losses or breaches or drift:
+            sys.exit(4 if losses else 5 if breaches else 1)
         print("check OK — installed commands + skills match rendered sources")
+
+
+def ratchet_cli() -> None:
+    """`--ratchet`: render to a temp dir (never the installed corpus) and lower the ceilings in
+    `commands/_size_ceiling.json`; prints one line per change and nothing when nothing changed."""
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        out = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out):  # the render's banner line is not a change
+                render(tmp, None, agents_dest=tmp / "_agents")
+        except SystemExit:
+            print(out.getvalue(), end="")  # a render error prints its reasons: never swallow them
+            raise
+        try:
+            measured = command_measure.measure_all(tmp, ROOT.parent, SRC, (_CLOSE_FEEDBACK, _AGENT_FEEDBACK))
+            changes = command_measure.ratchet(measured, command_measure.CEILING)
+        except ValueError as exc:  # a malformed ceiling file: the same breach --check reports, same exit
+            print(f"CEILING {command_measure.CEILING.name}: {exc}")
+            sys.exit(5)
+        except Exception as exc:  # noqa: BLE001 — a failed measure or write is a breach line, never a traceback
+            print(f"CEILING: ratchet failed — {type(exc).__name__}: {exc} — fix the file or code it names, then re-run")
+            sys.exit(5)
+    for line in changes:
+        print(line)
 
 
 def main_checkout_refusal() -> str | None:
@@ -1441,8 +1537,10 @@ def _guard_main_checkout() -> None:
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--extract", action="store_true")
-    ap.add_argument("--check", action="store_true")
+    mode = ap.add_mutually_exclusive_group()  # one mode per run: a combined call would skip a mode silently
+    mode.add_argument("--extract", action="store_true")
+    mode.add_argument("--check", action="store_true")
+    mode.add_argument("--ratchet", action="store_true")
     ap.add_argument("--dest", default=str(OUT))
     a = ap.parse_args()
     if a.extract:
@@ -1450,6 +1548,8 @@ if __name__ == "__main__":
         extract()
     elif a.check:
         check()
+    elif a.ratchet:
+        ratchet_cli()
     else:
         dest = Path(a.dest)
         # path-normalized: only emit skills when rendering to the REAL commands dir,

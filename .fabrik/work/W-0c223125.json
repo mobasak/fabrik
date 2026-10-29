@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T10:19:52.984627Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-0c223125",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide skip vs list as unreadable (the 2026-10-08 receipt kept the skip); flip the plan-6-locked assertion in tests/test_work_coordinator.py if listing",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "work.py _open_plans: a plan-set dir with mode 0 hides its APPROVED spine silently (is_file raises EACCES into the kept except OSError: continue) — W-f1412a11 review residual"
+}

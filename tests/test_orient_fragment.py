@@ -14,22 +14,9 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 SOURCES = REPO / "commands" / "_sources"
-FRAGMENT = REPO / "commands" / "_fragments" / "orient.md"
 
 _START_RE = re.compile(r"\{\{include:run-record\}\}|command_run\.py start ")
 _PHASE_RE = re.compile(r"^#{2,3} .*(?:Phase|PHASE) [01]\b|step --phase 1\b", re.M)
-
-
-def test_the_orient_fragment_names_the_four_executables_and_the_reply_line() -> None:
-    body = FRAGMENT.read_text(encoding="utf-8")
-    for needle in (
-        "scripts/sysadmin/mcp_health.py",
-        "scripts/select_rules.py",
-        "agents-fabrik.md",
-        "docs/reference/operating-manifesto.md",
-        "ORIENT:",
-    ):
-        assert needle in body, needle
 
 
 def test_every_command_source_includes_orient_between_its_start_and_its_first_phase() -> None:

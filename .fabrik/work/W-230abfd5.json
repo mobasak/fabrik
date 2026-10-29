@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T23:13:54.687663Z",
+  "creator": "intel",
+  "evidence": "2f1afab51d07fd521b9dfcb0628bd9215724cc13",
+  "id": "W-230abfd5",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure what api_credit.py run accepts today (tools, cap, brief size) against kaizen's rewrite-review finder brief, then /fabrik-task the delta",
+  "note": "",
+  "owner": "",
+  "priority": 0,
+  "status": "done",
+  "tags": [
+    "child-of-w-96f36043",
+    "lean-program"
+  ],
+  "title": "Lean program (D-1216, child of W-96f36043): scripts/api_credit.py run takes a read-only finder seat brief over a pinned tree on one of the three $200 API keys (D-1196) and returns the finder's report, so review seats stop burning subscription; fail-closed cap kept; any lane widening (more read-only tools, a longer per-run cap) decided by the Opus + Fable panel"
+}

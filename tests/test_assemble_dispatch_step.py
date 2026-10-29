@@ -10,9 +10,12 @@ name no Haiku seat: a judgement unit has no grep-able angle.
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 import json
+import os
 import re
+import signal
 import subprocess
 from html import unescape
 from pathlib import Path
@@ -598,13 +601,66 @@ def test_a_preview_render_without_a_skills_tree_still_trips_the_cap(tmp_path, mo
     assert _census(tmp_path) == (0, 0, 0)
 
 
-def _installed(tmp_path, monkeypatch):
-    """A clean install rendered into scratch trees, with `check()` pointed at them."""
-    d, s, a = _trees(tmp_path)
-    ac.render(d, s, agents_dest=a)
+def _gate_at(monkeypatch, d, s, a):
+    """Point `check()` at the scratch trees ``d``/``s``/``a`` for a test that grades its INSTALLED-tree
+    reads. The rule-ledger LOSS pass and the size measure read the temp render, the sources and tracked
+    repo files and take minutes on the full corpus (W-bda24c48: 11 such tests held ~1,950 s); their
+    own tests grade them and check()'s wiring of them (tests/test_command_rules.py,
+    tests/test_command_measure.py). Here they are spies that return their empty results and judge all
+    three arguments both passes share: ``render_dir`` must BE a destination rendered during THIS check()
+    call (``ac.render`` is wrapped to record each, ``ac.check`` to forget them at every call) and never
+    an installed tree, ``root`` the repo, ``src_dir`` the sources — so a regression that hands them an
+    installed tree, the sources, ``commands/``, the repo or an earlier call's deleted temp render still
+    goes red (review round 1: a marker directory let ``commands/`` through; round 2: "the LAST render"
+    false-redded a check() rendering twice; round 3: a whole-test list accepted a stale render). The
+    passes' other arguments (``rules``, ``path``) are not judged. A check() that stops calling them is
+    graded where the wiring lives, the two files above."""
+    renders: list[Path] = []
+    real_render = ac.render
+    real_check = ac.check
+
+    def _render(dest, *args, **kwargs):
+        renders.append(Path(dest).resolve())
+        return real_render(dest, *args, **kwargs)
+
+    def _check(*args, **kwargs):
+        renders.clear()
+        return real_check(*args, **kwargs)
+
+    def _not_installed(empty):
+        def spy(render_dir, root, src_dir, *rest, **kwargs):
+            rd = Path(render_dir).resolve()
+            assert not any(rd.is_relative_to(t.resolve()) for t in (d, s, a)), (
+                f"a ledger or measure pass was handed the installed tree {render_dir}"
+            )
+            assert rd in renders, (
+                f"a ledger or measure pass was handed {render_dir}, not check()'s temp render"
+            )
+            assert Path(root).resolve() == ac.ROOT.parent.resolve(), (
+                f"root was {root}, not the repo"
+            )
+            assert Path(src_dir).resolve() == ac.SRC.resolve(), (
+                f"src_dir was {src_dir}, not the sources"
+            )
+            return empty
+
+        return spy
+
+    monkeypatch.setattr(ac, "render", _render)
+    monkeypatch.setattr(ac, "check", _check)
+    monkeypatch.setattr(ac.command_rules, "losses", _not_installed([]))
+    monkeypatch.setattr(ac.command_measure, "findings", _not_installed(([], [])))
     monkeypatch.setattr(ac, "OUT", d)
     monkeypatch.setattr(ac, "SKILLS", s)
     monkeypatch.setattr(ac, "AGENTS", a)
+
+
+def _installed(tmp_path, monkeypatch):
+    """A clean install rendered into scratch trees, with `check()` pointed at them and its LOSS and
+    measure passes stubbed by `_gate_at` — never use it to grade those passes."""
+    d, s, a = _trees(tmp_path)
+    ac.render(d, s, agents_dest=a)
+    _gate_at(monkeypatch, d, s, a)
     first_cmd = sorted(d.glob("*.md"))[0]
     first_agent = sorted(a.glob("*.md"))[0]
     return {
@@ -811,9 +867,7 @@ def test_a_symlinked_orphan_is_reported_by_the_gate_and_unlinked_by_the_prune(
         (outside / "zz-old.md").write_text(ac.BANNER + "\n# old\n")
         link = a / "zz-old.md"
         link.symlink_to(outside / "zz-old.md")
-    monkeypatch.setattr(ac, "OUT", d)
-    monkeypatch.setattr(ac, "SKILLS", s)
-    monkeypatch.setattr(ac, "AGENTS", a)
+    _gate_at(monkeypatch, d, s, a)
     if tree != "agents":  # check() has orphan rules for the commands and skills trees
         with pytest.raises(SystemExit) as exc:
             ac.check()
@@ -831,9 +885,7 @@ def test_the_gate_reports_a_malformed_orphan_position_instead_of_crashing(
 ):
     d, s, a = _trees(tmp_path)
     ac.render(d, s, agents_dest=a)
-    monkeypatch.setattr(ac, "OUT", d)
-    monkeypatch.setattr(ac, "SKILLS", s)
-    monkeypatch.setattr(ac, "AGENTS", a)
+    _gate_at(monkeypatch, d, s, a)
     if shape == "a directory":
         (d / "zz-odd.md").mkdir()
         (s / "zz-odd" / "SKILL.md").mkdir(parents=True)
@@ -968,13 +1020,14 @@ def test_an_orphan_fifo_never_hangs_the_render_or_the_gate(tmp_path, monkeypatch
     def _hang(signum, frame):
         raise TimeoutError("a read guard let a FIFO through — the render or the gate blocked on it")
 
+    # The alarm bounds the orphan-position reads: the render's prune and check()'s orphan walks over the
+    # installed trees. The LOSS pass and the size measure are `_gate_at`'s spies: live, they took 45-105 s
+    # and made the alarm fire mid-ledger (exit 4, not 1; kaizen 2026-10-27).
+    _gate_at(monkeypatch, d, s, a)
     old = signal.signal(signal.SIGALRM, _hang)
     signal.alarm(20)
     try:
         ac.render(d, s, agents_dest=a)
-        monkeypatch.setattr(ac, "OUT", d)
-        monkeypatch.setattr(ac, "SKILLS", s)
-        monkeypatch.setattr(ac, "AGENTS", a)
         with pytest.raises(SystemExit) as exc:
             ac.check()
         out = capsys.readouterr().out
@@ -988,6 +1041,113 @@ def test_an_orphan_fifo_never_hangs_the_render_or_the_gate(tmp_path, monkeypatch
         (s / "zz-fifo" / "SKILL.md").unlink(missing_ok=True)
     assert survived, "a prune removed a FIFO it must not read"
     assert exc.value.code == 1 and out.count("not a regular file") == 2, out
+
+
+def _kept_name(tree, d, s, a):
+    """The installed path of the FIRST kept name in ``tree``: a name the render writes and the gate
+    compares, as opposed to an orphan's (W-21f88ec3)."""
+    cmd = sorted(ac.SRC.glob("*.md"))[0].stem
+    agent = sorted(ac.AGENT_SRC.glob("*.md"))[0].name
+    return {"commands": d / f"{cmd}.md", "skills": s / cmd / "SKILL.md", "agents": a / agent}[tree]
+
+
+@contextlib.contextmanager
+def _within(seconds, what):
+    """Bound a call that a regression turns into a blocking open: SIGALRM raises instead of hanging."""
+
+    def _hang(signum, frame):
+        raise TimeoutError(f"{what} blocked on a non-regular file at a kept name")
+
+    old = signal.signal(signal.SIGALRM, _hang)
+    signal.alarm(seconds)
+    try:
+        yield
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
+
+
+@pytest.mark.parametrize("tree", ["commands", "skills", "agents"])
+def test_render_refuses_a_fifo_at_a_kept_name(tmp_path, tree):
+    """W-21f88ec3: the render opens every kept name for WRITE, which blocks on a FIFO until a reader
+    comes. The pre-flight refuses any non-regular file there before the first write, so nothing is
+    written and the FIFO is left where it is."""
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("no mkfifo on this platform")
+    d, s, a = _trees(tmp_path)
+    kept = _kept_name(tree, d, s, a)
+    kept.parent.mkdir(parents=True, exist_ok=True)
+    os.mkfifo(kept)
+    try:
+        with _within(20, "render()"), pytest.raises(SystemExit, match="not a regular file") as exc:
+            ac.render(d, s, agents_dest=a)
+        assert str(kept) in str(exc.value), exc.value
+        assert _census(tmp_path) == (0, 0, 0)
+        assert kept.exists() and not kept.is_file(), "the refusal must leave the FIFO in place"
+    finally:
+        kept.unlink(missing_ok=True)  # pytest keeps tmp dirs and nothing else sweeps a FIFO
+
+
+@pytest.mark.parametrize("shape", ["fifo", "directory", "symlink"])
+@pytest.mark.parametrize("tree", ["commands", "skills", "agents"])
+def test_the_gate_reports_a_non_regular_file_at_a_kept_name(
+    tmp_path, monkeypatch, capsys, tree, shape
+):
+    """W-21f88ec3: the gate compares every kept name's installed text. A FIFO there blocked the read
+    forever, a directory crashed it with IsADirectoryError, and a symlink to a byte-identical copy
+    passed although the render refuses to write through it; each is now one drift line and exit 1.
+    The ledger and measure passes are stubbed to their empty results, so nothing slow runs inside the
+    alarm, which wraps the whole check(): its temp render as well as the installed-tree reads."""
+    if shape == "fifo" and not hasattr(os, "mkfifo"):
+        pytest.skip("no mkfifo on this platform")
+    d, s, a = _trees(tmp_path)
+    ac.render(d, s, agents_dest=a)
+    kept = _kept_name(tree, d, s, a)
+    _gate_at(monkeypatch, d, s, a)
+    if shape == "symlink":
+        # the target sits outside every tree the gate walks, under a name no glob matches
+        target = tmp_path / "outside" / f"{kept.name}.target"
+        target.parent.mkdir()
+        kept.rename(target)
+        kept.symlink_to(target)
+    else:
+        kept.unlink()
+        if shape == "fifo":
+            os.mkfifo(kept)
+        else:
+            kept.mkdir()
+    try:
+        with _within(20, "check()"), pytest.raises(SystemExit) as exc:
+            ac.check()
+    finally:
+        if shape == "fifo":
+            kept.unlink(missing_ok=True)
+    out = capsys.readouterr().out
+    label = {
+        "commands": kept.name,
+        "skills": f"skills/{kept.parent.name}: SKILL.md",
+        "agents": f"agents/{kept.name}",
+    }[tree]
+    assert exc.value.code == 1 and out.count("not a regular file") == 1, out
+    assert f" - {label}" + (" " if tree == "skills" else ": ") + "not a regular file (" in out, out
+
+
+def test_the_gate_reports_a_symlinked_kept_skill_directory(tmp_path, monkeypatch, capsys):
+    """W-21f88ec3 review: the render refuses to write through a symlinked kept skill DIRECTORY
+    (`_dir_or_absent`), so the gate must not pass one whose SKILL.md is byte-identical."""
+    d, s, a = _trees(tmp_path)
+    ac.render(d, s, agents_dest=a)
+    kept_dir = _kept_name("skills", d, s, a).parent
+    target = tmp_path / "outside" / kept_dir.name
+    target.parent.mkdir()
+    kept_dir.rename(target)
+    kept_dir.symlink_to(target)
+    _gate_at(monkeypatch, d, s, a)
+    with pytest.raises(SystemExit) as exc:
+        ac.check()
+    out = capsys.readouterr().out
+    assert exc.value.code == 1, out
+    assert f" - skills/{kept_dir.name}: the skill directory is a symlink" in out, out
 
 
 def _reversed_glob(monkeypatch, tmp_path):

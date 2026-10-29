@@ -1,0 +1,129 @@
+shared: commands/_fragments/deploy-chain.md
+baseline_sentences: deploy-chain.baseline.txt
+baseline_sha256: 8c28db3ec72082420ee6bc3456d9b3a5ecd6ebcacfc3d155b37ebac93d37df46
+entries:
+- id: dc-u1
+  file: commands/_fragments/deploy-chain.md
+  section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
+  baseline: Six steps, one operator gate, two repos
+  current: Six steps, one operator gate, two repos
+  class: prose
+  text:
+  - Six steps, one operator gate, two repos
+- id: dc-u2
+  file: commands/_fragments/deploy-chain.md
+  section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
+  baseline: Run each step where its row says — a step run in the wrong repo either cannot see its inputs (a project has no fleet creds, no `fabrik` CLI, no spec) or writes its output where the next step will never read it
+  current: Run each step where its row says — in the wrong repo a step cannot see its inputs (no fleet creds, no `fabrik` CLI, no spec) or writes its output where the next step will never read it
+  class: ban
+  text:
+  - Run each step where its row says — in the wrong repo a step cannot see its inputs (no fleet creds, no `fabrik` CLI, no spec) or writes its output where the next step will never read it
+- id: dc-u3
+  file: commands/_fragments/deploy-chain.md
+  section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
+  baseline: Every command below ends by naming the next one
+  current: Every command below ends by naming the next one
+  class: prose
+  text:
+  - Every command below ends by naming the next one
+- id: dc-u4
+  file: commands/_fragments/deploy-chain.md
+  section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
+  baseline: '| # | command | runs in | produces / consumes |'
+  current: '| # | command | runs in | produces / consumes |'
+  class: prose
+  text:
+  - '| # | command | runs in | produces / consumes |'
+- id: dc-u6
+  file: commands/_fragments/deploy-chain.md
+  section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
+  baseline: '| 1 | `/fabrik-deploy-checklist` | the PROJECT (`/opt/<project>`, its own venv) | authors + freezes `scripts/verify_prod_parity.py` → `FROZEN v<N>` (project-owned, committed) |'
+  current: '| 1 | `/fabrik-deploy-checklist` | the PROJECT (`/opt/<project>`, its own venv) | authors + freezes `scripts/verify_prod_parity.py` → `FROZEN v<N>` (project-owned, committed) |'
+  class: prose
+  text:
+  - '| 1 | `/fabrik-deploy-checklist` | the PROJECT (`/opt/<project>`, its own venv) | authors + freezes `scripts/verify_prod_parity.py` → `FROZEN v<N>` (project-owned, committed) |'
+- id: dc-u7
+  file: commands/_fragments/deploy-chain.md
+  section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
+  baseline: '| 2 | `/fabrik-release` | the PROJECT | release readiness; its VPS path BLOCKs on a `DRAFT` contract; prints the Gate-2 handoff |'
+  current: '| 2 | `/fabrik-release` | the PROJECT | release readiness; its VPS path BLOCKs on a `DRAFT` contract; prints the Gate-2 handoff |'
+  class: prose
+  text:
+  - '| 2 | `/fabrik-release` | the PROJECT | release readiness; its VPS path BLOCKs on a `DRAFT` contract; prints the Gate-2 handoff |'
+- id: dc-u8
+  file: commands/_fragments/deploy-chain.md
+  section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
+  baseline: '| 3 | `/fabrik-deploy-plan` | the HUB (`/opt/fabrik`) for VPS surfaces · the PROJECT for store surfaces (mobile / extension / desktop) | `docs/development/plans/YYYY-MM-DD-plan-deploy-<service>.md` at `DRAFT`; reads the project''s `--header` (`FROZEN v<N>`, `container_leg_service`) as a precondition |'
+  current: '| 3 | `/fabrik-deploy-plan` | the HUB (`/opt/fabrik`) for VPS surfaces · the PROJECT for store surfaces (mobile / extension / desktop) | `docs/development/plans/YYYY-MM-DD-plan-deploy-<service>.md` at `DRAFT`; reads the project''s `--header` (`FROZEN v<N>`, `container_leg_service`) as a precondition |'
+  class: prose
+  text:
+  - '| 3 | `/fabrik-deploy-plan` | the HUB (`/opt/fabrik`) for VPS surfaces · the PROJECT for store surfaces (mobile / extension / desktop) | `docs/development/plans/YYYY-MM-DD-plan-deploy-<service>.md` at `DRAFT`; reads the project''s `--header` (`FROZEN v<N>`, `container_leg_service`) as a precondition |'
+- id: dc-u9
+  file: commands/_fragments/deploy-chain.md
+  section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
+  baseline: '| 4 | `/fabrik-deploy-plan-review` | the same repo as the plan (HUB for VPS · PROJECT for stores) | the plan at `CONVERGED` |'
+  current: '| 4 | `/fabrik-deploy-plan-review` | the same repo as the plan (HUB for VPS · PROJECT for stores) | the plan at `CONVERGED` |'
+  class: prose
+  text:
+  - '| 4 | `/fabrik-deploy-plan-review` | the same repo as the plan (HUB for VPS · PROJECT for stores) | the plan at `CONVERGED` |'
+- id: dc-u10
+  file: commands/_fragments/deploy-chain.md
+  section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
+  baseline: '| — | Gate 2 | the operator | an explicit "go" — nothing auto-chains across it |'
+  current: '| — | Gate 2 | the operator | an explicit "go" — nothing auto-chains across it |'
+  class: prose
+  text:
+  - '| — | Gate 2 | the operator | an explicit "go" — nothing auto-chains across it |'
+- id: dc-u11
+  file: commands/_fragments/deploy-chain.md
+  section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
+  baseline: '| 5 | `/fabrik-deploy` | the same repo as the plan (HUB for VPS · PROJECT for stores) — operator-dispatched only | the runbook executed, the battery green, the plan at `EXECUTED`; re-reads the `--header` pre-flip |'
+  current: '| 5 | `/fabrik-deploy` | the same repo as the plan (HUB for VPS · PROJECT for stores) — operator-dispatched only | the runbook executed, the battery green, the plan at `EXECUTED`; re-reads the `--header` pre-flip |'
+  class: ban
+  text:
+  - '| 5 | `/fabrik-deploy` | the same repo as the plan (HUB for VPS · PROJECT for stores) — operator-dispatched only | the runbook executed, the battery green, the plan at `EXECUTED`; re-reads the `--header` pre-flip |'
+- id: dc-u12
+  file: commands/_fragments/deploy-chain.md
+  section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
+  baseline: '| 6 | `/fabrik-deploy-verify` | the HUB (VPS surfaces; store surfaces hand back at Phase 0 with the provenance verdict) | `DEPLOY CONFIRMED` / `VERIFICATION FAILED` / `UNVERIFIED` — executes the FROZEN contract, one leg per site |'
+  current: '| 6 | `/fabrik-deploy-verify` | the HUB (VPS surfaces; store surfaces hand back at Phase 0 with the provenance verdict) | `DEPLOY CONFIRMED` / `VERIFICATION FAILED` / `UNVERIFIED` — executes the FROZEN contract, one leg per site |'
+  class: prose
+  text:
+  - '| 6 | `/fabrik-deploy-verify` | the HUB (VPS surfaces; store surfaces hand back at Phase 0 with the provenance verdict) | `DEPLOY CONFIRMED` / `VERIFICATION FAILED` / `UNVERIFIED` — executes the FROZEN contract, one leg per site |'
+- id: dc-u13
+  file: commands/_fragments/deploy-chain.md
+  section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
+  baseline: 'Upstream of step 1: `/fabrik-features` REFRESH (the shipped inventory the contract cross-checks) → end-to-end certification (`/fabrik-user-test` · `/fabrik-service-test`)'
+  current: 'Upstream of step 1: `/fabrik-features` REFRESH (the shipped inventory the contract cross-checks) → end-to-end certification (`/fabrik-user-test` · `/fabrik-service-test`)'
+  class: prose
+  text:
+  - 'Upstream of step 1: `/fabrik-features` REFRESH (the shipped inventory the contract cross-checks) → end-to-end certification (`/fabrik-user-test` · `/fabrik-service-test`)'
+- id: dc-u14
+  file: commands/_fragments/deploy-chain.md
+  section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
+  baseline: The contract freezes on the CERTIFIED build — certification produces fixes, and fixes move exactly what the contract freezes (routes, env set, migration head, compose services), so a freeze before the gauntlets forces a re-freeze after them (operator ruling 2026-09-03, D-096, supersedes the D-091 position)
+  current: The contract freezes on the CERTIFIED build — certification produces fixes, and fixes move exactly what the contract freezes (routes, env set, migration head, compose services), so a freeze before the gauntlets forces a re-freeze after them (operator ruling 2026-09-03, D-096, supersedes the D-091 position)
+  class: prose
+  text:
+  - The contract freezes on the CERTIFIED build — certification produces fixes, and fixes move exactly what the contract freezes (routes, env set, migration head, compose services), so a freeze before the gauntlets forces a re-freeze after them (operator ruling 2026-09-03, D-096, supersedes the D-091 position)
+- id: dc-u15
+  file: commands/_fragments/deploy-chain.md
+  section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
+  baseline: A version BUMP of the contract after step 6 re-runs step 6 only
+  current: A version BUMP of the contract after step 6 re-runs step 6 only
+  class: ban
+  text:
+  - A version BUMP of the contract after step 6 re-runs step 6 only
+vanished:
+  L3:
+    rule:
+    - dc-u2
+  L9:
+    rule:
+    - dc-u8
+  L14:
+    rule:
+    - dc-u13
+  L15:
+    rule:
+    - dc-u14

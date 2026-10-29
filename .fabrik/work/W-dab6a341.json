@@ -3,7 +3,7 @@
   "created": "2026-10-24T15:12:00.888775Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "2ab3ed6cc59f0f2f92ebe6e7a7a90168962a9b8f",
   "id": "W-dab6a341",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra-2",
   "priority": 0,
   "score_reason": "URGENT: the operator said 'this work is urgent'; owner kaizen (rule wording) is paused; infra-2 already holds the sibling design-system font change W-eaa745f3, so it runs second (D-983)",
-  "status": "open",
+  "status": "done",
   "tags": [
     "mail-01m5q7ejmsw4790z8j1g6cnn2h"
   ],

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T00:38:28.414434Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-2fb8b1a1",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make the mail/work-waiting causes stand down when ROTATE-DUE is set and the footer names the rotation; test both attempts",
+  "note": "refuted by infra 2026-10-27: the hook code stands down correctly; infra's window ran stale hooks from .claude/worktrees/infra. Root cause filed as W-456aa02a.",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "a builder at a rotation boundary gets told to take new work; one stand-down condition",
+  "status": "dropped",
+  "title": "Stop hook WORK WAITING mail cause blocks the turn end at a ROTATE-DUE boundary: it ordered infra to claim mail 01M5BRWXPV twice although D-1119 says start no new item once rotation is due, and it does not stand down for the prescribed 'NEXT: none — terminal; awaiting the rotation' footer"
+}

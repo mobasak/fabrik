@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T11:12:18.825326Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-fe1ed812",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "find the coolify.serviceName lookups in the authelia and meilisearch registrars (grep src/fabrik) and move them to the stable container names D-? uses; check why the Authelia middleware is absent for a non-ocoron domain; decide the leftover fabrik_smoke_test DB with the operator (data: list, never drop)",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "title": "fabrik-smoke-test re-apply FAILED and rolled back: 'Authelia middleware missing on fabrik-smoke-test.ozgurbasak.com'; authelia/meilisearch registrars look up a container by label=coolify.serviceName=… (stale Coolify-era label) and find none; db fabrik_smoke_test was created and left behind"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T21:47:22.402360Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-daf1d393",
+  "impact": "low",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "in scripts/sysadmin/session_archive_alert.py's failed text, branch on Result=start-limit-hit: say a start was refused by the start limit and point at the earlier failure; reproduce with a unit test on the result string",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "wording only; the mail still fires and names reset-failed, so no night goes silent",
+  "status": "open",
+  "title": "Chat-backup FAILED mail misreads a start refused by systemd's start limit: on start-limit-hit it says the run failed 'after Restart= spent its retries' and WHAT can read start-limit-hit instead of the real cause (found in W-36687f76's review; reasoned on systemd 255, not executed)"
+}

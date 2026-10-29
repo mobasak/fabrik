@@ -119,6 +119,7 @@ EVENT_TYPES = (
     "phase",
     "dispatch",  # a fan-out stamped BEFORE its seats go out (command_run.py dispatch --seats, D-193)
     "round",
+    "round_refused",  # a blind retry of the last round, refused unrecorded (command_run.py, W-fe322585)
     "run_close",
     "gate_run",
     "rule_activation",

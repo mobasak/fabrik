@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T16:38:22.628192Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-8377cd0c",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add one asserting test per survivor in tests/test_cov_<module>.py, each proven red on its mutant",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "Batch-5 coverage survivors recorded at review (mutants that stay green; the code is right, no test claims these): verify check_ssl expiry/threshold equality, connect timeout and message (verify.py:161,:168), APP_NAME context-over-spec precedence (:248), httpx client args and fetched URL, DNS zero-retry test unpatched gethostbyname; supabase health ==200 vs <300 (:103), FakeHttp silent 200 default reply; modal class-based endpoint name filter (:527), destroy timeout=60 (:596), success create_endpoint never asserts deploy(name=); vultr_drill non-finite --max-cost guard (:458-460), RC= isascii guard (:237, D-1286), ssh probe argv options, plan monthly cost value, hub/spoke-restore --drill-start-core-only and the hub --cf-rewrite-dns/--cf-zone-* args beyond their pairing; get_pod timeout/pending rows (equivalent branches)"
+}

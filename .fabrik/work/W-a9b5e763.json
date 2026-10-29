@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T22:55:43.185145Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a9b5e763",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1216",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 0,
+  "score_reason": "P0 program member: the loop change D-1216 orders; infra beat (command_run.py); LOW: a size check at the close and one feedback field; queued behind W-a0a32de2 and kaizen's measure definition",
+  "status": "open",
+  "tags": [
+    "queued",
+    "waits-quota"
+  ],
+  "title": "Lean program (D-1216) mechanism: /fabrik-command-improve may land only an edit that keeps or shrinks the RENDERED size of the command (rendered words plus every doc the command orders read, so moving text into fragments or references cannot pass), and the FEEDBACK close gains a required 'remove:' field (what in the command text could be removed) so the loop is asked for lean; scripts/command_run.py + command_feedback_report.py + the close-feedback fragment; shape follows kaizen's spec W-96f36043, so start when its design names the measure"
+}

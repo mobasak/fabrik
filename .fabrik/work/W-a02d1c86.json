@@ -1,6 +1,6 @@
 {
   "blocked_by": [
-    "W-42d1ccb5"
+    "W-b9ad80ae"
   ],
   "created": "2026-10-21T15:13:59.967433Z",
   "creator": "coordinator",
@@ -15,11 +15,11 @@
     "plan": "",
     "spec": ""
   },
-  "next": "(1) Audit: for every /opt repo in data/projects.yaml, does it have .fabrik/session-agents.json, docs/reference/agents/<coordinator>.md and a MERGE OWNER row? Produce the table; (2) make the Deck shell (W-42d1ccb5) read the registry and fall back to 'open as plain session' for a repo with no roles yet; (3) add the per-repo pieces to the scaffolder's emit and to the rollout runbook's checklist so a NEW repo is born Deck-ready; (4) one pass over the existing repos that lack them, by the runbook. Fleet's beat (scaffolding, PROJECT_CATALOG, rollout runbook); coordinate with W-42d1ccb5's spec so (2) lands there.",
+  "next": "slice 2 done 2026-10-28: rollout doc 6ab0a5b44..4695af0cf (review-scoped 7-4-3-0); coordinator-side briefs mailed to 38 repos as kind request from fabrik, ids 01M61HA9D3.. to 01M61HAMRM (find each in /opt/fabrik-mail/<repo>/); next: collect their replies, then the builder side with infra-3 (W-b9ad80ae)",
   "note": "",
   "owner": "fleet",
   "priority": 2,
-  "score_reason": "re-scored on fleet's audit: scaffolder emission read by every new repo (consumers external) plus one request mail to each of ~49 existing repos — a spec and several sessions; P2 major behind the Deck",
+  "score_reason": "operator 2026-10-28 requirements doc: every mechanism for all repos",
   "status": "open",
   "title": "Every existing and new repo is Deck-ready (operator 2026-10-21: 'now all existing and new repos will support this setup ? if not they should.'): the Deck's repo/agent list must come from the hub's project registry (data/projects.yaml + /opt), never a hand list, so a new repo appears the moment it is scaffolded; the coordinator rollout runbook (docs/reference/repo-coordinator-rollout.md, W-e413b79b) and the scaffolder must give every repo the per-repo pieces a Deck pane relies on (.fabrik/session-agents.json builder registry, a coordinator charter, the merge-owner D-row) — today only the repos with a session-agents.json are listed by role"
 }

@@ -1,6 +1,301 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## On this fleet a `compose down` is not a removal (2026-10-29, W-80a1f9fd)
+
+**What happened:** D-121 took the ocoron-com stack down with `docker compose down`, and the stack was found running again weeks later. `fabrik-compose-boot.sh` runs `up -d` on every `/opt/*/compose.yaml` at each boot, and D-121 had left the file in place. A second reviver was waiting too: the vps1 sysadmin bot's prompt still ranked the stack P0 and gave it "full autonomous management".
+
+**Lesson:** a removal on a fleet host must also remove what would start the stack again. That means the compose file in the boot glob (rename it out) and every autonomous actor told to keep the stack up (its prompt or config). Grep the host's boot units and the bot prompt for the stack's name before calling it gone.
+
+## A scope condition written twice hides from every single mutant (2026-10-29, W-19b57b9a)
+
+**What happened:** the hub-only self-guard first checked `self_repo == "fabrik"` on BOTH sides it compared (the parent's agent and the caller's). Deleting either check alone changed nothing, because the other one still emptied the comparison, so two mutants survived a battery that killed everything else. The tests were complete; the code made each half redundant.
+
+**Lesson:** a scope test that gates a decision belongs in ONE place, joined into the decision itself (`if not (hub and …)`), never repeated on each input. A survivor whose deletion "should" matter is a sign of duplicated logic before it is a sign of a missing test, so restructure first, then re-run the battery.
+
+## A hold written for a reason must end when the reason does (2026-10-29, W-0fe931b7)
+
+**What happened:** the one-major rule holds every other major with `assign --blocked-by <the in-flight major>`. A later re-score turned nine of those majors into quick wins, but `blocked_by` carries no reason and the re-score never looked at it, so the items sat unclaimable for 11 days while their priority said P1.
+
+**Lesson:** when a write exists only because of a field's value (here, a hold that exists because the item is high/high), the verb that changes that value owns ending the write too. Find that verb and make it clear what it wrote, reading the same predicate the writer used (triage's in-flight test), not a looser one. A looser "any major" rule would also have dropped real prerequisites.
+
+## Six convenient values are not evidence for "every value" (2026-10-29, W-f01710a0)
+
+**What happened:** a review fix for the docker cpu grammar wrote into a docstring that the daemon stores every grammar value exactly, citing a probe of six values (0.01, 0.02, 0.07, 0.1, 0.29, 1.5), all exact. An Opus seat modelled compose's 32-bit read and predicted 0.13 → NanoCpus 129999992; the daemon then stored exactly that, and 2.15 and 3.33 were off too. Two review rounds went to one sentence.
+
+**Lesson:** before a fix states a property of a whole input space, generate the space (here 102,400 two-decimal strings) or find a model that predicts which members fail, and probe the ones the model says fail, never only the round numbers at hand. A claim that cannot be checked that way is narrowed to the values actually executed, or deleted.
+
+## A population counted from the files you are about to change misses the ones you are about to reach (2026-10-29, W-76d3448d)
+
+**What happened:** to measure who a re-keyed skip guard would affect, the first census walked the 9 repos that already carried the generated CI files. The Opus design critic re-walked every git repo under /opt (44) and found the 36 the guard would newly make backfill targets, 32 of them tracking SQL. The same census had also read "sqlfluff red" as "the replica is red today" without grepping the replica for the sqlfluff step it lacked, and the wrong claim was relayed to the coordinator and corrected an hour later.
+
+**Lesson:** a guard's population is the set its NEW verdict reaches, not the set its old verdict marked; count the whole space the predicate ranges over. And a lint verdict about a file a tool would write says nothing about the copy already there: check that the live artifact runs the step before claiming it fails.
+
+## An exact-signature probe is not a call-resolvability probe (2026-10-29, W-d8505af5)
+
+**What happened:** the design for the payments ingest guard said that the exact grant function plus another overload would take the `module` path, because `to_regprocedure('payments_grant_ingest(pg_catalog.regrole)')` resolves the exact one. Both critique seats ran it on PostgreSQL 16: when the other overload has a DEFAULT, the one-argument `PERFORM` raises 42725 `is not unique`. The state still fails closed, but the design table was wrong, and the draft had no test for it (one was added before the build).
+
+**Lesson:** a lookup that names the full signature (`to_regprocedure`) answers "does this exact function exist", never "will a call with these arguments pick it". When a guard keys on the first and the code then calls the function, table the overload-with-defaults state and run it on a real server.
+
+## An identity check on a corpus that produces nothing proves nothing (2026-10-29, W-f5a1eec9)
+
+**What happened:** to speed up `losses()`, the first probe compared the cached build's output with base over the live corpus and printed `identical True`. The live corpus produces zero LOSS lines, so the check only showed that an empty list stayed empty. The planned identity test also compared the build with itself (cold cache against warm cache). Both critique seats caught it. The real differential ran base and build over mutated renders that produce 1,668 and 2,777 LOSS lines.
+
+**Lesson:** before an equality check is evidence that a change preserved output, count what the reference produces. If it is empty or near-empty, perturb the input until the reference produces many results of every kind, then compare base against the build — never the build against itself.
+
+## A stub guard keyed on a marker accepts whatever else carries the marker (2026-10-28, W-bda24c48)
+
+**What happened:** to stop 11 tests paying a 169 s LOSS pass, a spy replaced it and accepted only "check()'s temp render", identified by the `_agents` subdirectory only the render holds. Review round 1 found the source tree `commands/` holds `_agents` too, so a check() handing the pass its own sources stayed green. It also found that a neutral rename of the temp dir false-redded every test. The next two identity rules each failed once more: "the last render" false-redded a check() rendering twice, and "any render this test made" accepted an earlier call's deleted temp dir.
+
+**Lesson:** identify the object a guard accepts by recording its producer (wrap the function that creates it, scoped to the call under test), never by a property you believe only it has. Then mutate the caller with every other value of the right type, including its siblings, its sources and its own earlier output.
+
+## A seat probing the UNFIXED form of an option-injection bug writes outside its scratch (2026-10-29, W-b3192e98)
+
+**What happened:** to prove `ln -sfn -- <old> <link>` against `ln -sfn <old> <link>`, the review seats ran the old form over targets like `--`, `-n`, `-v` and `--target-directory=/tmp`. The defect they were measuring did exactly what it does: `ln` took the target as an option and the link name as the source, creating `session-archive.timer` in the seat's cwd, one symlink in `/tmp`, and another (`l`) in the live worktree, all at exit 0.
+
+**Lesson:** when a brief asks seats to execute the unfixed form of an argument-injection defect, the defect's own side effect is a write to wherever the cwd or an injected option points. Say in the brief: `cd` into the seat folder first in every call, never pass `-t`/`--target-directory=`, and the lead runs the leak check (`git status`, the named out-of-tree paths) after the pass returns — here that check is what found the worktree stray.
+
+## Probe a guard on COMBINED states, not each state alone (2026-10-29, W-88173de4)
+
+**What happened:** a design probe showed that an alias alone reads `indirect` and is deleted by `systemctl disable`, so the design refused every `is-enabled` word but four measured ones, and two design critiques passed it. A review reader combined two states, an alias plus a runtime enable: the word read `enabled-runtime`, inside the allow-list, and the alias was still deleted.
+
+**Lesson:** a guard keyed on one classifier output partitions the states only as finely as that output does. When the harm comes from a property the classifier can mask, probe each harmful property combined with every allowed value before trusting the guard, or key the fix on the harm itself (here: restore exactly the link the installer changed), which needs no classifier.
+
+## A WIP commit made with --no-verify hides the hook its own file will fail (2026-10-29, W-fc5aee9a)
+
+**What happened:** to park a branch with deliberately red tests, the WIP commit skipped the hooks. The test file held literal private-key armour strings, so the repo's `detect-private-key` hook refused the first ordinary commit that touched it, an hour later, mid-review. The skipped hook had nothing to do with the red tests it was skipped for.
+
+**Lesson:** park red work with the hooks on (a red test is not a hook failure); when a skip is unavoidable, run `pre-commit run --files <the files>` before the next real commit. Test fixtures that must hold secret-shaped text build it at runtime (`"PRIVATE" + " KEY"`), so the hook keeps guarding real keys.
+
+## A delegated installer's exit code says nothing about what it wrote (2026-10-28, W-d6726a65)
+
+**What happened:** the setup script's archive step runs `install_session_archive_timer.sh` instead of copying its units. Both design critics executed it on stub `systemctl`: with `daemon-reload` failing it exits 1 after writing all three units and prints nothing, so undo lines built from "what this script wrote" would have missed every unit. The same pass found `systemctl --user cat` shows the DISK unit while the loaded one (`show -p OnFailure`) was empty on this box.
+
+**Lesson:** when a step delegates writes to another program, rebuild the undo set by re-reading every target after it returns, whatever its exit code, and verify the state the consumer reads (the loaded unit), not the file you can see.
+
+## A guard keyed on "written this boot" expires on WSL, and a fix closed as "already done" may not be (2026-10-28, W-a77742db)
+
+**What happened:** the quota lane's /clear re-bind (D-1209) demanded an identity row written under this claude process "this boot" (`at >= btime`). On WSL2 `btime` is now minus uptime, and uptime stops while the host sleeps, so btime moved 69,421 s forward in a day and the clause came to refuse a live window's own row. Earlier the same day the item had been closed as "resolved by D-1209" from a passing test; the routed mail showed the refusal happening after D-1209 was live. And one mutant "survived" because its `-k` selected a neighbouring test, not the grader that held the guard.
+**Lesson:** never anchor a liveness or freshness check on `/proc/stat` btime (or anything derived from uptime) on WSL; key on what identifies the thing itself (pid + start tick). Before closing an item as already fixed, replay its REPORTED incident on the current code; a green test of the fix's own case is not that replay. A survivor counts as a test gap only once its `-k` names the test that actually contains the assertion.
+
+## A check that reads list POSITION is satisfied by reordering the list (2026-10-27, W-0b900e92)
+
+**What happened:** the /fabrik-task close compared a receipt's range tip with the LAST `--commit`. A reporter whose receipt and ledger commits honestly came after the reviewed tip was refused, and passed by moving the tip to the end of the list. The same reorder passed an unreviewed code commit listed before the tip.
+**Lesson:** when a check means "covers everything after X", read the order from the data that has one (git ancestry, timestamps), never from the order the caller typed. A workaround a reporter had to use ("I re-ordered the list") is the cobra path itself; replay it against the check before fixing the false refusal, or the fix keeps the hole.
+
+## A child in its own session is safe from your timeout and invisible to your stopper (2026-10-27)
+
+- **What happened:** `api_write.py` started each paid `claude` child with `start_new_session=True` so a timeout
+  could kill the child's whole tree. The same choice took the children out of the reach of every stop signal sent
+  to the runner's group. Claude Code stops a background task with SIGTERM to that group, then SIGKILL about 1.4 s
+  later. The runner died on the default action, and six paid children ran on with no settle row and no log line
+  (W-d077095a). A test that passed with SIGKILL arriving after the runner exited still lost every line in
+  production, because a file sink is block-buffered.
+- **Rule:** a supervisor that puts children in their own session owns their death. Handle every catchable stop
+  signal, kill the registered groups, and finish everything that keeps money honest (ledger rows, flushed lines)
+  inside the grace the sender gives. Measure that grace, then grade it with a real signal sent to the GROUP, a
+  file sink and a SIGKILL at the end of the grace.
+
+## A guard's test case must reach the guarded branch, or its mutant survives (2026-10-27)
+
+- **What happened:** W-e57d2481's coordinator wait guard copies quota_stop's `common.name == ".git"`
+  check. Its test used a `--separate-git-dir` checkout as the "not `.git`" case and passed green. The
+  mutation pass showed the guard could be deleted with the test still green: `_git_common` returns
+  `None` for that layout, so the case never reached the guard. A worktree of a bare repo (common dir
+  `bare.git`) does reach it, and with the guard removed the hook read a ledger planted beside `bare.git`.
+- **Rule:** a negative case is proved only when its mutant dies. Before trusting one, print the value
+  the guard tests for that fixture; if an earlier branch already returns, the case is testing that branch.
+
+## A parser built to match a consumer is probed on every character class it branches on (2026-10-27)
+
+- **What happened:** W-2ae286e2 measured docker compose's `.env` grammar in real containers before the
+  design (20 cases), and the design still stated five rules compose does not follow. The two critique seats
+  each ran their own container probes and found them: compose cuts an unquoted value only at space-hash
+  (not TAB-hash), ignores text after a closing quote, keeps a CR inside an unquoted value (`K=a<CR>b`), lets single quotes span lines, and
+  refuses an unterminated quote. Every one would have been a value written back corrupted on the next
+  read-modify-write.
+- **Rule:** when a parser must agree with another tool, list the classes each branch reads (each whitespace
+  kind, each line terminator, the text after a closing delimiter, end of input inside a delimiter) and run
+  the real tool on one case per class before writing the grammar down. The cases you thought of are the
+  ones you already handle.
+
+## A closing pass that runs only the new graders cannot see a signature break in an old stub (2026-10-27)
+
+- **What happened:** W-010bb0d9's review pass 2 threaded a third positional argument (`now`) into
+  `_active_account_walled`. The closing pass's brief limited each seat to the ten new graders to fit a 10-minute box,
+  and the lead closed the review while the full touched slice was still running. That slice then failed 3 tests whose
+  two-argument lambda stubs of the function raised TypeError twice per tick: swallowed by `_tick_row`'s guard (no tick
+  row), and from the advisory up to `_cmd_tick`'s outer guard (`tick: INTERNAL ERROR`; the advisory's `finally` still
+  wrote the posture).
+- **Rule:** a fix that changes a signature greps every stub and monkeypatch of the name (`"_name"` in the tests) in the
+  same round, and the review closes only after the FULL touched slice has run green on the closing pin — a
+  selection of the new graders is a probe, never the exit evidence.
+
+## `Timer.cancel()` does not stop a Timer that has already fired (2026-10-27)
+
+- **What happened:** W-010bb0d9 bounded the rotation tick with a `threading.Timer` watchdog and cancelled it "first thing in
+  the `finally`", with a comment saying the finally's legs therefore never raced it. Three review seats found that a Timer
+  firing as the body ended is already inside its function: `cancel()` is a no-op there, and the watchdog then exited the
+  process between a stamp clear and its wake. The same pass found `os._exit` dropping every block-buffered `print` of the
+  hung tick from cron's log file, and a Timer interval of `1e300` killing the Timer's own thread with an OverflowError.
+- **Rule:** a watchdog that ends a process needs a HANDSHAKE, not a cancel: the main thread marks the work done under the
+  lock the watchdog takes, and the watchdog re-reads that mark after it gets the lock. Flush buffered stdout (bounded)
+  before `os._exit`, bound the interval above as well as below, and grade the handshake by firing the real watchdog with
+  the arguments the code gave the Timer after the work returned.
+
+## A cache added for cost is keyed on the STATE it reads, never on the name that points at it (2026-10-27, W-69322546)
+
+- **What happened:** review round 1 of the Merged-From vouch fix cached the target's trailer map on `(repo, target)`
+  to stop a full-history `git log` per unmerged branch. Round 2 found that `scratch_sweep.py` classifies and then
+  RE-CHECKS at removal in the same process, so a target rewound past a squash between the two still answered from
+  the plan-time map — the re-check existed to catch exactly that change. The same round found that skipping every
+  merge commit on the branch side, to stop a merged-back branch reading unmerged, also skipped a merge that brought
+  in another branch's never-merged work.
+- **Rule:** before caching a read, grep for every caller that reads it twice in one process and ask what the second
+  read is FOR; key the cache on the resolved state (here the target's commit), so a moved ref is a cache miss. And a
+  filter added to drop one harmless shape (a merge of the target) is written as the test for that shape (every extra
+  parent already in the target), never as "drop the whole kind".
+
+## Hardening one stat call against EACCES means sweeping every stat on the same path (2026-10-27)
+
+- **What happened:** W-f7772267 (k) wrapped `_repo_type`'s `exists()` and the scope check's `mcp_json.is_file()`,
+  because Python 3.12's pathlib RAISES `PermissionError` there when the path runs through a directory this user cannot
+  search. Pass 1 of the review found the same raise one line earlier (`is_dir()` on a root entry linking into such a
+  directory) and one line later (`--defs` in such a directory). It also found that the first fix's `continue` silently
+  skipped a searchable repo whose `.mcp.json` links into one.
+- **Rule:** when one filesystem call is hardened against an error class, list every `stat`-family call on the same
+  path (`is_dir`, `is_file`, `exists`, `is_symlink`, `read_text`) and probe each with a link into a mode-000 directory
+  before the first pin. Decide each catch by what the caller can still know: a file present but unreadable is
+  graded, and an entry nobody can search is named. Neither one is a silent `continue`.
+
+## A merge leg runs under umask 002 in a /tmp throwaway; a hub test assumes neither (2026-10-27)
+
+- **What happened:** kaizen's batch was refused by `test_parity_root_reads_the_recipes_flat_staging_copy_beside_the_script`,
+  red in the merge leg and green alone (W-17fc722a). The coordinator's shell runs under umask 0002, and every
+  merge leg inherits it and checks out into `tempfile.mkdtemp(prefix="fabrik-merge-")` under /tmp. The test
+  copied the checkout's group-writable modes, which the stub refuses as "writable by others". The same review
+  found B6 red the same way and two kaizen exposure tests that hardcoded "fabrik", which `_project` reads only
+  under `/opt/<name>`. An interactive umask-022 session in `/opt/fabrik` reproduces none of them.
+- **Rule:** a test that writes or copies files a check then judges by mode sets those modes itself, and a
+  test that reads location-derived state derives its expectation from the checkout's path. Reproduce a
+  "red only in the merge" report with `umask 0002` on the TEST PROCESS, not only on the checkout, inside a
+  /tmp worktree, with `FABRIK_MERGE_CHECK=1`.
+
+## A right-now fix reads the plan locks too, not only a /fabrik-task run (2026-10-27)
+
+- **What happened:** W-d095d60b (a right-now fix under /fabrik-review-scoped) edited
+  `scripts/sysadmin/emit_mcp_project_config.py` and its tests, both owned by intel's active own-scrape plan lock, and
+  merged; nothing read the lock. The next change to the same file, W-c0d9cea5, ran /fabrik-task, whose phase 2 reads
+  `.fabrik/plan-locks/`, and stopped there. The coordinator measured intel's branch: it touches none of the three paths,
+  so nothing conflicted this time.
+- **Rule:** before editing a file, read the plan locks, whatever lane the change took: `status: active` with the path
+  under `owned_paths` is a stop and a message to the coordinator, never a silent edit.
+
+## A guard that renders in several places is proven one site at a time (2026-10-27, W-ff313a14)
+
+The file-api `PORT` guard sat at two template sites, and its refusal test rendered both at once, so deleting
+either guard left the suite green: the other site still raised (review pass 1, C-1, executed by mutants D2/D3).
+The test now renders each site alone (label with no health block, healthcheck with no HTTP exposure) and
+asserts the other site is absent. Apply it to any refusal that more than one template line enforces.
+
+## A guard over a template language asks that language's parser, never a regex (2026-10-27)
+
+- **What happened:** W-80aed026's grader needed "only compose templates read `env`". The first regex missed
+  `{{ env }}` and `env | tojson`; the widened one (review round 1) missed whitespace control `{{-env}}` and
+  arithmetic `x-env`, both real reads Jinja renders — two review rounds on one matcher. `jinja2.meta
+  .find_undeclared_variables` over the renderer's own environment answered every case, a template-local
+  `set env` included. The same review measured the item's own proposed fix (double every `$`) against the
+  fleet's specs first and refuted it: 20+ specs put `${VAR}` in `env:` on purpose (D-1269).
+- **Rule:** when a guard asks what code in some language DOES (reads a name, quotes a value), call that
+  language's own parser or analyser; a regex re-derives the grammar and drifts on the first form it forgets.
+  And replay an item's proposed fix on the real corpus before adopting it.
+
+## A mutation battery proves nothing until each test passes unmutated (2026-10-27)
+
+- **What happened:** W-d5d1d394's review battery reported mutant M8 "killed" by a new test that in fact failed on
+  the unmutated code too — its matcher looked for `test_k:` where the line reads `test_k (call)`. The touched-slice
+  run caught it (1 failed of 899); the battery had read a red as a kill.
+- **Rule:** run every named test on the unmutated copy first and require a pass before a mutant's red counts
+  (`/fabrik-review` rule (4) says so; a hand-rolled battery must carry the BASELINE step itself).
+
+## A census that re-implements a check must read every field the check reads (2026-10-26)
+
+- **What happened:** W-34d76a7a's MEASURE counted vanished `rule:` labels with a hand-written script that pooled the
+  named entries' phrases but never read the matching entry's `clauses:` labels. It reported 11 of 185 lines newly lost
+  on kaizen's latest cut; both design critiques replayed the real `_lint` and found 0 — every label named the line's
+  own lintable entry, whose labels excuse exactly those story clauses (D-1258).
+- **Rule:** measure a proposed check, or grade a change against one, by running the module's own functions on the real
+  corpus (here `losses()` over a real render, base vs new), never a re-implementation; a re-implementation is a second
+  reading and drifts on the first field it forgets. (W-da101088, 2026-10-27: a test that copied `check_structure.py`'s
+  placement rules disagreed with the gate on 6 of 16 probe paths; it now calls `check_structure.check_structure()`.)
+
+## A measure built in a worktree must not read the disk (2026-10-25)
+
+- **What happened:** slice C's size measure (D-1226) counted a path when the file existed. Its baseline was built in a
+  linked worktree, which holds only tracked files; the main checkout also holds gitignored data and secrets, so
+  master's `--check` failed there and refused every commit (D-1230).
+- **Rule:** anything that must agree across checkouts reads the repo (the git index), never the disk; and a test for it
+  builds a real repo plus a linked worktree with a file only one of them holds, because a fixture tree without git
+  cannot show the difference.
+
+## Run a key contract over the whole live corpus before anything is keyed on it (2026-10-25)
+
+- **What happened:** slice A of the lean tooling (W-a9b5e763) shipped a sentence matcher reviewed over four rounds
+  against fixtures. Slice C generated a ledger for every unit of all 40 live commands and asserted it against the
+  render: 140 units could never match (an inline `<!-- … -->` in a code span was blanked on one side only), 97
+  more sat under a fragment's heading in the render, and 3 never matched because `normalise()` was not idempotent
+  (`"404 ."` became `"404 "`, then `"404"`).
+- **Why it matters:** a key contract changes for free only while nothing is keyed on it. Once kaizen writes ledgers,
+  each fix costs a re-baseline of every ledger.
+- **Rule:** before a grammar freezes, generate its artifact over the real corpus in a test (D-1226:
+  `test_generate_unchanged_ledgers_pass_on_the_live_corpus`, `test_normalise_is_idempotent_on_every_live_unit`).
+  A fixture shows the grammar works on the cases you thought of; the corpus shows the cases you didn't.
+
+## `git log --since` stops at the first older tip; a window filter belongs on the commit's own time (2026-10-25)
+
+W-487e966a counted commits per window with `git log --since/--until`. A fixture repo whose branch tip was committed
+before the window returned 0, because git stops walking once it meets a commit older than `--since`. Live repos
+read correctly that day only because no tip was old. The fix is to log once and filter on `%ct` per window.
+- **Filter a window on each record's own time.** Never trust a producer's cutoff flag to mean "every record in
+  range": `--since` is a walk limit, not a filter.
+- **A guard's refusal test must assert its own message.** The first refusal test passed every case because the
+  default command list tripped a different refusal first. Asserting each case's own flag name exposed it.
+- **A typo guard checks only what the caller named.** Applied to the built-in default list, it refused a valid
+  run on any ledger lacking one default command. Two review seats found it.
+
+## A permanent verdict needs positive evidence; a missing signal is "unknown", so it is transient (2026-10-25)
+
+W-05021a03 split rotate-session's aborts into transient (exit 75) and permanent (exit 1). The first build classified by check name with a few overrides. Three review readers then found ten places where the permanent verdict rested on something ABSENT: no input box drawn (a blank redraw, copy-mode, a restarting pane), a reason string that lacked "timed out" (hibernate reports a timed-out probe as "detached HEAD"), an identity read that failed and so looked empty, and a second `claude` under the pane (a pool seat).
+- **Call a cause permanent only on positive evidence**: a dialog's numbered options, typed text, two transcripts, a missing binding row in a readable store. Default everything else to transient. A false permanent stops a rotation that would have passed; a false transient only keeps the old loop.
+- **A heuristic's own fix needs its own escape variants**: the first dialog test (the last `❯` row is numbered) also matched a numbered line typed in the box, and it blocked the very `--stale-input discard` the permanent hint recommends. Adding "no box drawn" plus "a numbered sibling option nearby" closed it.
+- **Size a mutation probe to the graders**: running the whole test file per mutant took about 20 minutes for 20 mutants; `-k` on the change's own tests takes seconds per mutant. That probe's one survivor was a threshold edge no test sat between (547 s against 900 s), and the new edge test killed it.
+
+## A one-batch rewrite that closes 30 findings opens 18 of its own: probe its own inputs first (2026-10-25)
+
+- **What happened:** the rule-ledger module's first review confirmed 30 defects. The fix batch
+  rewrote the module whole, and the next pass confirmed 18 more, 16 inside that rewrite. Pass 3 then
+  confirmed 7, all own-fix, and the scope-growth stop fired.
+- **Lesson:** a rewrite answering many findings needs round zero applied to it before the pin: the
+  fix's own input space (nested and sibling sections, fences, empty input, unreadable dirs) enumerated
+  and executed by the author. Re-running the finders' cases is not enough, because they only cover the
+  old code's shape.
+- **Apply:** before re-pinning after a batch fix, write and run one probe per new branch the batch
+  added. A fix that adds positions, scopes or name filters is probed with both sibling and nested
+  inputs.
+
+## Read a headless run's tool set from the CLI's init event, never from a design claim or the model (2026-10-25)
+
+W-230abfd5 (`scripts/api_credit.py`, D-1223): the script, its doc and D-1198 all said the child had Read, Grep and
+Glob, and a review passed that claim. On CLI 2.1.310 `--bare` silently dropped Grep and Glob whatever `--tools`
+listed; only a live finder saying "I had no Glob tool" exposed it.
+- **The authoritative tool list is the `system/init` event** of `--output-format stream-json --verbose`; a keyless
+  run prints it without spending (it then fails "Not logged in"), so the check costs nothing and belongs in a test or
+  a pre-flight, not in prose.
+- **Bisect the flags on that event** — seven keyless probes separated `--bare` (Read only) from `--safe-mode`
+  (Glob, Grep, Read) in minutes; reading help text and docs had not.
+- **A model's self-report of its tools is a hint, not a measure** — it was right here, but only the init event is the
+  CLI's own answer.
+
 ## A token rule is a compiler claim: run the compiler before writing it (2026-10-24)
 
 W-dab6a341's first draft wrote CSS-first Tailwind rules from the docs alone. Three were wrong in ways no doc says: a plain `@theme` drops a variable no utility uses, a `var()`-valued slot's utility reads the referenced variable, and an alias under the slot's own name is a cycle. Every one surfaced only when a seat ran `compile()` from an installed `tailwindcss`. The template's own text-colour slots had sat in the font-size namespace since the CSS-first line shipped. **Lesson:** a rule about what a compiler or engine emits is checked by running it on the smallest input that shows the case, and the probe goes in the CLAIMS verify hint so the currency watcher can re-run it. A grader written to catch prose about tokens is judgement-shaped: bound it and say so, or it fires on legitimate sentences.
@@ -7753,3 +8048,70 @@ document.
   item's number does not travel on.
 - **Where it lives.** `scripts/sysadmin/archive_transcripts.py::main_key`,
   `scripts/sysadmin/prune_transcripts.py::evaluate_main`, `docs/DECISIONS.md` (D-1188).
+
+## Trusting another run's green needs the inputs it measured AND the code that measured it — bind both, then mutate every binding (2026-10-24)
+
+- **What happened.** W-1fb11ec8 let the merge skip its owner-test leg on the requester's pretest record. The
+  first design bound the record to the merged tree only. Two critique seats and three review seats then found
+  four more inputs a green record silently depends on: the runner's own code (a branch editing
+  merge_request.py writes its record with its own code), the leg's duration (`FABRIK_CAPPED_RUN=/bin/true`
+  yields a green in 0 s), the merge-tests text, and a non-finite JSON number (NaN passed the floor and crashed
+  `int()`). The first mutation battery left 3 of 16 mutants alive; each was a grader that could not fail.
+- **Mechanism.** A skip is a cache hit: every input the cached result depended on is part of its key, and a key
+  field that no test can tell apart from a constant is not a key.
+- **How to apply.** (1) List what the skipped work READ, not what it was given: tree, script, runner, env,
+  duration. (2) Bind each to the record. (3) Mutate each binding on a copy and watch a named grader fail before
+  calling it covered; an option-shaped value (`-R`) is the probe for any field passed to git.
+- **Where it lives.** `scripts/merge_request.py::_pretested`, `_pretest`, `tests/test_merge_request_pretest.py`.
+
+## A "still held" test proves one guard only when every other guard on the path is open (2026-10-26)
+
+- **What happened.** W-effb7141 added cases to `test_a_plan_session_is_still_held_at_the_wall` for a key
+  beside `ANTHROPIC_AUTH_TOKEN` and the Bedrock/Vertex/Foundry switches. Run against the code before the
+  fix, all four passed. The test wrote a pre-tier stamp (`1`), and the tier rule already held that stamp, so
+  the env predicate under test was never reached. Re-cut on a plain `walled` stamp, all four went red on the
+  old code.
+- **Mechanism.** An expected "deny" has many causes. A test asserting one is satisfied by whichever guard
+  fires first, so it grades the guard it meant to grade only when its fixture opens every other guard.
+- **How to apply.** For a held/denied/refused assertion, build the fixture the subject would otherwise PASS
+  (here: a key session on a plain quota tier), then change exactly the one input under test. Prove it red
+  on the pre-fix code; a red-first run is the only check that catches a fixture held by the wrong guard.
+- **Where it lives.** `tests/test_quota_stop_hook.py::test_a_plan_session_is_still_held_at_the_wall`.
+
+## A hook "that does nothing" for one window may not be the hook that window runs — read the hook child's CLAUDE_PROJECT_DIR (2026-10-27)
+
+- **What happened.** The Stop hook kept ordering infra to claim mail at every rotation boundary although the
+  stand-down for exactly that case had been on master for three days (W-2fb8b1a1). Every replay of the hook from
+  infra's own Bash stood the mail down. A /proc poll of a REAL Stop showed the hook child running
+  `worktrees/infra/.claude/hooks/final_gate_stop.py`, 1602 commits behind the tree infra worked in.
+- **Mechanism.** Claude Code loads hooks, settings and permissions from `CLAUDE_PROJECT_DIR`, the folder the window
+  was LAUNCHED in, and keeps it after the session moves into another worktree. A replay run from your own shell uses
+  the hook in your cwd, so it can never reproduce the stale copy.
+- **How to apply.** When a merged hook fix does not take in one window, poll `/proc/*/environ` of that window's
+  hook children during a real Stop (no strace on this box) and compare `CLAUDE_PROJECT_DIR` with the cwd. Since
+  W-456aa02a the user-level `selfwatch_check.py` says so on every prompt.
+- **Where it lives.** `scripts/sysadmin/selfwatch_check.py::_project_dir_order`, `scripts/sysadmin/agents_up.sh` (D-1284).
+
+## A probe of a cwd-keyed writer runs FROM the throwaway repo, or it writes the real one (2026-10-28)
+
+**What happened:** testing W-835894a6's `--handoff-write`, a live probe meant for a throwaway repo was run as a plain Bash call from the infra-2 worktree. The writer resolves its target from the cwd's git common dir, so it wrote the REAL hub file `/opt/fabrik/.git/fabrik-handoff/coordinator.md` — the path the coordinator's next `/clear` would print — with probe text. It was removed within a minute and the folder verified empty.
+**Why:** a tool keyed on its cwd has no separate "target" argument to aim; the Bash tool's cwd is the session's checkout, not the probe's folder named in the command.
+**How to apply:** run every probe of a cwd-keyed writer through a launcher that sets `cwd=` to the throwaway repo and ASSERTS the printed path sits under it before anything else runs (the live probe did this on its second try); list the real target folder before and after.
+
+## A key-name redactor over parsed YAML leaks through aliases and through its own re-emit (2026-10-29)
+
+**What happened:** W-64cf1856 routed the vps1 monitoring files through the portability redactor (parse, redact by key name, re-emit). Three review rounds found the parse step itself was the hole and the hazard: a YAML alias (`other: *pw`) or merge key (`<<: *a`) copied a redacted secret out under a harmless key; PyYAML's YAML 1.1 typing rewrote what the operator wrote (`17:00` → 1020, `on` → True, `1.10` → 1.1), which the Go parser restoring the copy would then read differently; and the parse error's own message quoted the source line — and an unknown tag — into the warning log.
+**Why:** a key-name redactor sees the CONSTRUCTED tree, not the document: aliases are expanded, scalars are typed and the error text is built from the raw bytes. Each layer between the bytes and the redactor is a place a secret can be copied or quoted past it.
+**How to apply:** when redacting a parsed config, refuse aliases outright (fail closed), keep plain scalar values as their source text (a `str` subclass written back plain) so re-emitting changes no meaning, construct keys as the stock loader does (a str-subclass key collides with its quoted twin), refuse a redaction that maps two keys to one, and log a parse failure as its type and line only — never `str(exc)`.
+
+## A refusal's "last 3 lines" tail can be a verdict line's own argv — quote the verdict line itself (2026-10-29)
+
+**What happened:** fleet-docker-cpu's merge leg died at capped_run's 4G ceiling twice (W-e64a7b8e), and both refusals read "exit 137" followed by shell comments. capped_run prints `killed at the memory ceiling (…) — $*`, and `$*` was the multi-line `sh -c <script>`, so the refusal's 3-line tail of stderr was the script's last lines; the word "memory" never reached the requester. The pretest path then replaced even that text with a fixed "timed out or was killed (exit 137)".
+**Why:** a "last N lines" tail assumes the verdict is the last thing printed; a verdict line that echoes its own command pushes itself out of the window, and a second path that rewrites the error for its own wording drops whatever the first path learned.
+**How to apply:** when a wrapper has its own verdict line, find THAT line by its prefix and cut it before the echoed argv; carry the one cause string on every path that re-raises it (here `base_alone_skip`); and give the stand-in runner the incident's exact shape — the cut survived a mutant until the fixture's script put text on the kill line's own first line.
+
+## A screen parser's fixtures were written from memory — open the real dialog before trusting "already tested" (2026-10-29)
+
+**What happened:** W-a12b03a2 planned to reuse rotate_session's `_dialog` ("already tested") to spot builder panes waiting on a dialog. Its fixtures were three hand-written lines (`Allow?\n❯ 1. Yes\n  2. No`). One critique seat argued that real dialogs are bordered; neither seat could open one. A throwaway Haiku session in a scratch tmux session showed the real shapes on Claude Code v2.1.312: no dialog is bordered, but `_dialog` misses two of the three — the workspace-trust prompt (its options are not numbered) and an AskUserQuestion whose wrapped option descriptions put the next option four rows away.
+**Why:** a parser of another program's screen is only as good as the screens its fixtures came from; hand-written fixtures encode the author's memory of the UI, and every reviewer reading them inherits that memory.
+**How to apply:** before relying on a screen parser, produce the real screen it parses in a disposable session (your own scratch tmux session; never a live agent's pane) and run the parser on it; keep the captures out of the repo — another session's screen is not yours to commit — and write fixtures that reproduce the measured row shapes.

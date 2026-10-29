@@ -1,4 +1,4 @@
-# API credit — capped, read-only runs on the three prepaid API keys
+# API credit — capped runs on the three prepaid API keys (read-only, and the write lane)
 
 Box-local subsystem (`scripts/api_credit.py`, ledger `~/.claude/state/api-credit.jsonl`), built 2026-10-24 on the
 operator's order to spend three prepaid $200 Anthropic API credits before they expire (D-1196, W-894f994f). Its sibling
@@ -16,9 +16,9 @@ python3 scripts/api_credit.py run --pick --model sonnet --prompt-file brief.md -
 python3 scripts/api_credit.py settle --run <id> --cost 0.42   # close a run that has no cost with the console's figure
 ```
 
-`run` starts `claude -p --bare --restricted` with:
+`run` starts `claude -p --safe-mode --restricted` with:
 - the chosen key as `ANTHROPIC_API_KEY`;
-- the tools fixed at Read, Grep and Glob;
+- the tools fixed at Read, Grep and Glob (a finder can locate files and follow callers in the pinned copy);
 - `--permission-mode dontAsk` and `--permission-prompts none`;
 - a fresh `CLAUDE_CONFIG_DIR`, deleted after the run;
 - an empty cwd under `~/.claude/state/api-credit/`.
@@ -32,10 +32,28 @@ automatically.
 
 ## The safety boundary
 
-- **Auth.** `--bare` reads `ANTHROPIC_API_KEY` only and never OAuth or the keychain, so a run cannot spend subscription
-  quota. A bad key fails rather than falling back (probed 2026-10-24). The plain `ANTHROPIC_API_KEY` in `.env` stays
-  empty, so nothing else bills the API by accident.
-- **Reach.** `--bare` skips every hook, so the fleet's guards do not run inside a run. That is why the tools are
+- **Why not `--bare`.** On CLI 2.1.310 `--bare` drops Grep and Glob whatever `--tools` lists (the init event shows
+  `['Read']`; probed 2026-10-25, W-230abfd5), which left a finder unable to search. `--safe-mode` keeps them and
+  disables hooks, CLAUDE.md, plugins and MCP servers, but its help says auth "works normally", so the auth guarantee is
+  executed rather than assumed (next bullet).
+- **Auth — the keyless pre-flight.** Before the start row, `run` starts the same argv once with no `ANTHROPIC_API_KEY`,
+  differing only in stdin `hi`, `--max-turns 1`, `--max-budget-usd 0.05` and `--output-format stream-json --verbose`,
+  on its own empty config dir (removed after), within `API_CREDIT_PREFLIGHT_TIMEOUT` seconds (60). The run is refused
+  (exit 2, nothing provisioned) unless every init event lists exactly Glob, Grep and Read with `apiKeySource` `none`,
+  and every result event is an error with `total_cost_usd` 0 and `duration_api_ms` 0. So no other credential — an
+  OAuth login, a keychain — can answer for the run; the result's `subtype` reads `success` on this failure and is
+  never read. Should some credential answer, the pre-flight's one turn is billed to it, outside this ledger, before the
+  refusal. The real run then has only the key: its config dir is fresh and empty, and every inherited
+  `ANTHROPIC*`/`CLAUDE*` name is stripped from its env but `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` (forced to `1`)
+  before the key and the config dir are set. A bad key fails rather than falling back (probed 2026-10-24 and
+  2026-10-25). The one source the pre-flight cannot see is a credential the CLI would read only when a key is present;
+  the server-side prepaid credit is the backstop there. The plain `ANTHROPIC_API_KEY` in `.env` stays empty, so nothing
+  else bills the API by accident.
+- **Managed settings.** A managed-settings directory (`/etc/claude-code`, or `API_CREDIT_MANAGED_DIR`) refuses every
+  run before anything spawns: its env and hooks apply under `--safe-mode` and `--restricted` alike, and a managed env
+  (a base URL, say) need not change what a keyless probe reports.
+- **Reach.** `--safe-mode` disables the user, project and plugin hooks (managed hooks would still run, which is why
+  managed settings refuse the run), so the fleet's guards do not run inside a run. That is why the tools are
   read-only, and why `--restricted` confines them to the cwd and each `--add-dir` (a read outside is denied, probed).
   Every `--add-dir` is vetted, and the run is refused (exit 2) when the directory is not an absolute, non-symlink
   directory, or:
@@ -83,11 +101,12 @@ Every doubt fails closed, so an unknown cost counts as spent, never as free:
   is missing refuses every verb (exit 1);
 - a timeout or an error around the `claude` process leaves the run provisioned.
 
-Everything that can fail without spending (the inputs, `--out`, the key file, `claude` on PATH, the state
-directories) is checked before the start row, so such a refusal provisions nothing. A result that cannot be written to
+Everything that can fail without spending (the inputs, `--out`, the key file, `claude` on PATH, managed settings, the
+state directories, the keyless pre-flight) is checked before the start row, so such a refusal provisions nothing. A result that cannot be written to
 `--out` after the run is printed on stdout instead.
 
-`settle` closes a run that has no cost with the console's figure once the run has exited (its own settle row exists), or
+`settle` closes a run that has no cost with the console's figure once the run has exited (the settle row its own `run` writes after the child returns or times out exists; a spawn
+error's row does not count), or
 else once its timeout plus a minute has passed; it never gives a second figure to a run that already has one. A child
 orphaned by a killed parent is bounded by its own `--max-budget-usd`, not by this check, so read the console before
 settling such a run.
@@ -102,6 +121,83 @@ A run pays for its own context: the appended prompt, the brief, and whatever the
 (2026-10-24, sonnet, a bug review of this script over a two-file pin) cost $0.0727 and returned nine candidate findings,
 seven of them real.
 
+## The write lane (`scripts/api_write.py`)
+
+D-1247 (operator, 2026-10-26: "why arent we utilizing the api and cloud credits as like they are disposable agents?")
+turns the same keys into disposable WRITING agents. `api_write.py` takes the brief file a cloud run takes, runs it on a
+key with file-editing tools in a throwaway clone, and the runner commits the edits and pushes `claude/<slug>`:
+
+```
+python3 scripts/api_write.py run --pick --model sonnet --out-dir <d> --batch batch.json [--jobs 3] [--budget 10] \
+    [--max-turns 300] [--timeout 10800] [--force-new]
+python3 scripts/api_write.py run --key sarp --model opus --out-dir <d> --slug lean-t15-fix --task-file brief.md \
+    --base claude/lean-t15 --gate "python3 -m pytest -q tests/test_command_rules.py"
+```
+
+A batch is a JSON list of `{"slug", "task_file", "base", "gates"}` (`base` defaults to `master`, `gates` to none). An
+entry with `cloud_dispatch.py drain`'s inline `task` is refused (write it to a file), and its `files` key is ignored.
+
+**The safety lives in the runner, not in the permission rule** that lets a session start it (the operator's rule admits
+`python3 scripts/api_write.py run *`; the classifier refused a session-started headless agent twice, first with blanket
+Bash and `bypassPermissions`, then with a Bash allow-list — D-1248, D-1249). The design, D-1251:
+- **The child has no git and no free shell.** `claude -p --safe-mode --restricted --permission-mode dontAsk` with Read,
+  Edit, Write, Glob and Grep only; `--restricted` confines them to the clone and leaves writes to git and settings
+  files to a person, which `dontAsk` denies. A job's gates add `Bash(<gate>)` for each gate string, matched exactly: a
+  glob over a command's options admits the options, and the review that built this found three that reach outside the
+  clone (pytest's `--basetemp` deletes the directory it names, git's `--output` writes any path, `git commit -F` reads
+  any file). A gate is an exact command with no shell syntax; anything else is refused before spending.
+- **The runner owns git, and the child has no repository.** Before spending it refuses when `origin` already has
+  `claude/<slug>` (unless `--force-new`) or has no `<base>`, clones the main checkout under `<run root>/<run>/`
+  (`API_WRITE_RUN_ROOT`, default `~/.cache/fabrik/api-write`, `~` expanded; a relative root, or one under a `.claude`
+  or `.claude-*` directory once symlinks resolve, is refused before spending, because Claude Code denies every Write
+  and Edit under `~/.claude` as a settings path — the first live runs, cloned under `~/.claude/state`, could only read
+  and plan; for the same reason the child can never edit the repo's own tracked `.claude/` files inside the clone, so
+  a brief that must change them is not a write-lane job) with the git dir OUTSIDE the work tree
+  (`gitdir/`, beyond `--restricted`'s reach; the work tree's `.git` pointer file is deleted), points `origin` at the
+  main checkout's `origin` URL, fetches, and checks out `claude/<slug>` at `origin/<base>`. No worktree of the main
+  checkout is made and its refs and index are only read; its objects are hardlinked into `gitdir/` (a full copy would
+  be 1.7 GB per job), and git adds objects, never rewrites one. Every runner git call that acts on the clone names
+  `--git-dir` and `--work-tree`, so nothing written in the work tree picks the repository or its config — the review
+  that built this found a child-written `.git/commondir` redirecting config past a digest of `.git/config` — and the
+  child's git discovery stops at the run directory (`GIT_CEILING_DIRECTORIES`), so a gate that needs a git repository
+  finds none rather than climbing into one that encloses the state directory. The prompt is prefixed with a runner
+  note saying so, and telling the child to skip the brief's BASE line, git, fetch, pip and push and to end with `SUBJECT: <commit
+  subject>`.
+- **After the child exits**, on a clean exit only: the runner refuses when the git dir's config changed or the child
+  left any `.git` entry in the work tree, commits every edit as ONE commit (the child's `SUBJECT:` line, `Agent-*`
+  trailers naming the run and key) with hooks and fsmonitor forced off, scans that commit's diff — binary files
+  included, no diff drivers — for one of the three keys or an `sk-ant-` string, and pushes that same commit to
+  `claude/<slug>` at the URL it captured (never forced). A child error, a timeout or a refusal pushes nothing.
+- **Money.** The run reserves its budget in the same `api-credit.jsonl` through `api_credit.reserve` (one $200 cap per
+  key across both lanes; the start row carries `lane: write` and the slug), runs after the same keyless pre-flight
+  (which must report this child's tool set), and every outcome after the start row writes a settle row. The child runs
+  in its own process group, so a timeout kills everything in it.
+- **Env.** The child's env is `api_credit.child_env` minus every `GIT_*` name and the SSH agent, with the main
+  checkout's `.venv/bin` first on PATH when it exists, so a gate's `python3 -m pytest` has the hub's dependencies
+  without a pip install (an editable install from a hub clone would repoint the shared install box-wide).
+
+Once the child has exited on its own, with success or an error, the scrubbed result goes to `<out-dir>/<slug>.md` (printed on
+stdout when that file cannot be written); a timeout writes none. `--jobs` (default 3) runs a batch in parallel; with
+`--pick` each job reserves the key with the most room at its own start, so three jobs spread over the three keys. One
+run is one commit, so a multi-ticket brief is split into one entry per ticket.
+
+**A stop signal** (D-1295, W-d077095a). A stopped Claude Code background task gets SIGTERM to its whole process group,
+then SIGKILL about 1.4 s later (2.1.311, measured); the children sit in their own sessions, so neither reaches them.
+SIGTERM, SIGHUP and SIGINT therefore run one handler: no new job starts (a queued one reports `not started: runner
+interrupted` and writes no start row), the process group of every running child is killed, and each killed run settles
+`interrupted` with source `run` — so `api_credit.py settle` takes its console figure at once — writes the interruption
+and its run id to `<out-dir>/<slug>.md`, and commits and pushes nothing. A child that finished on its own before the
+signal still commits and pushes; the runner's git runs in its own session, so the group signal never cuts that push.
+Stdout and stderr are line-buffered, so a log file keeps every line through the SIGKILL, and the runner exits 128 plus
+the signal number. A SIGKILL sent straight to the runner, with no SIGTERM first, is still not caught: its children
+run on and its runs stay provisioned, as above.
+
+**What remains** (D-253): the cheapest abuse left is a gate, which runs code the child wrote (a test file, a rendered
+source) as this user, outside every fence above (the git dir and the hardlinked objects included) — so gates come
+from the brief's author, never from the child, and a job with no gates runs no code at all. Next, anything the child
+writes inside the work tree ships to `claude/<slug>` (the secret scan knows only the three keys and the `sk-ant-`
+pattern), which is why the branch is reviewed before any merge.
+
 <!-- BEGIN related-scripts: generated by scripts/render_doc_script_links.py — do not hand-edit -->
 ## Related scripts
 
@@ -110,4 +206,5 @@ means updating this page in the same change. This list is generated from those h
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
 - `scripts/api_credit.py`
+- `scripts/api_write.py`
 <!-- END related-scripts -->

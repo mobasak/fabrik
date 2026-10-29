@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T06:47:02.955777Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-e3d8e5ef",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5XYDG5HXSVV2PKW052FFFGD",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: w-c832e59f-shard-balance"
+}

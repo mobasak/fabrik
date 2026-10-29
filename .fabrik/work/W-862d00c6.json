@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T19:50:15.573778Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-862d00c6",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "wrap the passwd lookup in PlanError with a test; replace the silent label filter with per-case pytest.skip or a parametrize + skipif",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "review-residue"
+  ],
+  "title": "operator_setup.py ssh step residue (W-030ac2fe scoped review, recorded): (1) plan_ssh's pwd.getpwuid(os.getuid()) raises a bare KeyError when the uid has no passwd entry — a traceback, not a PlanError; (2) under uid 0 the uid-bound refusal cases are dropped from the loop with no skip marker, so a root run reports green without them"
+}

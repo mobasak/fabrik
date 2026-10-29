@@ -5,6 +5,7 @@ This module is the single source of truth for spec file schema.
 All spec files are validated against Pydantic models before use.
 """
 
+import re
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
@@ -13,6 +14,45 @@ import yaml
 from pydantic import BaseModel, Field, StrictBool, field_validator, model_validator
 
 from fabrik.config import FABRIK_ROOT
+
+HEALTH_PATH_RE = re.compile(r"/[A-Za-z0-9._~%/!&()*+,;=:@?-]*")
+"""A health-check path (fullmatch, W-ff313a14): RFC 3986 path characters plus a query, minus every
+character that would break where the path is pasted — `'` (the single-quoted URL in the CMD-SHELL
+probes), `"` and `\\` (the double-quoted YAML items), `$` (compose interpolation), `#`, a backtick, braces
+and whitespace. `&`, `;` and parentheses are admitted, so both shell probes single-quote the URL."""
+
+CPU_RE = re.compile(r"(?:0|[1-9][0-9]{0,3})(?:\.[0-9]{1,2})?")
+"""A ``resources.cpu`` value (fullmatch, W-f01710a0): a plain ASCII decimal of at most 4 integer and 2 fraction
+digits. Compose 2.40.3 reads ``0_5`` as 5 CPUs, ``0`` as no limit and ``-1`` as -1 without complaint, so the
+template path, the apply validator and the docker-image emitter all refuse anything else through
+:func:`cpu_in_grammar`. Two decimals is the daemon floor's step (0.01), and compose reads ``cpus`` as a 32-bit
+float (``0.123456789`` comes back ``0.12345679``) yet reads a value of this grammar back as the same number."""
+
+CPU_GRAMMAR_MESSAGE = (
+    "resources.cpu must be a quoted plain decimal CPU count from 0.01 to 1024 "
+    "with at most 2 decimals, e.g. '0.5'"
+)
+
+
+def cpu_in_grammar(value: object) -> bool:
+    """True for a str in :data:`CPU_RE` from 0.01 to 1024. The floor is the Docker daemon's ("Range of CPUs
+    is from 0.01 to N", N its CPU count). The 1024 ceiling only refuses absurd values: compose parses ``cpus``
+    before the daemon sees it, and reads a 300-digit value as +Inf. A YAML float (a bare ``0.5``) is refused,
+    as the ``str`` field always did on the Spec path."""
+    if not isinstance(value, str) or not CPU_RE.fullmatch(value):
+        return False
+    return 0.01 <= float(value) <= 1024
+
+
+POSTGRES_IDENT_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")
+"""PostgreSQL identifier validation — the registrar's rule (``drivers/postgres.py`` imports it).
+
+Matches the conservative subset of the SQL standard: leading letter or
+underscore, followed by up to 62 letters / digits / underscores. This is
+deliberately stricter than Postgres's own rules (which allow quoted
+identifiers with arbitrary content) — we never want the driver to need
+to emit a quoted identifier that a shell might unquote.
+"""
 
 
 class Kind(str, Enum):
@@ -129,6 +169,14 @@ class Resources(BaseModel):
     memory: str = "256M"
     cpu: str = "0.5"
 
+    @field_validator("cpu", mode="before")
+    @classmethod
+    def _cpu_in_grammar(cls, v: object) -> object:
+        # Before the str check, so a float, bool or None gets this message rather than pydantic's type error.
+        if not cpu_in_grammar(v):
+            raise ValueError(CPU_GRAMMAR_MESSAGE)
+        return v
+
 
 class Health(BaseModel):
     """Health check configuration."""
@@ -137,13 +185,32 @@ class Health(BaseModel):
     interval: str = "30s"
     timeout: str = "10s"
     retries: int = 3
+    start_period: str | None = None
+    """Compose ``start_period``; None renders the template's own default (W-3197a125)."""
     disabled: bool = False
     """When true, no HEALTHCHECK is emitted. Use only for images that lack
     shell tooling (e.g. ``traefik/whoami``) where any healthcheck would
     always fail and Traefik v3 would then filter the container out."""
     test: list[str] | None = None
     """Custom HEALTHCHECK test command (docker-compose ``test`` form).
-    Overrides the default wget/curl probe when set."""
+    Overrides the default wget/curl probe when set. Compose interpolates a ``$`` in it: a shell
+    variable is written ``$$VAR``."""
+
+    @field_validator("path")
+    @classmethod
+    def _path_in_grammar(cls, v: str) -> str:
+        if not HEALTH_PATH_RE.fullmatch(v):
+            raise ValueError(
+                "health.path must start with / and hold only URL path and query characters "
+                "(no quotes, backslash, $, #, backtick, braces or whitespace)"
+            )
+        return v
+
+    @field_validator("start_period")
+    @classmethod
+    def _blank_start_period_is_unset(cls, v: str | None) -> str | None:
+        # A whitespace-only value is truthy in Jinja and would render `start_period:` (YAML null).
+        return v.strip() or None if v is not None else None
 
 
 class Volume(BaseModel):
@@ -192,6 +259,17 @@ class Depends(BaseModel):
         default=None,
         description="Project-relative path to a .sql.gz dump used to seed the new DB",
     )
+
+    @field_validator("postgres")
+    @classmethod
+    def _postgres_is_an_identifier(cls, v: str | None) -> str | None:
+        # The name is pasted into the compose DATABASE_URL default `${DATABASE_URL:-…/<name>}`, where no
+        # quoting stops a `}` or `$` (W-ff313a14). An empty value keeps meaning "no database".
+        if v and not POSTGRES_IDENT_RE.fullmatch(v):
+            raise ValueError(
+                "depends.postgres must be a PostgreSQL identifier matching [a-zA-Z_][a-zA-Z0-9_]{0,62}"
+            )
+        return v
 
 
 class Infrastructure(BaseModel):

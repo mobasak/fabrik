@@ -138,7 +138,9 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
   PLANS markers, stamps `**Owner:**` on every open unowned plan round-robin, tags every untagged
   work-item row of `STRATEGIC_BACKLOG.md` in its own shape (the cell under a header opening
   `Owner`/`Tag` when it is empty — an occupied one, or an `Item` that already opens with a tag, is
-  left alone · else the `Item` cell; never a bullet or a table with neither column — W-77e00147),
+  left alone · else the `Item` cell; never a bullet or a table with neither column — W-77e00147 — and
+  never an `Item` that is only one bracketed phrase, as the template's placeholders are (`[Feature/Refactor]`)
+  — W-e89d7983),
   appends the `MERGE OWNER: <first name>` ledger row (the
   row with the HIGHEST D-id whose `what` cell opens with `MERGE OWNER:`, optionally after a
   `supersedes D-NNN:` prefix — the label always the exact upper-case `MERGE OWNER:`, bold allowed (`**MERGE OWNER:**` or
@@ -190,8 +192,34 @@ python3 scripts/merge_request.py request --review <closing run record or review 
 #    A branch cut before the script existed runs the main checkout's copy by absolute path
 #    (`python3 <main checkout>/scripts/merge_request.py request …`): it finds mail.py, work.py and
 #    whoami_agent.py beside itself, never in the branch. `--item` releases your claim on that item.
+#    `--pretest` first runs the base's `.fabrik/merge-tests` on the merge the owner would build (a
+#    throwaway at the local base) and sends only on green (a base with none is sent untested, with a
+#    note), recording the merged tree in `<git common dir>/fabrik-merge/pretest/<head>.json`; the
+#    merge then skips its own leg when its merged tree differs from that one only in CHANGELOG.md,
+#    docs/DECISIONS.md, docs/LESSONS_LEARNT.md and work items, the same merge_request.py wrote the
+#    record, and its leg ran at least a minute (W-1fb11ec8) — run it in place of a hand run of the
+#    suite, never beside one.
 # 2. the merge owner, in the main checkout:
 python3 scripts/merge_request.py merge [<id>]   # the oldest request addressed to it, or <id>
+python3 scripts/merge_request.py merge --queue [--jobs 1] [--max 4]
+#    → builds the waiting requests (up to --max) as a STACKED chain in merge order (S0 the local
+#      base, Sk request k merged onto S(k-1)) in pretest throwaways, runs each leg OUTSIDE the merge
+#      lock in a forked child (at most --jobs at once, default 1, each at the owner script's own
+#      width; a later leg forks only once the first request lands on a record or has no tree to
+#      test, and only while it and a landing after it fit the wall — W-d5d1d394), records
+#      each green tree as --pretest does, then lands each request in order through the unchanged
+#      locked `merge <id>`, which skips its leg on the matching tree. A request that will not build
+#      is skipped and the chain continues; after each landing the rest is rebuilt on the new base and
+#      every record that still matches is reused, so the requests stacked behind a REFUSED one are
+#      rebuilt without it and tested again. A base with no `.fabrik/merge-tests` runs nothing outside
+#      the lock: the queue lands in order. A landing starts only while its worst case still fits the
+#      queue's own wall (QUEUE_WALL_S, 11100 s = a 7200 s worst-case landing + the 3600 s longest
+#      leg a base may declare + 300 s: a 180 s chain build and a leg's 120 s setup and outer bound —
+#      run it as `rund --timeout 11200 --
+#      /opt/fabrik/scripts/capped_run.sh --timeout 11100 -- python3 scripts/merge_request.py merge
+#      --queue`); past it the queue says so and stops — run it again. Exit: the worst landing's
+#      (0 merged, 1 one refused, 4 one left partial, where it stops). One queue at a time
+#      (`fabrik-merge/pretest/queue.lock`). W-0c8c43f1. Plain `merge` names the verb when 2+ wait.
 python3 scripts/merge_request.py resume <id>    # a request left short of `replied` (exit 4)
 python3 scripts/merge_request.py retry <id>     # re-run a REFUSED request whose branch is unchanged
 ```
@@ -207,7 +235,9 @@ root when `src/` is itself a package — placed after the stdlib and before site
 first get the base's `.worktreeinclude` set copied in from the main checkout, so a gitignored `.env`
 is there as in a worktree, never over a file the tree tracks — D-610; the hub's own merge-tests runs
 `scripts/merge_test_select.py`, W-4e756979: the tests that name a changed path — its file, module,
-import or directory — plus every test whose text says `ls-files`, in 8 shards; it refuses a red that
+import or directory — plus every test whose text says `ls-files`, in 8 shards balanced by the
+per-file seconds each merge leg records in `<git common dir>/fabrik-merge/merge-tests-durations.txt`
+(no record: the round-robin split, W-c832e59f); it refuses a red that
 is new against the base (green, absent, or failing with another crash line there) and a run it
 could not finish, never one of master's own reds; outside a merge check it never checks out or
 cleans the worktree and compares nothing; a rebuild of a branch head whose last green merge differs
@@ -215,10 +245,23 @@ from it only in the selector's SKIP set — ledgers and work items — re-tests 
 of the local base (up to three rebuilds; every owner-test leg of one invocation, rebuilds and the
 catch-up included, draws on one budget of `MERGE_TEST_BUDGET_S` — a leg runs at most what is left,
 none starts under `LEG_FLOOR_S` left, and a spent budget refuses as not a test verdict, naming
-`retry <id>`, or `resume <id>` for a catch-up), (e) the carry into the main checkout — sibling WIP, untracked and staged files are never
+`retry <id>`, or `resume <id>` for a catch-up; a full leg is `TEST_TIMEOUT_S`, or the
+`# merge-test-timeout: <seconds>` line the BASE's `.fabrik/merge-tests` declares, clamped to
+`LEG_FLOOR_S`..`MERGE_TEST_BUDGET_S`, W-1fb11ec8; the leg's memory ceiling is capped_run's default
+unless the base declares `# merge-test-mem: <n>M|<n>G` alone on its line, clamped to
+`LEG_MEM_FLOOR_MIB`..`LEG_MEM_MAX_MIB` and passed as `--mem` — a declaration-shaped line outside that
+grammar is named in the leg's verdict and ignored — and a leg capped_run stopped (exit 137 or 124) is
+refused with capped_run's own last verdict line, on the merge and the pretest alike, W-e64a7b8e), (e) the carry into the main checkout — sibling WIP, untracked and staged files are never
 overwritten; a path that changed is kept and listed in the reply — (f) a fast-forward push, (g) the
 hub's governance sync, and (h) the reply to requester and distributor, then `mail.py ack done
---merge-sha`. A refusal acks `blocked` with the refused step; the requester fixes and sends a new
+--merge-sha`. Every merge commit it writes, a catch-up's included, ends in one Agent Provenance
+Trailer block — `Agent-Role: orchestrator`, the owner's `Agent-Name` (left out, with a note, when the
+owner is outside the agent-name grammar) and an `Agent-Context` (the request's names the branch,
+request and item; a catch-up's names the remote/base and the request) — and no `Merged-From`: a
+merge's parents already say what it took, and `scratch_sweep.py` reads that trailer on squash
+commits only (D-1290). `merge` runs no `final_gate`: after `merged <id> as <sha>` it
+prints that gating the merged result is the caller's duty, merge itself running only the owner tests,
+with the request merge's owner-test summary, and the reply carries the duty line (W-e914202a). A refusal acks `blocked` with the refused step; the requester fixes and sends a new
 request. When the reason is a conflict with the base, the requester brings the base in by MERGING it
 into the branch (`git merge <base>`), never a rebase: the branch is already pushed, so a rebase could
 only be republished with `--force`. A refusal that names the main checkout (a dirty,

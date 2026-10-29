@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T15:57:25.673058Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ced7181c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5HQ0W2CQSY9WRKWP5DHA3HR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "tests/test_conftest_isolation.py::test_the_two_live_box_tests_pass_a_merge_check_on_a_drifted_box is red on clean HEAD (997dbfdd9 + kaizen's branch)"
+}

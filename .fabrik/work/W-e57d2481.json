@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T12:16:47.150516Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-e57d2481",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1296",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure first: grep coordinator transcripts for foreground for/while+sleep loops and long timeouts (today's hub coordinator had dozens of 590 s waits); then the hook + red-first test; Cobra note: the cheap evasion is one long foreground command without a loop — cap the timeout, not just the loop",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "operator ruling D-1296 for every coordinator; text alone is unenforced — one hook plus a test",
+  "status": "open",
+  "title": "Enforce D-1296 mechanically: a coordinator session must not block its turn on a long wait — a PreToolUse hook that refuses (for a session bound as coordinator/merge owner) a foreground Bash command whose loop sleeps past ~60 s or whose timeout exceeds ~120 s, pointing at run_in_background"
+}

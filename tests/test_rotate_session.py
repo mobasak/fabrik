@@ -223,24 +223,24 @@ def test_resolve_pane_claude_and_session(world):
             json.dumps({"session_id": NEW, "name": "dev1", "pid": 9, "toplevel": "/opt/x", "at": 2})
             + "\n"
         )
-    with pytest.raises(rs.CheckFailedError, match="stale"):
+    with pytest.raises(rs.CheckFailedError, match="bound to another window"):
         rs.resolve("dev1", "/opt/x")
 
 
 @pytest.mark.parametrize(
-    "spoil, check",
+    "spoil, check, rc",  # W-05021a03: 75 = transient (clears by itself), 1 = permanent (an act first)
     [
-        ("fresh", "status"),
-        ("midturn", "idle"),
-        ("slash", "idle"),
-        ("record", "record"),
-        ("seat", "seat"),
-        ("worktree", "worktree"),
-        ("typed", "screen"),
-        ("dialog", "screen"),
+        ("fresh", "status", 75),
+        ("midturn", "idle", 75),
+        ("slash", "idle", 1),
+        ("record", "record", 75),
+        ("seat", "seat", 75),
+        ("worktree", "worktree", 1),
+        ("typed", "screen", 1),
+        ("dialog", "screen", 1),
     ],
 )
-def test_request_aborts_on_each_check_in_order(world, monkeypatch, spoil, check):
+def test_request_aborts_on_each_check_in_order(world, monkeypatch, capsys, spoil, check, rc):
     reg = dict(world["reg"])
     rows = world["transcript"].read_text()
     if spoil == "fresh":  # the transcript changed less than IDLE_S ago (it was just written)
@@ -276,9 +276,10 @@ def test_request_aborts_on_each_check_in_order(world, monkeypatch, spoil, check)
     elif spoil == "dialog":
         _set(world, screen="Allow?\n❯ 1. Yes\n  2. No\n")
     (world["config"] / "sessions" / "102.json").write_text(json.dumps(reg))
-    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    assert rs.request("dev1", "/opt/x", None, "manual") == rc
     assert not list(world["req"].glob("*.json"))
     assert _rows(world)[-1]["outcome"] == f"aborted:{check}", _rows(world)
+    assert ("(transient" if rc == rs.EXIT_RETRY else "(permanent") in capsys.readouterr().err
 
 
 def test_request_writes_data_only_and_one_at_a_time(world):
@@ -291,7 +292,8 @@ def test_request_writes_data_only_and_one_at_a_time(world):
     assert not any(
         "clear" in str(v) and "/" in str(v) for v in data.values() if isinstance(v, str)
     ), data  # no keys
-    assert rs.request("dev1", "/opt/x", "finish the parser", "compact") == 1  # one at a time
+    # one at a time; the pending abort is transient
+    assert rs.request("dev1", "/opt/x", "finish the parser", "compact") == 75
     assert _rows(world)[-1]["outcome"] == "aborted:pending"
     files[0].unlink()
     assert rs.request("dev1", "/opt/x", "finish the parser", "compact") == 0
@@ -1450,3 +1452,280 @@ def test_wb72231b8_the_worst_request_fits_the_units_timeout():
     assert "for wait in (0.0, DISCARD_RECHECK_S):" in src
     tmux_src = inspect.getsource(rs._tmux)
     assert "timeout=TMUX_TIMEOUT_S" in tmux_src and not re.findall(r"timeout=\d", tmux_src)
+
+
+# ── W-05021a03: the exit names transient (75) vs permanent (1) ────────────────────────────────────────────────────
+
+_MIDTURN = {"type": "assistant", "timestamp": "2026-10-23T00:00:02Z"}
+
+
+def test_w05021a03_tmux_timeout_is_transient(world, monkeypatch, capsys):
+    def slow(*args):
+        raise subprocess.TimeoutExpired(["tmux", *args], rs.TMUX_TIMEOUT_S)
+
+    monkeypatch.setattr(rs, "_tmux", slow)
+    assert rs.request("dev1", "/opt/x", None, "manual") == rs.EXIT_RETRY == 75
+    assert _rows(world)[-1]["outcome"] == "aborted:tmux"
+    assert "(transient" in capsys.readouterr().err
+
+
+def test_w05021a03_worktree_probe_timeout_is_transient(world, monkeypatch):
+    monkeypatch.setattr(
+        rs.hib, "worktree_state", lambda path: (True, "not a git checkout (git timed out)")
+    )
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    assert _rows(world)[-1]["outcome"] == "aborted:worktree"
+
+
+def test_w05021a03_stale_unclaimed_request_is_permanent(world, capsys):
+    rs._ensure_req_dir()
+    left = world["req"] / "x--other.json"
+    left.write_text("{}")
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75  # a live request: wait for its row
+    # past one rotation's worst case but inside the unit's timeout: a slow unit, still claiming (review r1)
+    slow = time.time() - rs.REQUEST_WORST_S - rs.STALE_S - 60
+    os.utime(left, (slow, slow))
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    old = time.time() - rs.ORPHAN_S - 1
+    os.utime(left, (old, old))
+    capsys.readouterr()
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1  # nobody is claiming: the unit is down
+    last = _rows(world)[-1]
+    assert (
+        last["outcome"] == "aborted:pending" and "install_rotate_unit.sh --check" in last["reason"]
+    )
+    assert "(permanent" in capsys.readouterr().err
+
+
+def test_w05021a03_no_binding_yet_names_the_rebind(world, capsys):
+    world["identity"].write_text("")  # the fresh session after a /clear has not re-bound yet
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    last = _rows(world)[-1]
+    assert last["outcome"] == "aborted:resolve", last
+    assert "no identity binding yet" in last["reason"]
+    assert "whoami_agent.py --as dev1 --force" in last["reason"]
+    assert "(permanent" in capsys.readouterr().err
+    with world["identity"].open("a") as fh:  # bound, then the name moved to another window
+        for sid, at in ((SID, 1), (NEW, 2)):
+            row = {"session_id": sid, "name": "dev1", "toplevel": "/opt/x", "at": at}
+            fh.write(json.dumps(row) + "\n")
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    assert "another window" in _rows(world)[-1]["reason"]
+
+
+def test_w05021a03_midturn_dialog_is_permanent(world, monkeypatch, capsys):
+    world["transcript"].write_text(world["transcript"].read_text() + json.dumps(_MIDTURN) + "\n")
+    # a permission prompt in place of the input box
+    _set(world, screen="Allow?\n❯ 1. Yes\n  2. No\n")
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    last = _rows(world)[-1]
+    assert last["outcome"] == "aborted:screen" and "dialog" in last["reason"], last
+    assert "(permanent" in capsys.readouterr().err
+    _set(world, screen=IDLE_SCREEN)  # mid-turn with the input box drawn: still working
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    assert _rows(world)[-1]["outcome"] == "aborted:idle"
+    # tmux could not capture: unknown, so transient
+    monkeypatch.setattr(rs, "_box_now", lambda pane: (None, ""))
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    assert _rows(world)[-1]["outcome"] == "aborted:idle"
+
+
+def test_w05021a03_every_request_check_is_classified():
+    import ast
+
+    reach = {
+        "request",
+        "_ensure_req_dir",
+        "_pending",
+        "resolve",
+        "_registry",
+        "_transcript",
+        "run_checks",
+        "_idle_row_check",
+        "_bound",
+    }
+    tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
+    names = set()
+    for fn in (n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in reach):
+        for call in ast.walk(fn):
+            if (
+                isinstance(call, ast.Call)
+                and getattr(call.func, "id", None) == "CheckFailedError"
+                and call.args
+                and isinstance(call.args[0], ast.Constant)
+            ):
+                names.add(call.args[0].value)
+    assert len(names) >= 12, names  # the walk found the raises at all
+    assert not rs.TRANSIENT_CHECKS & rs.PERMANENT_CHECKS
+    unclassified = names - rs.TRANSIENT_CHECKS - rs.PERMANENT_CHECKS
+    assert not unclassified, unclassified
+    # the fail direction: an unclassified check retries, never stops
+    assert rs.CheckFailedError("never-classified", "x").transient is True
+    assert rs.CheckFailedError("args", "x").transient is False
+    assert rs.CheckFailedError("args", "x", transient=True).transient is True
+
+
+def test_w05021a03_a_restarting_pane_is_transient(world, monkeypatch):
+    (
+        world["config"] / "sessions" / "102.json"
+    ).unlink()  # a claude seconds old has not written its record yet
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    assert "no registry record" in _rows(world)[-1]["reason"]
+    monkeypatch.setattr(rs, "_tmux", lambda *a: subprocess.CompletedProcess(a, 1, "", "no server"))
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    assert _rows(world)[-1]["reason"] == "tmux is not answering"
+
+
+def test_w05021a03_an_empty_capture_and_a_pending_rotation_say_wait(world, monkeypatch, capsys):
+    with monkeypatch.context() as m:  # at a turn end, but tmux returned nothing
+        m.setattr(rs, "_box_now", lambda pane: (None, ""))
+        assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    last = _rows(world)[-1]
+    assert (last["outcome"], last["reason"]) == (
+        "aborted:screen",
+        "no input box is drawn (a redraw, a scrolled or restarting pane)",
+    )
+    capsys.readouterr()
+    assert rs.request("dev1", "/opt/x", None, "manual") == 0
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    assert "once the pending rotation's row lands" in capsys.readouterr().err
+
+
+# W-05021a03 review r1: permanent only on POSITIVE evidence that an act is needed
+
+
+@pytest.mark.parametrize(
+    "screen, rc",
+    [
+        ("\n\n\n", 75),  # a blank frame
+        ("redrawing\n", 75),  # a frame with no box drawn
+        ("scrolled history\n❯ old prompt\nmore output\n", 75),  # copy-mode: a ❯ with no rules
+        (
+            "more output\n❯ 2. fix the parser\nthe answer\n",
+            75,
+        ),  # one numbered prompt left in scrollback
+        (
+            "Do you want to proceed?\n❯ 2. Yes, and don't ask again\n  3. No\n",
+            1,
+        ),  # cursor on option 2
+    ],
+)
+def test_w05021a03_only_a_dialog_or_typed_text_is_a_permanent_screen(world, screen, rc):
+    _set(world, screen=screen)
+    assert rs.request("dev1", "/opt/x", None, "manual") == rc
+    assert _rows(world)[-1]["outcome"] == "aborted:screen"
+
+
+def test_w05021a03_a_second_claude_or_a_missing_pane_is_transient(world, monkeypatch):
+    monkeypatch.setattr(rs, "_claude_under", lambda proc, root: [102, 140])  # a pool seat's claude
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    assert "2 claude processes" in _rows(world)[-1]["reason"]
+    monkeypatch.setattr(rs, "_claude_under", lambda proc, root: [])  # claude respawning
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    _set(world, panes=["%6\tx\tother\t200"])  # the pane itself is being recreated
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+
+
+@pytest.mark.parametrize(
+    "why, rc",
+    [
+        ("detached HEAD", 75),  # what a timed-out symbolic-ref reads as
+        ("no upstream and HEAD is on no remote branch", 75),
+        ("2 uncommitted change(s)", 1),
+        ("1 commit(s) not pushed", 1),
+    ],
+)
+def test_w05021a03_only_unfinished_work_is_a_permanent_worktree(world, monkeypatch, why, rc):
+    monkeypatch.setattr(rs.hib, "worktree_state", lambda path: (True, why))
+    assert rs.request("dev1", "/opt/x", None, "manual") == rc
+
+
+def test_w05021a03_an_unreadable_identity_store_is_transient(world, monkeypatch):
+    blocker = world["tmp"] / "a-file"
+    blocker.write_text("")
+    monkeypatch.setenv(
+        "AGENT_IDENTITY_FILE", str(blocker / "agent-identity.jsonl")
+    )  # NotADirectoryError
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    assert "identity store is unreadable" in _rows(world)[-1]["reason"]
+
+
+def test_w05021a03_the_transient_line_fits_the_cause(world, monkeypatch, capsys):
+    def slow(*args):
+        raise subprocess.TimeoutExpired(["tmux", *args], rs.TMUX_TIMEOUT_S)
+
+    with monkeypatch.context() as m:
+        m.setattr(rs, "_tmux", slow)
+        rs.request("dev1", "/opt/x", None, "manual")
+    assert "ask again in a few seconds" in capsys.readouterr().err
+    world["transcript"].write_text(world["transcript"].read_text() + json.dumps(_MIDTURN) + "\n")
+    rs.request("dev1", "/opt/x", None, "manual")
+    assert "once dev1 ends its turn" in capsys.readouterr().err
+
+
+def test_w05021a03_a_dangling_request_ages_out(world):
+    rs._ensure_req_dir()
+    (world["req"] / "x--gone.json").symlink_to(world["tmp"] / "nowhere")
+    old = time.time() - rs.ORPHAN_S - 1
+    os.utime(world["req"] / "x--gone.json", (old, old), follow_symlinks=False)
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    assert "unclaimed" in _rows(world)[-1]["reason"]
+
+
+def test_w05021a03_a_tmux_timeout_keeps_the_stale_input_fields(world, monkeypatch):
+    _stuck(world)
+
+    def slow(t, seen=""):
+        raise subprocess.TimeoutExpired(["tmux"], rs.TMUX_TIMEOUT_S)
+
+    monkeypatch.setattr(rs, "run_checks", slow)
+    assert rs.request("dev1", "/opt/x", None, "manual", True, "operator: clear") == 75
+    last = _rows(world)[-1]
+    assert last["outcome"] == "aborted:tmux"
+    assert (last["stale_text"], last["operator_ok"]) == ("go on", "operator: clear")
+
+
+def test_w05021a03_no_transcript_yet_waits_two_is_permanent(world):
+    world["transcript"].unlink()  # a session that has not written its first row
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    assert "0 transcripts" in _rows(world)[-1]["reason"]
+    twin = world["config"] / "projects" / "-opt-y" / f"{SID}.jsonl"
+    twin.parent.mkdir(parents=True)
+    twin.write_text("{}\n")
+    (world["config"] / "projects" / "-opt-x" / f"{SID}.jsonl").write_text("{}\n")
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    assert "2 transcripts" in _rows(world)[-1]["reason"]
+
+
+def test_w05021a03_a_typed_numbered_line_is_text_and_discardable(world, capsys):
+    _stuck(world, "1. fix the parser")  # the box holds a numbered line, which is no dialog
+    assert rs._dialog(_boxed("❯ 1. fix the parser")) is False
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    assert "text is in the input box" in _rows(world)[-1]["reason"]
+    assert "(permanent" in capsys.readouterr().err
+    # its remedy works
+    assert rs.request("dev1", "/opt/x", None, "manual", True, "operator: clear") == 0
+    # a typed list: two numbered rows, still the box's
+    listed = _boxed("❯ 1. fix the parser", "  2. then the tests")
+    assert rs._dialog(listed) is False
+    for f in world["req"].glob("*.json"):
+        f.unlink()
+    _set(world, screen=listed)
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    assert "text is in the input box" in _rows(world)[-1]["reason"]
+
+
+@pytest.mark.parametrize("kind", ["unreadable", "directory"])
+def test_w05021a03_a_store_stat_sees_but_cannot_read_is_transient(world, monkeypatch, kind):
+    store = world["tmp"] / "identity-store"
+    if kind == "directory":
+        store.mkdir()
+    else:
+        store.write_text("")
+        store.chmod(0)
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(store))
+    try:
+        assert rs.request("dev1", "/opt/x", None, "manual") == 75
+        assert "identity store is unreadable" in _rows(world)[-1]["reason"]
+    finally:
+        store.chmod(0o700)

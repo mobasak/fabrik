@@ -1,11 +1,9 @@
 {
-  "blocked_by": [
-    "W-ab566484"
-  ],
+  "blocked_by": [],
   "created": "2026-09-30T20:43:40.537386Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "dc7c9c5a7645de6f086d10414ea6294d75d42bb8",
   "id": "W-d8505af5",
   "impact": "high",
   "kind": "backlog",
@@ -20,7 +18,7 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — ingest role re-widened on signature change",
-  "status": "open",
+  "status": "done",
   "tags": [
     "security"
   ],

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T21:30:59.436355Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-50efa31f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M625DJ25R7WFNQQZ9RN9FG4R",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: w-88173de4-operator-setup-residue"
+}

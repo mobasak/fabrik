@@ -207,7 +207,15 @@ closed elsewhere excluded), never plans a second high/high item while one is in 
 claimed, `open` or `blocked` — it prints the slot holder), and plans at most one high/high item per
 run. A high/high item held behind another in-flight one with `assign --blocked-by` waits rather
 than flies: triage prints it as `major held: <id> behind <id>`; one waiting on anything else (a
-prerequisite task, an unknown id) still holds the slot.
+prerequisite task, an unknown id) still holds the slot. That hold exists only because of the item's
+class — a major, or an unscored item tagged `medium` (the high-effort MEDIUM, which takes the tag
+instead of a score) — so a re-score that leaves the item scored and not a major drops every hold
+behind an in-flight major (high/high, owned or claimed, `open` or `blocked`, not closed — triage's
+own test, read from the main checkout as triage reads it) and prints `one-major hold
+cleared: … re-add it: work.py assign <id> --blocked-by <dep>` for each, since `blocked_by` cannot
+say whether a hold was also a real prerequisite (W-0fe931b7). It keeps a hold this call names in
+`--blocked-by`, one it removes with `--unblock` (no line), one behind anything else, and one whose
+blocker it cannot read (`one-major hold kept: …`). It edits `blocked_by` only, never `status`.
 
 **Coordinator mode** is opt-in per repo: `"coordinator_mode": true` in the main checkout's
 `config.json`. `work.py` is fleet-synced, so the behaviours that change what a builder sees act only
@@ -335,6 +343,13 @@ D4, D6):
   `work: your claims on items not in this tree — <ids>` for any claim `ready` cannot list; one `on it:`
   line per OTHER session holding a live claim, so every live claim in the repo is counted for every
   session — `work: on it: <session short id> (<agent or "unnamed">) — W-xxxx, W-yyyy`;
+  for a BUILDER in a coordinator-mode repo, the coordinator's live peer address —
+  `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved every prompt through
+  `mail.py who` (1 s cap), every live name that fits the 300-character line listed whole (the rest
+  counted, `… and N more`) with `(several windows answer for it — one may be stale)` when more than
+  one answers, no line when none answers within the cap or the store's distributor is not an agent
+  name, and none in a headless session, which keeps only its own claim lines (W-9bf5a363: an
+  extension coordinator's peer name changes at each rotation, and a name kept in notes goes dead);
   and the ready count.
 - **`status`'s distributor lines (D4).** `UNOWNED` — open items with no owner (a `next` item is never
   counted; it is nobody's to own); `CLAIMS` — one line per session holding a live claim, flagged `— over
@@ -387,7 +402,7 @@ other value is drift class 8. Both readers prefer the calling repo's own
 repo's copy is missing or fails to import, so the drift report is never silently empty because a
 sibling script drifted.
 
-Eight drift classes (`status`/`sync` print `DRIFT <n> (blocking|advisory)  <path>`):
+Eight drift classes (`status`/`sync` print `DRIFT <n> (blocking|advisory)  <path>`, class 8 with its reason after the path):
 
 | # | Class | Always |
 |---|---|---|
@@ -398,7 +413,7 @@ Eight drift classes (`status`/`sync` print `DRIFT <n> (blocking|advisory)  <path
 | 5 | An item file that doesn't parse, or a status outside the vocabulary | blocking\* |
 | 6 | A `done` item within the last 14 days whose evidence SHA doesn't exist or doesn't name it (or its `resolved_by` root); or a closed marker over 14 days old whose item is still open in the base branch (never merged) | blocking\* |
 | 7 | The backlog block is stale (`render` would change it) | advisory |
-| 8 | A plan `Status:` value outside the normalised set | advisory |
+| 8 | A plan `Status:` value outside the normalised set — its line goes on to name the value it read (the whole line, printable, at most 60 characters; `unreadable (…)` when the parser cannot read the header or the file, `missing (no Status: line in its first 4000 characters)` when the parser's window holds none), the five statuses, what check_convergence wants of an EXECUTED plan (its whole-plan review under `docs/development/reviews/` cited, with a quiet Pass row), and the archive as a superseded plan's remedy | advisory |
 
 Classes 2, 3 and 8 read the live plans only: a plan under `plans/archived/` is settled history.
 

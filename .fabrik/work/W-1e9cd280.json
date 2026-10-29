@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T02:55:29.836867Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-1e9cd280",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "size from the spokes' cAdvisor data, add cpus, widen tests/test_infra_vps1_cpu_limits.py to infra/vps*/ with per-host CPU counts",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "LOW: CPU-limit hardening follow-up of W-91a4a715, nobody blocked; one check or config each",
+  "status": "open",
+  "tags": [
+    "deploy"
+  ],
+  "title": "Spoke composes infra/vps2/backrest and infra/vps3/backrest declare no CPU limit (4-CPU hosts); the infra/vps1 CPU grader does not read infra/vps2|vps3"
+}

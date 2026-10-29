@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T13:03:26.205135Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-fa65e83a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5MST4C9072GRPDKWRG47VBS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra-3",
+  "priority": 2,
+  "status": "done",
+  "title": "Stop hook's feedback rung pushes a new /fabrik-command-improve after ROTATE-DUE says start no new item"
+}

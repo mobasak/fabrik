@@ -19,5 +19,8 @@
   "priority": 2,
   "score_reason": "HIGH: part of the operator's P0 throughput complaint; HIGH effort: a lane-rule change for every project (governance-sync), needs a design; kaizen (wording owner) is paused, so infra-2 takes it",
   "status": "open",
+  "tags": [
+    "waits-lean-program"
+  ],
   "title": "Part A of P0 W-1fb11ec8: a preview-first fast lane for pre-release website UI — operator-named visual tweaks iterate on a preview with ONE review at the end of the feature, instead of lane row 1b sending every tweak to a full multi-pass /fabrik-review (ocoron.com homepage: 7 passes, 41 fixes, reopened per tweak). Lane-rule wording, kaizen's beat; the Opus + Fable panel decides the design"
 }

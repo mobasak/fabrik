@@ -19,5 +19,8 @@
   "priority": 1,
   "score_reason": "HIGH: an operator ask for every project; design packs (kaizen's, paused); infra-2 holds the design-pack context",
   "status": "open",
+  "tags": [
+    "waits-lean-program"
+  ],
   "title": "Operator via wef 2026-10-24: 'flag icons are should be taken from rectangular by magnific for all projects including ocoron.com https://www.flaticon.com/search?author_id=1&style_id=118&type=standard&word=flag' — fleet rule for flag/language-switch icons (Flaticon 'rectangular' style, author 1 Freepik/Magnific) in design-system-template or the website packs; settle the licence (free needs visible attribution unless Premium) and how agents fetch SVGs (a vendored set in fabrik-lib vs the operator's account)"
 }

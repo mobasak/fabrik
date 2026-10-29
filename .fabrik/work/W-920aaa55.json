@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T13:10:04.951885Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-920aaa55",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5C99YXSW5M0HCCSK6K2398Y",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "open",
+  "title": "self-healing pack — add a failure-class row for \"D-state worker child under a kernel netlink wedge\" (youtube incident 2026-10-20)"
+}

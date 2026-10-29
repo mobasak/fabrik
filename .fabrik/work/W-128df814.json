@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T22:14:19.111452Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-128df814",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "enforcement code: full /fabrik-review; start with (1) beside the D-836 run-scratch fix",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "seats in linked worktrees cannot write run scratch today, and a round can claim TERMINAL without re-reading the last fixes; two narrow changes in command_run.py",
+  "status": "open",
+  "title": "command_run.py: (1) start prints a brief/scratch path a linked worktree can write (same class as the D-836 run-scratch mail); (2) round refuses or warns before printing TERMINAL when the round re-read no fix hunk of the previous confirmed round (kaizen mail 01M5BMDT38)"
+}

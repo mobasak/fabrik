@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T08:32:21.922983Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-85ebf841",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reword to: no Merged-From — a merge carries no squash vouch (scratch_sweep reads non-merge commits only, D-1290); kept off so a reused name never reads merged",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "merge_request.py:2069-2071 _signed docstring says scratch_sweep reads Merged-From over merge commits; since D-1290 it reads only non-merge commits — reword the reason (a governance-sync path, so it rides the next merge_request.py change)"
+}

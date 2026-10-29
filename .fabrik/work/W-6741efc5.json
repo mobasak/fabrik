@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T11:32:12.906484Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-6741efc5",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add --reload (POST /-/reload inside the prometheus container, the existing :146-148 call) and have --diff also compare the loaded rule groups (GET /api/v1/rules) against the local rule files' group names; grader with a fake ssh",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "sync_prometheus_to_vps.sh --push cannot repair 'on disk but not loaded': it reloads Prometheus only when it copies a file (lines 114-117 exit before the reload), so rules that reach vps1 another way stay unloaded and --push reports 'in sync'"
+}

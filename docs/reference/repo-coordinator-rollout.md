@@ -7,17 +7,35 @@ hub, and this runbook is the template for the rest. The model itself (worktrees,
 `docs/reference/multi-agent-operating-model.md`, and the coordinator's jobs are in `templates/governance/CLAUDE.md`
 § Orient, the paragraph opening "The coordinator role". This page covers only how a repo gets there and how its agents are launched.
 
-The repo's own agents do every step: the hub may not edit another repo. The hub sends the brief, builds the
+The repo's own agents do every step except the operator's (§ The operator's steps): the hub may not edit another
+repo. The hub sends the brief, builds the
 launcher, and keeps the hub item open until the repo confirms each phase.
 
 ## Who does what
 
 | Who | Does |
 |---|---|
-| The operator | Opens the repo's coordinator window, closes old builder windows before the first launch, renames windows, answers gates (§ The operator's steps). |
+| The operator | Opens the repo's coordinator window, closes old builder windows before the first launch, renames windows, writes each builder worktree's `.claude/settings.local.json`, answers gates (§ The operator's steps). |
 | The hub coordinator | Runs the pre-flight below, sends the brief to the repo, writes the repo's desktop .bat (§ The Windows side), keeps the hub item open. |
 | The repo's coordinator | Runs phase 5 and then the repo, as the merge owner. Until it exists, an existing builder does phases 1–3. |
-| The repo's builders | Do phases 1–3 through the repo's own gate and review, then work their queue. |
+| The repo's builders | Do phases 1–3 through the repo's own gate and review (step 11's settings file excepted), then work their queue. |
+
+## A repo `fabrik scaffold` creates
+
+A new repo is born with the coordinator side of this runbook (hub D-1305): the merge-owner row
+`MERGE OWNER: coordinator` (its D-001), a work store whose `distributor` is `coordinator`, with `coordinator_mode`,
+`queue_floor` 1, `autonomy` and a null `feedback_owner`, and the charter `docs/reference/agents/coordinator.md`. With
+the scripts and `.claude/` hooks every scaffold copies, phase 1 steps 1, 3 and 4 and phase 2 step 7 are done, and
+step 6's coordinator charter exists but is still adapted as step 6 says (it is generic, and it lets the coordinator
+build while the repo has no builders, the one exception to "never building"). The pre-flight still runs and every
+other step applies as written. The scaffold does not check its initial commit, and with pre-commit installed that
+commit fails on the ledger hook, which runs a `scripts/decisions.py` the scaffold does not copy (hub W-d93f2987). So
+when `git -C /opt/<repo> show --stat HEAD` errors on `HEAD`, nothing was committed: do phase 1 step 2 first, which
+vendors `decisions.py`, then make the initial commit of the whole tree. When a scaffold could not write the pieces it
+printed one WARNING and left none of them, so the repo takes the full runbook. The
+coordinator's agent name (`CLAUDE_AGENT`) is plain `coordinator` (the reason is in D-1305); its window may keep the
+session name `<repo>-coordinator` that the scaffold prints, since a session name is only a label and the launcher
+opens no pane for the coordinator.
 
 ## Before the first phase: what the hub coordinator reads (read-only)
 
@@ -68,9 +86,12 @@ Written for the operator; nothing here can be done by an agent.
    session mix its transcript and hooks.
 3. **Rename each window** with `/rename <name>` (the coordinator and each builder). Only the operator can, and two
    windows with the same auto-name in one folder collide.
-4. **Double-click `<Repo> Agents.bat`** on the desktop once the hub coordinator has written it. It opens the builders'
+4. **Write each builder worktree's `.claude/settings.local.json`** (phase 3, step 11) from the content boarded for
+   you, before that builder's first pane opens from the grid (step 5). No agent writes it. A builder session
+   already running in its worktree reads the file only when it next starts.
+5. **Double-click `<Repo> Agents.bat`** on the desktop once the hub coordinator has written it. It opens the builders'
    grid; the coordinator stays in VS Code.
-5. **Answer the gates** the coordinator boards: removing a worktree with unmerged work, dropping backlog items, deploys.
+6. **Answer the gates** the coordinator boards: removing a worktree with unmerged work, dropping backlog items, deploys.
 
 ## The phases
 
@@ -100,10 +121,14 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 
 6. Write the charters in `docs/reference/agents/`, each starting with the line `# Agent charter` (otherwise
    `agent_role.py` ignores the file):
-   - `<coordinator name>.md` (the agent the pre-flight's ledger check named; a newly named one is usually
-     `<repo>-coordinator`), adapted from the hub's `docs/reference/agents/coordinator.md`.
+   - `<coordinator name>.md` (the agent the pre-flight's ledger check named; a newly named one is plain
+     `coordinator`, as in a scaffolded repo, § A repo `fabrik scaffold` creates; `<repo>-coordinator` fails the
+     agent-name rule `[a-z0-9-]{1,32}` for a repo name over 20 characters or holding any other character, such as an
+     underscore or a capital), adapted from the hub's
+     `docs/reference/agents/coordinator.md`.
      - Keep: mail sorting, scoring, one major project in flight, merges, records, improving a request before routing
-       it, never building, and the Opus + Fable panel for decisions.
+       it, never building (a scaffolded charter's build-while-no-builders clause stays until builders exist), and the
+       Opus + Fable panel for decisions.
      - Drop what only the hub does: fleet sync, rendering commands, VPS and deploy gates.
      - Add the repo's own rules: its routing map (for fabrik-lib, `.fabrik/module-owners.json`), its gate and its
        decision log.
@@ -145,6 +170,13 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 11. Each builder worktree gets `.claude/settings.local.json` listing the main checkout's `CLAUDE.md` under
     `claudeMdExcludes`, plus the `.venv` symlink setting if the repo shares one venv, plus its `memory` and
     `mcpServers` settings; never copy the main checkout's permission allow-list into it (youtube's adaptation).
+    The operator writes each file (§ The operator's steps, step 4; the gap was reported by web-ecommerce-factory's
+    `wef2` in hub mail `01M5X8DT0Q`). It is a session's own config, so no request from any agent, the coordinator
+    or the hub included, can authorize an agent to write it, for the writer's own worktree or another builder's.
+    The agent doing phases 1–3 sends the content (the step-14 deny entry included, if used) as text: to the repo's
+    coordinator, or, while the repo's coordinator is not open yet, to the hub coordinator in a hub mail (as
+    youtube's rollout report went, hub mail `01M5CGP8FN`). Either receiver boards it for the operator. The agent
+    writes no file, script or template that writes or installs another session's settings.
     Known false alarm: in a worktree that shares the main checkout's `.venv`, the gate's undeclared-imports check
     reports the repo's own editable packages as undeclared, because they resolve to the main checkout's copy (youtube
     01M5CG2QC2, 01M5CG40NV, with infra). It is not a defect of the builder's change: report it to the coordinator,
@@ -158,7 +190,8 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
 13. Every charter carries D-943: a builder sends every question, approval, blocker or refused permission to the
     coordinator by `SendMessage`. The coordinator answers from the records, the panel, or (for gates only) the
     operator.
-14. Optional, not used by the hub: deny the AskUserQuestion tool in the builders' worktree settings.
+14. Optional, not used by the hub: deny the AskUserQuestion tool in the builders' worktree settings (the same file
+    as step 11, written the same way).
 15. Sessions launch with `CLAUDE_CONFIG_DIR=$HOME/.claude-fleet/active`, which runs every session in auto mode; the
     launcher sets it. Each agent reports any permission prompt it still hits, and the fix is an allow entry in the
     repo's `.claude/settings.json`.
@@ -191,11 +224,19 @@ The launcher builds one tmux session per repo, named after the repo's folder (ev
   refuses the launch.
 - Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --resume <session id> "<wake prompt>"` (the prompt is the
   session's first turn: re-arm the self-watch, then carry on; the `hibernate.py woke --self <id>` step joins it with
-  W-6e656dac T01a's lift-only woke) with `CLAUDE_CODE_RETRY_WATCHDOG=1` in its environment and `oom_score_adj` 200, ONLY in the builder's worktree,
-  `.claude/worktrees/<name>`, when that folder is a linked git worktree in place (it holds a `.git` file, and no part
-  of its path is a symlink). A name with no such worktree gets no pane, said on stderr, and a repo left with no builder
-  refuses (exit 2). The main checkout is the coordinator's, and a builder resumed there would edit main's tree and read
-  main's `CLAUDE.md` (W-6c7c3292).
+  W-6e656dac T01a's lift-only woke) with `CLAUDE_CODE_RETRY_WATCHDOG=1` in its environment and `oom_score_adj` 200, ONLY in a linked
+  git worktree in place under `.claude/worktrees/` (it holds a `.git` file, and no part of its path is a symlink): the
+  one whose claude project folder holds the builder's session, else `.claude/worktrees/<name>` (W-456aa02a). Claude Code
+  keeps the folder a pane STARTED in as the window's `CLAUDE_PROJECT_DIR` — where its hooks, settings and permissions
+  load from — after the session moves into another worktree, and files the transcript under the folder it works in;
+  so infra's pane, started by name in `worktrees/infra` while infra worked in `infra-uncapped`, ran a tree 1602 commits
+  behind for days. A candidate folder must be an agent name (`[a-z0-9][a-z0-9-]{0,31}`); another builder's own-named
+  tree and the coordinator's trees (a coordinator name, the declared merge owner) are never taken; a session in several worktrees, or two builders found in one, keep `<name>` (said on stderr,
+  the launch continues); a found `agent-*` tree (Claude Code's subagent trees) is flagged. A name with no own worktree
+  takes a found folder only where the repo declares its merge owner, and is dropped before its registry rows are read
+  when no candidate holds one of its sessions. A name with no folder at all gets no pane, said on
+  stderr, and a repo left with no builder refuses (exit 2). The main checkout is the coordinator's, and a builder
+  resumed there would edit main's tree and read main's `CLAUDE.md` (W-6c7c3292).
 - Every pane runs whole — claude, its exit hint and the shell it keeps — in its own `systemd-run --user --scope` in
   `fabrik-agents.slice`, with `MemorySwapMax=0` and `TasksMax` (`FABRIK_AGENT_TASKS_MAX`, default 1024) and no
   `MemoryMax` of its own (W-56b3f90d, then W-6e656dac L5: `FABRIK_AGENT_MEM_MAX` is retired — a set value is warned

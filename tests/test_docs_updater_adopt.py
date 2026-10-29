@@ -1190,6 +1190,77 @@ class TestT02bClassifyBacklogRowDirect:
         assert du.classify_backlog_row(line, header) == "skip"
 
 
+_SCAFFOLD_BACKLOG_TEMPLATE = (
+    Path(__file__).resolve().parents[1] / "templates/scaffold/docs/STRATEGIC_BACKLOG_TEMPLATE.md"
+)
+
+
+class TestTemplatePlaceholderRowsAreNeverStamped:
+    """W-e89d7983: the scaffold template ships its example rows as live table rows, and
+    `--adopt` stamped them as owned work — 24 of 82 pending stamps across 27 fleet backlogs,
+    two template generations. An Item cell that is ONE bracketed phrase (balanced emphasis
+    allowed) is a fill-in-the-blank, never a work item."""
+
+    _HEADER = ["Effort", "Item", "Why Priority", "Ready When"]
+
+    @pytest.mark.parametrize(
+        "item",
+        [
+            "[Feature/Refactor]",
+            "**[Small hardening/refactor]**",
+            "[System Overhaul]",
+            "[Item]",
+            "_[TBD]_",
+            "[]",
+        ],
+    )
+    def test_placeholder_item_cell_is_never_stamped(self, item):
+        line = f"| **M** | {item} | [1-liner value] | [Specific Trigger] |"
+        assert du.classify_backlog_row(line, self._HEADER) == "skip"
+
+    def test_placeholder_item_skipped_in_a_tag_column_table(self):
+        header = ["Effort", "Owner", "Item", "Why Priority", "Ready When"]
+        line = "| **M** |  | [Feature/Refactor] | [1-liner value] | [Specific trigger] |"
+        assert du.classify_backlog_row(line, header) == "skip"
+
+    @pytest.mark.parametrize(
+        "item",
+        [
+            # capitalised: a lowercase `[name]` lead is already read as an owner tag (skip)
+            "[Docs](x.md) rewrite",
+            "[Docs](x.md)",
+            "[A][B]",
+            "[[Wiki Page]]",
+            "[WIP] Fix login",
+            "Fix [Feature] parsing",
+            "**[x]",
+            "**[x]_",
+            "_[x]**",
+        ],
+    )
+    def test_bracket_near_misses_still_stamp(self, item):
+        line = f"| **M** | {item} | because | now |"
+        assert du.classify_backlog_row(line, self._HEADER) == "table-item"
+
+    def test_scaffold_template_backlog_adopts_to_zero_stamps(self):
+        text = _SCAFFOLD_BACKLOG_TEMPLATE.read_text(encoding="utf-8")
+        new_text, report = du._tag_backlog_rows(text, ["alpha"])
+        assert report == []
+        assert new_text == text
+
+        real = "| **S** | Add caching to the API | slow pages | after launch |"
+        anchor = "| **S** | [Small hardening/refactor] | [1-liner value] | [Specific trigger] |"
+        assert anchor in text  # the template row this test appends below
+        with_real = text.replace(anchor, anchor + "\n" + real, 1)
+        new_text, report = du._tag_backlog_rows(with_real, ["alpha"])
+        assert len(report) == 1
+        assert "| **S** | [alpha] Add caching to the API |" in new_text
+
+    def test_untagged_count_ignores_template_placeholders(self):
+        text = _SCAFFOLD_BACKLOG_TEMPLATE.read_text(encoding="utf-8")
+        assert du._count_untagged_backlog_rows(text) == 0
+
+
 class TestT02bD6RoundRobinAcrossInterleavedShapes:
     """D6 (acceptance review r1): `_tag_backlog_rows` keeps ONE shared round-robin
     counter across all three shapes — the pre-r1 test fixtures never interleaved

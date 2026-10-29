@@ -309,6 +309,8 @@ CONVERTED_FILES = {
 ALLOWLIST: dict[str, str] = {
     # ── reads, not write roots ──
     "scripts/lane_replay_capture.py": "read: `/opt/fabrik` is the git repo whose history the lane replay fixture is captured FROM (`git -C` reads, :189-196) — nothing is written under it",
+    "scripts/sysadmin/operator_setup.py": "no-write: `/opt/fabrik` is the hub main checkout `--apply`'s guard requires the script to RUN from (its .git/HEAD is read; its install_user_hooks.py is imported and install_session_archive_timer.sh run) — the script writes under $HOME and its dry-run mirror in the system temp dir, never the repo",
+    "scripts/sysadmin/vps1_ocoron_removal.py": "no-write: `/opt/fabrik/scripts/sysadmin/system-prompt.txt` is vps1's DEPLOYED copy, grepped read-only over ssh; its mv/rm run on vps1 under /opt/ocoron-com, never in the repo",
     "scripts/sysadmin/kaizen_outcomes.py": "no-write: `/opt/fabrik/scripts/capped_run.sh` is the EXECUTABLE `_capped_run` falls back to after FABRIK_CAPPED_RUN and this tree's own copy (W-162398ef) — run, never written",
     # ── config: already follow fabrik.config.FABRIK_ROOT ──
     "scripts/audit_all_registrars.py": "config: `from fabrik.config import FABRIK_ROOT`",
@@ -347,7 +349,7 @@ ALLOWLIST: dict[str, str] = {
     "scripts/sysadmin/claude_rotate.py": "untracked: rotate-ledger.jsonl under ~/.claude/state, outside the repo",
     "scripts/sysadmin/fabrik_deck.py": "untracked: `--hub` defaults to /opt/fabrik as the checkout the systemd unit runs it from; writes go to ~/.config/fabrik-deck and ~/.config/systemd/user, outside the repo",
     "scripts/sysadmin/detect_reversals.py": "untracked: writes logs/lessons-pending.jsonl + logs/sysadmin-actions.jsonl (gitignored `logs/`)",
-    "scripts/sysadmin/emit_mcp_project_config.py": "untracked: writes /opt/fabrik/.mcp.json (not tracked — `git ls-files .mcp.json` is empty)",
+    "scripts/sysadmin/emit_mcp_project_config.py": "untracked: writes /opt/fabrik/.mcp.json and its existing worktree copies under .claude/worktrees/ (not tracked — `git ls-files .mcp.json` is empty)",
     "scripts/sysadmin/install_user_hooks.py": "untracked: installs into the user's own ~/.claude hooks, outside the repo",
     "scripts/sysadmin/prune_transcripts.py": "untracked: `/opt/fabrik/.env` is only the default SESSION_ARCHIVE_ENV_FILE it reads; its writes (prune ledger and logs under ~/.claude/archive, unlinks and rmtree under ~/.claude, `--restore` back into ~/.claude/projects) are all outside the repo",
     "scripts/sysadmin/quota_dashboard.py": "untracked: quota dashboard state under ~/.claude, outside the repo",

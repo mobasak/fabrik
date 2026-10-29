@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T06:34:04.512269Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-df956934",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M635SV1WMW73JDQHGNGEMMDK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: infra-major-hold-rescore"
+}

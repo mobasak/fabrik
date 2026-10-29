@@ -9,10 +9,12 @@
 # re-bind (`whoami_agent.py --as <name> --force`) needs no registry or launcher edit. The coordinator gets no pane: a
 # name equal to `coordinator` or ending in `-coordinator`, or the repo's declared merge owner (`decisions.py
 # --merge-owner`, read from the repo's own ledger, never from position); the operator reaches it in VS Code. A pane
-# starts ONLY in the builder's own worktree, `<repo>/.claude/worktrees/<name>`, when that folder is a git worktree in
-# place — the main checkout is the coordinator's, and a builder resumed there would edit main's tree and read main's
-# CLAUDE.md (W-6c7c3292) — so a name with no worktree gets no pane (said on stderr), and no builder left refuses
-# (exit 2). It resumes the agent's EXISTING session, and closing the terminal leaves them running. --print reports
+# starts ONLY in a linked git worktree in place under `<repo>/.claude/worktrees/` — the main checkout is the
+# coordinator's, and a builder resumed there would edit main's tree and read main's CLAUDE.md (W-6c7c3292): the one
+# worktree whose claude project folder holds the builder's session (W-456aa02a: Claude Code keeps the folder a pane
+# STARTED in as its CLAUDE_PROJECT_DIR — hooks, settings, permissions — after the session moves into another worktree,
+# so a pane started by name ran a stale tree's hooks), else `<name>`; a name with neither gets no pane (said on stderr),
+# and no builder left refuses (exit 2). It resumes the agent's EXISTING session, and closing the terminal leaves them running. --print reports
 # the grid and launches nothing: a `session <name>` line, a `slice <name> MemoryHigh=<v> MemoryMax=<v>` line, then per
 # builder `pane <name> <sid> <folder> <status>`, `cap <name> <TasksMax>` (or `cap <name> uncapped`) and `run <name>
 # <command>`. --detach builds the grid (or finds it up) and never attaches (the boot sweep and cron have no terminal);
@@ -106,7 +108,7 @@ if [ -f "$ROOT/docs/DECISIONS.md" ]; then
   esac
 fi
 
-# "agent <name> <sid>" per builder, name-ordered, then "known <sid>" for every session the registry or the store gives
+# "agent <name> <sid> <folder>" per builder (the worktree its pane starts in), name-ordered, then "known <sid>" for every session the registry or the store gives
 # this repo (the newer-transcript warning skips those); any malformed registry row refuses the launch. The scope query
 # runs with git's own location variables unset, so a GIT_DIR inherited from a hook or an IDE cannot redirect it.
 SCOPE="$(env -u GIT_DIR -u GIT_COMMON_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || SCOPE=""
@@ -211,20 +213,45 @@ def linked(name):  # a linked git worktree in place: a `.git` FILE, and the phys
     d = os.path.join(root, ".claude", "worktrees", name)
     return os.path.isdir(d) and os.path.isfile(os.path.join(d, ".git")) and os.path.realpath(d) == d
 
-for name in sorted(ids):
-    if not linked(name):
-        why = "" if owner_name else " (no merge owner is declared, so it is taken as the coordinator)"
-        note(f"{name}: .claude/worktrees/{name} is not a linked git worktree in place — no pane; it works in the main checkout{why}")
-        del ids[name]
-if not ids:
-    sys.exit(f"agents_up: {root} has no builder with its own worktree — nothing to launch (the coordinator gets no pane)")
+def no_worktree(name):
+    why = "" if owner_name else " (no merge owner is declared, so it is taken as the coordinator)"
+    note(f"{name}: .claude/worktrees/{name} is not a linked git worktree in place — no pane; it works in the main checkout{why}")
 
 def proj(folder):  # claude files a session under its start folder with every non-alphanumeric character as `-`
     return os.path.join(config, "projects", re.sub(r"[^A-Za-z0-9]", "-", folder))
 
+# W-456aa02a: the worktrees a pane may start in. Claude Code keeps the folder a pane STARTED in as the window's project
+# folder (CLAUDE_PROJECT_DIR — its hooks, settings and permissions) after the session moves into another worktree, and
+# files the session's transcript under the folder it works in; so the linked worktree whose project folder holds the
+# session is the agent's tree. A candidate's folder name must be an agent name: the mangling above is then one-to-one
+# over the candidates, and a folder name can never break the shell's `read` of the line printed below. The
+# coordinator's trees (a coordinator name, the merge owner) are never a builder's.
+wtroot = os.path.join(root, ".claude", "worktrees")
+try:
+    cands = sorted(
+        f for f in os.listdir(wtroot) if NAME.fullmatch(f) and not coordinator(f) and f != owner_name and linked(f)
+    )
+except OSError:
+    cands = []
+
+def holds(folder, sid):
+    return os.path.isfile(os.path.join(proj(os.path.join(wtroot, folder)), sid + ".jsonl"))
+
+# A name without its own worktree keeps a pane only in a repo that declares its merge owner (with none it is taken as
+# the coordinator) AND only when a candidate holds one of its sessions; any other is dropped here, before its rows
+# are read, as before W-456aa02a.
+for name in sorted(ids):
+    if linked(name):
+        continue
+    sids = [*ids[name], *([binding[name][0]] if name in binding else [])]
+    # the same rule as the folder choice below: another builder's own-named tree is never this name's
+    if not owner_name or not any(holds(f, s) for f in cands if f not in ids for s in sids):
+        no_worktree(name)
+        del ids[name]
+
 def active_at(name, sid):  # the newest mtime of the session's transcript under the folders its pane can start in
     best = None
-    for folder in (root, os.path.join(root, ".claude", "worktrees", name)):
+    for folder in (root, *(os.path.join(wtroot, f) for f in cands)):
         try:
             m = os.stat(os.path.join(proj(folder), sid + ".jsonl")).st_mtime
         except OSError:
@@ -263,8 +290,38 @@ for name, sid in chosen.items():
 for sid, names in sorted(holders.items()):
     if len(names) > 1:
         sys.exit(f"agents_up: session {sid} would serve {' and '.join(sorted(names))} — two processes on one session fuse it; fix the registry or re-bind")
+# Each builder's folder: the one candidate holding its session — never another builder's own-named tree — else its
+# own-named tree. Two builders found in one folder each keep their own-named tree (two panes in one tree would edit one
+# index), and the rest of the grid launches.
+folder = {}
 for name in sorted(chosen):
-    print("agent", name, chosen[name])
+    hits = [f for f in cands if (f == name or f not in chosen) and holds(f, chosen[name])]
+    if len(hits) == 1:
+        folder[name] = hits[0]
+    else:
+        if len(hits) > 1:
+            note(f"{name}: session {chosen[name]} sits in more than one worktree ({', '.join(hits)}) — its pane keeps .claude/worktrees/{name}")
+        folder[name] = name
+shared = {}
+for name in sorted(folder):
+    if folder[name] != name:
+        shared.setdefault(folder[name], []).append(name)
+for f, names in sorted(shared.items()):
+    if len(names) > 1:
+        note(f"{', '.join(names)}: sessions {', '.join(chosen[n] for n in names)} both sit in .claude/worktrees/{f} — each starts in its own-named tree")
+        for n in names:
+            folder[n] = n
+for name in sorted(folder):
+    if not linked(folder[name]):
+        no_worktree(name)
+        del chosen[name], folder[name]
+    elif folder[name] != name:
+        flag = " — a Claude Code subagent tree, which Claude Code may remove" if folder[name].startswith("agent-") else ""
+        note(f"{name}: starts in .claude/worktrees/{folder[name]}, where its session {chosen[name]} lives{flag}")
+if not chosen:
+    sys.exit(f"agents_up: {root} has no builder with its own worktree — nothing to launch (the coordinator gets no pane)")
+for name in sorted(chosen):
+    print("agent", name, chosen[name], folder[name])
 for sid in sorted(set(reg) | {str(r.get("session_id")) for r in rows}):
     print("known", sid)
 PY
@@ -284,7 +341,7 @@ RUNNING="$(ps -ww -C claude -o args= 2>/dev/null)"
 # <root>/.claude/worktrees/<name>, so a symlink anywhere on it can neither take the pane out of the repo nor name a
 # project folder claude never writes to. The resolver already dropped every name without one; a worktree removed
 # since prints nothing here and that pane is skipped — never started at the root, the coordinator's checkout.
-dir_of() {  # $1 = name (validated: no `/` or `.`, so it names a folder directly under worktrees/)
+dir_of() {  # $1 = the builder's folder: an agent name the resolver printed (no `/` or `.`, so directly under worktrees/)
   local d="$ROOT/.claude/worktrees/$1"
   if [ -d "$d" ] && [ -f "$d/.git" ] && [ "$(cd -- "$d" && pwd -P)" = "$d" ]; then
     echo "$d"
@@ -454,8 +511,8 @@ cap_of() {  # $1 = name
 if [ "$print" = 1 ]; then
   echo "session $S"
   [ "$CAPPED" = 1 ] && echo "slice $SLICE MemoryHigh=$SLICE_HIGH MemoryMax=$SLICE_MAX"
-  while read -r name sid; do
-    dir="$(dir_of "$name")"
+  while read -r name sid folder; do
+    dir="$(dir_of "$folder")"
     [ -n "$dir" ] || continue
     st="$(status_of "$sid" "$dir")"
     newer_unbound "$name" "$sid" "$dir"
@@ -535,8 +592,8 @@ else
   slice_ceiling
   first=1
   raced=0
-  while read -r name sid; do
-    dir="$(dir_of "$name")"
+  while read -r name sid folder; do
+    dir="$(dir_of "$folder")"
     [ -n "$dir" ] || continue
     st="$(status_of "$sid" "$dir")"
     newer_unbound "$name" "$sid" "$dir"

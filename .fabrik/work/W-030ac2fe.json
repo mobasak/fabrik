@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T16:52:29.394042Z",
+  "creator": "infra-2",
+  "evidence": "06dce7f1635082e4f9f643bed58cd14d95ca47d2",
+  "id": "W-030ac2fe",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "after W-d6726a65 merges: /fabrik-task adding an 'ssh' step to scripts/sysadmin/operator_setup.py (plan the Host block edit, refuse a config it cannot parse, backup + undo line like the other steps)",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "done",
+  "tags": [
+    "next-infra-2"
+  ],
+  "title": "operator_setup.py fifth step: ssh keepalive for github.com (ServerAliveInterval 15, ServerAliveCountMax 4 under Host github.com in ~/.ssh/config, backed up) — coordinator 2026-10-28: box-wide git pushes hung on dead SSH connections that never time out (pid 2882773 50 min); a keepalive re-push landed at once"
+}

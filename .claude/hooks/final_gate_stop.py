@@ -1354,6 +1354,27 @@ def _lane_continues(sid: str | None, cwd: str) -> bool:
         return False
 
 
+def _api_key_continues(stamp: Path) -> bool:
+    """W-effb7141: True when quota_stop.py does not hold this session at this stamp because it runs
+    on an Anthropic API key (`api_key_exempt` — a quota tier only, never the battery hold). Loaded
+    from quota_stop.py beside this hook by file path, like `_lane_continues`; any load or call
+    error is False, which keeps the wall's yield — today's behaviour. The env is read first, so a
+    plan session never pays the module load."""
+    if not (os.environ.get("ANTHROPIC_API_KEY") or "").strip():
+        return False
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "_quota_stop_api_key", Path(__file__).resolve().parent / "quota_stop.py"
+        )
+        if spec is None or spec.loader is None:
+            return False
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.api_key_exempt(stamp) is True
+    except Exception:
+        return False
+
+
 def _urgent_checkpoint(
     root: Path,
     sid: str | None,
@@ -3118,11 +3139,92 @@ _MENU_RE = re.compile(
     r"|^[ \t]*(?:1[.)]|\(1\))[ \t]+\S[^\n]*\n(?:[^\n]*\n){0,6}?[ \t]*(?:2[.)]|\(2\))[ \t]+\S",
     re.M,
 )
-_MENU_CUE_RE = re.compile(
-    r"\?|\b(?:pick|choose|prefer(?:ence|red)?|your (?:call|pick|choice)|up to you|you decide)\b"
-    r"|\bwhich (?:one|option|way|path|of (?:the|these))\b",
-    re.I,
+_MENU_WORD_CUE = (
+    r"\b(?:pick|choose|prefer(?:ence|red)?|your (?:call|pick|choice)|up to you|you decide)\b"
+    r"|\bwhich (?:one|option|way|path|of (?:the|these))\b"
 )
+_MENU_CUE_RE = re.compile(r"\?|" + _MENU_WORD_CUE, re.I)
+_MENU_WORD_CUE_RE = re.compile(_MENU_WORD_CUE, re.I)
+# A NUMBERED list's `?` is read AFTER the list (mail 01M5B996F3): a question inside a findings item
+# is that item's own text — a findings list reported while seats are out read as a menu. Only the
+# `?` is bounded; a choice WORD (pick, prefer, your call …) still hands off from anywhere, so a menu
+# whose choice sits inside an item still fires. The list keeps its in-item `?` when most items ask
+# or its LAST item asks ("3. Something else — what would you rather?"). Lettered `(a)` lists keep
+# the old rule. COBRA (D-253): a menu now passes D2 only as a numbered list whose questions sit in a
+# minority of its items, never the last, with no choice word anywhere — pinned as a known miss.
+# Not this rule's class (measured, left as before): a step list's imperative choice word ("and
+# choose **Ubuntu**", "pick it up") still fires — the choice-word vocabulary's own precision.
+_LIST_ITEM_RE = re.compile(r"[ \t]*(?:\d{1,3}[.)]|\(\d{1,3}\))[ \t]+\S")
+_LIST_BULLET_RE = re.compile(r"[ \t]*[-*•][ \t]+\S")
+_ITEM_ASKS_RE = re.compile(r"\?(?![\w=&])")  # a question's `?`, never a URL query's
+
+
+def _list_end(text: str, ls: int) -> int:
+    """Offset just past the numbered list whose first item line starts at ``ls``: its item lines,
+    their indented continuation and bullet lines, and a blank line only when another item follows."""
+    pos, n, first = ls, len(text), True
+    while pos < n:
+        le = text.find("\n", pos)
+        le = n if le == -1 else le
+        line = text[pos:le]
+        if (
+            first
+            or _LIST_ITEM_RE.match(line)
+            or _LIST_BULLET_RE.match(line)
+            or (line[:1] in (" ", "\t") and line.strip())
+        ):
+            first = False
+            pos = le + 1
+            continue
+        if not line.strip():
+            nxt = text.find("\n", le + 1)
+            if _LIST_ITEM_RE.match(text[le + 1 : n if nxt == -1 else nxt]):
+                pos = le + 1
+                continue
+        break
+    return min(pos, n)
+
+
+def _menu_question_start(text: str, start: int) -> int:
+    """Where D2 starts reading a `?` for the menu matched at ``start``: past the list when it is a
+    NUMBERED list (a `_MENU_RE` list match spans two item lines at least) whose questions sit in a
+    minority of its items and not in the last one, else ``start``."""
+    ls = text.rfind("\n", 0, start) + 1
+    if not _LIST_ITEM_RE.match(text, ls) or text[ls:start].strip():
+        return start
+    end = _list_end(text, ls)
+    items: list[str] = []
+    for line in text[ls:end].splitlines():
+        if _LIST_ITEM_RE.match(line):
+            items.append(line)
+        elif items:
+            items[-1] += "\n" + line
+    asks = [bool(_ITEM_ASKS_RE.search(it)) for it in items]
+    if sum(asks) * 2 > len(asks) or asks[-1]:
+        return start
+    return end
+
+
+_CODE_SPAN_RE = re.compile(r"`[^`\n]*`")
+
+
+def _menu_cue(text: str, start: int) -> bool:
+    """D2's hand-off cue for the menu matched at ``start``: a choice word anywhere from the match
+    on, or a `?` from where `_menu_question_start` says a question still hands off. Inline code
+    INSIDE a numbered list's items is blanked first (same length, so offsets hold): a `pick` or
+    `??` in an item names code, not a choice — while a reply syntax written after the list
+    (``Reply `pick 1` or `pick 2`.``) still hands off."""
+    ls = text.rfind("\n", 0, start) + 1
+    prose = text
+    if _LIST_ITEM_RE.match(text, ls) and not text[ls:start].strip():
+        end = _list_end(text, ls)
+        prose = text[:ls] + _CODE_SPAN_RE.sub(lambda c: " " * len(c.group(0)), text[ls:end]) + text[end:]
+    qs = _menu_question_start(prose, start)
+    if qs == start:
+        return _MENU_CUE_RE.search(prose, start) is not None
+    return _MENU_WORD_CUE_RE.search(prose, start) is not None or "?" in prose[qs:]
+
+
 # D3 — an offer to act (subsumes `_PERMISSION_RE`, which blocked ONLY mid-run; spec § C1 "the one
 # behaviour that moves").
 _OFFER_RE = re.compile(
@@ -3721,7 +3823,7 @@ def _deferral_match(text: str) -> tuple[str, str] | None:
         # The hand-off cue: a question or choice word from the menu on, or the menu sitting on
         # the NEXT: line itself — alternatives offered as the successor ARE the operator's pick.
         on_next = _NEXT_LINE_RE.match(text, text.rfind("\n", 0, m.start()) + 1) is not None
-        if on_next or _MENU_CUE_RE.search(text, m.start()):
+        if on_next or _menu_cue(text, m.start()):
             return "D2", " ".join(m.group(0).split())[:200]
     for m in _OFFER_RE.finditer(text, tail):
         if _defer_skip(text, m.start(), fences):
@@ -5018,6 +5120,10 @@ def main(argv: list[str]) -> int:
                 # merge owner, or the owner of an open P0) is not parked, so it takes the NORMAL
                 # path below — gate and causes as outside the tier — never the wall's yield
                 lane_free = urgent and _lane_continues(sid, str(root))
+                # W-effb7141: an API-key session is not held by either quota tier, so it takes the
+                # NORMAL path too — its causes stay armed while it keeps editing (battery holds)
+                if not lane_free and _api_key_continues(_state / "fleet-exhausted"):
+                    lane_free = True
                 if lane_free:
                     urgent = False
                 if not urgent and not lane_free:

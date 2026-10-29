@@ -1672,3 +1672,156 @@ def test_on_a_real_tmux_server_the_root_is_recorded_and_a_relaunch_finds_its_own
         assert third.returncode == 0 and "--detach" in third.stderr, third.stderr
     finally:
         tmux("kill-server")
+
+
+# --- W-456aa02a: a pane starts in the worktree its session lives in, not only the one named after the builder ------
+# Claude Code keeps the folder a pane STARTED in as the window's project folder (CLAUDE_PROJECT_DIR: its hooks,
+# settings and permissions) even after the session moves into another worktree; infra's pane started in
+# `worktrees/infra` (1602 commits behind master) while infra worked in `infra-uncapped`, so every hook fix since was off
+# for that window. The worktree whose claude project folder holds the session is where the agent works.
+
+
+def _transcript(home: Path, folder: Path, sid: str) -> None:
+    proj = (
+        home / ".claude-fleet" / "active" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(folder))
+    )
+    proj.mkdir(parents=True, exist_ok=True)
+    (proj / f"{sid}.jsonl").write_text("{}\n", encoding="utf-8")
+
+
+AGENT_TREE = "agent-a0123456789abcdef"
+LONER = "7a7a7a7a-7a7a-4a7a-8a7a-7a7a7a7a7a7a"
+STALE1 = "9c9c9c9c-9c9c-4c9c-8c9c-9c9c9c9c9c9c"
+STALE2 = "adadadad-adad-4dad-8dad-adadadadadad"
+GHOST = "8b8b8b8b-8b8b-4b8b-8b8b-8b8b8b8b8b8b"
+
+
+def test_a_pane_starts_where_its_session_lives(tmp_path: Path) -> None:
+    """B1: a builder whose session sits in another linked worktree starts there, said on stderr, with an `ok` status; a
+    builder with no own-named worktree gets that pane too once the repo declares a merge owner; a Claude Code subagent
+    tree (`agent-*`) is taken but flagged; the coordinator's own worktree is never a builder's; a worktree-less name no
+    tree holds is dropped before its stale rows can refuse the launch; the launch path hands tmux the found folder."""
+    repo = _repo(
+        tmp_path,
+        {DEV1: "infra", DEV2: "dev2", LONER: "loner", STALE1: "ghost", STALE2: "ghost"},
+        worktrees=False,
+    )
+    _worktree(repo, "infra")
+    _worktree(repo, "dev2")
+    uncapped, sub = _worktree(repo, "infra-uncapped"), _worktree(repo, AGENT_TREE)
+    coord = _worktree(repo, "coordinator")
+    _ledger(repo, "coordinator")
+    home = _home(tmp_path, transcripts=((repo, DEV1), (repo, DEV2), (repo, LONER)), root_only=True)
+    _transcript(home, uncapped, DEV1)
+    _transcript(home, _wt(repo, "dev2"), DEV2)
+    _transcript(home, sub, LONER)
+    # the coordinator's tree also holds loner's session: never a candidate
+    _transcript(home, coord, LONER)
+    # ghost's session sits only in ANOTHER builder's own-named tree: ghost is still dropped before its stale rows
+    _transcript(home, _wt(repo, "dev2"), STALE1)
+    out = _run("--print", str(repo), home=home)
+    assert out.returncode == 0, out.stderr
+    assert "more than one session id" not in out.stderr, (
+        out.stderr
+    )  # ghost's two stale rows never read
+    assert (
+        "ghost: .claude/worktrees/ghost is not a linked git worktree in place — no pane"
+        in out.stderr
+    ), out.stderr
+    assert _panes(out.stdout) == [
+        f"pane dev2 {DEV2} {_wt(repo, 'dev2')} ok",
+        f"pane infra {DEV1} {uncapped} ok",
+        f"pane loner {LONER} {sub} ok",
+    ], out.stdout
+    assert (
+        f"infra: starts in .claude/worktrees/infra-uncapped, where its session {DEV1} lives"
+        in out.stderr
+    ), out.stderr
+    assert "dev2: starts in" not in out.stderr, out.stderr
+    assert f"loner: starts in .claude/worktrees/{AGENT_TREE}" in out.stderr, out.stderr
+    assert "a Claude Code subagent tree" in out.stderr, out.stderr
+    # the launch path hands tmux the found folder
+    tmux = home / ".local" / "bin" / "tmux"
+    tmux.write_text(FAKE_TMUX, encoding="utf-8")
+    tmux.chmod(0o755)
+    out = _run(str(repo), home=home)
+    assert out.returncode == 0, out.stderr
+    log = _log(home)
+    assert any(ln.startswith(f"split-window -t =fabrik-lib:agents -c {uncapped} ") for ln in log), (
+        log
+    )
+
+
+def test_a_session_only_under_the_root_keeps_the_named_tree(tmp_path: Path) -> None:
+    """B2: a session no worktree holds (only the root's archive link) keeps today's pane in `<name>`, flagged
+    `no-transcript` as today — the root is never a candidate, and no `starts in` line is printed."""
+    repo = _repo(tmp_path, {DEV1: "dev1"})
+    _worktree(repo, "other")
+    home = _home(tmp_path, transcripts=((repo, DEV1),), root_only=True)
+    out = _run("--print", str(repo), home=home)
+    assert out.returncode == 0, out.stderr
+    assert _panes(out.stdout) == [f"pane dev1 {DEV1} {_wt(repo, 'dev1')} no-transcript"], out.stdout
+    assert "starts in" not in out.stderr, out.stderr
+
+
+def test_a_session_in_several_trees_keeps_the_named_tree(tmp_path: Path) -> None:
+    """B3: several holding folders → `<name>`, said; another builder's own-named tree is never taken from it; a folder
+    off the agent-name grammar is no candidate; and with NO merge owner declared, a name without its own worktree keeps
+    today's no-pane line however its session is filed (it is taken as the coordinator)."""
+    repo = _repo(
+        tmp_path, {DEV1: "dev1", DEV2: "dev2", SENT: "sent", GHOST: "ghost"}, worktrees=False
+    )
+    for name in ("dev1", "dev2", "sent"):
+        _worktree(repo, name)
+    a, b, odd = _worktree(repo, "spare-a"), _worktree(repo, "spare-b"), _worktree(repo, "Odd_Tree")
+    home = _home(
+        tmp_path,
+        transcripts=((repo, DEV1), (repo, DEV2), (repo, SENT), (repo, GHOST)),
+        root_only=True,
+    )
+    _transcript(home, a, DEV1)
+    _transcript(home, b, DEV1)
+    _transcript(
+        home, _wt(repo, "dev1"), DEV1
+    )  # dev1: three holders, its own tree among them — still said
+    _transcript(home, _wt(repo, "dev1"), DEV2)  # dev2's session sits only in dev1's own-named tree
+    _transcript(home, odd, SENT)  # sent's only holder is off the agent-name grammar
+    _transcript(home, a, GHOST)  # ghost has no own worktree and no merge owner is declared
+    out = _run("--print", str(repo), home=home)
+    assert out.returncode == 0, out.stderr
+    assert _panes(out.stdout) == [
+        f"pane dev1 {DEV1} {_wt(repo, 'dev1')} ok",
+        f"pane dev2 {DEV2} {_wt(repo, 'dev2')} no-transcript",
+        f"pane sent {SENT} {_wt(repo, 'sent')} no-transcript",
+    ], out.stdout
+    assert (
+        f"dev1: session {DEV1} sits in more than one worktree (dev1, spare-a, spare-b)"
+        in out.stderr
+    ), out.stderr
+    assert (
+        "ghost: .claude/worktrees/ghost is not a linked git worktree in place — no pane"
+        in out.stderr
+    ), out.stderr
+    assert "taken as the coordinator" in out.stderr, out.stderr
+    assert "starts in" not in out.stderr, out.stderr
+
+
+def test_two_builders_in_one_tree_fall_back(tmp_path: Path) -> None:
+    """B4: two builders whose sessions both resolve to one folder each fall back to `<name>`, said on stderr with the
+    folder and both sids, and the rest of the grid still launches (never a whole-launch refusal)."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2", SENT: "sent"})
+    shared = _worktree(repo, "shared")
+    home = _home(tmp_path, transcripts=((repo, DEV1), (repo, DEV2), (repo, SENT)), root_only=True)
+    _transcript(home, shared, DEV1)
+    _transcript(home, shared, DEV2)
+    _transcript(home, _wt(repo, "sent"), SENT)
+    out = _run("--print", str(repo), home=home)
+    assert out.returncode == 0, out.stderr
+    assert _panes(out.stdout) == [
+        f"pane dev1 {DEV1} {_wt(repo, 'dev1')} no-transcript",
+        f"pane dev2 {DEV2} {_wt(repo, 'dev2')} no-transcript",
+        f"pane sent {SENT} {_wt(repo, 'sent')} ok",
+    ], out.stdout
+    assert (
+        f"dev1, dev2: sessions {DEV1}, {DEV2} both sit in .claude/worktrees/shared" in out.stderr
+    ), out.stderr

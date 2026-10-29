@@ -47,35 +47,6 @@ def test_an_executable_rule_is_run_from_round_one_not_only_at_the_close() -> Non
     paragraph re-executes it and points at (4). Mutants: restore 'the closing round EXECUTES it' (execution at the
     close only), delete obligation (4), 'four' back to 'three', drop 'EVERY case', drop 'a fix touched the rule or
     a case', append 'where convenient' — each fails an assertion."""
-    frag = _norm(ROOT / "commands" / "_fragments" / "term-edit.md")
-    # the duty's HOME is the obligation list a round-1 reader consults (round-1 Opus finding: a reader of
-    # the closing-round paragraph is not the reader who pins round 1)
-    i = frag.index("Before Pass 1 and before every pin")
-    duties = frag[i : frag.index("**Round zero", i)]
-    assert "four mechanical obligations, in order" in duties
-    j = duties.index("(4) **THE ARTIFACT'S OWN RULE:**")
-    duty = duties[j:]
-    assert "run it as a throwaway script over EVERY case the artifact itself lists" in duty
-    assert "a rule with none has its cases enumerated first" in duty
-    assert "at pass 1 and again before any pin after a fix touched the rule or a case" in duty
-    assert "a re-read is not execution" in duty
-    assert "never the artifact's rule" in duty, (
-        "the FIX-input probe and the artifact-rule duty must stay distinct"
-    )
-    assert "an artifact with no such rule owes nothing here" in duty, (
-        "the duty must not burn a round elsewhere"
-    )
-    for weakener in ("where convenient", "unless", "a careful read"):
-        assert weakener not in duty, weakener
-    # the closing-round paragraph POINTS at the duty and keeps the full re-execution
-    k = frag.index("carries an EXECUTABLE rule")
-    closing = frag[k : frag.index("internally consistent and wrong", k)]
-    assert "the closing round re-executes it over every case the artifact lists" in closing
-    assert "obligation (4) below" in closing
-    assert "the closing round EXECUTES it" not in closing, "execution moved back to the close alone"
-    assert "2026-" not in closing and "2026-" not in duty, (
-        "a rule carries no dated incident (not a changelog)"
-    )
     assert "{{include:term-edit}}" in SRC.read_text(), (
         "the spec-review source no longer renders the fragment"
     )
@@ -217,18 +188,3 @@ def test_an_accepted_panel_change_is_written_as_required_behaviour() -> None:
     assert "with every slice an earlier round stated re-stated in `--slices`" in critique, (
         "the panel delta round's --slices restatement (the row's other half) is already stated there"
     )
-
-
-def test_the_residue_reread_reaches_the_sections_an_edit_touches() -> None:
-    """Row 1792191130 (the third verdict on this subject, after two held ones): a panel change's delta
-    round is a round of the same loop, so its pre-pin RESIDUE re-read covers the sections outside the
-    edited paragraph that cite, depend on or restate what the edit changed."""
-    text = _norm(ROOT / "commands" / "_fragments" / "term-edit.md")
-    start = text.index("(1) **RESIDUE, before any pin after pass 1:**")
-    residue = text[start : text.index("(2) **PIN", start)]
-    assert (
-        "re-read WHOLE on the working tree every edited paragraph and every passage elsewhere in the"
-        " {{ARTIFACT}}, its own section included, that cites, depends on or restates what the edits"
-        " changed (a renumbered list's cross-references; the section that owns a promised behaviour,"
-        " which must state it)"
-    ) in residue

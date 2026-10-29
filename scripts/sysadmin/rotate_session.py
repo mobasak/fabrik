@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import fcntl
+import hashlib
 import importlib.util
 import json
 import math
@@ -116,12 +117,40 @@ _NOTIFY = re.compile(
 )  # the Stop hook's forms
 
 
-class CheckFailedError(Exception):
-    """A check failed: (check, reason)."""
+# W-05021a03: `request`'s exit names whether asking again can pass. TRANSIENT clears by itself (the session finishes its
+# turn, run or seat; the rotation in flight rows; tmux answers; a pane restarts) → EXIT_RETRY; PERMANENT needs an act
+# first → 1, which an uncaught crash also exits (read stderr and act, the same as a permanent abort). Fail direction:
+# transient-called-permanent stops a rotation that would have passed, permanent-called-transient keeps the old loop, so
+# a check is transient by default and a raise is permanent only on POSITIVE evidence that an act is needed (`transient=
+# False`): a bad argument, the request dir's ownership, a dialog's numbered option on the prompt row, text typed in the
+# box, two transcripts, no identity row or a binding elsewhere, uncommitted or unpushed work, a slash-command ending, a
+# request the unit never claimed. COBRA (D-253): calling everything transient passes any exit test and keeps the loop;
+# the measure is the consecutive-repeat census of rotations.jsonl, not the rc.
+EXIT_RETRY = 75  # sysexits EX_TEMPFAIL
+TRANSIENT_CHECKS = frozenset(
+    {
+        "status",
+        "idle",
+        "pending",
+        "record",
+        "seat",
+        "tmux",
+        "resolve",
+        "transcript",
+        "screen",
+        "worktree",
+    }
+)
+PERMANENT_CHECKS = frozenset({"args", "request", "stale-input"})
 
-    def __init__(self, check: str, reason: str) -> None:
+
+class CheckFailedError(Exception):
+    """A check failed: (check, reason), and whether asking again can pass (`transient`)."""
+
+    def __init__(self, check: str, reason: str, transient: bool | None = None) -> None:
         super().__init__(f"{check}: {reason}")
         self.check, self.reason = check, reason
+        self.transient = check not in PERMANENT_CHECKS if transient is None else transient
 
 
 def _load(name: str) -> Any:
@@ -383,7 +412,9 @@ def _registry(home: Path, proc: Path, pid: int) -> dict:
             and start is not None
         ):
             return d
-    raise CheckFailedError("resolve", f"no registry record for claude pid {pid}")
+    raise CheckFailedError(  # a claude seconds old has not written its record yet
+        "resolve", f"no registry record for claude pid {pid}", transient=True
+    )
 
 
 def _bindings() -> list[dict]:
@@ -405,7 +436,25 @@ def _bound(name: str, sid: str) -> bool:
     """The newest row for this sid names `name`, and no newer row of `name` in that toplevel names another sid."""
     rows = _bindings()
     mine = [r for r in rows if r.get("session_id") == sid]
-    if not mine or mine[-1].get("name") != name:
+    if not mine:
+        try:  # _bindings reads an unreadable store as empty: that is no evidence the session is unbound
+            with _identity().open("rb") as fh:
+                fh.read(1)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise CheckFailedError(
+                "resolve", f"the identity store is unreadable ({type(exc).__name__})"
+            ) from exc
+        # every aborted:resolve in rotations.jsonl to 2026-10-25 (24 of 24) was this state; each bound only by a
+        # `--force` re-bind 103-2493 s later, never by asking again (W-05021a03)
+        raise CheckFailedError(
+            "resolve",
+            f"session {sid} has no identity binding yet — have that window run "
+            f"python3 /opt/fabrik/scripts/whoami_agent.py --as {name} --force",
+            transient=False,
+        )
+    if mine[-1].get("name") != name:
         return False
     top = mine[-1].get("toplevel")
     later = [
@@ -418,11 +467,11 @@ def _bound(name: str, sid: str) -> bool:
 
 def resolve(name: str, repo: str) -> dict:
     if not _NAME.fullmatch(name):
-        raise CheckFailedError("resolve", f"bad agent name {name!r}")
+        raise CheckFailedError("resolve", f"bad agent name {name!r}", transient=False)
     home, proc = _home(), _proc()
     ls = _tmux("list-panes", "-a", "-F", "#{pane_id}\t#{session_name}\t#{@agent}\t#{pane_pid}")
     if ls.returncode != 0:
-        raise CheckFailedError("resolve", "tmux is not answering")
+        raise CheckFailedError("resolve", "tmux is not answering", transient=True)
     panes: dict[str, int] = {}
     for line in ls.stdout.splitlines():
         parts = line.split("\t")
@@ -440,10 +489,12 @@ def resolve(name: str, repo: str) -> dict:
     reg = _registry(home, proc, pid)
     sid = reg.get("sessionId")
     if not isinstance(sid, str) or not sid:
-        raise CheckFailedError("resolve", f"the registry record of pid {pid} carries no session id")
+        raise CheckFailedError(
+            "resolve", f"the registry record of pid {pid} carries no session id", transient=True
+        )
     if not _bound(name, sid):
         raise CheckFailedError(
-            "resolve", f"{name}'s identity binding is stale or another window's (session {sid})"
+            "resolve", f"{name} is bound to another window, not session {sid}", transient=False
         )
     return {
         "name": name,
@@ -475,7 +526,9 @@ def _transcript(proc: Path, home: Path, pid: int, sid: str) -> Path:
             ) from exc
         files.setdefault((st.st_dev, st.st_ino), f)
     if len(files) != 1:
-        raise CheckFailedError("transcript", f"{len(files)} transcripts for session {sid}")
+        raise CheckFailedError(  # none yet clears by itself; two need sorting out
+            "transcript", f"{len(files)} transcripts for session {sid}", transient=len(files) < 2
+        )
     return next(iter(files.values()))
 
 
@@ -520,8 +573,10 @@ def _idle_row_check(rows: list[dict]) -> float:
             (r.get("message") or {}).get("content") if isinstance(r.get("message"), dict) else None
         )
         if kind == "user" and isinstance(content, str) and "<command-name>" in content:
-            raise CheckFailedError(
-                "idle", "a local slash command ended the transcript — send one prompt first"
+            raise CheckFailedError(  # only a sent prompt ends it
+                "idle",
+                "a local slash command ended the transcript — send one prompt first",
+                transient=False,
             )
         raise CheckFailedError("idle", f"the transcript ends mid-turn ({kind}/{sub or '-'})")
     raise CheckFailedError("idle", "no turn end in the transcript tail")
@@ -606,7 +661,13 @@ def run_checks(t: dict, stale_text: str = "") -> Path:
         rows = _tail_rows(path, 2 * 1024 * 1024)
     except OSError as exc:
         raise CheckFailedError("idle", f"transcript unreadable ({exc})") from exc
-    ended = _idle_row_check(rows)
+    try:
+        ended = _idle_row_check(rows)
+    except CheckFailedError as exc:
+        # a turn held open by a permission dialog never ends by waiting
+        if exc.transient and _dialog(_box_now(t["pane"])[1]):
+            raise CheckFailedError("screen", _DIALOG, transient=False) from exc
+        raise
     # The registry is a VETO only when it changed AFTER that turn end — a turn started since — and only for VETO_S after
     # that change, so its stale "busy" (measured above) never blocks and a busy stamp a resume leaves with no turn after
     # it expires; a turn whose first transcript write is still pending is what this catches. It is best effort: measured
@@ -643,12 +704,249 @@ def run_checks(t: dict, stale_text: str = "") -> Path:
     if seats:
         raise CheckFailedError("seat", f"{len(seats)} background seat(s) still running")
     blocks, why = hib.worktree_state(t["cwd"])
-    if blocks:
-        raise CheckFailedError("worktree", why)
-    box, _ = _box_now(t["pane"])
-    if box is None or (box and box != stale_text):
-        raise CheckFailedError("screen", "the pane is not at an empty prompt")
+    if blocks:  # an idle builder commits or pushes only when told; any other reason may be a probe that timed out
+        raise CheckFailedError(
+            "worktree", why, transient=not why.endswith(("uncommitted change(s)", "not pushed"))
+        )
+    box, screen = _box_now(t["pane"])
+    if _dialog(screen):
+        raise CheckFailedError("screen", _DIALOG, transient=False)
+    if box is None:
+        raise CheckFailedError(
+            "screen", "no input box is drawn (a redraw, a scrolled or restarting pane)"
+        )
+    if box and box != stale_text:
+        raise CheckFailedError(
+            "screen",
+            "text is in the input box — clear it, or ask with --stale-input discard",
+            transient=False,
+        )
     return path
+
+
+_DIALOG = "a dialog is open in the pane — answer it"
+
+
+def _dialog(screen: str) -> bool:
+    """A permission or choice dialog holds the session: no input box is drawn, the pane's last `❯` row is a numbered
+    option (`❯ 1. Yes`) and another numbered option sits within three rows of it. Text typed in the box (`❯ 1. fix
+    it`) is the box's, and one numbered prompt left in scrollback has no sibling option (W-05021a03 review r2)."""
+    if _box(screen) is not None:
+        return False
+    rows = [_undimmed(r).strip() for r in screen.splitlines()]
+    at = [i for i, r in enumerate(rows) if r.startswith("❯")]
+    if not at or not re.match(r"❯\s*\d+\.\s", rows[at[-1]]):
+        return False
+    near = rows[max(0, at[-1] - 3) : at[-1]] + rows[at[-1] + 1 : at[-1] + 4]
+    return any(re.match(r"\d+\.\s", r) for r in near)
+
+
+# ── waiting: the coordinator's PANE WAITING scan (W-a12b03a2) ─────────────────────────────────────────────────────────
+#
+# Read-only. Shapes measured on Claude Code v2.1.312 (a throwaway session, 2026-10-29): every dialog — a permission
+# dialog, the workspace-trust prompt (un-numbered options), an AskUserQuestion whose options wrap 4+ rows apart — is
+# drawn without the input box and ends on a footer row; `_dialog` alone knows only the first. An idle turn ends on a
+# `✻ <Verb> for <n>s · done <time>` row; `✻ Waiting for N background agents` is an agent working on its own seats.
+# Fail direction: a screen nobody drew yet (a renamed footer, no `· done` row) is a QUIET miss; a tmux that answers
+# wrongly RAISES, so the caller reports a blind scan instead of reading it as "nobody waits".
+_FOOTER = re.compile(r"Esc to cancel|Enter to confirm|Enter to select")
+_TURN_END = re.compile(r"^\S\s+\S+ for \d+[hms]\b.*·\s*done\b")
+_SPINNER = re.compile(r"…\s*\(|Waiting for \d+ background")
+_FOOTER_ROW = re.compile(r"(?:RUN|STATE|NEXT):")
+# the two house markers of a turn that waits on its reader — only where they OPEN the paragraph (a DECISION block's
+# heading, a NEXT: whose value is the wait), so a footer that names them in passing ("no DECISION NEEDED") never asks
+_ASKS = re.compile(
+    r"(?:DECISION NEEDED\b|NEXT:\s*(?:awaiting your reply|operator decision|(?:see\s+)?DECISION NEEDED above)\b)",
+    re.I,
+)
+# a tool call (`● Bash(ls)`, `● mcp__x__y(…)` — a capitalised or `mcp__` name, the row closing on its `)`) and its
+# result rows (`⎿  …`): what the agent RAN, never what it asks; a message that opens `foo(bar) …?` stays text
+_TOOL_ROW = re.compile(r"^(?:●\s*(?:[A-Z][\w.:-]*|mcp__[\w.:-]+)\(.*\)$|⎿)")
+# activity below a turn end that is not a new turn: a seat's completion notice (measured live, idle pane)
+_IDLE_NOTICE = re.compile(r'^●\s*[A-Z][\w ]*"[^"]*"\s+(?:finished|completed|failed)\b')
+# the turn-end row up to its `done <time>`: a trailing note (`· 1 shell still running`) changes without a new turn
+_TURN_ID = re.compile(r"^.*?·\s*done\s+[^·]*")
+_NO_GRID = ("no server running on", "error connecting to")
+_PANE_GONE = "can't find pane"
+WAITING_LINE_MAX = 160
+
+
+def _plain(screen: str) -> list[str]:
+    return [_undimmed(r).rstrip() for r in screen.splitlines()]
+
+
+def _asks(text: str) -> bool:
+    return text.rstrip("*_`)\"'”’ ").endswith("?") or bool(_ASKS.match(text))
+
+
+def _dialog_waiting(rows: list[str], numbered: bool) -> tuple[str, str, str] | None:
+    text = [i for i, r in enumerate(rows) if r.strip()]
+    if not numbered and not any(_FOOTER.search(rows[i]) for i in text[-3:]):
+        return None
+    at = [i for i, r in enumerate(rows) if r.lstrip().startswith("❯")]
+    if not at:
+        return None
+    opt = at[-1]
+    top = max((i for i in range(opt) if rows[i].strip().startswith("─")), default=-1)
+    block = [r.strip().lstrip("│").strip() for r in rows[top + 1 : opt]]
+    asked = [r for r in block if "?" in r]
+    near = [r for r in block if r and not r.startswith("╌")]
+    line = asked[-1] if asked else (near[-1] if near else "a dialog is open")
+    # the cursor marker is dropped: arrowing between options is the same prompt, the same fingerprint
+    body = "\n".join(r.replace("❯", " ").strip() for r in rows[top + 1 :] if r.strip())
+    return "dialog", line, body
+
+
+def _question_waiting(rows: list[str]) -> tuple[str, str, str] | None:
+    starts = [
+        i
+        for i, r in enumerate(rows)
+        if i > 0 and r.lstrip().startswith("❯") and rows[i - 1].strip().startswith("─")
+    ]
+    if not starts:
+        return None
+    rule = starts[-1] - 1
+    ends = [i for i in range(rule) if _TURN_END.match(rows[i].strip())]
+    if not ends:
+        return None
+    end = ends[-1]
+    for row in (r.strip() for r in rows[end + 1 : rule]):
+        # a spinner, a new prompt or a new tool call below the turn end is a new turn under way
+        if (
+            _SPINNER.search(row)
+            or row.startswith("❯")
+            or (row.startswith("●") and not _IDLE_NOTICE.match(row))
+        ):
+            return None
+    # tool rows leave the tail as blank rows, so they also end the paragraph above them
+    tail = [
+        "" if _TOOL_ROW.match(r.strip()) else r.strip().removeprefix("●").strip()
+        for r in rows[:end]
+    ]
+    while tail and not tail[-1]:
+        tail.pop()
+    # The message tail: its last paragraph, and when that paragraph opens with the RUN/STATE/NEXT footer, the footer's
+    # entries (a label row plus its wrapped continuations) and the paragraph above the blank row before it.
+    paras: list[list[str]] = []
+    for _ in range(2):
+        start = len(tail)
+        while start > 0 and tail[start - 1]:
+            start -= 1
+        block, tail = tail[start:], tail[: max(0, start - 1)]
+        if not block:
+            break
+        lead = next((k for k, r in enumerate(block) if _FOOTER_ROW.match(r)), None)
+        if lead is None:
+            paras.append(block)
+            break
+        for row in block[lead:]:
+            if _FOOTER_ROW.match(row) or not paras:
+                paras.append([row])
+            else:
+                paras[-1].append(row)
+        if lead:
+            paras.append(block[:lead])
+            break
+    for para in sorted(
+        paras, key=lambda p: bool(_FOOTER_ROW.match(p[0]))
+    ):  # the message's own paragraph first
+        joined = " ".join(" ".join(para).split())
+        if joined and _asks(joined):
+            turn = _TURN_ID.match(rows[end].strip())
+            return (
+                "question",
+                joined,
+                joined + "\n" + (turn.group(0).strip() if turn else rows[end].strip()),
+            )
+    return None
+
+
+def _waiting_on(screen: str) -> tuple[str, str, str] | None:
+    """(kind, line, body) when the screen waits on an answer: `dialog` — no input box drawn and a dialog footer (or
+    `_dialog`'s numbered option) — or `question` — an empty box under a `· done` turn end with no new turn below it
+    (a spinner, a prompt row, a tool call), whose message tail (the RUN/STATE/NEXT footer entries and the paragraph
+    above them, tool rows excluded) ends in `?` or opens with a DECISION NEEDED / `NEXT: awaiting your reply` marker.
+    `body` keys the fingerprint: the dialog's rows (its command, the cursor dropped), or the question plus the turn-end
+    row up to its `done <time>`. An identical dialog shown twice is the same fingerprint (stated limit, D-1331)."""
+    box = _box(screen)
+    rows = _plain(screen)
+    if box is None:
+        return _dialog_waiting(rows, _dialog(screen))
+    return _question_waiting(rows) if box == "" else None
+
+
+def _grid_tmux(deadline: float, *args: str) -> str | None:
+    """One tmux call inside the scan's shared deadline: stdout (bytes decoded with replacement, so a pane showing binary
+    is still read), None when no grid exists (no tmux binary, no server) or, for a capture, when the pane closed after
+    the listing, and a RuntimeError for every other failure — a timeout, a spent budget, an OS error running tmux, or
+    an answer that is not a grid."""
+    left = deadline - time.monotonic()
+    if left <= 0:
+        raise RuntimeError("pane scan budget spent")
+    try:
+        r = subprocess.run(
+            [os.environ.get("ROTATE_TMUX", "tmux"), *args],
+            capture_output=True,
+            timeout=max(0.1, left),
+        )
+    except FileNotFoundError:
+        return None
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"tmux {args[0]} timed out") from exc
+    except OSError as exc:
+        raise RuntimeError(f"tmux {args[0]}: {exc}") from exc
+    err = r.stderr.decode("utf-8", "replace").strip()
+    if r.returncode != 0:
+        if err.startswith(_NO_GRID) or (args[0] == "capture-pane" and err.startswith(_PANE_GONE)):
+            return None
+        raise RuntimeError(f"tmux {args[0]} rc {r.returncode}: {err[:200]}")
+    return r.stdout.decode("utf-8", "replace")
+
+
+def waiting(repo: str, exclude: str = "", budget: float = 1.0) -> list[dict]:
+    """Every builder pane in `repo`'s agents_up grid waiting on an answer, as {agent, pane, kind, line, fp}. A pane
+    counts when its session or session group is `slug(repo)`, it carries an `@agent` other than `exclude`, and its
+    working directory is not `repo` itself (the coordinator's own pane); each pane once, by id. [] when no grid exists;
+    RuntimeError when tmux fails otherwise or the shared `budget` (seconds) runs out."""
+    deadline = time.monotonic() + budget
+    fmt = "#{pane_id}\t#{session_name}\t#{session_group}\t#{@agent}\t#{pane_current_path}"
+    out = _grid_tmux(deadline, "list-panes", "-a", "-F", fmt)
+    if out is None:
+        return []
+    home, grid = Path(repo).resolve(), slug(repo)
+    panes: dict[str, str] = {}
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) != 5:
+            continue
+        pane, session, group, agent, path = parts
+        if (group or session) != grid or not agent or agent == exclude:
+            continue
+        with contextlib.suppress(OSError):
+            if path and Path(path).resolve() == home:
+                continue
+        panes[pane] = agent
+    found = []
+    for pane, agent in panes.items():
+        screen = _grid_tmux(deadline, "capture-pane", "-p", "-e", "-t", pane)
+        if screen is None:  # the pane closed after the listing: it waits on nothing
+            continue
+        hit = _waiting_on(screen)
+        if hit is None:
+            continue
+        kind, line, body = hit
+        # a fingerprint for the Stop hook's attempt map, never a security digest
+        digest = hashlib.sha1(f"{kind}\n{body}".encode(), usedforsecurity=False).hexdigest()[:12]
+        found.append(
+            {
+                "agent": agent,
+                "pane": pane,
+                "kind": kind,
+                "line": line[:WAITING_LINE_MAX],
+                "fp": f"pane:{agent}:{digest}",
+            }
+        )
+    return found
 
 
 # ── request ───────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -670,6 +968,18 @@ def _pending() -> bool:
             if time.time() - tmp.stat().st_mtime > STALE_S:
                 tmp.unlink()
                 append_row({"outcome": "refused:orphan", "reason": tmp.name})
+    # the unit claims a request within seconds and any claim ends inside its timeout, as ORPHAN_S says: a request this
+    # old means nothing is claiming (lstat: a dangling name is aged too, never left pending forever)
+    for left in d.glob("*.json"):
+        with contextlib.suppress(OSError):
+            age = time.time() - left.lstat().st_mtime
+            if age > ORPHAN_S:
+                raise CheckFailedError(
+                    "pending",
+                    f"{left.name} has waited {int(age)} s unclaimed — is fabrik-rotate.path running? "
+                    "(scripts/sysadmin/install_rotate_unit.sh --check)",
+                    transient=False,
+                )
     if any(d.glob("*.json")) or any(d.glob("*.claimed")) or any(d.glob(".*.tmp")):
         return True
     with contextlib.suppress(OSError), (d / ".lock").open("a") as lk:
@@ -719,7 +1029,9 @@ def request(
             )
         t = resolve(name, repo)
         if stale:
-            box, _ = _box_now(t["pane"])
+            box, screen = _box_now(t["pane"])
+            if _dialog(screen):
+                raise CheckFailedError("screen", _DIALOG, transient=False)
             if box is None:
                 raise CheckFailedError("screen", "no input box is visible in the pane")
             stale_text = box[:1000]  # the refusal row below still carries what was seen
@@ -728,7 +1040,13 @@ def request(
                     "stale-input", "the input box holds more than 1000 characters"
                 )
         path = run_checks(t, stale_text)
-    except CheckFailedError as exc:
+    # a tmux call past TMUX_TIMEOUT_S is a slow server, not a refusal
+    except (subprocess.TimeoutExpired, CheckFailedError) as raw:
+        exc = (
+            raw
+            if isinstance(raw, CheckFailedError)
+            else CheckFailedError("tmux", f"tmux took over {raw.timeout} s")
+        )
         row = {
             "name": name,
             "repo": repo,
@@ -739,9 +1057,7 @@ def request(
         }
         if stale:
             row.update(stale_text=_safe(stale_text), operator_ok=_safe(operator_ok))
-        append_row(row)
-        print(f"rotate-session: aborted — {exc.check}: {exc.reason}", file=sys.stderr)
-        return 1
+        return request_aborted(exc, row)
     tokens = tsc._context_tokens(path)
     window = tsc._window()
     data = {
@@ -770,6 +1086,24 @@ def request(
         f"rotate-session: requested {mode} of {name} (pane {t['pane']}); the outcome lands in {_log()}"
     )
     return 0
+
+
+def request_aborted(exc: CheckFailedError, row: dict) -> int:
+    """Row the abort, print the line that says whether asking again can pass, and exit by it (W-05021a03)."""
+    append_row(row)
+    if not exc.transient:
+        hint = "permanent — asking again cannot pass: fix the cause above first"
+    elif exc.check == "pending":
+        hint = (
+            f"transient — ask again once the pending rotation's row lands in {_log()} "
+            f"(up to {ORPHAN_S} s); nothing to fix"
+        )
+    elif exc.check in ("status", "idle", "record", "seat"):
+        hint = f"transient — ask again once {row['name']} ends its turn or its run or seat ends; nothing to fix"
+    else:
+        hint = "transient — ask again in a few seconds; nothing to fix"
+    print(f"rotate-session: aborted — {exc.check}: {exc.reason} ({hint})", file=sys.stderr)
+    return EXIT_RETRY if exc.transient else 1
 
 
 def _focus_ok(focus: str) -> bool:
@@ -802,7 +1136,9 @@ _ESC = re.compile(
 def _undimmed(row: str) -> str:
     """The row's text WITHOUT its dim cells (SGR 2 — Claude Code's placeholder, measured), every escape dropped. SGR is
     walked as a terminal does: dim turns on with a 2 in any parameter list and off only with 0, 22 or an empty list —
-    any other code (a colour, bold, inverse) leaves it as it was (review r1: a lazy regex ended the dim run at `39m`)."""
+    any other code (a colour, bold, inverse) leaves it as it was (review r1: a lazy regex ended the dim run at `39m`).
+    An extended colour's own arguments (`38;5;<n>`, `38;2;<r>;<g>;<b>`, likewise 48 and 58) are skipped, so the `2` of
+    a truecolor sequence or of colour index 2 is never read as dim (W-a12b03a2 review: it dropped a dialog's `❯` row)."""
     out, dim, pos = [], False, 0
     for m in _ESC.finditer(row):
         if not dim:
@@ -811,11 +1147,17 @@ def _undimmed(row: str) -> str:
         seq = m.group(0)
         if seq.startswith("\x1b[") and seq.endswith("m"):
             params = [p.split(":")[0] for p in seq[2:-1].split(";")] if len(seq) > 3 else [""]
-            for p in params:
+            k = 0
+            while k < len(params):
+                p = params[k]
+                if p in ("38", "48", "58") and k + 1 < len(params) and ":" not in seq:
+                    k += {"5": 3, "2": 5}.get(params[k + 1], 1)  # the selector and its arguments
+                    continue
                 if p in ("", "0", "22"):
                     dim = False
                 elif p == "2":
                     dim = True
+                k += 1
     if not dim:
         out.append(row[pos:])
     return "".join(out)

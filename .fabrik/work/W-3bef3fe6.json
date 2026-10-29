@@ -1,11 +1,9 @@
 {
-  "blocked_by": [
-    "W-ab566484"
-  ],
+  "blocked_by": [],
   "created": "2026-10-06T00:10:54.731593Z",
   "creator": "fleet",
   "effort": "low",
-  "evidence": "",
+  "evidence": "c62b323daa1a87b797e80e1b4749d61ffddb74ef",
   "id": "W-3bef3fe6",
   "impact": "high",
   "kind": "backlog",
@@ -19,8 +17,9 @@
   "note": "",
   "owner": "fleet",
   "priority": 1,
+  "resolved_by": "W-0859fd4b",
   "score_reason": "D-958 re-score 2026-10-18: HIGH — fresh file-worker project make lint red",
-  "status": "open",
+  "status": "done",
   "tags": [
     "scaffold"
   ],

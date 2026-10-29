@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_seat_guard.py, tests/test_shared_venv_guard.py, docs/workstation/hooks-index.md, .claude/settings.json
+# AFTER-EDIT: tests/test_seat_guard.py, tests/test_shared_venv_guard.py, tests/test_coordinator_wait_guard.py, docs/workstation/hooks-index.md, .claude/settings.json
 """PreToolUse (Bash) seat guard — refuse a review seat's pattern kills and its git writes outside
 scratch, and ANY session's sync or install into the venv a linked worktree shares (W-46d148b0).
 
@@ -47,6 +47,28 @@ For a seat only (the payload's ``agent_id`` + ``agent_type``, documented hook in
 The lead (no ``agent_id``) and every other agent type pass the kill and git checks; EVERY session,
 seats included, gets the shared-venv check (its own comment block, above ``_child``).
 
+Coordinator wait guard (W-e57d2481, D-1296 — "no coordinator, in any repo, blocks its turn on a long
+wait": the operator cannot reach a session while its foreground call runs). For the LEAD (no
+``agent_id``) of the session bound as its repo's merge owner, a foreground call (``run_in_background``
+not true) is denied when its tool timeout — ``tool_input.timeout``, else ``BASH_DEFAULT_TIMEOUT_MS``,
+else 120000 — exceeds ``WAIT_LONG_MS``, or exceeds ``WAIT_LOOP_MS`` while the scan saw a ``sleep``
+inside a while/until/for/select loop. Loops are counted from the leading keyword run of each simple
+command (``{ while``, ``then while``, ``do for`` open; ``done`` closes, clamped at 0, never raising).
+Identity is quota_stop.py's, loaded beside this hook by file path (the store binding for this sid vs
+``decisions.py --merge-owner``, coordinator_mode not required), and only a candidate call pays it:
+the resolver is capped at 2 s inside this hook's 5 s budget, and every identity doubt ALLOWS.
+Measured before the rule (3 days, 1619 coordinator foreground calls): a timeout over 120 s fired 457
+times, 242 of them truly long; "any sleep" fired 19 times with none long, so a sleep outside a loop
+is allowed. A detached ``nohup … &`` sleep loop is denied too, deliberately: run_in_background is its
+tool. Stated limit: a sleep inside ``$(…)`` or a function body called in a loop counts at depth 0.
+⚠️ COBRA (D-253): the cheapest ways past it are (a) a chain of foreground calls each ≤ 120 s, or a busy
+loop with no ``sleep`` — each call still returns within 120 s, so the next prompt reaches the session;
+(b) unbinding, or binding another name — a recorded same-user act (``force: true``); (c) a wait inside
+a script the Bash string does not show; (d) backgrounding, then blocking on the output with
+TaskOutput or Monitor, and (e) a foreground Agent whose job is the wait — neither is a Bash call. The
+deny text forbids (d) by name; the tripwire for all of them is the daily wall time of coordinator
+sessions' tool calls over 60 s, read in infra's kaizen pass.
+
 ⚠️ COBRA (D-253): the cheapest bypass is indirection the Bash string does not show — a variable
 holding the verb (``$G commit``), a script file, a subprocess. Stated, not hidden: the counter is
 the brief half and the review loop's leak check (D-653); a reference-transaction hook keyed on a
@@ -55,13 +77,16 @@ seat marker is the candidate if scripted writes recur.
 
 from __future__ import annotations
 
+import importlib.util
 import json
+import math
 import os
 import re
 import shlex
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 SEAT_TYPES = frozenset({"fabrik-reviewer"})
 _OPS = frozenset({";", "&&", "||", "|", "&", "(", ")", "\n", ";;", "|&"})
@@ -118,7 +143,32 @@ def _tokens(command: str) -> list[str]:
         raise _UnparseableError(str(exc)) from exc
 
 
-_HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+# `<<WORD`: WORD is one whole shell word (bash reads `<<E-OF` as E-OF, never E); quotes and
+# backslashes in it are removed for the terminator (`<<'EOF'`, `<<\EOF`, `<<EO'F'` end at EOF)
+_HEREDOC = re.compile(
+    r"""<<(-?)[ \t]*((?:\$'(?:[^'\\]|\\.)*'|[^\s;&|()<>'"\\]|'[^']*'|"(?:[^"\\]|\\.)*"|\\.)+)"""
+)
+_DELIM_QUOTING = re.compile(r'''\$'((?:[^'\\]|\\.)*)'|\\(.)|'([^']*)'|"((?:[^"\\]|\\.)*)"''')
+
+
+def _unquote(m: re.Match) -> str:
+    if m.group(1) is not None:  # $'…' — \' and \\ are the escapes a terminator needs
+        return re.sub(r"\\(['\\\\])", r"\1", m.group(1))
+    if m.group(2) is not None:  # \x
+        return m.group(2)
+    if m.group(3) is not None:  # '…' — literal
+        return m.group(3)
+    return re.sub(r'\\([\\"$`])', r"\1", m.group(4))  # "…" — only \\ \" \$ \` escape
+
+
+_CASE_WORD = re.compile(r"(?<![\w.$/-])case(?![\w.-])")
+
+
+def _heredoc_word(word: str) -> str:
+    """The terminator a `<<WORD` waits for: WORD with its quoting removed."""
+    return _DELIM_QUOTING.sub(_unquote, word)
+
+
 _OP_ORDER = (
     "&&",
     "||",
@@ -145,17 +195,134 @@ SUBST = "__SUBST__"
 
 
 def _strip_heredocs(command: str) -> str:
-    """Drop heredoc BODIES (data written to a file), keeping the line that opens them."""
+    """Drop heredoc BODIES (data written to a file), keeping the line that opens them.
+
+    Only a `<<WORD` the shell reads as one opens a body: in shell code — top level or inside
+    `$(…)`, quoting reset there as bash resets it — never inside `'…'`, `"…"`, `$'…'`, a
+    comment, a backtick, `${…}` or an arithmetic `((…))` or `$[…]`, never a `<<<` here-string
+    or an escaped `<`. WORD is the whole shell word with its quoting removed (`<<E-OF` waits for
+    E-OF; `<<\\EOF`, `<<E'OF'` and `<<$'EOF'` for EOF), and a body ends only on bash's
+    terminator — the exact line, leading tabs stripped for `<<-` alone (W-223704c1).
+
+    The walk is trusted only when it ends where bash ends: top level, nothing left open, no body
+    pending. A walk that lost bash's place — a `case` pattern's `)`, a spelling it misreads —
+    mostly ends elsewhere, and then the command is returned whole: every line stays in the scan,
+    the safe direction. Two `case` pattern `)` can lose it and find it again with a clean end, so
+    a `case` word left outside the bodies voids a strip too (an over-scan).
+
+    Stated limits: a body is data even where bash runs it as code — an unquoted body's `$(…)`, or
+    a heredoc fed to a shell (`bash <<EOF`), W-b0aab70a; a `case` spelled across a
+    backslash-newline escapes the `case` check, W-0508ae26."""
     out: list[str] = []
-    pending: list[str] = []
-    for line in command.split("\n"):
-        if pending:
-            if line.strip("\t ") == pending[0]:
-                pending.pop(0)
+    pending: list[tuple[str, bool]] = []  # (delimiter, `<<-` strips leading tabs)
+    stack: list[list] = [["sh", 0]]  # [context, open count]; "sh" is shell code
+    i, n = 0, len(command)
+    while i < n:
+        ctx = stack[-1]
+        c = command[i]
+        if c == "\\" and ctx[0] != "'" and i + 1 < n:
+            out.append(command[i : i + 2])
+            i += 2
             continue
-        out.append(line)
-        pending.extend(m.group(2) for m in _HEREDOC.finditer(line))
-    return "\n".join(out)
+        if ctx[0] in ("'", "$'"):
+            if c == "'":
+                stack.pop()
+        elif ctx[0] == "`":
+            if c == "`":
+                stack.pop()
+        elif ctx[0] in ("((", "$["):
+            ctx[1] += {ctx[0][-1]: 1, ")" if ctx[0] == "((" else "]": -1}.get(c, 0)
+            if not ctx[1]:
+                stack.pop()
+        elif command.startswith("$(", i) and not command.startswith("$((", i):
+            stack.append(["sh", 0])
+            out.append("$(")
+            i += 2
+            continue
+        elif command.startswith("${", i):
+            stack.append(["${", 1])
+            out.append("${")
+            i += 2
+            continue
+        elif c == "`":
+            stack.append(["`", 0])
+        elif ctx[0] == '"':
+            if c == '"':
+                stack.pop()
+        elif ctx[0] == "${":
+            if c in ("'", '"'):
+                stack.append([c, 0])
+            else:
+                ctx[1] += {"{": 1, "}": -1}.get(c, 0)
+                if not ctx[1]:
+                    stack.pop()
+        elif command.startswith("$'", i):
+            stack.append(["$'", 0])
+            out.append("$'")
+            i += 2
+            continue
+        elif c in ("'", '"'):
+            stack.append([c, 0])
+        elif c == "#" and (i == 0 or command[i - 1] in " \t\n;&|()<>"):
+            j = command.find("\n", i)
+            j = n if j == -1 else j
+            out.append(command[i:j])
+            i = j
+            continue
+        elif command.startswith("((", i) or command.startswith("$((", i):
+            k = command.index("((", i) + 2
+            stack.append(["((", 2])
+            out.append(command[i:k])
+            i = k
+            continue
+        elif command.startswith("$[", i):
+            stack.append(["$[", 1])
+            out.append("$[")
+            i += 2
+            continue
+        elif c == "(":
+            ctx[1] += 1
+        elif c == ")":
+            if ctx[1]:
+                ctx[1] -= 1
+            elif len(stack) > 1:
+                stack.pop()
+        elif command.startswith("<<<", i):
+            out.append("<<<")
+            i += 3
+            continue
+        elif command.startswith("<<", i):
+            m = _HEREDOC.match(command, i)
+            if m:
+                pending.append((_heredoc_word(m.group(2)), m.group(1) == "-"))
+                out.append(m.group(0))
+                i = m.end()
+                continue
+        elif c == "\n" and pending:
+            out.append(c)
+            i += 1
+            while pending and i < n:
+                j = command.find("\n", i)
+                end = n if j == -1 else j
+                word, dash = pending[0]
+                line = command[i:end]
+                if (line.lstrip("\t") if dash else line) == word:  # bash's exact match
+                    pending.pop(0)
+                i = end + 1
+            continue
+        out.append(c)
+        i += 1
+    # a walk that does not end where bash ends — top level, nothing open, no body pending —
+    # has lost bash's place (a `case` pattern's `)`, a spelling it misreads): trust none of it
+    if pending or stack != [["sh", 0]]:
+        return command
+    stripped = "".join(out)
+    # a `case` pattern's `)` is the one `)` this walk cannot place, and two of them can take it
+    # out of bash's quoting and back again with a clean end (review round 4): wherever a `case`
+    # word is left outside the bodies, a strip is not trusted either
+    if stripped != command and _CASE_WORD.search(stripped):
+        return command
+    return stripped
 
 
 def _strip_comments(command: str) -> str:
@@ -1052,6 +1219,127 @@ def _venv_reason(words: list[str], ctx: dict, depth: int = 0) -> str:
     return _judge(act, target, ctx, "", _editables(pip_args, ctx))
 
 
+# ── the coordinator wait guard (module docstring, W-e57d2481, D-1296) ─────────────────────────────
+WAIT_TAG = "coordinator wait guard"
+WAIT_LONG_MS = 120_000  # D-1296's "long wait": the Bash tool's own default ceiling
+WAIT_LOOP_MS = 60_000  # a sleep loop may hold the turn for at most a minute
+_DEFAULT_TIMEOUT_MS = 120_000  # the Bash tool's default when tool_input carries no timeout
+_LOOP_OPEN = frozenset({"while", "until", "for", "select"})
+_LOOP_LEAD = _KEYWORDS | _LOOP_OPEN
+# the untokenisable fallback: a loop word, then its `do`, then a sleep
+_LOOP_SLEEP_RE = re.compile(r"\b(?:while|until|for|select)\b.*\bdo\b.*\bsleep\b", re.S)
+
+
+def _track_loops(raw: list[str], ctx: dict) -> None:
+    """Open/close loops from the LEADING keyword run of one raw simple command (`{ while`,
+    `then while`, `do for`, `done`); the depth is clamped at 0 so a stray `done` never raises."""
+    wait = ctx.get("wait")
+    if wait is None:
+        return
+    i = 0
+    while i < len(raw):
+        tok = raw[i]
+        if tok == "function":  # `function NAME { while …` — the name is no keyword
+            i += 2
+            continue
+        if tok not in _LOOP_LEAD:
+            break
+        if tok in _LOOP_OPEN:
+            wait["depth"] += 1
+        elif tok == "done":
+            wait["depth"] = max(0, wait["depth"] - 1)
+        i += 1
+
+
+_MS_TEXT = re.compile(r"[0-9]+")  # ASCII digits only: str.isdigit() takes "²", which int() refuses
+_MS_CAP = 1e15  # any larger value is still "over every cap"; caps an int too big for a float
+
+
+def _ms(value: object) -> float | None:
+    """A positive millisecond count from a number or a plain digit string, else None. Never raises:
+    a bool, NaN, inf, zero, a negative or a non-ASCII digit is no value at all; a number or digit
+    string past `_MS_CAP` reads as the cap, so a long string and a big int agree (both over it)."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return float(min(value, int(_MS_CAP))) if value > 0 else None
+    if isinstance(value, float):
+        return min(value, _MS_CAP) if math.isfinite(value) and value > 0 else None
+    if isinstance(value, str) and _MS_TEXT.fullmatch(value.strip()):
+        # never int() a long string: Python refuses more than 4300 digits
+        digits = value.strip().lstrip("0")
+        if not digits:
+            return None
+        return _MS_CAP if len(digits) > 15 else min(float(digits), _MS_CAP)
+    return None
+
+
+def _timeout_ms(tool_input: dict) -> float:
+    """The call's effective timeout: its own value, else BASH_DEFAULT_TIMEOUT_MS, else 120000."""
+    return (
+        _ms(tool_input.get("timeout"))
+        or _ms(os.environ.get("BASH_DEFAULT_TIMEOUT_MS", ""))
+        or float(_DEFAULT_TIMEOUT_MS)
+    )
+
+
+def _coordinator(payload: dict) -> str:
+    """This session's bound name when it is its repo's merge owner, else "" — quota_stop.py's own
+    identity helpers, loaded beside this hook by file path (never copied); every doubt is ""."""
+    try:
+        sid = payload.get("session_id")
+        if not isinstance(sid, str) or not sid:
+            return ""
+        spec = importlib.util.spec_from_file_location(
+            "_seat_guard_quota_stop", Path(__file__).resolve().parent / "quota_stop.py"
+        )
+        if spec is None or spec.loader is None:
+            return ""
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        cwd = payload.get("cwd")
+        project = mod._lane_project_dir(cwd if isinstance(cwd, str) else None)
+        if not project:
+            return ""
+        common = mod._git_common(Path(project))
+        if common is None or common.name != ".git":
+            return ""
+        name = str(mod._bound_name(sid, common) or "")
+        owner = str(mod._merge_owner(common.parent) or "").strip()
+        return name if name and owner and owner.casefold() == name.casefold() else ""
+    except Exception:  # an identity doubt never denies
+        return ""
+
+
+def _wait_reason(payload: dict, wait: dict) -> str:
+    """The deny reason for a coordinator's long foreground wait, or ""."""
+    if payload.get("agent_id"):
+        return ""
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict) or tool_input.get("run_in_background") is True:
+        return ""
+    ms = _timeout_ms(tool_input)
+    # exact: `:g` printed 120000.5 ms as "120 s, over 120 s"; a capped value says it was capped
+    secs = ("over " if ms >= _MS_CAP else "") + f"{ms / 1000:.15g} s"
+    if ms > WAIT_LONG_MS:
+        rule = f"its timeout is {secs}, over {WAIT_LONG_MS // 1000} s"
+    elif ms > WAIT_LOOP_MS and wait.get("sleep_in_loop"):
+        rule = f"it sleeps in a loop under a {secs} timeout, over {WAIT_LOOP_MS // 1000} s"
+    else:
+        return ""
+    name = _coordinator(payload)
+    if not name:
+        return ""
+    return (
+        f"{WAIT_TAG} (D-1296): this session is {name}, this repo's merge owner, and this foreground "
+        f"call can hold the turn for {secs} ({rule}) — the operator cannot reach you while it runs. "
+        "Re-run it with run_in_background: true (a short bounded poll may instead set an explicit "
+        f"timeout of at most {WAIT_LOOP_MS} ms, a plain call at most {WAIT_LONG_MS} ms), then end "
+        "the turn — do not block on its output with TaskOutput, Monitor or an Agent; the completion "
+        "notification wakes you."
+    )
+
+
 def _child(ctx: dict) -> dict:
     """``ctx`` for a child shell: it inherits this command's assignments and exports; its own
     `export` never leaks back (a fresh dict)."""
@@ -1066,6 +1354,8 @@ def _scan(command: str, ctx: dict, depth: int, seat: bool = True) -> str:
         inner, command = _extract_substitutions(command)
         cmds = _simple_commands(_split_punct(_tokens(command)))
     except _UnparseableError:
+        if ctx.get("wait") is not None and _LOOP_SLEEP_RE.search(raw_command):
+            ctx["wait"]["sleep_in_loop"] = True
         if not seat:
             return ""  # the venv check fails open
         writes = "|".join(
@@ -1091,10 +1381,13 @@ def _scan(command: str, ctx: dict, depth: int, seat: bool = True) -> str:
                 ctx["cwd"], ctx["dirs"], ctx["exported"] = scopes.pop()
             continue
         ctx["targets"], ctx["git_dir"], ctx["work_tree"], ctx["assign"] = [], False, False, {}
+        _track_loops(raw, ctx)
         words = _strip(raw, ctx)
         if not words:
             continue
         head = os.path.basename(words[0])
+        if head == "sleep" and ctx.get("wait") and ctx["wait"]["depth"] > 0:
+            ctx["wait"]["sleep_in_loop"] = True
         if head in ("cd", "pushd"):
             if head == "pushd":
                 ctx.setdefault("dirs", []).append(ctx["cwd"])
@@ -1147,7 +1440,7 @@ def decide(payload: dict) -> str:
     seat = bool(payload.get("agent_id")) and payload.get("agent_type") in SEAT_TYPES
     command = (payload.get("tool_input") or {}).get("command") or ""
     sd = payload.get("scratchpad_dir")
-    ctx = {
+    ctx: dict = {
         "cwd": str(payload.get("cwd") or os.getcwd()),
         "targets": [],
         "dirs": [],
@@ -1158,13 +1451,15 @@ def decide(payload: dict) -> str:
         "home_cwd": str(payload.get("cwd") or os.getcwd()),
         "sid": str(payload.get("session_id") or ""),
         "scratchpad": os.path.realpath(sd) if isinstance(sd, str) and sd else "",
+        # shared by reference with every child ctx (`bash -c`, substitutions): one loop count
+        "wait": {"depth": 0, "sleep_in_loop": False},
     }
     reason = _scan(command, ctx, 0, seat)
     if reason.startswith(VENV_TAG):
         return reason
     if reason:
         return f"seat guard (review seats run in the lead's shared tree): {reason}. {_SAFE}."
-    return ""
+    return _wait_reason(payload, ctx["wait"])
 
 
 _DOTENV_OFF = "export PYTHON_DOTENV_DISABLED=1"

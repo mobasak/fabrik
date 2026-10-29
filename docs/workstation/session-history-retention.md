@@ -12,7 +12,9 @@ local, the four named hub windows, never a session visible on screen), D-737 (Ph
 | Piece | Where | What it does |
 |---|---|---|
 | `session-archive.timer` | `~/.config/systemd/user/` (source: `scripts/sysadmin/systemd/`) | daily, `Persistent=true` — a run missed while the machine was off fires when the user manager next starts; linger keeps that manager up without a login |
-| `session-archive.service` | same | `ExecStartPre=-` the growth sampler (its failure never skips the backup), then the archiver, the pruner, and `rotate_session.py due --mb-only --mail` (W-f975fee0 slice 3: each repo's mailbox gets one `ack: no` mail — the hub's addressed to its coordinator — listing the agents whose transcript is past `ROTATE_ADVISE_MB`, with the rotate command for each; its `-` keeps a mail failure from failing the unit); a failed run (e.g. no network at boot) is retried every 15 min, at most 4 times in 2 h |
+| `session-archive.service` | same | `ExecStartPre=-` the growth sampler (its failure never skips the backup), then the archiver, the pruner, and `rotate_session.py due --mb-only --mail` (W-f975fee0 slice 3: each repo's mailbox gets one `ack: no` mail — the hub's addressed to its coordinator — listing the agents whose transcript is past `ROTATE_ADVISE_MB`, with the rotate command for each; its `-` keeps a mail failure from failing the unit); a failed run (e.g. no network at boot) is retried every 15 min, at most 4 starts in 19 h (the interval holds four attempts of up to 4 h 40 min — systemd re-arms the start timeout for each of the four start commands, measured on systemd 255, then five stop stages and the restart pause — so even a slow failure reaches the limit, and under 24 h so a window the nightly timer opened closes before the next night's start; one a boot catch-up or by-hand start opened can still refuse it until `reset-failed`, which the FAILED mail names), and a start command still going after `TimeoutStartSec=1h` is ended as a failure; then `session_archive_alert.py check` as `ExecStopPost=-` (W-36687f76, below), which mails a pruner refusal (exit 3) or a failed rotation mail — the two `-` failures systemd logs nothing for |
+| `session-archive-alert.service` | same | the archive unit's `OnFailure=`: with `RestartMode=direct` it starts ONCE, after the retries are spent, and runs `session_archive_alert.py failed` |
+| `scripts/sysadmin/session_archive_alert.py` | main checkout | the backup's alert (W-36687f76) — each mail goes to infra (`ack: required`) and the coordinator (`ack: no`). `failed`: the final failure, with the unit's journal tail. `check`: on a SUCCESSFUL run only, every step that did not exit 0 (read from `systemctl --user show -p ExecStartPre -p ExecStart`, which holds each step's status only while the unit runs; systemd logs nothing for a `-` step that fails) and the archiver's partial nights from its own summary line — subagent failures, `0 MAIN transcript(s) eligible`, the archive lock held, or no summary at all; a run stopped mid-archive (it still ends `success`) is mailed as STOPPED; what it cannot read, and its own crash, are mailed too. Its worst case (`CHECK_BUDGET_S`) stays under the unit's `TimeoutStopSec=5min`, so a slow check never re-runs the archiver |
 | `scripts/sysadmin/sample_transcript_growth.sh` | main checkout | one row a day into `~/.claude/state/transcript-growth.tsv` (date, MAIN bytes, files, largest) |
 | `scripts/sysadmin/transcript_size_check.py` | user-level hook (every window) | the ROTATE advisory (D-736 C.1.3): one `ROTATE:` line when a session's transcript crosses a new 100 MB step at or past `ROTATE_ADVISE_MB` (200) — at the next item boundary `rotate <agent>` to the coordinator, who types `/clear <agent>-<date>` and the informed `--force` re-bind; and the context sensor (W-f975fee0): `ROTATE-DUE` from 40% of the window, `COMPACT-DUE` from 85%, once per step; stamped per session, fail-open |
 | `scripts/sysadmin/archive_transcripts.py` | main checkout | zstd each MAIN transcript (`ARCHIVE_AFTER_DAYS`, default 0 — an open window ships a daily snapshot, compressed from a frozen copy) into `~/.claude/archive/<slug>/<session>.jsonl.zst`, append `manifest.jsonl`, `rclone copy` to the bucket, then upload the manifest; since D-1182 also every subagent transcript (`<slug>/<session-dir>/subagents/**/*.jsonl` — sidechains, workflow sidechains, workflow journals; not `.meta.json`) into `~/.claude/archive/<slug>/<rel>.zst` with its row in its OWN `manifest-subagents.jsonl` (keyed slug + `rel`, the path under the slug dir), uploaded beside the MAIN one; a sidechain that fails to archive prints `FAILED … the pruner keeps it` and the night goes on |
@@ -24,8 +26,11 @@ Install (from the main checkout, once the archiver change is merged):
 bash scripts/sysadmin/install_session_archive_timer.sh
 ```
 
-It refuses unless `loginctl show-user "$USER" -p Linger` reads `Linger=yes`, verifies both units,
-copies them and enables the timer.
+It refuses unless `loginctl show-user "$USER" -p Linger` reads `Linger=yes` and `systemd-analyze --user verify`
+prints nothing for the three units (a key in the wrong section is only a warning at rc 0), copies them — the alert
+unit first, since verify never resolves an `OnFailure=` target — and enables the timer. Claude Code's safety check
+refuses an agent this run, so the operator's one-time setup script runs it as its `archive` step, after a diff and a
+backup of the installed units (`operator-setup.md`).
 
 ## Where the copy lives
 
@@ -183,7 +188,7 @@ person — W-1783a9fe, D-1173) — and records every outcome (`ok`, `refused:<ch
 `~/.claude/state/rotations.jsonl`, with `resume_sent_at` and, for a bound row, `rebind_s` (the bind's own time minus
 the send). The re-bind wait is `REBIND_GRACE_S` (180 s, W-b72231b8 slice 2; the one late bind measured took 98 s); a
 bind later than that rows `partial:rebind`. While it waits the executor holds its lock, so another rotation asked in that
-window is refused `aborted:pending` — the coordinator asks again; nothing retries it. Every wait the script itself runs
+window is refused `aborted:pending` — the coordinator asks again; nothing retries it. The verb's exit says whether asking again can pass (W-05021a03): **75** when the abort clears by itself — the session still in its turn, a run record or seat still going, the rotation in flight, tmux slow, a pane restarting or drawn without its input box — and **1** only on positive evidence that an act comes first: a bad argument or trigger, the request directory's ownership, a dialog's numbered option on the prompt row (answer it), text in the input box (clear it or ask with `--stale-input discard`, which refuses a box over 1000 characters), two transcripts for the session, no identity binding yet (the reason names the `whoami_agent.py --as <agent> --force` to send) or one held by another window, uncommitted or unpushed work, a slash-command ending (send one prompt), or a request the path unit never claimed (`install_rotate_unit.sh --check`). Its stderr line says `(transient …)` or `(permanent …)`. A crash also exits 1, and argparse's usage error, or a run outside any repository, exits 2, so anything but 75 is read, never retried blindly. Every wait the script itself runs
 is a named constant and `REQUEST_WORST_S` (487 s) is derived from them, and `execute` claims no new request after
 `CLAIM_CUTOFF_S` (50 s), so the last rotation it starts ends inside the unit's 600 s timeout — except that the git calls
 `run_checks` makes (60 s timeout each) are not counted yet (W-b728822f). A request left unclaimed waits for the path
@@ -216,7 +221,13 @@ and one another uid owns refuses in `request` and `execute`.
 systemctl --user list-timers session-archive.timer
 systemctl --user show session-archive.service -p Result
 journalctl --user -u session-archive.service -n 50
+journalctl --user -u session-archive-alert.service -n 20   # the alert's own sends
+systemctl --user reset-failed session-archive.service      # after a FAILED mail: clears the start limit, then `start`
 ```
+
+A failed or partial night arrives as two `finding` mails in the `fabrik` mailbox: one to infra (`ack: required`),
+one to the coordinator (`ack: no`); a quiet night sends nothing. A night the timer never fired sends nothing either —
+neither `OnFailure=` nor `ExecStopPost=` runs.
 
 <!-- BEGIN related-scripts: generated by scripts/render_doc_script_links.py — do not hand-edit -->
 ## Related scripts
@@ -228,5 +239,6 @@ means updating this page in the same change. This list is generated from those h
 - `scripts/sysadmin/archive_transcripts.py`
 - `scripts/sysadmin/prune_transcripts.py`
 - `scripts/sysadmin/rotate_session.py`
+- `scripts/sysadmin/session_archive_alert.py`
 - `scripts/sysadmin/transcript_size_check.py`
 <!-- END related-scripts -->

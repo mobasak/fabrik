@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T14:19:00.652592Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-63b7c118",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M63SZ08K9CA3VFH6MVPECG90",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: w-2786800d-pg-volume-leak"
+}

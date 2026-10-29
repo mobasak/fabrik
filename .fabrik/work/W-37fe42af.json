@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T10:53:18.380398Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-37fe42af",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5YPFWJJ96RP7HMNC6ZYVFFM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: fleet-ssh-decode-siblings"
+}

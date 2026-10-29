@@ -616,24 +616,23 @@ TEMPLATE_PATH = PROJECT_ROOT / "templates" / "docs" / "MODULE_REFERENCE_TEMPLATE
 # clean zero while the entry would fire everywhere. Measured both ways 2026-09-17: `PORTS.md` has the
 # marker in 47 of 47 repos (proxy says "safe to arm") and fires "Stale doc (93 days old)" in 47 of 47
 # (the real check), because the scaffolder seeded one date fleet-wide. That is ONE seeding artifact
-# wearing 47 hats, not 47 defects, so it is NOT in this list. The three added below were measured
-# through the real check: FUNNEL 0/47, AUTOMATION 0/47, API_REFERENCE 1/47 — and that single hit is a
-# TRUE POSITIVE kept deliberately, which is what the gate is for. The remaining candidates need their
-# markers added before they can be watched; measurements and destination are in
-# docs/STRATEGIC_BACKLOG.md. Re-measure before adding any entry; the numbers move.
-# (site-provisioner, 01M2NJGZGV20WP: 7 watched of 26 project-owned docs, and every defect their
-# two-command sweep found that day was in an unwatched one.)
+# wearing 47 hats, not 47 defects, so it is NOT in this list. API_REFERENCE was added through the
+# real check (1/47 — a TRUE POSITIVE kept deliberately, which is what the gate is for). The remaining
+# candidates need their markers added before they can be watched. Re-measure before adding any
+# entry; the numbers move.
+# An entry must be a doc the project can edit (not in fabrik_synced_manifest.review_readonly_paths(),
+# so AGENTS.md is out) and may keep where it is (check_structure.py allows its path, so docs/INDEX.md
+# is out, and so are docs/FUNNEL.md and docs/AUTOMATION.md, one repo's own docs — D-1273);
+# tests/test_docs_updater.py grades both. D-1272 records why the list stays hand-picked
+# rather than every project doc by default (site-provisioner, 01M2NJGZGV20WP): a date header
+# cannot see content, and the git-date signal lives in fleet_doc_audit.py and /fabrik-release.
 MANUAL_DOCS = [
     "README.md",
-    "AGENTS.md",
-    "docs/INDEX.md",
     "docs/QUICKSTART.md",
     "docs/CONFIGURATION.md",
     "docs/TROUBLESHOOTING.md",
     "docs/BUSINESS_MODEL.md",
     "docs/API_REFERENCE.md",
-    "docs/FUNNEL.md",
-    "docs/AUTOMATION.md",
 ]
 
 # Placeholder markers that indicate incomplete stubs
@@ -1368,6 +1367,14 @@ _BACKLOG_BULLET_RE = re.compile(r"^(\s*[-*]\s+(?:\[[ xX]\]\s+)?)(.*)$")
 # A GFM separator row: every non-blank char is `-`, `:`, or `|` (Tag column, header
 # rows, and this row itself are all distinguished from ordinary data rows elsewhere).
 _BACKLOG_SEPARATOR_RE = re.compile(r"^\|?[\s:|-]*-[\s:|-]*\|?$")
+# W-e89d7983: an Item cell that is ONE bracketed phrase — `[Feature/Refactor]`,
+# `**[System Overhaul]**` — is the scaffold template's fill-in-the-blank, never a work
+# item (both template generations ship such rows as live table rows). Emphasis must be
+# balanced: `(?(1)\1)` repeats the opening run, since a plain `\1` never matches when
+# the optional group did not. An inline link `[a](x)`, a full reference link `[a][b]`,
+# `[[wiki]]` or any text outside the brackets is not a placeholder; a lone `[Title]` is,
+# whatever it says (0 real items are written that way across the fleet's backlogs).
+_BACKLOG_PLACEHOLDER_ITEM_RE = re.compile(r"^(\*{1,3}|_{1,3})?\[[^\]\n]*\](?(1)\1)$")
 _BACKLOG_TAG_HEADER = "Tag"
 # D5: the hub's own "Now" table names its owner cell `Owner`, never `Tag` (its
 # header row starts `| Effort | Owner | Item | Why Priority | ...` — grep
@@ -1444,8 +1451,9 @@ def classify_backlog_row(line: str, header_cells: list[str] | None) -> str:
     cell — tag prefixes that cell), or `"skip"` (every other table and every bullet,
     W-77e00147; already
     tagged AT ITS OWN POSITION — never anywhere else in the row, r2 DEFECT-1 — the
-    legend table — header cell 0 == `Tag`, the header/separator row itself, or a
-    struck-through Item). `header_cells` is the enclosing table's already-split
+    legend table — header cell 0 == `Tag`, the header/separator row itself, a
+    struck-through Item, or an Item that is only a bracketed template placeholder,
+    W-e89d7983). `header_cells` is the enclosing table's already-split
     header — supplied by the CALLER, which alone tracks fences and table
     boundaries; this function never infers table state from `line` alone, so it
     stays a pure per-line classifier callable directly in tests without
@@ -1467,6 +1475,12 @@ def classify_backlog_row(line: str, header_cells: list[str] | None) -> str:
         struck = [cells[item_idx]] if item_idx is not None and item_idx < len(cells) else cells
         if any(c.strip().startswith("~~") for c in struck):
             return "skip"
+        if (
+            item_idx is not None
+            and item_idx < len(cells)
+            and _BACKLOG_PLACEHOLDER_ITEM_RE.match(cells[item_idx].strip())
+        ):
+            return "skip"  # a template placeholder row, not a work item (W-e89d7983)
         tag_idx = _backlog_tag_header_index(names)
         if tag_idx is not None:
             if (

@@ -287,7 +287,7 @@ Boot every payments connection — ingest and the fulfilment worker — with `ve
 
 Every project with `shape.needs_database` carries two DSNs — `DATABASE_URL` in its `.env` and `DATABASE_URL_OWNER` in its `.env.owner` (root 0600, loaded only by the services that declare it: the audit-jobs companion, a `migrate` service — the owner split, D-754) — both injected by the postgres registrar at `fabrik apply` and neither with a default in code (a missing value fails loudly at boot):
 
-- `DATABASE_URL_OWNER` — the database OWNER. Only schema work uses it: `db/schema.sql` (whose header reads `DATABASE_URL_OWNER` out of `.env.owner` with `sed`, strips the quotes, and runs `u=$(pgurl "$v") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql` — `pgurl` is the one-line shell function from the project's TROUBLESHOOTING § Debug Commands, defined inside the root shell by the header's `sed` half — under one `sudo sh -c` that never sources the env files as shell code), migrations, runtime DDL, and the scheduled audit-log retention and verification jobs. It is the rollback DSN, so it is never removed.
+- `DATABASE_URL_OWNER` — the database OWNER. Only schema work uses it: `db/schema.sql` (whose header reads `DATABASE_URL_OWNER` out of `.env.owner` with `sed`, strips the double quotes — an owner DSN holding a `$` is written single-quoted or `\$`-escaped (`src/fabrik/env_file.py`), which `pgurl` then refuses loudly — and runs `u=$(pgurl "$v") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql` — `pgurl` is the one-line shell function from the project's TROUBLESHOOTING § Debug Commands, defined inside the root shell by the header's `sed` half — under one `sudo sh -c` that never sources the env files as shell code), migrations, runtime DDL, and the scheduled audit-log retention and verification jobs. It is the rollback DSN, so it is never removed.
 - `DATABASE_URL` — what the app connects with. On a fresh create both hold the owner DSN; once the spec's `shape.database_url_app_role: true` cuts over, `DATABASE_URL` names the non-owner `<db>_app` role (the same DSN with only user and password swapped), which cannot `CREATE`, owns no table, and holds only `INSERT, SELECT` on `audit_log`.
 
 `shape.database_url_app_role` (boolean, default `false`, requires `needs_database`) is the per-project switch and must be a YAML boolean (a string such as `"false"` or a number fails validation, as the registrar refuses it). Every scaffolded database spec (`--db`, or a type whose defaults need a database) emits it `true` together with `depends.postgres: <id with hyphens as underscores>` — the project's OWN database, the name the registrar derives — so a new project is born on the app role and never shares a database the cutover would refuse; an existing project flips it after `fabrik app-role-check` passes, and unsetting it rolls back. The runbook and the converge table are in [`docs/operations/fabrik-lifecycle.md`](operations/fabrik-lifecycle.md) § App-role cutover and rollback.
@@ -1157,8 +1157,8 @@ in `docs/reference/external-services-registry.md`.
 
 ## Prepaid API credits (D-1196)
 
-Three prepaid $200 Anthropic API credits are spent by `scripts/api_credit.py` on capped, read-only `claude -p --bare`
-runs ([workstation/api-credit.md](workstation/api-credit.md)). The script reads the keys from the main checkout's
+Three prepaid $200 Anthropic API credits are spent by `scripts/api_credit.py` on capped, read-only `claude -p --safe-mode`
+runs, each behind a keyless pre-flight ([workstation/api-credit.md](workstation/api-credit.md)). The script reads the keys from the main checkout's
 `.env`, never prints them, and hands one key to each run as that run's own `ANTHROPIC_API_KEY`.
 
 | Var | Default | Effect |
@@ -1167,6 +1167,8 @@ runs ([workstation/api-credit.md](workstation/api-credit.md)). The script reads 
 | `ANTHROPIC_API_KEY_SARP` | empty | the Sarp credit's key; `--key sarp` |
 | `ANTHROPIC_API_KEY_OZGURBASAK` | empty | the Ozgur Basak credit's key; `--key ozgurbasak` |
 | `API_CREDIT_ENV_FILE` | the main checkout's `.env` | where `api_credit.py` reads the three keys (tests point it at a fixture) |
+| `API_CREDIT_MANAGED_DIR` | `/etc/claude-code` | the managed-settings directory whose existence refuses every run (tests point it at a fixture) |
+| `API_CREDIT_PREFLIGHT_TIMEOUT` | `60` | seconds the keyless pre-flight may take before the run is refused (tests shorten it) |
 
 The plain `ANTHROPIC_API_KEY` stays empty on purpose, so no tool bills the API by accident. The ledger lives under
 `ROTATE_STATE_DIR` (default `~/.claude/state`) as `api-credit.jsonl`.

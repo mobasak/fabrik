@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T11:15:34.447087Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-ee67bd9f",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-10-25-plan-1-lean-command-corpus/2026-10-25-plan-1-lean-command-corpus.md",
+    "spec": ""
+  },
+  "next": "fold into T46 (integration close-out); publish as a readable page when the last unit merges",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "operator ask; part of the lean P0's close-out (T46); the baseline is a pinned tag so the diff is mechanical",
+  "status": "open",
+  "title": "Lean final report for the operator (operator 2026-10-26: 'when the command lean work finished, i want to see a full report what changed against yesterday morning state of the commands (before command leaning work start) against the finished work'): every command and shared file, before (tag lean-baseline-2026-10-25 = 7ed30f4bc) vs finished, own-text words and rendered words, rules kept/moved/vanished with ledger proof, floors named, and what each command now does differently"
+}

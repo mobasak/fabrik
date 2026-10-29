@@ -203,7 +203,7 @@ def test_a_garbled_line_is_handled_inside_the_cause(monkeypatch, tmp_path):
 # W-05d3af0f: at a fleet AMBER band the contract says "finish what you started, start nothing
 # heavy", so the cause stops ordering NEW work and keeps enforcing what finishes or routes work.
 _STARTS = ("claim", "owned", "feedback", "self", "doorbell", "merge", "triage")
-_FINISHES = ("continue", "release", "commit-items", "mail")
+_FINISHES = ("continue", "release", "commit-items", "mail", "pane-waiting")
 
 
 @pytest.mark.parametrize("action", _STARTS)

@@ -1,0 +1,26 @@
+{
+  "block_digest": "6443d57cc2e6ee7d189e90dac7f4f7b2323423d0c882b5b18448207412d5663c",
+  "blocked_by": [],
+  "created": "2026-10-27T01:26:55.461564Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-b4515562",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "44596d304741553ac67cef15b971ccb3748639b3c1005c38d9a79559220a49e8"
+  ],
+  "next": "",
+  "note": "operator 2026-10-27: 'you can use api credits ro cloud credtis, i have told you multiple times we need to consume them asap. if they are not available, use our max account quota too. finish them.'",
+  "owner": "",
+  "priority": 2,
+  "question": "May kaizen's 11 last-round lean fixes (t21, t26, t33, t34, t38, t39, t23, t24, t28, t29, t36) run on the prepaid API keys, at roughly $10–15 in total?",
+  "status": "done",
+  "title": "May kaizen's 11 last-round lean fixes (t21, t26, t33, t34, t38, t39, t23, t24, t28, t29, t36) run on the prepaid API keys, at roughly $10–15 in total?"
+}

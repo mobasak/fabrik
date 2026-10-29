@@ -5,7 +5,7 @@
   "created": "2026-10-22T06:58:53.891222Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "dda6149fcec532583c594abd05d3ba52056f653c",
   "id": "W-a89240c2",
   "impact": "low",
   "kind": "task",
@@ -20,6 +20,6 @@
   "owner": "intel",
   "priority": 3,
   "score_reason": "LOW until measured: a pilot on one builder for one day; the expected gain is small because our burn is prefix cache reads, not code search",
-  "status": "open",
+  "status": "done",
   "title": "Evaluate bgts-context-engine (github.com/bgts-ai-org/bgts-context-engine, MIT, 162 stars): a deterministic code-graph MCP server (tree-sitter + Postgres 16 with AGE and pgvector, no API key needed, Claude Code init with a UserPromptSubmit hook) claiming 82% fewer tokens / 89% fewer tool calls on 600 tasks — self-reported, harness unpublished, measured on Cursor CLI and OpenCode, not Claude Code, with a precision drop to 11%. Our measured burn is 99% cache reads of the prompt prefix, and code search (Read/Grep/Glob) is under 2% of our tool calls, so the expected gain here is small; pilot only after the prefix measurement, on one builder for one day, measuring tokens per task before and after"
 }

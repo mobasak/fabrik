@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T21:24:28.833417Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-d7f4a5a4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M61R9CZ03EARXVAHHBYZ7DNV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: blocked",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: fleet-kaizen-w44"
+}

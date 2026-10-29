@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T16:22:13.279782Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-43c1a36a",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make the kept_for_debug branch require rid, drop the xfail marker",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "vultr_drill.drill reports kept_for_debug when create_instance failed and no resource exists (src/fabrik/orchestrator/vultr_drill.py:550 keep ignores rid, :561 sets the check). Guarded by strict xfail tests/test_cov_orchestrator_vultr_drill.py::test_drill_create_failure_with_keep_flag_keeps_nothing"
+}

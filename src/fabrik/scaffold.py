@@ -162,6 +162,45 @@ RESERVED_NAMES = frozenset(
 # and ``_write_server_lint_config`` excludes these names as vendored — its own code would go unlinted.
 VENDORED_MODULE_NAMES = frozenset({"fastapi_user_auth", "audit_log"})
 
+# Top-level import names of every library a scaffolded Python project pins in its requirements files
+# (plus alembic/celery). A project whose package bears one of these names would shadow the library —
+# ruff I001 fails and the import breaks (W-a352701a). A static list on purpose: an importlib lookup would
+# depend on what the local environment has installed. tests/test_scaffold_project_name_shadow.py reads
+# every pinned requirement in this file and in templates/**/requirements*.txt and fails when one is
+# missing here (Pillow excepted: it imports as `PIL`, which no lowercase project name can shadow).
+SHADOWABLE_LIBRARY_NAMES = frozenset(
+    {
+        "alembic",
+        "argon2",
+        "asyncpg",
+        "boto3",
+        "celery",
+        "dotenv",
+        "fastapi",
+        "httpx",
+        "jwt",
+        "packaging",
+        "pdf2image",
+        "prometheus_client",
+        "psycopg",
+        "pydantic",
+        "pydantic_settings",
+        "pydub",
+        "pypdf",
+        "pytesseract",
+        "pytest",
+        "pytest_asyncio",
+        "pytest_timeout",
+        "redis",
+        "sentry_sdk",
+        "sqlalchemy",
+        "structlog",
+        "supabase",
+        "uuid_utils",
+        "uvicorn",
+    }
+)
+
 SCAFFOLD_TYPES = frozenset(
     {
         "python-api",
@@ -788,6 +827,11 @@ def _validate_project_name(name: str) -> None:
         raise ValueError(
             f"Reserved project name: '{name}' — its package would shadow the vendored "
             f"'{_get_package_name(name)}' module (and the lint config would exclude it as vendored)"
+        )
+    if _get_package_name(name) in SHADOWABLE_LIBRARY_NAMES:
+        raise ValueError(
+            f"Reserved project name: '{name}' — its package would shadow the '{_get_package_name(name)}' "
+            "library the scaffolded server imports"
         )
     if len(name) > 50:
         raise ValueError(f"Project name too long: {len(name)} chars (max 50)")
@@ -6727,6 +6771,9 @@ export default defineConfig({
             "@axe-core/playwright": "^4.10.1",
             "@tailwindcss/vite": "^4.3.2",
             "tailwindcss": "^4.3.2",
+            # D-1322: eslint and the plugins under the lint config float on purpose — no lockfile,
+            # no blanket overrides. Red lint on an unchanged template: fix the template first; a
+            # one-plugin override only for a broken plugin release, with a lift condition.
             "eslint": "^9.39.2",
             # 7.x is closed at 7.7.3, the version this scaffold lints clean on (W-70d9c609)
             "@antfu/eslint-config": "~7.7.3",
@@ -8926,6 +8973,142 @@ def _configure_git_repo(project_dir: Path) -> None:
             return  # no git, no repo, unwritable — never fail a scaffold over config
 
 
+COORDINATOR_NAME = "coordinator"  # always fits NAME_RULE [a-z0-9-]{1,32}; "<name>-coordinator" overflows past 20 chars
+_COORDINATOR_CHARTER = Path("docs") / "agents" / "COORDINATOR_CHARTER_TEMPLATE.md"
+
+
+def _hub_file(rel: str) -> Path | None:
+    """A hub asset by repo-relative path: FABRIK_ROOT first, then the module-relative root (the
+    `_load_doc_registry` fallback, so a test that mocks FABRIK_ROOT still finds the real file)."""
+    for base in (FABRIK_ROOT, Path(__file__).resolve().parents[2]):
+        if (base / rel).is_file():
+            return base / rel
+    return None
+
+
+def _work_py() -> Path | None:
+    return _hub_file("scripts/work.py")
+
+
+def _emit_coordinator_model(project_dir: Path, name: str, today: str) -> None:
+    """Make a new repo coordinator-ready (W-a02d1c86; operator 2026-10-28: "i want these mechanism for all
+    repos not only fabrik."): a MERGE OWNER row naming COORDINATOR_NAME above D-000, the work store made by the
+    hub's real `work.py init --distributor`, its coordinator keys (the rollout runbook's phase 1 step 1), and
+    the coordinator charter. Builders are the hub spawn verb's (W-b9ad80ae), never emitted here.
+
+    Fail direction: all or nothing, and never a raised error. Every input is checked and the store is made
+    FIRST; the ledger row, the charter and the launch line are written only once the store holds the
+    coordinator keys. Any failure prints one WARNING naming its cause, removes a store this call created, and
+    leaves the repo a pre-coordinator scaffold (an outage, never a wrong answer). The distributor is passed
+    explicitly because work.py derives it from a hub-absolute decisions.py and writes "" at rc 0 off-hub.
+    COBRA (D-253): the cheapest way to pass the grader is a WARNING printed beside a half-written repo; the
+    failure tests assert the ledger, the charter and the store are all untouched, and the success test
+    byte-compares the config to work.py's own writer."""
+
+    def warn(why: str) -> None:
+        # stderr, like the launch line below: a caller that scaffolds a probe and prints JSON on stdout
+        # (scripts/enforcement/check_pack_reachability.py) must not get operator text inside it
+        print(f"WARNING: coordinator model not emitted: {why}", file=sys.stderr)
+
+    ledger = project_dir / "docs" / "DECISIONS.md"
+    store = project_dir / ".fabrik" / "work"
+    charter = project_dir / "docs" / "reference" / "agents" / f"{COORDINATOR_NAME}.md"
+    # what this call may create, outermost first, so a failure removes exactly what it made
+    created = [
+        p for p in (store.parent, store, charter.parent.parent, charter.parent) if not p.exists()
+    ]
+    charter_existed = charter.exists()
+    text: str | None = None
+    ledger_written = False
+    try:
+        if not ledger.is_file():
+            return warn("docs/DECISIONS.md was not seeded, so no MERGE OWNER row")
+        text = ledger.read_text(encoding="utf-8")
+        if text.count("| D-000 |") != 1:
+            return warn("docs/DECISIONS.md does not hold exactly one D-000 row to seed above")
+        template = _hub_file(str(Path("templates") / "scaffold" / _COORDINATOR_CHARTER))
+        if template is None:
+            return warn(f"templates/scaffold/{_COORDINATOR_CHARTER} was not found")
+        charter_text = (
+            template.read_text(encoding="utf-8")
+            .replace("[Project Dir]", str(project_dir))
+            .replace("[Project Name]", name)
+        )
+        work_py = _work_py()
+        if work_py is None:
+            return warn("the hub's scripts/work.py was not found")
+
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(work_py),
+                "--repo",
+                str(project_dir),
+                "init",
+                "--distributor",
+                COORDINATOR_NAME,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if proc.returncode != 0:
+            raise _CoordinatorEmitError(
+                f"work.py init exited {proc.returncode}: {(proc.stderr or proc.stdout).strip()[-300:]}"
+            )
+        cfg_path = store / "config.json"
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        if not isinstance(cfg, dict) or cfg.get("distributor") != COORDINATOR_NAME:
+            got = cfg.get("distributor") if isinstance(cfg, dict) else cfg
+            raise _CoordinatorEmitError(f"work.py init recorded distributor {got!r}")
+        cfg.update(coordinator_mode=True, queue_floor=1, autonomy=True, feedback_owner=None)
+        # work.py's own _dump shape, so its next write is no churn
+        cfg_path.write_text(
+            json.dumps(cfg, indent=2, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+
+        row = (
+            f"| D-001 | {today} | fabrik scaffold | MERGE OWNER: {COORDINATOR_NAME} — the coordinator works alone "
+            f"in the main checkout and keeps both roles while the repo has no builders; builders, spawned later, "
+            f"work in `.claude/worktrees/<name>`. Work store born with `coordinator_mode`, `queue_floor` 1, "
+            f"`autonomy` and no feedback owner. Reversible: a new row moves the merge owner. | the operator's "
+            f'2026-10-28 order "i want these mechanism for all repos not only fabrik." (hub '
+            f"docs/reference/operator-agent-requirements.md) | `docs/reference/agents/{COORDINATOR_NAME}.md`; "
+            f"`.fabrik/work/config.json` |\n"
+        )
+        ledger_written = (
+            True  # set first: a write that fails part-way still needs the original back
+        )
+        ledger.write_text(text.replace("| D-000 |", row + "| D-000 |", 1), encoding="utf-8")
+        charter.parent.mkdir(parents=True, exist_ok=True)
+        charter.write_text(charter_text, encoding="utf-8")
+    except (
+        _CoordinatorEmitError,
+        OSError,
+        UnicodeError,
+        ValueError,
+        RecursionError,  # json.loads on a deeply nested config
+        subprocess.SubprocessError,
+    ) as exc:
+        if ledger_written and text is not None:
+            with contextlib.suppress(OSError):
+                ledger.write_text(text, encoding="utf-8")
+        if not charter_existed:
+            with contextlib.suppress(OSError):
+                charter.unlink()
+        for path in reversed(created):  # innermost first
+            shutil.rmtree(path, ignore_errors=True)
+        return warn(str(exc) or type(exc).__name__)
+    print(
+        f"Coordinator: open it as `CLAUDE_AGENT={COORDINATOR_NAME} claude -n {name}-coordinator` in {project_dir}",
+        file=sys.stderr,
+    )
+
+
+class _CoordinatorEmitError(Exception):
+    """A coordinator-model step failed in a way worth naming in the WARNING."""
+
+
 def _ensure_dockerignore(project_dir: Path) -> Path | None:
     """Every project that emits a Dockerfile gets a ``.dockerignore`` at the BUILD CONTEXT root.
 
@@ -9090,6 +9273,9 @@ def _create_project(
     # Every Dockerfile-bearing project carries a .dockerignore at the build context root —
     # emitted here, once, so a new scaffold type cannot forget it (see _ensure_dockerignore).
     _ensure_dockerignore(project_dir)
+
+    # Born coordinator-ready: merge-owner row, work store, coordinator charter — in the initial commit.
+    _emit_coordinator_model(project_dir, name, today)
 
     # Final commit after all files (shared + type-specific) are in place so the
     # initial snapshot is complete and clean.

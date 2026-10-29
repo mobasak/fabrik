@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T20:32:54.815374Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-86c9cc9c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5QRNE25MVFWBQ6Y20BY38BY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: w-cff56c52-quota-lane-rebind"
+}

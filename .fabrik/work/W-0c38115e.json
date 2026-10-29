@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T16:25:26.626594Z",
+  "creator": "kaizen",
+  "evidence": "f26641416591a4c59d3705b7ccf6fe858771bc27",
+  "id": "W-0c38115e",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1255",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra-3: in the canonical loader, let a clause labelled provenance owe no carrier when its whole content matches id tokens only (D-\\d+, W-hex, ISO date, 7+-hex SHA, § pointer, separators), outside any ban span and with no ban/MUST/only word; drop those tokens from that clause's anchor set; refuse the label otherwise; print the provenance count in the LEDGER line; a red test for each refusal (the row is on origin/kaizen-lean-u01 at 0c70b5366)",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "done",
+  "title": "Loader: accept the D-1255 'provenance' clause label in commands/command_rules.py (lean program W-96f36043)"
+}

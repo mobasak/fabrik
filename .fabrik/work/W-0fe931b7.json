@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T05:26:53.993706Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-0fe931b7",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: blocks agents (nine P1s unclaimable, fleet's claim refused twice); LOW effort: one work.py path",
+  "status": "open",
+  "title": "9 open P1 quick wins (high impact / low effort) were held --blocked-by the in-flight major W-ab566484, which the one-major rule applies to majors only (coordinator found 2026-10-29: W-0f854d39 W-19b57b9a W-76d3448d W-a86563c9 W-b36e2a4a W-c77f91c6 W-cd8b8ead W-e9588939 W-f1412a11). Find what set those holds (triage --apply? a re-score that kept a stale block?) and make a re-score to non-major clear the major hold"
+}

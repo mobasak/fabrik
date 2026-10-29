@@ -213,6 +213,160 @@ class TestSensitiveFieldRedaction:
             assert not portability._key_is_sensitive(k), f"false-positive: {k}"
 
 
+# Built at runtime so the repo's detect-private-key hook never sees the armour
+# spellings it blocks (fixed, exact-case header strings, single-spaced).
+_PK = "PRIVATE" + " KEY"
+_PEM_BODY = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7"
+
+
+class TestPrivateKeyRedaction:
+    """W-fc5aee9a: invariant 3 (NO private keys) holds for an armoured key under any name."""
+
+    def test_redactor_removes_pem_private_key_under_any_key(self):
+        pem = f"-----BEGIN {_PK}-----\n{_PEM_BODY}\n-----END {_PK}-----\n"
+        sample = {
+            "identity_providers": {
+                "oidc": {"jwks": [{"key_id": "main", "algorithm": "RS256", "material": pem}]}
+            }
+        }
+        out = portability._redact_sensitive_fields(sample)
+        jwk = out["identity_providers"]["oidc"]["jwks"][0]
+        assert jwk["material"] == "REDACTED"
+        assert jwk["key_id"] == "main"
+        assert jwk["algorithm"] == "RS256"
+        assert _PEM_BODY not in json.dumps(out)
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            f"-----BEGIN {_PK}-----\nX\n-----END {_PK}-----",
+            f"-----BEGIN ENCRYPTED {_PK}-----\nX",
+            f"-----BEGIN RSA {_PK}-----\nX",
+            f"-----BEGIN EC {_PK}-----\nX",
+            f"-----BEGIN DSA {_PK}-----\nX",
+            f"-----BEGIN OPENSSH {_PK}-----\nX",
+            f"-----BEGIN PGP {_PK} BLOCK-----\nX",
+            f"---- BEGIN SSH2 ENCRYPTED {_PK} ----\nX",
+            f"----- BEGIN {_PK} -----\nX",
+            "-----BEGIN  RSA  PRIVATE  KEY-----\nX",
+            "-----BEGIN\tPRIVATE\tKEY-----\nX",
+            "-----BEGIN RSA PRIVATE\nKEY-----\nX",
+            "-----begin private key-----\nx",
+            f"X\n-----END {_PK}-----",
+            f"prefix text -----BEGIN {_PK}----- X",
+            f"-----BEGIN {_PK}-----\nX".encode(),
+            f"-----BEGIN X9.42 DH {_PK}-----\nX",
+            "-----BEGIN\xa0PRIVATE\xa0KEY-----\nX",
+        ],
+    )
+    def test_redactor_pem_spellings(self, value):
+        out = portability._redact_sensitive_fields({"blob": value, "list": ["ok", value]})
+        assert out == {"blob": "REDACTED", "list": ["ok", "REDACTED"]}
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "-----BEGIN CERTIFICATE-----\nX\n-----END CERTIFICATE-----",
+            "-----BEGIN PUBLIC KEY-----\nX\n-----END PUBLIC KEY-----",
+            "-----BEGIN RSA PUBLIC KEY-----\nX",
+            "https://auth.example.com/.well-known/jwks.json",
+            "backend private key rotation runs weekly",
+            "Begin by uploading your private key",
+        ],
+    )
+    def test_redactor_keeps_public_pem_and_prose(self, value):
+        assert portability._redact_sensitive_fields({"blob": value}) == {"blob": value}
+
+    def test_pem_search_is_linear_on_long_values(self):
+        import time
+
+        # The unbounded label loop took ~5 s on the first value; bounded it is milliseconds.
+        for value in (
+            "BEGIN " * 8_000,
+            "-----END PRIVATE " * 8_000,
+            "----- BEGIN " + "a " * 50_000,
+            "-" * 20_000,  # an open-ended dash prefix is retried at every dash (~5 s)
+        ):
+            start = time.perf_counter()
+            portability._redact_sensitive_fields({"blob": value})
+            assert time.perf_counter() - start < 1.0
+
+    def test_private_key_as_mapping_key_is_redacted(self):
+        import yaml
+
+        pem = f"-----BEGIN {_PK}-----\n{_PEM_BODY}\n-----END {_PK}-----\n"
+        for key in (pem, pem.encode()):
+            out = portability._redact_sensitive_fields({"a": {key: "x", "port": 1}})
+            assert out == {"a": {"REDACTED": "REDACTED", "port": 1}}
+            assert _PEM_BODY not in yaml.safe_dump(out)
+
+    @pytest.mark.parametrize(
+        ("doc", "expected"),
+        [
+            (f"a: !!set {{'-----BEGIN {_PK}-----': null}}\n", "REDACTED"),
+            ("a: !!omap [{jwt_secret: hunter2}]\n", ["REDACTED"]),  # a list of (k, v) tuples
+            (f"a: !!pairs [{{m: '-----BEGIN {_PK}-----'}}]\n", ["REDACTED"]),
+        ],
+    )
+    def test_redactor_unknown_containers_fail_closed(self, doc, expected):
+        import yaml
+
+        out = portability._redact_sensitive_fields(yaml.safe_load(doc))
+        assert out == {"a": expected}
+
+    def test_key_is_sensitive_bare_key(self):
+        sample = {
+            "a": {"key": f"-----BEGIN {_PK}-----\n{_PEM_BODY}"},
+            "b": {"key": {"kty": "RSA", "d": "c2VjcmV0"}},
+            "c": {"key": _PEM_BODY},
+        }
+        out = portability._redact_sensitive_fields(sample)
+        assert out == {"a": {"key": "REDACTED"}, "b": {"key": "REDACTED"}, "c": {"key": "REDACTED"}}
+        assert portability._key_is_sensitive("key")
+        assert portability._key_is_sensitive("KEY")
+        for k in ("keyring", "key_id", "monkey"):
+            assert not portability._key_is_sensitive(k), f"false-positive: {k}"
+
+    def test_redactor_backrest_priv_keys(self):
+        sample = {
+            "multihost": {
+                "identity": {"keyid": "k1", "ed25519priv": "QUJD"},
+                "knownHosts": [{"instanceId": "vps2", "keyid": "k2"}],
+            },
+            "sync": {"privkey": True, "private_key": "x", "peer": "vps2"},
+        }
+        out = portability._redact_sensitive_fields(sample)
+        assert out["multihost"]["identity"] == {"keyid": "k1", "ed25519priv": "REDACTED"}
+        assert out["multihost"]["knownHosts"] == sample["multihost"]["knownHosts"]
+        assert out["sync"] == {"privkey": "REDACTED", "private_key": "REDACTED", "peer": "vps2"}
+        for k in ("privacy_policy", "privileged"):
+            assert not portability._key_is_sensitive(k), f"false-positive: {k}"
+
+    @pytest.mark.parametrize(
+        "doc",
+        ["a:\n  1: x\n", "a:\n  yes: x\n", "a:\n  null: x\n", "a:\n  !!binary aGk=: x\n"],
+    )
+    def test_redactor_non_string_keys(self, doc, caplog):
+        import yaml
+
+        parsed = yaml.safe_load(doc)
+        (orig_key,) = parsed["a"]
+        assert not isinstance(orig_key, str)
+        with caplog.at_level("WARNING", logger="fabrik.portability"):
+            out = portability._redact_sensitive_fields(parsed)
+        (new_key,) = out["a"]
+        assert type(new_key) is type(orig_key)
+        assert out["a"][new_key] == "REDACTED"
+        assert "non-string" in caplog.text
+
+    def test_collect_authelia_keeps_section_with_non_string_key(self, monkeypatch):
+        raw = "server:\n  port: 9091\nrules:\n  1: hunter2\n"
+        monkeypatch.setattr(portability, "_ssh_cat", lambda path: raw)
+        out = portability._collect_authelia()["authelia/configuration.yml"]
+        assert "9091" in out
+        assert "hunter2" not in out
+
+
 class TestCollectAuthelia:
     def test_live_bind_mount_path_probed_first_and_read(self, monkeypatch):
         live = "/opt/authelia/config/configuration.yml"
@@ -228,6 +382,307 @@ class TestCollectAuthelia:
         assert out["authelia/configuration.yml"]
         assert "hunter2" not in out["authelia/configuration.yml"]
         assert "9091" in out["authelia/configuration.yml"]
+
+
+_AM_YML = """global:
+  resolve_timeout: 5m
+  smtp_auth_password: LEAK_AM1
+  slack_api_url: https://hooks.slack.com/services/T0/B0/LEAK_AM2
+time_intervals:
+- name: offhours
+  time_intervals:
+  - times:
+    - start_time: 17:00
+      end_time: 24:00
+receivers:
+- name: pd
+  pagerduty_configs:
+  - routing_key: LEAK_AM3
+    service_key: LEAK_AM4
+- name: po
+  pushover_configs:
+  - user_key: LEAK_AM5
+    token: LEAK_AM6
+- name: mail
+  email_configs:
+  - to: ops@example.com
+    headers:
+      X-Auth: LEAK_AM7
+"""
+
+_PROM_YML = """global:
+  scrape_interval: 15s
+remote_write:
+- url: https://user:LEAK_P1@remote.example/api/v1/write
+  headers:
+    Authorization: Bearer LEAK_P2
+remote_read:
+- url: https://remote.example/read
+  headers:
+    X-Scope-Token: LEAK_P3
+scrape_configs:
+- job_name: node
+  basic_auth:
+    username: u
+    password: LEAK_P4
+  proxy_connect_header:
+    Proxy-Authorization: [LEAK_P5]
+  oauth2:
+    client_id: c
+    endpoint_params:
+      client_assertion: LEAK_P6
+  static_configs:
+  - targets: ['node-exporter:9100']
+"""
+
+
+class TestMonitoringRedaction:
+    """W-64cf1856: the VPS monitoring configs and Backrest hooks ship redacted (invariant 1)."""
+
+    @staticmethod
+    def _remote(monkeypatch, files):
+        def fake_cat(path):
+            for name, text in files.items():
+                if path.endswith(name):
+                    return text
+            return None
+
+        monkeypatch.setattr(portability, "_ssh_cat", fake_cat)
+        return portability._collect_monitoring_remote()
+
+    def test_monitoring_files_redact_planted_secrets(self, monkeypatch):
+        import yaml
+
+        out = self._remote(monkeypatch, {"alertmanager.yml": _AM_YML, "prometheus.yml": _PROM_YML})
+        blob = "\n".join(out.values())
+        leaked = [m for m in ("LEAK_AM", "LEAK_P") if m in blob]
+        assert leaked == [], blob
+        am = yaml.safe_load(out["monitoring/alertmanager.yml"])
+        prom = yaml.safe_load(out["monitoring/prometheus.yml"])
+        # Structure survives for the operator's restore reference.
+        assert am["global"]["resolve_timeout"] == "5m"
+        assert am["receivers"][2]["email_configs"][0]["to"] == "ops@example.com"
+        assert prom["remote_write"][0]["url"] == "https://REDACTED@remote.example/api/v1/write"
+        assert prom["remote_read"][0]["url"] == "https://remote.example/read"
+        assert prom["scrape_configs"][0]["basic_auth"]["username"] == "u"
+        assert prom["scrape_configs"][0]["static_configs"][0]["targets"] == ["node-exporter:9100"]
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            "a: [unclosed\npassword: leak\n",
+            "a: 1\n---\nb: 2\n",
+            "hunter2\n",
+            "42\n",
+            "a: !custom x\n",
+        ],
+    )
+    def test_unparseable_or_scalar_monitoring_file_is_omitted(self, monkeypatch, caplog, bad):
+        files = {
+            "prometheus.yml": bad,
+            "alertmanager.yml": "global:\n  resolve_timeout: 5m\n",
+            "allocations.json": '"password=hunter2"',
+            "assignments.json": "{nope",
+        }
+        with caplog.at_level("WARNING", logger="fabrik.portability"):
+            out = self._remote(monkeypatch, files)
+        assert set(out) == {"monitoring/alertmanager.yml"}
+        assert "omitting" in caplog.text
+        assert "hunter2" not in "".join(out.values())
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            ("https://u:pw@h.example/x", "https://REDACTED@h.example/x"),
+            ("telegram://tok@telegram?chats=1", "telegram://REDACTED@telegram?chats=1"),
+            ("https://u:p@ss@h.example/w", "https://REDACTED@h.example/w"),
+            ("redis://:pw@redis-main:6379/0", "redis://REDACTED@redis-main:6379/0"),
+            (
+                "a https://u:1@x/ and smtp://v:2@y:587",
+                "a https://REDACTED@x/ and smtp://REDACTED@y:587",
+            ),
+            ("https://h.example/path@x", "https://h.example/path@x"),
+            ("https://h.example?q=a@b", "https://h.example?q=a@b"),
+            ("ops@example.com", "ops@example.com"),
+        ],
+    )
+    def test_url_userinfo_redacted_any_key(self, value, expected):
+        out = portability._redact_sensitive_fields({"anything": value, "list": [value]})
+        assert out == {"anything": expected, "list": [expected]}
+
+    def test_backrest_hook_credentials_redacted(self, monkeypatch):
+        config = {
+            "repos": [{"id": "r", "uri": "s3:https://ak:LEAK_B1@b2.example/bucket"}],
+            "plans": [
+                {
+                    "id": "p",
+                    "hooks": [
+                        {
+                            "actionShoutrrr": {
+                                "shoutrrrUrl": "smtp://user:LEAK_B2@mail.example:587/?to=a@b.c",
+                                "template": "{{ .Summary }}",
+                            }
+                        },
+                        {"actionCommand": {"command": "curl -u u:LEAK_B3 https://x"}},
+                        {"actionGotify": {"baseUrl": "https://u:LEAK_B4@gotify.example"}},
+                    ],
+                }
+            ],
+        }
+        monkeypatch.setattr(portability, "_ssh_cat", lambda path: json.dumps(config))
+        out = portability._collect_backrest()["backrest/config.json"]
+        assert "LEAK_B" not in out
+        parsed = json.loads(out)
+        assert parsed["repos"][0]["uri"] == "s3:https://REDACTED@b2.example/bucket"
+        shoutrrr = parsed["plans"][0]["hooks"][0]["actionShoutrrr"]
+        assert shoutrrr == {"shoutrrrUrl": "REDACTED", "template": "{{ .Summary }}"}
+        assert parsed["plans"][0]["hooks"][1]["actionCommand"] == {"command": "REDACTED"}
+
+    def test_userinfo_search_is_linear(self):
+        import time
+
+        for value in (
+            "://" + "a" * 400_000,
+            "://a" * 100_000,
+            "x@" * 200_000,
+            "://" + "@" * 400_000,
+        ):
+            start = time.perf_counter()
+            portability._redact_sensitive_fields({"blob": value})
+            assert time.perf_counter() - start < 1.0
+
+    def test_yaml_roundtrip_keeps_scalars(self, monkeypatch):
+        import yaml
+
+        # Every plain scalar comes back as written, so the Go parser that reads
+        # the restored copy sees the operator's bytes whatever type it decodes to.
+        raw = (
+            "times:\n- start_time: 17:00\n  end_time: 24:00\n"
+            "send_resolved: yes\nflag: on\nmode: 010\nhex: 0x1F\nunder: 1_000\n"
+            "version: 1.10\nratio: .50\ne: 6.02e23\nneg: -0\nbig: 1e400\n"
+            "t: 2026-04-18T10:00:00Z\nempty:\nnul: null\ntilde: ~\nb: true\nport: 9091\n"
+            "qempty: ''\nquoted: '123'\ndq: 'on'\n"
+            "message: |\n  line one\n  line two\n"
+        )
+        out = self._remote(monkeypatch, {"prometheus.yml": raw})["monitoring/prometheus.yml"]
+        assert out == raw
+        # An explicit tag keeps its meaning: a !!str stays a quoted string.
+        out = self._remote(monkeypatch, {"prometheus.yml": "a: !!str 123\n"})
+        assert yaml.safe_load(out["monitoring/prometheus.yml"]) == {"a": "123"}
+        # Empty or comment-only files ship as an empty mapping.
+        out = self._remote(monkeypatch, {"prometheus.yml": "# only a comment\n"})
+        assert out["monitoring/prometheus.yml"] == "{}\n"
+        # The module's loader never changes PyYAML's global SafeLoader.
+        assert yaml.safe_load("a: on\nb: 17:00\n") == {"a": True, "b": 1020}
+
+    @pytest.mark.parametrize(
+        "doc",
+        [
+            "global:\n  smtp_auth_password: &pw hunter2\nother: *pw\n",
+            "auth: &a {user: u, pass: hunter2}\nx:\n  <<: *a\n",
+        ],
+    )
+    def test_yaml_aliases_are_refused(self, monkeypatch, caplog, doc):
+        with caplog.at_level("WARNING", logger="fabrik.portability"):
+            out = self._remote(monkeypatch, {"prometheus.yml": doc})
+            authelia = portability._collect_authelia()
+        assert out == {}
+        assert authelia == {}
+        assert "alias" in caplog.text
+
+    def test_authelia_and_backrest_omit_a_bare_scalar(self, monkeypatch):
+        monkeypatch.setattr(portability, "_ssh_cat", lambda path: "authelia-jwt-hunter2\n")
+        assert portability._collect_authelia() == {}
+        monkeypatch.setattr(portability, "_ssh_cat", lambda path: '"password=hunter2"')
+        assert portability._collect_backrest() == {}
+
+    def test_url_userinfo_in_a_mapping_key_is_redacted(self):
+        out = portability._redact_sensitive_fields({"https://u:pw@h.example": 1})
+        assert out == {"https://REDACTED@h.example": 1}
+        # A sensitive key loses its userinfo too, not only its value.
+        out = portability._redact_sensitive_fields({"https://u:pw@h/token": 1})
+        assert out == {"https://REDACTED@h/token": "REDACTED"}
+
+    @pytest.mark.parametrize(
+        "doc",
+        [
+            '1: a\n"1": b\n',  # a plain typed key and a quoted key of the same text
+            "on: a\n'on': b\n",
+            "https://a:1@h: first\nhttps://b:2@h: second\n",  # equal once redacted
+        ],
+    )
+    def test_no_mapping_entry_is_lost(self, monkeypatch, doc):
+        import yaml
+
+        out = self._remote(monkeypatch, {"prometheus.yml": doc})
+        if out:
+            # Both entries survive (typed keys keep their type, so they stay distinct)…
+            assert len(yaml.safe_load(out["monitoring/prometheus.yml"])) == 2
+        else:
+            # …or the file is omitted: never one entry silently overwriting another.
+            assert out == {}
+
+    def test_a_parse_error_never_logs_the_source_line(self, monkeypatch, caplog):
+        docs = (
+            "x: &a 1\ncreds: {password: LOGLEAK1, copy: *a}\n",
+            'password: "LOGLEAK2\nx: [\n',
+            "a: !LOGLEAK3_tag x\n",  # PyYAML's problem text quotes the tag
+            "a: !!python/name:LOGLEAK4 x\n",
+        )
+        with caplog.at_level("WARNING", logger="fabrik.portability"):
+            for doc in docs:
+                assert self._remote(monkeypatch, {"prometheus.yml": doc}) == {}
+        assert "omitting" in caplog.text
+        assert "LOGLEAK" not in caplog.text
+
+    def test_authorization_policy_is_kept(self):
+        sample = {
+            "authorization": {"type": "Bearer", "credentials": "x"},
+            "Proxy-Authorization": ["y"],
+            "identity_providers": {
+                "oidc": {"clients": [{"client_id": "c", "authorization_policy": "two_factor"}]}
+            },
+        }
+        out = portability._redact_sensitive_fields(sample)
+        assert out["authorization"] == "REDACTED"
+        assert out["Proxy-Authorization"] == "REDACTED"
+        client = out["identity_providers"]["oidc"]["clients"][0]
+        assert client["authorization_policy"] == "two_factor"
+
+    def test_key_patterns_for_monitoring_secrets(self):
+        for k in (
+            "routing_key",
+            "service_key",
+            "user_key",
+            "secret_key",
+            "userKey",
+            "slack_api_url",
+            "api_url",
+            "headers",
+            "proxy_connect_header",
+            "Authorization",
+            "Proxy-Authorization",
+            "x-authorization",
+            "api-authorization",
+            "authorizations",
+            "endpoint_params",
+            "shoutrrrUrl",
+            "command",
+        ):
+            assert portability._key_is_sensitive(k), f"missed sensitive key: {k}"
+        for k in (
+            "monkey",
+            "hotkey",
+            "keyring",
+            "key_id",
+            "template",
+            "commander",
+            "url",
+            "to",
+            "authorization_policy",
+            "authorization_policies",
+        ):
+            assert not portability._key_is_sensitive(k), f"false-positive: {k}"
 
 
 class TestSecretsRedaction:

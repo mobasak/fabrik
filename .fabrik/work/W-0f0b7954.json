@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T08:04:01.199649Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-0f0b7954",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "format both .env halves (fabrik.env_file) before the first _ssh in _deploy_template, as _write_env_files already does before its own first write; grader: docusaurus + NUL secret makes no ssh call",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "deployer_ssh._deploy_template runs sudo mkdir and writes compose.yaml to the VPS before _write_env_files formats the .env, so a secret the .env codec refuses (NUL, non-UTF-8 — D-1282) on a template that renders no secrets into compose (docusaurus) is refused only after the remote mkdir and a compose.yaml overwrite. Found by the W-c9dcd641 review (Opus seat, probe2.py)."
+}

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T01:11:40.535859Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f5ddd4b3",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure which of the 39 are deployed specs (specs/services source paths) and whether their services join fabrik another way; then decide refuse vs warn",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "LOW: 12 live composes lack the fabrik network key, only 2 have a deploy spec and both are already refused for other invariants (D-932); LOW effort: one check plus a test",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "_validate_compose passes a compose whose top-level networks: block has no 'fabrik' key at all (only checks the block exists): such a service is off the shared fabrik network, unroutable by Traefik (D1 comment at deployer_ssh.py's networks check). Census 2026-10-29 (W-2907ccef): 39 of 123 parsed composes under /opt have that shape (saas-skeleton templates, proposal-creator, email-reader, proxy, archived ...), so requiring it refuses them"
+}

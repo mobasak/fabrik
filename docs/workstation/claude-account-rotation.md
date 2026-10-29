@@ -139,13 +139,27 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   before the field) reads as `walled`, so the migration and every unreadable case fail CLOSED.
   The synced PreToolUse hook `quota_stop.py` turns the `walled` tier
   into a GRACEFUL STOP that reaches every session mid-turn: work tools are held with one
-  instruction (commit + push, close the run record, end the turn); reads, git, the record
-  tools, `Monitor` and `TaskStop` stay open. At `urgent-90` it runs the LANE (W-18f559d9,
+  instruction (commit + push, close the run record, end the turn); reads, the git checkpoint and
+  read verbs (never `git grep`; through `git -C /opt/<repo>`, the read verbs only), the record tools,
+  `Monitor` and `TaskStop` stay open. At `urgent-90` it runs the LANE (W-18f559d9,
   D-1113): the bound merge owner of a `coordinator_mode` repo and the bound owner of an open P0
   item CONTINUE with a CHECKPOINT nudge — killing their in-flight seats would be the premature
   stop D-299 forbids — and every other session is PARKED with the wall's allow-list plus the
-  finishing verbs (`merge_request.py request`, `work.py claim|release <W-id>`, `SubagentHandback`,
-  `SendMessage`), so the last
+  finishing verbs (`merge_request.py request`, `work.py claim|release <W-id>`, a bare
+  `work.py next`, `SubagentHandback`, `SendMessage`, and — so a `/clear`-rotated window can
+  become exempt again (W-cff56c52) — the rotation's re-bind `python3
+  /opt/fabrik/scripts/whoami_agent.py --as <name> --force` (`--force` optional, before or
+  after `--as <name>`; that absolute path only) for ONE name only: the one this
+  window's claude process (pid + start tick, D-748) held LAST in this repo, not re-taken by
+  another window since, with no live foreign holder, from a cwd in this repo. A session resumed
+  into a new claude process gets that row at SessionStart from `whoami_agent.py`'s `refresh()`
+  (W-a77742db) — it writes nothing, among other cases, when the store lock was busy at that
+  start, the name was re-taken, or the session is live in another process (the whole list is
+  `refresh()`'s docstring), and the next SessionStart tries again; there is no boot-time test, because WSL2's btime moves forward with each host
+  sleep and came to refuse a live window's own row.
+  Any other name stays held until the lift — an earlier name of this window, and a name whose
+  last row is another window's, even a dead one),
+  so the last
   points go to merging and keeping the records rather than to whoever asks first. The weekly
   window never arms the lane (`urgent` tests `five_hour` alone). `quota_posture_hook.py` puts
   `band LANE on 5h — builders park, coordinators continue` on the next prompt line, the last
@@ -315,7 +329,7 @@ grep-able classes the surface has (units-sized mode only; default one per unit, 
 negative count is refused), a trimmed Haiku seat sweeps one class across every unit; never below the applicable floor unless a hard cap binds or the fleet HOLD is on at its WALL tier (then 0; at `urgent-90` the band decides — D-706); `--units 0` with no `--slices` is
 nothing to partition and prints 0 with the reason. `--json` also carries `box_caps` (read-only + heavy from the one box probe) for callers like the board, plus `slices` (the parsed partition, or `null`) and `mix_by_slice` (the partition TRIMMED to the seat budget, independent of a `--mix` price override — `null` when `--slices` is not given). `quota_cap` drops to the
 floor when the active account's hottest window is ≥85% or no standby account is eligible (`eligible` counts standbys; the active account is `state=active`) —
-the same bands `core/62` § Dispatch economics names. `--heavy` is for seats whose TOOLS load the box
+the same bands `core/62` § Dispatch economics names. A session on an Anthropic API key is exempt from every quota cap above — wall, drain band, unknown-quota floor, no-standby caution — because its seats draw the key, not the plan (D-1243): `quota.api_key_free` is read by CALLING `quota_posture_hook._api_key_free()` (plain tier only — a `battery` stamp, a second credential, a predicate that fails to load or raises, or a hold with no stamp at the hook's own path all keep the plan caps), follows the env of the process that runs the script, and the box and the CLI cap still bind (W-3e924ccb). `--heavy` is for seats whose TOOLS load the box
 (pytest, builds, renders): a native seat lives inside its parent `claude` process, so only its
 subprocesses count, bounded by `MemAvailable` (the commit headroom too, only under strict overcommit) at 2 GB per heavy seat (1 GB read-only) and by `cores − load1` at 1 core per heavy seat and 0.3 per read-only seat (the measured p90 share of a seat's life its tools run — D-511; memory alone decides the floor, since CPU contention slows and memory exhaustion kills), minus the seats OTHER sessions DISPATCHED — charged at the read-only GB and CPU cost, not as whole seats — in the last 25 minutes (`command_run.py dispatch --seats <n>` — stamped before the seats go out, accumulated within the round, released at its close; the caller's own record is never subtracted), never below the floor the box has room for — this box bound is driven by BOX capacity alone and stays live in both modes. Every probe fails
 soft and prints its reason with the floor, never a silent 20. It also prices the mix per D-190 — haiku 1× · sonnet 2× · opus 5× · fable 10× — for the mix it chose (`--units 3` → `{opus: 1, sonnet: 3, haiku: 3}`, `COST: 14 haiku-units`; `--slices opus=1,sonnet=1` → `COST: 7 haiku-units`) or one you pass (`--mix opus=1,sonnet=5` → 15), with the Fable adjudicator (10) printed beside the total, never inside it. Tests: `tests/sysadmin/test_dispatch_headroom.py`.
@@ -456,6 +470,8 @@ first argument there is passed to `claude` — a session a minute. The line uses
 
 The `flock -n $HOME/.claude/state/rotate.lock` wrapper is load-bearing, not tidiness: the relief wake fires on the stamp's exists→unlink TRANSITION, and that is single-fire only because two ticks never overlap — a hand-run `--tick` must use the same wrapper (`flock -n ~/.claude/state/rotate.lock python3 scripts/sysadmin/claude_rotate.py --tick`), or a hand tick racing the cron one can wake every pane twice.
 
+**The tick watchdog bounds one tick's life (W-010bb0d9).** flock(1) hands the lock fd to the tick, so a tick that never ends holds `rotate.lock` for ever and every later cron and board tick exits silently — on 2026-10-22 no tick wrote a row or a posture from 18:02 to 01:06. `_cmd_tick` starts a daemon timer of `ROTATE_TICK_MAX_S` (default 1800 s; garbage, non-finite, under 600 s or over a day reads 1800) and, first thing in its `finally`, marks the body done under `_TICK_CRITICAL` and cancels the timer. On fire the watchdog waits up to 60 s for `_TICK_CRITICAL` (held across the advisory, the battery leg and the posture — the stamp clear→wake section), stands down if the body has already finished, else flushes the buffered `tick:` lines (bounded at 5 s), prints `tick: WATCHDOG …` through `os.write` (a closed pipe cannot stop it), records the tick end so the next tick's resume leg does not read the kill as a sleep, and `os._exit(0)` — the exit closes the inherited lock fd. The worst legitimate offline tick is about 1000-1100 s (the sum is in the comment above `_TICK_MAX_DEFAULT_S`); raise `ROTATE_TICK_MAX_S` with `KEEPALIVE_TIMEOUT` or `ROTATE_REFRESH_MAX_PER_RUN`. Guarded by `tests/test_claude_fleet.py::test_a_hung_tick_exits_at_the_watchdog_bound` (a real process under `flock -n`, with the board's closed pipe and with cron's log file), `::test_the_watchdog_waits_for_the_critical_section_and_parses_its_bound` and `::test_the_tick_holds_the_critical_section_across_the_hold_legs`.
+
 The hourly `--drift-check` cron and the SessionStart drift-check hook are gone — a settings
 symlink would have run the drift-check from every fleet dir against its hardcoded `~/.claude`
 paths, re-creating the capture/retarget hazard this design retires.
@@ -467,6 +483,8 @@ dropped this run is the stalest next run and outranks the ones just served. The 
 still bind (a credentialed chain too old to answer a live probe, a reading at/past the age line, its
 own per-account stamp elapsed), so only the ORDER of spending is a policy. Guarded by `tests/test_claude_fleet.py::test_the_ping_budget_serves_*`
 and `::test_a_skipped_account_is_served_on_the_next_run_*`.
+
+**Offline: a reading from before a reset is retried every 10 minutes, and is no heat (W-010bb0d9).** A cached reading whose window has reset since (`_reading_predates_a_reset`) jumps the hourly per-account cooldown — but only once per roll: after a ping made since the reset, `_obsolete_ping_due` waits `ROTATE_OBSOLETE_RETRY_S` (600 s) before the next. Offline every ping fails and never refreshes the cache, so the old every-tick bypass spent the whole budget (3 x 150 s of `claude -p ok`) on each tick of the 2026-10-22 outage. The same reading is NO HEAT for the active account: `_active_heat_view` reads a rolled cached window as no reading where the active account's heat is decided (`_active_account_walled`, the wall advisory), so a cached 93% that outlived its reset no longer re-arms the urgent-90 lane — one window rolled and another reading lifts it (the self-watch waits for the link before it wakes a session), every window rolled keeps it (a blackout is not relief). The rows themselves are untouched, so a rolled cached STANDBY still reads 0% to the picker and the board. And `--status` appends `— NOT IN FORCE: …, the hooks fail open` to the hold line once the tick log is older than `QUOTA_STOP_TICK_STALE_S`, the bound quota_stop.py holds by.
 
 **Cron PATH — why the pings resolve `claude` without a `PATH=` line.** Cron runs with a minimal
 `PATH` (`/usr/bin:/bin`) that excludes `~/.local/bin`, where the `claude` CLI installs. Every

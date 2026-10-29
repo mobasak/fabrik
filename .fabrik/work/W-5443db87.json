@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T06:16:47.796980Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-5443db87",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: read quota_dashboard.py:2280-2310, decide killpg vs relying on the tick watchdog, grader with a sleeping fake tick",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "quota_dashboard.py's rotation tick (subprocess.run on 'flock -n rotate.lock … --tick', timeout QUOTA_DASH_TICK_TIMEOUT_S 180 s, :2289-2293) kills only flock on a timeout: the Python tick it forked keeps the inherited lock and runs on as an orphan, so cron's flock -n skips silently; on 2026-10-22 offline ticks ran ~7.5 min and the board re-invoked every ~2 min (W-010bb0d9 measure). Kill the whole group (start_new_session + os.killpg) or let the tick's own watchdog (W-010bb0d9) be the bound and drop the board's timeout below it"
+}

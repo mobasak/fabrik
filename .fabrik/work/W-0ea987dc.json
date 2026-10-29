@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T01:47:59.639614Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-0ea987dc",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "once w-cff56c52-quota-lane-rebind is on master, /fabrik-task the two-file wording edit",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "mail-01m5qqpny4"
+  ],
+  "title": "Add the two urgent-90 lane verbs (bare work.py next; the rotation re-bind of the window's last name) to the parked-session finishing-verb list at CLAUDE.md:460 + templates/governance/CLAUDE.md:477 (mail 01M5QQPNY4, infra-2, W-cff56c52) — after infra-2's quota_stop.py branch merges; governance-sync path → full /fabrik-review"
+}

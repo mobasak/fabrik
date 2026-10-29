@@ -9,7 +9,7 @@
   "kind": "decision",
   "legacy": false,
   "links": {
-    "decision": "",
+    "decision": "D-1313",
     "plan": "",
     "spec": ""
   },
@@ -17,11 +17,11 @@
     "6d9862e82d88fb41083345cf937acc14519e5790d20aecd16834ac9e8c8aba2b"
   ],
   "next": "",
-  "note": "",
+  "note": "save this to all .env files in all repos as brave api key. (key given in chat, relayed to the builder, never stored in the item)",
   "owner": "",
   "priority": 2,
   "question": "May the operator replace the Brave Search API key (BRAVE_API_KEY) with a new one from the Brave dashboard, in ~/.config/fabrik/subagents.env and its four copies (~/.claude.json, /opt/fabrik/.mcp.json, /opt/fabrik-lib/.mcp.json, /opt/fabrik/.env), with backups first?",
-  "status": "awaiting-operator",
+  "status": "done",
   "tags": [
     "waits-brave-email"
   ],
