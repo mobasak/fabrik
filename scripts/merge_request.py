@@ -2682,8 +2682,10 @@ LANDING_WORST_S = QUEUE_WAIT_S + MERGE_TEST_BUDGET_S + PUSH_TIMEOUT_S + SYNC_TIM
 # The wall also holds the chain build and the first wave: a leg of the longest limit any base may
 # declare (_declared_leg clamps to MERGE_TEST_BUDGET_S) still leaves a worst-case landing. A wall
 # with LANDING_WORST_S + 1800 landed nothing after a wave that used its limit (2026-10-27, elapsed
-# ~1818 s at the check). A leg forks only while it AND a landing after it fit (_leg_fits), so every
-# leg a wall return joins (one per --jobs slot) ends inside the wall. QUEUE_BUILD_S holds the chain
+# ~1818 s at the check). A leg forks only while it AND a landing after it fit (_leg_fits — budgeted
+# at TIMED_MARGIN x the longest green queue leg the run timed once one is, W-1fb11ec8), and every
+# leg a wall return joins (one per --jobs slot) ends inside the wall whatever it was budgeted at,
+# because LANDING_WORST_S outweighs the longest declarable leg plus LEG_OVERHEAD_S. QUEUE_BUILD_S holds the chain
 # build before the first fork plus LEG_OVERHEAD_S: a child's own setup (its throwaway worktree, the
 # script read) and the leg's outer bound (+60). The _live_merge wait before a chain build (up to
 # QUEUE_WAIT_S) is not in it: after it the first request may land through its locked leg instead.
@@ -2816,6 +2818,23 @@ def _record_matches(ctx: _Ctx, el: dict, script: str, runner: str) -> bool:
     return _skip_only_diff(ctx.main, rec["tree"], f"{el['at']}^{{tree}}") == []
 
 
+def _leg_seconds(ctx: _Ctx, el: dict, script: str, runner: str) -> float:
+    """The measured seconds of the queue leg that wrote ``el``'s matching record, else 0: a record
+    the requester's own ``request --pretest`` wrote (no ``queued_as`` of this element) says nothing
+    about the queue leg that just exited, and a red, killed or timed-out leg writes none."""
+    if not _record_matches(ctx, el, script, runner):
+        return 0.0
+    try:
+        rec = json.loads(
+            (ctx.records / PRETEST_DIR / f"{el['head']}.json").read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeDecodeError, ValueError):
+        return 0.0
+    if not isinstance(rec, dict) or rec.get("queued_as") != el["id"]:
+        return 0.0
+    return float(rec["seconds"])  # _record_matches proved it a finite number past the floor
+
+
 def _run_leg(ctx: _Ctx, el: dict, runner: str) -> int:
     """One request's leg on its stacked merge ``el['at']`` (built on ``el['on']``); the body of a
     queue child. Green writes the record (atomically, ``_save``); nothing is unlinked first, so a
@@ -2892,19 +2911,23 @@ def _land(msg_id: str) -> int:
             time.sleep(QUEUE_POLL_S)
 
 
+TIMED_MARGIN = 1.5  # one hub leg ran 1037 s and 1365 s on the same commit under load (D-1312)
+
+
 def _leg_fits(started: float, script: str, timed: float = 0.0) -> bool:
     """A leg forked now, plus LEG_OVERHEAD_S — its setup (an estimate: no deadline bounds it) and
     the leg's 60 s outer bound — can still be followed by a worst-case landing; else the leg cannot
     lead to a landing this run, and the wall return would only wait on it. The leg is budgeted at
-    ``timed``, the longest green leg this run already timed (W-1fb11ec8: 697 s live against the
-    hub's declared 2700 s, which closed the window at 1080 s of the 11100 s wall), and at its whole
-    limit (``_declared_leg``) while nothing is timed. Either way the leg itself ends inside the wall:
-    one forked at the last moment that runs its whole limit ends by ``QUEUE_WALL_S -
-    LANDING_WORST_S + limit``, and a landing's worst case outweighs any limit a base may declare
-    (MERGE_TEST_BUDGET_S). A leg longer than every one timed only finishes too late to land this
-    run: the return waits on it, and its record serves the next run on the same base."""
+    TIMED_MARGIN x ``timed``, the longest green queue leg this run already timed (W-1fb11ec8: 697 s
+    live against the hub's declared 2700 s, which closed the window at 1080 s of the 11100 s wall),
+    capped at its whole limit (``_declared_leg``), and at that limit while nothing is timed. Either
+    way the leg itself ends inside the wall: one forked at the last fit second that runs its whole
+    limit ends by ``QUEUE_WALL_S - LANDING_WORST_S + limit``, and a landing's worst case outweighs
+    any limit a base may declare plus LEG_OVERHEAD_S. A leg longer than the budget finishes after
+    the last landing start: its request lands one run later on its record, and this run's children
+    keep ``queue.lock`` until it ends."""
     limit = _declared_leg(script)
-    leg = (min(timed, limit) if timed > 0 else limit) + LEG_OVERHEAD_S
+    leg = (min(TIMED_MARGIN * timed, limit) if timed > 0 else limit) + LEG_OVERHEAD_S
     return time.monotonic() - started + leg + LANDING_WORST_S <= QUEUE_WALL_S
 
 
@@ -2928,8 +2951,11 @@ def _queue(args: argparse.Namespace) -> int:
     started = time.monotonic()
     runner = _runner_sha()  # once, before any carry can rewrite this file (Opus 9)
     fork = multiprocessing.get_context("fork")
-    running: dict[str, tuple] = {}  # head -> (its leg child, forked at, its element, its script)
-    timed = 0.0  # the longest leg this run forked that ended on a matching record (_leg_fits)
+    running: dict[str, tuple] = {}  # head -> (its leg child, its element, its script)
+    timed = 0.0  # the longest green queue leg this run timed, its recorded seconds (_leg_fits)
+    # every head a queue leg already ran for this run: a chain rebuild makes new elements (and new
+    # stacked commits), so `leg_done` alone re-forked a failed leg after every landing
+    tried: set[str] = set()
     landed: set[str] = set()
     rc = EXIT_OK
     with _queue_lock(ctx):
@@ -2960,14 +2986,12 @@ def _queue(args: argparse.Namespace) -> int:
                     continue  # the base moved while the chain was built: build it again
                 first = chain[0]
                 while True:
-                    for head, (child, forked, leg_el, leg_script) in list(running.items()):
+                    for head, (child, leg_el, leg_script) in list(running.items()):
                         if not child.is_alive():
                             child.join()
                             del running[head]
-                            # only a green leg is timed: a red, killed or timed-out one leaves no
-                            # matching record, and its seconds would open the window too wide
-                            if _record_matches(ctx, leg_el, leg_script, runner):
-                                timed = max(timed, time.monotonic() - forked)
+                            if child.exitcode == 0:
+                                timed = max(timed, _leg_seconds(ctx, leg_el, leg_script, runner))
                     # a later leg forks only once the first request lands on a record (or has no
                     # tree to test): else its locked merge runs its own leg, and a queue leg
                     # beside it halves both
@@ -2979,7 +3003,11 @@ def _queue(args: argparse.Namespace) -> int:
                             break
                         if el["at"] is None or el["head"] in running:
                             continue
-                        if _record_matches(ctx, el, script, runner) or el.get("leg_done"):
+                        if (
+                            _record_matches(ctx, el, script, runner)
+                            or el.get("leg_done")
+                            or el["head"] in tried
+                        ):
                             continue
                         if (el is not first and not first_on_record) or not _leg_fits(
                             started, script, timed
@@ -2987,12 +3015,14 @@ def _queue(args: argparse.Namespace) -> int:
                             break
                         child = fork.Process(target=_leg_child, args=(ctx, el, runner))
                         child.start()
-                        running[el["head"]] = (child, time.monotonic(), el, script)
+                        running[el["head"]] = (child, el, script)
                         el["leg_done"] = True  # one leg per element per chain build
+                        tried.add(el["head"])  # and one per request per run
                     if first["at"] is None or (
                         first["head"] not in running
                         and (
                             first.get("leg_done")
+                            or first["head"] in tried  # no second queue leg: its locked one runs
                             or _record_matches(ctx, first, script, runner)
                             or not _leg_fits(started, script, timed)
                         )
