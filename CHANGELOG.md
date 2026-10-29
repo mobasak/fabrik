@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a review-loop pass where no finder returned anything now fails, naming the check (2026-10-29)
+- `.claude/workflows/fabrik-review-loop.js`: when every finder seat of the pass comes back null after its retry,
+  the launch throws instead of returning a ledger of dropped seats, which read like a review with gaps and was
+  answered with a re-dispatch into the same dead account. The message puts the check first
+  (`claude_rotate.py --status`, one seat transcript), then the counts, the known causes and up to three seat
+  errors. A seat that rejected keeps its error's first non-blank line in its notes and the retry log line. The
+  count is taken over every finder launched, so a slice dropped by a later stage still counts its seats. D-1340.
+- `scripts/review_loop_ledger.py read`: a failed run prints the first non-blank line of the run file's `error`
+  after `failed — no result`, so the check reaches the lead reading the pass file.
+
 ### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)
 - `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the
   box at 96 % the hook's `SCRATCH ALARM` line landed in the stdout of every `--hook` run that passes its

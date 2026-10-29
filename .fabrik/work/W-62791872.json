@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T12:47:27.180684Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-62791872",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "in .claude/workflows/fabrik-review-loop.js firstLine: the pass-3 String(e) fallback prints [object Object] for a non-Error object whose message is blank, null or undefined (review pass 4 A-S20/A-H20; pass 3 printed '' there) — use JSON.stringify(e) inside the try instead, and add {message:'\\n'}, {message:null}, {message:undefined,status:401} and Error('\\n') (prints 'Error:') to test_the_kept_error_is_the_first_non_blank_line_of_any_rejection (A-H21: the test is green on the regression); also reflow the scripts/review_loop_ledger.py module docstring lines 18-21 left ragged by the pass-3 edit (B-H23)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "review-loop"
+  ],
+  "title": "review-loop firstLine: a non-Error rejection whose message is blank reads [object Object] (W-b36e2a4a review pass 4 A-S20, recorded after the in-lane scope-growth stop)"
+}

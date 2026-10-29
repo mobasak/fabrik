@@ -3,7 +3,7 @@
   "created": "2026-10-13T06:41:40.884783Z",
   "creator": "intel",
   "effort": "low",
-  "evidence": "",
+  "evidence": "f2b2c20e3c1d5bc042d8cd1f9f23092240b0ebaa",
   "id": "W-b36e2a4a",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — review-loop seat failure handling from kaizen mail",
-  "status": "open",
+  "status": "done",
   "tags": [
     "review-loop"
   ],
