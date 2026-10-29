@@ -185,6 +185,8 @@ def test_question_only_when_idle_and_asking():
         turn_end="✻ Worked for 11s · done 12:30 PM · 1 shell still running",
     )
     assert rs._waiting_on(shell)[0] == "question"
+    # the turn end is the `· done` form only: a duration row without it is not read as idle
+    assert rs._waiting_on(_idle(["● Keep it?"], turn_end="✻ Worked for 17s")) is None
     # NOT waiting: text typed in the box, the agent still working on its own seats, a spinner, no turn end at all
     assert rs._waiting_on(_idle(["● Keep it?"], box="half typed")) is None
     assert (
@@ -301,6 +303,9 @@ def test_tmux_failure_modes(tmux, tmp_path, monkeypatch):
     )
     with pytest.raises(RuntimeError):  # the shared budget is spent on the second call
         rs.waiting(main, budget=0.8)
+    tmux(panes=[_row("%5", "fabrik", "fabrik", "infra-2", "/x")], screens={"%5": WRITE_DIALOG})
+    with pytest.raises(RuntimeError, match="budget spent"):  # a spent budget starts no call at all
+        rs.waiting(main, budget=0)
 
 
 # ── the two readers in work.py ─────────────────────────────────────────────────────────────────────────────────────

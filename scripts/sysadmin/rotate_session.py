@@ -883,7 +883,7 @@ def waiting(repo: str, exclude: str = "", budget: float = 1.0) -> list[dict]:
         if len(parts) != 5:
             continue
         pane, session, group, agent, path = parts
-        if (group or session) != grid or not agent or agent == exclude or pane in panes:
+        if (group or session) != grid or not agent or agent == exclude:
             continue
         with contextlib.suppress(OSError):
             if path and Path(path).resolve() == home:
