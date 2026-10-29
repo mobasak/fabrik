@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## Measure the bytes per class before choosing which rule to loosen (2026-10-29, W-d1a4a8f5)
+
+**What happened:** the janitor item named a session-level class first: 362 "unclassified" sessions with no live or death signal. The first design loosened two session rules for it, a 48 h dead bar and "no transcript is a death signal". A test the build would have broken pinned the 7 d bar for weekly-quota resumes. A `du` per dry-run row then showed that the no-signal class held 0.5 GB. The 108 GB under that label sat in resumable sessions, and the removable bytes (77 GB) were run folders that a gap rule with no end kept alive. That gap rule was the one D-878 had declared safe because "/tmp is cleared at boot", and 74 of 652 session dirs predated the boot.
+
+**Lesson:** before loosening a keep rule, size each class it governs (`du` per classified row, overlaps named), and replay the candidate rule on the live table. A class that leads by ROW count can be empty by BYTES. A residual a past decision called bounded ("until the next boot") is a claim to re-measure, not a fact to inherit.
+
 ## On this fleet a `compose down` is not a removal (2026-10-29, W-80a1f9fd)
 
 **What happened:** D-121 took the ocoron-com stack down with `docker compose down`, and the stack was found running again weeks later. `fabrik-compose-boot.sh` runs `up -d` on every `/opt/*/compose.yaml` at each boot, and D-121 had left the file in place. A second reviver was waiting too: the vps1 sysadmin bot's prompt still ranked the stack P0 and gave it "full autonomous management".
