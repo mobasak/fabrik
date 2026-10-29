@@ -154,8 +154,10 @@ _ANALYST_CELLS = (6, 7)
 # The exact shape the collector itself writes into an analyst cell (W-90163961). A cell that is
 # EXACTLY this is the collector's own earlier value, not the analyst's, so the next run of the week
 # replaces it; one character more (`; fleet mail …`, ` (auto) · …`) and it is the analyst's.
-# Cell 7 only: kaizen_outcomes.filings's f-string of non-negative ints — ASCII digits, no leading
-# zero. Cobra: a looser shape satisfies "the collector's cell refreshes" while eating analyst prose.
+# Cell 7 only: the shape of kaizen_outcomes.filings's f-string of non-negative ints — ASCII digits,
+# no leading zero (the producer never writes an all-zero count, which the shape still accepts).
+# Accepted cost: a bare count an analyst types by hand reads as the collector's and is refreshed.
+# Cobra: a looser shape satisfies "the collector's cell refreshes" while eating analyst prose.
 _COLLECTOR_CELL_SHAPES = {
     7: re.compile(r"(?:0|[1-9][0-9]*) filed / (?:0|[1-9][0-9]*) none / (?:0|[1-9][0-9]*) unstated"),
 }
@@ -2066,12 +2068,12 @@ def _merge_cells(new: list[str], old: list[str], force_dash: bool) -> list[str]:
         if collector_owned:
             continue  # the collector's own earlier value: like a mechanical cell, the new one wins (H6)
         # The analyst's cell is HERS. A real old value she wrote (the collector's own bare value is
-        # handled above) wins over ANY new value, computed or dash —
-        # kaizen.md:202 promises these are "never overwritten by a re-run", and the old rule only
-        # kept that promise while nothing computed them (it yielded to the analyst on a DASH but let
-        # a real new value win). `Filed (spec/mail)` is computed now, so without this the next cron
-        # run would silently eat the analysis half's prose. A computed value FILLS an empty cell and
-        # never more than that.
+        # handled above) wins over ANY new value, computed or dash — kaizen.md's log-row table
+        # promises no re-run overwrites it, and the old rule only kept that promise while nothing
+        # computed these cells (it yielded to the analyst on a DASH but let a real new value win).
+        # `Filed (spec/mail)` is computed now, so without this the next cron run would silently eat
+        # the analysis half's prose. A computed value FILLS an empty cell, and replaces nothing but
+        # the collector's own bare value.
         if i in _ANALYST_CELLS and i < len(old) and old[i] not in ("", DASH):
             merged[i] = old[i]
     return merged
