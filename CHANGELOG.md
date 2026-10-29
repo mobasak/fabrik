@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — a re-score out of the one-major class clears the item's hold behind the in-flight major (2026-10-29)
+
+- `work.py assign --impact/--effort` rewrote an item's score but never its `blocked_by`, so a major held behind the in-flight major and re-scored to a quick win stayed out of `ready` and `claim`: nine hub P1s waited 11 days behind W-ab566484. A re-score that takes a major, or an unscored `medium` item, to a scored non-major now drops every hold naming an in-flight major (triage's own predicate, now one helper) and prints each with its re-add command; an unreadable blocker is kept and said (W-0fe931b7, D-1327).
+
 ### Fixed — mobile-app scaffold lints clean out of the box and its EAS delivery workflows can run (2026-10-29)
 
 - A fresh mobile-app scaffold's `pnpm lint` exited 1 (76 errors, all antfu TOML rules on the scaffold-emitted `server/pyproject.toml`); the template now ignores `server/**` in ESLint, pins `@antfu/eslint-config ~7.7.3` with its peers (`eslint-plugin-react-refresh ^0.5.0`, `@eslint-react/eslint-plugin ^2.11.0`) and drops the duplicate direct unicorn. The eas-build-prod, eas-build-preview and new-app-version workflows used two composite actions the template never shipped; `setup-node-pnpm-install` and `eas-build` now ship (from the upstream template, Node 24, no silent APP_ENV/EXPO_TOKEN defaults, inputs passed as env vars so a release tag cannot inject shell). Graded by `tests/test_scaffold_mobile_toolchain.py` (D-1323, W-fc58e9b7).
