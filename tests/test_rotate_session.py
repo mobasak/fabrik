@@ -27,6 +27,24 @@ spec = importlib.util.spec_from_file_location("rotate_session", SCRIPT)
 rs = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(rs)
 
+
+class _RsTime:
+    """rotate_session's OWN `time` (W-1e0f4229). A fake clock set on the global `time` module also drives
+    subprocess.Popen._wait, which polls a child's exit with time.sleep: every fake-tmux call then moved the fake clock
+    by however long the child took to exit — up to ~1,700 fake s for a 50 ms tail — so a timed test failed under load.
+    Overrides live here; every other name is the real module's."""
+
+    def __getattr__(self, name):
+        return getattr(time, name)
+
+
+def _rs_time(monkeypatch, **overrides) -> None:
+    """Fake `time.<name>` for rotate_session only; repeated calls in one test add to the same proxy."""
+    proxy = rs.time if isinstance(rs.time, _RsTime) else _RsTime()
+    vars(proxy).update(overrides)
+    monkeypatch.setattr(rs, "time", proxy)
+
+
 SID = "11111111-1111-4111-8111-111111111111"
 NEW = "22222222-2222-4222-8222-222222222222"
 IDLE_SCREEN = (
@@ -168,7 +186,7 @@ def world(tmp_path, monkeypatch):
         monkeypatch.setenv(k, str(v))
     monkeypatch.setattr(rs.hib, "worktree_state", lambda path: (False, "clean, pushed"))
     monkeypatch.setattr(rs.hib, "live_sessions", lambda home, proc, opt="/opt": [])
-    monkeypatch.setattr(rs.time, "sleep", lambda s: None)
+    _rs_time(monkeypatch, sleep=lambda s: None)
     monkeypatch.setattr(
         rs, "IDLE_S", 0
     )  # the fixture's transcript was just written; the quiet test sets 30 itself
@@ -1047,7 +1065,7 @@ def test_w_ee19169d_review_r1_sgr_walk_rule_above_and_the_pre_key_rechecks(world
     assert rs._box(_boxed("❯ a", "  ❯ quoted")) == "a ❯ quoted"
     assert rs._box(f"❯ go on\n{RULE}\n") is None
     sleeps: list[float] = []
-    monkeypatch.setattr(rs.time, "sleep", lambda s: sleeps.append(s))
+    _rs_time(monkeypatch, sleep=lambda s: sleeps.append(s))
     # execute's captures: check 5 (1), the pre-discard read (2), the discard's two reads (3, 4), run_checks again (5)
     for drift, want in ((4, "refused:stale-input"), (5, "refused:screen")):
         Path(str(world["state"]) + ".keys").unlink(missing_ok=True)
@@ -1423,7 +1441,7 @@ def test_t07_the_lock_precedes_the_first_lstat_and_read(tmp_path, monkeypatch):
             waiting.set()
         real_sleep(s)
 
-    monkeypatch.setattr(rs.time, "sleep", sleep)
+    _rs_time(monkeypatch, sleep=sleep)
     out: list[str] = []
     with AS.agents_lock(str(repo)):
         t = threading.Thread(
@@ -1582,8 +1600,11 @@ def _late_bind(world, monkeypatch, bind_after: float | None) -> dict:
     gains the re-bind `bind_after` s after the resume prompt, or never when None. Returns the times seen."""
     monkeypatch.delenv("ROTATE_WAIT_S")
     clock = {"now": time.time()}
-    monkeypatch.setattr(rs.time, "time", lambda: clock["now"])
-    monkeypatch.setattr(rs.time, "sleep", lambda s: clock.__setitem__("now", clock["now"] + s))
+    _rs_time(
+        monkeypatch,
+        time=lambda: clock["now"],
+        sleep=lambda s: clock.__setitem__("now", clock["now"] + s),
+    )
     _clear_hook(world, monkeypatch, bind=False)
     seen: dict = {}
     real_send = rs._send
@@ -1619,6 +1640,28 @@ def test_wb72231b8_a_late_bind_inside_the_grace_rows_ok(world, monkeypatch):
     assert 97 <= row["rebind_s"] <= 99, row
 
 
+def test_w1e0f4229_a_slow_exiting_tmux_never_moves_the_fake_clock(world, monkeypatch, tmp_path):
+    """W-1e0f4229: the late-bind test failed 12 in 16 under load (`typed-unsent:*`, or rebind_s 259 for 98) because its
+    fake clock sat on the GLOBAL time module, where subprocess polls a child's exit with time.sleep. The clock is now
+    rotate_session's own, so a tmux that lingers after closing its pipes costs the fake clock nothing."""
+    clock = {"now": 1000.0}
+    _rs_time(
+        monkeypatch,
+        time=lambda: clock["now"],
+        sleep=lambda s: clock.__setitem__("now", clock["now"] + s),
+    )
+    slow = tmp_path / "slow-tmux"
+    slow.write_text(
+        "#!/usr/bin/env python3\nimport os, time\nos.close(1)\nos.close(2)\ntime.sleep(0.05)\n"
+    )
+    slow.chmod(0o755)
+    monkeypatch.setenv("ROTATE_TMUX", str(slow))
+    for _ in range(3):
+        rs._tmux("capture-pane", "-p", "-t", "%5")
+    assert clock["now"] == 1000.0, clock
+    assert time.sleep is not rs.time.sleep  # the global module keeps its real sleep
+
+
 def test_wb72231b8_no_bind_waits_the_whole_grace_then_rows_partial(world, monkeypatch):
     """W-b72231b8 slice 2: with no re-bind the row is `partial:rebind`, never a false `ok`, and only after the identity
     store was read for the whole REBIND_GRACE_S."""
@@ -1634,7 +1677,7 @@ def test_wb72231b8_execute_claims_nothing_new_after_the_cutoff(world, monkeypatc
     before it writes its file). A request still waiting once the run has gone CLAIM_CUTOFF_S is left for the path unit's
     next start — never started where the unit's timeout could kill it with no row."""
     mono = {"now": 1000.0}
-    monkeypatch.setattr(rs.time, "monotonic", lambda: mono["now"])
+    _rs_time(monkeypatch, monotonic=lambda: mono["now"])
     rows: list = []
     monkeypatch.setattr(rs, "append_row", lambda row: rows.append(row))
 
