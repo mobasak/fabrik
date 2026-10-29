@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## Run the new output over the live population before the review, not only the fixtures (2026-10-29, W-c77f91c6)
+
+**What happened:** all eight fixture tests and nine mutants passed. Then the base and new check were run over every one of the 224 live worktrees, and the new green line printed "all 2 present" in trees that held no synced file at all. Seeded rows skip before the absent-row test, and the count was `len(lock) - not_received`. No fixture carried a seeded row, because the tmp hub had no manifest.
+
+**Lesson:** a count printed by a new mode is a claim about the population, not about the fixture. Run the new mode over the real population and read every distinct line it prints before the review starts. Then derive the count from the rows the loop actually graded, never from the total minus one category.
+
 ## A hold written for a reason must end when the reason does (2026-10-29, W-0fe931b7)
 
 **What happened:** the one-major rule holds every other major with `assign --blocked-by <the in-flight major>`. A later re-score turned nine of those majors into quick wins, but `blocked_by` carries no reason and the re-score never looked at it, so the items sat unclaimable for 11 days while their priority said P1.

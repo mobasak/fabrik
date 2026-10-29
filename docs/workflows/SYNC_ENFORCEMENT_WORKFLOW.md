@@ -287,6 +287,15 @@ CHECKOUT's current file over the worktree's copy at the same relative path
 (hash now matches the fresh source) records a fresh ledger row, and the file converges normally on
 every run after.
 
+**A worktree with no lock of its own** (every worktree at birth: `.worktreeinclude` carries the
+check but never the lock, and this sync copies the lock in only under `<project>/.claude/worktrees/`)
+is graded against its MAIN checkout's `.fabrik/synced.lock` (`synced_lock()` in the check, which
+`final_gate._synced_paths` reads too, W-c77f91c6): present copies are compared, an absent row is
+"not yet received", never DELETED. A worktree outside `.claude/worktrees/` (`git worktree add`,
+traycer, kilo) stays in that mode for its life and clears a red only by the printed `cp`. A hub
+worktree is the source; a bare-repo worktree, a subdirectory, or a main checkout with no lock
+keeps the old skip.
+
 Why mtime is excluded entirely (round 4, class 1): a governance commit refreshes the hub file,
 `shutil.copy2` propagates that fresh mtime into the project's main checkout when the leg above
 re-syncs it, and the production wrapper (`scripts/governance_sync_postcommit.sh`) runs `--force`
