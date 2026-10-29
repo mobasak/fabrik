@@ -258,7 +258,9 @@ overwritten; a path that changed is kept and listed in the reply — (f) a fast-
 hub's governance sync, OWED and run by a background `sync-runner` outside the merge lock (its own
 `<git common dir>/fabrik-merge/sync.lock`; a debt stays in `sync-owed.log` until a sync that started
 after it succeeds; the run's end waits for it, `SYNC_TIMEOUT_S` in all, and prints `sync: ran`,
-`sync: FAILED … --force` or `sync: still running in the background`, W-4f4ac600), and (h) the reply to requester and distributor, then `mail.py ack done
+`sync: FAILED … --force`, `sync: still running in the background`, or `sync: unknown` when it cannot
+read its state; a landing that cannot owe the sync says `sync: FAILED to owe or start` in its reply,
+W-4f4ac600), and (h) the reply to requester and distributor, then `mail.py ack done
 --merge-sha`. Every merge commit it writes, a catch-up's included, ends in one Agent Provenance
 Trailer block — `Agent-Role: orchestrator`, the owner's `Agent-Name` (left out, with a note, when the
 owner is outside the agent-name grammar) and an `Agent-Context` (the request's names the branch,

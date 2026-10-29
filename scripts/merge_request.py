@@ -2019,7 +2019,10 @@ def _sync(ctx: _Ctx, rec: dict) -> str:
             _owe_sync(state, f"{merge} {len(hits)} path(s), request {rec['id']}")
         kicked = _kick_sync(ctx.main, state)
     except OSError as exc:  # the push already landed: a sync we cannot owe is reported, not raised
-        return f"sync: FAILED to owe ({exc}) — run scripts/sync_enforcement_to_projects.py --force"
+        return (
+            f"sync: FAILED to owe or start ({exc}) — run "
+            "scripts/sync_enforcement_to_projects.py --force"
+        )
     if not hits:
         return line if kicked is None else f"{line}; {kicked}"
     line = (
@@ -2083,7 +2086,8 @@ def _write_atomic(path: Path, text: str) -> None:
         tmp.write_text(text, encoding="utf-8")
         os.replace(tmp, path)
     except OSError:
-        tmp.unlink(missing_ok=True)
+        with contextlib.suppress(OSError):  # never mask the write's own error
+            tmp.unlink(missing_ok=True)
         raise
 
 
@@ -2253,11 +2257,13 @@ def _drain_sync() -> None:
         proc = _SYNC_RUN.pop("proc", None)
         _SYNC_RUN.clear()
         if proc is None:  # nothing left to start, or the start failed (its note says so)
-            print(
-                f"merge_request: sync: ran (log {state / SYNC_LOG})"
-                + (f"; {note}" if note else ""),
-                file=sys.stderr,
-            )
+            if note and note.startswith("sync: FAILED"):  # the debt owed since stays open
+                print(
+                    f"merge_request: {note}; the earlier sync ran (log {state / SYNC_LOG})",
+                    file=sys.stderr,
+                )
+            else:
+                print(f"merge_request: sync: ran (log {state / SYNC_LOG})", file=sys.stderr)
             return
     last = _sync_status(state)
     rc = proc.returncode  # the runner's own exit; the status file may be an older run's

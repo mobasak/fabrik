@@ -847,10 +847,11 @@ def test_a_sync_that_cannot_be_owed_is_reported_and_the_landing_still_replies(wo
 
     assert world.run("merge") == 0
     reply = world.replies(msg_id)["fleet"]
-    assert "sync: FAILED to owe (" in reply
+    assert "sync: FAILED to owe or start (" in reply
     assert "run scripts/sync_enforcement_to_projects.py --force" in reply
 
 
+@pytest.mark.skipif(os.geteuid() == 0, reason="chmod 0 does not bar root's reads")
 def test_a_drain_that_cannot_read_its_state_keeps_the_exit_code(world, monkeypatch, capsys):
     state = _hub(world, monkeypatch)
     state.mkdir(parents=True, exist_ok=True)
@@ -864,6 +865,23 @@ def test_a_drain_that_cannot_read_its_state_keeps_the_exit_code(world, monkeypat
     finally:
         state.chmod(0o755)
     assert "merge_request: sync: unknown (" in capsys.readouterr().err
+
+
+def test_a_rerun_that_cannot_start_leads_with_failed(world, monkeypatch, capsys):
+    state = _hub(world, monkeypatch)
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "sync-owed.log").write_text("owed after the runner's last check\n")
+    done = subprocess.Popen([sys.executable, "-c", "pass"])  # exited 0, the debt still open
+    done.wait()
+    world.mod._SYNC_RUN.update(proc=done, state=state, main=world.main)
+
+    def no_start(*args, **kwargs):
+        raise OSError("no such exec")
+
+    monkeypatch.setattr(world.mod.subprocess, "Popen", no_start)
+    world.mod._drain_sync()
+    err = capsys.readouterr().err
+    assert err.startswith("merge_request: sync: FAILED to start (no such exec)"), err
 
 
 def test_a_refused_verb_still_drains_its_sync(world, monkeypatch, capsys):
