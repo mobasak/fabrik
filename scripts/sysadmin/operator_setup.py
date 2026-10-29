@@ -70,11 +70,17 @@ DEFAULT_HUB = "/opt/fabrik"
 KEY = "claudeCode.claudeProcessWrapper"
 MASTER_HEAD = "ref: refs/heads/master"
 ARCHIVE_INSTALLER = "install_session_archive_timer.sh"
-ARCHIVE_UNITS = ("session-archive-alert.service", "session-archive.service", "session-archive.timer")
+ARCHIVE_UNITS = (
+    "session-archive-alert.service",
+    "session-archive.service",
+    "session-archive.timer",
+)
 ARCHIVE_ALERT = "session-archive-alert.service"
 ARCHIVE_TIMER = "session-archive.timer"
 NO_MANAGER = "cannot reach the user systemd manager"
-SSH_TARGET = "git@github.com"  # git's own identity: a `Match user git` resolves differently for a bare host
+SSH_TARGET = (
+    "git@github.com"  # git's own identity: a `Match user git` resolves differently for a bare host
+)
 SSH_WANT = ("15", "4")  # (ServerAliveInterval, ServerAliveCountMax) the block writes
 SSH_BLOCK = (
     "# operator_setup (W-030ac2fe): git push keepalive — ssh takes the first value, keep this above other Host blocks",
@@ -83,7 +89,9 @@ SSH_BLOCK = (
     "    ServerAliveCountMax 4",
     "",
 )
-SSH_SECTION = re.compile(rb"^[ \t]*(host|match)([ \t=]|$)", re.I | re.M)  # bytes: the file is never decoded
+SSH_SECTION = re.compile(
+    rb"^[ \t]*(host|match)([ \t=]|$)", re.I | re.M
+)  # bytes: the file is never decoded
 
 
 class PlanError(Exception):
@@ -104,7 +112,9 @@ class Change:
 @dataclass
 class Plan:
     changes: list[Change]
-    archive_run: str | None = None  # why the archive installer must run; None when the archive is in place
+    archive_run: str | None = (
+        None  # why the archive installer must run; None when the archive is in place
+    )
     archive_sources: dict[str, bytes] | None = None
     # the undo's two timer halves: the line that puts the persistent `.wants` link back as it was (`_link_undo`; None
     # when `enable` leaves it as it is), and whether the timer was active when planned
@@ -120,7 +130,9 @@ def _rel(home: Path, path: Path) -> str:
         rel = path.relative_to(home)
     except ValueError:
         raise PlanError(f"{path} is outside HOME ({home}) — refused") from None
-    if ".." in rel.parts:  # `relative_to` is lexical: `<home>/../x` passes it and escapes the backup dir
+    if (
+        ".." in rel.parts
+    ):  # `relative_to` is lexical: `<home>/../x` passes it and escapes the backup dir
         raise PlanError(f"{path} climbs out of HOME through `..` — refused")
     return str(rel)
 
@@ -140,7 +152,9 @@ def _read(path: Path) -> tuple[bytes | None, int | None]:
 
 
 def _installer():
-    spec = importlib.util.spec_from_file_location("install_user_hooks", HERE / "install_user_hooks.py")
+    spec = importlib.util.spec_from_file_location(
+        "install_user_hooks", HERE / "install_user_hooks.py"
+    )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
@@ -170,9 +184,13 @@ def plan_hooks(home: Path) -> list[Change]:
                 # only the last of a duplicated key, so a duplicate is refused here as plan_vscode refuses it
                 json.loads(data.decode("utf-8") or "{}", object_pairs_hook=_no_duplicates)
             except DuplicateKeyError as exc:
-                raise PlanError(f"{target} has a {exc} — the installer would keep only the last; fix it by hand") from None
+                raise PlanError(
+                    f"{target} has a {exc} — the installer would keep only the last; fix it by hand"
+                ) from None
             except (UnicodeDecodeError, ValueError) as exc:
-                raise PlanError(f"{target} does not parse as JSON ({exc}) — the installer would skip it; fix it by hand") from None
+                raise PlanError(
+                    f"{target} does not parse as JSON ({exc}) — the installer would skip it; fix it by hand"
+                ) from None
         live[rel] = (data, mode)
     with tempfile.TemporaryDirectory(prefix="operator-setup-mirror-") as tmp:
         mirror = Path(tmp)
@@ -188,14 +206,26 @@ def plan_hooks(home: Path) -> list[Change]:
             rc = iuh.run([])
             mirrored = sorted(_rel(mirror, t) for t in iuh._targets())
         if mirrored != sorted(live):
-            raise PlanError(f"the mirror HOME names other targets than HOME ({mirrored} vs {sorted(live)}) — refused")
+            raise PlanError(
+                f"the mirror HOME names other targets than HOME ({mirrored} vs {sorted(live)}) — refused"
+            )
         if rc != 0:
             raise PlanError("install_user_hooks.run failed on the mirror:\n" + out.getvalue())
         changes = []
         for rel, (data, mode) in sorted(live.items()):
             after = (mirror / rel).read_bytes()
             if after != data:
-                changes.append(Change("hooks", home / rel, rel, data, mode, after, mode if mode is not None else 0o600))
+                changes.append(
+                    Change(
+                        "hooks",
+                        home / rel,
+                        rel,
+                        data,
+                        mode,
+                        after,
+                        mode if mode is not None else 0o600,
+                    )
+                )
     return changes
 
 
@@ -244,9 +274,13 @@ def plan_vscode(home: Path) -> list[Change]:
         else:
             try:
                 text = data.decode("utf-8")
-                settings = json.loads(text, object_pairs_hook=_no_duplicates) if text.strip() else {}
+                settings = (
+                    json.loads(text, object_pairs_hook=_no_duplicates) if text.strip() else {}
+                )
             except (UnicodeDecodeError, ValueError) as exc:
-                raise PlanError(f"{path} is not plain JSON ({exc}) — not rewritten; {hand}") from None
+                raise PlanError(
+                    f"{path} is not plain JSON ({exc}) — not rewritten; {hand}"
+                ) from None
             if not isinstance(settings, dict):
                 raise PlanError(f"{path} is not a JSON object — not rewritten; {hand}")
             if isinstance(settings.get("claudeCode"), dict):
@@ -255,8 +289,20 @@ def plan_vscode(home: Path) -> list[Change]:
         if settings.get(KEY) == value:
             continue
         settings[KEY] = value
-        after = (json.dumps(settings, indent=indent, ensure_ascii=False) + ("\n" if newline else "")).encode("utf-8")
-        changes.append(Change("vscode", path, _rel(home, path), data, mode, after, mode if mode is not None else 0o600))
+        after = (
+            json.dumps(settings, indent=indent, ensure_ascii=False) + ("\n" if newline else "")
+        ).encode("utf-8")
+        changes.append(
+            Change(
+                "vscode",
+                path,
+                _rel(home, path),
+                data,
+                mode,
+                after,
+                mode if mode is not None else 0o600,
+            )
+        )
     return changes
 
 
@@ -265,25 +311,33 @@ def _systemctl(*args: str, word: bool) -> str:
     on a valid `disabled`/`inactive`); any stderr, a missing binary or — for `word` — anything but one word on
     stdout is a refusal: an unreachable manager must never read as "not enabled" and plan a write."""
     try:
-        r = subprocess.run(["systemctl", "--user", *args], capture_output=True, text=True, timeout=30)
+        r = subprocess.run(
+            ["systemctl", "--user", *args], capture_output=True, text=True, timeout=30
+        )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise PlanError(f"{NO_MANAGER} (systemctl: {exc}) — nothing written") from None
     out = r.stdout.strip()
     if r.stderr.strip() or "\n" in out or (word and not re.fullmatch(r"[a-z-]+", out)):
         said = (r.stderr.strip() or out or "no answer").splitlines()[0]
-        raise PlanError(f"{NO_MANAGER} (systemctl --user {' '.join(args)}: {said}) — nothing written")
+        raise PlanError(
+            f"{NO_MANAGER} (systemctl --user {' '.join(args)}: {said}) — nothing written"
+        )
     return out
 
 
 def _unit_dir(home: Path) -> Path:
-    cfg = os.environ.get("XDG_CONFIG_HOME") or ""  # empty counts as unset, as in the installer's ${…:-…}
+    cfg = (
+        os.environ.get("XDG_CONFIG_HOME") or ""
+    )  # empty counts as unset, as in the installer's ${…:-…}
     base = Path(cfg) if cfg else home / ".config"
     if not base.is_absolute():
         raise PlanError(f"XDG_CONFIG_HOME={cfg!r} is relative — refused")
     return base / "systemd" / "user"
 
 
-def plan_archive(home: Path) -> tuple[list[Change], str | None, dict[str, bytes], tuple[str | None, bool]]:
+def plan_archive(
+    home: Path,
+) -> tuple[list[Change], str | None, dict[str, bytes], tuple[str | None, bool]]:
     """(unit Changes, why the installer must run or None, the source bytes planned, `Plan.timer_was`)."""
     dest = _unit_dir(home)
     sources = {name: (HERE / "systemd" / name).read_bytes() for name in ARCHIVE_UNITS}
@@ -297,24 +351,35 @@ def plan_archive(home: Path) -> tuple[list[Change], str | None, dict[str, bytes]
     enabled = _systemctl("is-enabled", ARCHIVE_TIMER, word=True)
     active = _systemctl("is-active", ARCHIVE_TIMER, word=True)
     why = [f"{len(changes)} unit(s) differ"] if changes else []
-    if ARCHIVE_ALERT not in loaded.split():  # `--value` lists every OnFailure= unit, a drop-in's included
+    if (
+        ARCHIVE_ALERT not in loaded.split()
+    ):  # `--value` lists every OnFailure= unit, a drop-in's included
         why.append(f"loaded OnFailure={loaded or '(empty)'}")
     if enabled != "enabled":
         why.append(f"timer {enabled}")
-    if active != "active":  # `enabled` is the only in-place word: enabled-runtime is a /run link gone at reboot
+    if (
+        active != "active"
+    ):  # `enabled` is the only in-place word: enabled-runtime is a /run link gone at reboot
         why.append(f"timer {active}")
     if not why:
         return [], None, sources, (None, True)
     link_undo = _link_undo(home, dest)
     user = pwd.getpwuid(os.getuid()).pw_name  # the installer's `id -un`
     try:
-        r = subprocess.run(["loginctl", "show-user", user, "-p", "Linger"], capture_output=True, text=True, timeout=30)
+        r = subprocess.run(
+            ["loginctl", "show-user", user, "-p", "Linger"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise PlanError(f"{NO_MANAGER} (loginctl: {exc}) — nothing written") from None
     if r.stdout.strip() != "Linger=yes":
         said = r.stdout.strip() or r.stderr.strip() or "no answer"
-        raise PlanError(f"linger is off for {user} ({said}); the archive timer needs it — run once: "
-                        f"loginctl enable-linger {user}")
+        raise PlanError(
+            f"linger is off for {user} ({said}); the archive timer needs it — run once: "
+            f"loginctl enable-linger {user}"
+        )
     return changes, ", ".join(why), sources, (link_undo, active == "active")
 
 
@@ -349,8 +414,14 @@ def _ssh_resolves(data: bytes) -> tuple[str | None, str | None]:
         cfg.write_bytes(data)
         cfg.chmod(0o600)
         try:
-            r = subprocess.run(["ssh", "-G", "-F", str(cfg), SSH_TARGET], capture_output=True, text=True,
-                               errors="replace", stdin=subprocess.DEVNULL, timeout=30)
+            r = subprocess.run(
+                ["ssh", "-G", "-F", str(cfg), SSH_TARGET],
+                capture_output=True,
+                text=True,
+                errors="replace",
+                stdin=subprocess.DEVNULL,
+                timeout=30,
+            )
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise PlanError(f"cannot grade ~/.ssh/config with `ssh -G` ({exc})") from None
     if r.returncode:
@@ -371,12 +442,16 @@ def _keepalive_ok(got: tuple[str | None, str | None]) -> bool:
 
 
 def plan_ssh(home: Path) -> list[Change]:
-    if os.environ.get("OPERATOR_SETUP_SSH_HOME") == "1":  # the tests' scratch HOME; any other value is ignored
+    if (
+        os.environ.get("OPERATOR_SETUP_SSH_HOME") == "1"
+    ):  # the tests' scratch HOME; any other value is ignored
         print("SSH HOME OVERRIDE in effect: ~/.ssh/config is planned under $HOME", file=sys.stderr)
     else:  # ssh reads ~ from passwd, never $HOME: a config written elsewhere is never read
         pw = Path(pwd.getpwuid(os.getuid()).pw_dir).resolve()
         if home.resolve() != pw:
-            raise PlanError(f"HOME ({home}) is not the passwd home ssh reads ({pw}) — run it with your own HOME")
+            raise PlanError(
+                f"HOME ({home}) is not the passwd home ssh reads ({pw}) — run it with your own HOME"
+            )
     path = home / ".ssh" / "config"
     rel = _rel(home, path)
     sshdir = path.parent
@@ -384,10 +459,14 @@ def plan_ssh(home: Path) -> list[Change]:
         data, mode = _read(path)
     except OSError as exc:  # unreadable, or a component that is not a directory
         raise PlanError(f"cannot read {path} ({exc})") from None
-    if data is not None:  # ssh's own owner/permission check, which `-F` skips: a config ssh refuses is never "in place"
+    if (
+        data is not None
+    ):  # ssh's own owner/permission check, which `-F` skips: a config ssh refuses is never "in place"
         if path.lstat().st_uid not in (0, os.getuid()) or mode & 0o022:
-            raise PlanError(f"{path} is writable by others or owned by another user (mode {mode:o}) — ssh refuses "
-                            "such a config; chmod 600 it and run again")
+            raise PlanError(
+                f"{path} is writable by others or owned by another user (mode {mode:o}) — ssh refuses "
+                "such a config; chmod 600 it and run again"
+            )
     current = data or b""
     if _keepalive_ok(_ssh_resolves(current)):
         return []  # nothing to write, so the directory needs nothing either
@@ -398,13 +477,15 @@ def plan_ssh(home: Path) -> list[Change]:
     while not nearest.exists():  # ~/.ssh absent: the directory it would be created in
         nearest = nearest.parent
     if not nearest.is_dir() or not os.access(nearest, os.W_OK | os.X_OK):
-        raise PlanError(f"{nearest} is not a directory this user can write, so {path} cannot be written — "
-                        "fix its mode (chmod 700) and run again")
+        raise PlanError(
+            f"{nearest} is not a directory this user can write, so {path} cannot be written — "
+            "fix its mode (chmod 700) and run again"
+        )
     nl = b"\r\n" if b"\r\n" in current else b"\n"
     block = nl.join(line.encode("utf-8") for line in SSH_BLOCK) + nl
     section = SSH_SECTION.search(current)
     if section:  # before the first section, so its values are the first ssh reads for github.com
-        after = current[: section.start()] + block + current[section.start():]
+        after = current[: section.start()] + block + current[section.start() :]
     elif current.strip():
         after = current.rstrip(b"\r\n") + nl + nl + block
     else:
@@ -421,7 +502,12 @@ def plan_ssh(home: Path) -> list[Change]:
 
 def plan(home: Path) -> Plan:
     archive, why, sources, was = plan_archive(home)
-    return Plan(plan_hooks(home) + plan_wrapper(home) + plan_vscode(home) + archive + plan_ssh(home), why, sources, was)
+    return Plan(
+        plan_hooks(home) + plan_wrapper(home) + plan_vscode(home) + archive + plan_ssh(home),
+        why,
+        sources,
+        was,
+    )
 
 
 def _show(changes: list[Change]) -> None:
@@ -466,7 +552,9 @@ def _mkdir_private(path: Path, root: Path) -> None:
 
 
 def _write_atomic(c: Change) -> None:
-    _mkdir_private(c.path.parent, Path(c.path.anchor))  # a missing ~/.ssh (or any parent) is made 0700, never at the umask
+    _mkdir_private(
+        c.path.parent, Path(c.path.anchor)
+    )  # a missing ~/.ssh (or any parent) is made 0700, never at the umask
     fd, tmp = tempfile.mkstemp(dir=c.path.parent, prefix=f".{c.path.name}.operator-setup-")
     try:
         with os.fdopen(fd, "wb") as fh:
@@ -485,10 +573,14 @@ def _restore_lines(
     backup: Path | None, done: list[Change], ran: bool, timer_was: tuple[str | None, bool]
 ) -> list[str]:
     lines = []
-    if ran:  # FIRST, while the unit is still loaded; each half undoes only what the installer changed
+    if (
+        ran
+    ):  # FIRST, while the unit is still loaded; each half undoes only what the installer changed
         if not timer_was[1]:
             lines.append(f"systemctl --user stop {ARCHIVE_TIMER}")
-        if timer_was[0]:  # the `.wants` link as it was — never `disable`, which also deletes an operator's alias
+        if timer_was[
+            0
+        ]:  # the `.wants` link as it was — never `disable`, which also deletes an operator's alias
             lines.append(timer_was[0])
     for c in done:
         target = '"$HOME"/' + shlex.quote(c.rel)
@@ -529,16 +621,23 @@ def apply(home: Path, p: Plan) -> int:
     # a file edited since it was planned is not overwritten (bar the residue the docstring names)
     for c in changes:
         if _changed(c):
-            print(f"operator_setup: {c.path} changed since it was planned — nothing written; run again", file=sys.stderr)
+            print(
+                f"operator_setup: {c.path} changed since it was planned — nothing written; run again",
+                file=sys.stderr,
+            )
             return 1
-    for name, planned in (p.archive_sources or {}).items() if p.archive_run else ():  # a hub pull since planning
+    for name, planned in (
+        (p.archive_sources or {}).items() if p.archive_run else ()
+    ):  # a hub pull since planning
         try:
             now = (HERE / "systemd" / name).read_bytes()
         except OSError:  # deleted or unreadable since planning
             now = None
         if now != planned:
-            print(f"operator_setup: {HERE / 'systemd' / name} changed since it was planned — nothing written; run again",
-                  file=sys.stderr)
+            print(
+                f"operator_setup: {HERE / 'systemd' / name} changed since it was planned — nothing written; run again",
+                file=sys.stderr,
+            )
             return 1
     backup = None
     if changes:
@@ -548,7 +647,10 @@ def apply(home: Path, p: Plan) -> int:
         try:
             backup.mkdir(mode=0o700)
         except FileExistsError:
-            print(f"operator_setup: {backup} already exists — nothing written; run again in a second", file=sys.stderr)
+            print(
+                f"operator_setup: {backup} already exists — nothing written; run again in a second",
+                file=sys.stderr,
+            )
             return 1
         backup.chmod(0o700)
     done: list[Change] = []
@@ -562,20 +664,30 @@ def apply(home: Path, p: Plan) -> int:
             dst.write_bytes(c.before)
             dst.chmod(c.old_mode if c.old_mode is not None else 0o600)
             if dst.read_bytes() != c.before:
-                print(f"operator_setup: the backup of {c.path} does not match — nothing written", file=sys.stderr)
+                print(
+                    f"operator_setup: the backup of {c.path} does not match — nothing written",
+                    file=sys.stderr,
+                )
                 return 1
         if p.archive_run:  # FIRST: a systemd refusal then leaves the other steps unwritten
             ran = True
             rc = _run_archive_installer(p, done)
             if rc:
-                print("operator_setup: the archive installer failed — the other steps were not written", file=sys.stderr)
+                print(
+                    "operator_setup: the archive installer failed — the other steps were not written",
+                    file=sys.stderr,
+                )
                 return 1
         for c in changes:
             if c.step == "archive":
                 continue  # the installer wrote these
-            if _changed(c):  # an editor that saved while the installer ran: its save stands, the run stops
-                print(f"operator_setup: {c.path} changed since it was planned — not overwritten; the run stopped here",
-                      file=sys.stderr)
+            if _changed(
+                c
+            ):  # an editor that saved while the installer ran: its save stands, the run stops
+                print(
+                    f"operator_setup: {c.path} changed since it was planned — not overwritten; the run stopped here",
+                    file=sys.stderr,
+                )
                 return 1
             _write_atomic(c)
             done.append(c)
@@ -598,8 +710,12 @@ def verify(home: Path) -> list[str]:
     if rc != 0:
         bad.append("hooks: install_user_hooks.py --check failed:\n" + out.getvalue())
     wrapper = home / ".claude" / "bin" / "claude-agent-wrapper.sh"
-    for step, check in (("wrapper", lambda: _verify_wrapper(wrapper)), ("vscode", lambda: _verify_vscode(home)),
-                        ("archive", lambda: _verify_archive(home)), ("ssh", lambda: _verify_ssh(home))):
+    for step, check in (
+        ("wrapper", lambda: _verify_wrapper(wrapper)),
+        ("vscode", lambda: _verify_vscode(home)),
+        ("archive", lambda: _verify_archive(home)),
+        ("ssh", lambda: _verify_ssh(home)),
+    ):
         try:
             why = check()
         except PlanError as exc:
@@ -626,12 +742,20 @@ def _verify_archive(home: Path) -> str | None:
 
 
 def _verify_ssh(home: Path) -> str | None:
-    return "ssh does not resolve a keepalive of 15 s or tighter for git@github.com" if plan_ssh(home) else None
+    return (
+        "ssh does not resolve a keepalive of 15 s or tighter for git@github.com"
+        if plan_ssh(home)
+        else None
+    )
 
 
 def run(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--apply", action="store_true", help="back up, write and verify (default: dry run)")
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ap.add_argument(
+        "--apply", action="store_true", help="back up, write and verify (default: dry run)"
+    )
     args = ap.parse_args(argv)
     if args.apply:
         why = _guard()
@@ -649,7 +773,9 @@ def run(argv: list[str] | None = None) -> int:
         print(f"== archive: installer run ({p.archive_run}): bash {HERE / ARCHIVE_INSTALLER}\n")
     if not args.apply:
         if p.changes or p.archive_run:
-            todo = f"{len(p.changes)} file(s) would change" + (" and the archive installer would run" if p.archive_run else "")
+            todo = f"{len(p.changes)} file(s) would change" + (
+                " and the archive installer would run" if p.archive_run else ""
+            )
             print(f"{todo}. Run again with --apply to back them up and write them.")
         else:
             print("Nothing to do: every step is already in place.")
