@@ -165,6 +165,26 @@ def test_env_upsert_keeps_a_line_with_a_non_utf8_byte_under_a_utf8_locale(tmp_pa
     assert env.read_bytes() == b"A=" + odd + b"\nB=2\n" + f"{GT_KEY}=new\n".encode()
 
 
+def test_env_upsert_leaves_env_untouched_when_grep_fails(tmp_path):
+    shim = tmp_path / "bin"
+    shim.mkdir()
+    (shim / "grep").write_text("#!/bin/sh\necho partial\nexit 2\n")
+    (shim / "grep").chmod(0o755)
+    work = tmp_path / "w"
+    work.mkdir()
+    (work / ".env").write_text("A=1\nB=2\n")
+    r = subprocess.run(
+        ["sh", "-c", m.env_upsert_sh(GT_KEY)],
+        input="new\n",
+        text=True,
+        cwd=work,
+        env=dict(os.environ, PATH=f"{shim}:{os.environ['PATH']}"),
+    )
+    assert r.returncode != 0
+    assert (work / ".env").read_text() == "A=1\nB=2\n"
+    assert [p.name for p in work.iterdir()] == [".env"]
+
+
 def test_env_upsert_creates_a_missing_env_mode_0600(tmp_path):
     _upsert(tmp_path, EX_KEY, "v\n")
     env = tmp_path / ".env"
