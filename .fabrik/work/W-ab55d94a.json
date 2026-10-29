@@ -14,9 +14,9 @@
   },
   "next": "on the test notification, fix any failures, commit and push the merge, then `/fabrik-execute-plan docs/development/plans/2026-10-21-plan-1-hibernate-full-guarantee/` for T04, then T06.",
   "next_at": "2026-10-29T21:41:02.515222Z",
-  "note": "",
+  "note": "superseded",
   "owner": "infra-3",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "title": "on the test notification, fix any failures, commit and push the merge, then `/fabrik-execute-plan docs/development/plans/2026-10-21-plan-1-hibernate-full-guarantee/` for T04, then T06."
 }
