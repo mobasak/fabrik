@@ -899,7 +899,15 @@ def _hub_parent(agent, frm="fabrik"):
 
 def test_self_guard_passes_a_sibling_agents_parent(env):
     """A fleet request in the shared hub mailbox, auto-replied by infra, is not infra's own message."""
-    for parent_agent, me in (("fleet", "infra"), ("infra-2", "infra"), ("coordinator", "kaizen")):
+    # " fleet " — a dict caller's padded value is the agent once stripped (`_parse` strips a file's
+    # headers itself), so the strip is observable here and nowhere else
+    cases = (
+        ("fleet", "infra"),
+        ("infra-2", "infra"),
+        ("coordinator", "kaizen"),
+        (" fleet ", "infra"),
+    )
+    for parent_agent, me in cases:
         ok, reason = mail.should_auto_reply(_hub_parent(parent_agent), "fabrik", self_agent=me)
         assert ok, (parent_agent, me, reason)
 
