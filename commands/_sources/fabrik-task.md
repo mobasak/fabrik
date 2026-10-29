@@ -189,14 +189,15 @@ Under urgent-90 CHECKPOINT record stays open, *(v2)* build is committed through 
 2. D-row in `docs/DECISIONS.md` from phase-2 draft, if there was decision — minting and reversible/ONE-WAY classification stay decision-ledger rule's.
 3. `CHANGELOG.md` atop `[Unreleased]`; `docs/LESSONS_LEARNT.md` or explicit `none`.
 4. `python scripts/final_gate.py --json` → `status: "success"`.
-5. Commit with explicit pathspecs + provenance trailers (§ EXIT: trailers via -F <msg>, private-index for shared-append files), then capture it, found by its own subject — a `HEAD` read would capture a sibling's commit landing while the post-commit hook runs. Each line is its own plain call, never chained to the commit, which a linked worktree's isolation guard refuses:
+5. Commit with explicit pathspecs + provenance trailers, then capture it, found by its own subject — a `HEAD` read would capture a sibling's commit landing while the post-commit hook runs. Each line is its own plain call, never chained to the commit, which a linked worktree's isolation guard refuses:
 
 ```bash
 mkdir -p <durable>
+<your § EXIT commit: pathspecs, trailers via -F <msg>, private-index for shared-append files>
 python3 scripts/command_run.py capture --msg <msg> --out <durable>/commit.sha
 ```
 
-`capture` appends the sha of the newest commit whose subject is `<msg>`'s, and exits 1 appending nothing when that commit's subject differs or no commit has it; every run commit — the build's, the ledgers', each a review fix makes — is captured this way.
+`capture` finds the newest commit whose message holds `<msg>`'s subject, appends its sha when that commit's own subject is exactly `<msg>`'s, and exits 1 appending nothing otherwise; every run commit — the build's, the ledgers', each a review fix makes — is captured this way.
 
 6. § EXIT's push ladder (never `--force`), then close — capture file, not post-ladder `HEAD` read, is what names YOUR commit:
 

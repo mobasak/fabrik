@@ -116,7 +116,10 @@ def test_design_tabulates_its_inputs_and_the_close_captures_by_subject() -> None
     # command_run.py's own verb, run as a plain call (its find-by-subject and exact %s check are tested in
     # test_command_run_lane_v2.py's test_capture_*), never the chained shell recipe a worktree guard refuses
     assert "trailers via -F <msg>," in close
-    assert "mkdir -p <durable> python3 scripts/command_run.py capture --msg <msg> --out <durable>/commit.sha" in close
+    assert (
+        "mkdir -p <durable> <your § EXIT commit: pathspecs, trailers via -F <msg>, private-index for shared-append"
+        " files> python3 scripts/command_run.py capture --msg <msg> --out <durable>/commit.sha"
+    ) in close
     assert "subj=$(head" not in close and "&& echo" not in close
     assert '"<your subject>"' not in close
     assert "rev-parse -q --verify HEAD" not in close

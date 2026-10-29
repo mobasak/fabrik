@@ -557,11 +557,11 @@ entries:
   # class: prose
   section: '## Phase 5 — CLOSE, in this order'
   baseline: Commit with explicit pathspecs + provenance trailers, chaining the capture off the commit, found by its own subject
-  current: 'Commit with explicit pathspecs + provenance trailers (§ EXIT: trailers via -F <msg>, private-index for shared-append files), then capture it, found by its own subject — a `HEAD` read would capture a sibling''s commit landing while the post-commit hook runs'
+  current: 'Commit with explicit pathspecs + provenance trailers, then capture it, found by its own subject — a `HEAD` read would capture a sibling''s commit landing while the post-commit hook runs'
   changed-by:
   - D-1339
   text:
-  - 'Commit with explicit pathspecs + provenance trailers (§ EXIT: trailers via -F <msg>, private-index for shared-append files), then capture it, found by its own subject — a `HEAD` read would capture a sibling''s commit landing while the post-commit hook runs'
+  - 'Commit with explicit pathspecs + provenance trailers, then capture it, found by its own subject — a `HEAD` read would capture a sibling''s commit landing while the post-commit hook runs'
 - id: ft-close-capture-plain-calls
   # class: ban
   section: '## Phase 5 — CLOSE, in this order'
@@ -572,17 +572,17 @@ entries:
   # class: behavioural
   section: '## Phase 5 — CLOSE, in this order'
   baseline: 'mkdir -p <durable> \ ⏎ && <your § EXIT commit: pathspecs, trailers via -F <msg>, private-index for shared-append files> \ ⏎ && subj=$(head -n1 <msg>) && sha=$(git log -1 --format=%H -F --grep "$subj") && [ -n "$sha" ] \ ⏎ && [ "$(git log -1 --format=%s "$sha")" = "$subj" ] && echo "$sha" >> <durable>/commit.sha || exit 1'
-  current: 'mkdir -p <durable> ⏎ python3 scripts/command_run.py capture --msg <msg> --out <durable>/commit.sha'
+  current: 'mkdir -p <durable> ⏎ <your § EXIT commit: pathspecs, trailers via -F <msg>, private-index for shared-append files> ⏎ python3 scripts/command_run.py capture --msg <msg> --out <durable>/commit.sha'
   changed-by:
   - D-1339
   text:
-  - 'mkdir -p <durable> ⏎ python3 scripts/command_run.py capture --msg <msg> --out <durable>/commit.sha'
+  - 'mkdir -p <durable> ⏎ <your § EXIT commit: pathspecs, trailers via -F <msg>, private-index for shared-append files> ⏎ python3 scripts/command_run.py capture --msg <msg> --out <durable>/commit.sha'
 - id: ft-close-capture-verb
   # class: prose
   section: '## Phase 5 — CLOSE, in this order'
-  current: '`capture` appends the sha of the newest commit whose subject is `<msg>`''s, and exits 1 appending nothing when that commit''s subject differs or no commit has it; every run commit — the build''s, the ledgers'', each a review fix makes — is captured this way'
+  current: '`capture` finds the newest commit whose message holds `<msg>`''s subject, appends its sha when that commit''s own subject is exactly `<msg>`''s, and exits 1 appending nothing otherwise; every run commit — the build''s, the ledgers'', each a review fix makes — is captured this way'
   text:
-  - '`capture` appends the sha of the newest commit whose subject is `<msg>`''s, and exits 1 appending nothing when that commit''s subject differs or no commit has it; every run commit — the build''s, the ledgers'', each a review fix makes — is captured this way'
+  - '`capture` finds the newest commit whose message holds `<msg>`''s subject, appends its sha when that commit''s own subject is exactly `<msg>`''s, and exits 1 appending nothing otherwise; every run commit — the build''s, the ledgers'', each a review fix makes — is captured this way'
 - id: ft-close-push-then-close
   # class: ban
   section: '## Phase 5 — CLOSE, in this order'
