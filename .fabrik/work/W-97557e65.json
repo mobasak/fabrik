@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "",
+  "next": "root cause found (NatWatchdog wsl.exe probe orphans relays); fix routed to the coordinator as operator steps",
   "note": "",
   "owner": "infra-2",
   "priority": 1,
