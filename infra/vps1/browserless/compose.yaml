@@ -33,6 +33,7 @@ services:
           # so true demand at CONCURRENT 10 is unknown. If OOM kills continue at 3G, lower CONCURRENT rather
           # than raising this again. vps1 had 6.0 GiB available and its limits summed to ~2x its RAM.
           memory: 3G
+          cpus: '2.0'
 
 networks:
   fabrik:

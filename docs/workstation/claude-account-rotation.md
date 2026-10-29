@@ -139,8 +139,9 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   before the field) reads as `walled`, so the migration and every unreadable case fail CLOSED.
   The synced PreToolUse hook `quota_stop.py` turns the `walled` tier
   into a GRACEFUL STOP that reaches every session mid-turn: work tools are held with one
-  instruction (commit + push, close the run record, end the turn); reads, git, the record
-  tools, `Monitor` and `TaskStop` stay open. At `urgent-90` it runs the LANE (W-18f559d9,
+  instruction (commit + push, close the run record, end the turn); reads, the git checkpoint and
+  read verbs (never `git grep`; through `git -C /opt/<repo>`, the read verbs only), the record tools,
+  `Monitor` and `TaskStop` stay open. At `urgent-90` it runs the LANE (W-18f559d9,
   D-1113): the bound merge owner of a `coordinator_mode` repo and the bound owner of an open P0
   item CONTINUE with a CHECKPOINT nudge — killing their in-flight seats would be the premature
   stop D-299 forbids — and every other session is PARKED with the wall's allow-list plus the
@@ -149,8 +150,13 @@ The `*/5` tick reads every account dir (it discovers them, nothing enumerates th
   become exempt again (W-cff56c52) — the rotation's re-bind `python3
   /opt/fabrik/scripts/whoami_agent.py --as <name> --force` (`--force` optional, before or
   after `--as <name>`; that absolute path only) for ONE name only: the one this
-  window's claude process (pid + start tick, D-748) held LAST in this repo, written this boot,
-  not re-taken by another window since, with no live foreign holder, from a cwd in this repo.
+  window's claude process (pid + start tick, D-748) held LAST in this repo, not re-taken by
+  another window since, with no live foreign holder, from a cwd in this repo. A session resumed
+  into a new claude process gets that row at SessionStart from `whoami_agent.py`'s `refresh()`
+  (W-a77742db) — it writes nothing, among other cases, when the store lock was busy at that
+  start, the name was re-taken, or the session is live in another process (the whole list is
+  `refresh()`'s docstring), and the next SessionStart tries again; there is no boot-time test, because WSL2's btime moves forward with each host
+  sleep and came to refuse a live window's own row.
   Any other name stays held until the lift — an earlier name of this window, and a name whose
   last row is another window's, even a dead one),
   so the last
@@ -323,7 +329,7 @@ grep-able classes the surface has (units-sized mode only; default one per unit, 
 negative count is refused), a trimmed Haiku seat sweeps one class across every unit; never below the applicable floor unless a hard cap binds or the fleet HOLD is on at its WALL tier (then 0; at `urgent-90` the band decides — D-706); `--units 0` with no `--slices` is
 nothing to partition and prints 0 with the reason. `--json` also carries `box_caps` (read-only + heavy from the one box probe) for callers like the board, plus `slices` (the parsed partition, or `null`) and `mix_by_slice` (the partition TRIMMED to the seat budget, independent of a `--mix` price override — `null` when `--slices` is not given). `quota_cap` drops to the
 floor when the active account's hottest window is ≥85% or no standby account is eligible (`eligible` counts standbys; the active account is `state=active`) —
-the same bands `core/62` § Dispatch economics names. `--heavy` is for seats whose TOOLS load the box
+the same bands `core/62` § Dispatch economics names. A session on an Anthropic API key is exempt from every quota cap above — wall, drain band, unknown-quota floor, no-standby caution — because its seats draw the key, not the plan (D-1243): `quota.api_key_free` is read by CALLING `quota_posture_hook._api_key_free()` (plain tier only — a `battery` stamp, a second credential, a predicate that fails to load or raises, or a hold with no stamp at the hook's own path all keep the plan caps), follows the env of the process that runs the script, and the box and the CLI cap still bind (W-3e924ccb). `--heavy` is for seats whose TOOLS load the box
 (pytest, builds, renders): a native seat lives inside its parent `claude` process, so only its
 subprocesses count, bounded by `MemAvailable` (the commit headroom too, only under strict overcommit) at 2 GB per heavy seat (1 GB read-only) and by `cores − load1` at 1 core per heavy seat and 0.3 per read-only seat (the measured p90 share of a seat's life its tools run — D-511; memory alone decides the floor, since CPU contention slows and memory exhaustion kills), minus the seats OTHER sessions DISPATCHED — charged at the read-only GB and CPU cost, not as whole seats — in the last 25 minutes (`command_run.py dispatch --seats <n>` — stamped before the seats go out, accumulated within the round, released at its close; the caller's own record is never subtracted), never below the floor the box has room for — this box bound is driven by BOX capacity alone and stays live in both modes. Every probe fails
 soft and prints its reason with the floor, never a silent 20. It also prices the mix per D-190 — haiku 1× · sonnet 2× · opus 5× · fable 10× — for the mix it chose (`--units 3` → `{opus: 1, sonnet: 3, haiku: 3}`, `COST: 14 haiku-units`; `--slices opus=1,sonnet=1` → `COST: 7 haiku-units`) or one you pass (`--mix opus=1,sonnet=5` → 15), with the Fable adjudicator (10) printed beside the total, never inside it. Tests: `tests/sysadmin/test_dispatch_headroom.py`.

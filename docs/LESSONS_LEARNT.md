@@ -10,6 +10,82 @@
 
 **What happened:** T02's blocking probe launched one claude on a private tmux server to prove the `--settings` suppression. It took four launches: `capture-pane -t =probe-1` fails on tmux 3.4 ("can't find pane"), and a 60 s wait found no transcript, because a fresh worktree's first turn spends about 57 s in SessionStart hooks.
 **Lesson:** target tmux panes as `=<session>:`, never a bare `=<session>`; a probe that waits for a new session's transcript waits 150 s, not 60. The wave's review then found that a validation moved "before the first side effect" also has to stay off paths that make no side effect at all: decide where a refusal belongs by which paths build the thing it guards.
+## On this fleet a `compose down` is not a removal (2026-10-29, W-80a1f9fd)
+
+**What happened:** D-121 took the ocoron-com stack down with `docker compose down`, and the stack was found running again weeks later. `fabrik-compose-boot.sh` runs `up -d` on every `/opt/*/compose.yaml` at each boot, and D-121 had left the file in place. A second reviver was waiting too: the vps1 sysadmin bot's prompt still ranked the stack P0 and gave it "full autonomous management".
+
+**Lesson:** a removal on a fleet host must also remove what would start the stack again. That means the compose file in the boot glob (rename it out) and every autonomous actor told to keep the stack up (its prompt or config). Grep the host's boot units and the bot prompt for the stack's name before calling it gone.
+
+## A scope condition written twice hides from every single mutant (2026-10-29, W-19b57b9a)
+
+**What happened:** the hub-only self-guard first checked `self_repo == "fabrik"` on BOTH sides it compared (the parent's agent and the caller's). Deleting either check alone changed nothing, because the other one still emptied the comparison, so two mutants survived a battery that killed everything else. The tests were complete; the code made each half redundant.
+
+**Lesson:** a scope test that gates a decision belongs in ONE place, joined into the decision itself (`if not (hub and …)`), never repeated on each input. A survivor whose deletion "should" matter is a sign of duplicated logic before it is a sign of a missing test, so restructure first, then re-run the battery.
+
+## A hold written for a reason must end when the reason does (2026-10-29, W-0fe931b7)
+
+**What happened:** the one-major rule holds every other major with `assign --blocked-by <the in-flight major>`. A later re-score turned nine of those majors into quick wins, but `blocked_by` carries no reason and the re-score never looked at it, so the items sat unclaimable for 11 days while their priority said P1.
+
+**Lesson:** when a write exists only because of a field's value (here, a hold that exists because the item is high/high), the verb that changes that value owns ending the write too. Find that verb and make it clear what it wrote, reading the same predicate the writer used (triage's in-flight test), not a looser one. A looser "any major" rule would also have dropped real prerequisites.
+
+## Six convenient values are not evidence for "every value" (2026-10-29, W-f01710a0)
+
+**What happened:** a review fix for the docker cpu grammar wrote into a docstring that the daemon stores every grammar value exactly, citing a probe of six values (0.01, 0.02, 0.07, 0.1, 0.29, 1.5), all exact. An Opus seat modelled compose's 32-bit read and predicted 0.13 → NanoCpus 129999992; the daemon then stored exactly that, and 2.15 and 3.33 were off too. Two review rounds went to one sentence.
+
+**Lesson:** before a fix states a property of a whole input space, generate the space (here 102,400 two-decimal strings) or find a model that predicts which members fail, and probe the ones the model says fail, never only the round numbers at hand. A claim that cannot be checked that way is narrowed to the values actually executed, or deleted.
+
+## A population counted from the files you are about to change misses the ones you are about to reach (2026-10-29, W-76d3448d)
+
+**What happened:** to measure who a re-keyed skip guard would affect, the first census walked the 9 repos that already carried the generated CI files. The Opus design critic re-walked every git repo under /opt (44) and found the 36 the guard would newly make backfill targets, 32 of them tracking SQL. The same census had also read "sqlfluff red" as "the replica is red today" without grepping the replica for the sqlfluff step it lacked, and the wrong claim was relayed to the coordinator and corrected an hour later.
+
+**Lesson:** a guard's population is the set its NEW verdict reaches, not the set its old verdict marked; count the whole space the predicate ranges over. And a lint verdict about a file a tool would write says nothing about the copy already there: check that the live artifact runs the step before claiming it fails.
+
+## An exact-signature probe is not a call-resolvability probe (2026-10-29, W-d8505af5)
+
+**What happened:** the design for the payments ingest guard said that the exact grant function plus another overload would take the `module` path, because `to_regprocedure('payments_grant_ingest(pg_catalog.regrole)')` resolves the exact one. Both critique seats ran it on PostgreSQL 16: when the other overload has a DEFAULT, the one-argument `PERFORM` raises 42725 `is not unique`. The state still fails closed, but the design table was wrong, and the draft had no test for it (one was added before the build).
+
+**Lesson:** a lookup that names the full signature (`to_regprocedure`) answers "does this exact function exist", never "will a call with these arguments pick it". When a guard keys on the first and the code then calls the function, table the overload-with-defaults state and run it on a real server.
+
+## An identity check on a corpus that produces nothing proves nothing (2026-10-29, W-f5a1eec9)
+
+**What happened:** to speed up `losses()`, the first probe compared the cached build's output with base over the live corpus and printed `identical True`. The live corpus produces zero LOSS lines, so the check only showed that an empty list stayed empty. The planned identity test also compared the build with itself (cold cache against warm cache). Both critique seats caught it. The real differential ran base and build over mutated renders that produce 1,668 and 2,777 LOSS lines.
+
+**Lesson:** before an equality check is evidence that a change preserved output, count what the reference produces. If it is empty or near-empty, perturb the input until the reference produces many results of every kind, then compare base against the build — never the build against itself.
+
+## A stub guard keyed on a marker accepts whatever else carries the marker (2026-10-28, W-bda24c48)
+
+**What happened:** to stop 11 tests paying a 169 s LOSS pass, a spy replaced it and accepted only "check()'s temp render", identified by the `_agents` subdirectory only the render holds. Review round 1 found the source tree `commands/` holds `_agents` too, so a check() handing the pass its own sources stayed green. It also found that a neutral rename of the temp dir false-redded every test. The next two identity rules each failed once more: "the last render" false-redded a check() rendering twice, and "any render this test made" accepted an earlier call's deleted temp dir.
+
+**Lesson:** identify the object a guard accepts by recording its producer (wrap the function that creates it, scoped to the call under test), never by a property you believe only it has. Then mutate the caller with every other value of the right type, including its siblings, its sources and its own earlier output.
+
+## A seat probing the UNFIXED form of an option-injection bug writes outside its scratch (2026-10-29, W-b3192e98)
+
+**What happened:** to prove `ln -sfn -- <old> <link>` against `ln -sfn <old> <link>`, the review seats ran the old form over targets like `--`, `-n`, `-v` and `--target-directory=/tmp`. The defect they were measuring did exactly what it does: `ln` took the target as an option and the link name as the source, creating `session-archive.timer` in the seat's cwd, one symlink in `/tmp`, and another (`l`) in the live worktree, all at exit 0.
+
+**Lesson:** when a brief asks seats to execute the unfixed form of an argument-injection defect, the defect's own side effect is a write to wherever the cwd or an injected option points. Say in the brief: `cd` into the seat folder first in every call, never pass `-t`/`--target-directory=`, and the lead runs the leak check (`git status`, the named out-of-tree paths) after the pass returns — here that check is what found the worktree stray.
+
+## Probe a guard on COMBINED states, not each state alone (2026-10-29, W-88173de4)
+
+**What happened:** a design probe showed that an alias alone reads `indirect` and is deleted by `systemctl disable`, so the design refused every `is-enabled` word but four measured ones, and two design critiques passed it. A review reader combined two states, an alias plus a runtime enable: the word read `enabled-runtime`, inside the allow-list, and the alias was still deleted.
+
+**Lesson:** a guard keyed on one classifier output partitions the states only as finely as that output does. When the harm comes from a property the classifier can mask, probe each harmful property combined with every allowed value before trusting the guard, or key the fix on the harm itself (here: restore exactly the link the installer changed), which needs no classifier.
+
+## A WIP commit made with --no-verify hides the hook its own file will fail (2026-10-29, W-fc5aee9a)
+
+**What happened:** to park a branch with deliberately red tests, the WIP commit skipped the hooks. The test file held literal private-key armour strings, so the repo's `detect-private-key` hook refused the first ordinary commit that touched it, an hour later, mid-review. The skipped hook had nothing to do with the red tests it was skipped for.
+
+**Lesson:** park red work with the hooks on (a red test is not a hook failure); when a skip is unavoidable, run `pre-commit run --files <the files>` before the next real commit. Test fixtures that must hold secret-shaped text build it at runtime (`"PRIVATE" + " KEY"`), so the hook keeps guarding real keys.
+
+## A delegated installer's exit code says nothing about what it wrote (2026-10-28, W-d6726a65)
+
+**What happened:** the setup script's archive step runs `install_session_archive_timer.sh` instead of copying its units. Both design critics executed it on stub `systemctl`: with `daemon-reload` failing it exits 1 after writing all three units and prints nothing, so undo lines built from "what this script wrote" would have missed every unit. The same pass found `systemctl --user cat` shows the DISK unit while the loaded one (`show -p OnFailure`) was empty on this box.
+
+**Lesson:** when a step delegates writes to another program, rebuild the undo set by re-reading every target after it returns, whatever its exit code, and verify the state the consumer reads (the loaded unit), not the file you can see.
+
+## A guard keyed on "written this boot" expires on WSL, and a fix closed as "already done" may not be (2026-10-28, W-a77742db)
+
+**What happened:** the quota lane's /clear re-bind (D-1209) demanded an identity row written under this claude process "this boot" (`at >= btime`). On WSL2 `btime` is now minus uptime, and uptime stops while the host sleeps, so btime moved 69,421 s forward in a day and the clause came to refuse a live window's own row. Earlier the same day the item had been closed as "resolved by D-1209" from a passing test; the routed mail showed the refusal happening after D-1209 was live. And one mutant "survived" because its `-k` selected a neighbouring test, not the grader that held the guard.
+**Lesson:** never anchor a liveness or freshness check on `/proc/stat` btime (or anything derived from uptime) on WSL; key on what identifies the thing itself (pid + start tick). Before closing an item as already fixed, replay its REPORTED incident on the current code; a green test of the fix's own case is not that replay. A survivor counts as a test gap only once its `-k` names the test that actually contains the assertion.
 
 ## A check that reads list POSITION is satisfied by reordering the list (2026-10-27, W-0b900e92)
 
@@ -8024,3 +8100,27 @@ document.
   hook children during a real Stop (no strace on this box) and compare `CLAUDE_PROJECT_DIR` with the cwd. Since
   W-456aa02a the user-level `selfwatch_check.py` says so on every prompt.
 - **Where it lives.** `scripts/sysadmin/selfwatch_check.py::_project_dir_order`, `scripts/sysadmin/agents_up.sh` (D-1284).
+
+## A probe of a cwd-keyed writer runs FROM the throwaway repo, or it writes the real one (2026-10-28)
+
+**What happened:** testing W-835894a6's `--handoff-write`, a live probe meant for a throwaway repo was run as a plain Bash call from the infra-2 worktree. The writer resolves its target from the cwd's git common dir, so it wrote the REAL hub file `/opt/fabrik/.git/fabrik-handoff/coordinator.md` — the path the coordinator's next `/clear` would print — with probe text. It was removed within a minute and the folder verified empty.
+**Why:** a tool keyed on its cwd has no separate "target" argument to aim; the Bash tool's cwd is the session's checkout, not the probe's folder named in the command.
+**How to apply:** run every probe of a cwd-keyed writer through a launcher that sets `cwd=` to the throwaway repo and ASSERTS the printed path sits under it before anything else runs (the live probe did this on its second try); list the real target folder before and after.
+
+## A key-name redactor over parsed YAML leaks through aliases and through its own re-emit (2026-10-29)
+
+**What happened:** W-64cf1856 routed the vps1 monitoring files through the portability redactor (parse, redact by key name, re-emit). Three review rounds found the parse step itself was the hole and the hazard: a YAML alias (`other: *pw`) or merge key (`<<: *a`) copied a redacted secret out under a harmless key; PyYAML's YAML 1.1 typing rewrote what the operator wrote (`17:00` → 1020, `on` → True, `1.10` → 1.1), which the Go parser restoring the copy would then read differently; and the parse error's own message quoted the source line — and an unknown tag — into the warning log.
+**Why:** a key-name redactor sees the CONSTRUCTED tree, not the document: aliases are expanded, scalars are typed and the error text is built from the raw bytes. Each layer between the bytes and the redactor is a place a secret can be copied or quoted past it.
+**How to apply:** when redacting a parsed config, refuse aliases outright (fail closed), keep plain scalar values as their source text (a `str` subclass written back plain) so re-emitting changes no meaning, construct keys as the stock loader does (a str-subclass key collides with its quoted twin), refuse a redaction that maps two keys to one, and log a parse failure as its type and line only — never `str(exc)`.
+
+## A refusal's "last 3 lines" tail can be a verdict line's own argv — quote the verdict line itself (2026-10-29)
+
+**What happened:** fleet-docker-cpu's merge leg died at capped_run's 4G ceiling twice (W-e64a7b8e), and both refusals read "exit 137" followed by shell comments. capped_run prints `killed at the memory ceiling (…) — $*`, and `$*` was the multi-line `sh -c <script>`, so the refusal's 3-line tail of stderr was the script's last lines; the word "memory" never reached the requester. The pretest path then replaced even that text with a fixed "timed out or was killed (exit 137)".
+**Why:** a "last N lines" tail assumes the verdict is the last thing printed; a verdict line that echoes its own command pushes itself out of the window, and a second path that rewrites the error for its own wording drops whatever the first path learned.
+**How to apply:** when a wrapper has its own verdict line, find THAT line by its prefix and cut it before the echoed argv; carry the one cause string on every path that re-raises it (here `base_alone_skip`); and give the stand-in runner the incident's exact shape — the cut survived a mutant until the fixture's script put text on the kill line's own first line.
+
+## A screen parser's fixtures were written from memory — open the real dialog before trusting "already tested" (2026-10-29)
+
+**What happened:** W-a12b03a2 planned to reuse rotate_session's `_dialog` ("already tested") to spot builder panes waiting on a dialog. Its fixtures were three hand-written lines (`Allow?\n❯ 1. Yes\n  2. No`). One critique seat argued that real dialogs are bordered; neither seat could open one. A throwaway Haiku session in a scratch tmux session showed the real shapes on Claude Code v2.1.312: no dialog is bordered, but `_dialog` misses two of the three — the workspace-trust prompt (its options are not numbered) and an AskUserQuestion whose wrapped option descriptions put the next option four rows away.
+**Why:** a parser of another program's screen is only as good as the screens its fixtures came from; hand-written fixtures encode the author's memory of the UI, and every reviewer reading them inherits that memory.
+**How to apply:** before relying on a screen parser, produce the real screen it parses in a disposable session (your own scratch tmux session; never a live agent's pane) and run the parser on it; keep the captures out of the repo — another session's screen is not yours to commit — and write fixtures that reproduce the measured row shapes.

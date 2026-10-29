@@ -28,7 +28,16 @@ from fabrik.env_file import format_env as _format_env
 from fabrik.env_file import parse_env as _parse_env
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.exceptions import DeployError, ProvisioningError
-from fabrik.spec_loader import OWNER_ENV_FILE, OWNER_ENV_KEYS, Source, SourceType, Spec
+from fabrik.spec_loader import (
+    CPU_GRAMMAR_MESSAGE,
+    OWNER_ENV_FILE,
+    OWNER_ENV_KEYS,
+    Resources,
+    Source,
+    SourceType,
+    Spec,
+    cpu_in_grammar,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1581,6 +1590,13 @@ def _generate_docker_compose(
     """Generate a minimal compose.yaml for a Docker image source."""
     resources = spec.get("resources", {})
     memory = resources.get("memory", "256M") if isinstance(resources, dict) else "256M"
+    # The CPU limit was dropped here, so a docker-sourced service ran unlimited (W-f01710a0). An absent cpu takes
+    # the `Resources` default, as the template path's `Spec` does, and the cpu is held to the same grammar. A
+    # non-mapping `resources` defaults both values here, as memory always did; apply's validator refuses it first.
+    default_cpu = Resources.model_fields["cpu"].default
+    cpu = resources.get("cpu", default_cpu) if isinstance(resources, dict) else default_cpu
+    if not cpu_in_grammar(cpu):
+        raise ValueError(CPU_GRAMMAR_MESSAGE)  # never the value
 
     # Health: read from spec (W12.b 2026-06-02 — was hardcoded /health + curl).
     # `curl` is not in nginx:alpine or many other small images; use a wget/Python
@@ -1626,6 +1642,7 @@ def _generate_docker_compose(
         "      resources:",
         "        limits:",
         f"          memory: {memory}",
+        f"          cpus: '{cpu}'",
     ]
     # `health: { disabled: true }` → OMIT the healthcheck. The default `wget --spider` probe needs a shell +
     # wget, absent from FROM-scratch/distroless images (e.g. Zitadel) — a forced healthcheck there errors,

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T13:30:37.748195Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-e38f8ee7",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 3,
+  "score_reason": "MEDIUM: stale hooks on one builder, nobody blocked; effort low: one verb",
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "agents_up.sh has no verb to relaunch one pane in a different worktree: fleet's pane still loads hooks+settings from .claude/worktrees/fleet-brand-fix (68 commits behind) while it works in fleet-backfill-ci; rotate-session only /clears in place, and hand tmux is forbidden (D-1143). Add a per-pane relaunch-in-<worktree> path (or fold into W-b9ad80ae's agents_spawn)."
+}

@@ -23,6 +23,7 @@ services:
       resources:
         limits:
           memory: 512M
+          cpus: '1.0'
 
 networks:
   fabrik:

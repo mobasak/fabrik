@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T05:43:41.644070Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-5b113a0d",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide with the pack whether a docusaurus final stage must be the nginx serve stage; if yes, refuse the 30-ops shapes as a docusaurus FINAL stage (builder stages stay fine), flip that test row, and drop 'one of' for the single-option hint",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "audit_all_projects.py grades a docusaurus project whose FINAL stage is node/python/debian slim as compliant, though core/42-docusaurus.md:221/:246 forbid a Node runtime in production — the serve stage should be nginx:mainline-<codename> only for type docusaurus (pre-existing; W-cd8b8ead review pass 2, seat 3; its test row ('python:3.14-slim-trixie','pinned') under docusaurus locks today's behaviour, and the docusaurus fix line reads 'one of' before a single option)"
+}

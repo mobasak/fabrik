@@ -1,0 +1,26 @@
+{
+  "block_digest": "da92bdcae05762784fe971a712ccda692bf637e5db7124accc4b002d61be6680",
+  "blocked_by": [],
+  "created": "2026-10-29T04:25:42.798080Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-24991284",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "8a0b40250885cf9ec926e16f7f7a66672670c011b5fa9839f4952dd393ca2c07"
+  ],
+  "next": "",
+  "note": "operator ran vps1_cpu_limits.py --apply 2026-10-29 13:50: 22 containers updated (runtime caps), 13 compose files written with backups *.cpu-bak-20261029-135041; n8n, prometheus (runtime), site-provisioner already OK",
+  "owner": "",
+  "priority": 2,
+  "question": "Will you run `python3 -I scripts/sysadmin/vps1_cpu_limits.py`, then the same with `--apply`, from `/opt/fabrik` once fleet's script merge lands?",
+  "status": "done",
+  "title": "Will you run `python3 -I scripts/sysadmin/vps1_cpu_limits.py`, then the same with `--apply`, from `/opt/fabrik` once fleet's script merge lands?"
+}

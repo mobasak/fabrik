@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T15:18:57.337491Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-78950fbf",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "use `is not None`; turn the strict xfail test_record_gpu_zero_duration_is_zero_ms (tests/test_cov_ai_tracker.py) into a plain test; also fix the docstrings at tracker.py ~98 and ~124 that cite a record() method that does not exist",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "ai/tracker.py:127 record_gpu maps duration_seconds=0.0 to NULL instead of 0 ms (truthiness test, not None test)"
+}

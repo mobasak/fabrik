@@ -36,6 +36,242 @@ When `docs/reference/agents/<name>.md` is absent (a dangling symlink counts as p
 
 ### Added — whoami spawner-only binding: `--spawned` with a held-lock caller proof (2026-10-28)
 `whoami_agent.py --spawned <name> --session-id <uuid> --repo <dir> --lock-fd <n>` binds a NEW session id for a spawner that holds `<common dir>/fabrik-agents.lock` (W-b9ad80ae, plan T01). The proof reads `/proc/self/fdinfo/<fd>` for an exclusive flock on the literal lock file and takes, converts or releases no lock, so a shared or POSIX holder, an unlocked copy and a symlinked lock are refused. The row carries `spawned: true` and a null pid; prefix-abbreviated flags are refused. Exits 0 written · 1 live holder · 2 refused (an unenterable `--repo` included) · 3 git could not run, or a crash. `--as`/`--who` are unchanged.
+### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
+- `scripts/work.py`: in a coordinator-mode repo every builder prompt carries
+  `work: coordinator (<distributor>) → SendMessage to=<name>`, resolved live through `mail.py who`
+  (1 s cap) and listing every live name that fits the line whole, with a stale warning, when
+  several answer (W-9bf5a363,
+  D-1337). The hub coordinator's extension window gets a new auto-generated peer name at each
+  rotation, so a name kept in a builder's notes went dead (a rotate request sat 14 h). Unsafe names
+  are dropped and any error adds no line.
+
+### Fixed — the real-Postgres test fixture no longer leaks a 50 MB volume per container (2026-10-29)
+- `tests/test_app_role_real_pg.py::scratch_pg` tore its container down with `docker rm -f`, which
+  removes the running container itself and keeps the image's anonymous data volume, so every
+  container it started left one PostgreSQL 18 data volume behind (W-2786800d). It was the live
+  half of the anonymous volumes that filled the WSL disk to 97% (the PostgreSQL 16 half came from
+  an older generator that stopped on 2026-10-21). The teardown is now `docker rm -f -v`, and
+  `docker run` sits inside the `try`. `test_scratch_pg_leaves_no_anonymous_data_volume_behind`
+  guards it (red on the old teardown); it reads only "no such volume" as gone and waits out an
+  in-flight `--rm` removal. `tests/test_docusaurus_static_runtime.py` takes the same flag.
+
+### Added — the coordinator sees every builder pane waiting on an answer (2026-10-29)
+- `scripts/sysadmin/rotate_session.py::waiting`: a read-only scan of the repo's agents_up tmux grid that names each
+  builder pane on a dialog (a permission dialog, the workspace-trust prompt, an AskUserQuestion) or idle after a turn
+  that ended with a question. 1 s budget; no tmux or no server reads as no grid.
+- `scripts/work.py`: the coordinator's prompt block opens with one `work: PANE WAITING: <agent> (<pane>) — …` line per
+  such pane (`PANE SCAN FAILED` when tmux fails), and its Stop hook blocks on a `pane-waiting` subject per pane ahead
+  of every other subject, re-armed by each distinct prompt. A headless session never scans. Before this the operator
+  answered builders' terminal prompts himself. `docs/reference/agents/coordinator.md` says how to answer.
+  W-a12b03a2, D-1331.
+- `scripts/sysadmin/rotate_session.py::_undimmed`: the arguments of an extended colour (`38;5;2`, `38;2;r;g;b`) are no
+  longer read as the dim attribute, which dropped every cell after them.
+
+### Changed — the never-execute rule binds the orchestrator and every Bash agent (2026-10-29)
+- `commands/_fragments/term-coverage.md`, `commands/_fragments/term-edit.md`: round-zero rule (1) never runs a script
+  that deletes, deploys, provisions, writes outside scratch or contacts a non-local host to settle a claim, faked
+  or not; an unsettled claim is BLOCKED (code) or deleted (documents) (D-1338).
+- `commands/_sources/fabrik-review.md`, `commands/_sources/fabrik-review-scoped.md`,
+  `commands/_fragments/delegated-reads.md`: the lead's own "execute every claim" rules carry the same carve-out.
+- `commands/_agents/design-review.md`, `commands/_agents/fabrik-gui.md`: fabrik-reviewer's house-rule clause, fitted to each.
+- `commands/_fragments/subagents-core.md`: `final_gate.py --check` is a writer seat's line only; read-only seats run
+  ruff, mypy and pytest with their caches off or in scratch, every path absolute into their copy.
+- `commands/_sources/fabrik-command-improve.md`: a script that hard-codes a live path and writes there, deletes, deploys, provisions or contacts a non-local
+  host is read, never run.
+- `tests/test_never_execute_carriers.py`: pins every carrier and the rendered corpus.
+
+### Changed — /fabrik-task captures with the `command_run.py capture` verb; the after-commit review close is numbered (2026-10-29)
+
+- `commands/_sources/fabrik-task.md` phase 5 step 5 runs `python3 scripts/command_run.py capture --msg <msg> --out <durable>/commit.sha` as its own plain call once the commit exits 0, replacing the chained `subj=$(head …)` recipe a linked worktree's isolation guard refused and the separate worktree plain-calls paragraph (D-1339).
+- The full `/fabrik-review` over committed work closes as a numbered list run between step 5's ledger commit and step 6 (draft review, gate, receipt `--init` at the last captured sha, close order and receipt commit, nested review's close); phase 4 dispatches the review after phase 5 steps 1-5 by default, a sync-path run in the main checkout and a review whose receipt the D-row cites reviewing before the commit.
+- Rule ledger `commands/_rules/fabrik-task.yaml`: three entries `changed-by: D-1339`, seven new entries; `tests/test_fabrik_task_source.py` SIZE_CAP 27508 -> 27649.
+
+### Changed — Coordinators never block on a long wait; self-healing row for an unkillable worker child; /fabrik-task range-tip wording (2026-10-29)
+
+- `CLAUDE.md` and `templates/governance/CLAUDE.md`, coordinator job (5): a merge, queue, test leg or API run goes to the background and the turn ends until its notification wakes it, never a foreground sleep, poll loop or long `runwait` (operator ruling D-1296, W-32ab8277); the HARD STOPS long-command row says the same.
+- `docs/reference/long-command-monitoring.md`: the key rule says every foreground wait in the doc (each `runwait` example and the multi-minute Bash `timeout`) is builder-only, and the long-suite example is marked so (infra mail 01M5YP378Z).
+- `.windsurf/rules/core/self-healing.md`: row 12, a fork-pool child left in uninterruptible kernel sleep after SIGKILL (for example a kernel netlink wedge) is held against the live-child cap, counted and logged, never replaced; its counter and wchan grouping are the project's to build; one deduplicated operator alert per episode, and the operator reboots the host (youtube mail 01M5C99YXS, W-07231796).
+- `commands/_sources/fabrik-task.md`, phases 4 and 5: check (d) takes any listed `--commit` as the receipt's range tip when only receipt and ledger commits follow it, and list order decides nothing, so never reorder the list to pass it; phase 5's stricter "LAST `--commit`" recipe stays verbatim until the lean loader can reword a ban clause (D-1336, D-1291; infra-2 mail 01M5YHHM8G).
+
+### Fixed — the scratch-sweep hook tests no longer read the live disk (2026-10-29)
+- `tests/test_scratch_sweep.py`: `_run` pins the `SCRATCH_SWEEP_DISK_USED_PCT` seam at 10 %. With the
+  box at 96 % the hook's `SCRATCH ALARM` line landed in the stdout of every `--hook` run that passes its
+  gates (a valid session id, an `/opt` cwd, not headless or autonomous), and the three tests asserting
+  silence went red on master in every merge-test leg that runs this file (MR 01M63G10MT was refused on
+  one of them). The headless, autonomous and non-`/opt` legs now run at a 96 % reading and assert empty
+  stdout and stderr, so a gate that let the alarm through still fails.
+
+### Fixed — the coordinator's open-plan view no longer goes blank on one error (2026-10-29)
+- `scripts/work.py` `_open_plans` (shown by `work.py queue` and `triage` as `plan not executed:`):
+  an outer `except Exception` returned an empty list on any error, so a `docs_updater.py` that
+  failed to load, or one plan its parser raised on, read as "no open plans", and a plans directory
+  that could not be read did too (`Path.glob` swallows its `PermissionError`). Now a parser that
+  cannot load, or an unreadable plans directory, prints one line saying the view is unavailable,
+  and a plan the parser raises on is listed as open with the error. A repo with no plans directory
+  still lists nothing. Item W-f1412a11
+  (review B-S1 of the 2026-10-08 docs-updater plan-status receipt); tests in
+  `tests/test_docs_updater.py`.
+
+### Added — operator script that removes ocoron.com from vps1 (2026-10-29)
+- `scripts/sysadmin/vps1_ocoron_removal.py` (D-1333, D-1334, W-80a1f9fd): operator-run, dry run by default. It finds
+  the ocoron.com stack by compose project, name or Traefik route and lists its data with class, size and users, plus
+  the config lines still naming the site. `--apply` takes it down, moves `/opt/ocoron-com/compose.yaml` out of the
+  boot glob (fabrik-compose-boot.sh restarted D-121's down at the next boot) and drops its images. `--delete-volumes`
+  deletes only exact ids from that list.
+- `scripts/sysadmin/system-prompt.txt`: the vps1 sysadmin bot no longer manages ocoron-com as an application or a P0
+  service, and is told never to restore it. `--apply` refuses until this copy is on vps1 (`bash
+  scripts/sync-vps-sysadmin.sh`).
+- Graded by `tests/test_vps1_ocoron_removal.py`.
+
+### Fixed — hub mail auto-replies tell one agent from another (2026-10-29)
+- `scripts/mail.py`: in the hub's shared `fabrik` mailbox the `--auto` self-guard and rate cap key on
+  `(from, from-agent)` (W-19b57b9a, D-1329). A fleet request auto-replied by infra was held as infra's
+  own message, and every hub agent shared one rate bucket. A parent now passes when its `from-agent` and
+  the replier's agent are both hub agents and differ; the rate bucket is that agent's, with unattributed
+  messages counted in every bucket. Unknown agents, other mailboxes and callers passing none keep the old rule.
+
+### Fixed — a wide merge-test leg declares its memory ceiling, and a ceiling kill says so (2026-10-29)
+- `scripts/merge_request.py` reads `# merge-test-mem: <n>M|<n>G` from the BASE's `.fabrik/merge-tests`
+  (clamped 256M..8G) and passes it to capped_run as `--mem`; the hub declares 8G (W-e64a7b8e, D-1328).
+  fleet-docker-cpu's 244-file leg had died at capped_run's 4G default twice; one measured run peaked at 6,009 MiB.
+- An exit-137 or 124 refusal now quotes capped_run's own last verdict line ("killed at the memory ceiling
+  (…)" / "stopped at the …s time limit") on the merge, pretest, queue and base-alone paths alike (its tail
+  had been the script's last comment lines); a 137 without that line says it was a SIGKILL inside the leg.
+  A merge-test-mem line the grammar refuses is named in the leg's own verdict.
+
+### Fixed — backfill_ci.py keys on ci_local.sh and grades the SQL its replica will lint (2026-10-29)
+
+- `scripts/backfill_ci.py` decided "already has CI" from `.github/workflows/ci.yml`, which the generator stopped emitting on 2026-08-29, so a newer repo was rewritten on every `--apply`; and it wrote a `scripts/ci_local.sh` that lints every tracked `*.sql` with sqlfluff without checking that SQL first. A project with anything at `scripts/ci_local.sh` is now skipped (its row names a stale or non-fabrik-managed replica); each target's SQL is graded by the pinned sqlfluff the replica's way, and `--apply` refuses a red or unknown verdict unless `--force`, which records the verdict. An existing `.fabrik/run-pytest` or lint baseline is kept, a symlinked parent directory or dangling leaf fails the project before any write, and the exit is 1 on a refusal, failure or missing project. Graded by `tests/test_backfill_ci.py` (D-1332, W-76d3448d).
+
+### Fixed — the project audit accepts the docusaurus serve stage `nginx:mainline-<codename>` (2026-10-29)
+
+- `scripts/audit_all_projects.py` knew only the python, node and debian base shapes, so a scaffolded docusaurus project, whose final stage is the `nginx:mainline-<codename>` that `core/42-docusaurus.md` mandates (D-664), was graded critical. For a project of type `docusaurus` that serve stage is now a base on the same pinned codename (pinned, superseded one release back, otherwise noncompliant), and its fix hint names the serve stage; every other type still grades an nginx final stage noncompliant and keeps the python/node/debian hint. The noncompliant row's required text reads "A pinned Debian base". Graded by `tests/test_audit_all_projects_base_image.py`, which renders `templates/docusaurus/Dockerfile.j2` and audits it (W-cd8b8ead).
+
+### Fixed — a re-score out of the one-major class clears the item's hold behind the in-flight major (2026-10-29)
+
+- `work.py assign --impact/--effort` rewrote an item's score but never its `blocked_by`, so a major held behind the in-flight major and re-scored to a quick win stayed out of `ready` and `claim`: nine hub P1s waited 11 days behind W-ab566484. A re-score that takes a major, or an unscored `medium` item, to a scored non-major now drops every hold naming an in-flight major (triage's own predicate, now one helper, read from the main checkout as triage reads it) and prints each with its re-add command; an unreadable blocker is kept and said (W-0fe931b7, D-1327).
+
+### Fixed — docker-image deploys carry their spec's CPU limit, and every spec path holds one cpu grammar (2026-10-29)
+
+- `fabrik apply` of a `source.type: docker` spec wrote `deploy.resources.limits` with memory only, so the container ran with no CPU limit (zitadel on vps1, NanoCpus 0). `_generate_docker_compose` now emits `cpus` from `resources.cpu`, or the `Resources` default 0.5 when the spec omits it, as the template path already did (D-1326, W-f01710a0). The five docker-sourced specs change on vps1 only when the coordinator's deploy gate re-applies them.
+- `resources.cpu` must be a quoted plain decimal from 0.01 to 1024 with at most 2 decimals (`spec_loader.CPU_RE` / `cpu_in_grammar`), checked by the `Resources` model, the apply validator (which also refuses a non-mapping `resources`) and the docker emitter: compose 2.40.3 reads `0_5` as 5 CPUs, `0` as no limit and `-1` as -1 without complaint. 134 cpu values across the box's specs, templates and fixtures: 0 refused. Graded by `tests/test_docker_compose_emitter.py`.
+
+### Fixed — mobile-app scaffold lints clean out of the box and its EAS delivery workflows can run (2026-10-29)
+
+- A fresh mobile-app scaffold's `pnpm lint` exited 1 (76 errors, all antfu TOML rules on the scaffold-emitted `server/pyproject.toml`); the template now ignores `server/**` in ESLint, pins `@antfu/eslint-config ~7.7.3` with its peers (`eslint-plugin-react-refresh ^0.5.0`, `@eslint-react/eslint-plugin ^2.11.0`) and drops the duplicate direct unicorn. The eas-build-prod, eas-build-preview and new-app-version workflows used two composite actions the template never shipped; `setup-node-pnpm-install` and `eas-build` now ship (from the upstream template, Node 24, no silent APP_ENV/EXPO_TOKEN defaults, inputs passed as env vars so a release tag cannot inject shell). Graded by `tests/test_scaffold_mobile_toolchain.py` (D-1323, W-fc58e9b7).
+
+### Added — `vps1_cpu_limits.py` applies the vps1 CPU caps to the running containers and their live composes (2026-10-29)
+
+- `scripts/sysadmin/vps1_cpu_limits.py` (operator-run, dry run by default, `--apply` behind a typed `yes` per block): `docker update --cpus` for every vps1 container still unlimited, re-inspected, then the hub cap inserted under `limits.memory` in each container's own live `/opt/<dir>/compose.yaml` under an old/new-hash write, a backup and compose's own `config` before and after, restored on any mismatch or a dropped ssh. Never `up`, `restart` or recreate: an allowlist of the exact command shapes it sends. A container with another CPU setting, a label the boot does not read or a file it cannot prove is reported, not changed (D-1325).
+- `tests/test_vps1_cpu_limits.py`: 92 tests, a fake vps1 over the real write and restore shell scripts; every guard and every review fix shown red by reverting it alone (27 of 27).
+
+### Fixed — the 22 vps1 infra services with no CPU limit now declare one, and a test keeps it that way (2026-10-29)
+
+- `infra/vps1/*/compose.yaml`: `deploy.resources.limits.cpus` on postgres-main, traefik, browserless (2.0), nine burst or shared services (1.0), five steady ones (0.5) and five exporters/sidecars (0.25), sized from 7-day cAdvisor data (D-1324, W-91a4a715). Nothing changes on vps1 until the coordinator's deploy gate runs `docker update --cpus` and edits each VPS copy.
+- `tests/test_infra_vps1_cpu_limits.py`: refuses an infra/vps1 service without a plain-decimal cpus in (0, 2.0], and a compose with a duplicate key; ocoron-com is excepted until W-78649ed2. The PG18 upgrade runbook's installed compose carries postgres-main's cap too.
+
+### Changed — chrome-extension scaffold: lint plugins float on purpose, no lockfile or overrides (2026-10-29)
+
+- W-961f1958 asked for a lockfile or pnpm overrides against transitive lint drift; measured, the drift happened in 12 days and a fresh scaffold still lints clean, so neither ships (D-1322). The emission site's comment names the rule: fix the template first; a one-plugin override only for a broken plugin release, with a lift condition. W-fc58e9b7 (mobile template) carries the same rule once its lint runs green.
+
+### Fixed — the payments ingest grant no longer re-widens its role when fabrik-lib changes the grant function's signature (2026-10-29)
+
+- `grant_payments_role(lane="ingest")` now RAISES when a `payments_grant_ingest` exists in any schema but `payments_grant_ingest(pg_catalog.regrole)` does not resolve on the search path, before the legacy DROP+CREATE blocks can run; the step is recorded failed and the hub constant must follow fabrik-lib (D-1321, W-d8505af5). The rename case is W-1af44851.
+
+### Fixed — the portability export no longer ships monitoring, Backrest-hook or URL credentials (2026-10-29)
+
+- `fabrik export` copied the vps1 monitoring files (`prometheus.yml`, `alertmanager.yml`, the redis and postgres registries) into the bundle byte for byte, and its key-name redactor missed Alertmanager's `routing_key`/`service_key`/`user_key`, Slack `api_url`s, header maps, `Authorization`, URL userinfo and Backrest's `shoutrrrUrl` and hook `command`s: a replay of 13 planted credentials leaked all 13 (`src/fabrik/portability.py` invariant 1). Every SSH-pulled config (monitoring, Authelia, Backrest) now goes through one `_redact_config_text`: parsed, redacted, re-emitted, and left out with a warning when it does not parse into a mapping or a list or uses a YAML alias (an alias would copy a secret out from under its redacted key). New key patterns: `[_-]key$` plus camelCase `Key$`, `api[_-]?url$`, `headers?$`, `authoriz` (Authelia's `authorization_policy` kept), `^endpoint[_-]?params$`, `shoutrrr[_-]?url$`, `^command$`; the userinfo of any URL, in a value or a key, becomes `REDACTED`. YAML plain scalar values come back as written (`17:00`, `on`, `010`, `1.10` — PyYAML's own reading would have rewritten them for the Go parser that restores the copy), two keys that redact to one make the file omitted, and a parse failure logs only its type and line. Graders in `tests/test_portability.py::TestMonitoringRedaction`; residue (typed keys collapsing, query-string secrets, the allowlist question) is W-7fddc9cf.
+
+### Fixed — the portability export no longer ships private keys under innocuous names (2026-10-29)
+
+- `fabrik export` promised a bundle with no private keys (`src/fabrik/portability.py` invariant 3), but its redactor matched key NAMES only, so Authelia's OIDC signing key (`identity_providers.oidc.jwks[].key`) and Backrest's `multihost.identity.ed25519priv` went into the bundle verbatim, and a non-string YAML key raised and dropped the whole Authelia section. The redactor now also redacts any value or mapping key carrying a PEM/OpenSSH/PGP/SSH2 private-key armour line (four dashes and at most four label words, so the search stays linear on any input), adds `^key$`, matches private-key names as `priv(ate)?[_-]?key` and `priv$` (so Authelia's `privacy_policy` survives), redacts the value under a non-string key with a warning instead of raising, and replaces any container other than a dict or list (YAML `!!set`, `!!omap`, `!!pairs`) whole. Over-redaction it accepts: any field named exactly `key` (Authelia `server.tls.key`, a client's public jwks key). Graders in `tests/test_portability.py::TestPrivateKeyRedaction`; the raw monitoring collectors and Backrest hook URLs are follow-up W-64cf1856.
+
+### Changed — the corpus check's rule-ledger pass caches its text views: about 100 s to 33 s (2026-10-29)
+
+- `commands/command_rules.py` (W-f5a1eec9, D-1319): `losses()` re-split and re-normalised the same file and
+  section once per ledger entry, so every `assemble_commands.py --check` (the corpus pre-commit hook, the
+  gate, kaizen runs) paid about 100-120 s. `normalise`, `units` and two paragraph views are now cached by
+  their string arguments, and lint C compiles each phrase once. The output is identical to base on the live
+  corpus and on mutated renders with 1,668 and 2,777 LOSS lines; `test_the_live_corpus_has_no_loss` went
+  from 96 s to 41 s.
+- `tests/test_command_rules.py`: a cost guard (red on base), an identity test against the uncached functions,
+  a fresh-list test for `units()`, exact lint C counts, and an autouse fixture that empties the caches.
+
+### Added — New repos are born coordinator-ready (2026-10-28)
+
+`fabrik scaffold` now puts the coordinator model into a new repo's initial commit: a `MERGE OWNER: coordinator` row in `docs/DECISIONS.md`, the work store made by the hub's `work.py init` with `coordinator_mode`, `queue_floor` 1 and `autonomy` on, and a coordinator charter at `docs/reference/agents/coordinator.md` that names the repo's real path and how to launch and bind the window. Builders stay the spawn verb's (W-b9ad80ae). A failure prints one WARNING with its cause and leaves the repo as before, never breaking the scaffold. D-1305, W-a02d1c86.
+### Fixed — vps1 rotation step 3a re-owns GlitchTip's schema one object per transaction (2026-10-28)
+
+- The operator's run of `scripts/sysadmin/vps1_pg_scoped_logins.py` stopped at step 3a with "out of shared memory": the re-own of GlitchTip's log partitions ran in ONE transaction and overflowed `max_locks_per_transaction`. Step 3a now commits after every object, waits at most 5 s (`lock_timeout`) for a busy table instead of queueing GlitchTip's queries behind an ACCESS EXCLUSIVE request, skips what `glitchtip` already owns so a re-run locks only the leftovers, tolerates a partition dropped mid-run, and gets its own 1800 s ssh bound. The runbook (`docs/reference/vps1-postgres-admin-rotation-runbook.md`) quotes the same block, tested to stay identical, and its rollback row now also revokes `postgres_exporter`'s CONNECT grants. Graders run the real SQL on a local PostgreSQL 16 cluster with a 100-slot lock table.
+
+### Changed — the renderer's gate tests stop running the rule-ledger LOSS pass (2026-10-28)
+
+`tests/test_assemble_dispatch_step.py` held 1,976 s of the hub merge leg's test time, and 11 of its 89 tests held ~1,950 s of that, up to 340 s each. Every one called `check()` with the rule-ledger LOSS pass live, and that pass takes 168.9 s of a single `check()` (profiled; the render takes 0.3 s and the size measure 3.7 s). None of the 11 grades that pass. A new helper, `_gate_at`, points `check()` at the scratch trees and replaces the LOSS pass and the size measure with spies. Each spy returns an empty result and goes red unless it is handed a temp render made during that same `check()` call (never an installed tree), the repo as root and the sources as `src_dir`. Six tests use it. `tests/test_command_measure.py`'s exit-order test ran the same live pass three times (441.5 s) and now points the rule ledgers at an empty path before step 1. Measured with the same 8-group probe: all 89 tests pass in 26 s summed (9 s wall), slowest 1.6 s; the exit-order test runs in 22.1 s. `check()`'s calls to both passes stay graded in `tests/test_command_rules.py` and `tests/test_command_measure.py`, and the live corpus's LOSS and ceiling state by `test_the_live_corpus_has_no_loss` and `test_live_corpus_within_ceiling`.
+
+### Fixed — operator_setup.py's timer-link undo survives an option-like or unprintable old target (2026-10-29)
+
+- `scripts/sysadmin/operator_setup.py`: the undo line that puts a rewritten `timers.target.wants` link back is now `ln -sfn -- <old target> <link>`, so an old target beginning with `-` is no longer read by `ln` as an option (`-x` failed loudly; `--`, `-n`, `--help` silently restored nothing). An old target `str.isprintable()` rejects — not UTF-8, or holding a control, line-break or format character or a non-ASCII space — is refused at planning, since a non-UTF-8 name crashed the undo print under a strict UTF-8 stdout after the installer ran and a line break split the pasted line. The file is reformatted at the repo's 100-column ruff line length (format only). Residue: W-364653b9. W-b3192e98.
+
+### Fixed — operator_setup.py's undo puts the archive timer's link back as it was (2026-10-29)
+
+- `scripts/sysadmin/operator_setup.py`: the archive step's undo no longer runs `systemctl --user disable`, which on systemd 255 also deletes an alias the operator made to the timer. It restores only the persistent `timers.target.wants` link the installer's `enable` added or rewrote, by absolute path when the unit dir is outside HOME; a non-symlink at that path is refused at planning. The two windows in which an operator's save can still be overwritten are documented as accepted residue (`docs/workstation/operator-setup.md`). W-88173de4, D-1317.
+
+### Fixed — the Lint Ratchet is green again on master (2026-10-28)
+
+`.claude/hooks/session_orient.py:950` called `"�".encode("utf-8")` (U+FFFD), which ruff flags as UP012; that one error raised the repo-wide ruff count from 0 to 1 and turned every branch's `final_gate` Lint Ratchet red. It now calls `.encode()`, which yields the same bytes in every locale (W-82034f59).
+
+### Changed — a heavy test file runs in pieces across the merge leg's shards (2026-10-28)
+
+The hub's merge-time test leg (`scripts/merge_test_select.py`) no longer lets one file set every merge's wall time. On
+master's last 20 merges the leg's slowest shard was 1,462 s on all 20, because `tests/test_assemble_dispatch_step.py`
+(a tree grader, selected by every non-ledger change) was always placed whole. A selected file heavier than its
+selection's per-shard share and 60 s now runs as node units: each test weighed by its recorded seconds once a leg has
+recorded them, else contiguous equal-count groups. Reds, the alone confirm, the base comparison and the duration record
+resolve node units (a test the base does not collect is NEW; a base that cannot collect the file runs it whole). Simulated
+over those 20 merges with the selector's own select/balance and recorded seconds: 1,462 s → 678-929 s. Measured on a real merge (master's bb6412ec9, the hub leg run three times in a shared clone, the box loaded by review seats): master's selector 2,542 s wall (slowest shard 1,792 s); the new one 1,037 s (equal-count groups, slowest shard 1,022 s) and 1,365 s (node-weighted, shards 769-890 s; the rest of the wall is the confirm and base re-runs of master's own pre-existing reds, which vary run to run).
+W-231f4695, W-3ba57940; D-1312.
+
+### Added — Coverage tests for eight more fabrik modules, graded from the batch-5 drain branches (2026-10-28)
+
+Eight hermetic test files from the cloud drain branches (`claude/cov-*`) landed after a full `/fabrik-review` (`docs/development/reviews/2026-10-28-drain-grade-5-review.md`): deploy_validator, drivers locks, modal_provider, preflight, seo and supabase, orchestrator vultr_drill, and verify. Grading fixed the modal_provider path helper, whose class attribute shadowed `PurePath.root` and which rewrote its segments in `__new__`, where Python 3.12 ignores them. The review fixed 17 defects over three passes (confirmed 16 → 1 → 0). Graders that could not fail now fail: a health-check negative, the exempt-type set spelled out, the unreadable-file order pinned, the lock steps pinned whole. The seo timeout test now fails instead of hanging. Supabase select/order encoding, key choice and `completed_at` are asserted, the drill isolation flags (`--skip-mesh`, `--skip-services`, `--skip-local-b2-check`) are pinned, and the public-DNS gate needs an exact answer. Bugs the strict xfails pin: W-cd7799f7 (preflight whitespace output, latent), W-43c1a36a (vultr_drill `kept_for_debug` with no server), W-4cbae5ab (verify null sections). Recorded for later: W-f7855cfc (three production defects) and W-8377cd0c (coverage survivors).
+
+### Fixed — an API-key session is not sized against the plan quota (2026-10-28)
+
+`dispatch_headroom.py` printed SEATS 0 at the fleet wall, and held the floor in the drain band, for a session running on an Anthropic API key, whose seats draw the key, not the plan. It now calls the posture hook's own D-1243 predicate and skips every plan-quota cap when it answers True; a battery stamp, a second credential, a predicate that fails, or a hold with no stamp where the hook looks keep the caps (D-1303, W-3e924ccb).
+
+### Fixed — install_user_hooks.py refuses a settings shape it cannot repair instead of corrupting it (2026-10-28)
+
+`scripts/sysadmin/install_user_hooks.py` used to iterate an owned event's value, and each entry's `hooks`, as lists. A dict value kept only its keys and a string its characters, and a settings file whose top level was not a JSON object was replaced outright. Each such file is now reported as `MALFORMED <path>: <event> (<why>) — fix it by hand; not rewritten`. It counts as drift (exit 1 in `--check` and in install mode; the gate's `--check --warn` stays 0) and is never written, while the other account dirs are still installed. The `--check` summary names how many drifted files are malformed or unreadable. The `--warn` line names the hand fix, and names the installer only when a file it can repair drifted. A `NaN` timeout, which `json.loads` accepts, is now drift instead of passing `timeout < 10`. Found by fleet's deck review seat (mail 01M5HK0CH6). The non-atomic, unlocked write is filed as W-93bf0f2d.
+
+### Fixed — The hub declares a 2700 s merge-test leg (2026-10-28)
+
+The hub's merge-test leg ran past `merge_request.py`'s 1800 s default even on the base copy (exit 124),
+so every merge that selected the full suite was refused. `.fabrik/merge-tests` now carries
+`# merge-test-timeout: 2700` (read from the base only, clamped to the 3600 s budget), with its costs
+stated beside it: a rebuild after a failed CAS gets what is left of the budget (as little as ~900 s, after a first leg that used its full 2700 s), and
+`merge --queue` forks a leg only in its first 1080 s. `tests/test_merge_request_pretest.py::test_the_hub_declares_its_own_longer_leg` pins it
+(W-418c9d9f, D-1310; follow-up W-3ba57940 cuts the slow shard).
+
+### Added — Lean command program close-out: T46 receipt, board ticked, operator report (2026-10-28)
+- `docs/development/reviews/2026-10-25-plan-1-lean-command-corpus-review.md`: the plan's T46 integration receipt. All 40 commands pass the rule check (0 LOSS over 63 ledgers, 5,425 entries); rendered words 596,988 → 579,853 (97.1%). Every file closed under the D-1254 floor ruling, so the 50% goal was missed (D-1259). On the spec's full measure (render + reads), 10 commands grew through docs outside `commands/`. L1 and the standing ledger gate are live; L2 (the `remove:` field, W-a9b5e763) has not landed.
+- The plan's Ticket Board: this change ticks T01d–T46, 51 ✅ (each but T46 naming its master commit) and T05a–c 🔴 (never started before the KILL).
+- `docs/development/reviews/2026-10-28-lean-program-final-report.md`: the operator's before/after report (W-ee67bd9f).
+
+### Added — operator_setup.py writes a keepalive for git pushes to github.com (2026-10-28)
+
+A fifth step puts a comment-marked `Host github.com` block (`ServerAliveInterval 15`, `ServerAliveCountMax 4`) before the first section of `~/.ssh/config`, so a push on a dead SSH connection is dropped within a minute instead of hanging. It plans and verifies by what `ssh -G` itself resolves for `git@github.com`, keeps a keepalive that is already as tight, and refuses at planning what it cannot write or override, before any other step is written (D-1314, W-030ac2fe; `docs/workstation/operator-setup.md`).
+
+### Added — Operator one-time setup script: hooks, tab wrapper, editor key and archive timer in one reviewed run (2026-10-28)
+
+`scripts/sysadmin/operator_setup.py` (W-d6726a65, D-1311) collects the settings steps Claude Code's safety check refuses agents into one script the operator runs once: a dry run diffs every change; `--apply` backs each file up, runs the session-archive installer first, writes the rest atomically, verifies (the archive from the loaded unit), and prints undo lines. `docs/workstation/operator-setup.md`.
+
+### Fixed — seat_guard: a `<<WORD` the shell never reads as a heredoc no longer hides the lines after it (2026-10-27)
+
+`.claude/hooks/seat_guard.py`'s `_strip_heredocs` dropped every line after any `<<WORD` match, so `echo 'x <<EOF'` followed by `git -C /opt/fabrik commit -m y` on the next line passed a review seat's git-write check, and the same shape hid a coordinator's sleep loop from the D-1296 wait guard (W-223704c1, found by the Fable critique of W-e57d2481). The strip now walks the whole command with a stack of contexts and opens a body only on a marker in shell code, at top level or inside `$(…)` (where bash resets quoting): never inside `'…'`, `"…"`, `$'…'`, a comment, a backtick, `${…}` or an arithmetic `((…))` or `$[…]`, and never on a `<<<` here-string or an escaped `<`. The delimiter is the whole shell word with its quoting removed, as bash reads it (`<<E-OF` waits for `E-OF`; `<<\EOF`, `<<E'OF'` and `<<$'EOF'` wait for `EOF`). A body ends only on a line exactly equal to it (an indented or space-trailed `EOF` no longer ends it early). The walk is trusted only when it ends where bash ends — top level, nothing left open, no body pending; a walk that lost bash's place (a `case` pattern's `)`, a spelling it misreads) returns the command whole, so every line stays in the scan, the safe direction. That end-state check replaced a `case`/`esac` keyword tracker the review found wrong three rounds running. Two `case` pattern `)` can still take the walk out of bash's quoting and back with a clean end, so any `case` word left outside the heredoc bodies also voids the strip; a command with a `case` and a heredoc is scanned whole, which can only cause a false deny. A `case` spelled across a backslash-newline still escapes that check, a stated limit routed with the case-aware rework to W-0508ae26. Graders: `test_a_marker_the_shell_does_not_read_as_a_heredoc_hides_nothing` (sixteen shapes, each one hid the next line on the old code), `test_review_round_one_markers_hide_nothing`, `test_a_line_that_only_looks_like_the_terminator_keeps_the_body_data` and `test_strip_heredocs_drops_each_body_and_keeps_what_follows` (the review's shapes), `test_a_walk_that_does_not_end_where_bash_ends_strips_nothing` (the end-state check, graded directly because the hook swallows a scanner exception), `test_real_heredoc_spellings_still_hold_data` (the commit-message heredoc inside `"$(…)"` included), and a quoted-marker sleep loop in `test_coordinator_wait_guard.py`'s `LONG_WAITS`. Stated limit, in the docstring: a body is data even where bash runs it as code (an unquoted body's `$(…)`, or a heredoc fed to a shell), W-b0aab70a.
+
+### Added — Coverage tests for eight fabrik modules, graded from the batch-4 drain branches (2026-10-28)
+
+Eight hermetic test files from the cloud drain branches (`claude/cov-*`) landed after a full `/fabrik-review` (`docs/development/reviews/2026-10-28-drain-grade-4-review.md`): monitor, dev_tools, orchestrator gpu_reaper and gpu_metrics, drivers uptime_kuma, ai tracker, notifications and health_app. The review fixed ten test-quality defects across three rounds. The strict xfails now pin their exception with `raises=`. The dev_tools smoke, tracker SQL-injection and zero-cost metrics tests now fail when the code under test breaks. Each source bug a test pins as a strict xfail has its own work item: W-236ddc00, W-78950fbf, W-6272445b, W-56c7cd74 and W-db048a29. W-97ad73b7 and W-1918b8ac track the health_app and gpu_reaper findings.
 
 ### Added — Coordinator wait guard: a merge owner's long foreground Bash wait is refused (2026-10-27)
 
@@ -71,6 +307,14 @@ prose cases and one planted spawn per process-call name (18); 37 matcher mutants
 ### Fixed — secret files never leak their bytes on a decode error; six cloud-drain coverage suites graded (2026-10-27)
 
 `_load_secrets` now names a non-UTF-8 project `.env` by path and byte offset only, and a `from_file` secret that is not valid UTF-8 is logged the same way instead of quoting its bytes. Both files are read as UTF-8 whatever the locale. New hermetic coverage tests: `fabrik.portability`, `drivers.r2`, `drivers.cloudflare`, `orchestrator.gpu_state`, `orchestrator.gpu_checkpoint` and `compose_linter`. The review hardened them: an AWS-published SigV4 known answer for R2, the production Cloudflare base URL and auth header, no dependence on `PYTHON_DOTENV_DISABLED`, and every strict xfail pinned to its exception. The bugs they pin are open items (W-d52233ba, W-a95da418, W-6f5ea7ae, W-4667fab7, W-01d5baa2, W-0c377ac0, W-01e1ce2e), and so are the review's out-of-diff findings (W-fc5aee9a, a P1 security item, plus W-d484c3e2, W-0d2a7aab, W-5763d5f8, W-3b5893f8, W-33c62ed0, W-5021b4e4, W-2525d5aa). Review `docs/development/reviews/2026-10-27-drain-grade-2-review.md`.
+
+### Fixed — A resumed, then /cleared window re-binds its own name at the quota lane (2026-10-28)
+
+- The SessionStart hook now re-records a bound session under the claude process it runs in (`scripts/whoami_agent.py::refresh`), and the lane's window test in `.claude/hooks/quota_stop.py` no longer demands a row "written this boot" (WSL's boot time drifts forward with sleep); the hold texts name the git verbs that really pass and keep `git grep` held (W-a77742db, D-1307). Windows already live need one `python3 /opt/fabrik/scripts/whoami_agent.py --as <name> --force` each.
+
+### Added — Rotation handoff file printed by the SessionStart hook (2026-10-28)
+
+- `.claude/hooks/session_orient.py --handoff-write <name>` stores a session's handoff (stdin) at `<git common dir>/fabrik-handoff/<name>.md`; on startup or `/clear` the hook prints it after ORIENT to the session `CLAUDE_AGENT` (else its whoami binding) names, within what the whole-stdout cap leaves after ORIENT, with STALE and ALREADY DELIVERED labels, never headless. Inert until a handoff is written (W-835894a6, D-1302).
 
 ### Changed — /fabrik-task: worktree capture form, commit before a long review (2026-10-27)
 

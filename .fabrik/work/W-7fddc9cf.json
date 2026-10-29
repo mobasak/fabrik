@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T23:28:07.316767Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-7fddc9cf",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "in _VerbatimLoader.construct_mapping raise _ConfigShapeError when len(result) != len(node.value) (fail closed, red-first: '1: a\\ntrue: b'); add a manifest 'omitted' list; then put the allowlist question to the Opus+Fable panel with the restore workflow (D-1318, the W-64cf1856 D-row)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "security"
+  ],
+  "title": "portability redactor residue after W-64cf1856: typed YAML keys can still collapse (1/true/1.0, on/yes) before the redactor sees them and come back retyped (on: -> true:); query-string/path URL secrets and schemeless userinfo under unmatched keys ship; an omitted config is only logged, not named in the manifest; decide the allowlist redactor (keep only known-safe schema paths) against the manual-restore workflow"
+}

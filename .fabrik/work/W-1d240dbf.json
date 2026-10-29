@@ -20,5 +20,8 @@
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — false waker_lost wake recurred after fix; mail report of bug",
   "status": "open",
+  "tags": [
+    "waits-operator-go"
+  ],
   "title": "Re 01M37Y0N (D-359) — a false \"died on waker_lost\" wake recurred after the fix, session b612103c-fb2b-4bc3-8325-e4763823e5ba"
 }

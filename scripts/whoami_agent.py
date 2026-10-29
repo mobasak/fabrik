@@ -80,7 +80,10 @@ def session_id() -> str:
     """This session's id, from the environment ONLY — never an argument.
 
     That is not a convenience: it is the structural half of the Cobra counter-measure. A process
-    cannot name a session it is not part of, because there is no input that sets this.
+    cannot name a session it is not part of, because there is no input that sets this — except
+    the env itself, which a SessionStart hook fills from Claude Code's payload before it calls
+    `refresh()` (W-a77742db). A same-user process can always append a row to the store directly,
+    so the store, not this read, is the trust root (D-1209).
 
     ONE exception, bounded by a lock: the spawner-only ``--spawned`` binding (`bind_spawned`) takes a
     NEW session's id as an argument, because the session it names does not exist yet. It is
@@ -90,7 +93,7 @@ def session_id() -> str:
     COBRA (D-253): the cheapest bypass is a caller that takes that lock itself and passes it;
     accepted, because the lock is hub tooling's alone — the plan adds its takers, the spawner
     ``agents_spawn.py add`` (T06) and the rotation's registry re-point in ``rotate_session.py``
-    (T07); at this commit nothing takes it yet — and the row it writes carries ``spawned: true``
+    (T07) — and the row it writes carries ``spawned: true``
     and a null pid, so it is visible as a spawner's row and reserves the name against nobody.
     """
     return (os.environ.get("CLAUDE_CODE_SESSION_ID") or "").strip()
@@ -245,8 +248,9 @@ def _scope_of(repo: str) -> tuple[str, str]:
 
 
 @contextlib.contextmanager
-def _locked(path: Path):
-    """Exclusive flock across the whole READ-MODIFY-WRITE of a bind.
+def _locked(path: Path, attempts: int = 50):
+    """Exclusive flock across the whole READ-MODIFY-WRITE of a bind (`attempts` tries 0.1 s apart;
+    `refresh` takes ONE, because it runs inside a SessionStart hook's 10 s budget).
 
     ⚠️ Without this the 30-day TRIM silently destroys a sibling's binding. `bind()` snapshots the
     rows, and when any row is older than the window it REWRITES the file from that snapshot — so a
@@ -268,12 +272,13 @@ def _locked(path: Path):
         # docstring promises covered only the ERROR cases and never contention — executed, a bind
         # blocked past 12 s behind a stopped holder. The critical section is milliseconds, so ~5 s
         # of retry is generous; after that we proceed unserialized and SAY SO.
-        for _ in range(50):
+        for i in range(max(1, attempts)):
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 break
             except OSError:
-                time.sleep(0.1)
+                if i + 1 < attempts:
+                    time.sleep(0.1)
         else:
             why = "another process held the store lock for over 5 s"
             with contextlib.suppress(OSError):
@@ -655,6 +660,103 @@ def _bind_spawned_locked(
         f"whoami_agent: {name} bound to spawned session {sid} ⚠️ no pid: this binding does NOT"
         " reserve the name against a sibling until the builder re-binds on its first turn"
     )
+
+
+def refresh(top: str | None = None) -> str:
+    """Re-record this session's existing name under its CURRENT claude process; the name, or "".
+
+    A session resumed into a new claude process (a window reload, a reboot, `claude --resume`)
+    keeps its name by session id, but only `bind` writes a pid, so no row named the new process —
+    and the quota lane's /clear re-bind, keyed on the process (D-1209), found nothing and held the
+    merge owner for a whole lane (W-a77742db; 10 of 15 bound live windows on 2026-10-28). The
+    SessionStart hook calls this on every start, passing its own git common dir as `top` so no
+    second git runs inside its 10 s budget.
+
+    It writes ONE row only when this session's LAST row in this scope names a valid name that is
+    also the name of the session's last row overall (a row here must never flip the session back
+    to an older name; an invalid-name last row refuses), still the newest row of that name here
+    (nobody re-took it), this window's process is known (`same_window`'s rule in `_bind_locked`),
+    and no row of the session carries a live process other than this window's own row in another
+    repo — one test for both "already recorded under this window" and "the sid is live in another
+    process" (left alone: a row here would strand that window at its next /clear). No store file
+    at all writes nothing and creates nothing. Every other case, a busy store lock (ONE try) and
+    any error write nothing. COBRA (D-253): the cheapest way to make a /clear re-bind pass without
+    the outcome is a refresh for any name; this re-records only the session's own name, and
+    planting a row by hand was already possible (the store is the lane's trust root, D-1209).
+    """
+    try:
+        sid = session_id()
+        scope = _toplevel() if top is None else top
+        if not sid or not scope:
+            return ""
+        me_pid = _session_pid()
+        me_start = _pid_start(me_pid)
+        claude_pid = (os.environ.get("CLAUDE_PID") or "").strip()
+        if me_pid is None or me_start is None or claude_pid not in ("", str(me_pid)):
+            return ""
+        path = store_path()
+        if not path.is_file():
+            return ""  # nothing bound anywhere: never create the state dir or a lock file for it
+        with _locked(path, attempts=1) as (locked, _why):
+            if not locked:
+                return ""  # a refresh recurs at the next SessionStart; an unserialized one may be trimmed away
+            rows = _rows(path)
+            ours = [r for r in rows if r.get("session_id") == sid]
+            # scope matched by REALPATH, as the lane's `_scoped_rows` reads it: the hook passes its
+            # realpath'd common dir while `bind` stores `git rev-parse`'s string; the new row copies
+            # the last row's own string, so every string-keyed reader sees the binding's scope
+            want = os.path.realpath(scope)
+
+            def this_window_elsewhere(r: dict) -> bool:
+                t = r.get("toplevel")
+                return (
+                    _as_int(r.get("pid")) == me_pid
+                    and _as_int(r.get("pid_start")) == me_start
+                    and not (isinstance(t, str) and os.path.isabs(t) and os.path.realpath(t) == want)
+                )
+
+            # a live process on ANY row of the sid — another window, or this one already recorded
+            # here — leaves it alone (a later row under a process since gone does not make an earlier
+            # live one dead); this window's own row in ANOTHER repo says nothing about this one
+            if any(_pid_alive_same_start(r) and not this_window_elsewhere(r) for r in ours):
+                return ""
+            real: dict[str, str] = {}
+            here = []
+            for r in rows:
+                t = r.get("toplevel")
+                if isinstance(t, str) and os.path.isabs(t):
+                    if t not in real:
+                        real[t] = os.path.realpath(t)
+                    if real[t] == want:
+                        here.append(r)
+            mine = [r for r in here if r.get("session_id") == sid]
+            if not mine:
+                return ""
+            last = mine[-1]
+            name = str(last.get("name") or "")
+            if not _NAME_RE.fullmatch(name):
+                return ""
+            if str(ours[-1].get("name") or "") != name:
+                return ""  # the session resolves to another name now: a row here would flip it back
+            if [r for r in here if str(r.get("name") or "") == name][-1] is not last:
+                return ""  # re-taken since: a refresh would silently take it back
+            _append_row(
+                path,
+                {
+                    "session_id": sid,
+                    "name": name,
+                    "pid": me_pid,
+                    "pid_start": me_start,
+                    "toplevel": last["toplevel"],
+                    "at": int(time.time()),
+                    "force": False,
+                    "unlocked": False,
+                    "refresh": True,
+                },
+            )
+            return name
+    except Exception:
+        return ""
 
 
 def main(argv: list[str]) -> int:

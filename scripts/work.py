@@ -177,6 +177,10 @@ _PLAN_STATUSES = frozenset(_PLAN_STATUS_ORDER)
 DECISIONS_PY = Path("/opt/fabrik/scripts/decisions.py")  # hub-only, by absolute path
 WHOAMI_PY = Path(__file__).with_name("whoami_agent.py")
 DOCS_UPDATER_PY = Path(__file__).with_name("docs_updater.py")  # T03: migrate-backlog / render
+# W-a12b03a2: the pane scan's home — the hub's own copy beside this file, else the hub's by absolute path (a
+# project's synced work.py; every agents_up grid on this box is the hub's)
+ROTATE_SESSION_PY = Path(__file__).parent / "sysadmin" / "rotate_session.py"
+HUB_ROTATE_SESSION_PY = Path("/opt/fabrik/scripts/sysadmin/rotate_session.py")
 NAME_RULE = "[a-z0-9-]{1,32}"  # whoami_agent.py's agent-name rule: owners are agent names only
 _NAME_RE = re.compile(NAME_RULE)
 # A tag is the constraint that must travel WITH an item (tryton-crm 01M3PM5H) — the repo's own
@@ -3244,7 +3248,13 @@ def cmd_assign(repo: Path, args: argparse.Namespace) -> int:
                     f"--blocked-by {dep} refused: {dep} already waits on {item['id']} — a cycle "
                     "would leave both unworkable"
                 )
+        was_held_class = _in_one_major_hold_class(item)
         note = _apply_score(item, args.impact, args.effort, why, args.priority)
+        hold_lines: list[str] = []
+        if was_held_class and _scored(item) and not _is_major(item):
+            # the one-major hold's reason ended with this re-score (W-0fe931b7)
+            hold_lines = _clear_one_major_holds(repo, item, set(block_add) | set(block_drop))
+            held = _dep_ids(item)
         if owner is not None:
             item["owner"] = owner
         if add_tags or drop_tags:
@@ -3261,6 +3271,8 @@ def cmd_assign(repo: Path, args: argparse.Namespace) -> int:
         _after_write(repo, _session())
     if note:
         print(note, file=sys.stderr)
+    for line in hold_lines:
+        print(line, file=sys.stderr)
     print(_rel(repo, path))
     return 0
 
@@ -3385,6 +3397,73 @@ def _scored(item: dict) -> bool:
 def _is_major(item: dict) -> bool:
     """A major project: high impact AND high effort (spec D4)."""
     return item.get("impact") == "high" and item.get("effort") == "high"
+
+
+def _in_flight_major(item: dict, live: dict, closed: set[str]) -> bool:
+    """A major that holds (or can hold) the one-major slot: owned or live-claimed — a claim on an
+    unowned major holds it too — `open` or `blocked`, and not closed elsewhere. `triage` reads its
+    candidates with it, and `assign` reads with it which holds a re-score clears (W-0fe931b7)."""
+    return (
+        _is_major(item)
+        and bool(item.get("owner") or item["id"] in live)
+        and item.get("status") in ("open", "blocked")
+        and item["id"] not in closed
+    )
+
+
+def _in_one_major_hold_class(item: dict) -> bool:
+    """An item the one-major rule holds `--blocked-by` the in-flight major (coordinator charter
+    step 4): a major, or an unscored item tagged `medium` — the charter's high-effort MEDIUM, which
+    takes the tag instead of a score (low impact with high effort is refused as a time sink)."""
+    return _is_major(item) or (not _scored(item) and "medium" in _tags(item))
+
+
+def _clear_one_major_holds(repo: Path, item: dict, keep: set[str]) -> list[str]:
+    """Drop from `item["blocked_by"]` (in place) every id naming an in-flight major, the hold the
+    one-major rule wrote, and return the stderr lines (W-0fe931b7). The caller runs it only when a
+    re-score takes the item out of that rule's class. `keep` (this call's --blocked-by/--unblock)
+    is the caller's own. The blocker, its claims and closed markers are read as `triage` reads them,
+    from the MAIN checkout (a builder tree's copy may be stale), and from this tree only for a
+    blocker the main checkout lacks. Each blocker is read alone: an unreadable one keeps its hold,
+    said aloud. COBRA: the cheapest way to satisfy "no stuck quick win" is to clear every hold on a
+    re-score; this clears only the in-flight-major ones, and a real prerequisite lost here is named
+    with its re-add command, since `blocked_by` cannot say why a hold was set."""
+    main = _worktrees(repo)[0].resolve()
+    live, closed = _live_claims(main), _closed_ids(main)
+    held, kept, lines = _dep_ids(item), [], []
+    for dep in held:
+        try:
+            blocker = None if dep in keep else _read_blocker(main, repo, dep)
+        except WorkError:
+            kept.append(dep)
+            lines.append(
+                f"one-major hold kept: {item['id']} still waits on {dep}, which is no readable item "
+                f"here or on the main checkout — if it should not hold it: "
+                f"work.py assign {item['id']} --unblock {dep}"
+            )
+            continue
+        if blocker is not None and _in_flight_major(blocker, live, closed):
+            lines.append(
+                f"one-major hold cleared: {item['id']} no longer waits on major {dep} — if it is "
+                f"a real prerequisite, re-add it: work.py assign {item['id']} --blocked-by {dep}"
+            )
+            continue
+        kept.append(dep)
+    if len(kept) < len(held):  # a hold that clears nothing stays exactly as stored
+        item["blocked_by"] = kept
+    return lines
+
+
+def _read_blocker(main: Path, repo: Path, dep: str) -> dict:
+    """`dep` as the main checkout stores it, else — only when main has NO file for it (a blocker
+    made on this branch and not yet merged) — as this tree does. A main copy that exists but
+    cannot be read raises, as an unknown id does: a branch copy is never read past it."""
+    try:
+        return _read_item(main, dep)
+    except WorkError:
+        if main == repo.resolve() or _item_path(main, dep).exists():
+            raise
+        return _read_item(repo, dep)
 
 
 def _dep_ids(item: dict) -> list[str]:
@@ -5139,9 +5218,106 @@ _OWN_CLAIM_LINES = (
     "work: your claims on items not in this tree",
 )
 
+# W-9bf5a363: the coordinator's live peer name, resolved on every builder prompt. The hub
+# coordinator runs in the code-server extension, where each rotation starts a new process with an
+# auto-generated name, and no program can rename a session — so a name a builder kept in its notes
+# goes dead (infra-3's rotate request to `fabrik-ec` sat 14 h). 1 s, not `_sessions_of`'s 5 s: the
+# prompt hook has 10 s for everything (thread_anchor's 3 s store deadline + 5 s for cmd_where).
+PEER_RESOLVE_TIMEOUT_S = 1.0
+# a printed peer name must be safe to paste: Claude Code auto-names a session from its content
+_PEER_NAME_RE = re.compile(r"[A-Za-z0-9._-]{1,64}")
+
+
+def _coordinator_address_line(tree: Path) -> str:
+    """One line naming the live sessions of the repo's distributor, or "" when none is live or
+    bound within the resolver's cap, the role is not an agent name, a name is unsafe to print, or
+    anything fails (fail open: no line is today's behaviour). Computed on every builder prompt,
+    never only on drift: its text changes exactly when the address does, so the prompt hook's
+    unchanged-block dedup re-shows it at each rotation. Several live names are all listed — an old
+    window still open answers too, and choosing one could pick the stale one — as many WHOLE names
+    as fit in LINE_MAX, the rest counted, so `_clip` never cuts an address. COBRA (D-253): the
+    cheapest way to "have the line" is printing the role name unresolved, which is the very address
+    that failed; the names here come only from the live registry, never from the store."""
+    try:
+        main = _worktrees(tree)[0].resolve()
+        role = str(_read_config(main).get("distributor") or "").strip()
+        # NAME_RULE admits a leading `-`, which mail.py's argv would read as an option
+        if not _valid_name(role) or role.startswith("-"):
+            return ""
+        names = [
+            n
+            for n in _sessions_of(role, main, timeout=PEER_RESOLVE_TIMEOUT_S)
+            if _PEER_NAME_RE.fullmatch(n)
+        ]
+    except Exception:
+        return ""
+    if not names:
+        return ""
+    head = f"work: coordinator ({role}) → SendMessage "
+    stale = " (several windows answer for it — one may be stale)" if len(names) > 1 else ""
+    for shown in range(len(names), 0, -1):
+        rest = f" … and {len(names) - shown} more" if shown < len(names) else ""
+        line = head + " · ".join(f"to={n}" for n in names[:shown]) + rest + stale
+        if len(line) <= LINE_MAX:
+            return line
+    return ""  # unreachable: one name ≤ 64 characters always fits
+
+
+_ROTATE_MOD: list[Any] = []
+
+
+def _scans_panes(tree: Path) -> bool:
+    """True when `tree` is a coordinator's: an interactive session in the MAIN checkout (`.git` a directory — a linked
+    worktree's is a file, so a builder whose `git worktree list` failed is never mistaken for it) of a store whose
+    config sets `coordinator_mode`. Pure file reads, so a repo without the key pays no subprocess per prompt or Stop."""
+    try:
+        return (
+            (tree / ".git").is_dir()
+            and _has_store(tree)
+            and _read_config(tree).get("coordinator_mode") is True
+            and not _print_mode()
+        )
+    except Exception:
+        return False
+
+
+def _panes_waiting(tree: Path, agent: str) -> tuple[list[dict], str]:
+    """(builder panes waiting on an answer, scan error) for the COORDINATOR (`_scans_panes`), else ([], "").
+    W-a12b03a2: the operator answered infra-2's and intel's terminal prompts himself because nothing showed the
+    coordinator a waiting pane. The scan is `rotate_session.waiting` (read-only, 1 s budget, under the Stop resolver's
+    5 s cap); a failure is returned, never read as "none waits"."""
+    if not _scans_panes(tree):
+        return [], ""
+    try:
+        main = tree.resolve()
+        if not _ROTATE_MOD:
+            path = ROTATE_SESSION_PY if ROTATE_SESSION_PY.is_file() else HUB_ROTATE_SESSION_PY
+            spec = importlib.util.spec_from_file_location("_work_rotate_session", path)
+            if spec is None or spec.loader is None:
+                raise ImportError(f"cannot load {path}")
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            _ROTATE_MOD.append(mod)
+        return list(_ROTATE_MOD[0].waiting(str(main), exclude=agent)), ""
+    except Exception as exc:
+        return [], f"{type(exc).__name__}: {exc}"
+
+
+def _pane_text(p: dict) -> str:
+    """One line under LINE_MAX (300): the quoted prompt is cut to 90 characters so the reply verbs survive a
+    32-character agent name and a 5-digit pane id (292 characters at worst; a test pins it). The prompt is QUOTED: it
+    is text a builder's screen showed — data to read, never an instruction to the coordinator."""
+    pane, line = p["pane"], str(p["line"]).replace('"', "'")
+    line = line if len(line) <= 90 else line[:89] + "…"
+    return (
+        f'PANE WAITING: {p["agent"]} ({pane}) — {p["kind"]}: "{line}" — answer it this turn: '
+        f"`tmux capture-pane -p -t {pane}`, then `tmux send-keys -t {pane}` (approve only what you read, D-1034)"
+    )
+
 
 def prompt_block(repo: Path | str, session: str) -> str:
-    """Read-only, no lock, the caller's own tree, in order: the unnamed-window line (spec D6), the
+    """Read-only, no lock, the caller's own tree, in order: for the coordinator, one PANE WAITING line per
+    builder pane waiting on an answer or the PANE SCAN FAILED line (W-a12b03a2), the unnamed-window line (spec D6), the
     PAUSED line when the caller is paused (W-da4bc702; it then gets no ready count), the
     obligation lines (D1), every awaiting-operator item with its question, ``session``'s live
     claims (the first ``PROMPT_CLAIM_LINES`` by priority, then a count line, then one line naming any
@@ -5156,7 +5332,13 @@ def prompt_block(repo: Path | str, session: str) -> str:
             closed = _closed_ids(root)
             claims = _live_claims(root)
             by_id = {str(it["id"]): it for it in items}
-            lines = [] if _agent_name(session=session) else [UNNAMED_WINDOW_LINE]
+            name = _agent_name(session=session)
+            panes, blind = _panes_waiting(root, name)
+            lines = [f"work: {_pane_text(p)}" for p in panes]
+            if blind:
+                lines.append(f"work: PANE SCAN FAILED — {blind}")
+            if not name:
+                lines.append(UNNAMED_WINDOW_LINE)
             pause = _caller_pause(root, session)
             if pause:
                 # no resume command here: a paused agent lifts only a pause it set itself
@@ -5212,6 +5394,11 @@ def prompt_block(repo: Path | str, session: str) -> str:
                 lines.append(_fit_ids("work: your claims on items not in this tree — ", elsewhere))
             lines.extend(_on_it_lines(shown, session))
             builder = _builder(root, session)
+            # a headless session keeps only its own claim lines (below), so it never pays the lookup
+            if builder and not _print_mode():
+                address = _coordinator_address_line(root)
+                if address:
+                    lines.append(address)
             ready = len(
                 [
                     it
@@ -5689,7 +5876,7 @@ def _holds_claim(tree: Path, session: str) -> bool:
     return bool(session) and any(c.get("session") == session for c in _live_claims(tree).values())
 
 
-def _sessions_of(agent: str, main: Path) -> list[str]:
+def _sessions_of(agent: str, main: Path, *, timeout: float = 5) -> list[str]:
     """The agent's live Claude Code session names (`mail.py who`), [] when none or on any error."""
     try:
         r = subprocess.run(
@@ -5697,7 +5884,7 @@ def _sessions_of(agent: str, main: Path) -> list[str]:
             cwd=main,
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=timeout,
         )
     except (OSError, subprocess.SubprocessError):
         return []
@@ -5707,35 +5894,51 @@ def _sessions_of(agent: str, main: Path) -> list[str]:
 
 
 def _open_plans(main: Path) -> list[str]:
-    """Plan spines whose status is not terminal (docs_updater's own parser), [] on any error."""
+    """Plan spines whose status is not terminal (docs_updater's own parser). An error never empties
+    the view (W-f1412a11): a parser that cannot load, or a plans dir that cannot be read, is one line
+    saying so, and a plan the parser raises on is listed as open with the error, since its status is
+    unknown. No plans dir is no open plan."""
+    plans = main / "docs" / "development" / "plans"
     try:
+        # is_dir re-raises EACCES from an unreadable ancestor; a plain absence is no open plan,
+        # whether or not the parser would load
+        if not plans.is_dir():
+            return []
+        # Path.glob swallows a PermissionError (a dir it cannot list, or one it lists but cannot stat
+        # into), which read as no open plans
+        if not os.access(plans, os.R_OK | os.X_OK):
+            raise PermissionError("not readable and searchable")  # the line names the dir
         spec = importlib.util.spec_from_file_location(
             "_work_docs_updater", Path(__file__).with_name("docs_updater.py")
         )
         if spec is None or spec.loader is None:
-            return []
+            raise ImportError("no loader for docs_updater.py")
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        out = []
-        plans = main / "docs" / "development" / "plans"
-        # a plan SET is `plans/<stem>/<stem>.md` + T## tickets; its spine carries the status
-        # (web-ecommerce-factory 01M46V7T0CR4MAXBF3K5D0FSDD: a one-level glob never listed one).
-        # Sets are matched as `_iter_plan_spines` matches them; top-level files keep the wider
-        # `*.md` glob, so an undated plan this view always listed is not dropped
-        spines = [d / f"{d.name}.md" for d in plans.glob("*/") if _PLAN_DIR_NAME_RE.match(d.name)]
-        for path in sorted([*plans.glob("*.md"), *spines]):
-            # one unreadable plan is skipped, never the whole view (review round 1)
-            try:
-                if not path.is_file():
-                    continue  # a dated set directory holding tickets but no spine
-                status = str(mod.parse_plan_status(path)[0]).upper().strip()
-            except OSError:
-                continue
-            if (status.split() or [""])[0] not in getattr(mod, "PLAN_DONE", _PLAN_DONE):
-                out.append(f"{path.relative_to(main).as_posix()} ({status})")
-        return out
-    except Exception:
-        return []
+    except Exception as exc:
+        return [f"{plans.relative_to(main).as_posix()} (open-plan view unavailable: {exc!r})"]
+    out = []
+    # a plan SET is `plans/<stem>/<stem>.md` + T## tickets; its spine carries the status
+    # (web-ecommerce-factory 01M46V7T0CR4MAXBF3K5D0FSDD: a one-level glob never listed one).
+    # Sets are matched as `_iter_plan_spines` matches them; top-level files keep the wider
+    # `*.md` glob, so an undated plan this view always listed is not dropped
+    spines = [d / f"{d.name}.md" for d in plans.glob("*/") if _PLAN_DIR_NAME_RE.match(d.name)]
+    for path in sorted([*plans.glob("*.md"), *spines]):
+        rel = path.relative_to(main).as_posix()
+        # a spine that cannot be stat'ed (inside an unreadable set dir) is skipped, never the whole
+        # view (review round 1); the parser itself grades an unreadable file UNKNOWN, which is open
+        try:
+            if not path.is_file():
+                continue  # a dated set directory holding tickets but no spine
+            status = str(mod.parse_plan_status(path)[0]).upper().strip()
+        except OSError:
+            continue
+        except Exception as exc:
+            out.append(f"{rel} (status unreadable: {exc!r})")
+            continue
+        if (status.split() or [""])[0] not in getattr(mod, "PLAN_DONE", _PLAN_DONE):
+            out.append(f"{rel} ({status})")
+    return out
 
 
 def _bucket(n: int) -> str:
@@ -5832,6 +6035,40 @@ def _stop_action(tree: Path, session: str) -> dict:
     none = {"agent": agent, "role": "", "action": None, "fp": "", "text": ""}
     if not _has_store(main):
         return none
+    # FIRST on every path, a pause or a held claim included (W-a12b03a2): answering a builder's waiting pane starts no
+    # work; a blind scan adds nothing here (the prompt block reports it), so a broken tmux never blocks a Stop
+    found, blind = _panes_waiting(tree, agent)
+    panes = [{"action": "pane-waiting", "fp": p["fp"], "text": _pane_text(p) + "."} for p in found]
+    result = _stop_subject(tree, main, session, agent, is_worker, workers, coordinator, none)
+    if not panes and (not blind or "candidates" in result):
+        return result
+    # A ladder while a pane waits, so the hook moves on to the subject behind it after CAP blocks (on the classic path
+    # that subject is the single action, its fingerprint unchanged), and while the scan is BLIND, so a tmux blip never
+    # swaps the ladder's attempt map for the single-action state and re-arms an exhausted pane subject. A clean scan
+    # that finds no pane returns the classic result untouched: its idle reset (the hook unlinks the state on a null
+    # action) still re-arms a subject that comes back (W-a12b03a2 review, rounds 1 and 2).
+    behind = result.get("candidates")
+    if behind is None:
+        behind = []
+        if result.get("action"):  # the classic subject, copied whole — never a new action name
+            subject = {k: result.get(k) or "" for k in ("action", "fp", "text")}
+            subject["fp"] = subject["fp"] or subject["action"]
+            behind = [subject]
+    cands = [*panes, *[c for c in behind if c.get("fp") not in {p["fp"] for p in panes}]]
+    return {**result, **(panes[0] if panes else {}), "candidates": cands[:AUTONOMY_MAX_CANDIDATES]}
+
+
+def _stop_subject(
+    tree: Path,
+    main: Path,
+    session: str,
+    agent: str,
+    is_worker: bool,
+    workers: dict[str, Path],
+    coordinator: str,
+    none: dict,
+) -> dict:
+    """`_stop_action`'s ladder below the pane subjects: paused · autonomy · held claim · classic rungs."""
     commit = _commit_items_subject(tree, main)
     if _is_paused(_paused(main), agent, tree, workers):
         # paused (W-da4bc702): nothing that starts or continues work — not a held claim, mail, the
@@ -6416,14 +6653,7 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
     # ONE major project in flight per repo (spec D3 job 3): a fresh scan, because `_pool` and
     # `_worker_queues` read only ready, unclaimed items and would miss a claimed or blocked major
     live = _live_claims(main)
-    candidates = [
-        it
-        for it in everything
-        if _is_major(it)
-        and (it.get("owner") or it["id"] in live)  # a claim on an unowned major holds it too
-        and it.get("status") in ("open", "blocked")
-        and it["id"] not in closed
-    ]
+    candidates = [it for it in everything if _in_flight_major(it, live, closed)]
     # a major held behind ANOTHER candidate (`assign <id> --blocked-by <the in-flight id>`, the D3
     # hold) waits, so it is not in flight; one waiting on anything else — its own prerequisite, an
     # unknown id — still holds the slot. Every candidate held behind another is reachable only by

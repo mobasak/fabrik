@@ -3,7 +3,7 @@
   "created": "2026-10-20T11:54:59.722200Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "85080f63f8c3538f4cec1a46d738223b57fc94d7",
   "id": "W-ea993618",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "fleet",
   "priority": 0,
   "score_reason": "URGENT: operator 2026-10-21 'ok lets build it asap' on the one-window tab router; infra (the author of stage 1) is on the hibernate build, also an operator ask, so under D-983 the HIGH work goes to fleet, whose current item W-3c302832 is LOW; effort LOW-ish: one wrapper script, a picker, tests, a box doc — one session",
-  "status": "open",
+  "status": "done",
   "tags": [
     "waits-merge"
   ],

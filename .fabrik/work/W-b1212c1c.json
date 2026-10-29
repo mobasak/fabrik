@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T12:35:53.127374Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b1212c1c",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "match spans by backtick run length (r'(?<!`)(`+)(?!`).*?(?<!`)\\1(?!`)'), add the probe '| x y | `` p|q `` |' != [], decide the \\\\| case, re-flow hooks-index.md:95 — found by the review of MR 01M63MXHX9's merge fix",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "test_check_hooks_index.py's _table_pipe_defects misses a pipe inside a DOUBLE-backtick code span (a lost separator hides), and reads \\\\| as an escaped pipe; hooks-index.md:95 nests backticks so its spans pair wrongly"
+}

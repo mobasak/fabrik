@@ -40,7 +40,7 @@ hard stop at a real wall.
 While the stamp stands the rule is DEFAULT-DENY: every tool that can change the world is held —
 Edit/Write/MultiEdit/NotebookEdit, MCP editors (serena replace/insert/rename, browser clicks),
 Agent/Workflow dispatch, and any Bash that is not ONE simple checkpoint or read command — with one instruction — commit + push your own work with
-explicit pathspecs, close your run record, stop. Reads, git checkpointing, `command_run.py`, `mail.py`,
+explicit pathspecs, close your run record, stop. Reads (the Read, Grep and Glob tools, and Bash cat, head, tail, grep, ls, wc and stat), the git checkpoint and read verbs with their plain flags (add -- <paths>, commit -m <msg> -- <paths>, push, fetch, status, diff, log, show, rev-parse and reset HEAD -- <paths>; through git -C /opt/<repo>, the read verbs only), `command_run.py`, `mail.py`,
 `thread_anchor.py`, `Monitor`, the exact self-watch arm (`bash /opt/fabrik/scripts/sysadmin/selfwatch_arm.sh <sid>`,
 D-356) and `TaskStop` stay allowed, so a session can finish
 cleanly and the Stop hook's commit-and-push law can be met. The block lifts when the tick clears the
@@ -993,11 +993,14 @@ def _same_window_name(common: Path, cwd: str | None, proc_root: str | Path | Non
     This window is the `claude` process above this hook (pid AND start tick, D-748's process key —
     a `/clear` keeps the process and mints a new sid). The name is that process's LAST in-scope row
     when: `CLAUDE_PID` is unset or names that pid (a nested claude never reaches an outer window,
-    whoami_agent.py `same_window`); the row was written this boot (`at` >= `btime`, so a pid and
-    tick from a past boot cannot match); it is also the LAST in-scope row of that name (nobody
-    re-took it since); no OTHER row of the name belongs to a LIVE process (`--force` would override
-    a live holder); and the payload `cwd` sits in this repo (whoami writes the cwd's scope).
-    `proc_root` (env `QUOTA_STOP_PROC_ROOT`, default /proc) is the test seam."""
+    whoami_agent.py `same_window`); it is also the LAST in-scope row of that name (nobody re-took
+    it since); no OTHER row of the name belongs to a LIVE process (`--force` would override a live
+    holder); and the payload `cwd` sits in this repo (whoami writes the cwd's scope). NO boot-time
+    test (W-a77742db): WSL2's btime moves FORWARD with each host sleep (69,421 s measured on
+    2026-10-28), so `at >= btime` came to refuse a live window's own row; a past boot's row
+    matches only with the same pid AND the same start jiffy (D-1079 rejected boot tests already).
+    A session resumed into a new process gets its row here from whoami's `refresh()` at
+    SessionStart. `proc_root` (env `QUOTA_STOP_PROC_ROOT`, default /proc) is the test seam."""
     proc = Path(proc_root or os.environ.get("QUOTA_STOP_PROC_ROOT") or "/proc")
     if not cwd or not os.path.isabs(cwd):
         return ""
@@ -1011,13 +1014,6 @@ def _same_window_name(common: Path, cwd: str | None, proc_root: str | Path | Non
     claude_pid = (os.environ.get("CLAUDE_PID") or "").strip()
     if claude_pid not in ("", str(pid)):
         return ""
-    btime = None
-    for line in (_regular_text(proc / "stat") or "").splitlines():
-        parts = line.split()
-        if len(parts) == 2 and parts[0] == "btime":
-            btime = _as_int(parts[1])
-    if btime is None:
-        return ""
 
     def mine(row: dict) -> bool:
         return _as_int(row.get("pid")) == pid and _as_int(row.get("pid_start")) == start
@@ -1025,8 +1021,7 @@ def _same_window_name(common: Path, cwd: str | None, proc_root: str | Path | Non
     rows = _scoped_rows(common)
     last = None
     for row in rows:
-        at = _as_int(row.get("at"))
-        if mine(row) and at is not None and at >= btime:
+        if mine(row):
             last = row
     if last is None:
         return ""
@@ -1378,6 +1373,21 @@ def _literal_sid(sid: str | None) -> str:
     )
 
 
+# What a held session may still read and checkpoint, in the words of the allow-list itself (`_ALLOWED_BASH`,
+# `_RELOCATED_WRITE`): "Reads, git" promised every git verb, and a held coordinator's `git -C /opt/fabrik grep` was
+# refused under it (W-a77742db). No backticks: the park-message grader runs every backticked order through the lane.
+# `git grep` stays held — the Grep tool already reads any path, and `git grep -O<pager>` runs a program.
+_HELD_READS = (
+    "Reads (the Read, Grep and Glob tools, and Bash cat, head, tail, grep, ls, wc and stat), the git checkpoint and "
+    "read verbs with their plain flags (add -- <paths>, commit -m <msg> -- <paths>, push, fetch, status, diff, log, show, "
+    "rev-parse and reset HEAD -- <paths>; through git -C /opt/<repo>, the read verbs only)"
+)
+# The wall's one message is pinned under 1,000 chars at the longest admitted sid for every built-in held tool
+# (NotebookEdit, the longest, read 985 with "Reads, git"), so it carries the short true form; the lane message and
+# this module's docstring carry the list.
+_HELD_READS_SHORT = "Reads, git checkpoints"
+
+
 def _park_reason(
     tool: str, sid: str | None, *, why: str = "", items: tuple[str, ...] = (), lift: str = ""
 ) -> str:
@@ -1398,7 +1408,7 @@ def _park_reason(
         "`python3 scripts/command_run.py blocked --wall --command <command> --reason '<why>'` "
         "(resumable by start --resume-from), send the merge request for finished work "
         "(`python3 scripts/merge_request.py request --review <receipt> --item <W-id>`), then end "
-        "the turn. Reads, git, command_run.py, mail.py, thread_anchor.py, the claim verbs "
+        f"the turn. {_HELD_READS}, command_run.py, mail.py, thread_anchor.py, the claim verbs "
         "(`python3 scripts/work.py claim <W-id>`), `python3 scripts/work.py next`, the rotation's "
         "re-bind of the one name this window held last (python3 "
         "/opt/fabrik/scripts/whoami_agent.py --as <that name> --force, that absolute path only), "
@@ -1429,7 +1439,7 @@ def _reason(tool: str, sid: str | None = None, battery: bool = False) -> str:
         f"{head} {tool} is held. STOP GRACEFULLY NOW: "
         "commit your own work with explicit pathspecs "
         "(`git commit -m '<msg>' -- <paths>` — SINGLE-QUOTE the message: a quoted newline is data, but `$(…)`/heredoc and a backtick in double quotes stay refused), `git push`, close your run record (`command_run.py done` — or `blocked --wall`, resumable by `start --resume-from`), "
-        "then end the turn — no new edits, no new phases. Reads, git, command_run.py, mail.py, "
+        f"then end the turn — no new edits, no new phases. {_HELD_READS_SHORT}, command_run.py, mail.py, "
         f"thread_anchor.py, the self-watch arm and TaskStop stay allowed. {lift}, "
         "and the lift WAKES every session whose self-watch is armed (a RESUME line naming where it left "
         "off) — an unarmed session stays idle until the operator restarts it, so ARM the self-watch NOW "

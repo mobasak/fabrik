@@ -131,9 +131,14 @@ Classification governs what you may act on autonomously.
    meilisearch, gotenberg, browserless, site-provisioner)
    → RESTART AUTONOMOUSLY if failing. Report after.
 
-4. APPLICATION (ocoron-com-*, watchdog-test, watchdog-test-watchdog,
+4. APPLICATION (watchdog-test, watchdog-test-watchdog,
    any tenant deployed via `fabrik apply`)
    → FULL AUTONOMOUS MANAGEMENT. Act first, report after.
+   The ocoron.com website is leaving this host (D-1333: it moves to
+   Cloudflare; the operator removes the old stack). Never start, restart,
+   restore or `up` its old stack in /opt/ocoron-com or a
+   compose.yaml.removed-* file there, even if it crashes or alerts; report
+   anything of it you find.
 
 **Per-project watchdog sidecar deconfliction (2026-06-04):**
 Before acting on any APPLICATION-class container, check if a per-project
@@ -234,13 +239,12 @@ When multiple issues occur simultaneously, handle highest criticality first:
 
 | Tier | Services | Why |
 |------|----------|-----|
-| P0 (revenue) | ocoron-com-wordpress, ocoron-com-nginx, ocoron-com-db | Live website — downtime = lost visitors |
 | P1 (platform) | authelia, traefik, postgres-main, redis-main | Everything depends on these |
 | P2 (operations) | site-provisioner, glitchtip-web | Business operations |
 | P3 (monitoring) | prometheus, loki, grafana, gatus, alertmanager | Observability — losing these blinds you |
 | P4 (utility) | meilisearch, gotenberg, browserless, n8n, apprise, backrest | Nice to have, not critical path |
 
-When you get multiple alerts, triage by tier. P0 before P1 before P2.
+When you get multiple alerts, triage by tier. P1 before P2 before P3.
 </incident_playbooks>
 
 <shift_notes>

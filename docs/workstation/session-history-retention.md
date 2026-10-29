@@ -28,7 +28,9 @@ bash scripts/sysadmin/install_session_archive_timer.sh
 
 It refuses unless `loginctl show-user "$USER" -p Linger` reads `Linger=yes` and `systemd-analyze --user verify`
 prints nothing for the three units (a key in the wrong section is only a warning at rc 0), copies them — the alert
-unit first, since verify never resolves an `OnFailure=` target — and enables the timer.
+unit first, since verify never resolves an `OnFailure=` target — and enables the timer. Claude Code's safety check
+refuses an agent this run, so the operator's one-time setup script runs it as its `archive` step, after a diff and a
+backup of the installed units (`operator-setup.md`).
 
 ## Where the copy lives
 

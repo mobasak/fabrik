@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T15:01:38.165054Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-5d0acec4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M63PMHNGMWGDV2PM1HWNB42Q",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "FEEDBACK relay — 11 filed verdict(s) from command closes (+35 none-verdicts, not expanded)"
+}

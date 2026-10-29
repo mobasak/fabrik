@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T16:37:31.812187Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "a849672471a86cb955b0e2948b504b8c6f08cb2c",
+  "id": "W-231f4695",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "URGENT: operator; merge wall time is the bottleneck on every requirement",
+  "status": "done",
+  "title": "Merges are too slow (operator 2026-10-28: 'why merge so slow this is absurd'): each hub merge re-runs 20-60 min of tests serially (one request selected 122 test files = 4,555 s; suite 9,239 s over 566 files in 8 shards; test_assemble_dispatch_step.py alone 1,466 s), so 8 reviewed requests wait hours. Cut merge wall time: trust a branch's own green pretest receipt when it is rebased on current master and re-test only on drift/conflict, merge independent requests together, and finish W-3ba57940 (split the 1,466 s file). Measure before/after per merge."
+}

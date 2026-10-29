@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T02:28:01.709878Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-3416abe0",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide per workflow: fix, or drop the e2e workflow (CI checks retired, 7051a25aa); then the lint residue in one template pass, proven by tests/test_scaffold_mobile_toolchain.py -m needs_network",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "low"
+  ],
+  "title": "mobile-app template upstream workflow residue: eas-build-prod builds Android only under an 'Android & IOS' name with message 0.0.0; e2e-android-eas-build uses retired upload/download-artifact@v3 and an unquoted wget of a dispatch input; new-app-version's GITHUB_TOKEN push never triggers the release->EAS chain; AUTO_SUBMIT unwired; 15 lint warnings (2 unused disable directives, 2 react-hooks-extra); unimported direct deps eslint-plugin-import + resolver; react-compiler rc pin; grader diagnostics (null job body, bare assert)"
+}

@@ -9,7 +9,7 @@
   "kind": "decision",
   "legacy": false,
   "links": {
-    "decision": "",
+    "decision": "D-1313",
     "plan": "",
     "spec": ""
   },
@@ -17,10 +17,10 @@
     "f2c3d81f35a08bb48fe9f61b4edc3472774f6e03696466e6bbebd3085cf1017f"
   ],
   "next": "",
-  "note": "",
+  "note": "a read-only status check of vps1's alert service ok, do.",
   "owner": "",
   "priority": 2,
   "question": "May fleet run one read-only status check on vps1's alert service, or will you run it yourself: `ssh -o ProxyJump=vps2 vps \"sudo docker exec apprise curl -s -o /dev/null -w '%{http_code}\\n' http://localhost:8000/status/alerts\"`?",
-  "status": "awaiting-operator",
+  "status": "done",
   "title": "May fleet run one read-only status check on vps1's alert service, or will you run it yourself: `ssh -o ProxyJump=vps2 vps \"sudo docker exec apprise curl -s -o /dev/null -w '%{http_code}\\n' http://localhost:8000/status/alerts\"`?"
 }

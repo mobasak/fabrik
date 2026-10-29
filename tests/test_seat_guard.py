@@ -268,6 +268,148 @@ def test_heredoc_bodies_are_data() -> None:
     assert _denied(_run(body2))  # the line AFTER the terminator is a command again
 
 
+def test_a_marker_the_shell_does_not_read_as_a_heredoc_hides_nothing() -> None:
+    """W-223704c1: only an unquoted, uncommented `<<WORD` opens a body; anything else that
+    looks like one (quoted text, a comment, a here-string, an arithmetic shift, an escaped
+    `<`) must leave the following lines in the scan."""
+    for cmd in (
+        "echo 'x <<EOF'\ngit -C /opt/fabrik commit -m y",
+        'echo "see <<EOF"\ngit reset --hard',
+        "echo 'a\n<<EOF'\ngit reset --hard",
+        "echo x # <<EOF\ngit reset --hard",
+        "# <<EOF\npkill -f x",
+        "cat <<<EOF\ngit reset --hard",
+        "echo $((1<<x))\ngit reset --hard",
+        "(( y = 1<<x ))\ngit reset --hard",
+        "echo x \\<<EOF\ngit reset --hard",
+        "echo $'it\\'s <<EOF'\ngit reset --hard",
+        "echo ${x:-<<EOF}\ngit reset --hard",
+        "echo `echo <<EOF`\ngit reset --hard",
+        'echo "$(echo "<<EOF")"\ngit reset --hard',
+        'echo ${x:-"}"}" <<EOF"\ngit reset --hard',
+        'echo ${x:-"}"}" <<EOF" ${y:-"}"}\ngit reset --hard',
+        'echo "$( (true); echo "<<EOF" )"\ngit reset --hard',
+    ):
+        assert _denied(_run(cmd)), cmd
+
+
+def test_real_heredoc_spellings_still_hold_data() -> None:
+    for cmd in (
+        f'cat > {SCRATCH}/n <<"EOF"\ngit reset --hard\nEOF',
+        f"cat > {SCRATCH}/n <<-EOF\n\tpkill -f x\n\tEOF",
+        f"cat <<A > {SCRATCH}/a; cat <<'B' > {SCRATCH}/b\ngit reset --hard\nA\npkill -f x\nB",
+        f"echo 'it''s' && cat <<EOF > {SCRATCH}/n\ngit reset --hard\nEOF",
+        # the usual commit-message shape: a heredoc inside "$(…)", its body an unbalanced quote
+        f"git -C {SCRATCH}/repo commit -m \"$(cat <<'EOF'\ndon't git reset --hard\nEOF\n)\"",
+        # a closed "$(…)" or an inner subshell returns the walk to the right context
+        f'echo "$(date)" && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF',
+        "x=\"$( (true); cat <<'EOF'\ngit reset --hard\nEOF\n)\"",
+        f"echo `date` ${{HOME}} && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF",
+        f"echo $((1+1)) && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF",
+        f"echo $[1+1] && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF",
+        f"echo $[1<<n ] && cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF",
+        # a word merely ending in "case" is no `case`; "case" inside a body is data
+        f'x="$(echo showcase)"; cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF',
+        f"git -C {SCRATCH}/repo commit -m \"$(cat <<'EOF'\nthe edge case\ngit reset --hard\nEOF\n)\"",
+        f'x="$(cases a)"; cat > {SCRATCH}/n <<EOF\ngit reset --hard\nEOF',
+    ):
+        assert not _denied(_run(cmd)), cmd
+
+
+def test_review_round_one_markers_hide_nothing() -> None:
+    """W-223704c1 review round 1: a `case` pattern's `)` closed the enclosing `$(…)`, `$[…]`
+    arithmetic read as a heredoc, and a delimiter was cut to its identifier prefix (`<<E-OF`
+    ended at a line `E`) — each hid the next command from the scan."""
+    for cmd in (
+        'echo "$(case $x in a) echo "<<EOF";; esac)"\ngit reset --hard',
+        "echo $[1<<n]\ngit reset --hard",
+        f"cat > {SCRATCH}/n <<E-OF\nx\nE-OF\ngit reset --hard",
+        f"cat > {SCRATCH}/n <<EOF-\nx\nEOF-\ngit reset --hard",
+        f"cat > {SCRATCH}/n <<-EOF\n\tbody\n\tEOF\ngit reset --hard",
+        # each shape below passes the word-boundary rule, so only its own clause decides
+        "echo $[1<<n ]\ngit reset --hard",
+        'echo "$(case $x in a) echo " <<EOF ";; esac)"\ngit reset --hard',
+        # review round 2: `case`/`esac` are keywords only at command position (`echo case` is an
+        # argument), else a `)` that closes "$(…)" was held open and a data `<<EOF` hid line 2
+        "echo ${x:-$(echo case) <<EOF }\ngit reset --hard",
+        "echo ${x:-$(grep -c case f) <<EOF }\ngit reset --hard",
+        'x="$(case a in a) echo esac;; b) echo " <<EOF ";; esac)"\ngit reset --hard',
+        'x="$(if true; then case a in a) echo " <<EOF ";; esac; fi)"\ngit reset --hard',
+        'echo "$(echo case)<<EOF\n"\ngit reset --hard',
+        # review round 2: the delimiter is the whole shell word, quoting removed — an opener read
+        # as an identifier left its body in the scan, where an inner `<<Z` hid the line after it
+        f"cat > {SCRATCH}/n <<E-OF\n<<Z\nE-OF\ngit reset --hard\nZ",
+        f"cat > {SCRATCH}/n <<\\EOF\n <<Z\nEOF\ngit reset --hard\nZ",
+        f"cat > {SCRATCH}/n <<E'OF'\nx\nEOF\ngit reset --hard",
+        # review round 3: a keyword word as an argument, a nested or empty-bodied case, `$'…'`
+        # and a backslash-newline in the word — the walk loses bash's place, so it trusts none
+        'echo "$(echo then case)<<EOF\n"\ngit reset --hard',
+        "echo ${x:-$(echo do case) <<EOF }\ngit reset --hard",
+        'echo "$(case $x in a) case $y in b) :;; esac;; c) echo "<<EOF";; esac)"\ngit reset --hard',
+        'echo "$(case a in a) esac)<<EOF\n"\ngit reset --hard',
+        f"cat > {SCRATCH}/n <<$'EOF'\nx\nEOF\ngit reset --hard",
+        f"cat > {SCRATCH}/n <<E\\\nF\nx\nEF\ngit reset --hard",
+        'echo "$(case a in a) echo "x <<EOF y";; esac)"\ngit reset --hard\nEOF',
+    ):
+        assert _denied(_run(cmd)), cmd
+
+
+def test_a_walk_that_does_not_end_where_bash_ends_strips_nothing() -> None:
+    """Review round 3 (rule 3 rewrite): the case/esac keyword tracking was deleted; instead a walk
+    left inside a quote or an unclosed `$(…)`, or with a body still pending, returns the command
+    whole — graded on `_strip_heredocs` directly, since the hook swallows a scanner exception."""
+    spec = importlib.util.spec_from_file_location("seat_guard_net", HOOK)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    for cmd in (
+        'echo "$(case a in a) echo "<<EOF";; esac)"\nAFTER',  # lost in a quote
+        "x=$(cat <<EOF\nAFTER",  # an unclosed $( and a pending body
+        "cat <<EOF\nBODY\nAFTER",  # a body bash's terminator never ends
+        'cat <<EOF\nBODY\nEOF\necho "open',  # every body closed, but the walk ends in a quote
+        # review round 4: two pattern `)` flip the quoting and back, a later line closes the
+        # false body, the walk ends clean — so a `case` outside the bodies voids any strip
+        'echo "$(case a in a) echo "x <<EOF y";; esac)"\nAFTER\nEOF',
+        'x="$(case a in a) :;; esac)"; cat <<EOF\nBODY\nEOF',  # the price: an over-scan
+    ):
+        assert mod._strip_heredocs(cmd) == cmd, cmd
+    assert mod._strip_heredocs("cat <<EOF\nBODY\nEOF\nAFTER") == "cat <<EOF\nAFTER"
+
+
+def test_strip_heredocs_drops_each_body_and_keeps_what_follows() -> None:
+    """Review round 2 (B-haiku-7): the hook swallows a scanner exception, so an allow assertion
+    through `_run` passes even when `_strip_heredocs` crashes. Graded here directly."""
+    spec = importlib.util.spec_from_file_location("seat_guard_strip", HOOK)
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    for cmd, word in (
+        ("cat <<E-OF\nBODY\nE-OF\nAFTER", "E-OF"),
+        ("cat <<\\EOF\nBODY\nEOF\nAFTER", "EOF"),
+        ("cat <<E'OF'\nBODY\nEOF\nAFTER", "EOF"),
+        ('cat <<"a b"\nBODY\na b\nAFTER', "a b"),
+        ('cat <<"a\\"b"\nBODY\na"b\nAFTER', 'a"b'),
+        ("cat <<$'EOF'\nBODY\nEOF\nAFTER", "EOF"),
+        ("cat <<$'E\\'F'\nBODY\nE'F\nAFTER", "E'F"),
+        ("cat <<-EOF\n\tBODY\n\tEOF\nAFTER", "EOF"),
+    ):
+        out = mod._strip_heredocs(cmd)
+        assert "BODY" not in out and out.endswith("\nAFTER"), (cmd, out)
+        assert mod._heredoc_word(cmd.split("<<", 1)[1].split("\n", 1)[0].lstrip("-")) == word
+
+
+def test_a_line_that_only_looks_like_the_terminator_keeps_the_body_data() -> None:
+    """W-223704c1 review round 1: the terminator was compared after strip(), so an indented or
+    space-trailed `EOF` ended the body early and the body's own lines were scanned as commands."""
+    for cmd in (
+        f"cat > {SCRATCH}/n <<EOF\n  EOF\ngit reset --hard\nEOF",
+        f"cat > {SCRATCH}/n <<EOF\nEOF \ngit reset --hard\nEOF",
+        f"cat > {SCRATCH}/n <<EOF\n\tEOF\ngit reset --hard\nEOF",
+        f"cat > {SCRATCH}/n <<-EOF\n  EOF\ngit reset --hard\nEOF",
+    ):
+        assert not _denied(_run(cmd)), cmd
+
+
 def test_explicit_git_dir_and_work_tree_in_scratch_pass() -> None:
     cmd = f"git --git-dir={SCRATCH}/r/.git --work-tree={SCRATCH}/r reset --hard"
     assert not _denied(_run(cmd))  # cwd /opt/fabrik is irrelevant when both are given

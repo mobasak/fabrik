@@ -3,7 +3,7 @@
   "created": "2026-10-27T15:05:16.663598Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "a0546ad5a807ca086f5a9ff269d15eb51011c6e9",
   "id": "W-4059f92e",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "kaizen",
   "priority": 1,
   "score_reason": "breaks every session's completion gate (repo-wide ratchet); author's merged change",
-  "status": "open",
+  "status": "done",
   "title": "Lint ratchet red on master since lean batch 2 merge b6cd13757: tests/test_design_review_queue_pass.py:3 F401 unused 'import re' (from 53e6ad007, t23 group last-round fixes); one-line removal"
 }

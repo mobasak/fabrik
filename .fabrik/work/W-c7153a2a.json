@@ -1,0 +1,26 @@
+{
+  "block_digest": "816b098d390fc30461804f281bdea110c8e737eefb8734ad2f66debf685cc62b",
+  "blocked_by": [],
+  "created": "2026-10-29T04:29:25.397719Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-c7153a2a",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "D-1333",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "39398ad5fc238f6bb52c2a09219107b8723164fcefef802bd39b188b84a5b514"
+  ],
+  "next": "",
+  "note": "we will deploy ocoron.com at cloudflare not to our vps. remove it entirely from our vps",
+  "owner": "",
+  "priority": 2,
+  "question": "May the ocoron-com stack on vps1 be taken down again, as D-121 ordered, by running `docker compose down` in `/opt/ocoron-com`? Without `-v`, so its data volumes and compose file are kept.",
+  "status": "done",
+  "title": "May the ocoron-com stack on vps1 be taken down again, as D-121 ordered, by running `docker compose down` in `/opt/ocoron-com`? Without `-v`, so its data volumes and compose file are kept."
+}

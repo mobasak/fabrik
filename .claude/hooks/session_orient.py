@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import math
 import os
 import re
 import subprocess
@@ -783,6 +784,251 @@ def _governance_line(cwd: str, hub: bool | None = None) -> str:
     )
 
 
+# W-835894a6 (operator 2026-10-28, "stop hand-pasting"): the outgoing session writes its handoff to
+# ONE file per agent per repo (`--handoff-write <name>`), and this hook prints it into the incoming
+# session on startup or /clear. It lives under the git COMMON dir, so every checkout of the repo
+# reads the same file and no commit or governance sync ever carries it. Plain stdout is capped at
+# 10,000 chars MEASURED WHOLE (code.claude.com/docs/en/hooks) and an overflow replaces the whole
+# block — ORIENT included — with a path and a 2,000-char preview, so the handoff only gets what is
+# left of `_STDOUT_BUDGET` UTF-8 bytes (a bound on code points and UTF-16 units alike) once ORIENT
+# is built. COBRA (D-253): the cheapest way to "have a handoff" without the outcome is an old file
+# reprinted after every /clear as if current, so every print names its age, a file past
+# `_HANDOFF_STALE_S` prints only a pointer, and one already shown to another session says so.
+_HANDOFF_DIR = "fabrik-handoff"
+_STDOUT_BUDGET = 9500
+_HANDOFF_STALE_S = 24 * 3600
+_HANDOFF_READ_BYTES = 64 * 1024
+_HANDOFF_SOURCES = ("startup", "clear")  # compact/resume/fork keep the old context
+_HANDOFF_WARN_BYTES = 4000
+_CLOCK_AHEAD_S = 300  # a handoff dated further ahead than this is skew or a hand edit: stale
+
+
+def _age(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    if seconds < 3600:
+        return f"{seconds // 60} min"
+    return f"{seconds // 3600} h {seconds % 3600 // 60} min"
+
+
+def _read_regular(path: Path, limit: int) -> tuple[bytes, os.stat_result] | None:
+    """The first `limit` bytes of `path` and its stat, or None: never through a symlink (O_NOFOLLOW),
+    never blocking on a FIFO (O_NONBLOCK), and only a regular file by the open descriptor's fstat."""
+    import stat as _stat
+
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    except OSError:
+        return None
+    try:
+        st = os.fstat(fd)
+        if not _stat.S_ISREG(st.st_mode):
+            return None
+        return os.read(fd, limit), st
+    except OSError:
+        return None
+    finally:
+        os.close(fd)
+
+
+def _fits(text: str, room: int) -> str:
+    return text if len(text.encode("utf-8")) <= room else ""
+
+
+def _cut_utf8(text: str, room: int) -> str:
+    """The longest prefix of `text` within `room` UTF-8 bytes (never splits a code point)."""
+    return text.encode("utf-8")[: max(0, room)].decode("utf-8", errors="ignore")
+
+
+def _handoff_fresh(st: os.stat_result) -> float | None:
+    """The file's age in seconds when it is current, or None when it is stale: older than
+    `_HANDOFF_STALE_S`, or dated more than `_CLOCK_AHEAD_S` in the future (clock skew or a hand
+    `touch`, which would otherwise never age)."""
+    age = time.time() - st.st_mtime
+    if age > _HANDOFF_STALE_S or age < -_CLOCK_AHEAD_S:
+        return None
+    return max(0.0, age)
+
+
+def _delivered_to(mark: Path, mtime_ns: int) -> tuple[str, float] | None:
+    """(sid, at) of the delivery mark when it names THIS version of the handoff, else None — an
+    unreadable, malformed or non-finite mark is no mark (it can never hide the handoff)."""
+    got = _read_regular(mark, 4096)
+    if got is None:
+        return None
+    try:
+        seen = json.loads(got[0].decode("utf-8", errors="replace"))
+    except ValueError:
+        return None
+    if not isinstance(seen, dict) or seen.get("mtime_ns") != mtime_ns:
+        return None
+    sid, at = seen.get("sid"), seen.get("at")
+    if not isinstance(sid, str) or not sid or isinstance(at, bool):
+        return None
+    if not isinstance(at, (int, float)) or not math.isfinite(at):
+        return None
+    return sid, float(at)
+
+
+def _handoff_block(common: str, name: str, sid: str, room: int) -> str:
+    """The HANDOFF block for `name`, at most `room` UTF-8 bytes, or "" when there is none. The
+    delivery mark is written only when the WHOLE text was printed — a cut or a pointer delivered
+    nothing, so the next session must still see it as new."""
+    if not common or room <= 0:
+        return ""
+    folder = Path(common) / _HANDOFF_DIR
+    if folder.is_symlink() or not folder.is_dir():
+        return ""
+    if not name:
+        waiting = []
+        for p in sorted(folder.glob("*.md")):
+            got = _read_regular(p, _HANDOFF_READ_BYTES) if _AGENT_NAME_RE.fullmatch(p.stem) else None
+            # the same tests the named branch applies: a blank or stale file waits for nobody
+            if got is not None and got[0].strip() and _handoff_fresh(got[1]) is not None:
+                waiting.append(f"`{p.stem}` (`{p}`)")
+        if not waiting:
+            return ""
+        return _fits(
+            f"\n## HANDOFF waiting for: {', '.join(waiting)} — this session is unnamed; never adopt"
+            " a role from this list — bind with `whoami_agent.py --as <name>` first, then read"
+            " yours.\n",
+            room,
+        )
+    path = folder / f"{name}.md"
+    got = _read_regular(path, _HANDOFF_READ_BYTES)
+    if got is None:
+        return ""
+    raw, st = got
+    text = raw.decode("utf-8", errors="replace").strip()
+    if not text:
+        return ""
+    age = _handoff_fresh(st)
+    if age is None:
+        delta = time.time() - st.st_mtime
+        when = f"written {_age(delta)} ago" if delta >= 0 else f"dated {_age(-delta)} in the future"
+        return _fits(
+            f"\n## HANDOFF for `{name}` is STALE ({when}) — not printed; read `{path}` only if it"
+            " still applies, and write a fresh one at your next rotation.\n",
+            room,
+        )
+    mark = folder / f"{name}.delivered"
+    seen = _delivered_to(mark, st.st_mtime_ns)
+    if seen is not None and seen[0] != sid:
+        head = (
+            f"\n## HANDOFF for `{name}` ALREADY DELIVERED to session {seen[0]}"
+            f" {_age(time.time() - seen[1])} ago — history, not current state; that session"
+            f" wrote no newer handoff (written {_age(age)} ago — `{path}`)\n"
+        )
+    else:
+        head = f"\n## HANDOFF for `{name}` (written {_age(age)} ago — `{path}`)\n"
+    whole = head + text + "\n"
+    if len(whole.encode("utf-8")) <= room:
+        if seen is None and sid:
+            with contextlib.suppress(OSError):
+                tmp = folder / f".{name}.delivered.{os.getpid()}"
+                fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+                with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                    json.dump({"sid": sid, "at": time.time(), "mtime_ns": st.st_mtime_ns}, fh)
+                os.replace(tmp, mark)
+        return whole
+    cut = f"\n… cut to fit the hook output cap — the whole text is `{path}`\n"
+    keep = room - len(head.encode("utf-8")) - len(cut.encode("utf-8"))
+    if keep <= 0:
+        return _fits(f"\n## HANDOFF for `{name}` waiting — read `{path}`\n", room)
+    return head + _cut_utf8(text, keep).rstrip("\n") + cut
+
+
+def _handoff_write(name: str) -> int:
+    """`--handoff-write <name>`: stdin -> `<git common dir>/fabrik-handoff/<name>.md`, atomic, 0600.
+    Refuses (exit 2) an invalid name, empty text, a cwd outside a repo, and any symlinked or
+    non-regular target; drops the old delivery mark so the next session reads it as new."""
+    if not _AGENT_NAME_RE.fullmatch(name):
+        print(f"handoff: {name!r} is not an agent name ([a-z0-9-]{{1,32}})", file=sys.stderr)
+        return 2
+    # bytes, decoded with replacement: a C locale or a stray byte must refuse nothing and crash nothing
+    data = sys.stdin.buffer.read()
+    text = data.decode("utf-8", errors="replace")
+    if "�" in text and "�".encode() not in data:
+        print("handoff: stdin was not valid UTF-8 — the bad bytes are stored as U+FFFD", file=sys.stderr)
+    if not text.strip():
+        print("handoff: empty text — nothing written", file=sys.stderr)
+        return 2
+    common = _git_layout(os.getcwd())[2]
+    if not common:
+        print("handoff: not inside a git repository — nothing written", file=sys.stderr)
+        return 2
+    folder = Path(common) / _HANDOFF_DIR
+    path = folder / f"{name}.md"
+    if folder.is_symlink() or (folder.exists() and not folder.is_dir()):
+        print(f"handoff: {folder} is not a plain directory — refused", file=sys.stderr)
+        return 2
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        print(f"handoff: {path} is not a regular file — refused", file=sys.stderr)
+        return 2
+    tmp = folder / f".{name}.{os.getpid()}.tmp"
+    try:
+        folder.mkdir(mode=0o700, exist_ok=True)
+        with contextlib.suppress(FileNotFoundError):
+            tmp.unlink()  # a leftover from a killed writer of the same pid
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write((text if text.endswith("\n") else text + "\n").encode("utf-8"))
+        os.replace(tmp, path)
+        # a mark left behind is harmless: it names the old version's mtime_ns, which no longer matches
+        with contextlib.suppress(OSError):
+            (folder / f"{name}.delivered").unlink()
+    except Exception as exc:  # never a traceback, never a leftover temp file
+        with contextlib.suppress(OSError):
+            tmp.unlink()
+        print(f"handoff: write failed: {exc}", file=sys.stderr)
+        return 1
+    print(path)
+    if len(text.encode("utf-8")) > _HANDOFF_WARN_BYTES:
+        print(
+            f"handoff: over {_HANDOFF_WARN_BYTES} bytes — the start hook prints only what fits"
+            " beside ORIENT and names the file for the rest",
+            file=sys.stderr,
+        )
+    return 0
+
+
+def _refresh_binding(layout: tuple[str, str, str], raw_sid: object) -> None:
+    """Re-record a bound session under the claude process it now runs in (W-a77742db): a session
+    resumed into a new process kept its name by session id but no row named the process, so the
+    quota lane's /clear re-bind, keyed on the process (D-1209), held it. Calls the repo's own
+    `scripts/whoami_agent.py::refresh` — loaded BY FILE PATH, as `agent_role.py` loads it, so a
+    project module named like a stdlib one cannot shadow its imports — with the payload's id in
+    `CLAUDE_CODE_SESSION_ID` (restored after) and this hook's git common dir as the scope, so no
+    second git runs in the 10 s budget. Silent and fail-open: a repo without the script, an older
+    copy without `refresh`, or any error does nothing."""
+    top, _gdir, common = layout
+    if not (isinstance(raw_sid, str) and 0 < len(raw_sid) <= 128 and top and common):
+        return
+    path = os.path.join(top, "scripts", "whoami_agent.py")
+    if not os.path.isfile(path):
+        return
+    had = "CLAUDE_CODE_SESSION_ID" in os.environ
+    old = os.environ.get("CLAUDE_CODE_SESSION_ID", "")
+    try:
+        import importlib.util  # noqa: PLC0415 — only on this path
+
+        spec = importlib.util.spec_from_file_location("_fabrik_whoami_refresh", path)
+        if spec is None or spec.loader is None:
+            return
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        refresh = getattr(mod, "refresh", None)
+        if callable(refresh):
+            os.environ["CLAUDE_CODE_SESSION_ID"] = raw_sid
+            refresh(top=common)
+    except (Exception, SystemExit):  # a project copy that exits must not end the hook (review r1, C-sonnet-1)
+        pass
+    finally:
+        if had:
+            os.environ["CLAUDE_CODE_SESSION_ID"] = old
+        else:
+            os.environ.pop("CLAUDE_CODE_SESSION_ID", None)
+
+
 def main() -> int:
     try:
         sys.stdout.reconfigure(errors="replace")  # C-locale must degrade, not swallow
@@ -876,7 +1122,7 @@ def main() -> int:
     rows = _identity_rows()
     name = _resolved_name(str(data.get("session_id") or ""), rows)
     model, instructed = _model_line(layout, live, hub, name, rows)
-    print(
+    orient = (
         "## ORIENT (binding — read before acting)\n"
         + arm_line
         + _governance_line(cwd, hub)
@@ -915,6 +1161,20 @@ def main() -> int:
         " config and reporting absence as fact; the mesh writes to"
         " `/tmp/claude-sound-locks-$(id -u)/`. Searching one plausible location is not evidence."
     )
+    handoff = ""
+    if (
+        str(data.get("source") or "startup") in _HANDOFF_SOURCES
+        and os.environ.get("CLAUDE_MESH_HEADLESS") != "1"
+        and os.environ.get("FABRIK_HEADLESS") != "1"
+    ):
+        try:  # fail-open: a broken handoff never costs the ORIENT block
+            room = _STDOUT_BUDGET - len(orient.encode("utf-8")) - 1  # print's own newline
+            handoff = _handoff_block(layout[2], name, sid, room)
+        except Exception:
+            handoff = ""
+    print(orient + handoff.rstrip("\n"))
+    sys.stdout.flush()  # ORIENT is delivered before anything below can stall
+    _refresh_binding(layout, data.get("session_id"))
 
     # Kaizen M1 — LAST, deliberately. This hook IS the session's birth certificate, but
     # the ORIENT block above is its actual product: emitting first put the whole block
@@ -937,6 +1197,11 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    if sys.argv[1:2] == ["--handoff-write"]:  # a missing name must refuse, never run the hook
+        if len(sys.argv) != 3:
+            print("usage: session_orient.py --handoff-write <agent-name> < text", file=sys.stderr)
+            sys.exit(2)
+        sys.exit(_handoff_write(sys.argv[2]))
     try:
         sys.exit(main())
     except Exception:

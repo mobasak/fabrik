@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T14:42:43.954108Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-476782ba",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1307",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fullmatch in the alphabet grader; reword the whoami docstring; fullmatch in command_run; decide whether the wall pin covers mcp__ names (trim the text or name the bound)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "after-w-a77742db"
+  ],
+  "title": "Identity-name and hold-text residue from the W-a77742db review: (1) tests/test_whoami_agent.py::test_the_alphabet_matches_its_two_sibling_validators accepts a prefix match (rx.match) so a sibling alphabet that drops digits still passes; (2) scripts/whoami_agent.py:43 says the name regex is byte-identical to command_run.py:1602, which is now a different pattern at another line; (3) command_run.py _AGENT_NAME_RE uses ^...$ with .match, so 'infra\\n' is accepted; (4) quota_stop.py's wall message exceeds its 1,000-char pin for long MCP tool names (mcp__serena__replace_symbol_body 1017 at an 80-char sid, battery head up to 1145) — the pin test covers built-in tools only"
+}

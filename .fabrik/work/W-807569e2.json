@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T21:58:08.485015Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-807569e2",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1319",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "write the lint D emphasis test, prove it red on the M9 mutant",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "tests/test_command_rules.py: no test grades lint D's de-emphasis of the live text — commands/command_rules.py _live_paras without _deemph passes all 74 non-live tests (mutant M9, found in the W-f5a1eec9 review round 1; the same gap held at base on the inline expression). Add a lint D case whose live paragraph carries single-underscore emphasis (_never_ ...) and must still read verbatim."
+}

@@ -22,6 +22,7 @@ services:
       resources:
         limits:
           memory: 640M
+          cpus: '1.0'
 volumes:
   redis-data: null
 networks:

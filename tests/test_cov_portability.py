@@ -210,8 +210,20 @@ def test_ssh_cat_failure_returns_none(monkeypatch, caplog):
 
 
 def test_collect_monitoring_remote_skips_none(monkeypatch):
+    registry = {
+        "version": 1,
+        "allocations": {
+            "app": {"owner": "app", "spec_id": "app", "user": "app_user", "notes": ""},
+            "app_users": {"owner": "app", "spec_id": "app", "user": "app", "notes": ""},
+        },
+    }
+
     def fake(path):
-        return None if "alertmanager" in path else f"data:{path}"
+        if "alertmanager" in path:
+            return None
+        if path.endswith(".json"):
+            return json.dumps(registry)
+        return f"job: {path}\n"
 
     monkeypatch.setattr(p, "_ssh_cat", fake)
     out = p._collect_monitoring_remote()
@@ -220,7 +232,15 @@ def test_collect_monitoring_remote_skips_none(monkeypatch):
         "monitoring/redis-assignments.json",
         "monitoring/postgres-allocations.json",
     }
-    assert out["monitoring/prometheus.yml"].endswith("prometheus.yml")
+    assert (
+        out["monitoring/prometheus.yml"]
+        == "job: /opt/monitoring/configs/prometheus/prometheus.yml\n"
+    )
+    allocations = json.loads(out["monitoring/postgres-allocations.json"])["allocations"]
+    # Non-secret registry structure survives; a db whose name matches a key
+    # pattern is redacted whole (over-redaction, recoverable on restore).
+    assert allocations["app"] == registry["allocations"]["app"]
+    assert allocations["app_users"] == "REDACTED"
 
 
 # ── authelia ─────────────────────────────────────────────────────────────────
