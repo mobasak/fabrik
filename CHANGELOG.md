@@ -12,6 +12,17 @@ All notable changes to this project will be documented in this file.
   one of them). The headless, autonomous and non-`/opt` legs now run at a 96 % reading and assert empty
   stdout and stderr, so a gate that let the alarm through still fails.
 
+### Fixed — the coordinator's open-plan view no longer goes blank on one error (2026-10-29)
+- `scripts/work.py` `_open_plans` (shown by `work.py queue` and `triage` as `plan not executed:`):
+  an outer `except Exception` returned an empty list on any error, so a `docs_updater.py` that
+  failed to load, or one plan its parser raised on, read as "no open plans", and a plans directory
+  that could not be read did too (`Path.glob` swallows its `PermissionError`). Now a parser that
+  cannot load, or an unreadable plans directory, prints one line saying the view is unavailable,
+  and a plan the parser raises on is listed as open with the error. A repo with no plans directory
+  still lists nothing. Item W-f1412a11
+  (review B-S1 of the 2026-10-08 docs-updater plan-status receipt); tests in
+  `tests/test_docs_updater.py`.
+
 ### Fixed — hub mail auto-replies tell one agent from another (2026-10-29)
 - `scripts/mail.py`: in the hub's shared `fabrik` mailbox the `--auto` self-guard and rate cap key on
   `(from, from-agent)` (W-19b57b9a, D-1329). A fleet request auto-replied by infra was held as infra's
