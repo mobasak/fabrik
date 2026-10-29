@@ -3451,12 +3451,13 @@ def _clear_one_major_holds(repo: Path, item: dict, keep: set[str]) -> list[str]:
 
 
 def _read_blocker(main: Path, repo: Path, dep: str) -> dict:
-    """`dep` as the main checkout stores it, else as this tree does (a blocker made on this branch
-    and not yet merged); WorkError when neither holds a readable item."""
+    """`dep` as the main checkout stores it, else — only when main has NO file for it (a blocker
+    made on this branch and not yet merged) — as this tree does. A main copy that exists but
+    cannot be read raises, as an unknown id does: a branch copy is never read past it."""
     try:
         return _read_item(main, dep)
     except WorkError:
-        if main == repo.resolve():
+        if main == repo.resolve() or _item_path(main, dep).exists():
             raise
         return _read_item(repo, dep)
 

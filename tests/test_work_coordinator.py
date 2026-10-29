@@ -1196,6 +1196,20 @@ def test_a_builder_tree_reads_the_blocker_from_the_main_checkout(tmp_path):
     assert f"no longer waits on major {flying}" in r.stderr, r.stderr
 
 
+def test_a_corrupt_main_copy_is_never_read_past(tmp_path):
+    """Review pass 2: this tree's copy is read only for a blocker the main checkout LACKS; one
+    main holds but cannot parse keeps the hold, said aloud, never judged from a branch copy."""
+    env, repo, flying, held = _held_behind_the_major(tmp_path)
+    _commit_store(repo, env)
+    tree = repo / ".claude" / "worktrees" / "w1"
+    _git(repo, env, "worktree", "add", "-q", "-b", "w-w1", str(tree))
+    (repo / ".fabrik" / "work" / f"{flying}.json").write_text("{", encoding="utf-8")
+    r = _score(tree, env, held, "high", "low")
+    assert r.returncode == 0, r.stderr
+    assert _items(tree)[held]["blocked_by"] == [flying], r.stderr
+    assert f"one-major hold kept: {held} still waits on {flying}" in r.stderr, r.stderr
+
+
 def test_a_stale_builder_tree_agrees_with_its_doorbell(tmp_path):
     """Review round 2: the key on main but not yet in the builder's branch — the filter is off,
     and the doorbell must say so too (one predicate for both)."""
