@@ -1189,7 +1189,9 @@ def test_the_lean_tier_carries_no_pytest_row(
     """Both contracts' GATE row says `--lean` carries NO pytest row (cite `:1543`). That return now
     calls `_lean_not_run_row()`, whose body the line-cite grader never reads, so a changed
     `LEAN_NOT_RUN_ROW` value, or a pytest row inserted above the return without moving it, would
-    make the sentence false with the cite still green. Every diff shape that reaches the return."""
+    make the sentence false with the cite still green. It covers the empty and `.py` diffs listed,
+    with the writable set equal to the diff; a pytest row behind a condition those never set (a
+    `.yaml` diff, a narrowed writable set) is outside it."""
     monkeypatch.setattr(fg, "run_cmd", lambda cmd, **kw: (0, ""))
     monkeypatch.setattr(fg, "get_writable_files", lambda: set(changed))
     monkeypatch.setattr(fg, "_changed_python", lambda scope: sorted(scope))
