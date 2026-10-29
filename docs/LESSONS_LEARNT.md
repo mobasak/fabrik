@@ -3,7 +3,7 @@
 
 ## An exact-signature probe is not a call-resolvability probe (2026-10-29, W-d8505af5)
 
-**What happened:** the design for the payments ingest guard said that the exact grant function plus another overload would take the `module` path, because `to_regprocedure('payments_grant_ingest(pg_catalog.regrole)')` resolves the exact one. Both critique seats ran it on PostgreSQL 16: when the other overload has a DEFAULT, the one-argument `PERFORM` raises 42725 `is not unique`. The state still fails closed, but the design table was wrong, and no test covered it.
+**What happened:** the design for the payments ingest guard said that the exact grant function plus another overload would take the `module` path, because `to_regprocedure('payments_grant_ingest(pg_catalog.regrole)')` resolves the exact one. Both critique seats ran it on PostgreSQL 16: when the other overload has a DEFAULT, the one-argument `PERFORM` raises 42725 `is not unique`. The state still fails closed, but the design table was wrong, and the draft had no test for it (one was added before the build).
 
 **Lesson:** a lookup that names the full signature (`to_regprocedure`) answers "does this exact function exist", never "will a call with these arguments pick it". When a guard keys on the first and the code then calls the function, table the overload-with-defaults state and run it on a real server.
 

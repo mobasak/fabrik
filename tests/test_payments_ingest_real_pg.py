@@ -166,6 +166,22 @@ def test_a_changed_function_signature_fails_the_step_without_the_legacy_grant() 
         assert not _can(s, f"has_table_privilege('{ROLE}', 'webhook_events', 'INSERT')")
 
 
+def test_a_same_named_function_off_the_search_path_leaves_the_legacy_path() -> None:
+    """The guard reads only the session's search_path, the set ``to_regprocedure`` resolves: a
+    ``payments_grant_ingest`` in a schema off that path is invisible to both, so a pre-migration
+    install keeps its legacy grant instead of failing on a function the hub could never call."""
+    schema = _schema()
+    with scratch_pg() as s:
+        _database(s, schema, with_fn=False)
+        _in_db(
+            s,
+            "CREATE SCHEMA offpath;\n"
+            "CREATE FUNCTION offpath.payments_grant_ingest(r pg_catalog.regrole, extra text "
+            "DEFAULT '') RETURNS void LANGUAGE sql AS $$ SELECT $$;",
+        )
+        assert _apply(s) == "legacy"
+
+
 def test_an_ambiguous_overload_fails_the_step_without_the_legacy_grant() -> None:
     """The exact function plus an overload with a DEFAULT: the exact signature resolves, so the
     guard is silent and the legacy blocks skip, but the one-argument call is ambiguous (42725) —
