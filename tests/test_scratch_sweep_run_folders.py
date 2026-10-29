@@ -1303,7 +1303,7 @@ def _gap_proc(tmp_path: Path, *, started_ago: float | None, zombie: bool = False
     ("started_ago", "created_ago", "zombie", "kept"),
     [
         (90 * DAY, 50 * HOUR, False, False),  # a daemon running before the run began
-        (45 * HOUR, 50 * HOUR, False, True),  # an unreadable process born during the run (closed 40 h ago)
+        (45 * HOUR, 50 * HOUR, False, True),  # born during the run (it closed 40 h ago)
         # W-d1a4a8f5: born 39 h AFTER the run closed — the document portal's fusermount3 shape. It
         # kept 152 folders (77 GB) on 2026-10-29 because the rule had no end; both the classifier
         # and the --apply re-check must let it go, or the re-check re-keeps what the judge consumed
