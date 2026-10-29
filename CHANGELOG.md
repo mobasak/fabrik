@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — merge queue: a later leg is budgeted on the run's own timed legs (2026-10-30)
+`merge_request.py merge --queue` budgeted every forked leg at the base's declared limit (2700 s on the hub), which closed the fork window at 1080 s of its 11100 s wall: from the third request on every landing ran its leg inside the merge lock, one per ~16 min, while a live hub leg measured 697 s (W-1fb11ec8). `_leg_fits` now budgets a later leg at 1.5 x the longest green queue leg this run timed (its own recorded seconds, exit 0, `queued_as` its element), capped at the declared limit and at that limit until one is timed — window 2734 s at 697 s. Fixed with it: a request whose queue leg failed was forked again after every chain rebuild; a request now gets one queue leg per run and then lands through its locked leg. Every leg still ends inside the wall (graded), no test is skipped, no untested tree lands (D-1211, D-1225).
+
 ### Changed — merge leg: a review receipt selects tests by its file name only (2026-10-29)
 `scripts/merge_test_select.py` keys a changed `docs/development/reviews/*.md` receipt by its file name alone instead of its directory (W-1fb11ec8, D-1356): over the 59 coordinator merges since 2026-10-28 12:00 the leg's serial selection drops 8.2 %, every selection a subset of today's, 17 of 17 measured red-master catches kept. Importer-closure narrowing was measured and rejected (D-1356); the leg's confirm phase, about two thirds of a measured leg, is W-c80361e4.
 
