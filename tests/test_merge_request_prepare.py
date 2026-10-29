@@ -555,7 +555,10 @@ def test_queue_times_only_green_legs(world, monkeypatch):
     assert _queue(world) == 0
 
     assert seen and seen[0] == 0.0  # the first fork is budgeted on the declared limit
-    assert recorded and max(seen) in recorded, (seen, recorded)  # the leg's own seconds, not a clock
+    assert recorded and max(seen) in recorded, (
+        seen,
+        recorded,
+    )  # the leg's own seconds, not a clock
     assert all(_record(world, m)["outcome"] == "merged" for m in sends)
 
 
@@ -573,6 +576,23 @@ def test_queue_never_times_a_leg_without_a_record(world, monkeypatch):
     assert any(h == h2 and k == "queue" for h, k, _, _ in _kinds(log))  # two's fork was checked
     assert len(seen) >= 2 and all(t == 0.0 for t in seen), seen
     assert _record(world, m1)["outcome"] == "merged" and _record(world, m2)["outcome"] == "merged"
+
+
+def test_leg_seconds_reads_only_the_queue_legs_own_record(world, monkeypatch):
+    """A matching record the requester's own `request --pretest` wrote (no `queued_as` of this
+    element) says nothing about the queue leg that just exited: it is never timed."""
+    mod = world.mod
+    ctx = mod._context(world.main)
+    (ctx.records / mod.PRETEST_DIR).mkdir(parents=True, exist_ok=True)
+    el = {"id": "01REQUESTID", "head": "a" * 40, "at": "b" * 40}
+    path = ctx.records / mod.PRETEST_DIR / f"{el['head']}.json"
+    monkeypatch.setattr(mod, "_record_matches", lambda *_a: True)  # only the writer decides
+    path.write_text(json.dumps({"head": el["head"], "seconds": 99}))
+    assert mod._leg_seconds(ctx, el, "", "") == 0.0  # the requester's record
+    path.write_text(json.dumps({"head": el["head"], "seconds": 99, "queued_as": "01OTHER"}))
+    assert mod._leg_seconds(ctx, el, "", "") == 0.0  # another element's queue leg
+    path.write_text(json.dumps({"head": el["head"], "seconds": 99, "queued_as": el["id"]}))
+    assert mod._leg_seconds(ctx, el, "", "") == 99.0
 
 
 def test_queue_never_reforks_a_tried_leg(world):
