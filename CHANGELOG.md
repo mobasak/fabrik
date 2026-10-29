@@ -28,6 +28,10 @@ All notable changes to this project will be documented in this file.
   had been the script's last comment lines); a 137 without that line says it was a SIGKILL inside the leg.
   A merge-test-mem line the grammar refuses is named in the leg's own verdict.
 
+### Fixed — backfill_ci.py keys on ci_local.sh and grades the SQL its replica will lint (2026-10-29)
+
+- `scripts/backfill_ci.py` decided "already has CI" from `.github/workflows/ci.yml`, which the generator stopped emitting on 2026-08-29, so a newer repo was rewritten on every `--apply`; and it wrote a `scripts/ci_local.sh` that lints every tracked `*.sql` with sqlfluff without checking that SQL first. A project with anything at `scripts/ci_local.sh` is now skipped (its row names a stale or non-fabrik-managed replica); each target's SQL is graded by the pinned sqlfluff the replica's way, and `--apply` refuses a red or unknown verdict unless `--force`, which records the verdict. An existing `.fabrik/run-pytest` or lint baseline is kept, a symlinked parent directory or dangling leaf fails the project before any write, and the exit is 1 on a refusal, failure or missing project. Graded by `tests/test_backfill_ci.py` (D-1332, W-76d3448d).
+
 ### Fixed — the project audit accepts the docusaurus serve stage `nginx:mainline-<codename>` (2026-10-29)
 
 - `scripts/audit_all_projects.py` knew only the python, node and debian base shapes, so a scaffolded docusaurus project, whose final stage is the `nginx:mainline-<codename>` that `core/42-docusaurus.md` mandates (D-664), was graded critical. For a project of type `docusaurus` that serve stage is now a base on the same pinned codename (pinned, superseded one release back, otherwise noncompliant), and its fix hint names the serve stage; every other type still grades an nginx final stage noncompliant and keeps the python/node/debian hint. The noncompliant row's required text reads "A pinned Debian base". Graded by `tests/test_audit_all_projects_base_image.py`, which renders `templates/docusaurus/Dockerfile.j2` and audits it (W-cd8b8ead).
