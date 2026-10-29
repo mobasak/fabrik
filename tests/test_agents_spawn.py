@@ -3640,6 +3640,30 @@ def test_t10_f11_a_live_id_walk_refusal_says_not_removing(
     assert "not placing" not in row["reason"], row
 
 
+def test_t10_f19_many_late_ignored_files_make_one_bounded_step_3_refusal(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys
+) -> None:
+    """T10 F19: the step-3 re-check after the kill is capped by the same `_bounded` join as step 1."""
+    box, g, mod = _rm_box(tmp_path, monkeypatch, request, exclude=EXCLUDE + "data/\n")
+    g.base(panes=2, tags=(B1, "builder-2"))
+    wt = box.wt(B1)
+    real = mod._drop_pane
+
+    def drop_then_write(sess, pane):  # the dying builder writes 45 ignored files after the checks
+        real(sess, pane)
+        for i in range(45):
+            _mk(wt / "data" / f"f{i:03d}.bin")
+
+    monkeypatch.setattr(mod, "_drop_pane", drop_then_write)
+    assert mod.main(["remove", str(box.repo), B1]) == 2
+    (row,) = _rm_rows(box)
+    assert row["step"] == 3, row
+    assert "… and 25 more (45 in all)" in row["reason"], row["reason"][-300:]
+    assert [i for i in range(45) if f"f{i:03d}.bin" in row["reason"]] == list(range(20))
+    assert len(row["reason"]) < 8000, len(row["reason"])
+    assert wt.is_dir() and _branch(box) and _registry(box)[SID_B1] == B1
+
+
 @pytest.mark.parametrize("shape", ["fifo", "link-to-fifo"])
 def test_t09_p2_a_non_regular_seed_refuses_named_and_never_hangs(
     tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys, shape: str
