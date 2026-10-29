@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A hold written for a reason must end when the reason does (2026-10-29, W-0fe931b7)
+
+**What happened:** the one-major rule holds every other major with `assign --blocked-by <the in-flight major>`. A later re-score turned nine of those majors into quick wins, but `blocked_by` carries no reason and the re-score never looked at it, so the items sat unclaimable for 11 days while their priority said P1.
+
+**Lesson:** when a write exists only because of a field's value (here, a hold that exists because the item is high/high), the verb that changes that value owns ending the write too. Find that verb and make it clear what it wrote, reading the same predicate the writer used (triage's in-flight test), not a looser one. A looser "any major" rule would also have dropped real prerequisites.
+
 ## An exact-signature probe is not a call-resolvability probe (2026-10-29, W-d8505af5)
 
 **What happened:** the design for the payments ingest guard said that the exact grant function plus another overload would take the `module` path, because `to_regprocedure('payments_grant_ingest(pg_catalog.regrole)')` resolves the exact one. Both critique seats ran it on PostgreSQL 16: when the other overload has a DEFAULT, the one-argument `PERFORM` raises 42725 `is not unique`. The state still fails closed, but the design table was wrong, and the draft had no test for it (one was added before the build).
