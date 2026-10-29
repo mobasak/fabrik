@@ -5214,6 +5214,44 @@ _OWN_CLAIM_LINES = (
     "work: your claims on items not in this tree",
 )
 
+# W-9bf5a363: the coordinator's live peer name, resolved on every builder prompt. The hub
+# coordinator runs in the code-server extension, where each rotation starts a new process with an
+# auto-generated name, and no program can rename a session — so a name a builder kept in its notes
+# goes dead (infra-3's rotate request to `fabrik-ec` sat 14 h). 1 s, not `_sessions_of`'s 5 s: the
+# prompt hook has 10 s for everything (thread_anchor's 3 s store deadline + 5 s for cmd_where).
+PEER_RESOLVE_TIMEOUT_S = 1.0
+# a printed peer name must be safe to paste: Claude Code auto-names a session from its content
+_PEER_NAME_RE = re.compile(r"[A-Za-z0-9._-]{1,64}")
+
+
+def _coordinator_address_line(tree: Path) -> str:
+    """One line naming every live session of the repo's distributor, or "" when none is live or
+    bound, a name is unsafe to print, or anything fails (fail open: no line is today's behaviour).
+    Printed on every builder prompt, never only on drift: its text changes exactly when the
+    address does, so the prompt hook's unchanged-block dedup re-shows it at each rotation. Several
+    live names are all listed — an old window still open answers too, and choosing one could pick
+    the stale one. COBRA (D-253): the cheapest way to "have the line" is printing the role name
+    unresolved, which is the very address that failed; the names here come only from the live
+    registry, never from the store."""
+    try:
+        main = _worktrees(tree)[0].resolve()
+        role = str(_read_config(main).get("distributor") or "").strip()
+        if not role:
+            return ""
+        names = [
+            n
+            for n in _sessions_of(role, main, timeout=PEER_RESOLVE_TIMEOUT_S)
+            if _PEER_NAME_RE.fullmatch(n)
+        ]
+    except Exception:
+        return ""
+    if not names:
+        return ""
+    stale = " (several windows answer for it — one may be stale)" if len(names) > 1 else ""
+    return (
+        f"work: coordinator ({role}) → SendMessage " + " · ".join(f"to={n}" for n in names) + stale
+    )
+
 
 def prompt_block(repo: Path | str, session: str) -> str:
     """Read-only, no lock, the caller's own tree, in order: the unnamed-window line (spec D6), the
@@ -5287,6 +5325,10 @@ def prompt_block(repo: Path | str, session: str) -> str:
                 lines.append(_fit_ids("work: your claims on items not in this tree — ", elsewhere))
             lines.extend(_on_it_lines(shown, session))
             builder = _builder(root, session)
+            if builder:
+                address = _coordinator_address_line(root)
+                if address:
+                    lines.append(address)
             ready = len(
                 [
                     it
@@ -5764,7 +5806,7 @@ def _holds_claim(tree: Path, session: str) -> bool:
     return bool(session) and any(c.get("session") == session for c in _live_claims(tree).values())
 
 
-def _sessions_of(agent: str, main: Path) -> list[str]:
+def _sessions_of(agent: str, main: Path, *, timeout: float = 5) -> list[str]:
     """The agent's live Claude Code session names (`mail.py who`), [] when none or on any error."""
     try:
         r = subprocess.run(
@@ -5772,7 +5814,7 @@ def _sessions_of(agent: str, main: Path) -> list[str]:
             cwd=main,
             capture_output=True,
             text=True,
-            timeout=5,
+            timeout=timeout,
         )
     except (OSError, subprocess.SubprocessError):
         return []
