@@ -351,6 +351,66 @@ def test_the_declared_mem_grammar(world, script, expected):
     assert mod._declared_mem(script) == want
 
 
+def test_the_mem_max_is_the_slice_less_one_default_run(world):
+    """LEG_MEM_MAX_MIB is derived from capped_run.sh's own defaults (slice total less one run at its
+    default), read from the runner itself — a MAX past that share, or a default moved without it,
+    is red here (W-e64a7b8e review: a 12288 mutant passed every grammar row)."""
+    import re as _re
+
+    runner = (Path(__file__).resolve().parents[1] / "scripts" / "capped_run.sh").read_text()
+    mib = {"M": 1, "G": 1024}
+
+    def default(var: str) -> int:
+        m = _re.search(r"\$\{" + var + r":-([0-9]+)([MG])\}", runner)
+        assert m, var
+        return int(m.group(1)) * mib[m.group(2)]
+
+    want = default("FABRIK_TEST_SLICE_MAX") - default("FABRIK_TEST_MEM_MAX")
+    assert world.mod.LEG_MEM_MAX_MIB == want == 8192
+
+
+@pytest.mark.parametrize(
+    ("script", "noted"),
+    [
+        ("# merge-test-mem: 8G  # measured 6 GiB\nexit 0\n", True),  # a reason on its line
+        ("# merge-test-mem: 8GB\n# merge-test-mem: 2G\nexit 0\n", True),  # bad before a valid one
+        ("#merge-test-memory: 8G\nexit 0\n", False),  # another header: not this one's shape
+        ("# see merge-test-mem in D-1328\nexit 0\n", False),  # prose naming the header
+        ("# merge-test-mem: 8G\nexit 0\n", False),
+    ],
+)
+def test_which_mem_lines_are_named_as_ignored(world, script, noted):
+    assert world.mod._mem_lines_ignored(script) is noted
+
+
+@pytest.mark.parametrize(
+    ("rc", "stderr", "expected"),
+    [
+        # capped_run prints its own line LAST: an earlier one (a nested run) is not the leg's verdict
+        (
+            137,
+            "capped_run: killed at the memory ceiling (1G per run, 12G for x.slice) — inner\n"
+            "capped_run: killed at the memory ceiling (8192M per run, 12G for x.slice) — sh -e -c a\n",
+            "capped_run: killed at the memory ceiling (8192M per run, 12G for x.slice)",
+        ),
+        (
+            124,
+            "x\ncapped_run: stopped at the 2700s time limit — sh -e -c # a\n",
+            "capped_run: stopped at the 2700s time limit",
+        ),
+        (124, "no verdict line\n", ""),  # the caller keeps its tail
+        (
+            137,
+            "no verdict line\n",
+            "exit 137 (a SIGKILL inside the leg; capped_run reported no memory-ceiling kill)",
+        ),
+        (1, "capped_run: killed at the memory ceiling (4G per run, 12G for x) — y\n", ""),
+    ],
+)
+def test_the_capped_verdict_is_the_runners_last_line(world, rc, stderr, expected):
+    assert world.mod._capped_verdict(rc, stderr) == expected
+
+
 def test_the_hub_declares_its_own_leg_ceiling(world):
     # W-e64a7b8e: the hub leg runs 8 pytest shards in ONE capped scope; a 244-file selection died at 4G
     script = (Path(__file__).resolve().parents[1] / ".fabrik" / "merge-tests").read_text(
@@ -468,18 +528,34 @@ def test_a_pretest_137_names_the_memory_ceiling(world, monkeypatch, capsys):
     assert _KILL.format("6144M") in err, err
 
 
-def test_an_ignored_mem_line_is_named(world, capsys):
-    """A reason on the declaration's own line falls outside the grammar: the merge owner, who owns
-    the base's script, is told on the run's stderr rather than the leg silently keeping 4G."""
+_IGNORED = "merge-test-mem line outside the grammar"
+
+
+def test_an_ignored_mem_line_is_named(world):
+    """A reason on the declaration's own line falls outside the grammar: the leg's own verdict says
+    so, so the merge reply carries it rather than the leg silently keeping 4G."""
     log = _mem_runner(world)
     _counting_tests(world, "# merge-test-mem: 8G  # measured 6 GiB\nexit 0\n")
-    world.send(_branch(world))
+    msg_id = world.send(_branch(world))
 
     assert world.run("merge") == 0
 
-    err = capsys.readouterr().err
-    assert "merge-test-mem line outside the grammar" in err and "ignored" in err, err
+    reply = world.replies(msg_id)["fleet"]
+    assert _IGNORED in reply and "ignored" in reply, reply
     assert _runner_flags(log) == ["--timeout 1800"]
+
+
+def test_a_pretest_names_an_ignored_mem_line(world, monkeypatch, capsys):
+    """`request --pretest` (and so a `merge --queue` child, through the same `_pretest_leg`) prints
+    the leg's verdict, which carries the note."""
+    _mem_runner(world)
+    _counting_tests(world, "# merge-test-mem: 8GB\nexit 0\n")
+    _branch(world)
+
+    assert _pretest(world, monkeypatch) == 0
+
+    err = capsys.readouterr().err
+    assert _IGNORED in err, err
 
 
 def _limits(world, monkeypatch) -> list[int]:

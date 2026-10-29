@@ -7,10 +7,11 @@ All notable changes to this project will be documented in this file.
 ### Fixed — a wide merge-test leg declares its memory ceiling, and a ceiling kill says so (2026-10-29)
 - `scripts/merge_request.py` reads `# merge-test-mem: <n>M|<n>G` from the BASE's `.fabrik/merge-tests`
   (clamped 256M..8G) and passes it to capped_run as `--mem`; the hub declares 8G (W-e64a7b8e, D-1328).
-  fleet-docker-cpu's 244-file leg had died at capped_run's 4G default twice; it measured 6,009 MiB.
-- An exit-137 refusal now quotes capped_run's own "killed at the memory ceiling (…)" line on the merge,
-  pretest and queue paths alike (its tail had been the script's last comment lines); a 137 without that
-  line says it was a SIGKILL inside the leg. A merge-test-mem line outside the grammar is named on stderr.
+  fleet-docker-cpu's 244-file leg had died at capped_run's 4G default twice; one measured run peaked at 6,009 MiB.
+- An exit-137 or 124 refusal now quotes capped_run's own last verdict line ("killed at the memory ceiling
+  (…)" / "stopped at the …s time limit") on the merge, pretest, queue and base-alone paths alike (its tail
+  had been the script's last comment lines); a 137 without that line says it was a SIGKILL inside the leg.
+  A merge-test-mem line the grammar refuses is named in the leg's own verdict.
 
 ### Fixed — the project audit accepts the docusaurus serve stage `nginx:mainline-<codename>` (2026-10-29)
 

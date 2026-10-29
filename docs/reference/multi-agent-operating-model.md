@@ -249,9 +249,9 @@ none starts under `LEG_FLOOR_S` left, and a spent budget refuses as not a test v
 `# merge-test-timeout: <seconds>` line the BASE's `.fabrik/merge-tests` declares, clamped to
 `LEG_FLOOR_S`..`MERGE_TEST_BUDGET_S`, W-1fb11ec8; the leg's memory ceiling is capped_run's default
 unless the base declares `# merge-test-mem: <n>M|<n>G` alone on its line, clamped to
-`LEG_MEM_FLOOR_MIB`..`LEG_MEM_MAX_MIB` and passed as `--mem` — a line outside that grammar is named on
-stderr and ignored — and a leg capped_run killed at its ceiling is refused with capped_run's own
-ceiling line, on the merge and the pretest alike, W-e64a7b8e), (e) the carry into the main checkout — sibling WIP, untracked and staged files are never
+`LEG_MEM_FLOOR_MIB`..`LEG_MEM_MAX_MIB` and passed as `--mem` — a declaration-shaped line outside that
+grammar is named in the leg's verdict and ignored — and a leg capped_run stopped (exit 137 or 124) is
+refused with capped_run's own last verdict line, on the merge and the pretest alike, W-e64a7b8e), (e) the carry into the main checkout — sibling WIP, untracked and staged files are never
 overwritten; a path that changed is kept and listed in the reply — (f) a fast-forward push, (g) the
 hub's governance sync, and (h) the reply to requester and distributor, then `mail.py ack done
 --merge-sha`. Every merge commit it writes, a catch-up's included, ends in one Agent Provenance
