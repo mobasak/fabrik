@@ -306,13 +306,26 @@ class TestValidateCompose:
 
     @pytest.mark.parametrize(
         "value",
-        ["0.5", "2", "'0_5'", "'0'", "'-1'", "'1025'", "'0.123'", "' 0.5'", "null", "''",
-         "'${CPU:-0.5}'"],
+        [
+            "0.5",
+            "2",
+            "'0_5'",
+            "'0'",
+            "'-1'",
+            "'1025'",
+            "'0.123'",
+            "' 0.5'",
+            "null",
+            "''",
+            "'${CPU:-0.5}'",
+        ],
     )
     def test_out_of_grammar_cpus_is_refused(self, value):
         """A YAML float or int, compose's silent misreads ('0_5' is 5 CPUs, '0' no limit) and
         anything outside spec_loader.cpu_in_grammar are refused; the value is never echoed."""
-        errors = _validate_compose(self._with_limits(f"\n          memory: 256M\n          cpus: {value}\n"))
+        errors = _validate_compose(
+            self._with_limits(f"\n          memory: 256M\n          cpus: {value}\n")
+        )
         cpu_errors = [e for e in errors if "limits.cpus" in e]
         assert cpu_errors == [
             "Service 'web': deploy.resources.limits.cpus must be a quoted plain decimal CPU count "
@@ -321,9 +334,12 @@ class TestValidateCompose:
 
     @pytest.mark.parametrize("value", ["'0.5'", '"1.0"', "'4'", "'0.25'", "'0.01'", "'1024'"])
     def test_in_grammar_cpus_passes(self, value):
-        assert _validate_compose(
-            self._with_limits(f"\n          memory: 256M\n          cpus: {value}\n")
-        ) == []
+        assert (
+            _validate_compose(
+                self._with_limits(f"\n          memory: 256M\n          cpus: {value}\n")
+            )
+            == []
+        )
 
     def test_invalid_yaml(self):
         errors = _validate_compose("{{invalid yaml")
