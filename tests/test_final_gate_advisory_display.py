@@ -1181,6 +1181,14 @@ def test_the_lean_tier_names_the_checks_it_never_ran(monkeypatch: pytest.MonkeyP
     assert "final_gate.py --json" in text and "merge request" in text, text
 
 
+def test_the_lean_tier_carries_no_pytest_row(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Both contracts' GATE row says `--lean` carries NO pytest row (cite `:1543`). That return now
+    calls `_lean_not_run_row()`, which the line-cite grader never reads, so a renamed constant or a
+    row added above the return would make the sentence false with the cite still green."""
+    names = [r[0] for r in _static_rows(monkeypatch, 1)]
+    assert not [n for n in names if n.startswith("pytest")], names
+
+
 def test_the_full_tier_carries_no_lean_row(monkeypatch: pytest.MonkeyPatch) -> None:
     """Tier 2 RUNS mypy; a row saying it did not would be false in the other direction."""
     names = [r[0] for r in _static_rows(monkeypatch, 2)]
