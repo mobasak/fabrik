@@ -1044,14 +1044,29 @@ def _assert_claude_cli_mounts(compose_content: str, spec: dict) -> None:
     shape = spec.get("shape") or {}
     if not shape.get("uses_claude_cli"):
         return
+    # Text only, before the parser: see the same guard in _validate_compose (W-51d6c153).
+    if not isinstance(compose_content, str):
+        raise DeployError(f"Compose content is not text (got {type(compose_content).__name__})")
     home = (shape.get("claude_cli_home") or "/root").rstrip("/") or "/root"
     # BOTH mounts are required: `claude -p` reads creds from ~/.claude/ AND its session config
     # from ~/.claude.json — the watchdog learned (drivers/watchdog.py:818) that a missing
     # .claude.json makes `claude -p` exit "Claude configuration file not found". Checking only
     # the first mount would pass a compose that dies at runtime — the failure we exist to prevent.
-    targets = (f"{home}/.claude:ro", f"{home}/.claude.json:ro")
-    if all(t in compose_content for t in targets):
-        return
+    # Read from the PARSED compose (a raw substring test passed commented-out lines, W-2907ccef),
+    # and both in ONE service: `claude -p` runs in one container.
+    wanted = {f"{home}/.claude": VPS_CLAUDE_HOME, f"{home}/.claude.json": f"{VPS_CLAUDE_HOME}.json"}
+    import yaml as _yaml
+
+    try:
+        data = _yaml.safe_load(compose_content)
+    except _yaml.YAMLError:
+        data = None
+    services = data.get("services") if isinstance(data, dict) else None
+    for svc in services.values() if isinstance(services, dict) else ():
+        volumes = svc.get("volumes") if isinstance(svc, dict) else None
+        mounted = _ro_bind_sources(volumes if isinstance(volumes, list) else [], set(wanted))
+        if all(mounted.get(t) == src.rstrip("/") for t, src in wanted.items()):
+            return
     snippet = "\n".join(f"      - {m}" for m in claude_cli_mount_lines(home))
     raise DeployError(
         "shape.uses_claude_cli is set but the compose does not mount BOTH of the host's rotated "
@@ -1059,6 +1074,49 @@ def _assert_claude_cli_mounts(compose_content: str, spec: dict) -> None:
         f"/ no config). Add to the service's volumes:\n{snippet}\nDo NOT use a static "
         "CLAUDE_CODE_OAUTH_TOKEN — it pins one account and ignores the fleet rotation."
     )
+
+
+# The options a compose short-syntax volume's MODE field takes (access, SELinux label, bind
+# propagation, `nocopy`); a last `:` field made of anything else is the target, not a mode.
+_MOUNT_MODE_OPTIONS = frozenset(
+    {"ro", "rw", "z", "Z", "nocopy", "shared", "slave", "private", "rshared", "rslave", "rprivate"}
+)
+
+
+def _ro_bind_sources(volumes: list, targets: set[str]) -> dict[str, str | None]:
+    """For each of ``targets`` a service's ``volumes:`` names, the source it is mounted from
+    READ-ONLY, or None when its entry is writable or not a bind; the caller compares the source
+    with the rotated host home, so a named volume read-only still fails there.
+
+    compose keeps only the LAST entry per target and ignores a trailing slash on it (measured,
+    ``docker compose config``, 2.40.3), so a later writable entry unmounts an earlier ``:ro``
+    one. Short syntax is read from the right — ``SOURCE:TARGET:MODE``, MODE comma-separated
+    options holding ``ro`` — so a source with a ``:`` in it (``${X:-/h}``) keeps its target;
+    long syntax needs ``type`` absent or ``bind`` and ``read_only`` true or ``"true"``."""
+    found: dict[str, str | None] = {}
+    for entry in volumes:
+        if isinstance(entry, str):
+            head, sep, last = entry.rpartition(":")
+            if sep and set(last.split(",")) <= _MOUNT_MODE_OPTIONS:
+                mode = last
+                source, _, target = head.rpartition(":")
+            else:  # `target` alone, or `source:target` with no mode
+                mode, source, target = "", head, last
+            target = target.rstrip("/")
+            if target in targets:
+                ro = bool(source) and "ro" in mode.split(",")
+                found[target] = source.rstrip("/") if ro else None
+        elif isinstance(entry, dict):
+            target = str(entry.get("target", "")).rstrip("/")
+            if target in targets:
+                bind = entry.get("type", "bind") == "bind"
+                ro = str(entry.get("read_only")).strip().lower() == "true"
+                long_source = entry.get("source")
+                if bind and ro and isinstance(long_source, str):
+                    found[target] = long_source.rstrip("/")
+                else:
+                    found[target] = None
+    return found
 
 
 def _is_placeholder(value: str) -> bool:
@@ -1342,15 +1400,32 @@ def _validate_compose(content: str) -> list[str]:
         return ["Compose file is not a YAML mapping"]
 
     errors: list[str] = []
+    # This validator reads ONE file: a service `include:` pulls in, or keys `extends:` inherits,
+    # would reach `compose up` unchecked, so both are refused, never resolved (W-2907ccef; 0 of
+    # 162 composes under /opt used either when this landed).
+    if "include" in data:
+        errors.append(
+            "Top-level 'include' is not allowed — the deployer validates one file and cannot see "
+            "what it pulls in; inline the services into the compose file"
+        )
     services = data.get("services", {})
     if not services:
         errors.append("No services defined")
+        return errors
+    if not isinstance(services, dict):
+        errors.append(f"'services' must be a mapping (got {type(services).__name__})")
         return errors
 
     for svc_name, svc_config in services.items():
         if not isinstance(svc_config, dict):
             errors.append(f"Service '{svc_name}': not a mapping")
             continue
+
+        if "extends" in svc_config:
+            errors.append(
+                f"Service '{svc_name}': 'extends' is not allowed — the deployer cannot see the "
+                "keys it inherits; write them into the service"
+            )
 
         # platform: linux/amd64
         if "platform" not in svc_config:
@@ -1365,8 +1440,15 @@ def _validate_compose(content: str) -> list[str]:
         deploy = svc_config.get("deploy", {})
         resources = deploy.get("resources", {}) if isinstance(deploy, dict) else {}
         limits = resources.get("limits", {}) if isinstance(resources, dict) else {}
-        if "memory" not in limits:
+        if not isinstance(limits, dict) or "memory" not in limits:
             errors.append(f"Service '{svc_name}': missing 'deploy.resources.limits.memory'")
+        elif not isinstance(limits["memory"], str) or not limits["memory"].strip():
+            # compose refuses anything but a string here ("limits.memory must be a string",
+            # 2.40.3) — an empty template line renders null, a bare byte count an int.
+            errors.append(
+                f"Service '{svc_name}': deploy.resources.limits.memory must be a string such "
+                f"as '512M' (got {limits['memory']!r})"
+            )
 
         # No ports: section
         if "ports" in svc_config:
@@ -1385,7 +1467,7 @@ def _validate_compose(content: str) -> list[str]:
         # Traefik label checks
         labels = svc_config.get("labels", {})
         if isinstance(labels, list):
-            label_str = " ".join(labels)
+            label_str = " ".join(str(label) for label in labels)
         elif isinstance(labels, dict):
             label_str = " ".join(f"{k}={v}" for k, v in labels.items())
         else:
@@ -1472,9 +1554,15 @@ def _validate_compose(content: str) -> list[str]:
             "and attach each service to it. A service off the fabrik network is unroutable by Traefik "
             "and cannot reach shared infra."
         )
+    if networks and not isinstance(networks, dict):
+        errors.append(f"Top-level 'networks' must be a mapping (got {type(networks).__name__})")
+        return errors
     if "fabrik" in networks:
         fabrik_net = networks["fabrik"]
-        if isinstance(fabrik_net, dict) and not fabrik_net.get("external"):
+        # `fabrik:` null makes compose create a project-local network, off the shared one, and a
+        # string "false" is truthy: only true or "true" counts (W-2907ccef).
+        external = fabrik_net.get("external") if isinstance(fabrik_net, dict) else None
+        if str(external).strip().lower() != "true":
             errors.append("Network 'fabrik' must be declared as external: true")
     # Legacy `coolify` network = unmigrated spec; reject loudly so the operator
     # knows to rename before retrying (otherwise docker compose up fails with

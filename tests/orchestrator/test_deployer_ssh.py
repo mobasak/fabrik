@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 import jinja2
 import pytest
+import yaml
 
 from fabrik.orchestrator.context import DeploymentContext
 from fabrik.orchestrator.deployer_ssh import (
@@ -445,6 +446,78 @@ class TestValidateCompose:
         )
         errors = _validate_compose(compose)
         assert errors == []
+
+    @pytest.mark.parametrize(
+        ("edit", "key"),
+        [
+            (lambda c: "include:\n  - other.yaml\n" + c, "include"),
+            (
+                lambda c: c.replace(
+                    "    image:", "    extends: {file: b.yaml, service: x}\n    image:"
+                ),
+                "extends",
+            ),
+        ],
+        ids=["include", "extends"],
+    )
+    def test_include_and_extends_are_refused(self, edit, key):
+        """W-2907ccef: the validator reads one file, so a service an `include:` pulls in, or
+        `ports:` an `extends:` inherits, would bypass every invariant — refused, never resolved."""
+        errors = _validate_compose(edit(self._valid_compose()))
+        assert any(f"'{key}'" in e for e in errors), errors
+
+    @pytest.mark.parametrize(
+        ("old", "new", "word"),
+        [
+            ("        limits:\n          memory: 256M\n", "        limits:\n", "memory"),
+            ("          memory: 256M\n", "          memory:\n", "memory"),
+            ("          memory: 256M\n", "          memory: 268435456\n", "memory"),
+            (
+                "services:\n  web:\n    image: python:3.12\n",
+                "services:\n  - web\nx:\n  a:\n",
+                "services",
+            ),
+            ("networks:\n  fabrik:\n    external: true\n", "networks:\n  - fabrik\n", "networks"),
+            (
+                "    networks:\n      - fabrik\n",
+                "    labels: [1, 2]\n    networks:\n      - fabrik\n",
+                None,
+            ),
+        ],
+        ids=[
+            "limits-null",
+            "memory-null",
+            "memory-int",
+            "services-list",
+            "networks-list",
+            "labels-int",
+        ],
+    )
+    def test_wrong_typed_values_are_errors_not_crashes(self, old, new, word):
+        """W-2907ccef: a null `limits`, a list of services or networks and non-string labels
+        raised TypeError/AttributeError; a null or int memory passed and compose 2.40.3 refuses
+        it at `up` ("limits.memory must be a string"). Each is an error string now."""
+        compose = self._valid_compose().replace(old, new, 1)
+        assert compose != self._valid_compose()
+        assert isinstance(yaml.safe_load(compose), dict)
+        errors = _validate_compose(compose)
+        if word is None:
+            assert errors == []
+        else:
+            assert any(word in e for e in errors), errors
+
+    @pytest.mark.parametrize(
+        "net",
+        ["  fabrik:\n", '  fabrik:\n    external: "false"\n', "  fabrik: external\n"],
+        ids=["null", "string-false", "scalar"],
+    )
+    def test_fabrik_network_must_really_be_external(self, net):
+        """`fabrik:` null makes compose create a project-local network, off the shared one, and
+        the string "false" read as true; both are refused like `external: false`."""
+        compose = self._valid_compose().replace("  fabrik:\n    external: true\n", net)
+        assert any("external: true" in e for e in _validate_compose(compose))
+        quoted = self._valid_compose().replace("external: true", 'external: "true"')
+        assert _validate_compose(quoted) == []
 
 
 # ======================================================================
@@ -1619,8 +1692,8 @@ class TestDeployLocal:
             "    networks: [fabrik]\n",
             "    networks: [fabrik]\n"
             "    volumes:\n"
-            "      - /root/.claude:/home/appuser/.claude:ro\n"
-            "      - /root/.claude.json:/home/appuser/.claude.json:ro\n",
+            # the rotated host home is the source the check requires (W-2907ccef)
+            + "".join(f"      - {m}\n" for m in claude_cli_mount_lines("/home/appuser")),
         )
         ctx = _ctx(
             {
@@ -1774,6 +1847,84 @@ class TestClaudeCliMounts:
         spec = {"shape": {"uses_claude_cli": True, "claude_cli_home": "/root"}}
         with pytest.raises(DeployError):
             _assert_claude_cli_mounts(compose, spec)
+
+    _SPEC = {"shape": {"uses_claude_cli": True, "claude_cli_home": "/home/appuser"}}
+    _OK = (
+        "      - /home/ozgur/.claude:/home/appuser/.claude:ro\n"
+        "      - /home/ozgur/.claude.json:/home/appuser/.claude.json:ro\n"
+    )
+
+    def test_mount_check_reads_parsed_service_volumes(self):
+        """W-2907ccef: the check was a raw substring test, so commented-out lines passed. A
+        long-syntax read-only bind counts; mounts split over two services do not (`claude -p`
+        runs in one container)."""
+        commented = "services:\n  seo:\n    volumes:\n" + "".join(
+            "      # " + line.strip()[2:] + "\n" for line in self._OK.splitlines()
+        )
+        with pytest.raises(DeployError, match="BOTH"):
+            _assert_claude_cli_mounts(commented, self._SPEC)
+        long_form = (
+            "services:\n  seo:\n    volumes:\n"
+            "      - {type: bind, source: /home/ozgur/.claude, target: /home/appuser/.claude,"
+            " read_only: true}\n"
+            "      - {source: /home/ozgur/.claude.json, target: /home/appuser/.claude.json,"
+            ' read_only: "true"}\n'
+        )
+        _assert_claude_cli_mounts(long_form, self._SPEC)
+        first, second = self._OK.splitlines()
+        split = f"services:\n  a:\n    volumes:\n{first}\n  b:\n    volumes:\n{second}\n"
+        with pytest.raises(DeployError, match="BOTH"):
+            _assert_claude_cli_mounts(split, self._SPEC)
+
+    @pytest.mark.parametrize(
+        "extra",
+        [
+            "      - /tmp/x:/home/appuser/.claude:rw\n",
+            "      - /tmp/x:/home/appuser/.claude/\n",
+            "      - {type: bind, source: /tmp/x, target: /home/appuser/.claude.json}\n",
+        ],
+        ids=["rw", "trailing-slash", "long-form"],
+    )
+    def test_a_later_entry_for_the_same_target_overrides_the_ro_mount(self, extra):
+        """compose keeps only the LAST entry per target and ignores a trailing slash (measured,
+        `docker compose config`, 2.40.3), so a later writable entry unmounts the read-only one."""
+        compose = "services:\n  seo:\n    volumes:\n" + self._OK + extra
+        with pytest.raises(DeployError, match="BOTH"):
+            _assert_claude_cli_mounts(compose, self._SPEC)
+        # A trailing slash on the read-only entry itself still names the target.
+        slashed = self._OK.replace("/home/appuser/.claude:ro", "/home/appuser/.claude/:ro")
+        _assert_claude_cli_mounts("services:\n  seo:\n    volumes:\n" + slashed, self._SPEC)
+        # Options beside `ro` still mount it read-only.
+        _assert_claude_cli_mounts(
+            "services:\n  seo:\n    volumes:\n" + self._OK.replace(":ro\n", ":ro,z\n"), self._SPEC
+        )
+
+    @pytest.mark.parametrize(
+        "source",
+        [
+            "claudevol:/home/appuser/.claude:ro",
+            "/root/.claude:/home/appuser/.claude:ro",
+            "{type: volume, source: claudevol, target: /home/appuser/.claude, read_only: true}",
+        ],
+        ids=["named-volume", "other-host-path", "long-volume"],
+    )
+    def test_mount_source_must_be_the_rotated_host_home(self, source):
+        """A named volume or another host path gives the container an empty `~/.claude` —
+        `claude -p` has no auth, the failure the check exists to prevent."""
+        compose = (
+            "services:\n  seo:\n    volumes:\n"
+            f"      - {source}\n"
+            "      - /home/ozgur/.claude.json:/home/appuser/.claude.json:ro\n"
+        )
+        with pytest.raises(DeployError, match="BOTH"):
+            _assert_claude_cli_mounts(compose, self._SPEC)
+
+    @pytest.mark.parametrize("content", [None, b"services: {}\n", 42])
+    def test_mount_check_refuses_non_text_before_parsing(self, content):
+        """A MagicMock's `.read` never returns empty, so yaml.safe_load on one runs without end
+        (W-51d6c153); the mount check answers before the parser sees a non-str."""
+        with pytest.raises(DeployError, match="not text"):
+            _assert_claude_cli_mounts(content, self._SPEC)
 
 
 class TestBuildEnvContent:
