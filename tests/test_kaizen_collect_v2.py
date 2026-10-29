@@ -3570,8 +3570,9 @@ def test_lock_default_home_is_fixed_and_unreaped(monkeypatch: pytest.MonkeyPatch
 
 
 # ── the analyst's cells are HERS: a computed value may FILL, never OVERWRITE ─────────────────────
-# kaizen.md:202 promises the analyst's `Top friction fixed` / `Filed (spec/mail)` cells are "never
-# overwritten by a re-run". `_merge_cells` only half-kept that promise: it yielded to the analyst
+# kaizen.md's log-row table promises the analyst's text in `Top friction fixed` / `Filed (spec/mail)`
+# is never overwritten by a re-run (a bare collector count in Filed excepted — W-90163961, the tests
+# below that block). `_merge_cells` only half-kept that promise: it yielded to the analyst
 # when the NEW value was a dash, but a real computed value WON. That was harmless only while nothing
 # computed those cells. Wiring `Filed` to the measured filing count would have started silently
 # eating the analysis half's prose on the next cron run.

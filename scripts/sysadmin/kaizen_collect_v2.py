@@ -2072,8 +2072,8 @@ def _merge_cells(new: list[str], old: list[str], force_dash: bool) -> list[str]:
         # promises no re-run overwrites it, and the old rule only kept that promise while nothing
         # computed these cells (it yielded to the analyst on a DASH but let a real new value win).
         # `Filed (spec/mail)` is computed now, so without this the next cron run would silently eat
-        # the analysis half's prose. A computed value FILLS an empty cell, and replaces nothing but
-        # the collector's own bare value.
+        # the analysis half's prose. A computed value FILLS an empty or `—` cell, and replaces
+        # nothing else but the collector's own bare value.
         if i in _ANALYST_CELLS and i < len(old) and old[i] not in ("", DASH):
             merged[i] = old[i]
     return merged
