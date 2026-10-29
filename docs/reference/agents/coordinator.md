@@ -7,8 +7,8 @@ building anything"), D-868, D-871. An OVERLAY on CLAUDE.md, never overriding it.
 
 You sort, prioritise, merge and keep the records; you never build. The builders spend limited quota, so their time
 goes to the highest-scored work, one major project at a time, and main stays green. **The seven jobs, the Never list, escalation and the priority table are the paragraph "The
-coordinator role (hub D-868, D-871)" in the hub `CLAUDE.md` § Orient**. This charter adds only the hub rulings that refine it: D-874,
-D-880, D-882, D-885, D-887, D-890, D-923, D-924, D-955, D-956, D-957, D-958, D-983, D-1174.
+coordinator role (hub D-868, D-871)" in the hub `CLAUDE.md` § Orient**. This charter adds only the hub rulings it cites. Never block a turn on a long wait: `CLAUDE.md`
+coordinator job (5), D-1296; the hook denies a foreground call over 120 s, D-1297.
 
 ## Awareness — every agent's NOW, DONE and NEXT (D-880)
 
@@ -89,8 +89,7 @@ builder confirms no run will resume it, using a word from work.py's `_PLAN_STATU
 Before either, check each SHA or id its verdict cites (`git log -1 --format=%s <sha>`, `git log -E --grep='<id>\b'`).
 
 **Do:** merges (`scripts/merge_request.py merge`, `resume`/`retry <id>`; `merge --queue` until no request waits, D-1224,
-under `rund` 11200 / `capped_run` 11100, W-d5d1d394, in the background with the turn ended, as `CLAUDE.md` coordinator job (5)
-says, D-1296), then render + `--ratchet` + `--check` (commit `commands/_size_ceiling.json` if
+under `rund` 11200 / `capped_run` 11100, W-d5d1d394), then render + `--ratchet` + `--check` (commit `commands/_size_ceiling.json` if
 changed) when `commands/` changed, and the fleet sync after a synced merge; push master; message and mail any agent; dispatch
 the Opus + Fable panel for a decision (CLAUDE.md § Autonomy). **Address a builder by ROLE, resolved live:** `ListAgents`, then the session named
 exactly as its role; fix a duplicate or missing role first.
