@@ -276,6 +276,8 @@ def _harness(
     `unpinned=True` deletes the key instead. `delay_ms` (W-bc394d0b) makes each seat that does not throw at the
     call stay in flight that long on a timer, and the most seats ever in flight at once is returned as a fourth
     element — the measure the `max_seats` cap is graded by."""
+    # both return a fourth element, so together the caller could read `optsBy` as the peak (review pass 1, B-S2)
+    assert not (with_opts and delay_ms), "with_opts and delay_ms each return a fourth element — pass one"
     if unpinned:
         args = {k: v for k, v in args.items() if k != "pin_manifest"}
     elif "pin_manifest" not in args:
@@ -2225,14 +2227,18 @@ def test_the_launch_logs_its_dispatch_count_before_any_seat() -> None:
 
 
 def _three_slices() -> tuple[dict, dict]:
-    """Three one-file slices of two finders each, every finder reading its file whole and raising nothing."""
+    """Three one-file slices of two finders each, every finder reading its file whole; each slice's Sonnet seat
+    raises one candidate, so a refuter arrives while other seats still queue — the shape a freed-then-re-taken slot
+    overtakes in (review pass 1, B-S1)."""
     names = {"S": "a.py", "T": "c.py", "U": "d.py"}
     args = {**_ARGS, "slices": [{"name": n, "files": [f], "priority": "p"} for n, f in names.items()]}
-    results = {
-        f"find:{n}:{m}": {"files_read": [f], "notes": f"read {f} whole; nothing found", "candidates": []}
-        for n, f in names.items()
-        for m in ("sonnet", "haiku")
-    }
+    results = {}
+    for n, f in names.items():
+        for m in ("sonnet", "haiku"):
+            cands = [{**_cand(f"{n}-S1", 3), "file": f}] if m == "sonnet" else []
+            results[f"find:{n}:{m}"] = {"files_read": [f], "notes": f"read {f} whole", "candidates": cands}
+        verdict = {"id": f"{n}-S1", "verdict": "refuted", "command": "c", "output": "o", "mechanism": "m"}
+        results[f"refute:{n}"] = {"verdicts": [verdict]}
     return args, results
 
 
@@ -2243,6 +2249,7 @@ def test_max_seats_caps_the_seats_in_flight_and_runs_every_seat() -> None:
     args, results = _three_slices()
     out, _, prompts, peak = _harness(args, results, delay_ms=20)
     assert peak == 6, f"uncapped, every finder starts at once (the stub's peak is real): {peak}"
+    assert sorted(prompts) == sorted(results), sorted(prompts)
     for k in (1, 2, 4):
         out, _, prompts, peak = _harness({**args, "max_seats": k}, results, delay_ms=20)
         assert peak == k, (k, peak)
@@ -2460,7 +2467,7 @@ def test_the_kept_error_is_the_first_non_blank_line_of_any_rejection() -> None:
         " firstLine({message: '\\n'}), firstLine({message: null}), firstLine({message: undefined, status: 401}),"
         " firstLine(new Error('\\n')),"
         " firstLine(new (class ApiErr { constructor() { this.message = '' } toString() { return 'ApiErr: 401' } })()),"
-        " firstLine({toJSON() { return undefined }, message: ''})]"
+        " firstLine({toJSON() { return undefined }, message: ''}), firstLine({message: ''})]"
     )
     probe = body + f"\nconsole.log(JSON.stringify({calls}))"
     proc = subprocess.run(
@@ -2474,7 +2481,7 @@ def test_the_kept_error_is_the_first_non_blank_line_of_any_rejection() -> None:
     assert proc.returncode == 0, proc.stderr
     unreadable = "an error whose text could not be read"
     expected = ["cause here", '{"code":1}', "", 300, "one", "TypeError", unreadable, unreadable]
-    expected += ['{"message":"\\n"}', '{"message":null}', '{"status":401}', "Error:", "ApiErr: 401", ""]
+    expected += ['{"message":"\\n"}', '{"message":null}', '{"status":401}', "Error:", "ApiErr: 401", "", '{"message":""}']
     assert json.loads(proc.stdout) == expected, proc.stdout
     # end to end: a seat rejecting with an unreadable value stays a failed seat; its slice is never dropped
     out, _, _ = _harness(
