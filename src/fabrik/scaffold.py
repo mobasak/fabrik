@@ -6771,6 +6771,9 @@ export default defineConfig({
             "@axe-core/playwright": "^4.10.1",
             "@tailwindcss/vite": "^4.3.2",
             "tailwindcss": "^4.3.2",
+            # D-1322: eslint and the plugins under the lint config float on purpose — no lockfile,
+            # no blanket overrides. Red lint on an unchanged template: fix the template first; a
+            # one-plugin override only for a broken plugin release, with a lift condition.
             "eslint": "^9.39.2",
             # 7.x is closed at 7.7.3, the version this scaffold lints clean on (W-70d9c609)
             "@antfu/eslint-config": "~7.7.3",
