@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed — backticked-path readers read a ``double`` code span instead of unpairing after it (2026-10-29)
-- Four readers paired single backticks, so one double-backtick span shifted the pairing and every later
+- Five readers paired single backticks, so one double-backtick span shifted the pairing and every later
   token was prose or missed: `scripts/command_run.py` (`_design_paths`, the `/fabrik-task` close's
   APPROACH/MIRROR paths, and `_doc_sync_tokens`), `scripts/mail.py` (`_cited_tokens`, the routing paths)
   and `scripts/enforcement/check_review_coverage.py` (the receipt's Changed list and its `Hunt:` rows).
