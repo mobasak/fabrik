@@ -3244,7 +3244,13 @@ def cmd_assign(repo: Path, args: argparse.Namespace) -> int:
                     f"--blocked-by {dep} refused: {dep} already waits on {item['id']} — a cycle "
                     "would leave both unworkable"
                 )
+        was_held_class = _in_one_major_hold_class(item)
         note = _apply_score(item, args.impact, args.effort, why, args.priority)
+        hold_lines: list[str] = []
+        if was_held_class and _scored(item) and not _is_major(item):
+            # the one-major hold's reason ended with this re-score (W-0fe931b7)
+            hold_lines = _clear_one_major_holds(repo, item, set(block_add) | set(block_drop))
+            held = _dep_ids(item)
         if owner is not None:
             item["owner"] = owner
         if add_tags or drop_tags:
@@ -3261,6 +3267,8 @@ def cmd_assign(repo: Path, args: argparse.Namespace) -> int:
         _after_write(repo, _session())
     if note:
         print(note, file=sys.stderr)
+    for line in hold_lines:
+        print(line, file=sys.stderr)
     print(_rel(repo, path))
     return 0
 
@@ -3385,6 +3393,56 @@ def _scored(item: dict) -> bool:
 def _is_major(item: dict) -> bool:
     """A major project: high impact AND high effort (spec D4)."""
     return item.get("impact") == "high" and item.get("effort") == "high"
+
+
+def _in_flight_major(item: dict, live: dict, closed: set[str]) -> bool:
+    """A major that holds (or can hold) the one-major slot: owned or live-claimed — a claim on an
+    unowned major holds it too — `open` or `blocked`, and not closed elsewhere. `triage` reads its
+    candidates with it, and `assign` reads with it which holds a re-score clears (W-0fe931b7)."""
+    return (
+        _is_major(item)
+        and bool(item.get("owner") or item["id"] in live)
+        and item.get("status") in ("open", "blocked")
+        and item["id"] not in closed
+    )
+
+
+def _in_one_major_hold_class(item: dict) -> bool:
+    """An item the one-major rule holds `--blocked-by` the in-flight major (coordinator charter
+    step 4): a major, or an unscored high-effort MEDIUM, which carries only the `medium` tag."""
+    return _is_major(item) or (not _scored(item) and "medium" in _tags(item))
+
+
+def _clear_one_major_holds(repo: Path, item: dict, keep: set[str]) -> list[str]:
+    """Drop from `item["blocked_by"]` (in place) every id naming an in-flight major, the hold the
+    one-major rule wrote, and return the stderr lines (W-0fe931b7). The caller runs it only when a
+    re-score takes the item out of that rule's class. `keep` (this call's --blocked-by/--unblock)
+    is the caller's own. Each blocker is read alone: an unreadable one keeps its hold, said aloud.
+    COBRA: the cheapest way to satisfy "no stuck quick win" is to clear every hold on a re-score;
+    this clears only the in-flight-major ones, and a real prerequisite lost here is named with its
+    re-add command, since `blocked_by` cannot say why a hold was set."""
+    live, closed = _live_claims(repo), _closed_ids(repo)
+    held, kept, lines = _dep_ids(item), [], []
+    for dep in held:
+        try:
+            blocker = None if dep in keep else _read_item_any(repo, dep)[0]
+        except WorkError:
+            kept.append(dep)
+            lines.append(
+                f"one-major hold kept: {item['id']} still waits on {dep}, not readable here — "
+                f"merge the main checkout and re-score, or work.py assign {item['id']} --unblock {dep}"
+            )
+            continue
+        if blocker is not None and _in_flight_major(blocker, live, closed):
+            lines.append(
+                f"one-major hold cleared: {item['id']} no longer waits on major {dep} — if it is "
+                f"a real prerequisite, re-add it: work.py assign {item['id']} --blocked-by {dep}"
+            )
+            continue
+        kept.append(dep)
+    if len(kept) < len(held):  # a hold that clears nothing stays exactly as stored
+        item["blocked_by"] = kept
+    return lines
 
 
 def _dep_ids(item: dict) -> list[str]:
@@ -6416,14 +6474,7 @@ def cmd_triage(repo: Path, args: argparse.Namespace) -> int:
     # ONE major project in flight per repo (spec D3 job 3): a fresh scan, because `_pool` and
     # `_worker_queues` read only ready, unclaimed items and would miss a claimed or blocked major
     live = _live_claims(main)
-    candidates = [
-        it
-        for it in everything
-        if _is_major(it)
-        and (it.get("owner") or it["id"] in live)  # a claim on an unowned major holds it too
-        and it.get("status") in ("open", "blocked")
-        and it["id"] not in closed
-    ]
+    candidates = [it for it in everything if _in_flight_major(it, live, closed)]
     # a major held behind ANOTHER candidate (`assign <id> --blocked-by <the in-flight id>`, the D3
     # hold) waits, so it is not in flight; one waiting on anything else — its own prerequisite, an
     # unknown id — still holds the slot. Every candidate held behind another is reachable only by

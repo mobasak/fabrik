@@ -1050,6 +1050,92 @@ def test_a_malformed_hold_does_not_break_assign(tmp_path):
     assert r.returncode == 0, r.stderr
 
 
+def _held_behind_the_major(tmp_path):
+    """The in-flight major (owned) and a second major held behind it (the spec D3 job 3 hold)."""
+    env, repo, _ = _setup(tmp_path)
+    flying = _add(repo, env, "task", "the major in flight")
+    held = _add(repo, env, "task", "a major held behind it")
+    for item in (flying, held):
+        assert _score(repo, env, item, "high", "high").returncode == 0
+    _assign(repo, env, flying, "w1")
+    assert run(["assign", held, "--blocked-by", flying], env, repo).returncode == 0
+    return env, repo, flying, held
+
+
+def test_a_rescore_to_non_major_clears_the_major_hold(tmp_path):
+    """W-0fe931b7: the hold exists only because the item is a major, so a re-score that makes it a
+    quick win drops it and says how to re-add it; before, nine P1s sat unclaimable for 11 days."""
+    env, repo, flying, held = _held_behind_the_major(tmp_path)
+    r = _score(repo, env, held, "high", "low")
+    assert r.returncode == 0, r.stderr
+    got = _items(repo)[held]
+    assert (got["priority"], got["blocked_by"]) == (1, []), got
+    assert f"one-major hold cleared: {held} no longer waits on major {flying}" in r.stderr
+    assert f"work.py assign {held} --blocked-by {flying}" in r.stderr, r.stderr
+    assert held in run(["ready"], env, repo).stdout
+
+
+def test_a_scored_medium_clears_its_major_hold(tmp_path):
+    """The charter's second hold class: an unscored high-effort MEDIUM (tag only) held behind the
+    in-flight major leaves the class when it is scored."""
+    env, repo, flying, _ = _held_behind_the_major(tmp_path)
+    medium = _add(repo, env, "task", "a high-effort medium")
+    r = run(["assign", medium, "--tag", "medium", "--blocked-by", flying], env, repo)
+    assert r.returncode == 0, r.stderr
+    r = _score(repo, env, medium, "low", "low")
+    assert r.returncode == 0, r.stderr
+    assert _items(repo)[medium]["blocked_by"] == [], r.stderr
+    assert f"one-major hold cleared: {medium}" in r.stderr, r.stderr
+
+
+def test_a_rescore_to_non_major_keeps_other_holds(tmp_path):
+    """Only a hold behind the IN-FLIGHT major is the one-major hold (triage's own predicate): a
+    non-major prerequisite, a major the call names with --blocked-by, and an unowned major stay;
+    an id the call removes with --unblock is the caller's and is not reported as cleared."""
+    env, repo, flying, held = _held_behind_the_major(tmp_path)
+    prereq = _add(repo, env, "task", "a small prerequisite")
+    unowned = _add(repo, env, "task", "a major nobody owns")
+    other = _add(repo, env, "task", "another major")
+    for item in (unowned, other):
+        assert _score(repo, env, item, "high", "high").returncode == 0
+    _assign(repo, env, other, "w2")
+    for dep in (prereq, unowned):
+        assert run(["assign", held, "--blocked-by", dep], env, repo).returncode == 0
+    r = _score(repo, env, held, "low", "low", "--blocked-by", other, "--unblock", flying)
+    assert r.returncode == 0, r.stderr
+    assert sorted(_items(repo)[held]["blocked_by"]) == sorted([prereq, unowned, other])
+    assert "hold cleared" not in r.stderr, r.stderr
+
+
+def test_a_rescore_that_was_or_stays_major_keeps_its_hold(tmp_path):
+    """A major re-scored as a major keeps its hold; so does a quick win held behind the major by
+    hand and re-scored, because it never was in the one-major hold class."""
+    env, repo, flying, held = _held_behind_the_major(tmp_path)
+    r = _score(repo, env, held, "high", "high")
+    assert r.returncode == 0 and "hold cleared" not in r.stderr, r.stderr
+    assert _items(repo)[held]["blocked_by"] == [flying]
+    quick = _add(repo, env, "task", "a quick win held by hand")
+    assert _score(repo, env, quick, "high", "low").returncode == 0
+    assert run(["assign", quick, "--blocked-by", flying], env, repo).returncode == 0
+    r = _score(repo, env, quick, "low", "low")
+    assert r.returncode == 0 and "hold cleared" not in r.stderr, r.stderr
+    assert _items(repo)[quick]["blocked_by"] == [flying]
+
+
+def test_a_rescore_keeps_an_unreadable_hold_and_says_so(tmp_path):
+    """Fail closed and loud: a hand-edited scalar hold naming no readable item survives the
+    re-score unchanged, the call does not abort, and stderr names the kept hold."""
+    env, repo, _, held = _held_behind_the_major(tmp_path)
+    path = repo / ".fabrik" / "work" / f"{held}.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["blocked_by"] = 5
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    r = _score(repo, env, held, "high", "low")
+    assert r.returncode == 0, r.stderr
+    assert _items(repo)[held]["blocked_by"] == 5
+    assert f"one-major hold kept: {held} still waits on 5" in r.stderr, r.stderr
+
+
 def test_a_stale_builder_tree_agrees_with_its_doorbell(tmp_path):
     """Review round 2: the key on main but not yet in the builder's branch — the filter is off,
     and the doorbell must say so too (one predicate for both)."""
