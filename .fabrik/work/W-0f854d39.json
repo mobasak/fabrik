@@ -21,7 +21,8 @@
   "status": "open",
   "tags": [
     "deploy-prereq",
-    "site-provisioner"
+    "site-provisioner",
+    "waits-site-provisioner-deploy"
   ],
   "title": "site-provisioner's next deploy: copy the VPS checkout's dns-manager-gsc-*.json to <checkout>/secrets/service-account.json BEFORE the git pull (else the pull deletes it and the container refuses to start: create_host_path: false since site-provisioner 7964567)"
 }
