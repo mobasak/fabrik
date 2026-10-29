@@ -155,7 +155,10 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # once the commit exits 0 (the chained recipe and the worktree plain-calls paragraph retired), the after-commit close
 # is a numbered list between steps 5 and 6, and D-1336's check (d) correcting sentence joins it; phase 4 names the two
 # runs that review before the commit (review round 1 folded; 131 bytes cut).
-SIZE_CAP = 27649
+# D-1350 (kaizen, 2026-10-29): 27649 -> 27925 — phase 2 defines the quota runway (`successor none` + the 5h `wall in`
+# forecast) that phase 4's "quota runway read" uses: seats that would outlast it are parked with `blocked --wall`,
+# never skipped (held subject size-run-to-quota-runway-at-start recurred, 10 rows).
+SIZE_CAP = 27925
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
