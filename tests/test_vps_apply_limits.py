@@ -95,6 +95,7 @@ if a[0] == "ps":
     sys.exit(0)
 
 CPU_FMT = "{{.HostConfig.NanoCpus}} {{.HostConfig.CpuQuota}}"
+MEM_FMT = "{{.HostConfig.Memory}}"
 
 if a[0] == "inspect":
     if a[1] == "-f":
@@ -114,6 +115,15 @@ if a[0] == "inspect":
             sys.exit(1)
         if fmt == CPU_FMT and name == os.environ.get("FAKE_DOCKER_CPU_FAIL", ""):
             # the read fails but the container is still there (a daemon hiccup)
+            print("error during connect", file=sys.stderr)
+            sys.exit(1)
+        # The same two outcomes for the unbounded section's memory read, which is the only one
+        # made by container ID (the ceiling table reads by name), so the table's loop is untouched.
+        if fmt == MEM_FMT and ref == cid and name == os.environ.get("FAKE_DOCKER_MEM_VANISH", ""):
+            del d[name]; save(d)
+            print(f"error: no such object: {ref}", file=sys.stderr)
+            sys.exit(1)
+        if fmt == MEM_FMT and ref == cid and name == os.environ.get("FAKE_DOCKER_MEM_FAIL", ""):
             print("error during connect", file=sys.stderr)
             sys.exit(1)
         print({"{{.HostConfig.Memory}}": str(mem),
@@ -184,6 +194,8 @@ def env(tmp_path):
         update_warning: str = "",
         vanish: str = "",
         cpu_fail: str = "",
+        mem_vanish: str = "",
+        mem_fail: str = "",
         ps_fail_from: int = 0,
     ):
         e = dict(os.environ)
@@ -194,6 +206,8 @@ def env(tmp_path):
         e["FAKE_DOCKER_UPDATE_WARNING"] = update_warning
         e["FAKE_DOCKER_VANISH"] = vanish
         e["FAKE_DOCKER_CPU_FAIL"] = cpu_fail
+        e["FAKE_DOCKER_MEM_VANISH"] = mem_vanish
+        e["FAKE_DOCKER_MEM_FAIL"] = mem_fail
         e["FAKE_DOCKER_PS_FAIL_FROM"] = str(ps_fail_from)
         return subprocess.run(
             ["bash", str(SCRIPT), *args], capture_output=True, text=True, env=e, timeout=20
@@ -385,6 +399,57 @@ def test_a_failed_relisting_is_unreadable_not_gone(env):
     env.write_state(_capped_today())
 
     r = env.run("--check", cpu_fail="loki", ps_fail_from=2)
+
+    assert r.returncode == 1, r.stdout
+    assert _row(r.stdout, "UNREADABLE", _cid("loki")), r.stdout
+    assert "GONE" not in r.stdout
+
+
+# one token each (the fixture's state file is space-separated); the EMPTY read is the failed-read test
+@pytest.mark.parametrize("mem", ["garbage", "-1", "1e9", "0x0", "12345678901234567890"])
+@pytest.mark.parametrize("mode", [(), ("--apply",), ("--check",)])
+def test_an_unreadable_memory_read_fails_the_run(env, mem, mode):
+    """W-1614db25 — FAIL CLOSED like the CPU section: the unbounded section took any memory read that
+    was not exactly `0` as BOUNDED, so a read it never made (empty) let --check go green. The
+    container here is outside the ceiling table, so only that section reads it."""
+    env.write_state({**_capped_today(), "stray": (mem, "1000000000 0")})
+
+    r = env.run(*mode)
+
+    assert r.returncode == 1, f"an unreadable memory read exited clean:\n{r.stdout}"
+    stray_cid = f"c{len(LIVE_TODAY):012d}"  # written after LIVE_TODAY's rows
+    assert _row(r.stdout, "UNREADABLE", stray_cid), r.stdout
+
+
+def test_a_failed_memory_read_on_a_listed_container_is_unreadable(env):
+    """The memory read fails (empty stdout, exit 1) while the container is still listed — a daemon
+    hiccup, not a removal: UNREADABLE and exit 1, never GONE and never bounded."""
+    env.write_state(_capped_today())
+
+    r = env.run("--check", mem_fail="loki")
+
+    assert r.returncode == 1, r.stdout
+    assert _row(r.stdout, "UNREADABLE", _cid("loki")), r.stdout
+    assert "GONE" not in r.stdout
+
+
+def test_a_container_removed_before_its_memory_read_is_gone(env):
+    """Listed by `ps -aq`, removed before the memory read: GONE on a successful re-listing, and the
+    run stays green on ordinary churn."""
+    env.write_state(_capped_today())
+
+    r = env.run("--check", mem_vanish="grafana")
+
+    assert r.returncode == 0, r.stdout
+    assert _row(r.stdout, "GONE", _cid("grafana")), r.stdout
+    assert "UNREADABLE" not in r.stdout
+
+
+def test_a_failed_memory_relisting_is_unreadable_not_gone(env):
+    """The memory read fails AND the re-listing fails: nothing proves the container gone."""
+    env.write_state(_capped_today())
+
+    r = env.run("--check", mem_fail="loki", ps_fail_from=2)
 
     assert r.returncode == 1, r.stdout
     assert _row(r.stdout, "UNREADABLE", _cid("loki")), r.stdout

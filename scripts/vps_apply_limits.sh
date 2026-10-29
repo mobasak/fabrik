@@ -163,11 +163,23 @@ if ! ids=$($D ps -aq); then
   echo "  UNREADABLE container listing — \`docker ps -aq\` failed; nothing below was checked"
   failed=$(( failed + 1 )); ids=""; unlisted=1
 fi
+# FAIL CLOSED, as the CPU section below (W-1614db25): a read that is not a plain integer — empty
+# from a failed inspect, or anything else — is UNREADABLE and fails the run, never taken as
+# bounded; an id a SUCCESSFUL re-listing no longer holds is GONE.
 echo
 echo "--- unbounded containers (HostConfig.Memory == 0, all defined) ---"
 unbounded=0
 for id in $ids; do
-  [ "$($D inspect -f '{{.HostConfig.Memory}}' "$id")" = "0" ] || continue
+  mem=$($D inspect -f '{{.HostConfig.Memory}}' "$id" 2>/dev/null)
+  if [[ ! "$mem" =~ ^[0-9]{1,19}$ ]]; then
+    if relist=$($D ps -aq) && ! grep -qx "$id" <<< "$relist"; then
+      printf '  GONE      %-24s removed since the listing — not counted\n' "$id"
+      continue
+    fi
+    printf '  UNREADABLE %-23s memory read returned %s — counted failed\n' "$id" "${mem:-<empty>}"
+    failed=$(( failed + 1 )); continue
+  fi
+  [ "$mem" = "0" ] || continue
   n=$($D inspect -f '{{.Name}}' "$id"); n="${n#/}"
   case " $managed " in
     *" $n "*) tag="MANAGED-BUT-STILL-ZERO" ;;
