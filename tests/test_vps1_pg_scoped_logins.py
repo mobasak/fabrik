@@ -151,9 +151,10 @@ def test_env_upsert_replaces_the_key_keeps_the_rest_and_fixes_a_missing_newline(
     assert not list(tmp_path.glob(".env.*"))  # the mktemp file is gone
 
 
-def test_env_upsert_keeps_a_line_with_a_non_utf8_byte_under_a_utf8_locale(tmp_path):
+@pytest.mark.parametrize("odd", [b"caf\xe9", b"x\x00y"])
+def test_env_upsert_keeps_a_line_with_a_non_utf8_byte_under_a_utf8_locale(tmp_path, odd):
     env = tmp_path / ".env"
-    env.write_bytes(b"A=caf\xe9\nB=2\n" + f"{GT_KEY}=old\n".encode())
+    env.write_bytes(b"A=" + odd + b"\nB=2\n" + f"{GT_KEY}=old\n".encode())
     subprocess.run(
         ["sh", "-c", m.env_upsert_sh(GT_KEY)],
         input=b"new\n",
@@ -161,7 +162,7 @@ def test_env_upsert_keeps_a_line_with_a_non_utf8_byte_under_a_utf8_locale(tmp_pa
         check=True,
         env=dict(os.environ, LC_ALL="C.UTF-8"),
     )
-    assert env.read_bytes() == b"A=caf\xe9\nB=2\n" + f"{GT_KEY}=new\n".encode()
+    assert env.read_bytes() == b"A=" + odd + b"\nB=2\n" + f"{GT_KEY}=new\n".encode()
 
 
 def test_env_upsert_creates_a_missing_env_mode_0600(tmp_path):
@@ -190,10 +191,12 @@ class _Fake:
 
     def __init__(self, fail_on: str):
         self.calls: list[str] = []
+        self.stdins: list[str | None] = []
         self.fail_on = fail_on
 
     def __call__(self, cmd, stdin=None, host=None, timeout=300):
         self.calls.append(cmd)
+        self.stdins.append(stdin)
         failed = self.fail_on in cmd and not any(self.fail_on in c for c in self.calls[:-1])
         out = ""
         if "compose config" in cmd:
@@ -250,6 +253,14 @@ def test_no_secret_reaches_any_remote_command_line(monkeypatch):
     pws = {"glitchtip": "GTSECRETGTSECRET", "postgres_exporter": "EXSECRETEXSECRET"}
     m.step3d_move(pws, {"glitchtip": "fresh", "postgres_exporter": "fresh"})
     assert fake.calls and not any(s in c for c in fake.calls for s in pws.values())
+
+
+def test_step3d_feeds_the_upsert_the_bare_scoped_dsn(monkeypatch):
+    """The docker-free half of the W-c27db1f1 guard: env_upsert_sh writes `KEY=`, so its stdin is the value alone."""
+    fake = _move(monkeypatch, "never-matches", "fresh")
+    sent = [s for c, s in zip(fake.calls, fake.stdins) if "sudo sh -c" in c]
+    pws = {"glitchtip": "p", "postgres_exporter": "q"}
+    assert sent == [m.scoped_dsn(old, role, pws[role]) + "\n" for role, _d, _c, _k, old, *_ in m.SERVICES]
 
 
 @pytest.mark.parametrize("state", ["fresh", "moved"])
