@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — design-system-template: a namespaced alias of a `:root` slot stays in `@theme inline` (2026-10-29)
+The Tokens bullet of `core/design-system-template.md` § Tailwind (CSS-first) usage told a reader that a namespaced slot
+whose value is a `var()` goes in `@theme static inline`, while its own alias example (`--color-surface-0:
+var(--surface-0)`) sat in `@theme inline`, so both forms read as compliant (mail from web-ecommerce-factory). A new
+sentence says the alias is not a slot (a slot is a name § Token slots or the project's `docs/design-system.md` lists),
+gives the compiled difference, and names the four namespaces whose listed `var()` slots stay in `@theme static inline`.
+Two graders pin it and scan every pack's `@theme static` blocks for an alias (D-1363).
+
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
 `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.
