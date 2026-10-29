@@ -3,7 +3,7 @@
   "created": "2026-10-14T02:12:24.871630Z",
   "creator": "kaizen",
   "effort": "low",
-  "evidence": "",
+  "evidence": "21c998acdc831db5583e2654cc9bc5103fa0702b",
   "id": "W-a86563c9",
   "impact": "high",
   "kind": "backlog",
@@ -18,6 +18,6 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — carry never-execute seat rule into execute rules",
-  "status": "open",
+  "status": "done",
   "title": "Never-execute seat rule: carry it to the orchestrator's execute rules, the other Bash agents and the scratch-repo verb rule"
 }
