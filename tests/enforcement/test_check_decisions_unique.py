@@ -173,9 +173,13 @@ def test_a_stray_row_reds_the_gate(tmp_path, monkeypatch, capsys):
     )
 
 
+_TREE = Path(_mod.__file__).resolve().parents[2]  # the checkout under test, never /opt/fabrik
+
+
 def test_the_live_hub_ledger_has_no_stray_rows():
-    """The live assertion, not a fixture's."""
-    text = Path("/opt/fabrik/docs/DECISIONS.md").read_text(encoding="utf-8")
+    """The live assertion, not a fixture's — on the ledger of the tree under test (W-72878aa4: a
+    hardcoded /opt/fabrik path graded the main checkout's ledger from every worktree)."""
+    text = (_TREE / "docs" / "DECISIONS.md").read_text(encoding="utf-8")
     assert find_rows_outside_the_table(text) == []
 
 
@@ -211,11 +215,7 @@ def test_the_cobra_path_is_written_down_where_the_next_reader_finds_it():
     """FIX DIRECTIVE 5: for every gate introduced, the cheapest way to satisfy it WITHOUT the
     outcome is recorded in the same change. The measured-fire-rate half was done when this landed;
     this half was skipped and the review caught it."""
-    from pathlib import Path as _Path
-
-    src = _Path("/opt/fabrik/scripts/enforcement/check_decisions_unique.py").read_text(
-        encoding="utf-8"
-    )
+    src = Path(_mod.__file__).read_text(encoding="utf-8")  # the module under test (W-72878aa4)
     body = src.split("def find_rows_outside_the_table")[1].split('"""')[1]
     assert "cobra-effect" in body and "cheapest" in body.lower(), body[-400:]
 

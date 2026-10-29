@@ -12,9 +12,9 @@
     "spec": ""
   },
   "next": "align decisions.py's _rows/mint regex with check_decisions_unique._parse (or import it), with a grader",
-  "note": "",
+  "note": "time sink: low impact (0/298 ledgers disagree) vs spec-chain effort (7 readers, 2 unsettled trade-offs); record: seed c465036c-9da4-42ce-ae19-8499f7eb3dba-4ba56d32bb8d86e2.md",
   "owner": "",
   "priority": 3,
-  "status": "open",
+  "status": "dropped",
   "title": "scripts/decisions.py --check and its id mint key on the WRITTEN spelling of unindented id-only cells (^\\|\\s*D-(\\d+)\\s*\\|, decisions.py:449/:642), while check_decisions_unique.py (D-1353) keys by integer, reads annotated id cells and indented in-table rows — so the pre-commit hook and the mint see fewer rows than the gate; 0 such rows fleet-wide today (infra-2, W-c25fd20f)"
 }
