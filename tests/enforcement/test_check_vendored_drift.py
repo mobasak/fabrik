@@ -5,7 +5,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-CHECK = Path("/opt/fabrik/scripts/enforcement/check_vendored_drift.py")
+# The tree this test file sits in, so a hub worktree grades its own script (W-a00defb5).
+_TREE = Path(__file__).resolve().parents[2]
+CHECK = _TREE / "scripts" / "enforcement" / "check_vendored_drift.py"
 
 sys.path.insert(0, str(CHECK.parent))
 import check_vendored_drift as cvd  # noqa: E402
@@ -98,10 +100,13 @@ def test_quiet_when_everything_is_declared(tmp_path, capsys, monkeypatch):
 
 def test_real_script_runs_clean_at_repo_root():
     r = subprocess.run(
-        [sys.executable, str(CHECK)], capture_output=True, text=True, timeout=30, cwd="/opt/fabrik"
+        [sys.executable, str(CHECK)], capture_output=True, text=True, timeout=30, cwd=_TREE
     )
     assert r.returncode == 0, r.stderr
-    assert r.stdout.strip(), "at the hub the report always says something"
+    assert r.stdout.strip(), (
+        f"at the hub the report always says something (tree under test: {_TREE}; "
+        "a hub copy that is neither the main checkout nor its git worktree is not the hub)"
+    )
 
 
 # --- rules packs are governance too (fabrik-lib 01M0W4ZPGW9DB562TX4FV6VECM, 2026-08-25) --------

@@ -83,7 +83,9 @@ def _drive(
 
     src = SCRIPT.read_text(encoding="utf-8")
     src = src.replace('[ "$(pwd)" = "/opt/fabrik" ]', f'[ "$(pwd)" = "{repo}" ]')
+    # hub-path-data: the script's own hub path, replaced so the copy never reaches the hub
     src = src.replace("/opt/fabrik/.pre-commit-config.yaml", str(cfg))
+    # hub-path-data: the real fleet sync command, replaced by a marker script
     src = src.replace(
         "/opt/fabrik/.venv/bin/python /opt/fabrik/scripts/sync_enforcement_to_projects.py --force",
         str(marker),
@@ -91,6 +93,7 @@ def _drive(
     # Guard on the ABSOLUTE command path, not the bare filename: the script also NAMES the sync
     # in its operator-facing error strings ("run scripts/sync_enforcement_to_projects.py --force"),
     # and matching those made this refuse every run. What must be unreachable is the executable.
+    # hub-path-data: the executable that must be unreachable from the neutered copy
     assert "/opt/fabrik/scripts/sync_enforcement_to_projects.py" not in src, (
         "the real fleet sync is still reachable from this test — refusing to run it"
     )

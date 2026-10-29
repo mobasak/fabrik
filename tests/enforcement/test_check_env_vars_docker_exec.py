@@ -4,7 +4,8 @@
 import sys
 from pathlib import Path
 
-sys.path.insert(0, "/opt/fabrik/scripts/enforcement")
+# the tree this test sits in, so a hub worktree grades its own script (W-a00defb5)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "enforcement"))
 import check_env_vars as cev  # noqa: E402
 
 

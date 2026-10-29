@@ -530,7 +530,9 @@ def test_absolute_plan_value_is_not_resolved_from_outside_the_root(tmp_path):
     # The STEM must resolve, or the field probe never runs — the escape is only reachable on a
     # lock whose plan IS findable in this repo while its stored path points at another one.
     _plan(tmp_path, "CLAUDE", "Status: CONVERGED")
+    # hub-path-data: an absolute plan value pointing at another repo, the escape under test
     lk = _lock(tmp_path, "esc", plan="/opt/fabrik/CLAUDE.md", status="active")
+    # hub-path-data: the same out-of-root value, resolved by the code under test
     ref = cplr.resolve_plan(tmp_path, lk, "/opt/fabrik/CLAUDE.md")
     assert ref.location == "live", "precondition: the stem resolves inside tmp_path"
     assert ref.field_resolved is False, "an absolute path must not be probed outside root"

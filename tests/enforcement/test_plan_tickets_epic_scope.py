@@ -1019,7 +1019,7 @@ def test_frontmatter_parser_matches_epic_order_verbatim():
     not synced to projects, and a hub checkout that predates T03a's fence fixup has no
     `_find_fences` — both cases SKIP with the honest reason rather than fail.
     """
-    hub = Path("/opt/fabrik/scripts/epic_order.py")
+    hub = REPO / "scripts" / "epic_order.py"  # this tree's, never the main checkout's
     if not hub.is_file():
         pytest.skip("scripts/epic_order.py is hub-only (not synced to projects)")
     spec = importlib.util.spec_from_file_location("_epic_order_for_parity", hub)

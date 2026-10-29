@@ -173,6 +173,7 @@ def test_an_absolute_hub_link_from_a_project_doc_resolves_on_the_host(
 ) -> None:
     monkeypatch.setattr(cdl, "REPO", tmp_path)
     src = tmp_path / "docs" / "report.md"
+    # hub-path-data: the sanctioned-sibling rule under test resolves the hub path on the host
     assert cdl._resolves("/opt/fabrik/docs/QUICKSTART.md", src) is True
     assert cdl._resolves("/opt/fabrik-lib/README.md", src) is True
 
@@ -180,6 +181,7 @@ def test_an_absolute_hub_link_from_a_project_doc_resolves_on_the_host(
 def test_a_moved_hub_doc_cited_from_a_project_goes_red(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(cdl, "REPO", tmp_path)
     src = tmp_path / "docs" / "report.md"
+    # hub-path-data: a hub path the rule under test must refuse once its file is gone
     assert cdl._resolves("/opt/fabrik/docs/this-file-does-not-exist-xyz.md", src) is False
 
 
@@ -206,6 +208,7 @@ def test_a_relative_path_that_resolves_into_a_sibling_repo_is_sanctioned_too(
 
     monkeypatch.setattr(cdl, "REPO", tmp_path)
     src = tmp_path / "docs" / "report.md"
+    # hub-path-data: the relative spelling of the hub path the rule resolves on the host
     rel = os.path.relpath("/opt/fabrik/docs/QUICKSTART.md", src.parent)
     assert rel.startswith("..")
     assert cdl._resolves(rel, src) is True

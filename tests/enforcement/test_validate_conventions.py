@@ -11,7 +11,7 @@ it had never had work to do. Found 2026-09-11 by mypy while reviewing a sibling 
 import importlib.util
 from pathlib import Path
 
-REPO = Path("/opt/fabrik")
+REPO = Path(__file__).resolve().parents[2]  # the tree this test sits in (W-a00defb5)
 
 
 def _load():

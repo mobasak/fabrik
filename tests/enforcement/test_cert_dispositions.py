@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-CHECK = Path("/opt/fabrik/scripts/enforcement/check_review_coverage.py")
+# the tree this test sits in, so a hub worktree grades its own script (W-a00defb5)
+CHECK = Path(__file__).resolve().parents[2] / "scripts" / "enforcement" / "check_review_coverage.py"
 
 
 def _run(repo: Path, name: str, content: str, repro: str | None = None) -> int:

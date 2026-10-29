@@ -17,7 +17,8 @@ from pathlib import Path
 
 import pytest
 
-CHECK = Path("/opt/fabrik/scripts/enforcement/check_review_coverage.py")
+# the tree this test sits in, so a hub worktree grades its own script (W-a00defb5)
+CHECK = Path(__file__).resolve().parents[2] / "scripts" / "enforcement" / "check_review_coverage.py"
 
 sys.path.insert(0, str(CHECK.parent))
 from check_review_coverage import epics_set_hash  # noqa: E402

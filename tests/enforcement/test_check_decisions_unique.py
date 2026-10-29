@@ -176,6 +176,13 @@ def test_a_stray_row_reds_the_gate(tmp_path, monkeypatch, capsys):
 # The tree this test file sits in, read off the test's own path: `_mod.__file__` names whichever
 # tree `scripts` resolved from, which can be another tree under --import-mode=importlib or --noconftest.
 _TREE = Path(__file__).resolve().parents[2]
+# ...and every test above grades `_mod`, so another tree's module is refused at collection rather
+# than graded in silence (W-a00defb5). A raise, not an assert: it holds under `python -O` too.
+if Path(_mod.__file__).resolve().parents[2] != _TREE:
+    raise ImportError(
+        f"check_decisions_unique was imported from {_mod.__file__}, not from the tree under test "
+        f"{_TREE} — run pytest from that tree, or in pytest's default (prepend) import mode"
+    )
 
 
 def test_the_live_hub_ledger_has_no_stray_rows():

@@ -578,7 +578,12 @@ def test_strict_exempts_plan_check_warns(plans_env: Path) -> None:
     import sys as _sys
 
     p = _write(plans_env, "docs/development/plans/2026-01-01-plan-1-leg.md", LEGACY_PLAN)
-    env = dict(__import__("os").environ, PYTHONPATH="/opt/fabrik")
+    import os as _os
+
+    # this tree first, keeping the <tree>/src the root conftest puts first (W-a00defb5)
+    tree = str(Path(__file__).resolve().parents[2])
+    inherited = _os.environ.get("PYTHONPATH", "")
+    env = dict(_os.environ, PYTHONPATH=_os.pathsep.join(p for p in (tree, inherited) if p))
     proc = sp.run(
         [_sys.executable, "-m", "scripts.enforcement.validate_conventions", "--strict", str(p)],
         capture_output=True,

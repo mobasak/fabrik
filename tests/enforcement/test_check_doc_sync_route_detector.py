@@ -13,7 +13,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-sys.path.insert(0, "/opt/fabrik/scripts/enforcement")
+# the tree this test sits in, so a hub worktree grades its own script (W-a00defb5)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "enforcement"))
 import check_doc_sync as ds  # noqa: E402
 
 ROUTE_SRC = '@app.get("/health")\ndef health():\n    return {"ok": True}\n'

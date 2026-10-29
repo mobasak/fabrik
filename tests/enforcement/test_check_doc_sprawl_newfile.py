@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-REPO = Path("/opt/fabrik")
+REPO = Path(__file__).resolve().parents[2]  # the tree this test sits in (W-a00defb5)
 sys.path.insert(0, str(REPO / "scripts" / "enforcement"))
 
 
