@@ -86,8 +86,16 @@ _TMPNAME = re.compile(r"(?<=/)tmp[a-z0-9_]{8}(?![\w-])|(?<![\w./-])tmp[a-z0-9_]{
 _LEG_MARK = "#leg-failed"
 # The recording plugin: one JSON line per failed report (a collection error's id is the file), and
 # under FABRIK_MERGE_TESTS_DUR one line per report's duration, passed or failed (W-c832e59f).
+# Under FABRIK_MERGE_TESTS_UNTIL (a JSON file of node ids, W-c80361e4) an ordered re-run stops one
+# item past the last listed red: every file is still collected and the order up to there is the
+# shard's, so an earlier file's pollution still shows, and the listed item's teardown sees the
+# whole run's next item. The cut is a wrapper that acts after `yield` — after every plain
+# modifyitems, a conftest's reorder registered later included (a plain trylast impl ran before one
+# and read a polluted red green). Any input it cannot honour cuts nothing: a cut too early reads an
+# order-dependent red FLAKY, a false green; a cut not taken only costs the old whole-shard run.
 _PLUGIN = """
 import json, os
+import pytest
 
 def _crash(report):
     rc = getattr(getattr(report, "longrepr", None), "reprcrash", None)
@@ -114,6 +122,31 @@ def pytest_runtest_logreport(report):
 def pytest_collectreport(report):
     if report.failed:
         _write(report, "collect")
+
+def _until():
+    path = os.environ.get("FABRIK_MERGE_TESTS_UNTIL")
+    if not path:
+        return None
+    try:
+        with open(path, encoding="utf-8") as fh:
+            want = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    if isinstance(want, list) and want and all(isinstance(x, str) for x in want):
+        return set(want)
+    return None
+
+@pytest.hookimpl(wrapper=True, trylast=True)
+def pytest_collection_modifyitems(session, config, items):
+    res = yield
+    want = _until()
+    ids = [item.nodeid for item in items]
+    if want and want <= set(ids):
+        keep = max(i for i, nid in enumerate(ids) if nid in want) + 2
+        if keep < len(items):
+            config.hook.pytest_deselected(items=items[keep:])
+            del items[keep:]
+    return res
 """
 
 
@@ -553,7 +586,12 @@ class _Runner:
         self.dur_files: list[Path] = []
         self.totals: list[float] = []
 
-    def start(self, files: list[str]) -> tuple[subprocess.Popen, Path, Path]:
+    def start(
+        self, files: list[str], until: list[str] | tuple[str, ...] = ()
+    ) -> tuple[subprocess.Popen, Path, Path]:
+        """Start one pytest run over ``files``; ``until`` (node ids) stops it one item past the
+        last of them (the plugin's cut). The list rides in a file: an environment value is capped
+        at 128 KiB, which one polluter reddening ~2,000 later tests would pass."""
         self.n += 1
         rec = self.dir / f"rec-{self.n}.jsonl"
         rec.write_text("", encoding="utf-8")
@@ -567,6 +605,11 @@ class _Runner:
             "FABRIK_MERGE_TESTS_REC": str(rec),
             "FABRIK_MERGE_TESTS_DUR": str(dur),
         }
+        env.pop("FABRIK_MERGE_TESTS_UNTIL", None)  # an inherited cut never reaches a whole run
+        if until:
+            cut = self.dir / f"until-{self.n}.json"
+            cut.write_text(json.dumps(sorted(set(until))), encoding="utf-8")
+            env["FABRIK_MERGE_TESTS_UNTIL"] = str(cut)
         argv = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
         argv += [
             "--continue-on-collection-errors",
@@ -651,14 +694,17 @@ def _checkout(commit: str) -> None:
             raise LegError(f"`{' '.join(argv)}` refused: {(r.stderr or r.stdout).strip()}")
 
 
-def _parallel(runner: _Runner, groups: list[list[str]], what: str) -> dict:
-    """Each group in its own process, its files in order; the reds of all, or a LegError."""
+def _parallel(
+    runner: _Runner, groups: list[list[str]], what: str, until: list[list[str]] | None = None
+) -> dict:
+    """Each group in its own process, its files in order; the reds of all, or a LegError.
+    ``until``, aligned with ``groups``, is each group's cut (``_Runner.start``)."""
     started: list = []
     reds: dict = {}
     try:
-        for g in groups:  # started one by one, so a start that fails still has its elders reaped
+        for i, g in enumerate(groups):  # one by one: a start that fails still reaps its elders
             if g:
-                started.append(runner.start(g))
+                started.append(runner.start(g, until=until[i] if until else ()))
         for i, args in enumerate(started):
             rc, got, tail = runner.finish(*args)
             if rc not in RAN:
@@ -756,7 +802,10 @@ def differential(
         ordered = [g for g in groups if any(group_of[k] is g for k in first if k not in confirmed)]
         if compare:
             _checkout(merge)
-        again = _parallel(runner, ordered, "the ordered confirm of shard")
+        # each re-run stops just past the reds it is asked about (the plugin's cut, W-c80361e4):
+        # the shard's later tests cannot change an earlier red's outcome
+        cuts = [[k[0] for k in first if k not in confirmed and group_of[k] is g] for g in ordered]
+        again = _parallel(runner, ordered, "the ordered confirm of shard", cuts)
         confirmed.update({k: v for k, v in again.items() if k in first and k not in confirmed})
     flaky = sorted(k[0] for k in first if k not in confirmed)
     if flaky:
@@ -793,7 +842,13 @@ def differential(
         if base_ordered:
             _checkout(base)
             in_order = [_on_base(g, split) for g in base_ordered]
-            in_order_base = _parallel(runner, in_order, "the ordered base run of shard")
+            # cut at the order reds the base still runs: one whose file or id the base lacks would
+            # disable the cut for the whole group
+            cuts = [
+                [k[0] for k in by_order if group_of[k] is g and _owns(members, k[0])]
+                for g, members in zip(base_ordered, in_order, strict=True)
+            ]
+            in_order_base = _parallel(runner, in_order, "the ordered base run of shard", cuts)
             on_base.update({k: v for k, v in in_order_base.items() if k in by_order})
     except BaseException as exc:
         err = exc
