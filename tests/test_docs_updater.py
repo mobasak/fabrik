@@ -820,7 +820,8 @@ def test_work_open_plans_says_so_when_the_plans_dir_cannot_be_read(tmp_path, mon
         tmp_path, monkeypatch, "PLAN_DONE = set()\ndef parse_plan_status(path):\n    return ('DRAFT', 0, 0)\n"
     )
     (plans / "2026-10-02-plan-good.md").write_text("# good\n")
-    for mode in (0, 0o444):  # unreadable, and readable but not searchable (listdir works, stat fails)
+    # unreadable; readable but not searchable (listdir works, stat fails); searchable but not readable
+    for mode in (0, 0o444, 0o300):
         plans.chmod(mode)
         try:
             out = work._open_plans(repo)
