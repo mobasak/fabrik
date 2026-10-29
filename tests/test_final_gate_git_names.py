@@ -131,8 +131,8 @@ def test_the_gate_prints_a_non_utf8_name_without_crashing(tmp_path):
 
 
 def test_a_stream_whose_reconfigure_fails_never_stops_the_gate(monkeypatch):
-    """W-f42efcc2 review: the escape is best-effort — a reconfigure that raises from inside (a proxy
-    stream forwarding to a missing attribute) or refuses (ValueError) is skipped, never a start-up crash."""
+    """W-f42efcc2 review: a reconfigure that raises AttributeError from inside (a proxy stream
+    forwarding to a missing attribute) or ValueError is skipped, so main() still reaches parse_args."""
     import io
 
     class _Inner(io.StringIO):
