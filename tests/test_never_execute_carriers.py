@@ -98,6 +98,7 @@ def test_command_improve_scratch_repo_rule_names_hard_coded_paths() -> None:
     verb = phase3[phase3.index("a verb is run end to end in a scratch repo") :]
     assert "A script that hard-codes a live path (`scripts/proof_run.py`'s" in verb[:1500]
     assert "so one that writes, deletes or deploys is read, never run" in verb[:1500]
+    assert "no run-before-review rule in this paragraph overrides that." in verb[:1700]
 
 
 def _renderer():
