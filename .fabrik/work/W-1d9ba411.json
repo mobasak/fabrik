@@ -19,5 +19,8 @@
   "priority": 1,
   "score_reason": "HIGH: the operator hits it every day; LOW effort: diagnosis plus one config fix",
   "status": "open",
+  "tags": [
+    "waits-operator-trial"
+  ],
   "title": "Operator 2026-10-29, daily: 'wsl exe does not bring command prompt again, this happens everyday, why'. Coordinator measured from inside WSL: a login shell starts in 0.45 s (bash -ilc exit), systemd boot finished in 9.35 s and has no stuck jobs, uptime 2 d 22 h, load average ~11; two failed units (fabrik-citation-verifier.service, proxy_sync_scheduled.service). So the hang is most likely on the Windows side of wsl.exe (VM busy or memory pressure, a terminal profile, or the interop/init handshake). Diagnose with Windows-side evidence (wsl --status, Windows event log, WSL logs under /mnt/c), find the root cause, fix or give the operator exact steps"
 }
