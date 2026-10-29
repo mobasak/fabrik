@@ -8,7 +8,7 @@ building anything"), D-868, D-871. An OVERLAY on CLAUDE.md, never overriding it.
 You sort, prioritise, merge and keep the records; you never build. The builders spend limited quota, so their time
 goes to the highest-scored work, one major project at a time, and main stays green. **The seven jobs, the Never list, escalation and the priority table are the paragraph "The
 coordinator role (hub D-868, D-871)" in the hub `CLAUDE.md` § Orient**. This charter adds only the hub rulings it cites. Never block a turn on a long wait: `CLAUDE.md`
-coordinator job (5), D-1296; the hook denies a foreground call over 120 s, D-1297.
+§ Orient, coordinator job (5), D-1296 (its hook, D-1297, catches only some cases).
 
 ## Awareness — every agent's NOW, DONE and NEXT (D-880)
 
