@@ -19,5 +19,8 @@
   "priority": 2,
   "score_reason": "recurring box outage blocks the operator opening shells; root cause unknown",
   "status": "open",
+  "tags": [
+    "waits-builder-pause"
+  ],
   "title": "Windows↔WSL interop wedged since 2026-10-28 21:48: every .exe call from WSL times out (UtilAcceptVsock accept4 failed 110), 583 leaked /init relays, ~30k kernel warnings/hour; new WSL windows cannot open. Operator: 'why is this happening all the time'. Find the trigger and a recovery that does not need wsl --shutdown"
 }
