@@ -2,13 +2,13 @@
 
 **Status:** DRAFT
 **Size:** small (≈100 lines, 3 files)
-**Profile:** delta — every Intake Inventory IN item maps to code that exists today (`scripts/merge_request.py`'s ledger resolver, `scripts/install_post_commit_hook.sh`'s merge-driver registration, `.gitattributes`); this registers an existing engine with git, it builds no new component.
+**Profile:** delta — every Intake Inventory IN item, in the driver shape the coordinator accepted (I1–I3), maps to code that exists today (`scripts/merge_request.py`'s ledger resolver, `scripts/install_post_commit_hook.sh`'s merge-driver registration, `.gitattributes`); this registers an existing engine with git, it builds no new component.
 
 Work item: W-53360407 (P0). Recommends a DIFFERENT shape from the one the item and D-1381 Part 4 name (per-entry fragment files). The reason is a measurement D-1381's panel did not have (§ Why this exists). The coordinator accepted the driver-first shape on 2026-10-30, in its answer to mail 01M677712S: *"accepted — the spec's driver-first shape amends D-1381 Part 4 on your measurement"*. The design approval belongs to `/fabrik-spec-review`'s panel. § Rejected alternatives carries the fragment design in full.
 
 ## Personas
 
-- **Builder agents** (infra, infra-N, fleet, intel, kaizen windows, each in `.claude/worktrees/<name>`). PRIMARY. When the merge owner refuses a stale branch they run `git merge master` (or rebase). Today they resolve ledger conflicts by hand. Each builder also owns re-running § Validation's replay grader in the plan that builds this.
+- **Builder agents** (infra, infra-N, fleet, intel, kaizen windows, each in `.claude/worktrees/<name>`). PRIMARY. When the merge owner refuses a stale branch they run `git merge master` (or rebase). Today they resolve ledger conflicts by hand. The builder who executes this spec's plan runs § Validation's replay grader.
 - **The operator.** Primary persona's pain in their own words, relayed by the coordinator 2026-10-30: *"fed up with merge issues"*. Reads results through the coordinator only (D-943).
 - **The coordinator / merge owner.** Lands branches with `python3 scripts/merge_request.py merge` in throwaway worktrees (`scripts/merge_request.py:1163` `_build`). It already auto-resolves ledger insertions in-process (`scripts/merge_request.py:958-1012`) and keeps doing so. It owns § Validation's tripwire check.
 - **git itself** (automated). Invokes the driver for a ledger path whenever both sides changed that file, conflicting or not: `git merge`, `rebase`, `cherry-pick`, `merge-tree`. Never `git merge-file`, which has no driver lookup (grounded below).
@@ -36,7 +36,7 @@ A `git merge`, `rebase` or `cherry-pick` in any hub worktree resolves concurrent
    - The 3 refused merges each rewrote rows already on the base (D-1125; D-980 to D-991; an `INDEX.md` row), the shape a botched earlier hand resolution leaves. The branch side of merge `6b3e40657` diffs as `-| D-980 …` / `+| D-980 …` pairs.
    - Of the merge owner's 51 refusals in 14 days (`merged 537, refused 51`, record `reason` text), 10 are this edits-an-existing-line class (CHANGELOG 7, DECISIONS 2, INDEX 1). The two DECISIONS ones replay to base sections holding landed rows (D-833; D-988 and D-991).
    - A per-entry fragment never prevents an edit to an entry that has already been assembled into the canonical file. A driver removes the hand resolution that produces those rewrites.
-4. **The item's premise.** The item's title measured "22 of 51 refusals in 14 d were conflicts", and D-1381 Part 4 (row D-1381 in `docs/DECISIONS.md` on master) chose fragments on it. In the records' `reason` text, 6 of those refusals are `.fabrik/work` conflicts (D-1381 counts 7; the separate fix is W-7a1411b3), 10 are the edit class above, and the rest are code/doc files no ledger design touches. The 70 builder-side hand resolutions never appear in refusal records, which count only the owner's merges.
+4. **The item's premise.** The item's title measured "22 of 51 refusals in 14 d were conflicts", and D-1381 Part 4 (row D-1381 in `docs/DECISIONS.md` on master) chose fragments on it. In the records' `reason` text, the 22 that say `conflict` are 5 `.fabrik/work` conflicts, the 10 edit-class refusals above, and 7 code/doc files no ledger design touches. A sixth `.fabrik/work` refusal (`merge-item: both sides changed …`) does not say `conflict`, and D-1381 counts 7 work-item refusals in all; the separate fix is W-7a1411b3. The 70 builder-side hand resolutions never appear in refusal records, which count only the owner's merges.
 
 ## What exists today (grounded)
 
@@ -51,15 +51,15 @@ A `git merge`, `rebase` or `cherry-pick` in any hub worktree resolves concurrent
   - A `.gitattributes` merge driver is invoked by `git merge` inside a linked worktree (driver cwd = the worktree top, logged), by `git merge-tree`, and by `git rebase`: the driver logged one call, the rebase finished clean, and the same pair conflicts with no driver.
   - A driver that kills itself, with no fallback, FAILS the merge (`error: failed to execute internal merge`, rc 2, no stages). With the `||` fallback the same case yields an ordinary conflict with stages and markers. So does a missing script, and so does a pre-verb `merge_request.py` (argparse `invalid choice: 'merge-ledger'`, exit 2).
   - When the driver resolves everything, `git merge --no-ff --no-edit -m <msg>` exits 0 and writes today's two-parent commit with `<msg>`. `_build` skips its conflict block and still runs `_dup_ids` (`scripts/merge_request.py:1203-1208`).
-- **Import cost (executed).** `python3 -c "import merge_request"` took 0.22–0.40 s and about 19 MB across 3 runs. That is the cost of one driver call.
+- **Call cost (executed).** `python3 -c "import merge_request"` took 0.22–0.40 s and about 19 MB across 3 runs. A full driver call on the real 41,715-line `CHANGELOG.md` (import, `git merge-file`, the resolver, the write) took 0.67–0.79 s in one 3-run batch and 0.37–0.38 s in another; the spread is box load.
 
 ## The delta (invariants + touchpoints)
 
 1. **New verb `merge-ledger`** in `scripts/merge_request.py`. It sits beside the `merge`/`resume`/`retry` parsers (`scripts/merge_request.py:3758-3792`) and takes `<base> <ours> <theirs> <path>` (git's `%O %A %B %P`).
    - It reads the three files as bytes through `_decode`, exactly as `_build` does.
    - It computes `_merge3(path, ours, base, theirs)`.
-   - It writes the `_encode`d result to `<ours>` atomically (temp file + rename in the same directory). That rename is its last act before exit 0.
-   - On `RefusedError`, or any other exception, it writes NOTHING, prints the reason to stderr and exits 1.
+   - It writes the `_encode`d result to `<ours>` atomically (temp file + rename in the same directory). Nothing after the rename can fail: the verb is dispatched before `main()`'s `try`/`finally` sync drain, as `sync-runner` is (`scripts/merge_request.py:3779-3790`).
+   - On `RefusedError`, or any other exception, it leaves `<ours>` untouched and no temp file behind, prints the reason to stderr and exits 1.
    - Invariant: `<ours>` is either untouched with a non-zero exit, or holds a complete, marker-free resolution with exit 0. Never a write followed by a non-zero exit, which the `||` fallback would re-merge into a misleading conflict.
 2. **Driver string** in `scripts/install_post_commit_hook.sh`: `python3 scripts/merge_request.py merge-ledger %O %A %B %P || git merge-file --marker-size %L -L ours -L base -L theirs %A %O %B`.
    - Registered with `set_config merge.ledger.name …` and `merge.ledger.driver …`.
@@ -89,9 +89,9 @@ None. No data-contract, ui-design, spec `shape:` or CLI surface a project consum
 
 - **Code.** About 40 lines in `scripts/merge_request.py` (the verb and its parser), about 10 in the installer, and 5 in `.gitattributes`.
 - **Tests.** Listed in § Validation.
-- **Runtime.** git calls the driver once per ledger file changed on BOTH sides of a merge, conflicting or not, at 0.2–0.4 s each. So the cost per merge build is at most 5 × 0.4 s = 2 s.
+- **Runtime.** git calls the driver once per ledger file changed on BOTH sides of a merge, conflicting or not, at up to 0.8 s each (§ What exists today, call cost). So the cost per merge build is at most 5 × 0.8 s = 4 s.
   - On the owner side, every build pays it: the pretest (`scripts/merge_request.py:1606`), the landing (`:1801`), the queue pretest (`:3135`), and each rebuild up to `MAX_REBUILDS` (`:546`).
-  - At D1's 557 owner builds and 229 builder merges in 14 days (about 56 a day), the bound is under 2 minutes a day, against owner builds that run for minutes each.
+  - At D1's 557 owner builds and 229 builder merges in 14 days (about 56 a day), the bound is under 4 minutes a day, against owner builds that run for minutes each.
 
 ## Validation
 
@@ -106,10 +106,12 @@ None. No data-contract, ui-design, spec `shape:` or CLI surface a project consum
   - Plain git without the driver would leave markers too, so the stderr line is what makes this test red-able.
 - **Replay grader.** § Derivations D1 re-run with the merge driver registered on a scratch clone at the plan's tip, over the same 14-day window. Expected: the builder-side ledger-only count drops from 70 to at most 3. The builder who executes the plan runs it, and the plan records its output.
 - **Tripwire (the judges' shared dissent, named here).**
-  - Counter: § Derivations D1's `('builder', 'ledger-only')` minus `('builder', 'resolver-clears')`, i.e. builder merges whose ledgers still needed a hand resolution. The window is the 14 days starting the day the driver lands, by commit date (`git log --since`), never by merge-record fields, which carry no wall-clock time.
-  - Threshold: more than 3 in that window. 3 is today's residue under the resolver, and every one of those 3 was an edit of a landed line.
+  - What it watches: the one thing fragments could fix that the driver might not. That is a builder merge whose ledger conflict the resolver refuses for a reason OTHER than `a side edits an existing line`, i.e. an insertion the driver should have cleared.
+  - Counter: § Derivations D1's builder merges whose `_merge3` raised such a reason. Window: the 14 days after the driver lands, by commit date (`git log --since=<landing> --until=<landing + 14 days>`), never by merge-record fields, which carry no wall-clock time.
+  - Threshold: any (more than 0). Today's count is 0: all 3 refusals in D1 are edit-class.
+  - Edit-class residue is reported beside the counter and never re-opens fragments, which cannot prevent it (§ Why this exists 3).
   - Check date: 14 days after the driver lands. Owner: the coordinator, as merge owner.
-  - Reading at or below 3 confirms this shape. Reading above it re-opens the fragment design under § Rejected alternatives, with the residue's merge SHAs named.
+  - Reading 0 confirms this shape. Any other reading re-opens the fragment design under § Rejected alternatives, with the merge SHAs named.
 
 ## Decisions taken
 
@@ -138,7 +140,7 @@ None. No data-contract, ui-design, spec `shape:` or CLI surface a project consum
 - **H — D now, F on a tripwire.** All three judges ranked H first. This spec IS H's first half, and § Validation's tripwire is its second half, so "Recommend D" and "H" are the same build.
 - **git's built-in `merge=union`.** Rejected. git documents that it "tends to leave the added lines in the resulting file in random order" (gitattributes.adoc:1129-1131). It keeps BOTH sides of an edited landed row, which yields duplicate D-ids, and it has no D-number order.
 - **Run the main checkout's copy by absolute path (`/opt/fabrik/scripts/merge_request.py`).** Rejected. It executes a file whose working copy the coordinator may be editing, and it departs from the reviewed `workitem` precedent. The tree's-own-copy cost is one fallback conflict per pre-existing branch.
-- **GitLab-style commit trailers instead of a CHANGELOG file.** Rejected. GitLab's changelog guide tells authors to put the `Changelog` trailer on the first commit and, to add one later, to use `git commit --amend` or `git rebase -i`, then push with `--force-with-lease` (https://docs.gitlab.com/development/changelog/). The hub bans `--amend` and force pushes on shared trees (CLAUDE.md HARD STOPS).
+- **GitLab-style commit trailers instead of a CHANGELOG file.** Rejected. GitLab's changelog guide tells authors to put the `Changelog` trailer on the first commit and, to add one later, to amend the commit or use `git rebase -i`, then force-push if the commits were already pushed (https://docs.gitlab.com/development/changelog/). The hub bans `--amend` and force pushes on shared trees (CLAUDE.md HARD STOPS).
 - **A per-repo fleet rollout** (register the driver in project repos with coordinator mode). OUT-OF-SCOPE here (Intake I11, W-480cdb61). The verb ships fleet-wide with the sync, so a later rollout is installer-only.
 
 ## External dependencies
@@ -163,7 +165,7 @@ One line: no scaffold type, `shape:` flag, port, container or deploy changes. Bo
 
 ## Documentation landing sites
 
-- `docs/reference/multi-agent-operating-model.md` § Ledgers and ids across branches (`:162-166`, which already describes the in-process resolver) gets the driver's paragraph. It is the doc `scripts/merge_request.py:2`'s `# AFTER-EDIT:` header names, so the header needs no change.
+- `docs/reference/multi-agent-operating-model.md` § Ledgers and ids across branches (`:162-166`, which already describes the in-process resolver) gets the driver's paragraph, and its sentence that two branches prepending a row "always conflict at merge" is corrected: in a hub worktree with the driver they no longer do. It is the doc `scripts/merge_request.py:2`'s `# AFTER-EDIT:` header names, so the header needs no change.
 - `docs/workstation/hooks-index.md` gets the installer's second driver, in the installer's row beside the work-item driver. `scripts/install_post_commit_hook.sh:2` already names that doc.
 - `CHANGELOG.md`, and the D-row at approval.
 
@@ -179,7 +181,7 @@ The fragment design would have changed how row 1 is satisfied (a fragment, not a
 ## Lifecycle
 
 - **Adoption.** The installer runs on every WSL shell, so every hub worktree has the driver within one shell start of the merge. A branch cut earlier falls back once.
-- **Growth.** The cost is bounded per merge build (§ Cost: ≤ 2 s) and grows linearly with merges. Escalation trigger: § Validation's tripwire, which counts builder-side hand resolutions in the 14 days after landing. More than 3 re-opens fragments.
+- **Growth.** The cost is bounded per merge build (§ Cost: ≤ 4 s) and grows linearly with merges. Escalation trigger: § Validation's tripwire, which re-opens fragments only on insertion conflicts the driver failed to clear.
 - **Degradation.** Any driver failure falls back to git's markers, which is today's behaviour, never a silent pick. A clone without the installer is today's behaviour.
 - **Retirement.** The undo in § Decisions taken: installer lines, `.gitattributes` lines, then the two keys. The verb can stay inert.
 
