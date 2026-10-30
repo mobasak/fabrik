@@ -16,7 +16,6 @@ import fcntl
 import importlib.util
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -3100,7 +3099,7 @@ def test_a_red_in_a_repo_without_a_work_store_is_covered_not_rerun(world):
     """No store to file into: the red is covered and said, never re-run by every later merge (A2-2)."""
     recs = _land_two(world, _RED_LEG)
     world.mp.setattr(world.mod, "_after_cause", lambda ctx, todo, ids, env: todo[0])
-    shutil.rmtree(world.main / ".fabrik" / "work")
+    (world.main / ".fabrik" / "work" / "config.json").unlink()  # a dir is not a store (r3 A3-1)
     assert world.mod._after_merge_runner(world.main) == 0
     d = world.main / ".git" / "fabrik-merge" / "after-merge"
     status = json.loads((d / "status.json").read_text())
