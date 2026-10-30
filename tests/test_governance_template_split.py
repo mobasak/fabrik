@@ -1919,6 +1919,12 @@ def _check_item_boundary_merge(hub: str, template: str) -> None:
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     assert f"more than {mod.MAX_BEHIND} commits" in ITEM_BOUNDARY_MERGE, "the line's limit drifted"
+    doc = (FABRIK / "docs" / "reference" / "multi-agent-operating-model.md").read_text(
+        encoding="utf-8"
+    )
+    assert f"more than {mod.MAX_BEHIND} commits" in re.sub(r"[\s#]+", " ", doc), (
+        "the operating-model doc's limit drifted from MAX_BEHIND"
+    )
 
 
 def test_both_contracts_carry_the_identical_item_boundary_merge_line() -> None:
@@ -1929,11 +1935,17 @@ def test_both_contracts_carry_the_identical_item_boundary_merge_line() -> None:
 def test_an_item_boundary_merge_line_drifted_in_one_contract_reds(side: str) -> None:
     hub = re.sub(r"\s+", " ", _hub_text())
     tpl = re.sub(r"\s+", " ", (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"))
+    _check_item_boundary_merge(
+        hub, tpl
+    )  # the unmutated pair passes, so the red below is the drift's
     drift = ITEM_BOUNDARY_MERGE.replace("never a rebase", "or a rebase")
     if side == "hub":
         hub = hub.replace(ITEM_BOUNDARY_MERGE, drift)
     else:
         tpl = tpl.replace(ITEM_BOUNDARY_MERGE, drift)
+    assert drift in (hub if side == "hub" else tpl), (
+        "stale mutant: the line was not in the contract"
+    )
     with pytest.raises(AssertionError):
         _check_item_boundary_merge(hub, tpl)
 
