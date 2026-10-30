@@ -1692,6 +1692,9 @@ def test_every_claude_command_cmd_of_builds_carries_the_permission_mode() -> Non
     hints = re.findall(r"run: claude[^\n]*", code)
     assert len(launches) >= 3 and len(hints) >= 2, (launches, hints)  # 3 launch branches + 2 hints
     assert all(mode.search(ln) for ln in launches + hints), launches + hints
+    # and any other naming launch — written into `inner=` or a printed relaunch line in any form (review pass 2, Haiku)
+    named = re.findall(r"\bclaude\s+(?:-n|--name)\b[^\n]*", code)
+    assert all(mode.search(ln) for ln in named), named
 
 
 def test_an_up_grid_with_no_readable_root_is_attached_on_a_real_server(tmp_path: Path) -> None:
