@@ -3,7 +3,7 @@
   "created": "2026-10-30T00:47:53.836326Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "d0ec0a72961dc9f46dd73f0f9326c329872a32ff",
   "id": "W-73d00b05",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra",
   "priority": 0,
   "score_reason": "a defect in tonight's P0 merge fix: a fleet sync can be cut mid-write; one session",
-  "status": "open",
+  "status": "done",
   "title": "D-1369 defect (W-4f4ac600, merged 2caf308b5): under capped_run.sh the detached sync-runner is killed when merge_request.py exits (capped_run.sh:130-134 trap cleanup → systemctl --user stop <scope>), so a governance sync can be cut mid-write, and _drain_sync's 'sync: still running in the background (pid N)' (merge_request.py:2241) is false. Debt is retried at the next landing, so nothing is lost silently — make the runner survive the wrapper or say truthfully that it was cut (infra measured, 2026-10-30)"
 }

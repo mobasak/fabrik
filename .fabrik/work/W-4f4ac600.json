@@ -3,7 +3,7 @@
   "created": "2026-10-29T22:26:00.639279Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "2caf308b556cba4f161bf3aefb98a54335648601",
   "id": "W-4f4ac600",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra-2",
   "priority": 0,
   "score_reason": "operator: long merge fix asap; every landing pays ~4.3 min in the lock",
-  "status": "open",
+  "status": "done",
   "title": "W-1fb11ec8 slice 3 (operator 2026-10-30: 'long merge issue solution must be addressed asap'): the landing tail inside the merge lock takes ~4.3 min per landing (01M64FJ6AT: commit 00:59:47, lock held to 01:04:06) — measure which step of _after_cas in scripts/merge_request.py (carry, push, governance sync, reply/ack) takes it, and cut it; never touches _queue/_leg_fits (infra's slice)"
 }
