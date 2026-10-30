@@ -1,6 +1,6 @@
 command: fabrik-release
 baseline_sentences: fabrik-release.baseline.txt
-baseline_sha256: 72654e08a90b9c8ac4d274670d9490b739f04b47fc481da5dc42f8f90939b125
+baseline_sha256: 7048900025e85714e102e0b2e4c0fbcdc276d80020d6646f80f1fb570dd47ebf
 entries:
 - id: u-L2
   file: render
@@ -121,10 +121,10 @@ entries:
   - 'An open P0/P1 row, any `NOT-QUIET` ledger, or any `DESIGN-GAP` row untouched by the operator is a BLOCKED release; report it as `BLOCKED: certification handoff open — <finding> → <route>`: stop'
 - id: rel-p2-p3-warn
   file: render
-  baseline: 'Open P2/P3 rows print as a ⚠ WARN list in the output block (VPS: carried to `/fabrik-deploy-plan`, so Gate 2''s panel sees it; stores: in the Gate-2 block), visible for Gate 2''s explicit accept, never silently passed'
-  current: 'Open P2/P3 rows print as a ⚠ WARN list in the output block (VPS: carried to `/fabrik-deploy-plan`, so Gate 2''s panel sees it; stores: in the Gate-2 block), visible for Gate 2''s explicit accept, never silently passed'
+  baseline: 'Open P2/P3 rows print as a ⚠ WARN list in the output block, visible for an explicit accept (stores: the operator''s, at the Gate-2 block; VPS: whoever dispatches `/fabrik-deploy-plan` reads it there, since that hand-off is a console print), never silently passed'
+  current: 'Open P2/P3 rows print as a ⚠ WARN list in the output block, visible for an explicit accept (stores: the operator''s, at the Gate-2 block; VPS: whoever dispatches `/fabrik-deploy-plan` reads it there, since that hand-off is a console print), never silently passed'
   text:
-  - 'Open P2/P3 rows print as a ⚠ WARN list in the output block (VPS: carried to `/fabrik-deploy-plan`, so Gate 2''s panel sees it; stores: in the Gate-2 block), visible for Gate 2''s explicit accept, never silently passed'
+  - 'Open P2/P3 rows print as a ⚠ WARN list in the output block, visible for an explicit accept (stores: the operator''s, at the Gate-2 block; VPS: whoever dispatches `/fabrik-deploy-plan` reads it there, since that hand-off is a console print), never silently passed'
   changed-by:
   - D-1371
 - id: rel-severity-binds-on-honour
@@ -215,14 +215,18 @@ entries:
   baseline: 'When the git check finds a doc older than the code but the code commits since touched nothing it describes, content is the tiebreak: print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the Gate-2 block and that doc''s BLOCKED below lifts; otherwise it stands'
   current: ''
   text:
-  - 'When the git check finds a doc older than the code but later code commits touched nothing it describes, content is the tiebreak: print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the Gate-2 block and its BLOCKED lifts'
+  - 'When the git check finds a doc older than the code but later code commits touched nothing it describes, content is the tiebreak: print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the output block (before Gate-2) and its BLOCKED lifts'
   - 'Otherwise it stands: a key doc older than the code it describes is BLOCKED: docs behind code'
+  changed-by:
+  - D-1371
 - id: rel-stale-header-no-date-bump
   file: render
-  baseline: A stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone
-  current: 'When the git check finds a doc older than the code but later code commits touched nothing it describes, content is the tiebreak: print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the Gate-2 block and its BLOCKED lifts; a stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone'
+  baseline: 'When the git check finds a doc older than the code but later code commits touched nothing it describes, content is the tiebreak: print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the output block (before Gate-2) and its BLOCKED lifts; a stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone'
+  current: 'When the git check finds a doc older than the code but later code commits touched nothing it describes, content is the tiebreak: print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the output block (before Gate-2) and its BLOCKED lifts; a stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone'
   text:
-  - a stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone
+  - 'When the git check finds a doc older than the code but later code commits touched nothing it describes, content is the tiebreak: print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the output block (before Gate-2) and its BLOCKED lifts; a stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone'
+  changed-by:
+  - D-1371
 - id: rel-docs-behind-code-blocked
   file: render
   baseline: 'A key doc older than the code it describes = BLOCKED: docs behind code — run the doc''s converge command first: `/fabrik-features` for `FEATURES.md`, `/fabrik-doc-converge <doc>` for SERVICES/RESILIENCE/CONFIGURATION/DEPLOYMENT (or `/fabrik-docs-review` for a whole-tree pass) — touch-on-change proved presence during development; the release gate demands dated truth'
@@ -259,10 +263,12 @@ entries:
   - 'Absent, unparseable or `DRAFT` ⇒ `BLOCKED: parity contract DRAFT → /fabrik-deploy-checklist`: stop; a release whose verify run can only reach `UNVERIFIED` is not READY'
 - id: rel-parity-stale-version-warn
   file: render
-  baseline: A `FROZEN` contract whose `Version` predates a change to the compose services, the scheduler, the `os.getenv` set or the migration head is a ⚠ WARN in the Gate-2 block (the contract is stale, not absent — `/fabrik-deploy-checklist` bumps it)
-  current: A `FROZEN` contract whose `Version` predates a change to the compose services, scheduler, `os.getenv` set or migration head is a ⚠ WARN in the Gate-2 block (the contract is stale, not absent — `/fabrik-deploy-checklist` bumps it)
+  baseline: A `FROZEN` contract whose `Version` predates a change to the compose services, scheduler, `os.getenv` set or migration head is a ⚠ WARN in the output block (the contract is stale, not absent — `/fabrik-deploy-checklist` bumps it)
+  current: A `FROZEN` contract whose `Version` predates a change to the compose services, scheduler, `os.getenv` set or migration head is a ⚠ WARN in the output block (the contract is stale, not absent — `/fabrik-deploy-checklist` bumps it)
   text:
-  - A `FROZEN` contract whose `Version` predates a change to the compose services, scheduler, `os.getenv` set or migration head is a ⚠ WARN in the Gate-2 block (the contract is stale, not absent — `/fabrik-deploy-checklist` bumps it)
+  - A `FROZEN` contract whose `Version` predates a change to the compose services, scheduler, `os.getenv` set or migration head is a ⚠ WARN in the output block (the contract is stale, not absent — `/fabrik-deploy-checklist` bumps it)
+  changed-by:
+  - D-1371
 - id: rel-parity-honour-bound
   file: render
   baseline: 'Mirrors the certification-handoff precondition above: same grammar, same honour-bound binding — no executable check grades this header today (a deliberate, recorded deferral in `docs/STRATEGIC_BACKLOG.md`)'
@@ -526,9 +532,6 @@ vanished:
   L32:
     rule:
     - rel-docs-tiebreak
-  L33:
-    rule:
-    - rel-stale-header-no-date-bump
   L34:
     rule:
     - rel-docs-behind-code-blocked
@@ -541,9 +544,6 @@ vanished:
   L39:
     rule:
     - rel-parity-draft-blocked
-  L40:
-    rule:
-    - rel-parity-stale-version-warn
   L41:
     rule:
     - rel-parity-honour-bound
