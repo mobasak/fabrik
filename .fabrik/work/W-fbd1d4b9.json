@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "Measured on MR 01M670WHMM (7 changed paths, 2 of them code): merge_test_select picked 202 test files; the test leg alone ran 1344 s. Pulled in by: 92 naming the directory 'sysadmin' (one script changed there), 58 naming 'docs/', 37 tree graders (git ls-files), 26 DECISIONS.md, 16 CHANGELOG.md, 11 .fabrik/work, 8 agents_up itself. Fix: select by changed FILE, not by its directory; ledgers (CHANGELOG, DECISIONS, work items) select nothing; then box-wide leg arbitration. List: scratchpad sel.Nf5G/files.txt",
+  "next": "Measured on MR 01M670WHMM (7 changed paths, 2 of them code): merge_test_select picked 202 test files; the test leg alone ran 1344 s. Pulled in by: 92 naming the directory 'sysadmin' (one script changed there), 58 naming 'docs/', 37 tree graders (git ls-files), 26 DECISIONS.md, 16 CHANGELOG.md, 11 .fabrik/work, 8 agents_up itself. Fix: select by changed FILE, not by its directory; ledgers (CHANGELOG, DECISIONS, work items) select nothing; then box-wide leg arbitration. List: scratchpad sel.Nf5G/files.txt | More (2026-10-30 22:30): test-leg times in this session's merge logs: 282, 344, 461, 788, 1053, 1275, 1344, 1731 s, so the leg IS the merge time. A worktree add takes 4 s (not the cause). 87 registered worktrees; builder branches behind master by 2770 (infra), 649 (fleet), 302 (intel), 246 (infra-2).",
   "note": "",
   "owner": "infra",
   "priority": 1,
