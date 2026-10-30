@@ -62,6 +62,13 @@ sentence says the alias is not a slot (a slot is a name § Token slots or the pr
 gives the compiled difference, and names the four namespaces whose listed `var()` slots stay in `@theme static inline`.
 Two graders pin it and scan every pack's `@theme static` blocks for an alias (D-1363).
 
+### Added — vps1 CPU caps are verified (`vps_apply_limits.sh --check`) and their throttling watched (2026-10-29)
+`scripts/vps_apply_limits.sh` lists every defined container with no CPU cap (NanoCpus and CpuQuota both
+<= 0) and `--check` fails on one; an unreadable CPU read fails every mode, a container removed mid-run is
+GONE. It still mutates memory only. New warning `ContainerCPUThrottled`: throttled in more than 25% of CFS
+periods for 15 minutes while running more than 1 period per second (aro-wake only), promtool-tested.
+Live step is the coordinator's operator gate (sync the script, push the rules). D-1361, W-fc701b31.
+
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
 `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.

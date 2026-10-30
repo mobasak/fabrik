@@ -155,12 +155,13 @@ Claude Code reaches these from inside the Docker `fabrik` network via `sudo dock
 
 ## Alert Coverage (what triggers detection)
 
-**Layer 1: Prometheus alert rules (13) → Alertmanager → Telegram**
+**Layer 1: Prometheus alert rules (14) → Alertmanager → Telegram**
 
 | Rule | Catches | Source |
 |---|---|---|
 | ContainerDown | Container disappeared | cAdvisor |
 | ContainerHighCPU | CPU >80% sustained | cAdvisor |
+| ContainerCPUThrottled | Throttled in >25% of CFS periods for 15min while active (its CPU cap is too low) | cAdvisor |
 | ContainerHighMemory | Working set >85% of limit | cAdvisor |
 | ContainerMemoryHighOfHost | Container without a limit using >15% of its host's RAM | cAdvisor |
 | ContainerOOMKilled | OOM kill event | cAdvisor |
