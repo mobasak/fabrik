@@ -17,14 +17,14 @@ Three readings per LOCAL day, from records that already exist:
    (published daily by ``kaizen_waste.py``) pooled as Σ red-master fixes / Σ arrivals over the 14 days
    before the valve day versus the 7 newest days after it. The valve day is the first commit on
    ``$MERGE_TRIPWIRE_REF`` (default ``origin/master``) whose ``.fabrik/merge-tests`` carries
-   ``merge-tests-after-merge-above: 0`` (D-1384's own text); with no such commit the valve is OFF and
-   only the "before" level prints.
+   ``# merge-tests-after-merge-above: 0`` in ``merge_request.py``'s own grammar (``VALVE_RE``) and still
+   holds at its tip; with no such commit the valve is OFF and only the "before" level prints.
 
 **The tripwire (D-1384, "7 days running" in W-622ec42c's words):** the 14 pre-valve days are all
 published, and on EACH of the last 7 days the trailing week (all post-valve, all published) carries more
-red-master fixes than the pre-valve rate predicts for its arrivals by over 2 sigma (Poisson) — replayed
-over the 26 candidate valve days of the live series (2026-09-07..10-29), that rule fires on 9 and the
-same rule without the 2-sigma margin on 21. Then the series has risen for a week — one mail to the repo's coordinator per episode (an episode is a run of consecutive tripped days; a day whose row is missing
+red-master fixes than the pre-valve rate predicts for its arrivals by over 2 sigma (Poisson; the
+margin's measured effect is in the D-row). Then the series has risen for a week — one mail to the repo's
+coordinator per episode (an episode is a run of consecutive tripped days; a day whose row is missing
 starts a new one, since a duplicate mail is cheaper than a silent one), saying the threshold goes back
 to 40.
 
@@ -75,7 +75,9 @@ WEEK = 7  # D-1384: a rise "for a week"
 REFUSAL_WINDOW = 14  # D-1385: "under 5 refusals per 14 days"
 RETRY_DAYS = 3  # publish_recent: the day and the two before it (a late-settling request)
 RED_METRIC = "waste_red_master_rework"
-VALVE_RE = re.compile(r"^\s*#?\s*merge-tests-after-merge-above:\s*0\s*(?:#.*)?$", re.M)
+# merge_request._AFTER_DECL_RE verbatim, first match read like _after_threshold: a line the merge does not
+# honour is never "valve on" here (tests/test_merge_tripwire.py pins the two patterns equal)
+VALVE_RE = re.compile(r"(?m)^#[ \t]*merge-tests-after-merge-above:[ \t]*([0-9]{1,4})[ \t\r]*$")
 LEDGERS = (
     "CHANGELOG.md",
     "docs/DECISIONS.md",
@@ -84,6 +86,8 @@ LEDGERS = (
     "docs/LESSONS_LEARNT.md",
 )  # merge_request.LEDGERS, plus the work-item files below
 _ULID = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+# git show's two wordings for a path absent at a commit; any other failure is an unknown, never "off"
+_ABSENT_RE = re.compile(r"does not exist in|exists on disk, but not in")
 
 
 class ValveUnknownError(RuntimeError):
@@ -164,10 +168,13 @@ def load_records(rdir: Path) -> list[dict]:
         except (OSError, ValueError):
             rec, end = None, 0.0
         start = ulid_time(str(rec.get("id") or p.stem)) if isinstance(rec, dict) else None
-        if start is None:
+        try:
+            day = _local_day(start) if start is not None else None
+        except (ValueError, OverflowError, OSError):  # a ULID past year 9999
+            day = None
+        if day is None:
             out.append({"day": None, "outcome": "unreadable", "wall_s": None, "cls": ""})
             continue
-        day = _local_day(start)
         for retry in rec.get("retries") or []:
             if isinstance(retry, dict):
                 cls = refusal_class(str(retry.get("reason") or ""))
@@ -212,11 +219,14 @@ def valve_day(ref: str, repo: Path | None = None) -> str | None:
         sha, ct = entry.split()
         try:
             text = _git(["show", f"{sha}:.fabrik/merge-tests"], repo)
-        except RuntimeError:
-            text = ""  # the file is absent at this commit: the valve is off
+        except RuntimeError as exc:
+            if not _ABSENT_RE.search(str(exc)):
+                raise ValveUnknownError(str(exc)) from exc
+            text = ""  # the file is absent at this commit (a deletion): the valve is off
         except (OSError, subprocess.SubprocessError) as exc:
             raise ValveUnknownError(str(exc)) from exc
-        on = bool(VALVE_RE.search(text))
+        decl = VALVE_RE.search(text)
+        on = bool(decl) and int(decl.group(1)) == 0
         if on and since is None:
             since = _local_day(float(ct))
         elif not on:

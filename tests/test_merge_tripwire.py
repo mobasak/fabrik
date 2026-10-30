@@ -207,12 +207,13 @@ def test_unsettled_and_unreadable_records_are_counted_never_zero(repo, tmp_path)
     _record(repo, _ts(day, 10), 600, "merged", phase="synced")  # merged, reply not yet sent
     (rdir / "broken.json").write_text("{")
     _record(repo, _ts(day, 11), 600, "merged", rid="ABC")  # not a ULID: never 1970
+    _record(repo, _ts(day, 11), 600, "merged", rid="Z" * 26)  # a ULID past year 9999: never a crash
     lower = _ulid(_ts(day, 12)).lower()
     _record(repo, _ts(day, 12), 600, "merged", rid=lower)  # a lowercase ULID is still a ULID
     m = mt.compute(day, state=tmp_path / "state")
-    assert (m["merged"], m["pending"], m["unreadable"]) == (1, 2, 2)
+    assert (m["merged"], m["pending"], m["unreadable"]) == (1, 2, 3)
     text = mt.line(m)
-    assert "1 merged, 2 pending, 2 unreadable" in text
+    assert "1 merged, 2 pending, 3 unreadable" in text
 
 
 # ── the valve ────────────────────────────────────────────────────────────────────────
@@ -239,13 +240,43 @@ def test_the_valve_day_is_the_start_of_the_on_run_that_holds_at_the_tip(repo):
     _valve(repo, "# merge-tests-after-merge-above: 40", _ts("2026-11-05"))
     assert mt.valve_day("master") is None  # D-1384's remedy turned it off again
     _valve(repo, None, _ts("2026-11-06"))
-    _valve(repo, "# merge-tests-after-merge-above: 0  # D-1384", _ts("2026-11-09"))
-    assert mt.valve_day("master") == "2026-11-09"  # a deletion skipped, a trailing comment read
+    _valve(repo, "# merge-tests-after-merge-above: 00", _ts("2026-11-09"))
+    assert (
+        mt.valve_day("master") == "2026-11-09"
+    )  # a deletion is "off", never the end of the search
 
 
-def test_a_threshold_that_only_starts_with_zero_is_not_the_valve(repo):
-    _valve(repo, "# merge-tests-after-merge-above: 05", _ts("2026-10-31"))
+@pytest.mark.parametrize(
+    "text",
+    [
+        "# merge-tests-after-merge-above: 05",  # a threshold that only starts with 0
+        "# merge-tests-after-merge-above: 0  # D-1384",  # merge_request ignores a trailing reason
+        "merge-tests-after-merge-above: 0",  # not a comment: not the declaration
+    ],
+)
+def test_a_line_the_merge_does_not_honour_is_not_the_valve(repo, text):
+    _valve(repo, text, _ts("2026-10-31"))
     assert mt.valve_day("master") is None
+
+
+def test_the_valve_grammar_is_merge_requests_own():
+    import merge_request
+
+    assert mt.VALVE_RE.pattern == merge_request._AFTER_DECL_RE.pattern
+
+
+def test_a_git_show_failure_that_is_not_a_deletion_is_unknown(repo, monkeypatch):
+    real = mt._git
+
+    def git(args, repo=None):
+        if args[0] == "show":
+            raise RuntimeError("git show rc=128: fatal: bad object deadbeef")
+        return real(args, repo)
+
+    _valve(repo, "# merge-tests-after-merge-above: 0", _ts("2026-10-31"))
+    monkeypatch.setattr(mt, "_git", git)
+    with pytest.raises(mt.ValveUnknownError):
+        mt.valve_day("master")
 
 
 def test_a_failed_valve_lookup_is_unmeasured_never_valve_off(repo, tmp_path, monkeypatch):
