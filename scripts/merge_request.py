@@ -2683,7 +2683,8 @@ LANDING_WORST_S = QUEUE_WAIT_S + MERGE_TEST_BUDGET_S + PUSH_TIMEOUT_S + SYNC_TIM
 # declare (_declared_leg clamps to MERGE_TEST_BUDGET_S) still leaves a worst-case landing. A wall
 # with LANDING_WORST_S + 1800 landed nothing after a wave that used its limit (2026-10-27, elapsed
 # ~1818 s at the check). A leg forks only while it AND a landing after it fit (_leg_fits — budgeted
-# at TIMED_MARGIN x the longest green queue leg the run timed once one is, W-1fb11ec8), and every
+# at TIMED_MARGIN x the longest green queue leg the run timed for that owner script once one is,
+# W-1fb11ec8), and every
 # leg a wall return joins (one per --jobs slot) ends inside the wall whatever it was budgeted at,
 # because LANDING_WORST_S outweighs the longest declarable leg plus LEG_OVERHEAD_S. QUEUE_BUILD_S holds the chain
 # build before the first fork plus LEG_OVERHEAD_S: a child's own setup (its throwaway worktree, the
@@ -2822,11 +2823,15 @@ def _tried_key(ctx: _Ctx, el: dict) -> tuple[str, str]:
     """``(head, stacked tree)``: a chain rebuild makes new elements and new stacked commits, but the
     same request on the same stack keeps its tree, so a failed leg is not forked again; one re-stacked
     onto a changed base (an earlier request refused) has a new tree and earns a fresh queue leg. An
-    unreadable tree keys on the commit — a re-fork allowed, never a leg skipped."""
-    try:
-        return el["head"], _gitc(ctx.main, "rev-parse", f"{el['at']}^{{tree}}").strip()
-    except RefusedError:
-        return el["head"], el["at"]
+    unreadable tree keys on the commit — a re-fork allowed, never a leg skipped. Cached on the
+    element: the queue polls every QUEUE_POLL_S, and a rebuilt chain makes new elements."""
+    if "tried_key" not in el:
+        try:
+            tree = _gitc(ctx.main, "rev-parse", f"{el['at']}^{{tree}}").strip()
+        except RefusedError:
+            tree = el["at"]
+        el["tried_key"] = (el["head"], tree)
+    return el["tried_key"]
 
 
 def _leg_seconds(ctx: _Ctx, el: dict, script: str, runner: str) -> float:
@@ -2932,7 +2937,8 @@ def _leg_fits(started: float, script: str, timed: float = 0.0) -> bool:
     """A leg forked now, plus LEG_OVERHEAD_S — its setup (an estimate: no deadline bounds it) and
     the leg's 60 s outer bound — can still be followed by a worst-case landing; else the leg cannot
     lead to a landing this run, and the wall return would only wait on it. The leg is budgeted at
-    TIMED_MARGIN x ``timed``, the longest green queue leg this run already timed (W-1fb11ec8: 697 s
+    TIMED_MARGIN x ``timed``, the longest green queue leg this run already timed for this owner
+    script (W-1fb11ec8: 697 s
     live against the hub's declared 2700 s, which closed the window at 1080 s of the 11100 s wall),
     capped at its whole limit (``_declared_leg``), and at that limit while nothing is timed. Either
     way the leg itself ends inside the wall: one forked at the last fit second that runs its whole
