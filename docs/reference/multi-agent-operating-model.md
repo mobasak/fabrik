@@ -231,15 +231,19 @@ python3 scripts/merge_request.py retry <id>     # re-run a REFUSED request whose
 `<git common dir>/fabrik-merge/` first, claims the request, and runs (a) a preflight in a throwaway
 worktree with a snapshot of every merged path, (b) pure-insertion ledger conflicts and
 `.fabrik/work/W-*.json` conflicts merged key-wise by `work.py merge-item` only, (c) the
-owner's tests (`.fabrik/merge-tests`, read from base, with the throwaway's `src` first on
+owner's tests — one leg on the BOX at a time, every repo's: the leg (a merge's, a pretest's or a
+queue child's) waits on the flock `~/.claude/state/merge-test-leg.lock`, saying who holds it, and a
+wait that spends the run's test budget is "not a test verdict" (W-fbd1d4b9) — (`.fabrik/merge-tests`, read from base, with the throwaway's `src` first on
 `PYTHONPATH`; with none, pytest over the touched `tests/` files under `<main>/.venv/bin/python` when
 present, with the caller's `PYTHONPATH` dropped and the merged import root — `src`, or the tree's
 root when `src/` is itself a package — placed after the stdlib and before site-packages; both legs
 first get the base's `.worktreeinclude` set copied in from the main checkout, so a gitignored `.env`
 is there as in a worktree, never over a file the tree tracks — D-610; the hub's own merge-tests runs
-`scripts/merge_test_select.py`, W-4e756979: the tests that name a changed path — its file, module,
-import or directory; a review receipt under `docs/development/reviews/` by its file name only (D-1356)
-— plus every test whose text says `ls-files`, in 8 shards balanced by the
+`scripts/merge_test_select.py`, W-4e756979: the tests that import a changed module (directly or
+through the repo's own import graph), spell its file name or stem, or enumerate the directory it sits
+in (a glob, `iterdir` or `listdir` on that directory) — never a folder a test merely mentions, and the
+ledgers and work items select nothing (W-fbd1d4b9); a review receipt under `docs/development/reviews/`
+by its file name only (D-1356) — plus every test whose text says `ls-files`, in 8 shards balanced by the
 per-file seconds each merge leg records in `<git common dir>/fabrik-merge/merge-tests-durations.txt`
 (no record: the round-robin split, W-c832e59f); it refuses a red that
 is new against the base (green, absent, or failing with another crash line there) and a run it

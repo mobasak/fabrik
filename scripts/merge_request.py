@@ -1321,17 +1321,73 @@ except ImportError:
 # the ones comparing that installed corpus to the tree, which cannot match yet (W-c3177526). Inert
 # in a repo whose conftest does not read it.
 _MERGE_CHECK_ENV = {"FABRIK_MERGE_CHECK": "1"}
+# One owner-test leg on the BOX at a time, every repo's (W-fbd1d4b9): two repos' legs together pushed
+# the load average to 19-25 on 24 cores and a 2-file hub merge to 1344 s (MR 01M670WHMM). A blocking
+# flock on one box-wide file around the leg; the file is home-relative because every repo runs its own
+# synced copy of this script. A leg's own children inherit LEG_HELD and never wait on the lock their
+# parent holds (a merge test of this script inside the hub's leg would otherwise wait out its budget).
+# Cobra (D-253): the cheapest way past the lock is a second lock path (FABRIK_MERGE_LEG_LOCK) — it
+# exists for test isolation only; the box's legs all read the default.
+LEG_LOCK_ENV = "FABRIK_MERGE_LEG_LOCK"
+LEG_HELD_ENV = "FABRIK_MERGE_LEG_HELD"
+LEG_LOCK_POLL_S = 2.0
+
+
+def _leg_lock_path() -> Path:
+    return Path(
+        os.environ.get(LEG_LOCK_ENV) or Path.home() / ".claude" / "state" / "merge-test-leg.lock"
+    )
+
+
+@contextlib.contextmanager
+def _box_leg_lock(ctx: _Ctx) -> Iterator[None]:
+    """Hold the box's one owner-test leg while the body runs. Waits while another leg holds it, saying
+    once who does, and only while this run's test budget still has room for a leg; a wait that runs
+    the budget out is BudgetSpentError ("not a test verdict"), never a red. Inside a leg it is a no-op."""
+    if os.environ.get(LEG_HELD_ENV) == "1":
+        yield
+        return
+    path = _leg_lock_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        said = False
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if ctx.test_deadline - time.monotonic() < LEG_FLOOR_S + LEG_LOCK_POLL_S:
+                    raise BudgetSpentError(
+                        f"the owner-test budget of this run ({MERGE_TEST_BUDGET_S}s) ran out waiting "
+                        f"for the box's one test leg ({path}) — not a test verdict"
+                    ) from None
+                if not said:
+                    holder = os.pread(fd, 200, 0).decode("utf-8", "replace").strip() or "unknown"
+                    print(
+                        f"merge_request: waiting for the box's one test leg — held by {holder}",
+                        file=sys.stderr,
+                    )
+                    said = True
+                time.sleep(LEG_LOCK_POLL_S)
+        os.ftruncate(fd, 0)
+        os.pwrite(fd, f"pid {os.getpid()} in {ctx.main}\n".encode(), 0)
+        yield
+    finally:
+        os.close(fd)  # closing the descriptor drops the flock
 
 
 def _fallback_env(wt: Path, shim: Path) -> dict:
     """The fallback's env: the shim ALONE on ``PYTHONPATH`` — the caller's entries would precede the
     stdlib and could name the main checkout's own ``src``, so the import root comes from the
     throwaway, never the caller. It is the throwaway's ``src``, or its root when ``src`` is itself
-    a package (imported as ``src.x``). ``FABRIK_MERGE_CHECK=1`` rides along (``_MERGE_CHECK_ENV``)."""
+    a package (imported as ``src.x``). ``FABRIK_MERGE_CHECK=1`` rides along (``_MERGE_CHECK_ENV``), and
+    ``LEG_HELD_ENV`` (the leg holds the box's lock)."""
     root = wt if (wt / "src" / "__init__.py").exists() else wt / "src"
     return {
         **os.environ,
         **_MERGE_CHECK_ENV,
+        LEG_HELD_ENV: "1",
         "PYTHONPATH": str(shim),
         "FABRIK_MERGE_SRC": str(root),
     }
@@ -1721,13 +1777,22 @@ def _run_owner_leg(
 ) -> tuple[subprocess.CompletedProcess, str]:
     """One run of the owner's tests in ``wt``: ``script`` (the base's merge-tests) when given,
     else pytest over ``touched``. Returns the finished process and its label. Its limit is
-    ``_leg_timeout``'s, kept on ``ctx.leg_limit`` so the caller can tell a spent budget from a red."""
+    ``_leg_timeout``'s, kept on ``ctx.leg_limit`` so the caller can tell a spent budget from a red.
+    It runs while this run holds the box's one test leg (``_box_leg_lock``); the limit is taken after
+    the wait, so a wait spends the budget, never the leg's own time."""
+    with _box_leg_lock(ctx):
+        return _run_owner_leg_locked(ctx, wt, script, touched)
+
+
+def _run_owner_leg_locked(
+    ctx: _Ctx, wt: Path, script: str, touched: list[str]
+) -> tuple[subprocess.CompletedProcess, str]:
     limit = ctx.leg_limit = _leg_timeout(ctx)
     if script:
         pythonpath = os.pathsep.join(
             p for p in (str(wt / "src"), os.environ.get("PYTHONPATH", "")) if p
         )
-        env = {**os.environ, **_MERGE_CHECK_ENV, "PYTHONPATH": pythonpath}
+        env = {**os.environ, **_MERGE_CHECK_ENV, LEG_HELD_ENV: "1", "PYTHONPATH": pythonpath}
         argv, label = ["sh", "-e", "-c", script], ".fabrik/merge-tests (base copy)"
         # the outer bound only catches a runner that itself hangs; the runner stops the tests first
         return _run(_capped(argv, limit, ctx.leg_mem), limit + 60, cwd=wt, env=env), label

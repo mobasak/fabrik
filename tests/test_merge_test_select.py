@@ -94,16 +94,18 @@ def test_normalise_relative_default_tempdir():
     assert mts.normalise("missing tmpfiles_old/out") != mts.normalise("missing tmpfiles_new/out")
 
 
-def test_directory_and_tree_grader_keys():
+def test_a_directory_never_selects_only_the_file_and_the_tree_grader_do():
+    # W-fbd1d4b9: directory keys turned a 2-file merge into 202 of 691 test files (MR 01M670WHMM)
     tests = {
         "tests/test_path.py": 'ROOT / "commands/_sources/x.md"',
         "tests/test_join.py": 'ROOT / "commands" / "_sources"',
-        "tests/test_generic.py": 'ROOT / "scripts" / "other.py"',
+        "tests/test_dir.py": 'ROOT / "commands/_sources/"',
+        "tests/test_named.py": 'ROOT / "commands/_sources/new-command.md"',
     }
-    picked = mts.select(["commands/_sources/new-command.md"], tests)
-    assert picked == ["tests/test_join.py", "tests/test_path.py"]
-    # a generic last component ("scripts") is never a quoted key
-    assert mts.select(["scripts/brand_new_tool.py"], {"tests/test_g.py": '"scripts"'}) == []
+    assert mts.select(["commands/_sources/new-command.md"], tests) == ["tests/test_named.py"]
+    assert (
+        mts.select(["scripts/sysadmin/brand_new_tool.py"], {"tests/test_g.py": '"sysadmin"'}) == []
+    )
     # a tree grader (it runs `git ls-files`) reaches every file, a new one under a generic directory
     # included — measured: without this rule a new scripts/*.py selected nothing against the real
     # hub-write-root grader, the source of 7 of the 32 red-master fixes
@@ -112,6 +114,55 @@ def test_directory_and_tree_grader_keys():
         assert mts.select([new], {"tests/test_hub_write_root.py": grader}) == [
             "tests/test_hub_write_root.py"
         ], new
+
+
+def test_a_test_runs_when_it_imports_the_changed_module_transitively():
+    # W-fbd1d4b9 (a): the import graph — 816625088 reddened tests/test_kaizen_outcomes.py through
+    # kaizen_outcomes -> kaizen_collect_v2, a change no name in the test spelled
+    sources = {
+        "scripts/sysadmin/kaizen_outcomes.py": "import kaizen_collect_v2\n",
+        "scripts/sysadmin/kaizen_collect_v2.py": "from fabrik.state import load\n",
+        "src/fabrik/state.py": "import json\n",
+        "scripts/json.py": "# a tracked file named like the stdlib\n",
+    }
+    tests = {
+        "tests/test_outcomes.py": "import kaizen_outcomes as ko\n",
+        "tests/test_unrelated.py": "import json\n",
+        "tests/test_syntax.py": "def broken(:\n",
+    }
+    assert mts.select(["src/fabrik/state.py"], tests, sources) == ["tests/test_outcomes.py"]
+    assert mts.select(["scripts/sysadmin/kaizen_collect_v2.py"], tests, sources) == [
+        "tests/test_outcomes.py"
+    ]
+    # a bare stdlib name never resolves to a tracked file of the same name
+    assert mts.select(["scripts/json.py"], tests, sources) == []
+    # without the sources only the direct import selects
+    assert mts.select(["src/fabrik/state.py"], tests) == []
+
+
+def test_a_directory_selects_only_a_test_that_enumerates_it():
+    # 1 of the 17 measured red-master causes: a new commands/_sources/*.md against a grader that globs it
+    joined = 'SOURCES = REPO / "commands" / "_sources"\nfor f in sorted(SOURCES.glob("*.md")):\n    pass\n'
+    tests = {
+        "tests/test_joined.py": joined,
+        "tests/test_inline.py": 'for f in (ROOT / "commands/_sources").iterdir():\n    pass\n',
+        "tests/test_listdir.py": 'D = "commands/_sources"\nos.listdir(D)\n',
+        # spells the folder and globs something else: not a reader of the folder
+        "tests/test_other_glob.py": 'sys.path.insert(0, "commands/_sources")\nlist(tmp_path.glob("*"))\n',
+        "tests/test_no_glob.py": 'ROOT / "commands" / "_sources"\n',
+    }
+    assert mts.select(["commands/_sources/new-command.md"], tests) == [
+        "tests/test_inline.py",
+        "tests/test_joined.py",
+        "tests/test_listdir.py",
+    ]
+    # a one-component generic folder is the tree graders' job
+    assert (
+        mts.select(
+            ["scripts/new.py"], {"tests/test_s.py": 'for f in Path("scripts").glob("*"): pass'}
+        )
+        == []
+    )
 
 
 def test_ledgers_are_not_keys():
@@ -142,10 +193,12 @@ def test_review_receipt_is_keyed_by_its_file_name():
     }
     # its file name and the tree graders, never its directory or its stem alone
     assert mts.select([receipt], tests) == ["tests/test_named.py", "tests/test_tree.py"]
-    # an archived receipt (one level deeper) keeps every key, its directory included
+    # an archived receipt (one level deeper) is an ordinary file: its name and stem, never its directory
     archived = "docs/development/reviews/archived/2026-01-01-old-review.md"
     tests["tests/test_archived.py"] = 'ROOT / "docs/development/reviews/archived/"'
-    assert "tests/test_archived.py" in mts.select([archived], tests)
+    tests["tests/test_old.py"] = "2026-01-01-old-review"
+    picked = mts.select([archived], tests)
+    assert "tests/test_archived.py" not in picked and "tests/test_old.py" in picked
     # the green-record skip still treats a receipt as code-bearing: SKIP is unchanged
     assert not mts.SKIP.fullmatch(receipt)
 
@@ -673,13 +726,30 @@ def test_replay_of_measured_red_merges(cause, grader):
     changed = [
         p for p in _show("diff", "--name-only", "--no-renames", parents[0], cause).splitlines() if p
     ]
+    texts = _py_texts(cause)
+    tests = {n: s for n, s in texts.items() if mts.TEST_FILE.fullmatch(n)}
+    sources = {n: s for n, s in texts.items() if n not in tests}
+    assert grader in mts.select(changed, tests, sources)
+
+
+def _py_texts(commit: str) -> dict[str, str]:
+    """Every ``.py`` file at ``commit`` (the import graph's nodes), read in one ``cat-file`` batch."""
     names = [
-        p
-        for p in _show("ls-tree", "-r", "--name-only", cause, "tests/").splitlines()
-        if mts.TEST_FILE.fullmatch(p)
+        p for p in _show("ls-tree", "-r", "--name-only", commit).splitlines() if p.endswith(".py")
     ]
-    tests = {n: _show("show", f"{cause}:{n}") for n in names}
-    assert grader in mts.select(changed, tests)
+    out = subprocess.run(
+        ["git", "-C", str(ROOT), "cat-file", "--batch"],
+        input="".join(f"{commit}:{n}\n" for n in names).encode(),
+        capture_output=True,
+        check=True,
+    ).stdout
+    texts, pos = {}, 0
+    for n in names:
+        header_end = out.index(b"\n", pos)
+        size = int(out[pos:header_end].split()[2])
+        texts[n] = out[header_end + 1 : header_end + 1 + size].decode("utf-8", "replace")
+        pos = header_end + 1 + size + 1
+    return texts
 
 
 # --- W-347cd0c3: a rebuild after a ledger-only base move re-tests nothing ------------------------

@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — merge tests by import graph, never by folder; one test leg on the box at a time (2026-10-30)
+`scripts/merge_test_select.py` no longer selects a test because it mentions the changed file's folder: a
+test runs when it imports the changed module (directly or through the repo's own import graph), spells
+the file's name or stem, or enumerates the very directory the file sits in; ledgers and work items select
+nothing, `ls-files` tree graders always run. MR 01M670WHMM's 2-file change selected 202 of 691 test files
+(1344 s); it now selects 54. `scripts/merge_request.py` runs every owner-test leg (merge, pretest, queue
+child) under one box-wide flock, `~/.claude/state/merge-test-leg.lock`, so two repos' merge legs no longer
+run together; a wait that spends the run's test budget is "not a test verdict" (D-1380, W-fbd1d4b9).
+
 ### Fixed — agents_up launches every pane with --permission-mode bypassPermissions (2026-10-30)
 Every claude command `scripts/sysadmin/agents_up.sh` builds (grid start, `--pane-cmd`, the spawn and rotate `--move`
 `--session-id` launches, and the "already running" and "exited — run:" hint lines) now passes

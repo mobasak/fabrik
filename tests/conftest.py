@@ -222,6 +222,15 @@ def _isolated_sound_lock_dir(tmp_path, _private_monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _isolated_merge_leg_lock(tmp_path, _private_monkeypatch):
+    """`merge_request`'s box-wide test-leg lock (W-fbd1d4b9), pinned per test: a merge test run while
+    a real merge leg holds the box's lock would otherwise wait out its whole test budget."""
+    _private_monkeypatch.setenv("FABRIK_MERGE_LEG_LOCK", str(tmp_path / "merge-test-leg.lock"))
+    _private_monkeypatch.delenv("FABRIK_MERGE_LEG_HELD", raising=False)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _isolated_print_mode(tmp_path, _private_monkeypatch):
     """`work.py`'s `_print_mode()` (01M4PAJWV1) reads the headless labels and walks the proc root
     to the nearest `claude` ancestor. Run under a `claude -p` dispatcher, the whole suite would

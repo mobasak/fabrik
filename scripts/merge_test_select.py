@@ -6,8 +6,8 @@ Without an owner command ``merge_request.py`` runs only the ``tests/`` files a b
 repo-wide grader the branch broke but never edited (the hub-write-root search, the contract's line
 cites, a command's byte cap) ran nowhere until master was red: 29 red-master fixes in 25 days, the
 measured branches each red ALONE before they merged. This runs, in the merge's build tree, every
-test file that names a path the merge changed — by file name, module stem or directory; a review
-receipt by its file name only (RECEIPT) — plus every
+test file that names a path the merge changed — by file name, module stem or import path, never by
+its directory (W-fbd1d4b9); a review receipt by its file name only (RECEIPT) — plus every
 tree grader (a test running ``git ls-files``), in parallel shards, and refuses only a NEW red: one
 failing on the merge that passes on the base, is absent there, or fails there with another crash
 line. Master is not green on the full suite (16 ids red in a merge-shaped throwaway, 2026-10-24),
@@ -23,7 +23,8 @@ Exit codes: 0 green (pre-existing and flaky reds printed) · 1 a new red · 2 ca
 itself failed (a shard exit other than 0/1/5, a checkout git refused) — the verdict is the LAST line.
 
 Cobra (D-253): the cheapest way past this leg is a test whose text names nothing — a grader reaching
-files through computed paths is selected only by a directory it spells or by ``ls-files``. Counter:
+files through computed paths is selected only by ``ls-files`` (a directory it spells no longer
+selects it, W-fbd1d4b9). Counter:
 the miss rate is the red-master series itself (kaizen_waste.waste_red_master_rework), which keeps
 measuring after this lands. The second cheapest is a red that is already red on master: it passes
 until its crash line changes, so a broken grader on master mutes itself only for the SAME failure.
@@ -32,6 +33,7 @@ until its crash line changes, so a broken grader on master mutes itself only for
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import math
 import os
@@ -68,9 +70,6 @@ SKIP = re.compile(
 # receipt still runs the tree graders and still counts as a change to the green-record re-test skip
 RECEIPT = re.compile(r"docs/development/reviews/[^/]*\.md")
 TEST_FILE = re.compile(r"tests/(?:.*/)?test_[^/]*\.py")
-# a directory spelled as a path segment in a test ("commands" / "_sources") selects only when its
-# name is specific; these four are named by most of the suite
-GENERIC_DIRS = frozenset({"scripts", "tests", "docs", "src"})
 MIN_STEM = 6
 # a test that lists the tracked tree reaches every file, a new one under a generic directory included
 TREE_GRADER = "ls-files"
@@ -185,27 +184,139 @@ def import_patterns(path: str) -> set[str]:
 
 
 def keys_for(path: str) -> set[str]:
-    """The strings whose presence in a test's text selects it for a change to ``path``."""
+    """The strings whose presence in a test's text selects it for a change to ``path``: its file name
+    and its stem — never its directory (W-fbd1d4b9: the directory keys turned a 2-file merge into 202
+    of 691 test files, 1344 s, MR 01M670WHMM). A test reaches a module through ``import_graph`` and a
+    directory it reads whole through ``reads_dir``; the tree graders (``ls-files``) reach everything."""
     p = Path(path)
     keys = {p.name}
     if len(p.stem) >= MIN_STEM:
         keys.add(p.stem)
-    parent = p.parent.as_posix()
-    if parent not in (".", "tests") and parent not in GENERIC_DIRS:
-        keys.add(parent + "/")
-        for q in ('"', "'"):
-            keys.add(parent + q)
-        last = p.parent.name
-        if last not in GENERIC_DIRS:
-            for q in ('"', "'"):
-                keys.add(q + last + q)
     return keys
 
 
-def select(changed: list[str], tests: dict[str, str]) -> list[str]:
-    """``tests`` maps each test file to its text; returns the files to run, sorted."""
+# a test that enumerates a directory (`SOURCES.glob("*.md")`) reads every file in it, a new one included:
+# 1 of the 17 measured red-master causes was a new commands/_sources/*.md against such a grader
+ENUMERATES = re.compile(r"\.(?:r?glob|iterdir)\(|\bos\.(?:walk|listdir|scandir)\(")
+# one-component directories every grader spells; enumerating one of them is a tree grader's job
+GENERIC_DIRS = frozenset({"scripts", "tests", "docs", "src"})
+
+
+def reads_dir(path: str, text: str) -> bool:
+    """True when ``text`` (a test) enumerates the directory ``path`` sits in: an enumeration call on the
+    same line as a spelling of it (``a/b/``, ``"a/b"`` or ``"a" / "b"``), or on a name assigned from
+    one (``SOURCES = ROOT / "commands" / "_sources"`` … ``SOURCES.glob(``). The only directory rule
+    left (W-fbd1d4b9): a folder never selects a test that does not list it — measured, a test that
+    globs ``tmp_path`` and spells the folder on its ``sys.path`` line is not a reader."""
+    parent = Path(path).parent
+    d = parent.as_posix()
+    if d in (".", "tests") or d in GENERIC_DIRS or not ENUMERATES.search(text):
+        return False
+    spellings = {d + "/", f'"{d}"', f"'{d}'"}
+    if len(parent.parts) > 1:
+        for q in ('"', "'"):
+            spellings.add(q + f"{q} / {q}".join(parent.parts) + q)
+    names: set[str] = set()
+    for line in text.splitlines():
+        if any(s in line for s in spellings):
+            if ENUMERATES.search(line):
+                return True
+            m = _ASSIGNED.match(line)
+            if m:
+                names.add(m.group(1))
+    return any(
+        re.search(
+            rf"(?<![\w.]){re.escape(n)}\.(?:r?glob|iterdir)\(|\bos\.(?:walk|listdir|scandir)\(\s*{re.escape(n)}\b",
+            text,
+        )
+        for n in names
+    )
+
+
+_ASSIGNED = re.compile(r"\s*([A-Za-z_]\w*)\s*(?::[^=]*)?=(?!=)")
+
+
+def _module_names(path: str) -> set[str]:
+    """The dotted names ``path`` (a ``.py`` file) can be imported as: from the repo root, from under
+    ``src/``, and its bare stem (a test that puts the file's directory on ``sys.path``)."""
+    parts = list(Path(path).with_suffix("").parts)
+    if parts[-1] == "__init__":
+        parts = parts[:-1]
+    if not parts:
+        return set()
+    names = {".".join(parts), parts[-1]}
+    if parts[0] == "src" and len(parts) > 1:
+        names.add(".".join(parts[1:]))
+    return names
+
+
+def _imported(text: str) -> set[str]:
+    """Every dotted name ``text`` imports, ``from a import b`` read as both ``a`` and ``a.b`` (``b`` may
+    be a submodule). Unparseable text imports nothing (its name keys still select)."""
+    try:
+        tree = ast.parse(text)
+    except (SyntaxError, ValueError):
+        return set()
+    out: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            out.update(a.name for a in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            out.add(node.module)
+            out.update(f"{node.module}.{a.name}" for a in node.names)
+    return out
+
+
+def import_graph(texts: dict[str, str]) -> dict[str, set[str]]:
+    """``texts`` maps each tracked ``.py`` file to its text; returns each file's direct imports that
+    resolve to tracked files. A bare name that is a stdlib module never resolves (a ``scripts/json.py``
+    would otherwise pull every test importing ``json``); a bare name several files share resolves to
+    all of them — an over-selection, never a miss."""
+    index: dict[str, set[str]] = {}
+    for f in texts:
+        for n in _module_names(f):
+            index.setdefault(n, set()).add(f)
+    stdlib = getattr(sys, "stdlib_module_names", frozenset())
+    graph: dict[str, set[str]] = {}
+    for f, text in texts.items():
+        deps: set[str] = set()
+        for n in _imported(text):
+            if "." not in n and n in stdlib:
+                continue
+            deps |= index.get(n, set())
+        deps.discard(f)
+        graph[f] = deps
+    return graph
+
+
+def _reaches(
+    start: str, graph: dict[str, set[str]], targets: set[str], memo: dict[str, frozenset[str]]
+) -> bool:
+    """True when ``start``'s transitive imports include a file in ``targets``."""
+    if start not in memo:
+        seen: set[str] = set()
+        stack = list(graph.get(start, ()))
+        while stack:
+            f = stack.pop()
+            if f not in seen:
+                seen.add(f)
+                stack.extend(graph.get(f, ()))
+        memo[start] = frozenset(seen)
+    return not targets.isdisjoint(memo[start])
+
+
+def select(
+    changed: list[str], tests: dict[str, str], sources: dict[str, str] | None = None
+) -> list[str]:
+    """``tests`` maps each test file to its text, ``sources`` every other tracked ``.py`` file to its
+    text (the import graph's nodes; without it only direct imports and names select). A test runs when
+    it imports a changed module (transitively), spells the changed file's name or stem, enumerates the
+    directory a changed file sits in, or is a tree grader; ledgers select nothing. Returns the files
+    to run, sorted."""
     keys: set[str] = set()
     mods: set[str] = set()
+    code: set[str] = set()
+    dirs: list[str] = []
     picked = {p for p in changed if p in tests}
     for p in changed:
         if RECEIPT.fullmatch(p):
@@ -213,13 +324,20 @@ def select(changed: list[str], tests: dict[str, str]) -> list[str]:
         elif not SKIP.fullmatch(p):
             keys |= keys_for(p)
             mods |= import_patterns(p)
+            dirs.append(p)
+            if p.endswith(".py"):
+                code.add(p)
     bounded = re.compile("|".join(sorted(mods))) if mods else None
+    graph = import_graph({**(sources or {}), **tests}) if code else {}
+    memo: dict[str, frozenset[str]] = {}
     if keys:
         for name, text in tests.items():
             if (
                 TREE_GRADER in text
                 or any(k in text for k in keys)
                 or (bounded is not None and bounded.search(text))
+                or (code and _reaches(name, graph, code, memo))
+                or any(reads_dir(p, text) for p in dirs)
             ):
                 picked.add(name)
     return sorted(picked)
@@ -581,6 +699,14 @@ def _tests_here() -> dict[str, str]:
     return {n: Path(n).read_text(encoding="utf-8", errors="replace") for n in names}
 
 
+def _sources_here(tests: dict[str, str]) -> dict[str, str]:
+    """Every other tracked ``.py`` file's text: the import graph's non-test nodes."""
+    names = [p for p in _git("ls-files", "-z", "--", "*.py").split("\0") if p and p not in tests]
+    return {
+        n: Path(n).read_text(encoding="utf-8", errors="replace") for n in names if Path(n).is_file()
+    }
+
+
 class _Runner:
     """Runs pytest over files with the recording plugin; returns (exit, {(id, when): crash line})."""
 
@@ -922,7 +1048,8 @@ def main(argv: list[str] | None = None) -> int:
                 for p in _git("diff", "--name-only", "--no-renames", "-z", base, head).split("\0")
                 if p
             ]
-            files = select(changed, _tests_here())
+            tests = _tests_here()
+            files = select(changed, tests, _sources_here(tests))
             print(
                 f"merge-tests: {len(files)} test file(s) from {len(changed)} changed path(s) {base[:9]}..{head[:9]}"
             )
