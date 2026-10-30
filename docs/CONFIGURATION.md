@@ -479,6 +479,15 @@ Read by `scripts/sysadmin/claude_rotate.py --tick` from the process environment;
 
 - `CLAUDE_RESUME_GAP_MIN` — the gap, in minutes, from the last tick's end to this tick's start beyond which the tick reads a host sleep and wakes every armed self-watch (default `15`). A value under `12` falls back to `15`, because one missed `*/5` slot already makes a 10–11 minute gap; a non-finite value falls back too.
 
+### Hibernate pause — `FABRIK_HIBERNATE_PY` / `CLAUDE_HIBERNATE_PY` / `CLAUDE_HIBERNATE_PROBE_URL` / `FABRIK_STEP_SNAPSHOT_BIN` / `FABRIK_STEP_SNAPSHOT_LOCK` (WSL box, W-6e656dac)
+
+Read from the process environment; none goes in a project `.env`. How the pause works: `docs/reference/hibernate.md`; the tick's side: `docs/workstation/claude-account-rotation.md`, its **Hibernate hold** entry.
+
+- `FABRIK_HIBERNATE_PY` — the `hibernate.py` a hub launcher asks `paused` before it starts a job (default `/opt/fabrik/scripts/sysadmin/hibernate.py`). Exit 0 skips the job with its stamp untouched; exit 1 runs it; any other exit, a timeout or a missing script runs it and logs one line. Read by `weekly_catchup.sh`, `audit_all_registrars.py` (under a marked pause `FABRIK_REGISTRY_RECONCILE=apply` runs as `report`), `ci_fix_dispatcher.py`, `rivals_run.py`, `cloud_dispatch.py` and `claude_broker.py`.
+- `CLAUDE_HIBERNATE_PY` — the `hibernate.py` whose `update_marker` the rotation tick and the minute cron call by file path (default the hub's). Absent (the aro-wake ship), the tick arms and lifts nothing.
+- `CLAUDE_HIBERNATE_PROBE_URL` — the URL the tick probes once per `*/5` tick while a pause is marked, for the outage lift (default `https://api.anthropic.com`; any HTTP answer counts).
+- `FABRIK_STEP_SNAPSHOT_BIN` / `FABRIK_STEP_SNAPSHOT_LOCK` — the binary and lock `command_run.py step` uses for its detached single-repo snapshot (defaults `/opt/fabrik/scripts/wip_backup.sh` and the cron's `/tmp/wip-backup.lock`). With the binary unset, a run under `COMMAND_RUN_DIR` or pytest starts no snapshot; an empty value turns it off.
+
 ### Fabrik Deck — `FABRIK_DECK_PORT` / `FABRIK_DECK_CODE_PORT` / `FABRIK_DECK_STATE` (WSL box, D-1106)
 
 Kept in `~/.config/fabrik-deck/env`, which the two systemd units load as their `EnvironmentFile=`; `serve` and
