@@ -12,7 +12,7 @@
     "spec": ""
   },
   "next": "design amendment to spec D1 (approved D-1122) via /fabrik-spec Profile: delta, panel-approved, before Phase B consumes the labels; adjudication in .tmp/runs/d6efaf56-a326-4cef-9c22-347679df22db/fabrik-review-2026-10-30T11-44-46-0300/adjudication-p1.md",
-  "note": "",
+  "note": "Also land these 4 one-sentence CLAUDE.md wording fixes (review of Phase A, kit 2 skipped by the coordinator 2026-10-30, none fail-open): A-C12 both copies' stage table `6-release` 'hands to the human gate;' -> 'hands to Gate 2;'; A-C14 hub § EXIT 'PRESENT only the genuine choices — keep the branch as-is ·' -> '..., to the panel (the operator when § FINAL OUTPUT keeps the act) — ...'; A-C15 template hub-request bullet 'and it never answers a permission prompt' -> 'and that authority never answers ...'; A-C4 hub § Autonomy 'leaves an `underivable` DECISION block,' -> '... block (a split on a gate class leaves a `gate` block instead, § FINAL OUTPUT),'. Plus recorded: H-C1 volume HARD STOP vs D1 old-volume delete; H-C3 D2's quote of a removed sentence; H-C5 D-441 cross-repo row has no gate carve-out; and the panel brief should carry the release's open P2/P3 WARN rows (fabrik-release.md WARN slot). Guarded kit script (scratch, regenerate if gone): .tmp/runs/d6efaf56-a326-4cef-9c22-347679df22db/fabrik-review-2026-10-30T11-44-46-0300/ep-phaseA-fix1.py",
   "owner": "",
   "priority": 1,
   "status": "open",
