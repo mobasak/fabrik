@@ -13,7 +13,7 @@ checkout (not a ledger)"). The generator calls this module around its write inst
 ``commit_own`` lands ONE pathspec commit (``git commit --only --no-verify -F <msg> -- <paths>``,
 so the shared index entry and the branch ref move together under git's own index.lock and a
 failure lands nothing) holding only the paths that are provably this run's own, judged against
-HEAD at commit time:
+the HEAD read just before the commit:
 
 * the repo is a MAIN checkout (git-dir == common-dir) on branch ``master`` or ``main``, not
   mid merge/cherry-pick/revert/rebase/bisect, with no unmerged path;
@@ -22,22 +22,32 @@ HEAD at commit time:
   UNCOMMITTED for that path while HEAD's blob is still the one recorded then (the state file).
 
 Anything else is left dirty with a reason — exactly today's behaviour, so every guard fails
-OPEN. It never fetches or pushes (the merge owner's next push carries a local-ahead master), and
-it never raises: it returns one status line, ``committed <sha> …`` or ``left dirty: …``.
+OPEN. It never fetches or pushes (the merge owner's next push carries a local-ahead master;
+every master writer works in the hub's one main checkout, so origin cannot move past a
+local-only commit), and it never raises: it returns one status line, ``committed <sha> …`` or
+``left dirty: …``. Paths are literal pathspecs (``GIT_LITERAL_PATHSPECS``), so a name holding a
+glob character matches itself only, and every git call runs with the caller's repo-locating
+``GIT_*`` variables removed. ``--no-verify`` skips pre-commit and commit-msg only: the post-commit
+hook still runs — in the hub that is the governance-sync shim, which syncs nothing for a path
+outside the governance-sync filter (the kaizen logs are outside it).
 
 COBRA (D-253): the cheapest way to make the main checkout read clean is to commit everything
 dirty. The before-bytes rule is the counter — a sibling's uncommitted edit fails it — and
 ``tests/test_commit_generated.py::test_preexisting_edit_is_never_committed`` holds it.
 
-Residual, named rather than prevented: someone writing the same file in the milliseconds between
-the read at entry and ``git commit --only`` has their bytes ride along; the blob check after
-landing names it on stderr. Only the coordinator and the daily pipeline write the main checkout,
-and neither edits a generated file by hand.
+Residuals, named rather than prevented, each detected after landing and named on stderr:
+someone writing the same file in the milliseconds between the read at entry and
+``git commit --only`` has their bytes ride along (the committed blob differs from the bytes
+read); and a ref-only move of the branch (the merge owner's ``update-ref``) that changes the
+same path in the same milliseconds is reverted by the commit (HEAD^'s blob for the path differs
+from the one judged). Only the coordinator and the daily pipeline write the main checkout, and
+neither edits a generated file by hand.
 """
 
 from __future__ import annotations
 
 import contextlib
+import fcntl
 import hashlib
 import json
 import os
@@ -45,6 +55,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Iterator
 from pathlib import Path
 
 BRANCHES = ("master", "main")
@@ -56,6 +67,19 @@ LOCK_RETRY_S = 0.5
 GIT_TIMEOUT_S = 60
 _IN_PROGRESS = ("MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "BISECT_LOG")
 _IN_PROGRESS_DIRS = ("rebase-merge", "rebase-apply")
+#: the variables that point git at a repo, index or object store other than ``-C <top>``'s
+_REPO_ENV = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_NAMESPACE",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+)
 
 
 def _state_path() -> Path:
@@ -66,16 +90,18 @@ def _state_path() -> Path:
 
 
 def _git(top: Path, *args: str, stdin: bytes | None = None) -> subprocess.CompletedProcess:
-    env = {k: v for k, v in os.environ.items() if k not in ("GIT_INDEX_FILE", "GIT_DIR")}
+    env = {k: v for k, v in os.environ.items() if k not in _REPO_ENV}
     env["GIT_TERMINAL_PROMPT"] = "0"
-    return subprocess.run(
-        ["git", "-C", str(top), *args],
-        input=stdin,
-        capture_output=True,
-        timeout=GIT_TIMEOUT_S,
-        env=env,
-        check=False,
-    )
+    env["GIT_LITERAL_PATHSPECS"] = "1"
+    argv = ["git", "-C", str(top), *args]
+    try:
+        return subprocess.run(
+            argv, input=stdin, capture_output=True, timeout=GIT_TIMEOUT_S, env=env, check=False
+        )
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(
+            argv, 124, b"", f"timed out after {GIT_TIMEOUT_S}s".encode()
+        )
 
 
 def _out(top: Path, *args: str) -> str | None:
@@ -127,6 +153,22 @@ def _main_checkout(path: Path) -> tuple[Path, str] | str:
     return top, branch
 
 
+@contextlib.contextmanager
+def _state_lock() -> Iterator[None]:
+    """Serialise the state file's read-modify-write across concurrent runs (a manual run beside the
+    cron); a lock that cannot be taken degrades to the unlocked path, never to a failure."""
+    path = _state_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fh = open(path.with_name(path.name + ".lock"), "a")  # noqa: SIM115 - held for the block
+    except OSError:
+        yield
+        return
+    with fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        yield
+
+
 def _load_state() -> dict:
     try:
         data = json.loads(_state_path().read_text(encoding="utf-8"))
@@ -137,16 +179,24 @@ def _load_state() -> dict:
 
 def _save_state(state: dict) -> None:
     path = _state_path()
-    with contextlib.suppress(OSError):
+    tmp: str | None = None
+    try:
         path.parent.mkdir(parents=True, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=str(path.parent), suffix=".tmp")
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             json.dump(state, fh, indent=1, sort_keys=True)
         os.replace(tmp, path)
+        tmp = None
+    except OSError as exc:
+        print(f"[commit_generated] state not saved ({exc!r})", file=sys.stderr)
+    finally:
+        if tmp is not None:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp)
 
 
-def _head_blob(top: Path, rel: str) -> str | None:
-    return _out(top, "rev-parse", "-q", "--verify", f"HEAD:{rel}")
+def _head_blob(top: Path, rel: str, rev: str = "HEAD") -> str | None:
+    return _out(top, "rev-parse", "-q", "--verify", f"{rev}:{rel}")
 
 
 def _index_blob(top: Path, rel: str) -> str | None:
@@ -156,21 +206,24 @@ def _index_blob(top: Path, rel: str) -> str | None:
     return line.split()[1]
 
 
-def _blob_of(top: Path, data: bytes) -> str | None:
-    r = _git(top, "hash-object", "--stdin", stdin=data)
+def _blob_of(top: Path, rel: str, data: bytes) -> str | None:
+    """The blob ``data`` becomes when committed at ``rel`` (``--path`` applies that path's filters,
+    so an autocrlf or clean-filter normalisation is compared like for like)."""
+    r = _git(top, "hash-object", f"--path={rel}", "--stdin", stdin=data)
     return r.stdout.decode().strip() if r.returncode == 0 else None
 
 
-def _eligible(top: Path, rel: str, before: bytes | None, now: bytes, state: dict) -> str | None:
+def _eligible(
+    top: Path, rel: str, head: str | None, before: bytes | None, now: bytes, state: dict
+) -> str | None:
     """None when ``rel`` is provably this run's own output, else the reason it is not."""
-    head = _head_blob(top, rel)
     if head is None:
         return "not tracked at HEAD"
     if _index_blob(top, rel) != head:
         return "staged differently from HEAD"
-    if _blob_of(top, now) == head:
+    if _blob_of(top, rel, now) == head:
         return "unchanged"
-    if before is not None and _blob_of(top, before) == head:
+    if before is not None and _blob_of(top, rel, before) == head:
         return None
     own = state.get(f"{top}:{rel}")
     if (
@@ -212,8 +265,6 @@ def _commit(top: Path, rels: list[str], msg: str) -> tuple[bool, str]:
             if attempt + 1 < LOCK_TRIES:
                 time.sleep(LOCK_RETRY_S)
         return False, f"index.lock held past {LOCK_TRIES} tries"
-    except (OSError, subprocess.SubprocessError) as exc:
-        return False, f"git commit failed ({exc!r})"
     finally:
         with contextlib.suppress(OSError):
             os.unlink(msg_file)
@@ -250,48 +301,70 @@ def _commit_own(
             continue
         groups.setdefault(top, []).append((p.relative_to(top).as_posix(), before.get(str(p)), now))
 
-    state = _load_state()
     landed: list[str] = []
-    for top, items in groups.items():
-        mine: list[tuple[str, bytes]] = []
-        for rel, prev, now in items:
-            why = _eligible(top, rel, prev, now, state)
-            if why is None:
-                mine.append((rel, now))
-            elif why != "unchanged":
-                reasons.append(f"{rel}: {why}")
-            else:
-                state.pop(f"{top}:{rel}", None)
-        if not mine:
-            continue
-        judged = _out(top, "rev-parse", "HEAD")
-        heads = {rel: _head_blob(top, rel) for rel, _ in mine}
-        ok, err = _commit(top, [rel for rel, _ in mine], _message(writer, context))
-        if not ok:
-            for rel, now in mine:
-                state[f"{top}:{rel}"] = {"sha": _sha(now), "head": heads[rel]}
-            reasons.append(f"{', '.join(rel for rel, _ in mine)}: {err}")
-            continue
-        sha = _out(top, "rev-parse", "HEAD") or "?"
-        if _out(top, "rev-parse", "HEAD^") != judged:
-            print(
-                f"[commit_generated] WARNING: HEAD moved between the eligibility check and the "
-                f"commit ({(judged or '?')[:12]} → parent of {sha[:12]}); read {sha[:12]} for "
-                "a reverted path",
-                file=sys.stderr,
-            )
-        for rel, now in mine:
-            state.pop(f"{top}:{rel}", None)
-            if _out(top, "rev-parse", f"{sha}:{rel}") != _blob_of(top, now):
-                print(
-                    f"[commit_generated] WARNING: {rel} changed between the generator's write and "
-                    f"the commit — {sha[:12]} holds bytes this generator did not write",
-                    file=sys.stderr,
-                )
-        landed.append(f"{sha[:12]} ({', '.join(rel for rel, _ in mine)})")
-    _save_state(state)
+    if groups:  # no git group → no state read or write at all (a tmp log, a linked worktree)
+        with _state_lock():
+            landed = _commit_groups(groups, reasons, writer=writer, context=context)
     for reason in reasons:
         print(f"[commit_generated] {writer}: left dirty — {reason}", file=sys.stderr)
     if landed:
         return "committed " + "; ".join(landed)
     return "left dirty: " + ("; ".join(reasons) if reasons else "nothing changed")
+
+
+def _commit_groups(
+    groups: dict[Path, list[tuple[str, bytes | None, bytes]]],
+    reasons: list[str],
+    *,
+    writer: str,
+    context: str,
+) -> list[str]:
+    state = _load_state()
+    changed = False
+    landed: list[str] = []
+    for top, items in groups.items():
+        judged = _out(top, "rev-parse", "HEAD")
+        mine: list[tuple[str, bytes, str]] = []
+        for rel, prev, now in items:
+            head = _head_blob(top, rel)
+            why = _eligible(top, rel, head, prev, now, state)
+            if why is None:
+                mine.append((rel, now, head or ""))
+                continue
+            if why == "unchanged":
+                changed |= state.pop(f"{top}:{rel}", None) is not None
+            else:
+                reasons.append(f"{rel}: {why}")
+        if not mine:
+            continue
+        rels = [rel for rel, _, _ in mine]
+        ok, err = _commit(top, rels, _message(writer, context))
+        if not ok and all(_head_blob(top, rel) == _blob_of(top, rel, now) for rel, now, _ in mine):
+            ok = True  # it landed after all (a slow post-commit hook timed the call out)
+        if not ok:
+            for rel, now, head in mine:
+                state[f"{top}:{rel}"] = {"sha": _sha(now), "head": head}
+            changed = True
+            reasons.append(f"{', '.join(rels)}: {err}")
+            continue
+        sha = _out(top, "rev-parse", "HEAD") or "?"
+        parent_moved = _out(top, "rev-parse", "HEAD^") != judged
+        for rel, now, head in mine:
+            changed |= state.pop(f"{top}:{rel}", None) is not None
+            if parent_moved and _head_blob(top, rel, "HEAD^") != head:
+                print(
+                    f"[commit_generated] WARNING: {rel} changed at HEAD between the eligibility "
+                    f"check and the commit — {sha[:12]} REVERTS that change; restore it from "
+                    f"{sha[:12]}^",
+                    file=sys.stderr,
+                )
+            if _head_blob(top, rel, sha) != _blob_of(top, rel, now):
+                print(
+                    f"[commit_generated] WARNING: {rel} changed between the generator's write and "
+                    f"the commit — {sha[:12]} holds bytes this generator did not write",
+                    file=sys.stderr,
+                )
+        landed.append(f"{sha[:12]} ({', '.join(rels)})")
+    if changed:
+        _save_state(state)
+    return landed

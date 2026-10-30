@@ -591,11 +591,14 @@ def update_business_model(catalog_md: str) -> bool:
     return True
 
 
-def _write_if_changed(path: Path, content: str) -> None:
+def _write_if_changed(path: Path, content: str) -> bool:
     """Write only when the text differs, so a run that changed nothing leaves the file untouched
-    (W-5568be8d)."""
-    if path.read_text(encoding="utf-8") != content:
-        path.write_text(content, encoding="utf-8")
+    (W-5568be8d); True when it wrote. Text, not bytes, on purpose: a CRLF copy whose content is
+    current is left alone rather than rewritten to LF, which would dirty the tree for nothing."""
+    if path.read_text(encoding="utf-8") == content:
+        return False
+    path.write_text(content, encoding="utf-8")
+    return True
 
 
 # ── Port conflict detection ──────────────────────────────────────────────────
@@ -625,7 +628,8 @@ def next_available_port(projects: list[Project], port_range: tuple[int, int] = (
 
 
 def update_ports_md(projects: list[Project], conflicts: dict[int, list[str]]) -> bool:
-    """Auto-generate the port allocation table in Fabrik's PORTS.md."""
+    """Auto-generate the port allocation table in Fabrik's PORTS.md; True when the file was
+    rewritten (False: absent, or already current)."""
     ports_path = FABRIK_ROOT / "PORTS.md"
     if not ports_path.exists():
         return False
@@ -675,8 +679,7 @@ def update_ports_md(projects: list[Project], conflicts: dict[int, list[str]]) ->
     else:
         content = re.sub(pattern, f"\\1\n{md}\\2", content, flags=re.DOTALL)
 
-    _write_if_changed(ports_path, content)
-    return True
+    return _write_if_changed(ports_path, content)
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────

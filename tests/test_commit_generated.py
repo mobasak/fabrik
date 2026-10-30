@@ -280,11 +280,140 @@ def test_collector_upsert_commits_its_rows(tmp_path, monkeypatch):
     }
     repo = _main_checkout(tmp_path, logs)
     monkeypatch.setenv("KAIZEN_LOCK_DIR", str(tmp_path / "locks"))
-    cells = ["2026-10-29"] + ["—"] * (len(kc.COLUMNS) - 1)
-
-    kc.upsert_logs_and_commit([repo / rel for rel in logs], cells)
+    # A fresh interpreter (-P: no cwd on sys.path) imports the collector by its file path, as the
+    # cron does, so ONLY the collector's own sys.path lines can resolve `import commit_generated` —
+    # this process's module cache (which holds it, loaded above) is not inherited.
+    program = (
+        "import importlib.util, sys\nfrom pathlib import Path\n"
+        f"spec = importlib.util.spec_from_file_location('kc', {str(REPO / 'scripts/sysadmin/kaizen_collect_v2.py')!r})\n"
+        "kc = importlib.util.module_from_spec(spec); sys.modules['kc'] = kc\n"
+        "spec.loader.exec_module(kc)\n"
+        "cells = ['2026-10-29'] + ['—'] * (len(kc.COLUMNS) - 1)\n"
+        f"kc.upsert_logs_and_commit([{', '.join(f'Path({str(repo / rel)!r})' for rel in logs)}], cells)\n"
+        "print('commit_generated from', sys.modules['commit_generated'].__file__)\n"
+    )
+    run = subprocess.run(
+        [sys.executable, "-P", "-B", "-c", program], capture_output=True, text=True, timeout=120
+    )
+    assert run.returncode == 0, run.stderr
+    assert str(REPO / "scripts" / "commit_generated.py") in run.stdout, run.stdout + run.stderr
 
     assert _status(repo) == ""
     head = git(repo, "rev-parse", "HEAD")
     assert set(git(repo, "show", "--name-only", "--format=", head).split()) == set(logs)
     assert "2026-10-29" in git(repo, "show", f"{head}:docs/reference/agents/kaizen-log-infra.md")
+
+
+# --- review pass 1 (W-5568be8d): one test per confirmed defect, each red on the pinned code ---
+
+
+def test_caller_git_env_does_not_redirect_the_commit(tmp_path, monkeypatch):
+    """AS-2: a GIT_WORK_TREE (or any repo-locating GIT_* variable) in the caller's environment
+    pointed git elsewhere, so a good main checkout read as 'detached HEAD'."""
+    repo = _main_checkout(tmp_path, {"log.md": "a\n"})
+    monkeypatch.setenv("GIT_WORK_TREE", str(tmp_path))
+    monkeypatch.setenv("GIT_COMMON_DIR", str(tmp_path / "nowhere"))
+    status = _attempt(repo / "log.md", "a\nb\n")
+    assert _landed(status), status
+
+
+def test_a_glob_character_in_the_name_matches_that_file_only(tmp_path):
+    """AS-5: `a*b.md` was read as a pathspec glob that also matched `axb.md`, so the target was
+    refused; with literal pathspecs it lands and the sibling's edit is left alone."""
+    repo = _main_checkout(tmp_path, {"a*b.md": "a\n", "axb.md": "x\n"})
+    (repo / "axb.md").write_text("x\nSIBLING WIP\n", encoding="utf-8")
+    status = _attempt(repo / "a*b.md", "a\ngen\n")
+    assert _landed(status), status
+    assert git(repo, "show", "--name-only", "--format=", "HEAD") == "a*b.md"
+    assert _status(repo) == "M axb.md"
+
+
+def test_no_git_group_writes_no_state(tmp_path, monkeypatch):
+    """BS-1: a run whose paths reach no main checkout (a tmp log, a linked worktree) wrote an
+    empty state file into the real ~/.claude/state."""
+    state = tmp_path / "state-dir" / "generated-output.json"
+    monkeypatch.setenv("FABRIK_GENERATED_STATE", str(state))
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    (plain / "log.md").write_text("a\n", encoding="utf-8")
+    assert not _landed(_attempt(plain / "log.md", "b\n"))
+    assert not state.parent.exists()
+
+
+def test_a_corrupt_state_file_is_read_as_empty(tmp_path, monkeypatch):
+    """AS-7: a state file that is not a JSON object must not stop a clean write from landing."""
+    state = tmp_path / "state.json"
+    state.write_text("[not json", encoding="utf-8")
+    monkeypatch.setenv("FABRIK_GENERATED_STATE", str(state))
+    repo = _main_checkout(tmp_path, {"log.md": "a\n"})
+    assert _landed(_attempt(repo / "log.md", "a\nb\n"))
+
+
+def test_mid_rebase_commits_nothing(tmp_path):
+    """AS-7: the rebase-merge / rebase-apply directory guards had no test."""
+    repo = _main_checkout(tmp_path, {"log.md": "a\n"})
+    head = git(repo, "rev-parse", "HEAD")
+    for name in ("rebase-merge", "rebase-apply"):
+        (repo / ".git" / name).mkdir()
+        status = _attempt(repo / "log.md", f"a\n{name}\n")
+        assert not _landed(status) and name in status, status
+        (repo / ".git" / name).rmdir()
+        git(repo, "checkout", "-q", "--", "log.md")
+    assert git(repo, "rev-parse", "HEAD") == head
+
+
+def test_a_commit_that_landed_but_timed_out_reads_as_landed(tmp_path, monkeypatch):
+    """BS-4 / AS-6: a slow post-commit hook timing the call out after the commit landed was
+    reported 'left dirty' and recorded a leftover for a committed path."""
+    repo = _main_checkout(tmp_path, {"log.md": "a\n"})
+    real = cg._commit
+
+    def _lands_then_times_out(top, rels, msg):
+        real(top, rels, msg)
+        return False, "timed out after 60s"
+
+    monkeypatch.setattr(cg, "_commit", _lands_then_times_out)
+    status = _attempt(repo / "log.md", "a\nb\n")
+    assert _landed(status), status
+    assert cg._load_state() == {}
+
+
+def test_a_same_path_ref_move_before_the_commit_is_named(tmp_path, monkeypatch, capsys):
+    """AH-1: a ref-only move of the branch that changes the same path between the eligibility
+    check and the commit is reverted by the commit; it must be named on stderr."""
+    repo = _main_checkout(tmp_path, {"log.md": "a\n"})
+    real = cg._commit
+
+    def _merge_owner_moves_the_ref(top, rels, msg):
+        blob = subprocess.run(
+            ["git", "-C", str(repo), "hash-object", "-w", "--stdin"],
+            input="a\nmerged\n",
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        tree = subprocess.run(
+            ["git", "-C", str(repo), "mktree"],
+            input=f"100644 blob {blob}\tlog.md\n",
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        new = git(repo, "commit-tree", tree, "-p", "HEAD", "-m", "merge")
+        git(repo, "update-ref", "refs/heads/master", new)
+        git(repo, "reset", "-q", "--", "log.md")  # the owner's carry realigns the index
+        return real(top, rels, msg)
+
+    monkeypatch.setattr(cg, "_commit", _merge_owner_moves_the_ref)
+    _attempt(repo / "log.md", "a\ngen\n")
+    assert "REVERTS that change" in capsys.readouterr().err
+
+
+def test_autocrlf_output_is_not_flagged_as_foreign(tmp_path, capsys):
+    """AS-4: under core.autocrlf=input a CRLF write is committed LF; hashing the raw bytes without
+    the path's filters flagged the commit as holding bytes the generator did not write."""
+    repo = _main_checkout(tmp_path, {"log.md": "a\n"})
+    git(repo, "config", "core.autocrlf", "input")
+    status = _attempt(repo / "log.md", "a\r\nb\r\n")
+    assert _landed(status), status
+    assert "did not write" not in capsys.readouterr().err
