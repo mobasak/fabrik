@@ -1674,7 +1674,10 @@ def test_every_claude_command_cmd_of_builds_carries_the_permission_mode() -> Non
     `claude --name …` or `command claude …` without the mode goes red (review pass 1, all three seats)."""
     text = UP.read_text(encoding="utf-8")
     body = text[text.index("cmd_of() {") : text.index("\ncap_of() {")]
-    code = "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("#"))
+    # code lines only: whole-line comments dropped and a trailing ` # …` cut (cmd_of quotes no ` #` in its strings)
+    code = "\n".join(
+        re.sub(r"\s+#.*$", "", ln) for ln in body.splitlines() if not ln.lstrip().startswith("#")
+    )
     mode = re.compile(r"\$\{?perm\}?(?![A-Za-z0-9_])")
     # one value, assigned once: a second assignment (or a conditional one) could switch every launch back
     assigns = re.findall(r"^\s*(?:local\s+(?:-\w+\s+)?)?perm=(.*)$", code, flags=re.M)
@@ -1684,7 +1687,8 @@ def test_every_claude_command_cmd_of_builds_carries_the_permission_mode() -> Non
     assert code.count("--permission-mode") == 1, code
     # every launch assignment and every printed relaunch line names the mode; an array form is refused outright
     assert not re.search(r"^\s*(?:local\s+)?claude=\(", code, flags=re.M), "claude=( array launch"
-    launches = re.findall(r"^\s*claude=(\"[^\n]*)$", code, flags=re.M)
+    # any assignment to `claude` — `local` or not, quoted any way, alone or after a `;` (review pass 2, Opus N1)
+    launches = re.findall(r"(?:^|;)\s*(?:local\s+)?claude=(\S[^\n]*)$", code, flags=re.M)
     hints = re.findall(r"run: claude[^\n]*", code)
     assert len(launches) >= 3 and len(hints) >= 2, (launches, hints)  # 3 launch branches + 2 hints
     assert all(mode.search(ln) for ln in launches + hints), launches + hints
