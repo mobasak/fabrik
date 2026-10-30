@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Fixed — master's pre-existing reds, batch 1: an orphaned test removed, seven short D-rows repaired (2026-10-31)
-`tests/test_pipeline_runner.py` imported a module archived in February and failed at collection; it is removed. Seven D-rows written without a why cell gain one, so `tests/test_decisions_table_shape.py` passes (D-1387, W-a9b3bc15).
+`tests/test_pipeline_runner.py` imported a module archived in February and failed at collection whenever a run named it; it and its `addopts` ignore in `pyproject.toml` are removed. Seven D-rows written without a why cell gain one, so `tests/test_decisions_table_shape.py` passes (D-1387, W-a9b3bc15).
 
 ### Added — every new agent grid refreshes "All Agents (tabbed).bat" itself; the tmux how-to (2026-10-30)
 `scripts/sysadmin/agents_up.sh` now starts `agents_bat.py --tabbed` in the background after every grid it builds
