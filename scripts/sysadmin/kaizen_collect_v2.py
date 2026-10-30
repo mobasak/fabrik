@@ -2816,6 +2816,18 @@ def _publish_waste_series(day_stamp: str, st: Path) -> list[Path]:
         return []
 
 
+def _publish_merge_tripwire(day_stamp: str, st: Path) -> None:
+    """The merge program's tripwire (W-622ec42c, D-1384): merge wall time, refusal classes and the
+    red-master series before/after the post-merge valve (``merge_tripwire.py``), after the waste tier
+    so the day's red-master point is already published. Lazy, fail-open like the tiers above."""
+    try:
+        import merge_tripwire  # noqa: PLC0415 - lazy; it imports this module
+
+        merge_tripwire.publish(day_stamp, state=st)
+    except Exception as exc:
+        _warn(f"merge tripwire failed open: {exc!r}")
+
+
 def daily(
     day: dt.date,
     *,
@@ -3011,6 +3023,7 @@ def daily(
     # guarded, fail-open (a warn, never a lost T06 publish).
     written += _publish_outcome_series(day_stamp, st)
     written += _publish_waste_series(day_stamp, st)
+    _publish_merge_tripwire(day_stamp, st)
 
     # W6-1 (supersedes W5-5's week recompute): the weekly log cells aggregate THE
     # PUBLISHED DAY SERIES just written above — the single-source law (see

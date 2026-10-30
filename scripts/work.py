@@ -5315,6 +5315,24 @@ def _pane_text(p: dict) -> str:
     )
 
 
+MERGE_TRIPWIRE_MAX_AGE_S = 3 * 86400  # the daily collector rewrites it; older is a stale reading
+
+
+def _merge_tripwire_line(tree: Path) -> str:
+    """The coordinator's one merge-program line (W-622ec42c, D-1384): `merge_tripwire.py` writes it
+    daily beside the merge records; shown only to the coordinator (`_scans_panes`), and only while
+    fresh — a stale line would read as today's numbers, so it is dropped instead."""
+    if not _scans_panes(tree):
+        return ""
+    path = tree / ".git" / "fabrik-merge" / "tripwire-line.txt"
+    try:
+        if time.time() - path.stat().st_mtime > MERGE_TRIPWIRE_MAX_AGE_S:
+            return ""
+        return path.read_text(encoding="utf-8").strip().splitlines()[0]
+    except (OSError, IndexError):
+        return ""
+
+
 def prompt_block(repo: Path | str, session: str) -> str:
     """Read-only, no lock, the caller's own tree, in order: for the coordinator, one PANE WAITING line per
     builder pane waiting on an answer or the PANE SCAN FAILED line (W-a12b03a2), the unnamed-window line (spec D6), the
@@ -5337,6 +5355,9 @@ def prompt_block(repo: Path | str, session: str) -> str:
             lines = [f"work: {_pane_text(p)}" for p in panes]
             if blind:
                 lines.append(f"work: PANE SCAN FAILED — {blind}")
+            tripwire = _merge_tripwire_line(root)
+            if tripwire:
+                lines.append(f"work: {tripwire}")
             if not name:
                 lines.append(UNNAMED_WINDOW_LINE)
             pause = _caller_pause(root, session)
