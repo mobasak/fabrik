@@ -80,6 +80,16 @@ keyword and the `DECLARES_NONE` constant). Registry repo keys are normalised, so
 repo. 7 new tests (28 in the file, 21 before); `docs/workstation/claude-tab-router.md` updated. Full `/fabrik-review`
 3 rounds (2 → 3 → 0 confirmed); residue W-e9386861, W-449dfa54.
 
+### Added — kaizen reads every repo's LESSONS_LEARNT and AFCL incrementally (2026-10-29)
+`scripts/sysadmin/lessons_relay.py` rides the daily kaizen collector after the feedback relay and
+mails kaizen one digest of the entries written into any repo's `docs/LESSONS_LEARNT.md`,
+`docs/lessons-learnt.md` or `AFCL.md` since its cursor. Each entry gets one pointer row (path, line
+and heading), which kaizen answers with a command or rule edit, or rejects with a reason. `--seed`
+records the 2,906-entry backlog without sending it, and refuses to replace a live cursor. A stray
+code fence no longer hides the lessons after it: only a fence with a language tag counts, and not
+one that holds another tagged fence as long, because 27 of 84 files end in a stray one. A mail stays under mail.py's size cap, and a heading that
+mail.py would refuse is withheld, so one heading cannot block the digest (W-d6ebcc04, D-1362).
+
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
 `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.

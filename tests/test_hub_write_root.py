@@ -375,6 +375,7 @@ ALLOWLIST: dict[str, str] = {
     "scripts/sync_prometheus_to_vps.sh": "other-repo: writes to the remote VPS over SSH; already honours $FABRIK_ROOT when set for its LOCAL read side",
     "scripts/sync_schema_to_projects.py": "other-repo: distributes schema files into every downstream /opt/<project> repo",
     "scripts/sysadmin/feedback_relay.py": "other-repo: routes through mail.py to /opt/fabrik-mail; the daily relay itself is main-checkout cron",
+    "scripts/sysadmin/lessons_relay.py": "other-repo: routes through mail.py to /opt/fabrik-mail; its cursor is under ~/.claude/state, the daily relay itself is main-checkout cron",
     "src/fabrik/drivers/postgres.py": "other-repo: reads fixed /opt/fabrik-lib paths (vendored schema + subagents module) — not a hub write-root site",
     "src/fabrik/drivers/watchdog.py": "other-repo: reads fabrik-lib sidecar + hub sysadmin scripts to PROVISION a remote watchdog target — not a hub write-root site",
     "src/fabrik/orchestrator/deployer_ssh.py": "other-repo: the literal is `/opt/fabrik-<name>`, the second REMOTE app-dir candidate `app_dir` yields (:197) — probed over SSH, its .env injected remotely — a downstream /opt/<project> on another host, never the hub's tree",
