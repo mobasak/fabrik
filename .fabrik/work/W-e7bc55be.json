@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-29T21:12:25.895186Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-e7bc55be",
+  "impact": "high",
   "kind": "backlog",
   "legacy": false,
   "links": {
@@ -14,7 +16,8 @@
   "next": "(a) in _closer accept a bare line j as the closer only when the count of bare same-char fences at least the opener's length from j to EOF is odd (opus's proposal; a stray then sees an even count); (b) in main's cursor loop add a hash only for entries in the sent rows' subtrees, never for a non-fresh known-key entry; red-first graders from the two probes (seat scratch run-fabrik-review-scoped-2026-10-29T23-32-05-0300-1bb85c/seat-opus/r3/c9.py and seat-haiku/r3/p2r3.py); fix both docstring sentences",
   "note": "",
   "owner": "",
-  "priority": 2,
+  "priority": 1,
+  "score_reason": "kaizen lessons/AFCL reader follow-up; one session; landed with 01M64RZ28R",
   "status": "open",
   "tags": [
     "lessons-relay"

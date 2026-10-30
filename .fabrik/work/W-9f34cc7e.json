@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "measured 2026-10-30: the first queue run on the new code (D-1368/D-1369) landed 7 requests 04-11 min apart and drained the inbox without 'one more landing may not fit'; the 3900 s window does not bind (coordinator ruling A, infra's recommendation)",
   "owner": "infra",
   "priority": 0,
   "score_reason": "operator: long merge fix asap; one constant, ~+900 s of landing window per queue run",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "waits-queue-measurement"
   ],
