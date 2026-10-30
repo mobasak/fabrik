@@ -8,8 +8,9 @@ text, prove the box is safe to sleep, and tell a woken agent the pause is over.
   brief --role coordinator|agent --words "<the operator's words>" [--deadline]   the pause text to send; --deadline
                                   adds the marked T-3 and T as clock times
   mark --words "…" [--deadline 10m]   start a pause: a fresh marker (`paused_at`, `words`, `deadline_at` = T)
-  paused                          exit 0 while a pause is marked and not lifted, 1 otherwise, 2 on a marker file it
-                                  cannot read or parse (or any other error of its own)
+  paused                          exit 0 while a pause is marked and not lifted, 1 otherwise; a marker file it cannot
+                                  read or parse (or any other error of its own) is exit 0 too, with one stderr line —
+                                  every launcher reads non-0 as "proceed", so a corrupt marker holds them (review G4)
   lift                            the manual override (the tick lifts otherwise): only the hub's merge owner's session
                                   or the operator's plain shell; writes lifted_at + lift_path=hub (exit 0); 1 no
                                   pause marked; 2 a forged --proc/--home or a marker it cannot write; 3 refused;
@@ -1329,11 +1330,18 @@ def main(argv: list[str] | None = None) -> int:
     proc = Path(a.proc if a.proc is not None else "/proc")
 
     if a.verb == "paused":
+        # review G4: every launcher reads anything but 0 as "proceed", so a marker that EXISTS but cannot be read or
+        # parsed (the function's 2) — or any error of the verb's own — exits 0 (PAUSED) with one stderr line: a corrupt
+        # marker holds every launcher until the hub repairs or lifts it (`status` shows it). A MISSING marker stays 1.
+        # The function keeps its 2: the Stop and posture hooks' inline copies follow it and fail OPEN on purpose.
         try:
             rc, msg = paused(home)
-        except Exception as exc:  # any error of its own is exit 2, never a 1 read as "not paused"
+        except Exception as exc:
             rc, msg = 2, f"hibernate paused: {type(exc).__name__}: {exc}"
-        print(msg, file=sys.stderr if rc == 2 else sys.stdout)
+        if rc == 2:
+            print(f"{msg} — held as paused until the hub repairs or lifts it", file=sys.stderr)
+            return 0
+        print(msg)
         return rc
     if a.verb == "brief":
         deadline_at = None
