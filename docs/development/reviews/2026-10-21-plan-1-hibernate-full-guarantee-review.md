@@ -112,54 +112,54 @@ $ python scripts/review_rubric.py --changed .claude/hooks/final_gate_stop.py .cl
 
 | Class | Status |
 |---|---|
-| Hunt: `.claude/hooks/final_gate_stop.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `.claude/hooks/quota_stop.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_rules/hibernate.yaml` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `commands/_sources/hibernate.md` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/aro-wake/claude_rotate.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/audit_all_registrars.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/ci_fix_dispatcher.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/cloud_dispatch.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/command_run.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/enforcement/check_mutation.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/enforcement/check_secrets.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/rivals_run.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/agents_bat.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/agents_up.sh` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/claude_broker.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/claude_rotate.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/hibernate.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/install_mesh.sh` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/mesh/claude-mesh-test.sh` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/mesh/claude-reboot-sweep.sh` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/mesh/claude-selfwatch.sh` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/quota_posture_hook.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/sysadmin/weekly_catchup.sh` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `scripts/wip_backup.sh` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_agents_bat.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_agents_up.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_check_mutation.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_check_secrets_shapes.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_claude_fleet.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_dispatchers_pause.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_final_gate_stop_hook.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_hibernate.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_hibernate_hold.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_hibernate_hooks.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_hub_write_root.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_install_mesh.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_launchers_pause.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_quota_posture.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_quota_stop_hook.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_registry_reconcile.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_rotate_session.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Hunt: `tests/test_wip_backup.py` — every changed hunk, its enclosing function, its callers | UNCHECKED |
-| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | UNCHECKED |
-| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | UNCHECKED |
-| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | UNCHECKED |
-| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | UNCHECKED |
-| Recurrence: denominator on every count — bounded searches state their bound | UNCHECKED |
-| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | UNCHECKED |
+| Hunt: `.claude/hooks/final_gate_stop.py` — every changed hunk, its enclosing function, its callers | CLEAN (`.claude/hooks/final_gate_stop.py` — the stamp branch holding an unlifted `hibernate` tier on a stale or missing tick log (A-fable pass 1, test_final_gate_stop_hook green)) |
+| Hunt: `.claude/hooks/quota_stop.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (F5 — `_reason`'s hibernate head orders `blocked --paused` (or `handoff`); pinned by test_the_hibernate_hold_text_orders_the_pause_close_not_the_wall) |
+| Hunt: `commands/_rules/hibernate.yaml` — every changed hunk, its enclosing function, its callers | FIXED r1 (F3 — `hib-mark`, `hib-brief-*`, `hib-lift`, `hib-woke` pins follow the deadline mark and the tick's own lift; test_command_rules 76 passed) |
+| Hunt: `commands/_sources/hibernate.md` — every changed hunk, its enclosing function, its callers | FIXED r1 (F3 — `mark … --deadline 10m`, both `brief` calls carry `--deadline`, the hub `lift` only as the dead-cron escape, `woke` exit 0 reads `the pause was lifted`) |
+| Hunt: `scripts/aro-wake/claude_rotate.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (F1, F2 — byte-identical to scripts/sysadmin/claude_rotate.py, `cmp` rc 0 on tips 82e8ae780 and 9a2679f70) |
+| Hunt: `scripts/audit_all_registrars.py` — every changed hunk, its enclosing function, its callers | CLEAN (`scripts/audit_all_registrars.py` — the `hibernate.py paused` skip; a corrupt marker now holds it through G4 (B-sonnet passes 1-3, test_launchers_pause)) |
+| Hunt: `scripts/ci_fix_dispatcher.py` — every changed hunk, its enclosing function, its callers | CLEAN (`scripts/ci_fix_dispatcher.py` — the `hibernate_paused` skip; probe1.py on a torn marker reads True after G4 (B-sonnet pass 2)) |
+| Hunt: `scripts/cloud_dispatch.py` — every changed hunk, its enclosing function, its callers | CLEAN (`scripts/cloud_dispatch.py` — the dispatch skip at ~:1481 and its exit 0 (B-C2 recorded); test_dispatchers_pause green) |
+| Hunt: `scripts/command_run.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (F4 — `_abandoned_seats` uses `isdecimal()` and a guarded `int()`; `²|x|y|z` refused; test_a_malformed_abandoned_seat_is_refused[unicode-digit]) |
+| Hunt: `scripts/enforcement/check_mutation.py` — every changed hunk, its enclosing function, its callers | CLEAN (`scripts/enforcement/check_mutation.py` — the pause skip in the fleet-synced mutation check (B-sonnet pass 1 mutants killed)) |
+| Hunt: `scripts/enforcement/check_secrets.py` — every changed hunk, its enclosing function, its callers | CLEAN (`scripts/enforcement/check_secrets.py` — the SECRET_PATTERNS hunks and their shapes (B-sonnet pass 1 read :14-120; test_check_secrets_shapes green)) |
+| Hunt: `scripts/rivals_run.py` — every changed hunk, its enclosing function, its callers | CLEAN (`scripts/rivals_run.py` — the single `main()` pause check and its skip (B-sonnet pass 1; the skip mutant killed)) |
+| Hunt: `scripts/sysadmin/agents_bat.py` — every changed hunk, its enclosing function, its callers | CLEAN (`scripts/sysadmin/agents_bat.py` — the `--list` hunks: skip lines, the symlink dedupe, the escaped newline (C-sonnet pass 1 read :395-530)) |
+| Hunt: `scripts/sysadmin/agents_up.sh` — every changed hunk, its enclosing function, its callers | FIXED r1 (G3 — the relaunch prompt's exit-2 clause: stay paused and tell your coordinator; test_each_pane_runs_claude_with_the_wake_prompt_watchdog_and_oom_score) |
+| Hunt: `scripts/sysadmin/claude_broker.py` — every changed hunk, its enclosing function, its callers | CLEAN (`scripts/sysadmin/claude_broker.py` — the paused 503 path, audited, no window charged (B-sonnet pass 1 read :165-300)) |
+| Hunt: `scripts/sysadmin/claude_rotate.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (F1 — `_hibernate_slept` accepts a `site: hibernate` row ending at or after T-3; F2 — `_hibernate_arm(now, prev_beat)` judges a sleep by the minute cron's own beat, >300 s; probes P1b and P4 re-run green by A-fable pass 2) |
+| Hunt: `scripts/sysadmin/hibernate.py` — every changed hunk, its enclosing function, its callers | FIXED r1 (G4 — `paused` exits 0 on an unreadable marker; G5 — `update_marker` fsyncs file and dir; G6 — `woke`'s old-lift guard tested) and FIXED r2 (N1 — `paused` exits 0 when the home lookup fails; test_k1) |
+| Hunt: `scripts/sysadmin/install_mesh.sh` — every changed hunk, its enclosing function, its callers | CLEAN (`scripts/sysadmin/install_mesh.sh` — the three-script install, its backups and idempotence (C-sonnet pass 1 read whole; the mode-only cmp note is cosmetic)) |
+| Hunt: `scripts/sysadmin/mesh/claude-mesh-test.sh` — every changed hunk, its enclosing function, its callers | FIXED r1 (G1, G3 — rows R27f, R28, R28b, R28c, W10f, W10g added; mesh-test 270 ok, 0 fail on tip 82e8ae780, re-run by C-sonnet pass 2) |
+| Hunt: `scripts/sysadmin/mesh/claude-reboot-sweep.sh` — every changed hunk, its enclosing function, its callers | FIXED r1 (G1 — an exit-4 sweep writes `noroom` stamp lines and a later rc-0 sweep drops those sids before recording relaunched; harness R27f, R28, R28b, R28c) |
+| Hunt: `scripts/sysadmin/mesh/claude-selfwatch.sh` — every changed hunk, its enclosing function, its callers | FIXED r1 (G3 — the hibernate RESUME line's exit-2 clause; harness W10f, W10g pin it) |
+| Hunt: `scripts/sysadmin/quota_posture_hook.py` — every changed hunk, its enclosing function, its callers | CLEAN (`scripts/sysadmin/quota_posture_hook.py` — the pause hold on Agent/Workflow/`start` before the stamp pass (A-fable pass 1 diff hunks)) |
+| Hunt: `scripts/sysadmin/weekly_catchup.sh` — every changed hunk, its enclosing function, its callers | CLEAN (`scripts/sysadmin/weekly_catchup.sh` — the pause skip at :65-80; a corrupt marker holds it through G4 (B-sonnet passes 1-3)) |
+| Hunt: `scripts/wip_backup.sh` — every changed hunk, its enclosing function, its callers | CLEAN (`scripts/wip_backup.sh` — `WIP_BACKUP_ONLY` resolution at :311-322 (B-C3 refuted; its only writer passes a repo root)) |
+| Hunt: `tests/test_agents_bat.py` — every changed hunk, its enclosing function, its callers | CLEAN (`tests/test_agents_bat.py` — every changed hunk run in its slice's suite on the pinned tips; 434 + 641 + 226 tests green across passes 1-3) |
+| Hunt: `tests/test_agents_up.py` — every changed hunk, its enclosing function, its callers | CLEAN (`tests/test_agents_up.py` — every changed hunk run in its slice's suite on the pinned tips; 434 + 641 + 226 tests green across passes 1-3) |
+| Hunt: `tests/test_check_mutation.py` — every changed hunk, its enclosing function, its callers | CLEAN (`tests/test_check_mutation.py` — every changed hunk run in its slice's suite on the pinned tips; 434 + 641 + 226 tests green across passes 1-3) |
+| Hunt: `tests/test_check_secrets_shapes.py` — every changed hunk, its enclosing function, its callers | CLEAN (`tests/test_check_secrets_shapes.py` — every changed hunk run in its slice's suite on the pinned tips; 434 + 641 + 226 tests green across passes 1-3) |
+| Hunt: `tests/test_claude_fleet.py` — every changed hunk, its enclosing function, its callers | CLEAN (`tests/test_claude_fleet.py` — every changed hunk run in its slice's suite on the pinned tips; 434 + 641 + 226 tests green across passes 1-3) |
+| Hunt: `tests/test_dispatchers_pause.py` — every changed hunk, its enclosing function, its callers | CLEAN (`tests/test_dispatchers_pause.py` — every changed hunk run in its slice's suite on the pinned tips; 434 + 641 + 226 tests green across passes 1-3) |
+| Hunt: `tests/test_final_gate_stop_hook.py` — every changed hunk, its enclosing function, its callers | CLEAN (`tests/test_final_gate_stop_hook.py` — every changed hunk run in its slice's suite on the pinned tips; 434 + 641 + 226 tests green across passes 1-3) |
+| Hunt: `tests/test_hibernate.py` — every changed hunk, its enclosing function, its callers | CLEAN (`tests/test_hibernate.py` — every changed hunk run in its slice's suite on the pinned tips; 434 + 641 + 226 tests green across passes 1-3) |
+| Hunt: `tests/test_hibernate_hold.py` — every changed hunk, its enclosing function, its callers | CLEAN (`tests/test_hibernate_hold.py` — every changed hunk run in its slice's suite on the pinned tips; 434 + 641 + 226 tests green across passes 1-3) |
+| Hunt: `tests/test_hibernate_hooks.py` — every changed hunk, its enclosing function, its callers | CLEAN (`tests/test_hibernate_hooks.py` — every changed hunk run in its slice's suite on the pinned tips; 434 + 641 + 226 tests green across passes 1-3) |
+| Hunt: `tests/test_hub_write_root.py` — every changed hunk, its enclosing function, its callers | CLEAN (`tests/test_hub_write_root.py` — every changed hunk run in its slice's suite on the pinned tips; 434 + 641 + 226 tests green across passes 1-3) |
+| Hunt: `tests/test_install_mesh.py` — every changed hunk, its enclosing function, its callers | CLEAN (`tests/test_install_mesh.py` — every changed hunk run in its slice's suite on the pinned tips; 434 + 641 + 226 tests green across passes 1-3) |
+| Hunt: `tests/test_launchers_pause.py` — every changed hunk, its enclosing function, its callers | CLEAN (`tests/test_launchers_pause.py` — every changed hunk run in its slice's suite on the pinned tips; 434 + 641 + 226 tests green across passes 1-3) |
+| Hunt: `tests/test_quota_posture.py` — every changed hunk, its enclosing function, its callers | CLEAN (`tests/test_quota_posture.py` — every changed hunk run in its slice's suite on the pinned tips; 434 + 641 + 226 tests green across passes 1-3) |
+| Hunt: `tests/test_quota_stop_hook.py` — every changed hunk, its enclosing function, its callers | CLEAN (`tests/test_quota_stop_hook.py` — every changed hunk run in its slice's suite on the pinned tips; 434 + 641 + 226 tests green across passes 1-3) |
+| Hunt: `tests/test_registry_reconcile.py` — every changed hunk, its enclosing function, its callers | CLEAN (`tests/test_registry_reconcile.py` — every changed hunk run in its slice's suite on the pinned tips; 434 + 641 + 226 tests green across passes 1-3) |
+| Hunt: `tests/test_rotate_session.py` — every changed hunk, its enclosing function, its callers | CLEAN (`tests/test_rotate_session.py` — every changed hunk run in its slice's suite on the pinned tips; 434 + 641 + 226 tests green across passes 1-3) |
+| Hunt: `tests/test_wip_backup.py` — every changed hunk, its enclosing function, its callers | CLEAN (`tests/test_wip_backup.py` — every changed hunk run in its slice's suite on the pinned tips; 434 + 641 + 226 tests green across passes 1-3) |
+| Recurrence: fail-open/fail-closed — a swallowed error or an absent check that reads as success | FIXED r1 (A-C2 the T-3 arm on a dead */5 tick; B-C1 seven launchers on a corrupt marker, fixed in `hibernate.py paused`) and FIXED r2 (N1 an unresolvable home) |
+| Recurrence: cost/quota accounting — pool units scored, native seats counted, a limit at its edges | CLEAN (`scripts/sysadmin/claude_rotate.py` `_hibernate_release` hands the stamp to a hot quota or battery tier and wakes nobody; A-C6 refuted against spec L2) |
+| Recurrence: boundary/sentinel/prefix — an off-by-one, a sentinel value, a prefix-vs-exact match | FIXED r1 (A-C1 lift (a)'s `start >= at` boundary; A-C4 `isdigit` vs `int`; G2's `no room for <name>'s pane` match cannot confuse builder-1 with builder-10, C-sonnet pass 2) |
+| Recurrence: behavior-without-a-test — a contract row no test kills (mutation asserted) | FIXED r1 (B-C4 the `woke` old-lift guard had no killing test — test_g6 kills the mutant now; F5 the hibernate hold text had no pin) |
+| Recurrence: denominator on every count — bounded searches state their bound | CLEAN (`docs/development/reviews/2026-10-21-plan-1-hibernate-full-guarantee-review.md` — every seat stated files read and not read; the 11 of 26 unopened slice-A files are named in the A-fable pass-1 report and were re-swept by class) |
+| Recurrence: proxy-as-evidence — the real check EXECUTED, not read | CLEAN (`scripts/sysadmin/claude_rotate.py` and every other fix — each closure is a probe or a red-on-old, green-on-new test run on a pin copy, re-run by the orchestrator for A-C1, A-C2 and every coder's suite) |
 
 Verdict grammar (the gate refuses anything else): `CLEAN (<the paths/lines hunted>)` — a CLEAN row
 must name a path and run past 70 characters · `FIXED r<n> (<what changed>)` · `REFUTED (<the
@@ -185,7 +185,9 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
-| Pass 1 | native fable×1 + sonnet×2 | found: 15, new: 15, confirmed: 12, fixed: 0, unexecuted: 0 | method: citation — three disjoint slices of the pin at a4c2d97c8 (A rotation lifts + Stop hook + run record + hold hooks; B pause marker + launchers; C mesh + sweep + relaunch); the orchestrator re-ran A-C1 and A-C2's probes on the seat copy and read every other candidate's code path (A-C3 led to the command text, which marks no deadline); the run record's round 1 reads `confirmed: 15` in error — 12 confirmed and 3 recorded is the adjudication; fixes routed as F1-F5 (T06 coder) and G1-G7 (T04 residue coder) |
+| Pass 1 | native fable×1 + sonnet×2 | found: 15, new: 15, confirmed: 12, fixed: 12, unexecuted: 0 | method: citation — three disjoint slices of the pin at a4c2d97c8 (A rotation lifts + Stop hook + run record + hold hooks; B pause marker + launchers; C mesh + sweep + relaunch); the orchestrator re-ran A-C1 and A-C2's probes on the seat copy and read every other candidate's code path (A-C3 led to the command text, which marks no deadline); the run record's round 1 reads `confirmed: 15` in error — 12 confirmed and 3 recorded is the adjudication; fixes routed as F1-F5 (T06 coder) and G1-G7 (T04 residue coder) |
+| Pass 2 | native fable×1 + sonnet×2 | found: 2, new: 2, confirmed: 1, fixed: 1, unexecuted: 0 | method: re-derivation — the round-1 seats over their own slices on tip 82e8ae780 (fix diff md5 9f998fe2): every round-1 candidate re-probed CLOSED (A-fable probes P1, P1b, P4, P7 and red-on-old runs; B-sonnet probe1.py and mut.py; C-sonnet mesh-test 270 ok and the exit-4 spawn tests red-on-old); N1 (`paused` exit 2 on an unresolvable home) confirmed by reading `hibernate.py:1336-1341` against its own docstring, fixed as 3d62dbfa5; N2 recorded |
+| Pass 3 | native sonnet×1 | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — the slice-B seat over fix3.diff on tip 9a2679f70: N1 CLOSED (test_k1 red on the pass-2 pin, green on the pass-3 pin; probe3.py `paused` rc 0 and `woke` rc 2 with no passwd entry); fail-open-launchers re-swept CLEAN; slices A (5/5) and C (3/3) standing verified from pass 2, every class clean (run record round 4, TERMINAL VERDICT); O1 recorded |
 
 Row shapes (quoted here, so the gate does not read them as passes):
 
@@ -222,10 +224,19 @@ with rows, and is not checked otherwise. `RECORDED — measured` and `RECORDED �
 | A-C6 | REFUTED (spec L2: "only a hibernate lift (L3) clears it — the quota relief and dwell keep it, as they keep the battery tier"; `_hibernate_release` keeping the tier while the quota reads unknown is that invariant, and lift (c) already lifts the MARK at T+30) |
 | B-C2 | RECORDED — measured (`cloud_dispatch` and `rivals_run` skip with a stderr line naming the pause and exit 0; the only callers during a pause are agents the pause text already tells to start nothing, and the cron launchers retry next cycle — no work is queued that the skip drops) |
 | B-C3 | REFUTED (the one writer of `WIP_BACKUP_ONLY`, `command_run.py` `step`'s snapshot, passes the repo root; `/` is not a value any caller produces, and backing up every repo loses nothing) |
+| N2 | RECORDED — measured (the launchers' "rc 2 proceeds" docstrings stay true — after G4 a 2 comes only from a crash, a timeout or a missing script — they no longer name where the corrupt-marker policy lives, which `docs/reference/hibernate.md` beside the `paused` verb now states) |
+| O1 | RECORDED — measured (with no passwd entry and no `$HOME` but `ROTATE_STATE_DIR` set, `paused` holds even a lifted marker; the failure direction is the safe one, and no fleet host runs an agent without a passwd entry) |
+| A-p2-1 | RECORDED — unexecuted (a minute cron wedged past 5 min under `flock -n battery.lock` makes the next run read its own stale beat as a sleep and skip the T-3 arm; pre-existing shape one hop from F2, a wedge the `status` "no minute cron" BLOCKS row already reports before the drain) |
+| A-p2-2 | RECORDED — unexecuted (a fresh `mark` inside the ≤5 min between the hub's `lift` and the next */5 tick inherits a standing `hibernate` tier; pre-existing, needs a lift-then-remark within one tick slot) |
 
 ## Per-phase verdicts
 
-### Phase 1 — <title>: UNCHECKED
+### Phase 1 — whole-plan validation (T01a-T06, the T06 wave and the T04 residue): CLEAN
+
+Three passes over three disjoint slices, 15 → 2 → 0 confirmed. Twelve round-1 defects and N1 fixed with
+regression tests seen red on the old code; the accepted squash is 239567efd on `infra-3-hibernate`. Gate tests on
+the accepted branch: `tests/test_claude_fleet.py -k "resume or battery or hibernate or stamp"` 59 passed; the
+plan's hold, hook, pause, mesh and rules files in the T06 gate run below.
 
 ## Gate
 

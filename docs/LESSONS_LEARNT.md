@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A mechanism and the command that triggers it can each pass review while the pair never fires (2026-10-30, W-6e656dac T06)
+
+**What happened:** T06 built the T-3 hard hold, armed only for a mark with a deadline, and passed its own gates. The `/hibernate` command text, owned by an earlier ticket, still ran `mark` with no `--deadline`. So the hold the plan exists for would never have armed in real use. Neither per-ticket review saw it, because each looked at one half. The whole-plan review's Fable seat found it from the other side ("a no-deadline pause never arms"), and following that seam led to the command text. The same review found the T-3 arm failing open on a dead */5 tick, and seven launchers proceeding on a corrupt marker that `woke` and `status` refused. Three passes: 15 → 2 → 0 confirmed.
+
+**Lesson:** when a mechanism keys on an input (a flag, a field), the integration review traces that input from the operator's entry point down to the mechanism, and probes the path the command actually runs, not only the mechanism with the input supplied. A fail-closed rule decided in one verb (`woke` exits 2) is checked against every reader of the same state: one reader that fails open undoes it. Fix the class in the shared verb, not in its seven callers.
+
 ## A state file the probe refreshes is a clock that never runs out (2026-10-30, W-6e656dac T04)
 
 **What happened:** T04's self-watch put an empty lift file back while it was "under 5 s old", reading the file's mtime. The network gate that runs before that check `touch -c`es the same file on every probe, so the file was always under 5 s old, and an empty lift was never consumed. The watch then probed the API once a second forever. The same review found a second pattern: a once-per-boot stamp written before the work it guards latched a failed launch, and a `repo<TAB><path>` key read through `awk -v` never matched a TAB or backslash path. Four review rounds converged 41/13 → 9/5 → 4/1 → 0, and every defect in rounds 2-3 sat in the previous round's fix.

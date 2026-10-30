@@ -53,7 +53,8 @@
   ],
   "branch": "infra-3-hibernate",
   "started_at": "2026-10-21T17:13:43+03:00",
-  "status": "active",
+  "status": "released",
+  "released_at": "2026-10-30T16:00:00+03:00",
   "baseline_commit": "ea2fd1c63fd4f50e0b3e233afb9efecfbe06cb46",
   "baseline_gate": {
     "status": "success",
@@ -62,7 +63,7 @@
   },
   "tickets": {
     "T04": {
-      "state": "dispatched",
+      "state": "merged",
       "worktree_path": null,
       "branch": null,
       "base_commit": "0b2111f7f",

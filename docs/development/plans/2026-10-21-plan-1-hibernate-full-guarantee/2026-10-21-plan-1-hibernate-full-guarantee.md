@@ -1,6 +1,6 @@
 # Plan — /hibernate pauses fully and the box resumes itself (W-6e656dac)
 
-Status: IN-PROGRESS
+Status: EXECUTED
 **Owner:** infra
 
 Spec (CONVERGED, D-1095): `docs/superpowers/specs/2026-10-21-hibernate-full-guarantee-design.md`. Review receipt with
@@ -64,7 +64,7 @@ Intake: 19 items — 18 IN, 1 OUT-OF-SCOPE (W-c3313066, its own held item), 0 AS
 | T03b | Seat dispatchers skip while paused | T01a | ⚡ | ✅ | squash of 565e702f1 |
 | T05 | Grid relaunch, watchdog env and the memory ceiling | T01a | ⚡ | ✅ | squash of 305f12cb8 |
 | T04 | Mesh scripts get a tracked home and the hibernate wake | T01a, T05 | ⛓️ | ✅ | squash of ede4debdc |
-| T06 | The rotation tick's hold, lifts and step snapshot (Integration) | T01b, T02, T03a, T03b, T04 | ⛓️ | ⬜ | |
+| T06 | The rotation tick's hold, lifts and step snapshot (Integration) | T01b, T02, T03a, T03b, T04 | ⛓️ | ✅ | squash 239567efd (with the T04 residue) |
 
 ## Merge Order
 

@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — /hibernate holds itself at T-3 and lifts itself after the wake (2026-10-30)
+The minute cron (`claude_rotate.py --battery-tick`, a new crontab line the operator installs) writes its heartbeat and,
+at T-3 of an unlifted `/hibernate --deadline` mark, makes the fleet-exhausted stamp the `hibernate` tier, judging a
+sleep by its own previous beat. The */5 tick lifts the pause by a sleep under the mark, a network outage after T, or
+30 min past T, writes `lifted_at`/`lift_path`, and wakes every armed self-watch with `.holdlifted hibernate`; the Stop
+hook holds an unlifted tier on a stale tick log; `command_run.py step` snapshots the repo (`wip_backup.sh`, at most
+once per 2 min) and `blocked`/`handoff --abandoned-seat` record the seats a T-3 close cut. `/hibernate` now always
+marks `--deadline 10m` and the hub's `lift` is only the dead-cron escape; the hold text orders `blocked --paused`.
+`hibernate.py paused` now exits 0 (held) on an unreadable marker or home, so no launcher runs during a pause it
+cannot read; `update_marker` fsyncs; `agents_up` exits 4 when a builder got no pane, and the boot sweep and
+`agents_spawn` never count that builder relaunched; the RESUME prompts say to stay paused on `woke` exit 2
+(W-6e656dac T06 + T04 residue; whole-plan review 15 → 2 → 0 confirmed).
+
 ### Added — The mesh scripts get a tracked home, the hibernate wake and the boot builder leg (2026-10-30)
 `scripts/sysadmin/mesh/` holds claude-selfwatch.sh, claude-reboot-sweep.sh and claude-mesh-test.sh, and `install_mesh.sh`
 installs them after a unique, byte-checked backup, `bash -n` and the harness, restoring on a failed replace. The self-watch

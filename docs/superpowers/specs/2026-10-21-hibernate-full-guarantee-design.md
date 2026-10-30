@@ -215,7 +215,8 @@ only" (fails "fully": the deadline is announced, not enforced).
 - The self-watch's `hibernate` lift waits for the same three consecutive API answers and the same storm jitter as its
   death branch (D-897; ledger r-3 — its lift branch has neither today, `~/.claude/bin/claude-selfwatch.sh:43-72`), then
   prints `RESUME: the hibernate pause ended at HH:MM (<why>) — run python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke
-  --self <sid> and, only if it exits 0, resume your item from the seed it prints; on any other exit carry on as usual`
+  --self <sid> and, only if it exits 0, resume your item from the seed it prints; on exit 1 carry on as usual; on exit 2
+  stay paused and tell your coordinator`
   (as-built at T04, `scripts/sysadmin/mesh/claude-selfwatch.sh`); the `resume` kind reads "the box RESUMED from sleep at HH:MM" (W-b01aa1ec).
 - `woke` prints the session's seeds written since the mark, newest first (the parent closes last), each as its
   `start --resume-from` line, a `.md` handoff as "open a fresh start and follow its ## RESUME", every abandoned seat its
