@@ -608,6 +608,17 @@ def test_daily_green_path_publishes(tmp_path: Path) -> None:
     assert f"| {dt.date.today().isoformat()} |" in text, "the kaizen-log row landed"
 
 
+def test_daily_runs_the_merge_tripwire_with_its_repo_and_no_mail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # W-622ec42c: the daily pass is the tripwire's only scheduler; no_mail must reach its mail
+    calls: list[tuple] = []
+    monkeypatch.setattr(kc, "_publish_merge_tripwire", lambda *a: calls.append(a))
+    rc, _, st, _ = _green_daily(tmp_path, dt.date.today())
+    assert rc == 0
+    assert calls == [(dt.date.today().isoformat(), st, kc.REPO, True)]
+
+
 def test_daily_rerun_never_reparses(tmp_path: Path) -> None:
     day = dt.date.today()
     rc, _, st, _ = _green_daily(tmp_path, day)

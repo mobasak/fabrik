@@ -5320,16 +5320,20 @@ MERGE_TRIPWIRE_MAX_AGE_S = 3 * 86400  # the daily collector rewrites it; older i
 
 def _merge_tripwire_line(tree: Path) -> str:
     """The coordinator's one merge-program line (W-622ec42c, D-1384): `merge_tripwire.py` writes it
-    daily beside the merge records; shown only to the coordinator (`_scans_panes`), and only while
-    fresh — a stale line would read as today's numbers, so it is dropped instead."""
+    daily beside the merge records; shown only to the coordinator (`_scans_panes`). A repo that never
+    wrote one shows nothing; a line older than MERGE_TRIPWIRE_MAX_AGE_S is replaced by a STALE notice —
+    old numbers would read as current, and silence would read as quiet. Never raises: this runs on
+    every prompt of every coordinator."""
     if not _scans_panes(tree):
         return ""
     path = tree / ".git" / "fabrik-merge" / "tripwire-line.txt"
     try:
-        if time.time() - path.stat().st_mtime > MERGE_TRIPWIRE_MAX_AGE_S:
-            return ""
+        mtime = path.stat().st_mtime
+        if time.time() - mtime > MERGE_TRIPWIRE_MAX_AGE_S:
+            day = datetime.fromtimestamp(mtime).date().isoformat()
+            return f"merge tripwire STALE — last written {day}; the daily kaizen collector has not published since"
         return path.read_text(encoding="utf-8").strip().splitlines()[0]
-    except (OSError, IndexError):
+    except (OSError, ValueError, IndexError):  # ValueError: a non-UTF-8 file (UnicodeDecodeError)
         return ""
 
 

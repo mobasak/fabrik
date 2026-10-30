@@ -370,6 +370,10 @@ def _isolated_command_run_dir(tmp_path, _private_monkeypatch):
     # passes or fails on the box's state, not the code. A missing repo is the tier's fail-open path.
     monkeypatch.setenv("KAIZEN_TRANSCRIPT_ROOTS", str(tmp_path / "transcripts"))
     monkeypatch.setenv("KAIZEN_WASTE_GIT_REPO", str(tmp_path / "no-git-repo"))
+    # The merge tripwire (W-622ec42c) runs in the same daily() pass and WRITES beside the repo's merge
+    # records (`.git/fabrik-merge/tripwire*`) and can mail: without this a grader's daily() wrote the
+    # live hub's coordinator line. A missing repo is the tripwire's fail-open path.
+    monkeypatch.setenv("MERGE_TRIPWIRE_REPO", str(tmp_path / "no-git-repo"))
     # The harness scratch root (scratch lifecycle plan, Phase A): `start` mints a run folder under
     # `<root>/<slug>/<sid>/scratchpad/` and the sweep removes consumed ones — never the live
     # /tmp/claude-<uid>. The hub module `start` loads for that is the tree under test, not /opt/fabrik.

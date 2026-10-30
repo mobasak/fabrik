@@ -67,13 +67,12 @@ complete). In order:
    never 0-baselined, and every metric excludes such a row from numerator AND denominator,
    counting it as a stated **bump-day gap** (the bump day goes honestly quiet per-field). A row
    claiming `runs_noncheck > runs` violates non-check ⊆ all and is warned + unmeasured.
-   After the waste tier, the **merge tripwire** (`merge_tripwire.py`, W-622ec42c, D-1384) runs once
-   for the day, fail-open: wall time per merged request (request mail's ULID → the record's reply
-   write), refusals by class for the day and 14 days, and the red-master series pooled over the 7
-   newest days after the post-merge valve against the 14 days before it. It appends
-   `.git/fabrik-merge/tripwire.jsonl`, rewrites `tripwire-line.txt` (the coordinator's prompt line)
-   and, when all 7 post-valve days are published and above the pre-valve level, mails the
-   coordinator once per episode that the threshold goes back to 40.
+   After the waste tier, the **merge tripwire** (`merge_tripwire.py`, W-622ec42c, D-1384) runs for the
+   day and the two before it, fail-open: merge wall time, refusal events by class, and the red-master
+   series before and after the post-merge valve. It rewrites `.git/fabrik-merge/tripwire.jsonl` and
+   `tripwire-line.txt` (the coordinator's prompt line) and mails the coordinator once per tripped
+   episode, unless the pass ran with `--no-mail`; what each reading measures and when the tripwire
+   fires is the module docstring's.
 4. **Log row + mail** — the ISO-week row is upserted into both role logs (the write is
    flock-serialized against concurrent writers — the lock is keyed on the log's ABSOLUTE
    path and lives at the fixed, unreaped `~/.claude/state/kaizen-log-locks/` (independent of
@@ -276,7 +275,7 @@ re-opens on M1 activation data.
 | `scripts/sysadmin/kaizen_outcomes.py` | outcome tier: rework miner, fleet-health sweep, premature-stop reader |
 | `scripts/sysadmin/kaizen_backfill.py` | one-time transcript-era backfill + the noise-floor report |
 | `scripts/sysadmin/kaizen_waste.py` | the token-waste tier (D-1118): six daily waste series + breakdown, `--backfill`, `--rebaseline`; categories and control rules in `docs/reference/kaizen-waste-define.md` |
-| `scripts/sysadmin/merge_tripwire.py` | the merge program's daily tripwire (W-622ec42c, D-1384): merge wall time, refusal classes, red-master before/after the post-merge valve; `--day D [--publish] [--json]` |
+| `scripts/sysadmin/merge_tripwire.py` | the merge program's daily tripwire (W-622ec42c, D-1384): merge wall time, refusal classes, red-master before/after the post-merge valve; `--day D [--publish [--no-mail]] [--json]` |
 | `scripts/sysadmin/weekly_catchup.sh` | wake-proof stamp-check runner (daily kaizen jobs + weekly audits) |
 | `scripts/sysadmin/archived/kaizen_metrics.py` | the RETIRED weekly v1 meter (M0 operator ruling) |
 | `scripts/sysadmin/kaizen_shrink_audit.py` / `kaizen_immune_list.py` | the M0 census engine + immune registry |
