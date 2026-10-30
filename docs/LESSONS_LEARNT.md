@@ -8200,3 +8200,16 @@ and grade it against a conftest reorder in each hook form (plain trylast, wrappe
 **What happened:** W-43c850b1's first design refused a missing `cpus` on install and only warned on `restart()` and the non-git redeploy, to spare "the incident verb". Both critique seats grepped the callers: `restart()` has none outside tests, and `fabrik redeploy` routes by whether `/opt/<app>/.git` exists, so the git branch (which still refused) is what an operator runs for a git app. A recreate also drops a cap set by `docker update --cpus`, so the warn path protected almost nothing while leaving the only real cap holder unenforced. The design became a uniform refusal (D-1352).
 **Why:** a carve-out justified by an operational path is only as true as that path's wiring; the design reasoned from the method name, not from its callers.
 **How to apply:** before softening a guard for "the path the operator uses in an incident", grep that method's production callers and read the CLI verb's routing; a carve-out for a path nothing calls is dead weight with a real cost.
+
+## A per-element flag dies with the element: a rebuilt loop needs a per-run set (2026-10-30, W-1fb11ec8)
+
+**What happened:** `merge --queue` marked a forked leg `leg_done` on its chain element, but every landing rebuilds the
+chain with new elements, so a request whose queue leg failed was forked again after each landing (three legs for one
+request, executed by the Opus design critique). The first fix, a per-run `tried` set, then hung the queue: the
+ready-to-land test still waited for a leg the fork loop now refused to start.
+**Why:** a guard keyed on an object the loop recreates holds for one pass only, and a new skip in a fork loop is a
+new state the loop's EXIT condition must also accept.
+**How to apply:** key "once per run" on the identity a rebuild keeps (the request head plus its stacked tree, so a
+request re-stacked onto a changed base earns a fresh leg), and for every skip added to a
+producer loop, add the same arm to the consumer's ready test — then run the suite under a timeout, which is what
+caught the hang here.
