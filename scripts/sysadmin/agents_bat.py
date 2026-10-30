@@ -403,7 +403,11 @@ def _registered(opt: Path) -> list[Path]:
             ):
                 found.append(p)
         except OSError as exc:
-            print(f"agents_bat: cannot read {p} ({exc.strerror or exc}); skipped", file=sys.stderr)
+            # the repr keeps a newline in the name escaped, so the line stays ONE line (T04 residue 5)
+            print(
+                f"agents_bat: cannot read {str(p)!r} ({exc.strerror or exc}); skipped",
+                file=sys.stderr,
+            )
     return found
 
 
@@ -421,12 +425,23 @@ def _list(args: argparse.Namespace) -> int:
     if not opt.is_dir():
         print(f"agents_bat: --opt {args.opt} is not a folder; nothing listed", file=sys.stderr)
         return 2
+    seen: dict[str, Path] = {}
     for repo in _registered(opt):
         # one path per line is the sweep's contract: a name holding a newline would print as two lines and the sweep
         # would launch a truncated path (T04 F3)
         if "\n" in str(repo):
             print(f"agents_bat: {str(repo)!r} holds a newline; skipped", file=sys.stderr)
             continue
+        # a symlink to a listed repo is the same repo: agents_up resolves `pwd -P`, so both spellings would build one
+        # grid twice over (T04 residue 5) — the first spelling in sort order is listed
+        real = os.path.realpath(repo)
+        if real in seen:
+            print(
+                f"agents_bat: {str(repo)!r} is the same repo as {str(seen[real])!r}; skipped",
+                file=sys.stderr,
+            )
+            continue
+        seen[real] = repo
         print(repo)
     return 0
 

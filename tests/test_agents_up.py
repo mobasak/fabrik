@@ -644,9 +644,19 @@ def test_the_launch_path_reports_what_it_could_not_do(tmp_path: Path) -> None:
     split = _tmux_home(tmp_path / "split", repo, has=False, owner=None)
     (split / "tmux-splitfail").write_text("", encoding="utf-8")
     out = _run(str(repo), home=split)
-    assert out.returncode == 0 and "no room for dev2's pane" in out.stderr, out.stderr
+    # T04 residue 3: a pane skipped for no room is exit 4, never 0 — the boot sweep reads 0 as "every builder
+    # relaunched"; the line names the session so a caller can tell which builder did not come back
+    assert out.returncode == 4, (out.returncode, out.stderr)
+    assert f"no room for dev2's pane (session {DEV2})" in out.stderr, out.stderr
     labels = [ln for ln in _log(split) if ln.startswith("set -p ")]
     assert labels == ["set -p -t %1 @agent dev1"], _log(split)
+    detached = _tmux_home(tmp_path / "split-detach", repo, has=False, owner=None)
+    (detached / "tmux-splitfail").write_text("", encoding="utf-8")
+    out = _run("--detach", str(repo), home=detached)
+    assert out.returncode == 4, (out.returncode, out.stderr)
+    assert "--detach — the fabrik-lib grid is up" in out.stderr, out.stderr
+    header = UP.read_text(encoding="utf-8").split("\nset ", 1)[0]
+    assert "4 SOME PANE NOT OPENED" in header and "1 tmux failed" in header, "exit list"
 
     bare = _home(tmp_path / "bare", transcripts=((repo, DEV1),))
     tmux = bare / ".local" / "bin" / "tmux"
@@ -2834,9 +2844,10 @@ def test_a_failed_split_is_said_and_the_next_builder_takes_the_slot(
 ) -> None:
     sc = _Scratch(tmp_path, request, 6, fail_splits=(1,))  # dev2's split-window
     out = sc.up()
-    assert out.returncode == 0, out.stderr
+    assert out.returncode == 4, out.stderr  # a skipped pane is exit 4 (T04 residue 3)
     assert (
-        "no room for dev2's pane — open it by hand: " in out.stderr
+        "no room for dev2's pane (session " in out.stderr
+        and ") — open it by hand: " in out.stderr
         and "claude -n dev2" in out.stderr
     ), out.stderr
     assert sc.windows() == ["agents 4", "agents-2 1"], sc.windows()

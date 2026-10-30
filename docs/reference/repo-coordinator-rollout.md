@@ -460,7 +460,9 @@ registry or a `.claude/worktrees` folder), one per line, and writes nothing (W-6
 tracked in `scripts/sysadmin/mesh/`): at boot the user bus may not answer yet, and a check that failed then would
 leave the list empty. The sweep runs `agents_up.sh --detach` on each path, and that command decides which builders
 the repo has. A folder it cannot read, or whose name holds a newline, is skipped with a stderr line while the rest are
-still listed (exit 0). `--list` refuses `--desktop`, `--tabbed` and `--replace` (exit 2).
+still listed (exit 0); so is a second spelling of one repo (a symlink to a listed repo — agents_up resolves `pwd -P`,
+so both would be one grid). Every skip is ONE stderr line ending `; skipped` (a newline in a name is printed escaped),
+and only those lines are noted `builders-skipped` in the sweep log. `--list` refuses `--desktop`, `--tabbed` and `--replace` (exit 2).
 
 Each .bat is self-contained and needs no hand-made Windows Terminal profile. `wt.exe` has no font-size option, so the
 .bat writes a Windows Terminal JSON fragment, `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\Fabrik\<repo>.json`,

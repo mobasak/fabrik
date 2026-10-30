@@ -699,6 +699,10 @@ def test_woke_answers_resume_only_after_the_lift(tmp_path: Path) -> None:
     assert "hibernate.py lift" in out.stdout and "30 min" in out.stdout, (
         out.stdout
     )  # the lift paths
+    # the sleep path as the tick applies it (T06): a nap during the drain lifts nothing
+    assert (
+        "a resume-wake row whose gap began after the mark and ended at or after T-3" in out.stdout
+    ), out.stdout
     assert _shell_lift(box)[0].returncode == 0
     lifted = _marker(box)["lifted_at"]
     out = box.run("woke", "--self", "s1")

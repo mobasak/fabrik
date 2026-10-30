@@ -576,7 +576,8 @@ def _when(epoch: float) -> str:
 
 
 LIFT_PATHS = (
-    "the rotation tick lifts it after a sleep (a resume-wake row after the mark), after a network outage once the API"
+    "the rotation tick lifts it after a sleep (a resume-wake row whose gap began after the mark and ended at or after"
+    " T-3 — a nap during the drain lifts nothing), after a network outage once the API"
     " answers again, or 30 min past T (the pause cancelled); the hub coordinator's `hibernate.py lift` is the manual"
     " override"
 )

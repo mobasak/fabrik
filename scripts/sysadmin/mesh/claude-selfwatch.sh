@@ -138,8 +138,10 @@ while :; do
       continue
     fi
     rm -f "$claimed" 2>/dev/null || true  # consume: one wake per lift
-    case "$lift_at" in ''|*[!0123456789]*) lift_at=$(date +%s) ;; esac
-    at=$(date -d @"$lift_at" +%H:%M)
+    # 1..10 digits only (to the year 2286): a longer all-digit value passes a digits-only guard yet `date -d @`
+    # refuses it and the line would print an empty time (T04 residue 5); a date that still fails falls back the same
+    case "$lift_at" in ''|*[!0123456789]*|???????????*) lift_at=$(date +%s) ;; esac
+    at=$(date -d @"$lift_at" +%H:%M 2>/dev/null) || at=$(date +%H:%M)
     case "$lift_kind" in
       hibernate)
         # the condition agents_up's relaunch prompt carries (agents_up.sh): `woke` exits 1 for a migration lift
