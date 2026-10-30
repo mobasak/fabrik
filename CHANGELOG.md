@@ -11,7 +11,7 @@ lands after build, preflight and CAS, and one background `after-merge-runner` ru
 once over every merge landed since the last tested tip (`FABRIK_MERGE_TESTS_BASE`, honoured by
 `scripts/merge_test_select.py`). A red files a P0 work item (tag `after-merge-red`) whose title names
 the cause merge and its author, and that author's next request is refused until it carries the item. The hub
-declares 0: on for every hub merge (D-1382, W-3237ba45).
+declares 0: on for every hub merge (D-1384; built as D-1382, W-3237ba45).
 
 ### Fixed — agents_up launches every pane with --permission-mode bypassPermissions (2026-10-30)
 Every claude command `scripts/sysadmin/agents_up.sh` builds (grid start, `--pane-cmd`, the spawn and rotate `--move`
