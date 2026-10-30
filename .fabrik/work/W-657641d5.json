@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T08:11:11.768975Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-657641d5",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "token waste during a pause; nobody blocked",
+  "status": "open",
+  "title": "feedback_watch_arm.sh wakes a window whose builder is paused (work.py pause): kaizen woke 5 times in ~2 h under D-1367 with nothing it may act on — skip the wake while the store says paused (kaizen finding 2026-10-30)"
+}
