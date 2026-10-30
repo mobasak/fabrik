@@ -3,7 +3,7 @@
   "created": "2026-10-30T18:22:41.857019Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "7bccabbe287dba8694f8e7648fdf2135b03719a8",
   "id": "W-8209a305",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra-3",
   "priority": 0,
   "score_reason": "operator ruling, all repos; infra-3 owns agents_up.sh and agents_bat.py (W-89474fc1, W-b9b6472e)",
-  "status": "open",
+  "status": "done",
   "title": "Operator ruling D-1376 (2026-10-30): every repo's tmux windows, existing and future, must appear in 'All Agents (tabbed).bat'. Make it automatic: agents_up.sh re-runs agents_bat.py --tabbed (remembered desktop) after it creates any grid session or agents-<n> window, so no coordinator has to remember; plus one line in the coordinator paragraph (templates/governance/CLAUDE.md + hub CLAUDE.md, byte-identical per D-888) telling every repo coordinator to start grids only through agents_up.sh ALSO D-1377: put the how-to in /tmp/claude-1000/-opt-fabrik/3f001c89-2b6a-4287-ad10-33eef762a282/scratchpad/tmux-howto.md (reach, wake, relaunch, rotate idle tmux agents; builder reports to coordinator) into a hub reference doc docs/reference/tmux-agents.md and one line in the coordinator paragraph (both CLAUDE.md copies) pointing at it, plus a builder line in the template"
 }
