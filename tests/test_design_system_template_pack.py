@@ -98,7 +98,10 @@ def _globs() -> list[str]:
     ],
 )
 def test_globs_match_astro_and_css_first_stylesheets(path: str) -> None:
-    assert any(pack_matches_path(path, g, empty_matches_all=False) for g in _globs()), (path, _globs())
+    assert any(pack_matches_path(path, g, empty_matches_all=False) for g in _globs()), (
+        path,
+        _globs(),
+    )
 
 
 @pytest.mark.parametrize(
@@ -129,15 +132,24 @@ def test_tailwind_section_is_placed_once() -> None:
     assert text.count(SECTION) == 1
     pos = text.index(SECTION)
     assert text.index("## Default tokens (CSS)") < pos < text.index("## Rules for Coding Agents")
-    mapping = text[text.index("### Mapping to the scaffold's variables") : text.index("## Contrast contract")]
+    mapping = text[
+        text.index("### Mapping to the scaffold's variables") : text.index("## Contrast contract")
+    ]
     assert "§ Tailwind (CSS-first) usage" in mapping
+
+
+# Tailwind's `@theme` modifiers only, any whitespace between them (a wrapped prelude is still a block); prose words are not
+# a prelude, so "Keep @theme static the alias {" reads as no block. Both scans use this one pattern, so their matches align.
+_THEME_PRELUDE = re.compile(
+    r"@theme\b((?:\s+(?:inline|static|reference|default))*)\s*\{", re.IGNORECASE
+)
 
 
 def _theme_blocks(text: str) -> list[str]:
     """Every `@theme [modifiers] { … }` body, any case, with nested braces (a `@keyframes` inside) counted; comments are stripped
     inside the body only, so glob prose like `**/*.tsx … **/*.css` outside it cannot pair into a fake comment."""
     bodies = []
-    for m in re.finditer(r"@theme\b[\w \t-]*\{", text, re.IGNORECASE):
+    for m in _THEME_PRELUDE.finditer(text):
         depth, i = 1, m.end()
         while i < len(text) and depth:
             depth += {"{": 1, "}": -1}.get(text[i], 0)
@@ -184,8 +196,12 @@ def test_text_colour_slots_never_declared_in_theme() -> None:
     section = _section()
     for slot in TEXT_SLOTS:
         assert slot in section, slot
-    assert "COLOUR slots inside the FONT-SIZE namespace" in section  # the warning itself, not words elsewhere
-    assert "they compile to `.text-primary { font-size: var(--text-primary) }`" in section  # and what goes wrong
+    assert (
+        "COLOUR slots inside the FONT-SIZE namespace" in section
+    )  # the warning itself, not words elsewhere
+    assert (
+        "they compile to `.text-primary { font-size: var(--text-primary) }`" in section
+    )  # and what goes wrong
     assert "--color-text-primary: var(--text-primary)" in section
     for pack in sorted(RULES.rglob("*.md")):
         text = pack.read_text(encoding="utf-8")
@@ -198,7 +214,11 @@ def test_text_colour_slots_never_declared_in_theme() -> None:
 
 def test_no_js_config_font_family_token() -> None:
     # a DEFINITION of the JS-config key; the section's own warning names it as `--font-family-*`
-    hits = [p.name for p in RULES.rglob("*.md") if re.search(r"--font-family(?:-[\w-]+)?\s*:", p.read_text(encoding="utf-8"))]
+    hits = [
+        p.name
+        for p in RULES.rglob("*.md")
+        if re.search(r"--font-family(?:-[\w-]+)?\s*:", p.read_text(encoding="utf-8"))
+    ]
     assert not hits, hits
 
 
@@ -216,3 +236,56 @@ def test_section_cites_sources_and_carries_no_version() -> None:
         section,
     )
     assert not found, f"version literals in the section: {found}"
+
+
+# mail 01M64H34W3BD6X85J5WPKNQWCZ: the `static inline` rule for a namespaced `var()` slot read as binding the `@theme
+# inline` alias example beside it. The sentence is pinned WHOLE (a clause pin let a widened rule through), and the rule
+# and its alias example must stay on one bullet line. Cheapest way past: keep the sentence and move the example's block —
+# the same-line check reds on that; an alias moved into another pack's `@theme static` block reds the scan below.
+ALIAS_SENTENCE = (
+    "That alias is not a slot: a slot is a name § Token slots or the project's `docs/design-system.md` lists "
+    "(the template lists `--surface-0`, not `--color-surface-0`), so the `@theme static inline` rule never binds the "
+    "alias — `static` would also write `--color-surface-0: var(--surface-0)` under `:root, :host` (executed), while "
+    "hand-written CSS references the slot (`var(--surface-0)`), never the alias, which `@theme inline` emits as no "
+    "variable at all (executed); a listed `--color-*`, `--font-*`, `--radius-*` or `--ease-*` slot whose value is a "
+    "`var()`, such as `--color-danger: var(--red-600)`, stays in `@theme static inline`."
+)
+_ALIAS_DECL = re.compile(r"--color-(?:surface-\d+|text-[\w-]+)\s*:\s*var\(")
+
+
+def test_alias_of_a_root_slot_stays_in_theme_inline() -> None:
+    lines = [
+        ln for ln in _section().splitlines() if "`--color-surface-0: var(--surface-0)` →" in ln
+    ]
+    assert len(lines) == 1, lines
+    line = " ".join(lines[0].split())
+    assert "goes in `@theme static inline`" in line and "with an `@theme inline` alias:" in line, (
+        line
+    )
+    assert ALIAS_SENTENCE in line  # on the example's own bullet line, never moved to another bullet
+
+
+def _static_theme_blocks(text: str) -> list[str]:
+    return [
+        b
+        for m, b in zip(_THEME_PRELUDE.finditer(text), _theme_blocks(text), strict=True)
+        if "static" in m.group(1).lower()
+    ]
+
+
+def test_no_alias_in_a_static_theme_block() -> None:
+    assert _static_theme_blocks(
+        "@theme static inline {\n  --color-surface-0: var(--surface-0);\n}"
+    )  # the scan sees one
+    assert _static_theme_blocks(
+        "@theme static\n  inline {\n  --color-surface-0: var(--surface-0);\n}"
+    )  # a wrapped prelude too
+    assert not _static_theme_blocks(
+        "Keep @theme static\nthe alias { --color-surface-0: var(--surface-0); }"
+    )  # prose is not
+    assert _ALIAS_DECL.search(
+        _static_theme_blocks("@theme static inline { --color-surface-0: var(--surface-0); }")[0]
+    )
+    for pack in sorted(RULES.rglob("*.md")):
+        for block in _static_theme_blocks(pack.read_text(encoding="utf-8")):
+            assert not _ALIAS_DECL.search(block), (pack.name, block[:160])
