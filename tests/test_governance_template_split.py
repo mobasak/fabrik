@@ -1892,15 +1892,15 @@ def test_each_hub_exit_finish_mutant_reds_its_check(old: str, new: str) -> None:
         _check_hub_exit_finish_duty(flat.replace(old, new))
 
 
-
 # ── W-527c1ce0 (D-1381): builders merge the base at every item boundary, in BOTH contracts ──
 
 ITEM_BOUNDARY_MERGE = (
     "**Builders merge the base at every item boundary:** in a linked worktree, before you claim the "
-    "next item and before every request, run `git fetch <remote> <base>` then `git merge FETCH_HEAD` "
-    "(never a rebase — the branch is pushed) and push — a request still pending when you push is "
-    "re-sent, never retried; `merge_request.py request` refuses a branch more than 500 commits behind "
-    "its base and prints both commands."
+    "next item and before every request, run `git fetch <remote> refs/heads/<base>` then `git merge "
+    "FETCH_HEAD` (never a rebase — the branch is pushed) and push — a request already sent still "
+    "lands the head it recorded, and one the owner refuses is re-sent, never retried; "
+    "`merge_request.py request` refuses a branch more than 500 commits behind its base and prints "
+    "both commands."
 )
 
 
@@ -1910,8 +1910,12 @@ def _check_item_boundary_merge(hub: str, template: str) -> None:
     number teaches a builder a rule the script does not enforce."""
     for name, text in (("hub", hub), ("template", template)):
         flat = re.sub(r"\s+", " ", _template_exit_item(text))
-        assert flat.count(ITEM_BOUNDARY_MERGE) == 1, f"the {name} § EXIT lacks the item-boundary merge line"
-    spec = importlib.util.spec_from_file_location("mr_w527", FABRIK / "scripts" / "merge_request.py")
+        assert flat.count(ITEM_BOUNDARY_MERGE) == 1, (
+            f"the {name} § EXIT lacks the item-boundary merge line"
+        )
+    spec = importlib.util.spec_from_file_location(
+        "mr_w527", FABRIK / "scripts" / "merge_request.py"
+    )
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     assert f"more than {mod.MAX_BEHIND} commits" in ITEM_BOUNDARY_MERGE, "the line's limit drifted"
@@ -1932,6 +1936,7 @@ def test_an_item_boundary_merge_line_drifted_in_one_contract_reds(side: str) -> 
         tpl = tpl.replace(ITEM_BOUNDARY_MERGE, drift)
     with pytest.raises(AssertionError):
         _check_item_boundary_merge(hub, tpl)
+
 
 PROBE_COPY_IN = (
     "In a project the Fabrik-synced files are gitignored, so a worktree made by `git worktree add` holds none of "

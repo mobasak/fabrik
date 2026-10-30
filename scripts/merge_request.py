@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_merge_request_send.py, tests/test_merge_request_merge.py, tests/test_merge_request_work_items.py, docs/reference/multi-agent-operating-model.md
+# AFTER-EDIT: tests/test_merge_request_send.py, tests/test_merge_request_merge.py, tests/test_merge_request_work_items.py, tests/test_governance_template_split.py, docs/reference/multi-agent-operating-model.md
 """merge_request — finishing work in a linked worktree sends ONE merge request; the merge owner
 merges it through ONE data-safe path (stdlib-only).
 
@@ -31,16 +31,17 @@ and each failure refuses with exit 1:
   * the base — ``--base``, else config ``base_branch``, else the remote's HEAD (``ls-remote
     --symref``), else refuse with "pass --base" — is not one line, fails ``git check-ref-format
     --branch``, is absent from the remote, or IS the branch;
-  * the branch is more than ``MAX_BEHIND`` (500) commits behind the base's REMOTE tip (W-527c1ce0,
-    D-1381) — the tip is fetched once when this clone lacks it, and the refusal prints the
-    ``git fetch <remote> <base>`` and ``git merge FETCH_HEAD`` to run (never a rebase: the branch
-    is pushed; FETCH_HEAD works whatever the clone's fetch refspec tracks);
   * the repo has no ``docs/DECISIONS.md`` or the owner resolver
     (``python3 /opt/fabrik/scripts/decisions.py --merge-owner <main checkout>``, overridable with
     ``$FABRIK_DECISIONS_PY``) answers UNDECLARED (exit 3) — with the ``docs_updater.py --adopt``
     command; any OTHER resolver failure (missing, exit 1, unreadable output) is named as a resolver
     failure, never read as UNDECLARED;
-  * the caller IS the merge owner (agent names compare casefolded and stripped).
+  * the caller IS the merge owner (agent names compare casefolded and stripped);
+  * the branch is more than ``MAX_BEHIND`` (500) commits behind the base's REMOTE tip (W-527c1ce0,
+    D-1381) — the tip is fetched once when this clone lacks it, and the refusal prints the
+    ``git fetch <remote> refs/heads/<base>`` and ``git merge FETCH_HEAD`` to run (never a rebase:
+    the branch is pushed; the full ref never resolves to a same-named tag, and FETCH_HEAD works
+    whatever the clone's fetch refspec tracks).
 
 Then it sends one ``merge-request`` (``ack: required``) to the merge owner and, when
 ``.fabrik/work/config.json``'s ``distributor`` is a different agent (and not the caller), a copy
@@ -347,7 +348,7 @@ def _check_behind(cwd: Path, remote: str, base: str, tip: str) -> None:
             )
         except TimedOutError as exc:
             raise RefusedError(
-                f"{exc} — run `git fetch {remote} {base}` yourself, then request again"
+                f"{exc} — run `git fetch {remote} refs/heads/{base}` yourself, then request again"
             ) from None
         if res.returncode != 0:
             raise RefusedError(
@@ -364,7 +365,7 @@ def _check_behind(cwd: Path, remote: str, base: str, tip: str) -> None:
     if behind > MAX_BEHIND:
         raise RefusedError(
             f"this branch is {behind} commits behind {remote}/{base} (the limit is {MAX_BEHIND}) "
-            f"— run `git fetch {remote} {base}`, then `git merge FETCH_HEAD`, resolve, push, "
+            f"— run `git fetch {remote} refs/heads/{base}`, then `git merge FETCH_HEAD`, resolve, push, "
             "then run `merge_request.py request` again — never a rebase: the branch is already "
             "pushed. Merge the base at every item boundary and this never fires"
         )

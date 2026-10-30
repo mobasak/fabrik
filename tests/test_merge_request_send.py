@@ -667,7 +667,7 @@ def test_a_branch_past_the_behind_limit_refuses_with_the_merge_command_and_write
     r = world.run()
     assert r.returncode == 1, r.stdout + r.stderr
     assert f"{_load().MAX_BEHIND + 1} commits behind origin/master" in r.stderr
-    assert "`git fetch origin master`" in r.stderr
+    assert "`git fetch origin refs/heads/master`" in r.stderr
     assert "`git merge FETCH_HEAD`" in r.stderr
     assert "never a rebase" in r.stderr
     assert world.inbox() == []
@@ -719,5 +719,7 @@ def test_a_base_tip_that_cannot_be_fetched_refuses_and_writes_no_mail(
 
     rc, out = _inproc(world, monkeypatch, capsys, hook)
     assert rc == 1, out.err
-    assert ("fatal: boom" if how == "fetch-fails" else "`git fetch origin master` yourself") in out.err
+    assert (
+        "fatal: boom" if how == "fetch-fails" else "`git fetch origin refs/heads/master` yourself"
+    ) in out.err
     assert world.inbox() == []
