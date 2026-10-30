@@ -2536,7 +2536,7 @@ def _after_cause_search(ctx: _Ctx, todo: list[dict], ids: list[str], script_env:
                 cwd=wt,
                 env={**script_env, "PYTHONPATH": str(wt / "src")},
             )
-            if run.returncode not in (0, 5):
+            if run.returncode == 1:  # pytest's "tests failed"; 2-4 are no verdict on the merge
                 return entry
         return todo[-1]
     finally:
