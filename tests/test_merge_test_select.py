@@ -1852,3 +1852,25 @@ def test_the_after_merge_base_spans_every_merge_landed_since(tmp_path, monkeypat
     rc, out = _run(repo, monkeypatch, capsys)
     assert rc == 1 and "tests/test_new.py::test_new" in out.splitlines()[-1], out
     assert (common / "fabrik-merge" / f"merge-tests-{tested}.txt").is_file()
+
+
+def test_the_after_merge_base_bypasses_the_base_alone_path_and_must_be_a_commit_id(
+    tmp_path, monkeypatch, capsys
+):
+    """Under the override a record for HEAD (what routes a normal leg to the base-alone re-run) is
+    ignored, and a base that is not a commit id is a leg failure, never a path (review r1 B-2, B-3)."""
+    repo = _repo(tmp_path, GREEN_REPO)
+    tested = _git(repo, "rev-parse", "HEAD")
+    _merge(repo, {"tests/test_new.py": "def test_new():\n    assert False, 'from the merge'\n"})
+    head = _git(repo, "rev-parse", "HEAD")
+    common = Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    (common / "fabrik-merge").mkdir(parents=True, exist_ok=True)
+    (common / "fabrik-merge" / f"merge-tests-{head}.txt").write_text("tests/x.py::t\tcall\n")
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_BASE", tested)
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 1 and "tests/test_new.py::test_new" in out.splitlines()[-1], out
+    for bad in ("../x", tested[:12], "HEAD~1"):
+        monkeypatch.setenv("FABRIK_MERGE_TESTS_BASE", bad)
+        rc, out = _run(repo, monkeypatch, capsys)
+        assert rc == 3 and "not a commit id" in out, (bad, out)
+    assert not list(common.glob("**/merge-tests-..*"))

@@ -645,6 +645,8 @@ class _Ctx:
         )
         self.pretesting = False  # `request --pretest`: never skip on a pretest record
         self.tests_deferred = False  # the leg moved past the CAS (`_after_merge_due`, D-1186)
+        self.after_base = ""  # the after-merge runner's leg only: the last tested tip (D-1186)
+        self.catching_up = False  # `_merge_into_base(catch_up=True)`: its leg never defers
 
 
 def _declared_leg(script: str) -> int:
@@ -694,7 +696,7 @@ def _merge_rate(ctx: _Ctx, now: float | None = None) -> float:
 def _after_merge_due(ctx: _Ctx, script: str) -> str:
     """The reason this merge's leg runs after the CAS, or "" when it runs before it."""
     m = _AFTER_DECL_RE.search(script)
-    if not m or ctx.pretesting:
+    if not m or ctx.pretesting or ctx.catching_up:
         return ""
     line, rate = int(m.group(1)), _merge_rate(ctx)
     if rate <= line:
@@ -1768,6 +1770,15 @@ def _base_merge_tests(ctx: _Ctx, old: str) -> str:
     return res.stdout if res.returncode == 0 and res.stdout.strip() else ""
 
 
+def _leg_env(ctx: _Ctx, env: dict) -> dict:
+    """The leg's env with ``FABRIK_MERGE_TESTS_BASE`` set only by the after-merge runner
+    (``ctx.after_base``): one inherited from a caller's shell would move a normal merge's base."""
+    env = {k: v for k, v in env.items() if k != "FABRIK_MERGE_TESTS_BASE"}
+    if ctx.after_base:
+        env["FABRIK_MERGE_TESTS_BASE"] = ctx.after_base
+    return env
+
+
 def _run_owner_leg(
     ctx: _Ctx, wt: Path, script: str, touched: list[str]
 ) -> tuple[subprocess.CompletedProcess, str]:
@@ -1779,7 +1790,7 @@ def _run_owner_leg(
         pythonpath = os.pathsep.join(
             p for p in (str(wt / "src"), os.environ.get("PYTHONPATH", "")) if p
         )
-        env = {**os.environ, **_MERGE_CHECK_ENV, "PYTHONPATH": pythonpath}
+        env = _leg_env(ctx, {**os.environ, **_MERGE_CHECK_ENV, "PYTHONPATH": pythonpath})
         argv, label = ["sh", "-e", "-c", script], ".fabrik/merge-tests (base copy)"
         # the outer bound only catches a runner that itself hangs; the runner stops the tests first
         return _run(_capped(argv, limit, ctx.leg_mem), limit + 60, cwd=wt, env=env), label
@@ -1788,7 +1799,7 @@ def _run_owner_leg(
     label = f"pytest {' '.join(touched)} under {py}"
     with tempfile.TemporaryDirectory(prefix="merge-shim-") as shim:
         Path(shim, "sitecustomize.py").write_text(_SITECUSTOMIZE, encoding="utf-8")
-        env = _fallback_env(wt, Path(shim))
+        env = _leg_env(ctx, _fallback_env(wt, Path(shim)))
         run = _run(
             _capped([py, "-m", "pytest", "-q", *touched], limit),
             limit + 60,
@@ -1853,9 +1864,15 @@ def _merge_into_base(
             new = _build(ctx, wt, other, message, base)
             on_phase("after-build")
             merged, snap, on_base = _preflight(ctx, base, old, new)
+            # per attempt: a rebuild may run the leg the last attempt deferred; a catch-up never
+            # defers, since no owed entry would ever name its merge (review r1 A-6, A-8)
+            ctx.tests_deferred = False
+            ctx.catching_up = catch_up
             tests = _owner_tests(ctx, wt, old, merged)
             if not catch_up:
-                rec.update(phase="built", building=new)
+                # saved with the pre-CAS record, so a crash before the post-CAS save still owes the
+                # after-merge run on resume (review r1 A-7)
+                rec.update(phase="built", building=new, tests_after_merge=ctx.tests_deferred)
                 _save(ctx, rec)
             on_phase("before-cas")
             if _main_on(ctx, base) != on_base:
@@ -2452,6 +2469,11 @@ def _open_after_reds(main: Path) -> list[dict]:
     return out
 
 
+# the title `_file_after_red` writes names the author: a tag cannot hold a 30-32 character agent
+# name (`by-` + 32 > the store's 32-character tag rule, review r1 A-1), the title can
+_AFTER_TITLE_RE = re.compile(r"after-merge red: merge [0-9a-f]{12} by ([a-z0-9-]{1,32}) \(")
+
+
 def _author_tag(requester: str | None) -> str:
     """The tag that names an after-merge red's author (``work.py add`` has no owner: assigning is the
     distributor's), or "" when the name cannot be a tag."""
@@ -2460,14 +2482,15 @@ def _author_tag(requester: str | None) -> str:
 
 
 def _after_merge_block(ctx: _Ctx, rec: dict) -> None:
-    """Refuse a request whose requester authored an open after-merge red, unless it carries that
-    item (the fix). The refusal names the merge and the tests."""
-    tag = _author_tag(rec.get("requester"))
+    """Refuse a request whose requester authored an open after-merge red (read from the item's
+    title), unless it carries that item (the fix). The refusal names the merge and the tests."""
+    who = _norm(rec.get("requester") or "")
     for item in _open_after_reds(ctx.main):
-        if tag and tag in (item.get("tags") or []) and rec.get("item") != item["id"]:
+        m = _AFTER_TITLE_RE.match(str(item.get("title") or ""))
+        if who and m and _norm(m.group(1)) == who and rec.get("item") != item.get("id"):
             raise RefusedError(
-                f"{rec.get('requester')} owns the open after-merge red {item['id']} ({item['title']}) "
-                f"— fix it first and request with `--item {item['id']}`"
+                f"{rec.get('requester')} authored the open after-merge red {item.get('id')} "
+                f"({item.get('title')}) — fix it first and request with `--item {item.get('id')}`"
             )
 
 
@@ -2476,6 +2499,13 @@ def _after_cause(ctx: _Ctx, todo: list[dict], ids: list[str], script_env: dict) 
     ids per merge, in one throwaway); the last when none reproduces (a red that needs the whole run)."""
     if len(todo) == 1 or not ids:
         return todo[-1]
+    try:
+        return _after_cause_search(ctx, todo, ids, script_env)
+    except Exception:  # noqa: BLE001 — the cause is a pointer, never the verdict: fall back
+        return todo[-1]
+
+
+def _after_cause_search(ctx: _Ctx, todo: list[dict], ids: list[str], script_env: dict) -> dict:
     main = ctx.main
     py = main / ".venv" / "bin" / "python"
     py_s = str(py) if os.access(py, os.X_OK) else sys.executable
@@ -2558,12 +2588,38 @@ def _after_status(d: Path, **fields) -> None:
     _write_atomic(d / AFTER_STATUS, json.dumps({"at": time.time(), **fields}, sort_keys=True))
 
 
+def _after_todo(d: Path) -> list[dict]:
+    """The owed merges not yet covered, in landing order (a duplicate line is covered once)."""
+    try:
+        owed = [
+            json.loads(x)
+            for x in (d / AFTER_OWED).read_text(encoding="utf-8").splitlines()
+            if x.strip()
+        ]
+    except FileNotFoundError:
+        owed = []
+    try:
+        done = set((d / AFTER_DONE).read_text(encoding="utf-8").split())
+    except FileNotFoundError:
+        done = set()
+    todo: list[dict] = []
+    for e in owed:
+        if isinstance(e, dict) and e.get("merge_sha") and e.get("old_base"):
+            if e.get("id") not in done and all(e.get("id") != t.get("id") for t in todo):
+                todo.append(e)
+    return todo
+
+
 def _after_merge_runner(main: Path) -> int:
-    """``after-merge-runner`` (internal; started by ``_owe_after_merge``): while merges are owed, run
-    the base's ``.fabrik/merge-tests`` ONCE on the newest owed merge against the last tested tip
-    (``FABRIK_MERGE_TESTS_BASE``), so one leg covers every merge landed since. Green, or a red filed
-    as a P0 on its cause merge's author, marks them covered and moves the tested tip. Exit 0 covered
-    (or another runner holds the lock and covers it) · 1 a leg without a verdict (left owed)."""
+    """``after-merge-runner`` (internal; started by ``_kick_after``): ONE leg per process, so its
+    scope's RuntimeMaxSec bounds exactly one leg (review r1 A-3). Under ``runner.lock`` it sweeps a
+    dead runner's throwaway (A-4), runs the base's ``.fabrik/merge-tests`` once on the newest owed
+    merge against the last tested tip (``ctx.after_base``), so one leg covers every merge landed
+    since, and on a verdict marks them covered and moves the tested tip. After releasing the lock
+    it reads the owed list again and starts a successor while anything is owed — a merge owed
+    between its last read and its exit is never left waiting (A-5). Exit 0 covered, nothing owed,
+    or another runner holds the lock · 1 a leg without a verdict or a red it could not file (left
+    owed, ``status.json`` says why)."""
     common = Path(_git("rev-parse", "--path-format=absolute", "--git-common-dir", cwd=main))
     ctx = _Ctx(main, common, "")
     d = _after_dir(ctx.records)
@@ -2573,82 +2629,81 @@ def _after_merge_runner(main: Path) -> int:
         try:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            return 0  # the live runner loops and covers what was owed after it started
-        while True:
-            try:
-                owed = [
-                    json.loads(x)
-                    for x in (d / AFTER_OWED).read_text(encoding="utf-8").splitlines()
-                    if x.strip()
-                ]
-            except FileNotFoundError:
-                owed = []
-            done = (
-                set((d / AFTER_DONE).read_text(encoding="utf-8").split())
-                if (d / AFTER_DONE).exists()
-                else set()
-            )
-            todo = [e for e in owed if e.get("id") not in done and e.get("merge_sha")]
-            if not todo:
-                return 0
-            tested = (
-                (d / AFTER_TESTED).read_text(encoding="utf-8").strip()
-                if (d / AFTER_TESTED).exists()
-                else ""
-            )
-            top = todo[-1]["merge_sha"]
-            if not tested or not _is_ancestor(main, tested, top):
-                tested = todo[0]["old_base"]
-            script = _base_merge_tests(ctx, tested)
-            ids: list[str] = []
-            with tempfile.TemporaryDirectory(prefix="merge-after-records-") as private:
-                env_keep = {
-                    k: os.environ.get(k)
-                    for k in ("FABRIK_MERGE_TESTS_RECORDS", "FABRIK_MERGE_TESTS_BASE")
-                }
-                os.environ["FABRIK_MERGE_TESTS_RECORDS"] = private
-                os.environ["FABRIK_MERGE_TESTS_BASE"] = tested
-                try:
-                    ctx.test_deadline = time.monotonic() + MERGE_TEST_BUDGET_S
-                    ctx.full_leg = _declared_leg(script)
-                    ctx.leg_mem = _declared_mem(script)
-                    run_rec: dict = {"id": f"after-{top[:12]}.run-{os.getpid()}"}
-                    actx = _Ctx(main, common, "")
-                    actx.records = d / "runs"
-                    with _throwaway(actx, run_rec, top, _PRETEST_PREFIX) as wt:
-                        _copy_worktree_include(ctx, wt, tested)
-                        run, _label = _run_owner_leg(ctx, wt, script, [])
-                    (actx.records / f"{run_rec['id']}.json").unlink(missing_ok=True)
-                    rec_file = Path(private) / f"merge-tests-{tested}.txt"
-                    if rec_file.is_file():
-                        ids = [
-                            line.split("\t")[0]
-                            for line in rec_file.read_text(encoding="utf-8").splitlines()
-                            if line.strip() and not line.startswith("#")
-                        ]
-                finally:
-                    for k, v in env_keep.items():
-                        if v is None:
-                            os.environ.pop(k, None)
-                        else:
-                            os.environ[k] = v
-            tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-2:])
-            covered = [e["id"] for e in todo]
-            if run.returncode == 1 and ids:
-                cause = _after_cause(ctx, todo, ids, dict(os.environ))
-                item = _file_after_red(main, cause, ids, tested, top)
-                verdict = {"rc": 1, "red": ids, "cause": cause["id"], "item": item or "NOT FILED"}
-            elif run.returncode == 0:
-                verdict = {"rc": 0}
-            else:
-                _after_status(d, rc=3, tested=tested, top=top, tail=tail[:500], covers=covered)
-                return 1
-            _write_atomic(d / AFTER_TESTED, top + "\n")
-            with open(d / AFTER_DONE, "a", encoding="utf-8") as fh:
-                fh.write("".join(i + "\n" for i in covered))
-            _after_status(d, tested=tested, top=top, covers=covered, tail=tail[:500], **verdict)
+            return 0  # the live runner re-reads the owed list after it releases the lock
+        rc = _after_merge_leg(ctx, d)
     finally:
         os.close(fd)
+    if rc == 0 and _after_todo(d):
+        note = _kick_after(ctx)
+        if note:
+            _after_status(d, rc=4, tail=note)
+            return 1
+    return rc
+
+
+def _after_merge_leg(ctx: _Ctx, d: Path) -> int:
+    """One leg over every merge owed now; see ``_after_merge_runner``."""
+    main = ctx.main
+    actx = _Ctx(main, ctx.common, "")
+    actx.records = d / "runs"
+    _sweep_pretests(actx)
+    todo = _after_todo(d)
+    if not todo:
+        return 0
+    try:
+        tested = (d / AFTER_TESTED).read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        tested = ""
+    top = todo[-1]["merge_sha"]
+    if not tested or not _is_ancestor(main, tested, top):
+        tested = todo[0]["old_base"]
+    script = _base_merge_tests(ctx, tested)
+    covered = [e["id"] for e in todo]
+    ids: list[str] = []
+    keep = os.environ.get("FABRIK_MERGE_TESTS_RECORDS")
+    with tempfile.TemporaryDirectory(prefix="merge-after-records-") as private:
+        os.environ["FABRIK_MERGE_TESTS_RECORDS"] = private
+        try:
+            ctx.test_deadline = time.monotonic() + MERGE_TEST_BUDGET_S
+            ctx.full_leg = _declared_leg(script)
+            ctx.leg_mem = _declared_mem(script)
+            ctx.after_base = tested
+            run_rec: dict = {"id": f"after-{top[:12]}.run-{os.getpid()}", **_claimer()}
+            with _throwaway(actx, run_rec, top, _PRETEST_PREFIX) as wt:
+                _copy_worktree_include(ctx, wt, tested)
+                run, _label = _run_owner_leg(ctx, wt, script, [])
+            (actx.records / f"{run_rec['id']}.json").unlink(missing_ok=True)
+            rec_file = Path(private) / f"merge-tests-{tested}.txt"
+            if rec_file.is_file():
+                ids = [
+                    line.split("\t")[0]
+                    for line in rec_file.read_text(encoding="utf-8").splitlines()
+                    if line.strip() and not line.startswith("#")
+                ]
+        finally:
+            if keep is None:
+                os.environ.pop("FABRIK_MERGE_TESTS_RECORDS", None)
+            else:
+                os.environ["FABRIK_MERGE_TESTS_RECORDS"] = keep
+    tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-2:])[:500]
+    where = {"tested": tested, "top": top, "covers": covered, "tail": tail}
+    if run.returncode == 1 and ids:
+        cause = _after_cause(ctx, todo, ids, dict(os.environ))
+        item = _file_after_red(main, cause, ids, tested, top)
+        if not item:  # an unfiled red would read pre-existing once tested.txt moved past it
+            _after_status(d, rc=2, red=ids, cause=cause["id"], **where)
+            return 1
+        verdict = {"rc": 1, "red": ids, "cause": cause["id"], "item": item}
+    elif run.returncode == 0:
+        verdict = {"rc": 0}
+    else:
+        _after_status(d, rc=3, **where)
+        return 1
+    _write_atomic(d / AFTER_TESTED, top + "\n")
+    with open(d / AFTER_DONE, "a", encoding="utf-8") as fh:
+        fh.write("".join(i + "\n" for i in covered))
+    _after_status(d, **where, **verdict)
+    return 0
 
 
 def _drain_sync() -> None:
@@ -2987,6 +3042,8 @@ def _merge_request_steps(ctx: _Ctx, rec: dict, remote: str) -> None:
     )
     if ctx.tests_deferred:
         rec["tests_after_merge"] = True
+    else:
+        rec.pop("tests_after_merge", None)  # the last attempt ran its leg
     rec.pop("building", None)
     rec.setdefault("evidence", []).extend(
         [f"merge commit {new} on {rec['base']} ({old[:12]} → {new[:12]})", f"tests: {tests}"]
@@ -3699,8 +3756,9 @@ def _queue(args: argparse.Namespace) -> int:
                 script = _base_merge_tests(ctx, base_tip) if base_tip else ""
                 if _past_wall(started, len(entries)):
                     return rc
-                if not base_tip or not script:
-                    # no base or no owner tests: nothing runs outside the lock; land in order
+                if not base_tip or not script or _after_merge_due(ctx, script):
+                    # no base, no owner tests, or the leg runs after the merge (D-1186): nothing
+                    # runs outside the lock before landing; land in order
                     landed.add(entries[0]["id"])
                     rc = max(rc, _land(entries[0]["id"]))
                     if rc == EXIT_PARTIAL:

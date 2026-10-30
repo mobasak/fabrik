@@ -2850,3 +2850,134 @@ def test_a_second_runner_exits_while_one_holds_the_lock(world):
         assert world.mod._after_merge_runner(world.main) == 0
     finally:
         os.close(fd)
+
+
+def test_a_normal_merge_leg_never_inherits_an_after_merge_base(world):
+    """FABRIK_MERGE_TESTS_BASE reaches a leg only from the after-merge runner: one left in the merge
+    owner's shell would move a normal merge's base and shrink its selection (review r1 B-1)."""
+    seen = world.tmp / "base-seen"
+    world.write(".fabrik/merge-tests", f'printf "%s" "$FABRIK_MERGE_TESTS_BASE" > {seen}\n')
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    world.mp.setenv("FABRIK_MERGE_TESTS_BASE", "f" * 40)
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    assert world.run("merge") == 0
+    assert seen.read_text() == "" and world.record(msg_id)["outcome"] == "merged"
+
+
+def test_a_red_whose_p0_cannot_be_filed_stays_owed(world):
+    """An unfiled red would read pre-existing once tested.txt moved past it (review r1, slice B note)."""
+    recs = _land_two(world, _RED_LEG)
+    world.mp.setattr(world.mod, "_after_cause", lambda ctx, todo, ids, env: todo[0])
+    world.mp.setattr(world.mod, "_file_after_red", lambda *a: "")
+    assert world.mod._after_merge_runner(world.main) == 1
+    d = world.main / ".git" / "fabrik-merge" / "after-merge"
+    assert not (d / "done.txt").exists() and not (d / "tested.txt").exists()
+    status = json.loads((d / "status.json").read_text())
+    assert status["rc"] == 2 and status["covers"] == [r["id"] for r in recs]
+
+
+def test_a_rebuild_that_runs_its_leg_owes_no_after_merge_run(world):
+    """The deferral is decided per build attempt (review r1 A-8): attempt 1 deferred, the base moved,
+    attempt 2 ran its leg — the merge owes nothing."""
+    counter = world.tmp / "test-runs"
+    _after_world(world, f"python3 -c \"open({str(counter)!r}, 'a').write('x')\"")
+    kicked = _kicks(world)
+    real = world.mod._after_merge_due
+    answers = iter([True, False])
+    world.mp.setattr(
+        world.mod, "_after_merge_due", lambda c, s: real(c, s) if next(answers) else ""
+    )
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    calls: list[str] = []
+
+    def phase(name):
+        if name == "after-build":
+            calls.append(name)
+            if len(calls) == 1:
+                world.write("bump.txt", "bump\n")
+                world.commit_main("pipeline commit", "bump.txt")
+
+    assert world.run("merge", phase=phase) == 0
+    rec = world.record(msg_id)
+    assert len(calls) == 2 and counter.read_text() == "x" and kicked == []
+    assert "tests_after_merge" not in rec and "after_merge_owed" not in rec
+
+
+def test_the_pre_cas_record_carries_the_deferral(world):
+    """A crash between the CAS and the post-CAS save still owes the after-merge run on resume (A-7)."""
+    _after_world(world, "true")
+    _kicks(world)
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    seen: dict = {}
+
+    def phase(name):
+        if name == "before-cas":
+            seen.update(world.record(msg_id))
+
+    assert world.run("merge", phase=phase) == 0
+    assert seen["phase"] == "built" and seen["tests_after_merge"] is True
+
+
+def test_a_catch_up_never_defers(world):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
+    ctx.records.mkdir(parents=True, exist_ok=True)
+    (ctx.records / "r.json").write_text(json.dumps({"outcome": "merged"}))
+    script = "# merge-tests-after-merge-above: 0\ntrue\n"
+    assert world.mod._after_merge_due(ctx, script)
+    ctx.catching_up = True
+    assert world.mod._after_merge_due(ctx, script) == ""
+
+
+def test_an_author_with_a_32_character_name_is_still_blocked(world):
+    """`by-` + a 32-character agent name is past the store's tag rule; the block reads the title (A-1)."""
+    name = "a" * 32
+    store = world.main / ".fabrik" / "work"
+    item = {
+        "id": "W-0000beef",
+        "status": "open",
+        "tags": ["after-merge-red"],
+        "title": f"after-merge red: merge {'c' * 12} by {name} (request X, branch b) turned t red",
+    }
+    (store / "W-0000beef.json").write_text(json.dumps(item))
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
+    with pytest.raises(world.mod.RefusedError, match="W-0000beef"):
+        world.mod._after_merge_block(ctx, {"requester": name, "item": "none"})
+    world.mod._after_merge_block(ctx, {"requester": name, "item": "W-0000beef"})  # the fix passes
+    world.mod._after_merge_block(ctx, {"requester": "someone-else", "item": "none"})
+    item["status"] = "done"
+    (store / "W-0000beef.json").write_text(json.dumps(item))
+    world.mod._after_merge_block(ctx, {"requester": name, "item": "none"})
+
+
+def test_a_merge_owed_while_the_runner_exits_gets_a_successor(world):
+    """The runner re-reads the owed list after releasing its lock (A-5): one owed during its leg is
+    handed to a successor, never left for the next merge's kick."""
+    recs = _land_two(world, "true")
+    kicked: list = []
+    world.mp.setattr(world.mod, "_kick_after", lambda ctx: kicked.append(1) or "")
+    d = world.main / ".git" / "fabrik-merge" / "after-merge"
+    real = world.mod._after_merge_leg
+
+    def leg(ctx, dd):
+        rc = real(ctx, dd)
+        with open(dd / "owed.jsonl", "a") as fh:  # a merge lands while this runner finishes
+            fh.write(json.dumps({**recs[1], "id": "LATE", "old_base": recs[1]["merge_sha"]}) + "\n")
+        return rc
+
+    world.mp.setattr(world.mod, "_after_merge_leg", leg)
+    assert world.mod._after_merge_runner(world.main) == 0
+    assert kicked == [1] and "LATE" not in (d / "done.txt").read_text()
+
+
+def test_a_dead_runners_throwaway_is_swept_by_the_next_runner(world):
+    """A runner killed mid-leg leaves a registered throwaway and its run record (A-4)."""
+    runs = world.main / ".git" / "fabrik-merge" / "after-merge" / "runs"
+    runs.mkdir(parents=True)
+    parent = Path(tempfile.mkdtemp(prefix="fabrik-pretest-"))
+    wt = parent / world.main.name
+    _git(world.main, "worktree", "add", "--detach", "-q", str(wt), "HEAD")
+    rec = {"id": "after-x.run-1", "worktree": str(wt), "pid": _dead_pid(), "start": "1"}
+    (runs / "after-x.run-1.json").write_text(json.dumps(rec))
+    assert world.mod._after_merge_runner(world.main) == 0  # nothing owed: the sweep still ran
+    assert not wt.exists() and not (runs / "after-x.run-1.json").exists()
+    assert str(wt) not in _git(world.main, "worktree", "list")

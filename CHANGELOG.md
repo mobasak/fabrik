@@ -9,8 +9,8 @@ All notable changes to this project will be documented in this file.
 `# merge-tests-after-merge-above: <n>` and the last 7 days averaged more than n merges a day, a merge
 lands after build, preflight and CAS, and one background `after-merge-runner` runs the same selected leg
 once over every merge landed since the last tested tip (`FABRIK_MERGE_TESTS_BASE`, honoured by
-`scripts/merge_test_select.py`). A red files a P0 work item (tags `after-merge-red`, `by-<requester>`)
-naming the cause merge, and that author's next request is refused until it carries the item. The hub
+`scripts/merge_test_select.py`). A red files a P0 work item (tag `after-merge-red`) whose title names
+the cause merge and its author, and that author's next request is refused until it carries the item. The hub
 declares 0: on for every hub merge (D-1382, W-3237ba45).
 
 ### Fixed — agents_up launches every pane with --permission-mode bypassPermissions (2026-10-30)

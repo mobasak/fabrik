@@ -900,26 +900,35 @@ def main(argv: list[str] | None = None) -> int:
             # merge_request's after-merge run (D-1186, W-3237ba45) tests HEAD against the last tip
             # it tested, so one leg covers every merge landed since: no base-alone, no green skip
             over = os.environ.get("FABRIK_MERGE_TESTS_BASE", "") if in_merge else ""
-            if in_merge and not over and (_record_path(head).exists() or len(parents) < 2):
-                return _base_alone(head, runner)
-            base = over or (
-                parents[0] if in_merge else _git("merge-base", "HEAD", "origin/master").strip()
-            )
-            if in_merge and not over and not args.list:
-                green, why = _green_merge(head, parents)
-                if why:
-                    print(f"merge-tests: green record ignored ({why})")
-                delta = (
-                    _git("diff", "--name-only", "--no-renames", "-z", green, head) if green else ""
+            if over:
+                # a commit id only: it names the record file, and a range is not a merge's to skip
+                if not re.fullmatch(r"[0-9a-f]{40}(?:[0-9a-f]{24})?", over):
+                    raise ValueError(f"FABRIK_MERGE_TESTS_BASE is not a commit id: {over[:60]!r}")
+                base = over
+            else:
+                if in_merge and (_record_path(head).exists() or len(parents) < 2):
+                    return _base_alone(head, runner)
+                base = (
+                    parents[0] if in_merge else _git("merge-base", "HEAD", "origin/master").strip()
                 )
-                if green and all(SKIP.fullmatch(p) for p in delta.split("\0") if p):
-                    _record_path(base).unlink(missing_ok=True)
-                    _record_green(head, parents)
-                    print(
-                        "merge-tests: re-test skipped — only ledger/work-item paths changed since the "
-                        f"green merge {green[:12]}\nmerge-tests: green in {time.monotonic() - t0:.0f}s"
+                if in_merge and not args.list:
+                    green, why = _green_merge(head, parents)
+                    if why:
+                        print(f"merge-tests: green record ignored ({why})")
+                    delta = (
+                        _git("diff", "--name-only", "--no-renames", "-z", green, head)
+                        if green
+                        else ""
                     )
-                    return 0
+                    if green and all(SKIP.fullmatch(p) for p in delta.split("\0") if p):
+                        _record_path(base).unlink(missing_ok=True)
+                        _record_green(head, parents)
+                        print(
+                            "merge-tests: re-test skipped — only ledger/work-item paths changed since "
+                            f"the green merge {green[:12]}\nmerge-tests: green in "
+                            f"{time.monotonic() - t0:.0f}s"
+                        )
+                        return 0
             if in_merge:  # until a verdict replaces it, any death reads as "measured nothing"
                 _write_record(base, [f"{_LEG_MARK}\tin-progress"])
             changed = [
