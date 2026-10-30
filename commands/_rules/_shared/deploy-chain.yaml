@@ -1,15 +1,17 @@
 shared: commands/_fragments/deploy-chain.md
 baseline_sentences: deploy-chain.baseline.txt
-baseline_sha256: 8c28db3ec72082420ee6bc3456d9b3a5ecd6ebcacfc3d155b37ebac93d37df46
+baseline_sha256: 4b6eacba447323acc96eacfa51f360d61c6f6435dcfc8dbd1b82898e58be070b
 entries:
 - id: dc-u1
   file: commands/_fragments/deploy-chain.md
   section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
-  baseline: Six steps, one operator gate, two repos
-  current: Six steps, one operator gate, two repos
+  baseline: Six steps, one approval gate, two repos
+  current: Six steps, one approval gate, two repos
   class: prose
   text:
-  - Six steps, one operator gate, two repos
+  - Six steps, one approval gate, two repos
+  changed-by:
+  - D-1371
 - id: dc-u2
   file: commands/_fragments/deploy-chain.md
   section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
@@ -69,19 +71,23 @@ entries:
 - id: dc-u10
   file: commands/_fragments/deploy-chain.md
   section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
-  baseline: '| — | Gate 2 | the operator | an explicit "go" — nothing auto-chains across it |'
-  current: '| — | Gate 2 | the operator | an explicit "go" — nothing auto-chains across it |'
+  baseline: '| — | Gate 2 | the Opus + Fable panel (own VPS, backup + rollback, not customer-facing) · the operator (customer-facing, stores, a split) | a go — nothing auto-chains across it |'
+  current: '| — | Gate 2 | the Opus + Fable panel (own VPS, backup + rollback, not customer-facing) · the operator (customer-facing, stores, a split) | a go — nothing auto-chains across it |'
   class: prose
   text:
-  - '| — | Gate 2 | the operator | an explicit "go" — nothing auto-chains across it |'
+  - '| — | Gate 2 | the Opus + Fable panel (own VPS, backup + rollback, not customer-facing) · the operator (customer-facing, stores, a split) | a go — nothing auto-chains across it |'
+  changed-by:
+  - D-1371
 - id: dc-u11
   file: commands/_fragments/deploy-chain.md
   section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
-  baseline: '| 5 | `/fabrik-deploy` | the same repo as the plan (HUB for VPS · PROJECT for stores) — operator-dispatched only | the runbook executed, the battery green, the plan at `EXECUTED`; re-reads the `--header` pre-flip |'
-  current: '| 5 | `/fabrik-deploy` | the same repo as the plan (HUB for VPS · PROJECT for stores) — operator-dispatched only | the runbook executed, the battery green, the plan at `EXECUTED`; re-reads the `--header` pre-flip |'
+  baseline: '| 5 | `/fabrik-deploy` | the same repo as the plan (HUB for VPS · PROJECT for stores) — dispatched on a Gate 2 go only | the runbook executed, the battery green, the plan at `EXECUTED`; re-reads the `--header` pre-flip |'
+  current: '| 5 | `/fabrik-deploy` | the same repo as the plan (HUB for VPS · PROJECT for stores) — dispatched on a Gate 2 go only | the runbook executed, the battery green, the plan at `EXECUTED`; re-reads the `--header` pre-flip |'
   class: ban
   text:
-  - '| 5 | `/fabrik-deploy` | the same repo as the plan (HUB for VPS · PROJECT for stores) — operator-dispatched only | the runbook executed, the battery green, the plan at `EXECUTED`; re-reads the `--header` pre-flip |'
+  - '| 5 | `/fabrik-deploy` | the same repo as the plan (HUB for VPS · PROJECT for stores) — dispatched on a Gate 2 go only | the runbook executed, the battery green, the plan at `EXECUTED`; re-reads the `--header` pre-flip |'
+  changed-by:
+  - D-1371
 - id: dc-u12
   file: commands/_fragments/deploy-chain.md
   section: '## The deploy chain — ORDER and REPO (this block is shared by every command in it)'
@@ -118,12 +124,3 @@ vanished:
   L3:
     rule:
     - dc-u2
-  L9:
-    rule:
-    - dc-u8
-  L14:
-    rule:
-    - dc-u13
-  L15:
-    rule:
-    - dc-u14

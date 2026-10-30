@@ -1,6 +1,6 @@
 command: fabrik-release
 baseline_sentences: fabrik-release.baseline.txt
-baseline_sha256: 94bbdd0b5a50e46739f998ef57ffcfa100a284b6fe955ed607c52cb0d2c7b932
+baseline_sha256: 9a86dea546f0109fc93b40af1984243d61285ce7737beaf3a6a28f9855cc49d6
 entries:
 - id: u-L2
   file: render
@@ -40,16 +40,20 @@ entries:
   - Include the printed plan in the report
 - id: u-L84
   file: render
-  baseline: 'On a fully-PASS verdict, end the turn with the block below, written as plain lines, not inside a code fence:'
-  current: 'On a fully-PASS verdict, end the turn with the block below, written as plain lines, not inside a code fence:'
+  baseline: 'On a fully-PASS verdict on a store surface, end the turn with the block below, written as plain lines, not inside a code fence:'
+  current: 'On a fully-PASS verdict on a store surface, end the turn with the block below, written as plain lines, not inside a code fence:'
   text:
-  - 'On a fully-PASS verdict, end the turn with the block below, written as plain lines, not inside a code fence:'
+  - 'On a fully-PASS verdict on a store surface, end the turn with the block below, written as plain lines, not inside a code fence:'
+  changed-by:
+  - D-1371
 - id: u-L86
   file: render
-  baseline: 'Next command: Gate 2 — human approval; VPS: /fabrik-deploy-plan (the deploy triad)'
-  current: 'Next command: Gate 2 — human approval; VPS: /fabrik-deploy-plan (the deploy triad)'
+  baseline: 'Next command: Gate 2 at /fabrik-deploy-plan-review — VPS: /fabrik-deploy-plan (the deploy triad)'
+  current: 'Next command: Gate 2 at /fabrik-deploy-plan-review — VPS: /fabrik-deploy-plan (the deploy triad)'
   text:
-  - 'Next command: Gate 2 — human approval; VPS: /fabrik-deploy-plan (the deploy triad)'
+  - 'Next command: Gate 2 at /fabrik-deploy-plan-review — VPS: /fabrik-deploy-plan (the deploy triad)'
+  changed-by:
+  - D-1371
 - id: u-L87
   file: render
   baseline: 'Stores: operator submits, then /fabrik-deploy-verify'
@@ -58,10 +62,12 @@ entries:
   - 'Stores: operator submits, then /fabrik-deploy-verify'
 - id: rel-bridge-to-gate-2
   file: render
-  baseline: 'Run this project''s release path — the bridge from "gate-green code" to the human Gate 2 (R14: deploy/submit approval is the operator''s, always)'
-  current: 'Run this project''s release path, the bridge from gate-green code to the human Gate 2 (R14: deploy/submit approval is the operator''s, always)'
+  baseline: 'Run this project''s release path, the bridge from gate-green code to Gate 2 (R14, D-1110: a store submit and a customer-facing deploy are the operator''s, an own-VPS deploy the panel''s)'
+  current: 'Run this project''s release path, the bridge from gate-green code to Gate 2 (R14, D-1110: a store submit and a customer-facing deploy are the operator''s, an own-VPS deploy the panel''s)'
   text:
-  - 'Run this project''s release path, the bridge from gate-green code to the human Gate 2 (R14: deploy/submit approval is the operator''s, always)'
+  - 'Run this project''s release path, the bridge from gate-green code to Gate 2 (R14, D-1110: a store submit and a customer-facing deploy are the operator''s, an own-VPS deploy the panel''s)'
+  changed-by:
+  - D-1371
 - id: rel-termination-verdicts
   file: render
   baseline: 'You are done when EVERY item of the surface''s checklist below has a verdict — PASS (with evidence: a `path:line` or a fenced command output) or BLOCKED (what''s missing, where you searched) — and you have printed the Gate-2 handoff block'
@@ -115,10 +121,12 @@ entries:
   - 'An open P0/P1 row, any `NOT-QUIET` ledger, or any `DESIGN-GAP` row untouched by the operator is a BLOCKED release; report it as `BLOCKED: certification handoff open — <finding> → <route>`: stop'
 - id: rel-p2-p3-warn
   file: render
-  baseline: Open P2/P3 rows are printed as a ⚠ WARN list in the Gate-2 handoff block — visible for the operator's explicit accept, never silently passed
-  current: Open P2/P3 rows print as a ⚠ WARN list in the Gate-2 block, visible for the operator's explicit accept, never silently passed
+  baseline: 'Open P2/P3 rows print as a ⚠ WARN list in the output block, visible for an explicit accept (stores: the operator''s, at the Gate-2 block; VPS: whoever dispatches `/fabrik-deploy-plan` reads it there, since that hand-off is a console print), never silently passed'
+  current: 'Open P2/P3 rows print as a ⚠ WARN list in the output block, visible for an explicit accept (stores: the operator''s, at the Gate-2 block; VPS: whoever dispatches `/fabrik-deploy-plan` reads it there, since that hand-off is a console print), never silently passed'
   text:
-  - Open P2/P3 rows print as a ⚠ WARN list in the Gate-2 block, visible for the operator's explicit accept, never silently passed
+  - 'Open P2/P3 rows print as a ⚠ WARN list in the output block, visible for an explicit accept (stores: the operator''s, at the Gate-2 block; VPS: whoever dispatches `/fabrik-deploy-plan` reads it there, since that hand-off is a console print), never silently passed'
+  changed-by:
+  - D-1371
 - id: rel-severity-binds-on-honour
   file: render
   baseline: 'Grader honesty: the HANDOFF grammar and NOT-QUIET↔RESUME pairing in those reports are machine-graded (`check_review_coverage.py`); the severity-tiered blocking HERE is read by no check — it binds you on honour, which is why the rows and this paragraph carry the exact grammar to grep'
@@ -207,14 +215,18 @@ entries:
   baseline: 'When the git check finds a doc older than the code but the code commits since touched nothing it describes, content is the tiebreak: print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the Gate-2 block and that doc''s BLOCKED below lifts; otherwise it stands'
   current: ''
   text:
-  - 'When the git check finds a doc older than the code but later code commits touched nothing it describes, content is the tiebreak: print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the Gate-2 block and its BLOCKED lifts'
+  - 'When the git check finds a doc older than the code but later code commits touched nothing it describes, content is the tiebreak: print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the output block (before Gate-2) and its BLOCKED lifts'
   - 'Otherwise it stands: a key doc older than the code it describes is BLOCKED: docs behind code'
+  changed-by:
+  - D-1371
 - id: rel-stale-header-no-date-bump
   file: render
-  baseline: A stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone
-  current: 'When the git check finds a doc older than the code but later code commits touched nothing it describes, content is the tiebreak: print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the Gate-2 block and its BLOCKED lifts; a stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone'
+  baseline: 'When the git check finds a doc older than the code but later code commits touched nothing it describes, content is the tiebreak: print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the output block (before Gate-2) and its BLOCKED lifts; a stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone'
+  current: 'When the git check finds a doc older than the code but later code commits touched nothing it describes, content is the tiebreak: print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the output block (before Gate-2) and its BLOCKED lifts; a stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone'
   text:
-  - a stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone
+  - 'When the git check finds a doc older than the code but later code commits touched nothing it describes, content is the tiebreak: print `DOCS-TIEBREAK: <doc> — <shas> — <claims still true>` in the output block (before Gate-2) and its BLOCKED lifts; a stale header clears only by re-reading the doc against the code and bumping the header in a commit that says what was checked — never by a date bump alone'
+  changed-by:
+  - D-1371
 - id: rel-docs-behind-code-blocked
   file: render
   baseline: 'A key doc older than the code it describes = BLOCKED: docs behind code — run the doc''s converge command first: `/fabrik-features` for `FEATURES.md`, `/fabrik-doc-converge <doc>` for SERVICES/RESILIENCE/CONFIGURATION/DEPLOYMENT (or `/fabrik-docs-review` for a whole-tree pass) — touch-on-change proved presence during development; the release gate demands dated truth'
@@ -251,10 +263,12 @@ entries:
   - 'Absent, unparseable or `DRAFT` ⇒ `BLOCKED: parity contract DRAFT → /fabrik-deploy-checklist`: stop; a release whose verify run can only reach `UNVERIFIED` is not READY'
 - id: rel-parity-stale-version-warn
   file: render
-  baseline: A `FROZEN` contract whose `Version` predates a change to the compose services, the scheduler, the `os.getenv` set or the migration head is a ⚠ WARN in the Gate-2 block (the contract is stale, not absent — `/fabrik-deploy-checklist` bumps it)
-  current: A `FROZEN` contract whose `Version` predates a change to the compose services, scheduler, `os.getenv` set or migration head is a ⚠ WARN in the Gate-2 block (the contract is stale, not absent — `/fabrik-deploy-checklist` bumps it)
+  baseline: A `FROZEN` contract whose `Version` predates a change to the compose services, scheduler, `os.getenv` set or migration head is a ⚠ WARN in the output block (the contract is stale, not absent — `/fabrik-deploy-checklist` bumps it)
+  current: A `FROZEN` contract whose `Version` predates a change to the compose services, scheduler, `os.getenv` set or migration head is a ⚠ WARN in the output block (the contract is stale, not absent — `/fabrik-deploy-checklist` bumps it)
   text:
-  - A `FROZEN` contract whose `Version` predates a change to the compose services, scheduler, `os.getenv` set or migration head is a ⚠ WARN in the Gate-2 block (the contract is stale, not absent — `/fabrik-deploy-checklist` bumps it)
+  - A `FROZEN` contract whose `Version` predates a change to the compose services, scheduler, `os.getenv` set or migration head is a ⚠ WARN in the output block (the contract is stale, not absent — `/fabrik-deploy-checklist` bumps it)
+  changed-by:
+  - D-1371
 - id: rel-parity-honour-bound
   file: render
   baseline: 'Mirrors the certification-handoff precondition above: same grammar, same honour-bound binding — no executable check grades this header today (a deliberate, recorded deferral in `docs/STRATEGIC_BACKLOG.md`)'
@@ -283,10 +297,12 @@ entries:
   - 'Gate-2 handoff: print *"Release-ready at `<SHA>`'
 - id: rel-vps-handoff-no-self-deploy
   file: render
-  baseline: 'Operator: dispatch `/fabrik-deploy-plan` (the deploy triad) — or run `fabrik apply` directly (the manual path) — from `/opt/fabrik` (hub-side; this project cannot self-deploy — trigger, don''t execute)."*'
-  current: 'Operator: dispatch `/fabrik-deploy-plan` (the deploy triad), or run `fabrik apply` directly (the manual path), from `/opt/fabrik` (hub-side; this project cannot self-deploy — trigger, don''t execute)."*'
+  baseline: 'Next: `/fabrik-deploy-plan` (the deploy triad; Gate 2 is answered at `/fabrik-deploy-plan-review`), or the operator''s manual `fabrik apply`, from `/opt/fabrik` (hub-side; this project cannot self-deploy — trigger, don''t execute)."*'
+  current: 'Next: `/fabrik-deploy-plan` (the deploy triad; Gate 2 is answered at `/fabrik-deploy-plan-review`), or the operator''s manual `fabrik apply`, from `/opt/fabrik` (hub-side; this project cannot self-deploy — trigger, don''t execute)."*'
   text:
-  - 'Operator: dispatch `/fabrik-deploy-plan` (the deploy triad), or run `fabrik apply` directly (the manual path), from `/opt/fabrik` (hub-side; this project cannot self-deploy — trigger, don''t execute)."*'
+  - 'Next: `/fabrik-deploy-plan` (the deploy triad; Gate 2 is answered at `/fabrik-deploy-plan-review`), or the operator''s manual `fabrik apply`, from `/opt/fabrik` (hub-side; this project cannot self-deploy — trigger, don''t execute)."*'
+  changed-by:
+  - D-1371
 - id: rel-mobile-ring
   file: render
   baseline: 'Decide the ring from the rules: store/team → EAS Build (`eas.json` profiles `development|preview| production`, cloud build — never assume a local Android SDK); sideload/solo → local `expo prebuild` + `./gradlew assembleRelease`'
@@ -463,25 +479,16 @@ entries:
   - 'Surfaces with an artifact-embedded version reconcile, never fork: extension (`manifest.json` version) and mobile (app version / EAS) pass it explicitly, `--execute --version <that version>`, so tag, Release and store artifact carry ONE identity; the checklist''s own "version bumped" item is the source; VPS surfaces derive from the changelog'
 - id: rel-deploy-stays-gate-2
   file: render
-  baseline: The cut is the version act; deploy stays Gate 2 (the tag names what the operator's `fabrik apply` will ship — record `vX.Y.Z` in the handoff line)
-  current: 'Deploy stays Gate 2 (the tag names what the operator''s `fabrik apply` will ship): record `vX.Y.Z` in the handoff line'
+  baseline: 'Deploy stays Gate 2 (the tag names what the Gate-2-approved `fabrik apply` will ship): record `vX.Y.Z` in the handoff line'
+  current: 'Deploy stays Gate 2 (the tag names what the Gate-2-approved `fabrik apply` will ship): record `vX.Y.Z` in the handoff line'
   text:
-  - 'Deploy stays Gate 2 (the tag names what the operator''s `fabrik apply` will ship): record `vX.Y.Z` in the handoff line'
-  clauses:
-    1: narrative
+  - 'Deploy stays Gate 2 (the tag names what the Gate-2-approved `fabrik apply` will ship): record `vX.Y.Z` in the handoff line'
+  changed-by:
+  - D-1371
 vanished:
-  L1:
-    rule:
-    - rel-bridge-to-gate-2
   L4:
     rule:
     - rel-termination-verdicts
-  L5:
-    rule:
-    - rel-pass-needs-evidence
-  L6:
-    rule:
-    - rel-ending-at-handoff-is-success
   L7:
     rule:
     - rel-context-never-a-reason
@@ -491,15 +498,9 @@ vanished:
   L10:
     rule:
     - rel-cert-precondition-lead
-  L11:
-    rule:
-    - rel-read-newest-handoff
   L13:
     rule:
     - rel-open-p0-p1-blocked
-  L14:
-    rule:
-    - rel-p2-p3-warn
   L16: narrative
   L17:
     rule:
@@ -516,18 +517,9 @@ vanished:
   L22:
     rule:
     - rel-unmapped-type-inferred
-  L24:
-    rule:
-    - rel-universal-preconditions-real-commands
-  L25:
-    rule:
-    - rel-final-gate-this-run
   L26:
     rule:
     - rel-pushed-and-upstream-relative
-  L27:
-    rule:
-    - rel-remoted-repo-lacking-tracking-ref
   L28:
     rule:
     - rel-upatream-fatal-not-nothing-unpushed
@@ -540,15 +532,9 @@ vanished:
   L32:
     rule:
     - rel-docs-tiebreak
-  L33:
-    rule:
-    - rel-stale-header-no-date-bump
   L34:
     rule:
     - rel-docs-behind-code-blocked
-  L35:
-    rule:
-    - rel-question-bar
   L36:
     rule:
     - rel-store-text-is-data
@@ -558,9 +544,6 @@ vanished:
   L39:
     rule:
     - rel-parity-draft-blocked
-  L40:
-    rule:
-    - rel-parity-stale-version-warn
   L41:
     rule:
     - rel-parity-honour-bound
@@ -573,9 +556,6 @@ vanished:
   L45:
     rule:
     - rel-vps-handoff
-  L46:
-    rule:
-    - rel-vps-handoff-no-self-deploy
   L47: narrative
   L48:
     rule:
@@ -618,16 +598,10 @@ vanished:
   L63:
     rule:
     - rel-extension-listing-assets
-  L64:
-    rule:
-    - rel-extension-privacy-answers
   L65:
     rule:
     - rel-extension-full-checklist
   L66:
-    rule:
-    - rel-extension-handoff
-  L67:
     rule:
     - rel-extension-handoff
   L68: narrative
@@ -661,9 +635,3 @@ vanished:
   L80:
     rule:
     - rel-cut-blocked-no-cut
-  L81:
-    rule:
-    - rel-deploy-stays-gate-2
-  L57:
-    rule:
-    - rel-extension-listable-continue

@@ -8227,3 +8227,16 @@ new state the loop's EXIT condition must also accept.
 request re-stacked onto a changed base earns a fresh leg), and for every skip added to a
 producer loop, add the same arm to the consumer's ready test — then run the suite under a timeout, which is what
 caught the hang here.
+
+## An approved plan that predates the lean ledgers must be probe-run under them before its edit (2026-10-30, W-4a03df79)
+
+**What happened:** plan-1 (approved D-1122) rewords ban clauses (`only`, `never`) in five deploy-chain commands. The
+lean ledgers, which landed after the approval, hold those clauses verbatim and have no branch path for a reworded
+ban line: `narrative`, `rule:` and `superseded:` all refuse it before merge. The operator's kit was ready before
+anyone ran `command_rules.losses()` over the edited tree, so the run parked for a panel and a D-row re-cut (D-1371).
+**Why:** a plan's approval freezes its WORDING; a ledger added after it freezes the OLD wording; the two meet only
+when the edit runs.
+**How to apply:** before an approved plan's edit runs on a ledgered command, apply it in a throwaway worktree and run
+`command_rules.losses()` plus `tests/test_command_rules.py` there. Every LOSS is either reworded around a ban span
+that survives, or re-cut under one named D-row. A D-row cite in command text also adds a ceiling READ
+(`commands/_size_ceiling.json` `added:`).
