@@ -2110,7 +2110,8 @@ def _owe_sync(state: Path, why: str) -> None:
 # .slice), collected when it ends, its life bounded by SYNC_RUNNER_MAX_S, its memory by
 # SYNC_RUNNER_MEM (capped_run's per-run default, what it had inside the merge's scope); bare where
 # no such scope can start (no systemd-run, no user bus — as capped_run runs uncapped there). The
-# probe is that exact start with `-- true`, once per process: a manager that answers yet refuses a
+# probe is that exact start with `-- true`, kept for the process once it passes and asked again at
+# the next kick while it fails (`_scope_ok`): a manager that answers yet refuses a
 # property fails the probe, never the runner. Cobra (D-253): the cheapest pass is a bare start that
 # the wrapper kills; the probe's own exit decides, and `sync-done` is what the graders read.
 _SCOPE: dict = {}  # {"ok": bool} — this process's probe answer
@@ -2243,7 +2244,8 @@ def _sync_once(argv: list[str], state: Path, lock_fd: int) -> tuple[int, str]:
 
 def _sync_runner(state: Path, argv: list[str]) -> int:
     """``sync-runner`` (internal, listed by ``--help``; started by ``_kick_sync``): hold SYNC_LOCK, sync until the owed
-    log is covered. Exit 0 covered, or retired at SYNC_RUNNER_SOFT_S with the debt still owed · 1 a sync failed · 2 sync-done did not persist · 3 the lock
+    log is covered. Exit 0 covered, or retired at SYNC_RUNNER_SOFT_S with the debt still owed ·
+    1 a sync failed · 2 sync-done did not persist · 3 the lock
     stayed held past its wait (``main`` adds 70: the runner itself crashed)."""
     state.mkdir(parents=True, exist_ok=True)
     fd = os.open(state / SYNC_LOCK, os.O_RDWR | os.O_CREAT, 0o644)
