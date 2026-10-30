@@ -149,9 +149,16 @@ def test_a6_the_deploy_chain_names_the_panels_go() -> None:
     for name, text in texts.items():
         for old in (
             "the operator's explicit go",
-            "Gate 2 — human approval",
+            "human approval",
             "the operator explicitly dispatched",
             'an explicit "go"',
+            "the operator's, always",
+            "one operator gate",
+            "explicit operator dispatch",
+            "human deploy approval",
+            "the operator's `fabrik apply`",
+            "the human clicks go",
+            "the operator's explicit accept",
         ):
             assert old not in text, f"{name}: still holds {old!r}"
         assert not re.search(r"(?i)operator[- ]dispatched(?! on a gate 2 go)", text), (

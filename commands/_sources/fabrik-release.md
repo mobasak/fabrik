@@ -1,9 +1,9 @@
 ---
-description: Surface-aware release runner — the last mile between "built and reviewed" and Gate 2 (D-1110). Reads project.yaml::type and dispatches the matching path — VPS types → readiness verification + hand off to hub-side `fabrik apply`; mobile-app → EAS checklist; chrome-extension → Web Store checklist. Every verdict cites evidence. ALWAYS STOPS at Gate 2 — no agent deploys, submits, or ships an artifact to users (the version CUT — tag + GitHub Release notes — is the one sanctioned publish-shaped act, per the versioning adoption). TRIGGER — EN: "is this ready to release", "run the release checklist"; TR: "yayına hazır mı", "release kontrol listesini çalıştır" — fires PRE-deploy, before the human clicks go. SKIP: post-deploy live verification (→ /fabrik-deploy-verify). Stage: 6-release.
+description: Surface-aware release runner — the last mile between "built and reviewed" and Gate 2 (D-1110). Reads project.yaml::type and dispatches the matching path — VPS types → readiness verification + hand off to hub-side `fabrik apply`; mobile-app → EAS checklist; chrome-extension → Web Store checklist. Every verdict cites evidence. ALWAYS STOPS at Gate 2 — no agent deploys, submits, or ships an artifact to users (the version CUT — tag + GitHub Release notes — is the one sanctioned publish-shaped act, per the versioning adoption). TRIGGER — EN: "is this ready to release", "run the release checklist"; TR: "yayına hazır mı", "release kontrol listesini çalıştır" — fires PRE-deploy, before Gate 2's go. SKIP: post-deploy live verification (→ /fabrik-deploy-verify). Stage: 6-release.
 argument-hint: "[optional: override surface — vps | mobile | extension | desktop; omit to read project.yaml::type]"
 ---
 
-Run this project's **release path**, the bridge from gate-green code to Gate 2 (R14, D-1110: deploy/submit approval is the operator's, always). This command
+Run this project's **release path**, the bridge from gate-green code to Gate 2 (R14, D-1110: a store submit and a customer-facing deploy are the operator's, an own-VPS deploy the panel's). This command
 **verifies and prepares; it never ships**: no `fabrik apply`, no `eas submit --auto`, no Web Store "Submit for
 Review" click, no store credential use.
 
@@ -25,7 +25,7 @@ report that cause.
 service-test, CLAUDE.md § Pipeline item 2); a `reviews/` directory holding other review types is not a certification report.
 Otherwise read the newest one. Every open row carries a severity (P0–P3). An open P0/P1 row, any `NOT-QUIET` ledger, or any `DESIGN-GAP` row untouched by the operator is a BLOCKED release; report it as
 `BLOCKED: certification handoff open — <finding> → <route>`: stop. Open P2/P3 rows print as a ⚠ WARN list in the
-Gate-2 block, visible for the operator's explicit accept, never silently passed. A handoff is closed when its route ran and its
+output block (VPS: carried to `/fabrik-deploy-plan`, so Gate 2's panel sees it; stores: in the Gate-2 block), visible for Gate 2's explicit accept, never silently passed. A handoff is closed when its route ran and its
 committed red repro is now green. The HANDOFF grammar and NOT-QUIET↔RESUME pairing in those reports are machine-graded
 (`check_review_coverage.py`); this severity-tiered blocking is read by no check, it binds you on honour, which is why the rows and this paragraph carry the exact grammar to grep. The operator may waive a specific row explicitly this turn; you may never waive one.
 A waiver granted is a RECEIVED decision: mint its `docs/DECISIONS.md` row and COMMIT AND PUSH it now, its own commit, BEFORE `release_cut.py` runs (Phase 0's own precondition demands `@{u}..HEAD` empty — an unpushed waiver commit would block the release on its own mandated act); the cut's hardcoded `-- CHANGELOG.md` pathspec would strand a merely-staged row (CLAUDE.md § the decision ledger), and the accepted risk must outlive this chat.
@@ -120,6 +120,6 @@ DECISION NEEDED (ground: gate)
 - Recommendation: A, once every CHECKLIST row above is PASS-with-evidence.
 ```
 
-Next command: Gate 2 (human approval, D-1110); VPS: /fabrik-deploy-plan (the deploy triad). Stores: operator submits, then /fabrik-deploy-verify.
+Next command: Gate 2 at /fabrik-deploy-plan-review — VPS: /fabrik-deploy-plan (the deploy triad). Stores: operator submits, then /fabrik-deploy-verify.
 
 {{include:close-chain}}

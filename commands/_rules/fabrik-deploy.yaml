@@ -99,11 +99,13 @@ entries:
   text:
   - other way, stop and hand the decision back.
 - id: cu-L19
-  baseline: 'Gate-2 definition (the tiebreak where corpus texts meet): the human deploy approval IS the operator''s explicit dispatch of this command — for plan-governed deploys, that dispatch is the "manual `fabrik apply`" the corpus''s Gate-2 lines describe'
+  baseline: 'Gate-2 definition (the tiebreak where corpus texts meet): the deploy approval IS that go — for plan-governed deploys, that dispatch is the "manual `fabrik apply`" the corpus''s Gate-2 lines describe'
   class: prose
   text:
   - Gate-2 definition (the tiebreak where corpus texts
   - deploys, that dispatch is the "manual `fabrik apply`" the corpus's Gate-2
+  changed-by:
+  - D-1371
 - id: cu-L20
   baseline: '`/fabrik-release` still never deploys: it hands TO this gate; this command is what the gate''s approval sanctions'
   class: ban

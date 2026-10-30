@@ -1,6 +1,6 @@
 command: fabrik-release
 baseline_sentences: fabrik-release.baseline.txt
-baseline_sha256: 0410e247ea59fd693c8585e3c9206a17880142bc90adfc0f87005969e41f0b0f
+baseline_sha256: cc0f59d43d6b710d73342e5d50797a40db146d97c17b8f9ce6aae5ead718a946
 entries:
 - id: u-L2
   file: render
@@ -48,10 +48,10 @@ entries:
   - D-1371
 - id: u-L86
   file: render
-  baseline: 'Next command: Gate 2 (human approval, D-1110); VPS: /fabrik-deploy-plan (the deploy triad)'
-  current: 'Next command: Gate 2 (human approval, D-1110); VPS: /fabrik-deploy-plan (the deploy triad)'
+  baseline: 'Next command: Gate 2 at /fabrik-deploy-plan-review — VPS: /fabrik-deploy-plan (the deploy triad)'
+  current: 'Next command: Gate 2 at /fabrik-deploy-plan-review — VPS: /fabrik-deploy-plan (the deploy triad)'
   text:
-  - 'Next command: Gate 2 (human approval, D-1110); VPS: /fabrik-deploy-plan (the deploy triad)'
+  - 'Next command: Gate 2 at /fabrik-deploy-plan-review — VPS: /fabrik-deploy-plan (the deploy triad)'
   changed-by:
   - D-1371
 - id: u-L87
@@ -62,10 +62,10 @@ entries:
   - 'Stores: operator submits, then /fabrik-deploy-verify'
 - id: rel-bridge-to-gate-2
   file: render
-  baseline: 'Run this project''s release path, the bridge from gate-green code to Gate 2 (R14, D-1110: deploy/submit approval is the operator''s, always)'
-  current: 'Run this project''s release path, the bridge from gate-green code to Gate 2 (R14, D-1110: deploy/submit approval is the operator''s, always)'
+  baseline: 'Run this project''s release path, the bridge from gate-green code to Gate 2 (R14, D-1110: a store submit and a customer-facing deploy are the operator''s, an own-VPS deploy the panel''s)'
+  current: 'Run this project''s release path, the bridge from gate-green code to Gate 2 (R14, D-1110: a store submit and a customer-facing deploy are the operator''s, an own-VPS deploy the panel''s)'
   text:
-  - 'Run this project''s release path, the bridge from gate-green code to Gate 2 (R14, D-1110: deploy/submit approval is the operator''s, always)'
+  - 'Run this project''s release path, the bridge from gate-green code to Gate 2 (R14, D-1110: a store submit and a customer-facing deploy are the operator''s, an own-VPS deploy the panel''s)'
   changed-by:
   - D-1371
 - id: rel-termination-verdicts
@@ -121,10 +121,12 @@ entries:
   - 'An open P0/P1 row, any `NOT-QUIET` ledger, or any `DESIGN-GAP` row untouched by the operator is a BLOCKED release; report it as `BLOCKED: certification handoff open — <finding> → <route>`: stop'
 - id: rel-p2-p3-warn
   file: render
-  baseline: Open P2/P3 rows are printed as a ⚠ WARN list in the Gate-2 handoff block — visible for the operator's explicit accept, never silently passed
-  current: Open P2/P3 rows print as a ⚠ WARN list in the Gate-2 block, visible for the operator's explicit accept, never silently passed
+  baseline: 'Open P2/P3 rows print as a ⚠ WARN list in the output block (VPS: carried to `/fabrik-deploy-plan`, so Gate 2''s panel sees it; stores: in the Gate-2 block), visible for Gate 2''s explicit accept, never silently passed'
+  current: 'Open P2/P3 rows print as a ⚠ WARN list in the output block (VPS: carried to `/fabrik-deploy-plan`, so Gate 2''s panel sees it; stores: in the Gate-2 block), visible for Gate 2''s explicit accept, never silently passed'
   text:
-  - Open P2/P3 rows print as a ⚠ WARN list in the Gate-2 block, visible for the operator's explicit accept, never silently passed
+  - 'Open P2/P3 rows print as a ⚠ WARN list in the output block (VPS: carried to `/fabrik-deploy-plan`, so Gate 2''s panel sees it; stores: in the Gate-2 block), visible for Gate 2''s explicit accept, never silently passed'
+  changed-by:
+  - D-1371
 - id: rel-severity-binds-on-honour
   file: render
   baseline: 'Grader honesty: the HANDOFF grammar and NOT-QUIET↔RESUME pairing in those reports are machine-graded (`check_review_coverage.py`); the severity-tiered blocking HERE is read by no check — it binds you on honour, which is why the rows and this paragraph carry the exact grammar to grep'
@@ -491,9 +493,6 @@ vanished:
   L13:
     rule:
     - rel-open-p0-p1-blocked
-  L14:
-    rule:
-    - rel-p2-p3-warn
   L16: narrative
   L17:
     rule:

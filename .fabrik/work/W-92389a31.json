@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T08:59:55.519523Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-92389a31",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-10-22-plan-1-least-operator-approval.md",
+    "spec": ""
+  },
+  "next": "design amendment to spec D1 (approved D-1122) via /fabrik-spec Profile: delta, panel-approved, before Phase B consumes the labels; adjudication in .tmp/runs/d6efaf56-a326-4cef-9c22-347679df22db/fabrik-review-2026-10-30T11-44-46-0300/adjudication-p1.md",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "plan-1 D1 wording gaps from the Phase A review (before Phase B's hook): an act failing a panel condition (own-VPS deploy w/o rollback, backed-up prod-data delete, window w/o dump, fleet credential w/o rollback) has no operator-kept token (A-C1), and Autonomy 'keeps' read as the five labels hands it to the panel (A-C2); template has no gate-panel procedure (A-C3); is_public misses non-public customer-facing targets (A-C5); own public docs site matches both own-surface and public (A-C6); operator-minted reads as every credential (A-C7); irreversible vs backed-up deletes/branch discards (A-C8); no rule while the panel is unavailable (A-C10); spend ceiling home unnamed (A-C11)"
+}
