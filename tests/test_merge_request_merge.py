@@ -1000,8 +1000,11 @@ spec = importlib.util.spec_from_file_location("mr_w73", sys.argv[1])
 mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 state, marker = pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])
+# 12 s: capped_run polls a scope still active after its command exits for up to 5 s
+# (capped_run.sh:150-155) before its EXIT trap stops it — a shorter sync finishes inside that grace
+# and the grader passes on the bare start it exists to refuse
 mod.SYNC_ARGV = [sys.executable, "-c",
-                 f"import time; time.sleep(3); open({str(marker)!r}, 'w').write('done')"]
+                 f"import time; time.sleep(12); open({str(marker)!r}, 'w').write('done')"]
 state.mkdir(parents=True, exist_ok=True)
 (state / "sync-owed.log").write_text("owed\\n")
 mod._kick_sync(state.parent, state)
@@ -1024,7 +1027,7 @@ def test_a_runner_outlives_its_merge_process_under_capped_run(world, tmp_path):
         capture_output=True, text=True, timeout=120, check=False,
     )
     assert run.returncode == 0, run.stderr
-    end = time.monotonic() + 30
+    end = time.monotonic() + 45
     while time.monotonic() < end and not marker.exists():
         time.sleep(0.2)
     assert marker.exists() and marker.read_text() == "done", "the runner died with its wrapper"

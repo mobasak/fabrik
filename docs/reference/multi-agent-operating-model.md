@@ -263,7 +263,10 @@ hub's governance sync, OWED and run by a background `sync-runner` outside the me
 after it succeeds; the run's end waits for it, `SYNC_TIMEOUT_S` in all, and prints `sync: ran`,
 `sync: FAILED … --force`, `sync: still running in the background`, or `sync: unknown` when it cannot
 read its state; a landing that cannot owe the sync says `sync: FAILED to owe or start` in its reply,
-W-4f4ac600), and (h) the reply to requester and distributor, then `mail.py ack done
+W-4f4ac600; the runner starts in its own transient user scope in `fabrik-agents.slice` — `--collect`,
+`RuntimeMaxSec` `SYNC_RUNNER_MAX_S`, `MemoryMax` 4G — so capped_run stopping the merge's scope at exit
+never takes it, bare where that exact scope will not start, and it starts no sync past
+`SYNC_RUNNER_SOFT_S`, leaving the debt owed for the next landing, W-73d00b05), and (h) the reply to requester and distributor, then `mail.py ack done
 --merge-sha`. Every merge commit it writes, a catch-up's included, ends in one Agent Provenance
 Trailer block — `Agent-Role: orchestrator`, the owner's `Agent-Name` (left out, with a note, when the
 owner is outside the agent-name grammar) and an `Agent-Context` (the request's names the branch,
