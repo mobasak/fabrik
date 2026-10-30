@@ -1,6 +1,6 @@
 # Ledger merge driver — stop hand-resolving CHANGELOG/DECISIONS conflicts
 
-**Status:** DRAFT
+**Status:** CONVERGED
 **Size:** small (≈100 lines, 3 files)
 **Profile:** delta — every Intake Inventory IN item, in the driver shape the coordinator accepted (I1–I3), maps to code that exists today (`scripts/merge_request.py`'s ledger resolver, `scripts/install_post_commit_hook.sh`'s merge-driver registration, `.gitattributes`); this registers an existing engine with git, it builds no new component.
 
