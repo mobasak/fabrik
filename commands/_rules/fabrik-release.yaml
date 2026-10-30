@@ -1,6 +1,6 @@
 command: fabrik-release
 baseline_sentences: fabrik-release.baseline.txt
-baseline_sha256: cc0f59d43d6b710d73342e5d50797a40db146d97c17b8f9ce6aae5ead718a946
+baseline_sha256: 72654e08a90b9c8ac4d274670d9490b739f04b47fc481da5dc42f8f90939b125
 entries:
 - id: u-L2
   file: render
@@ -291,10 +291,12 @@ entries:
   - 'Gate-2 handoff: print *"Release-ready at `<SHA>`'
 - id: rel-vps-handoff-no-self-deploy
   file: render
-  baseline: 'Operator: dispatch `/fabrik-deploy-plan` (the deploy triad) — or run `fabrik apply` directly (the manual path) — from `/opt/fabrik` (hub-side; this project cannot self-deploy — trigger, don''t execute)."*'
-  current: 'Operator: dispatch `/fabrik-deploy-plan` (the deploy triad), or run `fabrik apply` directly (the manual path), from `/opt/fabrik` (hub-side; this project cannot self-deploy — trigger, don''t execute)."*'
+  baseline: 'Next: `/fabrik-deploy-plan` (the deploy triad; Gate 2 is answered at `/fabrik-deploy-plan-review`), or the operator''s manual `fabrik apply`, from `/opt/fabrik` (hub-side; this project cannot self-deploy — trigger, don''t execute)."*'
+  current: 'Next: `/fabrik-deploy-plan` (the deploy triad; Gate 2 is answered at `/fabrik-deploy-plan-review`), or the operator''s manual `fabrik apply`, from `/opt/fabrik` (hub-side; this project cannot self-deploy — trigger, don''t execute)."*'
   text:
-  - 'Operator: dispatch `/fabrik-deploy-plan` (the deploy triad), or run `fabrik apply` directly (the manual path), from `/opt/fabrik` (hub-side; this project cannot self-deploy — trigger, don''t execute)."*'
+  - 'Next: `/fabrik-deploy-plan` (the deploy triad; Gate 2 is answered at `/fabrik-deploy-plan-review`), or the operator''s manual `fabrik apply`, from `/opt/fabrik` (hub-side; this project cannot self-deploy — trigger, don''t execute)."*'
+  changed-by:
+  - D-1371
 - id: rel-mobile-ring
   file: render
   baseline: 'Decide the ring from the rules: store/team → EAS Build (`eas.json` profiles `development|preview| production`, cloud build — never assume a local Android SDK); sideload/solo → local `expo prebuild` + `./gradlew assembleRelease`'
@@ -554,9 +556,6 @@ vanished:
   L45:
     rule:
     - rel-vps-handoff
-  L46:
-    rule:
-    - rel-vps-handoff-no-self-deploy
   L47: narrative
   L48:
     rule:

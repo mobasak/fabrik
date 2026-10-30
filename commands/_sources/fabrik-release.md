@@ -58,8 +58,8 @@ head is a ⚠ WARN in the Gate-2 block (the contract is stale, not absent — `/
 2. Compose sane (if present): every service has `deploy.resources.limits.memory`; no host `ports:`; `fabrik` network; no
    `localhost` DB/Redis (`postgres-main:5432` / `redis-main:6379`).
 3. `.env.example` complete vs the code's `os.getenv` calls; `docs/DEPLOYMENT.md` current.
-4. **Gate-2 handoff:** print *"Release-ready at `<SHA>`. Operator: dispatch `/fabrik-deploy-plan` (the deploy triad), or run
-   `fabrik apply` directly (the manual path), from `/opt/fabrik` (hub-side; this project cannot self-deploy — trigger, don't execute)."*
+4. **Gate-2 handoff:** print *"Release-ready at `<SHA>`. Next: `/fabrik-deploy-plan` (the deploy triad; Gate 2 is answered at
+   `/fabrik-deploy-plan-review`), or the operator's manual `fabrik apply`, from `/opt/fabrik` (hub-side; this project cannot self-deploy — trigger, don't execute)."*
 
 ## MOBILE path (per `.windsurf/rules/mobile-app/80-mobile.md` § "Builds — pick by distribution surface")
 
