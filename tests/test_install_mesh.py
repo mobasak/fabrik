@@ -25,7 +25,9 @@ def _src(tmp: Path, **override: str) -> Path:
     src = tmp / "src"
     src.mkdir()
     for f in FILES:
-        (src / f).write_text(override.get(f, f"#!/usr/bin/env bash\necho new {f}\n"), encoding="utf-8")
+        (src / f).write_text(
+            override.get(f, f"#!/usr/bin/env bash\necho new {f}\n"), encoding="utf-8"
+        )
     return src
 
 
@@ -41,7 +43,9 @@ def _dest(tmp: Path) -> Path:
 def _harness(tmp: Path, rc: int = 0) -> tuple[Path, Path]:
     log = tmp / "harness.log"
     h = tmp / "harness.sh"
-    h.write_text(f'#!/usr/bin/env bash\necho "src=$MESH_TEST_SRC" >> "{log}"\nexit {rc}\n', encoding="utf-8")
+    h.write_text(
+        f'#!/usr/bin/env bash\necho "src=$MESH_TEST_SRC" >> "{log}"\nexit {rc}\n', encoding="utf-8"
+    )
     return h, log
 
 
@@ -97,7 +101,9 @@ def test_backup_first_then_an_atomic_replace(tmp_path: Path) -> None:
         assert (dest / f).stat().st_mode & 0o777 == 0o755
     assert sorted(p.name for p in dest.iterdir()) == sorted([*FILES, "backups"])
     # T04 F4: a harness other than the copies' own is said, every time
-    assert f"install_mesh: HARNESS OVERRIDDEN by MESH_INSTALL_HARNESS={harness}" in out.stderr, out.stderr
+    assert f"install_mesh: HARNESS OVERRIDDEN by MESH_INSTALL_HARNESS={harness}" in out.stderr, (
+        out.stderr
+    )
 
 
 def test_the_copies_own_harness_is_not_reported_as_an_override(tmp_path: Path) -> None:
@@ -112,7 +118,9 @@ def test_the_copies_own_harness_is_not_reported_as_an_override(tmp_path: Path) -
 def _two_installs_one_second(tmp_path: Path) -> tuple[Path, Path, subprocess.CompletedProcess[str]]:
     src, dest = _src(tmp_path), _dest(tmp_path)
     harness, _ = _harness(tmp_path)
-    stubs = _stub(tmp_path / "stubs", "date", "echo 20261030-120000\n")  # both runs in the same second
+    stubs = _stub(
+        tmp_path / "stubs", "date", "echo 20261030-120000\n"
+    )  # both runs in the same second
     first = _run(tmp_path, "--src", str(src), "--dest", str(dest), harness=harness, stubs=stubs)
     assert first.returncode == 0, first.stderr
     for f in FILES:
@@ -128,7 +136,10 @@ def test_a_second_install_in_the_same_second_keeps_the_first_backup(tmp_path: Pa
     assert second.returncode == 0, second.stderr
     for f in FILES:
         backups = {p.read_text(encoding="utf-8") for p in (dest / "backups").glob(f"{f}.backup.*")}
-        assert backups == {f"#!/usr/bin/env bash\necho old {f}\n", f"#!/usr/bin/env bash\necho new {f}\n"}, (
+        assert backups == {
+            f"#!/usr/bin/env bash\necho old {f}\n",
+            f"#!/usr/bin/env bash\necho new {f}\n",
+        }, (
             f,
             backups,
         )
@@ -150,7 +161,9 @@ def test_a_failed_replace_restores_every_file_already_replaced(tmp_path: Path) -
     assert out.returncode == 1, out.stderr
     assert "restored" in out.stderr and str(dest / FILES[0]) in out.stderr, out.stderr
     assert {f: (dest / f).read_bytes() for f in FILES} == before
-    assert sorted(p.name for p in dest.iterdir()) == sorted([*FILES, "backups"]), "a temp file was left"
+    assert sorted(p.name for p in dest.iterdir()) == sorted([*FILES, "backups"]), (
+        "a temp file was left"
+    )
 
 
 def test_a_failed_replace_removes_a_file_that_was_new(tmp_path: Path) -> None:
@@ -165,8 +178,12 @@ def test_a_failed_replace_removes_a_file_that_was_new(tmp_path: Path) -> None:
     )
     out = _run(tmp_path, "--src", str(src), "--dest", str(dest), harness=harness, stubs=stubs)
     assert out.returncode == 1, out.stderr
-    assert not (dest / FILES[0]).exists(), "a file new to this run stayed live after the install failed"
-    assert (dest / FILES[1]).read_text(encoding="utf-8") == f"#!/usr/bin/env bash\necho old {FILES[1]}\n"
+    assert not (dest / FILES[0]).exists(), (
+        "a file new to this run stayed live after the install failed"
+    )
+    assert (dest / FILES[1]).read_text(
+        encoding="utf-8"
+    ) == f"#!/usr/bin/env bash\necho old {FILES[1]}\n"
 
 
 def test_a_backup_that_differs_refuses_with_nothing_replaced(tmp_path: Path) -> None:
@@ -209,12 +226,21 @@ def test_an_empty_dest_or_src_is_a_usage_error(tmp_path: Path, flag: str) -> Non
     """T04 G3: the default applies only when the flag was NOT given — `--dest ""` must never fall back to the live
     $HOME/.claude/bin, and `--src ""` never to the tracked copies; both exit 2 with nothing installed."""
     src = _src(tmp_path)
-    home_bin = _dest(tmp_path)  # $HOME/.claude/bin of the temp home: the fallback a bad parse would hit
+    home_bin = _dest(
+        tmp_path
+    )  # $HOME/.claude/bin of the temp home: the fallback a bad parse would hit
     before = _snapshot(home_bin)
     harness, log = _harness(tmp_path)
-    args = ("--src", str(src), "--dest", "") if flag == "--dest" else ("--src", "", "--dest", str(home_bin))
+    args = (
+        ("--src", str(src), "--dest", "")
+        if flag == "--dest"
+        else ("--src", "", "--dest", str(home_bin))
+    )
     out = _run(tmp_path, *args, harness=harness)
-    assert out.returncode == 2 and "usage" in out.stderr and not log.exists(), (out.returncode, out.stderr)
+    assert out.returncode == 2 and "usage" in out.stderr and not log.exists(), (
+        out.returncode,
+        out.stderr,
+    )
     assert _snapshot(home_bin) == before
 
 
@@ -239,7 +265,9 @@ def test_a_copy_failing_bash_n_installs_nothing(tmp_path: Path) -> None:
     harness, log = _harness(tmp_path)
     before = _snapshot(dest)
     out = _run(tmp_path, "--src", str(src), "--dest", str(dest), harness=harness)
-    assert out.returncode != 0 and "bash -n" in out.stderr and "claude-reboot-sweep.sh" in out.stderr, out.stderr
+    assert (
+        out.returncode != 0 and "bash -n" in out.stderr and "claude-reboot-sweep.sh" in out.stderr
+    ), out.stderr
     assert _snapshot(dest) == before and not log.exists()
 
 

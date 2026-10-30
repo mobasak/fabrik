@@ -403,9 +403,7 @@ def _registered(opt: Path) -> list[Path]:
             ):
                 found.append(p)
         except OSError as exc:
-            print(
-                f"agents_bat: cannot read {p} ({exc.strerror or exc}); skipped", file=sys.stderr
-            )
+            print(f"agents_bat: cannot read {p} ({exc.strerror or exc}); skipped", file=sys.stderr)
     return found
 
 
