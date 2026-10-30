@@ -276,9 +276,8 @@ Every "fix X" / "handle Y" request runs this sequence — each verb CHECKABLE, n
    no declared merge owner it refuses with the adopt command, so this duty reads as advice there.
    **Builders merge the base at every item boundary:** in a linked worktree, before you claim the next item and
    before every request, run `git fetch <remote> refs/heads/<base>` then `git merge FETCH_HEAD` (never a rebase —
-   the branch is pushed) and push — a request already sent still lands the head it recorded, and one the owner
-   refuses is re-sent, never retried; `merge_request.py request` refuses a branch more than 500 commits behind its
-   base and prints both commands.
+   the branch is pushed) and push — a request already sent still lands the head it recorded; `merge_request.py
+   request` refuses a branch more than 500 commits behind its base and prints both commands.
    **Ad-hoc
    branch/worktree work** (non-plan, in the MAIN checkout only — a worktree agent never merges, it requests): unless
    the operator named the disposition this turn, the DEFAULT is merge to base locally **then push base**; PRESENT only the
