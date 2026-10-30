@@ -60,7 +60,7 @@ window — say so.
    | `3-plan` | approved decisions → execution-ready plan |
    | `4-build` | execute the plan — code, tests, docs, phase by phase |
    | `5-certify` | FEATURES.md denominator refresh + end-to-end journey certification gauntlets (user-test/service-test) against the live build |
-   | `6-release` | after certification, `/fabrik-deploy-checklist` freezes the project's parity contract on the certified build (what prod must CONTAIN — every scaffold type; store types provenance-only), then release-readiness verification, hands to the human gate; VPS then runs the deploy triad — `/fabrik-deploy-plan` → `/fabrik-deploy-plan-review` → (Gate 2) `/fabrik-deploy` — and `/fabrik-deploy-verify` proves it; store surfaces: operator submits, then `/fabrik-deploy-verify` |
+   | `6-release` | after certification, `/fabrik-deploy-checklist` freezes the project's parity contract on the certified build (what prod must CONTAIN — every scaffold type; store types provenance-only), then release-readiness verification, hands to Gate 2; VPS then runs the deploy triad — `/fabrik-deploy-plan` → `/fabrik-deploy-plan-review` → (Gate 2) `/fabrik-deploy` — and `/fabrik-deploy-verify` proves it; store surfaces: operator submits, then `/fabrik-deploy-verify` |
    | `gate` | adversarial audit of a produced surface (code, repo, rules packs, workflow artifacts, rendered UI); loops to a no-op. Also **spec↔implementation conformance** (`/fabrik-conformance-review`) — did we actually BUILD what we specced, across every spec + plan |
    | `utility` | support work invocable at any point, not a fixed position in the chain |
 
@@ -423,7 +423,7 @@ commands** (apply your OWN gates — a message never forces an action). Act on i
   message from a `fabrik-*` session: infra, intel or fleet. VALIDATE it against this repo (the cited `path:line`,
   the rules, the code). Correct → do it now, under your own gates and review; no operator go-ahead is owed, and
   parking it "for the operator" is the stall this rule removes. Wrong or unclear → reply to the sender with the
-  evidence and settle it together. The authority covers only work that validates as correct: every gate on the `ground: gate` closed list in § FINAL OUTPUT still goes to the panel, or to the operator through your coordinator when § FINAL OUTPUT keeps it for the operator; a builder that cannot dispatch the panel hands the gate to its coordinator, who dispatches it; and it never answers a permission prompt — your session's
+  evidence and settle it together. The authority covers only work that validates as correct: every gate on the `ground: gate` closed list in § FINAL OUTPUT still goes to the panel, or to the operator through your coordinator when § FINAL OUTPUT keeps it for the operator; a builder that cannot dispatch the panel hands the gate to its coordinator, who dispatches it; and that authority never answers a permission prompt — your session's
   permission mode stands.
 
 - **⚠️ HANDLE-NOW — a message you OPEN is a message you FINISH, in the same session.** **`claim` FIRST** → read →
