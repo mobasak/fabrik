@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T18:47:47.827850Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-fbd1d4b9",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Measured on MR 01M670WHMM (7 changed paths, 2 of them code): merge_test_select picked 202 test files; the test leg alone ran 1344 s. Pulled in by: 92 naming the directory 'sysadmin' (one script changed there), 58 naming 'docs/', 37 tree graders (git ls-files), 26 DECISIONS.md, 16 CHANGELOG.md, 11 .fabrik/work, 8 agents_up itself. Fix: select by changed FILE, not by its directory; ledgers (CHANGELOG, DECISIONS, work items) select nothing; then box-wide leg arbitration. List: scratchpad sel.Nf5G/files.txt",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "every hub merge pays 20+ min; the operator asked why",
+  "status": "open",
+  "title": "Hub merge took 20+ min on 2026-10-30 (MR 01M670WHMM, W-b9b6472e; W-1fb11ec8 had measured 4-11 min). Measured: box load avg 19-25 on 24 cores while web-ecommerce-factory ran two merge queues (pytest shards + astro builds) at the same time; hub merge_test_select picked ~10 shards of 14-32 test files for a 2-file agents_up.sh change, run twice (pretest, then on the merged result); the coordinator's store commits mid-build forced a rebuild. Operator: 'why the fuck merges taking 20 minutes'. Cut it: box-wide merge test-leg arbitration (one repo's leg at a time, or CPU shares) and a narrower selection for small diffs"
+}
