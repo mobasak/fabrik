@@ -1874,3 +1874,32 @@ def test_the_after_merge_base_bypasses_the_base_alone_path_and_must_be_a_commit_
         rc, out = _run(repo, monkeypatch, capsys)
         assert rc == 3 and "not a commit id" in out, (bad, out)
     assert not list(common.glob("**/merge-tests-..*"))
+
+
+def test_the_after_merge_base_ignores_a_green_record_the_merge_leg_would_trust(
+    tmp_path, monkeypatch, capsys
+):
+    """A green record for the branch head, and a delta of ledger paths only, skip a NORMAL merge
+    leg's re-test; under the override the range is tested anyway (review r2 B2-1)."""
+    repo = _repo(tmp_path, GREEN_REPO)
+    tested = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-qb", "feat")
+    _write(repo, {"tests/test_new.py": "def test_new():\n    assert False, 'from feat'\n"})
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "feat")
+    feat = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-qb", "g", tested)  # an earlier green merge of feat, onto an older base
+    _git(repo, "merge", "--no-ff", "-q", "-m", "g", "feat")
+    g = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-q", "master")
+    _write(repo, {".fabrik/work/W-00000001.json": '{"x": 1}\n'})  # a ledger-only base move
+    _git(repo, "commit", "-qam", "store")
+    _git(repo, "merge", "--no-ff", "-q", "-m", "merge", "feat")
+    _green_record(repo, feat).parent.mkdir(parents=True, exist_ok=True)
+    _green_record(repo, feat).write_text(g + "\n")
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0 and "re-test skipped" in out, out  # the normal leg trusts the record
+    _green_record(repo, feat).write_text(g + "\n")
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_BASE", tested)
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 1 and "tests/test_new.py::test_new" in out.splitlines()[-1], out

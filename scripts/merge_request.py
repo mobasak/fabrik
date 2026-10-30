@@ -2536,7 +2536,8 @@ def _after_cause_search(ctx: _Ctx, todo: list[dict], ids: list[str], script_env:
                 cwd=wt,
                 env={**script_env, "PYTHONPATH": str(wt / "src")},
             )
-            if run.returncode == 1:  # pytest's "tests failed"; 2-4 are no verdict on the merge
+            # 1 a test failed, 2 a collection error (a red id can be one); 3-5 are no verdict
+            if run.returncode in (1, 2):
                 return entry
         return todo[-1]
     finally:
@@ -2548,7 +2549,7 @@ def _file_after_red(main: Path, cause: dict, ids: list[str], base: str, top: str
     """File the P0 on the cause merge's author; returns the item id, or "" with the failure said."""
     shown = ", ".join(ids[:6]) + (f" (+{len(ids) - 6} more)" if len(ids) > 6 else "")
     title = (
-        f"after-merge red: merge {cause['merge_sha'][:12]} by {cause.get('requester')} (request "
+        f"after-merge red: merge {cause['merge_sha'][:12]} by {_norm(cause.get('requester') or '')} (request "
         f"{cause['id']}, branch {cause.get('branch')}) turned {shown} red, tested "
         f"{base[:12]}..{top[:12]}; {cause.get('requester')}'s next merge is refused until a request "
         "carries this item"
@@ -2604,7 +2605,7 @@ def _after_todo(d: Path) -> list[dict]:
         done = set()
     todo: list[dict] = []
     for e in owed:
-        if isinstance(e, dict) and e.get("merge_sha") and e.get("old_base"):
+        if isinstance(e, dict) and e.get("id") and e.get("merge_sha") and e.get("old_base"):
             if e.get("id") not in done and all(e.get("id") != t.get("id") for t in todo):
                 todo.append(e)
     return todo
@@ -2689,7 +2690,12 @@ def _after_merge_leg(ctx: _Ctx, d: Path) -> int:
     where = {"tested": tested, "top": top, "covers": covered, "tail": tail}
     if run.returncode == 1 and ids:
         cause = _after_cause(ctx, todo, ids, dict(os.environ))
-        item = _file_after_red(main, cause, ids, tested, top)
+        if not (main / ".fabrik" / "work").is_dir():
+            # no work store to file into (a synced repo without one): kept owed, every later
+            # merge would re-run the whole leg on a red it can never file (review r2 A2-2)
+            item = "none — this repo has no .fabrik/work store"
+        else:
+            item = _file_after_red(main, cause, ids, tested, top)
         if not item:  # an unfiled red would read pre-existing once tested.txt moved past it
             _after_status(d, rc=2, red=ids, cause=cause["id"], **where)
             return 1

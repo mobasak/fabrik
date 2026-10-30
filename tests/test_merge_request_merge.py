@@ -16,6 +16,7 @@ import fcntl
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -3014,8 +3015,12 @@ def test_the_next_batch_is_tested_against_the_last_tested_tip(world):
     marker = world.tmp / "leg-ran"
     recs = _land_two(world, f'echo "$FABRIK_MERGE_TESTS_BASE" >> {marker}')
     assert world.mod._after_merge_runner(world.main) == 0
+    world.write("direct.txt", "x\n")  # lands un-owed: the next merge's own base is past the tip
+    world.commit_main("a direct commit", "direct.txt")
+    _git(world.main, "push", "-q", "origin", "master")
     late = world.send(world.branch({"c.txt": "x\n"}, msg="c"))
     assert world.run("merge") == 0
+    assert world.record(late)["old_base"] != recs[1]["merge_sha"]
     assert world.mod._after_merge_runner(world.main) == 0
     assert marker.read_text().split() == [recs[0]["old_base"], recs[1]["merge_sha"]]
     d = world.main / ".git" / "fabrik-merge" / "after-merge"
@@ -3062,7 +3067,7 @@ def test_the_verb_the_kick_and_the_resume_guard(world, monkeypatch):
     _kicks(world)
     msg_id = world.send(world.branch({"x.txt": "x\n"}))
     assert world.run("merge") == 0
-    assert world.run("resume", msg_id) in (0, 1)
+    assert world.run("resume", msg_id) == 0  # a replied record resumes to its end again
     owed = (world.main / ".git" / "fabrik-merge" / "after-merge" / "owed.jsonl").read_text()
     assert len(owed.splitlines()) == 1
     assert world.run("after-merge-runner", "--main", str(world.main)) == 0
@@ -3075,3 +3080,36 @@ def test_a_red_leg_with_no_recorded_ids_stays_owed(world):
     d = world.main / ".git" / "fabrik-merge" / "after-merge"
     status = json.loads((d / "status.json").read_text())
     assert status["rc"] == 3 and status["covers"] == [r["id"] for r in recs]
+
+
+def test_a_collection_error_red_still_names_its_cause(world):
+    """A red id can be a collection error, which plain pytest exits 2 on (review r2 A2-1)."""
+    _after_world(world, "true")
+    _kicks(world)
+    ids = [world.send(world.branch({"tests/test_x.py": "import nosuchmod_zz\n"}, msg="breaks"))]
+    assert world.run("merge") == 0
+    ids.append(world.send(world.branch({"b.txt": "x\n"}, msg="b")))
+    assert world.run("merge") == 0
+    recs = [world.record(i) for i in ids]
+    todo = [{"id": r["id"], "merge_sha": r["merge_sha"]} for r in recs]
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "")
+    assert world.mod._after_cause(ctx, todo, ["tests/test_x.py"], dict(os.environ))["id"] == ids[0]
+
+
+def test_a_red_in_a_repo_without_a_work_store_is_covered_not_rerun(world):
+    """No store to file into: the red is covered and said, never re-run by every later merge (A2-2)."""
+    recs = _land_two(world, _RED_LEG)
+    world.mp.setattr(world.mod, "_after_cause", lambda ctx, todo, ids, env: todo[0])
+    shutil.rmtree(world.main / ".fabrik" / "work")
+    assert world.mod._after_merge_runner(world.main) == 0
+    d = world.main / ".git" / "fabrik-merge" / "after-merge"
+    status = json.loads((d / "status.json").read_text())
+    assert status["rc"] == 1 and "no .fabrik/work store" in status["item"]
+    assert set((d / "done.txt").read_text().split()) == {r["id"] for r in recs}
+
+
+def test_an_owed_entry_without_an_id_is_never_owed(world):
+    d = world.main / ".git" / "fabrik-merge" / "after-merge"
+    d.mkdir(parents=True)
+    (d / "owed.jsonl").write_text(json.dumps({"merge_sha": "a" * 40, "old_base": "b" * 40}) + "\n")
+    assert world.mod._after_todo(d) == []
