@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the panel answers every gate a coordinator can validate; the operator keeps five labelled classes (2026-10-30)
+
+- Plan-1 Phase A (W-4a03df79, D-1110, approved D-1122). Both contracts' § FINAL OUTPUT gate ground hands design and
+  plan approval, Gate 1, an own-VPS Gate 2 with backup and rollback, backed-up destructive acts on our own
+  branches/worktrees/scratch/test repos/old volumes, dump-first production-data windows, fleet-minted credentials,
+  own-surface publishing and in-ceiling spend to the Opus + Fable panel. The operator keeps the rest, each block
+  labelled `operator-kept: public|above-ceiling|recurring|operator-minted|unbacked`. Spend stays the operator's while
+  the ceiling is 0, and irreversible acts always. § Autonomy, the coordinator-role Escalation, the template's
+  hub-request bullet, `design-gate-panel.md`, `deploy-chain.md`, `/fabrik-deploy`, `/fabrik-deploy-plan-review`
+  (two gate blocks plus the `PANEL APPROVED` close), `/fabrik-release` and the NEXT map now say the same.
+- The five deploy-chain lean ledgers are re-cut onto the approved wording on the branch (D-1371), and
+  `commands/_size_ceiling.json` licenses the new D-1110 read. Graded by `tests/test_least_operator_approval.py` (A1-A7).
+
 ### Fixed — the hub sync runner survives its merge run's capped_run scope (2026-10-30)
 
 - `merge_request.py` starts the governance `sync-runner` in its own transient user scope (`fabrik-agents.slice`, `--collect`, a `RuntimeMaxSec` backstop) when that exact start probes green, bare otherwise, so capped_run stopping the merge's scope at exit no longer kills a sync mid-write and the drain's "still running in the background" line is true; the runner starts no sync past its soft deadline and leaves the debt owed (W-73d00b05, D-1370).

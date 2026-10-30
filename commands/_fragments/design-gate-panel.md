@@ -1,6 +1,4 @@
-**The panel answers the design-approval gate in the operator's place (operator ruling 2026-10-06, D-613 —
-for design approval only, it supersedes D-558's "a panel never approves a gate class" and D-153's printed
-presentation).** The two critique seats above are the operator's stand-ins, not advisers. Their brief adds what
+**The panel answers the design-approval gate in the operator's place (operator ruling 2026-10-06, D-613, widened to every gate class a coordinator can validate by D-1110 — for the classes CLAUDE.md § FINAL OUTPUT's gate ground lists only, it supersedes D-558's "a panel never approves a gate class" and D-153's printed presentation).** The two critique seats above are the operator's stand-ins, not advisers. Their brief adds what
 the operator would weigh: the artifacts it builds on or feeds (spec, plan, flows, data contract, UI contract), the rule packs `python3 scripts/select_rules.py` marks ACTIVE for the surface, `agents-fabrik.md` sections it touches, the `docs/DECISIONS.md` rows it cites. Each seat answers as the
 operator would — approve, or name the changes it wants first — and opens with the line
 `VERDICT: <sound|sound-with-changes|unsound> — <artifact path>`.
@@ -34,8 +32,7 @@ operator would — approve, or name the changes it wants first — and opens wit
 
 **A split still goes to the operator:** write the same brief, add one line per disputed concern with each
 seat's position, then end the turn with the command's DECISION block, its Why line naming the artifact path and its
-`Panel:` line ending `→ split`. Other gate classes (deploy, destructive, spend, credentials, publish) stay the
-operator's.
+`Panel:` line ending `→ split`. Every other gate class follows CLAUDE.md § FINAL OUTPUT's gate ground: the panel's, or the operator's when kept (D-1110). A seat that finds the act is one the operator keeps answers `operator-kept: <token>`, never an approval.
 
 **Cobra (D-253):** the cheapest way through is a change ACCEPTED on paper and never made. The counter: the
 approval row lists each change as written — a translated mechanism is listed as the behaviour it secures — and the

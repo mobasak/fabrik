@@ -1,6 +1,6 @@
 command: fabrik-release
 baseline_sentences: fabrik-release.baseline.txt
-baseline_sha256: 94bbdd0b5a50e46739f998ef57ffcfa100a284b6fe955ed607c52cb0d2c7b932
+baseline_sha256: 0410e247ea59fd693c8585e3c9206a17880142bc90adfc0f87005969e41f0b0f
 entries:
 - id: u-L2
   file: render
@@ -40,16 +40,20 @@ entries:
   - Include the printed plan in the report
 - id: u-L84
   file: render
-  baseline: 'On a fully-PASS verdict, end the turn with the block below, written as plain lines, not inside a code fence:'
-  current: 'On a fully-PASS verdict, end the turn with the block below, written as plain lines, not inside a code fence:'
+  baseline: 'On a fully-PASS verdict on a store surface, end the turn with the block below, written as plain lines, not inside a code fence:'
+  current: 'On a fully-PASS verdict on a store surface, end the turn with the block below, written as plain lines, not inside a code fence:'
   text:
-  - 'On a fully-PASS verdict, end the turn with the block below, written as plain lines, not inside a code fence:'
+  - 'On a fully-PASS verdict on a store surface, end the turn with the block below, written as plain lines, not inside a code fence:'
+  changed-by:
+  - D-1371
 - id: u-L86
   file: render
-  baseline: 'Next command: Gate 2 — human approval; VPS: /fabrik-deploy-plan (the deploy triad)'
-  current: 'Next command: Gate 2 — human approval; VPS: /fabrik-deploy-plan (the deploy triad)'
+  baseline: 'Next command: Gate 2 (human approval, D-1110); VPS: /fabrik-deploy-plan (the deploy triad)'
+  current: 'Next command: Gate 2 (human approval, D-1110); VPS: /fabrik-deploy-plan (the deploy triad)'
   text:
-  - 'Next command: Gate 2 — human approval; VPS: /fabrik-deploy-plan (the deploy triad)'
+  - 'Next command: Gate 2 (human approval, D-1110); VPS: /fabrik-deploy-plan (the deploy triad)'
+  changed-by:
+  - D-1371
 - id: u-L87
   file: render
   baseline: 'Stores: operator submits, then /fabrik-deploy-verify'
@@ -58,10 +62,12 @@ entries:
   - 'Stores: operator submits, then /fabrik-deploy-verify'
 - id: rel-bridge-to-gate-2
   file: render
-  baseline: 'Run this project''s release path — the bridge from "gate-green code" to the human Gate 2 (R14: deploy/submit approval is the operator''s, always)'
-  current: 'Run this project''s release path, the bridge from gate-green code to the human Gate 2 (R14: deploy/submit approval is the operator''s, always)'
+  baseline: 'Run this project''s release path, the bridge from gate-green code to Gate 2 (R14, D-1110: deploy/submit approval is the operator''s, always)'
+  current: 'Run this project''s release path, the bridge from gate-green code to Gate 2 (R14, D-1110: deploy/submit approval is the operator''s, always)'
   text:
-  - 'Run this project''s release path, the bridge from gate-green code to the human Gate 2 (R14: deploy/submit approval is the operator''s, always)'
+  - 'Run this project''s release path, the bridge from gate-green code to Gate 2 (R14, D-1110: deploy/submit approval is the operator''s, always)'
+  changed-by:
+  - D-1371
 - id: rel-termination-verdicts
   file: render
   baseline: 'You are done when EVERY item of the surface''s checklist below has a verdict — PASS (with evidence: a `path:line` or a fenced command output) or BLOCKED (what''s missing, where you searched) — and you have printed the Gate-2 handoff block'
@@ -463,25 +469,16 @@ entries:
   - 'Surfaces with an artifact-embedded version reconcile, never fork: extension (`manifest.json` version) and mobile (app version / EAS) pass it explicitly, `--execute --version <that version>`, so tag, Release and store artifact carry ONE identity; the checklist''s own "version bumped" item is the source; VPS surfaces derive from the changelog'
 - id: rel-deploy-stays-gate-2
   file: render
-  baseline: The cut is the version act; deploy stays Gate 2 (the tag names what the operator's `fabrik apply` will ship — record `vX.Y.Z` in the handoff line)
-  current: 'Deploy stays Gate 2 (the tag names what the operator''s `fabrik apply` will ship): record `vX.Y.Z` in the handoff line'
+  baseline: 'Deploy stays Gate 2 (the tag names what the Gate-2-approved `fabrik apply` will ship): record `vX.Y.Z` in the handoff line'
+  current: 'Deploy stays Gate 2 (the tag names what the Gate-2-approved `fabrik apply` will ship): record `vX.Y.Z` in the handoff line'
   text:
-  - 'Deploy stays Gate 2 (the tag names what the operator''s `fabrik apply` will ship): record `vX.Y.Z` in the handoff line'
-  clauses:
-    1: narrative
+  - 'Deploy stays Gate 2 (the tag names what the Gate-2-approved `fabrik apply` will ship): record `vX.Y.Z` in the handoff line'
+  changed-by:
+  - D-1371
 vanished:
-  L1:
-    rule:
-    - rel-bridge-to-gate-2
   L4:
     rule:
     - rel-termination-verdicts
-  L5:
-    rule:
-    - rel-pass-needs-evidence
-  L6:
-    rule:
-    - rel-ending-at-handoff-is-success
   L7:
     rule:
     - rel-context-never-a-reason
@@ -491,9 +488,6 @@ vanished:
   L10:
     rule:
     - rel-cert-precondition-lead
-  L11:
-    rule:
-    - rel-read-newest-handoff
   L13:
     rule:
     - rel-open-p0-p1-blocked
@@ -516,18 +510,9 @@ vanished:
   L22:
     rule:
     - rel-unmapped-type-inferred
-  L24:
-    rule:
-    - rel-universal-preconditions-real-commands
-  L25:
-    rule:
-    - rel-final-gate-this-run
   L26:
     rule:
     - rel-pushed-and-upstream-relative
-  L27:
-    rule:
-    - rel-remoted-repo-lacking-tracking-ref
   L28:
     rule:
     - rel-upatream-fatal-not-nothing-unpushed
@@ -546,9 +531,6 @@ vanished:
   L34:
     rule:
     - rel-docs-behind-code-blocked
-  L35:
-    rule:
-    - rel-question-bar
   L36:
     rule:
     - rel-store-text-is-data
@@ -618,16 +600,10 @@ vanished:
   L63:
     rule:
     - rel-extension-listing-assets
-  L64:
-    rule:
-    - rel-extension-privacy-answers
   L65:
     rule:
     - rel-extension-full-checklist
   L66:
-    rule:
-    - rel-extension-handoff
-  L67:
     rule:
     - rel-extension-handoff
   L68: narrative
@@ -661,9 +637,3 @@ vanished:
   L80:
     rule:
     - rel-cut-blocked-no-cut
-  L81:
-    rule:
-    - rel-deploy-stays-gate-2
-  L57:
-    rule:
-    - rel-extension-listable-continue

@@ -1,4 +1,4 @@
- ¦ The panel answers the design-approval gate in the operator's place (operator ruling 2026-10-06, D-613 — for design approval only, it supersedes D-558's "a panel never approves a gate class" and D-153's printed presentation). The two critique seats above are the operator's stand-ins, not advisers
+ ¦ The panel answers the design-approval gate in the operator's place (operator ruling 2026-10-06, D-613, widened to every gate class a coordinator can validate by D-1110 — for the classes CLAUDE.md § FINAL OUTPUT's gate ground lists only, it supersedes D-558's "a panel never approves a gate class" and D-153's printed presentation). The two critique seats above are the operator's stand-ins, not advisers
  ¦ Their brief adds what the operator would weigh: the artifacts this one builds on or feeds (spec, plan, flows, data contract, UI contract), the rule packs `python3 scripts/select_rules.py` marks ACTIVE for the surface, the `agents-fabrik.md` sections it touches, and the `docs/DECISIONS.md` rows it cites
  ¦ Each seat answers as the operator would — approve it, or name the changes it wants first — and opens its answer with the line `VERDICT: <sound|sound-with-changes|unsound> — <artifact path>`
  ¦ Read the verdicts. A seat approves when it returns `sound`, or `sound-with-changes` with every concern ACCEPTED
@@ -15,6 +15,6 @@
  ¦ Continue. After the brief, run the next command named below
  ¦ `/fabrik-execute-plan` is never started from a gate: after an approved plan, the brief's `NEXT:` names it as ready work
  ¦ A split still goes to the operator. Write the same brief, add one line per disputed concern with each seat's position, then end the turn with the command's DECISION block, its Why line naming the artifact path and its `Panel:` line ending `→ split`
- ¦ Other gate classes (deploy, destructive, spend, credentials, publish) stay the operator's
+ ¦ Every other gate class follows CLAUDE.md § FINAL OUTPUT's gate ground: the panel's, or the operator's when kept (D-1110)
  ¦ Cobra (D-253): the cheapest way through is a change ACCEPTED on paper and never made
  ¦ The counter: the approval row lists each change as written — a translated mechanism is listed as the behaviour it secures — and the delta round's seats check each one in the revised artifact

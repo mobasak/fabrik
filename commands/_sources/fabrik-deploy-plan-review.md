@@ -15,7 +15,7 @@ Converge this deployment plan to a fixed point — do not stop after one pass. T
 
 **Additional sanctioned endings for THIS command** (besides the fragment's closing-round flip, stall circuit-breaker and per-axis BLOCKED escalation): (a) the **batched operator ask** (Phase 2 — one question set, once; record the answers and continue the loop in the same invocation); (b) the **status-guard verdicts** (Phase 0 — the already-converged report, the consumed-record route, the complete-deploy route back to `/fabrik-deploy`, the EXECUTED / live-IN-PROGRESS refusal, the absent/unrecognized-status refusal, the wrong-repo stop) — clean hand-backs, not failures.
 
-**You are at step 4 of the chain below — previous: `/fabrik-deploy-plan` · next: Gate 2 (the operator's explicit go), then `/fabrik-deploy`.**
+**You are at step 4 of the chain below — previous: `/fabrik-deploy-plan` · next: Gate 2 (the panel's go for our own VPS; the operator's for customer-facing deploys or a split), then `/fabrik-deploy`.**
 
 {{include:deploy-chain}}
 
@@ -114,16 +114,27 @@ FINDERS: native `fabrik-reviewer` ×<n> per unit (Sonnet) + Opus ×<n> named per
 STATUS: CONVERGED (md5 <hash>) | DRAFT — <the named blocker>
 ```
 
-On a CONVERGED ending, end the turn with the block below, written as plain lines, not inside a code fence:
+On a CONVERGED ending, the panel (CLAUDE.md § Autonomy: two `fabrik-reviewer` seats, opus and fable, stamped `command_run.py dispatch --seats 2`; the brief states the target's `is_public:` value) answers Gate 2 for a deploy to our own VPS whose runbook has a backup and a rollback and whose target is not customer-facing: an agreeing panel's go ends the close with `PANEL APPROVED (<plan path>)` and `Panel: opus="…" fable="…" → both-approve` (the shape `/opt/fabrik/commands/_fragments/design-gate-panel.md` step 4 gives), and once the coordinator has validated both reports it dispatches `/fabrik-deploy <plan>` with no block. A customer-facing production deploy ends the turn with the block below, written as plain lines, not inside a code fence:
 
 ```
 DECISION NEEDED (ground: gate)
 - Question: Do you approve this converged deploy plan for execution?
-- Why it is yours: Gate 2 — the deploy triad's human approval gate; no agent deploys without it.
-- Options: A — approve, and the operator dispatches /fabrik-deploy <plan> · B — request changes, and the plan re-opens on your feedback.
+- Why it is yours: Gate 2 — operator-kept: public — a customer-facing production deploy.
+- Options: A — approve, and /fabrik-deploy <plan> is dispatched · B — request changes, and the plan re-opens on your feedback.
 - Recommendation: A, once the Phase verdicts, the Class verdicts and the fenced final_gate.py runs above are all green.
 ```
 
-Next command: Gate 2 — human approval; on the operator's explicit go: /fabrik-deploy <plan>.
+A panel that splits on a deploy to our own VPS ends the turn with this block instead, written as plain lines, not inside a code fence:
+
+```
+DECISION NEEDED (ground: gate)
+- Question: Do you approve this converged deploy plan for execution?
+- Why it is yours: Gate 2 — the panel split on a deploy to our own VPS, its `Panel:` line below.
+- Options: A — approve, and /fabrik-deploy <plan> is dispatched · B — request changes, and the plan re-opens on your feedback.
+- Recommendation: A, once the Phase verdicts, the Class verdicts and the fenced final_gate.py runs above are all green.
+- Panel: opus="<verdict>" fable="<verdict>" → split
+```
+
+Next command: Gate 2 — the panel's go (own VPS); the operator's for customer-facing deploys or a split: /fabrik-deploy <plan>.
 
 {{include:close-chain}}

@@ -316,7 +316,10 @@
     },
     "total": 29867
    },
-   "render": 12424
+   "render": 12424,
+   "added": {
+    "docs/DECISIONS.md#D-1110": "D-1371"
+   }
   },
   "fabrik-deploy-checklist": {
    "agents": [
@@ -469,7 +472,8 @@
     },
     "total": 76048
    },
-   "render": 21063
+   "render": 21732,
+   "raised_by": "D-1371"
   },
   "fabrik-deploy-verify": {
    "agents": [
@@ -1013,7 +1017,10 @@
     },
     "total": 86581
    },
-   "render": 24910
+   "render": 24910,
+   "added": {
+    "docs/DECISIONS.md#D-1110": "D-1371"
+   }
   },
   "fabrik-generate-tests": {
    "agents": [
@@ -1187,7 +1194,10 @@
     },
     "total": 92719
    },
-   "render": 37032
+   "render": 37032,
+   "added": {
+    "docs/DECISIONS.md#D-1110": "D-1371"
+   }
   },
   "fabrik-release": {
    "agents": [
@@ -1218,7 +1228,10 @@
     },
     "total": 40201
    },
-   "render": 9601
+   "render": 9601,
+   "added": {
+    "docs/DECISIONS.md#D-1110": "D-1371"
+   }
   },
   "fabrik-repo-review": {
    "agents": [
@@ -1730,7 +1743,10 @@
     },
     "total": 93060
    },
-   "render": 34309
+   "render": 34309,
+   "added": {
+    "docs/DECISIONS.md#D-1110": "D-1371"
+   }
   },
   "fabrik-task": {
    "agents": [
@@ -1891,7 +1907,10 @@
     },
     "total": 128808
    },
-   "render": 25469
+   "render": 25469,
+   "added": {
+    "docs/DECISIONS.md#D-1110": "D-1371"
+   }
   },
   "fabrik-upstream": {
    "agents": [
