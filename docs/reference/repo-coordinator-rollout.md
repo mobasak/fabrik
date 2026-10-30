@@ -447,19 +447,20 @@ rename. `add` and `remove` run it after every change, so a click always opens th
 list or close tabs, so a retired builder's pane simply disappears from its tab and an emptied tab shows the closed
 attach until the next click (§ Start using it in every repo).
 
-`--list` prints instead the absolute path of every registered repo under `--opt` (a `.fabrik/session-agents.json`
-registry or a `.claude/worktrees` folder), one per line, and writes nothing (W-6e656dac T04). It skips the
-`agents_up.sh --print` check and needs no distro, because its caller is the boot sweep (`claude-reboot-sweep.sh`,
-tracked in `scripts/sysadmin/mesh/`): at boot the user bus may not answer yet, and a check that failed then would
-leave the list empty. The sweep runs `agents_up.sh --detach` on each path, and that command decides which builders
-the repo has. `--list` refuses `--desktop`, `--tabbed` and `--replace` (exit 2).
-
 It writes only under `--desktop`, because the desktop is outside every repo. A desktop file it did not write — the
 hand-made launchers from before — is left untouched (exit 2) until it is named once with
 `--replace "<Repo> Agents.bat"`; a file it wrote is rewritten when its text changes and left alone otherwise. The WSL
 distro comes from `--distro`, else a non-blank `$WSL_DISTRO_NAME`, else the distro this shell runs in, read from
 `wslpath -w /` (`fabrik_deck.py::_default_distro`), so a run from tmux, systemd or code-server, where the variable
 is unset, still names this distro; `--distro ""` and an underivable distro refuse.
+
+`--list` prints instead the absolute path of every registered repo under `--opt` (a `.fabrik/session-agents.json`
+registry or a `.claude/worktrees` folder), one per line, and writes nothing (W-6e656dac T04). It skips the
+`agents_up.sh --print` check and needs no distro, because its caller is the boot sweep (`claude-reboot-sweep.sh`,
+tracked in `scripts/sysadmin/mesh/`): at boot the user bus may not answer yet, and a check that failed then would
+leave the list empty. The sweep runs `agents_up.sh --detach` on each path, and that command decides which builders
+the repo has. A folder it cannot read, or whose name holds a newline, is skipped with a stderr line while the rest are
+still listed (exit 0). `--list` refuses `--desktop`, `--tabbed` and `--replace` (exit 2).
 
 Each .bat is self-contained and needs no hand-made Windows Terminal profile. `wt.exe` has no font-size option, so the
 .bat writes a Windows Terminal JSON fragment, `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\Fabrik\<repo>.json`,

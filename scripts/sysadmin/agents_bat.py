@@ -5,7 +5,8 @@ per repo, or with --tabbed ONE "All Agents (tabbed).bat". Also: agents_bat.py --
 
 --list (W-6e656dac T04): prints the absolute path of every registered repo under --opt (a .fabrik/session-agents.json
 registry or a .claude/worktrees folder), one per line, sorted, WITHOUT the `agents_up.sh --print` probe and with no
-distro to resolve; it writes nothing. The boot sweep (claude-reboot-sweep.sh) runs `agents_up.sh --detach` on each,
+distro to resolve; it writes nothing. A folder that cannot be read, or whose name holds a newline, is skipped with a
+stderr line and the rest are still listed (exit 0). The boot sweep (claude-reboot-sweep.sh) runs `agents_up.sh --detach` on each,
 which decides the builders itself — the probe is left out because at boot the user bus may not answer yet.
 
 --tabbed (W-b9ad80ae D5): one named Windows Terminal window (`wt.exe -M -w fabrik-agents`, so a later run can append to
@@ -390,16 +391,22 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _registered(opt: Path) -> list[Path]:
-    """The repos directly under `opt` that agents_up could give a grid: a registry or a .claude/worktrees folder."""
-    return [
-        p
-        for p in sorted(opt.iterdir())
-        if p.is_dir()
-        and (
-            (p / ".fabrik" / "session-agents.json").exists()
-            or (p / ".claude" / "worktrees").is_dir()
-        )
-    ]
+    """The repos directly under `opt` that agents_up could give a grid: a registry or a .claude/worktrees folder. A
+    folder that cannot be read is skipped with a stderr line naming it (T04 F6): one unreadable child must never
+    empty the whole list."""
+    found = []
+    for p in sorted(opt.iterdir()):
+        try:
+            if p.is_dir() and (
+                (p / ".fabrik" / "session-agents.json").exists()
+                or (p / ".claude" / "worktrees").is_dir()
+            ):
+                found.append(p)
+        except OSError as exc:
+            print(
+                f"agents_bat: cannot read {p} ({exc.strerror or exc}); skipped", file=sys.stderr
+            )
+    return found
 
 
 def _list(args: argparse.Namespace) -> int:
@@ -417,6 +424,11 @@ def _list(args: argparse.Namespace) -> int:
         print(f"agents_bat: --opt {args.opt} is not a folder; nothing listed", file=sys.stderr)
         return 2
     for repo in _registered(opt):
+        # one path per line is the sweep's contract: a name holding a newline would print as two lines and the sweep
+        # would launch a truncated path (T04 F3)
+        if "\n" in str(repo):
+            print(f"agents_bat: {str(repo)!r} holds a newline; skipped", file=sys.stderr)
+            continue
         print(repo)
     return 0
 
