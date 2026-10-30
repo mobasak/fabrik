@@ -49,7 +49,9 @@ from pathlib import Path
 # missing one included, is an agent (fail closed).
 POOL_PREFIX = "sdk-"
 DECISIONS = Path(__file__).resolve().parent.parent / "decisions.py"
-NO_OWNER = {"no ledger", "the ledger declares no merge owner"}  # a FAILED lookup is not "no owner"
+# exit 3 of `decisions.py --merge-owner`: no MERGE OWNER row, or a winning un-adoption row
+DECLARES_NONE = "the ledger declares no merge owner"
+NO_OWNER = {"no ledger", DECLARES_NONE}  # a FAILED lookup is not "no owner"
 
 
 # ── discovery ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -157,8 +159,8 @@ def live_sessions(home: Path, proc: Path, opt: str = "/opt") -> list[dict]:
     return out
 
 
-def merge_owner(repo: str) -> tuple[str, str]:
-    """(name, why) — the name is "" when the repo declares none or the lookup fails."""
+def merge_owner(repo: str, *, timeout: float = 30) -> tuple[str, str]:
+    """(name, why) — the name is "" when the repo declares none or the lookup fails (incl. past `timeout` s)."""
     if not (Path(repo) / "docs" / "DECISIONS.md").is_file():
         return "", "no ledger"
     try:
@@ -166,14 +168,14 @@ def merge_owner(repo: str) -> tuple[str, str]:
             [sys.executable, str(DECISIONS), "--merge-owner", repo],
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=timeout,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return "", f"lookup failed ({exc})"
     if out.returncode == 0:
         return out.stdout.strip(), "the ledger's merge owner"
     if out.returncode == 3:
-        return "", "the ledger declares no merge owner"
+        return "", DECLARES_NONE
     return "", f"lookup failed (exit {out.returncode})"
 
 

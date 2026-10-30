@@ -69,6 +69,17 @@ GONE. It still mutates memory only. New warning `ContainerCPUThrottled`: throttl
 periods for 15 minutes while running more than 1 period per second (aro-wake only), promtool-tested.
 Live step is the coordinator's operator gate (sync the script, push the rules). D-1361, W-fc701b31.
 
+### Fixed — tab router: every repo's coordinator in the picker (2026-10-29)
+The VS Code chat-tab picker (`scripts/sysadmin/claude_tab_router.py`) listed a repo only when it already had a known
+agent, so 34 of the 44 /opt git repos never appeared and only 2 offered a role named `coordinator` (W-5f4b0972,
+D-1364). Every git repo under /opt is now listed, each with its coordinator: the ledger's merge owner, or the plain
+`coordinator` labelled `(no owner row)` where the ledger declares none. A missing ledger or a failed lookup offers no
+coordinator row. The `decisions.py --merge-owner` lookups run on 8 threads with a 5 s timeout each and stop 3 s before
+the picker's deadline, so one hung lookup no longer costs the whole picker (`hibernate.merge_owner` gains a `timeout`
+keyword and the `DECLARES_NONE` constant). Registry repo keys are normalised, so `/opt/x/` and `/opt/x` are one
+repo. 7 new tests (28 in the file, 21 before); `docs/workstation/claude-tab-router.md` updated. Full `/fabrik-review`
+3 rounds (2 → 3 → 0 confirmed); residue W-e9386861, W-449dfa54.
+
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
 `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.
