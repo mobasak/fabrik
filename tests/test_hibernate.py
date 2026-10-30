@@ -645,13 +645,17 @@ def test_mark_deadline_and_paused_exit_codes(tmp_path: Path) -> None:
     assert out.returncode == 0, (out.stdout, out.stderr)
     assert _shell_lift(box)[0].returncode == 0
     assert box.run("paused").returncode == 1
-    for bad in ("{", "[]", '{"paused_at": "soon"}'):
+    # review G4: a marker that EXISTS but cannot be read or parsed is PAUSED (exit 0, one stderr line naming the
+    # file) — every launcher reads anything but 0 as "proceed", so the old exit 2 let them all run on a torn marker
+    for bad in ("{torn", "{", "[]", '{"paused_at": "soon"}'):
         (box.state / "hibernate.json").write_text(bad, encoding="utf-8")
         out = box.run("paused")
-        assert out.returncode == 2, (bad, out.stdout, out.stderr)
+        assert out.returncode == 0, (bad, out.stdout, out.stderr)
+        assert "hibernate.json" in out.stderr and out.stdout == "", (bad, out.stdout, out.stderr)
     (box.state / "hibernate.json").unlink()
     (box.state / "hibernate.json").mkdir()  # exists, cannot be read
-    assert box.run("paused").returncode == 2
+    out = box.run("paused")
+    assert out.returncode == 0 and "hibernate.json" in out.stderr, (out.stdout, out.stderr)
     assert box.run("mark", "--words", "w", "--deadline", "soon").returncode == 2
 
 
@@ -699,6 +703,10 @@ def test_woke_answers_resume_only_after_the_lift(tmp_path: Path) -> None:
     assert "hibernate.py lift" in out.stdout and "30 min" in out.stdout, (
         out.stdout
     )  # the lift paths
+    # the sleep path as the tick applies it (T06): a nap during the drain lifts nothing
+    assert (
+        "a resume-wake row whose gap began after the mark and ended at or after T-3" in out.stdout
+    ), out.stdout
     assert _shell_lift(box)[0].returncode == 0
     lifted = _marker(box)["lifted_at"]
     out = box.run("woke", "--self", "s1")
@@ -1062,16 +1070,29 @@ def test_h1_every_verb_defaults_to_the_one_passwd_home(
     assert hib.main(["paused"]) == 1  # lifted, read from the same home
 
 
+def test_g6_a_lift_older_than_the_mark_is_no_resume(tmp_path: Path) -> None:
+    """Review G6: a `lifted_at` before the CURRENT mark is the last pause's lift — `woke` is 1 and says the pause is not
+    lifted yet, never RESUME (the `lifted_at < paused_at` half of the guard; `is None` alone lets it through)."""
+    box = Box(tmp_path)
+    assert box.run("mark", "--words", "w").returncode == 0
+    m = _marker(box)
+    m["lifted_at"] = m["paused_at"] - 1
+    m["lift_path"] = "sleep"
+    (box.state / "hibernate.json").write_text(json.dumps(m), encoding="utf-8")
+    out = box.run("woke", "--self", "s1")
+    assert out.returncode == 1 and "is not lifted yet" in out.stdout, (out.stdout, out.stderr)
+
+
 def test_h4_h5_a_null_paused_at_or_a_bad_deadline_is_corrupt(tmp_path: Path) -> None:
-    """H4/H5: a PRESENT `paused_at` that is null is corrupt (`paused` 2, `woke` 2), never "not paused"; a
-    non-numeric `deadline_at` is corrupt too."""
+    """H4/H5: a PRESENT `paused_at` that is null is corrupt (`paused` exit 0 — held, review G4 — and `woke` 2), never
+    "not paused"; a non-numeric `deadline_at` is corrupt too."""
     box = Box(tmp_path)
     for m in (
         '{"paused_at": null, "words": "w"}',
         '{"paused_at": 1, "deadline_at": "x"}',
     ):
         (box.state / "hibernate.json").write_text(m, encoding="utf-8")
-        assert box.run("paused").returncode == 2, m
+        assert box.run("paused").returncode == 0, m  # corrupt holds the launchers (G4)
         if "null" in m:
             assert box.run("woke", "--self", "s1").returncode == 2, m
 
@@ -1165,11 +1186,12 @@ def test_f5_f7_an_unusable_deadline_is_refused_before_any_write(
     ['{"paused_at": 1.0, "lifted_at": "soon"}', '{"paused_at": "x"}', "{", "[]"],
 )
 def test_f6_woke_exits_2_on_a_corrupt_marker(tmp_path: Path, marker: str) -> None:
-    """F6: a marker `paused` calls corrupt (exit 2) is corrupt for `woke` too — exit 2 naming it, never `stay
-    paused`."""
+    """F6: a marker `paused` calls corrupt (its stderr line; it holds the launchers with exit 0, review G4) is corrupt
+    for `woke` too — exit 2 naming it, never `stay paused`."""
     box = Box(tmp_path)
     (box.state / "hibernate.json").write_text(marker, encoding="utf-8")
-    assert box.run("paused").returncode == 2
+    p = box.run("paused")
+    assert p.returncode == 0 and "hibernate.json" in p.stderr, (p.stdout, p.stderr)
     out = box.run("woke", "--self", "s1")
     assert out.returncode == 2 and "hibernate.json" in out.stdout + out.stderr, (
         out.stdout,
@@ -1495,8 +1517,8 @@ def test_the_armed_name_transform_is_the_ticks_own() -> None:
 def test_k1_no_passwd_entry_and_no_home_fails_closed(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """With no passwd entry and no $HOME, `~` stays literal and the marker would resolve against the cwd: every verb
-    exits 2 instead."""
+    """With no passwd entry and no $HOME, `~` stays literal and the marker would resolve against the cwd: `woke` and
+    `lift` exit 2 instead, and `paused` exits 0 — held, since its callers read 2 as "proceed" (review N1)."""
     monkeypatch.delenv("ROTATE_STATE_DIR", raising=False)
     monkeypatch.delenv("HOME", raising=False)
     monkeypatch.chdir(tmp_path)
@@ -1509,7 +1531,10 @@ def test_k1_no_passwd_entry_and_no_home_fails_closed(
     state = tmp_path / "~" / ".claude" / "state"  # where a relative "~" would land
     state.mkdir(parents=True)
     (state / "hibernate.json").write_text(json.dumps({"paused_at": time.time(), "words": "w"}))
-    for argv in (["paused"], ["woke"], ["lift"]):
+    # `paused` holds instead (review N1): launchers read every non-0 as "proceed", so a home it cannot resolve is
+    # PAUSED (exit 0) with its one stderr line; `woke` and `lift` still refuse with 2
+    assert hib.main(["paused"]) == 0
+    for argv in (["woke"], ["lift"]):
         assert hib.main(argv) == 2, argv
 
 

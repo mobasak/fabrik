@@ -62,7 +62,7 @@ The marker is `hibernate.json` in the rotation tick's state dir — `$ROTATE_STA
 `<passwd home>/.claude/state` (every verb defaults `--home` to the passwd entry's home, never `$HOME`) — beside the rotate ledger. Its keys: `paused_at`, `words`, `deadline_at` (T, optional),
 `lifted_at` (optional) and `lift_path` (`sleep`, `outage`, `cancelled`, `hub` or `migration`). Every writer goes
 through `update_marker`, which holds an `flock` on `hibernate.json.lock` across its read-modify-write, so two writers
-at once (the hub's `lift` and, once T06 builds it, the tick's lift) both land.
+at once (the hub's `lift` and the tick's lift) both land.
 
 - **The mark (T-0).** `hibernate.py mark --words "…" [--deadline 10m]` writes a fresh marker (no key of an earlier
   pause survives): `paused_at` now and, with `--deadline`, `deadline_at` = T (`10m`, `5m`, `1h`; a bare number is
@@ -71,14 +71,21 @@ at once (the hub's `lift` and, once T06 builds it, the tick's lift) both land.
 - **T-3.** Three minutes before T the hard hold arms. `brief --deadline` names T-3 and T as clock times in the pause
   text (it refuses with exit 2 when no deadline is marked).
 - **T.** The operator closes the lid.
-- **The lift.** The hub coordinator, once awake, always runs `hibernate.py lift`, then `targets`, and sends every
-  session "RESUME — the hibernate is over". The rotation tick's own lift — after a sleep, after a network outage once
-  the API answers again, or 30 minutes past T — arrives with the plan's T06 and is not built yet; until it lands,
-  `lift` is the only lift.
+- **The lift.** The rotation tick lifts the pause (`claude_rotate.py` `_hibernate_lift_leg`, writing `lifted_at` and
+  `lift_path`): after a sleep — a `resume-wake` row whose gap began after the mark and ended at or after T-3, so a nap
+  during the drain lifts nothing (`sleep`) — after a network outage once the API answers again (`outage`), or 30
+  minutes past T, the pause cancelled (`cancelled`). The hub coordinator's `hibernate.py lift` (`hub`) is the manual
+  override; once awake it runs `targets` and sends every session "RESUME — the hibernate is over". The text `woke`
+  prints with no lift yet is `LIFT_PATHS` in the script.
 
 `hibernate.py paused` is the launchers' and dispatchers' check: exit 0 while a pause is marked and not lifted, 1
-otherwise (no marker file included), and 2 when the marker file exists but cannot be read or parsed (it reads the file
-raw, so a corrupt marker never reads as "not paused") or on any other error of its own.
+otherwise (no marker file included). A marker file that exists but cannot be read or parsed (it reads the file raw), a
+home it cannot resolve (no passwd entry and no `$HOME`), or any other error of its own is exit 0 too, with one stderr
+line naming the cause: every launcher reads anything but 0
+as "proceed". The cost: a corrupt marker holds every launcher and dispatcher until the hub repairs or lifts it
+(`status` shows the marker; a passing `lift` replaces an unreadable one, below). The Stop and posture hooks keep their
+own copy of the rule, which reads a corrupt marker as unmarked: a hook that held every tool on one would freeze every
+session.
 
 ## The manual lift
 
@@ -104,8 +111,9 @@ pid 1. A row the ledger cannot take goes to the fallback file (`ROTATE_LEDGER_FA
 `<tempdir>/claude-rotate-ledger-fallback-<uid>.jsonl`), with one stderr line.
 
 A pass writes `lifted_at` and `lift_path=hub` and nothing else: it touches no stamp (clearing the `hibernate`
-tier is the rotation tick's, T06, not built yet). A second lift leaves `lifted_at` where it was, so a session that already resumed is not told to
-resume again. A marker file that cannot be parsed would stand paused (exit 2) forever. A passing lift therefore
+tier is the rotation tick's). A second lift leaves `lifted_at` where it was, so a session that already resumed is not told to
+resume again. A marker file that cannot be parsed would hold every launcher (`paused` exit 0) and keep `woke` at exit 2
+forever. A passing lift therefore
 replaces it with a well-formed lifted marker (`paused_at` = the file's mtime, `words` = `(unreadable marker replaced
 by lift)`), writes a `hibernate-lift-replaced-marker` ledger row and says so. A refused caller changes nothing.
 
@@ -125,7 +133,7 @@ overrides are refused outside tests and the plain-shell residual stays auditable
 Otherwise it exits 1 with `no pending resume`, and with no lift yet it names the lift paths. It exits 2 when it
 cannot tell: a marker `paused` would call corrupt (the same rule, every field it validates), or this session's run
 record exists but cannot be read or parsed. A `resume-wake` row in
-the rotate ledger is never `woke`'s evidence (it will be the tick's, for its own lift, once T06 builds it), so an agent
+the rotate ledger is never `woke`'s evidence (it is the tick's, for its own sleep lift), so an agent
 is never told to resume while the hold still stands.
 
 On RESUME it lists the session's seeds (`<command-runs>/seeds/<safe sid>-….json` or `.md`, where `<command-runs>`

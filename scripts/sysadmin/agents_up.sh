@@ -45,9 +45,12 @@
 # FABRIK_AGENTS_UNCAPPED=1 left in a profile; the test stub records the systemd-run argv the pane really runs, and the
 # override is said on stderr at every launch that uses it.
 #
-# Exit codes: 0 done; 2 a refusal (a malformed registry row, an unreadable ledger or identity store, a refused ceiling, a
-# worktree gone before launch); 3 NOTHING TO LAUNCH — a registry naming only a coordinator, or bindings with no builder
-# worktree (W-b9ad80ae D4) — so a caller can tell an empty repo from a refusal.
+# Exit codes: 0 done; 1 tmux failed (no session made, or no window and pane id for the first pane); 2 a refusal (a
+# malformed registry row, an unreadable ledger or identity store, a refused ceiling, a worktree gone before launch); 3
+# NOTHING TO LAUNCH — a registry naming only a coordinator, or bindings with no builder worktree (W-b9ad80ae D4) — so a
+# caller can tell an empty repo from a refusal; 4 SOME PANE NOT OPENED — the grid is up but at least one builder got no
+# pane ("no room for <name>'s pane (session <sid>)" on stderr, one line each), so the boot sweep never records that
+# session relaunched (T04 residue 3). An interactive attach still attaches after saying so; every other path exits 4.
 #
 # Every claude call carries --settings '{"skillOverrides":{"auto-mode-setup":"off"},"spinnerTipsEnabled":false}' and every pane's
 # env CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1: no "Teach auto mode" dialog, no spinner tips, no survey (probed live on
@@ -659,7 +662,7 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status, $4 = new (1: --session-id
       wake="$(first_prompt "$1" "$2")"
       claude="claude -n $1 --session-id $2"
     else
-      wake="You were relaunched by agents_up. First re-arm your self-watch: run bash \"$HUB/scripts/sysadmin/selfwatch_arm.sh\" $2 in the background. Then run python3 \"$HUB/scripts/sysadmin/hibernate.py\" woke --self $2 and, only if it exits 0, resume your item from the seed it prints; on any other exit carry on as usual."
+      wake="You were relaunched by agents_up. First re-arm your self-watch: run bash \"$HUB/scripts/sysadmin/selfwatch_arm.sh\" $2 in the background. Then run python3 \"$HUB/scripts/sysadmin/hibernate.py\" woke --self $2 and, only if it exits 0, resume your item from the seed it prints; on exit 1 carry on as usual; on exit 2 stay paused and tell your coordinator."
       claude="claude -n $1 --resume $2"
     fi
     inner="echo 200 > /proc/self/oom_score_adj 2>/dev/null; $penv $claude --settings $(squote "$SETTINGS_JSON") $(squote "$wake"); rc=\$?; echo; [ \"\$rc\" = 137 ] && printf '%s\\n' $(squote "$killed"); printf '%s\\n' $hint; exec $penv bash -l"
@@ -943,7 +946,8 @@ start_grid() {
       out="$(tmux new-window -d -t "=$S:" -n "agents-$k" -c "$dir" -P -F '#{window_id} #{pane_id}' "$cmd")" || out=""
       read -r wid pid <<< "$out"
       if ! [[ "$wid" =~ ^@[0-9]+$ && "$pid" =~ ^%[0-9]+$ ]]; then
-        echo "agents_up: no room for $name's pane — open it by hand: $cmd" >&2
+        echo "agents_up: no room for $name's pane (session $sid) — open it by hand: $cmd" >&2
+        NO_ROOM=1
         continue
       fi
       wins+=("$wid")
@@ -951,7 +955,8 @@ start_grid() {
       wid="${wins[$((${#wins[@]} - 1))]}"
       pid="$(tmux split-window -t "$wid" -c "$dir" -P -F '#{pane_id}' "$cmd")" || pid=""
       if ! [[ "$pid" =~ ^%[0-9]+$ ]]; then
-        echo "agents_up: no room for $name's pane — open it by hand: $cmd" >&2
+        echo "agents_up: no room for $name's pane (session $sid) — open it by hand: $cmd" >&2
+        NO_ROOM=1
         continue
       fi
     fi
@@ -1011,6 +1016,7 @@ window_mode() {
 }
 
 ATT="$S"
+NO_ROOM=0  # start_grid sets 1 when a builder got no pane: exit 4 on every path that does not attach
 if [ -n "$winn" ]; then
   window_mode
 elif tmux has-session -t "=$S" 2>/dev/null; then
@@ -1023,12 +1029,14 @@ tmux source-file "$HOME/.tmux.conf" 2>/dev/null
 # --detach (the boot sweep, cron: no terminal) stops here; so does any caller with no terminal, which says so
 if [ "$detach" = 1 ]; then
   echo "agents_up: --detach — the $S grid is up, not attaching (attach with: tmux attach -t =$ATT)" >&2
+  [ "$NO_ROOM" = 1 ] && exit 4
   exit 0
 fi
 # run from inside tmux (a hub pane), attaching would nest; switch the client instead
 [ -n "${TMUX:-}" ] && exec tmux switch-client -t "=$ATT"
 if [ ! -t 0 ] || [ ! -t 1 ]; then
   echo "agents_up: no terminal on stdin/stdout, so there is nothing to attach — the $S grid is up and left detached (attach with: tmux attach -t =$ATT)" >&2
+  [ "$NO_ROOM" = 1 ] && exit 4
   exit 0
 fi
 exec tmux attach -t "=$ATT"

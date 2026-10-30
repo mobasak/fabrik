@@ -340,20 +340,88 @@ def test_tracked_sweep_state_line_is_byte_identical() -> None:
     ]
 
 
-_PRINT_FLAG = re.compile(r"(?:^|[\s\"'])(?:-p|--print)(?=[\s\"'=]|$)")
-# a resume or continue flag as a WHOLE token (T04 G2): `-r`/`-c` are claude's short forms
-_RESUME_FLAG = re.compile(r"(?:^|[\s\"'])(?:--resume|-r|--continue|-c)(?=[\s\"'=]|$)")
+_ASSIGN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+_WRAPPERS = {"env", "timeout", "nohup", "setsid", "exec", "command", "nice", "stdbuf", "sudo"}
+_SEPARATORS = {"|", "||", "&", "&&", ";", ";;", "(", ")", "$(", "`"}
+
+
+def _logical(text: str) -> list[str]:
+    """Shell LOGICAL lines: a line ending in an unescaped backslash continues on the next (T04 residue 4)."""
+    return re.sub(r"(?<!\\)\\\n", " ", text).splitlines()
+
+
+def _commands(line: str) -> list[list[str]]:
+    """The simple commands of one logical line, each as its words with quotes removed: split at `|`, `;`, `&&`,
+    `||`, `&` and parentheses, a `#` comment dropped. A line shlex cannot parse (an unbalanced quote that a heredoc
+    or a multi-line awk program leaves) falls back to whitespace words, the conservative reading."""
+    import shlex
+
+    lex = shlex.shlex(line, posix=True, punctuation_chars=True)
+    lex.whitespace_split = True
+    try:
+        words = list(lex)
+    except ValueError:
+        words = line.split()
+    out: list[list[str]] = [[]]
+    for w in words:
+        if w in _SEPARATORS or set(w) <= set("|&;()"):
+            out.append([])
+        else:
+            out[-1].append(w)
+    return [c for c in out if c]
+
+
+def _argv(cmd: list[str]) -> list[str]:
+    """The command word and its arguments: leading `X=1` assignments and wrappers (`env`, `timeout 60`, `nohup` …,
+    with their own options) skipped."""
+    i = 0
+    while i < len(cmd):
+        w = cmd[i]
+        if _ASSIGN.match(w):
+            i += 1
+        elif w in _WRAPPERS:
+            i += 1
+            while i < len(cmd) and (cmd[i].startswith("-") or _ASSIGN.match(cmd[i])):
+                i += 1
+            if w == "timeout" and i < len(cmd) and re.fullmatch(r"[0-9.]+[smhd]?", cmd[i]):
+                i += 1
+        else:
+            break
+    return cmd[i:]
+
+
+def _flags(args: list[str]) -> tuple[bool, bool]:
+    """(print, resume) for claude's arguments: `--print` and `--resume`/`--continue` in full or abbreviated to 3+
+    letters (`--cont`, `--res=`), and short flags alone or clustered (`-p`, `-r`, `-c`, `-pr`, `-cp`)."""
+    p = r = False
+    for a in args:
+        if a.startswith("--"):
+            name = a[2:].split("=", 1)[0]
+            if len(name) >= 3:
+                p = p or "print".startswith(name)
+                r = r or "resume".startswith(name) or "continue".startswith(name)
+        elif re.fullmatch(r"-[A-Za-z]+", a):
+            p = p or "p" in a
+            r = r or "r" in a or "c" in a
+    return p, r
 
 
 def _headless_resume(line: str) -> bool:
-    """A code line that resumes or continues a session headless: a resume/continue flag (`--resume`, `-r`,
-    `--continue`, `-c`, whole tokens) together with `-p`/`--print`, in any spelling of the binary (a variable,
-    `env X=1 …`), or `claude -p`/`claude --print` itself (T04 F5, G2). A fresh headless run through a variable
-    with neither flag is not a resume."""
-    return bool(
-        (_RESUME_FLAG.search(line) and _PRINT_FLAG.search(line))
-        or re.search(r"\bclaude\s+(?:-p|--print)\b", line)
-    )
+    """A logical line that resumes or continues a session headless (T04 F5, G2, residue 4): a command whose word is
+    `claude` (any path) given a print flag, or one whose word is a variable expansion (`"$CLAUDE_BIN"`, `${c}`)
+    given a print flag AND a resume/continue flag. Another command's own `-p`/`-r` (`cp -p -r`, `mkdir -p`) is no
+    claude flag, and a fresh headless run through a variable with no resume flag is not a resume."""
+    for cmd in _commands(line):
+        argv = _argv(cmd)
+        if not argv:
+            continue
+        word, args = argv[0], argv[1:]
+        p, r = _flags(args)
+        if os.path.basename(word) == "claude" and p:
+            return True
+        if word.startswith("$") and p and r:
+            return True
+    return False
 
 
 def test_the_headless_resume_matcher_catches_every_spelling() -> None:
@@ -369,22 +437,32 @@ def test_the_headless_resume_matcher_catches_every_spelling() -> None:
         'claude -c -p "go on"',
         '"$c" -p --continue',
         '"$c" --print --resume="$sid"',
+        # T04 residue 4: an abbreviated long flag, a `\` continuation, a clustered short flag
+        '"$c" -p --cont',
+        '"$c" --pri --res "$sid"',
+        '"$c" -p \\\n    --resume "$sid"',
+        '"$c" -pr "$sid"',
+        'x=1; timeout 60 "$c" -cp "go on"',
     ]
-    assert [s for s in caught if not _headless_resume(s)] == []
+    assert [s for s in caught if not any(_headless_resume(ln) for ln in _logical(s))] == []
     harmless = [
         'mkdir -p -m 700 "$state"',
         'cp -p "$a" "$b"',
         'resume_hint="--resume $sid"',
         '"$c" -p "start a new task"',
         'tail -n 1 "$outf" | cut -c1-200',
+        # T04 residue 4: another command's own -p/-r is no claude flag
+        'cp -p -r "$a" "$b"',
+        'cp -pr "$a" "$b" && "$c" -p "new task"',
+        'printf "%s\\n" "-p --resume" | grep -c -- -p',
     ]
-    assert [s for s in harmless if _headless_resume(s)] == []
+    assert [s for s in harmless if any(_headless_resume(ln) for ln in _logical(s))] == []
 
 
 def test_tracked_sweep_never_resumes_with_claude_p() -> None:
     code = [
         ln
-        for ln in SWEEP.read_text(encoding="utf-8").splitlines()
+        for ln in _logical(SWEEP.read_text(encoding="utf-8"))
         if ln.strip() and not ln.lstrip().startswith("#")
     ]
     assert [ln for ln in code if _headless_resume(ln)] == []

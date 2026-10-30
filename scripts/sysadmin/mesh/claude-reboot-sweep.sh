@@ -24,7 +24,8 @@
 # then for every repo `agents_bat.py --list` prints read its grid's `pane <name> <sid> <folder> <status>` lines
 # (`agents_up.sh --print`) and build the grid with `agents_up.sh --detach` (cron has no terminal); only a grid
 # that launched records its sids in <lockdir>/.boot-relaunched (a failed --print builds nothing, a failed
-# --detach records nothing); a bus that never answers is noted `uncapped-boot` and the grids are built anyway
+# --detach records nothing, and its exit 4 — some builder got no pane — records only the sids that got one, noted
+# `builder-grid-noroom`, and leaves the repo unlatched); a bus that never answers is noted `uncapped-boot` and the grids are built anyway
 # (agents_up's boot path launches uncapped with D-1075's warning), so builders always come back.
 #
 # Leg B — one resume-by-hand notice per OTHER session the boot cut mid-work (see below); never for a sid in
@@ -55,8 +56,12 @@ max_age="${MESH_SWEEP_MAX_AGE:-604800}"   # a marker older than a week is stale 
 log="${MESH_SWEEP_LOG:-$HOME/.claude/sound-debug.log}"
 
 note() {  # one line per decision — the sweep must never be a silent black box
+  # a TAB or newline inside a field (a repo path may hold either) is written escaped, so a note is ONE line whose
+  # fields split on spaces (T04 residue 5)
+  local m="${2:-}"
+  m="${m//$'\t'/\\t}"; m="${m//$'\n'/\\n}"
   printf '%s  arg=sweep     event=reboot        verdict=%-13s %s\n' \
-    "$(date '+%F %T')" "$1" "${2:-}" >> "$log" 2>/dev/null || true
+    "$(date '+%F %T')" "$1" "$m" >> "$log" 2>/dev/null || true
 }
 
 command -v python3 >/dev/null 2>&1 || { note "abort-no-python3" "PATH=$PATH"; exit 0; }
@@ -243,7 +248,9 @@ relaunched_file="$locks/.boot-relaunched"
 # skips only those repos, and Leg B reads their sids, so a lock dir pruned after the leg still skips them. boot=0
 # (no uptime) cannot be told apart from another boot, so it never skips. The PATH is LAST and compared whole (the
 # rest of the line after the second TAB), passed through ENVIRON, never `awk -v` (which rewrites backslash
-# escapes): any path --list prints — spaces, TABs, backslashes — round-trips (T04 H2). Sids hold no TAB.
+# escapes): any path --list prints — spaces, TABs, backslashes — round-trips (T04 H2). Sids hold no TAB. An exit-4
+# grid (some builder got no pane) appends `noroom<TAB><sids><TAB><path>` instead: never a latch, and a later rc 0 this
+# boot drops those sids from what it records, so a builder is relaunched only if it got a pane (review G1).
 boot_stamp="$state/.builders-boot"
 same_boot=0
 stamp_boot=$(head -n 1 "$boot_stamp" 2>/dev/null)
@@ -275,8 +282,14 @@ if [ "$legb_fresh" = "1" ]; then
     errf=$(mktemp "$locks/.builder-list.XXXXXX" 2>/dev/null || mktemp 2>/dev/null) || errf=/dev/null
     all_repos=$(timeout 60 python3 "$agents_bat" --list 2>"$errf" </dev/null 9>&- || true)
     if [ "$errf" != /dev/null ]; then
+      # only a line ending `; skipped` names a skipped folder (agents_bat writes each on one line, a newline in a
+      # name escaped); any other stderr line (a warning, a traceback) is noted under its own label (T04 residue 5)
       while IFS= read -r skipline; do
-        [ -n "$skipline" ] && note "builders-skipped" "$(printf '%s' "$skipline" | cut -c1-200)"
+        case "$skipline" in
+          '') ;;
+          *'; skipped') note "builders-skipped" "$(printf '%s' "$skipline" | cut -c1-200)" ;;
+          *) note "builders-list-stderr" "$(printf '%s' "$skipline" | cut -c1-200)" ;;
+        esac
       done < "$errf"
       rm -f "$errf" 2>/dev/null
     fi
@@ -344,12 +357,42 @@ EOF_ALL
         timeout 300 bash "$agents_up" --detach "$repo" </dev/null >"$outf" 2>&1 9>&-
         rc=$?
         if [ "$rc" = "0" ]; then
+          # a sid is relaunched only if it has a pane (review G1): a later sweep this boot finds an exit-4 grid up
+          # and agents_up exits 0 "leaving it as it is" — the builders it gave no pane (this boot's `noroom` stamp
+          # lines) are dropped from what this branch records, so Leg B still notices them
+          if [ "$same_boot" = "1" ]; then
+            noroom=" $(awk -F '\t' '$1 == "noroom" {print $2}' "$boot_stamp" 2>/dev/null | tr '\n' ' ') "
+            kept=""
+            for s in $sids; do case "$noroom" in *" $s "*) ;; *) kept="$kept$s
+" ;; esac; done
+            sids="${kept%$'\n'}"
+          fi
           note "builder-grid" "repo=$repo rc=0 $(tail -n 1 "$outf" 2>/dev/null | cut -c1-200)"
           # the per-repo latch, only now that the grid launched (G6)
           printf 'repo\t%s\t%s\n' "$(printf '%s' "$sids" | tr '\n' ' ')" "$repo" >> "$boot_stamp" 2>/dev/null
           if [ -n "$sids" ]; then
             printf '%s\n' "$sids" >> "$relaunched_file" 2>/dev/null
             relaunched_now="$relaunched_now$(printf '%s' "$sids" | tr '\n' ' ') "
+          fi
+        elif [ "$rc" = "4" ]; then
+          # T04 residue 3: the grid is up but agents_up opened no pane for some builders ("no room for <name>'s pane
+          # (session <sid>)"): those sids are NOT relaunched — Leg B notices them — and the repo is NOT latched, so a
+          # later sweep this boot runs it again; only the sids that did get a pane are recorded relaunched
+          skipped=$(sed -n "s/^agents_up: no room for [a-z0-9-]*'s pane (session \([A-Za-z0-9_-]*\)).*/\1/p" "$outf" 2>/dev/null)
+          skipped_l=$(printf '%s' "$skipped" | tr '\n' ' ')
+          placed=""
+          for s in $sids; do
+            case " $skipped_l " in *" $s "*) ;; *) placed="$placed$s
+" ;; esac
+          done
+          [ -n "$skipped" ] || placed=""  # an unreadable skip list: record nothing, every session stays notifiable
+          # the skipped sids go in this boot's stamp as a `noroom` line (never a `repo` latch line), so a later
+          # sweep's rc 0 on the same grid does not record them relaunched (review G1)
+          [ -n "$skipped" ] && printf 'noroom\t%s\t%s\n' "$skipped_l" "$repo" >> "$boot_stamp" 2>/dev/null
+          note "builder-grid-noroom" "repo=$repo rc=4 — no pane for ${skipped_l:-(unread)} — not latched, those sessions stay notifiable"
+          if [ -n "$placed" ]; then
+            printf '%s' "$placed" >> "$relaunched_file" 2>/dev/null
+            relaunched_now="$relaunched_now$(printf '%s' "$placed" | tr '\n' ' ') "
           fi
         else
           note "builder-grid-failed" "repo=$repo rc=$rc — nothing recorded, its sessions stay notifiable $(tail -n 1 "$outf" 2>/dev/null | cut -c1-200)"

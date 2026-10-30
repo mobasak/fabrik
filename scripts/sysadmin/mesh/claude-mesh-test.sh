@@ -13,6 +13,10 @@ set -u
 SRC="${MESH_TEST_SRC:-$HOME/.claude/bin}"  # MESH_TEST_SRC: run the suite on pinned or mutant copies (review W-5279e834)
 LIVE="$HOME/.claude/bin"  # each file comes from SRC when it is there, else from the live dir (W-6e656dac T04: the
 # tracked scripts/sysadmin/mesh holds three of the mesh files; sound.sh, the decider, autoresume and quota stay untracked)
+# Every fixture's env passes the caller's environment through, so an operator's own CLAUDE_SOUND_* setting (this box
+# exports CLAUDE_SOUND_AUTOROTATE=0) would decide the fixtures' "default" rows: A0a read it as the escape hatch and
+# failed on every box that sets it (T04 residue 1). Each row sets what it tests; the inherited set is cleared here.
+while IFS= read -r _v; do unset "$_v"; done < <(compgen -e | /usr/bin/grep '^CLAUDE_SOUND_')
 PASS=0; FAIL=0
 ok()   { PASS=$((PASS+1)); }
 bad()  { FAIL=$((FAIL+1)); echo "FAIL: $*"; }
@@ -443,7 +447,15 @@ EOF
   [ "$(grep -c "^RESUME: the battery hold LIFTED at $(date -d @"$LIFT" +%H:%M) (mains power is back)" "$T/w10e.out")" = "1" ] && ok || bad "W10e: the battery lift did not say so once: $(cat "$T/w10e.out")"
   grep -q 'fleet-quota' "$T/w10e.out" && bad "W10e: a battery lift named the quota hold" || ok
   grep -q 'thread_anchor.py line --session sW10e' "$T/w10e.out" && ok || bad "W10e: the line lost where the session left off: $(cat "$T/w10e.out")"
-  # W10b: a lift file written BEFORE the arm is pre-arm history — deleted at arm, never fired
+  # W10k (T04 residue 5): a HUGE all-digit lift epoch passes an all-digit guard yet `date -d @` refuses it — the
+  # line must still carry a HH:MM (the wake's), never an empty "LIFTED at  (" with date's error on stderr
+  SW timeout 30 bash "$SBHOME/.claude/bin/claude-selfwatch.sh" sW10k > "$T/w10k.out" 2> "$T/w10k.err" &
+  w10kpid=$!
+  sleep 2; printf '99999999999999999999 battery\n' > "$LOCKS/sW10k.holdlifted"
+  for _ in 1 2 3 4 5 6 7 8 9 10; do [ -f "$LOCKS/sW10k.holdlifted" ] || break; sleep 1; done
+  sleep 1
+  kill "$w10kpid" 2>/dev/null; wait "$w10kpid" 2>/dev/null
+  grep -Eq '^RESUME: the battery hold LIFTED at [0-9]{2}:[0-9]{2} \(' "$T/w10k.out" && ok || bad "W10k: a huge lift epoch left the line without a HH:MM: $(cat "$T/w10k.out") | stderr: $(cat "$T/w10k.err")"  # W10b: a lift file written BEFORE the arm is pre-arm history — deleted at arm, never fired
   printf '%s\n' "$(date +%s)" > "$LOCKS/sW10b.holdlifted"
   SW timeout 30 bash "$SBHOME/.claude/bin/claude-selfwatch.sh" sW10b > "$T/w10b.out" &
   w10bpid=$!
@@ -491,7 +503,7 @@ EOF
   sleep 2; LIFT=$(( $(date +%s) - 180 )); printf '%s hibernate\n' "$LIFT" > "$LOCKS/sW10f.holdlifted"
   for _ in $(seq 1 20); do grep -q '^RESUME:' "$T/w10f.out" && break; sleep 1; done
   w10f_left=$(grep -c . "$T/w10f.seq" 2>/dev/null); w10f_left=${w10f_left:-0}
-  [ "$(grep -c "^RESUME: the hibernate pause ended at $(date -d @"$LIFT" +%H:%M) (sleep) — run python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke --self sW10f and, only if it exits 0, resume your item from the seed it prints; on any other exit carry on as usual — this self-watch STAYS ARMED (" "$T/w10f.out")" = "1" ] && ok || bad "W10f: no hibernate line naming the lift minute, lift_path and woke's exit-0 condition (T04 F12): $(cat "$T/w10f.out")"
+  [ "$(grep -c "^RESUME: the hibernate pause ended at $(date -d @"$LIFT" +%H:%M) (sleep) — run python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke --self sW10f and, only if it exits 0, resume your item from the seed it prints; on exit 1 carry on as usual; on exit 2 stay paused and tell your coordinator — this self-watch STAYS ARMED (" "$T/w10f.out")" = "1" ] && ok || bad "W10f: no hibernate line naming the lift minute, lift_path and woke's exit-0 condition (T04 F12): $(cat "$T/w10f.out")"
   [ "$w10f_left" = "0" ] && ok || bad "W10f: the hibernate wake fired with $w10f_left probe(s) of the flapping sequence unread (no 3-answer gate)"
   grep '^RESUME: the hibernate' "$T/w10f.out" | grep -q ' — this self-watch STAYS ARMED (' && ok || bad "W10f: the hibernate line lost the STAYS ARMED clause: $(cat "$T/w10f.out")"
   grep -q 'fleet-quota' "$T/w10f.out" && bad "W10f: a hibernate lift named the quota hold" || ok
@@ -514,7 +526,7 @@ EOF
   sleep 3; LIFT=$(( $(date +%s) - 240 )); printf '%s hibernate\n' "$LIFT" > "$LOCKS/sW10g.holdlifted"
   sleep 1; touch "$MESH_NET"
   for _ in $(seq 1 15); do grep -q '^RESUME:' "$T/w10g.out" && break; sleep 1; done
-  [ "$(grep -c "^RESUME: the hibernate pause ended at $(date -d @"$LIFT" +%H:%M) (outage) — run python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke --self sW10g and, only if it exits 0, resume your item from the seed it prints; on any other exit carry on as usual — this self-watch STAYS ARMED (" "$T/w10g.out")" = "1" ] && ok || bad "W10g: the line did not use the kind and epoch read after the gate: $(cat "$T/w10g.out")"
+  [ "$(grep -c "^RESUME: the hibernate pause ended at $(date -d @"$LIFT" +%H:%M) (outage) — run python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke --self sW10g and, only if it exits 0, resume your item from the seed it prints; on exit 1 carry on as usual; on exit 2 stay paused and tell your coordinator — this self-watch STAYS ARMED (" "$T/w10g.out")" = "1" ] && ok || bad "W10g: the line did not use the kind and epoch read after the gate: $(cat "$T/w10g.out")"
   grep -q 'RESUMED from sleep' "$T/w10g.out" && bad "W10g: printed the replaced (pre-gate) kind" || ok
   LIFT=$(( $(date +%s) - 60 )); printf '%s resume\n' "$LIFT" > "$LOCKS/sW10g.holdlifted"
   for _ in $(seq 1 15); do [ "$(grep -c '^RESUME:' "$T/w10g.out")" -ge 2 ] && break; sleep 1; done
@@ -1060,7 +1072,9 @@ EOF
 printf '%s\n' "$*" >> "${MESH_UPLOG:-/dev/null}"
 case "$1" in
   --print) f="$2/panes"; [ -f "$f" ] && cat "$f"; exit "${MESH_UP_PRINT_RC:-0}" ;;
-  --detach) [ -n "${MESH_UP_LINGER:-}" ] && { sleep "$MESH_UP_LINGER" & }; exit "${MESH_UP_DETACH_RC:-0}" ;;
+  --detach) [ -n "${MESH_UP_LINGER:-}" ] && { sleep "$MESH_UP_LINGER" & }
+    [ -n "${MESH_UP_DETACH_ERR:-}" ] && printf '%s\n' "$MESH_UP_DETACH_ERR" >&2
+    exit "${MESH_UP_DETACH_RC:-0}" ;;
 esac
 exit 2
 EOF
@@ -1503,6 +1517,14 @@ STUB
   : > "$RLOG"; rm -rf "$RLOCKS"; rm -f "$RSTATE/.builders-boot"
   R20 MESH_BAT_STDERR="agents_bat: cannot read /opt/locked (Permission denied); skipped"
   grep -q "verdict=builders-skipped .*cannot read /opt/locked (Permission denied); skipped" "$RLOG" && ok || bad "R24: a --list skip line was not noted builders-skipped | log: $(tail -4 "$RLOG")"
+  # R24b (T04 residue 5): only a `; skipped` line is labelled builders-skipped — any other --list stderr line (a
+  # Python warning, a traceback) is noted under its own label, never read as a skipped repo
+  : > "$RLOG"; rm -rf "$RLOCKS"; rm -f "$RSTATE/.builders-boot"
+  R20 MESH_BAT_STDERR="agents_bat: cannot read '/opt/lo\\nck' (Permission denied); skipped
+DeprecationWarning: something else"
+  grep -q "verdict=builders-skipped .*cannot read '/opt/lo.nck' (Permission denied); skipped" "$RLOG" && ok || bad "R24b: the skip line was not noted builders-skipped | log: $(tail -4 "$RLOG")"
+  grep -q "verdict=builders-skipped .*DeprecationWarning" "$RLOG" && bad "R24b: a non-skip --list stderr line was labelled builders-skipped | log: $(tail -4 "$RLOG")" || ok
+  grep -q "verdict=builders-list-stderr .*DeprecationWarning: something else" "$RLOG" && ok || bad "R24c: a non-skip --list stderr line was not noted under its own label | log: $(tail -4 "$RLOG")"
   # R25 (T04 G6): the latch is PER REPO and only after a launch — a first sweep whose --detach failed leaves the
   # repo unlatched, so a second sweep this boot launches it; a third launches nothing (the operator may have
   # closed the grid)
@@ -1529,12 +1551,54 @@ STUB
   : > "$RLOG"; : > "$MESH_UPLOG"; rm -rf "$RLOCKS"; rm -f "$RSTATE"/notified-* "$RSTATE/.builders-boot"
   R20 MESH_SWEEP_FRESH_WINDOW=999999999
   [ "$(grep -c '^--detach ' "$MESH_UPLOG")" = "2" ] && ok || bad "R26-pre: the first sweep did not launch both odd-path grids: $(cat "$MESH_UPLOG")"
+  # R26d (T04 residue 5): a TAB in a repo path never reaches the log raw — one log line, fields still split by spaces
+  grep -q "$(printf '\t')" "$RLOG" && bad "R26d: a raw TAB reached the sweep log: $(grep -n "$(printf '\t')" "$RLOG" | head -2)" || ok
+  grep -q 'repo=.*/t\\tab ' "$RLOG" && ok || bad "R26d: the TAB path was not logged escaped as \\t | log: $(tail -4 "$RLOG")"
+  # the second sweep's --detach FAILS (T04 residue 4): a broken latch that re-launched the grid could not record
+  # tttt1111 either, so only the stamp can keep it out of Leg B
   : > "$RLOG"; : > "$MESH_UPLOG"; : > "$RSNOTES"; rm -rf "$RLOCKS"; rm -f "$RSTATE"/notified-*
-  R20 MESH_SWEEP_FRESH_WINDOW=999999999
+  R20 MESH_SWEEP_FRESH_WINDOW=999999999 MESH_UP_DETACH_RC=1
   grep -q '^--detach ' "$MESH_UPLOG" && bad "R26: a TAB or backslash repo path did not latch — re-launched: $(cat "$MESH_UPLOG")" || ok
   grep -q "tttt1111" "$RSNOTES" && bad "R26b: Leg B lost the TAB-path repo's sids from the stamp (notified): $(cat "$RSNOTES")" || ok
+  # R26c, R26b's positive control: the same sweep with NO stamp (a new boot) and the --detach failing DOES notify
+  # tttt1111 — so R26b's silence is the stamp's doing, not a fixture that can never notify
+  : > "$RLOG"; : > "$MESH_UPLOG"; : > "$RSNOTES"; rm -rf "$RLOCKS"; rm -f "$RSTATE"/notified-* "$RSTATE/.builders-boot"
+  R20 MESH_SWEEP_FRESH_WINDOW=999999999 MESH_UP_DETACH_RC=1
+  grep -q "claude --resume tttt1111" "$RSNOTES" && ok || bad "R26c: with no stamp and a failed --detach, tttt1111 was not notified — R26b proves nothing: $(cat "$RSNOTES") | log: $(tail -4 "$RLOG")"
   rm -f "$RSPROJ/tttt1111.jsonl"; mkdir -p "$RLOCKS"; rm -f "$RSTATE/.builders-boot"
+  # R27 (T04 residue 3): agents_up exit 4 — the grid is up, one builder got no pane. Its sid is NOT recorded
+  # relaunched and Leg B notifies it; the sid that got a pane is recorded and not notified; the repo is NOT latched,
+  # so a later sweep this boot runs --detach for it again
+  printf '%s\n' "$T/repoA" > "$T/bat-list.r20"
+  for s in iiii9999 jjjj0000; do cp "$RSTALL" "$RSPROJ/$s.jsonl"; touch -d "@$(( RSBOOT - 1 ))" "$RSPROJ/$s.jsonl"; done
+  : > "$RLOG"; : > "$MESH_UPLOG"; : > "$RSNOTES"; rm -rf "$RLOCKS"; rm -f "$RSTATE"/notified-* "$RSTATE/.builders-boot"
+  R20 MESH_SWEEP_FRESH_WINDOW=999999999 MESH_UP_DETACH_RC=4 \
+    MESH_UP_DETACH_ERR="agents_up: no room for a-1's pane (session iiii9999) — open it by hand: claude -n a-1"
+  grep -q "verdict=builder-grid-noroom .*repo=$T/repoA rc=4 — no pane for iiii9999 " "$RLOG" && ok || bad "R27: an exit-4 grid was not noted builder-grid-noroom with its skipped sid | log: $(tail -4 "$RLOG")"
+  # relaunched = the lock-dir list plus the stamp's `repo` lines (a `noroom` line records the skip, never a launch)
+  r27rel() { cat "$RLOCKS/.boot-relaunched" 2>/dev/null; grep '^repo' "$RSTATE/.builders-boot" 2>/dev/null; }
+  r27rel | grep -q "iiii9999" && bad "R27b: a builder with no pane was recorded relaunched: $(r27rel | tr '\n' '|')" || ok
+  grep -q "^noroom$(printf '\t')iiii9999$(printf '\t')" "$RSTATE/.builders-boot" && ok || bad "R27f: the skipped sid was not stamped noroom: $(tr '\n' '|' < "$RSTATE/.builders-boot")"
+  grep -q "claude --resume iiii9999" "$RSNOTES" && ok || bad "R27c: the builder with no pane got no resume-by-hand notice: $(cat "$RSNOTES")"
+  grep -qx "jjjj0000" "$RLOCKS/.boot-relaunched" 2>/dev/null && ! grep -q "jjjj0000" "$RSNOTES" && ok || bad "R27d: the builder that got its pane was not recorded relaunched, or was notified: $(cat "$RLOCKS/.boot-relaunched" 2>/dev/null) | $(cat "$RSNOTES")"
+  : > "$MESH_UPLOG"
+  R20 MESH_SWEEP_FRESH_WINDOW=999999999
+  grep -qx -- "--detach $T/repoA" "$MESH_UPLOG" && ok || bad "R27e: an exit-4 repo was latched — a later sweep did not run it again: $(cat "$MESH_UPLOG")"
+  # R28 (review G1): that later sweep's --detach finds the grid up and exits 0 — the builder that never got a pane
+  # must still NOT be recorded relaunched (a sid is relaunched only if it has a pane), so Leg B notices it again
+  r27rel | grep -q "iiii9999" && bad "R28: the next sweep's rc 0 recorded the no-room builder relaunched: $(r27rel | tr '\n' '|')" || ok
+  r27rel | grep -q "jjjj0000" && ok || bad "R28c: the next sweep dropped the builder that has a pane: $(r27rel | tr '\n' '|')"
+  # both notice dedupes cleared (the sweep's notified-* and claude-sound.sh's own <lockdir>/<sid>.notified), so the
+  # third sweep shows what Leg B decides
+  : > "$RSNOTES"; : > "$RLOG"; rm -f "$RSTATE"/notified-* "$RLOCKS"/*.notified
+  R20 MESH_SWEEP_FRESH_WINDOW=999999999
+  grep -q "claude --resume iiii9999" "$RSNOTES" && ok || bad "R28b: the no-room builder was not noticed after the grid latched: $(cat "$RSNOTES") | log: $(tail -4 "$RLOG")"
+  rm -f "$RSPROJ/jjjj0000.jsonl"; mkdir -p "$RLOCKS"; rm -f "$RSTATE/.builders-boot"
   rm -f "$RSPROJ/iiii9999.jsonl" "$RSPROJ/kkkk1111.jsonl" "$RSPROJ/hhhh8888.jsonl"
+else
+  # T04 residue 4: the sweep is a required mesh file (install_mesh.sh refuses without it) — its absence is a
+  # failure, never a silently skipped Section R
+  bad "R: claude-reboot-sweep.sh is in neither $SRC nor $LIVE — Section R/RS did not run"
 fi
 
 echo "mesh-test: $PASS ok, $FAIL fail"

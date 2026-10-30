@@ -913,6 +913,38 @@ def test_list_skips_a_folder_name_holding_a_newline(tmp_path: Path) -> None:
     assert "newline" in out.stderr and "Traceback" not in out.stderr, out.stderr
 
 
+def test_list_names_an_unreadable_newline_folder_on_one_line(tmp_path: Path) -> None:
+    """T04 residue 5: the boot sweep notes --list's stderr line by line, so an unreadable folder whose name holds a
+    newline must still be ONE `cannot read … skipped` line — every stderr line is an `agents_bat:` line."""
+    if os.geteuid() == 0:
+        pytest.skip(
+            "root reads a chmod-000 folder, so the unreadable-folder failure cannot be staged (T04 G5)"
+        )
+    opt = _opt(tmp_path, "aaa", bare=("lo\nck",))
+    (opt / "lo\nck" / ".claude" / "worktrees").mkdir(parents=True)
+    (opt / "lo\nck").chmod(0o000)
+    try:
+        out = _run("--list", "--opt", str(opt))
+    finally:
+        (opt / "lo\nck").chmod(0o755)
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.splitlines() == [str(opt / "aaa")], out.stdout
+    lines = out.stderr.splitlines()
+    assert lines and all(ln.startswith("agents_bat: ") for ln in lines), lines
+    assert any("cannot read" in ln and ln.endswith("; skipped") for ln in lines), lines
+
+
+def test_list_prints_a_symlinked_repo_once(tmp_path: Path) -> None:
+    """T04 residue 5: a symlink under --opt to a registered repo is the SAME repo (agents_up resolves `pwd -P`, so
+    both spellings build one grid) — it is listed once, the other spelling skipped with a `; skipped` line."""
+    opt = _opt(tmp_path, "real")
+    (opt / "alias").symlink_to(opt / "real")
+    out = _run("--list", "--opt", str(opt))
+    assert out.returncode == 0, out.stderr
+    assert len(out.stdout.splitlines()) == 1, out.stdout
+    assert "same repo as" in out.stderr and out.stderr.rstrip().endswith("; skipped"), out.stderr
+
+
 def test_list_of_a_missing_opt_is_refused(tmp_path: Path) -> None:
     out = _run("--list", "--opt", str(tmp_path / "nowhere"))
     assert out.returncode == 2 and "is not a folder" in out.stderr and out.stdout == "", out.stderr

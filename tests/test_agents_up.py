@@ -644,9 +644,19 @@ def test_the_launch_path_reports_what_it_could_not_do(tmp_path: Path) -> None:
     split = _tmux_home(tmp_path / "split", repo, has=False, owner=None)
     (split / "tmux-splitfail").write_text("", encoding="utf-8")
     out = _run(str(repo), home=split)
-    assert out.returncode == 0 and "no room for dev2's pane" in out.stderr, out.stderr
+    # T04 residue 3: a pane skipped for no room is exit 4, never 0 — the boot sweep reads 0 as "every builder
+    # relaunched"; the line names the session so a caller can tell which builder did not come back
+    assert out.returncode == 4, (out.returncode, out.stderr)
+    assert f"no room for dev2's pane (session {DEV2})" in out.stderr, out.stderr
     labels = [ln for ln in _log(split) if ln.startswith("set -p ")]
     assert labels == ["set -p -t %1 @agent dev1"], _log(split)
+    detached = _tmux_home(tmp_path / "split-detach", repo, has=False, owner=None)
+    (detached / "tmux-splitfail").write_text("", encoding="utf-8")
+    out = _run("--detach", str(repo), home=detached)
+    assert out.returncode == 4, (out.returncode, out.stderr)
+    assert "--detach — the fabrik-lib grid is up" in out.stderr, out.stderr
+    header = UP.read_text(encoding="utf-8").split("\nset ", 1)[0]
+    assert "4 SOME PANE NOT OPENED" in header and "1 tmux failed" in header, "exit list"
 
     bare = _home(tmp_path / "bare", transcripts=((repo, DEV1),))
     tmux = bare / ".local" / "bin" / "tmux"
@@ -1621,7 +1631,15 @@ def test_each_pane_runs_claude_with_the_wake_prompt_watchdog_and_oom_score(tmp_p
     assert "/opt/fabrik/scripts" not in prompt or str(hub) == "/opt/fabrik", prompt
     assert f'python3 "{hub}/scripts/sysadmin/hibernate.py" woke --self {DEV1}' in prompt, prompt
     assert "only if it exits 0, resume your item from the seed it prints" in prompt, prompt
-    assert "on any other exit carry on as usual" in prompt, prompt
+    # review G3: `woke` exit 2 cannot tell (a corrupt marker or run record) — stay paused, never carry on; the
+    # relaunch prompt and the self-watch's hibernate RESUME line carry the SAME clause (both files read)
+    clause = (
+        "only if it exits 0, resume your item from the seed it prints; on exit 1 carry on as usual;"
+        " on exit 2 stay paused and tell your coordinator"
+    )
+    assert clause in prompt, prompt
+    assert clause in (UP.parent / "mesh" / "claude-selfwatch.sh").read_text(encoding="utf-8")
+    assert "on any other exit" not in prompt, prompt
     assert "CLAUDE_CODE_RETRY_WATCHDOG=1" in got.stdout, got.stdout
     assert re.search(r"^OOM=(200|[3-9]\d\d|1000)$", got.stdout, flags=re.M), got.stdout
     assert "--permission-mode" not in run and "--dangerously" not in run, run
@@ -2834,9 +2852,10 @@ def test_a_failed_split_is_said_and_the_next_builder_takes_the_slot(
 ) -> None:
     sc = _Scratch(tmp_path, request, 6, fail_splits=(1,))  # dev2's split-window
     out = sc.up()
-    assert out.returncode == 0, out.stderr
+    assert out.returncode == 4, out.stderr  # a skipped pane is exit 4 (T04 residue 3)
     assert (
-        "no room for dev2's pane — open it by hand: " in out.stderr
+        "no room for dev2's pane (session " in out.stderr
+        and ") — open it by hand: " in out.stderr
         and "claude -n dev2" in out.stderr
     ), out.stderr
     assert sc.windows() == ["agents 4", "agents-2 1"], sc.windows()
