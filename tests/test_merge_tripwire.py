@@ -175,6 +175,14 @@ def test_wall_time_runs_from_the_request_to_the_reply_bucketed_by_request_day(re
     assert m["refused"] == 1 and m["refusal_classes"] == {"preflight": 1}
 
 
+def test_a_reply_written_before_its_request_is_a_zero_wall_never_negative(repo, tmp_path):
+    day = "2026-10-20"
+    _record(repo, _ts(day, 9), -3000, "merged")  # clock skew: the reply mtime precedes the ULID
+    _record(repo, _ts(day, 10), 600, "merged")
+    m = mt.compute(day, state=tmp_path / "state")
+    assert m["wall_median_s"] == 300  # (0 + 600) / 2 — unclamped it would read -1200
+
+
 def test_every_refusal_event_counts_the_retried_ones_included(repo, tmp_path):
     day = "2026-10-20"
     retry = [{"at": "x", "reason": _CAS + "conflict in CHANGELOG.md — merge"}]
