@@ -2691,8 +2691,8 @@ def _after_merge_leg(ctx: _Ctx, d: Path) -> int:
     if run.returncode == 1 and ids:
         cause = _after_cause(ctx, todo, ids, dict(os.environ))
         if not (main / ".fabrik" / "work" / "config.json").is_file():  # work.py's own _has_store
-            # no work store to file into (a synced repo without one): kept owed, every later
-            # merge would re-run the whole leg on a red it can never file (review r2 A2-2)
+            # no work store to file into (a synced repo without one): the red is covered and
+            # said in status.json, never left owed for every later merge to re-run (r2 A2-2)
             item = "none — this repo has no .fabrik/work store"
         else:
             item = _file_after_red(main, cause, ids, tested, top)

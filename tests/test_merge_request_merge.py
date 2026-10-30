@@ -3110,5 +3110,8 @@ def test_a_red_in_a_repo_without_a_work_store_is_covered_not_rerun(world):
 def test_an_owed_entry_without_an_id_is_never_owed(world):
     d = world.main / ".git" / "fabrik-merge" / "after-merge"
     d.mkdir(parents=True)
-    (d / "owed.jsonl").write_text(json.dumps({"merge_sha": "a" * 40, "old_base": "b" * 40}) + "\n")
-    assert world.mod._after_todo(d) == []
+    ok = {"id": "01OK", "merge_sha": "c" * 40, "old_base": "d" * 40}
+    (d / "owed.jsonl").write_text(
+        json.dumps({"merge_sha": "a" * 40, "old_base": "b" * 40}) + "\n" + json.dumps(ok) + "\n"
+    )
+    assert world.mod._after_todo(d) == [ok]  # the id-less entry is dropped, the valid one kept
