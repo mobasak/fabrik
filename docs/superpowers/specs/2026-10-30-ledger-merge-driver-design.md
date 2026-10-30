@@ -107,7 +107,7 @@ None. No data-contract, ui-design, spec `shape:` or CLI surface a project consum
 - **Replay grader.** § Derivations D1 re-run with the merge driver registered on a scratch clone at the plan's tip, over the same 14-day window. Expected: the builder-side ledger-only count drops from 70 to at most 3. The builder who executes the plan runs it, and the plan records its output.
 - **Tripwire (the judges' shared dissent, named here).**
   - What it watches: the one thing fragments could fix that the driver might not. That is a builder merge whose ledger conflict the resolver refuses for a reason OTHER than `a side edits an existing line`, i.e. an insertion the driver should have cleared.
-  - Counter: § Derivations D1's builder merges whose `_merge3` raised such a reason. Window: the 14 days after the driver lands, by commit date (`git log --since=<landing> --until=<landing + 14 days>`), never by merge-record fields, which carry no wall-clock time.
+  - Counter: § Derivations D3 (D1's builder ledger-only merges, each refusal printed with its reason), counting the reasons other than `a side edits an existing line`. Window: the 14 days after the driver lands, by commit date (`git log --since=<landing> --until=<landing + 14 days>`), never by merge-record fields, which carry no wall-clock time.
   - Threshold: any (more than 0). Today's count is 0: all 3 refusals in D1 are edit-class.
   - Edit-class residue is reported beside the counter and never re-opens fragments, which cannot prevent it (§ Why this exists 3).
   - Check date: 14 days after the driver lands. Owner: the coordinator, as merge owner.
@@ -242,6 +242,24 @@ Output on 2026-10-30:
 ('owner', 'ledger-only') 331
 ('owner', 'merges') 557
 ('owner', 'resolver-clears') 331
+```
+
+**D3 — the builder residue with its reasons** (D1's builder ledger-only merges, each `_merge3` refusal printed; the tripwire's counter):
+
+```python
+# D1's loop, builder merges only, with the sides read through mr._decode; for each ledger-only
+# conflicted merge, every file whose _merge3 raises is printed with the RefusedError's reason
+for f in files:
+    try: mr._merge3(f, blob(p1, f), blob(base, f), blob(p2, f))
+    except mr.RefusedError as e: print(sha[:9], f, str(e).split(": ", 1)[1])
+```
+
+Output on 2026-10-30 (the 3 = D1's 70 − 67):
+
+```text
+fdf514616 docs/DECISIONS.md a side edits an existing line at a conflict
+6f6cd85ec INDEX.md a side edits an existing line at a conflict
+6b3e40657 docs/DECISIONS.md a side edits an existing line at a conflict
 ```
 
 **D2 — the reader census:**
