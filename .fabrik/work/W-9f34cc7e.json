@@ -19,5 +19,8 @@
   "priority": 0,
   "score_reason": "operator: long merge fix asap; one constant, ~+900 s of landing window per queue run",
   "status": "open",
+  "tags": [
+    "waits-p0-merge-chain"
+  ],
   "title": "W-1fb11ec8 follow-up (operator 2026-10-30: 'long merge issue solution must be addressed asap'): drop SYNC_TIMEOUT_S (900 s) from LANDING_WORST_S in scripts/merge_request.py now that the governance sync runs outside the merge lock (W-4f4ac600, MR 01M652CKDK) — landings may then start until 4800 s instead of 3900 s; only after BOTH 01M652CKDK and infra's infra-queue-measured-leg MR are on master"
 }
