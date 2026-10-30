@@ -39,9 +39,9 @@
 # and fabrik-agents-tests.slice (capped_run.sh) nests under it by the dashed name. No reachable user manager: the
 # interactive path REFUSES (exit 2) unless FABRIK_AGENTS_UNCAPPED=1, and --detach (the boot path) launches uncapped
 # with D-1075's warning on stderr AND inside each pane; a manager that answers but refuses the ceiling refuses the
-# launch (exit 2), as capped_run.sh does. Each pane runs `claude -n <name> --resume <sid> "<wake prompt>"` with
-# CLAUDE_CODE_RETRY_WATCHDOG=1 and oom_score_adj 200 (W-6e656dac L1/L4/L5); no --permission-mode is passed, so
-# permissions.defaultMode decides. Cobra (D-253): the cheapest pass is a pane that only LOOKS capped, or an
+# launch (exit 2), as capped_run.sh does. Each pane runs `claude -n <name> --permission-mode bypassPermissions --resume
+# <sid> "<wake prompt>"` with CLAUDE_CODE_RETRY_WATCHDOG=1 and oom_score_adj 200 (W-6e656dac L1/L4/L5); the mode is passed
+# because a --resume keeps the session's saved mode (operator ruling 2026-10-30). Cobra (D-253): the cheapest pass is a pane that only LOOKS capped, or an
 # FABRIK_AGENTS_UNCAPPED=1 left in a profile; the test stub records the systemd-run argv the pane really runs, and the
 # override is said on stderr at every launch that uses it.
 #
@@ -674,33 +674,37 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status, $4 = new (1: spawned, 2: 
   # a session with no transcript cannot be resumed: its hint and message name --session-id. For a spawned pane (new=1)
   # the flag is picked when the text is PRINTED (T10 F14): `--resume` once any project folder holds the session's
   # transcript (fresh()'s glob), else `--session-id` — a launch-time flag goes stale the moment claude writes one
+  # every launch and every printed relaunch line carries the permission mode (operator ruling 2026-10-30, W-b9b6472e):
+  # a `--resume` keeps the session's SAVED mode and ignores settings' permissions.defaultMode, so a relaunch without
+  # the flag came back in auto
+  local perm="--permission-mode bypassPermissions"
   local flag=--resume
   [ "${4:-0}" != 0 ] && flag="\$(for t in $(squote "$CLAUDE_CONFIG_DIR")/projects/*/$2.jsonl; do [ -e \"\$t\" ] && { echo --resume; exit; }; done; echo --session-id)"
   if [ "$3" = running ]; then
-    inner="echo \"[$1 is already running elsewhere (session $2) — close it there, then run: claude -n $1 $flag $2]\"; exec $penv bash -l"
+    inner="echo \"[$1 is already running elsewhere (session $2) — close it there, then run: claude -n $1 $perm $flag $2]\"; exec $penv bash -l"
   else
     # the paths are %q-escaped so the printed command pastes back safely, and the whole hint is single-quoted (POSIX,
     # read alike by every pane shell and locale) for the pane's printf, so a `$(...)`, a backtick or a `$NAME` in a
     # folder name is printed, never run or expanded
     # (a spawned pane's flag is the one unquoted `"$(…)"` between two quoted halves, run when the hint prints)
     local hint
-    hint="$(squote "[$1 exited — run: claude -n $1 ")\"$flag\"$(squote " $2 (after a /clear: whoami_agent.py --as $1 --force, then $(printf %q "$SELF") $(printf %q "$ROOT"))]")"
+    hint="$(squote "[$1 exited — run: claude -n $1 $perm ")\"$flag\"$(squote " $2 (after a /clear: whoami_agent.py --as $1 --force, then $(printf %q "$SELF") $(printf %q "$ROOT"))]")"
     # the relaunch's first turn (L4): re-arm the self-watch (background tasks are not restored), then `woke`, resuming
-    # only on exit 0 — so a daily relaunch outside any pause just carries on. No --permission-mode: the session's own
-    # settings (permissions.defaultMode) decide. oom_score_adj 200 (raising needs no privilege) ranks a builder pane
+    # only on exit 0 — so a daily relaunch outside any pause just carries on. The permission mode is passed ($perm,
+    # above): a resumed session would otherwise keep its saved mode. oom_score_adj 200 (raising needs no privilege) ranks a builder pane
     # above the coordinators in the kernel's OOM order.
     local wake claude
     if [ "${4:-0}" = 1 ]; then
       # a spawner-bound session with no transcript yet: --resume of it would drop to the kept shell
       wake="$(first_prompt "$1" "$2")"
-      claude="claude -n $1 --session-id $2"
+      claude="claude -n $1 $perm --session-id $2"
     elif [ "${4:-0}" = 2 ]; then
       # W-e38f8ee7: a FRESH session the rotation started in the worktree the builder works in
       wake="$(move_prompt "$1" "$2")"
-      claude="claude -n $1 --session-id $2"
+      claude="claude -n $1 $perm --session-id $2"
     else
       wake="You were relaunched by agents_up. First re-arm your self-watch: run bash \"$HUB/scripts/sysadmin/selfwatch_arm.sh\" $2 in the background. Then run python3 \"$HUB/scripts/sysadmin/hibernate.py\" woke --self $2 and, only if it exits 0, resume your item from the seed it prints; on exit 1 carry on as usual; on exit 2 stay paused and tell your coordinator."
-      claude="claude -n $1 --resume $2"
+      claude="claude -n $1 $perm --resume $2"
     fi
     inner="echo 200 > /proc/self/oom_score_adj 2>/dev/null; $penv $claude --settings $(squote "$SETTINGS_JSON") $(squote "$wake"); rc=\$?; echo; [ \"\$rc\" = 137 ] && printf '%s\\n' $(squote "$killed"); printf '%s\\n' $hint; exec $penv bash -l"
   fi

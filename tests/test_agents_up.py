@@ -204,7 +204,7 @@ def test_print_lists_one_pane_per_builder_without_the_coordinator(tmp_path: Path
     # the inner command: claude resumes with the suppression and the wake prompt as ONE single-quoted word each
     assert (
         len(run) == 1
-        and f"claude -n fabrik-lib-dev1 --resume {DEV1} --settings '{SETTINGS}' 'You were relaunched"
+        and f"claude -n fabrik-lib-dev1 --permission-mode bypassPermissions --resume {DEV1} --settings '{SETTINGS}' 'You were relaunched"
         in _inner(run[0])
     ), out.stdout
     # the suppression: skillOverrides.auto-mode-setup=off and no spinner tips, and the survey off in the pane's env
@@ -1398,7 +1398,10 @@ def test_an_oom_kill_is_named_in_the_hint(tmp_path: Path) -> None:
         "[dev1 was killed (exit 137, SIGKILL) — in this capped pane most likely at the fabrik-agents.slice memory"
         " ceiling (MemoryMax=17G)]" in got.stdout
     ), got.stdout + got.stderr
-    assert "[dev1 exited — run: claude -n dev1 --resume" in got.stdout, got.stdout
+    assert (
+        "[dev1 exited — run: claude -n dev1 --permission-mode bypassPermissions --resume"
+        in got.stdout
+    ), got.stdout
     # an uncapped pane names the kill and never claims a ceiling it does not have
     (home / "manager-down").write_text("", encoding="utf-8")
     out = _run("--print", str(repo), home=home)
@@ -1596,10 +1599,10 @@ def test_an_up_grid_is_attached_not_rebuilt_and_the_owner_read_uses_the_option_t
 
 
 def test_each_pane_runs_claude_with_the_wake_prompt_watchdog_and_oom_score(tmp_path: Path) -> None:
-    """The relaunch (L1, L4, L5): `claude -n <name> --resume <sid> "<wake prompt>"` with CLAUDE_CODE_RETRY_WATCHDOG=1 in
-    the allow-listed env and oom_score_adj 200 set before claude starts; the prompt orders the self-watch arm, then
-    `hibernate.py woke --self <sid>`, resuming from its seed only on exit 0; no --permission-mode is passed
-    (permissions.defaultMode decides). The
+    """The relaunch (L1, L4, L5): `claude -n <name> --permission-mode bypassPermissions --resume <sid> "<wake prompt>"`
+    with CLAUDE_CODE_RETRY_WATCHDOG=1 in the allow-listed env and oom_score_adj 200 set before claude starts; the prompt
+    orders the self-watch arm, then `hibernate.py woke --self <sid>`, resuming from its seed only on exit 0; the mode is
+    passed because a --resume keeps the session's saved mode (operator ruling 2026-10-30, W-b9b6472e). The
     pane command is EXECUTED against a fake claude that prints its argv and env."""
     repo = _repo(tmp_path, {DEV1: "dev1"})
     home = _home(tmp_path, transcripts=((repo, DEV1),))
@@ -1622,9 +1625,20 @@ def test_each_pane_runs_claude_with_the_wake_prompt_watchdog_and_oom_score(tmp_p
     )
     args = re.findall(r"^ARG<(.*)>$", got.stdout, flags=re.M)
     assert (
-        args[:6] == ["-n", "dev1", "--resume", DEV1, "--settings", SETTINGS] and len(args) == 7
+        args[:8]
+        == [
+            "-n",
+            "dev1",
+            "--permission-mode",
+            "bypassPermissions",
+            "--resume",
+            DEV1,
+            "--settings",
+            SETTINGS,
+        ]
+        and len(args) == 9
     ), got.stdout
-    prompt = args[6]
+    prompt = args[8]
     hub = UP.resolve().parent.parent.parent  # $HUB: the checkout the launcher runs from, double-quoted in the prose (no /opt/fabrik literal)
     assert f'bash "{hub}/scripts/sysadmin/selfwatch_arm.sh" {DEV1} in the background' in prompt, (
         prompt
@@ -1643,9 +1657,24 @@ def test_each_pane_runs_claude_with_the_wake_prompt_watchdog_and_oom_score(tmp_p
     assert "on any other exit" not in prompt, prompt
     assert "CLAUDE_CODE_RETRY_WATCHDOG=1" in got.stdout, got.stdout
     assert re.search(r"^OOM=(200|[3-9]\d\d|1000)$", got.stdout, flags=re.M), got.stdout
-    assert "--permission-mode" not in run and "--dangerously" not in run, run
+    assert "--dangerously" not in run, run
+    assert "--permission-mode bypassPermissions --resume" in _hint(run, tmp_path), run
     # the quoting survives the nested single quotes of the scope's `bash -c '<inner>'` for ANY folder name
     assert "'" not in prompt and "$" not in prompt, prompt
+
+
+def test_every_claude_command_cmd_of_builds_carries_the_permission_mode() -> None:
+    """W-b9b6472e (operator ruling 2026-10-30: every agent runs in bypassPermissions): a `--resume` keeps the saved
+    mode, so EVERY `claude -n` the pane builder writes — each launch branch and each printed relaunch line — names
+    `$perm`, and `$perm` is the one value. The routes (grid start, --pane-cmd, the spawn and --move launches) all go
+    through `cmd_of`; the behaviour tests above execute three of them, this one stops a future branch dropping it."""
+    text = UP.read_text(encoding="utf-8")
+    body = text[text.index("cmd_of() {") : text.index("\ncap_of() {")]
+    assert 'local perm="--permission-mode bypassPermissions"' in body, body[:400]
+    launches = re.findall(r"claude -n \$1[^\"\n]*", body)
+    assert len(launches) >= 5, launches  # 3 launch branches + the running and exited hints
+    assert all(ln.startswith("claude -n $1 $perm ") for ln in launches), launches
+    assert body.count("claude -n") == len(launches), body
 
 
 def test_an_up_grid_with_no_readable_root_is_attached_on_a_real_server(tmp_path: Path) -> None:
@@ -1945,7 +1974,7 @@ def test_a_spawned_builder_with_no_transcript_launches_with_session_id(tmp_path:
     assert out.returncode == 0, out.stderr
     runs = _runs(out.stdout)
     assert (
-        f"claude -n b2 --session-id {B2} --settings '{SETTINGS}' 'You were started by agents_up"
+        f"claude -n b2 --permission-mode bypassPermissions --session-id {B2} --settings '{SETTINGS}' 'You were started by agents_up"
         in runs["b2"]
     ), runs["b2"]
     assert "--resume" not in runs["b2"].split("; rc=")[0], runs["b2"]
@@ -1957,7 +1986,9 @@ def test_a_spawned_builder_with_no_transcript_launches_with_session_id(tmp_path:
     _transcript(home, tmp_path / "somewhere" / "else", B2)
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     runs = _runs(out.stdout)
-    assert f"claude -n b2 --resume {B2} --settings" in runs["b2"], runs["b2"]
+    assert (
+        f"claude -n b2 --permission-mode bypassPermissions --resume {B2} --settings" in runs["b2"]
+    ), runs["b2"]
     assert f"--session-id {B3}" in runs["b3"], runs["b3"]  # the other builder is unaffected
     # the builder's own re-bind is the LAST row (no `spawned`, a pid): still spawner-bound (T10 F1 — the spawned row
     # binds it, the last row still names b3), so the transcript alone decides: none yet → --session-id, one → resume
@@ -1966,12 +1997,15 @@ def test_a_spawned_builder_with_no_transcript_launches_with_session_id(tmp_path:
     h2 = _home(tmp_path / "h2")
     out = _run("--print", str(repo), home=h2, AGENT_IDENTITY_FILE=str(rebound))
     runs = _runs(out.stdout)
-    assert f"--session-id {B2}" in runs["b2"] and f"claude -n b3 --session-id {B3}" in runs["b3"], (
-        out.stdout
-    )
+    assert (
+        f"--session-id {B2}" in runs["b2"]
+        and f"claude -n b3 --permission-mode bypassPermissions --session-id {B3}" in runs["b3"]
+    ), out.stdout
     _transcript(h2, _wt(repo, "b3"), B3)
     runs = _runs(_run("--print", str(repo), home=h2, AGENT_IDENTITY_FILE=str(rebound)).stdout)
-    assert f"claude -n b3 --resume {B3}" in runs["b3"], runs["b3"]
+    assert f"claude -n b3 --permission-mode bypassPermissions --resume {B3}" in runs["b3"], runs[
+        "b3"
+    ]
     # a binding with no `spawned` flag (every ordinary builder) never takes --session-id, transcript or not
     plain_repo, plain_store, _ = _spawn_repo(tmp_path / "plain", spawned=False)
     out = _run(
@@ -1980,9 +2014,10 @@ def test_a_spawned_builder_with_no_transcript_launches_with_session_id(tmp_path:
         home=_home(tmp_path / "plain"),
         AGENT_IDENTITY_FILE=str(plain_store),
     )
-    assert "--session-id" not in out.stdout and f"claude -n b2 --resume {B2}" in out.stdout, (
-        out.stdout
-    )
+    assert (
+        "--session-id" not in out.stdout
+        and f"claude -n b2 --permission-mode bypassPermissions --resume {B2}" in out.stdout
+    ), out.stdout
 
 
 def test_pane_cmd_prints_one_command_for_a_resolved_new_builder(tmp_path: Path) -> None:
@@ -1996,7 +2031,10 @@ def test_pane_cmd_prints_one_command_for_a_resolved_new_builder(tmp_path: Path) 
     assert out.returncode == 0, out.stderr
     assert len(out.stdout.splitlines()) == 1, out.stdout
     inner = _inner("run b2 " + out.stdout.strip())
-    assert f"claude -n b2 --session-id {B2} --settings '{SETTINGS}' '" in inner, inner
+    assert (
+        f"claude -n b2 --permission-mode bypassPermissions --session-id {B2} --settings '{SETTINGS}' '"
+        in inner
+    ), inner
     assert "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1" in out.stdout and "CLAUDE_AGENT=b2" in out.stdout
     # without --new either form prints; here the same new session, so the same command
     again = _run("--pane-cmd", str(repo), "b2", B2, home=home, **env)
@@ -2020,8 +2058,10 @@ def test_pane_cmd_prints_one_command_for_a_resolved_new_builder(tmp_path: Path) 
     assert bad.returncode == 2 and bad.stdout == "", bad.stdout
     assert f"{B2} is not a spawner-bound session" in bad.stderr, bad.stderr
     ok = _run("--pane-cmd", str(prepo), "b2", B2, home=phome, **penv)
-    assert ok.returncode == 0 and f"claude -n b2 --resume {B2}" in _inner(
-        "run b2 " + ok.stdout.strip()
+    assert (
+        ok.returncode == 0
+        and f"claude -n b2 --permission-mode bypassPermissions --resume {B2}"
+        in _inner("run b2 " + ok.stdout.strip())
     )
     # a resolver refusal refuses with its own message and code
     nothing = _run("--pane-cmd", str(tmp_path / "gone"), "b2", B2, home=home, **env)
@@ -2047,12 +2087,24 @@ def test_the_first_prompt_reaches_claude_byte_for_byte(tmp_path: Path) -> None:
         )
         assert out.returncode == 0, (label, out.stderr)
         args = _argv(home, out.stdout.strip())
-        assert args[:5] == ["-n", "b2", "--session-id", B2, "--settings"] and args[5] == SETTINGS, (
+        assert (
+            args[:7]
+            == [
+                "-n",
+                "b2",
+                "--permission-mode",
+                "bypassPermissions",
+                "--session-id",
+                B2,
+                "--settings",
+            ]
+            and args[7] == SETTINGS
+        ), (
             label,
             args,
         )
-        assert len(args) == 7, (label, args)
-        prompt = args[6]
+        assert len(args) == 9, (label, args)
+        prompt = args[8]
         # the merge-owner default sentence carries backticks, the quoted rule carries double quotes, the name carries a `$`
         assert "`decisions.py --merge-owner`" in prompt, (label, prompt)
         assert (
@@ -2094,7 +2146,7 @@ def test_the_first_prompt_names_this_builders_coordinator_and_item_only(tmp_path
         **env,
     )
     assert out.returncode == 0, out.stderr
-    prompt = _argv(home, out.stdout.strip())[6]
+    prompt = _argv(home, out.stdout.strip())[8]
     assert "Your coordinator is coord-a." in prompt and "Your item is W-1a2b3c4d." in prompt, prompt
     assert "merge-owner" not in prompt, prompt
     # the resolver path: only the builder FABRIK_SPAWN_NAME names gets the two sentences
@@ -2110,8 +2162,8 @@ def test_the_first_prompt_names_this_builders_coordinator_and_item_only(tmp_path
     assert pr.returncode == 0, pr.stderr
     runs = {ln.split()[1]: ln for ln in pr.stdout.splitlines() if ln.startswith("run ")}
     b2, b3 = (
-        _argv(home, runs["b2"].split(" ", 2)[2])[6],
-        _argv(home, runs["b3"].split(" ", 2)[2])[6],
+        _argv(home, runs["b2"].split(" ", 2)[2])[8],
+        _argv(home, runs["b3"].split(" ", 2)[2])[8],
     )
     assert "Your coordinator is coord-a." in b2 and "Your item is W-1a2b3c4d." in b2, b2
     assert "coord-a" not in b3 and "Your item is" not in b3 and "merge-owner" in b3, b3
@@ -2346,10 +2398,13 @@ def test_a_new_sessions_hint_and_running_message_say_session_id(tmp_path: Path) 
     home = _home(tmp_path)
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run b2 "))
-    assert f"[b2 exited — run: claude -n b2 --session-id {B2} (after a /clear" in _hint(
+    assert (
+        f"[b2 exited — run: claude -n b2 --permission-mode bypassPermissions --session-id {B2} (after a /clear"
+        in _hint(run, tmp_path)
+    )
+    assert f"claude -n b2 --permission-mode bypassPermissions --resume {B2} (after" not in _hint(
         run, tmp_path
     )
-    assert f"claude -n b2 --resume {B2} (after" not in _hint(run, tmp_path)
     # running (a live claude on the sid): the message names the same flag
     home2 = _home(tmp_path / "r", ps_lines=f"claude --session-id {B2}")
     out = _run("--print", str(repo), home=home2, AGENT_IDENTITY_FILE=str(store))
@@ -2357,13 +2412,18 @@ def test_a_new_sessions_hint_and_running_message_say_session_id(tmp_path: Path) 
     said = subprocess.run(  # the message is decided when printed (T10 F14): run it
         ["sh", "-c", _inner(run).split("; exec ")[0]], capture_output=True, text=True, timeout=30
     ).stdout
-    assert f"close it there, then run: claude -n b2 --session-id {B2}]" in said, (said, run)
+    assert (
+        f"close it there, then run: claude -n b2 --permission-mode bypassPermissions --session-id {B2}]"
+        in said
+    ), (said, run)
     plain, pstore, _ = _spawn_repo(tmp_path / "plain", spawned=False)
     out = _run(
         "--print", str(plain), home=_home(tmp_path / "plain"), AGENT_IDENTITY_FILE=str(pstore)
     )
     run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run b2 "))
-    assert f"claude -n b2 --resume {B2} (after" in _hint(run, tmp_path)
+    assert f"claude -n b2 --permission-mode bypassPermissions --resume {B2} (after" in _hint(
+        run, tmp_path
+    )
 
 
 def test_a_hub_path_with_a_space_reads_as_one_path_in_the_prompts(tmp_path: Path) -> None:
@@ -2394,7 +2454,7 @@ def test_a_hub_path_with_a_space_reads_as_one_path_in_the_prompts(tmp_path: Path
     )
     assert out.returncode == 0, out.stderr
     runs = {ln.split()[1]: ln for ln in out.stdout.splitlines() if ln.startswith("run ")}
-    first = _argv(home, runs["b2"].split(" ", 2)[2])[6]
+    first = _argv(home, runs["b2"].split(" ", 2)[2])[8]
     assert f'bash "{hub.resolve()}/scripts/sysadmin/selfwatch_arm.sh" {B2}' in first, first
     assert f'python3 "{hub.resolve()}/scripts/whoami_agent.py" --as b2' in first, first
     # a resumed builder's wake prompt: the same quoting, and the hub literal gone
@@ -2412,7 +2472,7 @@ def test_a_hub_path_with_a_space_reads_as_one_path_in_the_prompts(tmp_path: Path
         },
     )
     wake_run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run b2 "))
-    wake = _argv(home, wake_run.split(" ", 2)[2])[6]
+    wake = _argv(home, wake_run.split(" ", 2)[2])[8]
     assert f'bash "{hub.resolve()}/scripts/sysadmin/selfwatch_arm.sh" {B2}' in wake, wake
     assert "/opt/fabrik" not in wake, wake
 
@@ -2486,9 +2546,10 @@ def test_a_sid_whose_last_row_names_another_builder_resumes(tmp_path: Path) -> N
     )
     out = _run("--print", str(repo), home=_home(tmp_path), AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 0, out.stderr
-    assert "--session-id" not in out.stdout and f"claude -n b2 --resume {B2}" in out.stdout, (
-        out.stdout
-    )
+    assert (
+        "--session-id" not in out.stdout
+        and f"claude -n b2 --permission-mode bypassPermissions --resume {B2}" in out.stdout
+    ), out.stdout
 
 
 def _refreshed(tmp: Path, store: Path, scope: str, sid: str, name: str) -> Path:
@@ -2510,10 +2571,15 @@ def test_t10_f1_a_refresh_row_after_the_spawned_row_still_launches_session_id(
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 0, out.stderr
     runs = _runs(out.stdout)
-    assert f"claude -n b2 --session-id {B2} --settings" in runs["b2"], runs["b2"]
+    assert (
+        f"claude -n b2 --permission-mode bypassPermissions --session-id {B2} --settings"
+        in runs["b2"]
+    ), runs["b2"]
     _transcript(home, tmp_path / "anywhere", B2)
     runs = _runs(_run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store)).stdout)
-    assert f"claude -n b2 --resume {B2} --settings" in runs["b2"], runs["b2"]
+    assert (
+        f"claude -n b2 --permission-mode bypassPermissions --resume {B2} --settings" in runs["b2"]
+    ), runs["b2"]
 
 
 @pytest.mark.parametrize("bad", [["x"], {"n": 1}, None, 7])
@@ -2528,7 +2594,10 @@ def test_t10_f18_a_spawned_row_with_a_non_string_name_never_breaks_the_resolver(
     store = _store(tmp_path, [*rows, odd], "odd.jsonl")
     out = _run("--print", str(repo), home=_home(tmp_path), AGENT_IDENTITY_FILE=str(store))
     assert out.returncode == 0, out.stderr
-    assert f"claude -n b2 --session-id {B2} --settings" in _runs(out.stdout)["b2"], out.stdout
+    assert (
+        f"claude -n b2 --permission-mode bypassPermissions --session-id {B2} --settings"
+        in _runs(out.stdout)["b2"]
+    ), out.stdout
 
 
 def test_t10_f14_a_spawned_panes_hint_picks_its_flag_when_printed(tmp_path: Path) -> None:
@@ -2538,13 +2607,17 @@ def test_t10_f14_a_spawned_panes_hint_picks_its_flag_when_printed(tmp_path: Path
     home = _home(tmp_path)
     out = _run("--print", str(repo), home=home, AGENT_IDENTITY_FILE=str(store))
     run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run b2 "))
-    assert f"[b2 exited — run: claude -n b2 --session-id {B2} (after a /clear" in _hint(
-        run, tmp_path
+    assert (
+        f"[b2 exited — run: claude -n b2 --permission-mode bypassPermissions --session-id {B2} (after a /clear"
+        in _hint(run, tmp_path)
     )
     _transcript(
         home, tmp_path / "where" / "it ran", B2
     )  # the same launched pane: its claude wrote a transcript
-    assert f"[b2 exited — run: claude -n b2 --resume {B2} (after a /clear" in _hint(run, tmp_path)
+    assert (
+        f"[b2 exited — run: claude -n b2 --permission-mode bypassPermissions --resume {B2} (after a /clear"
+        in _hint(run, tmp_path)
+    )
     home2 = _home(tmp_path / "r", ps_lines=f"claude --session-id {B2}")
     out = _run("--print", str(repo), home=home2, AGENT_IDENTITY_FILE=str(store))
     run = next(ln for ln in out.stdout.splitlines() if ln.startswith("run b2 "))
@@ -2558,12 +2631,18 @@ def test_t10_f14_a_spawned_panes_hint_picks_its_flag_when_printed(tmp_path: Path
         ).stdout
         for shell in ("bash", "sh")
     ]
-    assert said[0] == said[1] and f"then run: claude -n b2 --session-id {B2}]" in said[0], said
+    assert (
+        said[0] == said[1]
+        and f"then run: claude -n b2 --permission-mode bypassPermissions --session-id {B2}]"
+        in said[0]
+    ), said
     _transcript(home2, tmp_path / "elsewhere", B2)
     again = subprocess.run(
         ["sh", "-c", _inner(run).split("; exec ")[0]], capture_output=True, text=True, timeout=30
     ).stdout
-    assert f"then run: claude -n b2 --resume {B2}]" in again, again
+    assert f"then run: claude -n b2 --permission-mode bypassPermissions --resume {B2}]" in again, (
+        again
+    )
 
 
 @pytest.mark.skipif(os.geteuid() == 0, reason="root reads a mode-0 file")
@@ -3350,12 +3429,27 @@ def test_pane_cmd_into_prints_a_fresh_launch_with_the_move_prompt(tmp_path: Path
     assert out.returncode == 0, out.stderr
     assert len(out.stdout.splitlines()) == 1, out.stdout
     inner = _inner("run b2 " + out.stdout.strip())
-    assert f"claude -n b2 --session-id {MOVED} --settings '{SETTINGS}' '" in inner, inner
+    assert (
+        f"claude -n b2 --permission-mode bypassPermissions --session-id {MOVED} --settings '{SETTINGS}' '"
+        in inner
+    ), inner
     assert "is already running elsewhere" not in inner, inner
     assert "--resume" not in inner.split("; rc=")[0], inner
     args = _argv(home, out.stdout.strip())
-    assert args[:5] == ["-n", "b2", "--session-id", MOVED, "--settings"] and len(args) == 7, args
-    prompt = args[6]
+    assert (
+        args[:7]
+        == [
+            "-n",
+            "b2",
+            "--permission-mode",
+            "bypassPermissions",
+            "--session-id",
+            MOVED,
+            "--settings",
+        ]
+        and len(args) == 9
+    ), args
+    prompt = args[8]
     head = (
         f"You were moved by agents_up into .claude/worktrees/b2-work as a fresh session {MOVED}, "
         "so your hooks load from the tree you work in. "
@@ -3381,7 +3475,7 @@ def test_pane_cmd_into_prints_a_fresh_launch_with_the_move_prompt(tmp_path: Path
     # the checkout's paths are double-quoted, as first_prompt's are, so a path with a space stays one word (pass 1, B1)
     assert prompt[len(head) :] == want, (prompt[len(head) :], want)
     said = _hint("run b2 " + out.stdout.strip(), tmp_path)
-    assert f"claude -n b2 --session-id {MOVED}" in said, said
+    assert f"claude -n b2 --permission-mode bypassPermissions --session-id {MOVED}" in said, said
     # the same valid launch with one flag given twice is refused, never silently the last value (pass 1, B5)
     for flag, value in (("--into", "b2-work"), ("--from", B2), ("--replacing", "4242")):
         twice = _run(*_move_args(repo), flag, value, home=home, AGENT_IDENTITY_FILE=str(store))
