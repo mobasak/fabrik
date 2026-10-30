@@ -631,3 +631,70 @@ def test_every_post_send_failure_exits_partial(world, monkeypatch, capsys, step)
         assert "send the distributor copy" not in out.err, out.err
     if step == "distributor-who":
         assert "SendMessage to=proj-infra" in out.out  # the owner's doorbell still rings
+
+
+# --- W-527c1ce0 (D-1381): a branch far behind its base is refused before anything is sent ------
+def _advance_base(world, repo: Path, n: int) -> None:
+    """Push ``n`` empty commits onto the remote's master from ``repo``, in ONE fast-import stream:
+    an exact count without n git processes. The stream writes a scratch ref, so no checked-out
+    branch moves under its working tree."""
+    tip = _git(repo, world.env, "rev-parse", "refs/remotes/origin/master")
+    lines = []
+    for i in range(n):
+        lines += ["commit refs/heads/fi-up", f"committer t <t@example.invalid> {BTIME + i} +0000"]
+        lines += ["data 2", "c"]
+        if i == 0:
+            lines.append(f"from {tip}")
+        lines.append("")
+    res = subprocess.run(
+        ["git", "fast-import", "--quiet"],
+        cwd=repo,
+        env=world.env,
+        input="\n".join(lines) + "\n",
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert res.returncode == 0, res.stderr
+    _git(repo, world.env, "push", "-q", "origin", "fi-up:master")
+
+
+def test_a_branch_past_the_behind_limit_refuses_with_the_merge_command_and_writes_no_mail(world):
+    _git(world.main, world.env, "fetch", "-q", "origin")
+    _advance_base(world, world.main, _load().MAX_BEHIND + 1)
+    world.push()
+    r = world.run()
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert f"{_load().MAX_BEHIND + 1} commits behind origin/master" in r.stderr
+    assert "`git fetch origin master`" in r.stderr
+    assert "`git merge origin/master`" in r.stderr
+    assert "never a rebase" in r.stderr
+    assert world.inbox() == []
+
+
+def test_a_branch_at_the_behind_limit_is_sent(world):
+    _git(world.main, world.env, "fetch", "-q", "origin")
+    _advance_base(world, world.main, _load().MAX_BEHIND)
+    world.push()
+    r = world.run()
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert len(world.inbox()) == 1
+
+
+def test_an_unfetched_base_tip_is_fetched_then_counted(world):
+    """A builder that never fetched holds no object for the remote tip: the request fetches it
+    once and counts, never refusing the tip as missing and never passing it uncounted."""
+    other = world.tmp / "other"
+    _git(world.tmp, world.env, "clone", "-q", str(world.remote), str(other))
+    _advance_base(world, other, _load().MAX_BEHIND + 1)
+    tip = _git(other, world.env, "rev-parse", "fi-up")
+    res = subprocess.run(
+        ["git", "cat-file", "-e", tip], cwd=world.wt, env=world.env, check=False, timeout=60
+    )
+    assert res.returncode != 0, "fixture: the worktree must not already hold the remote tip"
+    world.push()
+    r = world.run()
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert f"{_load().MAX_BEHIND + 1} commits behind origin/master" in r.stderr
+    assert world.inbox() == []

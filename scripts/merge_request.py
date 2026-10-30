@@ -31,6 +31,9 @@ and each failure refuses with exit 1:
   * the base — ``--base``, else config ``base_branch``, else the remote's HEAD (``ls-remote
     --symref``), else refuse with "pass --base" — is not one line, fails ``git check-ref-format
     --branch``, is absent from the remote, or IS the branch;
+  * the branch is more than ``MAX_BEHIND`` (500) commits behind the base's REMOTE tip (W-527c1ce0,
+    D-1381) — the tip is fetched once when this clone lacks it, and the refusal prints the
+    ``git fetch`` and ``git merge <remote>/<base>`` to run (never a rebase: the branch is pushed);
   * the repo has no ``docs/DECISIONS.md`` or the owner resolver
     (``python3 /opt/fabrik/scripts/decisions.py --merge-owner <main checkout>``, overridable with
     ``$FABRIK_DECISIONS_PY``) answers UNDECLARED (exit 3) — with the ``docs_updater.py --adopt``
@@ -96,6 +99,13 @@ EXIT_REFUSED = 1
 EXIT_PARTIAL = 4
 ITEM_RE = re.compile(r"^W-[0-9a-f]{8}$")
 HEADS = "refs/heads/"
+# A branch more than this many commits behind the REMOTE base tip is refused before anything is
+# sent (W-527c1ce0, D-1381): the panel tied the line to the ledger-conflict refusals, which grow with
+# the gap, and 25 of the 51 refusals in 14 days were red tests on a stale base. Cobra (D-253): the
+# cheapest way past it is merging the base in once just before the request and never between items;
+# the item-boundary merge line in CLAUDE.md § EXIT is the counter, and the refusal still fires on any
+# branch that drifts past the line again.
+MAX_BEHIND = 500
 
 
 def _resend(base: str, branch: str = "your branch") -> str:
@@ -319,6 +329,41 @@ def _resolve_base(
     return base
 
 
+def _check_behind(cwd: Path, remote: str, base: str, tip: str) -> None:
+    """Refuse a branch more than MAX_BEHIND commits behind ``tip``, the base's REMOTE sha — what the
+    owner merges onto, never a stale local ``<remote>/<base>``. A tip this clone has not fetched is
+    fetched once; a fetch failure or a still-missing object refuses (fail closed: a refusal costs a
+    re-run, a stale branch let through costs the owner a build and a test leg)."""
+    present = _run(["git", "cat-file", "-e", f"{tip}^{{commit}}"], GIT_TIMEOUT_S, cwd=cwd)
+    if present.returncode != 0:
+        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+        res = _run(
+            ["git", "fetch", "-q", "--no-tags", remote, HEADS + base],
+            REMOTE_TIMEOUT_S,
+            cwd=cwd,
+            env=env,
+        )
+        if res.returncode != 0:
+            raise RefusedError(
+                f"cannot fetch {remote} {base} to count how far behind it this branch is: "
+                f"{res.stderr.strip() or res.returncode}"
+            )
+    res = _run(["git", "rev-list", "--count", f"HEAD..{tip}"], GIT_TIMEOUT_S, cwd=cwd)
+    if res.returncode != 0 or not res.stdout.strip().isdigit():
+        raise RefusedError(
+            f"cannot count how far behind {remote}/{base} this branch is: "
+            f"{res.stderr.strip() or res.returncode}"
+        )
+    behind = int(res.stdout.strip())
+    if behind > MAX_BEHIND:
+        raise RefusedError(
+            f"this branch is {behind} commits behind {remote}/{base} (the limit is {MAX_BEHIND}) "
+            f"— run `git fetch {remote} {base}`, then `git merge {remote}/{base}`, resolve, push, "
+            "then run `merge_request.py request` again — never a rebase: the branch is already "
+            "pushed. Merge the base at every item boundary and this never fires"
+        )
+
+
 def _adopt_hint(main: Path) -> str:
     return (
         f"repo {main.name} declares no merge owner — adopt first: "
@@ -450,6 +495,7 @@ def request(args: argparse.Namespace) -> int:
     base = _resolve_base(cwd, args.base, config, remote, refs, remote_head)
     if base == branch:
         raise RefusedError(f"branch {branch!r} IS the base — nothing to merge")
+    _check_behind(cwd, remote, base, refs[HEADS + base])
     owner = _merge_owner(main)
     if _norm(owner) == _norm(caller):
         raise RefusedError(f"{caller} is the merge owner — the owner merges, it does not request")
