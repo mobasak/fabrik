@@ -8,6 +8,7 @@
 **Outputs:**
 - `data/projects.yaml` (aggregated registry, machine-readable)
 - `docs/PROJECT_CATALOG.md` (AUTO-GENERATED:PROJECTS block, human-readable; synced to projects as `docs/reference/opt-project-catalog.md`)
+- `PORTS.md` (AUTO-GENERATED:PORTS block — § Ports)
 
 > **Coders:** When modifying `scripts/sync_projects.py`, update this workflow doc to match.
 
@@ -154,6 +155,15 @@ Updates the `<!-- AUTO-GENERATED:PROJECTS:START -->` block:
 |---------|---------|-------|--------|-----|----------|
 | **captcha** | Anti-captcha solving | FastAPI + Redis | ✅ Production | https://... | ✅ Current |
 ```
+
+### Ports (`PORTS.md`)
+
+Updates the `<!-- AUTO-GENERATED:PORTS:START -->` block: port conflicts, then one row per
+`project.yaml` port. Neither block carries a timestamp, and neither file is rewritten when its
+content is unchanged (W-5568be8d): a `Last synced` line used to change on every run, so each
+`fabrik apply`/`fabrik scan` left PORTS.md dirty in the hub main checkout with no port changed,
+and `merge_request.py` refuses merges over a dirty non-ledger path. The script does not commit
+what it writes; who commits a real change made in the main checkout is open (W-7999e0ea).
 
 ---
 

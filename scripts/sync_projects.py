@@ -562,8 +562,9 @@ def generate_catalog_markdown(projects: list[Project]) -> str:
     return md
 
 
-def update_business_model(catalog_md: str) -> bool:
-    """Update the AUTO-GENERATED /opt project inventory in docs/PROJECT_CATALOG.md.
+def update_business_model(catalog_md: str) -> bool | None:
+    """Update the AUTO-GENERATED /opt project inventory in docs/PROJECT_CATALOG.md: True when the
+    file was rewritten, False when it was already current, None when it is missing (a failure).
 
     (Was docs/BUSINESS_MODEL.md until 2026-07-11 — that path is the per-project *monetization*
     doc and was being clobbered by this fleet-synced catalog. The catalog now lives in its own
@@ -572,7 +573,7 @@ def update_business_model(catalog_md: str) -> bool:
 
     if not catalog_path.exists():
         print(f"ERROR: {catalog_path} does not exist")
-        return False
+        return None
 
     content = catalog_path.read_text(encoding="utf-8")
 
@@ -587,7 +588,16 @@ def update_business_model(catalog_md: str) -> bool:
     else:
         content = re.sub(pattern, replacement, content, flags=re.DOTALL)
 
-    catalog_path.write_text(content, encoding="utf-8")
+    return _write_if_changed(catalog_path, content)
+
+
+def _write_if_changed(path: Path, content: str) -> bool:
+    """Write only when the text differs, so a run that changed nothing leaves the file untouched
+    (W-5568be8d); True when it wrote. Text, not bytes, on purpose: a CRLF copy whose content is
+    current is left alone rather than rewritten to LF, which would dirty the tree for nothing."""
+    if path.read_text(encoding="utf-8") == content:
+        return False
+    path.write_text(content, encoding="utf-8")
     return True
 
 
@@ -618,16 +628,19 @@ def next_available_port(projects: list[Project], port_range: tuple[int, int] = (
 
 
 def update_ports_md(projects: list[Project], conflicts: dict[int, list[str]]) -> bool:
-    """Auto-generate the port allocation table in Fabrik's PORTS.md."""
+    """Auto-generate the port allocation table in Fabrik's PORTS.md; True when the file was
+    rewritten (False: absent, or already current)."""
     ports_path = FABRIK_ROOT / "PORTS.md"
     if not ports_path.exists():
         return False
 
     content = ports_path.read_text(encoding="utf-8")
 
-    # Build the auto-generated block
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    md = f"<!-- Last synced: {timestamp} -->\n\n"
+    # Build the auto-generated block. No "Last synced" timestamp (W-5568be8d): it changed on EVERY
+    # run, so each fabrik apply/scan left PORTS.md dirty in the hub main checkout with no port
+    # changed, and merge_request.py refuses merges over a dirty non-ledger path. The catalog
+    # dropped its timestamp for the same reason (update_business_model / generate_catalog_markdown).
+    md = ""
 
     # Conflict warnings
     if conflicts:
@@ -666,8 +679,7 @@ def update_ports_md(projects: list[Project], conflicts: dict[int, list[str]]) ->
     else:
         content = re.sub(pattern, f"\\1\n{md}\\2", content, flags=re.DOTALL)
 
-    ports_path.write_text(content, encoding="utf-8")
-    return True
+    return _write_if_changed(ports_path, content)
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
@@ -695,11 +707,12 @@ def main() -> int:
 
     # Update human-readable catalog
     catalog_md = generate_catalog_markdown(projects)
-    if update_business_model(catalog_md):
-        print("   📄 Updated docs/PROJECT_CATALOG.md")
-    else:
+    catalog = update_business_model(catalog_md)
+    if catalog is None:
         print("   ❌ Failed to update PROJECT_CATALOG.md")
         return 1
+    if catalog:
+        print("   📄 Updated docs/PROJECT_CATALOG.md")
 
     # Update port allocations
     if update_ports_md(projects, conflicts):
