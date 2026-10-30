@@ -72,6 +72,8 @@ path.write_text(json.dumps(item), encoding="utf-8")
 #   builders      the names --print reports, `ok` until running_after seconds past the first --print, then `running`
 #   print_grow    bytes added to memory.current on every --print
 #   pane_cmd      {"rc", "out", "err"} for --pane-cmd (default rc 0, "sleep 600")
+#   detach_err    stderr every --detach writes (agents_up's exit-4 "no room for <name>'s pane (session <sid>)" lines);
+#                 an exit-4 --detach builds `grid` as exit 0 does (the grid is up, some builder got no pane)
 FAKE_UP = (
     f"#!{sys.executable}\n"
     + r"""import json, os, shlex, subprocess, sys, time
@@ -109,7 +111,8 @@ if mode == "--detach":
         rc = scn["detach"][min(n, len(scn["detach"]) - 1)]
     else:  # no grid comes up: no builder (3), unless the spawner named the new one (0)
         rc = 0 if os.environ.get("FABRIK_SPAWN_NAME") else 3
-    if rc == 0 and "grid" in scn:
+    sys.stderr.write(scn.get("detach_err", ""))  # e.g. agents_up's exit-4 "no room for <name>'s pane" lines
+    if rc in (0, 4) and "grid" in scn:  # exit 4: the grid is up, some builder got no pane
         tmux = shlex.split(os.environ["FABRIK_TMUX"])
         if subprocess.run([*tmux, "has-session", "-t", "=shop"], capture_output=True).returncode != 0:
             for i, tag in enumerate(scn["grid"]):
@@ -153,7 +156,7 @@ if mode == "--detach":
                     [sys.executable, "-c", writer, str(later), str(p / "4242" / "task" / "4242" / "children")],
                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
                 )
-    if rc == 0 and "detach_current" in scn:
+    if rc in (0, 4) and "detach_current" in scn:
         bump(scn["detach_current"])
     sys.exit(rc)
 if mode == "--print":
@@ -1983,7 +1986,47 @@ def test_b2_a_second_detach_that_fails_stops_at_step_six(tmp_path: Path, monkeyp
     assert len(recs) == 1 and recs[0]["step"] == 6 and "exited 3" in recs[0]["reason"], recs
 
 
-@pytest.mark.parametrize("rc", [1, 2, 4])
+NOROOM = "agents_up: no room for {n}'s pane (session 00000000-0000-4000-8000-000000000002) — open it by hand: x\n"
+
+
+def test_b2_a_cold_start_exit_4_is_up_and_names_the_builders_without_a_pane(
+    tmp_path: Path, request: pytest.FixtureRequest, monkeypatch, capsys
+) -> None:
+    """Review G2: exit 4 means the grid is up and SOME builder got no pane. A cold start for another builder goes on
+    as for exit 0, saying which builders have no pane; only the builder being added in that list refuses."""
+    box = Box(tmp_path, registry={OLD: "builder-1", OTHER_SID: "builder-2"})
+    g, mod = _inproc(box, monkeypatch, request, tmp_path, FABRIK_AGENTS_SETTLE_S="1")
+    _scenario(
+        box,
+        detach=[4],
+        detach_err=NOROOM.format(n="builder-2"),
+        grid=["builder-1"],
+        builders=["builder-1"],
+        running_after=0,
+    )
+    assert mod.main(["add", str(box.repo), "builder-3"]) == 0, box.refusals()
+    err = capsys.readouterr().err
+    assert "no room for builder-2's pane" in err, err
+    assert not box.refusals()
+    assert "agents builder-3" in g.tags()
+
+
+def test_b2_a_cold_start_exit_4_naming_the_added_builder_refuses(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    box = Box(tmp_path, registry={})
+    _, mod = _inproc(box, monkeypatch)
+    _scenario(box, detach=[4], detach_err=NOROOM.format(n="builder-1"))
+    assert mod.main(["add", str(box.repo), "builder-1"]) == 2
+    recs = box.refusals()
+    assert (
+        len(recs) == 1
+        and recs[0]["step"] == 3
+        and "no room for builder-1's pane" in recs[0]["reason"]
+    ), recs
+
+
+@pytest.mark.parametrize("rc", [1, 2])
 def test_b2_a_first_detach_failing_otherwise_stops_at_step_three(
     tmp_path: Path, monkeypatch, capsys, rc: int
 ) -> None:
