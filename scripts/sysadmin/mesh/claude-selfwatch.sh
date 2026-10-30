@@ -40,7 +40,7 @@ if ! flock -n 9; then
   exit 0
 fi
 
-rm -f "$marker" "$lift" 2>/dev/null || true  # pre-arm history: never fire into the live arming session
+rm -f "$marker" "$lift" "$lift.claimed" 2>/dev/null || true  # pre-arm history: never fire into the live arming session
 
 qcmd="${MESH_QUOTA_CMD:-$HOME/.claude/bin/claude-quota.py}"
 # W-5279e834 (D-897): a RESUME into a network or API that drops again dies with no watch left, so the
@@ -101,18 +101,39 @@ while :; do
     death=$(date +%s)
     net_gate "$need" "$lift" || continue
     [ "$jitter" = "1" ] && sleep "$(( RANDOM % ( ${MESH_JITTER_MAX:-45} + 1 ) ))"
-    [ -f "$lift" ] || continue  # consumed or cleaned meanwhile (a fresh arm) — keep watching
-    # read the file AFTER the gate (routed I13): a hibernate lift's fan-out replaces a pending `resume` wake
+    # CLAIM the lift atomically (T04 F14, the sweep's mv-claim): three reads then an `rm` could delete a lift the
+    # tick wrote in between, unwoken. A failed mv means it was consumed or cleaned meanwhile (a fresh arm).
+    claimed="$lift.claimed"
+    mv -f "$lift" "$claimed" 2>/dev/null || continue
+    # read the CLAIMED file AFTER the gate (routed I13): a hibernate lift's fan-out replaces a pending `resume` wake
     # while the gate waits, and the line must carry the replacing kind and its epoch — the LIFT epoch, so
     # the line names when the hold went, not when the wake landed
-    lift_at=$(awk '{print $1; exit}' "$lift" 2>/dev/null || true)
+    lift_at=$(awk '{print $1; exit}' "$claimed" 2>/dev/null || true)
+    lift_kind=$(awk '{print $2; exit}' "$claimed" 2>/dev/null || true)
+    # put the lift back and gate again (T04 F9) when the gate it passed was SHORTER than the kind now printed needs:
+    # a one-field (quota) or still-EMPTY file read before the gate (the tick creates it O_EXCL, then writes) that
+    # now says hibernate/resume — the hibernate line is printed only after MESH_UP_STREAK answers and the jitter.
+    # A file still empty and under 5 s old is the tick mid-write: back it goes too. `mv -n` never overwrites a
+    # NEWER lift written meanwhile; the claimed copy then goes (the newer one wins, as the tick's fan-out does).
+    regate=0
+    case "$lift_kind" in hibernate|resume) [ "$need" -lt "$up_streak" ] && regate=1 ;; esac
+    if [ -z "$lift_at" ] && [ $(( $(date +%s) - $(stat -c %Y "$claimed" 2>/dev/null || echo 0) )) -lt 5 ]; then
+      regate=1
+    fi
+    if [ "$regate" = "1" ]; then
+      mv -n "$claimed" "$lift" 2>/dev/null
+      rm -f "$claimed" 2>/dev/null
+      sleep 1
+      continue
+    fi
+    rm -f "$claimed" 2>/dev/null || true  # consume: one wake per lift
     case "$lift_at" in ''|*[!0123456789]*) lift_at=$(date +%s) ;; esac
-    lift_kind=$(awk '{print $2; exit}' "$lift" 2>/dev/null || true)
-    rm -f "$lift" 2>/dev/null || true  # consume: one wake per lift
     at=$(date -d @"$lift_at" +%H:%M)
     case "$lift_kind" in
       hibernate)
-        printf 'RESUME: the hibernate pause ended at %s (%s) — run python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke --self %s and resume your item from its seed' "$at" "$(lift_why)" "$sid" ;;
+        # the condition agents_up's relaunch prompt carries (agents_up.sh): `woke` exits 1 for a migration lift
+        # and a lift a day old, and then there is nothing to resume (T04 F12)
+        printf 'RESUME: the hibernate pause ended at %s (%s) — run python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke --self %s and, only if it exits 0, resume your item from the seed it prints; on any other exit carry on as usual' "$at" "$(lift_why)" "$sid" ;;
       resume)
         printf 'RESUME: the box RESUMED from sleep at %s. If you stopped for it, resume the run you closed BLOCKED — its record (`python3 scripts/command_run.py line`) and `python3 scripts/thread_anchor.py line --session %s` carry where you left off; if you are mid-task, ignore this line' "$at" "$sid" ;;
       battery)

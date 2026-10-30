@@ -491,7 +491,7 @@ EOF
   sleep 2; LIFT=$(( $(date +%s) - 180 )); printf '%s hibernate\n' "$LIFT" > "$LOCKS/sW10f.holdlifted"
   for _ in $(seq 1 20); do grep -q '^RESUME:' "$T/w10f.out" && break; sleep 1; done
   w10f_left=$(grep -c . "$T/w10f.seq" 2>/dev/null); w10f_left=${w10f_left:-0}
-  [ "$(grep -c "^RESUME: the hibernate pause ended at $(date -d @"$LIFT" +%H:%M) (sleep) — run python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke --self sW10f and resume your item from its seed" "$T/w10f.out")" = "1" ] && ok || bad "W10f: no hibernate line naming the lift minute and lift_path: $(cat "$T/w10f.out")"
+  [ "$(grep -c "^RESUME: the hibernate pause ended at $(date -d @"$LIFT" +%H:%M) (sleep) — run python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke --self sW10f and, only if it exits 0, resume your item from the seed it prints; on any other exit carry on as usual — this self-watch STAYS ARMED (" "$T/w10f.out")" = "1" ] && ok || bad "W10f: no hibernate line naming the lift minute, lift_path and woke's exit-0 condition (T04 F12): $(cat "$T/w10f.out")"
   [ "$w10f_left" = "0" ] && ok || bad "W10f: the hibernate wake fired with $w10f_left probe(s) of the flapping sequence unread (no 3-answer gate)"
   grep '^RESUME: the hibernate' "$T/w10f.out" | grep -q ' — this self-watch STAYS ARMED (' && ok || bad "W10f: the hibernate line lost the STAYS ARMED clause: $(cat "$T/w10f.out")"
   grep -q 'fleet-quota' "$T/w10f.out" && bad "W10f: a hibernate lift named the quota hold" || ok
@@ -514,13 +514,53 @@ EOF
   sleep 3; LIFT=$(( $(date +%s) - 240 )); printf '%s hibernate\n' "$LIFT" > "$LOCKS/sW10g.holdlifted"
   sleep 1; touch "$MESH_NET"
   for _ in $(seq 1 15); do grep -q '^RESUME:' "$T/w10g.out" && break; sleep 1; done
-  [ "$(grep -c "^RESUME: the hibernate pause ended at $(date -d @"$LIFT" +%H:%M) (outage) — " "$T/w10g.out")" = "1" ] && ok || bad "W10g: the line did not use the kind and epoch read after the gate: $(cat "$T/w10g.out")"
+  [ "$(grep -c "^RESUME: the hibernate pause ended at $(date -d @"$LIFT" +%H:%M) (outage) — run python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke --self sW10g and, only if it exits 0, resume your item from the seed it prints; on any other exit carry on as usual — this self-watch STAYS ARMED (" "$T/w10g.out")" = "1" ] && ok || bad "W10g: the line did not use the kind and epoch read after the gate: $(cat "$T/w10g.out")"
   grep -q 'RESUMED from sleep' "$T/w10g.out" && bad "W10g: printed the replaced (pre-gate) kind" || ok
   LIFT=$(( $(date +%s) - 60 )); printf '%s resume\n' "$LIFT" > "$LOCKS/sW10g.holdlifted"
   for _ in $(seq 1 15); do [ "$(grep -c '^RESUME:' "$T/w10g.out")" -ge 2 ] && break; sleep 1; done
   [ "$(grep -c "^RESUME: the box RESUMED from sleep at $(date -d @"$LIFT" +%H:%M)" "$T/w10g.out")" = "1" ] && ok || bad "W10g: a resume wake did not say the box resumed from sleep: $(cat "$T/w10g.out")"
   grep 'RESUMED from sleep' "$T/w10g.out" | grep -q ' — this self-watch STAYS ARMED (' && ok || bad "W10g: the resume line lost the STAYS ARMED clause"
   kill "$w10gpid" 2>/dev/null; wait "$w10gpid" 2>/dev/null
+  # W10h (T04 F9, F14): the gate matches the kind that is PRINTED. A one-field (quota) lift the tick rewrites to
+  # `hibernate` during the one-probe gate — and an EMPTY file (the tick creates it O_EXCL, then writes) that turns
+  # into `hibernate` — must still wait MESH_UP_STREAK (3) answers before the hibernate line: the claimed file is
+  # put back and gated again on the kind it now says. The curl stub counts probes and, on its first call,
+  # rewrites the lift (case 1); case 2 writes the empty file and fills it 2 s later.
+  mkdir -p "$T/w10hshim"
+  cat > "$T/w10hshim/curl" <<'EOF'
+#!/usr/bin/env bash
+n=$(cat "$W10H_COUNT" 2>/dev/null || echo 0); n=$(( n + 1 )); echo "$n" > "$W10H_COUNT"
+[ "$n" = 1 ] && [ -n "${W10H_REWRITE:-}" ] && printf '%s hibernate\n' "$W10H_REWRITE" > "$W10H_LIFT"
+exit 0
+EOF
+  chmod +x "$T/w10hshim/curl"
+  [ -x "$T/w10hshim/curl" ] && ok || bad "W10h: the curl stub is not executable — the probe would reach the real curl"
+  printf '{"paused_at": 1, "lifted_at": 2, "lift_path": "sleep"}' > "$HSTATE/hibernate.json"
+  for w10h_case in rewrite empty; do
+    : > "$T/w10h.count"; rm -f "$T/w10h.out"
+    LIFT=$(( $(date +%s) - 300 ))
+    w10h_rw=""; [ "$w10h_case" = rewrite ] && w10h_rw="$LIFT"
+    env HOME="$SBHOME" PATH="$T/w10hshim:$SHIM:/usr/bin:/bin" CLAUDE_SOUND_MEDIA="$T/nomedia" \
+        CLAUDE_SOUND_PULSE="$T/nopulse" CLAUDE_SOUND_LOCKDIR="$LOCKS" ROTATE_STATE_DIR="$HSTATE" \
+        W10H_COUNT="$T/w10h.count" W10H_LIFT="$LOCKS/sW10h.holdlifted" W10H_REWRITE="$w10h_rw" \
+        MESH_JITTER_MAX=0 MESH_BACKOFF_OVERRIDE=0 MESH_POLL=1 MESH_UP_STREAK=3 \
+        timeout 40 bash "$SBHOME/.claude/bin/claude-selfwatch.sh" sW10h > "$T/w10h.out" &
+    w10hpid=$!
+    sleep 2
+    if [ "$w10h_case" = rewrite ]; then
+      printf '%s\n' "$(date +%s)" > "$LOCKS/sW10h.holdlifted"
+    else
+      : > "$LOCKS/sW10h.holdlifted"; sleep 2; printf '%s hibernate\n' "$LIFT" > "$LOCKS/sW10h.holdlifted"
+    fi
+    for _ in $(seq 1 20); do grep -q '^RESUME:' "$T/w10h.out" && break; sleep 1; done
+    sleep 1
+    kill "$w10hpid" 2>/dev/null; wait "$w10hpid" 2>/dev/null
+    w10h_n=$(cat "$T/w10h.count" 2>/dev/null); w10h_n=${w10h_n:-0}
+    [ "$(grep -c "^RESUME: the hibernate pause ended at $(date -d @"$LIFT" +%H:%M) (sleep) — " "$T/w10h.out")" = "1" ] && ok || bad "W10h($w10h_case): no single hibernate line naming the rewritten lift: $(cat "$T/w10h.out")"
+    grep -q 'fleet-quota' "$T/w10h.out" && bad "W10h($w10h_case): the pre-gate (quota/empty) kind was printed: $(cat "$T/w10h.out")" || ok
+    [ "$w10h_n" -ge 3 ] && ok || bad "W10h($w10h_case): the hibernate line came after $w10h_n probe(s) (MESH_UP_STREAK=3)"
+    [ ! -f "$LOCKS/sW10h.holdlifted" ] && [ ! -f "$LOCKS/sW10h.holdlifted.claimed" ] && ok || bad "W10h($w10h_case): the lift (or its claim) was left behind"
+  done
   # W11 (2026-09-07, heavy review R1): a watch whose LOCK FILE vanishes (the Stop decider's 2h mtime
   # prune, or a manual rm) must EXIT with one line — an orphan holding a deleted inode is invisible
   # to the tick's armed census and steals the next death marker from the re-armed watch.
@@ -941,9 +981,11 @@ if [ -f "$SBHOME/.claude/bin/claude-reboot-sweep.sh" ]; then
   # W-6e656dac T04: the sweep's builder leg calls agents_bat.py --list, agents_up.sh --print/--detach and
   # `systemctl --user show-environment` — EVERY sweep below runs against these stubs, never the real tmux
   # server, user bus or a real repo (the env seams are exported, and tmux/systemctl stubs lead $SHIM)
+  # MESH_SYSTEMCTL_NEED_XDG=1 answers only with XDG_RUNTIME_DIR set, as the real `systemctl --user` does (R22)
   cat > "$SHIM/systemctl" <<'EOF'
 #!/usr/bin/env bash
-printf '%s\n' "$*" >> "${MESH_SYSTEMCTL_LOG:-/dev/null}"
+printf '%s XDG=%s\n' "$*" "${XDG_RUNTIME_DIR:-unset}" >> "${MESH_SYSTEMCTL_LOG:-/dev/null}"
+[ -n "${MESH_SYSTEMCTL_NEED_XDG:-}" ] && [ -z "${XDG_RUNTIME_DIR:-}" ] && exit 1
 exit "${MESH_SYSTEMCTL_RC:-0}"
 EOF
   cat > "$SHIM/tmux" <<'EOF'
@@ -962,8 +1004,8 @@ EOF
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "${MESH_UPLOG:-/dev/null}"
 case "$1" in
-  --print) f="$2/panes"; [ -f "$f" ] && cat "$f"; exit 0 ;;
-  --detach) [ -n "${MESH_UP_LINGER:-}" ] && { sleep "$MESH_UP_LINGER" & }; exit 0 ;;
+  --print) f="$2/panes"; [ -f "$f" ] && cat "$f"; exit "${MESH_UP_PRINT_RC:-0}" ;;
+  --detach) [ -n "${MESH_UP_LINGER:-}" ] && { sleep "$MESH_UP_LINGER" & }; exit "${MESH_UP_DETACH_RC:-0}" ;;
 esac
 exit 2
 EOF
@@ -1136,7 +1178,7 @@ EOF
   # detached grid's tmux server lives for days, so a second sweep during its lifetime must run, not
   # skip-concurrent (the stub agents_up leaves a 4 s child holding every fd it inherited)
   mkdir -p "$T/repo8c"; printf '%s\n' "$T/repo8c" > "$T/bat-list.8c"
-  : > "$RLOG"
+  : > "$RLOG"; rm -f "$RSTATE/.builders-boot"   # the leg runs once per boot (T04 F13): a fresh boot here
   env MESH_BAT_LIST="$T/bat-list.8c" MESH_UP_LINGER=4 MESH_SWEEP_FRESH_WINDOW=999999999 HOME="$SBHOME" \
       PATH="$SHIM:/usr/bin:/bin" CLAUDE_SOUND_LOCKDIR="$RLOCKS" MESH_STATE_DIR="$RSTATE" \
       MESH_DECIDER_CMD="$SBHOME/.claude/bin/claude-stop-decider.py" \
@@ -1332,6 +1374,7 @@ STUB
       MESH_DECIDER_CMD="$SBHOME/.claude/bin/claude-stop-decider.py" MESH_SWEEP_LIVE_WINDOW=0 \
       MESH_SWEEP_LOG="$RLOG" MESH_CLAUDELOG="$MESH_CLAUDELOG" "$@" bash "$SBHOME/.claude/bin/claude-reboot-sweep.sh"; }
   : > "$RSNOTES"; : > "$RLOG"; : > "$MESH_CLAUDELOG"; : > "$MESH_UPLOG"; : > "$MESH_SYSTEMCTL_LOG"; rm -rf "$RLOCKS"
+  rm -f "$RSTATE/.builders-boot"   # each R20 case below is a NEW boot for the once-per-boot stamp (T04 F13)
   R20
   [ "$(grep -c '^--detach ' "$MESH_UPLOG")" = "2" ] && grep -qx -- "--detach $T/repoA" "$MESH_UPLOG" \
     && grep -qx -- "--detach $T/repoB" "$MESH_UPLOG" && ok || bad "R20: not every registered grid built detached: $(cat "$MESH_UPLOG")"
@@ -1344,7 +1387,7 @@ STUB
   grep -q "show-environment" "$MESH_SYSTEMCTL_LOG" && ok || bad "R20g: the builder leg never asked the user bus"
   grep -q "uncapped-boot" "$RLOG" && bad "R20h: an answering bus was logged uncapped-boot" || ok
   # R20i: the bus never answers within MESH_BUS_WAIT → note `uncapped-boot`, and the grids are STILL built
-  : > "$RLOG"; : > "$MESH_UPLOG"; rm -rf "$RLOCKS"; rm -f "$RSTATE"/notified-*
+  : > "$RLOG"; : > "$MESH_UPLOG"; rm -rf "$RLOCKS"; rm -f "$RSTATE"/notified-* "$RSTATE/.builders-boot"
   r20_t0=$SECONDS
   R20 MESH_SYSTEMCTL_RC=1 MESH_BUS_WAIT=2 MESH_BUS_POLL=1
   r20_el=$(( SECONDS - r20_t0 ))
@@ -1352,15 +1395,55 @@ STUB
   [ "$(grep -c '^--detach ' "$MESH_UPLOG")" = "2" ] && ok || bad "R20j: an expired bus wait left builders down: $(cat "$MESH_UPLOG")"
   [ "$r20_el" -ge 2 ] && ok || bad "R20k: the sweep did not wait MESH_BUS_WAIT for the bus (${r20_el}s)"
   # R20l: the next boot's sweep TRUNCATES .boot-relaunched — a repo list now empty records no sid
-  : > "$T/bat-list.r20"; mkdir -p "$RLOCKS"
+  : > "$T/bat-list.r20"; mkdir -p "$RLOCKS"; rm -f "$RSTATE/.builders-boot"
   R20 MESH_SWEEP_FRESH_WINDOW=999999999
   [ -f "$RLOCKS/.boot-relaunched" ] && [ ! -s "$RLOCKS/.boot-relaunched" ] && ok || bad "R20l: the next boot did not truncate .boot-relaunched: $(cat "$RLOCKS/.boot-relaunched" 2>/dev/null)"
   grep -q "verdict=builders-none" "$RLOG" && ok || bad "R20m: an empty registry was not noted"
   # R20n: no agents_bat.py → noted, never a crash, and Leg B still runs
-  : > "$RLOG"; rm -rf "$RLOCKS"
+  : > "$RLOG"; rm -rf "$RLOCKS"; rm -f "$RSTATE/.builders-boot"
   R20 MESH_AGENTS_BAT="$T/no-such-agents-bat.py"
   grep -q "verdict=no-agents-bat" "$RLOG" && grep -q "sweep-done" "$RLOG" && ok || bad "R20n: a missing agents_bat.py was not noted, or ended the sweep | log: $(tail -3 "$RLOG")"
   mkdir -p "$RLOCKS"
+  # R21 (T04 F10): a sid is in .boot-relaunched IFF the leg launched it. (a) `--detach` fails → nothing of that
+  # repo is recorded and Leg B still sends its resume-by-hand notice; (b) `--print` fails → NO --detach for the
+  # repo, and its cut session is notified (never launched AND notified, never neither)
+  printf '%s\n' "$T/repoA" > "$T/bat-list.r20"
+  for r21 in detach print; do
+    : > "$RSNOTES"; : > "$RLOG"; : > "$MESH_UPLOG"; rm -rf "$RLOCKS"; rm -f "$RSTATE"/notified-* "$RSTATE/.builders-boot"
+    if [ "$r21" = detach ]; then R20 MESH_UP_DETACH_RC=1; r21v=builder-grid-failed; else R20 MESH_UP_PRINT_RC=1; r21v=builder-print-failed; fi
+    grep -q "iiii9999" "$RLOCKS/.boot-relaunched" "$RSTATE/.builders-boot" 2>/dev/null && bad "R21($r21): a sid the leg did not launch is recorded relaunched: $(cat "$RLOCKS/.boot-relaunched")" || ok
+    grep -q "claude --resume iiii9999" "$RSNOTES" && ok || bad "R21($r21): the not-launched builder got no resume-by-hand notice: $(cat "$RSNOTES") | log: $(tail -4 "$RLOG")"
+    grep -q "verdict=$r21v" "$RLOG" && ok || bad "R21($r21): no $r21v note | log: $(tail -4 "$RLOG")"
+  done
+  grep -q '^--detach ' "$MESH_UPLOG" && bad "R21(print): a failed --print still launched the grid: $(cat "$MESH_UPLOG")" || ok
+  # R22 (T04 F11): the bus socket appears DURING the wait — the next probe must see it (XDG_RUNTIME_DIR derived
+  # inside each probe), so no false `uncapped-boot` and systemctl ran with XDG set. A short dir: AF_UNIX <= 108 B
+  R22D=$(mktemp -d /tmp/mb.XXXX); R22S="$R22D/bus"
+  : > "$RLOG"; : > "$MESH_SYSTEMCTL_LOG"; rm -rf "$RLOCKS"; rm -f "$RSTATE"/notified-* "$RSTATE/.builders-boot"
+  ( sleep 2; exec python3 -c 'import socket,sys,time; s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1]); time.sleep(20)' "$R22S" ) &
+  r22pid=$!
+  ( unset XDG_RUNTIME_DIR; R20 MESH_BUS_SOCKET="$R22S" MESH_SYSTEMCTL_NEED_XDG=1 MESH_BUS_WAIT=10 MESH_BUS_POLL=1 )
+  kill "$r22pid" 2>/dev/null; wait "$r22pid" 2>/dev/null; rm -rf "$R22D"
+  grep -q "verdict=uncapped-boot" "$RLOG" && bad "R22: a bus socket that appeared mid-wait was logged uncapped-boot | systemctl: $(tr '\n' ';' < "$MESH_SYSTEMCTL_LOG")" || ok
+  grep -q "show-environment XDG=$R22D\$" "$MESH_SYSTEMCTL_LOG" && ok || bad "R22b: no probe ran with XDG_RUNTIME_DIR=$R22D: $(tr '\n' ';' < "$MESH_SYSTEMCTL_LOG")"
+  # R23 (T04 F13): once per boot — a second sweep in the fresh window (lock dir present) builds no grid, notes
+  # builders-already-this-boot, and Leg B still skips the sids the first sweep launched; with the lock dir PRUNED
+  # too, the persistent stamp's sids are still skipped
+  printf '%s\n' "$T/repoA" > "$T/bat-list.r20"
+  : > "$RSNOTES"; : > "$RLOG"; : > "$MESH_UPLOG"; rm -rf "$RLOCKS"; rm -f "$RSTATE"/notified-* "$RSTATE/.builders-boot"
+  R20 MESH_SWEEP_FRESH_WINDOW=999999999
+  [ "$(grep -c '^--detach ' "$MESH_UPLOG")" = "1" ] && ok || bad "R23-pre: the first sweep did not build the grid: $(cat "$MESH_UPLOG")"
+  : > "$RSNOTES"; : > "$RLOG"; : > "$MESH_UPLOG"; rm -f "$RSTATE"/notified-*
+  R20 MESH_SWEEP_FRESH_WINDOW=999999999
+  grep -q '^--detach ' "$MESH_UPLOG" && bad "R23: a second sweep this boot re-launched a grid: $(cat "$MESH_UPLOG")" || ok
+  grep -q "verdict=builders-already-this-boot" "$RLOG" && ok || bad "R23b: no builders-already-this-boot note | log: $(tail -4 "$RLOG")"
+  grep -q "iiii9999" "$RSNOTES" && bad "R23c: the second sweep notified a builder the first one relaunched: $(cat "$RSNOTES")" || ok
+  : > "$RSNOTES"; : > "$RLOG"; : > "$MESH_UPLOG"; rm -rf "$RLOCKS"; rm -f "$RSTATE"/notified-*
+  R20
+  grep -q '^--detach ' "$MESH_UPLOG" && bad "R23d: a pruned lock dir re-launched the grid this boot: $(cat "$MESH_UPLOG")" || ok
+  grep -q "iiii9999" "$RSNOTES" && bad "R23e: a pruned lock dir lost the relaunched sids (notified): $(cat "$RSNOTES")" || ok
+  grep -q "claude --resume hhhh8888" "$RSNOTES" && ok || bad "R23f: an unrelated cut session lost its notice: $(cat "$RSNOTES")"
+  mkdir -p "$RLOCKS"; rm -f "$RSTATE/.builders-boot"
   rm -f "$RSPROJ/iiii9999.jsonl" "$RSPROJ/kkkk1111.jsonl" "$RSPROJ/hhhh8888.jsonl"
 fi
 
