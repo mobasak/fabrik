@@ -248,7 +248,9 @@ relaunched_file="$locks/.boot-relaunched"
 # skips only those repos, and Leg B reads their sids, so a lock dir pruned after the leg still skips them. boot=0
 # (no uptime) cannot be told apart from another boot, so it never skips. The PATH is LAST and compared whole (the
 # rest of the line after the second TAB), passed through ENVIRON, never `awk -v` (which rewrites backslash
-# escapes): any path --list prints — spaces, TABs, backslashes — round-trips (T04 H2). Sids hold no TAB.
+# escapes): any path --list prints — spaces, TABs, backslashes — round-trips (T04 H2). Sids hold no TAB. An exit-4
+# grid (some builder got no pane) appends `noroom<TAB><sids><TAB><path>` instead: never a latch, and a later rc 0 this
+# boot drops those sids from what it records, so a builder is relaunched only if it got a pane (review G1).
 boot_stamp="$state/.builders-boot"
 same_boot=0
 stamp_boot=$(head -n 1 "$boot_stamp" 2>/dev/null)
@@ -355,6 +357,16 @@ EOF_ALL
         timeout 300 bash "$agents_up" --detach "$repo" </dev/null >"$outf" 2>&1 9>&-
         rc=$?
         if [ "$rc" = "0" ]; then
+          # a sid is relaunched only if it has a pane (review G1): a later sweep this boot finds an exit-4 grid up
+          # and agents_up exits 0 "leaving it as it is" — the builders it gave no pane (this boot's `noroom` stamp
+          # lines) are dropped from what this branch records, so Leg B still notices them
+          if [ "$same_boot" = "1" ]; then
+            noroom=" $(awk -F '\t' '$1 == "noroom" {print $2}' "$boot_stamp" 2>/dev/null | tr '\n' ' ') "
+            kept=""
+            for s in $sids; do case "$noroom" in *" $s "*) ;; *) kept="$kept$s
+" ;; esac; done
+            sids="${kept%$'\n'}"
+          fi
           note "builder-grid" "repo=$repo rc=0 $(tail -n 1 "$outf" 2>/dev/null | cut -c1-200)"
           # the per-repo latch, only now that the grid launched (G6)
           printf 'repo\t%s\t%s\n' "$(printf '%s' "$sids" | tr '\n' ' ')" "$repo" >> "$boot_stamp" 2>/dev/null
@@ -374,6 +386,9 @@ EOF_ALL
 " ;; esac
           done
           [ -n "$skipped" ] || placed=""  # an unreadable skip list: record nothing, every session stays notifiable
+          # the skipped sids go in this boot's stamp as a `noroom` line (never a `repo` latch line), so a later
+          # sweep's rc 0 on the same grid does not record them relaunched (review G1)
+          [ -n "$skipped" ] && printf 'noroom\t%s\t%s\n' "$skipped_l" "$repo" >> "$boot_stamp" 2>/dev/null
           note "builder-grid-noroom" "repo=$repo rc=4 — no pane for ${skipped_l:-(unread)} — not latched, those sessions stay notifiable"
           if [ -n "$placed" ]; then
             printf '%s' "$placed" >> "$relaunched_file" 2>/dev/null

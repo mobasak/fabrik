@@ -1575,12 +1575,24 @@ DeprecationWarning: something else"
   R20 MESH_SWEEP_FRESH_WINDOW=999999999 MESH_UP_DETACH_RC=4 \
     MESH_UP_DETACH_ERR="agents_up: no room for a-1's pane (session iiii9999) — open it by hand: claude -n a-1"
   grep -q "verdict=builder-grid-noroom .*repo=$T/repoA rc=4 — no pane for iiii9999 " "$RLOG" && ok || bad "R27: an exit-4 grid was not noted builder-grid-noroom with its skipped sid | log: $(tail -4 "$RLOG")"
-  grep -q "iiii9999" "$RLOCKS/.boot-relaunched" "$RSTATE/.builders-boot" 2>/dev/null && bad "R27b: a builder with no pane was recorded relaunched: $(cat "$RLOCKS/.boot-relaunched" "$RSTATE/.builders-boot" 2>/dev/null)" || ok
+  # relaunched = the lock-dir list plus the stamp's `repo` lines (a `noroom` line records the skip, never a launch)
+  r27rel() { cat "$RLOCKS/.boot-relaunched" 2>/dev/null; grep '^repo' "$RSTATE/.builders-boot" 2>/dev/null; }
+  r27rel | grep -q "iiii9999" && bad "R27b: a builder with no pane was recorded relaunched: $(r27rel | tr '\n' '|')" || ok
+  grep -q "^noroom$(printf '\t')iiii9999$(printf '\t')" "$RSTATE/.builders-boot" && ok || bad "R27f: the skipped sid was not stamped noroom: $(tr '\n' '|' < "$RSTATE/.builders-boot")"
   grep -q "claude --resume iiii9999" "$RSNOTES" && ok || bad "R27c: the builder with no pane got no resume-by-hand notice: $(cat "$RSNOTES")"
   grep -qx "jjjj0000" "$RLOCKS/.boot-relaunched" 2>/dev/null && ! grep -q "jjjj0000" "$RSNOTES" && ok || bad "R27d: the builder that got its pane was not recorded relaunched, or was notified: $(cat "$RLOCKS/.boot-relaunched" 2>/dev/null) | $(cat "$RSNOTES")"
   : > "$MESH_UPLOG"
   R20 MESH_SWEEP_FRESH_WINDOW=999999999
   grep -qx -- "--detach $T/repoA" "$MESH_UPLOG" && ok || bad "R27e: an exit-4 repo was latched — a later sweep did not run it again: $(cat "$MESH_UPLOG")"
+  # R28 (review G1): that later sweep's --detach finds the grid up and exits 0 — the builder that never got a pane
+  # must still NOT be recorded relaunched (a sid is relaunched only if it has a pane), so Leg B notices it again
+  r27rel | grep -q "iiii9999" && bad "R28: the next sweep's rc 0 recorded the no-room builder relaunched: $(r27rel | tr '\n' '|')" || ok
+  r27rel | grep -q "jjjj0000" && ok || bad "R28c: the next sweep dropped the builder that has a pane: $(r27rel | tr '\n' '|')"
+  # both notice dedupes cleared (the sweep's notified-* and claude-sound.sh's own <lockdir>/<sid>.notified), so the
+  # third sweep shows what Leg B decides
+  : > "$RSNOTES"; : > "$RLOG"; rm -f "$RSTATE"/notified-* "$RLOCKS"/*.notified
+  R20 MESH_SWEEP_FRESH_WINDOW=999999999
+  grep -q "claude --resume iiii9999" "$RSNOTES" && ok || bad "R28b: the no-room builder was not noticed after the grid latched: $(cat "$RSNOTES") | log: $(tail -4 "$RLOG")"
   rm -f "$RSPROJ/jjjj0000.jsonl"; mkdir -p "$RLOCKS"; rm -f "$RSTATE/.builders-boot"
   rm -f "$RSPROJ/iiii9999.jsonl" "$RSPROJ/kkkk1111.jsonl" "$RSPROJ/hhhh8888.jsonl"
 else
