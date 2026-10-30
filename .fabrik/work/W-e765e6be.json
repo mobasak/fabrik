@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T17:32:48.712308Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-e765e6be",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M66XK1GP02PACPKF5P71ZREG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "rotate intel — intel (session 2e537aa3) is at an item boundary: no item held, no run record running, no seat in flight, worktree clean and pushed; context at 85%. The live SendMessage was held by your session (msg d101b452, likely a permission-mode mismatch after my bypassPermissions relaunch), so t"
+}

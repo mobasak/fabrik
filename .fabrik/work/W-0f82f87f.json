@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T17:33:03.947060Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-0f82f87f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M63A0CPH4EAEYC2WHDWEYYJ0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: Recopy scripts/merge_request.py (hub D-1328) — queued as W-bd6a49f1"
+}

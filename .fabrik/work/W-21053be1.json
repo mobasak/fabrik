@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T17:33:04.868391Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-21053be1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M63SZ0V1VV20TRDB90Z4FPDR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "DONE — merge_request.py recopied (D-1328 merge-test memory header)"
+}
