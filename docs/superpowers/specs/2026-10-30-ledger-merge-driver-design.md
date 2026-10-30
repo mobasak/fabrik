@@ -109,15 +109,15 @@ None. No data-contract, ui-design, spec `shape:` or CLI surface a project consum
   - The driver's stderr carries `invalid choice: 'merge-ledger'`, which proves the driver ran.
   - The merge leaves markers.
   - Plain git without the driver would leave markers too, so the stderr line is what makes this test red-able.
-- **Replay grader.** § Derivations D5 (a real `git merge` per merge, the driver registered, on a scratch clone at the plan's tip) over the same window, both sides: builder and owner. Expected: at least 58 builder merges cleared with no duplicated line, and Counter B reads 0 on the owner side. (Panel, Opus concern 4.) The builder who executes the plan runs it, and the plan records its output.
+- **Replay grader.** § Derivations D5 (a real `git merge` per builder merge, the driver registered, on a scratch clone at the plan's tip) over the same window. Expected: at least 58 builder merges cleared with no duplicated line. (Panel, Opus concern 4; review round 7, class rewrite.)
 - **Tripwire (the judges' shared dissent, named here).**
   - What it watches: insertions the driver failed to clear, which per-entry fragments would have cleared. That is a builder merge D5 leaves conflicted on a ledger while D3's single-base replica clears it (an edit of a landed line fails in both, and fragments cannot fix it either).
-  - Counter: D5's still-conflicted builder SHAs whose conflicted files are ledgers, minus the SHAs D3 prints with `a side edits an existing line`. Window: the 14 days after the driver lands, by commit date (`--since=<landing> --until=<landing + 14 days>`, both scripts take them), never by merge-record fields, which carry no wall-clock time.
+  - Counter: D5's still-conflicted builder SHAs whose conflicted files are ledgers, minus every SHA D3 prints. Window: the 14 days after the driver lands, by commit date (`--since=<landing> --until=<landing + 14 days>`, both scripts take them), never by merge-record fields, which carry no wall-clock time.
   - Threshold: more than 6, today's two-base residue (D5's 9 ledger-conflicted SHAs minus D3's 3), unless W-6614b62e has landed, when it is more than 0.
   - Edit-class residue is reported beside the counter and never re-opens fragments, which cannot prevent it (§ Why this exists 3).
   - Check date: 14 days after the driver lands. Owner: the coordinator, as merge owner.
   - A reading at or below the threshold confirms this shape. Above it re-opens the fragment design under § Rejected alternatives, with the merge SHAs named.
-  - Counter B (a driver regression, independent of fragments): merges in the window that are clean with no `merge.ledger.*` and conflict on a ledger with it. Threshold: any; a non-zero reading blocks and is fixed in the driver. (Panel, Opus concern 2.)
+  - Counter B (a driver regression, independent of fragments): merges in the window that are clean with no `merge.ledger.*` and conflict on a ledger with it, builder and owner. No derivation computes it today: the plan adds that pass to D5 (D5 now skips merges clean under plain git). Threshold: any; a non-zero reading blocks and is fixed in the driver. (Panel, Opus concern 2.)
   - A rebased branch leaves no merge commit, so neither counter sees it; the owner's refusal records stay the rebase-side signal and are read beside them.
 
 ## Decisions taken
