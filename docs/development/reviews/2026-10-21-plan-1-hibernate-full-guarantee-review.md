@@ -1,6 +1,6 @@
 # Review — 2026-10-21-plan-1-hibernate-full-guarantee
 
-**Status:** IN-PROGRESS
+**Status:** CONVERGED
 **Surface:** `git rev-parse HEAD` = f51f9c602f63250f7c5308394515f377b14e4850; range tip a4c2d97c818bacf21aafd7de1b5e74df7509a640; `git diff b10f48194..a4c2d97c818bacf21aafd7de1b5e74df7509a640 -- .claude/hooks/final_gate_stop.py .claude/hooks/quota_stop.py commands/_rules/hibernate.yaml commands/_sources/hibernate.md scripts/aro-wake/claude_rotate.py scripts/audit_all_registrars.py scripts/ci_fix_dispatcher.py scripts/cloud_dispatch.py scripts/command_run.py scripts/enforcement/check_mutation.py scripts/enforcement/check_secrets.py scripts/rivals_run.py scripts/sysadmin/agents_bat.py scripts/sysadmin/agents_up.sh scripts/sysadmin/claude_broker.py scripts/sysadmin/claude_rotate.py scripts/sysadmin/hibernate.py scripts/sysadmin/install_mesh.sh scripts/sysadmin/mesh/claude-mesh-test.sh scripts/sysadmin/mesh/claude-reboot-sweep.sh scripts/sysadmin/mesh/claude-selfwatch.sh scripts/sysadmin/quota_posture_hook.py scripts/sysadmin/weekly_catchup.sh scripts/wip_backup.sh tests/test_agents_bat.py tests/test_agents_up.py tests/test_check_mutation.py tests/test_check_secrets_shapes.py tests/test_claude_fleet.py tests/test_dispatchers_pause.py tests/test_final_gate_stop_hook.py tests/test_hibernate.py tests/test_hibernate_hold.py tests/test_hibernate_hooks.py tests/test_hub_write_root.py tests/test_install_mesh.py tests/test_launchers_pause.py tests/test_quota_posture.py tests/test_quota_stop_hook.py tests/test_registry_reconcile.py tests/test_rotate_session.py tests/test_wip_backup.py` md5 f56ef28aa37cecec8d0f3e6e925d41ff (560974 bytes)
 **Command:** /fabrik-review · **Changed:** `.claude/hooks/final_gate_stop.py`, `.claude/hooks/quota_stop.py`, `commands/_rules/hibernate.yaml`, `commands/_sources/hibernate.md`, `scripts/aro-wake/claude_rotate.py`, `scripts/audit_all_registrars.py`, `scripts/ci_fix_dispatcher.py`, `scripts/cloud_dispatch.py`, `scripts/command_run.py`, `scripts/enforcement/check_mutation.py`, `scripts/enforcement/check_secrets.py`, `scripts/rivals_run.py`, `scripts/sysadmin/agents_bat.py`, `scripts/sysadmin/agents_up.sh`, `scripts/sysadmin/claude_broker.py`, `scripts/sysadmin/claude_rotate.py`, `scripts/sysadmin/hibernate.py`, `scripts/sysadmin/install_mesh.sh`, `scripts/sysadmin/mesh/claude-mesh-test.sh`, `scripts/sysadmin/mesh/claude-reboot-sweep.sh`, `scripts/sysadmin/mesh/claude-selfwatch.sh`, `scripts/sysadmin/quota_posture_hook.py`, `scripts/sysadmin/weekly_catchup.sh`, `scripts/wip_backup.sh`, `tests/test_agents_bat.py`, `tests/test_agents_up.py`, `tests/test_check_mutation.py`, `tests/test_check_secrets_shapes.py`, `tests/test_claude_fleet.py`, `tests/test_dispatchers_pause.py`, `tests/test_final_gate_stop_hook.py`, `tests/test_hibernate.py`, `tests/test_hibernate_hold.py`, `tests/test_hibernate_hooks.py`, `tests/test_hub_write_root.py`, `tests/test_install_mesh.py`, `tests/test_launchers_pause.py`, `tests/test_quota_posture.py`, `tests/test_quota_stop_hook.py`, `tests/test_registry_reconcile.py`, `tests/test_rotate_session.py`, `tests/test_wip_backup.py`
 **Plan:** `docs/development/plans/2026-10-21-plan-1-hibernate-full-guarantee/2026-10-21-plan-1-hibernate-full-guarantee.md`
@@ -185,7 +185,7 @@ read it by model token (`opus×1`, `sonnet×2`) — a round the orchestrator alo
 
 | Pass | Finders | Counters | Method |
 |---|---|---|---|
-| Pass 1 | native fable×1 + sonnet×2 | found: 15, new: 15, confirmed: 12, fixed: 12, unexecuted: 0 | method: citation — three disjoint slices of the pin at a4c2d97c8 (A rotation lifts + Stop hook + run record + hold hooks; B pause marker + launchers; C mesh + sweep + relaunch); the orchestrator re-ran A-C1 and A-C2's probes on the seat copy and read every other candidate's code path (A-C3 led to the command text, which marks no deadline); the run record's round 1 reads `confirmed: 15` in error — 12 confirmed and 3 recorded is the adjudication; fixes routed as F1-F5 (T06 coder) and G1-G7 (T04 residue coder) |
+| Pass 1 | native fable×1 + sonnet×2 | found: 15, new: 15, confirmed: 12, fixed: 12, unexecuted: 0 | method: citation — three disjoint slices of the pin at a4c2d97c8 (A rotation lifts + Stop hook + run record + hold hooks; B pause marker + launchers; C mesh + sweep + relaunch); the orchestrator re-ran A-C1 and A-C2's probes on the seat copy and read every other candidate's code path (A-C3 led to the command text, which marks no deadline); the run record's round 1 counts all 15 as confirmed in error — 12 confirmed and 3 recorded is the adjudication; fixes routed as F1-F5 (T06 coder) and G1-G7 (T04 residue coder) |
 | Pass 2 | native fable×1 + sonnet×2 | found: 2, new: 2, confirmed: 1, fixed: 1, unexecuted: 0 | method: re-derivation — the round-1 seats over their own slices on tip 82e8ae780 (fix diff md5 9f998fe2): every round-1 candidate re-probed CLOSED (A-fable probes P1, P1b, P4, P7 and red-on-old runs; B-sonnet probe1.py and mut.py; C-sonnet mesh-test 270 ok and the exit-4 spawn tests red-on-old); N1 (`paused` exit 2 on an unresolvable home) confirmed by reading `hibernate.py:1336-1341` against its own docstring, fixed as 3d62dbfa5; N2 recorded |
 | Pass 3 | native sonnet×1 | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0 | method: re-derivation — the slice-B seat over fix3.diff on tip 9a2679f70: N1 CLOSED (test_k1 red on the pass-2 pin, green on the pass-3 pin; probe3.py `paused` rc 0 and `woke` rc 2 with no passwd entry); fail-open-launchers re-swept CLEAN; slices A (5/5) and C (3/3) standing verified from pass 2, every class clean (run record round 4, TERMINAL VERDICT); O1 recorded |
 
@@ -245,8 +245,25 @@ plan's hold, hook, pause, mesh and rules files in the T06 gate run below.
 `Status: IN-PROGRESS`, paste it here, flip to CONVERGED, re-run and paste that run in place of the first:
 
 ```json
-UNCHECKED — the IN-PROGRESS gate run goes here first, then the post-flip run replaces it
+{
+  "status": "success",
+  "tier": 2,
+  "passed": 67,
+  "failed": 0,
+  "skipped": 3,
+  "skipped_checks": [
+    "semgrep",
+    "pytest",
+    "sqlfluff"
+  ],
 ```
+
+(head of the run under `/opt/fabrik/.venv/bin/python` on 624511860; the same run under the system `python3` had
+read mypy's `requests` stubs as missing — they are installed in the venv, an interpreter difference, not this
+plan's code. Plan gate tests on the accepted branch: 1002 passed across the hold, hook, pause, mesh, spawn and
+rules files and `test_bot_rotation_wire.py`; `tests/test_claude_fleet.py -k "resume or battery or hibernate or
+stamp"` 59 passed; mesh-test 270 ok, 0 fail. `check_plan_tickets.py` at full severity reports T02, T04 and T05 over
+the READ budget measured against today's grown files — executed tickets, recorded, not re-split.)
 
 A red caused only by another lane's work is pasted as is, with ONE line beside it (`/fabrik-review` § Reporting):
 `GATE-SCOPE: out-of-surface — <failing check>; findings naming this surface: 0 of <N>; measured by: <command>`,
