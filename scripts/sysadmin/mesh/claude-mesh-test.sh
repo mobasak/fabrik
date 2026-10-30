@@ -578,6 +578,42 @@ EOF
   [ "$(grep -c '^RESUME: the fleet-quota hold LIFTED at ' "$T/w10i.out")" = "1" ] && ok || bad "W10i: an empty lift that stayed empty was never consumed as one quota wake ($w10i_n probes): $(cat "$T/w10i.out")"
   [ ! -f "$LOCKS/sW10i.holdlifted" ] && [ ! -f "$LOCKS/sW10i.holdlifted.claimed" ] && ok || bad "W10i: the empty lift (or its claim) was left behind"
   [ "$w10i_n" -le 8 ] && ok || bad "W10i: the empty lift took $w10i_n probes (bounded wait: MESH_UP_STREAK + a few)"
+  # W10j (T04 H1): the empty-wait clock describes only a file that has STAYED empty. An empty lift (clock starts),
+  # rewritten to `<epoch> hibernate` during a one-probe gate (a non-empty claim that re-gates), then emptied again
+  # during the 4-probe gate: the second empty lift must get its own MESH_EMPTY_WAIT — put back at least once, so
+  # more probes follow the empty write — never consumed at once on the first empty's stale clock. The curl stub
+  # acts per probe from a script: '-' nothing, 'H' write hibernate, 'E' truncate to empty.
+  mkdir -p "$T/w10jshim"
+  cat > "$T/w10jshim/curl" <<'EOF'
+#!/usr/bin/env bash
+n=$(cat "$W10J_COUNT" 2>/dev/null || echo 0); n=$(( n + 1 )); echo "$n" > "$W10J_COUNT"
+act=$(head -n 1 "$W10J_SEQ" 2>/dev/null); sed -i '1d' "$W10J_SEQ" 2>/dev/null
+case "$act" in
+  H) printf '%s hibernate\n' "$(( $(date +%s) - 300 ))" > "$W10J_LIFT" ;;
+  E) : > "$W10J_LIFT"; echo "$n" > "$W10J_EMPTIED_AT" ;;
+esac
+exit 0
+EOF
+  chmod +x "$T/w10jshim/curl"
+  [ -x "$T/w10jshim/curl" ] && ok || bad "W10j: the curl stub is not executable — the probe would reach the real curl"
+  : > "$T/w10j.count"; rm -f "$T/w10j.out" "$T/w10j.emptied"
+  printf -- '-\nH\n-\n-\n-\nE\n' > "$T/w10j.seq"   # 1: empty claim · 2: →hibernate · 3-6: the 4-probe gate, 6 empties it
+  env HOME="$SBHOME" PATH="$T/w10jshim:$SHIM:/usr/bin:/bin" CLAUDE_SOUND_MEDIA="$T/nomedia" \
+      CLAUDE_SOUND_PULSE="$T/nopulse" CLAUDE_SOUND_LOCKDIR="$LOCKS" ROTATE_STATE_DIR="$HSTATE" \
+      W10J_COUNT="$T/w10j.count" W10J_SEQ="$T/w10j.seq" W10J_LIFT="$LOCKS/sW10j.holdlifted" \
+      W10J_EMPTIED_AT="$T/w10j.emptied" MESH_EMPTY_WAIT=3 \
+      MESH_JITTER_MAX=0 MESH_BACKOFF_OVERRIDE=0 MESH_POLL=1 MESH_UP_STREAK=4 \
+      timeout 40 bash "$SBHOME/.claude/bin/claude-selfwatch.sh" sW10j > "$T/w10j.out" &
+  w10jpid=$!
+  sleep 2; : > "$LOCKS/sW10j.holdlifted"
+  for _ in $(seq 1 20); do grep -q '^RESUME:' "$T/w10j.out" && break; sleep 1; done
+  sleep 1
+  kill "$w10jpid" 2>/dev/null; wait "$w10jpid" 2>/dev/null
+  w10j_n=$(cat "$T/w10j.count" 2>/dev/null); w10j_n=${w10j_n:-0}
+  w10j_e=$(cat "$T/w10j.emptied" 2>/dev/null); w10j_e=${w10j_e:-0}
+  [ "$w10j_e" -gt 0 ] && ok || bad "W10j: the staged sequence never reached its empty write ($w10j_n probes): $(cat "$T/w10j.out")"
+  [ "$w10j_n" -gt "$w10j_e" ] && ok || bad "W10j: the second empty lift was consumed with no put-back (probe $w10j_e emptied it, $w10j_n probes in all) — the first empty's clock leaked"
+  [ "$(grep -c '^RESUME: the fleet-quota hold LIFTED at ' "$T/w10j.out")" = "1" ] && ok || bad "W10j: the emptied lift was not consumed as one quota wake: $(cat "$T/w10j.out")"
   # W11 (2026-09-07, heavy review R1): a watch whose LOCK FILE vanishes (the Stop decider's 2h mtime
   # prune, or a manual rm) must EXIT with one line — an orphan holding a deleted inode is invisible
   # to the tick's armed census and steals the next death marker from the re-armed watch.
@@ -1481,6 +1517,23 @@ STUB
   grep -q '^--detach ' "$MESH_UPLOG" && bad "R25b: a launched repo was launched again this boot: $(cat "$MESH_UPLOG")" || ok
   grep -q "verdict=builders-already-this-boot" "$RLOG" && ok || bad "R25c: no builders-already-this-boot note on the third sweep | log: $(tail -4 "$RLOG")"
   mkdir -p "$RLOCKS"; rm -f "$RSTATE/.builders-boot"
+  # R26 (T04 H2): every path --list can print round-trips through the stamp — a repo path holding a TAB or a
+  # backslash latches like any other (a second sweep this boot runs no --detach for either), and Leg B reads that
+  # repo's sids exactly (the second sweep runs with the lock dir PRUNED, so only the stamp says tttt1111 relaunched)
+  R26TAB="$T/t$(printf '\t')ab"; R26BS="$T/back\\slash"
+  mkdir -p "$R26TAB" "$R26BS"
+  printf 'session t\npane t-1 tttt1111 /x launch\n' > "$R26TAB/panes"
+  printf 'session b\npane b-1 bbbb3333 /x launch\n' > "$R26BS/panes"
+  printf '%s\n%s\n' "$R26TAB" "$R26BS" > "$T/bat-list.r20"
+  cp "$RSTALL" "$RSPROJ/tttt1111.jsonl"; touch -d "@$(( RSBOOT - 1 ))" "$RSPROJ/tttt1111.jsonl"
+  : > "$RLOG"; : > "$MESH_UPLOG"; rm -rf "$RLOCKS"; rm -f "$RSTATE"/notified-* "$RSTATE/.builders-boot"
+  R20 MESH_SWEEP_FRESH_WINDOW=999999999
+  [ "$(grep -c '^--detach ' "$MESH_UPLOG")" = "2" ] && ok || bad "R26-pre: the first sweep did not launch both odd-path grids: $(cat "$MESH_UPLOG")"
+  : > "$RLOG"; : > "$MESH_UPLOG"; : > "$RSNOTES"; rm -rf "$RLOCKS"; rm -f "$RSTATE"/notified-*
+  R20 MESH_SWEEP_FRESH_WINDOW=999999999
+  grep -q '^--detach ' "$MESH_UPLOG" && bad "R26: a TAB or backslash repo path did not latch — re-launched: $(cat "$MESH_UPLOG")" || ok
+  grep -q "tttt1111" "$RSNOTES" && bad "R26b: Leg B lost the TAB-path repo's sids from the stamp (notified): $(cat "$RSNOTES")" || ok
+  rm -f "$RSPROJ/tttt1111.jsonl"; mkdir -p "$RLOCKS"; rm -f "$RSTATE/.builders-boot"
   rm -f "$RSPROJ/iiii9999.jsonl" "$RSPROJ/kkkk1111.jsonl" "$RSPROJ/hhhh8888.jsonl"
 fi
 
