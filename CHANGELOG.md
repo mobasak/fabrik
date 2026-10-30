@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — agents_up launches every pane with --permission-mode bypassPermissions (2026-10-30)
+Every claude command `scripts/sysadmin/agents_up.sh` builds (grid start, `--pane-cmd`, the spawn and rotate `--move`
+`--session-id` launches, and the "already running" and "exited — run:" hint lines) now passes
+`--permission-mode bypassPermissions`, per the operator's 2026-10-30 ruling; a `--resume` keeps the saved mode, so
+relaunches came back in auto (D-1375, W-b9b6472e). A grader holds every launch shape in `cmd_of` to the flag; the
+rollout and session-history docs name it.
+
 ### Added — /hibernate holds itself at T-3 and lifts itself after the wake (2026-10-30)
 The minute cron (`claude_rotate.py --battery-tick`, a new crontab line the operator installs) writes its heartbeat and,
 at T-3 of an unlifted `/hibernate --deadline` mark, makes the fleet-exhausted stamp the `hibernate` tier, judging a

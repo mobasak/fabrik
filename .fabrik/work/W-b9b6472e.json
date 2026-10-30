@@ -3,7 +3,7 @@
   "created": "2026-10-30T17:26:47.739299Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "5bd75e67c2b591d799523a3b946af0b4ef60cc86",
   "id": "W-b9b6472e",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra-3",
   "priority": 0,
   "score_reason": "operator ruling: all agents, existing and future, bypass mode; without the flag every relaunch falls back to auto",
-  "status": "open",
+  "status": "done",
   "title": "agents_up.sh must launch every pane with --permission-mode bypassPermissions (operator ruling 2026-10-30: all commands, all agents, existing and future). A --resume keeps the session's saved mode and ignores settings defaultMode, so today's relaunch via agents_up stayed in auto; the coordinator had to relaunch the 6 hub panes by hand with the flag. Covers the grid start, --pane-cmd, rotate-session respawns and the exit-hint line"
 }

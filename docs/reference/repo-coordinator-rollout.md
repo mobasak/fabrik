@@ -192,9 +192,10 @@ Each phase lands through the repo's own gate and review. Heavy steps wait for GR
     operator.
 14. Optional, not used by the hub: deny the AskUserQuestion tool in the builders' worktree settings (the same file
     as step 11, written the same way).
-15. Sessions launch with `CLAUDE_CONFIG_DIR=$HOME/.claude-fleet/active`, which runs every session in auto mode; the
-    launcher sets it. Each agent reports any permission prompt it still hits, and the fix is an allow entry in the
-    repo's `.claude/settings.json`.
+15. Sessions launch with `CLAUDE_CONFIG_DIR=$HOME/.claude-fleet/active` and `--permission-mode bypassPermissions`
+    (operator ruling 2026-10-30: every agent runs in bypassPermissions); the launcher sets both, and the flag is passed
+    on every launch because a `--resume` keeps the session's saved mode. Each agent reports any permission prompt it
+    still hits to its coordinator.
 16. No Workflow tool (D-961).
 
 ### 5 — The first coordinator run
@@ -317,7 +318,7 @@ absent or still being built, and with no window `agents-<k>` says so and attache
   bound in the repo's git scope in the identity store (W-89474fc1). The coordinator gets no pane: a name `coordinator`
   or `*-coordinator`, or the repo's declared merge owner (`decisions.py --merge-owner`); a ledger that cannot be read
   refuses the launch.
-- Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --resume <session id> "<wake prompt>"` (the prompt is the
+- Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --permission-mode bypassPermissions --resume <session id> "<wake prompt>"` (the prompt is the
   session's first turn: re-arm the self-watch, run `hibernate.py woke --self <id>`, resume from the seed only on exit 0,
   carry on as usual on exit 1, and on exit 2 — it cannot tell — stay paused and tell the coordinator) with `CLAUDE_CODE_RETRY_WATCHDOG=1` in its environment and `oom_score_adj` 200, ONLY in a linked
   git worktree in place under `.claude/worktrees/` (it holds a `.git` file, and no part of its path is a symlink): the
