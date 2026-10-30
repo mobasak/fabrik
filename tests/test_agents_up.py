@@ -1667,14 +1667,27 @@ def test_every_claude_command_cmd_of_builds_carries_the_permission_mode() -> Non
     """W-b9b6472e (operator ruling 2026-10-30: every agent runs in bypassPermissions): a `--resume` keeps the saved
     mode, so EVERY `claude -n` the pane builder writes — each launch branch and each printed relaunch line — names
     `$perm`, and `$perm` is the one value. The routes (grid start, --pane-cmd, the spawn and --move launches) all go
-    through `cmd_of`; the behaviour tests above execute three of them, this one stops a future branch dropping it."""
+    through `cmd_of`; the behaviour tests above execute three of them, this one stops a future branch dropping it.
+    It reads the CODE lines only (comments stripped) and is keyed on the shapes a launch takes there — a `claude=`
+    assignment (any spelling of the command after it) and a printed `run: claude` hint — never on one `-n` spelling,
+    so `${perm}`, a reordered flag or a comment naming `claude -n` stays green, and a new branch spelled
+    `claude --name …` or `command claude …` without the mode goes red (review pass 1, all three seats)."""
     text = UP.read_text(encoding="utf-8")
     body = text[text.index("cmd_of() {") : text.index("\ncap_of() {")]
-    assert 'local perm="--permission-mode bypassPermissions"' in body, body[:400]
-    launches = re.findall(r"claude -n \$1[^\"\n]*", body)
-    assert len(launches) >= 5, launches  # 3 launch branches + the running and exited hints
-    assert all(ln.startswith("claude -n $1 $perm ") for ln in launches), launches
-    assert body.count("claude -n") == len(launches), body
+    code = "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("#"))
+    mode = re.compile(r"\$\{?perm\}?(?![A-Za-z0-9_])")
+    # one value, assigned once: a second assignment (or a conditional one) could switch every launch back
+    assigns = re.findall(r"^\s*(?:local\s+(?:-\w+\s+)?)?perm=(.*)$", code, flags=re.M)
+    assert len(assigns) == 1, assigns
+    assert assigns[0].strip("'\" ") == "--permission-mode bypassPermissions", assigns
+    # no other permission mode anywhere in the builder's code
+    assert code.count("--permission-mode") == 1, code
+    # every launch assignment and every printed relaunch line names the mode; an array form is refused outright
+    assert not re.search(r"^\s*(?:local\s+)?claude=\(", code, flags=re.M), "claude=( array launch"
+    launches = re.findall(r"^\s*claude=(\"[^\n]*)$", code, flags=re.M)
+    hints = re.findall(r"run: claude[^\n]*", code)
+    assert len(launches) >= 3 and len(hints) >= 2, (launches, hints)  # 3 launch branches + 2 hints
+    assert all(mode.search(ln) for ln in launches + hints), launches + hints
 
 
 def test_an_up_grid_with_no_readable_root_is_attached_on_a_real_server(tmp_path: Path) -> None:

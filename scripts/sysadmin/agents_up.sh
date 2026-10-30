@@ -55,8 +55,8 @@
 # Every claude call carries --settings '{"skillOverrides":{"auto-mode-setup":"off"},"spinnerTipsEnabled":false}' and every pane's
 # env CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY=1: no "Teach auto mode" dialog, no spinner tips, no survey (probed live on
 # claude 2.1.312; spec D3). A spawner-bound session (T01's `whoami_agent.py --spawned` row, `spawned: true`) with no
-# transcript in ANY project folder launches `claude -n <name> --session-id <sid> --settings … "<first prompt>"` instead
-# of --resume (the resolver's 4th field). `agents_up.sh --pane-cmd <repo> <name> <sid> [--new] [--coordinator <name>]
+# transcript in ANY project folder launches `claude -n <name> --permission-mode bypassPermissions --session-id <sid> --settings … "<first prompt>"`
+# instead of --resume (the resolver's 4th field). `agents_up.sh --pane-cmd <repo> <name> <sid> [--new] [--coordinator <name>]
 # [--item <W-id>]` prints that one pane command (the same cmd_of the grid runs) and launches nothing; its form `--pane-cmd
 # <repo> <name> <sid> --into <folder> --from <old sid> --replacing <pid>` prints the FRESH `--session-id` launch
 # `rotate-session --move` respawns a builder's pane with, in the worktree it works in (W-e38f8ee7); FABRIK_SPAWN_NAME /

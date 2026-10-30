@@ -223,7 +223,7 @@ resolver no longer gives the agent that session, when the new id is known or has
 coordinator's or another builder's tree, or when another `claude -n <agent>` already runs there. It then runs every
 check, reads the input box and the transcript twice 2 s apart (a `respawn-pane -k` kills a running turn, where a
 /clear typed into one only queues), and runs `tmux respawn-pane -k -c <folder>` with that command: the pane keeps its
-id and `@agent` tag, and a FRESH `claude -n <agent> --session-id <new id>` starts there with the move prompt as its
+id and `@agent` tag, and a FRESH `claude -n <agent> --permission-mode bypassPermissions --session-id <new id>` starts there with the move prompt as its
 first turn — the resume prompt above, prefixed with where it now starts — so no key is typed. The old claude (that pid
 and start time, a zombie counting as exited) gets 10 s to exit, then SIGTERM and 5 s, then SIGKILL and 2 s (`old_exit:
 gone|term|kill|survived`; its detached children are not reaped). A respawn whose tmux call fails or times out rows
