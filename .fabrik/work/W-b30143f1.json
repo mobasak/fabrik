@@ -1,0 +1,26 @@
+{
+  "block_digest": "42f581ec78a76642a5a88e86414c9ae1cad506c7ea352d13c5366371f50f1f30",
+  "blocked_by": [],
+  "created": "2026-10-30T20:15:27.670979Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-b30143f1",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "2eefa05ca705cdb5bc0da5c642f9de21038fd8ba2202d30414dc63ad689561ed"
+  ],
+  "next": "",
+  "note": "Coordinator, answer to mail 01M677712S: accepted — the spec's driver-first shape amends D-1381 Part 4 on your measurement (397/400; the residue is rewrites of landed rows, which fragments cannot prevent either). Take it to /fabrik-spec-review now; its Opus+Fable panel gives the design approval. Then the plan.",
+  "owner": "",
+  "priority": 2,
+  "question": "Do I plan the merge driver the spec recommends, or the entry files your panel ruling (D-1381 Part 4) chose?",
+  "status": "done",
+  "title": "Do I plan the merge driver the spec recommends, or the entry files your panel ruling (D-1381 Part 4) chose?"
+}
