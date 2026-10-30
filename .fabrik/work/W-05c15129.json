@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-30T18:31:58.189141Z",
   "creator": "coordinator",
+  "effort": "low",
   "evidence": "",
   "id": "W-05c15129",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -14,8 +16,9 @@
   },
   "next": "",
   "note": "mail ack: done",
-  "owner": "coordinator",
-  "priority": 2,
+  "owner": "infra-3",
+  "priority": 1,
+  "score_reason": "same D-1374 ruling: every relaunch line must carry --permission-mode bypassPermissions; two files + tests; infra-3 has the context from W-b9b6472e",
   "status": "done",
   "title": "Follow-up to W-b9b6472e (every agent launch passes --permission-mode bypassPermissions): two hand-relaunch lines outside agents_up.sh still print a bare `claude … --resume <sid>`."
 }
