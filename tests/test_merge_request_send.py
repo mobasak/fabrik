@@ -668,7 +668,7 @@ def test_a_branch_past_the_behind_limit_refuses_with_the_merge_command_and_write
     assert r.returncode == 1, r.stdout + r.stderr
     assert f"{_load().MAX_BEHIND + 1} commits behind origin/master" in r.stderr
     assert "`git fetch origin master`" in r.stderr
-    assert "`git merge origin/master`" in r.stderr
+    assert "`git merge FETCH_HEAD`" in r.stderr
     assert "never a rebase" in r.stderr
     assert world.inbox() == []
 
@@ -697,4 +697,27 @@ def test_an_unfetched_base_tip_is_fetched_then_counted(world):
     r = world.run()
     assert r.returncode == 1, r.stdout + r.stderr
     assert f"{_load().MAX_BEHIND + 1} commits behind origin/master" in r.stderr
+    assert world.inbox() == []
+
+
+@pytest.mark.parametrize("how", ["fetch-fails", "fetch-times-out"])
+def test_a_base_tip_that_cannot_be_fetched_refuses_and_writes_no_mail(
+    world, monkeypatch, capsys, how
+):
+    """Fail closed: a tip the request cannot fetch is never counted as 0 behind."""
+    other = world.tmp / "other"
+    _git(world.tmp, world.env, "clone", "-q", str(world.remote), str(other))
+    _advance_base(world, other, 1)
+    world.push()
+
+    def hook(mod, argv, call):
+        if argv[:2] == ["git", "fetch"]:
+            if how == "fetch-times-out":
+                raise mod.TimedOutError("git fetch -q timed out after 60s")
+            return subprocess.CompletedProcess(argv, 1, "", "fatal: boom")
+        return call()
+
+    rc, out = _inproc(world, monkeypatch, capsys, hook)
+    assert rc == 1, out.err
+    assert ("fatal: boom" if how == "fetch-fails" else "`git fetch origin master` yourself") in out.err
     assert world.inbox() == []

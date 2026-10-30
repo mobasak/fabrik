@@ -33,7 +33,8 @@ and each failure refuses with exit 1:
     --branch``, is absent from the remote, or IS the branch;
   * the branch is more than ``MAX_BEHIND`` (500) commits behind the base's REMOTE tip (W-527c1ce0,
     D-1381) — the tip is fetched once when this clone lacks it, and the refusal prints the
-    ``git fetch`` and ``git merge <remote>/<base>`` to run (never a rebase: the branch is pushed);
+    ``git fetch <remote> <base>`` and ``git merge FETCH_HEAD`` to run (never a rebase: the branch
+    is pushed; FETCH_HEAD works whatever the clone's fetch refspec tracks);
   * the repo has no ``docs/DECISIONS.md`` or the owner resolver
     (``python3 /opt/fabrik/scripts/decisions.py --merge-owner <main checkout>``, overridable with
     ``$FABRIK_DECISIONS_PY``) answers UNDECLARED (exit 3) — with the ``docs_updater.py --adopt``
@@ -337,12 +338,17 @@ def _check_behind(cwd: Path, remote: str, base: str, tip: str) -> None:
     present = _run(["git", "cat-file", "-e", f"{tip}^{{commit}}"], GIT_TIMEOUT_S, cwd=cwd)
     if present.returncode != 0:
         env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
-        res = _run(
-            ["git", "fetch", "-q", "--no-tags", remote, HEADS + base],
-            REMOTE_TIMEOUT_S,
-            cwd=cwd,
-            env=env,
-        )
+        try:
+            res = _run(
+                ["git", "fetch", "-q", "--no-tags", remote, HEADS + base],
+                REMOTE_TIMEOUT_S,
+                cwd=cwd,
+                env=env,
+            )
+        except TimedOutError as exc:
+            raise RefusedError(
+                f"{exc} — run `git fetch {remote} {base}` yourself, then request again"
+            ) from None
         if res.returncode != 0:
             raise RefusedError(
                 f"cannot fetch {remote} {base} to count how far behind it this branch is: "
@@ -358,7 +364,7 @@ def _check_behind(cwd: Path, remote: str, base: str, tip: str) -> None:
     if behind > MAX_BEHIND:
         raise RefusedError(
             f"this branch is {behind} commits behind {remote}/{base} (the limit is {MAX_BEHIND}) "
-            f"— run `git fetch {remote} {base}`, then `git merge {remote}/{base}`, resolve, push, "
+            f"— run `git fetch {remote} {base}`, then `git merge FETCH_HEAD`, resolve, push, "
             "then run `merge_request.py request` again — never a rebase: the branch is already "
             "pushed. Merge the base at every item boundary and this never fires"
         )
@@ -495,10 +501,11 @@ def request(args: argparse.Namespace) -> int:
     base = _resolve_base(cwd, args.base, config, remote, refs, remote_head)
     if base == branch:
         raise RefusedError(f"branch {branch!r} IS the base — nothing to merge")
-    _check_behind(cwd, remote, base, refs[HEADS + base])
     owner = _merge_owner(main)
     if _norm(owner) == _norm(caller):
         raise RefusedError(f"{caller} is the merge owner — the owner merges, it does not request")
+    # after the owner checks, so an undeclared repo gets its adopt hint before any fetch
+    _check_behind(cwd, remote, base, refs[HEADS + base])
     raw_dist = config.get("distributor")
     distributor = raw_dist.strip() if isinstance(raw_dist, str) else ""
     copy = bool(distributor) and _norm(distributor) not in (_norm(owner), _norm(caller))

@@ -274,10 +274,10 @@ Every "fix X" / "handle Y" request runs this sequence — each verb CHECKABLE, n
    record or review receipt> [--item <W-id>]` and send the `SendMessage` lines it prints — a pushed branch without a
    request is unfinished, the merge owner merges it, and on exit 4 (a partial send) never re-run it; in a repo with
    no declared merge owner it refuses with the adopt command, so this duty reads as advice there.
-   **Builders merge the base at every item boundary:** in a linked worktree, before you claim the next item,
-   run `git fetch <remote> <base>` then `git merge <remote>/<base>` (never a rebase — the branch is pushed) and
-   push; `merge_request.py request` refuses a branch more than 500 commits behind its base and prints both
-   commands.
+   **Builders merge the base at every item boundary:** in a linked worktree, before you claim the next item and
+   before every request, run `git fetch <remote> <base>` then `git merge FETCH_HEAD` (never a rebase — the branch
+   is pushed) and push — a request still pending when you push is re-sent, never retried; `merge_request.py
+   request` refuses a branch more than 500 commits behind its base and prints both commands.
    **Ad-hoc
    branch/worktree work** (non-plan, in the MAIN checkout only — a worktree agent never merges, it requests): unless
    the operator named the disposition this turn, the DEFAULT is merge to base locally **then push base**; PRESENT only the
