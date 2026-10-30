@@ -1,4 +1,4 @@
- ¦ Run this project's release path — the bridge from "gate-green code" to the human Gate 2 (R14: deploy/submit approval is the operator's, always)
+ ¦ Run this project's release path, the bridge from gate-green code to Gate 2 (R14, D-1110: deploy/submit approval is the operator's, always)
  ¦ This command verifies and prepares; it never ships: no `fabrik apply`, no `eas submit --auto`, no Web Store "Submit for Review" click, no store credential use
 ## ⚠️ Termination contract ¦ ## ⚠️ Termination contract
 ## ⚠️ Termination contract ¦ You are done when EVERY item of the surface's checklist below has a verdict — PASS (with evidence: a `path:line` or a fenced command output) or BLOCKED (what's missing, where you searched) — and you have printed the Gate-2 handoff block
@@ -78,10 +78,10 @@
 ## Version cut (at the READY verdict — before Gate 2) ¦ Surfaces with an artifact-embedded version reconcile, never fork: extension (`manifest.json` version) and mobile (app version / EAS) pass it explicitly — `--execute --version <that version>` — so the tag, the Release, and the store artifact carry ONE identity; the checklist's own "version bumped" item is the source
 ## Version cut (at the READY verdict — before Gate 2) ¦ VPS surfaces derive from the changelog
 ## Version cut (at the READY verdict — before Gate 2) ¦ A BLOCKED checklist = no cut — versions are only ever cut on a fully-PASS verdict
-## Version cut (at the READY verdict — before Gate 2) ¦ The cut is the version act; deploy stays Gate 2 (the tag names what the operator's `fabrik apply` will ship — record `vX.Y.Z` in the handoff line)
+## Version cut (at the READY verdict — before Gate 2) ¦ Deploy stays Gate 2 (the tag names what the Gate-2-approved `fabrik apply` will ship): record `vX.Y.Z` in the handoff line
 ## Output (always, last thing) ¦ ## Output (always, last thing)
-## Output (always, last thing) ¦ RELEASE SURFACE: <vps|mobile|extension|desktop> ⏎ CHECKLIST: <n> PASS / <n> BLOCKED (each with evidence above) ⏎ VERSION: v<X.Y.Z> cut (tag + GitHub Release) | v<X.Y.Z> cut (tag only — gh unavailable) | not cut (<why>) ⏎ ARTIFACT: <SHA · zip/build path | n/a (vps: deploy from remote)> ⏎ GATE 2 → OPERATOR: <the one action only the human takes>
-## Output (always, last thing) ¦ On a fully-PASS verdict, end the turn with the block below, written as plain lines, not inside a code fence:
-## Output (always, last thing) ¦ DECISION NEEDED (ground: gate) ⏎ - Question: Do you approve <the one action from GATE 2 → OPERATOR above>? ⏎ - Why it is yours: Gate 2 — no agent deploys, submits, or ships an artifact to users; that act is always the operator's. ⏎ - Options: A — approve, and the printed hand-off action runs (VPS: dispatch /fabrik-deploy-plan · store: submit) · B — hold, and name what must change first. ⏎ - Recommendation: A, once every CHECKLIST row above is PASS-with-evidence.
-## Output (always, last thing) ¦ Next command: Gate 2 — human approval; VPS: /fabrik-deploy-plan (the deploy triad)
+## Output (always, last thing) ¦ RELEASE SURFACE: <vps|mobile|extension|desktop> ⏎ CHECKLIST: <n> PASS / <n> BLOCKED (each with evidence above) ⏎ VERSION: v<X.Y.Z> cut (tag + GitHub Release) | v<X.Y.Z> cut (tag only — gh unavailable) | not cut (<why>) ⏎ ARTIFACT: <SHA · zip/build path | n/a (vps: deploy from remote)> ⏎ GATE 2 → <the one action the gate approves: VPS — the panel at /fabrik-deploy-plan-review · stores — the operator's submit>
+## Output (always, last thing) ¦ On a fully-PASS verdict on a store surface, end the turn with the block below, written as plain lines, not inside a code fence:
+## Output (always, last thing) ¦ DECISION NEEDED (ground: gate) ⏎ - Question: Do you approve <the store submit from GATE 2 above>? ⏎ - Why it is yours: Gate 2 — operator-kept: public — a store submit ships the artifact to users. ⏎ - Options: A — approve, and you submit the store artifact · B — hold, and name what must change first. ⏎ - Recommendation: A, once every CHECKLIST row above is PASS-with-evidence.
+## Output (always, last thing) ¦ Next command: Gate 2 (human approval, D-1110); VPS: /fabrik-deploy-plan (the deploy triad)
 ## Output (always, last thing) ¦ Stores: operator submits, then /fabrik-deploy-verify

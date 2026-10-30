@@ -1,6 +1,6 @@
 command: fabrik-deploy
 baseline_sentences: fabrik-deploy.baseline.txt
-baseline_sha256: ee907e6e37ec27ba3867de198bdad42670ee248911ca953caa36fa9d51d9032c
+baseline_sha256: 0ad3041c6ba8a82aaf5bcc5b58df5a6bc7b973ea3e9c24b3a3faadeaa71a1d9b
 entries:
 - id: cu-L1
   baseline: Execute this service's converged deployment plan — the runbook IS the authority; this command carries it out and proves each step, it does not redesign mid-flight
@@ -82,10 +82,12 @@ entries:
   - 'never a reason to stop: the harness auto-compacts and the run continues'
   - keep going
 - id: cu-L16
-  baseline: Operator dispatch (Gate 2). This command runs ONLY when the operator explicitly dispatched it THIS turn
+  baseline: 'Gate 2 go. Runs ONLY on a Gate 2 go THIS turn: the operator''s explicit dispatch, or, for a deploy to our own VPS whose runbook has a backup and a rollback and whose target is not customer-facing, the Opus + Fable panel''s agreeing go — the `PANEL APPROVED (<plan path>)` brief and its `Panel: … → both-approve` line in `/fabrik-deploy-plan-review`''s close, after the coordinator validated both reports against the runbook (backup, rollback) and the target (D-1110) — never self-triggered, never auto-chained from the plan review, never run "since the plan converged anyway"; arriving any other way, stop and hand the decision back'
   class: ban
   text:
-  - 2). Runs ONLY when the operator explicitly dispatched it THIS turn
+  - 'Gate 2 go. Runs ONLY on a Gate 2 go THIS turn: the operator''s explicit dispatch, or, for a deploy to our own VPS whose runbook has a backup and a rollback and whose target is not customer-facing, the Opus + Fable panel''s agreeing go — the `PANEL APPROVED (<plan path>)` brief and its `Panel: … → both-approve` line in `/fabrik-deploy-plan-review`''s close, after the coordinator validated both reports against the runbook (backup, rollback) and the target (D-1110) — never self-triggered, never auto-chained from the plan review, never run "since the plan converged anyway"; arriving any other way, stop and hand the decision back'
+  changed-by:
+  - D-1371
 - id: cu-L17
   baseline: It is never self-triggered, never auto-chained from the plan review, never run "since the plan converged anyway"
   class: ban
@@ -175,11 +177,14 @@ entries:
   text:
   - 'Store surfaces: the plan''s build SHA is on the service repo''s remote)'
 - id: cu-L33
-  baseline: 'And the parity contract is FROZEN (VPS surfaces) — this command is operator-dispatched and can run without `/fabrik-release` having run, so it reads the gate itself: `scripts/verify_prod_parity.py --header` in the SERVICE''s checkout must read `status: FROZEN`, and its `version` must equal the one the plan header was authored against'
+  baseline: 'And the parity contract is FROZEN (VPS): this command is dispatched on a Gate 2 go and can run without `/fabrik-release` having run, so it reads the gate itself: `scripts/verify_prod_parity.py --header` in the SERVICE''s checkout must read `status: FROZEN`, and its `version` must equal the one the plan header was authored against'
   class: ban
   text:
   - parity contract re-frozen
-  - 'operator-dispatched and can run without `/fabrik-release` having run, so it reads the gate itself: `scripts/verify_prod_parity.py --header` in the SERVICE''s checkout must read `status: FROZEN`, and its `version` must equal the one the plan header was authored against.'
+  - 'dispatched on a Gate 2 go and can run without `/fabrik-release` having run, so it reads the gate itself: `scripts/verify_prod_parity.py --header` in the SERVICE''s checkout must read `status: FROZEN`, and its `version` must equal the one the plan header was authored against.'
+  - 'And the parity contract is FROZEN (VPS): this command is dispatched on a Gate 2 go and can run without `/fabrik-release` having run, so it reads the gate itself: `scripts/verify_prod_parity.py --header` in the SERVICE''s checkout must read `status: FROZEN`, and its `version` must equal the one the plan header was authored against'
+  changed-by:
+  - D-1371
 - id: cu-L34
   baseline: 'Absent, unparseable or `DRAFT` ⇒ refuse: `BLOCKED: parity contract DRAFT → /fabrik-deploy-checklist` (pre-flip, nothing to unwind — a deploy whose verify can only reach `UNVERIFIED` is not dispatched)'
   class: ban
@@ -413,14 +418,21 @@ entries:
   - 'mid-session operator handoff, in two shapes the plan declares:'
   - first PUSH the ledger commits (the task-end law binds
 - id: cu-L73
-  baseline: 'DECISION NEEDED (ground: gate) ⏎ - Question: Has <the exact act> completed with <the expected result>? ⏎ - Why it is yours: deploy — the plan''s OPERATOR-GATE step, a mid-session handoff no agent can perform or verify itself. ⏎ - Options: A — confirm it completed, and the step''s VERIFICATION column runs next · B — it has not (or it failed), and the halt protocol runs instead. ⏎ - Recommendation: A once you have performed the act; reply either way.'
+  baseline: 'DECISION NEEDED (ground: gate) ⏎ - Question: Has <the exact act> completed with <the expected result>? ⏎ - Why it is yours: deploy — operator-kept: operator-minted — the plan''s OPERATOR-GATE step, an act at a third party only the operator can perform. ⏎ - Options: A — confirm it completed, and the step''s VERIFICATION column runs next · B — it has not (or it failed), and the halt protocol runs instead. ⏎ - Recommendation: A once you have performed the act; reply either way.'
   class: grammar
   text:
   - gate-grounded DECISION
   - exact act> completed with <the expected result>?
-  - plan's OPERATOR-GATE step, a mid-session handoff
+  - plan's OPERATOR-GATE step, an act at a third party
   - completed, and the step's VERIFICATION column runs next
   - once you have performed the act; reply either
+  - 'DECISION NEEDED (ground: gate)'
+  - '- Question: Has <the exact act> completed with <the expected result>?'
+  - '- Why it is yours: deploy — operator-kept: operator-minted — the plan''s OPERATOR-GATE step, an act at a third party only the operator can perform.'
+  - '- Options: A — confirm it completed, and the step''s VERIFICATION column runs next · B — it has not (or it failed), and the halt protocol runs instead.'
+  - '- Recommendation: A once you have performed the act; reply either way.'
+  changed-by:
+  - D-1371
 - id: cu-L74
   baseline: with the `STATE:` line (and every other line) free of promise/obligation constructions ('I'll run it', '<work> is outstanding') — it is the well-formed block itself, never a bare `NEXT:` phrase, that the deferral check exempts — and on the operator's reply run the step's VERIFICATION column and continue; verify-deferred (the act's result is inherently slow — a store review measured in days) → the handoff IS this surface's completion
   class: ban
@@ -636,14 +648,21 @@ entries:
   - '`/fabrik-deploy-verify` (VPS: fresh-probe certification of the live service — the hand-off names the contract version and the container leg the plan was authored against, so the verify run''s Phase 0 header read and Phase 6'
   - stated as the block below, written as plain lines,
 - id: cu-L111
-  baseline: 'DECISION NEEDED (ground: gate) ⏎ - Question: Do you approve <the publish act, named precisely>? ⏎ - Why it is yours: publish — no agent ships an artifact to users; that act is always the operator''s. ⏎ - Options: A — approve, and you perform the publish act · B — hold, and name what must change first. ⏎ - Recommendation: A, once every runbook step and the battery above are green.'
+  baseline: 'DECISION NEEDED (ground: gate) ⏎ - Question: Do you approve <the publish act, named precisely>? ⏎ - Why it is yours: publish — operator-kept: public — no agent ships an artifact to users; that act is always the operator''s. ⏎ - Options: A — approve, and you perform the publish act · B — hold, and name what must change first. ⏎ - Recommendation: A, once every runbook step and the battery above are green.'
   class: grammar
   text:
   - gate-grounded DECISION
   - approve <the publish act, named precisely>?
-  - 'yours: publish — no agent ships an artifact to users;'
+  - 'yours: publish — operator-kept: public — no agent ships an artifact to users;'
   - perform the publish act · B — hold, and name what must change first
   - once every runbook step and the battery above
+  - 'DECISION NEEDED (ground: gate)'
+  - '- Question: Do you approve <the publish act, named precisely>?'
+  - '- Why it is yours: publish — operator-kept: public — no agent ships an artifact to users; that act is always the operator''s.'
+  - '- Options: A — approve, and you perform the publish act · B — hold, and name what must change first.'
+  - '- Recommendation: A, once every runbook step and the battery above are green.'
+  changed-by:
+  - D-1371
 - id: cu-L112
   baseline: '— then print the 7-line FINAL OUTPUT block per CLAUDE.md:'
   class: prose
@@ -672,15 +691,9 @@ vanished:
   L3:
     rule:
     - cu-L3
-  L8:
-    rule:
-    - cu-L8
   L9:
     rule:
     - cu-L9
-  L16:
-    rule:
-    - cu-L16
   L17:
     rule:
     - cu-L17
@@ -708,9 +721,6 @@ vanished:
   L32:
     rule:
     - cu-L32
-  L33:
-    rule:
-    - cu-L33
   L34:
     rule:
     - cu-L34
@@ -726,15 +736,9 @@ vanished:
   L39:
     rule:
     - cu-L39
-  L44:
-    rule:
-    - cu-L44
   L47:
     rule:
     - cu-L47
-  L48:
-    rule:
-    - cu-L48
   L50:
     rule:
     - cu-L50
@@ -801,9 +805,6 @@ vanished:
   L97:
     rule:
     - cu-L97
-  L98:
-    rule:
-    - cu-L98
   L102:
     rule:
     - cu-L102

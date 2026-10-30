@@ -1,9 +1,9 @@
 ---
-description: Surface-aware release runner — the last mile between "built and reviewed" and Gate 2 (human approval, R14). Reads project.yaml::type and dispatches the matching path — VPS types → readiness verification + hand off to hub-side `fabrik apply`; mobile-app → EAS checklist; chrome-extension → Web Store checklist. Every verdict cites evidence. ALWAYS STOPS at the human gate — no agent deploys, submits, or ships an artifact to users (the version CUT — tag + GitHub Release notes — is the one sanctioned publish-shaped act, per the versioning adoption). TRIGGER — EN: "is this ready to release", "run the release checklist"; TR: "yayına hazır mı", "release kontrol listesini çalıştır" — fires PRE-deploy, before the human clicks go. SKIP: post-deploy live verification (→ /fabrik-deploy-verify). Stage: 6-release.
+description: Surface-aware release runner — the last mile between "built and reviewed" and Gate 2 (D-1110). Reads project.yaml::type and dispatches the matching path — VPS types → readiness verification + hand off to hub-side `fabrik apply`; mobile-app → EAS checklist; chrome-extension → Web Store checklist. Every verdict cites evidence. ALWAYS STOPS at Gate 2 — no agent deploys, submits, or ships an artifact to users (the version CUT — tag + GitHub Release notes — is the one sanctioned publish-shaped act, per the versioning adoption). TRIGGER — EN: "is this ready to release", "run the release checklist"; TR: "yayına hazır mı", "release kontrol listesini çalıştır" — fires PRE-deploy, before the human clicks go. SKIP: post-deploy live verification (→ /fabrik-deploy-verify). Stage: 6-release.
 argument-hint: "[optional: override surface — vps | mobile | extension | desktop; omit to read project.yaml::type]"
 ---
 
-Run this project's **release path**, the bridge from gate-green code to the human Gate 2 (R14: deploy/submit approval is the operator's, always). This command
+Run this project's **release path**, the bridge from gate-green code to Gate 2 (R14, D-1110: deploy/submit approval is the operator's, always). This command
 **verifies and prepares; it never ships**: no `fabrik apply`, no `eas submit --auto`, no Web Store "Submit for
 Review" click, no store credential use.
 
@@ -98,7 +98,7 @@ When every checklist item is PASS, **cut the release version**; a BLOCKED checkl
    **Mint the cut's `docs/DECISIONS.md` row and commit AND push it IMMEDIATELY AFTER the cut, before anything else** (classify at mint: the cut is reversible-by-new-tag; the DEPLOY that follows is Gate 2's decision, not yours to row). `release_cut.py --execute` ALREADY pushed branch+tag by the time it returns, so the row rides its OWN push; on the waived no-remote path the cut ran `--no-push` and this row likewise COMMITS LOCALLY, no push exists to ride (it lands after the `vX.Y.Z` tag; acceptable — the ledger is master-tracked, not tag-tracked). Adjacent-commit, not same-commit, is deliberate: `release_cut.py` stages ONLY `CHANGELOG.md` by hardcoded pathspec, so writing the row first would silently strand it.
 3. Surfaces with an artifact-embedded version reconcile, never fork: extension (`manifest.json` version) and mobile (app version / EAS) pass it explicitly, `--execute --version <that version>`, so tag, Release and store artifact carry ONE identity; the checklist's own "version bumped" item is the source; VPS surfaces derive from the changelog.
 
-Deploy stays Gate 2 (the tag names what the operator's `fabrik apply` will ship): record `vX.Y.Z` in the handoff line.
+Deploy stays Gate 2 (the tag names what the Gate-2-approved `fabrik apply` will ship): record `vX.Y.Z` in the handoff line.
 
 ## Output (always, last thing)
 
@@ -107,20 +107,19 @@ RELEASE SURFACE: <vps|mobile|extension|desktop>
 CHECKLIST: <n> PASS / <n> BLOCKED (each with evidence above)
 VERSION: v<X.Y.Z> cut (tag + GitHub Release) | v<X.Y.Z> cut (tag only — gh unavailable) | not cut (<why>)
 ARTIFACT: <SHA · zip/build path | n/a (vps: deploy from remote)>
-GATE 2 → OPERATOR: <the one action only the human takes>
+GATE 2 → <the one action the gate approves: VPS — the panel at /fabrik-deploy-plan-review · stores — the operator's submit>
 ```
 
-On a fully-PASS verdict, end the turn with the block below, written as plain lines, not inside a code
-fence:
+On a fully-PASS verdict on a VPS surface the run hands to `/fabrik-deploy-plan` with no approval of its own: Gate 2 is answered at `/fabrik-deploy-plan-review` (the panel's go for our own VPS; the operator's for a customer-facing deploy or a split). On a fully-PASS verdict on a store surface, end the turn with the block below, written as plain lines, not inside a code fence:
 
 ```
 DECISION NEEDED (ground: gate)
-- Question: Do you approve <the one action from GATE 2 → OPERATOR above>?
-- Why it is yours: Gate 2 — no agent deploys, submits, or ships an artifact to users; that act is always the operator's.
-- Options: A — approve, and the printed hand-off action runs (VPS: dispatch /fabrik-deploy-plan · store: submit) · B — hold, and name what must change first.
+- Question: Do you approve <the store submit from GATE 2 above>?
+- Why it is yours: Gate 2 — operator-kept: public — a store submit ships the artifact to users.
+- Options: A — approve, and you submit the store artifact · B — hold, and name what must change first.
 - Recommendation: A, once every CHECKLIST row above is PASS-with-evidence.
 ```
 
-Next command: Gate 2 — human approval; VPS: /fabrik-deploy-plan (the deploy triad). Stores: operator submits, then /fabrik-deploy-verify.
+Next command: Gate 2 (human approval, D-1110); VPS: /fabrik-deploy-plan (the deploy triad). Stores: operator submits, then /fabrik-deploy-verify.
 
 {{include:close-chain}}
