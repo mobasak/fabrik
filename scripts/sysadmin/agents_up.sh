@@ -995,11 +995,15 @@ refresh_bat() {
   local cfg="$HOME/.config/fabrik" desk="" why="" bat="${FABRIK_AGENTS_BAT:-${SELF%/*}/agents_bat.py}" hand
   local log="$HOME/.config/fabrik/agents-bat-refresh.log"
   hand="python3 $(printf %q "$bat") --tabbed"
-  [ -r "$HOME/.config/fabrik/agents-desktop" ] && { IFS= read -r -d '' desk < "$HOME/.config/fabrik/agents-desktop" || :; }
+  [ -r "$HOME/.config/fabrik/agents-desktop" ] && { { IFS= read -r -d '' desk < "$HOME/.config/fabrik/agents-desktop"; } 2>/dev/null || :; }
   desk="${desk#"${desk%%[![:space:]]*}"}"
   desk="${desk%"${desk##*[![:space:]]}"}"
-  if [ -z "$desk" ] || [ ! -d "$desk" ]; then
+  if [ -z "$desk" ]; then
     echo "agents_up: no desktop remembered, so All Agents (tabbed).bat was not refreshed — once: $hand --desktop <the Windows desktop folder>" >&2
+    return 0
+  fi
+  if [ ! -d "$desk" ]; then
+    echo "agents_up: the remembered desktop $desk is not a folder, so All Agents (tabbed).bat was not refreshed — once: $hand --desktop <the Windows desktop folder>" >&2
     return 0
   fi
   [ -f "$bat" ] || why="$bat is not a file"
@@ -1009,11 +1013,12 @@ refresh_bat() {
   if [ -z "$why" ] && { setsid -f bash -c '
       printf "agents_up: refresh %s %s pid %s\n" "$(date "+%F %T")" "$3" "$$"
       { exec 8>"$1/agents-bat-refresh.pending" && flock -n 8; } || { echo "agents_up: a refresh is already waiting; it reads this grid too"; exit 0; }
+      echo "agents_up: queued; waiting for any running refresh"
       { exec 9>"$1/agents-bat-refresh.run" && flock 9; } || exit 1
       flock -u 8
       exec 8>&-
       exec python3 "$2" --tabbed' agents_up-refresh "$cfg" "$bat" "$S" </dev/null >>"$log" 2>&1; } 2>/dev/null; then
-    echo "agents_up: refreshing All Agents (tabbed).bat in the background (log: $log)" >&2
+    echo "agents_up: All Agents (tabbed).bat refresh started in the background; its outcome goes to $log" >&2
   else
     echo "agents_up: could not start the All Agents (tabbed).bat refresh${why:+ ($why)} — run by hand: $hand" >&2
   fi

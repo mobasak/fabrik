@@ -56,12 +56,14 @@ remembered, the launch says so and the operator runs this once:
 
 ## Relaunch a builder
 
-Relaunch into bypass mode, or after any exit:
+Relaunch into bypass mode, or after any exit. A relaunch keeps the same session. It is not a rotation: rotating a
+builder to a fresh session is done only with `rotate-session` (below), never by hand over tmux.
 
 1. Type `/exit` in the pane. If asked about the worktree, choose "1. Keep worktree": option 2 deletes the branch's
    commits.
 2. The pane prints a line like `[<name> exited — run: claude -n <name> --permission-mode bypassPermissions --resume
-   <sid> …]`. Type that command in the pane's shell.
+   <sid> …]`. A builder whose session has no transcript yet gets `--session-id` there instead of `--resume`. Type
+   that command in the pane's shell.
 3. A hand relaunch is a new process, so the builder then runs
    `python3 /opt/fabrik/scripts/whoami_agent.py --as <name> --force`. Without it, `rotate-session` refuses the pane
    ("bound to another window").

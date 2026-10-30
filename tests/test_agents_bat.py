@@ -954,9 +954,11 @@ def test_a_down_grid_keeps_the_overflow_tabs_its_panes_imply(tmp_path: Path) -> 
     """W-8209a305: agents_up.sh refreshes the tabbed .bat after every grid it builds, so a refresh that read only the
     LIVE windows would drop every down grid's `--window n` tabs. The tabs are the live `agents-<n>` windows UNION the
     windows `--print`'s pane count implies at four panes a window: 9 panes with the grid down → windows 2 and 3; 4
-    panes with a live agents-2 (an `add` past the registry) → window 2 kept; 5 panes, live agents-4 only → 2 and 4."""
-    opt = _opt(tmp_path, "aaa", "bbb", "ccc")
-    counts = {"aaa": 9, "bbb": 4, "ccc": 5}
+    panes with a live agents-2 (an `add` past the registry) → window 2 kept; 5 panes, live agents-4 only → 2 and 4;
+    the exact multiples, down: 8 panes → window 2 only, 4 panes → no overflow tab (an end of `n // 4 + 2` would add
+    one to each)."""
+    opt = _opt(tmp_path, "aaa", "bbb", "ccc", "ddd", "eee")
+    counts = {"aaa": 9, "bbb": 4, "ccc": 5, "ddd": 8, "eee": 4}
     up = tmp_path / "up.sh"
     up.write_text(
         '#!/bin/sh\necho "session x"\nn=$(cat "$2/.panes")\ni=0\n'
@@ -981,4 +983,7 @@ def test_a_down_grid_keeps_the_overflow_tabs_its_panes_imply(tmp_path: Path) -> 
         "/opt/ccc",
         "--window 2 /opt/ccc",
         "--window 4 /opt/ccc",
+        "/opt/ddd",
+        "--window 2 /opt/ddd",
+        "/opt/eee",
     ], tabs

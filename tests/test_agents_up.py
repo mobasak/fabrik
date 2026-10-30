@@ -3652,7 +3652,7 @@ def test_a_new_grid_refreshes_the_tabbed_bat_in_the_background(tmp_path: Path) -
     assert _until(lambda: (home / "bat.argv").exists()), out.stderr
     assert _lines(home / "bat.argv") == ["--tabbed"]
     assert took < 4 and not (home / "bat.done").exists(), took  # the launch never waited for the refresh
-    assert "refreshing All Agents (tabbed).bat in the background" in out.stderr, out.stderr
+    assert "All Agents (tabbed).bat refresh started in the background" in out.stderr, out.stderr
     assert str(home / _BAT_LOG) in out.stderr, out.stderr
     assert _until(lambda: (home / "bat.done").exists())
     # the boot sweep's and an `add` cold start's build
@@ -3666,19 +3666,26 @@ def test_a_new_grid_refreshes_the_tabbed_bat_in_the_background(tmp_path: Path) -
 def test_no_remembered_desktop_starts_no_refresh_and_says_how(tmp_path: Path) -> None:
     """agents_bat.py with no usable remembered desktop probes every repo only to PRINT the .bat: no file, an empty or
     blank one, or a path that is not a folder (as `_remembered` strips and checks) starts nothing, and stderr names the
-    one-time command."""
+    one-time command; a remembered folder that is gone is named as such, and a remembered "file" that is a directory
+    prints no raw bash read error."""
     repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
-    for label, remembered in (
-        ("absent", None),
-        ("empty", ""),
-        ("blank", "  \n"),
-        ("gone", "/no/such/desktop\n"),
+    for label, remembered, said in (
+        ("absent", None, "no desktop remembered"),
+        ("empty", "", "no desktop remembered"),
+        ("blank", "  \n", "no desktop remembered"),
+        ("dir", "", "no desktop remembered"),
+        ("gone", "/no/such/desktop\n", "the remembered desktop /no/such/desktop is not a folder"),
     ):
         home, fake = _bat_home(tmp_path / label, repo, remembered=remembered)
+        if label == "dir":
+            remembered_file = home / ".config" / "fabrik" / "agents-desktop"
+            remembered_file.unlink()
+            remembered_file.mkdir()
         out = _run(str(repo), home=home, tty=True, FABRIK_AGENTS_BAT=str(fake))
         assert out.returncode == 0, (label, out.stderr)
-        assert "no desktop remembered" in out.stderr, (label, out.stderr)
+        assert said in out.stderr, (label, out.stderr)
         assert "--tabbed --desktop" in out.stderr, (label, out.stderr)
+        assert "read error" not in out.stderr and "Is a directory" not in out.stderr, (label, out.stderr)
         time.sleep(0.3)
         assert not (home / "bat.argv").exists(), label
 
@@ -3700,7 +3707,7 @@ def test_only_a_grid_this_launch_built_refreshes_the_bat(tmp_path: Path) -> None
     time.sleep(0.5)
     for home in (up, raced, win, printed):
         assert not (home / "bat.argv").exists(), home.name
-        assert "refreshing All Agents" not in "".join(_lines(home / _BAT_LOG)), home.name
+        assert not (home / _BAT_LOG).exists(), home.name  # no child ever started
 
 
 def test_a_refresh_that_cannot_run_never_fails_the_launch(tmp_path: Path) -> None:
@@ -3728,15 +3735,28 @@ def test_concurrent_refreshes_coalesce_and_append_the_log(tmp_path: Path) -> Non
     one header line to the log, so no run's outcome is overwritten by a later one."""
     repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
     home, fake = _bat_home(tmp_path, repo)
-    for _ in range(3):
+    def queued() -> int:  # children that took .pending: the child logs it once it holds the coalescing lock
+        return sum("agents_up: queued;" in ln for ln in _lines(home / _BAT_LOG))
+
+    # each wait makes the order deterministic: the first refresh is RUNNING (it has released .pending) before the
+    # second launch, and the second is WAITING (it holds .pending) before the third
+    waits = (
+        lambda: len(_lines(home / "bat.argv")) == 1,  # python3 is exec'd only after .pending is released
+        lambda: queued() == 2,
+        lambda: len([ln for ln in _lines(home / _BAT_LOG) if ln.startswith("agents_up: refresh ")]) == 3,
+    )
+    for wait in waits:
         out = _run("--detach", str(repo), home=home, FABRIK_AGENTS_BAT=str(fake), FAKE_BAT_SLEEP="3")
         assert out.returncode == 0, out.stderr
-        assert _until(lambda: len(_lines(home / _BAT_LOG)) >= 1)  # the child is up before the next launch
+        assert _until(wait), _lines(home / _BAT_LOG)
     assert _until(lambda: len(_lines(home / "bat.done")) == 2, within_s=20), _lines(home / "bat.argv")
     time.sleep(1)
     assert _lines(home / "bat.argv") == ["--tabbed", "--tabbed"]
     headers = [ln for ln in _lines(home / _BAT_LOG) if ln.startswith("agents_up: refresh ")]
     assert len(headers) == 3 and all("fabrik-lib" in h for h in headers), _lines(home / _BAT_LOG)
+    # the third found one waiting and exited by the coalescing branch, not by a failure
+    waiting = [ln for ln in _lines(home / _BAT_LOG) if "a refresh is already waiting" in ln]
+    assert len(waiting) == 1, _lines(home / _BAT_LOG)
 
 
 def test_the_refresh_reads_the_desktop_agents_bat_remembers() -> None:
