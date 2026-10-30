@@ -19,8 +19,5 @@
   "priority": 0,
   "score_reason": "re-scored on kaizen's measure: 14 places encode the old gate model across both contracts, a fragment, 8 command sources, the NEXT map and the hook — row 5 (template read by ~46 repos, more than one session): spec chain, kaizen's one major in flight",
   "status": "open",
-  "tags": [
-    "waits-operator-run"
-  ],
   "title": "Operator 2026-10-21/22: least operator approval — the Opus+Fable panel decides every gate class a coordinator can validate (design, plan, Gate 1, Gate 2 to our own VPS with backup+rollback, destructive with a verified backup, production data with a dump and the old volume kept, credentials we mint ourselves, publish to our own surfaces, spend inside a ceiling the operator sets); only money above the ceiling or recurring contracts, credentials only the operator can mint, publishing to customers or the public, deletion with no backup, and split panels reach the operator — always through a coordinator, never from a builder window"
 }
