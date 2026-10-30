@@ -32,6 +32,14 @@ started in, and its session stays filed there, so neither a /clear nor a relaunc
 plain-size memory grade, and caps cpus at min(2.0, half the host) from a per-host CPU table. The live step is the
 coordinator's operator gate (`docker update` per spoke, then the live compose lines). D-1357, W-1e9cd280.
 
+### Fixed — a `--lean` green says plainly it ran no mypy (2026-10-29)
+- `scripts/final_gate.py`: every Tier-1 run except a `.md`-only diff adds the green skip row
+  `Tier-2 checks (NOT RUN — --lean)` (W-d488bbbf, feedback row 1791309119). It names the Tier-2
+  checks it did not run and points at `final_gate.py --json`, so a lean-only green no longer reads
+  like grounds for a merge request. It is advice, not enforcement, and travels through the existing
+  channels (`warnings`, `skipped_checks`, the roster, the human `Skipped:` line); no JSON key was
+  added. Those lean runs now report `skipped` ≥ 1.
+
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
 `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.

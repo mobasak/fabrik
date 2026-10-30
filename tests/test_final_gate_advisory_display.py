@@ -260,8 +260,8 @@ def test_the_json_gate_separates_advisory_rows_from_blocking_ones() -> None:
     )
     # ⚠️ NOT `passed - advisory`: that arithmetic never learned about SKIPS, so it disagreed
     # with the roster in the same envelope whenever any tool was missing. It survived here
-    # only because --lean happens to skip nothing today — i.e. it would have started failing
-    # the moment the gate became RIGHT.
+    # only while --lean skipped nothing — it stopped holding once every lean run skips at least
+    # one row (W-d488bbbf).
     assert payload["blocking"] == sum(1 for c in payload["checks"] if c.get("outcome") == "pass")
     assert payload["blocking"] < payload["passed"], "the split must actually be visible"
 
@@ -426,6 +426,7 @@ def test_every_green_not_run_row_the_gate_emits_is_summarized():
         - {"auto-fix scope (advisory)"}
     ) | {
         fg.EPIC_ORDER_NA,  # T05b: the hub-conditional epic_order row's labelled skip
+        fg.LEAN_NOT_RUN_ROW,  # W-d488bbbf: what --lean never runs, named on every lean run
         "bandit (NOT INSTALLED — skipped)",
         "sqlfluff (NOT INSTALLED — skipped)",
         "vulture (NOT INSTALLED — skipped)",
@@ -1087,7 +1088,7 @@ def test_human_mode_names_its_skips_and_agrees_with_the_envelope() -> None:
 
     Both modes are run against the SAME tree in one test, because the defect was precisely that
     the two modes disagreed: `blocking` had been rewired in the envelope and not in the print, and
-    one run reported 37 and 40. `--lean` is deliberately NOT used — it skips nothing today, which
+    one run reported 37 and 40. `--lean` is deliberately NOT used — it once skipped nothing, which
     is how the previous assertion survived being wrong.
     """
     human = subprocess.run(
@@ -1154,3 +1155,104 @@ def test_every_inline_missing_checker_row_uses_the_one_shape() -> None:
         "an inline `(check not present, skipping)` row"
     )
     assert src.count("_not_present_row(") >= 5, "the helper's definition plus its four call sites"
+
+
+# ── W-d488bbbf (feedback row 1791309119, kaizen mail 01M4PHYRB6): a lean green must say what it
+# did not run, so no merge request is sent on it ──────────────────────────────────────────────
+
+
+def _static_rows(monkeypatch: pytest.MonkeyPatch, tier: int) -> list[tuple[str, bool, str]]:
+    """The rows `run_static_checks` builds for a one-.py change, with every tool stubbed green."""
+    monkeypatch.setattr(fg, "run_cmd", lambda cmd, **kw: (0, ""))
+    monkeypatch.setattr(fg, "get_writable_files", lambda: {"scripts/x.py"})
+    monkeypatch.setattr(fg, "_changed_python", lambda scope: sorted(scope))
+    monkeypatch.setattr(fg, "run_mypy_with_recovery", lambda *a, **k: (0, ""))
+    return fg.run_static_checks(tier=tier, changed_files={"scripts/x.py"})
+
+
+def test_the_lean_tier_names_the_checks_it_never_ran(monkeypatch: pytest.MonkeyPatch) -> None:
+    rows = _static_rows(monkeypatch, 1)
+    lean = [r for r in rows if r[0] == fg.LEAN_NOT_RUN_ROW]
+    assert len(lean) == 1, [r[0] for r in rows]
+    _, ok, text = lean[0]
+    assert ok is True, "a lean run must stay green — the row says what it skipped, it never reds"
+    for tool in ("mypy", "bandit", "semgrep", "sqlfluff", "vulture", "pytest"):
+        assert tool in text, (tool, text)
+    assert "final_gate.py --json" in text and "merge request" in text, text
+
+
+@pytest.mark.parametrize("changed", [set(), {"scripts/x.py"}, {"src/a.py"}, {"tests/t.py"}])
+@pytest.mark.parametrize("fix_all", [False, True])
+def test_the_lean_tier_carries_no_pytest_row(
+    monkeypatch: pytest.MonkeyPatch, changed: set[str], fix_all: bool
+) -> None:
+    """Both contracts' GATE row says `--lean` carries NO pytest row (cite `:1543`). That return now
+    calls `_lean_not_run_row()`, whose body the line-cite grader never reads, so a changed
+    `LEAN_NOT_RUN_ROW` value, or a pytest row inserted above the return without moving it, would
+    make the sentence false with the cite still green. It covers the empty and `.py` diffs listed,
+    with the writable set equal to the diff; a pytest row behind a condition those never set (a
+    `.yaml` diff, a narrowed writable set) is outside it."""
+    monkeypatch.setattr(fg, "run_cmd", lambda cmd, **kw: (0, ""))
+    monkeypatch.setattr(fg, "get_writable_files", lambda: set(changed))
+    monkeypatch.setattr(fg, "_changed_python", lambda scope: sorted(scope))
+    rows = fg.run_static_checks(tier=1, changed_files=set(changed), fix_all=fix_all)
+    names = [r[0] for r in rows]
+    assert fg.LEAN_NOT_RUN_ROW in names, names  # the premise: this shape reached the :1543 return
+    assert not [n for n in names if n.startswith("pytest")], names
+
+
+def test_the_full_tier_carries_no_lean_row(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tier 2 RUNS mypy; a row saying it did not would be false in the other direction."""
+    names = [r[0] for r in _static_rows(monkeypatch, 2)]
+    assert fg.LEAN_NOT_RUN_ROW not in names
+    assert "mypy" in names, "the premise: tier 2 runs mypy"
+
+
+def test_a_docs_only_lean_run_carries_the_diff_sensed_row_instead() -> None:
+    """A .md-only diff returns at the diff-sensed skip, which already says the static tier did not
+    run — a second row there would name the same skip twice."""
+    names = [r[0] for r in fg.run_static_checks(tier=1, changed_files={"docs/x.md"})]
+    assert names == ["static tier (diff-sensed skip)"], names
+
+
+def _main_output(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], *argv: str
+) -> str:
+    """Drive the gate's real `main()` — both renderers — with only the I/O around it stubbed. The
+    static tier is real (tools stubbed green), so the row travels the path a consumer reads."""
+    monkeypatch.setattr(fg, "run_cmd", lambda cmd, **kw: (0, ""))
+    monkeypatch.setattr(fg, "_toolchain_missing", lambda python: "")
+    monkeypatch.setattr(fg, "get_changed_files", lambda: {"scripts/x.py"})
+    monkeypatch.setattr(fg, "get_staged_files", lambda: set())
+    monkeypatch.setattr(fg, "get_writable_files", lambda: {"scripts/x.py"})
+    monkeypatch.setattr(fg, "_changed_python", lambda scope: sorted(scope))
+    monkeypatch.setattr(fg, "_warn_untracked_sources", lambda emit=True: None)
+    monkeypatch.setattr(fg, "run_format_check", lambda **kw: [])
+    monkeypatch.setattr(fg, "run_consistency_checks", lambda **kw: [])
+    monkeypatch.setattr(fg, "kaizen_events", None)
+    monkeypatch.setattr(sys, "argv", ["final_gate.py", *argv])
+    assert fg.main() == 0
+    return capsys.readouterr().out
+
+
+def test_a_lean_json_run_reports_the_row_in_every_channel_a_consumer_reads(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = _main_output(monkeypatch, capsys, "--lean", "--check", "--json")
+    payload = json.loads(out[out.index("{") :])
+    assert payload["status"] == "success", "the row must never red a lean run"
+    assert payload["skipped"] >= 1, payload["skipped"]
+    assert "Tier-2 checks" in payload["skipped_checks"], payload["skipped_checks"]
+    assert {"name": fg.LEAN_NOT_RUN_ROW, "outcome": "skipped"} in payload["checks"]
+    warned = [w for w in payload["warnings"] if w["check"] == fg.LEAN_NOT_RUN_ROW]
+    assert len(warned) == 1 and "mypy" in json.dumps(warned[0]), payload["warnings"]
+
+
+def test_a_lean_human_run_prints_the_skip_and_its_reason(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = _main_output(monkeypatch, capsys, "--lean", "--check")
+    assert f"[{fg.YELLOW}SKIP{fg.RESET}] {fg.LEAN_NOT_RUN_ROW}" in out, out
+    assert "ran none of these Tier-2 checks (mypy," in out and "final_gate.py --json" in out, out
+    skipped = next(line for line in out.splitlines() if "Skipped:" in line)
+    assert "Tier-2 checks" in skipped, skipped
