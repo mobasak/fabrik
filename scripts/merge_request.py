@@ -1985,8 +1985,10 @@ def _sync_filter(text: str) -> str:
 
 
 def _sync(ctx: _Ctx, rec: dict) -> str:
-    """(g): in the HUB only, run the fleet sync when the re-derived merged file list matches the
-    governance-sync filter (read from the merged base, never hard-coded)."""
+    """(g): in the HUB only, OWE the fleet sync when the re-derived merged file list matches the
+    governance-sync filter (read from the merged base, never hard-coded), then kick the background
+    runner — the sync itself runs OUTSIDE the merge lock (W-4f4ac600, the block comment below this
+    function). Every hub call kicks, so a debt a killed run left is run by the next landing."""
     if ctx.main.resolve() != HUB_CHECKOUT.resolve():
         return "sync: not the hub — none owed"
     merge = rec["merge_sha"]
@@ -1997,26 +1999,285 @@ def _sync(ctx: _Ctx, rec: dict) -> str:
     ]
     res = _run(["git", "show", f"{merge}:.pre-commit-config.yaml"], GIT_TIMEOUT_S, cwd=ctx.main)
     pattern = _sync_filter(res.stdout) if res.returncode == 0 else ""
+    hits: list[str] = []
     if not pattern:
-        return (
+        line = (
             "sync: NOT RUN — the governance-sync files: filter is unreadable or empty; run "
             "scripts/sync_enforcement_to_projects.py --force yourself"
         )
+    else:
+        try:
+            rx = re.compile(pattern)
+        except re.error as exc:
+            line = f"sync: NOT RUN — the governance-sync filter does not compile ({exc})"
+        else:
+            hits = [p for p in files if rx.search(p)]
+            line = "sync: no governance-sync path merged — none owed"
+    state = ctx.records
     try:
-        rx = re.compile(pattern)
-    except re.error as exc:
-        return f"sync: NOT RUN — the governance-sync filter does not compile ({exc})"
-    hits = [p for p in files if rx.search(p)]
+        if hits:
+            _owe_sync(state, f"{merge} {len(hits)} path(s), request {rec['id']}")
+        kicked = _kick_sync(ctx.main, state)
+    except OSError as exc:  # the push already landed: a sync we cannot owe is reported, not raised
+        return (
+            f"sync: FAILED to owe or start ({exc}) — run "
+            "scripts/sync_enforcement_to_projects.py --force"
+        )
     if not hits:
-        return "sync: no governance-sync path merged — none owed"
+        return line if kicked is None else f"{line}; {kicked}"
+    line = (
+        f"sync: owed for {len(hits)} governance-sync path(s) — runs outside the merge lock "
+        f"(log {state / SYNC_LOG})"
+    )
+    return line if kicked is None else f"{line}; {kicked}"
+
+
+# --- (g) the hub's governance sync, OUTSIDE the merge lock (W-4f4ac600) -----------------------
+# The sync ran inside the lock and held every landing that owed one ~4 min (01M64FJ6AT: push
+# 00:59:53, reply 01:04:04) — and `merge --queue` lands one `merge()` at a time, so the queue waited
+# it out too. Now a landing OWES it (one O_APPEND line in SYNC_OWED) and KICKS a detached runner
+# (`merge_request.py sync-runner`): it takes SYNC_LOCK itself — this process never opens it, so no
+# queue leg forked later can inherit it — and loops while holding it: `covers` = SYNC_OWED's size
+# in BYTES, read BEFORE the sync starts (every owed line is already in HEAD, and the sync ships each
+# tracked file from its HEAD blob — sync_enforcement_to_projects.py `_head_source`, T12.17 — so a
+# sync started after a line covers it); exit when SYNC_DONE ≥ covers, else run SYNC_ARGV and, on
+# exit 0, write SYNC_DONE = max(current, covers). A line owed DURING a sync (another landing, any
+# process) is covered by the runner's next turn; a failure stops the runner with the debt still
+# owed and its outcome in SYNC_STATUS, and the next kick retries it. `main()` drains in a
+# `finally`: it waits for THIS process's runner up to SYNC_TIMEOUT_S and prints the outcome,
+# never changing the verb's exit code (a failed sync never did). SYNC_STATUS is not `*.json`: the
+# record globs (`ctx.records.glob("*.json")`) would read it as a merge record.
+# COBRA (D-253): the cheapest way to release the lock fast is never to run the sync; a debt stays
+# owed until a sync that STARTED after it exits 0, and every drain prints what happened.
+SYNC_OWED = "sync-owed.log"
+SYNC_DONE = "sync-done"
+SYNC_LOCK = "sync.lock"
+SYNC_LOG = "sync.log"
+SYNC_STATUS = "sync-status.txt"
+SYNC_LOCK_WAIT_S = 2 * SYNC_TIMEOUT_S  # a runner waits out one other runner's sync and its rerun
+_SYNC_RUN: dict = {}  # this process's runner: {"proc", "state", "main"} (one per process)
+
+
+def _owed_size(state: Path) -> int:
     try:
-        run = _run(list(SYNC_ARGV), SYNC_TIMEOUT_S, cwd=ctx.main)
-    except RefusedError as exc:
-        return f"sync: FAILED ({exc}) — run scripts/sync_enforcement_to_projects.py --force"
-    if run.returncode != 0:
-        tail = " ".join((run.stderr or run.stdout).strip().splitlines()[-2:])
-        return f"sync: FAILED (exit {run.returncode}: {tail}) — run scripts/sync_enforcement_to_projects.py --force"
-    return f"sync: ran for {len(hits)} governance-sync path(s)"
+        return (state / SYNC_OWED).stat().st_size
+    except FileNotFoundError:
+        return 0
+
+
+def _done_size(state: Path) -> int:
+    try:
+        return int((state / SYNC_DONE).read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return 0  # absent or unreadable: toward running the sync again
+
+
+def _sync_status(state: Path) -> dict:
+    try:
+        raw = json.loads((state / SYNC_STATUS).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _write_atomic(path: Path, text: str) -> None:
+    tmp = path.with_name(f".{path.name}.{os.getpid()}")
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError:
+        with contextlib.suppress(OSError):  # never mask the write's own error
+            tmp.unlink(missing_ok=True)
+        raise
+
+
+def _owe_sync(state: Path, why: str) -> None:
+    """One owed line, appended in ONE write (O_APPEND): a torn line still grows the byte count."""
+    state.mkdir(parents=True, exist_ok=True)
+    line = f"{datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')} {' '.join(why.split())}\n"
+    fd = os.open(state / SYNC_OWED, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+    try:
+        os.write(fd, line.encode("utf-8"))
+    finally:
+        os.close(fd)
+
+
+def _kick_sync(main: Path, state: Path) -> str | None:
+    """Start the runner when a debt is owed and THIS process has none alive (a live one loops and
+    covers it). Returns an evidence fragment, or None when there is nothing to say."""
+    run = _SYNC_RUN.get("proc")
+    if run is not None and run.poll() is None:
+        return None  # its next turn covers the new debt
+    if _owed_size(state) <= _done_size(state):
+        return None
+    note = None
+    last = _sync_status(state)
+    if last.get("rc") not in (None, 0):
+        note = (
+            f"the last background sync FAILED (exit {last.get('sync_rc', last.get('rc'))}) — "
+            "retrying"
+        )
+    argv = [sys.executable, str(Path(__file__).resolve()), "sync-runner", "--state", str(state)]
+    try:
+        proc = subprocess.Popen(  # noqa: S603 — fixed argv, no shell
+            [*argv, "--", *SYNC_ARGV],
+            cwd=main,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError as exc:
+        return (
+            f"sync: FAILED to start ({exc}) — run scripts/sync_enforcement_to_projects.py --force"
+        )
+    _SYNC_RUN.update(proc=proc, state=state, main=main)
+    return note
+
+
+def _sync_once(argv: list[str], state: Path, lock_fd: int) -> tuple[int, str]:
+    """One sync, its output to SYNC_LOG (truncated: the last run's tail lives in SYNC_STATUS),
+    bounded by SYNC_TIMEOUT_S; past it the sync's whole process group is killed. The sync holds
+    the runner's SYNC_LOCK fd too, so a runner killed mid-sync leaves the lock held until the
+    orphaned sync ends — the next runner waits for it instead of starting a second one."""
+    log = state / SYNC_LOG
+    with open(log, "wb") as out:
+        try:
+            proc = subprocess.Popen(  # noqa: S603 — fixed argv, no shell
+                argv,
+                stdin=subprocess.DEVNULL,
+                stdout=out,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                pass_fds=(lock_fd,),
+            )
+        except OSError as exc:
+            return 127, f"cannot run {argv[0]}: {exc}"
+        try:
+            rc = proc.wait(timeout=SYNC_TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(proc.pid, 9)
+            proc.wait()
+            return 124, f"timed out after {SYNC_TIMEOUT_S}s"
+    try:
+        lines = log.read_text(encoding="utf-8", errors="replace").strip().splitlines()
+    except OSError:
+        lines = []
+    return rc, " ".join(lines[-2:])
+
+
+def _sync_runner(state: Path, argv: list[str]) -> int:
+    """``sync-runner`` (internal, listed by ``--help``; started by ``_kick_sync``): hold SYNC_LOCK, sync until the owed
+    log is covered. Exit 0 covered · 1 a sync failed · 2 sync-done did not persist · 3 the lock
+    stayed held past its wait (``main`` adds 70: the runner itself crashed)."""
+    state.mkdir(parents=True, exist_ok=True)
+    fd = os.open(state / SYNC_LOCK, os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        deadline = time.monotonic() + SYNC_LOCK_WAIT_S
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() > deadline:
+                    _write_atomic(
+                        state / SYNC_STATUS,
+                        json.dumps(
+                            {"at": time.time(), "rc": 3, "tail": "the sync lock stayed held"}
+                        ),
+                    )
+                    return 3
+                time.sleep(1)
+        while True:
+            covers = _owed_size(state)
+            if covers <= _done_size(state):
+                return 0
+            rc, tail = _sync_once(argv, state, fd)
+            if rc != 0:  # rc = this runner's exit (the drain matches it); sync_rc = the sync's
+                _write_atomic(
+                    state / SYNC_STATUS,
+                    json.dumps(
+                        {"at": time.time(), "covers": covers, "rc": 1, "sync_rc": rc, "tail": tail}
+                    ),
+                )
+                return 1
+            _write_atomic(state / SYNC_DONE, f"{max(_done_size(state), covers)}\n")
+            if _done_size(state) < covers:
+                # sync-done did not persist: looping would re-run a 47-repo sync forever
+                _write_atomic(
+                    state / SYNC_STATUS,
+                    json.dumps(
+                        {
+                            "at": time.time(),
+                            "covers": covers,
+                            "rc": 2,
+                            "tail": f"{SYNC_DONE} did not persist",
+                        }
+                    ),
+                )
+                return 2
+            _write_atomic(
+                state / SYNC_STATUS, json.dumps({"at": time.time(), "covers": covers, "rc": 0})
+            )
+    finally:
+        os.close(fd)
+
+
+def _drain_sync() -> None:
+    """After the verb, the merge lock released: wait for THIS process's runner and print its
+    outcome, SYNC_TIMEOUT_S in all. A runner that exited 0 while a debt is still owed (one owed
+    between its last check and its exit, or in another process) gets ONE more runner, which covers
+    it or finds another process's sync covering it. Never changes the exit code."""
+    proc = _SYNC_RUN.pop("proc", None)
+    if proc is None:
+        return
+    state, main = _SYNC_RUN.pop("state"), _SYNC_RUN.pop("main")
+    deadline = time.monotonic() + SYNC_TIMEOUT_S
+    for rerun in (False, True):
+        try:
+            proc.wait(timeout=max(1.0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            print(
+                f"merge_request: sync: still running in the background (pid {proc.pid}) — "
+                f"{state / SYNC_STATUS} has its outcome",
+                file=sys.stderr,
+            )
+            return
+        if proc.returncode != 0:
+            break
+        if _owed_size(state) <= _done_size(state) or rerun:
+            later = (
+                ""
+                if _owed_size(state) <= _done_size(state)
+                else ("; a debt owed since is still open — the next merge run's sync covers it")
+            )
+            print(f"merge_request: sync: ran (log {state / SYNC_LOG}){later}", file=sys.stderr)
+            return
+        note = _kick_sync(main, state)
+        proc = _SYNC_RUN.pop("proc", None)
+        _SYNC_RUN.clear()
+        if proc is None:  # nothing left to start, or the start failed (its note says so)
+            if note and note.startswith("sync: FAILED"):  # the debt owed since stays open
+                print(
+                    f"merge_request: {note}; the earlier sync ran (log {state / SYNC_LOG})",
+                    file=sys.stderr,
+                )
+            else:
+                print(f"merge_request: sync: ran (log {state / SYNC_LOG})", file=sys.stderr)
+            return
+    last = _sync_status(state)
+    rc = proc.returncode  # the runner's own exit; the status file may be an older run's
+    if last.get("rc") == rc:
+        rc, tail = last.get("sync_rc", rc), last.get("tail", "")
+    else:
+        tail = "the runner recorded no reason"
+    print(
+        f"merge_request: sync: FAILED (exit {rc}: {tail}) — run "
+        "scripts/sync_enforcement_to_projects.py --force; the debt stays owed and the next "
+        "merge run retries it",
+        file=sys.stderr,
+    )
 
 
 def _recipients(ctx: _Ctx, rec: dict) -> list[str]:
@@ -3015,7 +3276,9 @@ def merge(args: argparse.Namespace) -> int:
     it before building. Steps: (a) preflight in a throwaway worktree with a snapshot of every
     merged path; (b) pure-insertion ledger conflicts only; (c) the owner's tests; (d) re-hash and
     CAS the local base, rebuilding up to MAX_REBUILDS times; (e) carry; (f) fast-forward push;
-    (g) the hub's governance sync; (h) reply to requester and coordinator, then ack.
+    (g) the hub's governance sync, OWED here and run by a background runner outside the lock
+    (W-4f4ac600; this run's end waits for it and prints its outcome); (h) reply to requester and
+    coordinator, then ack.
 
     Exit: 0 merged (or nothing waiting) · 1 refused (acked ``blocked`` with the reason), DEFERRED
     (the remote was unreachable: claimed, nothing replied, retried by the next run), or the
@@ -3340,7 +3603,24 @@ def main(argv: list[str] | None = None) -> int:
     pr.add_argument("id")
     pt = sub.add_parser("retry", help="re-run a refused request whose branch is unchanged")
     pt.add_argument("id")
+    # internal: the background governance sync a hub landing kicks (W-4f4ac600)
+    ps = sub.add_parser("sync-runner")
+    ps.add_argument("--state", required=True, type=Path)
+    ps.add_argument("sync_argv", nargs=argparse.REMAINDER)
     args = ap.parse_args(argv)
+    if args.cmd == "sync-runner":
+        sync_argv = args.sync_argv[1:] if args.sync_argv[:1] == ["--"] else args.sync_argv
+        if not sync_argv:
+            ap.error("sync-runner needs the sync argv after --")
+        try:
+            return _sync_runner(args.state, sync_argv)
+        except Exception as exc:  # recorded for the drain, whose stderr is the only reader
+            with contextlib.suppress(OSError):
+                _write_atomic(
+                    args.state / SYNC_STATUS,
+                    json.dumps({"at": time.time(), "rc": 70, "tail": f"runner crashed: {exc!r}"}),
+                )
+            return 70
     verb = {"request": request, "merge": merge, "resume": resume, "retry": retry}[args.cmd]
     try:
         return verb(args)
@@ -3350,6 +3630,17 @@ def main(argv: list[str] | None = None) -> int:
     except MergePartialError as exc:
         print(f"merge_request: PARTIAL — {exc}", file=sys.stderr)
         return EXIT_PARTIAL
+    finally:
+        # the merge lock is released by now; a PARTIAL or REFUSED run drains too, and a drain that
+        # cannot read its state never replaces the verb's exit code
+        try:
+            _drain_sync()
+        except OSError as exc:
+            print(
+                f"merge_request: sync: unknown ({exc}) — the debt stays owed; run "
+                "scripts/sync_enforcement_to_projects.py --force if no merge run follows",
+                file=sys.stderr,
+            )
 
 
 if __name__ == "__main__":

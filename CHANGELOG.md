@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — merge: the governance sync runs outside the merge lock (2026-10-30)
+`scripts/merge_request.py` no longer runs `sync_enforcement_to_projects.py --force` inside the merge lock (W-4f4ac600, D-1369): a landing that merged a governance-sync path held the lock ~4 min after its push (01M64FJ6AT: push 00:59:53, reply 01:04:04; two no-sync landings released ~6 s after their CAS), and `merge --queue` waited it out per landing. A landing now owes the sync (`<git common dir>/fabrik-merge/sync-owed.log`) and kicks a detached `merge_request.py sync-runner`, which serializes on its own `sync.lock` and loops until a successful sync covers the owed log (the sync itself holding that lock, so a killed runner's orphaned sync is never doubled); the run's end waits for it, `SYNC_TIMEOUT_S` in all, gives a runner that exited 0 with a debt still owed one more runner, and prints `sync: ran`, `sync: FAILED … --force`, `sync: still running in the background` or `sync: unknown` (the exit code unchanged); a debt a failed or killed run left is retried by the next hub landing.
+
 ### Changed — merge leg: a review receipt selects tests by its file name only (2026-10-29)
 `scripts/merge_test_select.py` keys a changed `docs/development/reviews/*.md` receipt by its file name alone instead of its directory (W-1fb11ec8, D-1356): over the 59 coordinator merges since 2026-10-28 12:00 the leg's serial selection drops 8.2 %, every selection a subset of today's, 17 of 17 measured red-master catches kept. Importer-closure narrowing was measured and rejected (D-1356); the leg's confirm phase, about two thirds of a measured leg, is W-c80361e4.
 
