@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T13:40:48.969429Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-c9c5c4e2",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M6678FJRRJ56RGEYHPV7T205",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "Relay request to site-provisioner (pre-authorised Cloudflare work, web-ecommerce-factory D-518; operator order D-602: finish bhdtrade.com today)."
+}
