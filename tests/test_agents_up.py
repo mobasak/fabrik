@@ -1631,7 +1631,15 @@ def test_each_pane_runs_claude_with_the_wake_prompt_watchdog_and_oom_score(tmp_p
     assert "/opt/fabrik/scripts" not in prompt or str(hub) == "/opt/fabrik", prompt
     assert f'python3 "{hub}/scripts/sysadmin/hibernate.py" woke --self {DEV1}' in prompt, prompt
     assert "only if it exits 0, resume your item from the seed it prints" in prompt, prompt
-    assert "on any other exit carry on as usual" in prompt, prompt
+    # review G3: `woke` exit 2 cannot tell (a corrupt marker or run record) — stay paused, never carry on; the
+    # relaunch prompt and the self-watch's hibernate RESUME line carry the SAME clause (both files read)
+    clause = (
+        "only if it exits 0, resume your item from the seed it prints; on exit 1 carry on as usual;"
+        " on exit 2 stay paused and tell your coordinator"
+    )
+    assert clause in prompt, prompt
+    assert clause in (UP.parent / "mesh" / "claude-selfwatch.sh").read_text(encoding="utf-8")
+    assert "on any other exit" not in prompt, prompt
     assert "CLAUDE_CODE_RETRY_WATCHDOG=1" in got.stdout, got.stdout
     assert re.search(r"^OOM=(200|[3-9]\d\d|1000)$", got.stdout, flags=re.M), got.stdout
     assert "--permission-mode" not in run and "--dangerously" not in run, run

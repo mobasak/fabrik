@@ -319,7 +319,7 @@ absent or still being built, and with no window `agents-<k>` says so and attache
   refuses the launch.
 - Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --resume <session id> "<wake prompt>"` (the prompt is the
   session's first turn: re-arm the self-watch, run `hibernate.py woke --self <id>`, resume from the seed only on exit 0,
-  otherwise carry on) with `CLAUDE_CODE_RETRY_WATCHDOG=1` in its environment and `oom_score_adj` 200, ONLY in a linked
+  carry on as usual on exit 1, and on exit 2 — it cannot tell — stay paused and tell the coordinator) with `CLAUDE_CODE_RETRY_WATCHDOG=1` in its environment and `oom_score_adj` 200, ONLY in a linked
   git worktree in place under `.claude/worktrees/` (it holds a `.git` file, and no part of its path is a symlink): the
   one whose claude project folder holds the builder's session, else `.claude/worktrees/<name>` (W-456aa02a). Claude Code
   keeps the folder a pane STARTED in as the window's `CLAUDE_PROJECT_DIR` — where its hooks, settings and permissions

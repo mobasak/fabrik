@@ -503,7 +503,7 @@ EOF
   sleep 2; LIFT=$(( $(date +%s) - 180 )); printf '%s hibernate\n' "$LIFT" > "$LOCKS/sW10f.holdlifted"
   for _ in $(seq 1 20); do grep -q '^RESUME:' "$T/w10f.out" && break; sleep 1; done
   w10f_left=$(grep -c . "$T/w10f.seq" 2>/dev/null); w10f_left=${w10f_left:-0}
-  [ "$(grep -c "^RESUME: the hibernate pause ended at $(date -d @"$LIFT" +%H:%M) (sleep) — run python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke --self sW10f and, only if it exits 0, resume your item from the seed it prints; on any other exit carry on as usual — this self-watch STAYS ARMED (" "$T/w10f.out")" = "1" ] && ok || bad "W10f: no hibernate line naming the lift minute, lift_path and woke's exit-0 condition (T04 F12): $(cat "$T/w10f.out")"
+  [ "$(grep -c "^RESUME: the hibernate pause ended at $(date -d @"$LIFT" +%H:%M) (sleep) — run python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke --self sW10f and, only if it exits 0, resume your item from the seed it prints; on exit 1 carry on as usual; on exit 2 stay paused and tell your coordinator — this self-watch STAYS ARMED (" "$T/w10f.out")" = "1" ] && ok || bad "W10f: no hibernate line naming the lift minute, lift_path and woke's exit-0 condition (T04 F12): $(cat "$T/w10f.out")"
   [ "$w10f_left" = "0" ] && ok || bad "W10f: the hibernate wake fired with $w10f_left probe(s) of the flapping sequence unread (no 3-answer gate)"
   grep '^RESUME: the hibernate' "$T/w10f.out" | grep -q ' — this self-watch STAYS ARMED (' && ok || bad "W10f: the hibernate line lost the STAYS ARMED clause: $(cat "$T/w10f.out")"
   grep -q 'fleet-quota' "$T/w10f.out" && bad "W10f: a hibernate lift named the quota hold" || ok
@@ -526,7 +526,7 @@ EOF
   sleep 3; LIFT=$(( $(date +%s) - 240 )); printf '%s hibernate\n' "$LIFT" > "$LOCKS/sW10g.holdlifted"
   sleep 1; touch "$MESH_NET"
   for _ in $(seq 1 15); do grep -q '^RESUME:' "$T/w10g.out" && break; sleep 1; done
-  [ "$(grep -c "^RESUME: the hibernate pause ended at $(date -d @"$LIFT" +%H:%M) (outage) — run python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke --self sW10g and, only if it exits 0, resume your item from the seed it prints; on any other exit carry on as usual — this self-watch STAYS ARMED (" "$T/w10g.out")" = "1" ] && ok || bad "W10g: the line did not use the kind and epoch read after the gate: $(cat "$T/w10g.out")"
+  [ "$(grep -c "^RESUME: the hibernate pause ended at $(date -d @"$LIFT" +%H:%M) (outage) — run python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke --self sW10g and, only if it exits 0, resume your item from the seed it prints; on exit 1 carry on as usual; on exit 2 stay paused and tell your coordinator — this self-watch STAYS ARMED (" "$T/w10g.out")" = "1" ] && ok || bad "W10g: the line did not use the kind and epoch read after the gate: $(cat "$T/w10g.out")"
   grep -q 'RESUMED from sleep' "$T/w10g.out" && bad "W10g: printed the replaced (pre-gate) kind" || ok
   LIFT=$(( $(date +%s) - 60 )); printf '%s resume\n' "$LIFT" > "$LOCKS/sW10g.holdlifted"
   for _ in $(seq 1 15); do [ "$(grep -c '^RESUME:' "$T/w10g.out")" -ge 2 ] && break; sleep 1; done

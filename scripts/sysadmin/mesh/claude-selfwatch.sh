@@ -146,7 +146,7 @@ while :; do
       hibernate)
         # the condition agents_up's relaunch prompt carries (agents_up.sh): `woke` exits 1 for a migration lift
         # and a lift a day old, and then there is nothing to resume (T04 F12)
-        printf 'RESUME: the hibernate pause ended at %s (%s) — run python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke --self %s and, only if it exits 0, resume your item from the seed it prints; on any other exit carry on as usual' "$at" "$(lift_why)" "$sid" ;;
+        printf 'RESUME: the hibernate pause ended at %s (%s) — run python3 /opt/fabrik/scripts/sysadmin/hibernate.py woke --self %s and, only if it exits 0, resume your item from the seed it prints; on exit 1 carry on as usual; on exit 2 stay paused and tell your coordinator' "$at" "$(lift_why)" "$sid" ;;
       resume)
         printf 'RESUME: the box RESUMED from sleep at %s. If you stopped for it, resume the run you closed BLOCKED — its record (`python3 scripts/command_run.py line`) and `python3 scripts/thread_anchor.py line --session %s` carry where you left off; if you are mid-task, ignore this line' "$at" "$sid" ;;
       battery)

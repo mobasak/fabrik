@@ -662,7 +662,7 @@ cmd_of() {  # $1 = name, $2 = session id, $3 = status, $4 = new (1: --session-id
       wake="$(first_prompt "$1" "$2")"
       claude="claude -n $1 --session-id $2"
     else
-      wake="You were relaunched by agents_up. First re-arm your self-watch: run bash \"$HUB/scripts/sysadmin/selfwatch_arm.sh\" $2 in the background. Then run python3 \"$HUB/scripts/sysadmin/hibernate.py\" woke --self $2 and, only if it exits 0, resume your item from the seed it prints; on any other exit carry on as usual."
+      wake="You were relaunched by agents_up. First re-arm your self-watch: run bash \"$HUB/scripts/sysadmin/selfwatch_arm.sh\" $2 in the background. Then run python3 \"$HUB/scripts/sysadmin/hibernate.py\" woke --self $2 and, only if it exits 0, resume your item from the seed it prints; on exit 1 carry on as usual; on exit 2 stay paused and tell your coordinator."
       claude="claude -n $1 --resume $2"
     fi
     inner="echo 200 > /proc/self/oom_score_adj 2>/dev/null; $penv $claude --settings $(squote "$SETTINGS_JSON") $(squote "$wake"); rc=\$?; echo; [ \"\$rc\" = 137 ] && printf '%s\\n' $(squote "$killed"); printf '%s\\n' $hint; exec $penv bash -l"
