@@ -8184,6 +8184,7 @@ request, executed by the Opus design critique). The first fix, a per-run `tried`
 ready-to-land test still waited for a leg the fork loop now refused to start.
 **Why:** a guard keyed on an object the loop recreates holds for one pass only, and a new skip in a fork loop is a
 new state the loop's EXIT condition must also accept.
-**How to apply:** key "once per run" on the stable identity (the request head), and for every skip added to a
+**How to apply:** key "once per run" on the identity a rebuild keeps (the request head plus its stacked tree, so a
+request re-stacked onto a changed base earns a fresh leg), and for every skip added to a
 producer loop, add the same arm to the consumer's ready test — then run the suite under a timeout, which is what
 caught the hang here.
