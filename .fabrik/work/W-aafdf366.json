@@ -15,10 +15,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "same mail; superseded by the operator's bypassPermissions script",
   "owner": "infra-3",
   "priority": 1,
   "score_reason": "same mail as W-130fa7ce; operator waiting",
-  "status": "open",
+  "status": "dropped",
   "title": "WHAT: operator request (verbatim, 2026-10-30): \"for all repos, for all agents, i want to give this command running permissions, this is too limited. also i want to make it by running a command easily.\" Context: the auto-mode classifier keeps refusing operator-pre-authorised actions to agents (Produc"
 }

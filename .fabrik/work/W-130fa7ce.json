@@ -14,11 +14,11 @@
     "spec": ""
   },
   "next": "build the installer in a worktree, review, MR; the operator runs it",
-  "note": "",
+  "note": "superseded: operator applies bypassPermissions on every account via a one-line script (2026-10-30, 'i said all commands')",
   "owner": "infra-3",
   "priority": 0,
   "score_reason": "operator waiting today; every classifier refusal on site publishes, DNS and Ads costs an operator round-trip (~8 today) while the websites ship",
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "mail-01m66vzwt9w7tjxhkc6jbfz8jp"
   ],
