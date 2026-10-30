@@ -587,8 +587,15 @@ def update_business_model(catalog_md: str) -> bool:
     else:
         content = re.sub(pattern, replacement, content, flags=re.DOTALL)
 
-    catalog_path.write_text(content, encoding="utf-8")
+    _write_if_changed(catalog_path, content)
     return True
+
+
+def _write_if_changed(path: Path, content: str) -> None:
+    """Write only when the text differs, so a run that changed nothing leaves the file untouched
+    (W-5568be8d)."""
+    if path.read_text(encoding="utf-8") != content:
+        path.write_text(content, encoding="utf-8")
 
 
 # ── Port conflict detection ──────────────────────────────────────────────────
@@ -625,9 +632,11 @@ def update_ports_md(projects: list[Project], conflicts: dict[int, list[str]]) ->
 
     content = ports_path.read_text(encoding="utf-8")
 
-    # Build the auto-generated block
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    md = f"<!-- Last synced: {timestamp} -->\n\n"
+    # Build the auto-generated block. No "Last synced" timestamp (W-5568be8d): it changed on EVERY
+    # run, so each fabrik apply/scan left PORTS.md dirty in the hub main checkout with no port
+    # changed, and merge_request.py refuses merges over a dirty non-ledger path. The catalog
+    # dropped its timestamp for the same reason (update_business_model / generate_catalog_markdown).
+    md = ""
 
     # Conflict warnings
     if conflicts:
@@ -666,7 +675,7 @@ def update_ports_md(projects: list[Project], conflicts: dict[int, list[str]]) ->
     else:
         content = re.sub(pattern, f"\\1\n{md}\\2", content, flags=re.DOTALL)
 
-    ports_path.write_text(content, encoding="utf-8")
+    _write_if_changed(ports_path, content)
     return True
 
 
