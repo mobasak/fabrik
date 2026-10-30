@@ -219,6 +219,91 @@ def load(sid: str) -> dict[str, Any]:
         return {}
 
 
+_STEP_SNAPSHOT_BIN = "/opt/fabrik/scripts/wip_backup.sh"
+_STEP_SNAPSHOT_LOCK = "/tmp/wip-backup.lock"  # noqa: S108 — the */15 cron's own lock, shared on purpose
+_STEP_SNAPSHOT_EVERY_S = 120.0
+
+
+def _step_snapshot(repo_root: str) -> None:
+    """Spec L1 (W-6e656dac T06): a `step` lands an off-box snapshot of the run's own repo — a
+    DETACHED single-repo `wip_backup.sh` run (`WIP_BACKUP_ONLY=<repo>`) under the */15 cron's own
+    `flock -n /tmp/wip-backup.lock`, at most once per 2 minutes per repo (a stamp under the
+    run-record dir). The lock is probed first: held (the cron, or another repo's step run) →
+    nothing starts and the cron, the floor, covers it. Never waits, never raises.
+
+    Seam: `FABRIK_STEP_SNAPSHOT_BIN` (and `FABRIK_STEP_SNAPSHOT_LOCK`) name the binary; unset,
+    a test harness — `COMMAND_RUN_DIR` or `PYTEST_CURRENT_TEST` — spawns nothing, so no suite
+    reaches the live script. Cobra (D-253): the cheapest pass is a stamp written with no run —
+    the stamp is written only once the spawn is handed to the kernel."""
+    bin_ = os.environ.get("FABRIK_STEP_SNAPSHOT_BIN")
+    if bin_ is None:
+        if os.environ.get("COMMAND_RUN_DIR") or os.environ.get("PYTEST_CURRENT_TEST"):
+            return
+        bin_ = _STEP_SNAPSHOT_BIN
+    if not bin_ or not repo_root or not os.access(bin_, os.X_OK):
+        return
+    lock = os.environ.get("FABRIK_STEP_SNAPSHOT_LOCK") or _STEP_SNAPSHOT_LOCK
+    try:
+        stamp_dir = _state_dir() / "step-snapshot"
+        key = hashlib.sha1(os.path.realpath(repo_root).encode(), usedforsecurity=False).hexdigest()[
+            :16
+        ]
+        stamp = stamp_dir / key
+        try:
+            if time.time() - stamp.stat().st_mtime < _STEP_SNAPSHOT_EVERY_S:
+                return
+        except FileNotFoundError:
+            pass
+        fd = os.open(lock, os.O_WRONLY | os.O_CREAT, 0o666)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return  # the cron (or another step's run) holds it: the */15 cron covers this boundary
+        finally:
+            os.close(fd)  # closing releases the probe's own lock before `flock -n` takes it
+        subprocess.Popen(  # noqa: S603 — fixed argv, no shell
+            ["flock", "-n", lock, bin_],
+            env={**os.environ, "WIP_BACKUP_ONLY": repo_root},
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            close_fds=True,
+        )
+        stamp_dir.mkdir(parents=True, exist_ok=True)
+        stamp.touch()
+        os.utime(stamp)
+    except Exception as exc:  # noqa: BLE001 — a snapshot must never refuse a step
+        sys.stderr.write(f"[command_run] NOTE — step snapshot not started: {exc}\n")
+
+
+def _abandoned_seats(values: list[str]) -> tuple[list[dict[str, Any]], str]:
+    """`--abandoned-seat '<pid>|<purpose>|<brief path>|<output path>'` values → the record's
+    `abandoned_seats` entries `{pid, purpose, brief, output, procStart}` — `procStart` read from
+    `/proc/<pid>/stat` (field 22, the form `hibernate.py` compares) now, at the close, and null
+    when unreadable. Returns ``(entries, "")`` or ``([], <the first malformed value>)``."""
+    out: list[dict[str, Any]] = []
+    for raw in values:
+        parts = str(raw).split("|", 3)
+        if len(parts) != 4 or not parts[0].strip().isdigit() or int(parts[0]) <= 0:
+            return [], str(raw)
+        pid = int(parts[0])
+        try:
+            start: str | None = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19]
+        except (OSError, IndexError):
+            start = None
+        out.append(
+            {
+                "pid": pid,
+                "purpose": parts[1].strip(),
+                "brief": parts[2].strip(),
+                "output": parts[3].strip(),
+                "procStart": start,
+            }
+        )
+    return out, ""
+
+
 def save(sid: str, rec: dict[str, Any]) -> bool:
     """Atomically persist ``rec``. Returns False (never raises) on any I/O problem."""
     try:
@@ -4314,6 +4399,9 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument("--reason", required=True, help="why rows remain open")
+    p.add_argument(
+        "--abandoned-seat", action="append", default=None, metavar="SEAT", help=_ABANDONED_SEAT_HELP
+    )
     p.add_argument("--commit", default=None, nargs="+", metavar="SHA", help=_TASK_COMMIT_HELP)
     p.add_argument(
         "--review",
@@ -4354,6 +4442,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "marked and a JSON seed of it is kept under <state>/seeds/ for `start --resume-from` "
         "(W-28f260c3). The hook's own phrase in --reason implies it; a quota-shaped reason "
         "without the flag gets a NOTE, never a seed.",
+    )
+    p.add_argument(
+        "--abandoned-seat", action="append", default=None, metavar="SEAT", help=_ABANDONED_SEAT_HELP
     )
     p.add_argument("--commit", default=None, nargs="+", metavar="SHA", help=_TASK_COMMIT_HELP)
     p.add_argument(
@@ -5280,6 +5371,11 @@ _TASK_COMMIT_HELP = (
     "run, in order, space- or comma-separated. `fabrik-task` ONLY: REQUIRED on `done` there, optional "
     "on `blocked`/`handoff` "
     "(which may close before any commit exists), and REFUSED on every other command"
+)
+_ABANDONED_SEAT_HELP = (
+    "repeatable: '<pid>|<purpose>|<brief path>|<output path>' — a seat still running at this close "
+    "(a /hibernate T-3, spec L2), written into the record and its seed as `abandoned_seats` with its "
+    "/proc start time, so `hibernate.py woke` lists it for a re-run after the wake"
 )
 
 # `git`'s empty tree. A ROOT commit has no parent, so `<c>~1` does not resolve and its diff is
@@ -6921,6 +7017,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         _touch(rec)
         _heartbeat(rec)  # scratch lifecycle plan D1: the run folder's heartbeat
         fields["persisted"] = save(sid, rec)
+        _step_snapshot(str(rec.get("repo_root") or ""))
         print(pinned_line(rec))
         if _tests_note_files is not None:
             # after the save and every refusal: the design's test advice, where the grader path
@@ -7905,6 +8002,20 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     # `_flush_events` runs in a `finally` and a refusal after that queue would emit a close
     # event for a close that did not happen. Nothing above this point has touched DISK — the
     # record is only mutated in memory until `save()` — so a refusal leaves it `running`.
+    _seat_vals = list(getattr(args, "abandoned_seat", None) or [])
+    if _seat_vals:
+        _seats, _bad = _abandoned_seats(_seat_vals)
+        if _bad:
+            msg = (
+                f"REFUSED — --abandoned-seat {_bad!r} is not '<pid>|<purpose>|<brief path>|<output "
+                "path>' (a positive pid and four `|` fields); nothing was closed"
+            )
+            sys.stderr.write(f"[command_run] {msg}\n")
+            print(msg)
+            return 1
+        # BEFORE the seed copy below: `hibernate.py woke` and `status` check 2 read these names
+        # from the record and from its seed (W-6e656dac T06, spec L2's abandoned-seat rule)
+        rec["abandoned_seats"] = _seats
     _task_rc, _task_fields = _task_close_fields(rec, args)
     if _task_rc:
         return _task_rc
