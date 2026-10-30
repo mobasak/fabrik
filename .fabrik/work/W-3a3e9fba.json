@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T21:09:26.834203Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-3a3e9fba",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add the age to _commit's lock reason + a test",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "review-residue"
+  ],
+  "title": "scripts/commit_generated.py: a git commit killed at GIT_TIMEOUT_S (60 s, subprocess SIGKILL) can leave a stale .git/index.lock in the main checkout, and every later run then reads 'index.lock held past 3 tries' with nothing naming it stale (pre-existing kill path; W-5568be8d review AS2-3) — age the lock in the reason as autocommit_pipeline_outputs.sh does (>900 s = stale), never delete it"
+}
