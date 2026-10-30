@@ -2147,7 +2147,9 @@ def _scope_flags(unit: str) -> list[str]:
 
 
 def _scope_ok(env: dict) -> bool:
-    if "ok" not in _SCOPE:
+    """Only a green probe is kept: a failed one (a bus that dropped for a moment) is asked again
+    at the next kick, so one blip never sends a whole queue run's runners bare."""
+    if not _SCOPE.get("ok"):
         try:
             probe = subprocess.run(  # noqa: S603 — fixed argv, no shell
                 [*_scope_flags("fabrik-sync-probe"), "--", "true"],
@@ -2201,7 +2203,9 @@ def _kick_sync(main: Path, state: Path) -> str | None:
         return (
             f"sync: FAILED to start ({exc}) — run scripts/sync_enforcement_to_projects.py --force"
         )
-    _SYNC_RUN.update(proc=proc, state=state, main=main)
+    # `started`: a status written before this start is another runner's (a scoped start can exit 1
+    # before the runner runs, writing none), so the drain never reads it as this one's reason
+    _SYNC_RUN.update(proc=proc, state=state, main=main, started=time.time())
     return note
 
 
@@ -2239,7 +2243,7 @@ def _sync_once(argv: list[str], state: Path, lock_fd: int) -> tuple[int, str]:
 
 def _sync_runner(state: Path, argv: list[str]) -> int:
     """``sync-runner`` (internal, listed by ``--help``; started by ``_kick_sync``): hold SYNC_LOCK, sync until the owed
-    log is covered. Exit 0 covered · 1 a sync failed · 2 sync-done did not persist · 3 the lock
+    log is covered. Exit 0 covered, or retired at SYNC_RUNNER_SOFT_S with the debt still owed · 1 a sync failed · 2 sync-done did not persist · 3 the lock
     stayed held past its wait (``main`` adds 70: the runner itself crashed)."""
     state.mkdir(parents=True, exist_ok=True)
     fd = os.open(state / SYNC_LOCK, os.O_RDWR | os.O_CREAT, 0o644)
@@ -2320,6 +2324,7 @@ def _drain_sync() -> None:
     if proc is None:
         return
     state, main = _SYNC_RUN.pop("state"), _SYNC_RUN.pop("main")
+    started = _SYNC_RUN.pop("started", 0.0)
     deadline = time.monotonic() + SYNC_TIMEOUT_S
     for rerun in (False, True):
         try:
@@ -2355,7 +2360,8 @@ def _drain_sync() -> None:
             return
     last = _sync_status(state)
     rc = proc.returncode  # the runner's own exit; the status file may be an older run's
-    if last.get("rc") == rc:
+    fresh = isinstance(last.get("at"), (int, float)) and last["at"] >= started
+    if fresh and last.get("rc") == rc:
         rc, tail = last.get("sync_rc", rc), last.get("tail", "")
     else:
         tail = "the runner recorded no reason"

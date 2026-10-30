@@ -944,7 +944,75 @@ def test_the_runner_starts_bare_when_no_scope_can_start(world, monkeypatch, resu
 
     assert world.mod._runner_scope(_RUNNER, {}) == _RUNNER
     assert world.mod._runner_scope(_RUNNER, {}) == _RUNNER
-    assert len(calls) == 1  # one probe per process, its answer kept
+    assert len(calls) == 2  # a failed probe is asked again: one bus blip never pins a run bare
+
+
+def test_a_green_probe_is_kept_for_the_process(world, monkeypatch):
+    calls = _probe_ran(monkeypatch, world.mod, 0)
+
+    assert world.mod._runner_scope(_RUNNER, {})[0] == "systemd-run"
+    assert world.mod._runner_scope(_RUNNER, {})[0] == "systemd-run"
+    assert len(calls) == 1
+
+
+def test_kick_sync_starts_the_runner_through_its_scope(world, monkeypatch, tmp_path):
+    """The start itself, hermetic (the capped_run grader skips where no scope can start): the
+    runner's argv goes through `_runner_scope` and the Popen gets the filled env."""
+    mod = world.mod
+    _probe_ran(monkeypatch, mod, 0)
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "sync-owed.log").write_text("owed\n")
+    seen: dict = {}
+
+    class _Proc:
+        pid = 4242
+
+        def poll(self):
+            return None
+
+    def popen(argv, **kw):
+        seen.update(argv=list(argv), env=kw.get("env"))
+        return _Proc()
+
+    monkeypatch.setattr(mod.subprocess, "Popen", popen)
+
+    assert mod._kick_sync(tmp_path, state) is None
+    argv = seen["argv"]
+    assert argv[0] == "systemd-run" and "--collect" in argv
+    assert argv[argv.index("--") + 1 :][2:4] == ["sync-runner", "--state"]
+    assert seen["env"] == mod._runner_env(dict(os.environ))
+    assert mod._SYNC_RUN["started"] > 0
+    mod._SYNC_RUN.clear()
+
+
+def test_the_runner_env_fills_xdg_runtime_dir_from_the_user_bus(world, monkeypatch):
+    mod = world.mod
+    bus = Path(f"/run/user/{os.getuid()}")
+    assert mod._runner_env({"XDG_RUNTIME_DIR": "/kept"})["XDG_RUNTIME_DIR"] == "/kept"
+    filled = mod._runner_env({"PATH": "/bin"})
+    if (bus / "bus").is_socket():
+        assert filled == {"PATH": "/bin", "XDG_RUNTIME_DIR": str(bus)}
+    else:
+        assert filled == {"PATH": "/bin"}
+
+
+def test_a_runner_that_exits_before_writing_reads_no_older_status(world, monkeypatch, capsys):
+    """A scoped start can exit 1 before the runner runs (systemd-run refused it), writing no
+    status; an older run's rc-1 status is not this one's reason."""
+    state = _hub(world, monkeypatch)
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "sync-owed.log").write_text("owed\n")
+    (state / "sync-status.txt").write_text(
+        json.dumps({"at": time.time() - 3600, "rc": 1, "sync_rc": 124, "tail": "OLD tail"})
+    )
+    failed = subprocess.Popen([sys.executable, "-c", "import sys; sys.exit(1)"])
+    world.mod._SYNC_RUN.update(proc=failed, state=state, main=world.main, started=time.time())
+
+    world.mod._drain_sync()
+    err = capsys.readouterr().err
+    assert "sync: FAILED (exit 1: the runner recorded no reason)" in err, err
+    assert "OLD tail" not in err
 
 
 def test_the_runner_starts_in_its_own_bounded_scope(world, monkeypatch):
@@ -971,7 +1039,8 @@ def test_the_runner_starts_in_its_own_bounded_scope(world, monkeypatch):
     assert probe[probe.index("--") + 1 :] == ["true"]
     strip = [p for p in probe[: probe.index("--")] if not p.startswith("--unit=")]
     assert strip == [p for p in prefix if not p.startswith("--unit=")]
-    # the backstop outlasts a runner that retires at its soft deadline mid-way through no sync
+    # the backstop outlasts the last sync a runner may start before its soft deadline, so a runner
+    # that retires at that deadline is never the one the backstop kills mid-sync
     assert mod.SYNC_RUNNER_MAX_S >= mod.SYNC_RUNNER_SOFT_S + mod.SYNC_TIMEOUT_S
     assert mod.SYNC_RUNNER_SOFT_S >= mod.QUEUE_WALL_S + mod.SYNC_LOCK_WAIT_S
 
@@ -1022,9 +1091,21 @@ def test_a_runner_outlives_its_merge_process_under_capped_run(world, tmp_path):
     state, marker = tmp_path / "fabrik-merge", tmp_path / "synced-after-exit"
 
     run = subprocess.run(
-        [str(_CAPPED), "--timeout", "60", "--", sys.executable, str(child), str(SCRIPT),
-         str(state), str(marker)],
-        capture_output=True, text=True, timeout=120, check=False,
+        [
+            str(_CAPPED),
+            "--timeout",
+            "60",
+            "--",
+            sys.executable,
+            str(child),
+            str(SCRIPT),
+            str(state),
+            str(marker),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
     )
     assert run.returncode == 0, run.stderr
     end = time.monotonic() + 45
