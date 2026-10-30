@@ -1062,12 +1062,61 @@ def test_h1_every_verb_defaults_to_the_one_passwd_home(
     caller = {"sid": "s", "agent": "infra", "entrypoint": "cli", "pid": 1}
     monkeypatch.setattr(hib, "live_sessions", lambda home, proc, opt="/opt": [])
     monkeypatch.setattr(hib, "_caller", lambda proc, sessions: (caller, ""))
-    monkeypatch.setattr(hib, "merge_owner", lambda hub, resolver: ("infra", ""))
+    monkeypatch.setattr(hib, "merge_owner", lambda hub, resolver=None, **kw: ("infra", ""))
     assert hib.main(["mark", "--words", "w"]) == 0
     assert (passwd_home / ".claude" / "state" / "hibernate.json").exists()
     assert not (env_home / ".claude" / "state" / "hibernate.json").exists()
     assert hib.main(["lift"]) == 0
     assert hib.main(["paused"]) == 1  # lifted, read from the same home
+
+
+def _stub_resolver(tmp_path: Path, body: str) -> Path:
+    stub = tmp_path / "stub_decisions.py"
+    stub.write_text("import sys, time\n" + body + "\n", encoding="utf-8")
+    return stub
+
+
+def _ledgered_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    (repo / "docs").mkdir(parents=True)
+    (repo / "docs" / "DECISIONS.md").write_text("# ledger\n", encoding="utf-8")
+    return repo
+
+
+def test_merge_owner_reads_decisions_at_call_time(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Merge review O-C1: with no resolver passed, `merge_owner` reads the module's DECISIONS when it RUNS (master's
+    late binding), so a patched DECISIONS is the resolver used — never the path frozen at import."""
+    hib = _load("hib_late_binding", HIB)
+    # the stub names an owner; the real decisions.py names none on this owner-less ledger
+    monkeypatch.setattr(hib, "DECISIONS", _stub_resolver(tmp_path, "print('stub-owner')"))
+    assert hib.merge_owner(str(_ledgered_repo(tmp_path))) == (
+        "stub-owner",
+        "the ledger's merge owner",
+    )
+
+
+def test_merge_owner_runs_the_given_resolver_under_the_given_timeout(tmp_path: Path) -> None:
+    """Merge review C1/C4: a resolver passed positionally AND a keyword timeout both apply — a resolver that outlives
+    the timeout is a failed lookup (fail closed: not "no owner"), never a hang."""
+    hib = _load("hib_resolver_timeout", HIB)
+    repo = str(_ledgered_repo(tmp_path))
+    slow = _stub_resolver(tmp_path, "time.sleep(5)")
+    t0 = time.monotonic()
+    name, why = hib.merge_owner(repo, slow, timeout=0.5)
+    assert time.monotonic() - t0 < 4
+    assert name == "" and why.startswith("lookup failed") and why not in hib.NO_OWNER
+
+
+def test_merge_owner_reads_an_empty_answer_as_a_failed_lookup(tmp_path: Path) -> None:
+    """Merge review C5: a resolver that exits 0 and prints nothing names no owner — the why says the lookup failed,
+    never "the ledger's merge owner" with an empty name (which `lift` would print as its refusal reason)."""
+    hib = _load("hib_empty_answer", HIB)
+    name, why = hib.merge_owner(
+        str(_ledgered_repo(tmp_path)), _stub_resolver(tmp_path, "sys.exit(0)")
+    )
+    assert name == "" and why.startswith("lookup failed") and why not in hib.NO_OWNER
 
 
 def test_g6_a_lift_older_than_the_mark_is_no_resume(tmp_path: Path) -> None:

@@ -198,8 +198,11 @@ def _under_test() -> bool:
     return bool(os.environ.get("PYTEST_CURRENT_TEST"))
 
 
-def merge_owner(repo: str, resolver: Path = DECISIONS, *, timeout: float = 30) -> tuple[str, str]:
-    """(name, why) — the name is "" when the repo declares none or the lookup fails (incl. past `timeout` s)."""
+def merge_owner(repo: str, resolver: Path | None = None, *, timeout: float = 30) -> tuple[str, str]:
+    """(name, why) — the name is "" when the repo declares none or the lookup fails (incl. past `timeout` s, or an
+    empty answer). `resolver` defaults to DECISIONS read at CALL time, so a patched module DECISIONS is honoured."""
+    if resolver is None:
+        resolver = DECISIONS
     if not (Path(repo) / "docs" / "DECISIONS.md").is_file():
         return "", "no ledger"
     try:
@@ -212,7 +215,8 @@ def merge_owner(repo: str, resolver: Path = DECISIONS, *, timeout: float = 30) -
     except (OSError, subprocess.TimeoutExpired) as exc:
         return "", f"lookup failed ({exc})"
     if out.returncode == 0:
-        return out.stdout.strip(), "the ledger's merge owner"
+        name = out.stdout.strip()
+        return (name, "the ledger's merge owner") if name else ("", "lookup failed (empty answer)")
     if out.returncode == 3:
         return "", DECLARES_NONE
     return "", f"lookup failed (exit {out.returncode})"
