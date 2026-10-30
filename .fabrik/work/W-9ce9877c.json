@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T18:56:57.639481Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-9ce9877c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M671500G10FJ267G6N8Y72PR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "# fleet idle (D-1377): paused under P0-only, no P0 held"
+}

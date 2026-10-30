@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T18:57:03.109806Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-a06f7b26",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M6716810S7K14E55ZWHYWVGZ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: rotate infra-3. WHERE: pane infra-3, worktree /opt/fabrik/.claude/worktrees/infra-3. WHEN: now — clean item boundary (W-b9b6472e done, MR 01M670WHMM sent; no run record running, no seat in flight, worktree clean and pushed). WHO: infra-3 asks the coordinator. WHY: ROTATE-DUE at 70% context; li"
+}

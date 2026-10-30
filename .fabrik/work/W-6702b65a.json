@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T18:57:04.116947Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-6702b65a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M672EHQZCWRFF25CZJBXT66M",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: infra-3 takes P0 W-8209a305 (agents_up re-runs agents_bat --tabbed on new grids, D-1376; docs/reference/tmux-agents.md + the CLAUDE.md coordinator and builder lines, D-1377), then W-05c15129 — but rotates FIRST, as you offered. WHERE: pane infra-3. WHEN: now; clean boundary (W-b9b6472e merged"
+}
