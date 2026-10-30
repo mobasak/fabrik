@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T17:30:09.188537Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-0eae976b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M66XJTT8MQY78GVY1BJY3MYN",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "rotate infra-3 — paused under the P0-only order, at a clean item boundary (no run record running, no seat in flight, worktree clean and pushed); ROTATE-DUE at 55% context. My live SendMessage was held: this session now runs in bypassPermissions after your relaunch, so the modes differ."
+}
