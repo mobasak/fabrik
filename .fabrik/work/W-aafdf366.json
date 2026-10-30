@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-30T16:59:11.299067Z",
   "creator": "coordinator",
+  "effort": "low",
   "evidence": "",
   "id": "W-aafdf366",
+  "impact": "high",
   "kind": "mail",
   "legacy": false,
   "links": {
@@ -14,8 +16,9 @@
   },
   "next": "",
   "note": "",
-  "owner": "coordinator",
-  "priority": 2,
+  "owner": "infra-3",
+  "priority": 1,
+  "score_reason": "same mail as W-130fa7ce; operator waiting",
   "status": "open",
   "title": "WHAT: operator request (verbatim, 2026-10-30): \"for all repos, for all agents, i want to give this command running permissions, this is too limited. also i want to make it by running a command easily.\" Context: the auto-mode classifier keeps refusing operator-pre-authorised actions to agents (Produc"
 }
