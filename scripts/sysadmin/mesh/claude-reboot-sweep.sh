@@ -17,7 +17,9 @@
 # Ordering matters: the sid's PRE-REBOOT `.reviving` is cleared FIRST — its mtime predates the boot, so the
 # decider would read it as a dead reviver and invite a second writer.
 #
-# Builder leg — once per boot (a persistent stamp, $state/.builders-boot), on a fresh boot, wait up to
+# Builder leg — once per boot PER REPO (a persistent stamp, $state/.builders-boot, latches a repo only after its
+# grid launched, so a failed leg's repos come back on a later sweep; --list's skip lines are noted
+# `builders-skipped`), on a fresh boot, wait up to
 # MESH_BUS_WAIT (120 s) for the user bus (MESH_BUS_SOCKET, default /run/user/<uid>/bus, re-checked every probe),
 # then for every repo `agents_bat.py --list` prints read its grid's `pane <name> <sid> <folder> <status>` lines
 # (`agents_up.sh --print`) and build the grid with `agents_up.sh --detach` (cron has no terminal); only a grid
@@ -233,32 +235,63 @@ legb_fresh=0
 [ "$lockdir_missing" = "1" ] && legb_fresh=1
 [ $(( $(date +%s) - boot )) -lt "$fresh_window" ] && legb_fresh=1
 relaunched_file="$locks/.boot-relaunched"
-# ONCE PER BOOT (T04 F13): the leg would otherwise re-run on any sweep in the fresh window or whenever the lock dir
-# is missing (a cron restart, a pruned /tmp) and re-launch grids the operator closed. The PERSISTENT stamp holds
-# this boot's epoch on line 1 (boot is derived from uptime, so it matches within ±60 s) and the sids the leg
-# launched after it — Leg B reads those too, so a lock dir pruned after the leg still skips them. boot=0 (no
-# uptime) cannot be told apart from another boot, so it never skips.
+# ONCE PER BOOT PER REPO (T04 F13, G6): the leg would otherwise re-run on any sweep in the fresh window or whenever
+# the lock dir is missing (a cron restart, a pruned /tmp) and re-launch grids the operator closed — yet a repo whose
+# grid did NOT launch (a failed or killed leg) must come back on a later sweep. The PERSISTENT stamp holds this
+# boot's epoch on line 1 (boot is derived from uptime, so it matches within ±60 s), then one
+# `repo<TAB><path><TAB><sids>` line appended only after that repo's --detach returned 0; a later sweep this boot
+# skips only those repos, and Leg B reads their sids, so a lock dir pruned after the leg still skips them. boot=0
+# (no uptime) cannot be told apart from another boot, so it never skips.
 boot_stamp="$state/.builders-boot"
-builders_done=0
+same_boot=0
 stamp_boot=$(head -n 1 "$boot_stamp" 2>/dev/null)
 case "$stamp_boot" in ''|*[!0123456789]*) stamp_boot="" ;; esac
 if [ "$boot" -gt 0 ] && [ -n "$stamp_boot" ]; then
   d=$(( boot - stamp_boot )); [ "$d" -lt 0 ] && d=$(( -d ))
-  [ "$d" -le 60 ] && builders_done=1
+  [ "$d" -le 60 ] && same_boot=1
 fi
+latched() {  # latched <repo>: this boot's stamp says the repo's grid launched
+  [ "$same_boot" = "1" ] && awk -F '\t' -v p="$1" '$1 == "repo" && $2 == p {f=1} END {exit !f}' "$boot_stamp" 2>/dev/null
+}
 relaunched_now=" "
-if [ "$legb_fresh" = "1" ] && [ "$builders_done" = "1" ]; then
-  note "builders-already-this-boot" "the builder leg ran at boot=$stamp_boot ($boot_stamp) — no grid re-launched"
-elif [ "$legb_fresh" = "1" ]; then
-  : > "$relaunched_file" 2>/dev/null || true  # this boot's list; the last boot's is history
-  printf '%s\n' "$boot" > "$boot_stamp" 2>/dev/null || note "builders-stamp-failed" "$boot_stamp unwritable — a later sweep this boot may re-run the leg"
+if [ "$legb_fresh" = "1" ]; then
+  if [ "$same_boot" != "1" ]; then
+    : > "$relaunched_file" 2>/dev/null || true  # this boot's list; the last boot's is history
+    if printf '%s\n' "$boot" > "$boot_stamp" 2>/dev/null; then
+      [ "$boot" -gt 0 ] && same_boot=1  # the stamp now describes this boot
+    else
+      note "builders-stamp-failed" "$boot_stamp unwritable — a later sweep this boot may re-launch a grid"
+    fi
+  fi
   if [ ! -f "$agents_bat" ] || [ ! -f "$agents_up" ]; then
     note "no-agents-bat" "$agents_bat or $agents_up missing — builder leg SKIPPED"
   else
-    repos=$(timeout 60 python3 "$agents_bat" --list 2>/dev/null || true)
-    if [ -z "$repos" ]; then
+    # --list's stderr goes to a FILE, then one note per line (T04 G4): a folder it skipped (unreadable, a newline
+    # in its name) gets no grid, and the sweep log must say which
+    errf=$(mktemp "$locks/.builder-list.XXXXXX" 2>/dev/null || mktemp 2>/dev/null) || errf=/dev/null
+    all_repos=$(timeout 60 python3 "$agents_bat" --list 2>"$errf" </dev/null 9>&- || true)
+    if [ "$errf" != /dev/null ]; then
+      while IFS= read -r skipline; do
+        [ -n "$skipline" ] && note "builders-skipped" "$(printf '%s' "$skipline" | cut -c1-200)"
+      done < "$errf"
+      rm -f "$errf" 2>/dev/null
+    fi
+    repos=""
+    n_latched=0
+    while IFS= read -r repo; do
+      [ -n "$repo" ] || continue
+      if latched "$repo"; then n_latched=$(( n_latched + 1 )); continue; fi
+      repos="$repos$repo
+"
+    done <<EOF_ALL
+$all_repos
+EOF_ALL
+    if [ -z "$all_repos" ]; then
       note "builders-none" "agents_bat.py --list printed no repo"
+    elif [ -z "$repos" ]; then
+      note "builders-already-this-boot" "all $n_latched grid(s) launched at boot=$stamp_boot ($boot_stamp) — none re-launched"
     else
+      [ "$n_latched" -gt 0 ] && note "builders-already-this-boot" "$n_latched grid(s) launched earlier this boot — only the rest are built"
       # the user bus: agents_up asks the same question (`systemctl --user show-environment`) to cap the
       # panes, and a boot reaches this line before the user manager answers. XDG_RUNTIME_DIR is derived INSIDE
       # each probe (T04 F11): a socket that appears during the wait must be seen by the next probe.
@@ -308,9 +341,10 @@ elif [ "$legb_fresh" = "1" ]; then
         rc=$?
         if [ "$rc" = "0" ]; then
           note "builder-grid" "repo=$repo rc=0 $(tail -n 1 "$outf" 2>/dev/null | cut -c1-200)"
+          # the per-repo latch, only now that the grid launched (G6)
+          printf 'repo\t%s\t%s\n' "$repo" "$(printf '%s' "$sids" | tr '\n' ' ')" >> "$boot_stamp" 2>/dev/null
           if [ -n "$sids" ]; then
             printf '%s\n' "$sids" >> "$relaunched_file" 2>/dev/null
-            printf '%s\n' "$sids" >> "$boot_stamp" 2>/dev/null
             relaunched_now="$relaunched_now$(printf '%s' "$sids" | tr '\n' ' ') "
           fi
         else
@@ -325,8 +359,8 @@ EOF_REPOS
 fi
 # this sweep's launches, the lock dir's list, and — for the same boot — the persistent stamp's sids
 relaunched=" $(tr '\n' ' ' < "$relaunched_file" 2>/dev/null) $relaunched_now "
-if [ "$builders_done" = "1" ]; then
-  relaunched="$relaunched$(tail -n +2 "$boot_stamp" 2>/dev/null | tr '\n' ' ') "
+if [ "$same_boot" = "1" ]; then
+  relaunched="$relaunched$(awk -F '\t' '$1 == "repo" {print $3}' "$boot_stamp" 2>/dev/null | tr '\n' ' ') "
 fi
 
 # ── Leg B: cut-mid-work NOTIFY for every session — interactive panes included (plan

@@ -83,6 +83,9 @@ except Exception: print("unknown")' 2>/dev/null)
   case "$w" in ''|*[!A-Za-z0-9_-]*) w=unknown ;; esac
   printf '%s' "$w"
 }
+empty_since=""  # when this watch first claimed the current lift still EMPTY (T04 G1)
+empty_wait="${MESH_EMPTY_WAIT:-3}"
+case "$empty_wait" in [123456789]|[123456789][0123456789]) ;; *) empty_wait=3 ;; esac
 while :; do
   while [ ! -f "$marker" ] && [ ! -f "$lift" ]; do sleep "${MESH_POLL:-10}"; [ "$locks/$safe.selfwatch.lock" -ef /proc/$$/fd/9 ] || { printf 'self-watch for %s: its lock file vanished (the Stop decider prunes lock-dir files older than 2h by mtime — fixed 2026-09-07 — or a manual rm); this watch EXITS so the tick and the arm nag see the truth — re-arm it\n' "$safe"; exit 0; }; done  # orphan guard (heavy review R1)
   if [ ! -f "$marker" ] && [ -f "$lift" ]; then
@@ -104,7 +107,7 @@ while :; do
     # CLAIM the lift atomically (T04 F14, the sweep's mv-claim): three reads then an `rm` could delete a lift the
     # tick wrote in between, unwoken. A failed mv means it was consumed or cleaned meanwhile (a fresh arm).
     claimed="$lift.claimed"
-    mv -f "$lift" "$claimed" 2>/dev/null || continue
+    mv -f "$lift" "$claimed" 2>/dev/null || { empty_since=""; continue; }
     # read the CLAIMED file AFTER the gate (routed I13): a hibernate lift's fan-out replaces a pending `resume` wake
     # while the gate waits, and the line must carry the replacing kind and its epoch — the LIFT epoch, so
     # the line names when the hold went, not when the wake landed
@@ -113,13 +116,18 @@ while :; do
     # put the lift back and gate again (T04 F9) when the gate it passed was SHORTER than the kind now printed needs:
     # a one-field (quota) or still-EMPTY file read before the gate (the tick creates it O_EXCL, then writes) that
     # now says hibernate/resume — the hibernate line is printed only after MESH_UP_STREAK answers and the jitter.
-    # A file still empty and under 5 s old is the tick mid-write: back it goes too. `mv -n` never overwrites a
-    # NEWER lift written meanwhile; the claimed copy then goes (the newer one wins, as the tick's fan-out does).
+    # A file still EMPTY may be the tick mid-write: back it goes too, for at most MESH_EMPTY_WAIT (3) seconds
+    # counted from when THIS watch first saw it empty (T04 G1 — never from its mtime: net_gate `touch -c`es the file
+    # on every probe, so an mtime clock never runs out); one that stays empty is then consumed as a quota wake.
+    # `mv -n` never overwrites a NEWER lift written meanwhile; the claimed copy then goes (the newer one wins, as
+    # the tick's fan-out does).
     regate=0
     case "$lift_kind" in hibernate|resume) [ "$need" -lt "$up_streak" ] && regate=1 ;; esac
-    if [ -z "$lift_at" ] && [ $(( $(date +%s) - $(stat -c %Y "$claimed" 2>/dev/null || echo 0) )) -lt 5 ]; then
-      regate=1
+    if [ -z "$lift_at" ]; then
+      [ -n "$empty_since" ] || empty_since=$(date +%s)
+      [ $(( $(date +%s) - empty_since )) -lt "$empty_wait" ] && regate=1
     fi
+    [ "$regate" = "1" ] || empty_since=""
     if [ "$regate" = "1" ]; then
       mv -n "$claimed" "$lift" 2>/dev/null
       rm -f "$claimed" 2>/dev/null

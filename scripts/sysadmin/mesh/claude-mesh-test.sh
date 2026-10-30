@@ -561,6 +561,23 @@ EOF
     [ "$w10h_n" -ge 3 ] && ok || bad "W10h($w10h_case): the hibernate line came after $w10h_n probe(s) (MESH_UP_STREAK=3)"
     [ ! -f "$LOCKS/sW10h.holdlifted" ] && [ ! -f "$LOCKS/sW10h.holdlifted.claimed" ] && ok || bad "W10h($w10h_case): the lift (or its claim) was left behind"
   done
+  # W10i (T04 G1): an empty lift that STAYS empty is consumed as a quota wake after a bounded wait counted from
+  # when the watch first saw it empty — never from its mtime, which every gate probe refreshes (`touch -c`)
+  : > "$T/w10h.count"; rm -f "$T/w10i.out"
+  env HOME="$SBHOME" PATH="$T/w10hshim:$SHIM:/usr/bin:/bin" CLAUDE_SOUND_MEDIA="$T/nomedia" \
+      CLAUDE_SOUND_PULSE="$T/nopulse" CLAUDE_SOUND_LOCKDIR="$LOCKS" ROTATE_STATE_DIR="$HSTATE" \
+      W10H_COUNT="$T/w10h.count" W10H_LIFT="$LOCKS/sW10i.holdlifted" W10H_REWRITE="" \
+      MESH_JITTER_MAX=0 MESH_BACKOFF_OVERRIDE=0 MESH_POLL=1 MESH_UP_STREAK=3 \
+      timeout 40 bash "$SBHOME/.claude/bin/claude-selfwatch.sh" sW10i > "$T/w10i.out" &
+  w10ipid=$!
+  sleep 2; : > "$LOCKS/sW10i.holdlifted"
+  for _ in $(seq 1 15); do grep -q '^RESUME:' "$T/w10i.out" && break; sleep 1; done
+  sleep 1
+  kill "$w10ipid" 2>/dev/null; wait "$w10ipid" 2>/dev/null
+  w10i_n=$(cat "$T/w10h.count" 2>/dev/null); w10i_n=${w10i_n:-0}
+  [ "$(grep -c '^RESUME: the fleet-quota hold LIFTED at ' "$T/w10i.out")" = "1" ] && ok || bad "W10i: an empty lift that stayed empty was never consumed as one quota wake ($w10i_n probes): $(cat "$T/w10i.out")"
+  [ ! -f "$LOCKS/sW10i.holdlifted" ] && [ ! -f "$LOCKS/sW10i.holdlifted.claimed" ] && ok || bad "W10i: the empty lift (or its claim) was left behind"
+  [ "$w10i_n" -le 8 ] && ok || bad "W10i: the empty lift took $w10i_n probes (bounded wait: MESH_UP_STREAK + a few)"
   # W11 (2026-09-07, heavy review R1): a watch whose LOCK FILE vanishes (the Stop decider's 2h mtime
   # prune, or a manual rm) must EXIT with one line — an orphan holding a deleted inode is invisible
   # to the tick's armed census and steals the next death marker from the re-armed watch.
@@ -999,6 +1016,8 @@ assert sys.argv[1:] == ["--list"], sys.argv
 p = os.environ.get("MESH_BAT_LIST", "")
 if p and os.path.isfile(p):
     sys.stdout.write(open(p).read())
+if os.environ.get("MESH_BAT_STDERR"):
+    sys.stderr.write(os.environ["MESH_BAT_STDERR"] + "\n")
 EOF
   cat > "$T/stub-agents-up.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -1443,6 +1462,24 @@ STUB
   grep -q '^--detach ' "$MESH_UPLOG" && bad "R23d: a pruned lock dir re-launched the grid this boot: $(cat "$MESH_UPLOG")" || ok
   grep -q "iiii9999" "$RSNOTES" && bad "R23e: a pruned lock dir lost the relaunched sids (notified): $(cat "$RSNOTES")" || ok
   grep -q "claude --resume hhhh8888" "$RSNOTES" && ok || bad "R23f: an unrelated cut session lost its notice: $(cat "$RSNOTES")"
+  mkdir -p "$RLOCKS"; rm -f "$RSTATE/.builders-boot"
+  # R24 (T04 G4): a folder `agents_bat.py --list` skipped (its stderr line) is named in the sweep log
+  : > "$RLOG"; rm -rf "$RLOCKS"; rm -f "$RSTATE/.builders-boot"
+  R20 MESH_BAT_STDERR="agents_bat: cannot read /opt/locked (Permission denied); skipped"
+  grep -q "verdict=builders-skipped .*cannot read /opt/locked (Permission denied); skipped" "$RLOG" && ok || bad "R24: a --list skip line was not noted builders-skipped | log: $(tail -4 "$RLOG")"
+  # R25 (T04 G6): the latch is PER REPO and only after a launch — a first sweep whose --detach failed leaves the
+  # repo unlatched, so a second sweep this boot launches it; a third launches nothing (the operator may have
+  # closed the grid)
+  printf '%s\n' "$T/repoA" > "$T/bat-list.r20"
+  : > "$RLOG"; : > "$MESH_UPLOG"; rm -rf "$RLOCKS"; rm -f "$RSTATE"/notified-* "$RSTATE/.builders-boot"
+  R20 MESH_UP_DETACH_RC=1 MESH_SWEEP_FRESH_WINDOW=999999999
+  : > "$MESH_UPLOG"
+  R20 MESH_SWEEP_FRESH_WINDOW=999999999
+  grep -qx -- "--detach $T/repoA" "$MESH_UPLOG" && ok || bad "R25: a repo whose first launch failed was not launched by a later sweep this boot: $(cat "$MESH_UPLOG") | log: $(tail -4 "$RLOG")"
+  : > "$MESH_UPLOG"; : > "$RLOG"
+  R20 MESH_SWEEP_FRESH_WINDOW=999999999
+  grep -q '^--detach ' "$MESH_UPLOG" && bad "R25b: a launched repo was launched again this boot: $(cat "$MESH_UPLOG")" || ok
+  grep -q "verdict=builders-already-this-boot" "$RLOG" && ok || bad "R25c: no builders-already-this-boot note on the third sweep | log: $(tail -4 "$RLOG")"
   mkdir -p "$RLOCKS"; rm -f "$RSTATE/.builders-boot"
   rm -f "$RSPROJ/iiii9999.jsonl" "$RSPROJ/kkkk1111.jsonl" "$RSPROJ/hhhh8888.jsonl"
 fi
