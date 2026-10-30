@@ -3601,6 +3601,10 @@ home = os.environ["HOME"]
 with open(os.path.join(home, "bat.argv"), "a", encoding="utf-8") as f:
     f.write(" ".join(sys.argv[1:]) + "\\n")
 time.sleep(float(os.environ.get("FAKE_BAT_SLEEP", "0")))
+gate = os.environ.get("FAKE_BAT_GATE")
+end = time.monotonic() + 60
+while gate and not os.path.exists(gate) and time.monotonic() < end:
+    time.sleep(0.05)
 with open(os.path.join(home, "bat.done"), "a", encoding="utf-8") as f:
     f.write("done\\n")
 """
@@ -3609,7 +3613,7 @@ _BAT_LOG = Path(".config") / "fabrik" / "agents-bat-refresh.log"
 
 def _bat_home(tmp: Path, repo: Path, *, has: bool = False, remembered: str | None = "DESK") -> tuple[Path, Path]:
     """A fake-tmux HOME with a fake agents_bat.py (it appends its argv to $HOME/bat.argv, sleeps FAKE_BAT_SLEEP s,
-    then appends a line to $HOME/bat.done) and, unless `remembered` is None, a remembered-desktop file holding
+    and, when FAKE_BAT_GATE names a file, waits until it exists, then appends a line to $HOME/bat.done) and, unless `remembered` is None, a remembered-desktop file holding
     `remembered` — "DESK" stands for a real folder under the HOME."""
     home = _tmux_home(tmp, repo, has=has, owner=str(repo) if has else None)
     fake = home / "fake_bat.py"
@@ -3745,10 +3749,15 @@ def test_concurrent_refreshes_coalesce_and_append_the_log(tmp_path: Path) -> Non
         lambda: queued() == 2,
         lambda: len([ln for ln in _lines(home / _BAT_LOG) if ln.startswith("agents_up: refresh ")]) == 3,
     )
+    # the first refresh is held on a gate until the third child has queued or exited, never on a sleep a slow launch
+    # could outlast (a timed hold let refresh 2 start before child 3 tried .pending, and three ran)
+    gate = home / "bat.gate"
     for wait in waits:
-        out = _run("--detach", str(repo), home=home, FABRIK_AGENTS_BAT=str(fake), FAKE_BAT_SLEEP="3")
+        out = _run("--detach", str(repo), home=home, FABRIK_AGENTS_BAT=str(fake), FAKE_BAT_GATE=str(gate))
         assert out.returncode == 0, out.stderr
         assert _until(wait), _lines(home / _BAT_LOG)
+    assert _until(lambda: any("a refresh is already waiting" in ln for ln in _lines(home / _BAT_LOG)))
+    gate.write_text("", encoding="utf-8")
     assert _until(lambda: len(_lines(home / "bat.done")) == 2, within_s=20), _lines(home / "bat.argv")
     time.sleep(1)
     assert _lines(home / "bat.argv") == ["--tabbed", "--tabbed"]
