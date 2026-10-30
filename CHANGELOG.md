@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — The mesh scripts get a tracked home, the hibernate wake and the boot builder leg (2026-10-30)
+`scripts/sysadmin/mesh/` holds claude-selfwatch.sh, claude-reboot-sweep.sh and claude-mesh-test.sh, and `install_mesh.sh`
+installs them after a unique, byte-checked backup, `bash -n` and the harness, restoring on a failed replace. The self-watch
+wakes on a `hibernate` or `resume` lift after three API answers and jitter, gated on the kind it prints, and its hibernate
+line carries `woke`'s exit-0 condition. The boot sweep consumes autonomous markers without resuming them, and builds every
+`agents_bat.py --list` repo's grid detached once per boot per repo, retrying a repo whose launch failed; `--list` skips an
+unreadable or newline-named folder and the sweep notes it (W-6e656dac T04; review 41/13 → 9/5 → 4/1 → 0).
+
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
 `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.

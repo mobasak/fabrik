@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A state file the probe refreshes is a clock that never runs out (2026-10-30, W-6e656dac T04)
+
+**What happened:** T04's self-watch put an empty lift file back while it was "under 5 s old", reading the file's mtime. The network gate that runs before that check `touch -c`es the same file on every probe, so the file was always under 5 s old, and an empty lift was never consumed. The watch then probed the API once a second forever. The same review found a second pattern: a once-per-boot stamp written before the work it guards latched a failed launch, and a `repo<TAB><path>` key read through `awk -v` never matched a TAB or backslash path. Four review rounds converged 41/13 → 9/5 → 4/1 → 0, and every defect in rounds 2-3 sat in the previous round's fix.
+
+**Lesson:** a timing check never reads a timestamp that another step of the same loop writes, so it keeps its own clock. A latch is written only after the work it records succeeded, and it is keyed per unit. A key that crosses into awk or a shell goes through `ENVIRON` with its free-form field last, never `-v`, which rewrites backslashes. Give the coder each fix as an invariant plus the shapes to hold, not a patch, and probe the fix's own inputs before the pin.
+
 ## Measure the bytes per class before choosing which rule to loosen (2026-10-29, W-d1a4a8f5)
 
 **What happened:** the janitor item named a session-level class first: 362 "unclassified" sessions with no live or death signal. The first design loosened two session rules for it, a 48 h dead bar and "no transcript is a death signal". A test the build would have broken pinned the 7 d bar for weekly-quota resumes. A `du` per dry-run row then showed that the no-signal class held 0.5 GB. The 108 GB under that label sat in resumable sessions, and the removable bytes (77 GB) were run folders that a gap rule with no end kept alive. That gap rule was the one D-878 had declared safe because "/tmp is cleared at boot", and 74 of 652 session dirs predated the boot.
