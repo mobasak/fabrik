@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T20:14:10.743567Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-fe3f7a0d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M676D8JKTNCVGFS91AHPDVJZ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "W-53360407 (P0, entry files for CHANGELOG/DECISIONS) — amendment D-1381 received; the spec follows it (fragments, new entries only, no migration, SKIP/PRETEST_SKIP/LEDGERS/_dup_ids first). One new measurement that bears on D-1381 Part 4, for you to rule on if you want:"
+}

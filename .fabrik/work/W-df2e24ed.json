@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T20:18:35.001690Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-df2e24ed",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "reproduce from a real Windows Terminal tab (operator runs it, pastes the tab text); then fix agents_bat.py + test; MR",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 0,
+  "score_reason": "operator cannot reach agents; infra-3 owns agents_bat.py",
+  "status": "open",
+  "title": "Operator 2026-10-30 23:15: 'i cant reach agent via All Agents (tabbed).bat' — black tabs, tmux attached=0 (wef saw the same). Two candidate causes, measured: (1) the Windows↔WSL vsock link is degraded (W-37b51748: 1838 kernel accept warnings in 3 min at 23:17; wsl.exe from Windows can hang before bash starts = black tab); (2) agents_up.sh:1117 exits 'no terminal on stdin/stdout' and the tab closes when the launch form carries no tty. Fix the .bat so a tab ALWAYS shows something: the tab runs (or agents_up with a tty guard that execs tmux attach), closeOnExit=never in the fragment profile so a failure stays readable, and a one-line reason printed before any exit"
+}

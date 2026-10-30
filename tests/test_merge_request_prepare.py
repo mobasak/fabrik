@@ -715,3 +715,23 @@ def test_queue_never_reforks_a_tried_leg(world):
     assert rows.count((h2, "queue")) == 1, rows
     assert rows.count((h2, "locked")) == 1, rows
     assert _record(world, m1)["outcome"] == "merged" and _record(world, m2)["outcome"] == "merged"
+
+
+def test_queue_under_the_after_merge_line_lands_in_order_without_legs(world):
+    """D-1186's relief valve (W-3237ba45): a queue leg before landing would undo the speed-up, so the
+    queue lands each request at once and each merge owes the after-merge run instead."""
+    log = _leg_log(world)
+    _owner_tests(world, "# merge-tests-after-merge-above: 0\n" + world.read(".fabrik/merge-tests"))
+    (world.main / ".git" / "fabrik-merge").mkdir(parents=True, exist_ok=True)
+    (world.main / ".git" / "fabrik-merge" / "01PRIORMERGE000000000000000.json").write_text(
+        json.dumps({"id": "01PRIORMERGE000000000000000", "outcome": "merged"})
+    )
+    world.mp.setattr(world.mod, "_kick_after", lambda ctx: "")
+    h1, b1 = _new_branch(world, "one", {"a.txt": "a\n"})
+    h2, b2 = _new_branch(world, "two", {"b.txt": "b\n"})
+    m1, m2 = world.send(h1, branch=b1), world.send(h2, branch=b2)
+    assert _queue(world) == 0
+    assert _legs(log) == []  # no leg before landing, in the queue or in the locked merge
+    for m in (m1, m2):
+        rec = _record(world, m)
+        assert rec["outcome"] == "merged" and rec["after_merge_owed"], rec

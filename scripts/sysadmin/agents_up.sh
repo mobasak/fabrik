@@ -981,6 +981,49 @@ kill_hint() {  # the relaunch hint: the base session and every overflow session
   printf '%s' "$h"
 }
 
+# D-1376 (W-8209a305): a grid this launch built brings windows "All Agents (tabbed).bat" must list, so the launch
+# refreshes it through agents_bat.py --tabbed (the remembered desktop) — detached, because one run probes every repo
+# (~2.6 s for 13) and the launch attaches at once, and COALESCED, because a boot sweep or a cold .bat click builds a
+# dozen grids at once: the child holds agents-bat-refresh.pending while it waits on agents-bat-refresh.run, so one
+# refresh runs, one waits (it starts after every grid that queued it, so it reads the newest windows) and the rest
+# exit. Each appends one header and its outcome to agents-bat-refresh.log. The remembered file is read as
+# agents_bat.py::_remembered reads it (whole, stripped, a folder); with none the generator would probe every repo only
+# to print, so nothing starts. Every skip and failed start is SAID, never the launch's failure (fail-open: a stale
+# .bat is the lesser error). Cobra (D-253): the cheapest pass is a refresh started where the tests look and nowhere
+# else — the boot sweep and an `add` cold start reach start_grid through --detach, so the call sits in start_grid.
+refresh_bat() {
+  local cfg="$HOME/.config/fabrik" desk="" why="" bat="${FABRIK_AGENTS_BAT:-${SELF%/*}/agents_bat.py}" hand
+  local log="$HOME/.config/fabrik/agents-bat-refresh.log"
+  hand="python3 $(printf %q "$bat") --tabbed"
+  [ -r "$HOME/.config/fabrik/agents-desktop" ] && { { IFS= read -r -d '' desk < "$HOME/.config/fabrik/agents-desktop"; } 2>/dev/null || :; }
+  desk="${desk#"${desk%%[![:space:]]*}"}"
+  desk="${desk%"${desk##*[![:space:]]}"}"
+  if [ -z "$desk" ]; then
+    echo "agents_up: no desktop remembered, so All Agents (tabbed).bat was not refreshed — once: $hand --desktop <the Windows desktop folder>" >&2
+    return 0
+  fi
+  if [ ! -d "$desk" ]; then
+    echo "agents_up: the remembered desktop $desk is not a folder, so All Agents (tabbed).bat was not refreshed — once: $hand --desktop <the Windows desktop folder>" >&2
+    return 0
+  fi
+  [ -f "$bat" ] || why="$bat is not a file"
+  command -v setsid >/dev/null || why="setsid is missing"
+  command -v flock >/dev/null || why="flock is missing"
+  # shellcheck disable=SC2016  # the child's script is single-quoted on purpose: its $1..$3 are its own arguments
+  if [ -z "$why" ] && { setsid -f bash -c '
+      printf "agents_up: refresh %s %s pid %s\n" "$(date "+%F %T")" "$3" "$$"
+      { exec 8>"$1/agents-bat-refresh.pending" && flock -n 8; } || { echo "agents_up: a refresh is already waiting; it reads this grid too"; exit 0; }
+      echo "agents_up: queued; waiting for any running refresh"
+      { exec 9>"$1/agents-bat-refresh.run" && flock 9; } || exit 1
+      flock -u 8
+      exec 8>&-
+      exec python3 "$2" --tabbed' agents_up-refresh "$cfg" "$bat" "$S" </dev/null >>"$log" 2>&1; } 2>/dev/null; then
+    echo "agents_up: All Agents (tabbed).bat refresh started in the background; its outcome goes to $log" >&2
+  else
+    echo "agents_up: could not start the All Agents (tabbed).bat refresh${why:+ ($why)} — run by hand: $hand" >&2
+  fi
+}
+
 # The new grid. For four builders or fewer it is one window `agents`, even-horizontal, @agent on each pane. `@agents_up_building`
 # holds this process's PID from the new-session (chained with `\;` in the SAME tmux invocation, before the root is
 # recorded) to the end, so a `--window` poll never sees the session without it; it is unset at the end AND by an EXIT trap,
@@ -1063,6 +1106,7 @@ start_grid() {
   tmux select-pane -t "$pane0"
   tmux set-option -t "=$S:" -u @agents_up_building >/dev/null 2>&1
   trap - EXIT
+  refresh_bat
 }
 
 # --window <n> <repo>: attach the session showing window agents-<n>. Waits (every 2 s, up to FABRIK_AGENTS_WINDOW_WAIT_S,

@@ -1828,3 +1828,78 @@ def test_a_split_files_duration_is_the_sum_of_its_groups(tmp_path, monkeypatch, 
     measured = next(ln for ln in out.splitlines() if "shards measured" in ln)
     loads = [float(x) for x in measured.split("measured ", 1)[1].split()]
     assert len(loads) == 2 and min(loads) >= 0.35, measured
+
+
+def test_the_after_merge_base_spans_every_merge_landed_since(tmp_path, monkeypatch, capsys):
+    """merge_request's after-merge run (D-1186, W-3237ba45) tests the newest landed merge against the
+    last tip it tested: a red introduced two merges back is new against that base, though HEAD's own
+    first parent already carries it — and no green record is written for a range."""
+    repo = _repo(tmp_path, GREEN_REPO)
+    tested = _git(repo, "rev-parse", "HEAD")
+    _merge(repo, {"tests/test_new.py": "def test_new():\n    assert False, 'from merge one'\n"})
+    _git(repo, "branch", "-qD", "feat")
+    _merge(repo, {"data.txt": "two\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out  # against its own first parent the red is old news
+    common = Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    for green in (common / "fabrik-merge").glob("merge-tests-green-*"):
+        green.unlink()
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_BASE", _git(repo, "rev-parse", "HEAD^1"))
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out  # a green range writes no green record: that record names one merge
+    assert not list((common / "fabrik-merge").glob("merge-tests-green-*"))
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_BASE", tested)
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 1 and "tests/test_new.py::test_new" in out.splitlines()[-1], out
+    assert (common / "fabrik-merge" / f"merge-tests-{tested}.txt").is_file()
+
+
+def test_the_after_merge_base_bypasses_the_base_alone_path_and_must_be_a_commit_id(
+    tmp_path, monkeypatch, capsys
+):
+    """Under the override a record for HEAD (what routes a normal leg to the base-alone re-run) is
+    ignored, and a base that is not a commit id is a leg failure, never a path (review r1 B-2, B-3)."""
+    repo = _repo(tmp_path, GREEN_REPO)
+    tested = _git(repo, "rev-parse", "HEAD")
+    _merge(repo, {"tests/test_new.py": "def test_new():\n    assert False, 'from the merge'\n"})
+    head = _git(repo, "rev-parse", "HEAD")
+    common = Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    (common / "fabrik-merge").mkdir(parents=True, exist_ok=True)
+    (common / "fabrik-merge" / f"merge-tests-{head}.txt").write_text("tests/x.py::t\tcall\n")
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_BASE", tested)
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 1 and "tests/test_new.py::test_new" in out.splitlines()[-1], out
+    for bad in ("../x", tested[:12], "HEAD~1"):
+        monkeypatch.setenv("FABRIK_MERGE_TESTS_BASE", bad)
+        rc, out = _run(repo, monkeypatch, capsys)
+        assert rc == 3 and "not a commit id" in out, (bad, out)
+    assert not list(common.glob("**/merge-tests-..*"))
+
+
+def test_the_after_merge_base_ignores_a_green_record_the_merge_leg_would_trust(
+    tmp_path, monkeypatch, capsys
+):
+    """A green record for the branch head, and a delta of ledger paths only, skip a NORMAL merge
+    leg's re-test; under the override the range is tested anyway (review r2 B2-1)."""
+    repo = _repo(tmp_path, GREEN_REPO)
+    tested = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-qb", "feat")
+    _write(repo, {"tests/test_new.py": "def test_new():\n    assert False, 'from feat'\n"})
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "feat")
+    feat = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-qb", "g", tested)  # an earlier green merge of feat, onto an older base
+    _git(repo, "merge", "--no-ff", "-q", "-m", "g", "feat")
+    g = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-q", "master")
+    _write(repo, {".fabrik/work/W-00000001.json": '{"x": 1}\n'})  # a ledger-only base move
+    _git(repo, "commit", "-qam", "store")
+    _git(repo, "merge", "--no-ff", "-q", "-m", "merge", "feat")
+    _green_record(repo, feat).parent.mkdir(parents=True, exist_ok=True)
+    _green_record(repo, feat).write_text(g + "\n")
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0 and "re-test skipped" in out, out  # the normal leg trusts the record
+    _green_record(repo, feat).write_text(g + "\n")
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_BASE", tested)
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 1 and "tests/test_new.py::test_new" in out.splitlines()[-1], out

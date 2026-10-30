@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T20:18:43.605943Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-d6e9efc8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M677712SYTAMBNJZ9RCVTPD8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: W-53360407 (P0, stop CHANGELOG/DECISIONS merge conflicts) — spec READY: docs/superpowers/specs/2026-10-30-ledger-merge-driver-design.md, Status DRAFT, Size: small (≈90 lines, 3 files). Commit 51716046f on branch w-53360407-entry-files (pushed). The CONVERGED-copy grade and the citation check a"
+}

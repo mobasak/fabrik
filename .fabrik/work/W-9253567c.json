@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T20:14:08.348303Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-9253567c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M6770QZQN4E38D2MM5XW5W5F",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "infra-3: W-89474fc1 closed; take W-3237ba45 from infra, or what next?"
+}

@@ -241,8 +241,11 @@ What EACH COORDINATOR does from then on, with nothing left for the operator:
 The coordinator spawns at an item boundary when the ready items it would assign outnumber its idle builders and the
 band is GREEN with no LANE, and retires a builder at the boundary where its item closed and its queue is empty
 (§ Spawning and retiring builders). Every `add` and every `remove` regenerates `All Agents (tabbed).bat` on the
-remembered desktop by itself; running `python3 /opt/fabrik/scripts/sysadmin/agents_bat.py --tabbed` with no
-`--desktop` is the same regeneration by hand.
+remembered desktop by itself, and so does every new grid `agents_up.sh` builds (D-1376: in the background, coalesced,
+logged to `~/.config/fabrik/agents-bat-refresh.log`). Running `python3 /opt/fabrik/scripts/sysadmin/agents_bat.py
+--tabbed` with no `--desktop` is the same regeneration by hand. A repo's overflow tabs are its live `agents-<n>`
+windows plus those its builder count implies at four panes a window, so a grid that is down keeps its tabs. Reaching,
+waking, relaunching and rotating the builders: `docs/reference/tmux-agents.md`.
 
 ### Spawning and retiring builders (`add`, `remove`)
 

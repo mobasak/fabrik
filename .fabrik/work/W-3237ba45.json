@@ -5,7 +5,7 @@
   "effort": "low",
   "evidence": "",
   "id": "W-3237ba45",
-  "impact": "low",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -15,9 +15,9 @@
   },
   "next": "build only when the trigger nears; until then measure the 7-day merge rate and median lock wait weekly",
   "note": "",
-  "owner": "infra-3",
-  "priority": 3,
-  "score_reason": "LOW until the trigger fires (today ~15 merges/day); effort low-to-medium: an async runner and a merge block",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "operator 2026-10-30 'fastest asap': D-1186's valve takes the test leg off the merge path; the ruling already specifies it; one builder, a day",
   "status": "open",
   "title": "D-1186 relief valve: when the 7-day merge rate passes ~40/day, switch the merge-test leg to an async post-merge run of the same selection (batched since the last green run) whose red auto-files a P0 that blocks the cause author's next merge"
 }
