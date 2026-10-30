@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T18:31:58.189141Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-05c15129",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M6702HCQN2J6F4TJ31KHT5CE",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "Follow-up to W-b9b6472e (every agent launch passes --permission-mode bypassPermissions): two hand-relaunch lines outside agents_up.sh still print a bare `claude … --resume <sid>`."
+}
