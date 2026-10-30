@@ -67,6 +67,34 @@ def sh(cmd: list[str], cwd: Path | None = None, timeout: int = 60) -> tuple[int,
         return 127, str(e)
 
 
+def hibernate_paused() -> bool:
+    """True while a hibernate pause is marked (`hibernate.py paused` exit 0). Exit 1, >=2, a 10 s
+    timeout or a missing script is fail-open (False), one line on an error (W-6e656dac T03a)."""
+    script = os.environ.get("FABRIK_HIBERNATE_PY", "/opt/fabrik/scripts/sysadmin/hibernate.py")
+    if not Path(script).is_file():
+        print(f"hibernate.py not found at {script} — proceeding")
+        return False
+    try:
+        rc = subprocess.run(
+            [sys.executable, script, "paused"], capture_output=True, timeout=10, check=False
+        ).returncode
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        print(f"hibernate.py paused failed ({exc.__class__.__name__}) — proceeding")
+        return False
+    if rc not in (0, 1):
+        print(f"hibernate.py paused rc={rc} — proceeding")
+    return rc == 0
+
+
+def _worker_preexec() -> None:
+    """Kill order (spec L5): a headless pool worker is the first the OOM killer takes. Fail-open."""
+    try:
+        with open("/proc/self/oom_score_adj", "w") as f:
+            f.write("500")
+    except OSError:
+        pass
+
+
 def load_state() -> dict:
     if STATE_FILE.exists():
         try:
@@ -247,7 +275,10 @@ def dispatch(repo_dir: Path, brief: str, log_path: Path, dry_run: bool) -> int:
                     **os.environ,
                     "CLAUDE_MESH_AUTONOMOUS": "1",
                     "FABRIK_HEADLESS": "1",
+                    # a frozen API call retries through a hibernate wake (spec L1)
+                    "CLAUDE_CODE_RETRY_WATCHDOG": "1",
                 },
+                preexec_fn=_worker_preexec,
             )
             lf.write(f"\n=== worker exit={p.returncode} ===\n")
             return p.returncode
@@ -269,6 +300,10 @@ def main() -> int:
         "--max-age-hours", type=int, default=48, help="ignore failures older than this (default 48)"
     )
     args = ap.parse_args()
+
+    if hibernate_paused():
+        print("hibernate pause marked — dispatching nothing this cycle")
+        return 0
 
     rc, _ = sh(["gh", "auth", "status"], timeout=30)
     if rc != 0:

@@ -2768,3 +2768,74 @@ def test_a_run_never_rewrites_the_real_index(tmp_path: Path) -> None:
     _run(tmp_path)
 
     assert (index.stat().st_mtime_ns, index.read_bytes()) == before, "the run rewrote .git/index"
+
+
+def _has_autobackup(repo: Path) -> bool:
+    return (
+        subprocess.run(
+            ["git", "rev-parse", "-q", "--verify", "refs/wip/autobackup"],
+            cwd=repo,
+            capture_output=True,
+        ).returncode
+        == 0
+    )
+
+
+def test_wip_backup_only_scopes_the_run_to_one_repo(tmp_path: Path) -> None:
+    # Given two dirty repos, When WIP_BACKUP_ONLY names one, Then only it is snapshotted; unset = both.
+    a = _seed_repo(tmp_path, "alpha")
+    b = _seed_repo(tmp_path, "beta")
+    (a / "x.txt").write_text("dirty\n")
+    (b / "y.txt").write_text("dirty\n")
+    proc = subprocess.run(
+        ["bash", str(SCRIPT)],
+        env={
+            "PATH": "/usr/bin:/bin",
+            "WIP_BACKUP_ROOT": str(tmp_path),
+            "HOME": str(tmp_path),
+            "WIP_BACKUP_ONLY": str(b),
+        },
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert _has_autobackup(b) and not _has_autobackup(a)
+    _run(tmp_path)  # default unchanged: every repo
+    assert _has_autobackup(a)
+
+
+def _run_only(root: Path, only: str, cwd: Path) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["bash", str(SCRIPT)],
+        env={
+            "PATH": "/usr/bin:/bin",
+            "WIP_BACKUP_ROOT": str(root),
+            "HOME": str(root),
+            "WIP_BACKUP_ONLY": only,
+        },
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+
+
+def test_wip_backup_only_accepts_a_relative_value(tmp_path: Path) -> None:
+    # A relative value resolves against the caller's cwd, once, before the loop's `cd` moves it.
+    a = _seed_repo(tmp_path, "alpha")
+    b = _seed_repo(tmp_path, "beta")
+    (a / "x.txt").write_text("dirty\n")
+    (b / "y.txt").write_text("dirty\n")
+    proc = _run_only(tmp_path, "beta", tmp_path)
+    assert proc.returncode == 0, proc.stderr
+    assert _has_autobackup(b) and not _has_autobackup(a)
+
+
+def test_wip_backup_only_matching_no_repo_exits_2_naming_it(tmp_path: Path) -> None:
+    a = _seed_repo(tmp_path, "alpha")
+    (a / "x.txt").write_text("dirty\n")
+    proc = _run_only(tmp_path, str(tmp_path / "typo"), tmp_path)
+    assert proc.returncode == 2
+    assert len(proc.stderr.strip().splitlines()) == 1 and "typo" in proc.stderr
+    assert not _has_autobackup(a)

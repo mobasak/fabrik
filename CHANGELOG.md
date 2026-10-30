@@ -4,6 +4,27 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — /hibernate holds itself at T-3 and lifts itself after the wake (2026-10-30)
+The minute cron (`claude_rotate.py --battery-tick`, a new crontab line the operator installs) writes its heartbeat and,
+at T-3 of an unlifted `/hibernate --deadline` mark, makes the fleet-exhausted stamp the `hibernate` tier, judging a
+sleep by its own previous beat. The */5 tick lifts the pause by a sleep under the mark, a network outage after T, or
+30 min past T, writes `lifted_at`/`lift_path`, and wakes every armed self-watch with `.holdlifted hibernate`; the Stop
+hook holds an unlifted tier on a stale tick log; `command_run.py step` snapshots the repo (`wip_backup.sh`, at most
+once per 2 min) and `blocked`/`handoff --abandoned-seat` record the seats a T-3 close cut. `/hibernate` now always
+marks `--deadline 10m` and the hub's `lift` is only the dead-cron escape; the hold text orders `blocked --paused`.
+`hibernate.py paused` now exits 0 (held) on an unreadable marker or home, so no launcher runs during a pause it
+cannot read; `update_marker` fsyncs; `agents_up` exits 4 when a builder got no pane, and the boot sweep and
+`agents_spawn` never count that builder relaunched; the RESUME prompts say to stay paused on `woke` exit 2
+(W-6e656dac T06 + T04 residue; whole-plan review 15 → 2 → 0 confirmed).
+
+### Added — The mesh scripts get a tracked home, the hibernate wake and the boot builder leg (2026-10-30)
+`scripts/sysadmin/mesh/` holds claude-selfwatch.sh, claude-reboot-sweep.sh and claude-mesh-test.sh, and `install_mesh.sh`
+installs them after a unique, byte-checked backup, `bash -n` and the harness, restoring on a failed replace. The self-watch
+wakes on a `hibernate` or `resume` lift after three API answers and jitter, gated on the kind it prints, and its hibernate
+line carries `woke`'s exit-0 condition. The boot sweep consumes autonomous markers without resuming them, and builds every
+`agents_bat.py --list` repo's grid detached once per boot per repo, retrying a repo whose launch failed; `--list` skips an
+unreadable or newline-named folder and the sweep notes it (W-6e656dac T04; review 41/13 → 9/5 → 4/1 → 0).
+
 ### Changed — the panel answers every gate a coordinator can validate; the operator keeps five labelled classes (2026-10-30)
 
 - Plan-1 Phase A (W-4a03df79, D-1110, approved D-1122). Both contracts' § FINAL OUTPUT gate ground hands design and
@@ -1733,7 +1754,7 @@ The fleet-synced `.claude/settings.json` ran each hook as a bare `python3 "${CLA
 
 ### Changed — agents_up relaunch: attach-first, wake prompt, one parent memory ceiling, tmux 3.4 fix (2026-10-22)
 
-- `agents_up.sh` attaches to a repo's grid when one is already up and launches only when none exists (D-1108, W-e841ac37) — only a session recording a DIFFERENT root refuses; it gains `--detach` (and detaches with no terminal), resumes builders with a wake prompt that re-arms the self-watch (its `hibernate.py woke` step waits for W-6e656dac T01a), `CLAUDE_CODE_RETRY_WATCHDOG=1` and `oom_score_adj` 200, and uses `=name:` for every tmux option read and write, which tmux 3.4 needs (W-1961cc42). The per-pane MemoryMax is gone (D-1109: no memory cap per agent); the parent `fabrik-agents.slice` gets MemoryHigh = MemTotal − max(4G, floor) and MemoryMax = MemTotal − max(2G, floor − 2G), floor `FABRIK_AGENT_NONAGENT_FLOOR` (12G), the minimum margins when the floor leaves nothing, D-1075's 16G under 8G or unreadable (W-0b8a0fba). With no user manager an interactive launch now refuses (exit 2) unless `FABRIK_AGENTS_UNCAPPED=1`; `--detach` launches uncapped with a warning. `capped_run.sh` nests under `fabrik-agents-tests.slice` and waits on a MemAvailable/PSI admission band, at most half its time limit (`FABRIK_TEST_ADMIT_WAIT`, default 300 s), the seconds waited taken off the run's limit. Cherry-picked onto master from W-6e656dac's T05 (1d56acd55) ahead of the rest of that plan.
+- `agents_up.sh` attaches to a repo's grid when one is already up and launches only when none exists (D-1108, W-e841ac37) — only a session recording a DIFFERENT root refuses; it gains `--detach` (and detaches with no terminal), resumes builders with a wake prompt that re-arms the self-watch (its `hibernate.py woke --self` step joined it when W-6e656dac merged master, 2026-10-30), `CLAUDE_CODE_RETRY_WATCHDOG=1` and `oom_score_adj` 200, and uses `=name:` for every tmux option read and write, which tmux 3.4 needs (W-1961cc42). The per-pane MemoryMax is gone (D-1109: no memory cap per agent); the parent `fabrik-agents.slice` gets MemoryHigh = MemTotal − max(4G, floor) and MemoryMax = MemTotal − max(2G, floor − 2G), floor `FABRIK_AGENT_NONAGENT_FLOOR` (12G), the minimum margins when the floor leaves nothing, D-1075's 16G under 8G or unreadable (W-0b8a0fba). With no user manager an interactive launch now refuses (exit 2) unless `FABRIK_AGENTS_UNCAPPED=1`; `--detach` launches uncapped with a warning. `capped_run.sh` nests under `fabrik-agents-tests.slice` and waits on a MemAvailable/PSI admission band, at most half its time limit (`FABRIK_TEST_ADMIT_WAIT`, default 300 s), the seconds waited taken off the run's limit. Cherry-picked onto master from W-6e656dac's T05 (1d56acd55) ahead of the rest of that plan.
 
 ### Fixed — Firecrawl proxy grader reads recrawl, retrieve and "scrapers at Firecrawl"; a reader's "read" is no fetch (2026-10-22)
 `tests/test_firecrawl_proxy_basic.py` (W-ddb716ca): `MENTION` now catches re-crawl and retrieve in every inflection and the verb-then-`at Firecrawl` form, and its 40-character far lookahead no longer counts `read`, which false-redded "Firecrawl docs are easy to read" (`read` still counts right after Firecrawl). One fixture per change, each proven red when its change is undone.
@@ -1841,6 +1862,31 @@ W-7cf353e1. The emitted `tests/test_health.py` asserted `database == "configured
 longer returns since it pings the database for real, so every new python-api started with a red suite. The starter
 tests now swap the database driver module and pin all three outcomes (ping ok → 200, ping fails → 503, no driver →
 200 "configured (no driver)") without needing a database, and a hub test now runs the emitted suite.
+
+### Added — Seat dispatchers skip while a /hibernate pause is marked (2026-10-22)
+
+- `claude_broker.py` (a paused request gets a 503, audited, no window charged), `cloud_dispatch.py dispatch` (exits 0 before any registry or ledger work) and the fleet-synced `rivals_run.py` (checks once in `main()`) ask `hibernate.py paused` before any new seat; every other exit, a timeout or a missing script proceeds — the check fails open on a host without the hub checkout. Every seat they start carries `CLAUDE_CODE_RETRY_WATCHDOG=1` and starts at `oom_score_adj` 500 (W-6e656dac T03b).
+
+### Added — Cron launchers skip while a /hibernate pause is marked (2026-10-21)
+
+- `weekly_catchup.sh`, `ci_fix_dispatcher.py`, `audit_all_registrars.py` (report-only reconcile) and the fleet-synced `check_mutation.py` ask `hibernate.py paused` (10 s) before starting new work and skip only on exit 0 — every other exit, a timeout or a missing script proceeds and logs one line; any probe error is fail-open. The CI fix worker runs with `CLAUDE_CODE_RETRY_WATCHDOG=1` and `oom_score_adj` 500. `wip_backup.sh` gains `WIP_BACKUP_ONLY=<repo>`, resolved once and exiting 2 when it matches no repo (W-6e656dac T03a).
+
+### Added — The hooks hold the /hibernate pause (2026-10-21)
+
+- `.claude/hooks/quota_stop.py` (fleet-synced) keeps a `hibernate`-tier stamp holding through a stale or missing tick log while the pause is marked, and admits only the exact `hibernate.py status|woke|paused|lift` forms its argparse accepts; `scripts/sysadmin/quota_posture_hook.py` denies `Agent`, `Workflow` and every `command_run.py start` for every session while the pause is marked, before its early return. A corrupt marker of any shape reads as unmarked in both hooks and never crashes them (W-6e656dac T02).
+
+### Added — /hibernate T01b: `status` checks every agent's seats, records, self-watch and the minute cron before it says SAFE (2026-10-21)
+
+- `scripts/sysadmin/hibernate.py status`: a headless `sdk-*` session and an agent's live seats block before T-3; from T-3 a seat counts only when this pause's closed record names it abandoned; an unarmed self-watch, a stale or missing minute-cron heartbeat, and a run closed blocked without a seed after the mark all block; the uncommitted row names five paths then `+N more`; the header names the pause, T-3, T and the time left; SAFE prints only after two reads. Every read of a path from a record or lock dir is non-blocking and regular-file-only; marker text is escaped before it prints; a home that cannot be resolved fails closed with exit 2 (W-6e656dac T01b).
+
+### Added — /hibernate T01a: a lock-held pause marker, `paused`, a deadline, an owner-only `lift`, and a `woke` that answers only after the lift (2026-10-21)
+
+- `scripts/sysadmin/hibernate.py`: the marker (`hibernate.json`, under `$ROTATE_STATE_DIR` or `~/.claude/state`) is read-modify-written under one `flock`; `mark --deadline <5m…24h>` adds a hard deadline (T-3 and T printed by `brief --deadline`); `paused` exits 0 marked, 1 not, 2 on a marker it cannot parse; `lift` passes only the merge owner's session or the operator's plain terminal (the caller found by walking the process chain to pid 1, `sdk-*` seats refused), every path writing a rotate-ledger row with the tick's own append discipline; `woke` answers RESUME only after a lift, for 24 h, never for a migration lift, and lists the session's seeds and abandoned seats; one passwd-derived home for every verb.
+- Plan: `docs/development/plans/2026-10-21-plan-1-hibernate-full-guarantee/` T01a (W-6e656dac, D-1099); review receipt `docs/development/reviews/2026-10-21-plan-1-hibernate-full-guarantee-T01a-review.md`.
+
+### Fixed — the secret gate flags today's AWS key ids, every GitHub token prefix, fine-grained PATs and OpenAI project keys (2026-10-21)
+
+- `scripts/enforcement/check_secrets.py`: adds AWS `ASIA`/`ABIA`/`ACCA` key ids (case-sensitive base32), merges the `ghp_`/`gho_` rows into `gh[pousr]_`, adds `github_pat_` fine-grained PATs and OpenAI `sk-proj-`/`sk-svcacct-`/`sk-admin-` keys, keeping every old row so the gate stays a superset (D-1089; fabrik-lib mail 01M5EC2S14). `tests/test_check_secrets_shapes.py` pins each new and old shape.
 
 ### Changed — /fabrik-review-scoped: a seat reads the pin's own change.diff, a committed fix pins with --from, and a rewrap waits for the file's pinning tests (2026-10-21)
 

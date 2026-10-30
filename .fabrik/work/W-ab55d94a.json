@@ -1,0 +1,22 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T21:41:02.515222Z",
+  "creator": "106c06ed-0247-4d7d-97dc-a01ebfe0b779",
+  "evidence": "",
+  "id": "W-ab55d94a",
+  "kind": "next",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "session": "106c06ed-0247-4d7d-97dc-a01ebfe0b779",
+    "spec": ""
+  },
+  "next": "on the test notification, fix any failures, commit and push the merge, then `/fabrik-execute-plan docs/development/plans/2026-10-21-plan-1-hibernate-full-guarantee/` for T04, then T06.",
+  "next_at": "2026-10-29T21:41:02.515222Z",
+  "note": "superseded",
+  "owner": "infra-3",
+  "priority": 2,
+  "status": "dropped",
+  "title": "on the test notification, fix any failures, commit and push the merge, then `/fabrik-execute-plan docs/development/plans/2026-10-21-plan-1-hibernate-full-guarantee/` for T04, then T06."
+}

@@ -14,13 +14,32 @@ except ImportError:  # standalone run (final_gate executes `python <path>`)
     from validate_conventions import CheckResult, Severity  # type: ignore[no-redef]
 
 SECRET_PATTERNS = [
+    # A HARD gate keeps every row it had, so it stays a superset of what it flagged before (W-1ee3f07d, ported from
+    # fabrik-lib D-517/D-519): the AKIA row is unchanged. The STS / bearer / context prefixes are case-sensitive inside
+    # the gate's re.I (a lowercase hex id is no key id) and base32: an uppercase run after ACCA whose next 16
+    # characters fall in [A-F2-7] still matches, about 1 in 100 such runs — `noqa` is the escape. No word boundary on
+    # any row: it would cost recall (`SECRET_ghp_…`, `%3DAKIA…`).
     (r"AKIA[0-9A-Z]{16}", "AWS Access Key ID"),
+    (r"(?-i:(?:ASIA|ABIA|ACCA)[A-Z2-7]{16})", "AWS Access Key ID"),
     (r"(?:aws_secret|AWS_SECRET)[^=]*=\s*['\"][A-Za-z0-9/+=]{40}['\"]", "AWS Secret Key"),
     (r"AIza[0-9A-Za-z\-_]{35}", "Google API Key"),
     (r"sk-[a-zA-Z0-9]{32,}", "OpenAI API Key"),
+    # The row above stops at the `-` after the prefix, so it never flagged a project / service-account / admin key
+    # (gitleaks openai.go). Prefix + a 20-character minimum, no T3BlbkFJ structure: a gate keeps a truncated key. No
+    # digit lookahead (it would spare `flask-admin-…`-style names) — `noqa` is the escape for those names.
+    (
+        r"sk-(?:proj|svcacct|admin)-[A-Za-z0-9_\-]{20,}",
+        "OpenAI project / service-account / admin key",
+    ),
     (r"sk-ant-[a-zA-Z0-9\-]{32,}", "Anthropic API Key"),
-    (r"ghp_[a-zA-Z0-9]{36}", "GitHub PAT"),
-    (r"gho_[a-zA-Z0-9]{36}", "GitHub OAuth Token"),
+    # ghp_ (PAT), gho_ (OAuth), ghu_ (user-to-server), ghs_ (server-to-server), ghr_ (refresh): the old ghp_/gho_ rows
+    # merged, same body and flags. The fine-grained PAT takes gitleaks' flat 82-character body, a strict superset of
+    # the 22 + `_` + 59 split, so a token split another way is not missed.
+    (
+        r"gh[pousr]_[a-zA-Z0-9]{36}",
+        "GitHub token (PAT, OAuth, user-to-server, server-to-server, refresh)",
+    ),
+    (r"github_pat_[A-Za-z0-9_]{82}", "GitHub fine-grained PAT"),
     (r"sk_live_[a-zA-Z0-9]{24,}", "Stripe Live Key"),
     (r"rk_live_[a-zA-Z0-9]{24,}", "Stripe Restricted Key"),
     # Vendor tokens this box actually issues, added 2026-08-30 after a LIVE MISS: a

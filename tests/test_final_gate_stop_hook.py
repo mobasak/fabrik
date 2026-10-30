@@ -2335,3 +2335,60 @@ def test_the_stop_hooks_urgent_branch_exempts_the_same_sessions(tmp_path: Path) 
     assert not reason.startswith(hook._URGENT_PREFIX), reason
     assert "mine.py" in reason, reason
     assert ran.exists(), "an exempt session's Stop evaluates the gate, as outside the tier"
+
+
+# --- W-6e656dac T06: the hibernate tier yields on a stale or missing tick log -------------------
+
+
+def _stop_under_stamp(project: Path, tmp_path: Path, sid: str, stamp: str, marked: bool) -> str:
+    """Run the Stop hook with a red NEW gate failure, the given stamp, a pause marker (unlifted when
+    *marked*, else lifted) and NO tick log at all; return stdout."""
+    state = tmp_path / f"state-{sid}"
+    state.mkdir()
+    (state / "fleet-exhausted").write_text(stamp)
+    marker = {"paused_at": time.time() - 600, "deadline_at": time.time() + 60}
+    if not marked:
+        marker["lifted_at"] = time.time() - 10
+    (state / "hibernate.json").write_text(json.dumps(marker))
+    tmpd = Path(hook.tempfile.gettempdir())
+    bl = tmpd / f"fabrik-gate-baseline-{sid}.json"
+    bl.write_text(json.dumps(["A"]))
+    env = {
+        **os.environ,
+        "FAKE_FAILS": "A,B",
+        "ROTATE_STATE_DIR": str(state),
+        "QUOTA_STOP_TICK_LOG": str(tmp_path / f"no-tick-{sid}.log"),  # missing: days old or never
+        "COMMAND_RUN_DIR": str(tmp_path / f"runs-{sid}"),
+    }
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(_HOOK)],
+            input=json.dumps({"session_id": sid, "cwd": str(project), "hook_event_name": "Stop"}),
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env=env,
+        )
+        return proc.stdout.strip()
+    finally:
+        bl.unlink(missing_ok=True)
+        for suffix in (".attempts", ".urgent", ".urgent-arm"):
+            (tmpd / f"fabrik-gate-stop-{sid}{suffix}").unlink(missing_ok=True)
+
+
+def test_the_hibernate_tier_yields_on_a_missing_tick_log(
+    fake_project: Path, tmp_path: Path
+) -> None:
+    """Behavior row 15: the `hibernate` tier with an unlifted mark yields as under a hold although the tick log is
+    missing — any block is the one arm order, under the HIBERNATE head — while a `walled` stamp, or the same tier
+    whose mark is lifted, fails open to the normal red-gate block (the control)."""
+    held = _stop_under_stamp(fake_project, tmp_path, "s_hib_held", "0\nhibernate\n", True)
+    assert held == "" or json.loads(held)["reason"].startswith("HIBERNATE HOLD"), held
+    for sid, stamp, marked in (
+        ("s_hib_walled", "0\nwalled\n", True),
+        ("s_hib_lifted", "0\nhibernate\n", False),
+    ):
+        out = _stop_under_stamp(fake_project, tmp_path, sid, stamp, marked)
+        assert out, f"{sid}: a stale-tick stamp must not yield"
+        reason = json.loads(out)["reason"]
+        assert not reason.startswith(("HIBERNATE HOLD", "FLEET QUOTA")), reason

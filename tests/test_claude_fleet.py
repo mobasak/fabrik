@@ -9883,15 +9883,21 @@ def test_no_resume_wake_without_a_real_sleep_gap(tmp_path, monkeypatch, record, 
         ("garbage", False),
         (None, False),  # a dangling link at the stamp path
         ("0\nurgent-90\n", True),
+        ("0\nhibernate\n", False),
     ],
-    ids=["walled", "battery", "torn", "dangling", "urgent"],
+    ids=["walled", "battery", "torn", "dangling", "urgent", "hibernate"],
 )
 def test_a_standing_hold_suppresses_the_resume_wake(tmp_path, monkeypatch, capsys, stamp, wakes):
-    """While the stamp reads walled (a wall, the battery, a torn file, a dangling link) a resume
-    wakes nobody and says so — the hold's own lift wakes them; `urgent-90` (the D-1113 lane, which
-    parks builders but holds no session all-out) does not suppress the wake."""
+    """While the stamp reads walled (a wall, the battery, a torn file, a dangling link, the
+    hibernate tier) a resume wakes nobody and says so — the hold's own lift wakes them;
+    `urgent-90` (the D-1113 lane, which parks builders but holds no session all-out) does not
+    suppress the wake. Under the `hibernate` tier alone the sleep's `resume-wake` row is still
+    written (woken 0, its gap's start named) — the hibernate lift's evidence (W-6e656dac T06)."""
     clock, locks, fd = _resume_box(tmp_path, monkeypatch)
     monkeypatch.setattr(cr, "_battery_leg", lambda *a, **k: None)  # the stamp is the test's
+    monkeypatch.setattr(
+        cr, "_hibernate_lift_leg", lambda *a, **k: None, raising=False
+    )  # nor lifted
     try:
         (cr._rotate_state_dir() / "tick-last-end").write_text(f"{FLEET_NOW - 3600}\n")
         if stamp is None:
@@ -9901,15 +9907,20 @@ def test_a_standing_hold_suppresses_the_resume_wake(tmp_path, monkeypatch, capsy
         capsys.readouterr()
         assert cr._cmd_tick() == 0
         assert (locks / "pane1.holdlifted").exists() is wakes
-        if not wakes:
+        rows = _resume_rows()
+        if stamp == "0\nhibernate\n":
+            assert "under the HIBERNATE hold" in capsys.readouterr().out
+            assert len(rows) == 1 and rows[0]["site"] == "hibernate" and rows[0]["woken"] == 0
+            assert rows[0]["gap_from"] == FLEET_NOW - 3600, rows
+        elif not wakes:
             assert "a hold stands" in capsys.readouterr().out
+            assert not rows, "a quota or battery hold records no resume row"
     finally:
         os.close(fd)
 
 
 def test_a_resume_wakes_once_and_never_overwrites_a_pending_lift(tmp_path, monkeypatch):
-    """The tick after the resume tick wakes nobody; a pending `.holdlifted` stays as it was; a
-    record that cannot be written wakes nobody, so a broken state file can never storm."""
+    """The tick after the resume tick wakes nobody, and a pending `.holdlifted` stays as it was."""
     clock, locks, fd = _resume_box(tmp_path, monkeypatch)
     rec = cr._rotate_state_dir() / "tick-last-end"
     try:
@@ -9922,7 +9933,17 @@ def test_a_resume_wakes_once_and_never_overwrites_a_pending_lift(tmp_path, monke
         clock["now"] += 300
         assert cr._cmd_tick() == 0
         assert not (locks / "pane1.holdlifted").exists(), "one wake per resume"
-        clock["now"] += 3600
+    finally:
+        os.close(fd)
+
+
+def test_an_unwritable_resume_record_wakes_nobody(tmp_path, monkeypatch):
+    """A record that cannot be written wakes nobody after a sleep, and its staging file is
+    removed, so a broken state file can never storm (split from the test above, W-6e656dac)."""
+    clock, locks, fd = _resume_box(tmp_path, monkeypatch)
+    rec = cr._rotate_state_dir() / "tick-last-end"
+    try:
+        rec.write_text(f"{FLEET_NOW - 3600}\n")
         real_replace = os.replace
 
         def no_write(src, dst, *a, **k):

@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 # AFTER-EDIT: docs/reference/repo-coordinator-rollout.md | tests/test_agents_bat.py
 """agents_bat.py [--opt DIR] [--desktop DIR] [--distro NAME] [--replace FILE]... [--tabbed] — one "<Repo> Agents.bat"
-per repo, or with --tabbed ONE "All Agents (tabbed).bat".
+per repo, or with --tabbed ONE "All Agents (tabbed).bat". Also: agents_bat.py --list [--opt DIR].
+
+--list (W-6e656dac T04): prints the absolute path of every registered repo under --opt (a .fabrik/session-agents.json
+registry or a .claude/worktrees folder), one per line, sorted, WITHOUT the `agents_up.sh --print` probe and with no
+distro to resolve; it writes nothing. A folder that cannot be read, or whose name holds a newline, is skipped with a
+stderr line and the rest are still listed (exit 0). The boot sweep (claude-reboot-sweep.sh) runs `agents_up.sh --detach` on each,
+which decides the builders itself — the probe is left out because at boot the user bus may not answer yet.
 
 --tabbed (W-b9ad80ae D5): one named Windows Terminal window (`wt.exe -M -w fabrik-agents`, so a later run can append to
 it) with, per repo, a tab running `agents_up.sh /opt/<repo>` (attach-or-launch) and one tab per live tmux window named
@@ -366,7 +372,14 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         help="a desktop file this script may overwrite although it did not write it (case-blind, repeatable)",
     )
+    ap.add_argument(
+        "--list",
+        action="store_true",
+        help="print the absolute path of every registered repo, one per line, without asking agents_up.sh; writes nothing",
+    )
     args = ap.parse_args(argv)
+    if args.list:
+        return _list(args)
     _CONFIRMED.clear()
     rc = _run(args)
     # only a run that wrote or confirmed its file(s) moves the remembered desktop, whatever its rc (T10 F13: one skipped
@@ -375,6 +388,62 @@ def main(argv: list[str] | None = None) -> int:
     if args.desktop and _CONFIRMED:
         _remember(Path(args.desktop))
     return rc
+
+
+def _registered(opt: Path) -> list[Path]:
+    """The repos directly under `opt` that agents_up could give a grid: a registry or a .claude/worktrees folder. A
+    folder that cannot be read is skipped with a stderr line naming it (T04 F6): one unreadable child must never
+    empty the whole list."""
+    found = []
+    for p in sorted(opt.iterdir()):
+        try:
+            if p.is_dir() and (
+                (p / ".fabrik" / "session-agents.json").exists()
+                or (p / ".claude" / "worktrees").is_dir()
+            ):
+                found.append(p)
+        except OSError as exc:
+            # the repr keeps a newline in the name escaped, so the line stays ONE line (T04 residue 5)
+            print(
+                f"agents_bat: cannot read {str(p)!r} ({exc.strerror or exc}); skipped",
+                file=sys.stderr,
+            )
+    return found
+
+
+def _list(args: argparse.Namespace) -> int:
+    """--list (W-6e656dac T04, Interface G): the boot sweep's repo list — every registered repo's absolute path,
+    WITHOUT the `agents_up.sh --print` probe (at boot the user bus may not answer yet, and a probe that fails then
+    would empty the list), no distro to resolve, nothing written. agents_up --detach decides the rest per repo."""
+    if args.desktop or args.tabbed or args.replace:
+        print(
+            "agents_bat: --list is its own mode: it takes none of --desktop, --tabbed and --replace",
+            file=sys.stderr,
+        )
+        return 2
+    opt = Path(os.path.abspath(args.opt))
+    if not opt.is_dir():
+        print(f"agents_bat: --opt {args.opt} is not a folder; nothing listed", file=sys.stderr)
+        return 2
+    seen: dict[str, Path] = {}
+    for repo in _registered(opt):
+        # one path per line is the sweep's contract: a name holding a newline would print as two lines and the sweep
+        # would launch a truncated path (T04 F3)
+        if "\n" in str(repo):
+            print(f"agents_bat: {str(repo)!r} holds a newline; skipped", file=sys.stderr)
+            continue
+        # a symlink to a listed repo is the same repo: agents_up resolves `pwd -P`, so both spellings would build one
+        # grid twice over (T04 residue 5) — the first spelling in sort order is listed
+        real = os.path.realpath(repo)
+        if real in seen:
+            print(
+                f"agents_bat: {str(repo)!r} is the same repo as {str(seen[real])!r}; skipped",
+                file=sys.stderr,
+            )
+            continue
+        seen[real] = repo
+        print(repo)
+    return 0
 
 
 def _run(args: argparse.Namespace) -> int:
@@ -398,16 +467,7 @@ def _run(args: argparse.Namespace) -> int:
         if desk is None:
             print(f"agents_bat: {why}; printing instead", file=sys.stderr)
 
-    repos = [
-        p.name
-        for p in sorted(Path(args.opt).iterdir())
-        if p.is_dir()
-        and (
-            (p / ".fabrik" / "session-agents.json").exists()
-            or (p / ".claude" / "worktrees").is_dir()
-        )
-        and _has_grid(p)
-    ]
+    repos = [p.name for p in _registered(Path(args.opt)) if _has_grid(p)]
     by_case: dict[str, list[str]] = {}
     for repo in repos:
         by_case.setdefault(bat_name(repo).lower(), []).append(repo)

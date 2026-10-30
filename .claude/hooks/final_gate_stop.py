@@ -1266,6 +1266,56 @@ def _stamp_tier(stamp: Path) -> str:
     return tier if tier in _STAMP_TIERS else _STAMP_TIER_WALLED
 
 
+def _stamp_is_hibernate(stamp: Path) -> bool:
+    """The hibernate tier's stamp (W-6e656dac, Interface S): line 2 is `hibernate`. COPIED from
+    `quota_stop.py` (this hook imports no sibling); `_stamp_tier` folds it into `walled`."""
+    try:
+        if not stamp.is_file():
+            return False
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            lines = fh.read().split("\n")
+    except OSError:
+        return False
+    return len(lines) > 1 and lines[1].strip() == "hibernate"
+
+
+def _pause_marked() -> bool:
+    """True exactly when `hibernate.py paused` would exit 0 — COPIED from `quota_stop.py`
+    `_pause_marked` (Interface M: `$ROTATE_STATE_DIR/hibernate.json`, else the PASSWD home's
+    `.claude/state/hibernate.json`); every other shape, and any error, is unmarked (fail open)."""
+    try:
+        import pwd
+
+        raw = os.environ.get("ROTATE_STATE_DIR")
+        p = (
+            Path(raw) / "hibernate.json"
+            if raw
+            else Path(pwd.getpwuid(os.getuid()).pw_dir) / ".claude" / "state" / "hibernate.json"
+        )
+        if not p.is_file():
+            return False
+        m = json.loads(p.read_text(encoding="utf-8"))
+        if not isinstance(m, dict):
+            return False
+
+        def _fin(v: object) -> float | None:
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                return None
+            f = float(v)
+            return f if math.isfinite(f) else None
+
+        at = _fin(m.get("paused_at"))
+        if at is None:
+            return False
+        for key in ("lifted_at", "deadline_at"):
+            if m.get(key) is not None and _fin(m[key]) is None:
+                return False
+        lifted = _fin(m.get("lifted_at"))
+        return lifted is None or lifted < at
+    except Exception:
+        return False
+
+
 _URGENT_PREFIX = "FLEET QUOTA AT THE URGENT TIER — checkpoint, then end the turn: "
 
 
@@ -5166,13 +5216,19 @@ def main(argv: list[str]) -> int:
                 _stale = 900.0
             if not math.isfinite(_stale):
                 _stale = 900.0
-            if (
-                (_state / "fleet-exhausted").exists()
-                and _tick.exists()
-                # the SAME expression shape as quota_stop.py (`age > stale` = off): under a NaN
-                # bound both sides read the hold as in force — `<=` disagreed exactly there and
-                # produced the held-and-blocked deadlock A-F1 exists to end (review P1-6)
-                and _hold_in_force(time.time() - _tick.stat().st_mtime, _stale)
+            # the hibernate tier (W-6e656dac, spec L2) with the pause unlifted holds on a stale or
+            # missing tick log too — quota_stop.py refuses its fail-open for it, so this side yields
+            # as under any hold (the minutes after a wake, before the first tick, stay held)
+            _hib = _stamp_is_hibernate(_state / "fleet-exhausted") and _pause_marked()
+            if (_state / "fleet-exhausted").exists() and (
+                _hib
+                or (
+                    _tick.exists()
+                    # the SAME expression shape as quota_stop.py (`age > stale` = off): under a
+                    # NaN bound both sides read the hold as in force — `<=` disagreed exactly there
+                    # and produced the held-and-blocked deadlock A-F1 exists to end (review P1-6)
+                    and _hold_in_force(time.time() - _tick.stat().st_mtime, _stale)
+                )
             ):
                 # D-306's two tiers. Only `walled` denies the tools that clear the causes below, so
                 # only a stamp that PLAINLY says `urgent-90` stops this yield — any doubt, an
@@ -5209,7 +5265,12 @@ def main(argv: list[str]) -> int:
                             json.dumps(
                                 {
                                     "decision": "block",
-                                    "reason": "FLEET QUOTA AT THE WALL — before you stop: "
+                                    "reason": (
+                                        "HIBERNATE HOLD — the box is about to hibernate; before "
+                                        "you stop: "
+                                        if _hib
+                                        else "FLEET QUOTA AT THE WALL — before you stop: "
+                                    )
                                     + _warm
                                     + ". Then end the turn.",
                                 }

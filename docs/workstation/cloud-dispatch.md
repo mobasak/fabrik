@@ -50,6 +50,8 @@ refresh chain, 7 a paused or expired account (§ The credit guard). Shared flags
 `--max-weekly` (with `--pick` only; § `--pick`),
 `wait` takes `--since`, `--timeout` and `--interval` (floored at 1 s).
 
+**A `/hibernate` pause starts nothing:** `dispatch` runs `hibernate.py paused` before any ledger write and exits 0 with one line while a pause is marked (fail-open when the check errors); a CLI-path seat carries `CLAUDE_CODE_RETRY_WATCHDOG=1` and starts at `oom_score_adj` 500.
+
 ## Draining a batch
 
 `drain` (W-b00d9d72, D-row in `docs/DECISIONS.md`) spends the credits through many runs. Each run's

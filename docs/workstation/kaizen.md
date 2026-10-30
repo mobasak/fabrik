@@ -39,7 +39,10 @@ All three ride the **wake-proof stamp-check runner** (`scripts/sysadmin/weekly_c
 shrink ruling): the cron fires hourly, the runner runs the job only when its success stamp is
 older than the job's period (1 day for these three; the sibling audit jobs stay weekly), and
 the stamp is touched only on success — a night the box hibernated through is caught up within an hour of
-waking, and a failing job retries hourly with every attempt in the log. The retired weekly meter
+waking, and a failing job retries hourly with every attempt in the log. While a `/hibernate` pause is
+marked and not lifted the runner skips the job with its stamp untouched (`hibernate.py paused` exit 0;
+any other exit, a timeout or a missing script runs it and logs one line — W-6e656dac), so the cycle
+the pause skipped is caught up in the first hour after the lift. The retired weekly meter
 `kaizen_metrics.py` lives in `scripts/sysadmin/archived/` (operator ruling, M0); its old
 `weekly_catchup.sh kaizen_metrics.py` crontab line is replaced by the three lines above.
 

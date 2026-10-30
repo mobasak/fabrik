@@ -308,10 +308,22 @@ trap '
     [ -n "$wt_enum_file" ] && [ "$wt_enum_file" != "/dev/null" ] && rm -f "$wt_enum_file" 2>/dev/null
 ' EXIT
 
+# WIP_BACKUP_ONLY is resolved ONCE, to an absolute path, before the loop's `cd` moves the cwd.
+only_real=""
+only_matched=0
+if [ -n "${WIP_BACKUP_ONLY:-}" ]; then
+    only_real="$(realpath -m "${WIP_BACKUP_ONLY%/}")"
+fi
+
 for repo in "$ROOT"/*/; do
     repo="${repo%/}"
     [ -e "$repo/.git" ] || continue   # -e not -d: linked WORKTREES have a .git FILE (review finding)
     case "$repo" in */archived|*/archived/*) continue ;; esac
+    # Single-repo scope (T06's step snapshot): WIP_BACKUP_ONLY=<repo path>; unset = every repo (default).
+    if [ -n "$only_real" ]; then
+        [ "$(realpath -m "$repo")" = "$only_real" ] || continue
+        only_matched=1
+    fi
 
     # A repo entry that is ITSELF a linked worktree (gitdir is a FILE, not a
     # directory — /opt/fabrik-lib-account and /opt/fabrik-lib-review are
@@ -697,4 +709,8 @@ for repo in "$ROOT"/*/; do
 
     echo "$LOG_PREFIX $repo_real snapshotted ($commit)"
 done
+if [ -n "$only_real" ] && [ "$only_matched" -eq 0 ]; then
+    echo "$LOG_PREFIX WIP_BACKUP_ONLY=${WIP_BACKUP_ONLY} matched no repo under $ROOT" >&2
+    exit 2
+fi
 exit 0

@@ -318,8 +318,8 @@ absent or still being built, and with no window `agents-<k>` says so and attache
   or `*-coordinator`, or the repo's declared merge owner (`decisions.py --merge-owner`); a ledger that cannot be read
   refuses the launch.
 - Each pane runs `CLAUDE_AGENT=<name> claude -n <name> --resume <session id> "<wake prompt>"` (the prompt is the
-  session's first turn: re-arm the self-watch, then carry on; the `hibernate.py woke --self <id>` step joins it with
-  W-6e656dac T01a's lift-only woke) with `CLAUDE_CODE_RETRY_WATCHDOG=1` in its environment and `oom_score_adj` 200, ONLY in a linked
+  session's first turn: re-arm the self-watch, run `hibernate.py woke --self <id>`, resume from the seed only on exit 0,
+  carry on as usual on exit 1, and on exit 2 — it cannot tell — stay paused and tell the coordinator) with `CLAUDE_CODE_RETRY_WATCHDOG=1` in its environment and `oom_score_adj` 200, ONLY in a linked
   git worktree in place under `.claude/worktrees/` (it holds a `.git` file, and no part of its path is a symlink): the
   one whose claude project folder holds the builder's session, else `.claude/worktrees/<name>` (W-456aa02a). Claude Code
   keeps the folder a pane STARTED in as the window's `CLAUDE_PROJECT_DIR` — where its hooks, settings and permissions
@@ -457,6 +457,16 @@ hand-made launchers from before — is left untouched (exit 2) until it is named
 distro comes from `--distro`, else a non-blank `$WSL_DISTRO_NAME`, else the distro this shell runs in, read from
 `wslpath -w /` (`fabrik_deck.py::_default_distro`), so a run from tmux, systemd or code-server, where the variable
 is unset, still names this distro; `--distro ""` and an underivable distro refuse.
+
+`--list` prints instead the absolute path of every registered repo under `--opt` (a `.fabrik/session-agents.json`
+registry or a `.claude/worktrees` folder), one per line, and writes nothing (W-6e656dac T04). It skips the
+`agents_up.sh --print` check and needs no distro, because its caller is the boot sweep (`claude-reboot-sweep.sh`,
+tracked in `scripts/sysadmin/mesh/`): at boot the user bus may not answer yet, and a check that failed then would
+leave the list empty. The sweep runs `agents_up.sh --detach` on each path, and that command decides which builders
+the repo has. A folder it cannot read, or whose name holds a newline, is skipped with a stderr line while the rest are
+still listed (exit 0); so is a second spelling of one repo (a symlink to a listed repo — agents_up resolves `pwd -P`,
+so both would be one grid). Every skip is ONE stderr line ending `; skipped` (a newline in a name is printed escaped),
+and only those lines are noted `builders-skipped` in the sweep log. `--list` refuses `--desktop`, `--tabbed` and `--replace` (exit 2).
 
 Each .bat is self-contained and needs no hand-made Windows Terminal profile. `wt.exe` has no font-size option, so the
 .bat writes a Windows Terminal JSON fragment, `%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\Fabrik\<repo>.json`,
