@@ -165,6 +165,14 @@ paragraph now says the alternative is outside the mandate and routes a project t
   the install, the hand-off order and the operator's exact ps1 edit. Not installed yet: it runs
   from the main checkout after merge.
 
+### Fixed — two decision-ledger tests grade the tree under test, not /opt/fabrik (2026-10-29)
+- `tests/enforcement/test_check_decisions_unique.py`: `test_the_live_hub_ledger_has_no_stray_rows`
+  and `test_the_cobra_path_is_written_down_where_the_next_reader_finds_it` read hardcoded
+  `/opt/fabrik` paths, so from a worktree they graded the main checkout's ledger and checker
+  (W-72878aa4). Both now read the tree the test file sits in, under every import mode. W-72878aa4's
+  five reader gaps and W-d6647738 (one id reader for the mint) were dropped as time sinks: 0 of 298
+  ledgers hold any of those shapes. Follow-up: W-a00defb5 (ten more tests with hardcoded paths).
+
 ### Fixed — the decision-ledger gate reads one ledger table, and the mail digest counts what it shows (2026-10-29)
 - `scripts/enforcement/check_decisions_unique.py` (W-c25fd20f, D-1353): every leg reads one
   population. The ledger table is the table holding the most D-rows, and a table ends where a GFM
