@@ -107,6 +107,7 @@ RELEASE SURFACE: <vps|mobile|extension|desktop>
 CHECKLIST: <n> PASS / <n> BLOCKED (each with evidence above)
 VERSION: v<X.Y.Z> cut (tag + GitHub Release) | v<X.Y.Z> cut (tag only — gh unavailable) | not cut (<why>)
 ARTIFACT: <SHA · zip/build path | n/a (vps: deploy from remote)>
+WARN: <the ⚠ WARN and DOCS-TIEBREAK lines above (open P2/P3 rows · stale parity header · DOCS-TIEBREAK) | none>
 GATE 2 → <the one action the gate approves: VPS — the panel at /fabrik-deploy-plan-review · stores — the operator's submit>
 ```
 

@@ -1,6 +1,6 @@
 command: fabrik-release
 baseline_sentences: fabrik-release.baseline.txt
-baseline_sha256: 7048900025e85714e102e0b2e4c0fbcdc276d80020d6646f80f1fb570dd47ebf
+baseline_sha256: 9a86dea546f0109fc93b40af1984243d61285ce7737beaf3a6a28f9855cc49d6
 entries:
 - id: u-L2
   file: render
