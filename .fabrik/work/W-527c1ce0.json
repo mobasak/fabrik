@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "add the behind-count gate to request + a test; the governance line rides a full /fabrik-review (sync path)",
+  "next": "AMENDED by the panel (D-1381): the behind check goes in request() before _send (merge_request.py:424-532); threshold ~500 commits (tied to ledger-conflict refusals), not 50; the refusal prints the exact git merge master; builders merge master at every item boundary (governance line, full /fabrik-review); NO daily job merging master into live worktrees (it writes into other sessions' checkouts)",
   "note": "",
   "owner": "infra",
   "priority": 0,

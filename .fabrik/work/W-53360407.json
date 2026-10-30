@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "/fabrik-spec: entry-file layout, the renderer, migration of the existing files, the gate checks that read them",
+  "next": "AMENDED by the panel (D-1381): spec covers NEW entries only — fragments under changelog.d/ and decisions.d/ assembled into the canonical CHANGELOG.md / docs/DECISIONS.md at merge; NO migration of the 31,458 lines (42 scripts + 72 tests read the assembled files); FIRST extend SKIP (merge_test_select.py:63), PRETEST_SKIP (merge_request.py:1493), LEDGERS (:536) and _dup_ids (:1216, must read fragments too) or ledger-only merges get SLOWER and D-ids collide; the 7 .fabrik/work same-item conflicts (_merge_work_item :1126) are a separate fix; merge_request.py is fleet-synced (D-1189)",
   "note": "",
   "owner": "infra-2",
   "priority": 0,
