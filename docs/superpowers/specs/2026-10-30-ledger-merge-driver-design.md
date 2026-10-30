@@ -31,7 +31,7 @@ A `git merge` in any hub worktree (and the `rebase` or `cherry-pick` a local, un
 1. **Builders hand-resolve ledger conflicts; the owner already does not.** § Derivations D1 replays every two-parent merge of the last 14 days on every ref with `git merge-tree --write-tree`, split by merge subject.
    - **Owner merges.** 557 owner builds (`merge(coordinator): …`, `pretest …`, `queue pretest …`). 331 conflict under plain git, all ledger-only, all cleared by the existing resolver. `_build` already applies that resolver in-process, so these cost nobody anything.
    - **Builder merges.** 229 builder merges (master into a branch, branch merges). 89 conflict, 70 of them only on ledgers. Plain git has no driver for these paths: `.gitattributes` maps only `.fabrik/work/W-*.json merge=workitem` (`.gitattributes:3`). Each of the 70 was a hand resolution, about 5 a day.
-2. **The existing resolver covers them.** `_merge3` (`scripts/merge_request.py:998`) clears all ledger files in 67 of the 70 builder merges (95.7%). Every refusal says `a side edits an existing line at a conflict`.
+2. **The driver clears most of them, measured with a real `git merge`.** § Derivations D5 replays each builder merge with the driver registered: of the 67 ledger-only merges in the window, it clears 58 (87%) with no duplicated line, and 9 still conflict. Three of the 9 are edits of landed lines (below). The other 6 are merges with two merge bases, where git first merges the bases with the driver and the outer merge then sees an edit; they fall back to markers, today's behaviour, and are follow-up W-6614b62e. D1's single-base replica (`_merge3` in-process) counts 67 of 70 and overstates exactly those 6; it stays as the discriminator between the two kinds of residue (§ Derivations D3).
 3. **The residue is edits of landed lines, which fragments do not fix either.**
    - The 3 refused merges each rewrote rows already on the base (D-1125; D-980 to D-991; an `INDEX.md` row), the shape a botched earlier hand resolution leaves. The branch side of merge `6b3e40657` diffs as `-| D-980 …` / `+| D-980 …` pairs.
    - Of the merge owner's 51 refusals in 14 days (`merged 537, refused 51`, record `reason` text), 10 are this edits-an-existing-line class (CHANGELOG 7, DECISIONS 2, INDEX 1). The two DECISIONS ones replay to base sections holding landed rows (D-833; D-988 and D-991).
@@ -109,11 +109,11 @@ None. No data-contract, ui-design, spec `shape:` or CLI surface a project consum
   - The driver's stderr carries `invalid choice: 'merge-ledger'`, which proves the driver ran.
   - The merge leaves markers.
   - Plain git without the driver would leave markers too, so the stderr line is what makes this test red-able.
-- **Replay grader.** § Derivations D5 (a real `git merge` per merge, the driver registered, on a scratch clone at the plan's tip) over the same 14-day window, both sides: builder and owner. Expected: the builder-side figure D5 prints today, and no owner merge that is clean without the driver conflicts with it. (Panel, Opus concern 4.) The builder who executes the plan runs it, and the plan records its output.
+- **Replay grader.** § Derivations D5 (a real `git merge` per merge, the driver registered, on a scratch clone at the plan's tip) over the same window, both sides: builder and owner. Expected: at least 58 builder merges cleared with no duplicated line, and every owner ledger-only merge cleared (the first real-driver run, 2026-10-31, over "14 days ago": 392 of 392 owner merges cleared). (Panel, Opus concern 4.) The builder who executes the plan runs it, and the plan records its output.
 - **Tripwire (the judges' shared dissent, named here).**
-  - What it watches: the one thing fragments could fix that the driver might not. That is a builder merge whose ledger conflict the resolver refuses for a reason OTHER than `a side edits an existing line`, i.e. an insertion the driver should have cleared.
-  - Counter: § Derivations D3's distinct merge SHAs whose printed reason is not `a side edits an existing line`. Window: the 14 days after the driver lands, by commit date (`git log --since=<landing> --until=<landing + 14 days>`), never by merge-record fields, which carry no wall-clock time.
-  - Threshold: any (more than 0). Today's count is 0: all 3 refusals in D1 are edit-class.
+  - What it watches: insertions the driver failed to clear, which per-entry fragments would have cleared. That is a builder merge D5 leaves conflicted on a ledger while D3's single-base replica clears it (an edit of a landed line fails in both, and fragments cannot fix it either).
+  - Counter: D5's still-conflicted builder SHAs minus D3's. Window: the 14 days after the driver lands, by commit date (`--since=<landing> --until=<landing + 14 days>`, both scripts take them), never by merge-record fields, which carry no wall-clock time.
+  - Threshold: more than 6, today's two-base residue (D5's 9 minus D3's 3), unless W-6614b62e has landed, when it is more than 0.
   - Edit-class residue is reported beside the counter and never re-opens fragments, which cannot prevent it (§ Why this exists 3).
   - Check date: 14 days after the driver lands. Owner: the coordinator, as merge owner.
   - Reading 0 confirms this shape. Any other reading re-opens the fragment design under § Rejected alternatives, with the merge SHAs named.
@@ -133,7 +133,7 @@ None. No data-contract, ui-design, spec `shape:` or CLI surface a project consum
 ## Rejected alternatives
 
 - **F — per-entry fragments for new entries (`changelog.d/`, `decisions.d/`), assembled at merge (D-1381 Part 4).**
-  - Rejected on the measurement. The 70 builder hand resolutions are insertions, which D clears in 67. The remaining class is edits of landed lines, which F cannot prevent: an assembled entry is a line of the canonical file again.
+  - Rejected on the measurement. Of the 67 builder ledger-only merges (D5), D clears 58. F would also clear the 6 two-base merges (64), but not the 3 edits of landed lines, which F cannot prevent: an assembled entry is a line of the canonical file again. Six merges in 14 days do not pay for F's cost below, while the driver's own follow-up (W-6614b62e) targets them and § Validation's tripwire re-opens F if they grow.
   - F costs about 10 code files and 250 lines, two authoring paths kept forever (D-1381 forbids migration), and a fragment-on-master failure mode.
   - Touchpoints if the gate picks it anyway, all censused this run:
     - `SKIP` (`scripts/merge_test_select.py:63`), `PRETEST_SKIP` (`scripts/merge_request.py:1493`) and `LEDGERS` (`scripts/merge_request.py:536`) gain the two directories.
@@ -145,6 +145,7 @@ None. No data-contract, ui-design, spec `shape:` or CLI surface a project consum
     - The exemption lists `command_run.py:5400`, `task_lane.py:105` and `.claude/hooks/final_gate_stop.py:274` gain both directories.
     - Every one is a no-op in a repo without the directories.
 - **H — D now, F on a tripwire.** All three judges ranked H first. This spec IS H's first half, and § Validation's tripwire is its second half, so "Recommend D" and "H" are the same build.
+- **`merge.ledger.recursive=binary`** (git's knob for the internal merge of two merge bases). Rejected on execution: it clears the 6 two-base merges, but by adding lines beyond ours + theirs − base, i.e. duplicated CHANGELOG entries and DECISIONS rows (up to 28 extra lines in one file). The default (unset: the driver merges the bases too) is kept; its residue falls back to markers.
 - **git's built-in `merge=union`.** Rejected. git documents that it "tends to leave the added lines in the resulting file in random order" (gitattributes.adoc:1129-1131). It keeps BOTH sides of an edited landed row, which yields duplicate D-ids, and it has no D-number order.
 - **Run the main checkout's copy by absolute path (`/opt/fabrik/scripts/merge_request.py`).** Rejected. It executes a file whose working copy the coordinator may be editing, and it departs from the reviewed `workitem` precedent. The tree's-own-copy cost is one fallback conflict per pre-existing branch.
 - **GitLab-style commit trailers instead of a CHANGELOG file.** Rejected. GitLab's changelog guide tells authors to put the `Changelog` trailer on the first commit and, to add one later, to amend the commit or use `git rebase -i`, then force-push if the commits were already pushed (https://docs.gitlab.com/development/changelog/). The hub bans `--amend` and force pushes on shared trees (CLAUDE.md HARD STOPS).
@@ -199,8 +200,9 @@ The fragment design would have changed how row 1 is satisfied (a fragment, not a
   - driver fires on `git merge-tree` and `git rebase`;
   - the crash, missing-script and pre-verb fallbacks;
   - the clean-merge commit shape in `_build`;
-  - resolver coverage of the builder-side population (67/70);
+  - the real driver's coverage of the builder-side population (58/67, D5) and of the owner side (392/392);
   - import cost.
+- OPEN: the two-base residue (6 of 67 builder merges, D5). Resolution: W-6614b62e; until then those merges fall back to markers, today's behaviour.
 - OPEN: the 7 CHANGELOG owner refusals could not be replayed exactly, because the merge records keep the base branch name, not its SHA. Resolution: the tripwire counts builder-side residue after landing, and the owner's refusal reasons stay readable in the records.
 
 ## Derivations
@@ -335,6 +337,54 @@ Output on 2026-10-30:
 ```
 
 No clean merge is refused (0 of 145 files). The 4 differences are both merges with two merge bases, where this replica's single `merge-base` is not the virtual base git hands a driver. A real `git merge --no-commit` of `e84651224` in a scratch clone with the driver registered reproduces every committed ledger blob, and a driver set to `false` also merges clean there: git never calls the driver on those files, because against the virtual base one side is unchanged.
+
+**D5 — the real driver, one `git merge` per builder merge** (Panel, Opus concern 1). Run as `python3 d5.py <clone> <baseline checkout> <since> <until>`: `<clone>` is a scratch `git clone --shared` of the hub with the five `merge=ledger` lines in its `.git/info/attributes`, `merge.ledger.driver` registered, and the work-item driver too; `<baseline checkout>` is a checkout with no ledger attribute, which gives the plain-git verdict:
+
+```python
+import subprocess, re, sys, collections
+R, BASE = sys.argv[1:3]; since, until = sys.argv[3:5]
+def g(*a): return subprocess.run(["git", *a], capture_output=True, text=True, cwd=R)
+L = {"CHANGELOG.md", "docs/DECISIONS.md", "INDEX.md", "docs/STRATEGIC_BACKLOG.md", "docs/LESSONS_LEARNT.md"}
+def lines(rev, f):
+    r = g("show", f"{rev}:{f}"); return collections.Counter(r.stdout.splitlines()) if r.returncode == 0 else collections.Counter()
+c = collections.Counter(); left = []
+for line in g("log", "--all", "--merges", f"--since={since}", f"--until={until}", "--format=%H %P\t%s").stdout.splitlines():
+    head, subj = line.split("\t", 1); p = head.split()
+    if len(p) != 3: continue
+    kind = "owner" if re.match(r"(merge\(coordinator\)|pretest |queue pretest )", subj) else "builder"
+    if kind != "builder": continue
+    # the no-driver baseline: BASE is a checkout with no merge=ledger attribute (the repo before the driver)
+    nod = subprocess.run(["git", "-C", BASE, "merge-tree", "--write-tree", "--name-only", "--no-messages", p[1], p[2]], capture_output=True, text=True)
+    files = set(nod.stdout.split("\n")[1:]) - {""}
+    if nod.returncode == 0 or not (files and files <= L): continue  # ledger-only under plain git
+    c["ledger-only"] += 1
+    g("checkout", "-q", "--detach", "-f", p[1])
+    m = g("merge", "-q", "--no-commit", "--no-ff", p[2])
+    if m.returncode == 0:
+        c["driver-clears"] += 1
+        for f in L:
+            try: res = collections.Counter(open(f"{R}/{f}", encoding="utf-8", errors="replace").read().splitlines())
+            except FileNotFoundError: continue
+            mb = g("merge-base", p[1], p[2]).stdout.split()[0]
+            dup = sum((res - ((lines(p[1], f) + lines(p[2], f)) - lines(mb, f))).values())  # beyond ours + theirs - base
+            if dup: c["clears-with-duplicated-lines"] += 1; left.append((p[0][:9], f, "dup", dup))
+    else:
+        c["still-conflicted"] += 1
+        left.append((p[0][:9], [x for x in g("diff", "--name-only", "--diff-filter=U").stdout.split() if x], (m.stderr.strip().splitlines() or [""])[-1][:70]))
+    g("merge", "--abort"); g("reset", "-q", "--hard")
+for k in sorted(c): print(k, c[k])
+for x in left: print(x)
+```
+
+Output for `"2026-10-17 00:00" "2026-10-31 00:00"` (summary lines; the 12 still-conflicted SHAs print below them):
+
+```text
+driver-clears 58
+ledger-only 70
+still-conflicted 12
+```
+
+Of the 12, 3 conflict only on a `.fabrik/work` item, because those trees' `work.py` predates `merge-item`; they are not ledger residue, which leaves 58 of 67. The other 9 refuse `a side edits an existing line at a conflict`: 3 are D3's edits of landed lines (`fdf514616`, `6f6cd85ec`, `6b3e40657`), and 6 are two-base CHANGELOG merges (`29c6d1da4`, `ce79b4775`, `db42471cb`, `7ec2b85dd`, `669274a87`, `2e9c1758d`). No cleared merge holds a line beyond ours + theirs − base.
 
 **D2 — the reader census:**
 
