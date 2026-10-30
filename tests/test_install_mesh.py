@@ -204,6 +204,20 @@ def test_no_home_and_no_dest_is_a_usage_error(tmp_path: Path) -> None:
     assert out.returncode == 2 and "usage" in out.stderr and not log.exists(), out.stderr
 
 
+@pytest.mark.parametrize("flag", ["--dest", "--src"])
+def test_an_empty_dest_or_src_is_a_usage_error(tmp_path: Path, flag: str) -> None:
+    """T04 G3: the default applies only when the flag was NOT given — `--dest ""` must never fall back to the live
+    $HOME/.claude/bin, and `--src ""` never to the tracked copies; both exit 2 with nothing installed."""
+    src = _src(tmp_path)
+    home_bin = _dest(tmp_path)  # $HOME/.claude/bin of the temp home: the fallback a bad parse would hit
+    before = _snapshot(home_bin)
+    harness, log = _harness(tmp_path)
+    args = ("--src", str(src), "--dest", "") if flag == "--dest" else ("--src", "", "--dest", str(home_bin))
+    out = _run(tmp_path, *args, harness=harness)
+    assert out.returncode == 2 and "usage" in out.stderr and not log.exists(), (out.returncode, out.stderr)
+    assert _snapshot(home_bin) == before
+
+
 def test_no_backup_means_no_replace(tmp_path: Path) -> None:
     """A backup that cannot be written refuses the install before ANY file is replaced."""
     src, dest = _src(tmp_path), _dest(tmp_path)
@@ -298,30 +312,44 @@ def test_tracked_sweep_state_line_is_byte_identical() -> None:
     ]
 
 
-_PRINT_FLAG = re.compile(r"(?:^|[\s\"'])(?:-p|--print)(?=[\s\"']|$)")
+_PRINT_FLAG = re.compile(r"(?:^|[\s\"'])(?:-p|--print)(?=[\s\"'=]|$)")
+# a resume or continue flag as a WHOLE token (T04 G2): `-r`/`-c` are claude's short forms
+_RESUME_FLAG = re.compile(r"(?:^|[\s\"'])(?:--resume|-r|--continue|-c)(?=[\s\"'=]|$)")
 
 
 def _headless_resume(line: str) -> bool:
-    """A code line that resumes or runs a session headless: `--resume` together with `-p`/`--print` in any spelling
-    of the binary (a variable, `env X=1 …`), or `claude -p`/`claude --print` itself (T04 F5)."""
+    """A code line that resumes or continues a session headless: a resume/continue flag (`--resume`, `-r`,
+    `--continue`, `-c`, whole tokens) together with `-p`/`--print`, in any spelling of the binary (a variable,
+    `env X=1 …`), or `claude -p`/`claude --print` itself (T04 F5, G2). A fresh headless run through a variable
+    with neither flag is not a resume."""
     return bool(
-        ("--resume" in line and _PRINT_FLAG.search(line))
+        (_RESUME_FLAG.search(line) and _PRINT_FLAG.search(line))
         or re.search(r"\bclaude\s+(?:-p|--print)\b", line)
     )
 
 
 def test_the_headless_resume_matcher_catches_every_spelling() -> None:
     """The matcher below would pass a sweep that spelled the resume any other way than `claude -p` — so it is shown
-    catching five spellings, and passing the sweep's own harmless `-p` uses."""
+    catching every spelling, and passing the sweep's own harmless `-p` uses and a fresh headless run."""
     caught = [
         '"$CLAUDE_BIN" -p --resume "$sid"',
         'claude --print --resume "$sid"',
         'env X=1 "$c" -p --resume "$sid"',
         'timeout 60 claude --resume "$sid" -p "go on"',
         'claude -p "resume your task"',
+        '"$CLAUDE_BIN" -p -r "$sid"',
+        'claude -c -p "go on"',
+        '"$c" -p --continue',
+        '"$c" --print --resume="$sid"',
     ]
     assert [s for s in caught if not _headless_resume(s)] == []
-    harmless = ['mkdir -p -m 700 "$state"', 'cp -p "$a" "$b"', 'resume_hint="--resume $sid"']
+    harmless = [
+        'mkdir -p -m 700 "$state"',
+        'cp -p "$a" "$b"',
+        'resume_hint="--resume $sid"',
+        '"$c" -p "start a new task"',
+        'tail -n 1 "$outf" | cut -c1-200',
+    ]
     assert [s for s in harmless if _headless_resume(s)] == []
 
 

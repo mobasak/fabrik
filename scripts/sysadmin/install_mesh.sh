@@ -27,15 +27,17 @@ set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 src="$here/mesh"
 dest=""
+dest_given=0
 usage() { echo "usage: install_mesh.sh [--src DIR] [--dest DIR]" >&2; exit 2; }
 while [ $# -gt 0 ]; do
+  # an EMPTY value is a usage error (T04 G3): `--dest ""` must never fall back to the live $HOME/.claude/bin
   case "$1" in
-    --src) [ $# -ge 2 ] || usage; src="$2"; shift 2 ;;
-    --dest) [ $# -ge 2 ] || usage; dest="$2"; shift 2 ;;
+    --src) [ $# -ge 2 ] && [ -n "$2" ] || usage; src="$2"; shift 2 ;;
+    --dest) [ $# -ge 2 ] && [ -n "$2" ] || usage; dest="$2"; dest_given=1; shift 2 ;;
     *) usage ;;
   esac
 done
-if [ -z "$dest" ]; then
+if [ "$dest_given" = "0" ]; then
   # the default only when --dest was not given: an explicit --dest needs no HOME
   [ -n "${HOME:-}" ] || { echo "install_mesh: HOME is unset — name the destination with --dest" >&2; usage; }
   dest="$HOME/.claude/bin"

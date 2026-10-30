@@ -889,6 +889,8 @@ def test_list_takes_no_write_mode(tmp_path: Path) -> None:
 def test_list_skips_an_unreadable_folder_and_lists_the_rest(tmp_path: Path) -> None:
     """T04 F6: one child of --opt that cannot be read is skipped with a stderr line naming it; every other registered
     repo is still listed and the exit is 0 (the boot sweep reads an empty list as `builders-none`)."""
+    if os.geteuid() == 0:
+        pytest.skip("root reads a chmod-000 folder, so the unreadable-folder failure cannot be staged (T04 G5)")
     opt = _opt(tmp_path, "aaa", "zzz", bare=("locked",))
     (opt / "locked" / ".claude" / "worktrees").mkdir(parents=True)
     (opt / "locked").chmod(0o000)
