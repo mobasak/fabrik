@@ -562,8 +562,9 @@ def generate_catalog_markdown(projects: list[Project]) -> str:
     return md
 
 
-def update_business_model(catalog_md: str) -> bool:
-    """Update the AUTO-GENERATED /opt project inventory in docs/PROJECT_CATALOG.md.
+def update_business_model(catalog_md: str) -> bool | None:
+    """Update the AUTO-GENERATED /opt project inventory in docs/PROJECT_CATALOG.md: True when the
+    file was rewritten, False when it was already current, None when it is missing (a failure).
 
     (Was docs/BUSINESS_MODEL.md until 2026-07-11 — that path is the per-project *monetization*
     doc and was being clobbered by this fleet-synced catalog. The catalog now lives in its own
@@ -572,7 +573,7 @@ def update_business_model(catalog_md: str) -> bool:
 
     if not catalog_path.exists():
         print(f"ERROR: {catalog_path} does not exist")
-        return False
+        return None
 
     content = catalog_path.read_text(encoding="utf-8")
 
@@ -587,8 +588,7 @@ def update_business_model(catalog_md: str) -> bool:
     else:
         content = re.sub(pattern, replacement, content, flags=re.DOTALL)
 
-    _write_if_changed(catalog_path, content)
-    return True
+    return _write_if_changed(catalog_path, content)
 
 
 def _write_if_changed(path: Path, content: str) -> bool:
@@ -707,11 +707,12 @@ def main() -> int:
 
     # Update human-readable catalog
     catalog_md = generate_catalog_markdown(projects)
-    if update_business_model(catalog_md):
-        print("   📄 Updated docs/PROJECT_CATALOG.md")
-    else:
+    catalog = update_business_model(catalog_md)
+    if catalog is None:
         print("   ❌ Failed to update PROJECT_CATALOG.md")
         return 1
+    if catalog:
+        print("   📄 Updated docs/PROJECT_CATALOG.md")
 
     # Update port allocations
     if update_ports_md(projects, conflicts):

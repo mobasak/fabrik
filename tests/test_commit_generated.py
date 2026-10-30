@@ -417,3 +417,87 @@ def test_autocrlf_output_is_not_flagged_as_foreign(tmp_path, capsys):
     status = _attempt(repo / "log.md", "a\r\nb\r\n")
     assert _landed(status), status
     assert "did not write" not in capsys.readouterr().err
+
+
+# --- review pass 2 (W-5568be8d) ---
+
+
+def test_a_lock_that_cannot_be_taken_runs_unlocked(tmp_path, monkeypatch):
+    """flock raising OSError (ENOLCK) crashed the run; the docstring promises the unlocked path."""
+    repo = _main_checkout(tmp_path, {"log.md": "a\n"})
+
+    def _enolck(*_a):
+        raise OSError(37, "No locks available")
+
+    monkeypatch.setattr(cg.fcntl, "flock", _enolck)
+    assert _landed(_attempt(repo / "log.md", "a\nb\n"))
+
+
+def test_an_oserror_while_committing_is_a_reason_not_a_crash(tmp_path, monkeypatch):
+    """_commit lost its except clause, so an OSError (a full disk for the message file, a missing
+    git binary) escaped as 'crashed' and dropped every other group's result."""
+    repo = _main_checkout(tmp_path, {"log.md": "a\n"})
+
+    def _enospc(*_a, **_k):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(cg.tempfile, "NamedTemporaryFile", _enospc)
+    status = _attempt(repo / "log.md", "a\nb\n")
+    assert status.startswith("left dirty") and "crashed" not in status, status
+    assert "No space left" in status
+
+
+def test_a_real_git_timeout_maps_to_rc_124(tmp_path, monkeypatch):
+    """The TimeoutExpired → rc 124 mapping in _git was reached by no test."""
+    repo = _main_checkout(tmp_path, {"log.md": "a\n"})
+    monkeypatch.setattr(cg, "GIT_TIMEOUT_S", 0.000001)
+    assert cg._git(repo, "log", "--all").returncode == 124
+
+
+def test_the_status_names_our_commit_when_a_peer_commits_on_top(tmp_path, monkeypatch, capsys):
+    """The sha and its parent were read from HEAD after the commit, so a peer's commit landing on
+    top was reported as ours and raised a false REVERT warning."""
+    repo = _main_checkout(tmp_path, {"log.md": "a\n", "other.md": "x\n"})
+    real = cg._commit
+
+    def _peer_lands_on_top(top, rels, msg):
+        result = real(top, rels, msg)
+        (repo / "other.md").write_text("y\n", encoding="utf-8")
+        git(repo, "commit", "-q", "-m", "peer", "--", "other.md")
+        return result
+
+    monkeypatch.setattr(cg, "_commit", _peer_lands_on_top)
+    status = _attempt(repo / "log.md", "a\nb\n")
+    ours = git(repo, "rev-parse", "HEAD^")
+    assert status.startswith(f"committed {ours[:12]}"), status
+    assert "WARNING" not in capsys.readouterr().err
+
+
+def test_a_peers_identical_bytes_are_not_claimed_as_our_commit(tmp_path, monkeypatch):
+    """The landed re-check took ANY HEAD holding our bytes as our commit, so a failed commit was
+    reported 'committed' when a peer had landed the same content."""
+    repo = _main_checkout(tmp_path, {"log.md": "a\n"})
+
+    def _peer_wins_and_we_fail(top, rels, msg):
+        git(repo, "commit", "-q", "-m", "peer", "--", "log.md")
+        return False, "fatal: simulated failure"
+
+    monkeypatch.setattr(cg, "_commit", _peer_wins_and_we_fail)
+    status = _attempt(repo / "log.md", "a\nsame\n")
+    assert not _landed(status), status
+
+
+def test_sync_projects_reports_the_catalog_write_only_when_it_wrote(tmp_path, monkeypatch, capsys):
+    """update_business_model returned True on an unchanged run, so main printed 'Updated'."""
+    ports = "<!-- AUTO-GENERATED:PORTS:START -->\n<!-- AUTO-GENERATED:PORTS:END -->\n"
+    catalog = "<!-- AUTO-GENERATED:PROJECTS:START -->\n<!-- AUTO-GENERATED:PROJECTS:END -->\n"
+    repo = _main_checkout(tmp_path, {"PORTS.md": ports, "docs/PROJECT_CATALOG.md": catalog})
+    sp = _sync_projects(monkeypatch, repo)
+    assert sp.main() == 0
+    capsys.readouterr()
+    assert sp.main() == 0
+    out = capsys.readouterr().out
+    assert "Updated docs/PROJECT_CATALOG.md" not in out
+    assert "Updated PORTS.md" not in out
+    (repo / "docs/PROJECT_CATALOG.md").unlink()
+    assert sp.main() == 1  # a missing catalog is still the failure it was

@@ -165,7 +165,10 @@ def _state_lock() -> Iterator[None]:
         yield
         return
     with fh:
-        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            fcntl.flock(fh, fcntl.LOCK_EX)
+        except OSError:  # ENOLCK and kin: run unlocked, as the docstring promises
+            pass
         yield
 
 
@@ -246,28 +249,45 @@ def _message(writer: str, context: str) -> str:
 
 
 def _commit(top: Path, rels: list[str], msg: str) -> tuple[bool, str]:
+    """(True, <the commit's own sha>) or (False, <reason>); never raises. The sha is the one
+    ``git commit`` itself reports, never a later ``rev-parse HEAD`` a peer's commit could move."""
     lock = Path(_out(top, "rev-parse", "--path-format=absolute", "--git-path", "index.lock") or "")
-    with tempfile.NamedTemporaryFile("w", suffix=".msg", delete=False, encoding="utf-8") as fh:
-        fh.write(msg)
-        msg_file = fh.name
+    msg_file: str | None = None
     try:
+        with tempfile.NamedTemporaryFile("w", suffix=".msg", delete=False, encoding="utf-8") as fh:
+            msg_file = fh.name
+            fh.write(msg)
         for attempt in range(LOCK_TRIES):
             if lock.name and lock.exists():
                 if attempt + 1 < LOCK_TRIES:
                     time.sleep(LOCK_RETRY_S)
                 continue
-            r = _git(top, "commit", "--only", "--no-verify", "-q", "-F", msg_file, "--", *rels)
+            r = _git(top, "commit", "--only", "--no-verify", "-F", msg_file, "--", *rels)
             if r.returncode == 0:
-                return True, ""
+                return True, _sha_from_commit_output(top, r.stdout.decode("utf-8", "replace"))
             err = r.stderr.decode("utf-8", "replace").strip()
             if "index.lock" not in err:
                 return False, err.splitlines()[-1] if err else f"git commit rc {r.returncode}"
             if attempt + 1 < LOCK_TRIES:
                 time.sleep(LOCK_RETRY_S)
         return False, f"index.lock held past {LOCK_TRIES} tries"
+    except (OSError, subprocess.SubprocessError) as exc:
+        return False, f"git commit failed ({exc!r})"
     finally:
-        with contextlib.suppress(OSError):
-            os.unlink(msg_file)
+        if msg_file:
+            with contextlib.suppress(OSError):
+                os.unlink(msg_file)
+
+
+def _sha_from_commit_output(top: Path, out: str) -> str:
+    """The full sha of the commit ``git commit`` just reported (``[master 1a2b3c4] subject``)."""
+    first = out.splitlines()[0] if out else ""
+    if first.startswith("[") and "]" in first:
+        short = first[1 : first.index("]")].split()[-1]
+        full = _out(top, "rev-parse", "-q", "--verify", f"{short}^{{commit}}")
+        if full:
+            return full
+    return _out(top, "rev-parse", "HEAD") or "?"
 
 
 def commit_own(
@@ -338,20 +358,27 @@ def _commit_groups(
         if not mine:
             continue
         rels = [rel for rel, _, _ in mine]
-        ok, err = _commit(top, rels, _message(writer, context))
-        if not ok and all(_head_blob(top, rel) == _blob_of(top, rel, now) for rel, now, _ in mine):
-            ok = True  # it landed after all (a slow post-commit hook timed the call out)
+        msg = _message(writer, context)
+        ok, info = _commit(top, rels, msg)
+        if not ok:
+            # It may have landed after all (a slow post-commit hook timed the call out): only a HEAD
+            # carrying THIS run's subject and bytes counts, never a peer's identical content.
+            head_subject = _out(top, "log", "-1", "--format=%s")
+            if head_subject == msg.splitlines()[0] and all(
+                _head_blob(top, rel) == _blob_of(top, rel, now) for rel, now, _ in mine
+            ):
+                ok, info = True, _out(top, "rev-parse", "HEAD") or "?"
         if not ok:
             for rel, now, head in mine:
                 state[f"{top}:{rel}"] = {"sha": _sha(now), "head": head}
             changed = True
-            reasons.append(f"{', '.join(rels)}: {err}")
+            reasons.append(f"{', '.join(rels)}: {info}")
             continue
-        sha = _out(top, "rev-parse", "HEAD") or "?"
-        parent_moved = _out(top, "rev-parse", "HEAD^") != judged
+        sha = info
+        parent_moved = _out(top, "rev-parse", f"{sha}^") != judged
         for rel, now, head in mine:
             changed |= state.pop(f"{top}:{rel}", None) is not None
-            if parent_moved and _head_blob(top, rel, "HEAD^") != head:
+            if parent_moved and _head_blob(top, rel, f"{sha}^") != head:
                 print(
                     f"[commit_generated] WARNING: {rel} changed at HEAD between the eligibility "
                     f"check and the commit — {sha[:12]} REVERTS that change; restore it from "

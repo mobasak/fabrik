@@ -78,8 +78,8 @@ complete). In order:
    commit (`Agent-Name: kaizen-collector`, never pushed — the merge owner's next push carries
    it) holding only the logs that were clean at HEAD before this write, or still hold this
    collector's own unlanded row on the same HEAD blob. A sibling's edit, a staged log, a
-   linked worktree or a mid-operation repo is left dirty with one `[commit_generated]` reason
-   line on stderr (→ `~/.claude/kaizen.log`); a held `index.lock` is retried and, if it
+   linked worktree or a mid-operation repo is left dirty with a `[commit_generated]` reason
+   line per path on stderr (→ `~/.claude/kaizen.log`); a held `index.lock` is retried and, if it
    persists, recorded in `~/.claude/state/generated-output.json` so the next run lands it. The metrics mail
    goes to the shared `fabrik` mailbox (fail-soft: a dead mail store costs the notification,
    never the row). **The single-source law (W6-1):** every mechanical weekly cell AGGREGATES
