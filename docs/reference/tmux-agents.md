@@ -35,9 +35,20 @@ invisible to the launcher generator.
 
 Each of them keeps the desktop's `All Agents (tabbed).bat` current by itself (D-1376):
 
-- A grid `agents_up.sh` builds starts `agents_bat.py --tabbed` in the background. Its last run's output is in
-  `~/.config/fabrik/agents-bat-refresh.log`.
+- A grid `agents_up.sh` builds starts `agents_bat.py --tabbed` in the background.
+  - Refreshes are coalesced: one runs, one waits and reads the newer state, and the rest exit. So a boot sweep or a
+    cold click that builds a dozen grids at once probes the repos at most twice.
+  - Every refresh appends a header line (date, session, pid) and its outcome to
+    `~/.config/fabrik/agents-bat-refresh.log`.
 - `add` and `remove` regenerate the launcher at their own step 7.
+- The launcher lists each repo's overflow windows as the live `agents-<n>` windows plus the windows its builder count
+  implies at four panes a window. A grid that is down still keeps its tabs.
+
+A hand-made session shows up with no `@agents_up_root`. The exception is `agents_up.sh`'s own `<S>+<n>` window views,
+which are grouped with their grid `<S>`. To find one, run
+`tmux list-sessions -F '#{session_name} #{session_group} #{session_path}'`, then for each session run
+`tmux show-options -t '=<session>:' -v @agents_up_root`. A session in another repo's group (`#{session_group}` names
+the other repo's session) is one too. Ask the coordinator before killing it: a builder may be working in it.
 
 The launcher is written to the desktop folder remembered in `~/.config/fabrik/agents-desktop`. When none is
 remembered, the launch says so and the operator runs this once:

@@ -948,3 +948,37 @@ def test_list_prints_a_symlinked_repo_once(tmp_path: Path) -> None:
 def test_list_of_a_missing_opt_is_refused(tmp_path: Path) -> None:
     out = _run("--list", "--opt", str(tmp_path / "nowhere"))
     assert out.returncode == 2 and "is not a folder" in out.stderr and out.stdout == "", out.stderr
+
+
+def test_a_down_grid_keeps_the_overflow_tabs_its_panes_imply(tmp_path: Path) -> None:
+    """W-8209a305: agents_up.sh refreshes the tabbed .bat after every grid it builds, so a refresh that read only the
+    LIVE windows would drop every down grid's `--window n` tabs. The tabs are the live `agents-<n>` windows UNION the
+    windows `--print`'s pane count implies at four panes a window: 9 panes with the grid down → windows 2 and 3; 4
+    panes with a live agents-2 (an `add` past the registry) → window 2 kept; 5 panes, live agents-4 only → 2 and 4."""
+    opt = _opt(tmp_path, "aaa", "bbb", "ccc")
+    counts = {"aaa": 9, "bbb": 4, "ccc": 5}
+    up = tmp_path / "up.sh"
+    up.write_text(
+        '#!/bin/sh\necho "session x"\nn=$(cat "$2/.panes")\ni=0\n'
+        'while [ "$i" -lt "$n" ]; do echo "pane p$i"; i=$((i+1)); done\n',
+        encoding="utf-8",
+    )
+    for repo, n in counts.items():
+        (opt / repo / ".panes").write_text(str(n), encoding="utf-8")
+    desk = tmp_path / "desk"
+    desk.mkdir()
+    tm = _fake_tmux(tmp_path, bbb="agents\nagents-2\n", ccc="agents\nagents-4\n")
+    out = _run("--opt", str(opt), "--desktop", str(desk), "--tabbed", up=str(up), **tm)
+    assert out.returncode == 0, out.stderr
+    tail = "wsl.exe --distribution Ubuntu-24.04 --exec bash -l " + AGENTS_UP
+    tabs = [t.rsplit(tail, 1)[1].strip() for t in _tabbed_tabs(_bat(desk, TABBED))]
+    assert tabs == [
+        "/opt/aaa",
+        "--window 2 /opt/aaa",
+        "--window 3 /opt/aaa",
+        "/opt/bbb",
+        "--window 2 /opt/bbb",
+        "/opt/ccc",
+        "--window 2 /opt/ccc",
+        "--window 4 /opt/ccc",
+    ], tabs

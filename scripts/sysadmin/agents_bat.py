@@ -10,10 +10,11 @@ stderr line and the rest are still listed (exit 0). The boot sweep (claude-reboo
 which decides the builders itself — the probe is left out because at boot the user bus may not answer yet.
 
 --tabbed (W-b9ad80ae D5): one named Windows Terminal window (`wt.exe -M -w fabrik-agents`, so a later run can append to
-it) with, per repo, a tab running `agents_up.sh /opt/<repo>` (attach-or-launch) and one tab per live tmux window named
-`agents-<n>` (n >= 2) of the repo's session, running `agents_up.sh --window <n> /opt/<repo>`; any other window name is
-ignored and a down session, a failed or timed-out (2 s) read gives the repo its first tab only; the session is named
-from the repo's physical path, as agents_up.sh does. In BOTH modes the distro defaults to the Deck's resolver
+it) with, per repo, a tab running `agents_up.sh /opt/<repo>` (attach-or-launch) and one tab per overflow window n >= 2,
+running `agents_up.sh --window <n> /opt/<repo>`: the live tmux windows named `agents-<n>` of the repo's session UNION
+the windows its `--print` pane count implies at four panes a window (W-8209a305), so a down session, or a failed or
+timed-out (2 s) read, still gets the tabs its grid will build; any other window name is ignored; the session is named
+from the repo's physical path, as agents_up.sh does. agents_up.sh runs it after every grid it builds (D-1376). In BOTH modes the distro defaults to the Deck's resolver
 (fabrik_deck.py `_default_distro`, once per run); --distro overrides and '' is refused. The slow `agents_up.sh
 --print` per repo runs OUTSIDE the lock; under flock on ~/.config/fabrik/agents-desktop.lock (30 s at most, then exit
 2) only the tmux window reads and the write happen. A run with --desktop D that wrote or found current any of its
@@ -75,6 +76,7 @@ WINDOW = (
 LOCK = "agents-desktop.lock"
 REMEMBER = "agents-desktop"
 LOCK_WAIT = 30.0  # seconds a run waits for the desktop lock
+PER_WINDOW = 4  # panes per agents window, as agents_up.sh places them (its PER_WINDOW)
 _CONFIRMED: list[
     Path
 ] = []  # the files this run wrote or found already current (what --desktop may remember)
@@ -178,7 +180,7 @@ def tabbed_text(repos: list[str], windows: dict[str, list[int]], distro: str) ->
     lines = [
         "@echo off",
         MARKER,
-        "rem agents_up.sh decides each repo's builders and its overflow windows are read from tmux - re-run this",
+        "rem agents_up.sh decides each repo's builders and its overflow windows come from tmux and the grid size - re-run this",
         "rem script, never hand-edit this file. One Windows Terminal window named fabrik-agents holds every tab, so a",
         "rem later run can append to it. The fonts come from the Windows Terminal fragments this file writes.",
         'set "FRAG=%LOCALAPPDATA%\\Microsoft\\Windows Terminal\\Fragments\\Fabrik"',
@@ -299,9 +301,19 @@ def _desktop_lock():
         os.close(fd)
 
 
-def _tabbed(args: argparse.Namespace, repos: list[str], distro: str, desk: Path | None) -> int:
-    """C3: the slow `agents_up.sh --print` per repo already ran (repos); only the millisecond tmux reads and the
+def _overflow(opt: str, repo: str, panes: int) -> list[int]:
+    """The overflow windows n >= 2 a repo's tabs name: the live `agents-<n>` windows UNION the windows its `--print`
+    pane count implies (four panes a window, agents_up.sh's placement), so a down grid keeps its tabs and a window an
+    `add` opened past that count is still listed (W-8209a305; the live read alone dropped a down grid's tabs on every
+    refresh). A grid up with fewer windows than implied gets a tab that `agents_up.sh --window` waits on, then shows
+    the grid's current window."""
+    return sorted(set(_windows(opt, repo)) | set(range(2, -(-panes // PER_WINDOW) + 1)))
+
+
+def _tabbed(args: argparse.Namespace, panes: dict[str, int], distro: str, desk: Path | None) -> int:
+    """C3: the slow `agents_up.sh --print` per repo already ran (panes); only the millisecond tmux reads and the
     write happen under the lock."""
+    repos = list(panes)
     rc = 0
     safe = []
     for repo in repos:
@@ -322,7 +334,7 @@ def _tabbed(args: argparse.Namespace, repos: list[str], distro: str, desk: Path 
         )
         rc = 2
     if desk is None:
-        text = tabbed_text(safe, {r: _windows(args.opt, r) for r in safe}, distro)
+        text = tabbed_text(safe, {r: _overflow(args.opt, r, panes[r]) for r in safe}, distro)
         print(f"== {TABBED_NAME}\n{text.replace(chr(13), '')}")
         return rc
     target = desk / TABBED_NAME
@@ -342,7 +354,7 @@ def _tabbed(args: argparse.Namespace, repos: list[str], distro: str, desk: Path 
             )
             return 2
         try:
-            text = tabbed_text(safe, {r: _windows(args.opt, r) for r in safe}, distro)
+            text = tabbed_text(safe, {r: _overflow(args.opt, r, panes[r]) for r in safe}, distro)
             rc = max(rc, _write(target, text, TABBED_NAME.lower() in replace))
         except OSError as exc:
             print(f"agents_bat: {target}: {exc.strerror or exc}; left as it is", file=sys.stderr)
@@ -467,7 +479,8 @@ def _run(args: argparse.Namespace) -> int:
         if desk is None:
             print(f"agents_bat: {why}; printing instead", file=sys.stderr)
 
-    repos = [p.name for p in _registered(Path(args.opt)) if _has_grid(p)]
+    panes = {p.name: n for p in _registered(Path(args.opt)) if (n := _pane_count(p))}
+    repos = list(panes)
     by_case: dict[str, list[str]] = {}
     for repo in repos:
         by_case.setdefault(bat_name(repo).lower(), []).append(repo)
@@ -479,7 +492,7 @@ def _run(args: argparse.Namespace) -> int:
         )
         return 2
     if args.tabbed:
-        return _tabbed(args, repos, args.distro, desk)
+        return _tabbed(args, panes, args.distro, desk)
 
     rc = 0
     replace = {n.lower() for n in args.replace}
@@ -525,8 +538,8 @@ def _run(args: argparse.Namespace) -> int:
     return rc
 
 
-def _has_grid(repo: Path) -> bool:
-    """agents_up.sh decides: `--print` exits 0 and names at least one pane. It launches nothing."""
+def _pane_count(repo: Path) -> int:
+    """agents_up.sh decides: the `pane` lines `--print` names when it exits 0 (0 = no grid). It launches nothing."""
     try:
         out = subprocess.run(
             ["bash", os.environ.get("AGENTS_UP_BIN", AGENTS_UP), "--print", str(repo)],
@@ -540,8 +553,10 @@ def _has_grid(repo: Path) -> bool:
             f"agents_bat: could not ask agents_up.sh about {repo} ({exc}); no .bat for it this run",
             file=sys.stderr,
         )
-        return False
-    return out.returncode == 0 and any(ln.startswith("pane ") for ln in out.stdout.splitlines())
+        return 0
+    if out.returncode != 0:
+        return 0
+    return sum(ln.startswith("pane ") for ln in out.stdout.splitlines())
 
 
 def _write(target: Path, text: str, replace: bool) -> int:

@@ -3592,3 +3592,164 @@ def test_pane_cmd_into_refuses_the_owner_a_shared_folder_and_a_foreign_pid(tmp_p
         bad = _run(*_move_args(repo), home=home, AGENT_IDENTITY_FILE=str(store))
         assert bad.returncode == 2 and bad.stdout == "", (args, bad.stdout)
         assert "--replacing 4242 is not a running claude -n b2" in bad.stderr, (args, bad.stderr)
+
+
+# ── D-1376 (W-8209a305): a grid this launch builds refreshes "All Agents (tabbed).bat" ───────────────────────────
+
+_FAKE_BAT = """import os, sys, time
+home = os.environ["HOME"]
+with open(os.path.join(home, "bat.argv"), "a", encoding="utf-8") as f:
+    f.write(" ".join(sys.argv[1:]) + "\\n")
+time.sleep(float(os.environ.get("FAKE_BAT_SLEEP", "0")))
+with open(os.path.join(home, "bat.done"), "a", encoding="utf-8") as f:
+    f.write("done\\n")
+"""
+_BAT_LOG = Path(".config") / "fabrik" / "agents-bat-refresh.log"
+
+
+def _bat_home(tmp: Path, repo: Path, *, has: bool = False, remembered: str | None = "DESK") -> tuple[Path, Path]:
+    """A fake-tmux HOME with a fake agents_bat.py (it appends its argv to $HOME/bat.argv, sleeps FAKE_BAT_SLEEP s,
+    then appends a line to $HOME/bat.done) and, unless `remembered` is None, a remembered-desktop file holding
+    `remembered` — "DESK" stands for a real folder under the HOME."""
+    home = _tmux_home(tmp, repo, has=has, owner=str(repo) if has else None)
+    fake = home / "fake_bat.py"
+    fake.write_text(_FAKE_BAT, encoding="utf-8")
+    if remembered is not None:
+        cfg = home / ".config" / "fabrik"
+        cfg.mkdir(parents=True, exist_ok=True)
+        if remembered == "DESK":
+            desk = home / "Desk Top"  # the live desktop path holds spaces
+            desk.mkdir()
+            remembered = f"{desk}\n"
+        (cfg / "agents-desktop").write_text(remembered, encoding="utf-8")
+    return home, fake
+
+
+def _lines(path: Path) -> list[str]:
+    return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+
+
+def _until(pred, within_s: float = 15.0) -> bool:  # type: ignore[no-untyped-def]
+    end = time.monotonic() + within_s
+    while time.monotonic() < end:
+        if pred():
+            return True
+        time.sleep(0.05)
+    return bool(pred())
+
+
+def test_a_new_grid_refreshes_the_tabbed_bat_in_the_background(tmp_path: Path) -> None:
+    """D-1376: a grid this launch builds starts `agents_bat.py --tabbed` (no --desktop: the remembered one), detached:
+    the launch attaches without waiting for it. So does a `--detach` build (the boot sweep, an `add` cold start). The
+    child redirects its own fds, so the pty and the pipes `_run` reads close at once. Red on base: no refresh starts."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home, fake = _bat_home(tmp_path / "tty", repo)
+    t0 = time.monotonic()
+    out = _run(str(repo), home=home, tty=True, FABRIK_AGENTS_BAT=str(fake), FAKE_BAT_SLEEP="4")
+    took = time.monotonic() - t0
+    assert out.returncode == 0, out.stderr
+    assert _log(home)[-1] == "attach -t =fabrik-lib", _log(home)
+    assert _until(lambda: (home / "bat.argv").exists()), out.stderr
+    assert _lines(home / "bat.argv") == ["--tabbed"]
+    assert took < 4 and not (home / "bat.done").exists(), took  # the launch never waited for the refresh
+    assert "refreshing All Agents (tabbed).bat in the background" in out.stderr, out.stderr
+    assert str(home / _BAT_LOG) in out.stderr, out.stderr
+    assert _until(lambda: (home / "bat.done").exists())
+    # the boot sweep's and an `add` cold start's build
+    home, fake = _bat_home(tmp_path / "detach", repo)
+    out = _run("--detach", str(repo), home=home, FABRIK_AGENTS_BAT=str(fake))
+    assert out.returncode == 0, out.stderr
+    assert _until(lambda: (home / "bat.done").exists()), out.stderr
+    assert _lines(home / "bat.argv") == ["--tabbed"]
+
+
+def test_no_remembered_desktop_starts_no_refresh_and_says_how(tmp_path: Path) -> None:
+    """agents_bat.py with no usable remembered desktop probes every repo only to PRINT the .bat: no file, an empty or
+    blank one, or a path that is not a folder (as `_remembered` strips and checks) starts nothing, and stderr names the
+    one-time command."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    for label, remembered in (
+        ("absent", None),
+        ("empty", ""),
+        ("blank", "  \n"),
+        ("gone", "/no/such/desktop\n"),
+    ):
+        home, fake = _bat_home(tmp_path / label, repo, remembered=remembered)
+        out = _run(str(repo), home=home, tty=True, FABRIK_AGENTS_BAT=str(fake))
+        assert out.returncode == 0, (label, out.stderr)
+        assert "no desktop remembered" in out.stderr, (label, out.stderr)
+        assert "--tabbed --desktop" in out.stderr, (label, out.stderr)
+        time.sleep(0.3)
+        assert not (home / "bat.argv").exists(), label
+
+
+def test_only_a_grid_this_launch_built_refreshes_the_bat(tmp_path: Path) -> None:
+    """A grid already up (reattached as it is), a launch that lost the race, `--window` and `--print` build no grid, so
+    they start no refresh."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    up, fake = _bat_home(tmp_path / "up", repo, has=True)
+    assert _run(str(repo), home=up, tty=True, FABRIK_AGENTS_BAT=str(fake)).returncode == 0
+    raced, fake_r = _bat_home(tmp_path / "raced", repo)
+    (raced / "tmux-newfail").write_text("", encoding="utf-8")
+    (raced / "tmux-owner").write_text(str(repo) + "\n", encoding="utf-8")
+    assert _run(str(repo), home=raced, tty=True, FABRIK_AGENTS_BAT=str(fake_r)).returncode == 0
+    win, fake_w = _bat_home(tmp_path / "win", repo, has=True)
+    _run("--window", "2", str(repo), home=win, tty=True, FABRIK_AGENTS_BAT=str(fake_w))
+    printed, fake_p = _bat_home(tmp_path / "print", repo)
+    assert _run("--print", str(repo), home=printed, FABRIK_AGENTS_BAT=str(fake_p)).returncode == 0
+    time.sleep(0.5)
+    for home in (up, raced, win, printed):
+        assert not (home / "bat.argv").exists(), home.name
+        assert "refreshing All Agents" not in "".join(_lines(home / _BAT_LOG)), home.name
+
+
+def test_a_refresh_that_cannot_run_never_fails_the_launch(tmp_path: Path) -> None:
+    """A generator that is missing, or a log that cannot be opened, leaves the launch's exit code and attach as they
+    were, and is said in ONE line naming the by-hand command (no raw bash redirect message)."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home, _ = _bat_home(tmp_path / "missing", repo)
+    out = _run(str(repo), home=home, tty=True, FABRIK_AGENTS_BAT=str(home / "no-such.py"))
+    assert out.returncode == 0 and _log(home)[-1] == "attach -t =fabrik-lib", out.stderr
+    assert "could not start the All Agents (tabbed).bat refresh" in out.stderr, out.stderr
+    assert f"run by hand: python3 {home / 'no-such.py'} --tabbed" in out.stderr, out.stderr
+    home, fake = _bat_home(tmp_path / "nolog", repo)
+    (home / _BAT_LOG).mkdir()  # the append redirect cannot open a folder
+    out = _run(str(repo), home=home, tty=True, FABRIK_AGENTS_BAT=str(fake))
+    assert out.returncode == 0 and _log(home)[-1] == "attach -t =fabrik-lib", out.stderr
+    assert "could not start the All Agents (tabbed).bat refresh" in out.stderr, out.stderr
+    assert "Is a directory" not in out.stderr, out.stderr
+    time.sleep(0.3)
+    assert not (home / "bat.argv").exists()
+
+
+def test_concurrent_refreshes_coalesce_and_append_the_log(tmp_path: Path) -> None:
+    """Three grids built while one refresh still runs: the first runs, the second waits and runs after it (reading
+    the newer state), the third finds one waiting and exits at once — two runs, never three. Each refresh appends
+    one header line to the log, so no run's outcome is overwritten by a later one."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home, fake = _bat_home(tmp_path, repo)
+    for _ in range(3):
+        out = _run("--detach", str(repo), home=home, FABRIK_AGENTS_BAT=str(fake), FAKE_BAT_SLEEP="3")
+        assert out.returncode == 0, out.stderr
+        assert _until(lambda: len(_lines(home / _BAT_LOG)) >= 1)  # the child is up before the next launch
+    assert _until(lambda: len(_lines(home / "bat.done")) == 2, within_s=20), _lines(home / "bat.argv")
+    time.sleep(1)
+    assert _lines(home / "bat.argv") == ["--tabbed", "--tabbed"]
+    headers = [ln for ln in _lines(home / _BAT_LOG) if ln.startswith("agents_up: refresh ")]
+    assert len(headers) == 3 and all("fabrik-lib" in h for h in headers), _lines(home / _BAT_LOG)
+
+
+def test_the_refresh_reads_the_desktop_agents_bat_remembers() -> None:
+    """The shell reads the remembered desktop by path and agents_bat.py implies overflow windows from PER_WINDOW: both
+    must be agents_bat.py's / agents_up.sh's own, or the refresh reads 'nothing remembered' forever and the implied
+    tabs drift from the windows the grid really builds."""
+    spec = importlib.util.spec_from_file_location(
+        "agents_bat_for_up_test", ROOT / "scripts" / "sysadmin" / "agents_bat.py"
+    )
+    assert spec is not None and spec.loader is not None
+    bat = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(bat)
+    text = UP.read_text(encoding="utf-8")
+    assert bat._config_dir() == Path(os.path.expanduser("~/.config/fabrik"))
+    assert f'"$HOME/.config/fabrik/{bat.REMEMBER}"' in text
+    assert re.search(rf"^PER_WINDOW={bat.PER_WINDOW}$", text, re.M), bat.PER_WINDOW

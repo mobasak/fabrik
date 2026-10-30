@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — every new agent grid refreshes "All Agents (tabbed).bat" itself; the tmux how-to (2026-10-30)
+`scripts/sysadmin/agents_up.sh` now starts `agents_bat.py --tabbed` in the background after every grid it builds
+(interactive, `--detach` boot sweep, `add` cold start), when a desktop is remembered. Refreshes are coalesced (one runs,
+one waits, the rest exit) and each appends to `~/.config/fabrik/agents-bat-refresh.log`. A skipped or failed start is
+said and never fails the launch (D-1376, W-8209a305). `agents_bat.py --tabbed` lists each repo's overflow tabs as its
+live `agents-<n>` windows plus those its `--print` pane count implies, so a refresh no longer drops a down grid's tabs.
+New `docs/reference/tmux-agents.md` says how a coordinator reaches, wakes, relaunches and rotates tmux builders. The
+coordinator paragraph of both contracts now points at it, and a builder line says builders report back in the same turn
+(D-1377).
+
 ### Fixed — agents_up launches every pane with --permission-mode bypassPermissions (2026-10-30)
 Every claude command `scripts/sysadmin/agents_up.sh` builds (grid start, `--pane-cmd`, the spawn and rotate `--move`
 `--session-id` launches, and the "already running" and "exited — run:" hint lines) now passes
