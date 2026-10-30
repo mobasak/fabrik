@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "coordinator",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "rotate intel — intel (session 2e537aa3) is at an item boundary: no item held, no run record running, no seat in flight, worktree clean and pushed; context at 85%. The live SendMessage was held by your session (msg d101b452, likely a permission-mode mismatch after my bypassPermissions relaunch), so t"
 }
