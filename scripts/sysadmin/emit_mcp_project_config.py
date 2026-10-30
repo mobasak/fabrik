@@ -11,7 +11,9 @@ couples them).
 Derivation per repo: the universal set + per-type set (live `project.yaml::type`
 read at run time) + per-repo overlay row. The hub gets the full defs set minus
 HUB_EXCLUDE (the per-session heavy servers — operator ruling 2026-10-07); fabrik-lib keeps
-the full roster, maestro included (the same ruling).
+the full roster, maestro included (the same ruling). A loopback service MCP (`SERVICE_UNITS`) is
+withheld until its systemd unit is installed and enabled under $FABRIK_SYSTEMD_UNIT_DIR
+(default /etc/systemd/system); the verdict line names it (W-07298e38, D-1214).
 Server DEFINITIONS are read from --defs, else scripts/sysadmin/mcp_defs.json; their
 `${VAR}` credentials are filled from the active fleet roster, then the hub .env, and an
 unresolved one aborts the run naming the key (D-641) — the emitter's own prior output is
@@ -106,6 +108,20 @@ HUB_FULL_ROSTER = HUB_CLASS - HUB_REPOS
 # wide for all repos"), which supersedes D-023/D-025's MCP exclusion of image-generation; check_mcp_scope reads it.
 CONDEMNED: set[str] = set()
 NEVER_EMIT = {"fabrik-claim-validator"}  # D-022 planned row: no MCP endpoint exists yet
+
+# A loopback service MCP is emitted only once the systemd unit serving it is installed AND enabled
+# (W-07298e38): fabrik-scrape reached the hub .mcp.json with no unit behind it, a dead entry in every
+# session. Unit state, never a port probe — a probe would strip a merely restarting server from every
+# repo until the next emit. Every loopback url in mcp_defs.json needs a row here (a test enforces it).
+# Cobra: an enabled unit that fails to start still ships a dead entry; mcp_health.py reports it DEAD.
+# fabrik-mcp-http.service owns :8033; fabrik-citation-verifier-mcp.service is an enabled look-alike that
+# stays inactive (docs/workstation/MCP_HTTP_TRANSPORT.md) — read the unit serving the port, never its name.
+SERVICE_UNITS = {
+    "fabrik-scrape": "fabrik-scrape-mcp.service",
+    "fabrik-citation-verifier": "fabrik-mcp-http.service",
+}
+# a set-but-empty variable reads as unset: `Path("")` is the cwd
+UNIT_DIR = Path(os.environ.get("FABRIK_SYSTEMD_UNIT_DIR") or "/etc/systemd/system")
 
 # a trailing comment only after whitespace, as YAML reads it (`saas-skeleton#web` is one value); [ \t] never spans lines
 _TYPE_RE = re.compile(r"^type:[ \t]*([A-Za-z0-9_-]+)(?:[ \t]+#.*)?[ \t]*$", re.M)
@@ -313,6 +329,24 @@ def _uri_connects(uri: str) -> bool | None:
     return None
 
 
+def _service_missing(server: str) -> str | None:
+    """The unit `server` needs when it is not installed and enabled under `UNIT_DIR`, else None.
+    Enabled = a `*.wants/<unit>` entry that resolves (a dangling link left by a removed unit file is not
+    enabled), which `systemctl enable` writes for any `WantedBy=` target.
+    Any OSError reads as missing: `is_file()` raises under an unreadable directory, and that must
+    withhold the server, never skip the repo and leave a stale entry in place."""
+    unit = SERVICE_UNITS.get(server)
+    if unit is None:
+        return None
+    try:
+        ok = (UNIT_DIR / unit).is_file() and any(
+            w.exists() for w in UNIT_DIR.glob(f"*.wants/{unit}")
+        )
+    except OSError:
+        ok = False
+    return None if ok else unit
+
+
 def ruled_server_names(repo: Path, defs: dict[str, dict]) -> list[str] | None:
     """The NAMES a repo's ruling allows, in emission order, or None for a repo the ruling does
     not know (a `project.yaml::type` outside TYPE_SETS — a typo stays a visible SKIP). A repo with NO
@@ -339,8 +373,8 @@ def derive_servers(repo: Path, defs: dict[str, dict]) -> dict[str, dict] | None:
         return None
     out: dict[str, dict] = {}
     for s in dict.fromkeys(wanted):  # ordered de-dup
-        if s in NEVER_EMIT or s not in defs:
-            continue
+        if s in NEVER_EMIT or s not in defs or _service_missing(s):
+            continue  # a service whose unit is not installed and enabled is withheld (W-07298e38)
         entry = json.loads(json.dumps(defs[s]))  # deep copy
         if s == "postgres-pro":
             # postgres-mcp v1.29 blocks its handshake ~30s on ANY non-connecting URI
@@ -407,6 +441,13 @@ def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
             if rtype.startswith("(unreadable:")
             else "SKIP"
         )
+    # read off what derive_servers actually left out, so the note and the written file never disagree
+    withheld = [
+        f"{s} (unit {SERVICE_UNITS[s]} not installed and enabled)"
+        for s in ruled_server_names(repo, defs) or []
+        if s in SERVICE_UNITS and s in defs and s not in NEVER_EMIT and s not in servers
+    ]
+    note = f" — withheld: {', '.join(withheld)}" if withheld else ""
     payload = json.dumps({"mcpServers": servers}, indent=2, sort_keys=True) + "\n"
     if target.is_file() and target.read_text() == payload:
         verdict = "OK"
@@ -436,7 +477,7 @@ def emit_repo(repo: Path, defs: dict[str, dict], check: bool) -> str:
         refreshed += 1
     notes = [f"+{refreshed} worktree cop{'y' if refreshed == 1 else 'ies'}"] if refreshed else []
     notes += [f"{n} {why}" for why, n in failed.items() if n]
-    return verdict + (f" ({', '.join(notes)})" if notes else "")
+    return verdict + (f" ({', '.join(notes)})" if notes else "") + note
 
 
 def _worktree_copies(repo: Path) -> list[Path]:

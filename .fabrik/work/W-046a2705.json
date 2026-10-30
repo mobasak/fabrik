@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T17:43:46.924665Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-046a2705",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "in .claude/workflows/fabrik-review-loop.js refuteCall, resolve to {r, error: firstLine(e)} like findCall, carry the error into refuteSlice's refuter.reason and the REFUTER FAILED line review_loop_ledger.py read prints; test beside test_a_refuter_that_throws_at_the_call_is_retried",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "review-loop"
+  ],
+  "title": "review-loop refuteCall throws a refuter's rejection text away (.catch(() => null)) — the finder kept its text since feedback row 1790707386; the W-bc394d0b Opus design critique, concern 6"
+}

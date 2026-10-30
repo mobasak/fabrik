@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T01:29:55.322933Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6dc073a5",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "write the lock-wait status only under the lock (or to a per-runner file) and carry the kick note into the drain's success line; grade both",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "merge_request sync runner (D-1369 surface, pre-existing, found by W-73d00b05's review): (1) a runner that times out its SYNC_LOCK wait writes SYNC_STATUS rc 3 without holding the lock, overwriting the holder's status so the holder's drain prints 'the runner recorded no reason'; (2) _drain_sync drops _kick_sync's 'last background sync FAILED — retrying' note on the success path"
+}

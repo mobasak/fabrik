@@ -33,11 +33,17 @@ IDLE_SCREEN = (
     "some output\n────────────\n❯\u00a0\n────────────\n  Opus · ctx 41%\n  ⏵⏵ auto mode on\n"
 )
 FAKE_TMUX = """#!/usr/bin/env python3
-import json, os, sys
+import json, os, re, sys
 st = json.load(open(os.environ["FAKE_TMUX_STATE"]))
 a = sys.argv[1:]
 if a[0] == "list-panes":
     print("\\n".join(st["panes"]))
+elif a[0] == "respawn-pane":
+    # W-e38f8ee7: logged; `on_respawn` plays what the respawned pane does (the old claude exits, the new one registers)
+    with open(os.environ["FAKE_TMUX_STATE"] + ".respawn", "a") as fh:
+        fh.write(json.dumps(a[1:]) + "\\n")
+    if st.get("on_respawn"):
+        exec(st["on_respawn"], {"a": a, "os": os, "json": json, "re": re})
 elif a[0] == "capture-pane":
     # the input line, as Claude Code renders a paste (W-b92aa5cf): `stream` shows the head first, `pre_placeholder`
     # shows the fresh box's hint for two captures first; each capture showing the full text counts toward the settle
@@ -169,6 +175,9 @@ def world(tmp_path, monkeypatch):
     monkeypatch.setattr(rs.hib, "worktree_state", lambda path: (False, "clean, pushed"))
     monkeypatch.setattr(rs.hib, "live_sessions", lambda home, proc, opt="/opt": [])
     monkeypatch.setattr(rs.time, "sleep", lambda s: None)
+    # W-e38f8ee7: a --move reaps the old claude by pid; never let a test signal a real process
+    signals: list[tuple[int, int]] = []
+    monkeypatch.setattr(rs, "_signal", lambda pid, sig: signals.append((pid, sig)))
     monkeypatch.setattr(
         rs, "IDLE_S", 0
     )  # the fixture's transcript was just written; the quiet test sets 30 itself
@@ -183,6 +192,7 @@ def world(tmp_path, monkeypatch):
         "req": tmp_path / "req",
         "log": tmp_path / "rotations.jsonl",
         "tmp": tmp_path,
+        "signals": signals,
     }
 
 
@@ -1965,3 +1975,318 @@ def test_w05021a03_a_store_stat_sees_but_cannot_read_is_transient(world, monkeyp
         assert "identity store is unreadable" in _rows(world)[-1]["reason"]
     finally:
         store.chmod(0o700)
+
+
+# --- W-e38f8ee7: `rotate-session <name> --move` — a fresh session in the worktree the builder works in ---------------
+
+FAKE_AGENTS_UP = """#!/bin/sh
+printf '%s\\n' "ARGV $*" "PATH=$PATH" "AGENT_IDENTITY_FILE=${AGENT_IDENTITY_FILE:-unset}" >> "$FAKE_UP_LOG"
+[ -f "$FAKE_UP_LOG.refuse" ] && { echo "agents_up: the pane changed since the request" >&2; exit 2; }
+echo "claude -n $3 --session-id $4 'You were moved'"
+"""
+
+# the respawned pane: the old claude (pid 102) exits — its stat start changes — and the new one registers its session
+RESPAWN_OK = (
+    "sid = re.search(r'--session-id (\\S+)', a[-1]).group(1)\n"
+    "p = os.environ['ROTATE_PROC_ROOT'] + '/102/stat'\n"
+    "open(p, 'w').write('102 (claude) S 101' + ' 0' * 17 + ' 999\\n')\n"
+    "if os.environ.get('MOVE_REGISTERS', '1') == '1':\n"
+    "    reg = os.environ['MOVE_SESSIONS'] + '/103.json'\n"
+    "    json.dump({'pid': 103, 'sessionId': sid, 'procStart': '5', 'cwd': a[a.index('-c') + 1]}, open(reg, 'w'))\n"
+    "if os.environ.get('MOVE_BINDS', '1') == '1':\n"
+    "    open(os.environ['AGENT_IDENTITY_FILE'], 'a').write(json.dumps({'session_id': sid, 'name': 'dev1',"
+    " 'toplevel': '/opt/x', 'at': 9}) + '\\n')\n"
+)
+
+
+def _move_world(world, monkeypatch, *, registers: bool = True, binds: bool = True):
+    """A repo `x` whose builder dev1 works in its linked worktree `dev1-work` (the session record's cwd is inside it), a
+    fake agents_up.sh logging its argv and env, and a respawn that plays the new pane. Returns (repo, worktree)."""
+    repo = (world["tmp"] / "x").resolve()
+    wt = repo / ".claude" / "worktrees" / "dev1-work"
+    (wt / "src").mkdir(parents=True)
+    (wt / ".git").write_text("gitdir: x\n")
+    reg = dict(world["reg"], cwd=str(wt / "src"))
+    (world["config"] / "sessions" / "102.json").write_text(json.dumps(reg))
+    # the pane's own environment (the env-i set agents_up gave it), which the move carries over
+    (world["proc"] / "102" / "environ").write_bytes(
+        b"\0".join(
+            [
+                f"CLAUDE_CONFIG_DIR={world['config']}".encode(),
+                b"PATH=/pane/bin:/usr/bin",
+                b"AGENT_IDENTITY_FILE=/pane/identity.jsonl",
+            ]
+        )
+    )
+    up = world["tmp"] / "agents_up_fake"
+    up.write_text(FAKE_AGENTS_UP)
+    up.chmod(0o755)
+    for k, v in {
+        "FABRIK_AGENTS_UP": up,
+        "FAKE_UP_LOG": world["tmp"] / "up.log",
+        "MOVE_SESSIONS": world["config"] / "sessions",
+        "MOVE_REGISTERS": "1" if registers else "0",
+        "MOVE_BINDS": "1" if binds else "0",
+    }.items():
+        monkeypatch.setenv(k, str(v))
+    _set(world, on_respawn=RESPAWN_OK)
+    return repo, wt
+
+
+def _respawns(world):
+    p = Path(str(world["state"]) + ".respawn")
+    return [json.loads(ln) for ln in p.read_text().splitlines()] if p.exists() else []
+
+
+def _up_log(world):
+    p = world["tmp"] / "up.log"
+    return p.read_text().splitlines() if p.exists() else []
+
+
+def test_w_e38f8ee7_request_move_derives_validates_and_writes(world, monkeypatch, capsys):
+    """B1: `request --move` derives the folder from the session record's cwd (the linked worktree in place under the
+    repo's .claude/worktrees/ that holds it) and writes a data-only `mode: move` request carrying `into`. A cwd outside
+    such a worktree, a coordinator's tree, a no-op move (the session is already filed under the target, so the grid
+    already starts it there) and --move with --compact or --stale-input are permanent `args` refusals."""
+    repo, wt = _move_world(world, monkeypatch)
+    assert rs.main(["request", "dev1", "--move", "--repo", str(repo)]) == 0
+    data = json.loads((world["req"] / "x--dev1.json").read_text())
+    assert data["mode"] == "move" and data["into"] == "dev1-work" and data["focus"] == ""
+    assert set(data) == rs.FIELDS | {"into"}, data
+    (world["req"] / "x--dev1.json").unlink()
+
+    def refused(reason: str, **kw) -> None:
+        assert (
+            rs.request(
+                "dev1", str(repo), kw.get("compact"), "manual", move=True, **kw.get("more", {})
+            )
+            == 1
+        )
+        row = _rows(world)[-1]
+        assert row["outcome"] == "aborted:args" and reason in row["reason"], row
+        assert not list(world["req"].glob("*.json"))
+        assert "(permanent" in capsys.readouterr().err
+
+    refused("--move takes neither --compact nor --stale-input", compact="focus")
+    refused(
+        "--move takes neither --compact nor --stale-input",
+        more={"stale": True, "operator_ok": "ok"},
+    )
+    reg_file = world["config"] / "sessions" / "102.json"
+    for cwd, reason in (
+        (repo, "is not inside a linked worktree of"),
+        (world["tmp"] / "elsewhere", "is not inside a linked worktree of"),
+    ):
+        reg_file.write_text(json.dumps(dict(world["reg"], cwd=str(cwd))))
+        refused(reason)
+    plain = repo / ".claude" / "worktrees" / "plain"
+    plain.mkdir()
+    reg_file.write_text(json.dumps(dict(world["reg"], cwd=str(plain))))
+    refused("plain is not a linked git worktree in place")
+    coord = repo / ".claude" / "worktrees" / "coordinator"
+    coord.mkdir()
+    (coord / ".git").write_text("gitdir: x\n")
+    reg_file.write_text(json.dumps(dict(world["reg"], cwd=str(coord))))
+    refused("coordinator is the coordinator's tree")
+    # the session is already filed under the target (a hard link, as Claude Code files it): nothing to move
+    reg_file.write_text(json.dumps(dict(world["reg"], cwd=str(wt / "src"))))
+    proj = world["config"] / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(wt))
+    proj.mkdir(parents=True)
+    os.link(world["transcript"], proj / f"{SID}.jsonl")
+    refused("already starts in .claude/worktrees/dev1-work")
+
+
+def test_w_e38f8ee7_execute_move_respawns_and_records(world, monkeypatch):
+    """B2: execute on a move request fetches the pane command FIRST (agents_up.sh `--pane-cmd … --into … --from <old
+    sid> --replacing <old pid>`, run with the pane's own PATH and AGENT_IDENTITY_FILE), THEN runs the checks, then
+    `respawn-pane -k -t <pane> -c <worktree> <cmd>`, reaps the old claude, waits for the new session record and rows
+    `ok` on the new binding — no key typed, no predecessor (a new process), mode/into/old_exit on the row."""
+    repo, wt = _move_world(world, monkeypatch)
+    order: list[str] = []
+    real_checks = rs.run_checks
+    monkeypatch.setattr(
+        rs,
+        "run_checks",
+        lambda t, stale="": order.append(f"checks after {len(_up_log(world))}")
+        or real_checks(t, stale),
+    )
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    assert rs.execute() == 0
+    row = _rows(world)[-1]
+    new = row.get("new_sid")
+    assert row["outcome"] == "ok", row
+    assert row["mode"] == "move" and row["into"] == "dev1-work" and row["old_exit"] == "gone", row
+    assert re.fullmatch(
+        r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", new
+    ), row
+    assert new != SID and row["old_sid"] == SID and row["predecessor_row"] is False, row
+    log = _up_log(world)
+    assert (
+        log[0] == f"ARGV --pane-cmd {repo} dev1 {new} --into dev1-work --from {SID} --replacing 102"
+    ), log
+    assert (
+        log[1] == "PATH=/pane/bin:/usr/bin" and log[2] == "AGENT_IDENTITY_FILE=/pane/identity.jsonl"
+    ), log
+    assert order and all(o == "checks after 3" for o in order), (
+        order
+    )  # the pane command came before every check
+    (respawn,) = _respawns(world)
+    assert respawn == [
+        "-k",
+        "-t",
+        "%5",
+        "-c",
+        str(wt),
+        f"claude -n dev1 --session-id {new} 'You were moved'",
+    ]
+    assert _keys(world) == [] and world["signals"] == []
+
+
+def test_w_e38f8ee7_move_refusals_and_partials(world, monkeypatch):
+    """B3: a pane-command refusal rows `refused:launch` and a failed check `refused:<check>`, with no respawn; a
+    transcript written between the last two reads refuses `idle` with no respawn; a session that never registers rows
+    `partial:launch`, one that never re-binds `partial:rebind`; an old claude that outlives the respawn gets SIGTERM
+    then SIGKILL, by pid, and the row says `survived`."""
+    import signal
+
+    repo, wt = _move_world(world, monkeypatch)
+    log = Path(os.environ["FAKE_UP_LOG"])
+    log.with_name(log.name + ".refuse").write_text("")
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    rs.execute()
+    row = _rows(world)[-1]
+    assert row["outcome"] == "refused:launch" and "the pane changed" in row["reason"], row
+    log.with_name(log.name + ".refuse").unlink()
+    _set(world, screen=IDLE_SCREEN.replace("❯ ", "❯ typed"))
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    rs.execute()
+    assert _rows(world)[-1]["outcome"] == "refused:screen"
+    _set(world, screen=IDLE_SCREEN)
+
+    def bump(s: float) -> None:  # the session writes during the last re-read
+        if s == rs.DISCARD_RECHECK_S:
+            st = world["transcript"].stat()
+            os.utime(
+                world["transcript"], (st.st_atime, st.st_mtime - 5)
+            )  # a change, never into the future
+
+    monkeypatch.setattr(rs.time, "sleep", bump)
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    rs.execute()
+    assert _rows(world)[-1]["outcome"] == "refused:idle", _rows(world)[-1]
+    assert _respawns(world) == [] and world["signals"] == []
+    monkeypatch.setattr(rs.time, "sleep", lambda s: None)
+    # neither case binds the new id, so dev1 stays bound to SID for the next request
+    for registers, binds, outcome in (
+        (False, False, "partial:launch"),
+        (True, False, "partial:rebind"),
+    ):
+        monkeypatch.setenv("MOVE_REGISTERS", "1" if registers else "0")
+        monkeypatch.setenv("MOVE_BINDS", "1" if binds else "0")
+        (world["proc"] / "102" / "stat").write_text("102 (claude) S 101" + " 0" * 17 + " 777\n")
+        _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+        rs.execute()
+        assert _rows(world)[-1]["outcome"] == outcome, _rows(world)[-1]
+    # the old claude never exits: TERM, then KILL, to that pid; the row says so and the move still completes
+    monkeypatch.setenv("MOVE_REGISTERS", "1")
+    monkeypatch.setenv("MOVE_BINDS", "1")
+    (world["proc"] / "102" / "stat").write_text("102 (claude) S 101" + " 0" * 17 + " 777\n")
+    _set(world, on_respawn=RESPAWN_OK.replace("open(p, 'w')", "0 and open(p, 'w')"))
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    rs.execute()
+    row = _rows(world)[-1]
+    assert row["outcome"] == "ok" and row["old_exit"] == "survived", row
+    assert world["signals"] == [(102, signal.SIGTERM), (102, signal.SIGKILL)], world["signals"]
+
+
+def test_w_e38f8ee7_review_p1_the_last_look_and_a_zombie(world, monkeypatch):
+    """Review pass 1 (A-C1, A-C5, A-C2): a turn that STARTED during run_checks' own git calls wrote its first row before
+    the last re-read, whose two reads then agree — the re-read still refuses, because the turn end is no longer the
+    transcript's last real row; a box that holds text only at the last re-read refuses `screen`; neither respawns. An
+    old claude that is a zombie (exited, not yet reaped) is gone, never signalled."""
+    import signal
+
+    repo, wt = _move_world(world, monkeypatch)
+    real_state = rs.hib.worktree_state
+
+    def turn_starts(path):  # a prompt arrives while the worktree probe runs
+        with world["transcript"].open("a") as fh:
+            fh.write(json.dumps({"type": "user", "timestamp": "2026-10-23T00:00:05Z"}) + "\n")
+        return real_state(path)
+
+    monkeypatch.setattr(rs.hib, "worktree_state", turn_starts)
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    rs.execute()
+    row = _rows(world)[-1]
+    assert row["outcome"] == "refused:idle", row
+    monkeypatch.setattr(rs.hib, "worktree_state", lambda path: (False, "clean, pushed"))
+    world["transcript"].write_text(
+        "".join(
+            json.dumps(r) + "\n"
+            for r in (
+                {"type": "assistant", "timestamp": "2026-10-23T00:00:00Z"},
+                {"type": "system", "subtype": "turn_duration", "timestamp": "2026-10-23T00:00:01Z"},
+            )
+        )
+    )
+    real_box = rs._box_now
+    reads = {"n": 0}
+
+    def typed_late(
+        pane,
+    ):  # run_checks' read sees an empty box; the last re-read's second read sees text
+        reads["n"] += 1
+        box, screen = real_box(pane)
+        return ("half typed", screen) if reads["n"] >= 3 else (box, screen)
+
+    monkeypatch.setattr(rs, "_box_now", typed_late)
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    rs.execute()
+    assert _rows(world)[-1]["outcome"] == "refused:screen", _rows(world)[-1]
+    assert _respawns(world) == [] and world["signals"] == []
+    monkeypatch.setattr(rs, "_box_now", real_box)
+    # the old claude is a zombie after the respawn: gone at once, no signal sent
+    _set(
+        world,
+        on_respawn=RESPAWN_OK.replace("(claude) S 101", "(claude) Z 101").replace("' 999", "' 777"),
+    )
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    rs.execute()
+    row = _rows(world)[-1]
+    assert row["outcome"] == "ok" and row["old_exit"] == "gone", row
+    assert world["signals"] == [], world["signals"]
+    assert signal.SIGKILL not in [s for _, s in world["signals"]]
+
+
+def test_w_e38f8ee7_validate_into_only_with_move(world):
+    """B4: `into` rides only on a move request, and a move request needs a valid one; anything else is
+    `refused:request`, so an older unit reading a move file refuses it too (fail closed)."""
+    for over in (
+        {"mode": "move"},
+        {"mode": "move", "into": "Bad/x"},
+        {"mode": "move", "into": 7},
+        {"mode": "clear", "into": "dev1-work"},
+        {"mode": "compact", "focus": "f", "into": "dev1-work"},
+    ):
+        _write_request(world, **over)
+        rs.execute()
+        assert _rows(world)[-1]["outcome"] == "refused:request", (over, _rows(world)[-1])
+
+
+def test_w_e38f8ee7_the_move_worst_case_fits():
+    """B5: the move path's own waits — the pane command, the last re-read, the respawn, the reap, the launch wait, the
+    agents lock and the re-bind grace, with its tmux calls and loop sleeps — stay under REQUEST_WORST_S, so the claim
+    cutoff the unit's timeout was derived from still holds."""
+    assert rs.MOVE_WORST_S == (
+        rs.PANE_CMD_TIMEOUT_S
+        + rs.DISCARD_RECHECK_S
+        + rs.OLD_EXIT_S
+        + rs.OLD_TERM_S
+        + rs.OLD_KILL_S
+        + rs.CLEAR_WAIT_S
+        + rs.AGENTS_LOCK_WAIT_S
+        + rs.REBIND_GRACE_S
+        + 5
+        + 8 * rs.TMUX_TIMEOUT_S
+    )
+    assert rs.MOVE_WORST_S <= rs.REQUEST_WORST_S

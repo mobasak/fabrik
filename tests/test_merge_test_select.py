@@ -130,6 +130,26 @@ def test_ledgers_are_not_keys():
     assert mts.select(["tests/test_x.py"], {"tests/test_x.py": ""}) == ["tests/test_x.py"]
 
 
+def test_review_receipt_is_keyed_by_its_file_name():
+    # W-1fb11ec8: a receipt rides almost every branch; its directory keys selected ~25 files that never read it
+    receipt = "docs/development/reviews/2026-10-29-w-x-review.md"
+    tests = {
+        "tests/test_named.py": 'ROOT / "docs/development/reviews/2026-10-29-w-x-review.md"',
+        "tests/test_dir.py": 'ROOT / "docs/development/reviews/"',
+        "tests/test_quoted.py": 'ROOT / "docs" / "development" / "reviews"',
+        "tests/test_stem.py": "2026-10-29-w-x-review",
+        "tests/test_tree.py": "git ls-files",
+    }
+    # its file name and the tree graders, never its directory or its stem alone
+    assert mts.select([receipt], tests) == ["tests/test_named.py", "tests/test_tree.py"]
+    # an archived receipt (one level deeper) keeps every key, its directory included
+    archived = "docs/development/reviews/archived/2026-01-01-old-review.md"
+    tests["tests/test_archived.py"] = 'ROOT / "docs/development/reviews/archived/"'
+    assert "tests/test_archived.py" in mts.select([archived], tests)
+    # the green-record skip still treats a receipt as code-bearing: SKIP is unchanged
+    assert not mts.SKIP.fullmatch(receipt)
+
+
 # --- the leg on real repos -----------------------------------------------------------------------
 
 
@@ -438,7 +458,7 @@ class _FakeRunner:
     def __init__(self, reds):
         self.reds = reds
 
-    def start(self, files):
+    def start(self, files, until=()):
         return self._Done(), files, None
 
     def finish(self, _proc, _files, _log):
@@ -452,7 +472,7 @@ def test_a_failing_group_leaves_no_other_group_running():
     slow = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
 
     class Runner:
-        def start(self, files):
+        def start(self, files, until=()):
             return (slow if files == ["b"] else _FakeRunner._Done()), files, None
 
         def finish(self, proc, files, _log):
@@ -473,7 +493,7 @@ def test_a_start_that_fails_still_reaps_the_groups_already_started():
     slow = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
 
     class Runner:
-        def start(self, files):
+        def start(self, files, until=()):
             if files == ["b"]:
                 raise OSError("too many open files")
             return slow, files, None
@@ -779,9 +799,11 @@ class _ScriptedRunner:
     def __init__(self, replies):
         self.replies = list(replies)
         self.calls: list[list[str]] = []
+        self.untils: list[list[str]] = []
 
-    def start(self, files):
+    def start(self, files, until=()):
         self.calls.append(list(files))
+        self.untils.append(sorted(until))
         return _FakeRunner._Done(), self.replies.pop(0), None
 
     def finish(self, _proc, reds, _log):
@@ -911,6 +933,241 @@ def test_an_alone_red_keeps_its_alone_base_verdict_beside_an_ordered_red(tmp_pat
     assert new == [], out
     assert any("pre-existing on the base — tests/test_a.py::test_k " in line for line in out), out
     assert any("pre-existing on the base — tests/test_b.py::test_k2 " in line for line in out), out
+
+
+# ── W-c80361e4: an ordered re-run stops one item past the reds it verifies ─────────────────────
+
+_STATE_IMPORT = "import sys, os\nsys.path.insert(0, os.path.dirname(__file__))\nimport state\n"
+_POLLUTED = {
+    "tests/state.py": "polluted = False\n",
+    "tests/test_a.py": _STATE_IMPORT + "def test_pollute():\n    state.polluted = True\n",
+    "tests/test_b.py": _STATE_IMPORT
+    + "def test_red():\n    assert not state.polluted\n\ndef test_next():\n    pass\n\n"
+    + "def test_later():\n    pass\n",
+    "tests/test_c.py": "import os\nopen(os.environ['CUT_MARK'], 'a').write('c imported\\n')\n\n"
+    + "def test_c():\n    pass\n",
+}
+_ABC = ["tests/test_a.py", "tests/test_b.py", "tests/test_c.py"]
+
+
+def _cut_runner(tmp_path, monkeypatch, files):
+    """A real `_Runner` over ``files`` written under tmp_path, run from there, outer cut unset."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("PYTEST_ADDOPTS", raising=False)
+    monkeypatch.delenv("FABRIK_MERGE_TESTS_UNTIL", raising=False)
+    monkeypatch.setenv("CUT_MARK", str(tmp_path / "mark.txt"))
+    for rel, text in files.items():
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text(text, encoding="utf-8")
+    work = tmp_path / "work"
+    work.mkdir()
+    return mts._Runner(work)
+
+
+def _cut_run(runner, files, until):
+    """One real run cut at ``until`` — `_Runner.run` takes none: only `_parallel` cuts."""
+    return runner.finish(*runner.start(files, until=until))
+
+
+def _ran(runner) -> list[str]:
+    """The node ids the last run executed, in order (its duration lines, one per report)."""
+    out: list[str] = []
+    for line in runner.dur_files[-1].read_text(encoding="utf-8").splitlines():
+        nid = json.loads(line)["id"]
+        if nid not in out:
+            out.append(nid)
+    return out
+
+
+def test_an_ordered_cut_runs_to_the_last_red_and_collects_every_file(tmp_path, monkeypatch):
+    """The cut keeps the shard's argv: test_c is still imported (D-1275's objection to a prefix run),
+    the polluter before the red still runs, and the run stops one item past the red."""
+    runner = _cut_runner(tmp_path, monkeypatch, _POLLUTED)
+    rc, reds, _tail = _cut_run(runner, _ABC, ["tests/test_b.py::test_red"])
+    assert rc == 1 and ("tests/test_b.py::test_red", "call") in reds, reds
+    assert _ran(runner) == [
+        "tests/test_a.py::test_pollute",
+        "tests/test_b.py::test_red",
+        "tests/test_b.py::test_next",
+    ]
+    assert (tmp_path / "mark.txt").read_text() == "c imported\n"
+    # several listed reds: the cut follows the LAST of them, so the first never stops the run short
+    # of a later one (review pass 1, B1: a `min` cut left test_later unrun, read FLAKY)
+    _cut_run(runner, _ABC, ["tests/test_a.py::test_pollute", "tests/test_b.py::test_later"])
+    assert "tests/test_b.py::test_later" in _ran(runner), _ran(runner)
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        json.dumps(["tests/test_b.py::nope"]),  # an id the run does not collect
+        json.dumps(["tests/test_b.py"]),  # a file-keyed collection error's id
+        json.dumps(["tests/test_b.py::test_red", "tests/test_b.py::nope"]),
+        "{",
+        "5",
+        "null",
+        json.dumps({"tests/test_b.py::test_red": 1}),
+        json.dumps([1, 2]),
+        "[]",
+        None,  # the file is missing
+    ],
+)
+def test_an_until_the_run_cannot_honour_cuts_nothing(tmp_path, monkeypatch, content):
+    """Every input the cut cannot honour runs the whole group, as before the cut, inside RAN — a
+    plugin error there is INTERNALERROR, exit 3, a leg with no verdict."""
+    _cut_runner(tmp_path, monkeypatch, _POLLUTED)
+    work = tmp_path / "work"
+    (work / "_fabrik_merge_tests_rec.py").write_text(mts._PLUGIN, encoding="utf-8")
+    cut = tmp_path / "until.json"
+    if content is not None:
+        cut.write_text(content, encoding="utf-8")
+    env = {
+        **os.environ,
+        "PYTHONPATH": str(work),
+        "FABRIK_MERGE_TESTS_REC": str(tmp_path / "rec.jsonl"),
+        "FABRIK_MERGE_TESTS_UNTIL": str(cut),
+    }
+    r = subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
+        + ["-p", "_fabrik_merge_tests_rec", *_ABC],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "1 failed, 4 passed" in r.stdout and "deselected" not in r.stdout, r.stdout
+
+
+_REORDERS = {
+    # registered after the `-p` plugin: a plain trylast cut ran BEFORE it (Fable critique)
+    "trylast": "@pytest.hookimpl(trylast=True)\ndef pytest_collection_modifyitems(items):\n"
+    "    items.reverse()\n",
+    # a wrapper reordering after `yield` ran AFTER a wrapper cut (review pass 1, A1)
+    "wrapper": "@pytest.hookimpl(wrapper=True)\ndef pytest_collection_modifyitems(items):\n"
+    "    res = yield\n    items.reverse()\n    return res\n",
+    "tryfirst-wrapper": "@pytest.hookimpl(wrapper=True, tryfirst=True)\n"
+    "def pytest_collection_modifyitems(items):\n    res = yield\n    items.reverse()\n"
+    "    return res\n",
+}
+
+
+@pytest.mark.parametrize("hook", sorted(_REORDERS))
+def test_the_cut_follows_a_conftest_reorder(tmp_path, monkeypatch, hook):
+    """A conftest reorder that runs after the cut would move the polluter past it and deselect it:
+    a false green. The cut acts in pytest_collection_finish, on the order every
+    pytest_collection_modifyitems impl — plain, trylast or wrapper — left."""
+    files = {
+        "tests/state.py": "polluted = False\n",
+        "tests/conftest.py": "import pytest\n\n\n" + _REORDERS[hook],
+        "tests/test_a.py": _STATE_IMPORT + "def test_red():\n    assert not state.polluted\n",
+        "tests/test_m.py": "def test_mid():\n    pass\n",
+        "tests/test_z.py": _STATE_IMPORT + "def test_pollute():\n    state.polluted = True\n",
+        "tests/test_0.py": "def test_zero():\n    pass\n",
+        "tests/test_1.py": "def test_one():\n    pass\n",
+    }
+    runner = _cut_runner(tmp_path, monkeypatch, files)
+    # reversed, the run is z, m, a, 1, 0: the cut keeps one past the red and drops test_0 — so it
+    # is shown cutting on the reordered list, not merely standing down (review pass 1, B2)
+    paths = ["tests/test_0.py", "tests/test_1.py", "tests/test_a.py", "tests/test_m.py"]
+    paths.append("tests/test_z.py")
+    rc, reds, tail = _cut_run(runner, paths, ["tests/test_a.py::test_red"])
+    assert rc == 1 and ("tests/test_a.py::test_red", "call") in reds, tail
+    assert "1 deselected" in tail and "tests/test_0.py::test_zero" not in _ran(runner), tail
+
+
+def test_the_last_listed_red_keeps_its_teardown_line(tmp_path, monkeypatch):
+    """With the listed item last, its teardown would also run every module and session finalizer
+    and report an exception group — another crash line, read NEW or wrongly pre-existing against
+    the base (Opus critique). One item kept past it keeps the whole run's line."""
+    files = {
+        "tests/conftest.py": "import pytest\n\n\n@pytest.fixture(scope='session', autouse=True)\n"
+        "def sess():\n    yield\n    raise RuntimeError('session finalizer failed')\n",
+        "tests/test_b.py": "import pytest\n\n\n@pytest.fixture(scope='module')\ndef mod():\n"
+        "    yield\n    raise RuntimeError('module finalizer failed')\n\n\n"
+        "def test_one(mod):\n    pass\n\n\ndef test_after(mod):\n    pass\n",
+        "tests/test_c.py": "def test_c1():\n    pass\n\n\ndef test_c_last():\n    pass\n",
+    }
+    runner = _cut_runner(tmp_path, monkeypatch, files)
+    paths = ["tests/test_b.py", "tests/test_c.py"]
+    key = ("tests/test_b.py::test_after", "teardown")
+    _rc, whole, _tail = runner.run(paths)
+    rc, cut, tail = _cut_run(runner, paths, [key[0]])
+    assert rc == 1 and "deselected" in tail, tail
+    assert cut[key] == whole[key] == "RuntimeError: module finalizer failed", (cut, whole)
+
+
+def test_the_ordered_runs_are_cut_after_their_own_reds(tmp_path, monkeypatch):
+    """The ordered confirm is cut at its shard's reds not confirmed alone; the ordered base run at
+    the order reds its base group still runs (test_c is gone on the base); the shard run and the
+    alone runs are never cut."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "tests").mkdir()
+    for name in ("test_a.py", "test_b.py", "test_c.py"):
+        (tmp_path / "tests" / name).write_text("")
+
+    def checkout(commit):
+        if commit == "B":
+            (tmp_path / "tests" / "test_c.py").unlink(missing_ok=True)
+
+    monkeypatch.setattr(mts, "_checkout", checkout)
+    alone_red = ("tests/test_a.py::test_k", "call")
+    order_red = ("tests/test_b.py::test_o", "call")
+    flaky = ("tests/test_b.py::test_f", "call")
+    gone = ("tests/test_c.py::test_g", "call")
+    runner = _ScriptedRunner(
+        [
+            {alone_red: "A", order_red: "O", flaky: "F", gone: "G"},  # the one shard
+            {alone_red: "A"},  # the serial confirm
+            {order_red: "O", gone: "G"},  # the ordered confirm: two order reds, one flaky
+            {alone_red: "A"},  # the base alone run
+            {order_red: "O"},  # the ordered base run (test_c absent there)
+        ]
+    )
+
+    new, out = mts.differential(_ABC, "M", "B", runner, 1, compare=True)
+
+    assert runner.untils == [
+        [],
+        [],
+        sorted([order_red[0], flaky[0], gone[0]]),
+        [],
+        [order_red[0]],
+    ], runner.untils
+    assert runner.calls[-1] == ["tests/test_a.py", "tests/test_b.py"], runner.calls
+    assert [k for k, _ in new] == [gone], out
+
+
+def test_a_run_without_until_drops_an_inherited_cut(tmp_path, monkeypatch):
+    """A whole run never inherits a parent's cut (a nested leg, a test of this module), and a list
+    larger than an environment value allows still launches: it rides in a file."""
+    files = dict(_POLLUTED)
+    files["tests/test_c.py"] = (
+        "import os\n\n\ndef test_c():\n"
+        "    open(os.environ['CUT_MARK'], 'a').write(repr(os.environ.get("
+        "'FABRIK_MERGE_TESTS_UNTIL')) + '\\n')\n"
+    )
+    runner = _cut_runner(tmp_path, monkeypatch, files)
+    junk = tmp_path / "parent-cut.json"
+    junk.write_text(json.dumps(["tests/test_b.py::test_red"]), encoding="utf-8")
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_UNTIL", str(junk))
+    rc, _reds, _tail = runner.run(_ABC)
+    assert rc == 1 and "tests/test_c.py::test_c" in _ran(runner)
+    assert (tmp_path / "mark.txt").read_text() == "None\n"
+    # every listed id collected, so the cut is honoured, not merely survived (review pass 1, C2)
+    pad = "a-long-parametrized-id-" * 3
+    (tmp_path / "tests" / "test_wide.py").write_text(
+        "import pytest\n\n\n"
+        f"@pytest.mark.parametrize('i', range(2600), ids=lambda i: f'{pad}{{i:05d}}')\n"
+        "def test_wide(i):\n    pass\n",
+        encoding="utf-8",
+    )
+    big = [f"tests/test_wide.py::test_wide[{pad}{i:05d}]" for i in range(2500)]
+    assert len(json.dumps(big)) > 128 * 1024
+    rc, _reds, tail = _cut_run(runner, ["tests/test_wide.py"], big)
+    assert rc == 0 and "2501 passed, 99 deselected" in tail, tail
 
 
 # ── W-c832e59f: shards balanced by recorded per-file duration ──────────────────────────────

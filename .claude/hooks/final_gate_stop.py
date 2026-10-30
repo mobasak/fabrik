@@ -4223,7 +4223,8 @@ def _panel_problem(
     a brief written before a prompt queued mid-turn is not judged after that prompt cleared the verdicts.
     The position, not the uuid alone, names the row — Claude Code re-writes a queued row with the same uuid
     (across compactions, sometimes twice in a turn), and a copy before the brief must reset while the copy
-    right after it is the cut."""
+    right after it is the cut. Only a uuid's FIRST copy resets the stores: a re-written copy is not a new word,
+    so verdicts returned after the first copy survive it (W-573ddaa1)."""
     if re.match(r"\s*unavailable\b", panel, re.I):
         if (_coord_band(transcript_path) or "") in _COORD_QUIET_BANDS:
             return ""
@@ -4276,6 +4277,10 @@ def _panel_problem(
     seats: dict[str, str] = {}
     by_seat: dict[str, list[str]] = {}
     snapshots: list[tuple] = []  # the stores just before EACH queued row carrying `stop_at`'s uuid
+    # queued-row uuids already seen anywhere in the file: a copy Claude Code re-writes with the same uuid (across
+    # compactions, later in the turn or in a later turn — 0 of 4,537 real copies carried different text) is not a
+    # new word, so it never clears the verdicts after the first copy (W-573ddaa1)
+    queued_seen: set[str] = set()
     try:
         with open(transcript_path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
@@ -4285,6 +4290,8 @@ def _panel_problem(
                     entry = json.loads(line)
                 except Exception:
                     continue
+                if not isinstance(entry, dict):
+                    continue  # a JSON row that is not an object (a bare list) is no entry
                 if entry.get("type") == "attachment":
                     # Claude Code 2.1.304 delivers a seat's hand-back as an `attachment` row
                     # (`attachment.type` queued_command) whose `attachment.origin` names the seat —
@@ -4304,6 +4311,11 @@ def _panel_problem(
                                     {k: list(v) for k, v in by_seat_lines.items()},
                                 )
                             )
+                        uuid = entry.get("uuid")
+                        if isinstance(uuid, str):
+                            if uuid in queued_seen:
+                                continue
+                            queued_seen.add(uuid)
                         # an operator prompt queued while the agent was busy is the operator's
                         # word too: verdicts before it never back a panel written after it
                         said, seats, by_seat = {"opus": [], "fable": []}, {}, {}
@@ -4399,17 +4411,24 @@ def _panel_problem(
     return ""
 
 
-def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
-    """ "" unless a `PANEL APPROVED (<path>)` brief written THIS turn (any assistant text since the
-    operator's last row, the final message included) lacks a transcript-verified
-    `Panel: … → both-approve` line after its heading (D-613) — the brief is often followed by
-    the next design stage, so the final message alone would miss it. Each text is judged against the
-    verdicts held before the first operator prompt QUEUED after it (W-6424f2e8): a queued prompt lands
-    mid-turn, so a brief written before it is this turn's and its seats' verdicts still back it."""
-    texts: list[tuple[str, tuple[str, int] | None]] = []
-    # the nearest queued operator prompt AFTER the text being read, as (uuid, its copy count from the
-    # end) — the positional handle `_panel_problem(stop_at=)` resolves, immune to re-written copies
-    cut: tuple[str, int] | None = None
+_Cut = tuple[str, int] | None
+
+
+def _turn_texts(
+    transcript_path: str,
+) -> tuple[list[tuple[str, _Cut]], tuple[tuple[str, ...], _Cut] | None]:
+    """This turn's assistant text blocks in the 2 MB tail (newest entry first, an entry's blocks in order), each
+    with the nearest operator prompt QUEUED after it as (uuid, its copy count from the end) — the positional handle
+    `_panel_problem(stop_at=)` resolves, immune to re-written copies — plus the newest TEXT, the one the hook's final
+    message can be (`_final_cut`): (its spellings, the newest text-bearing entry's cut). The spellings are that
+    entry's last non-empty block, the entry's blocks joined, and the whole message's — Claude Code writes one
+    message's blocks as several entries sharing `message.id`, and the payload's message may be any of them."""
+    texts: list[tuple[str, _Cut]] = []
+    newest: tuple[tuple[str, ...], _Cut] | None = None
+    newest_id: object = None
+    message_blocks: list[str] = []  # the newest message's text blocks, in order
+    spans_entries = False  # the newest message's text sits in more than one entry
+    cut: _Cut = None
     copies: dict[str, int] = {}
     for line in reversed(_tail_lines(transcript_path) or []):
         if '"type"' not in line:
@@ -4420,6 +4439,14 @@ def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
             continue
         if not isinstance(entry, dict):
             continue
+        msg = entry.get("message")
+        if newest is not None and not (
+            entry.get("type") == "assistant"
+            and isinstance(msg, dict)
+            and isinstance(msg.get("id"), str)
+            and msg.get("id") == newest_id
+        ):
+            newest_id = None  # any other row ends the newest message: it never spans a queued prompt
         if entry.get("type") == "user":
             if _operator_text(entry):
                 break
@@ -4431,19 +4458,50 @@ def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
                 copies[entry["uuid"]] = copies.get(entry["uuid"], 0) + 1
                 cut = (entry["uuid"], copies[entry["uuid"]])
             continue
-        content = (entry.get("message") or {}).get("content")
+        content = msg.get("content") if isinstance(msg, dict) else None
         if entry.get("type") == "assistant" and isinstance(content, list):
-            texts.extend(
-                (str(b.get("text") or ""), cut)
+            blocks = [
+                str(b.get("text") or "")
                 for b in content
                 if isinstance(b, dict) and b.get("type") == "text"
-            )
+            ]
+            texts.extend((t, cut) for t in blocks)
+            mid = msg.get("id") if isinstance(msg, dict) else None
+            if newest is None and "\n".join(blocks).strip():
+                last = next(t for t in reversed(blocks) if t.strip())
+                newest, newest_id, message_blocks = ((last, "\n".join(blocks)), cut), mid, blocks
+            elif newest is not None and isinstance(mid, str) and mid == newest_id:
+                # an earlier entry of the newest message: its blocks join the message's spelling
+                message_blocks = blocks + message_blocks
+                spans_entries = True
+    if newest is not None and spans_entries:
+        newest = ((*newest[0], "\n".join(message_blocks)), newest[1])
+    return texts, newest
+
+
+def _final_cut(newest: tuple[tuple[str, ...], _Cut] | None, final_text: str) -> _Cut:
+    """The hook passes the turn's last assistant text: when it IS the newest walked text — the newest entry's last
+    block, its blocks joined, or the whole newest message's, whitespace-folded (`_norm_ws`, so a join by blank lines
+    or an empty block still matches) — it keeps that entry's cut-off; otherwise a brief or block before a trailing
+    queued prompt is judged with none (W-6424f2e8 Fable critique). Equality, never containment: when the final entry
+    is not flushed yet, an earlier short block the final text contains ("Noted.") would lend a cut from before a
+    queued prompt (W-573ddaa1, both critiques). No match keeps no cut — fail-closed."""
+    want = _norm_ws(final_text)
+    if newest is None or not want or not any(_norm_ws(s) == want for s in newest[0]):
+        return None
+    return newest[1]
+
+
+def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
+    """ "" unless a `PANEL APPROVED (<path>)` brief written THIS turn (any assistant text since the
+    operator's last row, the final message included) lacks a transcript-verified
+    `Panel: … → both-approve` line after its heading (D-613) — the brief is often followed by
+    the next design stage, so the final message alone would miss it. Each text is judged against the
+    verdicts held before the first operator prompt QUEUED after it (W-6424f2e8): a queued prompt lands
+    mid-turn, so a brief written before it is this turn's and its seats' verdicts still back it."""
+    texts, newest = _turn_texts(transcript_path)
     if final_text:
-        # the hook passes the turn's last assistant text: when it is a walked text, it keeps that text's
-        # cut-off (otherwise a brief before a trailing queued prompt is judged with none — Fable critique)
-        # final_text joins the last entry's text blocks; walked texts are newest-first, one per block
-        own = next((c for t, c in texts if t.strip() and t.strip() in final_text), None)
-        texts.insert(0, (final_text, own))
+        texts.insert(0, (final_text, _final_cut(newest, final_text)))
     for text, text_cut in texts:
         fences = _fence_spans(text)
         heads = [
@@ -4466,6 +4524,12 @@ def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
             if problem:
                 return problem
     return ""
+
+
+def _block_cut(transcript_path: str, text: str) -> tuple[str, int] | None:
+    """The DECISION block's own cut-off: the nearest operator prompt queued after the walked text it is, so a
+    block written before a prompt queued mid-turn reads the verdicts held up to that prompt (W-573ddaa1)."""
+    return _final_cut(_turn_texts(transcript_path)[1], text) if transcript_path else None
 
 
 def parse_decision_block(text: str, *, run_live: bool, transcript_path: str) -> tuple[bool, str]:
@@ -4516,6 +4580,7 @@ def parse_decision_block(text: str, *, run_live: bool, transcript_path: str) -> 
                 transcript_path,
                 ground="a design-approval gate (D-613: only a split panel reaches the operator)",
                 outcomes=("split",),
+                stop_at=_block_cut(transcript_path, text),
             )
             if problem:
                 return False, problem
@@ -4542,7 +4607,9 @@ def parse_decision_block(text: str, *, run_live: bool, transcript_path: str) -> 
                 "(before its searched: clause)"
             )
         if _PANEL_MODE:
-            problem = _panel_problem(fields.get("Panel", ""), transcript_path)
+            problem = _panel_problem(
+                fields.get("Panel", ""), transcript_path, stop_at=_block_cut(transcript_path, text)
+            )
             if problem:
                 return False, problem
         return True, "underivable"

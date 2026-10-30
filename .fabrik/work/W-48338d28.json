@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T22:37:10.826430Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-48338d28",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Add exit 1 to the agents_up.sh header and the --settings argument to the rollout doc's pane-command sentence; both are master's text, found by C-haiku in the 0b2111f7f merge review (receipt docs/development/reviews/2026-10-30-w-6e656dac-merge-resolution-review.md).",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "review-residue"
+  ],
+  "title": "agents_up.sh docs residue (W-6e656dac merge review R7, R8): the header's Exit codes omit exit 1 (tmux could not create the grid, agents_up.sh ~:928/:934); docs/reference/repo-coordinator-rollout.md's pane command omits the --settings '<SETTINGS_JSON>' argument agents_up.sh:665 passes"
+}

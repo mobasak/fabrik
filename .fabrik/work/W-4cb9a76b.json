@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T00:09:15.544710Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-4cb9a76b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M64J5EW82TASAZ7FBACWTQR7",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: w-d488bbbf-lean-skips-mypy"
+}

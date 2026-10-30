@@ -62,6 +62,10 @@ The live pair is `citation-verifier` + `fabrik-mcp-http`.
 ## Operations
 
 ```bash
+# Install on a fresh box (the unit file lives at /etc/systemd/system/fabrik-mcp-http.service — § Files);
+# the MCP emitter withholds fabrik-citation-verifier from every .mcp.json until this has run (W-07298e38)
+sudo systemctl daemon-reload && sudo systemctl enable --now fabrik-mcp-http.service
+
 # Status
 systemctl status fabrik-mcp-http.service
 

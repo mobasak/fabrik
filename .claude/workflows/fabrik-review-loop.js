@@ -47,7 +47,9 @@
 //   ledger?: [ { id, file, line, claim } | "<the claim as one string>" ] }] (ledger present on pass ≥ 2; any other
 //   row shape is REFUSED before a seat is dispatched; `models` is one to three distinct of opus|sonnet|haiku,
 //   default ['sonnet', 'haiku'] (a third, Opus, is /fabrik-execute-plan's per-round Opus floor on its riskiest slice); `agent` is fabrik-reviewer (default) or fabrik-researcher, and seats BOTH the
-//   finders and the refuter; `scope` is the sections of `files` the slice owns) · box_minutes (default 15) ·
+//   finders and the refuter; `scope` is the sections of `files` the slice owns) · box_minutes (default 15; text in
+//   each brief only — nothing enforces it) · max_seats? (a NUMBER, a positive integer: at most that many seats run
+//   at once, the rest queue — absent or null is no cap; anything else REFUSES the launch) ·
 //   pin_manifest ({ path: md5 }, from `review_loop_ledger.py pin` — REQUIRED: absent, null, or lacking a slice file
 //   REFUSES the launch) · base_pin_dir? (the read-only base
 //   tree `pin --base` wrote; seats copy it instead of running git archive)
@@ -131,6 +133,33 @@ const KNOWN_MODELS = ['opus', 'sonnet', 'haiku']
 const AGENTS = ['fabrik-reviewer', 'fabrik-researcher']
 const box = args.box_minutes || 15
 
+// W-bc394d0b (feedback rows 1791062753, 1791241353): when the stamp `dispatch_headroom.py` grants is below the
+// pass's finder count, `max_seats` queues the seats inside ONE launch instead of the lead trimming the partition or
+// hand-splitting the pass. The runtime's own queue (min(16, CPUs - 2) per workflow) is not that stamp. A slot is
+// handed straight to the next waiter on release — never freed then re-taken, so a newcomer cannot overtake it —
+// and `seat` wraps one call, never a retry chain, so no slot holder waits on another seat. A seat that never
+// settles keeps its slot for the rest of the run (no timeout, no clock in a workflow): under a small cap the queue
+// behind it waits, and `read` shows it RUNNING / OVER BOX. COBRA (D-253): `max_seats: 1` satisfies any stamp and
+// makes every pass slow — the lead passes the number `dispatch_headroom.py` prints, and the close's wall-clock shows it.
+const maxSeats = args.max_seats ?? null
+if (maxSeats !== null && !(typeof maxSeats === 'number' && Number.isInteger(maxSeats) && maxSeats >= 1)) {
+  throw new Error(`max_seats must be a positive integer, or absent for no cap — got ${JSON.stringify(maxSeats)}`)
+}
+let seatsRunning = 0
+const seatQueue = []
+function seat(fn) {
+  const run = () => Promise.resolve().then(fn).finally(() => {
+    const next = seatQueue.shift()
+    if (next) next()
+    else seatsRunning -= 1
+  })
+  if (maxSeats === null || seatsRunning < maxSeats) {
+    seatsRunning += 1
+    return run()
+  }
+  return new Promise((resolve) => seatQueue.push(resolve)).then(run)
+}
+
 // A slice's seats are refused HERE, before any seat runs: an unknown model or agent, an empty or repeated model
 // list, or more than three finders (the capture-recapture estimate is defined over exactly two and is null otherwise).
 function normalizeSeats(slice) {
@@ -213,7 +242,10 @@ const pinned = true
 {
   const finders = args.slices.reduce((n, s) => n + s.models.length, 0)
   const n = args.slices.length
-  log(`DISPATCH: ${finders} finder seat(s) over ${n} slice(s) + up to ${n} refuter(s) = stamp ${finders + n}; a finder or refuter retry runs after the seat it replaces ends and stays inside this stamp`)
+  // capped, the stamp is the cap or the uncapped count, whichever is lower — an upper bound: a slice's refuter
+  // starts only after its finders end (D-672), so the true peak is min(max_seats, finders)
+  const capped = maxSeats === null ? '' : ` · max_seats ${maxSeats}: at most ${maxSeats} seat(s) run at once — stamp ${Math.min(maxSeats, finders + n)}`
+  log(`DISPATCH: ${finders} finder seat(s) over ${n} slice(s) + up to ${n} refuter(s) = stamp ${finders + n}; a finder or refuter retry runs after the seat it replaces ends and stays inside this stamp${capped}`)
 }
 
 function ledgerLine(c) {
@@ -444,15 +476,19 @@ function closeCheck(r) {
 // marks the slice's refuter failed — `open`, `failed_refuters` — never a quiet `unverified` (fleet 01M4DP81PE:
 // two refuters died over 11 candidates and nothing said so). A deliberate `unverified` row IS an answer. The
 // retry starts after its first refuter ends, so it never exceeds the dispatch stamp's one refuter per slice.
+// `seat` also turns a call that throws before any promise exists (a spent budget) into a rejection, so the
+// `.catch` below sees it and the retry runs, instead of the throw dropping the slice
 function refuteCall(slice, cands, suffix) {
-  return agent(refutePrompt(slice, cands, suffix), {
-    label: `refute:${slice.name}${suffix ? ':retry' : ''}`,
-    phase: 'Verify',
-    schema: REFUTATION,
-    model: 'sonnet',
-    effort: 'high',
-    agentType: slice.agentType,
-  }).catch(() => null)
+  return seat(() =>
+    agent(refutePrompt(slice, cands, suffix), {
+      label: `refute:${slice.name}${suffix ? ':retry' : ''}`,
+      phase: 'Verify',
+      schema: REFUTATION,
+      model: 'sonnet',
+      effort: 'high',
+      agentType: slice.agentType,
+    })
+  ).catch(() => null)
 }
 async function refuteSlice(r0) {
   const quiet = { retried: false, failed: false, unanswered: 0, reason: '' }
@@ -492,7 +528,12 @@ function firstLine(e) {
   try {
     const raw = e && typeof e === 'object' && 'message' in e ? e.message : e
     text = raw && typeof raw === 'object' ? JSON.stringify(raw) : String(raw ?? '')
-    if (!text.trim() && e && typeof e === 'object') text = String(e)
+    // W-62791872: an Error, or an object with its own toString, by its text; any other object as JSON — its
+    // String form is `[object Object]` (a blank, null or undefined message, review pass 4 A-S20)
+    if (!text.trim() && e && typeof e === 'object') {
+      const own = typeof e.toString === 'function' && e.toString !== Object.prototype.toString
+      text = Object.prototype.toString.call(e) === '[object Error]' || own ? String(e) : JSON.stringify(e) ?? ''
+    }
   } catch {
     text = 'an error whose text could not be read'
   }
@@ -500,23 +541,21 @@ function firstLine(e) {
   return line.slice(0, 300)
 }
 // feedback row 1790707386: a call resolves to `{ r, error }` — a REJECTION's text is kept as `error`, which
-// `.catch(() => null)` threw away, and the leading `Promise.resolve().then` also catches the agent call throwing
+// `.catch(() => null)` threw away, and `seat`'s leading `Promise.resolve().then` also catches the agent call throwing
 // before it returns a promise (a spent budget, an unsatisfiable schema). A seat that died on a terminal API error (a disabled
 // subscription) resolves null with NO text — the runtime keeps the cause in the seat transcript only — so
 // `error` stays '' there.
 function findCall(s, m, retry) {
-  return Promise.resolve()
-    .then(() =>
-      agent(finderPrompt(s, m, retry), {
-        label: `find:${s.name}:${m}${retry ? ':retry' : ''}`,
-        phase: 'Find',
-        schema: FINDINGS,
-        model: m,
-        effort: 'medium',
-        agentType: s.agentType,
-      })
-    )
-    .then((r) => ({ r, error: '' }), (e) => ({ r: null, error: firstLine(e) }))
+  return seat(() =>
+    agent(finderPrompt(s, m, retry), {
+      label: `find:${s.name}:${m}${retry ? ':retry' : ''}`,
+      phase: 'Find',
+      schema: FINDINGS,
+      model: m,
+      effort: 'medium',
+      agentType: s.agentType,
+    })
+  ).then((r) => ({ r, error: '' }), (e) => ({ r: null, error: firstLine(e) }))
 }
 // every finder LAUNCHED, recorded as it settles — the all-null test below reads this, never the slices a later
 // stage left standing (both design critiques: a survivors-only count read "nothing was reviewed" while two finders

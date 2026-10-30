@@ -863,7 +863,7 @@ def test_a_queued_prompt_written_twice_in_the_turn_keeps_the_verdicts_before_it(
 
 def test_a_multi_block_final_message_keeps_its_cut_off(tmp_path, panel_mode):
     """Review pass 1 (W-6424f2e8): the hook's final_text joins the last entry's text blocks, so it equals no single
-    walked block — it takes the cut-off of the newest block it contains."""
+    walked block — it takes the cut-off of the newest entry it equals (W-573ddaa1: equality, never containment)."""
     brief = _BRIEF.format(panel=_approve_line())
     last = json.dumps(
         {
@@ -926,3 +926,224 @@ def test_fresh_verdicts_between_two_copies_back_a_brief_after_them(tmp_path, pan
         _queued_with_uuid("re-review the spec", "q-1"),
     )
     assert hook._panel_brief_problem(tr, "") == ""
+
+
+# ── W-573ddaa1: residues of the W-6424f2e8 cut-off ──
+
+
+def test_a_re_written_queued_row_keeps_the_verdicts_after_its_first_copy(tmp_path, panel_mode):
+    """W-573ddaa1 (1): Claude Code re-writes a queued row with the same uuid (0 of 4,537 real copies carried other
+    text); a re-written copy is not a new word from the operator, so it must not clear the verdicts the seats returned
+    after the first copy — in the same turn, and when the copy lands in a LATER turn (the 8 real cases measured)."""
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _queued_with_uuid("also check the lock file", "q-1"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _queued_with_uuid("also check the lock file", "q-1"),
+        _said(_BRIEF.format(panel=_approve_line())),
+    )
+    assert hook._panel_brief_problem(tr, "") == ""
+    later_turn = _transcript(
+        tmp_path,
+        _user("an earlier question"),
+        _queued_with_uuid("an earlier prompt", "q-1"),
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _queued_with_uuid("an earlier prompt", "q-1"),
+        _said(_BRIEF.format(panel=_approve_line())),
+    )
+    assert hook._panel_brief_problem(later_turn, "") == ""
+    # a NEW uuid still resets: verdicts before the operator's new queued word never back a brief after it
+    fresh = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _queued_with_uuid("a new question", "q-2"),
+        _said(_BRIEF.format(panel=_approve_line())),
+    )
+    assert "since the operator's last message" in hook._panel_brief_problem(fresh, "")
+
+
+def test_a_decision_block_before_a_queued_prompt_reads_the_verdicts_before_it(tmp_path, panel_mode):
+    """W-573ddaa1 (2): a DECISION block written before an operator prompt queued mid-turn, with no text after that
+    prompt, is judged against the verdicts held up to the prompt — the reset used to refuse a backed panel."""
+    block = _block(PANEL)
+    rows = (
+        _user("pick a retention window for the purge job"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"verdict: {OPUS}."),
+        _result("t-fable", f"verdict: {FABLE}."),
+        _said(block),
+        _queued_with_uuid("and tell me the cost", "q-1"),
+    )
+    tr = _transcript(tmp_path, *rows)
+    assert hook.parse_decision_block(block, run_live=False, transcript_path=tr) == (
+        True,
+        "underivable",
+    )
+    # the design-approval gate's panel takes the same cut-off
+    gate = _block(
+        PANEL, ground="gate", why=f"gate — design approval of {_SPEC}; searched: {_SPEC}"
+    ).replace("Pick the retention window?", f"Do you approve the design {_SPEC}?")
+    tr = _transcript(tmp_path, *rows[:5], _said(gate), rows[6])
+    assert hook.parse_decision_block(gate, run_live=False, transcript_path=tr) == (True, "gate")
+    # a block written AFTER the queued prompt still needs verdicts given after it
+    tr = _transcript(tmp_path, *rows[:5], rows[6], _said(block))
+    ok, why = hook.parse_decision_block(block, run_live=False, transcript_path=tr)
+    assert not ok and "since the operator's last message" in why
+
+
+def test_an_unflushed_final_message_never_borrows_an_earlier_blocks_cut_off(tmp_path, panel_mode):
+    """W-573ddaa1 design critiques (Fable and Opus): when the Stop fires before the final entry is flushed, the hook's
+    text is the payload's message and the newest walked entry is not it; an earlier short block the text CONTAINS
+    (as its first line or its last) must not lend its cut-off, or a block written after a queued prompt is judged on
+    the verdicts held before that prompt."""
+    seats = (
+        _user("pick a retention window for the purge job"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"verdict: {OPUS}."),
+        _result("t-fable", f"verdict: {FABLE}."),
+    )
+    block = _block(PANEL)
+    for earlier, unflushed in (
+        ("Noted.", "Noted. " + block),  # Fable's probe
+        ("Analysis done.", block),  # Opus's probe: `_block` opens with this line
+        ("NEXT: operator decision — see DECISION NEEDED above", block),  # the block's own last line
+    ):
+        tr = _transcript(
+            tmp_path, *seats, _said(earlier), _queued_with_uuid("and the cost?", "q-1")
+        )
+        ok, why = hook.parse_decision_block(unflushed, run_live=False, transcript_path=tr)
+        assert not ok and "since the operator's last message" in why, earlier
+    brief = _BRIEF.format(panel=_approve_line())
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _said("PANEL APPROVED"),
+        _queued_with_uuid("and the cost?", "q-1"),
+    )
+    assert "since the operator's last message" in hook._panel_brief_problem(tr, brief)
+
+
+def test_a_json_row_that_is_not_an_object_is_skipped(tmp_path, panel_mode):
+    """W-573ddaa1 design critique (Opus): `_panel_problem` called `.get` on every parsed row, so a bare JSON list
+    row (`["user"]`) raised AttributeError and the panel check fell to the caller's fail-open. Review pass 1: the
+    tail walk `_turn_texts` (which `parse_decision_block` now reads) keeps only rows carrying `"type"`, so a list row
+    holding it, and an assistant row whose `message` is not an object, must be skipped there too."""
+    rows = (
+        _user("pick a retention window for the purge job"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        '["user"]',
+        '[{"type": "user"}]',
+        json.dumps({"type": "assistant", "message": "not an object"}),
+        _result("t-opus", f"verdict: {OPUS}."),
+        _result("t-fable", f"verdict: {FABLE}."),
+    )
+    tr = _transcript(tmp_path, *rows)
+    assert hook.parse_decision_block(_block(PANEL), run_live=False, transcript_path=tr) == (
+        True,
+        "underivable",
+    )
+    assert hook._panel_brief_problem(tr, "") == ""
+
+
+def test_a_queued_row_with_no_uuid_always_resets(tmp_path, panel_mode):
+    """W-573ddaa1 review pass 1 (B-S1): only a STRING uuid joins the seen-set — a queued operator row with none is a
+    new word every time, so verdicts before the second uuid-less prompt never back a brief after it."""
+    tr = _transcript(
+        tmp_path,
+        _user("go"),
+        _queued_prompt("first queued question"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+        _queued_prompt("a second queued question"),
+        _said(_BRIEF.format(panel=_approve_line())),
+    )
+    assert "since the operator's last message" in hook._panel_brief_problem(tr, "")
+
+
+def _said_as(text: str, message_id: str) -> str:
+    return json.dumps(
+        {
+            "type": "assistant",
+            "message": {"id": message_id, "content": [{"type": "text", "text": text}]},
+        }
+    )
+
+
+def test_a_final_message_written_as_several_entries_keeps_its_cut_off(tmp_path, panel_mode):
+    """W-573ddaa1 review pass 1 (A-S1, A-S3): Claude Code writes one message's text blocks as several entries sharing
+    `message.id`, and the hook's final text may be the whole message, a blank-line join of it, or its last block;
+    each spelling takes the newest entry's cut-off. An earlier message's text never does."""
+    brief = _BRIEF.format(panel=_approve_line())
+    seats = (
+        _user("go"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"{_V_OPUS}\nno concern."),
+        _result("t-fable", f"{_V_FABLE}\none concern, ACCEPTED."),
+    )
+    tr = _transcript(
+        tmp_path,
+        *seats,
+        _said_as("Done.", "msg-1"),
+        _said_as(brief, "msg-1"),
+        _queued_with_uuid("also fix the typo", "q-1"),
+    )
+    for final in ("Done.\n" + brief, "Done.\n\n" + brief, brief):
+        assert hook._panel_brief_problem(tr, final) == "", final
+    # a text from an EARLIER message, plus the newest one's, is not the newest message
+    tr = _transcript(
+        tmp_path,
+        *seats,
+        _said_as("Done.", "msg-0"),
+        _said_as(brief, "msg-1"),
+        _queued_with_uuid("also fix the typo", "q-1"),
+    )
+    assert hook._panel_brief_problem(tr, brief) == ""
+    assert hook._final_cut(hook._turn_texts(tr)[1], "Done.\n" + brief) is None
+
+
+def test_a_queued_prompt_between_entries_of_one_message_ends_its_whole_spelling(
+    tmp_path, panel_mode
+):
+    """W-573ddaa1 review pass 2 (SLICE-p2-1): the whole-message spelling joins only entries with no other row
+    between them — a block written in an entry BEFORE a queued prompt, whose message goes on after it, never takes
+    the cut of a prompt queued after the message's last entry (that would judge it on verdicts given after the
+    first prompt)."""
+    block = _block(PANEL)
+    tr = _transcript(
+        tmp_path,
+        _user("pick a retention window for the purge job"),
+        _said_as(block, "msg-1"),
+        _queued_with_uuid("first queued question", "q-1"),
+        _dispatch("opus"),
+        _dispatch("fable"),
+        _result("t-opus", f"verdict: {OPUS}."),
+        _result("t-fable", f"verdict: {FABLE}."),
+        _said_as("Waiting on you.", "msg-1"),
+        _queued_with_uuid("a second queued question", "q-2"),
+    )
+    ok, why = hook.parse_decision_block(
+        block + "\nWaiting on you.", run_live=False, transcript_path=tr
+    )
+    assert not ok and "since the operator's last message" in why

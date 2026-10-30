@@ -3,7 +3,7 @@
   "created": "2026-10-28T12:54:57.562005Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "3c850e2d4e216cfcdf4797c6afb5e0025f946432",
   "id": "W-5f4b0972",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra-3",
   "priority": 1,
   "score_reason": "operator requirement docs/reference/operator-agent-requirements.md §2 for all repos; blocks the handoff in 40 repos",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fold-w-b9ad80ae"
   ],

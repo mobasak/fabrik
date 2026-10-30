@@ -897,7 +897,9 @@ _GATE_CITES = {
     ":566-579": "WARN_ONLY_CHECKS: set[str] = {",
     ":1426": "if tier == 3:",
     ":1443": "return results",
-    ":1543": "return results",
+    # The --lean tier's return; since W-d488bbbf it appends the `Tier-2 checks (NOT RUN — --lean)`
+    # row, still no pytest row, so the cite holds and only the construct's text changed.
+    ":1543": "return [*results, _lean_not_run_row()]",
     "final_gate.py:1698-1708": "if (",
     ":1311": "elif code == 5:",
     ":1408": "if code != 0 and _PYTEST_EARLY_STOP in out:",

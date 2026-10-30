@@ -180,12 +180,13 @@ The moment the container is up:
 
 - **Gatus** (`status.vps1.ocoron.com`) probes `/health` (memory storage, ~30 endpoints). 3 consecutive failures → push notification via Apprise → Telegram.
 - **Prometheus** (internal `:9090`) scrapes `/metrics` (Authelia-bypassed by global `*.vps1.ocoron.com → /health` rule, which also covers `/metrics` per service config).
-- **Alertmanager** (internal `:9093`) routes alerts. **12 rules** in `configs/prometheus/rules/alerts.yml`:
+- **Alertmanager** (internal `:9093`) routes alerts. **13 rules** in `configs/prometheus/rules/alerts.yml`:
 
   | Alert | Severity | Threshold | For |
   |---|---|---|---|
   | ContainerDown | critical | not seen >2min | 2m |
   | ContainerHighCPU | warning | >80% | 5m |
+  | ContainerCPUThrottled | warning | throttled in >25% of CFS periods while running >1 period/s | 15m |
   | ContainerHighMemory | warning | working set >85% of container's own limit | 15m |
   | ContainerMemoryHighOfHost | warning | working set >15% of its own host's RAM (catches containers without a limit) | 10m |
   | ContainerOOMKilled | critical | any OOM in 5m | 0m |

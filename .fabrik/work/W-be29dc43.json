@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T19:22:47.568885Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-be29dc43",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add {config.yaml} and a writable parameter in {changed, set()}, drop the two redundant .py prefixes, stub _git_names; red-prove on M12/M13",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "next-infra-2"
+  ],
+  "title": "test_the_lean_tier_carries_no_pytest_row (W-d488bbbf review residue) covers only empty and .py diffs with the writable set equal to the diff: a pytest row behind a .yaml diff or a narrowed writable set passes it (Opus seat R3-C1, mutants M12/M13); its 8 cases also run git ls-files unstubbed, cost unmeasured"
+}

@@ -84,7 +84,9 @@ HUB_DECISIONS = Path("/opt/fabrik/scripts/decisions.py")  # `lift`'s resolver ou
 HUB = Path(__file__).resolve().parent.parent.parent  # the repo whose merge owner may `lift`
 DAY_S = 24 * 3600
 T3_S = 180  # the hard hold arms 3 minutes before the deadline
-NO_OWNER = {"no ledger", "the ledger declares no merge owner"}  # a FAILED lookup is not "no owner"
+# exit 3 of `decisions.py --merge-owner`: no MERGE OWNER row, or a winning un-adoption row
+DECLARES_NONE = "the ledger declares no merge owner"
+NO_OWNER = {"no ledger", DECLARES_NONE}  # a FAILED lookup is not "no owner"
 
 
 # ── discovery ────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -196,8 +198,8 @@ def _under_test() -> bool:
     return bool(os.environ.get("PYTEST_CURRENT_TEST"))
 
 
-def merge_owner(repo: str, resolver: Path = DECISIONS) -> tuple[str, str]:
-    """(name, why) — the name is "" when the repo declares none or the lookup fails."""
+def merge_owner(repo: str, resolver: Path = DECISIONS, *, timeout: float = 30) -> tuple[str, str]:
+    """(name, why) — the name is "" when the repo declares none or the lookup fails (incl. past `timeout` s)."""
     if not (Path(repo) / "docs" / "DECISIONS.md").is_file():
         return "", "no ledger"
     try:
@@ -205,14 +207,14 @@ def merge_owner(repo: str, resolver: Path = DECISIONS) -> tuple[str, str]:
             [sys.executable, str(resolver), "--merge-owner", repo],
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=timeout,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         return "", f"lookup failed ({exc})"
     if out.returncode == 0:
         return out.stdout.strip(), "the ledger's merge owner"
     if out.returncode == 3:
-        return "", "the ledger declares no merge owner"
+        return "", DECLARES_NONE
     return "", f"lookup failed (exit {out.returncode})"
 
 

@@ -74,6 +74,7 @@ import math
 import multiprocessing
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -1985,8 +1986,10 @@ def _sync_filter(text: str) -> str:
 
 
 def _sync(ctx: _Ctx, rec: dict) -> str:
-    """(g): in the HUB only, run the fleet sync when the re-derived merged file list matches the
-    governance-sync filter (read from the merged base, never hard-coded)."""
+    """(g): in the HUB only, OWE the fleet sync when the re-derived merged file list matches the
+    governance-sync filter (read from the merged base, never hard-coded), then kick the background
+    runner — the sync itself runs OUTSIDE the merge lock (W-4f4ac600, the block comment below this
+    function). Every hub call kicks, so a debt a killed run left is run by the next landing."""
     if ctx.main.resolve() != HUB_CHECKOUT.resolve():
         return "sync: not the hub — none owed"
     merge = rec["merge_sha"]
@@ -1997,26 +2000,379 @@ def _sync(ctx: _Ctx, rec: dict) -> str:
     ]
     res = _run(["git", "show", f"{merge}:.pre-commit-config.yaml"], GIT_TIMEOUT_S, cwd=ctx.main)
     pattern = _sync_filter(res.stdout) if res.returncode == 0 else ""
+    hits: list[str] = []
     if not pattern:
-        return (
+        line = (
             "sync: NOT RUN — the governance-sync files: filter is unreadable or empty; run "
             "scripts/sync_enforcement_to_projects.py --force yourself"
         )
+    else:
+        try:
+            rx = re.compile(pattern)
+        except re.error as exc:
+            line = f"sync: NOT RUN — the governance-sync filter does not compile ({exc})"
+        else:
+            hits = [p for p in files if rx.search(p)]
+            line = "sync: no governance-sync path merged — none owed"
+    state = ctx.records
     try:
-        rx = re.compile(pattern)
-    except re.error as exc:
-        return f"sync: NOT RUN — the governance-sync filter does not compile ({exc})"
-    hits = [p for p in files if rx.search(p)]
+        if hits:
+            _owe_sync(state, f"{merge} {len(hits)} path(s), request {rec['id']}")
+        kicked = _kick_sync(ctx.main, state)
+    except OSError as exc:  # the push already landed: a sync we cannot owe is reported, not raised
+        return (
+            f"sync: FAILED to owe or start ({exc}) — run "
+            "scripts/sync_enforcement_to_projects.py --force"
+        )
     if not hits:
-        return "sync: no governance-sync path merged — none owed"
+        return line if kicked is None else f"{line}; {kicked}"
+    line = (
+        f"sync: owed for {len(hits)} governance-sync path(s) — runs outside the merge lock "
+        f"(log {state / SYNC_LOG})"
+    )
+    return line if kicked is None else f"{line}; {kicked}"
+
+
+# --- (g) the hub's governance sync, OUTSIDE the merge lock (W-4f4ac600) -----------------------
+# The sync ran inside the lock and held every landing that owed one ~4 min (01M64FJ6AT: push
+# 00:59:53, reply 01:04:04) — and `merge --queue` lands one `merge()` at a time, so the queue waited
+# it out too. Now a landing OWES it (one O_APPEND line in SYNC_OWED) and KICKS a detached runner
+# (`merge_request.py sync-runner`): it takes SYNC_LOCK itself — this process never opens it, so no
+# queue leg forked later can inherit it — and loops while holding it: `covers` = SYNC_OWED's size
+# in BYTES, read BEFORE the sync starts (every owed line is already in HEAD, and the sync ships each
+# tracked file from its HEAD blob — sync_enforcement_to_projects.py `_head_source`, T12.17 — so a
+# sync started after a line covers it); exit when SYNC_DONE ≥ covers, else run SYNC_ARGV and, on
+# exit 0, write SYNC_DONE = max(current, covers). A line owed DURING a sync (another landing, any
+# process) is covered by the runner's next turn; a failure stops the runner with the debt still
+# owed and its outcome in SYNC_STATUS, and the next kick retries it. `main()` drains in a
+# `finally`: it waits for THIS process's runner up to SYNC_TIMEOUT_S and prints the outcome,
+# never changing the verb's exit code (a failed sync never did). SYNC_STATUS is not `*.json`: the
+# record globs (`ctx.records.glob("*.json")`) would read it as a merge record.
+# COBRA (D-253): the cheapest way to release the lock fast is never to run the sync; a debt stays
+# owed until a sync that STARTED after it exits 0, and every drain prints what happened.
+SYNC_OWED = "sync-owed.log"
+SYNC_DONE = "sync-done"
+SYNC_LOCK = "sync.lock"
+SYNC_LOG = "sync.log"
+SYNC_STATUS = "sync-status.txt"
+SYNC_LOCK_WAIT_S = 2 * SYNC_TIMEOUT_S  # a runner waits out one other runner's sync and its rerun
+_SYNC_RUN: dict = {}  # this process's runner: {"proc", "state", "main"} (one per process)
+
+
+def _owed_size(state: Path) -> int:
     try:
-        run = _run(list(SYNC_ARGV), SYNC_TIMEOUT_S, cwd=ctx.main)
-    except RefusedError as exc:
-        return f"sync: FAILED ({exc}) — run scripts/sync_enforcement_to_projects.py --force"
-    if run.returncode != 0:
-        tail = " ".join((run.stderr or run.stdout).strip().splitlines()[-2:])
-        return f"sync: FAILED (exit {run.returncode}: {tail}) — run scripts/sync_enforcement_to_projects.py --force"
-    return f"sync: ran for {len(hits)} governance-sync path(s)"
+        return (state / SYNC_OWED).stat().st_size
+    except FileNotFoundError:
+        return 0
+
+
+def _done_size(state: Path) -> int:
+    try:
+        return int((state / SYNC_DONE).read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return 0  # absent or unreadable: toward running the sync again
+
+
+def _sync_status(state: Path) -> dict:
+    try:
+        raw = json.loads((state / SYNC_STATUS).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _write_atomic(path: Path, text: str) -> None:
+    tmp = path.with_name(f".{path.name}.{os.getpid()}")
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError:
+        with contextlib.suppress(OSError):  # never mask the write's own error
+            tmp.unlink(missing_ok=True)
+        raise
+
+
+def _owe_sync(state: Path, why: str) -> None:
+    """One owed line, appended in ONE write (O_APPEND): a torn line still grows the byte count."""
+    state.mkdir(parents=True, exist_ok=True)
+    line = f"{datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')} {' '.join(why.split())}\n"
+    fd = os.open(state / SYNC_OWED, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+    try:
+        os.write(fd, line.encode("utf-8"))
+    finally:
+        os.close(fd)
+
+
+# The runner's OWN scope (W-73d00b05): start_new_session leaves the process group, not the cgroup,
+# and capped_run.sh's EXIT trap stops its scope when merge_request.py exits — a runner alive then
+# died with its sync, and the drain's "still running in the background" was false. So the runner
+# starts in a transient user scope inside the fleet slice (capped_run's own parent, fabrik-agents
+# .slice), collected when it ends, its life bounded by SYNC_RUNNER_MAX_S, its memory by
+# SYNC_RUNNER_MEM (capped_run's per-run default, what it had inside the merge's scope); bare where
+# no such scope can start (no systemd-run, no user bus — as capped_run runs uncapped there). The
+# probe is that exact start with `-- true`, kept for the process once it passes and asked again at
+# the next kick while it fails (`_scope_ok`): a manager that answers yet refuses a
+# property fails the probe, never the runner. Cobra (D-253): the cheapest pass is a bare start that
+# the wrapper kills; the probe's own exit decides, and `sync-done` is what the graders read.
+_SCOPE: dict = {}  # {"ok": bool} — this process's probe answer
+SYNC_RUNNER_MEM = "4G"
+
+
+def _runner_env(env: dict) -> dict:
+    """The env the runner and its probe start with: XDG_RUNTIME_DIR filled from the user bus when
+    absent (capped_run.sh:112-114 — cron and stripped hook envs lack it)."""
+    bus = Path(f"/run/user/{os.getuid()}")
+    if not env.get("XDG_RUNTIME_DIR") and (bus / "bus").is_socket():
+        env = {**env, "XDG_RUNTIME_DIR": str(bus)}
+    return env
+
+
+def _scope_flags(unit: str) -> list[str]:
+    return [
+        "systemd-run",
+        "--user",
+        "--scope",
+        "-q",
+        "--collect",
+        "--slice=fabrik-agents.slice",
+        f"--unit={unit}-{os.getpid()}-{secrets.token_hex(4)}",
+        "-p",
+        f"RuntimeMaxSec={SYNC_RUNNER_MAX_S}",
+        "-p",
+        f"MemoryMax={SYNC_RUNNER_MEM}",
+        "-p",
+        "MemorySwapMax=0",
+        "-p",
+        "TimeoutStopSec=5",
+    ]
+
+
+def _scope_ok(env: dict) -> bool:
+    """Only a green probe is kept: a failed one (a bus that dropped for a moment) is asked again
+    at the next kick, so one blip never sends a whole queue run's runners bare."""
+    if not _SCOPE.get("ok"):
+        try:
+            probe = subprocess.run(  # noqa: S603 — fixed argv, no shell
+                [*_scope_flags("fabrik-sync-probe"), "--", "true"],
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                timeout=10,
+                env=env,
+                check=False,
+            )
+            _SCOPE["ok"] = probe.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            _SCOPE["ok"] = False
+    return _SCOPE["ok"]
+
+
+def _runner_scope(argv: list[str], env: dict) -> list[str]:
+    """``argv`` in its own bounded transient scope when one can start, else unchanged (bare)."""
+    if not _scope_ok(env):
+        return argv
+    return [*_scope_flags("fabrik-sync-runner"), "--", *argv]
+
+
+def _kick_sync(main: Path, state: Path) -> str | None:
+    """Start the runner when a debt is owed and THIS process has none alive (a live one loops and
+    covers it). Returns an evidence fragment, or None when there is nothing to say."""
+    run = _SYNC_RUN.get("proc")
+    if run is not None and run.poll() is None:
+        return None  # its next turn covers the new debt
+    if _owed_size(state) <= _done_size(state):
+        return None
+    note = None
+    last = _sync_status(state)
+    if last.get("rc") not in (None, 0):
+        note = (
+            f"the last background sync FAILED (exit {last.get('sync_rc', last.get('rc'))}) — "
+            "retrying"
+        )
+    argv = [sys.executable, str(Path(__file__).resolve()), "sync-runner", "--state", str(state)]
+    env = _runner_env(dict(os.environ))
+    try:
+        proc = subprocess.Popen(  # noqa: S603 — fixed argv, no shell
+            _runner_scope([*argv, "--", *SYNC_ARGV], env),
+            cwd=main,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError as exc:
+        return (
+            f"sync: FAILED to start ({exc}) — run scripts/sync_enforcement_to_projects.py --force"
+        )
+    # `started`: a status written before this start is another runner's (a scoped start can exit 1
+    # before the runner runs, writing none), so the drain never reads it as this one's reason
+    _SYNC_RUN.update(proc=proc, state=state, main=main, started=time.time())
+    return note
+
+
+def _sync_once(argv: list[str], state: Path, lock_fd: int) -> tuple[int, str]:
+    """One sync, its output to SYNC_LOG (truncated: the last run's tail lives in SYNC_STATUS),
+    bounded by SYNC_TIMEOUT_S; past it the sync's whole process group is killed. The sync holds
+    the runner's SYNC_LOCK fd too, so a runner killed mid-sync leaves the lock held until the
+    orphaned sync ends — the next runner waits for it instead of starting a second one."""
+    log = state / SYNC_LOG
+    with open(log, "wb") as out:
+        try:
+            proc = subprocess.Popen(  # noqa: S603 — fixed argv, no shell
+                argv,
+                stdin=subprocess.DEVNULL,
+                stdout=out,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                pass_fds=(lock_fd,),
+            )
+        except OSError as exc:
+            return 127, f"cannot run {argv[0]}: {exc}"
+        try:
+            rc = proc.wait(timeout=SYNC_TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(proc.pid, 9)
+            proc.wait()
+            return 124, f"timed out after {SYNC_TIMEOUT_S}s"
+    try:
+        lines = log.read_text(encoding="utf-8", errors="replace").strip().splitlines()
+    except OSError:
+        lines = []
+    return rc, " ".join(lines[-2:])
+
+
+def _sync_runner(state: Path, argv: list[str]) -> int:
+    """``sync-runner`` (internal, listed by ``--help``; started by ``_kick_sync``): hold SYNC_LOCK, sync until the owed
+    log is covered. Exit 0 covered, or retired at SYNC_RUNNER_SOFT_S with the debt still owed ·
+    1 a sync failed · 2 sync-done did not persist · 3 the lock
+    stayed held past its wait (``main`` adds 70: the runner itself crashed)."""
+    state.mkdir(parents=True, exist_ok=True)
+    fd = os.open(state / SYNC_LOCK, os.O_RDWR | os.O_CREAT, 0o644)
+    started = time.monotonic()
+    try:
+        deadline = started + SYNC_LOCK_WAIT_S
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() > deadline:
+                    _write_atomic(
+                        state / SYNC_STATUS,
+                        json.dumps(
+                            {"at": time.time(), "rc": 3, "tail": "the sync lock stayed held"}
+                        ),
+                    )
+                    return 3
+                time.sleep(1)
+        while True:
+            covers = _owed_size(state)
+            if covers <= _done_size(state):
+                return 0
+            if time.monotonic() - started >= SYNC_RUNNER_SOFT_S:
+                # every process's debts feed one live runner, so no merge run's wall bounds it:
+                # past its own bound it starts no sync (one started would be cut by the scope's
+                # backstop) and leaves the debt to the next kick (W-73d00b05)
+                _write_atomic(
+                    state / SYNC_STATUS,
+                    json.dumps(
+                        {
+                            "at": time.time(),
+                            "covers": _done_size(state),
+                            "rc": 0,
+                            "tail": "runner retired at its bound; the debt stays owed",
+                        }
+                    ),
+                )
+                return 0
+            rc, tail = _sync_once(argv, state, fd)
+            if rc != 0:  # rc = this runner's exit (the drain matches it); sync_rc = the sync's
+                _write_atomic(
+                    state / SYNC_STATUS,
+                    json.dumps(
+                        {"at": time.time(), "covers": covers, "rc": 1, "sync_rc": rc, "tail": tail}
+                    ),
+                )
+                return 1
+            _write_atomic(state / SYNC_DONE, f"{max(_done_size(state), covers)}\n")
+            if _done_size(state) < covers:
+                # sync-done did not persist: looping would re-run a 47-repo sync forever
+                _write_atomic(
+                    state / SYNC_STATUS,
+                    json.dumps(
+                        {
+                            "at": time.time(),
+                            "covers": covers,
+                            "rc": 2,
+                            "tail": f"{SYNC_DONE} did not persist",
+                        }
+                    ),
+                )
+                return 2
+            _write_atomic(
+                state / SYNC_STATUS, json.dumps({"at": time.time(), "covers": covers, "rc": 0})
+            )
+    finally:
+        os.close(fd)
+
+
+def _drain_sync() -> None:
+    """After the verb, the merge lock released: wait for THIS process's runner and print its
+    outcome, SYNC_TIMEOUT_S in all. A runner that exited 0 while a debt is still owed (one owed
+    between its last check and its exit, or in another process) gets ONE more runner, which covers
+    it or finds another process's sync covering it. Never changes the exit code."""
+    proc = _SYNC_RUN.pop("proc", None)
+    if proc is None:
+        return
+    state, main = _SYNC_RUN.pop("state"), _SYNC_RUN.pop("main")
+    started = _SYNC_RUN.pop("started", 0.0)
+    deadline = time.monotonic() + SYNC_TIMEOUT_S
+    for rerun in (False, True):
+        try:
+            proc.wait(timeout=max(1.0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            print(
+                f"merge_request: sync: still running in the background (pid {proc.pid}) — "
+                f"{state / SYNC_STATUS} has its outcome",
+                file=sys.stderr,
+            )
+            return
+        if proc.returncode != 0:
+            break
+        if _owed_size(state) <= _done_size(state) or rerun:
+            later = (
+                ""
+                if _owed_size(state) <= _done_size(state)
+                else ("; a debt owed since is still open — the next merge run's sync covers it")
+            )
+            print(f"merge_request: sync: ran (log {state / SYNC_LOG}){later}", file=sys.stderr)
+            return
+        note = _kick_sync(main, state)
+        proc = _SYNC_RUN.pop("proc", None)
+        _SYNC_RUN.clear()
+        if proc is None:  # nothing left to start, or the start failed (its note says so)
+            if note and note.startswith("sync: FAILED"):  # the debt owed since stays open
+                print(
+                    f"merge_request: {note}; the earlier sync ran (log {state / SYNC_LOG})",
+                    file=sys.stderr,
+                )
+            else:
+                print(f"merge_request: sync: ran (log {state / SYNC_LOG})", file=sys.stderr)
+            return
+    last = _sync_status(state)
+    rc = proc.returncode  # the runner's own exit; the status file may be an older run's
+    fresh = isinstance(last.get("at"), (int, float)) and last["at"] >= started
+    if fresh and last.get("rc") == rc:
+        rc, tail = last.get("sync_rc", rc), last.get("tail", "")
+    else:
+        tail = "the runner recorded no reason"
+    print(
+        f"merge_request: sync: FAILED (exit {rc}: {tail}) — run "
+        "scripts/sync_enforcement_to_projects.py --force; the debt stays owed and the next "
+        "merge run retries it",
+        file=sys.stderr,
+    )
 
 
 def _recipients(ctx: _Ctx, rec: dict) -> list[str]:
@@ -2682,14 +3038,23 @@ LANDING_WORST_S = QUEUE_WAIT_S + MERGE_TEST_BUDGET_S + PUSH_TIMEOUT_S + SYNC_TIM
 # The wall also holds the chain build and the first wave: a leg of the longest limit any base may
 # declare (_declared_leg clamps to MERGE_TEST_BUDGET_S) still leaves a worst-case landing. A wall
 # with LANDING_WORST_S + 1800 landed nothing after a wave that used its limit (2026-10-27, elapsed
-# ~1818 s at the check). A leg forks only while it AND a landing after it fit (_leg_fits), so every
-# leg a wall return joins (one per --jobs slot) ends inside the wall. QUEUE_BUILD_S holds the chain
+# ~1818 s at the check). A leg forks only while it AND a landing after it fit (_leg_fits — budgeted
+# at TIMED_MARGIN x the longest green queue leg the run timed for that owner script once one is,
+# W-1fb11ec8), and every
+# leg a wall return joins (one per --jobs slot) ends inside the wall whatever it was budgeted at,
+# because LANDING_WORST_S outweighs the longest declarable leg plus LEG_OVERHEAD_S. QUEUE_BUILD_S holds the chain
 # build before the first fork plus LEG_OVERHEAD_S: a child's own setup (its throwaway worktree, the
 # script read) and the leg's outer bound (+60). The _live_merge wait before a chain build (up to
 # QUEUE_WAIT_S) is not in it: after it the first request may land through its locked leg instead.
 QUEUE_BUILD_S = 300
 LEG_OVERHEAD_S = 120
 QUEUE_WALL_S = LANDING_WORST_S + MERGE_TEST_BUDGET_S + QUEUE_BUILD_S
+# The sync runner's bounds (W-73d00b05, `_runner_scope`): it starts no sync past SOFT — one lock wait
+# plus the longest process that keeps owing debts while it lives, a queue run — and its scope's
+# RuntimeMaxSec backstop is SOFT + one whole sync + 60 s, so a runner that retires at SOFT is never
+# the one the backstop kills mid-sync.
+SYNC_RUNNER_SOFT_S = SYNC_LOCK_WAIT_S + QUEUE_WALL_S
+SYNC_RUNNER_MAX_S = SYNC_RUNNER_SOFT_S + SYNC_TIMEOUT_S + 60
 
 
 @contextlib.contextmanager
@@ -2816,6 +3181,41 @@ def _record_matches(ctx: _Ctx, el: dict, script: str, runner: str) -> bool:
     return _skip_only_diff(ctx.main, rec["tree"], f"{el['at']}^{{tree}}") == []
 
 
+def _tried_key(ctx: _Ctx, el: dict) -> tuple[str, str]:
+    """``(head, stacked tree)``: a chain rebuild makes new elements and new stacked commits, but the
+    same request on the same stack keeps its tree, so a failed leg is not forked again; one re-stacked
+    onto a changed base (an earlier request refused) has a new tree and earns a fresh queue leg. An
+    unreadable tree keys on the commit — a re-fork allowed, never a leg skipped. Cached on the
+    element: the queue polls every QUEUE_POLL_S, and a rebuilt chain makes new elements."""
+    if "tried_key" not in el:
+        try:
+            tree = _gitc(ctx.main, "rev-parse", f"{el['at']}^{{tree}}").strip()
+        except RefusedError:
+            tree = el["at"]
+        el["tried_key"] = (el["head"], tree)
+    return el["tried_key"]
+
+
+def _leg_seconds(ctx: _Ctx, el: dict, script: str, runner: str) -> float:
+    """The measured seconds of the queue leg that wrote ``el``'s matching record, else 0: a record
+    the requester's own ``request --pretest`` wrote (no ``queued_as`` of this element) says nothing
+    about the queue leg that just exited, and a red, killed or timed-out leg writes none."""
+    if not _record_matches(ctx, el, script, runner):
+        return 0.0
+    try:
+        rec = json.loads(
+            (ctx.records / PRETEST_DIR / f"{el['head']}.json").read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeDecodeError, ValueError):
+        return 0.0
+    if not isinstance(rec, dict) or rec.get("queued_as") != el["id"]:
+        return 0.0
+    seconds = rec.get("seconds")  # re-validated: the file may have been rewritten since the match
+    if isinstance(seconds, bool) or not isinstance(seconds, (int, float)):
+        return 0.0
+    return float(seconds) if math.isfinite(seconds) and seconds > 0 else 0.0
+
+
 def _run_leg(ctx: _Ctx, el: dict, runner: str) -> int:
     """One request's leg on its stacked merge ``el['at']`` (built on ``el['on']``); the body of a
     queue child. Green writes the record (atomically, ``_save``); nothing is unlinked first, so a
@@ -2892,12 +3292,24 @@ def _land(msg_id: str) -> int:
             time.sleep(QUEUE_POLL_S)
 
 
-def _leg_fits(started: float, script: str) -> bool:
-    """A leg forked now may run its whole limit (``_declared_leg``) plus LEG_OVERHEAD_S — its
-    setup (an estimate: no deadline bounds it) and the leg's 60 s outer bound — and still be
-    followed by a worst-case landing; else the leg cannot lead to a landing this run, and the
-    wall return would only wait on it."""
-    leg = _declared_leg(script) + LEG_OVERHEAD_S
+TIMED_MARGIN = 1.5  # one hub leg ran 1037 s and 1365 s on the same commit under load (D-1312)
+
+
+def _leg_fits(started: float, script: str, timed: float = 0.0) -> bool:
+    """A leg forked now, plus LEG_OVERHEAD_S — its setup (an estimate: no deadline bounds it) and
+    the leg's 60 s outer bound — can still be followed by a worst-case landing; else the leg cannot
+    lead to a landing this run, and the wall return would only wait on it. The leg is budgeted at
+    TIMED_MARGIN x ``timed``, the longest green queue leg this run already timed for this owner
+    script (W-1fb11ec8: 697 s
+    live against the hub's declared 2700 s, which closed the window at 1080 s of the 11100 s wall),
+    capped at its whole limit (``_declared_leg``), and at that limit while nothing is timed. Either
+    way the leg itself ends inside the wall: one forked at the last fit second that runs its whole
+    limit ends by ``QUEUE_WALL_S - LANDING_WORST_S + limit``, and a landing's worst case outweighs
+    any limit a base may declare plus LEG_OVERHEAD_S. A leg longer than the budget finishes after
+    the last landing start: its request lands one run later on its record, and this run's children
+    keep ``queue.lock`` until it ends."""
+    limit = _declared_leg(script)
+    leg = (min(TIMED_MARGIN * timed, limit) if timed > 0 else limit) + LEG_OVERHEAD_S
     return time.monotonic() - started + leg + LANDING_WORST_S <= QUEUE_WALL_S
 
 
@@ -2921,7 +3333,13 @@ def _queue(args: argparse.Namespace) -> int:
     started = time.monotonic()
     runner = _runner_sha()  # once, before any carry can rewrite this file (Opus 9)
     fork = multiprocessing.get_context("fork")
-    running: dict[str, object] = {}  # head -> its leg child
+    running: dict[str, tuple] = {}  # head -> (its leg child, its element, its script)
+    # the longest green queue leg this run timed, its recorded seconds, per owner script (_leg_fits):
+    # a landing that changes `.fabrik/merge-tests` starts the next script at its declared limit
+    timed: dict[str, float] = {}
+    # every (head, stacked tree) a queue leg already ran for this run (_tried_key): a chain rebuild
+    # makes new elements, so `leg_done` alone re-forked a failed leg after every landing
+    tried: set[tuple[str, str]] = set()
     landed: set[str] = set()
     rc = EXIT_OK
     with _queue_lock(ctx):
@@ -2952,37 +3370,48 @@ def _queue(args: argparse.Namespace) -> int:
                     continue  # the base moved while the chain was built: build it again
                 first = chain[0]
                 while True:
-                    for head, child in list(running.items()):
+                    for head, (child, leg_el, leg_script) in list(running.items()):
                         if not child.is_alive():
                             child.join()
                             del running[head]
+                            if child.exitcode == 0:
+                                seconds = _leg_seconds(ctx, leg_el, leg_script, runner)
+                                timed[leg_script] = max(timed.get(leg_script, 0.0), seconds)
                     # a later leg forks only once the first request lands on a record (or has no
                     # tree to test): else its locked merge runs its own leg, and a queue leg
                     # beside it halves both
                     first_on_record = first["at"] is None or _record_matches(
                         ctx, first, script, runner
                     )
+                    # one budget answer per poll, read by the fork gate AND the landing test, so
+                    # the two can never disagree about whether a leg still fits (review r1 B2)
+                    fits = _leg_fits(started, script, timed.get(script, 0.0))
                     for el in chain:
                         if len(running) >= jobs:
                             break
                         if el["at"] is None or el["head"] in running:
                             continue
-                        if _record_matches(ctx, el, script, runner) or el.get("leg_done"):
-                            continue
-                        if (el is not first and not first_on_record) or not _leg_fits(
-                            started, script
+                        if (
+                            _record_matches(ctx, el, script, runner)
+                            or el.get("leg_done")
+                            or _tried_key(ctx, el) in tried
                         ):
+                            continue
+                        if (el is not first and not first_on_record) or not fits:
                             break
                         child = fork.Process(target=_leg_child, args=(ctx, el, runner))
                         child.start()
-                        running[el["head"]] = child
+                        running[el["head"]] = (child, el, script)
                         el["leg_done"] = True  # one leg per element per chain build
+                        tried.add(_tried_key(ctx, el))  # and one per request and stack per run
                     if first["at"] is None or (
                         first["head"] not in running
                         and (
                             first.get("leg_done")
+                            or _tried_key(ctx, first)
+                            in tried  # no 2nd queue leg: its locked one runs
                             or _record_matches(ctx, first, script, runner)
-                            or not _leg_fits(started, script)
+                            or not fits
                         )
                     ):
                         # ready to land: its leg is over (green, red or killed), its record is
@@ -3000,7 +3429,7 @@ def _queue(args: argparse.Namespace) -> int:
                 # every later element was built on a tip that may not have landed: the next pass
                 # rebuilds the chain on the new base and reuses each record that still matches
         finally:
-            for child in running.values():
+            for child, *_ in running.values():
                 child.join()  # a stale leg finishes; its record names a tree that never lands
 
 
@@ -3015,7 +3444,9 @@ def merge(args: argparse.Namespace) -> int:
     it before building. Steps: (a) preflight in a throwaway worktree with a snapshot of every
     merged path; (b) pure-insertion ledger conflicts only; (c) the owner's tests; (d) re-hash and
     CAS the local base, rebuilding up to MAX_REBUILDS times; (e) carry; (f) fast-forward push;
-    (g) the hub's governance sync; (h) reply to requester and coordinator, then ack.
+    (g) the hub's governance sync, OWED here and run by a background runner outside the lock
+    (W-4f4ac600; this run's end waits for it and prints its outcome); (h) reply to requester and
+    coordinator, then ack.
 
     Exit: 0 merged (or nothing waiting) · 1 refused (acked ``blocked`` with the reason), DEFERRED
     (the remote was unreachable: claimed, nothing replied, retried by the next run), or the
@@ -3340,7 +3771,24 @@ def main(argv: list[str] | None = None) -> int:
     pr.add_argument("id")
     pt = sub.add_parser("retry", help="re-run a refused request whose branch is unchanged")
     pt.add_argument("id")
+    # internal: the background governance sync a hub landing kicks (W-4f4ac600)
+    ps = sub.add_parser("sync-runner")
+    ps.add_argument("--state", required=True, type=Path)
+    ps.add_argument("sync_argv", nargs=argparse.REMAINDER)
     args = ap.parse_args(argv)
+    if args.cmd == "sync-runner":
+        sync_argv = args.sync_argv[1:] if args.sync_argv[:1] == ["--"] else args.sync_argv
+        if not sync_argv:
+            ap.error("sync-runner needs the sync argv after --")
+        try:
+            return _sync_runner(args.state, sync_argv)
+        except Exception as exc:  # recorded for the drain, whose stderr is the only reader
+            with contextlib.suppress(OSError):
+                _write_atomic(
+                    args.state / SYNC_STATUS,
+                    json.dumps({"at": time.time(), "rc": 70, "tail": f"runner crashed: {exc!r}"}),
+                )
+            return 70
     verb = {"request": request, "merge": merge, "resume": resume, "retry": retry}[args.cmd]
     try:
         return verb(args)
@@ -3350,6 +3798,17 @@ def main(argv: list[str] | None = None) -> int:
     except MergePartialError as exc:
         print(f"merge_request: PARTIAL — {exc}", file=sys.stderr)
         return EXIT_PARTIAL
+    finally:
+        # the merge lock is released by now; a PARTIAL or REFUSED run drains too, and a drain that
+        # cannot read its state never replaces the verb's exit code
+        try:
+            _drain_sync()
+        except OSError as exc:
+            print(
+                f"merge_request: sync: unknown ({exc}) — the debt stays owed; run "
+                "scripts/sync_enforcement_to_projects.py --force if no merge run follows",
+                file=sys.stderr,
+            )
 
 
 if __name__ == "__main__":

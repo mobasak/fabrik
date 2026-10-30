@@ -13,6 +13,38 @@
 
 **Lesson:** a timing check never reads a timestamp that another step of the same loop writes, so it keeps its own clock. A latch is written only after the work it records succeeded, and it is keyed per unit. A key that crosses into awk or a shell goes through `ENVIRON` with its free-form field last, never `-v`, which rewrites backslashes. Give the coder each fix as an invariant plus the shapes to hold, not a patch, and probe the fix's own inputs before the pin.
 
+## A wrapper's settle window can hide the kill a grader exists to catch (2026-10-30, W-73d00b05)
+
+**What happened:** a grader that ran a real `capped_run.sh` and asserted a detached runner's 3 s fake sync still finished passed on the bare start it exists to refuse: capped_run polls a scope still active after its command exits for up to 5 s before its EXIT trap stops it, and the 3 s sync finished inside that grace. Only the always-bare mutant showed it.
+
+**Lesson:** when a grader proves something survives a wrapper, size the subject past every grace the wrapper gives (settle polls, TimeoutStopSec, kill-after), and run the grader against the mutant that restores the bug before trusting its green.
+
+## Time a lock's tail from the timestamps its steps already leave (2026-10-30, W-4f4ac600)
+
+**What happened:** a merge lock was held ~4.3 min after a merge commit that owed the governance sync, and the item named five suspect steps. A live sampler had started after the landing and saw none of it; the shared reflogs (`master` for the CAS, `origin/master` for the push) and the mail store's mtimes (reply, ack) split the window in one read: carry + push 6 s, sync 251 s, reply + ack 1 s, and two no-sync landings closed the case as controls.
+
+**Lesson:** before instrumenting a slow serial path, list the durable side effects each step writes (a ref move, a file, a mail) and read their times; a step with no timestamp is the gap to instrument, not the whole path. Then compare with a run that skipped the suspect step.
+
+## A cheap selector's saving can be the edges it cannot see (2026-10-29, W-1fb11ec8)
+
+**What happened:** an import-closure selector replayed 17 of 17 past catches and cut the merge leg's selection 26 %. Two critique seats named the import edges it could not resolve (relative imports, sys.path-rooted packages, literal `"x.py"` loads); resolving them made one modified script's closure ~120 scripts and the selection larger than the rule it replaced.
+
+**Lesson:** when a narrowing rule saves cost on a replay set, measure it again with every edge class the real tree uses resolved — a replay set of past catches cannot show the catches a blind graph loses, and the saving may be exactly those losses. Measure the leg's phases too before choosing what to cut: here the shards were a third of the wall and the confirm phase the rest.
+
+## When two critics disagree about what a format means, run the format's own reader (2026-10-29, W-c25fd20f)
+
+**What happened:** the two design critiques of the decision-ledger checker disagreed about where a markdown table ends. Opus said a tab-indented row stays in the table, so ending the body there would red the rows below it as strays. Fable said that line ends the table. Folding Opus's reading into the draft had already flipped one grader. Rendering eight edge cases with markdown-it (GFM tables, in the repo's venv) settled it in one run: a tab or 4-space line ends the table, a row with no leading pipe continues it, and a 1-space-indented row above the table is no table row to the renderer (the checker now reports it as a stray). The review then found the rule still incomplete — a heading, quote, list item, fence or HTML block also ends the table — and settled that the same way, over 39 shapes. Separately, the tie-break reason in the docstring ("the ledger appends at its foot") was false for the hub, which writes new rows on top. A measurement kept the rule: the ledger table closes its file in each of the 293 ledgers that hold one.
+
+**Lesson:** when a check's verdict depends on what a format MEANS, the oracle is that format's real parser, run on the disputed inputs, never either reviewer's reading. Fold a critique concern only after that run. And a rule's stated REASON is a claim of its own: re-measure it even when the rule survives.
+
+## A parser for hand-written markdown is proven on the live corpus, not on the spec (2026-10-29, W-d6ebcc04)
+
+**What happened:** the lessons reader's design parsed fenced code the CommonMark way, so a fence closes only on a bare closer. Run against all 84 live files, the parser left 27 of them inside an open fence at end of file. The legacy scaffold template's seventh fence line opens a block that nothing closes, so 171 real lesson headings sat inside "code". A lesson appended there, which is the normal place to add one, would never have reached kaizen, and nothing would have said so. Both design critics found the same fault from the same probe, and so did the author's own seed run.
+
+The first fix treated an opener still open at end of file as text. The review then showed that the stray also paired with the first bare fence of a lesson appended later. That hid the lesson, and in one case made the lesson's shell comment the row that was sent. A stray opener cannot be told apart from a real one by position. The rule that held was to fence only blocks whose opener has a language tag. Over the 84 files it shows 199 hidden headings and hides none the strict rule showed; one of the 199 is a code comment.
+
+**Lesson:** before relying on a parser for a human-written format, run it over every live file and count what it drops per file against a naive count, and test the fix against content appended AFTER the malformed part, not just the file as it is today. The spec's behaviour on a malformed input is often the dangerous one: here it failed silently, while reading a bare fence as text costs one noise row in the whole corpus. Pick the fail direction on purpose, and grade it with a mutant that brings the strict rule back.
+
 ## Measure the bytes per class before choosing which rule to loosen (2026-10-29, W-d1a4a8f5)
 
 **What happened:** the janitor item named a session-level class first: 362 "unclassified" sessions with no live or death signal. The first design loosened two session rules for it, a 48 h dead bar and "no transcript is a death signal". A test the build would have broken pinned the 7 d bar for weekly-quota resumes. A `du` per dry-run row then showed that the no-signal class held 0.5 GB. The 108 GB under that label sat in resumable sessions, and the removable bytes (77 GB) were run folders that a gap rule with no end kept alive. That gap rule was the one D-878 had declared safe because "/tmp is cleared at boot", and 74 of 652 session dirs predated the boot.
@@ -44,6 +76,13 @@
 **What happened:** the heartbeat sorts curl's exit code into "local fault" and "network failure", and the two sides send the Windows watchdog opposite ways: one toasts, the other restarts the WSL adapter. Review round 1 fixed a misread by listing the network codes and calling everything else local. Round 2 then showed real outages producing unlisted codes (18 for a body cut short, 1 for a middlebox's non-HTTP answer, 8 for a bad header), each read as "local fault", so the watchdog would pause through a real outage.
 
 **Lesson:** when a classifier's two answers lead to different actions, write out the side whose members you can name completely (here the handful of codes a fixed `http://` GET can fail with locally), and let the open-ended side be the default. Then mutate every executable member across the line, one at a time, and check that a grader goes red for each.
+
+
+## A unit's name is not the unit that serves the port (2026-10-29, W-07298e38)
+
+**What happened:** the emitter guard mapped fabrik-citation-verifier to `fabrik-citation-verifier-mcp.service`, an enabled unit with the right name that stays inactive, because `fabrik-mcp-http.service` owns :8033 (`docs/workstation/MCP_HTTP_TRANSPORT.md` says so). Two Opus + Fable critiques and six review seats read past it; the guard passed because the look-alike was enabled. Deleting the look-alike would have withheld a live server from every repo.
+
+**Lesson:** before a test pins a service-to-unit mapping, read the live listener (`ss -ltnp` on the port, then `systemctl show -p MainPID <unit>`). A matching name and an enabled link prove nothing about which unit serves the port.
 
 ## On this fleet a `compose down` is not a removal (2026-10-29, W-80a1f9fd)
 
@@ -8165,3 +8204,51 @@ document.
 **What happened:** W-a12b03a2 planned to reuse rotate_session's `_dialog` ("already tested") to spot builder panes waiting on a dialog. Its fixtures were three hand-written lines (`Allow?\n❯ 1. Yes\n  2. No`). One critique seat argued that real dialogs are bordered; neither seat could open one. A throwaway Haiku session in a scratch tmux session showed the real shapes on Claude Code v2.1.312: no dialog is bordered, but `_dialog` misses two of the three — the workspace-trust prompt (its options are not numbered) and an AskUserQuestion whose wrapped option descriptions put the next option four rows away.
 **Why:** a parser of another program's screen is only as good as the screens its fixtures came from; hand-written fixtures encode the author's memory of the UI, and every reviewer reading them inherits that memory.
 **How to apply:** before relying on a screen parser, produce the real screen it parses in a disposable session (your own scratch tmux session; never a live agent's pane) and run the parser on it; keep the captures out of the repo — another session's screen is not yours to commit — and write fixtures that reproduce the measured row shapes.
+
+## No `pytest_collection_modifyitems` impl is "last" (2026-10-29, W-c80361e4)
+
+**What happened:** the merge leg's ordered-run cut was first a `trylast` `pytest_collection_modifyitems`, then a
+`wrapper=True, trylast=True` one; each read a polluted red green under a conftest that reordered items later (the
+design critique caught the first form, review pass 1 the second).
+**Why:** pluggy runs a later-registered trylast impl AFTER an earlier one, and a wrapper that reorders after `yield`
+runs after every impl inside it — no form of that hook is guaranteed to see the final order.
+**How to apply:** act on the final item order in `pytest_collection_finish`, which runs after every modifyitems impl,
+and grade it against a conftest reorder in each hook form (plain trylast, wrapper, tryfirst wrapper).
+
+## A residue measured against the wrong boundary nearly shipped a costly fix — measure against the event that judges it (2026-10-29)
+
+**What happened:** W-573ddaa1's census counted `PANEL APPROVED` briefs sitting more than 2 MB before their turn's end (39 of 155) as briefs the Stop hook's 2 MB tail never reads, and a whole-file re-walk was built for them. A brief is judged at the NEXT Stop, not at the operator's next prompt; measured that way (`stop_hook_summary` rows), 154 of 155 had been read and only 1 had not. Replayed on the real long turns, the re-walk re-judged briefs earlier Stops had already judged, newly refused 3 of them and cost up to 6.9 s per Stop, so it was dropped.
+**Why:** "turn end" was a proxy for "the Stop that reads it"; in long autonomous turns Stops happen far more often than operator prompts, so the proxy inflated the count 39-fold.
+**How to apply:** before sizing a fix for a "never read" or "never judged" gap, find the event that does the reading (here the Stop's own summary row) and measure the distance to it; replay the candidate fix on the real cases, comparing base and build verdicts, before trusting it.
+
+## A warn-on-re-up split must name the verb the operator actually runs — grep its callers first (2026-10-29)
+
+**What happened:** W-43c850b1's first design refused a missing `cpus` on install and only warned on `restart()` and the non-git redeploy, to spare "the incident verb". Both critique seats grepped the callers: `restart()` has none outside tests, and `fabrik redeploy` routes by whether `/opt/<app>/.git` exists, so the git branch (which still refused) is what an operator runs for a git app. A recreate also drops a cap set by `docker update --cpus`, so the warn path protected almost nothing while leaving the only real cap holder unenforced. The design became a uniform refusal (D-1352).
+**Why:** a carve-out justified by an operational path is only as true as that path's wiring; the design reasoned from the method name, not from its callers.
+**How to apply:** before softening a guard for "the path the operator uses in an incident", grep that method's production callers and read the CLI verb's routing; a carve-out for a path nothing calls is dead weight with a real cost.
+
+## A per-element flag dies with the element: a rebuilt loop needs a per-run set (2026-10-30, W-1fb11ec8)
+
+**What happened:** `merge --queue` marked a forked leg `leg_done` on its chain element, but every landing rebuilds the
+chain with new elements, so a request whose queue leg failed was forked again after each landing (three legs for one
+request, executed by the Opus design critique). The first fix, a per-run `tried` set, then hung the queue: the
+ready-to-land test still waited for a leg the fork loop now refused to start.
+**Why:** a guard keyed on an object the loop recreates holds for one pass only, and a new skip in a fork loop is a
+new state the loop's EXIT condition must also accept.
+**How to apply:** key "once per run" on the identity a rebuild keeps (the request head plus its stacked tree, so a
+request re-stacked onto a changed base earns a fresh leg), and for every skip added to a
+producer loop, add the same arm to the consumer's ready test — then run the suite under a timeout, which is what
+caught the hang here.
+
+## An approved plan that predates the lean ledgers must be probe-run under them before its edit (2026-10-30, W-4a03df79)
+
+**What happened:** plan-1 (approved D-1122) rewords ban clauses (`only`, `never`) in five deploy-chain commands. The
+lean ledgers, which landed after the approval, hold those clauses verbatim and have no branch path for a reworded
+ban line: `narrative`, `rule:` and `superseded:` all refuse it before merge. The operator's kit was ready before
+anyone ran `command_rules.losses()` over the edited tree, so the run parked for a panel and a D-row re-cut (D-1371).
+**Why:** a plan's approval freezes its WORDING; a ledger added after it freezes the OLD wording; the two meet only
+when the edit runs.
+**How to apply:** before an approved plan's edit runs on a ledgered command, apply it in a throwaway worktree and run
+`command_rules.losses()` plus `tests/test_command_rules.py` there. Every LOSS is either reworded around a ban span
+that survives, or re-cut under one named D-row. A D-row cite in command text also adds a ceiling READ
+(`commands/_size_ceiling.json` `added:`).

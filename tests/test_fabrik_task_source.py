@@ -155,7 +155,11 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # once the commit exits 0 (the chained recipe and the worktree plain-calls paragraph retired), the after-commit close
 # is a numbered list between steps 5 and 6, and D-1336's check (d) correcting sentence joins it; phase 4 names the two
 # runs that review before the commit (review round 1 folded; 131 bytes cut).
-SIZE_CAP = 27649
+# D-1350 (kaizen, 2026-10-29): 27649 -> 28152 — phase 2 defines the quota runway read before seats are stamped there and
+# at phase 4: with `successor none`, the minutes until the 5h reading reaches the urgent-90 lane (the wall for a session
+# the lane lets through) or the window resets, whichever first, at `claude_rotate.py --status`'s burn rate; seats are
+# sized to it, never skipped (held subject size-run-to-quota-runway-at-start recurred, 8 rows; review rounds 1-4 folded).
+SIZE_CAP = 28152
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")

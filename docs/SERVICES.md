@@ -93,10 +93,11 @@ WireGuard at `10.99.0.1:<port>`.
 | vps1 | `infra/vps1/watchdog-test/` | `watchdog-test` |
 | vps2, vps3 | `infra/vps{2,3}/traefik/`, `backrest/`, `monitoring-agent/` | `traefik`, `backrest`, `node-exporter`, `cadvisor`, `promtail` |
 
-Every service sits on the external `fabrik` network behind Traefik and declares a memory limit
-(`deployer_ssh._validate_compose()`); under `infra/vps1/` every service but `ocoron-com`'s
-(until W-78649ed2) also declares a CPU limit (`tests/test_infra_vps1_cpu_limits.py`, sized in D-1324), which
-`scripts/sysadmin/vps1_cpu_limits.py` applies to the running containers and their live composes (operator-run);
+Every service sits on the external `fabrik` network behind Traefik. Under every `infra/vps*/` host every
+service but `ocoron-com`'s (until W-78649ed2) declares a memory and a CPU limit (`tests/test_infra_vps1_cpu_limits.py`;
+sized in D-1324 for vps1 and D-1357 for the spokes — these composes never pass `fabrik apply`, whose
+`deployer_ssh._validate_compose()` grades app deploys); `scripts/sysadmin/vps1_cpu_limits.py` applies the vps1 caps
+to the running containers and their live composes (operator-run);
 mesh-only services bind to `10.99.0.1`.
 
 ### Retired services

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T00:27:09.288166Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-b6fa4582",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M652CKDK3971CCV2BQBVZYAP",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: w-4f4ac600-sync-out-of-lock"
+}

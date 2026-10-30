@@ -25,6 +25,109 @@ line carries `woke`'s exit-0 condition. The boot sweep consumes autonomous marke
 `agents_bat.py --list` repo's grid detached once per boot per repo, retrying a repo whose launch failed; `--list` skips an
 unreadable or newline-named folder and the sweep notes it (W-6e656dac T04; review 41/13 → 9/5 → 4/1 → 0).
 
+### Changed — the panel answers every gate a coordinator can validate; the operator keeps five labelled classes (2026-10-30)
+
+- Plan-1 Phase A (W-4a03df79, D-1110, approved D-1122). Both contracts' § FINAL OUTPUT gate ground hands design and
+  plan approval, Gate 1, an own-VPS Gate 2 with backup and rollback, backed-up destructive acts on our own
+  branches/worktrees/scratch/test repos/old volumes, dump-first production-data windows, fleet-minted credentials,
+  own-surface publishing and in-ceiling spend to the Opus + Fable panel. The operator keeps the rest, each block
+  labelled `operator-kept: public|above-ceiling|recurring|operator-minted|unbacked`. Spend stays the operator's while
+  the ceiling is 0, and irreversible acts always. § Autonomy, the coordinator-role Escalation, the template's
+  hub-request bullet, `design-gate-panel.md`, `deploy-chain.md`, `/fabrik-deploy`, `/fabrik-deploy-plan-review`
+  (two gate blocks plus the `PANEL APPROVED` close), `/fabrik-release` and the NEXT map now say the same.
+- The five deploy-chain lean ledgers are re-cut onto the approved wording on the branch (D-1371), and
+  `commands/_size_ceiling.json` licenses the new D-1110 read. Graded by `tests/test_least_operator_approval.py` (A1-A7).
+
+### Fixed — the hub sync runner survives its merge run's capped_run scope (2026-10-30)
+
+- `merge_request.py` starts the governance `sync-runner` in its own transient user scope (`fabrik-agents.slice`, `--collect`, a `RuntimeMaxSec` backstop) when that exact start probes green, bare otherwise, so capped_run stopping the merge's scope at exit no longer kills a sync mid-write and the drain's "still running in the background" line is true; the runner starts no sync past its soft deadline and leaves the debt owed (W-73d00b05, D-1370).
+
+### Fixed — merge: the governance sync runs outside the merge lock (2026-10-30)
+`scripts/merge_request.py` no longer runs `sync_enforcement_to_projects.py --force` inside the merge lock (W-4f4ac600, D-1369): a landing that merged a governance-sync path held the lock ~4 min after its push (01M64FJ6AT: push 00:59:53, reply 01:04:04; two no-sync landings released ~6 s after their CAS), and `merge --queue` waited it out per landing. A landing now owes the sync (`<git common dir>/fabrik-merge/sync-owed.log`) and kicks a detached `merge_request.py sync-runner`, which serializes on its own `sync.lock` and loops until a successful sync covers the owed log (the sync itself holding that lock, so a killed runner's orphaned sync is never doubled); the run's end waits for it, `SYNC_TIMEOUT_S` in all, gives a runner that exited 0 with a debt still owed one more runner, and prints `sync: ran`, `sync: FAILED … --force`, `sync: still running in the background` or `sync: unknown` (the exit code unchanged); a debt a failed or killed run left is retried by the next hub landing.
+
+### Changed — merge queue: a later leg is budgeted on the run's own timed legs (2026-10-30)
+`merge_request.py merge --queue` budgeted every forked leg at the base's declared limit (2700 s on the hub), which closed the fork window at 1080 s of its 11100 s wall: from the third request on every landing ran its leg inside the merge lock, one per ~16 min, while a live hub leg measured 697 s (W-1fb11ec8). `_leg_fits` now budgets a later leg at 1.5 x the longest green queue leg this run timed (its own recorded seconds, exit 0, `queued_as` its element), capped at the declared limit and at that limit until one is timed — window 2734 s at 697 s. Fixed with it: a request whose queue leg failed was forked again after every chain rebuild; a request now gets one queue leg per stacked tree per run and then lands through its locked leg, while one re-stacked after an earlier refusal is tested again outside the lock. Every leg still ends inside the wall (graded), no test is skipped, no untested tree lands (D-1211, D-1225).
+
+### Changed — merge leg: a review receipt selects tests by its file name only (2026-10-29)
+`scripts/merge_test_select.py` keys a changed `docs/development/reviews/*.md` receipt by its file name alone instead of its directory (W-1fb11ec8, D-1356): over the 59 coordinator merges since 2026-10-28 12:00 the leg's serial selection drops 8.2 %, every selection a subset of today's, 17 of 17 measured red-master catches kept. Importer-closure narrowing was measured and rejected (D-1356); the leg's confirm phase, about two thirds of a measured leg, is W-c80361e4.
+
+### Changed — merge leg: an ordered re-run stops one test past the reds it verifies (2026-10-29)
+A merge-leg red that is green alone used to re-run its whole shard in order (~500 s) and, when red there, the
+whole shard again on the base. The recording plugin now cuts such a run one test past its last red, with every
+shard file still collected; the replayed glitchtip leg would have saved ~480 s of 1,644 s (W-c80361e4, D-1360).
+
+### Added — `rotate-session --move`: relaunch a builder's pane in the worktree it works in (2026-10-29)
+A builder that moves into another linked worktree keeps loading hooks, settings and permissions from the folder its pane
+started in, and its session stays filed there, so neither a /clear nor a relaunch could move it (W-e38f8ee7, D-1355).
+- **New verb:** `agents_up.sh rotate-session <name> --move` is a rotation at the same item boundary into the worktree
+  the session's `cwd` sits in.
+- **How it runs:** the fabrik-rotate unit gets the pane command from the new `agents_up.sh --pane-cmd … --into
+  <folder> --from <old sid> --replacing <old pid>` first, then re-runs every check and re-reads the box and transcript
+  just before the kill. It then runs `tmux respawn-pane -k -c <folder>` with a fresh `--session-id` launch whose first
+  turn is the move prompt, reaps the old claude by pid, re-points the registry and waits for the re-bind.
+- **Rows:** `mode: move`, `into`, `old_exit`; new outcomes `refused:launch`, `partial:respawn` and `partial:launch`.
+- **Tests:** `tests/test_rotate_session.py` (6 new) and `tests/test_agents_up.py` (3 new). The build's 10 guard mutants
+  are killed, and so are 9 of the full review's 10 fix mutants; the tenth (the quoted checkout path) is shown by its
+  grader failing on the unfixed commit.
+
+### Fixed — spoke backrest and traefik declare memory and CPU limits; the infra grader reads every host (2026-10-29)
+`infra/vps2|vps3/backrest` gain `cpus: '1.0'` and `infra/vps2|vps3/traefik` gain `memory: 256M` + `cpus: '2.0'`
+(it had no limit at all). `tests/test_infra_vps1_cpu_limits.py` now grades every `infra/vps*/` host, adds a
+plain-size memory grade, and caps cpus at min(2.0, half the host) from a per-host CPU table. The live step is the
+coordinator's operator gate (`docker update` per spoke, then the live compose lines). D-1357, W-1e9cd280.
+
+### Fixed — a `--lean` green says plainly it ran no mypy (2026-10-29)
+- `scripts/final_gate.py`: every Tier-1 run except a `.md`-only diff adds the green skip row
+  `Tier-2 checks (NOT RUN — --lean)` (W-d488bbbf, feedback row 1791309119). It names the Tier-2
+  checks it did not run and points at `final_gate.py --json`, so a lean-only green no longer reads
+  like grounds for a merge request. It is advice, not enforcement, and travels through the existing
+  channels (`warnings`, `skipped_checks`, the roster, the human `Skipped:` line); no JSON key was
+  added. Those lean runs now report `skipped` ≥ 1.
+
+### Changed — /fabrik-review: a linked-worktree review whose seats may outlast a turn commits its surface first and takes the committed-fix form (2026-10-29)
+`/fabrik-review` Phase 0 now says that in a linked worktree a review of the session's own work whose seats may still be out at a
+turn end can meet the Stop hook's uncommitted-work block (`_review_exempts_commit` in `.claude/hooks/final_gate_stop.py`
+decides when the surface is spared). So, except a plan's whole-plan receipt and the reviews `/fabrik-task` Phase 4 runs
+before its commit, it commits that surface before Pass 1 and takes the Termination contract's committed-fix form. The
+`term-coverage` Persist obligation points at that case. Answers two `/fabrik-review` feedback rows that found the draft
+form only after the first block.
+
+### Fixed — design-system-template: a namespaced alias of a `:root` slot stays in `@theme inline` (2026-10-29)
+The Tokens bullet of `core/design-system-template.md` § Tailwind (CSS-first) usage told a reader that a namespaced slot
+whose value is a `var()` goes in `@theme static inline`, while its own alias example (`--color-surface-0:
+var(--surface-0)`) sat in `@theme inline`, so both forms read as compliant (mail from web-ecommerce-factory). A new
+sentence says the alias is not a slot (a slot is a name § Token slots or the project's `docs/design-system.md` lists),
+gives the compiled difference, and names the four namespaces whose listed `var()` slots stay in `@theme static inline`.
+Two graders pin it and scan every pack's `@theme static` blocks for an alias (D-1363).
+
+### Added — vps1 CPU caps are verified (`vps_apply_limits.sh --check`) and their throttling watched (2026-10-29)
+`scripts/vps_apply_limits.sh` lists every defined container with no CPU cap (NanoCpus and CpuQuota both
+<= 0) and `--check` fails on one; an unreadable CPU read fails every mode, a container removed mid-run is
+GONE. It still mutates memory only. New warning `ContainerCPUThrottled`: throttled in more than 25% of CFS
+periods for 15 minutes while running more than 1 period per second (aro-wake only), promtool-tested.
+Live step is the coordinator's operator gate (sync the script, push the rules). D-1361, W-fc701b31.
+
+### Fixed — tab router: every repo's coordinator in the picker (2026-10-29)
+The VS Code chat-tab picker (`scripts/sysadmin/claude_tab_router.py`) listed a repo only when it already had a known
+agent, so 34 of the 44 /opt git repos never appeared and only 2 offered a role named `coordinator` (W-5f4b0972,
+D-1364). Every git repo under /opt is now listed, each with its coordinator: the ledger's merge owner, or the plain
+`coordinator` labelled `(no owner row)` where the ledger declares none. A missing ledger or a failed lookup offers no
+coordinator row. The `decisions.py --merge-owner` lookups run on 8 threads with a 5 s timeout each and stop 3 s before
+the picker's deadline, so one hung lookup no longer costs the whole picker (`hibernate.merge_owner` gains a `timeout`
+keyword and the `DECLARES_NONE` constant). Registry repo keys are normalised, so `/opt/x/` and `/opt/x` are one
+repo. 7 new tests (28 in the file, 21 before); `docs/workstation/claude-tab-router.md` updated. Full `/fabrik-review`
+3 rounds (2 → 3 → 0 confirmed); residue W-e9386861, W-449dfa54.
+
+### Added — kaizen reads every repo's LESSONS_LEARNT and AFCL incrementally (2026-10-29)
+`scripts/sysadmin/lessons_relay.py` rides the daily kaizen collector after the feedback relay and
+mails kaizen one digest of the entries written into any repo's `docs/LESSONS_LEARNT.md`,
+`docs/lessons-learnt.md` or `AFCL.md` since its cursor. Each entry gets one pointer row (path, line
+and heading), which kaizen answers with a command or rule edit, or rejects with a reason. `--seed`
+records the 2,906-entry backlog without sending it, and refuses to replace a live cursor. A stray
+code fence no longer hides the lessons after it: only a fence with a language tag counts, and not
+one that holds another tagged fence as long, because 27 of 84 files end in a stray one. A mail stays under mail.py's size cap, and a heading that
+mail.py would refuse is withheld, so one heading cannot block the digest (W-d6ebcc04, D-1362).
+
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
 `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.
@@ -135,6 +238,65 @@ paragraph now says the alternative is outside the mandate and routes a project t
   watchdog then reads whether each file changed. `docs/workstation/wsl-net-heartbeat.md` gives
   the install, the hand-off order and the operator's exact ps1 edit. Not installed yet: it runs
   from the main checkout after merge.
+
+### Fixed — two decision-ledger tests grade the tree under test, not /opt/fabrik (2026-10-29)
+- `tests/enforcement/test_check_decisions_unique.py`: `test_the_live_hub_ledger_has_no_stray_rows`
+  and `test_the_cobra_path_is_written_down_where_the_next_reader_finds_it` read hardcoded
+  `/opt/fabrik` paths, so from a worktree they graded the main checkout's ledger and checker
+  (W-72878aa4). Both now read the tree the test file sits in, under every import mode. W-72878aa4's
+  five reader gaps and W-d6647738 (one id reader for the mint) were dropped as time sinks: 0 of 298
+  ledgers hold any of those shapes. Follow-up: W-a00defb5 (ten more tests with hardcoded paths).
+
+### Fixed — the decision-ledger gate reads one ledger table, and the mail digest counts what it shows (2026-10-29)
+- `scripts/enforcement/check_decisions_unique.py` (W-c25fd20f, D-1353): every leg reads one
+  population. The ledger table is the table holding the most D-rows, and a table ends where a GFM
+  renderer ends it (a heading, quote, list item, fence or HTML block ends it). A header and
+  delimiter of different widths render no table, and that is reported. A fake table no longer hides
+  a stray, and a row after the table or indented outside it is reported where it sits. An indented
+  duplicate inside a table is found, and a fenced example is not a row. `D-1`, `D-001` and an
+  annotated `D-1 (amended)` cell are one id. A run from `docs/` (or under a hook's `GIT_DIR`) grades
+  the repo's ledger, and a short header no longer crashes before the blocking lines print. Every
+  leg's verdict is unchanged on all 298 ledgers on the box.
+- `.claude/hooks/mail_notify.py` (W-f3039837): the digest's rows and its unread total read one file
+  list. A dot-named file and a directory named like a message are in neither, as in `mail.py list`.
+
+### Fixed — the Stop hook's panel check holds across a prompt queued mid-turn (2026-10-29)
+- `.claude/hooks/final_gate_stop.py`: a queued prompt's row that Claude Code re-writes with the same uuid no
+  longer clears the seats' verdicts; a DECISION block written before a queued prompt is judged on the verdicts
+  held up to that prompt, as a `PANEL APPROVED` brief already was; the final message takes a cut-off only when
+  it equals the newest walked text, closing a borrowed cut-off the first build opened; a non-object JSON row no
+  longer crashes the panel check (W-573ddaa1, D-1349). A brief more than 2 MB before the next Stop stays unread (1
+  of 155 real briefs) — follow-up W-9e067e18; a re-written operator `user` row still resets the panel's verdicts —
+  follow-up W-432e07dc.
+
+### Changed — /fabrik-task sizes its seats to a defined quota runway (2026-10-29)
+- `commands/_sources/fabrik-task.md` phase 2: the quota runway phase 4 already named is now defined and read before
+  stamping seats in phase 2 and phase 4 — with `successor none`, the minutes until the 5h reading reaches 90 (the wall
+  for a merge or P0 owner the urgent-90 lane lets through) or the window resets, at `claude_rotate.py --status`'s
+  `burn 5h` rate; seats are sized to it and never skipped, and those that cannot fit wait for the lane's park and
+  resume (D-1350; 8 feedback rows).
+
+### Fixed — every deploy path refuses a compose service with no CPU limit (2026-10-29)
+- `src/fabrik/orchestrator/deployer_ssh.py::_validate_compose` now refuses a service whose
+  `deploy.resources.limits` lacks `cpus`, or holds a value outside `spec_loader.cpu_in_grammar`, the same way
+  it refuses a missing memory limit: on the four apply paths, the git redeploy (which resets to the old
+  commit), the non-git redeploy and restart (D-1352, W-43c850b1). A `limits` that is not a mapping is
+  refused as missing memory and cpus: a null or scalar one used to raise TypeError past the git redeploy's
+  reset, and a list or string one used to pass the memory check (`"memory" in` a list or string matches). calendar-orchestration-engine newly refuses until it adds the line (four more
+  projects already refuse for lacking any limits); each gets a request mail. The five docker apps deployed
+  before D-1326 pick the line up at their re-apply.
+
+### Added — the review loop queues a pass's seats under `max_seats` (2026-10-29)
+- `.claude/workflows/fabrik-review-loop.js`: an optional `max_seats` caps the seats running at once, so a
+  partition larger than the seat stamp runs as one pass instead of a trimmed or hand-split one; an invalid value
+  stops the launch; the `DISPATCH:` line appends the cap. A refuter whose agent call throws at the call is retried
+  instead of dropping its slice. `firstLine` no longer prints `[object Object]` for a rejection whose message is
+  blank (D-1354 states the rule). `docs/reference/review-loop-workflow.md`: the `max_seats` row; `box_minutes` is the brief's
+  box, enforced by nothing (D-1354; W-bc394d0b, W-62791872).
+
+### Fixed — A loopback service MCP is emitted only once its systemd unit is installed and enabled (2026-10-24)
+
+- `fabrik-scrape` reached the hub `.mcp.json` with no server behind it, so every hub session started with a dead :8034. `scripts/sysadmin/emit_mcp_project_config.py` now withholds a `SERVICE_UNITS` server whose unit is not installed and enabled under `FABRIK_SYSTEMD_UNIT_DIR` (default `/etc/systemd/system`) and names it in its verdict line; `scripts/sysadmin/mcp_health.py` names a withheld server and a stale entry, so a forgotten install stays visible (W-07298e38, D-1214).
 
 ### Added — a builder's prompt block names the coordinator's live peer address (2026-10-29)
 - `scripts/work.py`: in a coordinator-mode repo every builder prompt carries

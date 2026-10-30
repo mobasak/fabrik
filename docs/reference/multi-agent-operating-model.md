@@ -206,7 +206,10 @@ python3 scripts/merge_request.py merge --queue [--jobs 1] [--max 4]
 #      base, Sk request k merged onto S(k-1)) in pretest throwaways, runs each leg OUTSIDE the merge
 #      lock in a forked child (at most --jobs at once, default 1, each at the owner script's own
 #      width; a later leg forks only once the first request lands on a record or has no tree to
-#      test, and only while it and a landing after it fit the wall — W-d5d1d394), records
+#      test, and only while it and a landing after it fit the wall — W-d5d1d394; the leg is budgeted
+#      at 1.5 x the longest green leg the run already timed for that owner script (a changed
+#      `.fabrik/merge-tests` starts again), at its declared limit until one is —
+#      W-1fb11ec8), records
 #      each green tree as --pretest does, then lands each request in order through the unchanged
 #      locked `merge <id>`, which skips its leg on the matching tree. A request that will not build
 #      is skipped and the chain continues; after each landing the rest is rebuilt on the new base and
@@ -235,11 +238,13 @@ root when `src/` is itself a package — placed after the stdlib and before site
 first get the base's `.worktreeinclude` set copied in from the main checkout, so a gitignored `.env`
 is there as in a worktree, never over a file the tree tracks — D-610; the hub's own merge-tests runs
 `scripts/merge_test_select.py`, W-4e756979: the tests that name a changed path — its file, module,
-import or directory — plus every test whose text says `ls-files`, in 8 shards balanced by the
+import or directory; a review receipt under `docs/development/reviews/` by its file name only (D-1356)
+— plus every test whose text says `ls-files`, in 8 shards balanced by the
 per-file seconds each merge leg records in `<git common dir>/fabrik-merge/merge-tests-durations.txt`
 (no record: the round-robin split, W-c832e59f); it refuses a red that
 is new against the base (green, absent, or failing with another crash line there) and a run it
-could not finish, never one of master's own reds; outside a merge check it never checks out or
+could not finish, never one of master's own reds; a red green alone is re-run in its shard's order
+only up to one test past it, every shard file still collected, and so on the base (W-c80361e4); outside a merge check it never checks out or
 cleans the worktree and compares nothing; a rebuild of a branch head whose last green merge differs
 from it only in the selector's SKIP set — ledgers and work items — re-tests nothing, W-347cd0c3), (d) a CAS
 of the local base (up to three rebuilds; every owner-test leg of one invocation, rebuilds and the
@@ -253,7 +258,16 @@ unless the base declares `# merge-test-mem: <n>M|<n>G` alone on its line, clampe
 grammar is named in the leg's verdict and ignored — and a leg capped_run stopped (exit 137 or 124) is
 refused with capped_run's own last verdict line, on the merge and the pretest alike, W-e64a7b8e), (e) the carry into the main checkout — sibling WIP, untracked and staged files are never
 overwritten; a path that changed is kept and listed in the reply — (f) a fast-forward push, (g) the
-hub's governance sync, and (h) the reply to requester and distributor, then `mail.py ack done
+hub's governance sync, OWED and run by a background `sync-runner` outside the merge lock (its own
+`<git common dir>/fabrik-merge/sync.lock`; a debt stays in `sync-owed.log` until a sync that started
+after it succeeds; the run's end waits for it, `SYNC_TIMEOUT_S` in all, and prints `sync: ran`,
+`sync: FAILED … --force`, `sync: still running in the background`, or `sync: unknown` when it cannot
+read its state; a landing that cannot owe the sync says `sync: FAILED to owe or start` in its reply,
+W-4f4ac600; the runner starts in its own transient user scope in `fabrik-agents.slice` — `--collect`,
+`RuntimeMaxSec` `SYNC_RUNNER_MAX_S`, `MemoryMax` 4G — so capped_run stopping the merge's scope at exit
+never takes it, bare where that exact scope will not start, and it starts no sync past
+`SYNC_RUNNER_SOFT_S`, leaving the debt owed for the next kick — the drain's one rerun or a later
+landing's, W-73d00b05), and (h) the reply to requester and distributor, then `mail.py ack done
 --merge-sha`. Every merge commit it writes, a catch-up's included, ends in one Agent Provenance
 Trailer block — `Agent-Role: orchestrator`, the owner's `Agent-Name` (left out, with a note, when the
 owner is outside the agent-name grammar) and an `Agent-Context` (the request's names the branch,

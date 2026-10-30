@@ -108,7 +108,7 @@
 - [scripts/audit_capability_docs.py](../INDEX.md) (owner: infra): Capability doc-audit — consume capabilities.json defects[], resolve the fixable set, ledger the rest.
 - [scripts/audit_envs.py](../INDEX.md) (owner: infra): Audit .env files across all /opt/* projects.
 - [scripts/audit_infra_vs_docs.py](../INDEX.md) (owner: infra): Probe-vs-doc audit for the VPS fleet.
-- [scripts/backfill_ci.py](../INDEX.md) (owner: infra): Backfill the fabrik-managed CI (`.github/workflows/ci.yml` + `scripts/ci_local.sh`) onto an
+- [scripts/backfill_ci.py](../INDEX.md) (owner: infra): Backfill the fabrik-managed local CI (`scripts/ci_local.sh` + `.fabrik/run-pytest`, what
 - [scripts/bootstrap/bootstrap-hub.sh](../INDEX.md) (owner: infra): bootstrap-hub.sh — Fabrik hub disaster-recovery bootstrap
 - [scripts/bootstrap/bootstrap-spoke-restore.sh](../INDEX.md) (owner: infra): bootstrap-spoke-restore.sh — Fabrik spoke disaster-recovery bootstrap
 - [scripts/bootstrap/bootstrap-vps.sh](../INDEX.md) (owner: infra): bootstrap-vps.sh — Fabrik W-Multi M1
@@ -257,7 +257,8 @@
 - [scripts/sync_projects.py](../INDEX.md) (owner: infra): Sync /opt/* projects into data/projects.yaml + docs/PROJECT_CATALOG.md
 - [scripts/sync_prometheus_to_vps.sh](../INDEX.md) (owner: infra): Sync /opt/fabrik/configs/prometheus/ → vps1's /opt/monitoring/configs/prometheus/.
 - [scripts/sync_schema_to_projects.py](../INDEX.md) (owner: infra): Sync db/schema.sql to all /opt projects that don't have it.
-- [scripts/sysadmin/agents_bat.py](../INDEX.md) (owner: infra): agents_bat.py [--opt DIR] [--desktop DIR] [--distro NAME] [--replace FILE]... — one "<Repo> Agents.bat" per repo.
+- [scripts/sysadmin/agents_bat.py](../INDEX.md) (owner: infra): agents_bat.py [--opt DIR] [--desktop DIR] [--distro NAME] [--replace FILE]... [--tabbed] — one "<Repo> Agents.bat
+- [scripts/sysadmin/agents_spawn.py](../INDEX.md) (owner: infra): agents_spawn — spawn one builder into a repo: `agents_up.sh add <repo> <name> [--role R] [--item W-id]`.
 - [scripts/sysadmin/archive_transcripts.py](../INDEX.md) (owner: infra): archive_transcripts — Phase A of the session-history retention plan (revision 2026-10-05).
 - [scripts/sysadmin/bot.py](../INDEX.md) (owner: infra): VPS AI Sysadmin Telegram Bot.
 - [scripts/sysadmin/canary_grounding.py](../INDEX.md) (owner: infra): Grounding-integrity canary — the refuses-ungrounded flywheel axis (weekly batch).
@@ -285,6 +286,7 @@
 - [scripts/sysadmin/kaizen_outcomes.py](../INDEX.md) (owner: infra): Kaizen M1 outcome tier — rework miner, fleet-health sweep, premature-stop reader.
 - [scripts/sysadmin/kaizen_shrink_audit.py](../INDEX.md) (owner: infra): M0 shrink audit — the usage-evidence census over every governance artifact.
 - [scripts/sysadmin/kaizen_waste.py](../INDEX.md) (owner: infra): Kaizen token-waste series — Lean Six Sigma MEASURE for the fleet's token burn (W-02472911, D-1118).
+- [scripts/sysadmin/lessons_relay.py](../INDEX.md) (owner: infra): LESSONS relay — the incremental reader of every repo's LESSONS_LEARNT and AFCL (W-d6ebcc04).
 - [scripts/sysadmin/liveness_audit.py](../INDEX.md) (owner: infra): LIVENESS AUDIT — we verify correctness at write-time and never verify liveness at run-time.
 - [scripts/sysadmin/mail_escalate.py](../INDEX.md) (owner: infra): fabrik-mail escalation digest — the destination-side half of the addressing plan.
 - [scripts/sysadmin/mcp_health.py](../INDEX.md) (owner: infra): Assigned-vs-LIVE MCP diff for the current repo (D-033 forcing pair, advisory).
@@ -303,6 +305,8 @@
 - [scripts/sysadmin/stop_mine.py](../INDEX.md) (owner: infra): stop_mine — the promoted research miner (spec 2026-09-23-stop-and-compaction-enforcement-design
 - [scripts/sysadmin/transcript_size_check.py](../INDEX.md) (owner: infra): transcript_size_check — the ROTATE advisories (C.1.3 of the session-history retention plan, D-736; the
 - [scripts/sysadmin/user_hook_gate.py](../INDEX.md) (owner: infra): USER-level hook gate: run a hub hook for every window UNLESS the project already wires it.
+- [scripts/sysadmin/vps1_cpu_limits.py](../INDEX.md) (owner: infra): vps1 CPU limits, D-1324's live step: apply the hub's caps to the running containers and their live composes.
+- [scripts/sysadmin/vps1_ocoron_removal.py](../INDEX.md) (owner: infra): Remove the ocoron.com stack from vps1 (D-1333: "we will deploy ocoron.com at cloudflare not to our vps. remove it
 - [scripts/sysadmin/vps1_pg_scoped_logins.py](../INDEX.md) (owner: infra): vps1 Postgres rotation, runbook steps 2-3 (with step 1's stop checks and spoke sweep): scoped logins.
 - [scripts/sysadmin/vps_script_drift.py](../INDEX.md) (owner: infra): Read-only drift check: is every VPS still running the hub's committed scripts? (W-c792a205)
 - [scripts/sysadmin/worktree_transcript_link.py](../INDEX.md) (owner: infra): SessionStart + Stop (USER level, every window, every repo): keep a worktree session listed in its repo's window.
