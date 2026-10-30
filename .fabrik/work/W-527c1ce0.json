@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T19:34:44.465229Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-527c1ce0",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add the behind-count gate to request + a test; the governance line rides a full /fabrik-review (sync path)",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "same program; infra owns merge_request.py",
+  "status": "open",
+  "title": "Short-lived branches, enforced (operator 2026-10-30: 'fed up with merge issues'): merge_request.py request refuses a branch more than ~50 commits behind master until the builder merges master in (never rebase, pushed branch), with the exact command in the refusal; builders merge master at every item boundary (template + hub CLAUDE.md § EXIT line). Measured: infra's branch 2770 behind, fleet 649, intel 302, infra-2 246; 25 of 51 refusals in 14 d were red tests on a stale base"
+}
