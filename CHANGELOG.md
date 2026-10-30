@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the hub sync runner survives its merge run's capped_run scope (2026-10-30)
+
+- `merge_request.py` starts the governance `sync-runner` in its own transient user scope (`fabrik-agents.slice`, `--collect`, a `RuntimeMaxSec` backstop) when that exact start probes green, bare otherwise, so capped_run stopping the merge's scope at exit no longer kills a sync mid-write and the drain's "still running in the background" line is true; the runner starts no sync past its soft deadline and leaves the debt owed (W-73d00b05, D-1370).
+
 ### Fixed — merge: the governance sync runs outside the merge lock (2026-10-30)
 `scripts/merge_request.py` no longer runs `sync_enforcement_to_projects.py --force` inside the merge lock (W-4f4ac600, D-1369): a landing that merged a governance-sync path held the lock ~4 min after its push (01M64FJ6AT: push 00:59:53, reply 01:04:04; two no-sync landings released ~6 s after their CAS), and `merge --queue` waited it out per landing. A landing now owes the sync (`<git common dir>/fabrik-merge/sync-owed.log`) and kicks a detached `merge_request.py sync-runner`, which serializes on its own `sync.lock` and loops until a successful sync covers the owed log (the sync itself holding that lock, so a killed runner's orphaned sync is never doubled); the run's end waits for it, `SYNC_TIMEOUT_S` in all, gives a runner that exited 0 with a debt still owed one more runner, and prints `sync: ran`, `sync: FAILED … --force`, `sync: still running in the background` or `sync: unknown` (the exit code unchanged); a debt a failed or killed run left is retried by the next hub landing.
 

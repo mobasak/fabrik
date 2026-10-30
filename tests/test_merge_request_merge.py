@@ -96,6 +96,9 @@ class World:
             "SYNC_ARGV",
             [sys.executable, "-c", f"open({str(self.sync_marker)!r}, 'a').write('x')"],
         )
+        # runners start bare here: a real scope would outlive the test (W-73d00b05's own graders
+        # clear this pin)
+        monkeypatch.setattr(self.mod, "_SCOPE", {"ok": False}, raising=False)
         self.remote = tmp / "remote.git"
         _git(tmp, "init", "-q", "--bare", "-b", "master", str(self.remote))
         self.main = tmp / "proj"
@@ -908,6 +911,211 @@ def test_a_sync_past_the_drain_bound_is_reported_still_running(world, monkeypatc
     while time.monotonic() < end and not world.sync_marker.exists():
         time.sleep(0.1)
     assert world.sync_marker.read_text() == "done"
+
+
+# W-73d00b05: capped_run.sh's EXIT trap stops its scope, and a start_new_session runner is still in
+# it — so a runner alive when merge_request.py exits died with its sync. It now starts in its own
+# bounded transient scope when one can start, bare otherwise.
+_RUNNER = [sys.executable, "merge_request.py", "sync-runner", "--state", "s", "--", "sync"]
+
+
+def _probe_ran(monkeypatch, mod, result) -> list[list[str]]:
+    """Stub the scope probe's subprocess.run: ``result`` is an exit code or an exception to raise."""
+    mod._SCOPE.clear()
+    calls: list[list[str]] = []
+
+    def run(argv, **_kw):
+        calls.append(list(argv))
+        if isinstance(result, BaseException):
+            raise result
+        return subprocess.CompletedProcess(argv, result)
+
+    monkeypatch.setattr(mod.subprocess, "run", run)
+    return calls
+
+
+@pytest.mark.parametrize(
+    "result",
+    [1, OSError("no systemd-run"), subprocess.TimeoutExpired("systemd-run", 10)],
+    ids=["refused", "absent", "timeout"],
+)
+def test_the_runner_starts_bare_when_no_scope_can_start(world, monkeypatch, result):
+    calls = _probe_ran(monkeypatch, world.mod, result)
+
+    assert world.mod._runner_scope(_RUNNER, {}) == _RUNNER
+    assert world.mod._runner_scope(_RUNNER, {}) == _RUNNER
+    assert len(calls) == 2  # a failed probe is asked again: one bus blip never pins a run bare
+
+
+def test_a_green_probe_is_kept_for_the_process(world, monkeypatch):
+    calls = _probe_ran(monkeypatch, world.mod, 0)
+
+    assert world.mod._runner_scope(_RUNNER, {})[0] == "systemd-run"
+    assert world.mod._runner_scope(_RUNNER, {})[0] == "systemd-run"
+    assert len(calls) == 1
+
+
+def test_kick_sync_starts_the_runner_through_its_scope(world, monkeypatch, tmp_path):
+    """The start itself, hermetic (the capped_run grader skips where no scope can start): the
+    runner's argv goes through `_runner_scope` and the Popen gets the filled env."""
+    mod = world.mod
+    _probe_ran(monkeypatch, mod, 0)
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "sync-owed.log").write_text("owed\n")
+    seen: dict = {}
+
+    class _Proc:
+        pid = 4242
+
+        def poll(self):
+            return None
+
+    def popen(argv, **kw):
+        seen.update(argv=list(argv), env=kw.get("env"))
+        return _Proc()
+
+    monkeypatch.setattr(mod.subprocess, "Popen", popen)
+
+    assert mod._kick_sync(tmp_path, state) is None
+    argv = seen["argv"]
+    assert argv[0] == "systemd-run" and "--collect" in argv
+    assert argv[argv.index("--") + 1 :][2:4] == ["sync-runner", "--state"]
+    assert seen["env"] == mod._runner_env(dict(os.environ))
+    assert mod._SYNC_RUN["started"] > 0
+    mod._SYNC_RUN.clear()
+
+
+def test_the_runner_env_fills_xdg_runtime_dir_from_the_user_bus(world, monkeypatch):
+    mod = world.mod
+    bus = Path(f"/run/user/{os.getuid()}")
+    assert mod._runner_env({"XDG_RUNTIME_DIR": "/kept"})["XDG_RUNTIME_DIR"] == "/kept"
+    filled = mod._runner_env({"PATH": "/bin"})
+    if (bus / "bus").is_socket():
+        assert filled == {"PATH": "/bin", "XDG_RUNTIME_DIR": str(bus)}
+    else:
+        assert filled == {"PATH": "/bin"}
+
+
+def test_a_runner_that_exits_before_writing_reads_no_older_status(world, monkeypatch, capsys):
+    """A scoped start can exit 1 before the runner runs (systemd-run refused it), writing no
+    status; an older run's rc-1 status is not this one's reason."""
+    state = _hub(world, monkeypatch)
+    state.mkdir(parents=True, exist_ok=True)
+    (state / "sync-owed.log").write_text("owed\n")
+    (state / "sync-status.txt").write_text(
+        json.dumps({"at": time.time() - 3600, "rc": 1, "sync_rc": 124, "tail": "OLD tail"})
+    )
+    failed = subprocess.Popen([sys.executable, "-c", "import sys; sys.exit(1)"])
+    world.mod._SYNC_RUN.update(proc=failed, state=state, main=world.main, started=time.time())
+
+    world.mod._drain_sync()
+    err = capsys.readouterr().err
+    assert "sync: FAILED (exit 1: the runner recorded no reason)" in err, err
+    assert "OLD tail" not in err
+
+
+def test_the_runner_starts_in_its_own_bounded_scope(world, monkeypatch):
+    mod = world.mod
+    calls = _probe_ran(monkeypatch, mod, 0)
+
+    argv = mod._runner_scope(_RUNNER, {})
+    cut = argv.index("--")
+    prefix, tail = argv[:cut], argv[cut + 1 :]
+    assert tail == _RUNNER
+    assert prefix[:4] == ["systemd-run", "--user", "--scope", "-q"]
+    for flag in (
+        "--collect",
+        "--slice=fabrik-agents.slice",
+        f"RuntimeMaxSec={mod.SYNC_RUNNER_MAX_S}",
+        f"MemoryMax={mod.SYNC_RUNNER_MEM}",
+        "MemorySwapMax=0",
+        "TimeoutStopSec=5",
+    ):
+        assert flag in prefix, (flag, prefix)
+    assert any(p.startswith("--unit=fabrik-sync-runner-") for p in prefix), prefix
+    # the probe ran the SAME flags (a property the manager refuses fails the probe, not the start)
+    (probe,) = calls
+    assert probe[probe.index("--") + 1 :] == ["true"]
+    strip = [p for p in probe[: probe.index("--")] if not p.startswith("--unit=")]
+    assert strip == [p for p in prefix if not p.startswith("--unit=")]
+    # the backstop outlasts the last sync a runner may start before its soft deadline, so a runner
+    # that retires at that deadline is never the one the backstop kills mid-sync
+    assert mod.SYNC_RUNNER_MAX_S >= mod.SYNC_RUNNER_SOFT_S + mod.SYNC_TIMEOUT_S
+    assert mod.SYNC_RUNNER_SOFT_S >= mod.QUEUE_WALL_S + mod.SYNC_LOCK_WAIT_S
+
+
+def test_a_runner_past_its_soft_deadline_runs_no_sync(world, monkeypatch, tmp_path):
+    mod = world.mod
+    state = tmp_path / "state"
+    state.mkdir()
+    (state / "sync-owed.log").write_text("owed\n")
+    marker = tmp_path / "synced-past-deadline"
+    monkeypatch.setattr(mod, "SYNC_RUNNER_SOFT_S", 0)
+
+    rc = mod._sync_runner(state, [sys.executable, "-c", f"open({str(marker)!r}, 'w')"])
+
+    assert rc == 0
+    assert not marker.exists()
+    assert not (state / "sync-done").exists()  # the debt stays owed for the next kick
+    status = json.loads((state / "sync-status.txt").read_text())
+    assert status["rc"] == 0 and "retired at its bound" in status["tail"]
+
+
+_CAPPED = SCRIPTS / "capped_run.sh"
+_KICK_AND_EXIT = """\
+import importlib.util, os, sys, pathlib
+spec = importlib.util.spec_from_file_location("mr_w73", sys.argv[1])
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+state, marker = pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])
+# 12 s: capped_run polls a scope still active after its command exits for up to 5 s
+# (capped_run.sh:150-155) before its EXIT trap stops it — a shorter sync finishes inside that grace
+# and the grader passes on the bare start it exists to refuse
+mod.SYNC_ARGV = [sys.executable, "-c",
+                 f"import time; time.sleep(12); open({str(marker)!r}, 'w').write('done')"]
+state.mkdir(parents=True, exist_ok=True)
+(state / "sync-owed.log").write_text("owed\\n")
+mod._kick_sync(state.parent, state)
+os._exit(0)  # exit at once, no drain: the wrapper stops its scope while the sync still sleeps
+"""
+
+
+def test_a_runner_outlives_its_merge_process_under_capped_run(world, tmp_path):
+    probe = world.mod
+    probe._SCOPE.clear()
+    if not probe._scope_ok(probe._runner_env(dict(os.environ))):
+        pytest.skip("no transient user scope can start here (capped_run then runs uncapped)")
+    child = tmp_path / "kick.py"
+    child.write_text(_KICK_AND_EXIT)
+    state, marker = tmp_path / "fabrik-merge", tmp_path / "synced-after-exit"
+
+    run = subprocess.run(
+        [
+            str(_CAPPED),
+            "--timeout",
+            "60",
+            "--",
+            sys.executable,
+            str(child),
+            str(SCRIPT),
+            str(state),
+            str(marker),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        check=False,
+    )
+    assert run.returncode == 0, run.stderr
+    end = time.monotonic() + 45
+    while time.monotonic() < end and not marker.exists():
+        time.sleep(0.2)
+    assert marker.exists() and marker.read_text() == "done", "the runner died with its wrapper"
+    end = time.monotonic() + 15  # the runner writes sync-done after its sync
+    while time.monotonic() < end and not (state / "sync-done").exists():
+        time.sleep(0.2)
+    assert int((state / "sync-done").read_text()) == (state / "sync-owed.log").stat().st_size
 
 
 def test_a_debt_left_by_a_killed_run_runs_at_the_next_landing(world, monkeypatch):

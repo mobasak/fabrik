@@ -74,6 +74,7 @@ import math
 import multiprocessing
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
@@ -2102,6 +2103,76 @@ def _owe_sync(state: Path, why: str) -> None:
         os.close(fd)
 
 
+# The runner's OWN scope (W-73d00b05): start_new_session leaves the process group, not the cgroup,
+# and capped_run.sh's EXIT trap stops its scope when merge_request.py exits — a runner alive then
+# died with its sync, and the drain's "still running in the background" was false. So the runner
+# starts in a transient user scope inside the fleet slice (capped_run's own parent, fabrik-agents
+# .slice), collected when it ends, its life bounded by SYNC_RUNNER_MAX_S, its memory by
+# SYNC_RUNNER_MEM (capped_run's per-run default, what it had inside the merge's scope); bare where
+# no such scope can start (no systemd-run, no user bus — as capped_run runs uncapped there). The
+# probe is that exact start with `-- true`, kept for the process once it passes and asked again at
+# the next kick while it fails (`_scope_ok`): a manager that answers yet refuses a
+# property fails the probe, never the runner. Cobra (D-253): the cheapest pass is a bare start that
+# the wrapper kills; the probe's own exit decides, and `sync-done` is what the graders read.
+_SCOPE: dict = {}  # {"ok": bool} — this process's probe answer
+SYNC_RUNNER_MEM = "4G"
+
+
+def _runner_env(env: dict) -> dict:
+    """The env the runner and its probe start with: XDG_RUNTIME_DIR filled from the user bus when
+    absent (capped_run.sh:112-114 — cron and stripped hook envs lack it)."""
+    bus = Path(f"/run/user/{os.getuid()}")
+    if not env.get("XDG_RUNTIME_DIR") and (bus / "bus").is_socket():
+        env = {**env, "XDG_RUNTIME_DIR": str(bus)}
+    return env
+
+
+def _scope_flags(unit: str) -> list[str]:
+    return [
+        "systemd-run",
+        "--user",
+        "--scope",
+        "-q",
+        "--collect",
+        "--slice=fabrik-agents.slice",
+        f"--unit={unit}-{os.getpid()}-{secrets.token_hex(4)}",
+        "-p",
+        f"RuntimeMaxSec={SYNC_RUNNER_MAX_S}",
+        "-p",
+        f"MemoryMax={SYNC_RUNNER_MEM}",
+        "-p",
+        "MemorySwapMax=0",
+        "-p",
+        "TimeoutStopSec=5",
+    ]
+
+
+def _scope_ok(env: dict) -> bool:
+    """Only a green probe is kept: a failed one (a bus that dropped for a moment) is asked again
+    at the next kick, so one blip never sends a whole queue run's runners bare."""
+    if not _SCOPE.get("ok"):
+        try:
+            probe = subprocess.run(  # noqa: S603 — fixed argv, no shell
+                [*_scope_flags("fabrik-sync-probe"), "--", "true"],
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                timeout=10,
+                env=env,
+                check=False,
+            )
+            _SCOPE["ok"] = probe.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            _SCOPE["ok"] = False
+    return _SCOPE["ok"]
+
+
+def _runner_scope(argv: list[str], env: dict) -> list[str]:
+    """``argv`` in its own bounded transient scope when one can start, else unchanged (bare)."""
+    if not _scope_ok(env):
+        return argv
+    return [*_scope_flags("fabrik-sync-runner"), "--", *argv]
+
+
 def _kick_sync(main: Path, state: Path) -> str | None:
     """Start the runner when a debt is owed and THIS process has none alive (a live one loops and
     covers it). Returns an evidence fragment, or None when there is nothing to say."""
@@ -2118,10 +2189,12 @@ def _kick_sync(main: Path, state: Path) -> str | None:
             "retrying"
         )
     argv = [sys.executable, str(Path(__file__).resolve()), "sync-runner", "--state", str(state)]
+    env = _runner_env(dict(os.environ))
     try:
         proc = subprocess.Popen(  # noqa: S603 — fixed argv, no shell
-            [*argv, "--", *SYNC_ARGV],
+            _runner_scope([*argv, "--", *SYNC_ARGV], env),
             cwd=main,
+            env=env,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -2131,7 +2204,9 @@ def _kick_sync(main: Path, state: Path) -> str | None:
         return (
             f"sync: FAILED to start ({exc}) — run scripts/sync_enforcement_to_projects.py --force"
         )
-    _SYNC_RUN.update(proc=proc, state=state, main=main)
+    # `started`: a status written before this start is another runner's (a scoped start can exit 1
+    # before the runner runs, writing none), so the drain never reads it as this one's reason
+    _SYNC_RUN.update(proc=proc, state=state, main=main, started=time.time())
     return note
 
 
@@ -2169,12 +2244,14 @@ def _sync_once(argv: list[str], state: Path, lock_fd: int) -> tuple[int, str]:
 
 def _sync_runner(state: Path, argv: list[str]) -> int:
     """``sync-runner`` (internal, listed by ``--help``; started by ``_kick_sync``): hold SYNC_LOCK, sync until the owed
-    log is covered. Exit 0 covered · 1 a sync failed · 2 sync-done did not persist · 3 the lock
+    log is covered. Exit 0 covered, or retired at SYNC_RUNNER_SOFT_S with the debt still owed ·
+    1 a sync failed · 2 sync-done did not persist · 3 the lock
     stayed held past its wait (``main`` adds 70: the runner itself crashed)."""
     state.mkdir(parents=True, exist_ok=True)
     fd = os.open(state / SYNC_LOCK, os.O_RDWR | os.O_CREAT, 0o644)
+    started = time.monotonic()
     try:
-        deadline = time.monotonic() + SYNC_LOCK_WAIT_S
+        deadline = started + SYNC_LOCK_WAIT_S
         while True:
             try:
                 fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -2192,6 +2269,22 @@ def _sync_runner(state: Path, argv: list[str]) -> int:
         while True:
             covers = _owed_size(state)
             if covers <= _done_size(state):
+                return 0
+            if time.monotonic() - started >= SYNC_RUNNER_SOFT_S:
+                # every process's debts feed one live runner, so no merge run's wall bounds it:
+                # past its own bound it starts no sync (one started would be cut by the scope's
+                # backstop) and leaves the debt to the next kick (W-73d00b05)
+                _write_atomic(
+                    state / SYNC_STATUS,
+                    json.dumps(
+                        {
+                            "at": time.time(),
+                            "covers": _done_size(state),
+                            "rc": 0,
+                            "tail": "runner retired at its bound; the debt stays owed",
+                        }
+                    ),
+                )
                 return 0
             rc, tail = _sync_once(argv, state, fd)
             if rc != 0:  # rc = this runner's exit (the drain matches it); sync_rc = the sync's
@@ -2233,6 +2326,7 @@ def _drain_sync() -> None:
     if proc is None:
         return
     state, main = _SYNC_RUN.pop("state"), _SYNC_RUN.pop("main")
+    started = _SYNC_RUN.pop("started", 0.0)
     deadline = time.monotonic() + SYNC_TIMEOUT_S
     for rerun in (False, True):
         try:
@@ -2268,7 +2362,8 @@ def _drain_sync() -> None:
             return
     last = _sync_status(state)
     rc = proc.returncode  # the runner's own exit; the status file may be an older run's
-    if last.get("rc") == rc:
+    fresh = isinstance(last.get("at"), (int, float)) and last["at"] >= started
+    if fresh and last.get("rc") == rc:
         rc, tail = last.get("sync_rc", rc), last.get("tail", "")
     else:
         tail = "the runner recorded no reason"
@@ -2954,6 +3049,12 @@ LANDING_WORST_S = QUEUE_WAIT_S + MERGE_TEST_BUDGET_S + PUSH_TIMEOUT_S + SYNC_TIM
 QUEUE_BUILD_S = 300
 LEG_OVERHEAD_S = 120
 QUEUE_WALL_S = LANDING_WORST_S + MERGE_TEST_BUDGET_S + QUEUE_BUILD_S
+# The sync runner's bounds (W-73d00b05, `_runner_scope`): it starts no sync past SOFT — one lock wait
+# plus the longest process that keeps owing debts while it lives, a queue run — and its scope's
+# RuntimeMaxSec backstop is SOFT + one whole sync + 60 s, so a runner that retires at SOFT is never
+# the one the backstop kills mid-sync.
+SYNC_RUNNER_SOFT_S = SYNC_LOCK_WAIT_S + QUEUE_WALL_S
+SYNC_RUNNER_MAX_S = SYNC_RUNNER_SOFT_S + SYNC_TIMEOUT_S + 60
 
 
 @contextlib.contextmanager

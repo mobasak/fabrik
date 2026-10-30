@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A wrapper's settle window can hide the kill a grader exists to catch (2026-10-30, W-73d00b05)
+
+**What happened:** a grader that ran a real `capped_run.sh` and asserted a detached runner's 3 s fake sync still finished passed on the bare start it exists to refuse: capped_run polls a scope still active after its command exits for up to 5 s before its EXIT trap stops it, and the 3 s sync finished inside that grace. Only the always-bare mutant showed it.
+
+**Lesson:** when a grader proves something survives a wrapper, size the subject past every grace the wrapper gives (settle polls, TimeoutStopSec, kill-after), and run the grader against the mutant that restores the bug before trusting its green.
+
 ## Time a lock's tail from the timestamps its steps already leave (2026-10-30, W-4f4ac600)
 
 **What happened:** a merge lock was held ~4.3 min after a merge commit that owed the governance sync, and the item named five suspect steps. A live sampler had started after the landing and saw none of it; the shared reflogs (`master` for the CAS, `origin/master` for the push) and the mail store's mtimes (reply, ack) split the window in one read: carry + push 6 s, sync 251 s, reply + ack 1 s, and two no-sync landings closed the case as controls.
