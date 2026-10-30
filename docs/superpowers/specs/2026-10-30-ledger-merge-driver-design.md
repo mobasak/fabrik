@@ -24,7 +24,7 @@ Work item: W-53360407 (P0). Recommends a DIFFERENT shape from the one the item a
 
 ## Goal
 
-A `git merge`, `rebase` or `cherry-pick` in any hub worktree resolves concurrent INSERTIONS into the five ledgers (`CHANGELOG.md`, `docs/DECISIONS.md`, `INDEX.md`, `docs/STRATEGIC_BACKLOG.md`, `docs/LESSONS_LEARNT.md`) with the same resolver the merge owner already trusts. No ledger moves, no reader changes, nothing migrates. An EDIT to an already-landed ledger line still conflicts, by design.
+A `git merge` in any hub worktree (and the `rebase` or `cherry-pick` a local, unpushed branch may still do; a pushed branch is never rebased, `scripts/merge_request.py:101-108`) resolves concurrent INSERTIONS into the five ledgers (`CHANGELOG.md`, `docs/DECISIONS.md`, `INDEX.md`, `docs/STRATEGIC_BACKLOG.md`, `docs/LESSONS_LEARNT.md`) with the same resolver the merge owner already trusts. No ledger moves, no reader changes, nothing migrates. An EDIT to an already-landed ledger line still conflicts, by design.
 
 ## Why this exists (measured 2026-10-30, executed this session — § Derivations)
 
@@ -58,6 +58,7 @@ A `git merge`, `rebase` or `cherry-pick` in any hub worktree resolves concurrent
 1. **New verb `merge-ledger`** in `scripts/merge_request.py`. It sits beside the `merge`/`resume`/`retry` parsers (`scripts/merge_request.py:3758-3792`) and takes `<base> <ours> <theirs> <path>` (git's `%O %A %B %P`).
    - It reads the three files as bytes through `_decode`, exactly as `_build` does.
    - It computes `_merge3(path, ours, base, theirs)`.
+   - For `docs/DECISIONS.md` it then refuses, naming the ids, when the result holds a D-id twice that neither side held twice alone: the duplicate-id check `_build` applies at landing (`scripts/merge_request.py:1203-1208`), moved to the first merge that can see the clash, so a builder sees both rows at its own merge instead of a refusal one round trip later. (Panel, Fable concern 1.)
    - It writes the `_encode`d result to `<ours>` atomically (temp file + rename in the same directory). Nothing after the rename can fail: the verb is dispatched before `main()`'s `try`/`finally` sync drain, as `sync-runner` is (`scripts/merge_request.py:3779-3790`).
    - On `RefusedError`, or any other exception, it leaves `<ours>` untouched and no temp file behind, prints the reason to stderr and exits 1.
    - Invariant: `<ours>` is either untouched with a non-zero exit, or holds a complete, marker-free resolution with exit 0. Never a write followed by a non-zero exit, which the `||` fallback would re-merge into a misleading conflict.
@@ -70,14 +71,15 @@ A `git merge`, `rebase` or `cherry-pick` in any hub worktree resolves concurrent
    - The BEGIN/END marker text stays byte-identical, so no existing block is orphaned.
    - The failure message in `set_config` names the driver it failed on, not always "the work-item merge driver".
 4. **Unchanged, deliberately.** The ledger files, `SKIP`, `PRETEST_SKIP`, `LEDGERS`, `_dup_ids`, `_build`, and every reader of the two ledgers. § Derivations D2 counts 47 Python files outside `tests/` naming `CHANGELOG.md` or `DECISIONS.md` under `scripts/`, `.claude/hooks/` and `src/`.
-   - Inside `_build`'s throwaway worktree the driver now fires first: the throwaway is a worktree of the same common dir, so it shares the config and `info/attributes`. Its text is identical to the in-process path, because it calls the same function with the same sides (ours = the base branch there).
+   - Inside `_build`'s throwaway worktree the driver now fires first: the throwaway is a worktree of the same common dir, so it shares the config and `info/attributes`. For a path git's own merge would conflict on, its text is the in-process path's, because it calls the same function with the same sides (ours = the base branch there). For a path git would have merged cleanly, the text now comes from `git merge-file` instead of git's internal merge; § Derivations D4 measures that difference. (Panel, Opus concern 1.)
    - A driver refusal falls back to markers, and `_build`'s in-process `_merge3` then refuses with today's message.
    - `_dup_ids` still runs over the merge result.
 
 **MIRROR — the shapes this changes.**
 - A builder who relied on seeing markers in the ledgers to review a sibling's entry now gets them merged. That is the intended effect.
-- **Order.** DECISIONS rows stay ordered by D-number whichever side is ours. In the other four files the resolver keeps ours first. A builder's `git merge master` therefore places the branch's own new entry above master's new entries, while the owner's landing places master's first. Content is identical either way, and only the order of entries that landed in the same window differs. Rebase reverses ours and theirs again. No reader checked here depends on that order. The plan's tests pin the content, never the order.
+- **Order.** In DECISIONS the conflict hunk holding the higher D-number goes first (`_max_d`, `scripts/merge_request.py:980`); rows inside one hunk keep their side's order, so two rows on one side can interleave with the other side's. In the other four files the resolver keeps ours first. (Panel, Fable concern 3.) A builder's `git merge master` therefore places the branch's own new entry above master's new entries, while the owner's landing places master's first. Content is identical either way, and only the order of entries that landed in the same window differs. Rebase reverses ours and theirs again. No reader checked here depends on that order. The plan's tests pin the content, never the order.
 - A merge whose ledger edit was a deliberate rewrite of a landed line still conflicts, as today.
+- **Empty base.** When both sides CREATE a ledger (git passes an empty `%O`), the resolver keeps both whole files, headers included, as `_build` already does with `orig = ""` (`scripts/merge_request.py:1189`). Pre-existing on the owner path, new on the builder path. (Panel, Fable concern 6.)
 - `git merge -X ours|theirs` reaches no custom driver (git ignores `-X` for drivers, as the installer comment at `:73` already records).
 - A clone where the installer never ran behaves as today, which is silent but no worse.
 
@@ -99,12 +101,15 @@ None. No data-contract, ui-design, spec `shape:` or CLI surface a project consum
   - The control (no driver) must CONFLICT: the test asserts it first.
   - With the driver registered, the same merge is clean and holds both entries.
   - A third leg runs `git rebase` over the same pair and asserts clean.
+  - The DECISIONS leg inserts `D-1391` on one side and `D-1390` on the other and asserts `D-1391` precedes `D-1390` whichever side is ours: the one assertion that proves `%P` reached the verb. (Panel, Fable concern 2.)
+- **Duplicate-id test.** Both sides insert a `| D-1390 |` row: the verb exits 1 with `%A` byte-identical, and the merge leaves markers showing both rows. (Panel, Fable concern 1.)
+- **No-regression test.** A ledger merge that `git merge` resolves cleanly with no driver still exits 0 with no markers with the driver registered, and `_build` raises no `ConflictError` on it. (Panel, Opus concern 3.)
 - **Refusal test.** An edit of a landed row: the verb, run directly, exits exactly 1 with `%A` byte-identical. Through git, the merge leaves markers.
 - **Bootstrap test.** A tree whose `merge_request.py` has no `merge-ledger` verb.
   - The driver's stderr carries `invalid choice: 'merge-ledger'`, which proves the driver ran.
   - The merge leaves markers.
   - Plain git without the driver would leave markers too, so the stderr line is what makes this test red-able.
-- **Replay grader.** § Derivations D1 re-run with the merge driver registered on a scratch clone at the plan's tip, over the same 14-day window. Expected: the builder-side ledger-only count drops from 70 to at most 3. The builder who executes the plan runs it, and the plan records its output.
+- **Replay grader.** § Derivations D5 (a real `git merge` per merge, the driver registered, on a scratch clone at the plan's tip) over the same 14-day window, both sides: builder and owner. Expected: the builder-side figure D5 prints today, and no owner merge that is clean without the driver conflicts with it. (Panel, Opus concern 4.) The builder who executes the plan runs it, and the plan records its output.
 - **Tripwire (the judges' shared dissent, named here).**
   - What it watches: the one thing fragments could fix that the driver might not. That is a builder merge whose ledger conflict the resolver refuses for a reason OTHER than `a side edits an existing line`, i.e. an insertion the driver should have cleared.
   - Counter: § Derivations D3's distinct merge SHAs whose printed reason is not `a side edits an existing line`. Window: the 14 days after the driver lands, by commit date (`git log --since=<landing> --until=<landing + 14 days>`), never by merge-record fields, which carry no wall-clock time.
@@ -112,6 +117,8 @@ None. No data-contract, ui-design, spec `shape:` or CLI surface a project consum
   - Edit-class residue is reported beside the counter and never re-opens fragments, which cannot prevent it (§ Why this exists 3).
   - Check date: 14 days after the driver lands. Owner: the coordinator, as merge owner.
   - Reading 0 confirms this shape. Any other reading re-opens the fragment design under § Rejected alternatives, with the merge SHAs named.
+  - Counter B (a driver regression, independent of fragments): merges in the window that are clean with no `merge.ledger.*` and conflict on a ledger with it. Threshold: any; a non-zero reading blocks and is fixed in the driver. (Panel, Opus concern 2.)
+  - A rebased branch leaves no merge commit, so neither counter sees it; the owner's refusal records stay the rebase-side signal and are read beside them.
 
 ## Decisions taken
 
@@ -244,7 +251,7 @@ Output on 2026-10-30:
 ('owner', 'resolver-clears') 331
 ```
 
-**D3 — the builder residue with its reasons** (D1's builder ledger-only merges, each `_merge3` refusal printed; the tripwire's counter is the number of distinct merge SHAs whose reason is not `a side edits an existing line`). Run from the hub worktree root:
+**D3 — the builder residue with its reasons** (D1's builder ledger-only merges, each `_merge3` refusal printed; the tripwire's counter is the number of distinct merge SHAs whose reason is not `a side edits an existing line`). Run from the hub worktree root as `python3 d3.py <since> <until>` (git date strings). (Panel, Fable concern 4.)
 
 ```python
 import subprocess, re, sys
@@ -255,7 +262,8 @@ def blob(c, p):
     r = g("show", f"{c}:{p}", text=False)
     return mr._decode(r.stdout) if r.returncode == 0 else ""
 L = {"CHANGELOG.md", "docs/DECISIONS.md", "INDEX.md", "docs/STRATEGIC_BACKLOG.md", "docs/LESSONS_LEARNT.md"}
-for line in g("log", "--all", "--merges", "--since=14 days ago", "--format=%H %P\t%s").stdout.splitlines():
+since, until = sys.argv[1:3]  # the tripwire window: --since=<landing> --until=<landing + 14 days>
+for line in g("log", "--all", "--merges", f"--since={since}", f"--until={until}", "--format=%H %P\t%s").stdout.splitlines():
     head, subj = line.split("\t", 1); p = head.split()
     if len(p) != 3 or re.match(r"(merge\(coordinator\)|pretest |queue pretest )", subj): continue
     r = g("merge-tree", "--write-tree", "--name-only", "--no-messages", p[1], p[2])
@@ -268,13 +276,65 @@ for line in g("log", "--all", "--merges", "--since=14 days ago", "--format=%H %P
         except mr.RefusedError as e: print(p[0][:9], f, str(e).split(": ", 1)[1])
 ```
 
-Output on 2026-10-30 (3 distinct merges, = D1's 70 − 67):
+Output on 2026-10-30, run as `python3 d3.py "14 days ago" now` (3 distinct merges, = D1's 70 − 67):
 
 ```text
 fdf514616 docs/DECISIONS.md a side edits an existing line at a conflict
 6f6cd85ec INDEX.md a side edits an existing line at a conflict
 6b3e40657 docs/DECISIONS.md a side edits an existing line at a conflict
 ```
+
+**D4 — merges that are clean today: does the driver break or change them?** (Panel, Opus concern 1.) Every merge whose `merge-tree` is clean, each ledger file both sides changed, run through `_merge3` and compared with git's own merge result:
+
+```python
+import subprocess, re, sys, collections
+sys.path.insert(0, "scripts")
+import merge_request as mr
+def g(*a, text=True): return subprocess.run(["git", *a], capture_output=True, text=text)
+def blob(c, p):
+    r = g("show", f"{c}:{p}", text=False)
+    return mr._decode(r.stdout) if r.returncode == 0 else None
+L = ["CHANGELOG.md", "docs/DECISIONS.md", "INDEX.md", "docs/STRATEGIC_BACKLOG.md", "docs/LESSONS_LEARNT.md"]
+c = collections.Counter(); bad = []
+for line in g("log", "--all", "--merges", "--since=14 days ago", "--format=%H %P\t%s").stdout.splitlines():
+    head, subj = line.split("\t", 1); p = head.split()
+    if len(p) != 3: continue
+    kind = "owner" if re.match(r"(merge\(coordinator\)|pretest |queue pretest )", subj) else "builder"
+    r = g("merge-tree", "--write-tree", "--no-messages", p[1], p[2])
+    if r.returncode != 0: continue
+    tree = r.stdout.split()[0]
+    b = g("merge-base", p[1], p[2]).stdout.split()[0]
+    for f in L:
+        o, a, t = blob(b, f), blob(p[1], f), blob(p[2], f)
+        if o is None or a is None or t is None or a == o or t == o or a == t: continue
+        c[kind, "both-sides-changed"] += 1
+        want = blob(tree, f)
+        try:
+            got = mr._merge3(f, a, o, t)
+            if got == want: c[kind, "identical"] += 1
+            else: c[kind, "differs"] += 1; bad.append((kind, p[0][:9], f, "differs"))
+        except mr.RefusedError as e:
+            c[kind, "REFUSED"] += 1; bad.append((kind, p[0][:9], f, str(e).split(": ", 1)[1][:40]))
+for k in sorted(c): print(k, c[k])
+for x in bad[:20]: print(x)
+```
+
+Output on 2026-10-30:
+
+```text
+('builder', 'both-sides-changed') 32
+('builder', 'differs') 3
+('builder', 'identical') 29
+('owner', 'both-sides-changed') 113
+('owner', 'differs') 1
+('owner', 'identical') 112
+('builder', 'e84651224', 'CHANGELOG.md', 'differs')
+('builder', 'e84651224', 'docs/DECISIONS.md', 'differs')
+('builder', 'e84651224', 'docs/LESSONS_LEARNT.md', 'differs')
+('owner', 'd42930d43', 'CHANGELOG.md', 'differs')
+```
+
+No clean merge is refused (0 of 145 files). The 4 differences are both merges with two merge bases, where this replica's single `merge-base` is not the virtual base git hands a driver. A real `git merge --no-commit` of `e84651224` in a scratch clone with the driver registered reproduces every committed ledger blob, and a driver set to `false` also merges clean there: git never calls the driver on those files, because against the virtual base one side is unchanged.
 
 **D2 — the reader census:**
 
