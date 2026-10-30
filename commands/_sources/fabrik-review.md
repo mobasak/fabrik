@@ -66,6 +66,8 @@ python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lo
 
 If an argument was given, treat it as the review target: `$ARGUMENTS` (a path, a PR number, or a git range). Otherwise get the diff under review with `git diff @{upstream}...HEAD` (fall back to `git diff main...HEAD`, then `git diff HEAD~1`); if there are uncommitted changes or the range is empty, also run `git diff HEAD` and include the working tree.
 
+In a linked worktree, a review of this session's own work whose seats may still be out at a turn end can meet the Stop hook's uncommitted-work block, which orders every file this session authored and has not committed, its fixes included (when the review's `--surface` is spared is `_review_exempts_commit` in `.claude/hooks/final_gate_stop.py`, never restated here): so, except a plan's whole-plan receipt (`/fabrik-execute-plan` D7) and the reviews `/fabrik-task` Phase 4 runs before its commit, it commits that surface before Pass 1 and takes the committed-fix form of the Termination contract's Persist obligation.
+
 ⚠️ **A FINDER GIVEN A SHA MUST NOT READ THE LIVE TREE — it is probably dirty, and not with your changes.** **When you hand a finder a sha, materialise that sha:**
 
 ```

@@ -46,6 +46,14 @@ coordinator's operator gate (`docker update` per spoke, then the live compose li
   channels (`warnings`, `skipped_checks`, the roster, the human `Skipped:` line); no JSON key was
   added. Those lean runs now report `skipped` ≥ 1.
 
+### Changed — /fabrik-review: a linked-worktree review whose seats may outlast a turn commits its surface first and takes the committed-fix form (2026-10-29)
+`/fabrik-review` Phase 0 now says that in a linked worktree a review of the session's own work whose seats may still be out at a
+turn end can meet the Stop hook's uncommitted-work block (`_review_exempts_commit` in `.claude/hooks/final_gate_stop.py`
+decides when the surface is spared). So, except a plan's whole-plan receipt and the reviews `/fabrik-task` Phase 4 runs
+before its commit, it commits that surface before Pass 1 and takes the Termination contract's committed-fix form. The
+`term-coverage` Persist obligation points at that case. Answers two `/fabrik-review` feedback rows that found the draft
+form only after the first block.
+
 ### Fixed — dynamic builders: whole-plan validation fixes before the merge (2026-10-29)
 The dynamic-builders plan's whole-plan `/fabrik-review` (W-b9ad80ae, T10; receipt
 `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`) found and fixed 21 defects across 3 rounds.
