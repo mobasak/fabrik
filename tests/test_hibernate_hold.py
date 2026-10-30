@@ -164,14 +164,30 @@ def test_the_minute_cron_arms_at_t3_and_always_beats(box):
         assert not box.stamp.exists(), name
         assert float(beat.read_text()) == at, name
     box.mark()
-    box.last_end(T3 - 20 * 60)  # the box slept past the resume line before this run
+    beat.write_text(f"{T3 + 10 - 10 * 60}\n")  # the minute cron's last beat 10 min ago: the box slept
     _cron(box, T3 + 10)
     assert not box.stamp.exists(), "a box that slept before T-3 is never held after it wakes"
     box.last_end(T3 - 60)
-    _cron(box, T3 + 10)
+    _cron(box, T3 + 20)  # the previous beat (T3 + 10) is 10 s old
     assert box.stamp.read_text() == "0\nhibernate\n"
-    assert float(beat.read_text()) == T3 + 10
+    assert float(beat.read_text()) == T3 + 20
     assert any(r["event"] == "hibernate-hold" for r in box.ledger())
+
+
+@pytest.mark.parametrize(
+    "beat_age, armed", [(60, True), (None, True), (600, False)], ids=["fresh", "first", "slept"]
+)
+def test_the_arm_judges_the_sleep_by_the_minute_crons_own_beat(box, beat_age, armed):
+    """F2 (review r1): a dead or wedged */5 tick (`tick-last-end` 16 min old) never stops the T-3 arm while the
+    minute cron beat 60 s ago or never beat before; only a beat over 5 min old (the box slept) skips it."""
+    box.mark()
+    box.last_end(T3 + 10 - 16 * 60)
+    beat = box.state / "battery-tick-last"
+    if beat_age is not None:
+        beat.write_text(f"{T3 + 10 - beat_age}\n")
+    _cron(box, T3 + 10)
+    assert box.stamp.exists() is armed
+    assert float(beat.read_text()) == T3 + 10
 
 
 @pytest.mark.parametrize(
@@ -258,6 +274,19 @@ def test_a_sleep_after_the_mark_lifts_by_a(box):
     assert not box.stamp.exists()
     assert box.lifted.read_text() == f"{int(NOW)} hibernate\n"
     assert any(r["event"] == "hibernate-lift" and r["lift_path"] == "sleep" for r in box.ledger())
+
+
+def test_a_sleep_under_the_armed_tier_lifts_by_a_when_its_gap_began_before_the_mark(box):
+    """F1 (review r1): `--deadline 3m` puts T-3 at the mark, so the last */5 tick before the sleep ended BEFORE
+    `paused_at`; the `resume-wake` row written under the armed tier (`site: hibernate`) is still this pause's
+    sleep, and the tick lifts by `sleep` — not 30 min past T as `cancelled`."""
+    box.mark(deadline=MARK + 180)
+    box.last_end(MARK - 60)
+    box.stamp.write_text("0\nhibernate\n")
+    _tick(box, MARK + 20 * 60)
+    m = box.marker()
+    assert m.get("lift_path") == "sleep", m
+    assert not box.stamp.exists()
 
 
 def test_a_nap_ending_before_t3_or_a_gap_from_before_the_mark_lifts_nothing(box):
@@ -407,6 +436,20 @@ def test_the_hooks_hold_on_the_tier_the_arm_writes(box):
     assert action == "deny" and reason.startswith("HIBERNATE HOLD"), (action, reason)
 
 
+def test_the_hibernate_hold_text_orders_the_pause_close_not_the_wall(box):
+    """F5 (review r1): under the HIBERNATE head the close clause is `blocked --paused` (or `handoff`), as the pause
+    banner and the posture hook say — never `blocked --wall`; it names the tick's lift, the pause verbs that stay
+    allowed, and that T-3 has passed. The walled and battery heads keep `blocked --wall`."""
+    text = hook._reason("Edit", None, hibernate=True)
+    assert "blocked --paused" in text and "handoff" in text, text
+    assert "blocked --wall" not in text, text
+    assert "the tick" in text and "T-3 has passed" in text, text
+    for verb in ("status", "woke", "paused"):
+        assert f"hibernate.py {verb}`" in text, verb
+    assert "blocked --wall" in hook._reason("Edit", None)
+    assert "blocked --wall" in hook._reason("Edit", None, battery=True)
+
+
 def test_status_reads_the_heartbeat_the_minute_cron_writes(box):
     """Interface H (row 17): `hibernate.py status`'s check passes on the heartbeat the cron just wrote and blocks on
     one 3 minutes old."""
@@ -522,8 +565,10 @@ def test_a_paused_close_records_its_abandoned_seats_in_record_and_seed(run_dir, 
     assert any("seat review seat A: still running" in x for x in lines), lines
 
 
-def test_a_malformed_abandoned_seat_is_refused(run_dir):
-    """Row 14, the mirror: a value without four `|` fields refuses the close and leaves the run running."""
+@pytest.mark.parametrize("value", ["notapid|x", "²|x|y|z"], ids=["short", "unicode-digit"])
+def test_a_malformed_abandoned_seat_is_refused(run_dir, value):
+    """Row 14, the mirror: a value without four `|` fields, or a pid that is no decimal number (`²` passes
+    `isdigit()`), refuses the close with the documented line and leaves the run running."""
     _start(run_dir)
     out = _cr(
         run_dir,
@@ -534,7 +579,8 @@ def test_a_malformed_abandoned_seat_is_refused(run_dir):
         "--reason",
         "operator: hibernate",
         "--abandoned-seat",
-        "notapid|x",
+        value,
     )
     assert out.returncode != 0
+    assert "REFUSED — --abandoned-seat" in out.stdout, out.stdout + out.stderr
     assert json.loads((run_dir / "s1.json").read_text())["state"] == "running"

@@ -1530,10 +1530,18 @@ def _reason(
     else:
         head = "FLEET QUOTA EXHAUSTED — no account left to rotate to."
         lift = "The hold lifts when the tick sees relief"
+    # the pause is an operator pause, never the quota wall: its close is `blocked --paused` (or
+    # `handoff`), as the pause banner and the posture hook say (review r1, F5)
+    close = (
+        "`command_run.py blocked --paused` (or `handoff`), resumable by `start --resume-from`"
+        if hibernate
+        else "`command_run.py done` — or `blocked --wall`, resumable by `start --resume-from`"
+    )
     return (
         f"{head} {tool} is held. STOP GRACEFULLY NOW: "
         "commit your own work with explicit pathspecs "
-        "(`git commit -m '<msg>' -- <paths>` — SINGLE-QUOTE the message: a quoted newline is data, but `$(…)`/heredoc and a backtick in double quotes stay refused), `git push`, close your run record (`command_run.py done` — or `blocked --wall`, resumable by `start --resume-from`), "
+        "(`git commit -m '<msg>' -- <paths>` — SINGLE-QUOTE the message: a quoted newline is data, but `$(…)`/heredoc and a backtick in double quotes stay refused), "
+        f"`git push`, close your run record ({close}), "
         f"then end the turn — no new edits, no new phases. {_HELD_READS_SHORT}, command_run.py, mail.py, "
         f"thread_anchor.py, the self-watch arm and TaskStop stay allowed. {lift}, "
         "and the lift WAKES every session whose self-watch is armed (a RESUME line naming where it left "

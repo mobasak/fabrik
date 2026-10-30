@@ -285,9 +285,16 @@ def _abandoned_seats(values: list[str]) -> tuple[list[dict[str, Any]], str]:
     out: list[dict[str, Any]] = []
     for raw in values:
         parts = str(raw).split("|", 3)
-        if len(parts) != 4 or not parts[0].strip().isdigit() or int(parts[0]) <= 0:
+        # `isdecimal`, never `isdigit` (which admits `²`, and `int` then raises), and the
+        # conversion guarded too: a malformed pid is the refusal, never a crash (review r1, F4)
+        if len(parts) != 4 or not parts[0].strip().isdecimal():
             return [], str(raw)
-        pid = int(parts[0])
+        try:
+            pid = int(parts[0])
+        except ValueError:
+            return [], str(raw)
+        if pid <= 0:
+            return [], str(raw)
         try:
             start: str | None = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19]
         except (OSError, IndexError):

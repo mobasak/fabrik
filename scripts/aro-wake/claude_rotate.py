@@ -7580,10 +7580,24 @@ def _cmd_battery_tick() -> int:
     then the hibernate tier (:func:`_hibernate_arm`) — in that order, so a battery stamp written
     this minute at T-3 becomes the hibernate tier in the same run."""
     now = _now()
+    prev_beat = _read_battery_tick_heartbeat()  # BEFORE the write below overwrites it
     _write_battery_tick_heartbeat(now)
     _battery_leg(now, lift=False)
-    _hibernate_arm(now)
+    _hibernate_arm(now, prev_beat)
     return 0
+
+
+def _read_battery_tick_heartbeat() -> float | None:
+    """The minute cron's previous beat (`<state>/battery-tick-last`), or None — missing,
+    unreadable, not a regular file (a FIFO never blocks the read) or not a finite number."""
+    try:
+        path = _rotate_state_dir() / "battery-tick-last"
+        if not path.is_file():
+            return None
+        val = float(path.read_text(encoding="utf-8", errors="replace").strip())
+    except (ValueError, *_STATE_DIR_ERRORS):
+        return None
+    return val if math.isfinite(val) else None
 
 
 def _write_battery_tick_heartbeat(now: float) -> None:
@@ -7743,12 +7757,21 @@ def _stamp_raw_line1(stamp: Path) -> str:
     return line if line.strip() else "0"
 
 
-def _hibernate_arm(now: float) -> None:
+_HIBERNATE_BEAT_GAP_S: Final = 300.0  # five missed one-minute beats: the box slept
+
+
+def _hibernate_arm(now: float, prev_beat: float | None = None) -> None:
     """The minute cron's arm (spec L2): at T-3, holding `update_marker`'s flock and re-reading
     the marker under it, make the stamp the `hibernate` tier with line 1 carried raw — a `walled`
-    or `battery` stamp included — unless the mark is lifted, T has passed, or the wall gap since
-    `tick-last-end` is over `_resume_gap_s()` (the box slept: the lift leg judges that, and a box
-    that slept before T-3 is never held after it wakes). No hub `hibernate.py` arms nothing."""
+    or `battery` stamp included — unless the mark is lifted, T has passed, or the minute cron's
+    OWN previous beat (*prev_beat*, read before this run's heartbeat overwrote it) is over 300 s
+    old (the box slept: the lift leg judges that, and a box that slept before T-3 is never held
+    after it wakes). A missing previous beat (the first run) arms. This supersedes the ticket's
+    "the wall gap since `tick-last-end`": judged by the */5 tick's record, a dead or wedged */5
+    tick skipped the arm on an awake box and T arrived with no hard hold (review r1, F2).
+    A mark with no `deadline_at` arms nothing — T is the mark itself, so [T-3, T) has already
+    passed when it is written; only the posture hold and lift (c) apply to it. No hub
+    `hibernate.py` arms nothing."""
     try:
         state, m = _mark_state()
         if state != "unlifted" or m is None:
@@ -7756,11 +7779,10 @@ def _hibernate_arm(now: float) -> None:
         deadline = _mark_deadline(m)
         if not deadline - _HIBERNATE_T3_S <= now < deadline:
             return
-        prev_end = _read_tick_last_end()
-        if prev_end is not None and now - prev_end > _resume_gap_s():
+        if prev_beat is not None and now - prev_beat > _HIBERNATE_BEAT_GAP_S:
             print(
-                f"battery-tick: {(now - prev_end) / 60:.0f} min since the last tick ended — the box "
-                "slept; the hibernate tier is not armed (the tick's lift judges the sleep)"
+                f"battery-tick: {(now - prev_beat) / 60:.0f} min since the minute cron's last beat "
+                "— the box slept; the hibernate tier is not armed (the tick's lift judges the sleep)"
             )
             return
         stamp = _fleet_exhaustion_stamp()
@@ -7941,8 +7963,13 @@ def _api_answers() -> bool:
 
 
 def _hibernate_slept(at: float, t3: float) -> bool:
-    """Lift (a): a `resume-wake` row whose gap began at or after the mark and ended at or after
-    T-3 — a sleep that ended before T-3 is a nap during the drain, not the hibernate. Reads the
+    """Lift (a): a `resume-wake` row that ended at or after T-3 — a sleep that ended before T-3 is
+    a nap during the drain, not the hibernate — and EITHER whose gap began at or after the mark,
+    OR that was written under the armed tier (`site: hibernate`). The second arm exists because a
+    short deadline (`--deadline 3m` puts T-3 at the mark) leaves the last */5 tick's end BEFORE
+    `paused_at`, so the gap of the real sleep starts before the mark; a `site: hibernate` row is
+    written only while the tier stands, and the tier is armed only at or after T-3 of an unlifted
+    mark, so that row is itself proof the box slept under this pause (review r1, F1). Reads the
     ledger's last 2 MB (a pause lasts at most a day)."""
     try:
         path = _rotate_state_dir() / "rotate-ledger.jsonl"
@@ -7967,7 +7994,9 @@ def _hibernate_slept(at: float, t3: float) -> bool:
         start = _usable_ts(row.get("gap_from"))
         if start is None and end is not None and _usable_ts(row.get("gap_s")) is not None:
             start = end - float(row["gap_s"])
-        if end is not None and start is not None and start >= at and end >= t3:
+        if end is None or end < t3:
+            continue
+        if row.get("site") == _STAMP_TIER_HIBERNATE or (start is not None and start >= at):
             return True
     return False
 
