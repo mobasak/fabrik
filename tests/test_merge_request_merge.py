@@ -2716,3 +2716,137 @@ def test_merge_states_that_the_gate_is_the_callers(world, capsys):
         "no touched tests/)"
     ), out
     assert f"evidence: {duty}\n" in world.replies(msg_id)["fleet"]
+
+
+# --- D-1186's relief valve: the merge lands first, the same leg runs after (W-3237ba45) -----------
+def _after_world(world, script: str, above: int = 0) -> None:
+    """A base that declares the after-merge line, and one merged record so the rate is above it."""
+    world.write(".fabrik/merge-tests", f"# merge-tests-after-merge-above: {above}\n{script}\n")
+    world.commit_main("owner tests", ".fabrik/merge-tests")
+    rec_dir = world.main / ".git" / "fabrik-merge"
+    rec_dir.mkdir(parents=True, exist_ok=True)
+    (rec_dir / "01PRIORMERGE000000000000000.json").write_text(
+        json.dumps({"id": "01PRIORMERGE000000000000000", "outcome": "merged"}), encoding="utf-8"
+    )
+
+
+def _kicks(world) -> list:
+    kicked: list = []
+    world.mp.setattr(world.mod, "_kick_after", lambda ctx: kicked.append(ctx.main) or "")
+    return kicked
+
+
+def test_the_rate_counts_merged_records_of_the_last_seven_days(world):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
+    ctx.records.mkdir(parents=True, exist_ok=True)
+    for i, outcome in enumerate(["merged"] * 14 + ["refused"] * 5):
+        (ctx.records / f"r{i}.json").write_text(json.dumps({"outcome": outcome}))
+    old = ctx.records / "old.json"
+    old.write_text(json.dumps({"outcome": "merged"}))
+    os.utime(old, (time.time() - 8 * 86400,) * 2)
+    assert world.mod._merge_rate(ctx) == 2.0  # 14 merged in the window, the refused and the old not
+
+
+def test_above_the_declared_rate_the_merge_lands_without_its_leg_and_owes_it(world):
+    counter = world.tmp / "test-runs"
+    _after_world(world, f"python3 -c \"open({str(counter)!r}, 'a').write('x')\"")
+    kicked = _kicks(world)
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    assert world.run("merge") == 0
+    assert not counter.exists()  # no leg before the CAS
+    rec = world.record(msg_id)
+    assert rec["outcome"] == "merged" and rec["tests_after_merge"] and rec["after_merge_owed"]
+    assert any("deferred to the after-merge run (D-1186" in e for e in rec["evidence"])
+    owed = (world.main / ".git" / "fabrik-merge" / "after-merge" / "owed.jsonl").read_text()
+    entry = json.loads(owed.splitlines()[-1])
+    assert entry["id"] == msg_id and entry["merge_sha"] == rec["merge_sha"]
+    assert entry["requester"] == "fleet" and kicked == [world.main]
+    assert "after-merge: owed" in world.replies(msg_id)["fleet"]
+
+
+def test_at_or_below_the_declared_rate_the_leg_runs_before_the_cas(world):
+    counter = world.tmp / "test-runs"
+    _after_world(world, f"python3 -c \"open({str(counter)!r}, 'a').write('x')\"", above=5)
+    kicked = _kicks(world)
+    msg_id = world.send(world.branch({"x.txt": "x\n"}))
+    assert world.run("merge") == 0
+    assert counter.read_text() == "x" and kicked == []
+    assert "tests_after_merge" not in world.record(msg_id)
+
+
+def test_a_pretest_never_defers(world):
+    ctx = world.mod._Ctx(world.main, world.main / ".git", "infra")
+    ctx.pretesting = True
+    assert world.mod._after_merge_due(ctx, "# merge-tests-after-merge-above: 0\ntrue\n") == ""
+
+
+# the runner's leg stands in for merge_test_select: it records a red id against the base it was given
+_RED_LEG = (
+    'printf "tests/test_x.py::test_a\\tcall\\n" > '
+    '"$FABRIK_MERGE_TESTS_RECORDS/merge-tests-$FABRIK_MERGE_TESTS_BASE.txt"; exit 1'
+)
+
+
+def _land_two(world, script: str) -> list[dict]:
+    _after_world(world, script)
+    _kicks(world)
+    ids = []
+    for name in ("a.txt", "b.txt"):
+        ids.append(world.send(world.branch({name: "x\n"}, msg=name)))
+        assert world.run("merge") == 0
+    return [world.record(i) for i in ids]
+
+
+def test_the_runner_tests_every_owed_merge_in_one_green_leg(world):
+    marker = world.tmp / "leg-ran"
+    recs = _land_two(
+        world, f'echo "$FABRIK_MERGE_TESTS_BASE" >> {marker}; git rev-parse HEAD >> {marker}'
+    )
+    assert world.mod._after_merge_runner(world.main) == 0
+    base, head = marker.read_text().split()
+    assert base == recs[0]["old_base"] and head == recs[1]["merge_sha"]  # one leg over both
+    d = world.main / ".git" / "fabrik-merge" / "after-merge"
+    assert set((d / "done.txt").read_text().split()) == {r["id"] for r in recs}
+    assert (d / "tested.txt").read_text().strip() == recs[1]["merge_sha"]
+    assert json.loads((d / "status.json").read_text())["rc"] == 0
+    assert world.mod._after_merge_runner(world.main) == 0
+    assert len(marker.read_text().split()) == 2  # nothing owed: no second leg
+
+
+def test_a_red_files_a_p0_on_the_author_and_blocks_their_next_request(world):
+    recs = _land_two(world, _RED_LEG)
+    world.mp.setattr(world.mod, "_after_cause", lambda ctx, todo, ids, env: todo[0])
+    assert world.mod._after_merge_runner(world.main) == 0
+    status = json.loads(
+        (world.main / ".git" / "fabrik-merge" / "after-merge" / "status.json").read_text()
+    )
+    assert status["rc"] == 1 and status["red"] == ["tests/test_x.py::test_a"]
+    assert status["cause"] == recs[0]["id"]
+    item = json.loads((world.main / ".fabrik" / "work" / f"{status['item']}.json").read_text())
+    assert item["priority"] == 0 and "after-merge-red" in item["tags"]
+    assert "by-fleet" in item["tags"] and recs[0]["merge_sha"][:12] in item["title"]
+    # the author's next request is refused until it carries the item
+    blocked = world.send(world.branch({"c.txt": "x\n"}, msg="c"))
+    assert world.run("merge") == 1
+    assert status["item"] in world.record(blocked)["reason"]
+    fix = world.send(world.branch({"d.txt": "x\n"}, msg="d"), item=status["item"])
+    assert world.run("merge") == 0, world.record(fix).get("reason")
+
+
+def test_a_leg_without_a_verdict_stays_owed(world):
+    recs = _land_two(world, "exit 3")
+    assert world.mod._after_merge_runner(world.main) == 1
+    d = world.main / ".git" / "fabrik-merge" / "after-merge"
+    assert not (d / "done.txt").exists()
+    assert json.loads((d / "status.json").read_text())["covers"] == [r["id"] for r in recs]
+
+
+def test_a_second_runner_exits_while_one_holds_the_lock(world):
+    d = world.main / ".git" / "fabrik-merge" / "after-merge"
+    d.mkdir(parents=True)
+    fd = os.open(d / "runner.lock", os.O_RDWR | os.O_CREAT, 0o644)
+    fcntl.flock(fd, fcntl.LOCK_EX)
+    try:
+        assert world.mod._after_merge_runner(world.main) == 0
+    finally:
+        os.close(fd)

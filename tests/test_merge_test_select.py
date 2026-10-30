@@ -1828,3 +1828,27 @@ def test_a_split_files_duration_is_the_sum_of_its_groups(tmp_path, monkeypatch, 
     measured = next(ln for ln in out.splitlines() if "shards measured" in ln)
     loads = [float(x) for x in measured.split("measured ", 1)[1].split()]
     assert len(loads) == 2 and min(loads) >= 0.35, measured
+
+
+def test_the_after_merge_base_spans_every_merge_landed_since(tmp_path, monkeypatch, capsys):
+    """merge_request's after-merge run (D-1186, W-3237ba45) tests the newest landed merge against the
+    last tip it tested: a red introduced two merges back is new against that base, though HEAD's own
+    first parent already carries it — and no green record is written for a range."""
+    repo = _repo(tmp_path, GREEN_REPO)
+    tested = _git(repo, "rev-parse", "HEAD")
+    _merge(repo, {"tests/test_new.py": "def test_new():\n    assert False, 'from merge one'\n"})
+    _git(repo, "branch", "-qD", "feat")
+    _merge(repo, {"data.txt": "two\n"})
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out  # against its own first parent the red is old news
+    common = Path(_git(repo, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    for green in (common / "fabrik-merge").glob("merge-tests-green-*"):
+        green.unlink()
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_BASE", _git(repo, "rev-parse", "HEAD^1"))
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 0, out  # a green range writes no green record: that record names one merge
+    assert not list((common / "fabrik-merge").glob("merge-tests-green-*"))
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_BASE", tested)
+    rc, out = _run(repo, monkeypatch, capsys)
+    assert rc == 1 and "tests/test_new.py::test_new" in out.splitlines()[-1], out
+    assert (common / "fabrik-merge" / f"merge-tests-{tested}.txt").is_file()

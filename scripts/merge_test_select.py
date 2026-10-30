@@ -897,10 +897,15 @@ def main(argv: list[str] | None = None) -> int:
             # _base_alone re-runs this at the base, which is itself a merge commit as often as
             # not (4 of master's last 12 first-parent tips): a record for HEAD is what says so,
             # since only a refusal of a merge onto HEAD writes one, the moment before that re-run
-            if in_merge and (_record_path(head).exists() or len(parents) < 2):
+            # merge_request's after-merge run (D-1186, W-3237ba45) tests HEAD against the last tip
+            # it tested, so one leg covers every merge landed since: no base-alone, no green skip
+            over = os.environ.get("FABRIK_MERGE_TESTS_BASE", "") if in_merge else ""
+            if in_merge and not over and (_record_path(head).exists() or len(parents) < 2):
                 return _base_alone(head, runner)
-            base = parents[0] if in_merge else _git("merge-base", "HEAD", "origin/master").strip()
-            if in_merge and not args.list:
+            base = over or (
+                parents[0] if in_merge else _git("merge-base", "HEAD", "origin/master").strip()
+            )
+            if in_merge and not over and not args.list:
                 green, why = _green_merge(head, parents)
                 if why:
                     print(f"merge-tests: green record ignored ({why})")
@@ -947,7 +952,8 @@ def main(argv: list[str] | None = None) -> int:
                 _write_record(base, [f"{nid}\t{when}" for (nid, when), _ in new])
             elif in_merge:
                 _record_path(base).unlink(missing_ok=True)
-                _record_green(head, parents)
+                if not over:
+                    _record_green(head, parents)
     except Exception as exc:  # noqa: BLE001 — every failure without a verdict is exit 3, said so
         if in_merge and base:
             try:

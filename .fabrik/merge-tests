@@ -10,4 +10,8 @@
 # slice memory.current with page cache, under a 12G probe cap). merge_request.py clamps this to 8G, the slice's
 # 12G less one default run. Keep the declaration alone on its line: a reason after it is outside the grammar.
 # merge-test-mem: 8G
+# D-1186's relief valve, ON for every hub merge (the coordinator's ruling (B), 2026-10-30, the operator's
+# "fastest asap"; W-3237ba45): above this many merges a day over 7 days a merge lands after build, preflight and
+# CAS, and this same leg runs after it in merge_request.py's background after-merge-runner. Keep it alone on its line.
+# merge-tests-after-merge-above: 0
 exec "$(git rev-parse --path-format=absolute --git-common-dir)/../.venv/bin/python" scripts/merge_test_select.py
