@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T11:14:29.509126Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-e648bdeb",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make check_review_coverage.py refuse a CONVERGED receipt with no Pass Ledger rows and no Coverage Checklist (or a closing row naming no seat); regression test with the 4-line receipt; re-read task_lane.check_review_receipt's 'cheapest way' docstring paragraph against the fix",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "check_review_coverage.py passes a 4-line receipt (Command /fabrik-review, Status CONVERGED, a range Surface line, no checklist, no ledger) — the /fabrik-task close's check (b) then accepts a review that never ran (found by W-0b900e92 review seat A-haiku, executed)"
+}

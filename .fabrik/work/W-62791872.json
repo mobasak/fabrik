@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T12:47:27.180684Z",
+  "creator": "intel",
+  "effort": "low",
+  "evidence": "d0895f7d4807ff356c4456a331b7f382197f4b30",
+  "id": "W-62791872",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "in .claude/workflows/fabrik-review-loop.js firstLine: the String(e) fallback added by the review's round-3 rewrite (commit ea7d9ac39) prints [object Object] for a non-Error object whose message is blank, null or undefined; before that rewrite (commit c3e75c27a) the same inputs read '' (review pass 4 A-S20/A-H20, pass 5 C-H1) — use JSON.stringify(e) inside the try instead, and add {message:'\\n'}, {message:null}, {message:undefined,status:401} and Error('\\n') (prints 'Error:') to test_the_kept_error_is_the_first_non_blank_line_of_any_rejection (A-H21: the test is green on the regression); also reflow the scripts/review_loop_ledger.py module docstring lines 18-21 left ragged by the round-3 edit (B-H23)",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "LOW: cosmetic error text ([object Object]); effort low",
+  "status": "done",
+  "tags": [
+    "review-loop"
+  ],
+  "title": "review-loop firstLine: a non-Error rejection whose message is blank reads [object Object] (W-b36e2a4a review pass 4 A-S20, recorded after the in-lane scope-growth stop)"
+}

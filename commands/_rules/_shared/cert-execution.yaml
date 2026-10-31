@@ -1,0 +1,178 @@
+shared: commands/_fragments/cert-execution.md
+baseline_sentences: cert-execution.baseline.txt
+baseline_sha256: a4c756dd7185e3468cb80c708f5520e39e8aba14d653de2691683a5bc3850a1c
+entries:
+- id: ce-u0
+  file: commands/_fragments/cert-execution.md
+  baseline: 'Done ONLY when a full round reports `new inventory: 0 · new findings: 0 · fixes applied: 0` — TWO consecutive dry discovery sweeps (the loop-until-dry rule: one clean round can be luck)'
+  current: 'Done ONLY when a full round reports `new inventory: 0 · new findings: 0 · fixes applied: 0` — TWO consecutive dry discovery sweeps (the loop-until-dry rule: one clean round can be luck)'
+  class: ban
+  text:
+  - 'Done ONLY when a full round reports `new inventory: 0 · new findings: 0 · fixes applied: 0` — TWO consecutive dry discovery sweeps (the loop-until-dry rule: one clean round can be luck)'
+- id: ce-u1
+  file: commands/_fragments/cert-execution.md
+  baseline: 'Grader honesty — which exit conditions are machine-read and which are yours: board shape, dispositions, evidence-paths-exist and the registry/ledger are graded by `check_certification_coverage.py` (mix-ups BLOCK; coverage quality is advisory); the HANDOFF grammar and NOT-QUIET/RESUME pairing by `check_review_coverage.py`; the round ledger by `command_run.py round`'
+  current: 'Grader honesty — which exit conditions are machine-read and which are yours: board shape, dispositions, evidence-paths-exist and the registry/ledger are graded by `check_certification_coverage.py` (mix-ups BLOCK; coverage quality is advisory); the HANDOFF grammar and NOT-QUIET/RESUME pairing by `check_review_coverage.py`; the round ledger by `command_run.py round`'
+  class: prose
+  text:
+  - 'Grader honesty — which exit conditions are machine-read and which are yours: board shape, dispositions, evidence-paths-exist and the registry/ledger are graded by `check_certification_coverage.py` (mix-ups BLOCK; coverage quality is advisory); the HANDOFF grammar and NOT-QUIET/RESUME pairing by `check_review_coverage.py`; the round ledger by `command_run.py round`'
+- id: ce-u2
+  file: commands/_fragments/cert-execution.md
+  baseline: The TWO-dry-sweeps count, the ×2 reproduction rule and the T2 batch cap are read by NO check — they bind you on honour, which is exactly why the ledger rows exist
+  current: The TWO-dry-sweeps count, the ×2 reproduction rule and the T2 batch cap are read by NO check — they bind you on honour, which is exactly why the ledger rows exist
+  class: ban
+  text:
+  - The TWO-dry-sweeps count, the ×2 reproduction rule and the T2 batch cap are read by NO check — they bind you on honour, which is exactly why the ledger rows exist
+- id: ce-u3
+  file: commands/_fragments/cert-execution.md
+  baseline: A matrix cell deliberately skipped is listed SKIPPED with a reason — silent shrinkage of the inventory or matrix is the exact failure this command exists to prevent
+  current: A matrix cell deliberately skipped is listed SKIPPED with a reason — silent shrinkage of the inventory or matrix is the exact failure this command exists to prevent
+  class: prose
+  text:
+  - A matrix cell deliberately skipped is listed SKIPPED with a reason — silent shrinkage of the inventory or matrix is the exact failure this command exists to prevent
+  clauses:
+    2: narrative
+- id: ce-u5
+  file: commands/_fragments/cert-execution.md
+  section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
+  baseline: Discovery first, fixes second — and the fixes DO happen in this run, but never in this context. The gauntlet's own context is depleted by the sweeps; the deep work runs in clean contexts while YOU stay the orchestrator ("you dispatch and judge — you do not drive")
+  current: Discovery first, fixes second — and the fixes DO happen in this run, but never in this context. The gauntlet's own context is depleted by the sweeps; the deep work runs in clean contexts while YOU stay the orchestrator ("you dispatch and judge — you do not drive")
+  class: ban
+  text:
+  - Discovery first, fixes second — and the fixes DO happen in this run, but never in this context. The gauntlet's own context is depleted by the sweeps; the deep work runs in clean contexts while YOU stay the orchestrator ("you dispatch and judge — you do not drive")
+- id: ce-u6
+  file: commands/_fragments/cert-execution.md
+  section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
+  baseline: 'Work the HANDED-OFF list on a hard schedule (no budget-feel exits): T3 doc re-freezes first (cheap, bounded) → T1 leftovers → T2 risk-ordered'
+  current: 'Work the HANDED-OFF list on a hard schedule (no budget-feel exits): T3 doc re-freezes first (cheap, bounded) → T1 leftovers → T2 risk-ordered'
+  class: prose
+  text:
+  - 'Work the HANDED-OFF list on a hard schedule (no budget-feel exits): T3 doc re-freezes first (cheap, bounded) → T1 leftovers → T2 risk-ordered'
+- id: ce-u7
+  file: commands/_fragments/cert-execution.md
+  section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
+  baseline: 'Code-wrong rows (T2) — for each row, dispatch a FRESH native subagent (clean context; seeded with exactly: the committed red repro path, the owning module path, the rubric output) that invokes `/fabrik-review` with `repro: <path>` — the review may not exit until that repro is GREEN (its contract)'
+  current: 'Code-wrong rows (T2) — for each row, dispatch a FRESH native subagent (clean context; seeded with exactly: the committed red repro path, the owning module path, the rubric output) that invokes `/fabrik-review` with `repro: <path>` — the review may not exit until that repro is GREEN (its contract)'
+  class: prose
+  text:
+  - 'Code-wrong rows (T2) — for each row, dispatch a FRESH native subagent (clean context; seeded with exactly: the committed red repro path, the owning module path, the rubric output) that invokes `/fabrik-review` with `repro: <path>` — the review may not exit until that repro is GREEN (its contract)'
+- id: ce-u8
+  file: commands/_fragments/cert-execution.md
+  section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
+  baseline: 'When it returns, verify yourself before closing (a subagent''s success is a claim): re-run the repro AND the affected journeys end-to-end (surface truth AND system truth)'
+  current: 'When it returns, verify yourself before closing (a subagent''s success is a claim): re-run the repro AND the affected journeys end-to-end (surface truth AND system truth)'
+  class: prose
+  text:
+  - 'When it returns, verify yourself before closing (a subagent''s success is a claim): re-run the repro AND the affected journeys end-to-end (surface truth AND system truth)'
+- id: ce-u9
+  file: commands/_fragments/cert-execution.md
+  section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
+  baseline: 'T2 batch cap: more than 3 distinct owning modules on the list is a SYSTEMIC signal (the phase-boundary reviews failed upstream) — emit that finding and route the batch to a plan instead of serial review loops'
+  current: 'T2 batch cap: more than 3 distinct owning modules on the list is a SYSTEMIC signal (the phase-boundary reviews failed upstream) — emit that finding and route the batch to a plan instead of serial review loops'
+  class: prose
+  text:
+  - 'T2 batch cap: more than 3 distinct owning modules on the list is a SYSTEMIC signal (the phase-boundary reviews failed upstream) — emit that finding and route the batch to a plan instead of serial review loops'
+- id: ce-u10
+  file: commands/_fragments/cert-execution.md
+  section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
+  baseline: 'Doc-stale rows (T3): run the re-freeze now, close the row'
+  current: 'Doc-stale rows (T3): run the re-freeze now, close the row'
+  class: prose
+  text:
+  - 'Doc-stale rows (T3): run the re-freeze now, close the row'
+- id: ce-u11
+  file: commands/_fragments/cert-execution.md
+  section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
+  baseline: 'Design-wrong/missing rows (T4) — write a DESIGN-GAP BRIEF, do not run the pipeline: persist `docs/development/reviews/YYYY-MM-DD-design-gap-<slug>.md` carrying the blocked journey, the missing screen/endpoint/job/contract field, the contract line that should exist, the evidence, and the exact `/fabrik-spec` invocation to start it — then stop that row at `DESIGN-GAP (operator decision)`, surfaced in the report''s TOP section'
+  current: 'Design-wrong/missing rows (T4) — write a DESIGN-GAP BRIEF, do not run the pipeline: persist `docs/development/reviews/YYYY-MM-DD-design-gap-<slug>.md` carrying the blocked journey, the missing screen/endpoint/job/contract field, the contract line that should exist, the evidence, and the exact `/fabrik-spec` invocation to start it — then stop that row at `DESIGN-GAP (operator decision)`, surfaced in the report''s TOP section'
+  class: prose
+  text:
+  - 'Design-wrong/missing rows (T4) — write a DESIGN-GAP BRIEF, do not run the pipeline: persist `docs/development/reviews/YYYY-MM-DD-design-gap-<slug>.md` carrying the blocked journey, the missing screen/endpoint/job/contract field, the contract line that should exist, the evidence, and the exact `/fabrik-spec` invocation to start it — then stop that row at `DESIGN-GAP (operator decision)`, surfaced in the report''s TOP section'
+- id: ce-u12
+  file: commands/_fragments/cert-execution.md
+  section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
+  baseline: '`/fabrik-spec` is built around collaborative Q&A + per-section human approval; an autonomous run driving it must either stall or self-approve the product question — both forbidden'
+  current: '`/fabrik-spec` is built around collaborative Q&A + per-section human approval; an autonomous run driving it must either stall or self-approve the product question — both forbidden'
+  class: ban
+  text:
+  - '`/fabrik-spec` is built around collaborative Q&A + per-section human approval; an autonomous run driving it must either stall or self-approve the product question — both forbidden'
+- id: ce-u13
+  file: commands/_fragments/cert-execution.md
+  section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
+  baseline: The operator decides whether a spec is warranted; the brief makes that a 2-minute decision
+  current: The operator decides whether a spec is warranted; the brief makes that a 2-minute decision
+  class: prose
+  text:
+  - The operator decides whether a spec is warranted; the brief makes that a 2-minute decision
+- id: ce-u14
+  file: commands/_fragments/cert-execution.md
+  section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
+  baseline: 'No unfalsifiable exits: if rows remain when this session genuinely cannot continue, the report''s final ledger row is marked `NOT-QUIET (routes outstanding)` — declared on a line of its own, exactly ``ledger: `NOT-QUIET (routes outstanding)``` (the grader''s `NOT_QUIET` accepts the marker and one parenthetical, then only closing markup or `.`/`!`: an em-dash tail or a sentence that goes on is read as discussion) — and a `## RESUME` block names every open row, its repro path, and the verbatim re-invocation command'
+  current: 'No unfalsifiable exits: if rows remain when this session genuinely cannot continue, the report''s final ledger row is marked `NOT-QUIET (routes outstanding)` — declared on a line of its own, exactly ``ledger: `NOT-QUIET (routes outstanding)``` (the grader''s `NOT_QUIET` accepts the marker and one parenthetical, then only closing markup or `.`/`!`: an em-dash tail or a sentence that goes on is read as discussion) — and a `## RESUME` block names every open row, its repro path, and the verbatim re-invocation command'
+  class: ban
+  text:
+  - 'No unfalsifiable exits: if rows remain when this session genuinely cannot continue, the report''s final ledger row is marked `NOT-QUIET (routes outstanding)` — declared on a line of its own, exactly ``ledger: `NOT-QUIET (routes outstanding)``` (the grader''s `NOT_QUIET` accepts the marker and one parenthetical, then only closing markup or `.`/`!`: an em-dash tail or a sentence that goes on is read as discussion) — and a `## RESUME` block names every open row, its repro path, and the verbatim re-invocation command'
+- id: ce-u15
+  file: commands/_fragments/cert-execution.md
+  section: '## Phase 6 — EXECUTE the routed fixes (same run, FRESH contexts — a handoff is deferred sequencing, not exported work)'
+  baseline: A truncated run may NEVER present itself as quiet
+  current: A truncated run may NEVER present itself as quiet
+  class: ban
+  text:
+  - A truncated run may NEVER present itself as quiet
+- id: ce-u17
+  file: commands/_fragments/cert-execution.md
+  section: '## Phase 7 — CONFIRMING ROUND (the code-changing pass is never the last)'
+  baseline: 'After the last code-changing row closes, run one full Phase-5 round (fresh discovery sweep + full reconcile — not just affected journeys): Phase 6''s fixes are the deepest changes in the run and get the deepest re-verification'
+  current: 'After the last code-changing row closes, run one full Phase-5 round (fresh discovery sweep + full reconcile — not just affected journeys): Phase 6''s fixes are the deepest changes in the run and get the deepest re-verification'
+  class: prose
+  text:
+  - 'After the last code-changing row closes, run one full Phase-5 round (fresh discovery sweep + full reconcile — not just affected journeys): Phase 6''s fixes are the deepest changes in the run and get the deepest re-verification'
+- id: ce-u18
+  file: commands/_fragments/cert-execution.md
+  section: '## Phase 7 — CONFIRMING ROUND (the code-changing pass is never the last)'
+  baseline: 'The report''s final ledger row must be THIS round''s `new inventory: 0 · new findings: 0 · fixes applied: 0` — a quiet exit recorded before Phase 6 ran is void'
+  current: 'The report''s final ledger row must be THIS round''s `new inventory: 0 · new findings: 0 · fixes applied: 0` — a quiet exit recorded before Phase 6 ran is void'
+  class: ban
+  text:
+  - 'The report''s final ledger row must be THIS round''s `new inventory: 0 · new findings: 0 · fixes applied: 0` — a quiet exit recorded before Phase 6 ran is void'
+vanished:
+  L1:
+    rule:
+    - ce-u0
+  L2:
+    rule:
+    - ce-u1
+  L3:
+    rule:
+    - ce-u2
+  L4:
+    rule:
+    - ce-u3
+  L6:
+    rule:
+    - ce-u5
+  L7:
+    rule:
+    - ce-u6
+  L8:
+    rule:
+    - ce-u7
+  L9:
+    rule:
+    - ce-u8
+  L10:
+    rule:
+    - ce-u9
+  L12:
+    rule:
+    - ce-u11
+  L14:
+    rule:
+    - ce-u13
+  L15:
+    rule:
+    - ce-u14
+  L18:
+    rule:
+    - ce-u17

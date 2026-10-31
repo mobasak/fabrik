@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T20:43:43.844119Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-bbb57ff7",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide per item: fix in cloud_dispatch.py with a red-first test, or record it in docs/workstation/cloud-dispatch.md as accepted",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "cloud-dispatch"
+  ],
+  "title": "cloud_dispatch.py drain residue from the W-b00d9d72 review (all fail-closed or screen gaps): a 'Cloud-Dispatch: done unknown' trailer holds a landed run's files for 24 h; the home-read screen misses a hard-coded /home/<user> path and USERPROFILE; a refused drain attempt's kind row lends stale files to a later plain dispatch of that slug; the open-branch diff uses the ls-remote tip, not the fetched one (a push between the two can diff a stale tip or refuse at rc 128); a mid-body trailer quote in a squash merge releases a hold"
+}

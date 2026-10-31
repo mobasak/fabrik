@@ -15,10 +15,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
-  "owner": "infra",
+  "note": "mail ack: done",
+  "owner": "infra-2",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — command_run done refuses a valid receipt: blocks agents closing runs",
-  "status": "open",
+  "status": "done",
   "title": "command_run.py done --command fabrik-task --review refuses a receipt whose range tip is the reviewed CODE tip, because the receipt and ledger commits always land after it"
 }

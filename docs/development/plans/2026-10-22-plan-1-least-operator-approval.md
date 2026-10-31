@@ -675,6 +675,19 @@ $ /opt/fabrik/scripts/capped_run.sh -- timeout 300 .venv/bin/python -m pytest te
 - External: spec § Chosen approach and § External dependencies carry the three quotes (teamdynamix, reed.edu,
   claude.com/blog/auto-mode), fetched 2026-10-22.
 
+- Phase A executed 2026-10-30. The operator applied `ep-phaseA.py --apply` (the 8 files of steps 2-6; Claude Code's
+  classifier refuses an agent's own edit of the contracts), and every applied file is byte-identical to the probe
+  worktree's copy (`cmp`, 8 of 8 SAME). The lean ledgers were re-cut under D-1371 (`recut.py`, `recut_hand.py`,
+  `ceiling_added.py`); all 11 ledger and ceiling files are byte-identical to the probe, where `command_rules.losses()`
+  read 0 LOSS. Commit `f4195e51a` on `kaizen-least-approval-1030`. Step 7: the render to scratch exits 0 (`rendered 40
+  commands`), and the step-7 set plus `test_command_rules`, the eight D1b fixture files and
+  `test_final_gate_stop_deferral` pass:
+
+```text
+$ /opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest -q -p no:cacheprovider tests/test_least_operator_approval.py tests/test_governance_template_split.py tests/test_gate_decision_blocks.py tests/test_stop_hook_deferral_exemption.py tests/test_check_command_corpus.py tests/test_command_rules.py tests/test_final_gate_stop_deferral.py tests/test_thread_anchor.py tests/test_work_linked.py tests/test_work_claims.py tests/test_work_prompt.py tests/test_work_harvest_rules.py tests/test_work_hook_seam.py tests/test_work_sync.py
+960 passed, 2 skipped in 245.99s (0:04:05)
+```
+
 ## Self-audit
 
 - Every behaviour in `spec § Validation` maps to a row: the twin test → A4; the new grader → A1–A3, A5–A7; the hook

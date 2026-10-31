@@ -11,7 +11,7 @@ This composes with — it does not replace — our existing design systems (`des
 ## The four layers (+ the design-thinking layer that sits above them)
 
 ```
-DESIGN-THINK   frontend-design skill (anti-slop: token system + signature element + self-critique)
+DESIGN-THINK   frontend-design:frontend-design skill (anti-slop: token system + signature element + self-critique)
      │
      ▼
 1. FOUNDATION  shadcn/ui + Tailwind v4 + Base UI  ·  shadcn MCP (install real components)  ·  tweakcn (tokens)
@@ -29,7 +29,7 @@ REVIEW         OneRedOak design-review (critique the RENDERED UI) + Vercel web-d
 
 | Tool | Layer | Role | Cost / self-host | Install / invoke (verified 2026-07-06) |
 |---|---|---|---|---|
-| **frontend-design** skill | design-think | Forces a token system + one "signature" element + a self-critique before any CSS; names the AI-slop clusters to avoid. Anthropic's #1 frontend rec: *design before code*. | Free (MIT). **Already installed here.** | Invoke the `frontend-design` skill (present in `anthropic-agent-skills` + `claude-plugins-official` marketplaces). |
+| **`frontend-design:frontend-design`** skill | design-think | Forces a token system + one "signature" element + a self-critique before any CSS; names the AI-slop clusters to avoid. Anthropic's #1 frontend rec: *design before code*. | Free (Apache-2.0, the plugin's LICENSE). Installed user-scope in the Claude Code config; Windsurf and Kilo have no skill (the pack's § Without the skill applies). | Invoke `frontend-design:frontend-design` (the claude-plugins-official plugin `frontend-design@claude-plugins-official`; never the older `example-skills:frontend-design`) under the brief `.windsurf/rules/core/63-frontend-design.md` sets. |
 | **shadcn/ui** + Tailwind v4 + Base UI | foundation | Copies real component source into the repo (agent edits real code, not an opaque lib). Base UI is shadcn's default primitive (July 2026); Radix still supported. | Free (MIT), self-host registries as static JSON. | `pnpm dlx shadcn@latest init` |
 | **shadcn MCP** | foundation | Agent searches + installs vetted components from public/private registries on demand — stops invented markup. | Free, local, official. | `pnpm dlx shadcn@latest mcp init --client claude` (registries in `components.json`) |
 | **tweakcn** | foundation | Visual editor that emits the standard shadcn `globals.css` OKLCH token block (our design-system tokens). | Free (Apache-2.0), Docker self-host. | Web app or self-host; output is plain CSS vars. |
@@ -79,7 +79,7 @@ The web loop (Playwright MCP / shadcn MCP / Chrome DevTools MCP / axe) **cannot 
 
 ## Chrome extension (MV3) surface (reuse the web loop + 3 additions)
 
-Extension surfaces (popup / options / side-panel / content-script overlay) are **web tech**, so the agent **reuses the entire web loop above** (frontend-design → shadcn MCP → Playwright MCP → `@axe-core/playwright` + `toHaveScreenshot` → `/design-review`) with the **same Ocoron (Compact) design system** `.windsurf/rules/chrome-ext/70-chrome-ext.md` already mandates. **`70-chrome-ext.md` (§ Testing & UI Verification) is the authority — this is the toolchain view.** MV3 forces exactly three additions (full research: `docs/reference/research/chrome-ext-gui-research.md`, live-verified 2026-07-07):
+Extension surfaces (popup / options / side-panel / content-script overlay) are **web tech**, so the agent **reuses the entire web loop above** (`frontend-design:frontend-design` → shadcn MCP → Playwright MCP → `@axe-core/playwright` + `toHaveScreenshot` → `/design-review`) with the **project's own design system** (`docs/design-system.md`, resolved by the ladder in `.windsurf/rules/saas/60-saas-ui.md`), as `.windsurf/rules/chrome-ext/70-chrome-ext.md` mandates. **`70-chrome-ext.md` (§ Testing & UI Verification) is the authority — this is the toolchain view.** MV3 forces exactly three additions (full research: `docs/reference/research/chrome-ext-gui-research.md`, live-verified 2026-07-07):
 
 | # | Addition | Why (MV3 fact) |
 |---|---|---|
@@ -95,9 +95,9 @@ Extension surfaces (popup / options / side-panel / content-script overlay) are *
 
 ```
 /fabrik-spec → /fabrik-data-contract → /fabrik-ui-design (screens+flows, design-system-first)
-   → BUILD:   shadcn MCP + `frontend-design` skill  (+ Superdesign interactively / v0 if paid)
+   → BUILD:   shadcn MCP + `frontend-design:frontend-design` skill  (+ Superdesign interactively / v0 if paid)
    → SEE:     Playwright MCP (agent drives + screenshots its own UI)
-   → REVIEW:  OneRedOak design-review + Vercel web-design-guidelines   ← the UI analogue to /fabrik-review
+   → REVIEW:  OneRedOak design-review + Vercel web-design-guidelines + the frontend-design critique (63-frontend-design.md)   ← the UI analogue to /fabrik-review
    → GATE:    @axe-core/playwright + toHaveScreenshot + better-tailwindcss token-lint  (CI, red-on-fail)
 ```
 
@@ -105,7 +105,7 @@ Extension surfaces (popup / options / side-panel / content-script overlay) are *
 
 ## Integrate-first (biggest bang, ~$0)
 
-1. **`frontend-design` skill** — already installed; make it a standing step in `/fabrik-ui-design` builds.
+1. **`frontend-design:frontend-design` skill** — since the operator's ruling of 2026-10-24 it is invoked in `/fabrik-ui-design` and by the `fabrik-gui` builder, and `/fabrik-ui-design-review` and `/design-review` apply its critique as `.windsurf/rules/core/63-frontend-design.md` writes it out.
 2. **Playwright MCP** — the agent sees + verifies its own UI. *Transformational.*
 3. **shadcn MCP** — stops invented markup.
 4. **OneRedOak design-review + `@axe-core/playwright` gate** — makes "good UI" mandatory, mirroring `/fabrik-review`.
@@ -113,4 +113,4 @@ Extension surfaces (popup / options / side-panel / content-script overlay) are *
 
 ---
 
-*All tools verified against their official source (npm / GitHub / vendor docs) on 2026-07-06. Install commands quoted are the verified current forms. `frontend-design` presence confirmed in the local `anthropic-agent-skills` + `claude-plugins-official` marketplaces.*
+*All tools verified against their official source (npm / GitHub / vendor docs) on 2026-07-06. Install commands quoted are the verified current forms. The `frontend-design:frontend-design` plugin skill was confirmed visible to a fresh session on 2026-10-24.*

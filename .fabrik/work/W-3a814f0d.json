@@ -1,0 +1,26 @@
+{
+  "block_digest": "340bda1456eea2b698225bbb9ac17c2efce23da738455a9f6c165d830c06708e",
+  "blocked_by": [],
+  "created": "2026-10-29T19:03:49.161986Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-3a814f0d",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "6bf29d605f3e65d2737b2ce5474381d445fec86445f2a4d5cd9310456ea41455"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "Will you rotate the Cloudflare R2 access key pair that has been committed in plain text in `infra/vps1/ocoron-com/compose.yaml`, and pushed to GitHub, since 17 June?",
+  "status": "awaiting-operator",
+  "title": "Will you rotate the Cloudflare R2 access key pair that has been committed in plain text in `infra/vps1/ocoron-com/compose.yaml`, and pushed to GitHub, since 17 June?"
+}

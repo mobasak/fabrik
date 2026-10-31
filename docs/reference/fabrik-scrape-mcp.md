@@ -14,7 +14,7 @@ pinned to its basic proxy. Design: `docs/superpowers/specs/2026-10-21-own-scrape
 | Service | `fabrik-scrape-mcp.service` (source `scripts/sysadmin/systemd/fabrik-scrape-mcp.service`, installed in `/etc/systemd/system/`) |
 | Endpoint | `http://127.0.0.1:8034/mcp`, streamable HTTP, loopback only (`PORTS.md`) |
 | Python | its own venv, `libs/web_scrape_mcp/.venv`, built from `libs/web_scrape_mcp/requirements.txt` (the MCP SDK v2; the hub `.venv` pins v1) |
-| Registration | `scripts/sysadmin/mcp_defs.json` entry `fabrik-scrape`; in the emitter's universal set (`scripts/sysadmin/emit_mcp_project_config.py`), so every repo's `.mcp.json` carries it (D-1102) |
+| Registration | `scripts/sysadmin/mcp_defs.json` entry `fabrik-scrape`; in the emitter's universal set (`scripts/sysadmin/emit_mcp_project_config.py`), so every repo's `.mcp.json` carries it (D-1102) — once the unit is installed and enabled: until then the emitter withholds it and `mcp_health.py` names it withheld (W-07298e38) |
 | Cache | `/var/cache/fabrik-scrape-mcp` (web-scrape's on-disk cache; systemd creates it; besides its private `/tmp`, the unit's only writable path) |
 | Credentials | none — rendering is off in slice 1a, so the server never calls browserless |
 

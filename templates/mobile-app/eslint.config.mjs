@@ -65,6 +65,9 @@ export default antfu(
       'scripts/**',
       'libs/**',
       '.claude/**',
+      // The Python backend: ruff/mypy lint it via server/pyproject.toml, which antfu's TOML rules
+      // would otherwise restyle (a fresh scaffold's whole lint failure until W-fc58e9b7).
+      'server/**',
     ],
   },
 

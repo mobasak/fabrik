@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T09:34:12.269714Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "d314192cdc7c477def19a7ab7a010565303966ef",
+  "id": "W-9bf5a363",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "URGENT: operator says so; a lost rotate request stalled the operator's P0 (W-b9ad80ae) for 14 h",
+  "status": "done",
+  "title": "URGENT (operator 2026-10-29): builders address the coordinator by its auto-generated session name, which changes at every coordinator rotation (fabrik-ec -> fabrik-a5); infra-3's 22:44 rotate request went to the dead name fabrik-ec and sat 14 h unread. Give the coordinator a STABLE peer name: rotate-session / the coordinator handoff renames the coordinator session to its role name, and builder charters/merge_request's printed SendMessage lines address 'coordinator' (or resolve it live via ListAgents), never a remembered session name"
+}

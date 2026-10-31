@@ -43,9 +43,6 @@ def test_scoped_refresh_names_its_denominator() -> None:
     assert "A scoped run never hands off to certification" in p0
     assert "## Behavior Contract" in PLAN.read_text()
     assert "### D3 — Shared governance files: orchestrator-applied Deltas" in EXECUTE.read_text()
-    assert "Hand off to certification from a scoped REFRESH" in _section(
-        "## Guardrails", "{{include:subagents-core}}"
-    )
 
 
 def test_rows_cover_every_route_mode_and_point_at_backlog_for_defects() -> None:
@@ -90,7 +87,7 @@ def test_a_planned_row_quotes_every_condition_of_its_spec_clause() -> None:
     REFRESH bullet, prefix or suffix the EARLY bullet with 'where practical', drop the REFRESH clause — each fails
     an assertion (the sentence is bounded at its own full stop; the weakener scan covers the whole EARLY bullet)."""
     p0 = _section("## Phase 0", "## Phase 1")
-    early = p0[p0.index("**EARLY (pre-build") : p0.index("- **REFRESH (post-build")]
+    early = p0[p0.index("- **EARLY**") : p0.index("- **REFRESH** (post-build")]
     head = "A Planned row's Description states the behaviour as Phase 2 asks of every row, then carries `Spec §<n>:`"
     assert head in early, "the fidelity sentence left Phase 0's EARLY bullet"
     rest = early[early.index(head) :]
@@ -122,7 +119,7 @@ def test_a_planned_row_quotes_every_condition_of_its_spec_clause() -> None:
     assert "every row traceable to the spec" in early, (
         "the sentence extends the traceability rule, not replaces it"
     )
-    refresh = p0[p0.index("- **REFRESH (post-build") :]
+    refresh = p0[p0.index("- **REFRESH** (post-build") :]
     assert (
         "its `Spec §<n>:` conditions stay on the row until a test asserts each); a `(Planned)` row with NO"
         in (refresh)

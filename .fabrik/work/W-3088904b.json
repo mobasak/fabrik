@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T20:01:55.556805Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-3088904b",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1208",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure: count closes whose rounds resumed seats (SendMessage) vs fresh dispatches; decide whether seats_seen counts seat files, seat activations per round, or seats_declared reads distinct seats",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "command_run close counts a SendMessage-resumed seat once: _seat_transcripts counts seat FILES, so a 3-pass review whose 2 seats were resumed each pass reads seen 2 vs declared 6 and prints a false mismatch (found closing W-256d6877's review, 2026-10-24)"
+}

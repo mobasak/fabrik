@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T04:37:24.177558Z",
+  "creator": "fleet",
+  "evidence": "349722e7d72c734adf55037e7ce2b042dd351482",
+  "id": "W-8495d72f",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-task: refuse a NUL in format_env_line naming the key, and format both .env halves before _write_env_files writes either, red-first",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "done",
+  "tags": [
+    "fleet"
+  ],
+  "title": "A deployed .env value holding a NUL byte is written raw by fabrik.env_file.format_env and the container then fails to start (runc: invalid environment variable \"K\": contains nul byte) — loud and key-named, but only after the .env is on the VPS; D-1269 refuses a NUL in compose environment before any write. Pre-existing (the old _format_env wrote it raw too); found by the W-2ae286e2 review."
+}

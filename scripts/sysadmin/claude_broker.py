@@ -26,6 +26,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 from collections.abc import Callable
 from pathlib import Path
@@ -51,9 +52,37 @@ _MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 _MAX_BODY = 1_000_000  # 1 MB — cap the request body so a huge Content-Length can't OOM the host
 
 
-def _default_run_claude(argv: list[str]) -> str:
-    import subprocess
+def _hibernate_paused() -> bool:
+    """True while a hibernate pause is marked (`hibernate.py paused` exit 0). Exit 1, >=2, a 10 s
+    timeout or a missing script is fail-open (False), one line on an error (W-6e656dac T03b)."""
+    script = os.environ.get("FABRIK_HIBERNATE_PY", str(_DIR / "hibernate.py"))
+    if not Path(script).is_file():
+        print(f"hibernate.py not found at {script} — proceeding", file=sys.stderr)
+        return False
+    try:
+        rc = subprocess.run(
+            [sys.executable, script, "paused"], capture_output=True, timeout=10, check=False
+        ).returncode
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        print(
+            f"hibernate.py paused failed ({exc.__class__.__name__}) — proceeding", file=sys.stderr
+        )
+        return False
+    if rc not in (0, 1):
+        print(f"hibernate.py paused rc={rc} — proceeding", file=sys.stderr)
+    return rc == 0
 
+
+def _seat_preexec() -> None:
+    """Kill order (spec L5): a headless seat is the first the OOM killer takes. Fail-open."""
+    try:
+        with open("/proc/self/oom_score_adj", "w") as f:
+            f.write("500")
+    except OSError:
+        pass
+
+
+def _default_run_claude(argv: list[str]) -> str:
     # the broker has ALREADY routed this job through the governor (forced routine) — bypass the
     # claude-run.sh gate so it isn't double-gated (which could shed a job the broker meant for ob@).
     # T13.5: HEADLESS too — this spawns a `claude -p` turn whose stdout is captured and parsed,
@@ -62,7 +91,17 @@ def _default_run_claude(argv: list[str]) -> str:
     # itself" hardcoded TWO files and this was the third, invisible to it because the argv head
     # here is an entrypoint variable rather than the literal "claude".
     env = {**os.environ, "CLAUDE_GOVERNOR_KIND": "bypass", "FABRIK_HEADLESS": "1"}
-    out = subprocess.run(argv, capture_output=True, text=True, timeout=600, check=True, env=env)
+    # a frozen API call retries through a hibernate wake (spec L1); the seat is first in the OOM order (L5)
+    env["CLAUDE_CODE_RETRY_WATCHDOG"] = "1"
+    out = subprocess.run(
+        argv,
+        capture_output=True,
+        text=True,
+        timeout=600,
+        check=True,
+        env=env,
+        preexec_fn=_seat_preexec,
+    )
     return out.stdout
 
 
@@ -133,6 +172,7 @@ class Broker:
         pool_fn: Callable[[str, str | None], str] | None = None,
         tool_disable_args: tuple[str, ...] = _TOOL_DISABLE,
         audit_fn: Callable[[dict], None] | None = None,
+        paused_fn: Callable[[], bool] | None = None,
     ) -> None:
         self.tokens = tokens
         self.governor = governor
@@ -143,6 +183,7 @@ class Broker:
         self._run_claude_fn = run_claude_fn or self._default_run_claude_arg
         self._pool_fn = pool_fn or _default_pool
         self._audit = audit_fn or _default_audit
+        self._paused = paused_fn or _hibernate_paused
 
     # ---- request handling ---------------------------------------------------
 
@@ -171,8 +212,22 @@ class Broker:
         if model is not None and not _MODEL_RE.fullmatch(str(model)):
             return 400, {"error": "invalid model"}
 
-        dest = self.governor.route("routine", caller=caller)  # class forced server-side
         prompt = str(body.get("prompt", ""))
+        if self._paused():
+            # a hibernate pause starts no new seat: nothing ran, no window counted, still audited
+            budgets[caller] = state
+            self._write_budgets(budgets)  # persist any rollover, exactly as the 429 path does
+            self._audit(
+                {
+                    "caller": caller,
+                    "prompt_hash": _hash(prompt),
+                    "out_len": 0,
+                    "via": "paused",
+                    "status": 503,
+                }
+            )
+            return 503, {"error": "hibernate pause marked — retry after the wake", "via": "paused"}
+        dest = self.governor.route("routine", caller=caller)  # class forced server-side
         # The attempt spends ob@ quota whether it SUCCEEDS or FAILS — so count + audit it either way,
         # and never let a completion error escape as an uncaught exception (a caller could otherwise
         # burn quota with error-producing prompts while staying under-budget and un-audited).

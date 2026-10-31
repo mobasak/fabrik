@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T15:35:51.351858Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-db048a29",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "log a warning on a non-2xx status; fall back to 5.0 on an unparsable timeout; turn the strict xfail test_post_warns_on_server_error (tests/test_cov_notifications.py) into a plain test and flip test_post_bad_timeout_env_is_swallowed",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "notifications.py _post: a 5xx webhook response is a silent success (no status check, no warning), and a bad N8N_WEBHOOK_TIMEOUT drops the webhook instead of using the 5 s default"
+}

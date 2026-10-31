@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T10:07:46.599567Z",
+  "creator": "intel",
+  "evidence": "",
+  "id": "W-b976638f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5PN3806NPGFTBRQAH9N4TK6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "intel",
+  "priority": 2,
+  "status": "done",
+  "title": "review seats: a `review_loop_ledger.py stage` verb would remove the overlay + launcher steps the base copy leaves (W-f1191ec5, D-1187)"
+}

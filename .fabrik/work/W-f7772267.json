@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T18:07:46.888863Z",
+  "creator": "infra-3",
+  "effort": "low",
+  "evidence": "a03caf2cd4462294d88e8535e7ae8d6547bc46be",
+  "id": "W-f7772267",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "when intel's own-scrape plan lock releases tests/test_emit_mcp_project_config.py, point its hermetic fixture's XDG_CONFIG_HOME at an empty dir as tests/test_emit_mcp_fillins.py does",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 3,
+  "score_reason": "pre-existing edge-shape fill-ins (a)-(g)",
+  "status": "done",
+  "title": "Low fill-in left: (f) emitter-test half — its hermetic-git fixture ignores the XDG global-ignore fallback (intel's plan lock owns tests/test_emit_mcp_project_config.py). Done: (a)(f) MR 01M5X55SCK, (h)(i)(j) MR 01M5X7EP6F, (b)(g) MR 01M5X96NS7, (k) branch infra-3-fillins-5 (564ec9f62; residue W-23c9d927); (d) by design; (c) moved to W-c0d9cea5"
+}

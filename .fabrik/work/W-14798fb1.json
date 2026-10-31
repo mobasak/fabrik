@@ -1,0 +1,28 @@
+{
+  "blocked_by": [
+    "W-bc394d0b"
+  ],
+  "created": "2026-10-29T19:23:03.655522Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-14798fb1",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate of W-dbb525de (mail 01M64EC41S's own item)",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: rule update; effort low: one clause in two fragments",
+  "status": "dropped",
+  "tags": [
+    "mail-01m64ec41s"
+  ],
+  "title": "subagents-core.md:3 and term-edit.md:3: add that a trimmed partition can run as ONE review-loop launch with max_seats once D-1354 merges (W-bc394d0b, MR 01M64EDXVP) (intel finding, mail 01M64EC41S)"
+}

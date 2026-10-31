@@ -9,9 +9,12 @@ counter-measure that did not exist. They are written to kill those specific muta
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -21,6 +24,15 @@ import pytest
 
 FABRIK = Path(__file__).resolve().parents[1]
 WHOAMI = FABRIK / "scripts/whoami_agent.py"
+AGENTS_UP = FABRIK / "scripts/sysadmin/agents_up.sh"
+
+# Fresh lowercase UUIDs for the spawner-only binding (agents_up.sh's SID shape).
+U1 = "1b1b1b1b-1b1b-4b1b-8b1b-1b1b1b1b1b1b"
+U2 = "2c2c2c2c-2c2c-4c2c-8c2c-2c2c2c2c2c2c"
+U3 = "3d3d3d3d-3d3d-4d3d-8d3d-3d3d3d3d3d3d"
+U4 = "4e4e4e4e-4e4e-4e4e-8e4e-4e4e4e4e4e4e"
+U5 = "5f5f5f5f-5f5f-4f5f-8f5f-5f5f5f5f5f5f"
+U6 = "6a6a6a6a-6a6a-4a6a-8a6a-6a6a6a6a6a6a"
 
 
 def _mod():
@@ -299,15 +311,38 @@ def test_an_unreadable_store_degrades_to_empty(store, monkeypatch):
 
 def test_no_argument_can_set_the_session_id(store):
     # The structural half of the Cobra counter-measure: a process cannot name a session it is not
-    # part of, because there is no input that sets the id.
+    # part of, because there is no input that sets the id. The ONE exception is the spawner-only
+    # `--session-id`, which is refused outside `--spawned` (and `--spawned` demands the held agents
+    # lock — the caller-proof graders below); no other spelling exists.
     out = subprocess.run(
         [sys.executable, str(WHOAMI), "--help"],
         check=True,
         capture_output=True,
         text=True,
     )
-    for forbidden in ("--session", "--sid", "--session-id"):
-        assert forbidden not in out.stdout, f"{forbidden} would let one session name another"
+    for forbidden in (r"--session(?!-id)", r"--sid\b"):
+        assert not re.search(forbidden, out.stdout), (
+            f"{forbidden} would let one session name another"
+        )
+    env = {**os.environ}
+    for argv in (
+        ("--as", "agent-2", "--session-id", U1),
+        ("--session-id", U1),
+        ("--who", "--session-id", U1),
+        ("--session", U1),
+        ("--as", "agent-2", "--session", U1),
+    ):
+        r = subprocess.run(
+            [sys.executable, str(WHOAMI), *argv],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=30,
+        )
+        assert r.returncode == 2, f"{argv} set a session id outside --spawned"
+    assert not store.exists() or U1 not in store.read_text(), (
+        "a row was written for the argument id"
+    )
 
 
 def test_command_run_resolves_the_binding_and_the_env_still_wins(store, monkeypatch):
@@ -807,3 +842,728 @@ def test_the_trim_never_resurrects_a_renamed_session_or_aborts_on_a_bad_row(stor
     assert owner.get("s1") != "alice", kept  # never resurrected: s1's last row named bob
     assert "s2" in owner, kept  # bob's newest binding survives
     assert "s-mine-old" not in owner, kept  # superseded by this bind's own row
+
+
+# --- W-b9ad80ae T01: the spawner-only binding (`--spawned`), proven by the held agents lock --------------------------
+
+_GIT_LOCATION = ("GIT_DIR", "GIT_COMMON_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE")
+
+
+def _clean_env(**extra: str) -> dict[str, str]:
+    """The caller's environment without git's location variables (a hook-run pytest would inherit them)."""
+    env = {k: v for k, v in os.environ.items() if k not in _GIT_LOCATION}
+    env.update(extra)
+    return env
+
+
+def _spawn_repo(tmp: Path, name: str = "shop") -> Path:
+    repo = (tmp / name).resolve()
+    repo.mkdir(parents=True)
+    subprocess.run(
+        ["git", "init", "-q", str(repo)], check=True, capture_output=True, env=_clean_env()
+    )
+    return repo
+
+
+def _lock_of(repo: Path) -> Path:
+    return repo / ".git" / "fabrik-agents.lock"
+
+
+@contextlib.contextmanager
+def _held(path: Path, flags: int = os.O_RDWR):
+    """Hold `path`'s flock the way `agents_spawn.py` will: open, LOCK_EX, keep the descriptor."""
+    fd = os.open(str(path), flags | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield fd
+    finally:
+        os.close(fd)
+
+
+@contextlib.contextmanager
+def _other_process_holds(path: Path):
+    """A CHILD process holds `path`'s flock until the block ends."""
+    code = (
+        "import fcntl, os, sys\n"
+        "fd = os.open(sys.argv[1], os.O_RDWR | os.O_CREAT, 0o600)\n"
+        "fcntl.flock(fd, fcntl.LOCK_EX)\n"
+        "print('ready', flush=True)\n"
+        "sys.stdin.read()\n"
+    )
+    child = subprocess.Popen(
+        [sys.executable, "-c", code, str(path)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert child.stdout is not None and child.stdout.readline().strip() == "ready"
+        yield child
+    finally:
+        assert child.stdin is not None
+        child.stdin.close()
+        child.wait(timeout=10)
+
+
+def _spawned(
+    name: str,
+    sid: str,
+    repo: object,
+    fd: object,
+    *,
+    pass_fds: tuple[int, ...] = (),
+    env=None,
+    cwd: object = None,
+) -> subprocess.CompletedProcess[str]:
+    argv = [sys.executable, str(WHOAMI), "--spawned", name, "--session-id", sid]
+    argv += ["--repo", str(repo), "--lock-fd", str(fd)]
+    return subprocess.run(
+        argv,
+        capture_output=True,
+        text=True,
+        env=_clean_env() if env is None else env,
+        pass_fds=pass_fds,
+        timeout=30,
+        cwd=None if cwd is None else str(cwd),
+    )
+
+
+def _store_rows(store: Path) -> list[dict]:
+    if not store.exists():
+        return []
+    return [json.loads(ln) for ln in store.read_text(encoding="utf-8").splitlines() if ln.strip()]
+
+
+def test_a_spawner_holding_the_agents_lock_binds_a_fresh_id_with_no_pid(store, tmp_path):
+    """The row names the NEW session, carries `spawned: true` and a null pid — never the caller's process."""
+    repo = _spawn_repo(tmp_path)
+    with _held(_lock_of(repo)) as fd:
+        r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,))
+    assert r.returncode == 0, r.stderr
+    last = _store_rows(store)[-1]
+    assert {
+        k: last.get(k) for k in ("session_id", "name", "toplevel", "spawned", "pid", "pid_start")
+    } == {
+        "session_id": U1,
+        "name": "b-1",
+        "toplevel": str(repo / ".git"),
+        "spawned": True,
+        "pid": None,
+        "pid_start": None,
+    }, last
+    assert "predecessor" not in last and last["force"] is False, last
+
+
+def test_the_lock_proof_accepts_every_legitimate_holder(store, tmp_path):
+    """Six legitimate callers of the guard's class pass it: the main checkout, a subdirectory, a trailing slash, a
+    LINKED worktree (one repo, one lock, one scope), a read-only descriptor, and a dup() of the holding descriptor
+    (the same open file description) — each binds at rc 0."""
+    repo = _spawn_repo(tmp_path)
+    git = ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t"]
+    subprocess.run([*git, "commit", "-q", "--allow-empty", "-m", "x"], check=True, env=_clean_env())
+    wt = repo / ".claude" / "worktrees" / "b-4"
+    subprocess.run(
+        [*git, "worktree", "add", "-q", "-b", "w4", str(wt)], check=True, env=_clean_env()
+    )
+    (repo / "sub" / "deep").mkdir(parents=True)
+    cases = [
+        ("b-1", U1, str(repo), os.O_RDWR),
+        ("b-2", U2, str(repo / "sub" / "deep"), os.O_RDWR),
+        ("b-3", U3, f"{repo}/", os.O_RDWR),
+        ("b-4", U4, str(wt), os.O_RDWR),
+        ("b-5", U5, str(repo), os.O_RDONLY),
+    ]
+    for name, sid, where, flags in cases:
+        with _held(_lock_of(repo), flags) as fd:
+            r = _spawned(name, sid, where, fd, pass_fds=(fd,))
+        assert r.returncode == 0, (name, where, r.stderr)
+        assert _store_rows(store)[-1]["toplevel"] == str(repo / ".git"), (name, where)
+    with _held(_lock_of(repo)) as fd:
+        dup = os.dup(fd)
+        try:
+            r = _spawned("b-6", U6, repo, dup, pass_fds=(dup,))
+        finally:
+            os.close(dup)
+    assert r.returncode == 0, ("dup", r.stderr)
+
+
+def test_no_descriptor_another_file_or_an_unheld_lock_refuses(store, tmp_path):
+    """Each failed condition of the caller proof exits 2, names that condition, and writes no row."""
+    repo = _spawn_repo(tmp_path)
+    other = tmp_path / "other.lock"
+    # (a) no open descriptor at that number
+    r = _spawned("b-1", U1, repo, 97)
+    assert r.returncode == 2 and "not an open descriptor" in r.stderr, r.stderr
+    # (a) a descriptor, locked, on another file
+    with _held(other) as fd:
+        r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,))
+    assert r.returncode == 2 and "not the agents lock" in r.stderr, r.stderr
+    # (b) the right lock path, and nobody holds it
+    fd = os.open(str(_lock_of(repo)), os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,))
+    finally:
+        os.close(fd)
+    assert r.returncode == 2 and "does not hold an exclusive flock" in r.stderr, r.stderr
+    assert _store_rows(store) == []
+
+
+def _lock_lines(pid: object, fd: int) -> list[str]:
+    """The `lock:` lines `/proc/<pid>/fdinfo/<fd>` lists — the locks THAT open file description owns."""
+    text = Path(f"/proc/{pid}/fdinfo/{fd}").read_text(encoding="utf-8")
+    return [ln for ln in text.splitlines() if ln.startswith("lock:")]
+
+
+def test_an_unlocked_descriptor_on_the_lock_refuses_whoever_holds_it(store, tmp_path):
+    """A descriptor OPEN on the lock but not locked is no proof, whether ANOTHER process holds the lock EX or nobody
+    does — and the proof leaves every lock state exactly as it found it (it takes, converts and releases nothing)."""
+    repo = _spawn_repo(tmp_path)
+    lock = _lock_of(repo)
+    code = (
+        "import fcntl, os, sys\n"
+        "fd = os.open(sys.argv[1], os.O_RDWR | os.O_CREAT, 0o600)\n"
+        "fcntl.flock(fd, fcntl.LOCK_EX)\n"
+        "print(fd, flush=True)\n"
+        "sys.stdin.read()\n"
+    )
+    child = subprocess.Popen(
+        [sys.executable, "-c", code, str(lock)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        assert child.stdout is not None
+        cfd = int(child.stdout.readline().strip())
+        fd = os.open(str(lock), os.O_RDWR)
+        try:
+            holder_before, mine_before = _lock_lines(child.pid, cfd), _lock_lines("self", fd)
+            r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,))
+            assert _lock_lines(child.pid, cfd) == holder_before and len(holder_before) == 1
+            assert _lock_lines("self", fd) == mine_before == []
+        finally:
+            os.close(fd)
+    finally:
+        assert child.stdin is not None
+        child.stdin.close()
+        child.wait(timeout=10)
+    assert r.returncode == 2 and "does not hold an exclusive flock" in r.stderr, r.stderr
+    fd = os.open(str(lock), os.O_RDWR)
+    try:
+        r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,))
+        assert _lock_lines("self", fd) == []
+    finally:
+        os.close(fd)
+    assert r.returncode == 2 and "does not hold an exclusive flock" in r.stderr, r.stderr
+    assert _store_rows(store) == []
+    probe = os.open(str(lock), os.O_RDWR)
+    try:
+        fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)  # raises if a refusal left the lock held
+    finally:
+        os.close(probe)
+
+
+def test_a_shared_or_posix_lock_is_no_proof(store, tmp_path):
+    """Only an EXCLUSIVE flock on the passed description proves the caller: a LOCK_SH holder is refused and keeps its
+    shared lock unchanged (never upgraded, never dropped); a POSIX `lockf` lock — a different lock family — is
+    refused too."""
+    repo = _spawn_repo(tmp_path)
+    lock = _lock_of(repo)
+    fd = os.open(str(lock), os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_SH)
+        before = _lock_lines("self", fd)
+        r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,))
+        assert r.returncode == 2 and "does not hold an exclusive flock" in r.stderr, r.stderr
+        assert _lock_lines("self", fd) == before and " READ " in before[0], before
+    finally:
+        os.close(fd)
+    fd = os.open(str(lock), os.O_RDWR)
+    try:
+        fcntl.lockf(fd, fcntl.LOCK_EX)
+        assert "POSIX" in _lock_lines("self", fd)[0]
+        r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,))
+        assert r.returncode == 2 and "does not hold an exclusive flock" in r.stderr, r.stderr
+        # A POSIX lock is the PROCESS's, so a child's fdinfo never lists the parent's: grade the proof
+        # in-process too, where the `POSIX  ADVISORY  WRITE` line IS listed and must not pass for a flock.
+        m = _mod()
+        assert "does not hold an exclusive flock" in m._caller_proof(str(repo / ".git"), fd)
+    finally:
+        os.close(fd)
+    assert _store_rows(store) == []
+
+
+def test_a_symlinked_agents_lock_is_refused(store, tmp_path):
+    """The lock is the literal `<common dir>/fabrik-agents.lock`: a symlink there, even one whose target the caller
+    holds EX, is refused — a realpath() comparison accepted it."""
+    repo = _spawn_repo(tmp_path)
+    target = tmp_path / "elsewhere.lock"
+    target.write_text("", encoding="utf-8")
+    _lock_of(repo).symlink_to(target)
+    with _held(_lock_of(repo)) as fd:
+        r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,))
+    assert r.returncode == 2 and "symlink" in r.stderr, r.stderr
+    assert _store_rows(store) == []
+
+
+def test_abbreviated_spawner_flags_are_refused(store, tmp_path):
+    """No argparse prefix matching: `--spawn`/`--session`/`--rep`/`--lock` were each accepted as the full flag and
+    bound at rc 0 with a held lock."""
+    repo = _spawn_repo(tmp_path)
+    full = {"--spawned": "b-1", "--session-id": U1, "--repo": str(repo), "--lock-fd": None}
+    short = {
+        "--spawned": "--spawn",
+        "--session-id": "--session",
+        "--repo": "--rep",
+        "--lock-fd": "--lock",
+    }
+    with _held(_lock_of(repo)) as fd:
+        for flag, abbrev in short.items():
+            argv: list[str] = []
+            for f, v in full.items():
+                argv += [abbrev if f == flag else f, str(fd) if v is None else v]
+            r = subprocess.run(
+                [sys.executable, str(WHOAMI), *argv],
+                capture_output=True,
+                text=True,
+                env=_clean_env(),
+                pass_fds=(fd,),
+                timeout=30,
+            )
+            assert r.returncode == 2, (abbrev, r.stdout, r.stderr)
+    assert _store_rows(store) == []
+
+
+def test_a_git_failure_is_not_reported_as_not_a_repo(store, tmp_path):
+    """git missing from PATH is an unexpected failure (exit 3, naming it); git refusing the directory is exit 2
+    carrying git's own message — never a fixed "not a repo" that hides, say, a dubious-ownership refusal."""
+    repo = _spawn_repo(tmp_path)
+    empty = tmp_path / "empty-bin"
+    empty.mkdir()
+    with _held(_lock_of(repo)) as fd:
+        r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,), env=_clean_env(PATH=str(empty)))
+    assert r.returncode == 3 and "git" in r.stderr, r.stderr
+    # a PATH whose only `git` is not executable: git cannot run either — exit 3
+    noexec = tmp_path / "noexec-bin"
+    noexec.mkdir()
+    (noexec / "git").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    (noexec / "git").chmod(0o644)
+    with _held(_lock_of(repo)) as fd:
+        r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,), env=_clean_env(PATH=str(noexec)))
+    assert r.returncode == 3 and "git could not run" in r.stderr, r.stderr
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    r = _spawned("b-1", U1, plain, 97, env=_clean_env(GIT_CEILING_DIRECTORIES=str(tmp_path)))
+    assert r.returncode == 2 and "fatal:" in r.stderr, r.stderr
+    assert _store_rows(store) == []
+    # a git that hangs past its timeout is git failing to run, too: exit 3
+    m = _mod()
+
+    def hang(_repo):
+        raise subprocess.TimeoutExpired(["git"], 10)
+
+    m._scope_of = hang
+    argv = ["whoami_agent.py", "--spawned", "b-1", "--session-id", U1, "--repo", str(repo)]
+    assert m.main([*argv, "--lock-fd", "97"]) == 3
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root enters a mode-000 directory")
+def test_an_unenterable_repo_is_refused_not_a_crash(store, tmp_path):
+    """A `--repo` git cannot ENTER (mode 000) is the caller's input, exit 2 naming it — never the exit 3 that only a
+    git which cannot run (absent, timed out) earns. A file and a missing path are refused the same way."""
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    afile = tmp_path / "afile"
+    afile.write_text("", encoding="utf-8")
+    locked.chmod(0)
+    try:
+        for where in (locked, afile, tmp_path / "missing"):
+            r = _spawned("b-1", U1, where, 97)
+            assert r.returncode == 2 and str(where) in r.stderr, (where, r.returncode, r.stderr)
+    finally:
+        locked.chmod(0o700)
+    assert _store_rows(store) == []
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root enters a mode-000 directory")
+def test_a_relative_repo_named_git_is_refused_not_a_crash(store, tmp_path):
+    """Run from a cwd holding a mode-000 directory named `git`: `--repo git` and `--repo ./git` both exit 2. The
+    failed chdir names the cwd string AS GIVEN, so a filename test for `git` read `--repo git` as git itself missing
+    and crashed at exit 3, while `./git` exited 2."""
+    here = tmp_path / "here"
+    (here / "git").mkdir(parents=True)
+    (here / "git").chmod(0)
+    try:
+        for where in ("git", "./git"):
+            r = _spawned("b-1", U1, where, 97, cwd=here)
+            assert r.returncode == 2 and "cannot be entered" in r.stderr, (
+                where,
+                r.returncode,
+                r.stderr,
+            )
+    finally:
+        (here / "git").chmod(0o700)
+    assert _store_rows(store) == []
+
+
+def test_a_known_or_malformed_session_id_is_refused(store, tmp_path):
+    """A session id any row already carries, and every id that is not a lowercase UUID, exits 2 naming it."""
+    repo = _spawn_repo(tmp_path)
+    store.write_text(
+        json.dumps(
+            {"session_id": U1, "name": "elsewhere", "toplevel": "/opt/x/.git", "at": 9_999_999_999}
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    before = store.read_text()
+    bad = [U1, U2.upper(), U2.replace("-", ""), "sid-alpha", U2 + "0", " " + U2]
+    with _held(_lock_of(repo)) as fd:
+        for sid in bad:
+            r = _spawned("b-1", sid, repo, fd, pass_fds=(fd,))
+            assert r.returncode == 2, (sid, r.stderr)
+            assert repr(sid) in r.stderr or sid in r.stderr, (sid, r.stderr)
+    assert store.read_text() == before
+
+
+def test_a_live_holder_refuses_with_1_and_a_crash_exits_3(store, tmp_path, monkeypatch):
+    """The holder scan stays: a LIVE pid-bearing row of b-1 in this scope refuses at rc 1. An exception inside the
+    spawned bind exits 3, never the 1 a collision returns."""
+    m = _mod()
+    repo = _spawn_repo(tmp_path)
+    scope = str(repo / ".git")
+    store.write_text(
+        json.dumps(
+            {
+                "session_id": "sid-live",
+                "name": "b-1",
+                "pid": os.getpid(),
+                "pid_start": m._pid_start(os.getpid()),
+                "toplevel": scope,
+                "at": 9_999_999_999,
+                "force": False,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    with _held(_lock_of(repo)) as fd:
+        r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,))
+        assert r.returncode == 1 and "LIVE session" in r.stderr, r.stderr
+        assert U1 not in store.read_text()
+        # the live holder refuses only its own name: b-2 binds beside it
+        assert _spawned("b-2", U2, repo, fd, pass_fds=(fd,)).returncode == 0
+
+        def boom(_path):
+            raise RuntimeError("injected")
+
+        monkeypatch.setattr(m, "_rows", boom)
+        argv = ["whoami_agent.py", "--spawned", "b-3", "--session-id", U3, "--repo", str(repo)]
+        assert m.main([*argv, "--lock-fd", str(fd)]) == 3
+        # The same through the real CLI: a store that is a DIRECTORY makes the append raise. --spawned exits 3;
+        # --as keeps its `__main__` catch-all and exits 1.
+        broken = tmp_path / "store-is-a-dir"
+        broken.mkdir()
+        env = _clean_env(AGENT_IDENTITY_FILE=str(broken))
+        r = _spawned("b-4", U4, repo, fd, pass_fds=(fd,), env=env)
+        assert r.returncode == 3 and "crashed" in r.stderr, r.stderr
+    r = subprocess.run(
+        [sys.executable, str(WHOAMI), "--as", "agent-2"],
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=30,
+    )
+    assert r.returncode == 1, (r.stdout, r.stderr)
+
+
+def test_an_inherited_git_dir_never_redirects_the_spawned_scope(store, tmp_path):
+    """`GIT_DIR` naming another repo in the caller's environment: the row's scope is still `--repo`'s common dir."""
+    repo = _spawn_repo(tmp_path)
+    other = _spawn_repo(tmp_path, "other")
+    env = _clean_env(GIT_DIR=str(other / ".git"), GIT_WORK_TREE=str(other))
+    with _held(_lock_of(repo)) as fd:
+        r = _spawned("b-1", U1, repo, fd, pass_fds=(fd,), env=env)
+    assert r.returncode == 0, r.stderr
+    assert _store_rows(store)[-1]["toplevel"] == str(repo / ".git")
+
+
+def test_the_spawner_flags_are_scoped_to_spawned(store, tmp_path):
+    """`--spawned` beside `--as`/`--who`, a spawner flag without `--spawned`, or `--spawned` missing one: usage, rc 2."""
+    repo = _spawn_repo(tmp_path)
+    full = ["--spawned", "b-1", "--session-id", U1, "--repo", str(repo), "--lock-fd", "3"]
+    cases = [
+        [*full, "--as", "agent-2"],
+        [*full, "--who"],
+        ["--session-id", U1],
+        ["--repo", str(repo)],
+        ["--lock-fd", "3"],
+        ["--as", "agent-2", "--repo", str(repo)],
+        ["--spawned", "b-1", "--session-id", U1, "--repo", str(repo)],
+        ["--spawned", "b-1", "--repo", str(repo), "--lock-fd", "3"],
+        ["--spawned", "b-1", "--session-id", U1, "--lock-fd", "3"],
+        [*full, "--force"],
+    ]
+    for argv in cases:
+        r = subprocess.run(
+            [sys.executable, str(WHOAMI), *argv],
+            capture_output=True,
+            text=True,
+            env=_clean_env(),
+            timeout=30,
+        )
+        assert r.returncode == 2 and "usage" in r.stderr.lower(), (argv, r.stderr)
+    assert _store_rows(store) == []
+
+
+def test_the_launcher_reads_the_spawned_row_as_a_builder(store, tmp_path):
+    """Cross-ticket (IF1 → T02): the spawned row, written through the real CLI, is what a registry-less repo's
+    `agents_up.sh --print` resolves into a pane for b-1 — against TODAY's launcher, untouched."""
+    repo = _spawn_repo(tmp_path)
+    wt = repo / ".claude" / "worktrees" / "b-1"
+    wt.mkdir(parents=True)
+    (wt / ".git").write_text(f"gitdir: {repo}/.git/worktrees/b-1\n", encoding="utf-8")
+    with _held(_lock_of(repo)) as fd:
+        assert _spawned("b-1", U1, repo, fd, pass_fds=(fd,)).returncode == 0
+    home = tmp_path / "home"
+    (home / "proc").mkdir(parents=True)
+    (home / "proc" / "meminfo").write_text(
+        "MemTotal: 28311552 kB\nMemAvailable: 1 kB\n", encoding="utf-8"
+    )
+    out = subprocess.run(
+        ["bash", str(AGENTS_UP), "--print", str(repo)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env={
+            "PATH": "/usr/bin:/bin",
+            "HOME": str(home),
+            "FABRIK_PROC_ROOT": str(home / "proc"),
+            "AGENT_IDENTITY_FILE": str(store),
+        },
+    )
+    panes = [ln for ln in out.stdout.splitlines() if ln.startswith("pane ")]
+    assert any(ln.startswith(f"pane b-1 {U1} ") for ln in panes), (out.stdout, out.stderr)
+
+
+# ── W-a77742db: a session resumed into a new claude process is re-recorded under it ────────────
+def _bound_elsewhere(m, sid="sid-alpha", name="agent-2", pid=9_999_999, start=1, top=None):
+    """A row for `sid` written under ANOTHER claude process (a dead pid by default) — the shape
+    every session resumed into a new process carries (measured 2026-10-28: 10 of 15 bound live
+    windows)."""
+    row = json.loads(_holder(m, pid, start, sid=sid, name=name))
+    if top is not None:
+        row["toplevel"] = top
+    row["at"] = 100
+    return json.dumps(row)
+
+
+def test_refresh_records_a_resumed_session_under_its_new_process(store, monkeypatch):
+    """Behaviour 1: the one case refresh writes — this session's last in-scope row names a valid
+    name, still the newest row of that name, under a dead process — appends ONE row with the same
+    session, name and scope under THIS process, marked as a refresh, never forced; a passed
+    `top` is the scope (the SessionStart hook passes its own, so no second git runs)."""
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    store.write_text(_bound_elsewhere(m) + "\n", encoding="utf-8")
+    assert m.refresh() == "agent-2"
+    rows = m._rows(store)
+    assert len(rows) == 2
+    new = rows[-1]
+    assert (new["session_id"], new["name"], new["toplevel"]) == (
+        "sid-alpha",
+        "agent-2",
+        m._toplevel(),
+    )
+    assert (new["pid"], new["pid_start"]) == (pid, start)
+    assert new["refresh"] is True and new["force"] is False and new["unlocked"] is False
+    assert m.resolve_agent_name() == "agent-2"
+    store.write_text(_bound_elsewhere(m, top="/given/.git") + "\n", encoding="utf-8")
+    monkeypatch.setattr(m, "_toplevel", lambda: pytest.fail("a passed scope runs no git"))
+    assert m.refresh(top="/given/.git") == "agent-2"
+    assert m._rows(store)[-1]["toplevel"] == "/given/.git"
+
+
+def test_refresh_writes_nothing_outside_its_one_case(store, monkeypatch):
+    """Behaviour 2: every guard of the design's input table writes nothing — and a second call
+    after a refresh writes nothing (idempotent per process)."""
+    import fcntl
+
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    other = os.getppid()  # a LIVE process that is not this window
+
+    def unchanged(text: str, **kw: object) -> bool:
+        store.write_text(text, encoding="utf-8")
+        before = store.read_bytes()
+        got = m.refresh(**kw)
+        return got == "" and store.read_bytes() == before
+
+    assert unchanged("")  # no binding for this session
+    assert unchanged(_bound_elsewhere(m, sid="sid-other") + "\n")  # another session's row only
+    assert unchanged(_bound_elsewhere(m, name="Bad Name") + "\n")  # invalid name
+    assert unchanged(_bound_elsewhere(m, top="/elsewhere/.git") + "\n")  # only in another scope
+    assert unchanged(_bound_elsewhere(m, top="") + "\n")  # an unknown scope is never ours
+    assert unchanged(_bound_elsewhere(m) + "\n", top="")  # nor an unknown current scope
+    assert unchanged(_holder(m, pid, start, sid="sid-alpha") + "\n")  # already under this process
+    # the sid is live in ANOTHER process (`claude --resume <sid>` in a second terminal)
+    assert unchanged(_bound_elsewhere(m, pid=other, start=m._pid_start(other)) + "\n")
+    lock = os.open(str(store) + ".lock", os.O_CREAT | os.O_RDWR, 0o600)
+    fcntl.flock(lock, fcntl.LOCK_EX)  # a writer holds the store: one try, then nothing
+    t0 = time.monotonic()
+    assert unchanged(_bound_elsewhere(m) + "\n")
+    assert time.monotonic() - t0 < 1.0, "a busy store must not hold SessionStart"
+    fcntl.flock(lock, fcntl.LOCK_UN)
+    os.close(lock)
+    monkeypatch.setenv("CLAUDE_PID", "31337")  # a nested claude: the walk reached the outer one
+    assert unchanged(_bound_elsewhere(m) + "\n")
+    monkeypatch.delenv("CLAUDE_PID")
+    monkeypatch.setattr(m, "_session_pid", lambda: None)  # no claude ancestor
+    assert unchanged(_bound_elsewhere(m) + "\n")
+    _own_process(m, monkeypatch)
+    real_start = m._pid_start
+    monkeypatch.setattr(m, "_pid_start", lambda _pid: None)  # start tick unreadable
+    assert unchanged(_bound_elsewhere(m) + "\n")
+    monkeypatch.setattr(m, "_pid_start", real_start)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "")
+    assert unchanged(_bound_elsewhere(m) + "\n")  # no session id
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sid-alpha")
+    store.write_text(_bound_elsewhere(m) + "\n", encoding="utf-8")
+    assert m.refresh() == "agent-2"  # the positive control under the same patches
+    once = store.read_bytes()
+    assert m.refresh() == "" and store.read_bytes() == once  # idempotent
+
+
+def test_refresh_never_takes_back_a_name_re_taken_since(store, monkeypatch):
+    """Behaviour 3: once another session bound the name after this one, a refresh would make this
+    window the name's newest live holder again — a silent take-back; it writes nothing. And the
+    last row is chosen PER SCOPE: a sid holding the name here and elsewhere refreshes here."""
+    m = _mod()
+    _own_process(m, monkeypatch)
+    store.write_text(
+        _bound_elsewhere(m) + "\n" + _bound_elsewhere(m, sid="sid-new", pid=9_999_998) + "\n",
+        encoding="utf-8",
+    )
+    before = store.read_bytes()
+    assert m.refresh() == "" and store.read_bytes() == before
+    # this session re-bound the name after the other one took it: its own again, refreshed
+    store.write_text(
+        _bound_elsewhere(m, name="agent-3")
+        + "\n"
+        + _bound_elsewhere(m, sid="sid-new", name="agent-3", pid=9_999_998)
+        + "\n"
+        + _bound_elsewhere(m, name="agent-2")
+        + "\n",
+        encoding="utf-8",
+    )
+    assert m.refresh() == "agent-2"
+    # the session's LAST row overall sits in another repo; its last row HERE still refreshes
+    store.write_text(
+        _bound_elsewhere(m) + "\n" + _bound_elsewhere(m, top="/elsewhere/.git") + "\n",
+        encoding="utf-8",
+    )
+    assert m.refresh() == "agent-2"
+    assert m._rows(store)[-1]["toplevel"] == m._toplevel()
+
+
+def test_refresh_never_changes_what_the_session_resolves_to(store, monkeypatch):
+    """Review round 1 (A-haiku-1): the session's LAST row overall decides its name
+    (`resolve_agent_name`); a session forced to another name in another repo must not get its old
+    name here re-recorded as its newest row, or its identity flips. A refresh writes only the name
+    the session resolves to now."""
+    m = _mod()
+    _own_process(m, monkeypatch)
+    store.write_text(
+        _bound_elsewhere(m, name="alpha")
+        + "\n"
+        + _bound_elsewhere(m, name="beta", top="/elsewhere/.git")
+        + "\n",
+        encoding="utf-8",
+    )
+    assert m.resolve_agent_name() == "beta"
+    before = store.read_bytes()
+    assert m.refresh() == "" and store.read_bytes() == before
+    assert m.resolve_agent_name() == "beta"
+
+
+def test_refresh_leaves_a_session_live_in_another_process_alone(store, monkeypatch):
+    """Review round 1 (A-haiku-5): the sid is live in another process even when that process's row
+    is not the sid's last one (a later `--force` re-bind under a process since gone); any live row
+    of this sid under another process leaves it alone."""
+    m = _mod()
+    _own_process(m, monkeypatch)
+    other = os.getppid()
+    store.write_text(
+        _bound_elsewhere(m, pid=other, start=m._pid_start(other))
+        + "\n"
+        + _bound_elsewhere(m)
+        + "\n",
+        encoding="utf-8",
+    )
+    before = store.read_bytes()
+    assert m.refresh() == "" and store.read_bytes() == before
+
+
+def test_refresh_is_not_blocked_by_this_windows_own_row_in_another_repo(store, monkeypatch):
+    """Review round 2 (A-haiku-p2-1): the live-process refusal is about ANOTHER process holding the
+    session; this window's own live row in another repo is not that, and must not block the row
+    here (the lane here keys on a row of this process in this repo)."""
+    m = _mod()
+    pid, start = _own_process(m, monkeypatch)
+    store.write_text(
+        _bound_elsewhere(m)
+        + "\n"
+        + _holder(m, pid, start, sid="sid-alpha").replace(
+            json.dumps(m._toplevel()), json.dumps("/elsewhere/.git")
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    assert m.refresh() == "agent-2"
+    assert m._rows(store)[-1]["toplevel"] == m._toplevel()
+    # review r3 (A-haiku-p3-1): only THIS window's row elsewhere is exempt — another live process's
+    # row in another repo still leaves the session alone
+    other = os.getppid()
+    store.write_text(
+        _bound_elsewhere(m)
+        + "\n"
+        + _bound_elsewhere(m, pid=other, start=m._pid_start(other), top="/elsewhere/.git")
+        + "\n",
+        encoding="utf-8",
+    )
+    before = store.read_bytes()
+    assert m.refresh() == "" and store.read_bytes() == before
+
+
+def test_refresh_with_no_store_creates_nothing(tmp_path, monkeypatch):
+    """Review round 1 (A-sonnet-2): every SessionStart in every repo calls refresh; with nothing
+    ever bound there is no store, and refresh must not create its directory or a lock file."""
+    store = tmp_path / "state" / "agent-identity.jsonl"
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(store))
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "sid-alpha")
+    m = _mod()
+    _own_process(m, monkeypatch)
+    assert m.refresh(top="/some/repo/.git") == ""
+    assert not (tmp_path / "state").exists()
+
+
+def test_refresh_matches_the_scope_by_realpath_and_never_by_an_empty_one(
+    store, monkeypatch, tmp_path
+):
+    """Review round 1 (A-sonnet-1, A-haiku-2): the hook passes a realpath'd common dir while `bind`
+    stored git's string — a symlinked spelling of the same repo is the same scope, and the new row
+    keeps the binding's own spelling; an empty scope is never this one, even where the store holds
+    a row whose scope is the current directory (realpath("") is the cwd)."""
+    m = _mod()
+    _own_process(m, monkeypatch)
+    real = tmp_path / "repo-real" / ".git"
+    real.mkdir(parents=True)
+    link = tmp_path / "repo-link"
+    link.symlink_to(tmp_path / "repo-real")
+    store.write_text(_bound_elsewhere(m, top=str(link / ".git")) + "\n", encoding="utf-8")
+    assert m.refresh(top=str(real)) == "agent-2"
+    assert m._rows(store)[-1]["toplevel"] == str(link / ".git")
+    monkeypatch.chdir(tmp_path)
+    store.write_text(_bound_elsewhere(m, top=os.path.realpath(".")) + "\n", encoding="utf-8")
+    before = store.read_bytes()
+    assert m.refresh(top="") == "" and store.read_bytes() == before

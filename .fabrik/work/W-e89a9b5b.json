@@ -1,11 +1,9 @@
 {
-  "blocked_by": [
-    "W-42d1ccb5"
-  ],
+  "blocked_by": [],
   "created": "2026-10-21T16:52:01.286560Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "0ddb958758b8a6e3404f862e8bedc667f6c7da52",
   "id": "W-e89a9b5b",
   "impact": "high",
   "kind": "task",
@@ -20,6 +18,6 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "operator ask (HIGH); one unit file, one session; blocks the operator's access to every coordinator after any restart",
-  "status": "open",
+  "status": "done",
   "title": "Browser code-server (fabrik-deck-server, 127.0.0.1:8443) must survive a WSL restart — a systemd user service, not a hand start (operator 2026-10-21: 'via vivaldi i cant reach the repos why?' after the 19:32 WSL restart)"
 }

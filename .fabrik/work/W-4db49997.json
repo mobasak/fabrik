@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T12:25:51.949411Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-4db49997",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M63PXPBWA2KMWZSY7BXYWEJQ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: blocked",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: infra-synced-lock"
+}

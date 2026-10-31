@@ -26,6 +26,14 @@ from fabrik.audit import AuditResult
 from fabrik.drivers import postgres as pg_driver
 from fabrik.spec_loader import Depends, Shape, Spec
 
+
+@pytest.fixture(autouse=True)
+def _no_live_pause_probe(monkeypatch, tmp_path):
+    # audit_all_registrars probes `hibernate.py paused` in apply mode (T03a); these tests fake
+    # subprocess.run wholesale, so point the probe at an absent script (the fail-open path).
+    monkeypatch.setenv("FABRIK_HIBERNATE_PY", str(tmp_path / "absent-hibernate.py"))
+
+
 REPO = Path(__file__).resolve().parents[1]
 REGISTRY = {
     "version": 1,

@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T18:44:07.640315Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-2513f13a",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "operator gate (credentials): rotate the R2 key pair and the DB passwords (the stack is being removed, D-1333 — rotate anyway, the history keeps them); then replace the literals with ${VAR} from an untracked .env and add a grader refusing literal secret-named values in infra/ composes",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "tags": [
+    "fleet",
+    "security"
+  ],
+  "title": "SECURITY: infra/vps1/ocoron-com/compose.yaml (tracked since 134f8c6d9, 2026-06-17, pushed to GitHub mobasak/fabrik) carries 6 literal credentials — WORDPRESS_DB_PASSWORD, MYSQL_ROOT_PASSWORD, MYSQL_PASSWORD, DB_PASSWORD (32 chars each), R2_ACCESS_KEY (32), R2_SECRET_KEY (64) at lines 9, 76, 79, 112, 114, 115 — found by a review seat 2026-10-29, values not repeated"
+}

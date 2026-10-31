@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T09:28:11.164352Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-2b9a9d1f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M63T63GYGGSSXXCDQ1S73TKM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "done",
+  "title": "# site-provisioner: add a Cloudflare cache-purge route"
+}

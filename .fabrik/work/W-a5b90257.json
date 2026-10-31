@@ -3,7 +3,7 @@
   "created": "2026-10-23T14:41:11.771237Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "466d2849ef9a9e5d69242ee90599a6a867c6406a",
   "id": "W-a5b90257",
   "impact": "low",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra-2",
   "priority": 3,
   "score_reason": "one misleading routing phrase in the fleet template; same-line edit",
-  "status": "open",
+  "status": "done",
   "tags": [
     "queued"
   ],

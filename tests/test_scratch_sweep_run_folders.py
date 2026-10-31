@@ -1303,12 +1303,23 @@ def _gap_proc(tmp_path: Path, *, started_ago: float | None, zombie: bool = False
     ("started_ago", "created_ago", "zombie", "kept"),
     [
         (90 * DAY, 50 * HOUR, False, False),  # a daemon running before the run began
-        (HOUR, 50 * HOUR, False, True),  # an unreadable process born during the run
+        (45 * HOUR, 50 * HOUR, False, True),  # born during the run (it closed 40 h ago)
+        # W-d1a4a8f5: born 39 h AFTER the run closed — the document portal's fusermount3 shape. It
+        # kept 152 folders (77 GB) on 2026-10-29 because the rule had no end; both the classifier
+        # and the --apply re-check must let it go, or the re-check re-keeps what the judge consumed
+        (HOUR, 50 * HOUR, False, False),
         (None, 50 * HOUR, False, True),  # its start cannot be read
         (90 * DAY, None, False, True),  # the marker carries no `created`
         (HOUR, 50 * HOUR, True, False),  # a zombie holds nothing
     ],
-    ids=["pre-run-daemon", "born-during-run", "start-unknown", "created-missing", "zombie"],
+    ids=[
+        "pre-run-daemon",
+        "born-during-run",
+        "born-after-run",
+        "start-unknown",
+        "created-missing",
+        "zombie",
+    ],
 )
 def test_a_proc_gap_keeps_only_a_process_the_run_could_own(
     started_ago: float | None,
@@ -1371,6 +1382,115 @@ def test_a_nan_start_is_an_unknown_start_that_keeps() -> None:
     """Review of 46b409cc9 (haiku C1): a gap whose start is NaN (a NaN `SCRATCH_SWEEP_BTIME` makes
     every start NaN) is an unknown start like `None` — INV-1 doubt keeps — never a dropped gap."""
     assert sw.gap_keeps([float("nan")], NOW - 100_000, NOW) is True
+
+
+def test_a_gap_started_after_the_runs_window_keeps_nothing() -> None:
+    """W-d1a4a8f5 (supersedes D-878 in part): a gap keeps only a process that started inside the
+    run's own window [created - 300 s, end + 300 s]. Without an end the setuid document portal
+    (fusermount3, started mid-uptime) kept every older run folder; /tmp is NOT cleared at boot here
+    (74 of 652 sid dirs predated btime), so "until the next boot" was never a bound."""
+    created, end = NOW - 50 * HOUR, NOW - 40 * HOUR
+    assert sw.gap_keeps([NOW - HOUR], created, NOW, end=end) is False  # born after the window
+    assert sw.gap_keeps([NOW - 45 * HOUR], created, NOW, end=end) is True  # born inside it
+    assert sw.gap_keeps([end + 299], created, NOW, end=end) is True  # the margin is inclusive
+    assert sw.gap_keeps([end + 301], created, NOW, end=end) is False
+    assert sw.gap_keeps([NOW - 90 * DAY], created, NOW, end=end) is False  # before it, as today
+    # doubt still keeps: an unusable start, an unusable created, and no end at all (today's rule)
+    assert sw.gap_keeps([None], created, NOW, end=end) is True
+    assert sw.gap_keeps([float("nan")], created, NOW, end=end) is True
+    assert sw.gap_keeps([NOW - HOUR], None, NOW, end=end) is True
+    assert sw.gap_keeps([NOW - HOUR], created, NOW) is True
+    assert sw.gap_keeps([NOW - HOUR], created, NOW, end=None) is True
+    for bad in (float("nan"), float("inf"), True, "x"):
+        assert sw.gap_keeps([NOW - HOUR], created, NOW, end=bad) is True, bad
+    # one gap inside the window keeps, whatever the others say
+    assert sw.gap_keeps([NOW - HOUR, NOW - 45 * HOUR], created, NOW, end=end) is True
+
+
+def test_the_run_window_ends_at_its_last_activity_seats_included(harness: Path) -> None:
+    """W-d1a4a8f5: the window's end is the run's last activity — the close, a top-level write after
+    it, or the newest seat transcript (a seat that acts moves its own transcript, which the folder's
+    mtime does not see when it writes in place); a running/resumable marker's heartbeat; a trash
+    folder's rename. Anything the marker cannot vouch for is None, which keeps as today — and so is
+    an end before the run's own `created` (an inverted window), a future end, and a close no float
+    holds (review pass 1 of W-d1a4a8f5: Opus C1-C4, Sonnet C2/C5, Haiku 2-3)."""
+    sdir = _session(harness)
+    tx_root = harness.parent / "tx"
+    sids = (SID_A,)
+    done = _run_folder(sdir, "d", closed_ago=40 * HOUR)
+    owner = json.loads((done / ".owner").read_text(encoding="utf-8"))
+    assert sw.run_window_end(done, owner, sids, [tx_root], NOW) == pytest.approx(NOW - 40 * HOUR)
+
+    def seat(root: Path, sid: str, ago: float) -> Path:
+        p = root / SLUG / sid / "subagents" / "agent-a1.jsonl"
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("{}\n", encoding="utf-8")
+        _age(p, ago)
+        return p
+
+    s = seat(tx_root, SID_A, 10 * HOUR)
+    got = sw.run_window_end(done, owner, sids, [tx_root], NOW)
+    assert got == pytest.approx(NOW - 10 * HOUR), "a seat acting after the close extends the window"
+    _age(s, -HOUR)  # a seat transcript dated an hour AHEAD of now: a clock jump, no answer
+    assert sw.run_window_end(done, owner, sids, [tx_root], NOW) is None
+    s.unlink()
+
+    # a glob metacharacter in a root or a sid is a literal, never a pattern that hides the seat
+    odd_root = harness.parent / "tx[1]"
+    seat(odd_root, SID_A, 10 * HOUR)
+    got = sw.run_window_end(done, owner, sids, [odd_root], NOW)
+    assert got == pytest.approx(NOW - 10 * HOUR), "a bracketed transcript root hid the seat"
+
+    # the seats of EITHER sid count: the marker's, and the directory's (D4 judges a mismatch)
+    seat(tx_root, SID_B, 12 * HOUR)
+    other = dict(owner, sid=SID_B)
+    got = sw.run_window_end(done, other, (SID_B, SID_A), [tx_root], NOW)
+    assert got == pytest.approx(NOW - 12 * HOUR), got
+    assert sw._run_sids(other, SID_A) == (SID_B, SID_A)
+    assert sw._run_sids({}, SID_A) == (SID_A,)
+    assert sw._run_sids({"sid": 7}, SID_A) == (SID_A,)
+
+    # a top-level write after the close raises the end (W-9f3f097c's own signal)
+    wrote = _run_folder(sdir, "w", closed_ago=40 * HOUR)
+    _age(wrote, 20 * HOUR)
+    w_owner = json.loads((wrote / ".owner").read_text(encoding="utf-8"))
+    assert sw.run_window_end(wrote, w_owner, ("none",), [tx_root], NOW) == pytest.approx(
+        NOW - 20 * HOUR
+    )
+
+    running = _run_folder(sdir, "r", "running", closed_ago=None, heartbeat_ago=30 * HOUR)
+    r_owner = json.loads((running / ".owner").read_text(encoding="utf-8"))
+    assert sw.run_window_end(running, r_owner, ("none",), [tx_root], NOW) == pytest.approx(
+        NOW - 30 * HOUR
+    )
+    # a running run's seats count too — its heartbeat moves only at events, not while a seat works
+    assert sw.run_window_end(running, r_owner, sids, [tx_root], NOW) == pytest.approx(
+        NOW - 30 * HOUR
+    )
+    seat(tx_root, SID_A, 5 * HOUR)
+    assert sw.run_window_end(running, r_owner, sids, [tx_root], NOW) == pytest.approx(
+        NOW - 5 * HOUR
+    )
+    resumable = dict(r_owner, state="resumable")
+    assert sw.run_window_end(running, resumable, ("none",), [tx_root], NOW) == pytest.approx(
+        NOW - 30 * HOUR
+    )
+    # an end BEFORE the run's own created is an inverted window: doubt, never a narrow keep
+    inverted = dict(r_owner, created=NOW - 10 * HOUR)
+    assert sw.run_window_end(running, inverted, ("none",), [tx_root], NOW) is None
+
+    unvouched = dict(owner, closed_at=owner["created"] - DAY)  # a close before its own start
+    assert sw.run_window_end(done, unvouched, sids, [tx_root], NOW) is None
+    assert sw.run_window_end(done, None, sids, [tx_root], NOW) is None
+    assert sw.run_window_end(done, dict(owner, state="weird"), sids, [tx_root], NOW) is None
+    huge = dict(owner, created=10**400 - 1, closed_at=10**400)  # vouched, but no float holds it
+    assert sw.run_window_end(done, huge, sids, [tx_root], NOW) is None
+
+    trash = sdir / "scratchpad" / ".trash-t-2026-10-15T05-40-42-0300-0a1b2c"
+    trash.mkdir()
+    ctime = trash.lstat().st_ctime
+    t_owner = dict(owner, created=ctime - DAY)
+    assert sw.run_window_end(trash, t_owner, ("none",), [tx_root], NOW) == ctime
 
 
 @pytest.mark.parametrize("created", [10**400, -(10**400)])

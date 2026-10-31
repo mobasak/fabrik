@@ -38,16 +38,19 @@ from __future__ import annotations
 import argparse
 import contextlib
 import fcntl
+import hashlib
 import importlib.util
 import json
 import math
 import os
 import re
+import signal
 import stat
 import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -68,26 +71,55 @@ CLEAR_WAIT_S = 60  # the registry shows the new session after /clear
 COMPACT_WAIT_S = 60  # the compact boundary lands (the compact path has no re-bind wait, so it is the shorter one)
 # The re-bind wait after the resume prompt: the one late bind measured since W-b92aa5cf landed 98 s after the submit.
 REBIND_GRACE_S = 180
-# The worst /clear request: the discard's re-check sleep and its wait, two sends, the clear wait and the re-bind grace;
-# the sleep each loop may take after its last check (0.5 s in the five capture loops, 1 s in the clear and re-bind loops
-# — 4.5 s, rounded up to 5); and 17 tmux calls that can each take TMUX_TIMEOUT_S past any deadline — 12 outside every
-# wait (resolve 1, the two run_checks 1 each, _one's box read 1, the discard's three box reads and its Escape pair 4,
-# two pastes and two C-m 4) and the last capture of each of the five capture loops (the discard wait, two settles, two
-# submits) — 487 s.
+# T07: the registry re-point waits this long for the repo's agents lock (`agents_spawn.py add|remove` hold it across
+# their registry write), polling every AGENTS_LOCK_POLL_S. Not counted, like run_checks' git calls: the one git call
+# that resolves the lock's path (agents_spawn.GIT_TIMEOUT_S).
+AGENTS_LOCK_WAIT_S = 30
+AGENTS_LOCK_POLL_S = 0.2
+# The worst /clear request: the discard's re-check sleep and its wait, two sends, the clear wait, the agents-lock wait
+# and the re-bind grace; the sleep each loop may take after its last check (0.5 s in the five capture loops, 1 s in the
+# clear and re-bind loops, 0.2 s in the lock loop — 4.7 s, rounded up to 5); and 17 tmux calls that can each take
+# TMUX_TIMEOUT_S past any deadline — 12 outside every wait (resolve 1, the two run_checks 1 each, _one's box read 1, the
+# discard's three box reads and its Escape pair 4, two pastes and two C-m 4) and the last capture of each of the five
+# capture loops (the discard wait, two settles, two submits) — 517 s.
 REQUEST_WORST_S = (
     DISCARD_RECHECK_S
     + DISCARD_WAIT_S
     + 2 * (SEND_SETTLE_S + SEND_SUBMIT_S)
     + CLEAR_WAIT_S
+    + AGENTS_LOCK_WAIT_S
     + REBIND_GRACE_S
     + 5
     + 17 * TMUX_TIMEOUT_S
 )
+# W-e38f8ee7: the --move path's own waits. The pane command comes from agents_up.sh --pane-cmd (its resolver, the
+# ledger read and the slice ceiling, measured 1-3 s, bounded at 60 s); after `respawn-pane -k` the old claude gets
+# OLD_EXIT_S to exit by itself on the pane's SIGHUP, then SIGTERM and OLD_TERM_S, then SIGKILL and OLD_KILL_S.
+PANE_CMD_TIMEOUT_S = 60
+OLD_EXIT_S = 10
+OLD_TERM_S = 5
+OLD_KILL_S = 2
+# The worst --move request: the pane command, the last re-read, the reap, the launch wait (CLEAR_WAIT_S), the agents
+# lock and the re-bind grace; 5 s of loop sleeps after their last checks; and 8 tmux calls past any deadline (resolve 1,
+# run_checks' box read 1, the last re-read's two box reads 2, the respawn 1, and the reap, launch and re-bind loops do
+# none — 3 spare for the box reads run_checks' dialog branch may add). Under REQUEST_WORST_S, so CLAIM_CUTOFF_S holds.
+MOVE_WORST_S = (
+    PANE_CMD_TIMEOUT_S
+    + DISCARD_RECHECK_S
+    + OLD_EXIT_S
+    + OLD_TERM_S
+    + OLD_KILL_S
+    + CLEAR_WAIT_S
+    + AGENTS_LOCK_WAIT_S
+    + REBIND_GRACE_S
+    + 5
+    + 8 * TMUX_TIMEOUT_S
+)
 # `execute` claims no new request after this long, so the last request it starts ends inside the unit's
-# TimeoutStartSec=600 with at least 60 s to spare (50 + 487 + 60 <= 600), the git calls above aside. A file left unclaimed
+# TimeoutStartSec=600 with at least 60 s to spare (20 + 517 + 60 <= 600), the git calls above aside. A file left unclaimed
 # stays for the path unit, which starts `execute` again when this one exits; two requests can only meet in one run by
 # racing past `_pending`.
-CLAIM_CUTOFF_S = 50
+CLAIM_CUTOFF_S = 20
 VETO_S = 300  # a registry flip after the last turn end vetoes this long; measured flips led a turn's first write by 0.02 s
 SEAT_TAIL = 8 * 1024 * 1024
 TURN_END = ("turn_duration", "stop_hook_summary")
@@ -108,6 +140,7 @@ FIELDS = {
     "last_compact_age_s",
 }
 OPTIONAL = {"stale_text", "operator_ok"}  # --stale-input discard (W-ee19169d): both or neither
+MOVE_FIELD = "into"  # --move (W-e38f8ee7): present exactly when mode == "move"
 TRIGGERS = ("ctx", "mb", "unrelated", "compact", "manual", "lift")
 _NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,31}")
 _PANE = re.compile(r"%[0-9]{1,6}")
@@ -116,12 +149,40 @@ _NOTIFY = re.compile(
 )  # the Stop hook's forms
 
 
-class CheckFailedError(Exception):
-    """A check failed: (check, reason)."""
+# W-05021a03: `request`'s exit names whether asking again can pass. TRANSIENT clears by itself (the session finishes its
+# turn, run or seat; the rotation in flight rows; tmux answers; a pane restarts) → EXIT_RETRY; PERMANENT needs an act
+# first → 1, which an uncaught crash also exits (read stderr and act, the same as a permanent abort). Fail direction:
+# transient-called-permanent stops a rotation that would have passed, permanent-called-transient keeps the old loop, so
+# a check is transient by default and a raise is permanent only on POSITIVE evidence that an act is needed (`transient=
+# False`): a bad argument, the request dir's ownership, a dialog's numbered option on the prompt row, text typed in the
+# box, two transcripts, no identity row or a binding elsewhere, uncommitted or unpushed work, a slash-command ending, a
+# request the unit never claimed. COBRA (D-253): calling everything transient passes any exit test and keeps the loop;
+# the measure is the consecutive-repeat census of rotations.jsonl, not the rc.
+EXIT_RETRY = 75  # sysexits EX_TEMPFAIL
+TRANSIENT_CHECKS = frozenset(
+    {
+        "status",
+        "idle",
+        "pending",
+        "record",
+        "seat",
+        "tmux",
+        "resolve",
+        "transcript",
+        "screen",
+        "worktree",
+    }
+)
+PERMANENT_CHECKS = frozenset({"args", "request", "stale-input"})
 
-    def __init__(self, check: str, reason: str) -> None:
+
+class CheckFailedError(Exception):
+    """A check failed: (check, reason), and whether asking again can pass (`transient`)."""
+
+    def __init__(self, check: str, reason: str, transient: bool | None = None) -> None:
         super().__init__(f"{check}: {reason}")
         self.check, self.reason = check, reason
+        self.transient = check not in PERMANENT_CHECKS if transient is None else transient
 
 
 def _load(name: str) -> Any:
@@ -221,11 +282,70 @@ def _session_registry(repo: str, sid: str) -> Path | None:
     return p / ".fabrik" / "session-agents.json"
 
 
+_agents_spawn_mod: Any = None
+
+
+def _agents_spawn() -> Any:
+    """agents_spawn.py, loaded once from this script's own directory (raises when it is missing or fails to import)."""
+    global _agents_spawn_mod
+    if _agents_spawn_mod is None:
+        name = "_rot_agents_spawn"
+        spec = importlib.util.spec_from_file_location(name, HERE / "agents_spawn.py")
+        if spec is None or spec.loader is None:
+            raise ImportError("cannot load agents_spawn.py beside rotate_session.py")
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[name] = mod  # its @dataclass classes resolve their module through sys.modules
+        try:
+            spec.loader.exec_module(mod)
+        except BaseException:
+            sys.modules.pop(name, None)
+            raise
+        _agents_spawn_mod = mod
+    return _agents_spawn_mod
+
+
+def _agents_lock_file(registry: Path) -> str:
+    """The repo's agents lock — `agents_spawn.lock_path(<repo>)`, the repo being `<repo>/.fabrik/session-agents.json`'s
+    `parents[1]` — so both scripts name ONE file (spec § The delta D2). Raises when it cannot be resolved."""
+    return str(_agents_spawn().lock_path(str(registry.parents[1])))
+
+
 def _repoint_registry(path: Path, old_sid: str, new_sid: str, name: str) -> str:
     """Re-point `name`'s registry entry from `old_sid` to `new_sid` in place (W-b72231b8: the coordinator did it by hand
     after every rotation) and return the state the row records. Nothing agents_up.sh refuses is ever written — a file
     it would refuse is refused here unchanged — a missing entry is never added, and every failure is a returned state,
-    never an exception: the rotation itself already happened."""
+    never an exception: the rotation itself already happened.
+
+    T07: the whole read-modify-write runs under the repo's agents lock, taken before the first lstat and read, so an
+    `agents_spawn.py add|remove` (which hold it across their own registry write) never loses a write to a rotation or
+    the reverse. A lock that cannot be resolved or opened is `refused:agents lock unavailable` (checked first, so it
+    outranks `absent`); one not obtained within `_wait_s(AGENTS_LOCK_WAIT_S)` is `refused:agents lock busy` — the row
+    stays on the old id and the next `add`/`remove` heals it (agents_spawn.heal_registry, PF3)."""
+    try:
+        fd = os.open(_agents_lock_file(path), os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o644)
+    # a missing or broken agents_spawn.py (one that calls sys.exit at import included — SystemExit is no Exception), a
+    # git failure, an unopenable lock: a state, never a raise; KeyboardInterrupt still propagates
+    except (Exception, SystemExit):
+        return "refused:agents lock unavailable"
+    try:
+        deadline = time.monotonic() + _wait_s(AGENTS_LOCK_WAIT_S)
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    return "refused:agents lock busy"
+                time.sleep(AGENTS_LOCK_POLL_S)
+            except OSError:
+                return "refused:agents lock unavailable"
+        return _repoint_locked(path, old_sid, new_sid, name)
+    finally:
+        os.close(fd)  # closing the only description releases the flock
+
+
+def _repoint_locked(path: Path, old_sid: str, new_sid: str, name: str) -> str:
+    """`_repoint_registry`'s body; the caller holds the repo's agents lock."""
     try:
         st = os.lstat(path)
     except FileNotFoundError:
@@ -274,7 +394,8 @@ def _repoint_registry(path: Path, old_sid: str, new_sid: str, name: str) -> str:
             len(text.encode("utf-8")) > REGISTRY_MAX
         ):  # its readers stop at REGISTRY_MAX and would read a torn file
             return "refused:over 1 MiB"
-        # a hand edit landing between the re-read below and os.replace is still lost: hand edits are what this retires
+        # the agents lock (held by the caller) excludes its other holders, agents_spawn.py add|remove; a HAND edit takes
+        # no lock, so one landing between the re-read below and os.replace is still lost: hand edits are what this retires
         fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".session-agents.", suffix=".tmp")
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
@@ -383,7 +504,9 @@ def _registry(home: Path, proc: Path, pid: int) -> dict:
             and start is not None
         ):
             return d
-    raise CheckFailedError("resolve", f"no registry record for claude pid {pid}")
+    raise CheckFailedError(  # a claude seconds old has not written its record yet
+        "resolve", f"no registry record for claude pid {pid}", transient=True
+    )
 
 
 def _bindings() -> list[dict]:
@@ -405,7 +528,25 @@ def _bound(name: str, sid: str) -> bool:
     """The newest row for this sid names `name`, and no newer row of `name` in that toplevel names another sid."""
     rows = _bindings()
     mine = [r for r in rows if r.get("session_id") == sid]
-    if not mine or mine[-1].get("name") != name:
+    if not mine:
+        try:  # _bindings reads an unreadable store as empty: that is no evidence the session is unbound
+            with _identity().open("rb") as fh:
+                fh.read(1)
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise CheckFailedError(
+                "resolve", f"the identity store is unreadable ({type(exc).__name__})"
+            ) from exc
+        # every aborted:resolve in rotations.jsonl to 2026-10-25 (24 of 24) was this state; each bound only by a
+        # `--force` re-bind 103-2493 s later, never by asking again (W-05021a03)
+        raise CheckFailedError(
+            "resolve",
+            f"session {sid} has no identity binding yet — have that window run "
+            f"python3 /opt/fabrik/scripts/whoami_agent.py --as {name} --force",
+            transient=False,
+        )
+    if mine[-1].get("name") != name:
         return False
     top = mine[-1].get("toplevel")
     later = [
@@ -418,11 +559,11 @@ def _bound(name: str, sid: str) -> bool:
 
 def resolve(name: str, repo: str) -> dict:
     if not _NAME.fullmatch(name):
-        raise CheckFailedError("resolve", f"bad agent name {name!r}")
+        raise CheckFailedError("resolve", f"bad agent name {name!r}", transient=False)
     home, proc = _home(), _proc()
     ls = _tmux("list-panes", "-a", "-F", "#{pane_id}\t#{session_name}\t#{@agent}\t#{pane_pid}")
     if ls.returncode != 0:
-        raise CheckFailedError("resolve", "tmux is not answering")
+        raise CheckFailedError("resolve", "tmux is not answering", transient=True)
     panes: dict[str, int] = {}
     for line in ls.stdout.splitlines():
         parts = line.split("\t")
@@ -440,10 +581,12 @@ def resolve(name: str, repo: str) -> dict:
     reg = _registry(home, proc, pid)
     sid = reg.get("sessionId")
     if not isinstance(sid, str) or not sid:
-        raise CheckFailedError("resolve", f"the registry record of pid {pid} carries no session id")
+        raise CheckFailedError(
+            "resolve", f"the registry record of pid {pid} carries no session id", transient=True
+        )
     if not _bound(name, sid):
         raise CheckFailedError(
-            "resolve", f"{name}'s identity binding is stale or another window's (session {sid})"
+            "resolve", f"{name} is bound to another window, not session {sid}", transient=False
         )
     return {
         "name": name,
@@ -475,7 +618,9 @@ def _transcript(proc: Path, home: Path, pid: int, sid: str) -> Path:
             ) from exc
         files.setdefault((st.st_dev, st.st_ino), f)
     if len(files) != 1:
-        raise CheckFailedError("transcript", f"{len(files)} transcripts for session {sid}")
+        raise CheckFailedError(  # none yet clears by itself; two need sorting out
+            "transcript", f"{len(files)} transcripts for session {sid}", transient=len(files) < 2
+        )
     return next(iter(files.values()))
 
 
@@ -520,8 +665,10 @@ def _idle_row_check(rows: list[dict]) -> float:
             (r.get("message") or {}).get("content") if isinstance(r.get("message"), dict) else None
         )
         if kind == "user" and isinstance(content, str) and "<command-name>" in content:
-            raise CheckFailedError(
-                "idle", "a local slash command ended the transcript — send one prompt first"
+            raise CheckFailedError(  # only a sent prompt ends it
+                "idle",
+                "a local slash command ended the transcript — send one prompt first",
+                transient=False,
             )
         raise CheckFailedError("idle", f"the transcript ends mid-turn ({kind}/{sub or '-'})")
     raise CheckFailedError("idle", "no turn end in the transcript tail")
@@ -606,7 +753,13 @@ def run_checks(t: dict, stale_text: str = "") -> Path:
         rows = _tail_rows(path, 2 * 1024 * 1024)
     except OSError as exc:
         raise CheckFailedError("idle", f"transcript unreadable ({exc})") from exc
-    ended = _idle_row_check(rows)
+    try:
+        ended = _idle_row_check(rows)
+    except CheckFailedError as exc:
+        # a turn held open by a permission dialog never ends by waiting
+        if exc.transient and _dialog(_box_now(t["pane"])[1]):
+            raise CheckFailedError("screen", _DIALOG, transient=False) from exc
+        raise
     # The registry is a VETO only when it changed AFTER that turn end — a turn started since — and only for VETO_S after
     # that change, so its stale "busy" (measured above) never blocks and a busy stamp a resume leaves with no turn after
     # it expires; a turn whose first transcript write is still pending is what this catches. It is best effort: measured
@@ -643,12 +796,249 @@ def run_checks(t: dict, stale_text: str = "") -> Path:
     if seats:
         raise CheckFailedError("seat", f"{len(seats)} background seat(s) still running")
     blocks, why = hib.worktree_state(t["cwd"])
-    if blocks:
-        raise CheckFailedError("worktree", why)
-    box, _ = _box_now(t["pane"])
-    if box is None or (box and box != stale_text):
-        raise CheckFailedError("screen", "the pane is not at an empty prompt")
+    if blocks:  # an idle builder commits or pushes only when told; any other reason may be a probe that timed out
+        raise CheckFailedError(
+            "worktree", why, transient=not why.endswith(("uncommitted change(s)", "not pushed"))
+        )
+    box, screen = _box_now(t["pane"])
+    if _dialog(screen):
+        raise CheckFailedError("screen", _DIALOG, transient=False)
+    if box is None:
+        raise CheckFailedError(
+            "screen", "no input box is drawn (a redraw, a scrolled or restarting pane)"
+        )
+    if box and box != stale_text:
+        raise CheckFailedError(
+            "screen",
+            "text is in the input box — clear it, or ask with --stale-input discard",
+            transient=False,
+        )
     return path
+
+
+_DIALOG = "a dialog is open in the pane — answer it"
+
+
+def _dialog(screen: str) -> bool:
+    """A permission or choice dialog holds the session: no input box is drawn, the pane's last `❯` row is a numbered
+    option (`❯ 1. Yes`) and another numbered option sits within three rows of it. Text typed in the box (`❯ 1. fix
+    it`) is the box's, and one numbered prompt left in scrollback has no sibling option (W-05021a03 review r2)."""
+    if _box(screen) is not None:
+        return False
+    rows = [_undimmed(r).strip() for r in screen.splitlines()]
+    at = [i for i, r in enumerate(rows) if r.startswith("❯")]
+    if not at or not re.match(r"❯\s*\d+\.\s", rows[at[-1]]):
+        return False
+    near = rows[max(0, at[-1] - 3) : at[-1]] + rows[at[-1] + 1 : at[-1] + 4]
+    return any(re.match(r"\d+\.\s", r) for r in near)
+
+
+# ── waiting: the coordinator's PANE WAITING scan (W-a12b03a2) ─────────────────────────────────────────────────────────
+#
+# Read-only. Shapes measured on Claude Code v2.1.312 (a throwaway session, 2026-10-29): every dialog — a permission
+# dialog, the workspace-trust prompt (un-numbered options), an AskUserQuestion whose options wrap 4+ rows apart — is
+# drawn without the input box and ends on a footer row; `_dialog` alone knows only the first. An idle turn ends on a
+# `✻ <Verb> for <n>s · done <time>` row; `✻ Waiting for N background agents` is an agent working on its own seats.
+# Fail direction: a screen nobody drew yet (a renamed footer, no `· done` row) is a QUIET miss; a tmux that answers
+# wrongly RAISES, so the caller reports a blind scan instead of reading it as "nobody waits".
+_FOOTER = re.compile(r"Esc to cancel|Enter to confirm|Enter to select")
+_TURN_END = re.compile(r"^\S\s+\S+ for \d+[hms]\b.*·\s*done\b")
+_SPINNER = re.compile(r"…\s*\(|Waiting for \d+ background")
+_FOOTER_ROW = re.compile(r"(?:RUN|STATE|NEXT):")
+# the two house markers of a turn that waits on its reader — only where they OPEN the paragraph (a DECISION block's
+# heading, a NEXT: whose value is the wait), so a footer that names them in passing ("no DECISION NEEDED") never asks
+_ASKS = re.compile(
+    r"(?:DECISION NEEDED\b|NEXT:\s*(?:awaiting your reply|operator decision|(?:see\s+)?DECISION NEEDED above)\b)",
+    re.I,
+)
+# a tool call (`● Bash(ls)`, `● mcp__x__y(…)` — a capitalised or `mcp__` name, the row closing on its `)`) and its
+# result rows (`⎿  …`): what the agent RAN, never what it asks; a message that opens `foo(bar) …?` stays text
+_TOOL_ROW = re.compile(r"^(?:●\s*(?:[A-Z][\w.:-]*|mcp__[\w.:-]+)\(.*\)$|⎿)")
+# activity below a turn end that is not a new turn: a seat's completion notice (measured live, idle pane)
+_IDLE_NOTICE = re.compile(r'^●\s*[A-Z][\w ]*"[^"]*"\s+(?:finished|completed|failed)\b')
+# the turn-end row up to its `done <time>`: a trailing note (`· 1 shell still running`) changes without a new turn
+_TURN_ID = re.compile(r"^.*?·\s*done\s+[^·]*")
+_NO_GRID = ("no server running on", "error connecting to")
+_PANE_GONE = "can't find pane"
+WAITING_LINE_MAX = 160
+
+
+def _plain(screen: str) -> list[str]:
+    return [_undimmed(r).rstrip() for r in screen.splitlines()]
+
+
+def _asks(text: str) -> bool:
+    return text.rstrip("*_`)\"'”’ ").endswith("?") or bool(_ASKS.match(text))
+
+
+def _dialog_waiting(rows: list[str], numbered: bool) -> tuple[str, str, str] | None:
+    text = [i for i, r in enumerate(rows) if r.strip()]
+    if not numbered and not any(_FOOTER.search(rows[i]) for i in text[-3:]):
+        return None
+    at = [i for i, r in enumerate(rows) if r.lstrip().startswith("❯")]
+    if not at:
+        return None
+    opt = at[-1]
+    top = max((i for i in range(opt) if rows[i].strip().startswith("─")), default=-1)
+    block = [r.strip().lstrip("│").strip() for r in rows[top + 1 : opt]]
+    asked = [r for r in block if "?" in r]
+    near = [r for r in block if r and not r.startswith("╌")]
+    line = asked[-1] if asked else (near[-1] if near else "a dialog is open")
+    # the cursor marker is dropped: arrowing between options is the same prompt, the same fingerprint
+    body = "\n".join(r.replace("❯", " ").strip() for r in rows[top + 1 :] if r.strip())
+    return "dialog", line, body
+
+
+def _question_waiting(rows: list[str]) -> tuple[str, str, str] | None:
+    starts = [
+        i
+        for i, r in enumerate(rows)
+        if i > 0 and r.lstrip().startswith("❯") and rows[i - 1].strip().startswith("─")
+    ]
+    if not starts:
+        return None
+    rule = starts[-1] - 1
+    ends = [i for i in range(rule) if _TURN_END.match(rows[i].strip())]
+    if not ends:
+        return None
+    end = ends[-1]
+    for row in (r.strip() for r in rows[end + 1 : rule]):
+        # a spinner, a new prompt or a new tool call below the turn end is a new turn under way
+        if (
+            _SPINNER.search(row)
+            or row.startswith("❯")
+            or (row.startswith("●") and not _IDLE_NOTICE.match(row))
+        ):
+            return None
+    # tool rows leave the tail as blank rows, so they also end the paragraph above them
+    tail = [
+        "" if _TOOL_ROW.match(r.strip()) else r.strip().removeprefix("●").strip()
+        for r in rows[:end]
+    ]
+    while tail and not tail[-1]:
+        tail.pop()
+    # The message tail: its last paragraph, and when that paragraph opens with the RUN/STATE/NEXT footer, the footer's
+    # entries (a label row plus its wrapped continuations) and the paragraph above the blank row before it.
+    paras: list[list[str]] = []
+    for _ in range(2):
+        start = len(tail)
+        while start > 0 and tail[start - 1]:
+            start -= 1
+        block, tail = tail[start:], tail[: max(0, start - 1)]
+        if not block:
+            break
+        lead = next((k for k, r in enumerate(block) if _FOOTER_ROW.match(r)), None)
+        if lead is None:
+            paras.append(block)
+            break
+        for row in block[lead:]:
+            if _FOOTER_ROW.match(row) or not paras:
+                paras.append([row])
+            else:
+                paras[-1].append(row)
+        if lead:
+            paras.append(block[:lead])
+            break
+    for para in sorted(
+        paras, key=lambda p: bool(_FOOTER_ROW.match(p[0]))
+    ):  # the message's own paragraph first
+        joined = " ".join(" ".join(para).split())
+        if joined and _asks(joined):
+            turn = _TURN_ID.match(rows[end].strip())
+            return (
+                "question",
+                joined,
+                joined + "\n" + (turn.group(0).strip() if turn else rows[end].strip()),
+            )
+    return None
+
+
+def _waiting_on(screen: str) -> tuple[str, str, str] | None:
+    """(kind, line, body) when the screen waits on an answer: `dialog` — no input box drawn and a dialog footer (or
+    `_dialog`'s numbered option) — or `question` — an empty box under a `· done` turn end with no new turn below it
+    (a spinner, a prompt row, a tool call), whose message tail (the RUN/STATE/NEXT footer entries and the paragraph
+    above them, tool rows excluded) ends in `?` or opens with a DECISION NEEDED / `NEXT: awaiting your reply` marker.
+    `body` keys the fingerprint: the dialog's rows (its command, the cursor dropped), or the question plus the turn-end
+    row up to its `done <time>`. An identical dialog shown twice is the same fingerprint (stated limit, D-1331)."""
+    box = _box(screen)
+    rows = _plain(screen)
+    if box is None:
+        return _dialog_waiting(rows, _dialog(screen))
+    return _question_waiting(rows) if box == "" else None
+
+
+def _grid_tmux(deadline: float, *args: str) -> str | None:
+    """One tmux call inside the scan's shared deadline: stdout (bytes decoded with replacement, so a pane showing binary
+    is still read), None when no grid exists (no tmux binary, no server) or, for a capture, when the pane closed after
+    the listing, and a RuntimeError for every other failure — a timeout, a spent budget, an OS error running tmux, or
+    an answer that is not a grid."""
+    left = deadline - time.monotonic()
+    if left <= 0:
+        raise RuntimeError("pane scan budget spent")
+    try:
+        r = subprocess.run(
+            [os.environ.get("ROTATE_TMUX", "tmux"), *args],
+            capture_output=True,
+            timeout=max(0.1, left),
+        )
+    except FileNotFoundError:
+        return None
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(f"tmux {args[0]} timed out") from exc
+    except OSError as exc:
+        raise RuntimeError(f"tmux {args[0]}: {exc}") from exc
+    err = r.stderr.decode("utf-8", "replace").strip()
+    if r.returncode != 0:
+        if err.startswith(_NO_GRID) or (args[0] == "capture-pane" and err.startswith(_PANE_GONE)):
+            return None
+        raise RuntimeError(f"tmux {args[0]} rc {r.returncode}: {err[:200]}")
+    return r.stdout.decode("utf-8", "replace")
+
+
+def waiting(repo: str, exclude: str = "", budget: float = 1.0) -> list[dict]:
+    """Every builder pane in `repo`'s agents_up grid waiting on an answer, as {agent, pane, kind, line, fp}. A pane
+    counts when its session or session group is `slug(repo)`, it carries an `@agent` other than `exclude`, and its
+    working directory is not `repo` itself (the coordinator's own pane); each pane once, by id. [] when no grid exists;
+    RuntimeError when tmux fails otherwise or the shared `budget` (seconds) runs out."""
+    deadline = time.monotonic() + budget
+    fmt = "#{pane_id}\t#{session_name}\t#{session_group}\t#{@agent}\t#{pane_current_path}"
+    out = _grid_tmux(deadline, "list-panes", "-a", "-F", fmt)
+    if out is None:
+        return []
+    home, grid = Path(repo).resolve(), slug(repo)
+    panes: dict[str, str] = {}
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) != 5:
+            continue
+        pane, session, group, agent, path = parts
+        if (group or session) != grid or not agent or agent == exclude:
+            continue
+        with contextlib.suppress(OSError):
+            if path and Path(path).resolve() == home:
+                continue
+        panes[pane] = agent
+    found = []
+    for pane, agent in panes.items():
+        screen = _grid_tmux(deadline, "capture-pane", "-p", "-e", "-t", pane)
+        if screen is None:  # the pane closed after the listing: it waits on nothing
+            continue
+        hit = _waiting_on(screen)
+        if hit is None:
+            continue
+        kind, line, body = hit
+        # a fingerprint for the Stop hook's attempt map, never a security digest
+        digest = hashlib.sha1(f"{kind}\n{body}".encode(), usedforsecurity=False).hexdigest()[:12]
+        found.append(
+            {
+                "agent": agent,
+                "pane": pane,
+                "kind": kind,
+                "line": line[:WAITING_LINE_MAX],
+                "fp": f"pane:{agent}:{digest}",
+            }
+        )
+    return found
 
 
 # ── request ───────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -670,6 +1060,18 @@ def _pending() -> bool:
             if time.time() - tmp.stat().st_mtime > STALE_S:
                 tmp.unlink()
                 append_row({"outcome": "refused:orphan", "reason": tmp.name})
+    # the unit claims a request within seconds and any claim ends inside its timeout, as ORPHAN_S says: a request this
+    # old means nothing is claiming (lstat: a dangling name is aged too, never left pending forever)
+    for left in d.glob("*.json"):
+        with contextlib.suppress(OSError):
+            age = time.time() - left.lstat().st_mtime
+            if age > ORPHAN_S:
+                raise CheckFailedError(
+                    "pending",
+                    f"{left.name} has waited {int(age)} s unclaimed — is fabrik-rotate.path running? "
+                    "(scripts/sysadmin/install_rotate_unit.sh --check)",
+                    transient=False,
+                )
     if any(d.glob("*.json")) or any(d.glob("*.claimed")) or any(d.glob(".*.tmp")):
         return True
     with contextlib.suppress(OSError), (d / ".lock").open("a") as lk:
@@ -689,6 +1091,56 @@ def _last_compact_age(path: Path) -> int | None:
     return None
 
 
+def _config_dir(proc: Path, home: Path, pid: int) -> Path:
+    """The claude process's CLAUDE_CONFIG_DIR (its environ), else ~/.claude — where it files its transcripts."""
+    with contextlib.suppress(OSError):
+        for kv in (proc / str(pid) / "environ").read_bytes().split(b"\0"):
+            if kv.startswith(b"CLAUDE_CONFIG_DIR="):
+                return Path(kv.split(b"=", 1)[1].decode(errors="replace"))
+    return home / ".claude"
+
+
+def _worktree_dir(repo: str, folder: str) -> Path:
+    return Path(os.path.realpath(repo)) / ".claude" / "worktrees" / folder
+
+
+def move_target(t: dict, repo: str) -> str:
+    """W-e38f8ee7: the worktree a --move starts the builder in — DERIVED from its session record's cwd, never typed
+    (D-1284 derives folders from evidence): the linked worktree in place under the repo's .claude/worktrees/ that holds
+    the cwd. Refused (`args`, permanent) when the cwd is in none, when that tree is a coordinator's, and when the session
+    is already filed under it (agents_up.sh's `holds()`: the grid already starts it there — the file's existence, never
+    `_transcript`'s returned name, which is one of several hard-linked names)."""
+    wtroot = Path(os.path.realpath(repo)) / ".claude" / "worktrees"
+    cwd = os.path.realpath(t["cwd"]) if t.get("cwd") else ""
+    rel = os.path.relpath(cwd, wtroot) if cwd else ".."
+    folder = rel.split(os.sep, 1)[0]
+    if folder in ("", ".", "..") or not _NAME.fullmatch(folder):
+        raise CheckFailedError(
+            "args",
+            f"{t['name']}'s cwd {cwd or '(none)'} is not inside a linked worktree of {repo}",
+            transient=False,
+        )
+    d = wtroot / folder
+    if not (d.is_dir() and (d / ".git").is_file() and os.path.realpath(d) == str(d)):
+        raise CheckFailedError(
+            "args",
+            f"{folder} is not a linked git worktree in place under {wtroot}",
+            transient=False,
+        )
+    if folder == "coordinator" or folder.endswith("-coordinator"):
+        raise CheckFailedError("args", f"{folder} is the coordinator's tree", transient=False)
+    proj = (
+        _config_dir(_proc(), _home(), t["pid"]) / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(d))
+    )
+    if (proj / f"{t['sid']}.jsonl").exists():
+        raise CheckFailedError(
+            "args",
+            f"{t['name']} already starts in .claude/worktrees/{folder} — nothing to move",
+            transient=False,
+        )
+    return folder
+
+
 def request(
     name: str,
     repo: str,
@@ -696,10 +1148,14 @@ def request(
     trigger: str,
     stale: bool = False,
     operator_ok: str = "",
+    move: bool = False,
 ) -> int:
-    mode = "compact" if compact is not None else "clear"
+    mode = "move" if move else "compact" if compact is not None else "clear"
     stale_text = ""
+    into = ""
     try:
+        if move and (compact is not None or stale or operator_ok):
+            raise CheckFailedError("args", "--move takes neither --compact nor --stale-input")
         if trigger not in TRIGGERS:
             raise CheckFailedError("args", f"trigger must be one of {', '.join(TRIGGERS)}")
         if compact is not None and not _focus_ok(compact):
@@ -718,8 +1174,12 @@ def request(
                 "pending", "one rotation at a time — wait for the pending request's row"
             )
         t = resolve(name, repo)
+        if move:
+            into = move_target(t, repo)
         if stale:
-            box, _ = _box_now(t["pane"])
+            box, screen = _box_now(t["pane"])
+            if _dialog(screen):
+                raise CheckFailedError("screen", _DIALOG, transient=False)
             if box is None:
                 raise CheckFailedError("screen", "no input box is visible in the pane")
             stale_text = box[:1000]  # the refusal row below still carries what was seen
@@ -728,7 +1188,13 @@ def request(
                     "stale-input", "the input box holds more than 1000 characters"
                 )
         path = run_checks(t, stale_text)
-    except CheckFailedError as exc:
+    # a tmux call past TMUX_TIMEOUT_S is a slow server, not a refusal
+    except (subprocess.TimeoutExpired, CheckFailedError) as raw:
+        exc = (
+            raw
+            if isinstance(raw, CheckFailedError)
+            else CheckFailedError("tmux", f"tmux took over {raw.timeout} s")
+        )
         row = {
             "name": name,
             "repo": repo,
@@ -739,9 +1205,7 @@ def request(
         }
         if stale:
             row.update(stale_text=_safe(stale_text), operator_ok=_safe(operator_ok))
-        append_row(row)
-        print(f"rotate-session: aborted — {exc.check}: {exc.reason}", file=sys.stderr)
-        return 1
+        return request_aborted(exc, row)
     tokens = tsc._context_tokens(path)
     window = tsc._window()
     data = {
@@ -762,6 +1226,8 @@ def request(
     }
     if stale_text:  # optional fields: an ordinary request stays readable by an older unit
         data.update(stale_text=stale_text, operator_ok=operator_ok)
+    if move:  # an older unit refuses it (`refused:request`): it never runs a move it cannot do
+        data[MOVE_FIELD] = into
     dest = _req_dir() / f"{slug(repo)}--{name}.json"
     tmp = _req_dir() / f".{slug(repo)}--{name}.tmp"
     tmp.write_text(json.dumps(data), encoding="utf-8")
@@ -770,6 +1236,24 @@ def request(
         f"rotate-session: requested {mode} of {name} (pane {t['pane']}); the outcome lands in {_log()}"
     )
     return 0
+
+
+def request_aborted(exc: CheckFailedError, row: dict) -> int:
+    """Row the abort, print the line that says whether asking again can pass, and exit by it (W-05021a03)."""
+    append_row(row)
+    if not exc.transient:
+        hint = "permanent — asking again cannot pass: fix the cause above first"
+    elif exc.check == "pending":
+        hint = (
+            f"transient — ask again once the pending rotation's row lands in {_log()} "
+            f"(up to {ORPHAN_S} s); nothing to fix"
+        )
+    elif exc.check in ("status", "idle", "record", "seat"):
+        hint = f"transient — ask again once {row['name']} ends its turn or its run or seat ends; nothing to fix"
+    else:
+        hint = "transient — ask again in a few seconds; nothing to fix"
+    print(f"rotate-session: aborted — {exc.check}: {exc.reason} ({hint})", file=sys.stderr)
+    return EXIT_RETRY if exc.transient else 1
 
 
 def _focus_ok(focus: str) -> bool:
@@ -802,7 +1286,9 @@ _ESC = re.compile(
 def _undimmed(row: str) -> str:
     """The row's text WITHOUT its dim cells (SGR 2 — Claude Code's placeholder, measured), every escape dropped. SGR is
     walked as a terminal does: dim turns on with a 2 in any parameter list and off only with 0, 22 or an empty list —
-    any other code (a colour, bold, inverse) leaves it as it was (review r1: a lazy regex ended the dim run at `39m`)."""
+    any other code (a colour, bold, inverse) leaves it as it was (review r1: a lazy regex ended the dim run at `39m`).
+    An extended colour's own arguments (`38;5;<n>`, `38;2;<r>;<g>;<b>`, likewise 48 and 58) are skipped, so the `2` of
+    a truecolor sequence or of colour index 2 is never read as dim (W-a12b03a2 review: it dropped a dialog's `❯` row)."""
     out, dim, pos = [], False, 0
     for m in _ESC.finditer(row):
         if not dim:
@@ -811,11 +1297,17 @@ def _undimmed(row: str) -> str:
         seq = m.group(0)
         if seq.startswith("\x1b[") and seq.endswith("m"):
             params = [p.split(":")[0] for p in seq[2:-1].split(";")] if len(seq) > 3 else [""]
-            for p in params:
+            k = 0
+            while k < len(params):
+                p = params[k]
+                if p in ("38", "48", "58") and k + 1 < len(params) and ":" not in seq:
+                    k += {"5": 3, "2": 5}.get(params[k + 1], 1)  # the selector and its arguments
+                    continue
                 if p in ("", "0", "22"):
                     dim = False
                 elif p == "2":
                     dim = True
+                k += 1
     if not dim:
         out.append(row[pos:])
     return "".join(out)
@@ -943,8 +1435,18 @@ def resume_prompt(name: str) -> str:
 
 
 def _validate(data: object) -> dict:
-    if not isinstance(data, dict) or not FIELDS <= set(data) <= FIELDS | OPTIONAL:
+    if not isinstance(data, dict) or not FIELDS <= set(data) <= FIELDS | OPTIONAL | {MOVE_FIELD}:
         raise CheckFailedError("request", "malformed request file")
+    # W-e38f8ee7: `into` rides on a move request only, and a move request carries a folder name; a move never discards
+    if (data.get("mode") == "move") != (MOVE_FIELD in data) or (
+        MOVE_FIELD in data
+        and (
+            not isinstance(data[MOVE_FIELD], str)
+            or not _NAME.fullmatch(data[MOVE_FIELD])
+            or set(data) & OPTIONAL
+        )
+    ):
+        raise CheckFailedError("request", "bad move request (into)")
     if set(data) & OPTIONAL and not (
         set(data) >= OPTIONAL
         and isinstance(data["stale_text"], str)
@@ -968,7 +1470,7 @@ def _validate(data: object) -> dict:
         raise CheckFailedError("request", "created_at is not a finite time in the past")
     if not _NAME.fullmatch(str(data["name"])) or not _PANE.fullmatch(str(data["pane"])):
         raise CheckFailedError("request", "bad name or pane")
-    if data["mode"] not in ("clear", "compact") or data["trigger"] not in TRIGGERS:
+    if data["mode"] not in ("clear", "compact", "move") or data["trigger"] not in TRIGGERS:
         raise CheckFailedError("request", "bad mode or trigger")
     if data["mode"] == "compact" and not _focus_ok(str(data["focus"])):
         raise CheckFailedError("request", "bad focus")
@@ -1010,7 +1512,21 @@ def _one(claimed: Path) -> dict:
             raise CheckFailedError(
                 "resolve", "the pane, its claude or its session changed since the request"
             )
+        cmd, new_sid = "", ""
+        if data["mode"] == "move":
+            row["into"] = data[MOVE_FIELD]
+            # the folder again from the live cwd: a builder that changed trees since the request is not moved
+            if move_target(t, data["repo"]) != data[MOVE_FIELD]:
+                raise CheckFailedError(
+                    "resolve", "the builder's worktree changed since the request"
+                )
+            new_sid = str(uuid.uuid4())
+            cmd = _pane_cmd(
+                t, data, new_sid
+            )  # BEFORE the checks: the kill must follow the last one closely
         path = run_checks(t, stale_text)
+        if data["mode"] == "move":
+            _settled(t, path)
         if stale_text:
             box = _box_now(t["pane"])[0]
             # a blank or redrawing frame is no reading — never paste behind unseen text (review r1)
@@ -1028,6 +1544,8 @@ def _one(claimed: Path) -> dict:
         row["outcome"] = "stale" if check == "stale" else f"refused:{check}"
         row["reason"] = exc.reason if isinstance(exc, CheckFailedError) else str(exc)
         return row
+    if data["mode"] == "move":
+        return _move(data, row, cmd, new_sid)
     step = "send"
     try:
         sent_at = time.time()
@@ -1070,29 +1588,188 @@ def _one(claimed: Path) -> dict:
         step = "resume"
         row["resume_sent_at"] = int(time.time())
         _send(data["pane"], resume_prompt(data["name"]))
-        step, deadline = "rebind", time.time() + _wait_s(REBIND_GRACE_S)
-        while time.time() < deadline:
-            hit = [
-                r
-                for r in _bindings()
-                if r.get("session_id") == new_sid and r.get("name") == data["name"]
-            ]
-            if hit:
-                row["predecessor_row"] = hit[-1].get("predecessor") == data["sid"]
-                at = hit[-1].get("at")
-                if isinstance(at, (int, float)) and not isinstance(at, bool) and math.isfinite(at):
-                    row["rebind_s"] = (
-                        int(at) - row["resume_sent_at"]
-                    )  # the bind's own time, not when it was seen
-                row["outcome"] = "ok"
-                return row
-            time.sleep(1)
-        row["predecessor_row"] = False
-        row["outcome"] = "partial:rebind"
-        return row
+        step = "rebind"
+        return _await_rebind(data, row, new_sid)
     except Exception as exc:  # noqa: BLE001 — after a key is sent the outcome is recorded, never retried
         unsent = isinstance(exc, CheckFailedError) and exc.check == "unsent"
         row["outcome"] = f"typed-unsent:{step}" if unsent else f"partial:{step}"
+        row["reason"] = str(exc)
+        return row
+
+
+def _await_rebind(data: dict, row: dict, new_sid: str) -> dict:
+    """The new session's whoami binding, within REBIND_GRACE_S of `row["resume_sent_at"]`: `ok`, else `partial:rebind`."""
+    deadline = time.time() + _wait_s(REBIND_GRACE_S)
+    while time.time() < deadline:
+        hit = [
+            r
+            for r in _bindings()
+            if r.get("session_id") == new_sid and r.get("name") == data["name"]
+        ]
+        if hit:
+            row["predecessor_row"] = hit[-1].get("predecessor") == data["sid"]
+            at = hit[-1].get("at")
+            if isinstance(at, (int, float)) and not isinstance(at, bool) and math.isfinite(at):
+                row["rebind_s"] = (
+                    int(at) - row["resume_sent_at"]
+                )  # the bind's own time, not when it was seen
+            row["outcome"] = "ok"
+            return row
+        time.sleep(1)
+    row["predecessor_row"] = False
+    row["outcome"] = "partial:rebind"
+    return row
+
+
+def _signal(pid: int, sig: int) -> None:
+    """os.kill, behind a name the tests replace: a --move reaps one exact pid."""
+    os.kill(pid, sig)
+
+
+def _reap(pid: int, start: str) -> str:
+    """W-e38f8ee7: `respawn-pane -k` only hangs the pane up, and a process that ignores SIGHUP outlives it (measured by
+    the Opus critique seat on a scratch tmux). So the replaced claude — that pid AND that start time, never a reused pid
+    — gets OLD_EXIT_S to exit, then SIGTERM and OLD_TERM_S, then SIGKILL and OLD_KILL_S: `gone`, `term`, `kill`, or
+    `survived` (said in the row: an orphan claude with no pane). Its detached children (a self-watch, MCP servers) are
+    not reaped, as `agents_spawn.remove` reaps none."""
+    proc = _proc()
+
+    def alive() -> (
+        bool
+    ):  # that pid, that start time, and not a zombie (exited, its parent yet to reap it)
+        try:
+            rest = (proc / str(pid) / "stat").read_text().rsplit(")", 1)[1].split()
+        except (OSError, IndexError):
+            return False
+        return len(rest) > 19 and rest[19] == str(start) and rest[0] != "Z"
+
+    for label, wait, sig in (
+        ("gone", OLD_EXIT_S, signal.SIGTERM),
+        ("term", OLD_TERM_S, signal.SIGKILL),
+        ("kill", OLD_KILL_S, None),
+    ):
+        deadline = time.time() + _wait_s(wait)
+        while alive():
+            if time.time() >= deadline:
+                break
+            time.sleep(0.2)
+        else:
+            return label
+        if sig is None:
+            return "survived"
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            _signal(pid, sig)
+    return "survived"
+
+
+def _pane_cmd(t: dict, data: dict, new_sid: str) -> str:
+    """W-e38f8ee7: the ONE pane command a move respawns with — agents_up.sh `--pane-cmd … --into … --from … --replacing`
+    (its cmd_of, never a copy). It runs from the fabrik-rotate unit, so the pane's own PATH, AGENT_IDENTITY_FILE and
+    XDG_RUNTIME_DIR (the env-i set agents_up gave the claude it replaces, read from /proc) stand in for the unit's,
+    and the moved pane carries what the grid gave it. Any refusal raises `launch`: nothing has been touched yet."""
+    pane: dict[str, str] = {}
+    with contextlib.suppress(OSError):
+        for kv in (_proc() / str(t["pid"]) / "environ").read_bytes().split(b"\0"):
+            k, sep, v = kv.partition(b"=")
+            if sep:
+                pane[k.decode(errors="replace")] = v.decode(errors="replace")
+    env = dict(os.environ)
+    for k in ("PATH", "AGENT_IDENTITY_FILE", "XDG_RUNTIME_DIR"):
+        if k in pane:
+            env[k] = pane[k]
+        elif (
+            k == "AGENT_IDENTITY_FILE"
+        ):  # the grid ran with the default store: so must the moved pane
+            env.pop(k, None)
+    argv = [
+        str(_agents_spawn()._agents_up_path()),
+        "--pane-cmd",
+        data["repo"],
+        data["name"],
+        new_sid,
+        "--into",
+        data[MOVE_FIELD],
+        "--from",
+        data["sid"],
+        "--replacing",
+        str(data["pid"]),
+    ]
+    try:
+        out = subprocess.run(
+            argv, capture_output=True, text=True, timeout=PANE_CMD_TIMEOUT_S, env=env
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise CheckFailedError(
+            "launch", f"agents_up.sh --pane-cmd took over {PANE_CMD_TIMEOUT_S} s"
+        ) from exc
+    except OSError as exc:
+        raise CheckFailedError("launch", f"agents_up.sh --pane-cmd: {exc}") from exc
+    lines = out.stdout.splitlines()
+    if out.returncode != 0 or len(lines) != 1 or not lines[0].strip():
+        why = (out.stderr.strip().splitlines() or [f"exit {out.returncode}, {len(lines)} line(s)"])[
+            -1
+        ]
+        raise CheckFailedError("launch", why)
+    return lines[0]
+
+
+def _settled(t: dict, path: Path) -> None:
+    """W-e38f8ee7: the last look before `respawn-pane -k`, which KILLS a turn where a /clear typed into one only queues:
+    the input box empty and the transcript unwritten across two reads DISCARD_RECHECK_S apart (`_discard`'s pattern),
+    so nothing slower than one tmux call sits between the last check and the kill."""
+    try:
+        seen = [(_box_now(t["pane"])[0], path.stat().st_mtime)]
+        time.sleep(DISCARD_RECHECK_S)
+        seen.append((_box_now(t["pane"])[0], path.stat().st_mtime))
+    except OSError as exc:
+        raise CheckFailedError("idle", f"transcript unreadable ({exc})") from exc
+    if seen[0][1] != seen[1][1]:
+        raise CheckFailedError("idle", "the transcript was written during the last re-read")
+    if any(box != "" for box, _ in seen):
+        raise CheckFailedError("screen", "the input box was not empty at the last re-read")
+    # a turn that started during run_checks' own git calls wrote its first row BEFORE the two reads above, which then
+    # agree (review pass 1, A-C1): the turn end must still be the transcript's last real row
+    try:
+        _idle_row_check(_tail_rows(path, 2 * 1024 * 1024))
+    except OSError as exc:
+        raise CheckFailedError("idle", f"transcript unreadable ({exc})") from exc
+
+
+def _move(data: dict, row: dict, cmd: str, new_sid: str) -> dict:
+    """The move's keys-free half, after every check passed: respawn, reap, wait for the new session, re-point, re-bind.
+    After the respawn the outcome is recorded, never retried."""
+    step = "respawn"
+    row["new_sid"] = new_sid
+    try:
+        d = _worktree_dir(data["repo"], data[MOVE_FIELD])
+        out = _tmux("respawn-pane", "-k", "-t", data["pane"], "-c", str(d), cmd)
+        if out.returncode != 0:
+            raise CheckFailedError("respawn", out.stderr.strip() or f"tmux exited {out.returncode}")
+        row["resume_sent_at"] = int(time.time())  # the first prompt is the launch's own argument
+        step = "reap"
+        row["old_exit"] = _reap(data["pid"], data["proc_start"])
+        step, deadline, seen = "launch", time.time() + _wait_s(CLEAR_WAIT_S), False
+        while time.time() < deadline and not seen:
+            for f in hib._session_files(_home()):
+                with contextlib.suppress(OSError, ValueError):
+                    rec = json.loads(f.read_text(encoding="utf-8"))
+                    seen = seen or (isinstance(rec, dict) and rec.get("sessionId") == new_sid)
+            if not seen:
+                time.sleep(1)
+        if not seen:
+            row["outcome"] = "partial:launch"
+            return row
+        # the pane runs the new session now, bound or not — re-point before anything else can fail (W-b72231b8)
+        reg_file = _session_registry(data["repo"], data["sid"])
+        row["registry"] = (
+            "refused:repo"
+            if reg_file is None
+            else _repoint_registry(reg_file, data["sid"], new_sid, data["name"])
+        )
+        step = "rebind"
+        return _await_rebind(data, row, new_sid)
+    except Exception as exc:  # noqa: BLE001 — after the respawn the outcome is recorded, never retried
+        row["outcome"] = f"partial:{step}"
         row["reason"] = str(exc)
         return row
 
@@ -1298,6 +1975,11 @@ def main(argv: list[str] | None = None) -> int:
     rq = sub.add_parser("request")
     rq.add_argument("name")
     rq.add_argument("--compact", metavar="FOCUS")
+    rq.add_argument(
+        "--move",
+        action="store_true",
+        help="respawn the pane with a fresh session in the worktree the builder works in (W-e38f8ee7)",
+    )
     rq.add_argument("--trigger", default="manual")
     rq.add_argument("--repo", default="")
     rq.add_argument(
@@ -1333,7 +2015,9 @@ def main(argv: list[str] | None = None) -> int:
     if not repo:
         print("rotate-session: not inside a git repo — pass --repo", file=sys.stderr)
         return 2
-    return request(a.name, repo, a.compact, a.trigger, a.stale_input == "discard", a.operator_ok)
+    return request(
+        a.name, repo, a.compact, a.trigger, a.stale_input == "discard", a.operator_ok, move=a.move
+    )
 
 
 if __name__ == "__main__":

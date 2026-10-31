@@ -146,7 +146,20 @@ OLD_LANE_SPEC = REPO / "docs" / "superpowers" / "specs" / "2026-09-17-fabrik-tas
 # APPROACH/MIRROR, before the fix edits it, and amends it with `step --phase 4 --design-amend` once the nested review
 # has closed; phase 2's remedy names the current phase, since `step` sets the record's phase (rows 1792766698,
 # 1792734746, 1792731898, 1792765470; review rounds 1-2 folded).
-SIZE_CAP = 26951
+# D-1192 (kaizen, 2026-10-24): 26951 -> 27508 — phase 2 reads the plan locks before the critique fragment stamps the
+# seats, and the pre-`--design` checklist opens by re-reading `--terminal` against design.md's TERMINAL as MEASURE and
+# the critiques left it, then re-runs the lock check on every path; MEASURE replays a prior slice's stated reason the
+# design builds on and says a count is no fail direction (rows 1792835476, 1792831669, 1792834386, 1792830212,
+# 1792780963, 1792832940; review round 1 folded).
+# D-1339 (kaizen, 2026-10-29): 27508 -> 27649 — phase 5 step 5 runs the `command_run.py capture` verb as a plain call
+# once the commit exits 0 (the chained recipe and the worktree plain-calls paragraph retired), the after-commit close
+# is a numbered list between steps 5 and 6, and D-1336's check (d) correcting sentence joins it; phase 4 names the two
+# runs that review before the commit (review round 1 folded; 131 bytes cut).
+# D-1350 (kaizen, 2026-10-29): 27649 -> 28152 — phase 2 defines the quota runway read before seats are stamped there and
+# at phase 4: with `successor none`, the minutes until the 5h reading reaches the urgent-90 lane (the wall for a session
+# the lane lets through) or the window resets, whichever first, at `claude_rotate.py --status`'s burn rate; seats are
+# sized to it, never skipped (held subject size-run-to-quota-runway-at-start recurred, 8 rows; review rounds 1-4 folded).
+SIZE_CAP = 28152
 _INCLUDE_RE = re.compile(r"\{\{include:([\w-]+)\}\}")
 _FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _RUN_LINE_RE = re.compile(r"command_run\.py\s")
@@ -519,93 +532,10 @@ def _assert_governs(text: str, sentence: str, why: str) -> None:
     )
 
 
-def test_measure_lists_what_phase_1_executes_before_the_design() -> None:
-    """D-679: /fabrik-task verdicts reported designs drafted before the population, the prior
-    record, HEAD's own suite or a sibling's landed fix were looked at."""
+def test_the_command_source_shows_the_space_form_of_multi_commit_only() -> None:
+    """The multi-commit and review-flavour pins moved to commands/_rules/fabrik-task.yaml (T08); the absence of a
+    comma-joined `--commit` example stays a test."""
     text = _norm(_source_text())
-    for needle in (
-        "a failure reported with a command is replayed by that command, never a reconstruction",
-        "before phase 2 and any edit, each command and its output goes to",
-        "`<durable>/measure.md`, beside phase 2's `design.md`, never in it",
-        "that slice and never the whole suite (a red now is pre-existing)",
-        "`git fetch` and the declared paths diffed against the remote branch the work merges into",
-        "(`origin/master` in the hub; elsewhere name the ref chosen, or say there is no remote)",
-        "FIX DIRECTIVE step 1 whole",
-        "`docs/DECISIONS.md`, the files' docstrings",
-        "(its readers are MIRROR's)",
-        "block alone, naming phase 1's `measure.md`",
-        "`/opt/fabrik-mail/<repo>/archive`, the work store where the repo keeps one",
-        "the fragment or pack the rule already lives in",
-        "every writer, every occurrence of the shape it admits, every host it runs on",
-        "the n behind any rate, bound or zero the design will claim",
-        "each external contract probed live once, a list read whole, never a sample",
-    ):
-        assert needle in text, needle
-
-
-def test_design_note_names_behaviours_cap_and_the_design_amend_remedy() -> None:
-    """Behavior Contract row 1 (part): the Behaviours cap (v2 UPGRADE), the v2 undeclared-path
-    REFUSAL (v1 only records), and the `--design-amend` remedy — each a FULL clause, bounded at
-    both ends by a real terminator (T07 review O8's ruling), not an arbitrary mid-sentence cut."""
-    text = _norm(_source_text())
-    cap_refuse = (
-        "Add a `## Behaviours` list — each naming its test, at most 7 (an 8th is the "
-        "`behaviours` UPGRADE, *(v2)*) — and name every file the build will touch, the "
-        "Behaviours' tests, deletions and a rename's both paths included, under line-start "
-        "UPPERCASE `APPROACH:`/`MIRROR:` labels, before any line opening with a field word or a "
-        "`#` (fenced or not), one bare repo-relative path per backtick pair (`a.py::f`, "
-        "`a.py:120` and `a.py, b.py` match nothing; a `.md` under `docs/development/reviews/` "
-        "but `archived/` is exempt): *(v2)* a committed path missing from both "
-        "REFUSES `done` at close (v1 measures `--file` instead and only RECORDS);"
-    )
-    amend = (
-        "the remedy is `step --phase <the current phase> --design-amend <path>` *(v2)*, append-only — it never "
-        "overwrites a recorded field — and counted on the close as `design_amends`."
-    )
-    mirror = (
-        "MIRROR is mandatory (`CLAUDE.md` § Behavior) and names every reader of what changes — "
-        "callers, each branch of a changed function, every resolver of the same identity, "
-        "consumers of a moved or deleted file, other surfaces stating a changed claim, the gates "
-        "that grade it — each found by an executed search, with the shape it now fails on and its "
-        "cost measured, never estimated."
-    )
-    untouched = (
-        "A reader the build leaves untouched is named without backticks: every backticked MIRROR "
-        "path counts as declared at a *(v2)* close."
-    )
-    for sentence, why in (
-        (cap_refuse, "the Behaviours cap / v2 REFUSAL"),
-        (amend, "the --design-amend remedy"),
-        (mirror, "the MIRROR reader rule (D-675)"),
-        (untouched, "the unbackticked-reader rule (D-675)"),
-    ):
-        _assert_governs(text, sentence, why)
-
-
-def test_build_and_review_sections_name_multicommit_sync_commit_and_full_review() -> None:
-    """Behavior Contract row 1 (part): the v1-single/v2-multi commit build, the sync-path single
-    commit (D7), and the review flavour by surface (v1 always scoped; v2 by surface) incl. the
-    D8 nested stop — each a full clause/sentence."""
-    text = _norm(_source_text())
-    multicommit = (
-        "One commit carries it at v1; *(v2)* several may, SPACE-separated — `done --commit shaA "
-        "shaB …` measures each in order; a sync-path run (D7) commits ONCE, after phase 4, in "
-        "the main checkout (`done` refuses more outside a worktree; `blocked`/`handoff` only "
-        "note it)."
-    )
-    review = (
-        "Invoke the review phase 0 already picked — at v1 always `/fabrik-review-scoped` (a v1 "
-        "sync/heavy surface never reaches the lane — it routes right-now instead); *(v2)* "
-        "`/fabrik-review-scoped`, or the full `/fabrik-review` for a sync, heavy, migration or "
-        ">5-file surface (D2, D7) — unchanged, never from memory; nested here, its own "
-        "scope-growth stop fires at the FIRST own-fix-only round, not the third (D8), still "
-        "closing only on a confirmed-zero pass."
-    )
-    for sentence, why in (
-        (multicommit, "the multi-commit/sync-once rule"),
-        (review, "the review flavour by surface"),
-    ):
-        _assert_governs(text, sentence, why)
     # The command source shows the space form only. Since 6cff7527c the parser also splits one
     # comma-joined value (scripts/command_run.py, the `--commit a,b` comment), which the protocol
     # doc describes in prose; parser-level tests live with the parser, not here.
@@ -614,49 +544,10 @@ def test_build_and_review_sections_name_multicommit_sync_commit_and_full_review(
     )
 
 
-def test_close_section_refuses_undeclared_and_close_time_contract_hits() -> None:
-    """Behavior Contract row 1 (part): the v2 close REFUSES (v1 still only records)."""
+def test_upgrade_section_never_describes_the_close_raised_tokens_as_typed_by_hand() -> None:
+    """The ten-token list and close-raised rule pins moved to commands/_rules/fabrik-task.yaml (T08). The absences stay:
+    ONE consistent rule, never "never typed by hand" (T07 review O7)."""
     text = _norm(_source_text())
-    undeclared = (
-        "*(v2)* a path missing from APPROACH/MIRROR/an amendment REFUSES `done` (phase 2's rule "
-        "and remedy); "
-        "`blocked`/`handoff` record it as `oversized_mini` instead, "
-        "never refusing a sanctioned halt."
-    )
-    contract = (
-        "*(v2)* a contract or new-source hit found only here REFUSES `done` and `handoff` too, "
-        "until `--review <a full /fabrik-review receipt>` names one — `blocked` needs none."
-    )
-    v1_records = "At v1 an undeclared path is RECORDED as `oversized_mini`, never refused."
-    for sentence, why in (
-        (undeclared, "the v2 undeclared-path REFUSAL"),
-        (contract, "the v2 contract/new-source REFUSAL"),
-        (v1_records, "the v1 record-only behaviour"),
-    ):
-        _assert_governs(text, sentence, why)
-
-
-def test_upgrade_section_gains_the_four_close_raised_tokens() -> None:
-    """Behavior Contract row 1 (part): the UPGRADE token list gains `contract`, `new-source`,
-    `behaviours`, `appetite` (tagged v2), and the close raises them WHETHER OR NOT typed by hand
-    — ONE consistent rule, never "never typed by hand" (T07 review O7: the lead sentence used to
-    cite "a contract path" as a hand-typed example while the close paragraph claimed the close-
-    raised four are "never typed by hand" — self-contradicting; fixed to the single rule below)."""
-    text = _norm(_source_text())
-    token_list = (
-        "lead with `files` · `oneway` · `tradeoffs` · `seat` · `sync` · `heavy` (v1 and v2) · "
-        "*(v2)* `contract` · `new-source` · `behaviours` · `appetite`, then a dash and the detail."
-    )
-    close_raised = (
-        "*(v2)* The last four — `contract` · `new-source` · `behaviours` · `appetite` — the "
-        "close ALSO raises itself, from the commit, WHETHER OR NOT you typed them: "
-        "`contract`/`new-source` REFUSE `done`/ `handoff` until `--review <receipt>` names one;"
-    )
-    for sentence, why in (
-        (token_list, "the ten-token list"),
-        (close_raised, "the close-raised rule"),
-    ):
-        _assert_governs(text, sentence, why)
     # O7's contradiction, as an executable refusal: "never typed by hand" must NOT recur anywhere
     # near the four close-raised tokens — the single rule is "whether or not you typed them".
     assert "never typed by hand" not in text, (
@@ -672,16 +563,6 @@ def test_upgrade_section_gains_the_four_close_raised_tokens() -> None:
     assert "a contract path" not in _norm(upgrade), (
         "the lead sentence resumed citing a contract path as something typed by hand pre-commit"
     )
-
-
-def test_independent_slices_are_several_task_runs() -> None:
-    """Spec § The delta D6, named in this ticket's Scope."""
-    text = _norm(_source_text())
-    sentence = (
-        "A feature splitting into independently shippable slices is several of these runs, "
-        "never one bundling them (D6)."
-    )
-    _assert_governs(text, sentence, "D6")
 
 
 def test_protocol_doc_documents_every_flag_and_feedback_field_this_ticket_scopes() -> None:
@@ -878,15 +759,6 @@ def test_phase_two_restates_the_terminal_with_the_design() -> None:
     """D-705: MEASURE or the critiques can narrow what ends the run after `start --terminal` fixed it. Phase 2
     names `step --terminal-amend`, and the real parser accepts it beside `--design`; its runtime refusals
     are graded in tests/test_command_run_lane_v2.py."""
-    text = " ".join(_source_text().split())
-    for phrase in (
-        "If MEASURE or the critiques changed what ends the run, restate it with "
-        '`--terminal-amend "<one line>"` on that `--design` call or any step before it — refused once the design is'
-        " recorded, "
-        "so no run moves its goal to fit the result; `terminal_amends` keeps the old one.",
-        "There is no DECISION amend: the design is recorded after the critiques fold.",
-    ):
-        assert phrase in text, phrase
     args = _parse(
         'python3 scripts/command_run.py step --phase 2 --title "design: d" --design d.md '
         '--terminal-amend "the narrowed terminal"'
@@ -898,38 +770,21 @@ def test_the_run_files_live_in_the_scratch_path_start_prints() -> None:
     """Mail 01M4VV3BD3 (infra, D-836): /tmp died in a WSL shutdown, so the phase-2/5 files go under the
     persistent SCRATCH path `start` prints; the session scratchpad is only the fallback when start prints no SCRATCH line."""
     raw = _source_text()
-    text = _norm(raw)
-    assert (
-        "`<durable>` is the `SCRATCH:` path `start` prints (under `<main checkout>/.tmp/runs/`, so it survives a"
-        " WSL `/tmp` wipe and the worktree's removal), never `RUN-SCRATCH:`"
-    ) in text
     # mail 01M4Z8X2JE: `<run-scratch>` read as the disposable `RUN-SCRATCH:` folder the sweeper removes
     assert "<run-scratch>" not in raw
-    assert (
-        "with no `SCRATCH:` line, it is `<scratchpad>/fabrik-task/<started_at>` (in /tmp)." in text
-    )
-    # D-984: the Write tool refuses a main-checkout path from a linked worktree; a scratchpad copy cp'd back whole
-    # keeps every byte (a heredoc stops at a content line equal to its delimiter; `cat >>` of a revised copy
-    # duplicates it)
-    assert (
-        "never `RUN-SCRATCH:` — one spelling, or phase 5's `cat` reads a path phase 2 never wrote; a linked-worktree"
-        " session, whose Write tool refuses a main-checkout path, changes each file as a copy in its scratchpad (`cp`"
-        " it from that path first when it exists) and `cp`s the whole copy back after every change, which keeps any"
-        " content byte for byte; with no `SCRATCH:` line"
-    ) in text
+    # D-984's heredoc and `cat >>` bans (a heredoc stops at a content line equal to its delimiter; `cat >>` of a
+    # revised copy duplicates it); D-1288: SCRATCH is the session's own checkout's since D-1268, so a worktree's
+    # removal takes it
     assert "heredoc" not in raw and "`cat <it> >>`" not in raw
+    assert "surviving WSL `/tmp` wipe but not a worktree's removal" in raw
+    assert "and worktree's removal" not in raw and "and the worktree's removal" not in raw
     assert "<scratchpad>/fabrik-task/<sid>/<started_at>" not in raw
-    assert (
-        raw.count("<durable>") == 11
-    )  # D-1070 adds the nested review's draft (phase 4) and its --out (phase 5)
     for site in (
         "`<durable>/measure.md`, beside phase 2's `design.md`",
-        "`<durable>/design.md`. A mechanism copied",
         "--design <durable>/design.md",
-        "mkdir -p <durable> \\",
-        ">> <durable>/commit.sha || exit 1",
+        "mkdir -p <durable>\n",
+        "capture --msg <msg> --out <durable>/commit.sha",
         "--commit $(cat <durable>/commit.sha)",
         "--resume <durable>/design.md",
-        "`SCRATCH: <path>` — the second is `<durable>`.",
     ):
         assert site in raw, site

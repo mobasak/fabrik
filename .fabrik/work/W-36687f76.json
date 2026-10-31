@@ -3,7 +3,7 @@
   "created": "2026-10-23T21:16:08.027371Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "d970b98bd8c2b1a7cf422cc27fa6c3514cd8e9f5",
   "id": "W-36687f76",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,10 @@
   "owner": "infra",
   "priority": 1,
   "score_reason": "HIGH: a silent failure of the only chat backup is a data-loss risk; effort low: one systemd unit or an exit-code mail, one test",
-  "status": "open",
+  "status": "done",
+  "tags": [
+    "queued",
+    "waits-operator-setup"
+  ],
   "title": "session-archive.service has no OnFailure= alert and runs its pruner and rotation steps with the '-' prefix (~/.config/systemd/user/session-archive.service:18,26,31), so a failed or partial nightly chat backup is silent: nobody learns until local disk fills or a restore finds a gap (coordinator babysit of the 2026-10-24 run, operator ask)"
 }

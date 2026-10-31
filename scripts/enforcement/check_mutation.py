@@ -100,6 +100,27 @@ def mutmut_bin() -> str | None:
     return shutil.which("mutmut")
 
 
+def _hibernate_paused() -> bool:
+    """True while `hibernate.py paused` exits 0. SYNCED file: no hub import — it shells out to the hub
+    path and fails open (False) when that is absent, exits 1/>=2 or times out (10 s)."""
+    script = os.environ.get("FABRIK_HIBERNATE_PY", "/opt/fabrik/scripts/sysadmin/hibernate.py")
+    if not Path(script).is_file():
+        sys.stderr.write(f"MUTATION (advisory): hibernate.py not found at {script} — proceeding.\n")
+        return False
+    try:
+        rc = subprocess.run(
+            [sys.executable, script, "paused"], capture_output=True, timeout=10, check=False
+        ).returncode
+    except Exception as exc:  # noqa: BLE001 — fail-open: a probe error must not skip the advisory
+        print(
+            f"MUTATION (advisory): hibernate.py paused failed ({exc.__class__.__name__}) — proceeding."
+        )
+        return False
+    if rc not in (0, 1):
+        print(f"MUTATION (advisory): hibernate.py paused rc={rc} — proceeding.")
+    return rc == 0
+
+
 def main() -> int:
     """Fail-soft wrapper — "ALWAYS exits 0" must hold even on an unforeseen raise
     (review finding: `run_optional_check` marks a non-zero exit FAILED regardless of
@@ -121,6 +142,11 @@ def _main() -> int:
             "MUTATION (advisory): skipped in the per-commit gate — mutation testing is diff-scoped + "
             "nightly (45-testing-strategy.md), not per-PR blocking. Run it on changed code with:\n"
             "    FABRIK_MUTMUT=1 python scripts/enforcement/check_mutation.py"
+        )
+        return 0
+    if _hibernate_paused():
+        print(
+            "MUTATION (advisory): skipped — a hibernate pause is marked (no mutmut run, no worktree writes)."
         )
         return 0
     files = changed_python()

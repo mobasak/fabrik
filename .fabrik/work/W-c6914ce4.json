@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T21:27:08.367562Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-c6914ce4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M67A0PZFH9XW13354AFD0HJZ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: infra-merge-after"
+}

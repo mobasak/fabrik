@@ -19,9 +19,11 @@
 #   * NEVER LOWERS. A target at or below the live ceiling is a no-op, not a call.
 #     The old script would have cut prometheus from 1.5GiB to 1g.
 #   * DRY RUN BY DEFAULT. Mutating requires an explicit --apply.
-#   * MEMORY ONLY. The old script passed --cpus for loki/glitchtip, which are
-#     live-unlimited today — proof those calls never landed. CPU ceilings are a
-#     separate, out-of-scope decision (STRATEGIC_BACKLOG, 2026-09-04 row).
+#   * MUTATES MEMORY ONLY. The old script passed --cpus for loki/glitchtip, which were
+#     live-unlimited — proof those calls never landed. CPU caps are applied by
+#     scripts/sysadmin/vps1_cpu_limits.py (D-1324, D-1325); this script only VERIFIES
+#     them (W-fc701b31): every defined container with no CPU cap is listed, and --check
+#     fails on one.
 #   * NO NETWORK MUTATION. The old script disconnected/reconnected containers on
 #     the `coolify` network, renamed to `fabrik` on 2026-05-31; the three UUID
 #     container prefixes it targeted no longer exist and all three services now
@@ -33,8 +35,11 @@
 # USAGE (runs ON the VPS; pipe it in — it depends on nothing from the hub)
 #   ssh vps 'bash -s'            < scripts/vps_apply_limits.sh   # dry run (default)
 #   ssh vps 'bash -s -- --apply' < scripts/vps_apply_limits.sh   # mutate
-#   ssh vps 'bash -s -- --check' < scripts/vps_apply_limits.sh   # exit 1 if any
-#                                                                # container is unbounded
+#   ssh vps 'bash -s -- --check' < scripts/vps_apply_limits.sh   # exit 1 if any container has
+#                                                                # no memory ceiling or no CPU cap
+#   Every mode exits 1 on a failed update, an UNREADABLE limit read (memory or CPU) or a failed
+#   container listing (`docker ps -aq`); a container removed mid-run is reported GONE and does
+#   not fail it.
 
 set -uo pipefail
 
@@ -71,6 +76,7 @@ redis-main            640    # 5.2 MiB   — it FORKS; see below
 
 managed=""
 applied=0; raised=0; ok=0; missing=0; failed=0
+unlisted=""   # set when `docker ps -aq` fails; reset here so a caller's environment cannot set it
 
 echo "=== vps memory ceilings — mode: $MODE ==="
 
@@ -149,10 +155,18 @@ done <<< "$(echo "$CEILINGS" | sed 's/#.*//' | grep -v '^[[:space:]]*$')"
 # check reading only the running set reports green while an unbounded container
 # waits to start. Today both counts are 32, which is exactly why the narrower
 # query would have been easy to write and never notice.
+# ONE listing for both sections, its exit code read: a dead daemon or a failed sudo makes
+# `ps -aq` print nothing and exit nonzero — identical to "no containers" — and both loops below
+# would then report a clean bill of health. That is a failure, in every mode.
+if ! ids=$($D ps -aq); then
+  echo
+  echo "  UNREADABLE container listing — \`docker ps -aq\` failed; nothing below was checked"
+  failed=$(( failed + 1 )); ids=""; unlisted=1
+fi
 echo
 echo "--- unbounded containers (HostConfig.Memory == 0, all defined) ---"
 unbounded=0
-for id in $($D ps -aq); do
+for id in $ids; do
   [ "$($D inspect -f '{{.HostConfig.Memory}}' "$id")" = "0" ] || continue
   n=$($D inspect -f '{{.Name}}' "$id"); n="${n#/}"
   case " $managed " in
@@ -162,12 +176,47 @@ for id in $($D ps -aq); do
   printf '  ⚠️  %-24s %s\n' "$n" "$tag"
   unbounded=$(( unbounded + 1 ))
 done
-[ "$unbounded" -eq 0 ] && echo "  none — every defined container has a memory ceiling"
+[ -n "${unlisted:-}" ] && echo "  not checked — the container listing failed"
+[ -z "${unlisted:-}" ] && [ "$unbounded" -eq 0 ] && echo "  none — every defined container has a memory ceiling"
 
-total=$($D ps -aq | wc -l)
+# ── Every DEFINED container with no CPU cap — VERIFY only (W-fc701b31) ──────────
+# Its own loop: the memory loop above `continue`s past every BOUNDED container, so a CPU read
+# there would see none of them (0 of vps1's 39). Either Docker mechanism is a cap: `--cpus` sets
+# NanoCpus, `--cpu-quota` sets CpuQuota (a quota-only container reads `0 50000`). Both <= 0 is no
+# cap — a -1 quota means unlimited (scripts/sysadmin/vps1_cpu_limits.py reads `0 -1` as DIFFERS
+# and will not touch it; this check reports it uncapped, for the operator). Applying CPU caps is
+# vps1_cpu_limits.py's job (D-1325); nothing below mutates.
+# FAIL CLOSED: a read that is not exactly two integers of at most 18 digits (so `[ -le ]` can
+# never error past them: 2^63 makes it fail, and `|| continue` would count that as capped) is
+# UNREADABLE and fails the run in every mode — except an id that a SUCCESSFUL re-listing no
+# longer holds (removed mid-run), which is GONE. A re-listing that itself fails is UNREADABLE:
+# the listing is captured and its exit code read, never piped into `grep -q`, whose early exit
+# under pipefail would make a still-listed id read as gone.
 echo
-echo "=== $unbounded of $total containers unbounded · set=$applied raised=$raised ok=$ok missing=$missing failed=$failed ==="
+echo "--- containers with no CPU limit (NanoCpus and CpuQuota both <= 0, all defined) ---"
+nocpu=0
+for id in $ids; do
+  read -r nano quota extra <<< "$($D inspect -f '{{.HostConfig.NanoCpus}} {{.HostConfig.CpuQuota}}' "$id" 2>/dev/null)"
+  if [[ ! "$nano" =~ ^-?[0-9]{1,18}$ || ! "$quota" =~ ^-?[0-9]{1,18}$ || -n "$extra" ]]; then
+    if relist=$($D ps -aq) && ! grep -qx "$id" <<< "$relist"; then
+      printf '  GONE      %-24s removed since the listing — not counted\n' "$id"
+      continue
+    fi
+    printf '  UNREADABLE %-23s cpu read returned %s — counted failed\n' "$id" "${nano:-<empty>} ${quota} ${extra}"
+    failed=$(( failed + 1 )); continue
+  fi
+  [ "$nano" -le 0 ] && [ "$quota" -le 0 ] || continue
+  n=$($D inspect -f '{{.Name}}' "$id"); n="${n#/}"
+  printf '  ⚠️  %-24s no CPU cap (NanoCpus %s, CpuQuota %s)\n' "$n" "$nano" "$quota"
+  nocpu=$(( nocpu + 1 ))
+done
+[ -n "${unlisted:-}" ] && echo "  not checked — the container listing failed"
+[ -z "${unlisted:-}" ] && [ "$nocpu" -eq 0 ] && echo "  none — every defined container has a CPU cap"
+
+total=$(wc -w <<< "$ids")
+echo
+echo "=== $unbounded of $total containers unbounded · no-cpu=$nocpu · set=$applied raised=$raised ok=$ok missing=$missing failed=$failed ==="
 
 [ "$failed" -gt 0 ] && exit 1
-[ "$MODE" = check ] && [ "$unbounded" -gt 0 ] && exit 1
+[ "$MODE" = check ] && { [ "$unbounded" -gt 0 ] || [ "$nocpu" -gt 0 ]; } && exit 1
 exit 0

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T21:15:42.099694Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-3a3dcc88",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M61Q445NWT7PP6M29REAFXQ9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: fleet-drain-grade-5"
+}

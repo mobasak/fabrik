@@ -348,6 +348,73 @@ def test_the_noncompliant_hint_names_the_image_it_replaces(audit):
     assert "`python:3.14-alpine`" in issue.fix
 
 
+# ── W-cd8b8ead: the docusaurus pack's serve stage (core/42-docusaurus.md, D-664) ─────────────
+
+
+@pytest.mark.parametrize(
+    ("image", "status"),
+    [
+        ("nginx:mainline-trixie", "pinned"),
+        ("nginx:mainline-trixie@sha256:" + "d" * 64, "pinned"),
+        ("nginx:mainline-bookworm", "superseded"),
+        ("nginx:stable-trixie", "noncompliant"),  # the pack names mainline
+        ("nginx:mainline-alpine", "noncompliant"),
+        ("nginx:mainline", "noncompliant"),  # no codename: floats with upstream
+        ("nginx:1.29-trixie", "noncompliant"),
+        ("nginx:mainline-trixie-perl", "noncompliant"),  # anchored at the end
+        ("nginx:mainline-trixie-alpine", "noncompliant"),
+        ("python:3.14-slim-trixie", "pinned"),  # the 30-ops shapes still hold
+    ],
+)
+def test_the_docusaurus_serve_stage_follows_the_pin(audit, image, status):
+    assert audit._base_status(image, "docusaurus") == status
+
+
+@pytest.mark.parametrize("ptype", ["python-api", "node-api", "static-site", "unknown", ""])
+def test_the_serve_stage_is_a_base_for_docusaurus_alone(audit, ptype):
+    assert audit._base_status("nginx:mainline-trixie", ptype) == "noncompliant"
+    assert "nginx" not in audit._pinned_base_hint(ptype)
+
+
+def _docusaurus_audit(audit, tmp_path):
+    """A docusaurus project whose Dockerfile is the scaffold template, rendered on the pin."""
+    import jinja2
+
+    template = REPO / "templates" / "docusaurus" / "Dockerfile.j2"
+    versions = {"node_lts": "24", "debian_codename": audit._pinned_codename()}
+    rendered = jinja2.Template(template.read_text(encoding="utf-8")).render(versions=versions)
+    (tmp_path / "Dockerfile").write_text(rendered, encoding="utf-8")
+    lines, final, healthcheck = audit.check_dockerfile_deep(tmp_path)
+    a = audit.ProjectAudit(name="d", path=tmp_path)
+    a.project_type = "docusaurus"
+    a.dockerfile_from_lines, a.dockerfile_final_base = lines, final
+    a.dockerfile_has_healthcheck = healthcheck
+    return a
+
+
+def test_the_scaffolded_docusaurus_dockerfile_passes_the_audit(audit, tmp_path):
+    a = _docusaurus_audit(audit, tmp_path)
+    assert audit._image_ref(a.dockerfile_final_base) == "nginx:mainline-trixie"
+    audit.build_issues(a)
+    assert [i for i in a.issues if "base" in i.title.lower()] == []
+    audit.build_constraints(a)
+    assert a.constraints["no_alpine"] == "✅ Compliant"
+    md = audit.generate_research_md(a)
+    assert "`FROM nginx:mainline-trixie` ✅" in md
+
+
+def test_a_docusaurus_project_off_the_serve_stage_is_told_the_serve_stage(audit):
+    a = audit.ProjectAudit(name="d", path=Path("/nonexistent"))
+    a.project_type = "docusaurus"
+    a.dockerfile_final_base = "nginx:stable-alpine"
+    a.dockerfile_from_lines = [a.dockerfile_final_base]
+    a.dockerfile_has_healthcheck = True
+    audit.build_issues(a)
+    (issue,) = [i for i in a.issues if "base" in i.title.lower()]
+    assert issue.severity == "critical"
+    assert "`nginx:mainline-trixie`" in issue.fix and "python:" not in issue.fix
+
+
 def test_a_stage_built_from_an_alias_is_marked_by_its_image(audit):
     a = audit.ProjectAudit(name="p", path=Path("/nonexistent"))
     a.dockerfile_from_lines = [

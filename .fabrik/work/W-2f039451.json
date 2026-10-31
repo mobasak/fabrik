@@ -1,0 +1,28 @@
+{
+  "blocked_by": [
+    "W-43c850b1"
+  ],
+  "created": "2026-10-29T19:23:02.610386Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-2f039451",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "duplicate of W-04fadfd3 (mail 01M64CSW26's own item)",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "HIGH: rule update; effort low: two pack lines",
+  "status": "dropped",
+  "tags": [
+    "mail-01m64csw26"
+  ],
+  "title": "core/30-ops.md:149 and :419 name only the memory limit; once fleet's D-1352 cpus validator merges (W-43c850b1, MR 01M64D10JR), say cpus is mandatory too (fleet finding, mail 01M64CSW26)"
+}

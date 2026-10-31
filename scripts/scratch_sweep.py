@@ -41,6 +41,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import fcntl
+import functools
 import glob as globmod
 import hashlib
 import json
@@ -556,13 +557,20 @@ def _created_for(folder: Path, owner: dict | None) -> object:
     return created
 
 
-def gap_keeps(starts: list[float | None], created: object, now: float) -> bool:
-    """Does a same-uid `/proc` gap keep a run folder? Only a gap process that STARTED at or after
-    the folder's marker was written (less the clock margin): a process already running before the
-    run began cannot be one of its writers, and this box carries three such daemons permanently
-    (sd-pam, gpg-agent, a setuid fusermount3), which kept every folder for ever under the spec's
-    bare "a non-empty gaps list". Any unknown — a start, or a missing, non-numeric, non-finite or
-    future `created` — keeps (the split panel's interim ruling; the decision row names both verdicts).
+def gap_keeps(
+    starts: list[float | None], created: object, now: float, *, end: object = None
+) -> bool:
+    """Does a same-uid `/proc` gap keep a run folder? Only a gap process that STARTED inside the
+    run's own window — at or after the folder's marker was written, and (given `end`, the run's last
+    activity from `run_window_end`) no later than that end, both less/plus the clock margin. A process
+    already running before the run began cannot be one of its writers, and neither can one born after
+    the run's last activity: this box carries such daemons permanently (sd-pam, gpg-agent, the
+    document portal's setuid fusermount3), which kept every folder for ever under the spec's bare "a
+    non-empty gaps list", and — with no end — every folder older than the daemon (W-d1a4a8f5: 152
+    folders, 77 GB; /tmp is not cleared at boot here, so "until the next boot" bounded nothing, which
+    supersedes D-878's rejection of the end bound). Any unknown — a start, or a missing, non-numeric,
+    non-finite or future `created` — keeps (the split panel's interim ruling; the decision row names
+    both verdicts); an unusable `end`, or none, is no end at all — today's start-only rule.
 
     Cobra (D-253): an EARLIER `created` makes every gap read newer and so keeps more; the cheap way
     to make this keep nothing is to move `created` LATER than the run's true start — to the present,
@@ -570,16 +578,104 @@ def gap_keeps(starts: list[float | None], created: object, now: float) -> bool:
     in (true start, now + margin] is indistinguishable from a younger run or clock skew, so this rule
     cannot see it; the writers that heal a marker therefore stamp the run's true start (D-902).
     Dropping `created`, or making it NaN, a bool or text, KEEPS; a test pins each case (W-a39d4c86
-    corrected the direction this note first named).
+    corrected the direction this note first named). The END's cobra mirrors it: an end moved EARLIER
+    keeps less, so `run_window_end` answers None (no end) on every doubt rather than a guess. Residual
+    (an over-removal, recorded in the W-d1a4a8f5 row): a non-dumpable process that is not one of the
+    run's seats, started more than the margin after the run's last activity, still writing into the
+    folder only in place, loses it once the grace has passed.
     """
     if not starts:
         return False
     if not _usable_time(created) or created > now + GAP_CLOCK_MARGIN_S:
         return True
+    last = end if _usable_time(end) else None
     # `s + margin >= created`, not `s >= created - margin`: a huge int `created` is only ever COMPARED
-    # (exact for any size), never converted to a float by arithmetic (OverflowError)
+    # (exact for any size), never converted to a float by arithmetic (OverflowError) — and the same
+    # for the end: `s - margin <= end`, never `end + margin`
     # an unusable start (None, or NaN from a NaN boot time) is an UNKNOWN start: INV-1 doubt keeps
-    return any(not _usable_time(s) or s + GAP_CLOCK_MARGIN_S >= created for s in starts)
+    return any(
+        not _usable_time(s)
+        or (s + GAP_CLOCK_MARGIN_S >= created and (last is None or s - GAP_CLOCK_MARGIN_S <= last))
+        for s in starts
+    )
+
+
+def _run_sids(owner: dict | None, dir_sid: str) -> tuple[str, ...]:
+    """The sessions whose seats may have written into a run folder: its marker's `sid` (the session
+    that RAN it) when that is a non-empty string, and the directory's sid. Both count — under D4
+    (`check_sid=False`) a marker naming another session is still judged, and its directory's seats
+    are as live as the marker's (W-d1a4a8f5 review, Opus C3 / Haiku 2)."""
+    sid = (owner or {}).get("sid")
+    if isinstance(sid, str) and sid and sid != dir_sid:
+        return (sid, dir_sid)
+    return (dir_sid,)
+
+
+def _newest_seat_write(sids: tuple[str, ...], tx_dirs: list[Path] | None) -> float | None:
+    """The newest `subagents/agent-*.jsonl` mtime of any of ``sids`` under the transcript roots —
+    the glob `_seat_write_after_close` reads, with root and sid ESCAPED so a `[` or `*` in either
+    is a literal and never a pattern that silently matches nothing (review, Sonnet C2). An OSError
+    propagates: the caller's doubt."""
+    newest: float | None = None
+    for root in transcript_dirs() if tx_dirs is None else tx_dirs:
+        for sid in sids:
+            pattern = os.path.join(globmod.escape(str(root)), "*", globmod.escape(sid))
+            for path in globmod.glob(os.path.join(pattern, "subagents", "agent-*.jsonl")):
+                mt = os.stat(path).st_mtime
+                newest = mt if newest is None else max(newest, mt)
+    return newest
+
+
+def run_window_end(
+    folder: Path,
+    owner: dict | None,
+    sids: tuple[str, ...],
+    tx_dirs: list[Path] | None,
+    now: float,
+) -> float | None:
+    """The run's last activity — the END of the window a `/proc` gap must have started in to keep
+    the folder (W-d1a4a8f5). None on any doubt, which `gap_keeps` reads as no end (today's rule):
+    - `.trash-*`: its own ctime — the rename that made it, never the marker's `created` (the START);
+    - `done` with a close the marker vouches for (D-900): the close, or a later top-level write
+      (`_written_after_close`);
+    - `running` / `resumable`: the marker's mtime, its heartbeat — which moves only at the run's
+      events, never while a seat works;
+    - for both live states, raised to the newest seat transcript of any of ``sids``: a seat that acts
+      moves its own transcript, which the folder's mtime does not see when the seat writes in place.
+    No answer, either, for an end further ahead of `now` than the clock margin (a clock jump or a
+    `touch -d` would stretch the window to that date), an end before the marker's own `created` less
+    the margin (an inverted window), or a close no float holds.
+    Residuals (an over-removal, recorded in D-1341): a close clobbered back to near `created`, which
+    D-900's vouch still believes, ends the window there; and a run whose seats' transcripts are gone
+    (the D-736 pruner removes them locally after 3 days) ends at its close — the 36 h grace, counted
+    from the close when the seats cannot be read, is then the only cover for a late writer."""
+    try:
+        if folder.name.startswith(TRASH_PREFIX):
+            last = folder.lstat().st_ctime
+        elif not isinstance(owner, dict):
+            return None
+        else:
+            state = owner.get("state")
+            if state == "done":
+                if not _done_close_is_vouched(owner, now):
+                    return None
+                closed = float(owner["closed_at"])
+                last = max(closed, _written_after_close(folder, closed, now) or closed)
+            elif state in ("running", "resumable"):
+                last = (folder / OWNER_NAME).stat().st_mtime
+            else:
+                return None
+            seats = _newest_seat_write(sids, tx_dirs)
+            if seats is not None:
+                last = max(last, seats)
+    except (OSError, OverflowError, ValueError):
+        return None
+    if not math.isfinite(last) or last > now + GAP_CLOCK_MARGIN_S:
+        return None
+    created = owner.get("created") if isinstance(owner, dict) else None
+    if _usable_time(created) and last + GAP_CLOCK_MARGIN_S < created:
+        return None  # compared, never converted: a huge int `created` is exact
+    return last
 
 
 # the mint's key is `<command>-<started_at>-<6 hex>` (P4); `started_at` is `%Y-%m-%dT%H:%M:%S%z`
@@ -881,7 +977,9 @@ def judge_run_folder(
     is_held = p in held or os.path.realpath(p) in held
     owner = read_owner(folder)
     created = _created_for(folder, owner)
-    gap = gap_keeps(gaps, created, now)
+    # the window costs a transcript glob per folder: read it only when there is a gap to judge
+    end = run_window_end(folder, owner, _run_sids(owner, sid), tx_dirs, now) if gaps else None
+    gap = gap_keeps(gaps, created, now, end=end)
     if folder.name.startswith(TRASH_PREFIX):
         # already judged CONSUMED before the crash that left it — only a holder can keep it now
         facts = RunFacts("done", 0.0, 0.0, True, is_held, gap, probe_ok, False, False, True, False)
@@ -1028,6 +1126,7 @@ def apply_run_rows(rows: list[Row], out=None, proc_root: Path | None = None) -> 
         print("REFUSED — the /proc holder probe went unreadable; no run folder removed", file=out)
         return 0
     starts_now = gap_starts(gaps_now, proc_root)
+    tx_now = transcript_dirs() if starts_now else None  # once, not per folder (review, Sonnet C3)
     removed = 0
     for r in rows:
         if r.cls != "consumed":
@@ -1051,7 +1150,13 @@ def apply_run_rows(rows: list[Row], out=None, proc_root: Path | None = None) -> 
             print(f"KEPT {r.path} — written into since its close (W-9f3f097c)", file=out)
             continue
         created = _created_for(path, owner)
-        if gap_keeps(starts_now, created, _now()):
+        # the SAME window the judge used, recomputed from what the folder holds now — the unbounded
+        # form here would re-keep every folder a late daemon no longer keeps (W-d1a4a8f5)
+        end = None
+        if starts_now:
+            sids = _run_sids(owner, path.parent.parent.name)
+            end = run_window_end(path, owner, sids, tx_now, _now())
+        if gap_keeps(starts_now, created, _now(), end=end):
             print(f"KEPT {r.path} — an unreadable process appeared since classification", file=out)
             continue
         trash = path
@@ -2795,29 +2900,163 @@ def _parse_worktree_porcelain(out: str) -> list[dict]:
     return entries
 
 
-def _merged_from(repo: Path, target: str, branch: str) -> bool:
-    """Was `branch` squash-merged into `target`? Read the `Merged-From` trailer.
+def _trailer_names(value: str) -> list[str]:
+    """The branch names in one `Merged-From` value: a COMMA LIST of `branch (description)`.
 
-    The trailer is a COMMA LIST of `branch (free-text description)` entries, so each item is
-    `.strip()`ped (without it every item after the first keeps its leading space and matches
-    nothing), the trailing ` (…)` description is removed, and the comparison is WHOLE-STRING — a
-    substring test would let one branch's description word mark a different branch merged.
-    `git log --format=` also emits a BLANK line between commits, so empties are skipped.
+    Commas split only at parenthesis depth 0, so a description such as `(vendor, wiring)` or
+    `(see, hotfix (x))` never yields a name of its own, and an item ending in `)` is cut at its
+    FIRST ` (`. A value holding an unclosed `(` names NOBODY: past it no grammar can tell a name
+    from a description word (`feat (wip, hotfix` must not vouch for `hotfix`). Each name is
+    `.strip()`ped (else every item after the first keeps its leading space and matches nothing)
+    and compared WHOLE-STRING by the caller — a substring test would let one branch's
+    description word mark a different branch merged. Model limits (D-1290): a branch
+    whose own name holds a comma cannot be told from two names (none exists here), and a stray `)`
+    in a description (`(smile :), b (x))`) can close it early and make its later text a name.
     """
-    rc, out = _git(repo, "log", "--format=%(trailers:key=Merged-From,valueonly)", target)
-    if rc != 0:
-        return False
-    for line in out.splitlines():
-        line = line.strip()
-        if not line:
+    matched: set[int] = set()
+    opened: list[int] = []
+    for i, ch in enumerate(value):
+        if ch == "(":
+            opened.append(i)
+        elif ch == ")" and opened:
+            matched.add(opened.pop())
+            matched.add(i)
+    if opened:
+        return []
+    items: list[str] = []
+    cur: list[str] = []
+    depth = 0
+    for i, ch in enumerate(value):
+        if ch == "," and depth == 0:
+            items.append("".join(cur))
+            cur = []
             continue
-        for item in line.split(","):
-            name = item.strip()
-            if name.endswith(")") and " (" in name:
-                name = name[: name.rindex(" (")].strip()
-            if name and name == branch:
-                return True
-    return False
+        if i in matched:
+            depth += 1 if ch == "(" else -1
+        cur.append(ch)
+    items.append("".join(cur))
+    names = []
+    for item in items:
+        name = item.strip()
+        if " (" in name and name.endswith(")"):
+            name = name[: name.index(" (")].strip()
+        if name:
+            names.append(name)
+    return names
+
+
+def _target_commit(repo: Path, target: str) -> str | None:
+    """`target` resolved to its commit sha, or None — ONE state for every read of one decision."""
+    rc, sha = _git(repo, "rev-parse", "--verify", "-q", f"{target}^{{commit}}")
+    sha = sha.strip()
+    return sha if rc == 0 and re.fullmatch(r"[0-9a-f]{40,64}", sha) else None
+
+
+def _vouch_map(repo: Path, target: str) -> dict[str, int] | None:
+    """Each branch a `Merged-From` squash on `target` names → the time up to which it vouches.
+
+    `target` is resolved to its commit on every call and the map is cached per COMMIT, so a
+    process reads the history once per target state, and a target that moved since — forward, or
+    rewound past a squash — is read afresh, never answered from the old state (D-1290). A caller
+    that pairs the map with other reads passes the resolved sha as `target`, so all of them read
+    the same state.
+    """
+    sha = _target_commit(repo, target)
+    return None if sha is None else _vouch_map_at(repo, sha)
+
+
+@functools.cache
+def _vouch_map_at(repo: Path, sha: str) -> dict[str, int] | None:
+    """The vouch map of the history ending at commit `sha` (see `_vouch_map`).
+
+    `-z` ends each commit's record with NUL (a commit message cannot hold one), `separator=,` joins
+    two trailer lines on one commit, and a record whose fields or times do not parse is skipped — it
+    never vouches — instead of failing the read for every branch.
+
+    `--no-merges` (D-1290): a merge commit's parents already say what it took, and the caller's
+    `merge-base --is-ancestor` arm is the truth for it — hand merges carry reused names
+    (`Merged-From: worktree-fleet`), which read merged for ever otherwise. A squash's vouch is
+    `min(author, committer)` time: an amend or a rebase of the target moves only the committer
+    date forward, past work the squash never took. That reading also refuses a hand squash that
+    kept its first commit's author date (`commit -C`, `rebase -i`), which no date can tell from an
+    amend — it fails closed. The NEWEST vouch wins (a re-squash covers the work before it).
+    """
+    rc, out = _git(
+        repo,
+        "log",
+        "-z",
+        "--no-merges",
+        "--format=%at%x1f%ct%x1f%(trailers:key=Merged-From,valueonly,separator=%x2c)",
+        sha,
+    )
+    if rc != 0:
+        return None
+    vouches: dict[str, int] = {}
+    for record in out.split("\0"):
+        fields = record.split("\x1f")
+        if len(fields) != 3 or not fields[2].strip():
+            continue
+        if not (fields[0].isdigit() and fields[1].isdigit()):
+            continue
+        when = min(int(fields[0]), int(fields[1]))
+        for name in _trailer_names(fields[2]):
+            if when > vouches.get(name, -1):
+                vouches[name] = when
+    return vouches
+
+
+def _squash_vouch(repo: Path, target: str, branch: str) -> int | None:
+    """The time up to which a `Merged-From` squash on `target` vouches for `branch`, or None."""
+    vouches = _vouch_map(repo, target)
+    return None if vouches is None else vouches.get(branch)
+
+
+def _newer_than_vouch(repo: Path, target: str, branch: str, vouch: int) -> int | None:
+    """How many commits of `target..branch` are newer than `vouch`, or None when unreadable.
+
+    A commit counts by `max(author, committer)` time, so new work reads new whichever clock
+    stamped it. Equal seconds do not count: an orchestrator squash may land in the same second as
+    the branch's last commit. A merge commit whose every parent after the first is already in
+    `target` is read as the branch catching up and skipped, so a branch that merged its target
+    back after the squash still reads merged; any other merge counts by its own time, since the
+    commits it brought in may be old-dated work `target` never took. Known fail-OPEN (D-1290): work
+    made inside the squash window, a commit whose BOTH dates were set before the vouch, a name
+    re-pointed at older work, and a catch-up merge that also carries edits of its own (its
+    content is not compared). Known fail-closed: a branch rebased after its squash (the rebase
+    re-dates its commits). Pass `target` as a resolved sha when the vouch was read from one.
+    """
+    rc, out = _git(repo, "log", "--format=%at%x1f%ct%x1f%P", f"{target}..{branch}")
+    if rc != 0:
+        return None
+    newer = 0
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        fields = line.split("\x1f")
+        if len(fields) != 3 or not (fields[0].isdigit() and fields[1].isdigit()):
+            return None
+        parents = fields[2].split()
+        if len(parents) > 1 and all(
+            _git(repo, "merge-base", "--is-ancestor", p, target)[0] == 0 for p in parents[1:]
+        ):
+            continue
+        if max(int(fields[0]), int(fields[1])) > vouch:
+            newer += 1
+    return newer
+
+
+def _merged_from(repo: Path, target: str, branch: str) -> bool:
+    """Was `branch` squash-merged into `target`, with nothing committed to it since?
+
+    A trailer names a branch, not a state: branch names are reused, so a `Merged-From` squash
+    vouches only when no commit of `target..branch` that `_newer_than_vouch` counts is newer than
+    it. Every uncertain answer — no vouch, an unreadable log — is `False`, which keeps the worktree.
+    """
+    sha = _target_commit(repo, target)
+    vouch = None if sha is None else _squash_vouch(repo, sha, branch)
+    if sha is None or vouch is None:
+        return False
+    return _newer_than_vouch(repo, sha, branch, vouch) == 0
 
 
 def _sync_source_for(worktree: Path, rel: str) -> Path | None:
@@ -3442,7 +3681,17 @@ def _worktree_chain(
     if rc_anc != 0 and not _merged_from(main_path, target, branch):
         rc_n, ahead = _git(main_path, "rev-list", "--count", f"{target}..{branch}")
         n = ahead.strip() if rc_n == 0 else "?"
-        return "wt-unmerged", f"not merged into {target} (ahead {n})", ""
+        why = f"not merged into {target} (ahead {n})"
+        sha = _target_commit(main_path, target)
+        vouch = None if sha is None else _squash_vouch(main_path, sha, branch)
+        newer = (
+            None
+            if sha is None or vouch is None
+            else _newer_than_vouch(main_path, sha, branch, vouch)
+        )
+        if newer:
+            why += f"; {newer} commit(s) newer than the Merged-From squash that names it"
+        return "wt-unmerged", why, ""
     return "wt-removable", f"merged into {target}, clean, unlocked, unheld", ""
 
 

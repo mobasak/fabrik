@@ -219,6 +219,98 @@ def load(sid: str) -> dict[str, Any]:
         return {}
 
 
+_STEP_SNAPSHOT_BIN = "/opt/fabrik/scripts/wip_backup.sh"
+_STEP_SNAPSHOT_LOCK = "/tmp/wip-backup.lock"  # noqa: S108 — the */15 cron's own lock, shared on purpose
+_STEP_SNAPSHOT_EVERY_S = 120.0
+
+
+def _step_snapshot(repo_root: str) -> None:
+    """Spec L1 (W-6e656dac T06): a `step` lands an off-box snapshot of the run's own repo — a
+    DETACHED single-repo `wip_backup.sh` run (`WIP_BACKUP_ONLY=<repo>`) under the */15 cron's own
+    `flock -n /tmp/wip-backup.lock`, at most once per 2 minutes per repo (a stamp under the
+    run-record dir). The lock is probed first: held (the cron, or another repo's step run) →
+    nothing starts and the cron, the floor, covers it. Never waits, never raises.
+
+    Seam: `FABRIK_STEP_SNAPSHOT_BIN` (and `FABRIK_STEP_SNAPSHOT_LOCK`) name the binary; unset,
+    a test harness — `COMMAND_RUN_DIR` or `PYTEST_CURRENT_TEST` — spawns nothing, so no suite
+    reaches the live script. Cobra (D-253): the cheapest pass is a stamp written with no run —
+    the stamp is written only once the spawn is handed to the kernel."""
+    bin_ = os.environ.get("FABRIK_STEP_SNAPSHOT_BIN")
+    if bin_ is None:
+        if os.environ.get("COMMAND_RUN_DIR") or os.environ.get("PYTEST_CURRENT_TEST"):
+            return
+        bin_ = _STEP_SNAPSHOT_BIN
+    if not bin_ or not repo_root or not os.access(bin_, os.X_OK):
+        return
+    lock = os.environ.get("FABRIK_STEP_SNAPSHOT_LOCK") or _STEP_SNAPSHOT_LOCK
+    try:
+        stamp_dir = _state_dir() / "step-snapshot"
+        key = hashlib.sha1(os.path.realpath(repo_root).encode(), usedforsecurity=False).hexdigest()[
+            :16
+        ]
+        stamp = stamp_dir / key
+        try:
+            if time.time() - stamp.stat().st_mtime < _STEP_SNAPSHOT_EVERY_S:
+                return
+        except FileNotFoundError:
+            pass
+        fd = os.open(lock, os.O_WRONLY | os.O_CREAT, 0o666)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return  # the cron (or another step's run) holds it: the */15 cron covers this boundary
+        finally:
+            os.close(fd)  # closing releases the probe's own lock before `flock -n` takes it
+        subprocess.Popen(  # noqa: S603 — fixed argv, no shell
+            ["flock", "-n", lock, bin_],
+            env={**os.environ, "WIP_BACKUP_ONLY": repo_root},
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            close_fds=True,
+        )
+        stamp_dir.mkdir(parents=True, exist_ok=True)
+        stamp.touch()
+        os.utime(stamp)
+    except Exception as exc:  # noqa: BLE001 — a snapshot must never refuse a step
+        sys.stderr.write(f"[command_run] NOTE — step snapshot not started: {exc}\n")
+
+
+def _abandoned_seats(values: list[str]) -> tuple[list[dict[str, Any]], str]:
+    """`--abandoned-seat '<pid>|<purpose>|<brief path>|<output path>'` values → the record's
+    `abandoned_seats` entries `{pid, purpose, brief, output, procStart}` — `procStart` read from
+    `/proc/<pid>/stat` (field 22, the form `hibernate.py` compares) now, at the close, and null
+    when unreadable. Returns ``(entries, "")`` or ``([], <the first malformed value>)``."""
+    out: list[dict[str, Any]] = []
+    for raw in values:
+        parts = str(raw).split("|", 3)
+        # `isdecimal`, never `isdigit` (which admits `²`, and `int` then raises), and the
+        # conversion guarded too: a malformed pid is the refusal, never a crash (review r1, F4)
+        if len(parts) != 4 or not parts[0].strip().isdecimal():
+            return [], str(raw)
+        try:
+            pid = int(parts[0])
+        except ValueError:
+            return [], str(raw)
+        if pid <= 0:
+            return [], str(raw)
+        try:
+            start: str | None = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[19]
+        except (OSError, IndexError):
+            start = None
+        out.append(
+            {
+                "pid": pid,
+                "purpose": parts[1].strip(),
+                "brief": parts[2].strip(),
+                "output": parts[3].strip(),
+                "procStart": start,
+            }
+        )
+    return out, ""
+
+
 def save(sid: str, rec: dict[str, Any]) -> bool:
     """Atomically persist ``rec``. Returns False (never raises) on any I/O problem."""
     try:
@@ -321,6 +413,7 @@ NO_CLOSING_PASS = frozenset(
         "fabrik-generate-tests",
         "fabrik-plan-after-chat",
         "fabrik-release",
+        "fabrik-reverse-engineer",
         "fabrik-spec",
         "fabrik-task",
         "fabrik-upstream",
@@ -410,6 +503,42 @@ def _failing_slices(row: Any) -> list[dict[str, Any]]:
     # (`_slice_rows` reads it as -1 — a hand-edited record) is OPEN, never clean: fail-closed,
     # and escapable by re-stating the ledger
     return [s for s in _slice_rows(row) if s["verified"] < s["claims"] or s["claims"] < 0]
+
+
+def _repeats_round(last: Any, args: argparse.Namespace, slices: Any, phase: int) -> bool:
+    """True when this `round` call repeats ``last``, a round that closed seats (W-fe322585).
+
+    `findings`, `confirmed` and the phase must be equal; every other typed field must be equal
+    WHERE STATED ON BOTH sides — absent on either matches, so a retry that re-spells the call or
+    adds `--own-fix` after the NOTE asking for it is still a repeat. The class lists compare as
+    sets. A last round that closed no seats (an in-shell backfill, a pre-stamp record) or carries a
+    malformed seat count never repeats: the caller fails toward recording."""
+    if not isinstance(last, dict):
+        return False
+    seats = last.get("seats")
+    if isinstance(seats, bool) or not isinstance(seats, int) or seats <= 0:
+        return False
+    if (
+        last.get("findings") != args.findings
+        or last.get("confirmed") != args.confirmed
+        or _int0(last.get("phase")) != phase
+    ):
+        return False
+
+    def _set(v: Any) -> frozenset | None:
+        return frozenset(str(x) for x in v) if isinstance(v, list) and v else None
+
+    def _norm(v: Any) -> str | None:
+        return None if v is None else json.dumps(v, sort_keys=True)
+
+    pairs = (
+        (last.get("own_fix"), args.own_fix),
+        (_set(last.get("swept")), _set(_csv(args.classes_swept))),
+        (_set(last.get("new")), _set(_csv(args.classes_new))),
+        (last.get("new_count"), args.new),
+        (_norm(last.get("slices")), _norm(slices)),
+    )
+    return all(a is None or b is None or a == b for a, b in pairs)
 
 
 def _slice_expectation(
@@ -897,6 +1026,33 @@ def _trend_label(rounds: list[Any]) -> str:
     return "confirmed counts" if _confirmed_adopted(rounds) else "findings"
 
 
+def _stale_seat_round(rounds: list[Any]) -> tuple[int, int] | None:
+    """`(k, confirmed)` when every seat the LAST round closed was dispatched at or before round k —
+    the newest EARLIER round that confirmed defects — was recorded, else None (W-128df814, fleet row
+    1792465351: a wave round closing a round-1 seat printed TERMINAL before the fix was re-verified).
+
+    The anchor is the newest confirming round, never round N-1 alone: a quiet stale round between
+    them must not launder the next one. Fails OPEN — None — when the last round carries no
+    `dispatched_at` (no stamp, `--seats 0`, a record older than this field) or the confirming round
+    has no usable `ts`. The signal is the round's RECORD time, not the fix's: a seat dispatched
+    after the record but before the fix landed reads fresh (accepted risk). COBRA (D-253): the
+    cheapest way past it is `dispatch --seats 1` after the fix without reading it — that stamp is
+    the seats a sibling subtracts, and `dispatch --seats 0` adds no batch, so a zero stamp buys
+    nothing."""
+    if len(rounds) < 2 or not isinstance(rounds[-1], dict):
+        return None
+    at = _finite_ts(rounds[-1].get("dispatched_at"))
+    if at is None:
+        return None
+    for i in range(len(rounds) - 2, -1, -1):
+        r = rounds[i]
+        conf = _confirmed(r) if isinstance(r, dict) else None
+        if conf:
+            ts = _finite_ts(r.get("ts"))
+            return (i + 1, conf) if ts is not None and at <= ts else None
+    return None
+
+
 def _round_report(rec: dict[str, Any]) -> str:
     rounds = rec.get("rounds") or []
     classes: dict[str, str] = rec.get("classes") or {}
@@ -946,7 +1102,16 @@ def _round_report(rec: dict[str, Any]) -> str:
                 for s in slices
             )
         )
-    terminal = quiet and len(rounds) >= min_rounds and not failing and not vanished
+    stale = _stale_seat_round(rounds)
+    terminal = quiet and len(rounds) >= min_rounds and not failing and not vanished and not stale
+    if quiet and len(rounds) >= min_rounds and stale:
+        k, conf = stale
+        lines.append(
+            f"⛔ NOT TERMINAL — every seat this round closed was dispatched before round {k} "
+            f"RECORDED its {conf} confirmed defect(s), so none of them can have read that round's "
+            "fix; the closing pass owes a seat dispatched after it (`dispatch --seats <n>`, then "
+            "`round`) — W-128df814"
+        )
     if quiet and len(rounds) >= min_rounds and vanished:
         lines.append(
             "⛔ NOT TERMINAL — slice ledger missing this round for ("
@@ -1448,11 +1613,13 @@ def _scrubbed_git_env() -> dict[str, str]:
 
 # A run's persistent scratch (kaizen 01M4V0B03B): the session scratchpad lives under /tmp, which a WSL
 # shutdown clears, and it held everything a resumed run needs beyond this record (phase-2 measure.md,
-# critique briefs, review pins). `start` gives every run a dir under the MAIN checkout's `.tmp/runs/`
-# — seats may read it (never $HOME/.claude*), a linked worktree's run survives `git worktree remove`,
-# and scratch_sweep never touches `.tmp`, so `start` prunes it. COBRA (D-253): the cheapest way to
-# "have scratch" without the outcome is to keep writing to the /tmp scratchpad; the counter is the
-# printed SCRATCH path the command text names, not this code.
+# critique briefs, review pins). `start` gives every run a dir under the `.tmp/runs/` of the checkout it
+# runs in — a linked worktree's own (W-128df814: its session's Write tool refuses the main checkout's
+# path; a plain `git worktree remove` deletes it with the tree) — and seats may read it (never
+# $HOME/.claude*). scratch_sweep never prunes `.tmp`, so `start` prunes every checkout's `.tmp/runs/`
+# (a finished worktree never starts again). COBRA (D-253): the cheapest way to "have scratch" without
+# the outcome is to keep writing to the /tmp scratchpad; the counter is the printed SCRATCH path the
+# command text names, not this code.
 SCRATCH_RETENTION_S = 14 * 86400
 _SCRATCH_EXCLUDE_LINE = "/.tmp/runs/"
 
@@ -1469,16 +1636,20 @@ def _git_out(cwd: Path, *args: str) -> tuple[int, str]:
     return r.returncode, r.stdout.strip()
 
 
-def _scratch_main(repo_root: str) -> Path | None:
-    """The MAIN checkout of `repo_root`'s repository — the parent of its common git dir, so every
-    worktree of one repo shares one scratch root. None when it cannot be resolved."""
-    rc, common = _git_out(
-        Path(repo_root), "rev-parse", "--path-format=absolute", "--git-common-dir"
-    )
-    if rc != 0 or not common:
-        return None
-    common_p = Path(common)
-    return common_p.parent if common_p.name == ".git" else Path(repo_root)
+def _other_checkouts(repo_root: Path) -> list[Path]:
+    """Every OTHER checkout `git worktree list --porcelain` names for `repo_root`'s repository (the
+    main one included when `repo_root` is a linked worktree) — [] when git cannot say."""
+    rc, out = _git_out(repo_root, "worktree", "list", "--porcelain")
+    if rc != 0:
+        return []
+    here = repo_root.resolve()
+    found = []
+    for line in out.splitlines():
+        if line.startswith("worktree "):
+            p = Path(line[len("worktree ") :])
+            if p.resolve() != here:
+                found.append(p)
+    return found
 
 
 def _ensure_scratch_ignored(main: Path) -> str:
@@ -1534,12 +1705,24 @@ def _prune_scratch(root: Path, keep: set[Path], now: float | None = None) -> lis
     dirs. Any doubt skips the dir. Returns NOTE lines."""
     now = time.time() if now is None else now
     notes: list[str] = []
-    if not root.is_dir():
-        return notes
-    for sid_dir in sorted(root.iterdir()):
-        if sid_dir.is_symlink() or not sid_dir.is_dir():
+    # a dir that cannot be listed (another account's tree, a permission-mangled dir, a sibling prune
+    # that removed it mid-walk) is a NOTE, never a raise: `start` prunes every checkout now, and a
+    # raise here cost the run its own scratch (W-128df814 review A-sonnet-1)
+    try:
+        if not root.is_dir():
+            return notes
+        sid_dirs = sorted(root.iterdir())
+    except OSError as exc:
+        return [f"scratch root {root} not pruned ({exc})"]
+    for sid_dir in sid_dirs:
+        try:
+            if sid_dir.is_symlink() or not sid_dir.is_dir():
+                continue
+            runs = sorted(sid_dir.iterdir())
+        except OSError as exc:
+            notes.append(f"scratch {sid_dir} not pruned ({exc})")
             continue
-        for run in sorted(sid_dir.iterdir()):
+        for run in runs:
             try:
                 if run.is_symlink() or not run.is_dir() or run.resolve() in keep:
                     continue
@@ -1594,14 +1777,16 @@ def _make_scratch(
     restart runs in a new session). An explicit `root` skips the repo and its exclude step."""
     notes: list[str] = []
     why = ""
+    others: list[Path] = []
     if root is None:
         if not repo_root:
             return None, []
-        main = _scratch_main(repo_root)
-        if main is None:
-            return None, ["the repo's main checkout did not resolve"]
-        why = _ensure_scratch_ignored(main)
-        root = main / ".tmp" / "runs"
+        # the checkout the session runs in, never the main one: a worktree-isolated session's Write
+        # tool refuses a path outside its own tree (W-128df814, superseding D-836's main-checkout root)
+        here = Path(repo_root)
+        why = _ensure_scratch_ignored(here)
+        root = here / ".tmp" / "runs"
+        others = _other_checkouts(here)
     # a seed's dir is reused only when it lies under THIS root: never another repo's checkout, and
     # never a live checkout while the test seam is on (review closing pass A)
     prev = seed.get("scratch") if seed else None
@@ -1611,6 +1796,10 @@ def _make_scratch(
             kept = Path(prev)
         else:
             notes.append(f"the seed's scratch {prev} is outside {root} — not reused")
+    elif isinstance(prev, str) and prev:
+        # a plain `git worktree remove` deletes ignored files with the tree: say the files are gone
+        # rather than hand back an empty dir at the same name (W-128df814)
+        notes.append(f"the seed's scratch {prev} no longer exists — its files are not carried")
     if why and kept is None:
         return None, [*notes, why]
     if why:
@@ -1627,7 +1816,16 @@ def _make_scratch(
         path.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         return None, [f"cannot create {path} ({exc})"]
-    notes += _prune_scratch(root, keep={path.resolve(), *_scratch_referenced()})
+    keep = {path.resolve(), *_scratch_referenced()}
+    notes += _prune_scratch(root, keep=keep)
+    # a finished worktree never starts again, so its own prune never fires: every start prunes every
+    # checkout's runs, else one stale dir pins that tree as `wt-ignored-data` for ever (W-128df814)
+    for other in others:
+        o_root = other / ".tmp" / "runs"
+        # a symlinked `.tmp` or `.tmp/runs` points outside that tree: never pruned through
+        if (other / ".tmp").is_symlink() or o_root.is_symlink():
+            continue
+        notes += _prune_scratch(o_root, keep=keep)
     return path, notes
 
 
@@ -2270,6 +2468,58 @@ def _finite_ts(v: object) -> float | None:
     return float(v)
 
 
+def _stamp_batches(d: dict[str, Any], seats: int) -> list[list[Any]]:
+    """The live stamp's seats as `[dispatch time, n]` batches, oldest first (W-128df814).
+
+    A stamp whose `batches` do not sum to `seats` — one written before batches existed, or a
+    hand-edited one — is ONE batch at the stamp's `ts`: its seats were out at that time at the latest,
+    so a later `dispatch --seats 0` (which re-dates `ts`) can never make them read fresh. A batch time
+    that is not a finite number is kept as None: unknown, which the round report never reads as stale.
+    """
+    raw = d.get("batches")
+    out: list[list[Any]] = []
+    if isinstance(raw, list):
+        for b in raw:
+            if (
+                isinstance(b, list)
+                and len(b) == 2
+                and isinstance(b[1], int)
+                and not isinstance(b[1], bool)
+                and b[1] > 0
+            ):
+                out.append([_finite_ts(b[0]), b[1]])
+            else:
+                out = []
+                break
+    if sum(n for _t, n in out) != seats:
+        out = [[_finite_ts(d.get("ts")), seats]] if seats > 0 else []
+    return out
+
+
+def _consume_batches(batches: list[list[Any]], k: int) -> tuple[float | None, list[list[Any]]]:
+    """Close `k` seats OLDEST batch first: `(dispatch time of the newest batch touched, the batches
+    left)`. Oldest-first is the pessimistic attribution — a partial close cannot say WHICH seats
+    returned, so a stale wave seat closing alone is never credited with a fresh seat's time; when the
+    fresh one returned first instead, the close reads stale once and the next close reads fresh. A
+    touched batch with an unknown time makes the answer None (unknown, never stale)."""
+    left = [list(b) for b in batches]
+    newest: float | None = None
+    unknown = False
+    while k > 0 and left:
+        t, n = left[0]
+        if t is None:
+            unknown = True
+        else:
+            newest = t if newest is None else max(newest, t)
+        take = min(n, k)
+        k -= take
+        if take == n:
+            left.pop(0)
+        else:
+            left[0][1] = n - take
+    return (None if unknown else newest), left
+
+
 def _touch(rec: dict[str, Any]) -> None:
     rec["updated_at"] = _now()
     rec["updated_ts"] = int(time.time())
@@ -2612,6 +2862,15 @@ _USAGE_FIELDS = ("confusion", "waste", "change", "filed")
 _USAGE_LABEL_RE = re.compile(
     r"(?:^|[·|;\n])[^\S\n]*(confusion|waste|change|filed|cost)[^\S\n]*:", re.I | re.M
 )
+# The grammar prints its optional field as `[· cost: <…>]` (W-256d6877). Without these the `[`
+# landed in the previous field's value and the `]` in cost's, so the grammar did not round-trip
+# through its own parser and the cost gate refused `0.01]`. OPEN: a `[` right before a separator
+# and a label — always a label boundary already, so blanking it moves no mark. CLOSE: a `]` at the
+# end of the value the opener introduced, before at most one `.` and one trailing separator.
+_USAGE_OPT_OPEN_RE = re.compile(
+    r"\[(?=[^\S\n]*[·|;\n][^\S\n]*(?:confusion|waste|change|filed|cost)[^\S\n]*:)", re.I
+)
+_USAGE_OPT_CLOSE_RE = re.compile(r"\](?=\s*\.?\s*(?:[·|;]\s*)?$)")
 _USAGE_GRAMMAR = (
     "confusion: <what in the command text was ambiguous or misleading | none> · "
     "waste: <steps/turns/tokens spent without changing the outcome | none> · "
@@ -2892,10 +3151,19 @@ def _parse_usage_feedback(
     discarded an honest value (round-1 finders)."""
     fields: dict[str, str] = {}
     dupes: list[str] = []
-    marks = list(_USAGE_LABEL_RE.finditer(text or ""))
+    text = text or ""
+    openers = [o.start() for o in _USAGE_OPT_OPEN_RE.finditer(text)]
+    text = _USAGE_OPT_OPEN_RE.sub(" ", text)  # one-for-one: every position stays put
+    marks = list(_USAGE_LABEL_RE.finditer(text))
+    # the field each opener introduced: the first mark at or after it
+    owns_closer = {next((i for i, m in enumerate(marks) if m.start() >= p), None) for p in openers}
     for i, m in enumerate(marks):
         end = marks[i + 1].start(1) if i + 1 < len(marks) else len(text)
-        value = text[m.end() : end].strip()
+        value = text[m.end() : end]
+        # ...and only an UNBALANCED `]`: `[· filed: mail [01M5ABC]` ends in the id's own bracket
+        if i in owns_closer and value.count("]") > value.count("["):
+            value = _USAGE_OPT_CLOSE_RE.sub("", value, count=1)
+        value = value.strip()
         value = value.rstrip("·|;, \t").strip()
         key = m.group(1).lower()
         if key in fields:
@@ -3300,6 +3568,42 @@ def _seat_transcripts(path: Path, lo: float) -> list[Path]:
     return sorted(out)
 
 
+def _unstamped_seat_count(sid: str, rec: dict[str, Any], rounds: list) -> tuple[int, bool]:
+    """The seat transcripts whose newest IN-WINDOW line is newer than the previous round (or a
+    nested child's close, or the record's start), and whether the count completed.
+
+    Read by `round`'s unstamped-seat nudge and by its blind-retry refusal (W-fe322585), which treats
+    an incomplete count as "something ran" — it fails toward recording. A `step` writes no timestamp
+    the window reads, so it never narrows it. Counted by the seat's last line, not the file's mtime
+    (round-12 Opus: a stamped seat still flushing after its close re-fired the nudge on the next,
+    empty round); an UNREADABLE transcript ("skipped") has only its mtime to date it and counts.
+    A session transcript that cannot be found leaves the count incomplete too: its seat directory
+    may sit elsewhere, so no seat seen there is not evidence that none ran."""
+    n = 0
+    complete = True
+    try:
+        since = max(
+            [_finite_ts(r.get("ts")) or 0.0 for r in rounds if isinstance(r, dict)]
+            + [
+                _finite_ts(rec.get("started_epoch")) or 0.0,
+                _finite_ts(rec.get("child_closed_ts")) or 0.0,
+            ]
+        )
+        tp = _transcript_path(sid, str(rec.get("repo_root") or ""))
+        complete = tp is not None and tp.is_file()
+        if tp is not None:
+            for q in _seat_transcripts(tp, since):
+                e = _seat_last_epoch(q)
+                # strict `>`: a line ON the round's own sub-second `ts` is that round's
+                if (isinstance(e, float) and e > since) or e == "skipped":
+                    n += 1
+    except Exception:
+        # advisory for the nudge — it may never void the round (a non-numeric `started_epoch`
+        # voided one, silently); for the refusal an unfinished count means "do not refuse"
+        return n, False
+    return n, complete
+
+
 def _seat_usage(q: Path, lo: float, hi: float) -> dict[str, float] | str | None:
     """One seat's in-window usage, per-message maximum like the parent; None when the file holds
     no in-window assistant message (or cannot be read) — a seat, never a real zero; the string
@@ -3582,7 +3886,9 @@ def _sum_transcript_usage(path: Path | None, start: float, end: float) -> dict[s
     empty.update(
         {
             "tok_msgs": 0,
-            "seats_seen": 0,
+            # not measured: the transcript was never read (W-256d6877) — a 0 here read as a
+            # measured zero and printed a false declared-vs-seen mismatch at the close
+            "seats_seen": None,
             "seats_partial": False,
             "seats_skipped": 0,
             "models": [],
@@ -4100,6 +4406,9 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument("--reason", required=True, help="why rows remain open")
+    p.add_argument(
+        "--abandoned-seat", action="append", default=None, metavar="SEAT", help=_ABANDONED_SEAT_HELP
+    )
     p.add_argument("--commit", default=None, nargs="+", metavar="SHA", help=_TASK_COMMIT_HELP)
     p.add_argument(
         "--review",
@@ -4140,6 +4449,9 @@ def _build_parser() -> argparse.ArgumentParser:
         "marked and a JSON seed of it is kept under <state>/seeds/ for `start --resume-from` "
         "(W-28f260c3). The hook's own phrase in --reason implies it; a quota-shaped reason "
         "without the flag gets a NOTE, never a seed.",
+    )
+    p.add_argument(
+        "--abandoned-seat", action="append", default=None, metavar="SEAT", help=_ABANDONED_SEAT_HELP
     )
     p.add_argument("--commit", default=None, nargs="+", metavar="SHA", help=_TASK_COMMIT_HELP)
     p.add_argument(
@@ -5067,6 +5379,11 @@ _TASK_COMMIT_HELP = (
     "on `blocked`/`handoff` "
     "(which may close before any commit exists), and REFUSED on every other command"
 )
+_ABANDONED_SEAT_HELP = (
+    "repeatable: '<pid>|<purpose>|<brief path>|<output path>' — a seat still running at this close "
+    "(a /hibernate T-3, spec L2), written into the record and its seed as `abandoned_seats` with its "
+    "/proc start time, so `hibernate.py woke` lists it for a re-run after the wake"
+)
 
 # `git`'s empty tree. A ROOT commit has no parent, so `<c>~1` does not resolve and its diff is
 # taken against this — the scaffold case, where reading `no-git` would hide the whole change.
@@ -5100,7 +5417,25 @@ _TASK_LEDGER_EXCL = (
 # and unstamped `oversized_mini` records (D-789).
 _TASK_REVIEWS_DIR = "docs/development/reviews/"
 
-_TASK_BACKTICKED = re.compile(r"`([^`]+)`")
+# A CommonMark code span: a run of N backticks closed by the next run of EXACTLY N. A naive
+# single-backtick pair unpaired every later token after one ``double`` span (W-f2e97f00). N is
+# capped at 8 so an unclosed run rescans its line at most once per length (an uncapped N was
+# quadratic: 7 s on one 500 KB line); a run of 9+ stays literal. The same pattern sits in
+# scripts/mail.py and scripts/enforcement/check_review_coverage.py, held equal by
+# tests/test_code_span_readers.py.
+_CODE_SPAN = re.compile(r"(?<!`)(`{1,8})(?!`)([^\n]+?)(?<!`)\1(?!`)")
+
+
+def _code_spans(text: str) -> list[str]:
+    """The code spans of ``text`` in order, one space stripped from each side when both carry
+    one and the span is not all spaces (CommonMark); an unclosed run stays literal text."""
+    out = []
+    for m in _CODE_SPAN.finditer(text):
+        s = m.group(2)
+        out.append(s[1:-1] if s[0] == s[-1] == " " and s.strip() else s)
+    return out
+
+
 # Root-level destinations the Doc Sync Matrix names WITHOUT a slash. A harvested token with no
 # `/` and not in this set is prose (see `_doc_sync_tokens`).
 _TASK_ROOT_DESTINATIONS = frozenset({".env.example", "CHANGELOG.md", "INDEX.md", "PORTS.md"})
@@ -5138,7 +5473,7 @@ def _doc_sync_tokens(text: str) -> set[str]:
         cells = ln.split("|")
         if len(cells) < 4:  # not a two-column row; the `|---|---|` separator included
             continue
-        for tok in _TASK_BACKTICKED.findall(cells[2]):
+        for tok in _code_spans(cells[2]):
             if not tok.endswith(_TASK_DOC_SUFFIXES):
                 continue
             # ⚠️ A destination carries a `/` or is a known ROOT name; a bare token with neither is
@@ -5585,7 +5920,6 @@ _DESIGN_LABEL = re.compile(
 _DESIGN_HEADING = re.compile(r"^#{1,6}[ \t]", re.MULTILINE)
 _BEHAVIOURS_HEADING = re.compile(r"^#{2,6}[ \t]+Behaviou?rs\b[^\n]*$", re.MULTILINE | re.IGNORECASE)
 _LIST_ITEM = re.compile(r"^[ \t]{0,3}(?:[-*+]|\d+[.)])[ \t]+\S", re.MULTILINE)
-_BACKTICKED = re.compile(r"`([^`\n]+)`")
 
 
 def _design_paths(text: str) -> list[str]:
@@ -5599,7 +5933,7 @@ def _design_paths(text: str) -> list[str]:
         if label not in ("APPROACH", "MIRROR"):
             continue
         end = next((s for s in stops if s > pos), len(text))
-        out += _BACKTICKED.findall(text[pos:end])
+        out += _code_spans(text[pos:end])
     return list(dict.fromkeys(out))
 
 
@@ -5765,7 +6099,20 @@ def _task_close_v2(
                 "--review <a CONVERGED full /fabrik-review receipt over these commits>; "
                 "`blocked` closes without one"
             ), {}
-        reasons = tl.check_review_receipt(Path(review), resolved, root=rp)
+        # The commits a receipt may be followed by (W-0b900e92): the close's exclusion set narrowed
+        # to receipts and ledgers (`.md`/`.json`), contract and migration paths carved back out as
+        # `measure_close` does — a `.py` under a Doc Sync prefix row still refuses after the tip.
+        reasons = tl.check_review_receipt(
+            Path(review),
+            resolved,
+            root=rp,
+            exempt=lambda p: (
+                _task_excluded(p, excl)
+                and p.endswith((".md", ".json"))
+                and not tl.contract_hit(p)
+                and not tl.is_migration(p)
+            ),
+        )
         if reasons:
             return _refuse("REFUSED — fabrik-task: --review " + "; ".join(reasons)), {}
     paths = sorted(set(cv.oversized_mini))
@@ -6677,6 +7024,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         _touch(rec)
         _heartbeat(rec)  # scratch lifecycle plan D1: the run folder's heartbeat
         fields["persisted"] = save(sid, rec)
+        _step_snapshot(str(rec.get("repo_root") or ""))
         print(pinned_line(rec))
         if _tests_note_files is not None:
             # after the save and every refusal: the design's test advice, where the grader path
@@ -6699,13 +7047,21 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         prev_disp: dict = _pd if isinstance(_pd, dict) else {}
         n_rounds = len(rec.get("rounds") or [])
         carried = _int0(prev_disp.get("seats")) if prev_disp.get("round") == n_rounds else 0
+        _disp_ts = time.time()  # never `_now`: that local would shadow the module's `_now()` here
+        # W-128df814: each message's seats keep their OWN dispatch time, so a round can tell a seat
+        # sent before the last confirming round (it cannot have read that fix) from one sent after;
+        # `--seats 0` re-dates `ts` but adds no batch — a zero stamp never buys a fresh time
+        batches = (_stamp_batches(prev_disp, carried) if carried else []) + (
+            [[_disp_ts, args.seats]] if args.seats > 0 else []
+        )
         rec["dispatch"] = {
-            "ts": time.time(),
+            "ts": _disp_ts,
             "seats": carried + args.seats,
             "phase": rec.get("phase"),
             "round": n_rounds,
             # a deliberate `dispatch --seats 0` is a KNOWN zero, never "unrecorded" (round 12)
             "released": (carried + args.seats) == 0,
+            "batches": batches,
         }
         fields = _queue(
             rec, outbox, "dispatch", {"seats": rec["dispatch"]["seats"], "phase": rec.get("phase")}
@@ -6872,6 +7228,45 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             print("[command_run] round --seats must be >= 0", file=sys.stderr)  # round-10 finding
             return 2
         _seats = args.seats if args.seats is not None else _stamped
+        # W-fe322585: a BLIND RETRY — the call re-run because `2>&1 | tail -1` hid its output —
+        # landed as a second round, and a retried quiet round 1 printed TERMINAL with no closing
+        # pass run. Recognised by what it lacks: the last round closed seats, and nothing has run
+        # since — no stamp (`dispatch --seats 0` is a known zero), no newer seat transcript — while
+        # the figures repeat (`_repeats_round`). Refused before the in-flight check and every
+        # advisory, so the refusal is the call's LAST line; the landed verdict is printed above it.
+        # The record keeps everything but `event_seq` (no `_touch`: the Stop hook's review window
+        # reads `updated_ts`), so the `round_refused` event keeps the stream's seq dense.
+        # COBRA (D-253): retyping the retry with `--seats 0` passes — and records the truth of a
+        # retry, that nobody ran; a lead set on faking a closing pass could always type that.
+        _last = rounds[-1] if rounds else None
+        if (
+            not _stamped
+            and isinstance(_last, dict)
+            and (args.seats is None or args.seats == _last.get("seats"))
+            and _repeats_round(_last, args, slices, _phase_now)
+        ):
+            _n_seen, _counted = _unstamped_seat_count(sid, rec, rounds)
+            if _counted and not _n_seen:
+                _landed = _int0(_last.get("n")) or len(rounds)
+                _at = _finite_ts(_last.get("ts"))
+                _age = max(0, int(time.time() - _at)) if _at is not None else None
+                msg = (
+                    f"REFUSED — round {_landed} was already recorded "
+                    + (f"{_age}s ago" if _age is not None else "at an unknown time")
+                    + " with these "
+                    "figures (verdict above); no round was recorded. A new seat pass is stamped "
+                    "first (`dispatch --seats <n>`, then `round`); a pass you ran alone types "
+                    "`round --seats 0`."
+                )
+                sys.stderr.write(f"[command_run] {msg}\n")
+                _ev = _queue(rec, outbox, "round_refused", {"n": _landed, "age_s": _age})
+                _ev["persisted"] = save(sid, rec)
+                # the verdict is a courtesy; a report that raises must never swallow the refusal
+                # (main()'s outer handler would turn it into a silent rc 0)
+                with contextlib.suppress(Exception):
+                    print(_round_report(rec))
+                print(msg)
+                return 2
         # W-93a9d22a: a FULL close typed while the stamp's seats are verifiably still out is a
         # round nobody read — infra's row 1792629286 recorded one and the tool called it
         # terminal. The hook's own reader decides (W-4c7edc74, `_hook_seats_in_flight`); a
@@ -6910,30 +7305,9 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         _ran = 0
         if not _stamped and args.seats is None:
             # a fan-out that ran with NO stamp is silent until the close (fleet, 2026-09-08:
-            # declared 0 vs seen 12 on a live execute-plan) — name it where the agent stands:
-            # a seat transcript whose newest IN-WINDOW line is newer than the previous round (or
-            # a nested child's close) means seats ran unstamped. A `step` writes no timestamp the
-            # window reads — it never narrows it. Counted by the seat's last line, not the file's
-            # mtime (round-12 Opus: a stamped seat still flushing after its close re-fired the
-            # nudge on the next, empty round). Advisory only: it may never void the round, so
-            # every read here is guarded (a non-numeric `started_epoch` voided one, silently).
-            with contextlib.suppress(Exception):
-                _since = max(
-                    [_finite_ts(r.get("ts")) or 0.0 for r in rounds if isinstance(r, dict)]
-                    + [
-                        _finite_ts(rec.get("started_epoch")) or 0.0,
-                        _finite_ts(rec.get("child_closed_ts")) or 0.0,
-                    ]
-                )
-                _tp = _transcript_path(sid, str(rec.get("repo_root") or ""))
-                if _tp is not None:
-                    for _q in _seat_transcripts(_tp, _since):
-                        _e = _seat_last_epoch(_q)
-                        # strict `>`: a line ON the round's own sub-second `ts` is that round's;
-                        # an UNREADABLE transcript ("skipped") has only its mtime to date it, and
-                        # the nudge exists to stop silent under-reporting (round-13 Opus finding)
-                        if (isinstance(_e, float) and _e > _since) or _e == "skipped":
-                            _ran += 1
+            # declared 0 vs seen 12 on a live execute-plan) — name it where the agent stands
+            # (`_unstamped_seat_count`; advisory only, every read guarded inside it)
+            _ran, _ = _unstamped_seat_count(sid, rec, rounds)
             if _ran:
                 print(
                     f"[command_run] {_ran} seat transcript(s) since the last round and NO "
@@ -6945,6 +7319,18 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
         # one round and return independently — the first `round` must release only what closed,
         # never the whole accumulated stamp (siblings read 0 while the other tickets' seats ran)
         _remaining = max(_stamped - int(_seats or 0), 0) if _stamped else 0
+        # W-128df814: WHEN the seats this round closes went out — the newest batch they came from,
+        # attributed oldest first. Absent when no stamped seat closes (no stamp, or `--seats 0`): the
+        # round report then keeps its old verdict rather than guessing.
+        _batches = _stamp_batches(_d, _stamped) if _stamped else []
+        _closing = (
+            0
+            if not _stamped or (args.seats is not None and args.seats <= 0)
+            else (min(int(_seats or 0), _stamped))
+        )
+        _dispatched_at, _left = (
+            _consume_batches(_batches, _closing) if _closing else (None, _batches)
+        )
         if args.seats is not None and _stamped and args.seats != _stamped:  # 0 disagrees too
             print(
                 (
@@ -6995,6 +7381,7 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
                 # reads `rounds[-1].seats` off every fresh running record, and the first draft
                 # wrote seats to the event only — the guard read None everywhere and was inert
                 "seats": _seats,
+                **({} if _dispatched_at is None else {"dispatched_at": _dispatched_at}),
                 # the round's OWN stamp: dispatch_headroom.py dates the fallback reservation by it
                 # — `updated_ts` is a generic last-touch and re-dated a two-hour-old round on a
                 # bare `step` (round-5 finding)
@@ -7028,6 +7415,8 @@ def _mutate(sid: str, args: argparse.Namespace, outbox: dict[str, Any]) -> int:
             "phase": rec.get("phase"),
             "round": len(rounds),
             "released": _remaining == 0,
+            # the remainder keeps its own dispatch times (W-128df814)
+            "batches": _left if _remaining else [],
         }
         # ROUNDS SINCE THE LAST `step` — the signal job-agent identified. A counter that advances
         # while the phase never moves is either a convergence loop legitimately living inside one
@@ -7620,6 +8009,20 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
     # `_flush_events` runs in a `finally` and a refusal after that queue would emit a close
     # event for a close that did not happen. Nothing above this point has touched DISK — the
     # record is only mutated in memory until `save()` — so a refusal leaves it `running`.
+    _seat_vals = list(getattr(args, "abandoned_seat", None) or [])
+    if _seat_vals:
+        _seats, _bad = _abandoned_seats(_seat_vals)
+        if _bad:
+            msg = (
+                f"REFUSED — --abandoned-seat {_bad!r} is not '<pid>|<purpose>|<brief path>|<output "
+                "path>' (a positive pid and four `|` fields); nothing was closed"
+            )
+            sys.stderr.write(f"[command_run] {msg}\n")
+            print(msg)
+            return 1
+        # BEFORE the seed copy below: `hibernate.py woke` and `status` check 2 read these names
+        # from the record and from its seed (W-6e656dac T06, spec L2's abandoned-seat rule)
+        rec["abandoned_seats"] = _seats
     _task_rc, _task_fields = _task_close_fields(rec, args)
     if _task_rc:
         return _task_rc
@@ -7845,8 +8248,17 @@ def _close(sid: str, rec: dict[str, Any], args: argparse.Namespace, outbox: dict
         _declared = sum(
             _int0(r.get("seats")) for r in rec.get("rounds") or [] if isinstance(r, dict)
         )
-        _seen = _int0(_tok.get("seats_seen"))
-        if (_tok.get("tok_seat_in") is not None or _declared) and abs(_declared - _seen) > 1:
+        # an UNMEASURED count (None: the transcript was not read) is never compared — read as 0 it
+        # printed a false mismatch (W-256d6877)
+        _seen_raw = _tok.get("seats_seen")
+        _seen = _int0(_seen_raw)
+        if _seen_raw is None:
+            if _declared:
+                print(
+                    f"[command_run] seats declared {_declared}; seen unknown (transcript not read)",
+                    file=sys.stderr,
+                )
+        elif (_tok.get("tok_seat_in") is not None or _declared) and abs(_declared - _seen) > 1:
             print(
                 f"[command_run] seats declared {_declared} (round --seats) vs seen {_seen} (seat "
                 "transcripts in the window) — the reservation siblings subtract is only as true as "

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T21:12:25.895186Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-e7bc55be",
+  "impact": "high",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1362",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "(a) in _closer accept a bare line j as the closer only when the count of bare same-char fences at least the opener's length from j to EOF is odd (opus's proposal; a stray then sees an even count); (b) in main's cursor loop add a hash only for entries in the sent rows' subtrees, never for a non-fresh known-key entry; red-first graders from the two probes (seat scratch run-fabrik-review-scoped-2026-10-29T23-32-05-0300-1bb85c/seat-opus/r3/c9.py and seat-haiku/r3/p2r3.py); fix both docstring sentences",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "score_reason": "kaizen lessons/AFCL reader follow-up; one session; landed with 01M64RZ28R",
+  "status": "open",
+  "tags": [
+    "lessons-relay"
+  ],
+  "title": "lessons_relay.py (W-d6ebcc04) review residue — TWO CAN LOSE A LESSON: (a) a stray TAGGED fence opener (never closed) followed by a lesson whose code block is BARE pairs with that bare line and hides the lesson (opus r3 tagstray_bare); (b) an entry under a known unique heading edited in place records its new hash, so an overflow copy of that same new content elsewhere is never sent (haiku r3 held_hash_r3). Plus: _fenced docstring 'never hides a lesson' is false until (a) is fixed; the stated-limit 'a new lesson below such a line folds into its row' is true only for a DEEPER heading; and the earlier stated limits (in-place rewrite never re-sent, timeout/save-failure re-send, hand-written empty cursor, code comment rows)"
+}

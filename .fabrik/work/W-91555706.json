@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T18:20:17.261664Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-91555706",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1357",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add --host vps2|vps3 reading infra/<host>/ composes, keeping the compose-config BEFORE/AFTER check, and extend it to set memory where the live container has none",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "deploy",
+    "fleet"
+  ],
+  "title": "scripts/sysadmin/vps1_cpu_limits.py is vps1-only (INFRA_VPS1, no --host), so the spoke caps of D-1357 are a hand edit of each spoke's live compose plus docker update — the path D-1325 rejected for vps1"
+}

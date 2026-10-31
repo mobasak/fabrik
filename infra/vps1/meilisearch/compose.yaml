@@ -27,6 +27,7 @@ services:
       resources:
         limits:
           memory: 512M
+          cpus: '1.0'
 
 volumes:
   meilisearch-data:

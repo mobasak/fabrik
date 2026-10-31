@@ -51,9 +51,7 @@ def test_the_validation_first_ruling_is_present_and_keyed_on_existing_evidence()
     assert "re-cuts the spec before the implementing ticket runs" in " ".join(block.split())
     # The core directive is invertible in one word; "the BOARD's favour" passed all four tests.
     assert "resolve in the SPEC's favour" in block
-    # Both numbers round 1 paid for, and the scope sentence, carried no grader at all.
-    assert "24 of 101 lane-choice commits" in block
-    assert "re-cut two clauses of the decision rule" in block
+    # (the 24-of-101 incident anecdote was cut as narrative by the lean rewrite)
     assert "Most specs carry no such validation" in block
     # The applicability test and the traceability half were both invertible/droppable (round 3).
     assert "whether the recipe can run on" in flat

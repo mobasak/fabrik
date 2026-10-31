@@ -1,0 +1,26 @@
+{
+  "block_digest": "22cbf500a81e5c6a3553cbb419aa75147635461614fa188a8a4a7aaedf9d0307",
+  "blocked_by": [],
+  "created": "2026-10-29T19:34:30.265860Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-21e3a4a7",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "5b88b6e6d3ec01b4333e8b7ac2d91ae36eef6a06f4cbebbafc368cee30755c70"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "Will you run intel's sandbox proof from your own WSL shell, to prove review seats can't write into the repo or `.git`?",
+  "status": "awaiting-operator",
+  "title": "Will you run intel's sandbox proof from your own WSL shell, to prove review seats can't write into the repo or `.git`?"
+}

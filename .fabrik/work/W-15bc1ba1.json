@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T16:23:54.745518Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-15bc1ba1",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fleet: rename to --font-* and decide the spacing names, with an emitted-scaffold test",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "residue"
+  ],
+  "title": "mobile-app scaffold templates/mobile-app/src/global.css:15-17 declares --font-family-sans/heading/mono in @theme — the JS-config spelling, which CSS-first Tailwind compiles to .font-family-heading and never .font-heading (4.3.3 executed); and :53-58 --spacing-xs..2xl shadow max-w-md/w-md container sizes; found by W-dab6a341"
+}

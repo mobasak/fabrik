@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AFTER-EDIT: tests/test_merge_request_send.py, tests/test_merge_request_merge.py, tests/test_merge_request_work_items.py, docs/reference/multi-agent-operating-model.md
+# AFTER-EDIT: tests/test_merge_request_send.py, tests/test_merge_request_merge.py, tests/test_merge_request_work_items.py, tests/test_governance_template_split.py, docs/reference/multi-agent-operating-model.md
 """merge_request — finishing work in a linked worktree sends ONE merge request; the merge owner
 merges it through ONE data-safe path (stdlib-only).
 
@@ -8,6 +8,7 @@ Spec: docs/superpowers/specs/2026-09-30-merge-request-loop-design.md § The delt
 
     merge_request.py request --review <path> [--item <W-id>] [--base <branch>]
     merge_request.py merge [<id>]        # the merge owner: the oldest request addressed to it
+    merge_request.py merge --queue       # 2+ waiting: their owner tests outside the lock, then each
     merge_request.py resume <id>         # continue a request from its recorded phase
     merge_request.py retry <id>          # re-run a REFUSED request whose branch is unchanged
 
@@ -35,7 +36,12 @@ and each failure refuses with exit 1:
     ``$FABRIK_DECISIONS_PY``) answers UNDECLARED (exit 3) — with the ``docs_updater.py --adopt``
     command; any OTHER resolver failure (missing, exit 1, unreadable output) is named as a resolver
     failure, never read as UNDECLARED;
-  * the caller IS the merge owner (agent names compare casefolded and stripped).
+  * the caller IS the merge owner (agent names compare casefolded and stripped);
+  * the branch is more than ``MAX_BEHIND`` (500) commits behind the base's REMOTE tip (W-527c1ce0,
+    D-1381) — the tip is fetched once when this clone lacks it, and the refusal prints the
+    ``git fetch <remote> refs/heads/<base>`` and ``git merge FETCH_HEAD`` to run (never a rebase:
+    the branch is pushed; the full ref never resolves to a same-named tag, and FETCH_HEAD works
+    whatever the clone's fetch refspec tracks).
 
 Then it sends one ``merge-request`` (``ack: required``) to the merge owner and, when
 ``.fabrik/work/config.json``'s ``distributor`` is a different agent (and not the caller), a copy
@@ -66,14 +72,19 @@ from __future__ import annotations
 import argparse
 import contextlib
 import fcntl
+import hashlib
 import importlib.util
 import json
+import math
+import multiprocessing
 import os
 import re
+import secrets
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -90,6 +101,13 @@ EXIT_REFUSED = 1
 EXIT_PARTIAL = 4
 ITEM_RE = re.compile(r"^W-[0-9a-f]{8}$")
 HEADS = "refs/heads/"
+# A branch more than this many commits behind the REMOTE base tip is refused before anything is
+# sent (W-527c1ce0, D-1381): the panel tied the line to the ledger-conflict refusals, which grow with
+# the gap, and 25 of the 51 refusals in 14 days were red tests on a stale base. Cobra (D-253): the
+# cheapest way past it is merging the base in once just before the request and never between items;
+# the item-boundary merge line in CLAUDE.md § EXIT is the counter, and the refusal still fires on any
+# branch that drifts past the line again.
+MAX_BEHIND = 500
 
 
 def _resend(base: str, branch: str = "your branch") -> str:
@@ -156,12 +174,15 @@ def _capped_run() -> str:
     )
 
 
-def _capped(argv: list[str], timeout: int) -> list[str]:
+def _capped(argv: list[str], timeout: int, mem: str | None = None) -> list[str]:
     """``argv`` under the box's capped runner — a cgroup memory ceiling and a time limit, so a
-    runaway owner test is a red, never a host outage (W-162398ef). No runner → ``argv`` as is."""
+    runaway owner test is a red, never a host outage (W-162398ef). ``mem`` (the base's declared
+    ceiling, ``_declared_mem``) is passed as ``--mem``; without it the runner's own default holds.
+    No runner → ``argv`` as is."""
     runner = _capped_run()
     if os.access(runner, os.X_OK):
-        return [runner, "--timeout", str(int(timeout)), "--", *argv]
+        flags = ["--timeout", str(int(timeout)), *(["--mem", mem] if mem else [])]
+        return [runner, *flags, "--", *argv]
     print(
         f"merge_request: WARNING — {runner} is missing; owner tests run UNCAPPED (no memory ceiling)",
         file=sys.stderr,
@@ -310,6 +331,46 @@ def _resolve_base(
     return base
 
 
+def _check_behind(cwd: Path, remote: str, base: str, tip: str) -> None:
+    """Refuse a branch more than MAX_BEHIND commits behind ``tip``, the base's REMOTE sha — what the
+    owner merges onto, never a stale local ``<remote>/<base>``. A tip this clone has not fetched is
+    fetched once; a fetch failure or a still-missing object refuses (fail closed: a refusal costs a
+    re-run, a stale branch let through costs the owner a build and a test leg)."""
+    present = _run(["git", "cat-file", "-e", f"{tip}^{{commit}}"], GIT_TIMEOUT_S, cwd=cwd)
+    if present.returncode != 0:
+        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+        try:
+            res = _run(
+                ["git", "fetch", "-q", "--no-tags", remote, HEADS + base],
+                REMOTE_TIMEOUT_S,
+                cwd=cwd,
+                env=env,
+            )
+        except TimedOutError as exc:
+            raise RefusedError(
+                f"{exc} — run `git fetch {remote} refs/heads/{base}` yourself, then request again"
+            ) from None
+        if res.returncode != 0:
+            raise RefusedError(
+                f"cannot fetch {remote} {base} to count how far behind it this branch is: "
+                f"{res.stderr.strip() or res.returncode}"
+            )
+    res = _run(["git", "rev-list", "--count", f"HEAD..{tip}"], GIT_TIMEOUT_S, cwd=cwd)
+    if res.returncode != 0 or not res.stdout.strip().isdigit():
+        raise RefusedError(
+            f"cannot count how far behind {remote}/{base} this branch is: "
+            f"{res.stderr.strip() or res.returncode}"
+        )
+    behind = int(res.stdout.strip())
+    if behind > MAX_BEHIND:
+        raise RefusedError(
+            f"this branch is {behind} commits behind {remote}/{base} (the limit is {MAX_BEHIND}) "
+            f"— run `git fetch {remote} refs/heads/{base}`, then `git merge FETCH_HEAD`, resolve, push, "
+            "then run `merge_request.py request` again — never a rebase: the branch is already "
+            "pushed. Merge the base at every item boundary and this never fires"
+        )
+
+
 def _adopt_hint(main: Path) -> str:
     return (
         f"repo {main.name} declares no merge owner — adopt first: "
@@ -444,10 +505,14 @@ def request(args: argparse.Namespace) -> int:
     owner = _merge_owner(main)
     if _norm(owner) == _norm(caller):
         raise RefusedError(f"{caller} is the merge owner — the owner merges, it does not request")
+    # after the owner checks, so an undeclared repo gets its adopt hint before any fetch
+    _check_behind(cwd, remote, base, refs[HEADS + base])
     raw_dist = config.get("distributor")
     distributor = raw_dist.strip() if isinstance(raw_dist, str) else ""
     copy = bool(distributor) and _norm(distributor) not in (_norm(owner), _norm(caller))
 
+    if getattr(args, "pretest", False):  # after every check, strictly before any send
+        print(_pretest(main, Path(common), owner, base, branch, head), file=sys.stderr)
     mailbox = main.name
     sent = _now()
 
@@ -534,6 +599,37 @@ LEDGERS = frozenset(
 DECISIONS = "docs/DECISIONS.md"
 MAX_REBUILDS = 3  # (d): the build is redone in full at most this many times, then it refuses
 TEST_TIMEOUT_S = 1800
+# One owner-test budget per INVOCATION (W-347cd0c3): every rebuild after a failed CAS (up to
+# MAX_REBUILDS + 1 builds) and the catch-up re-run the whole leg, so a per-leg limit alone bounds no
+# merge. Two full legs: a build and one rebuild. The documented wrapper (capped_run --timeout 5400)
+# covers it plus PUSH_TIMEOUT_S, SYNC_TIMEOUT_S and 300 s for the builds, preflights, carry and reply.
+MERGE_TEST_BUDGET_S = 2 * TEST_TIMEOUT_S
+LEG_FLOOR_S = 60  # under a minute left, no leg starts: a stub run tells nothing and holds the lock
+# A repo whose one leg outgrows TEST_TIMEOUT_S declares its own in the BASE's .fabrik/merge-tests (a
+# branch cannot raise it): `# merge-test-timeout: <seconds>` on a line of its own, the first such line
+# read, clamped to [LEG_FLOOR_S, MERGE_TEST_BUDGET_S] — so the budget, and the documented wrapper,
+# still bound the run; a longer leg leaves less of the budget for a rebuild (W-1fb11ec8, wef's ~5240-test
+# leg past 1800 s on 2026-10-24).
+_LEG_DECL_RE = re.compile(r"(?m)^#[ \t]*merge-test-timeout:[ \t]*([0-9]+)[ \t\r]*$")
+# The same for the leg's MEMORY ceiling (W-e64a7b8e): a leg runs in ONE capped_run scope, and the hub's
+# runs 8 pytest shards in it — a 244-file selection measured 6,009 MiB, past capped_run's 4G default, and
+# died at exit 137. `# merge-test-mem: <n>M|<n>G` on a line of its own, read from the BASE only, the
+# first such line read, clamped to [LEG_MEM_FLOOR_MIB, LEG_MEM_MAX_MIB]. The MAX is capped_run.sh's
+# slice total (FABRIK_TEST_SLICE_MAX, 12G) minus one run at its default (FABRIK_TEST_MEM_MAX, 4G): one
+# leg at the ceiling leaves room for one default-sized sibling (two legs at it can exceed the slice) —
+# revisit it when either default changes. The floor mirrors LEG_FLOOR_S: a tiny value is clamped up,
+# never ignored, and the 137 refusal then names it. Cobra (D-253): the cheapest way past "legs fit" is a
+# larger declared value; the MAX bounds it, and a leg past it is still a named ceiling kill.
+_LEG_MEM_RE = re.compile(r"(?m)^#[ \t]*merge-test-mem:[ \t]*([0-9]+)([MG])[ \t\r]*$")
+LEG_MEM_FLOOR_MIB = 256
+LEG_MEM_MAX_MIB = 8192
+# capped_run.sh's own verdict lines for a kill at the ceiling and at the time limit (capped_run.sh:160,
+# :163); each ends with " — " and the whole argv, which for a script leg is the multi-line script
+_CEILING_KILL = "capped_run: killed at the memory ceiling ("
+_TIME_KILL = "capped_run: stopped at the "
+# a line that LOOKS like the declaration (any value) — the grammar refused it when _LEG_MEM_RE did not
+# match; prose that merely names the header is not one
+_LEG_MEM_LIKE_RE = re.compile(r"(?m)^[ \t]*#[ \t]*merge-test-mem[ \t]*:")
 PUSH_TIMEOUT_S = 600
 SYNC_TIMEOUT_S = 900
 EXIT_OK = 0
@@ -557,6 +653,15 @@ def on_phase(name: str) -> None:
     edit a path at that exact point; there is deliberately no environment variable or flag that
     reaches it, so a production run has no injection path."""
     del name
+
+
+class BudgetSpentError(RefusedError):
+    """This invocation's owner-test budget ran out — not a test verdict; a new run (``retry`` or
+    ``resume``) has a new budget."""
+
+
+class NotWaitingError(RefusedError):
+    """``merge <id>``: no such request waits in the inbox (another run took it, or it never came)."""
 
 
 class ConflictError(RefusedError):
@@ -585,6 +690,111 @@ class _Ctx:
         # remotes a fetch could not reach THIS run: a request on one defers without another fetch,
         # and the inbox is served only for requests on other remotes (one timeout per remote)
         self.unreachable: set[str] = set()
+        # every owner-test leg of this invocation draws on one budget (_leg_timeout)
+        self.test_deadline = time.monotonic() + MERGE_TEST_BUDGET_S
+        self.leg_limit = TEST_TIMEOUT_S
+        self.full_leg = TEST_TIMEOUT_S  # a full leg: TEST_TIMEOUT_S, or the base's declared one
+        self.leg_mem: str | None = (
+            None  # the base's declared memory ceiling, or capped_run's default
+        )
+        self.pretesting = False  # `request --pretest`: never skip on a pretest record
+        self.tests_deferred = False  # the leg moved past the CAS (`_after_merge_due`, D-1186)
+        self.after_base = ""  # the after-merge runner's leg only: the last tested tip (D-1186)
+        self.catching_up = False  # `_merge_into_base(catch_up=True)`: its leg never defers
+
+
+def _declared_leg(script: str) -> int:
+    """The base script's ``# merge-test-timeout:`` value, clamped; TEST_TIMEOUT_S without one."""
+    m = _LEG_DECL_RE.search(script)
+    if not m:
+        return TEST_TIMEOUT_S
+    digits = m.group(1).lstrip("0") or "0"
+    if len(digits) > 9:  # past any budget, and int() refuses a string over 4300 digits
+        return MERGE_TEST_BUDGET_S
+    return max(LEG_FLOOR_S, min(int(digits), MERGE_TEST_BUDGET_S))
+
+
+# D-1186's pre-committed relief valve (W-3237ba45): past a declared rate of merges a day, a merge
+# lands after build, preflight and CAS, and the SAME selected leg runs after it, in one background
+# run over every merge landed since the last tested tip (`after-merge-runner`). A red there files a
+# P0 on the cause merge's author, and that author's next request is refused until the P0 is the item
+# it carries (`_after_merge_block`). The base opts in with `# merge-tests-after-merge-above: <n>` alone
+# on its line (merges per day over the last 7 days); without it every merge keeps its leg (D-1211).
+# Cobra (D-253): the cheapest way past the leg is a rate kept above the line on purpose — the rate is
+# read from the merge records themselves, and every landed tree is still tested, only later.
+_AFTER_DECL_RE = re.compile(
+    r"(?m)^#[ \t]*merge-tests-after-merge-above:[ \t]*([0-9]{1,4})[ \t\r]*$"
+)
+AFTER_RATE_DAYS = 7
+AFTER_DIR = "after-merge"
+AFTER_TAG = "after-merge-red"
+
+
+def _merge_rate(ctx: _Ctx, now: float | None = None) -> float:
+    """Merges a day over the last AFTER_RATE_DAYS: the merged records whose file changed in that
+    window (a record is rewritten at its reply, the last step of a merge)."""
+    now = time.time() if now is None else now
+    since = now - AFTER_RATE_DAYS * 86400
+    n = 0
+    for f in ctx.records.glob("*.json"):
+        try:
+            if f.stat().st_mtime < since:
+                continue
+            if json.loads(f.read_text(encoding="utf-8")).get("outcome") == "merged":
+                n += 1
+        except (OSError, ValueError):
+            continue
+    return n / AFTER_RATE_DAYS
+
+
+def _after_merge_due(ctx: _Ctx, script: str) -> str:
+    """The reason this merge's leg runs after the CAS, or "" when it runs before it."""
+    m = _AFTER_DECL_RE.search(script)
+    if not m or ctx.pretesting or ctx.catching_up:
+        return ""
+    line, rate = int(m.group(1)), _merge_rate(ctx)
+    if rate <= line:
+        return ""
+    return (
+        f"deferred to the after-merge run (D-1186: {rate:.1f} merges/day over {AFTER_RATE_DAYS} "
+        f"days > {line}); the landed tree is tested in the background, a red files a P0 on its author"
+    )
+
+
+def _declared_mem(script: str) -> str | None:
+    """The base script's ``# merge-test-mem:`` value in MiB (``"<n>M"``), clamped; None without
+    one, so capped_run's own default holds."""
+    m = _LEG_MEM_RE.search(script)
+    if not m:
+        return None
+    digits = m.group(1).lstrip("0") or "0"
+    if len(digits) > 9:  # past any ceiling, and int() refuses a string over 4300 digits
+        return f"{LEG_MEM_MAX_MIB}M"
+    mib = int(digits) * (1024 if m.group(2) == "G" else 1)
+    return f"{max(LEG_MEM_FLOOR_MIB, min(mib, LEG_MEM_MAX_MIB))}M"
+
+
+def _mem_lines_ignored(script: str) -> bool:
+    """Whether a line shaped like the declaration (``# merge-test-mem:`` and any value) fails the
+    grammar — before a valid one too, which then wins silently unless this says so."""
+    for m in _LEG_MEM_LIKE_RE.finditer(script):
+        end = script.find("\n", m.start())
+        line = script[m.start() : len(script) if end < 0 else end + 1]
+        if not _LEG_MEM_RE.match(line):
+            return True
+    return False
+
+
+def _leg_timeout(ctx: _Ctx) -> int:
+    """The next leg's limit: a full leg, or what is left of the budget; under LEG_FLOOR_S left no
+    leg starts (BudgetSpentError)."""
+    left = int(ctx.test_deadline - time.monotonic())
+    if left < LEG_FLOOR_S:
+        raise BudgetSpentError(
+            f"the owner-test budget of this run ({MERGE_TEST_BUDGET_S}s) is spent — no leg started, "
+            "not a test verdict"
+        )
+    return min(ctx.full_leg, left)
 
 
 def _lit_env() -> dict:
@@ -908,19 +1118,28 @@ def _merge3(path: str, ours: str, orig: str, theirs: str) -> str:
 
 # --- (a)-(d): build, preflight, tests, CAS --------------------------------------------------
 @contextlib.contextmanager
-def _throwaway(ctx: _Ctx, rec: dict, commit: str) -> Iterator[Path]:
+def _throwaway(ctx: _Ctx, rec: dict, commit: str, prefix: str | None = None) -> Iterator[Path]:
     """A detached worktree at ``commit`` under a scratch parent, named after the main checkout
     (``<tmp>/<repo basename>``) with a ``fabrik-lib`` link beside it when the main checkout's
     parent holds one (what the repo's tests reach as ``../fabrik-lib``). Removed and pruned on
-    EVERY exit, success or refusal."""
-    parent = Path(tempfile.mkdtemp(prefix=_THROWAWAY_PREFIX))
+    EVERY exit, success or refusal. ``prefix`` is ``_PRETEST_PREFIX`` for a pretest, which the
+    owner's sweep (``_THROWAWAY_DIR_RE``) never matches: a pretest runs outside the merge lock."""
+    parent = Path(tempfile.mkdtemp(prefix=prefix or _THROWAWAY_PREFIX))
     wt = parent / ctx.main.name
     rec["worktree"] = str(wt)
     _save(ctx, rec)
     try:
-        _gitc(
-            ctx.main, "worktree", "add", "--detach", "-q", str(wt), commit, timeout=TOOL_TIMEOUT_S
-        )
+        with _worktree_lock(ctx):
+            _gitc(
+                ctx.main,
+                "worktree",
+                "add",
+                "--detach",
+                "-q",
+                str(wt),
+                commit,
+                timeout=TOOL_TIMEOUT_S,
+            )
         lib = ctx.main.parent / "fabrik-lib"
         link = parent / "fabrik-lib"
         # In the repo NAMED fabrik-lib the worktree already IS `<tmp>/fabrik-lib`, so its tests'
@@ -931,7 +1150,7 @@ def _throwaway(ctx: _Ctx, rec: dict, commit: str) -> Iterator[Path]:
             link.symlink_to(wt if lib.resolve() == ctx.main.resolve() else lib)
         yield wt
     finally:
-        _remove_throwaway(ctx, wt)
+        _remove_throwaway(ctx, wt, _PRETEST_DIR_RE if prefix == _PRETEST_PREFIX else None)
         rec.pop("worktree", None)
         _save(ctx, rec)
 
@@ -939,27 +1158,55 @@ def _throwaway(ctx: _Ctx, rec: dict, commit: str) -> Iterator[Path]:
 _THROWAWAY_PREFIX = "fabrik-merge-"
 # ``tempfile.mkdtemp`` appends 8 characters from this alphabet (CPython's _RandomNameSequence).
 _THROWAWAY_DIR_RE = re.compile(r"^fabrik-merge-[a-z0-9_]{8}$")
+_PRETEST_PREFIX = "fabrik-pretest-"
+_PRETEST_DIR_RE = re.compile(r"^fabrik-pretest-[a-z0-9_]{8}$")
 
 
-def _owned_throwaway(ctx: _Ctx, wt: Path) -> bool:
+def _owned_throwaway(ctx: _Ctx, wt: Path, dir_re: re.Pattern | None = None) -> bool:
     """O12: a worktree THIS tool created, and nothing wider — ``<temp root>/<mkdtemp dir>/<repo
     basename>``, the mkdtemp dir sitting DIRECTLY under the temp root ``_throwaway`` uses."""
     parent = wt.parent
     return (
         wt.name == ctx.main.name
-        and bool(_THROWAWAY_DIR_RE.fullmatch(parent.name))
+        and bool((dir_re or _THROWAWAY_DIR_RE).fullmatch(parent.name))
         and parent.parent.resolve() == Path(tempfile.gettempdir()).resolve()
     )
 
 
-def _remove_throwaway(ctx: _Ctx, wt: Path) -> None:
+def _remove_throwaway(ctx: _Ctx, wt: Path, dir_re: re.Pattern | None = None) -> None:
     """Remove and prune one throwaway; the rmtree is ONLY the mkdtemp dir, and only when the
     path is one this tool created (``_owned_throwaway``) — never anything wider."""
-    if not _owned_throwaway(ctx, wt):
+    if not _owned_throwaway(ctx, wt, dir_re):
         return
-    _run(["git", *NO_HOOKS, "worktree", "remove", "--force", str(wt)], TOOL_TIMEOUT_S, cwd=ctx.main)
-    shutil.rmtree(wt.parent, ignore_errors=True)
-    _run(["git", "worktree", "prune"], GIT_TIMEOUT_S, cwd=ctx.main)
+    with _worktree_lock(ctx):
+        _run(
+            ["git", *NO_HOOKS, "worktree", "remove", "--force", str(wt)],
+            TOOL_TIMEOUT_S,
+            cwd=ctx.main,
+        )
+    shutil.rmtree(wt.parent, ignore_errors=True)  # outside the lock: a big tree blocks no add
+    with _worktree_lock(ctx):
+        _run(["git", "worktree", "prune"], GIT_TIMEOUT_S, cwd=ctx.main)
+
+
+@contextlib.contextmanager
+def _worktree_lock(ctx: _Ctx) -> Iterator[None]:
+    """A BLOCKING ``flock`` on ``<common>/fabrik-worktrees.lock`` around one ``git worktree``
+    add, remove or prune (W-0c8c43f1). ``prune`` deletes any registration whose ``gitdir`` is not
+    written yet, so a sibling process's ``add`` between its ``mkdir`` and its ``gitdir`` write
+    fails (Fable's probe: 317 failures in 2387 adds beside a prune loop, 2 in 1971 against
+    ``remove`` alone). Every writer of the registrations in this file takes it; git itself and
+    other tools do not, so a by-hand ``git worktree prune`` keeps the old race. Fail direction: a
+    lock that cannot be opened raises, which refuses the merge — never an unlocked add."""
+    try:
+        fd = os.open(ctx.common / "fabrik-worktrees.lock", os.O_RDWR | os.O_CREAT, 0o644)
+    except OSError as exc:
+        raise RefusedError(f"cannot open the worktree lock: {exc}") from exc
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        os.close(fd)
 
 
 # A work-item file: `work.py` writes one key per line in sorted order, so two sides changing DISJOINT
@@ -1022,7 +1269,8 @@ def _build(ctx: _Ctx, wt: Path, other: str, message: str, base: str) -> str:
     conflicts on the five ledgers and key-wise-mergeable work-item files are auto-resolved, and any
     other conflicted path refuses first. Returns the merge commit."""
     res = _run(
-        ["git", *NO_HOOKS, "merge", "--no-ff", "--no-edit", "-q", "-m", message, other],
+        # --no-log: merge.log=true appends a shortlog after -m and the trailer block parses as none
+        ["git", *NO_HOOKS, "merge", "--no-ff", "--no-edit", "--no-log", "-q", "-m", message, other],
         TOOL_TIMEOUT_S,
         cwd=wt,
     )
@@ -1271,6 +1519,15 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
     if note and note not in ctx.notes:  # once per merge: this runs per rebuild and per catch-up
         ctx.notes.append(note)
     script = _base_merge_tests(ctx, old)
+    ctx.full_leg = _declared_leg(script)
+    ctx.leg_mem = _declared_mem(script)
+    # said in the leg's own verdict, so the merge reply, a pretest and a queue child all carry it
+    mem_note = (
+        "; NOTE: the base's .fabrik/merge-tests has a merge-test-mem line outside the grammar "
+        "(`# merge-test-mem: <n>M|<n>G` alone on its line) — ignored, capped_run's default ceiling holds"
+        if _mem_lines_ignored(script)
+        else ""
+    )
     touched: list[str] = []
     if not script:
         touched = [
@@ -1283,28 +1540,282 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
         ]
         if not touched:
             return "no owner tests ran (no .fabrik/merge-tests, no touched tests/)"
+    ignored = ""
+    if script:
+        pretested, ignored = _pretested(ctx, wt, script)
+        if pretested:
+            return pretested
+        deferred = _after_merge_due(ctx, script)
+        if deferred:
+            ctx.tests_deferred = True
+            return deferred
+    spent = (
+        f"the owner-test budget of this run ({MERGE_TEST_BUDGET_S}s) ran out during the leg "
+        f"(stopped at {{}}s) — not a test verdict"
+    )
+    t0 = time.monotonic()
     try:
         run, label = _run_owner_leg(ctx, wt, script, touched)
     except TimedOutError as exc:
+        if ctx.leg_limit < ctx.full_leg:
+            raise BudgetSpentError(spent.format(ctx.leg_limit)) from exc
         exc.base_old = old  # type: ignore[attr-defined]
         exc.base_alone_skip = "the merged run timed out"  # type: ignore[attr-defined]
         raise
+    # a 124 is the budget's only when the leg ran its whole shortened limit: the owner's own
+    # `timeout` (or a plain `exit 124`) inside the leg exits sooner and stays a red
+    shortened = ctx.leg_limit < ctx.full_leg
+    if run.returncode == 124 and shortened and time.monotonic() - t0 >= ctx.leg_limit:
+        raise BudgetSpentError(spent.format(ctx.leg_limit))  # no base_old: no base-alone run
     if run.returncode != 0:
-        tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-3:])
+        verdict = _capped_verdict(run.returncode, run.stderr)
+        tail = verdict or " ".join((run.stdout + run.stderr).strip().splitlines()[-3:])
         why = f"; NOTE: {note}" if note else ""
-        red = RefusedError(f"owner tests red ({label}, exit {run.returncode}): {tail}{why}")
+        red = RefusedError(
+            f"owner tests red ({label}, exit {run.returncode}): {tail}{why}{mem_note}"
+        )
         red.base_old = old  # type: ignore[attr-defined]
         red.base_alone = {"script": script, "touched": touched}  # type: ignore[attr-defined]
         if run.returncode in _KILLED_EXITS:
+            # callers wrap this in their own "(…)" and the verdict carries one: no third level
             red.base_alone_skip = (  # type: ignore[attr-defined]
-                f"the merged run timed out or was killed (exit {run.returncode})"
+                f"the merged run timed out or was killed, exit {run.returncode}"
+                + (f" — {verdict}" if verdict else "")
             )
         raise red
-    return f"{label}: green"
+    return f"{label}: green{ignored}{mem_note}"
+
+
+# --- request --pretest: the owner tests run ONCE per change (W-1fb11ec8) ----------------------
+# A builder ran the suite before requesting and the merge ran it again under the serial lock
+# (web-ecommerce-factory 2026-10-24: 18-28 min each). The requester's run of the merge the owner
+# would build is recorded by its merged TREE, so a moved base cannot match a stale record.
+PRETEST_DIR = (
+    "pretest"  # a subdirectory: `_resume_stranded`/`_parked` glob only `fabrik-merge/*.json`
+)
+_TREE_RE = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?")
+# The paths a base move may change without a re-test: the three ledgers no repo's tests read as input
+# (wef's tests/scripts/test_cross_repo_cites.py globs docs/*.md and INDEX.md but excludes exactly
+# these) and work-item files. Narrower than LEDGERS on purpose: INDEX.md and STRATEGIC_BACKLOG are
+# test inputs there. Measured on wef's last 21 merges: 15 match with this set, 16 with LEDGERS.
+PRETEST_SKIP = frozenset({"CHANGELOG.md", DECISIONS, "docs/LESSONS_LEARNT.md"})
+# A pretest leg shorter than this is re-run rather than trusted: a suite worth skipping takes minutes
+# (wef 18-28 min), and a leg that "passed" in seconds is a stub runner or an empty selection.
+PRETEST_FLOOR_S = LEG_FLOOR_S
+
+
+def _pretest_path(records: Path, head: str) -> Path:
+    return records / PRETEST_DIR / f"{head}.json"
+
+
+def _script_sha(script: str) -> str:
+    return hashlib.sha256(script.encode("utf-8")).hexdigest()
+
+
+def _runner_sha() -> str:
+    """This running script's own bytes: a record written by a ``merge_request.py`` other than the
+    one the owner runs (a branch that edits it runs its own copy) is never trusted."""
+    return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
+
+
+def _pretested(ctx: _Ctx, wt: Path, script: str) -> tuple[str, str]:
+    """``(summary, "")`` when the requester's pretest ran this base's ``script`` green on a tree that
+    differs from the merged one only in PRETEST_SKIP paths and work items, else ``("", why)`` — ``why`` empty
+    when there is no record, else ``"; pretest record ignored (<why>)"`` for the reply. COBRA: the
+    cheapest pass is a record written by hand; it must still name this exact tree, and the reply
+    names the trusted run, so the owner sees the skip."""
+    if ctx.pretesting:
+        return "", ""  # a pretest runs the leg it records; it never skips it
+    second = _run(["git", "rev-parse", "-q", "--verify", "HEAD^2"], GIT_TIMEOUT_S, cwd=wt)
+    head = second.stdout.strip()
+    if second.returncode or not head:
+        return "", ""  # not a two-parent merge (or no request head): nothing to look up
+    path = _pretest_path(
+        ctx.common / "fabrik-merge", head
+    )  # never the pretest ctx's redirected records
+    if not path.is_file():
+        return "", ""
+
+    def ignored(why: str) -> tuple[str, str]:
+        return "", f"; pretest record ignored ({why})"
+
+    try:
+        rec = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, ValueError) as exc:
+        return ignored(f"unreadable: {' '.join(str(exc).split())}")
+    if not isinstance(rec, dict) or rec.get("green") is not True:
+        return ignored("not a green record")
+    if rec.get("head") != head:
+        return ignored("it names another head")
+    tree = rec.get("tree")
+    if not isinstance(tree, str) or not _TREE_RE.fullmatch(tree):
+        return ignored("no tree id")
+    if rec.get("script_sha256") != _script_sha(script):
+        return ignored("the base's .fabrik/merge-tests changed since")
+    if rec.get("runner_sha256") != _runner_sha():
+        return ignored("written by a merge_request.py other than this one")
+    seconds = rec.get("seconds")
+    if (
+        isinstance(seconds, bool)
+        or not isinstance(seconds, (int, float))
+        or not math.isfinite(seconds)
+        or seconds < PRETEST_FLOOR_S
+    ):
+        # a suite that finished in under a minute (a stub runner, FABRIK_CAPPED_RUN=/bin/true) is
+        # cheap to re-run and is not trusted as the change's one run
+        return ignored(f"its leg ran {seconds!r}s, under {PRETEST_FLOOR_S}s")
+    diff = _run(
+        ["git", "diff", "--name-only", "-z", "--no-renames", tree, "HEAD^{tree}"],
+        GIT_TIMEOUT_S,
+        cwd=wt,
+    )
+    if diff.returncode:
+        return ignored("its tree is not in this repo")
+    paths = [p for p in diff.stdout.split("\0") if p]
+    code = [p for p in paths if p not in PRETEST_SKIP and not _WORK_ITEM_RE.fullmatch(p)]
+    if code:
+        return ignored(f"{len(code)} non-ledger path(s) differ, e.g. {code[0]}")
+    return (
+        f".fabrik/merge-tests (base copy): green on the requester's pretest "
+        f"(tree {tree[:12]}, {int(seconds)}s, {len(paths)} ledger path(s) differ)",
+        "",
+    )
+
+
+def _pretest(main: Path, common: Path, owner: str, base: str, branch: str, head: str) -> str:
+    """``request --pretest``: step (c)'s owner tests on the merge the owner would build, in a
+    throwaway at the LOCAL base (the ref ``merge`` reads, shared through the common dir). Green
+    writes ``fabrik-merge/pretest/<head>.json``; any other end removes it and raises, so nothing is
+    sent. Returns the line to print."""
+    ctx = _Ctx(main, common, owner)
+    ctx.records = ctx.records / PRETEST_DIR  # the throwaway's bookkeeping lands beside the record
+    ctx.pretesting = True
+    old = _rev(main, HEADS + base)
+    if not old:
+        raise RefusedError(f"--pretest: the local base {base} does not exist")
+    script = _base_merge_tests(ctx, old)
+    if not script:
+        return f"--pretest: nothing to pretest (the base {base} has no .fabrik/merge-tests)"
+    _sweep_pretests(ctx)
+    path = ctx.records / f"{head}.json"
+    path.unlink(missing_ok=True)
+    # the throwaway's bookkeeping is this RUN's file (pid + start, so a killed run's leftovers are
+    # swept); a concurrent pretest of the same head has its own and never deletes this one
+    rec: dict = {"id": f"{head}.run-{os.getpid()}", **_claimer()}
+    killed = (
+        "the pretest timed out or was killed ({}) — not a test verdict; run it again, "
+        "or request without --pretest"
+    )
+    saved = os.environ.get("FABRIK_MERGE_TESTS_RECORDS")
+    try:
+        with tempfile.TemporaryDirectory(prefix="merge-pretest-records-") as private:
+            os.environ["FABRIK_MERGE_TESTS_RECORDS"] = private
+            with _throwaway(ctx, rec, old, _PRETEST_PREFIX) as wt:
+                new = _build(ctx, wt, head, f"pretest {branch}", base)
+                summary, seconds = _pretest_leg(ctx, wt, old, new, killed)
+                tree = _gitc(wt, "rev-parse", f"{new}^{{tree}}").strip()
+        (ctx.records / f"{rec['id']}.json").unlink(missing_ok=True)
+        _save(ctx, _pretest_record(head, old, tree, script, seconds, _runner_sha()))
+    except BaseException:
+        path.unlink(missing_ok=True)
+        (ctx.records / f"{head}.run-{os.getpid()}.json").unlink(missing_ok=True)
+        raise
+    finally:
+        if saved is None:
+            os.environ.pop("FABRIK_MERGE_TESTS_RECORDS", None)
+        else:
+            os.environ["FABRIK_MERGE_TESTS_RECORDS"] = saved
+    return f"--pretest: {summary} in {seconds}s on {base} at {old[:12]} (tree {tree[:12]})"
+
+
+def _pretest_leg(ctx: _Ctx, wt: Path, old: str, new: str, killed: str) -> tuple[str, int]:
+    """The owner tests on ``new`` (checked out in ``wt``, built on ``old``), read from ``old`` as the
+    locked merge reads them from its base. The one leg both pretest writers run — ``request
+    --pretest`` and ``merge --queue``'s children — so their records cannot drift. A timeout or a
+    kill is "not a test verdict" (``killed``, formatted with the cause); a red raises as
+    ``_owner_tests`` does. Returns (summary, seconds)."""
+    t0 = time.monotonic()
+    try:
+        summary = _owner_tests(ctx, wt, old, _merged_paths(ctx.main, old, new))
+    except TimedOutError as exc:
+        raise RefusedError(killed.format("the outer bound")) from exc
+    except RefusedError as exc:
+        skip = getattr(exc, "base_alone_skip", None)
+        if skip:
+            raise RefusedError(killed.format(skip)) from exc
+        raise
+    return summary, round(time.monotonic() - t0)
+
+
+def _pretest_record(
+    head: str, old: str, tree: str, script: str, seconds: int, runner: str, **extra
+) -> dict:
+    """The green record ``_pretested`` trusts; ``extra`` keys (``stacked_on``) it never reads."""
+    return {
+        "id": head,
+        "head": head,
+        "base_old": old,
+        "tree": tree,
+        "script_sha256": _script_sha(script),
+        "runner_sha256": runner,
+        "seconds": seconds,
+        "green": True,
+        "at": _now(),
+        **extra,
+    }
+
+
+def _sweep_pretests(ctx: _Ctx, base_tip: str = "") -> None:
+    """A pretest SIGKILLed mid-leg leaves its throwaway registered and its bookkeeping record (the
+    owner's sweep never takes ``fabrik-pretest-`` dirs, so nothing else would): remove each whose
+    process is gone. A green record carries no ``worktree`` and is kept — unless ``base_tip`` is
+    given and its head is already in it: that request merged, and nothing reads the record again
+    (``merge --queue`` writes one per request, W-0c8c43f1)."""
+    for path in sorted(ctx.records.glob("*.json")) if ctx.records.is_dir() else []:
+        try:
+            rec = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, ValueError):
+            continue
+        if not isinstance(rec, dict):
+            continue
+        head = rec.get("head")
+        if (
+            base_tip
+            and rec.get("green") is True
+            and isinstance(head, str)
+            and _SHA_RE.fullmatch(head)
+            and _is_ancestor(ctx.main, head, base_tip)
+        ):
+            path.unlink(missing_ok=True)
+            continue
+        if not isinstance(rec.get("worktree"), str):
+            continue
+        if rec.get("start") is None or not _stranded(rec):
+            continue  # a live pretest by another session, or one whose liveness cannot be read
+        _remove_throwaway(ctx, Path(rec["worktree"]), _PRETEST_DIR_RE)
+        path.unlink(missing_ok=True)
 
 
 # capped_run.sh's own verdicts: 124 its time limit, 137 its memory ceiling (scripts/capped_run.sh)
 _KILLED_EXITS = (124, 137)
+
+
+def _capped_verdict(rc: int, stderr: str) -> str:
+    """capped_run's own verdict for a killed leg, cut before its " — <argv>" part (the argv of a
+    script leg is the multi-line script, which would otherwise fill a 3-line tail): for 137 its
+    ``killed at the memory ceiling (<mem> per run, <max> for <slice>)`` line, for 124 its ``stopped at
+    the <n>s time limit`` line — the LAST such line, since capped_run prints its own after the leg
+    ends and a nested run may print one earlier (W-e64a7b8e). A 137 with none is a SIGKILL inside the
+    leg, said so; any other case, or a 124 with none, is "" and the caller keeps its tail."""
+    prefix = {137: _CEILING_KILL, 124: _TIME_KILL}.get(rc)
+    if prefix is None:
+        return ""
+    for line in reversed(stderr.splitlines()):
+        if line.startswith(prefix):
+            return line.split(" — ", 1)[0].rstrip()
+    if rc == 137:
+        return "a SIGKILL inside the leg; capped_run reported no memory-ceiling kill"
+    return ""
 
 
 def _base_merge_tests(ctx: _Ctx, old: str) -> str:
@@ -1313,28 +1824,39 @@ def _base_merge_tests(ctx: _Ctx, old: str) -> str:
     return res.stdout if res.returncode == 0 and res.stdout.strip() else ""
 
 
+def _leg_env(ctx: _Ctx, env: dict) -> dict:
+    """The leg's env with ``FABRIK_MERGE_TESTS_BASE`` set only by the after-merge runner
+    (``ctx.after_base``): one inherited from a caller's shell would move a normal merge's base."""
+    env = {k: v for k, v in env.items() if k != "FABRIK_MERGE_TESTS_BASE"}
+    if ctx.after_base:
+        env["FABRIK_MERGE_TESTS_BASE"] = ctx.after_base
+    return env
+
+
 def _run_owner_leg(
     ctx: _Ctx, wt: Path, script: str, touched: list[str]
 ) -> tuple[subprocess.CompletedProcess, str]:
     """One run of the owner's tests in ``wt``: ``script`` (the base's merge-tests) when given,
-    else pytest over ``touched``. Returns the finished process and its label."""
+    else pytest over ``touched``. Returns the finished process and its label. Its limit is
+    ``_leg_timeout``'s, kept on ``ctx.leg_limit`` so the caller can tell a spent budget from a red."""
+    limit = ctx.leg_limit = _leg_timeout(ctx)
     if script:
         pythonpath = os.pathsep.join(
             p for p in (str(wt / "src"), os.environ.get("PYTHONPATH", "")) if p
         )
-        env = {**os.environ, **_MERGE_CHECK_ENV, "PYTHONPATH": pythonpath}
+        env = _leg_env(ctx, {**os.environ, **_MERGE_CHECK_ENV, "PYTHONPATH": pythonpath})
         argv, label = ["sh", "-e", "-c", script], ".fabrik/merge-tests (base copy)"
         # the outer bound only catches a runner that itself hangs; the runner stops the tests first
-        return _run(_capped(argv, TEST_TIMEOUT_S), TEST_TIMEOUT_S + 60, cwd=wt, env=env), label
+        return _run(_capped(argv, limit, ctx.leg_mem), limit + 60, cwd=wt, env=env), label
     venv = ctx.main / ".venv" / "bin" / "python"
     py = str(venv) if os.access(venv, os.X_OK) else sys.executable
     label = f"pytest {' '.join(touched)} under {py}"
     with tempfile.TemporaryDirectory(prefix="merge-shim-") as shim:
         Path(shim, "sitecustomize.py").write_text(_SITECUSTOMIZE, encoding="utf-8")
-        env = _fallback_env(wt, Path(shim))
+        env = _leg_env(ctx, _fallback_env(wt, Path(shim)))
         run = _run(
-            _capped([py, "-m", "pytest", "-q", *touched], TEST_TIMEOUT_S),
-            TEST_TIMEOUT_S + 60,
+            _capped([py, "-m", "pytest", "-q", *touched], limit),
+            limit + 60,
             cwd=wt,
             env=env,
         )
@@ -1368,7 +1890,9 @@ def _base_alone(ctx: _Ctx, rec: dict, old: str, red: RefusedError) -> str:
             "; on base alone (one run): green — the failure needs the branch's change (or is flaky)"
         )
     if run.returncode in _KILLED_EXITS:
-        return f"; on base alone: not checked (the base run timed out or was killed, exit {run.returncode})"
+        verdict = _capped_verdict(run.returncode, run.stderr)
+        said = f"exit {run.returncode}: {verdict}" if verdict else f"exit {run.returncode}"
+        return f"; on base alone: not checked (the base run timed out or was killed, {said})"
     tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-3:])
     said = f"exit {run.returncode}: {tail}" if tail else f"exit {run.returncode}"
     return (
@@ -1394,9 +1918,15 @@ def _merge_into_base(
             new = _build(ctx, wt, other, message, base)
             on_phase("after-build")
             merged, snap, on_base = _preflight(ctx, base, old, new)
+            # per attempt: a rebuild may run the leg the last attempt deferred; a catch-up never
+            # defers, since no owed entry would ever name its merge (review r1 A-6, A-8)
+            ctx.tests_deferred = False
+            ctx.catching_up = catch_up
             tests = _owner_tests(ctx, wt, old, merged)
             if not catch_up:
-                rec.update(phase="built", building=new)
+                # saved with the pre-CAS record, so a crash before the post-CAS save still owes the
+                # after-merge run on resume (review r1 A-7)
+                rec.update(phase="built", building=new, tests_after_merge=ctx.tests_deferred)
                 _save(ctx, rec)
             on_phase("before-cas")
             if _main_on(ctx, base) != on_base:
@@ -1408,7 +1938,16 @@ def _merge_into_base(
                 ctx.notes.append(f"(d) attempt {attempt + 1}: {last} — back to (a)")
                 continue
             res = _run(
-                ["git", "update-ref", "-m", f"merge_request: {message}", HEADS + base, new, old],
+                # the reflog takes the subject: update-ref folds the trailer lines into one line
+                [
+                    "git",
+                    "update-ref",
+                    "-m",
+                    f"merge_request: {message.splitlines()[0]}",
+                    HEADS + base,
+                    new,
+                    old,
+                ],
                 GIT_TIMEOUT_S,
                 cwd=ctx.main,
             )
@@ -1570,8 +2109,10 @@ def _sync_filter(text: str) -> str:
 
 
 def _sync(ctx: _Ctx, rec: dict) -> str:
-    """(g): in the HUB only, run the fleet sync when the re-derived merged file list matches the
-    governance-sync filter (read from the merged base, never hard-coded)."""
+    """(g): in the HUB only, OWE the fleet sync when the re-derived merged file list matches the
+    governance-sync filter (read from the merged base, never hard-coded), then kick the background
+    runner — the sync itself runs OUTSIDE the merge lock (W-4f4ac600, the block comment below this
+    function). Every hub call kicks, so a debt a killed run left is run by the next landing."""
     if ctx.main.resolve() != HUB_CHECKOUT.resolve():
         return "sync: not the hub — none owed"
     merge = rec["merge_sha"]
@@ -1582,26 +2123,705 @@ def _sync(ctx: _Ctx, rec: dict) -> str:
     ]
     res = _run(["git", "show", f"{merge}:.pre-commit-config.yaml"], GIT_TIMEOUT_S, cwd=ctx.main)
     pattern = _sync_filter(res.stdout) if res.returncode == 0 else ""
+    hits: list[str] = []
     if not pattern:
-        return (
+        line = (
             "sync: NOT RUN — the governance-sync files: filter is unreadable or empty; run "
             "scripts/sync_enforcement_to_projects.py --force yourself"
         )
+    else:
+        try:
+            rx = re.compile(pattern)
+        except re.error as exc:
+            line = f"sync: NOT RUN — the governance-sync filter does not compile ({exc})"
+        else:
+            hits = [p for p in files if rx.search(p)]
+            line = "sync: no governance-sync path merged — none owed"
+    state = ctx.records
     try:
-        rx = re.compile(pattern)
-    except re.error as exc:
-        return f"sync: NOT RUN — the governance-sync filter does not compile ({exc})"
-    hits = [p for p in files if rx.search(p)]
+        if hits:
+            _owe_sync(state, f"{merge} {len(hits)} path(s), request {rec['id']}")
+        kicked = _kick_sync(ctx.main, state)
+    except OSError as exc:  # the push already landed: a sync we cannot owe is reported, not raised
+        return (
+            f"sync: FAILED to owe or start ({exc}) — run "
+            "scripts/sync_enforcement_to_projects.py --force"
+        )
     if not hits:
-        return "sync: no governance-sync path merged — none owed"
+        return line if kicked is None else f"{line}; {kicked}"
+    line = (
+        f"sync: owed for {len(hits)} governance-sync path(s) — runs outside the merge lock "
+        f"(log {state / SYNC_LOG})"
+    )
+    return line if kicked is None else f"{line}; {kicked}"
+
+
+# --- (g) the hub's governance sync, OUTSIDE the merge lock (W-4f4ac600) -----------------------
+# The sync ran inside the lock and held every landing that owed one ~4 min (01M64FJ6AT: push
+# 00:59:53, reply 01:04:04) — and `merge --queue` lands one `merge()` at a time, so the queue waited
+# it out too. Now a landing OWES it (one O_APPEND line in SYNC_OWED) and KICKS a detached runner
+# (`merge_request.py sync-runner`): it takes SYNC_LOCK itself — this process never opens it, so no
+# queue leg forked later can inherit it — and loops while holding it: `covers` = SYNC_OWED's size
+# in BYTES, read BEFORE the sync starts (every owed line is already in HEAD, and the sync ships each
+# tracked file from its HEAD blob — sync_enforcement_to_projects.py `_head_source`, T12.17 — so a
+# sync started after a line covers it); exit when SYNC_DONE ≥ covers, else run SYNC_ARGV and, on
+# exit 0, write SYNC_DONE = max(current, covers). A line owed DURING a sync (another landing, any
+# process) is covered by the runner's next turn; a failure stops the runner with the debt still
+# owed and its outcome in SYNC_STATUS, and the next kick retries it. `main()` drains in a
+# `finally`: it waits for THIS process's runner up to SYNC_TIMEOUT_S and prints the outcome,
+# never changing the verb's exit code (a failed sync never did). SYNC_STATUS is not `*.json`: the
+# record globs (`ctx.records.glob("*.json")`) would read it as a merge record.
+# COBRA (D-253): the cheapest way to release the lock fast is never to run the sync; a debt stays
+# owed until a sync that STARTED after it exits 0, and every drain prints what happened.
+SYNC_OWED = "sync-owed.log"
+SYNC_DONE = "sync-done"
+SYNC_LOCK = "sync.lock"
+SYNC_LOG = "sync.log"
+SYNC_STATUS = "sync-status.txt"
+SYNC_LOCK_WAIT_S = 2 * SYNC_TIMEOUT_S  # a runner waits out one other runner's sync and its rerun
+_SYNC_RUN: dict = {}  # this process's runner: {"proc", "state", "main"} (one per process)
+
+
+def _owed_size(state: Path) -> int:
     try:
-        run = _run(list(SYNC_ARGV), SYNC_TIMEOUT_S, cwd=ctx.main)
-    except RefusedError as exc:
-        return f"sync: FAILED ({exc}) — run scripts/sync_enforcement_to_projects.py --force"
-    if run.returncode != 0:
-        tail = " ".join((run.stderr or run.stdout).strip().splitlines()[-2:])
-        return f"sync: FAILED (exit {run.returncode}: {tail}) — run scripts/sync_enforcement_to_projects.py --force"
-    return f"sync: ran for {len(hits)} governance-sync path(s)"
+        return (state / SYNC_OWED).stat().st_size
+    except FileNotFoundError:
+        return 0
+
+
+def _done_size(state: Path) -> int:
+    try:
+        return int((state / SYNC_DONE).read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return 0  # absent or unreadable: toward running the sync again
+
+
+def _sync_status(state: Path) -> dict:
+    try:
+        raw = json.loads((state / SYNC_STATUS).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return raw if isinstance(raw, dict) else {}
+
+
+def _write_atomic(path: Path, text: str) -> None:
+    tmp = path.with_name(f".{path.name}.{os.getpid()}")
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError:
+        with contextlib.suppress(OSError):  # never mask the write's own error
+            tmp.unlink(missing_ok=True)
+        raise
+
+
+def _owe_sync(state: Path, why: str) -> None:
+    """One owed line, appended in ONE write (O_APPEND): a torn line still grows the byte count."""
+    state.mkdir(parents=True, exist_ok=True)
+    line = f"{datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')} {' '.join(why.split())}\n"
+    fd = os.open(state / SYNC_OWED, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+    try:
+        os.write(fd, line.encode("utf-8"))
+    finally:
+        os.close(fd)
+
+
+# The runner's OWN scope (W-73d00b05): start_new_session leaves the process group, not the cgroup,
+# and capped_run.sh's EXIT trap stops its scope when merge_request.py exits — a runner alive then
+# died with its sync, and the drain's "still running in the background" was false. So the runner
+# starts in a transient user scope inside the fleet slice (capped_run's own parent, fabrik-agents
+# .slice), collected when it ends, its life bounded by SYNC_RUNNER_MAX_S, its memory by
+# SYNC_RUNNER_MEM (capped_run's per-run default, what it had inside the merge's scope); bare where
+# no such scope can start (no systemd-run, no user bus — as capped_run runs uncapped there). The
+# probe is that exact start with `-- true`, kept for the process once it passes and asked again at
+# the next kick while it fails (`_scope_ok`): a manager that answers yet refuses a
+# property fails the probe, never the runner. Cobra (D-253): the cheapest pass is a bare start that
+# the wrapper kills; the probe's own exit decides, and `sync-done` is what the graders read.
+_SCOPE: dict = {}  # {"ok": bool} — this process's probe answer
+SYNC_RUNNER_MEM = "4G"
+
+
+def _runner_env(env: dict) -> dict:
+    """The env the runner and its probe start with: XDG_RUNTIME_DIR filled from the user bus when
+    absent (capped_run.sh:112-114 — cron and stripped hook envs lack it)."""
+    bus = Path(f"/run/user/{os.getuid()}")
+    if not env.get("XDG_RUNTIME_DIR") and (bus / "bus").is_socket():
+        env = {**env, "XDG_RUNTIME_DIR": str(bus)}
+    return env
+
+
+def _scope_flags(unit: str) -> list[str]:
+    return [
+        "systemd-run",
+        "--user",
+        "--scope",
+        "-q",
+        "--collect",
+        "--slice=fabrik-agents.slice",
+        f"--unit={unit}-{os.getpid()}-{secrets.token_hex(4)}",
+        "-p",
+        f"RuntimeMaxSec={SYNC_RUNNER_MAX_S}",
+        "-p",
+        f"MemoryMax={SYNC_RUNNER_MEM}",
+        "-p",
+        "MemorySwapMax=0",
+        "-p",
+        "TimeoutStopSec=5",
+    ]
+
+
+def _scope_ok(env: dict) -> bool:
+    """Only a green probe is kept: a failed one (a bus that dropped for a moment) is asked again
+    at the next kick, so one blip never sends a whole queue run's runners bare."""
+    if not _SCOPE.get("ok"):
+        try:
+            probe = subprocess.run(  # noqa: S603 — fixed argv, no shell
+                [*_scope_flags("fabrik-sync-probe"), "--", "true"],
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                timeout=10,
+                env=env,
+                check=False,
+            )
+            _SCOPE["ok"] = probe.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            _SCOPE["ok"] = False
+    return _SCOPE["ok"]
+
+
+def _runner_scope(argv: list[str], env: dict) -> list[str]:
+    """``argv`` in its own bounded transient scope when one can start, else unchanged (bare)."""
+    if not _scope_ok(env):
+        return argv
+    return [*_scope_flags("fabrik-sync-runner"), "--", *argv]
+
+
+def _kick_sync(main: Path, state: Path) -> str | None:
+    """Start the runner when a debt is owed and THIS process has none alive (a live one loops and
+    covers it). Returns an evidence fragment, or None when there is nothing to say."""
+    run = _SYNC_RUN.get("proc")
+    if run is not None and run.poll() is None:
+        return None  # its next turn covers the new debt
+    if _owed_size(state) <= _done_size(state):
+        return None
+    note = None
+    last = _sync_status(state)
+    if last.get("rc") not in (None, 0):
+        note = (
+            f"the last background sync FAILED (exit {last.get('sync_rc', last.get('rc'))}) — "
+            "retrying"
+        )
+    argv = [sys.executable, str(Path(__file__).resolve()), "sync-runner", "--state", str(state)]
+    env = _runner_env(dict(os.environ))
+    try:
+        proc = subprocess.Popen(  # noqa: S603 — fixed argv, no shell
+            _runner_scope([*argv, "--", *SYNC_ARGV], env),
+            cwd=main,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError as exc:
+        return (
+            f"sync: FAILED to start ({exc}) — run scripts/sync_enforcement_to_projects.py --force"
+        )
+    # `started`: a status written before this start is another runner's (a scoped start can exit 1
+    # before the runner runs, writing none), so the drain never reads it as this one's reason
+    _SYNC_RUN.update(proc=proc, state=state, main=main, started=time.time())
+    return note
+
+
+def _sync_once(argv: list[str], state: Path, lock_fd: int) -> tuple[int, str]:
+    """One sync, its output to SYNC_LOG (truncated: the last run's tail lives in SYNC_STATUS),
+    bounded by SYNC_TIMEOUT_S; past it the sync's whole process group is killed. The sync holds
+    the runner's SYNC_LOCK fd too, so a runner killed mid-sync leaves the lock held until the
+    orphaned sync ends — the next runner waits for it instead of starting a second one."""
+    log = state / SYNC_LOG
+    with open(log, "wb") as out:
+        try:
+            proc = subprocess.Popen(  # noqa: S603 — fixed argv, no shell
+                argv,
+                stdin=subprocess.DEVNULL,
+                stdout=out,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                pass_fds=(lock_fd,),
+            )
+        except OSError as exc:
+            return 127, f"cannot run {argv[0]}: {exc}"
+        try:
+            rc = proc.wait(timeout=SYNC_TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(proc.pid, 9)
+            proc.wait()
+            return 124, f"timed out after {SYNC_TIMEOUT_S}s"
+    try:
+        lines = log.read_text(encoding="utf-8", errors="replace").strip().splitlines()
+    except OSError:
+        lines = []
+    return rc, " ".join(lines[-2:])
+
+
+def _sync_runner(state: Path, argv: list[str]) -> int:
+    """``sync-runner`` (internal, listed by ``--help``; started by ``_kick_sync``): hold SYNC_LOCK, sync until the owed
+    log is covered. Exit 0 covered, or retired at SYNC_RUNNER_SOFT_S with the debt still owed ·
+    1 a sync failed · 2 sync-done did not persist · 3 the lock
+    stayed held past its wait (``main`` adds 70: the runner itself crashed)."""
+    state.mkdir(parents=True, exist_ok=True)
+    fd = os.open(state / SYNC_LOCK, os.O_RDWR | os.O_CREAT, 0o644)
+    started = time.monotonic()
+    try:
+        deadline = started + SYNC_LOCK_WAIT_S
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() > deadline:
+                    _write_atomic(
+                        state / SYNC_STATUS,
+                        json.dumps(
+                            {"at": time.time(), "rc": 3, "tail": "the sync lock stayed held"}
+                        ),
+                    )
+                    return 3
+                time.sleep(1)
+        while True:
+            covers = _owed_size(state)
+            if covers <= _done_size(state):
+                return 0
+            if time.monotonic() - started >= SYNC_RUNNER_SOFT_S:
+                # every process's debts feed one live runner, so no merge run's wall bounds it:
+                # past its own bound it starts no sync (one started would be cut by the scope's
+                # backstop) and leaves the debt to the next kick (W-73d00b05)
+                _write_atomic(
+                    state / SYNC_STATUS,
+                    json.dumps(
+                        {
+                            "at": time.time(),
+                            "covers": _done_size(state),
+                            "rc": 0,
+                            "tail": "runner retired at its bound; the debt stays owed",
+                        }
+                    ),
+                )
+                return 0
+            rc, tail = _sync_once(argv, state, fd)
+            if rc != 0:  # rc = this runner's exit (the drain matches it); sync_rc = the sync's
+                _write_atomic(
+                    state / SYNC_STATUS,
+                    json.dumps(
+                        {"at": time.time(), "covers": covers, "rc": 1, "sync_rc": rc, "tail": tail}
+                    ),
+                )
+                return 1
+            _write_atomic(state / SYNC_DONE, f"{max(_done_size(state), covers)}\n")
+            if _done_size(state) < covers:
+                # sync-done did not persist: looping would re-run a 47-repo sync forever
+                _write_atomic(
+                    state / SYNC_STATUS,
+                    json.dumps(
+                        {
+                            "at": time.time(),
+                            "covers": covers,
+                            "rc": 2,
+                            "tail": f"{SYNC_DONE} did not persist",
+                        }
+                    ),
+                )
+                return 2
+            _write_atomic(
+                state / SYNC_STATUS, json.dumps({"at": time.time(), "covers": covers, "rc": 0})
+            )
+    finally:
+        os.close(fd)
+
+
+# --- the after-merge leg (D-1186's relief valve, W-3237ba45) ---------------------------------
+AFTER_OWED = "owed.jsonl"  # one line per landed merge whose leg was deferred, in landing order
+AFTER_DONE = "done.txt"  # one request id per line the runner covered
+AFTER_TESTED = "tested.txt"  # the last tip a runner leg ran on: the next leg's base
+AFTER_STATUS = "status.json"
+AFTER_LOCK = "runner.lock"
+AFTER_RUNNER_MAX_S = MERGE_TEST_BUDGET_S + 900
+
+
+def _after_dir(records: Path) -> Path:
+    return records / AFTER_DIR
+
+
+def _owe_after_merge(ctx: _Ctx, rec: dict) -> str:
+    """Append the landed merge to the owed list (one O_APPEND write) and start the runner when none
+    is alive; the evidence line the reply carries."""
+    d = _after_dir(ctx.records)
+    d.mkdir(parents=True, exist_ok=True)
+    entry = {
+        k: rec.get(k)
+        for k in ("id", "merge_sha", "old_base", "requester", "branch", "item", "base")
+    }
+    fd = os.open(d / AFTER_OWED, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+    try:
+        os.write(fd, (json.dumps(entry, sort_keys=True) + "\n").encode("utf-8"))
+    finally:
+        os.close(fd)
+    note = _kick_after(ctx)
+    if note:
+        return note
+    return (
+        f"after-merge: owed — the background leg tests {rec['merge_sha'][:12]} ({d / AFTER_STATUS})"
+    )
+
+
+def _kick_after(ctx: _Ctx) -> str:
+    """Start an ``after-merge-runner`` in its own bounded scope (bare where none can start); a live
+    one holds the runner lock and the new one exits at once. Returns "" or the failure said."""
+    argv = [
+        sys.executable,
+        str(Path(__file__).resolve()),
+        "after-merge-runner",
+        "--main",
+        str(ctx.main),
+    ]
+    env = _runner_env(dict(os.environ))
+    if _scope_ok(env):
+        flags = _scope_flags("fabrik-after-merge")
+        flags[flags.index(f"RuntimeMaxSec={SYNC_RUNNER_MAX_S}")] = (
+            f"RuntimeMaxSec={AFTER_RUNNER_MAX_S}"
+        )
+        argv = [*flags, "--", *argv]
+    try:
+        subprocess.Popen(  # noqa: S603 — fixed argv, no shell
+            argv,
+            cwd=ctx.main,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except OSError as exc:
+        return (
+            f"after-merge: owed, but the runner FAILED to start ({exc}) — the next merge starts it, "
+            f"or run `merge_request.py after-merge-runner --main {ctx.main}`"
+        )
+    return ""
+
+
+def _open_after_reds(main: Path) -> list[dict]:
+    """The open after-merge P0 items in the main checkout's store (tag AFTER_TAG)."""
+    out = []
+    for f in sorted((main / ".fabrik" / "work").glob("W-*.json")):
+        try:
+            item = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if AFTER_TAG in (item.get("tags") or []) and item.get("status") not in ("done", "dropped"):
+            out.append(item)
+    return out
+
+
+# the title `_file_after_red` writes names the author: a tag cannot hold a 30-32 character agent
+# name (`by-` + 32 > the store's 32-character tag rule, review r1 A-1), the title can
+_AFTER_TITLE_RE = re.compile(r"after-merge red: merge [0-9a-f]{12} by ([a-z0-9-]{1,32}) \(")
+
+
+def _author_tag(requester: str | None) -> str:
+    """The tag that names an after-merge red's author (``work.py add`` has no owner: assigning is the
+    distributor's), or "" when the name cannot be a tag."""
+    tag = f"by-{_norm(requester or '')}"
+    return tag if re.fullmatch(r"[a-z0-9][a-z0-9-]{0,31}", tag) and requester else ""
+
+
+def _after_merge_block(ctx: _Ctx, rec: dict) -> None:
+    """Refuse a request whose requester authored an open after-merge red (read from the item's
+    title), unless it carries that item (the fix). The refusal names the merge and the tests."""
+    who = _norm(rec.get("requester") or "")
+    for item in _open_after_reds(ctx.main):
+        m = _AFTER_TITLE_RE.match(str(item.get("title") or ""))
+        if who and m and _norm(m.group(1)) == who and rec.get("item") != item.get("id"):
+            raise RefusedError(
+                f"{rec.get('requester')} authored the open after-merge red {item.get('id')} "
+                f"({item.get('title')}) — fix it first and request with `--item {item.get('id')}`"
+            )
+
+
+def _after_cause(ctx: _Ctx, todo: list[dict], ids: list[str], script_env: dict) -> dict:
+    """The first owed merge, in landing order, at which a red id fails (one plain pytest of the red
+    ids per merge, in one throwaway); the last when none reproduces (a red that needs the whole run)."""
+    if len(todo) == 1 or not ids:
+        return todo[-1]
+    try:
+        return _after_cause_search(ctx, todo, ids, script_env)
+    except Exception:  # noqa: BLE001 — the cause is a pointer, never the verdict: fall back
+        return todo[-1]
+
+
+def _after_cause_search(ctx: _Ctx, todo: list[dict], ids: list[str], script_env: dict) -> dict:
+    main = ctx.main
+    py = main / ".venv" / "bin" / "python"
+    py_s = str(py) if os.access(py, os.X_OK) else sys.executable
+    parent = Path(tempfile.mkdtemp(prefix=_PRETEST_PREFIX))
+    wt = parent / main.name
+    try:
+        with _worktree_lock(ctx):
+            _gitc(
+                main,
+                "worktree",
+                "add",
+                "--detach",
+                "-q",
+                str(wt),
+                todo[0]["merge_sha"],
+                timeout=TOOL_TIMEOUT_S,
+            )
+        for entry in todo:
+            _gitc(wt, "checkout", "-q", "--detach", entry["merge_sha"])
+            here = [i for i in ids if (wt / i.split("::")[0]).is_file()]
+            if not here:
+                continue
+            run = _run(
+                _capped(
+                    [py_s, "-m", "pytest", "-q", "-p", "no:cacheprovider", *here], TEST_TIMEOUT_S
+                ),
+                TEST_TIMEOUT_S + 60,
+                cwd=wt,
+                env={**script_env, "PYTHONPATH": str(wt / "src")},
+            )
+            # 1 a test failed, 2 a collection error (a red id can be one); 3-5 are no verdict
+            if run.returncode in (1, 2):
+                return entry
+        return todo[-1]
+    finally:
+        _run(["git", "worktree", "remove", "--force", str(wt)], GIT_TIMEOUT_S, cwd=main)
+        shutil.rmtree(parent, ignore_errors=True)
+
+
+def _file_after_red(main: Path, cause: dict, ids: list[str], base: str, top: str) -> str:
+    """File the P0 on the cause merge's author; returns the item id, or "" with the failure said."""
+    shown = ", ".join(ids[:6]) + (f" (+{len(ids) - 6} more)" if len(ids) > 6 else "")
+    title = (
+        f"after-merge red: merge {cause['merge_sha'][:12]} by {_norm(cause.get('requester') or '')} (request "
+        f"{cause['id']}, branch {cause.get('branch')}) turned {shown} red, tested "
+        f"{base[:12]}..{top[:12]}; {cause.get('requester')}'s next merge is refused until a request "
+        "carries this item"
+    )
+    work = HERE / "work.py"
+    add = _run(
+        [
+            sys.executable,
+            str(work),
+            "--repo",
+            str(main),
+            "add",
+            "--kind",
+            "task",
+            "--title",
+            title,
+            "--priority",
+            "0",
+            "--tag",
+            AFTER_TAG,
+            *(
+                ["--tag", _author_tag(cause["requester"])]
+                if _author_tag(cause.get("requester"))
+                else []
+            ),
+            "--next",
+            f"fix the red after merge {cause['merge_sha'][:12]}, then request with --item",
+        ],
+        GIT_TIMEOUT_S,
+        cwd=main,
+    )
+    m = re.search(r"\bW-[0-9a-f]{8}\b", add.stdout + add.stderr)
+    return m.group(0) if add.returncode == 0 and m else ""
+
+
+def _after_status(d: Path, **fields) -> None:
+    _write_atomic(d / AFTER_STATUS, json.dumps({"at": time.time(), **fields}, sort_keys=True))
+
+
+def _after_todo(d: Path) -> list[dict]:
+    """The owed merges not yet covered, in landing order (a duplicate line is covered once)."""
+    try:
+        owed = [
+            json.loads(x)
+            for x in (d / AFTER_OWED).read_text(encoding="utf-8").splitlines()
+            if x.strip()
+        ]
+    except FileNotFoundError:
+        owed = []
+    try:
+        done = set((d / AFTER_DONE).read_text(encoding="utf-8").split())
+    except FileNotFoundError:
+        done = set()
+    todo: list[dict] = []
+    for e in owed:
+        if isinstance(e, dict) and e.get("id") and e.get("merge_sha") and e.get("old_base"):
+            if e.get("id") not in done and all(e.get("id") != t.get("id") for t in todo):
+                todo.append(e)
+    return todo
+
+
+def _after_merge_runner(main: Path) -> int:
+    """``after-merge-runner`` (internal; started by ``_kick_after``): ONE leg per process, so its
+    scope's RuntimeMaxSec bounds exactly one leg (review r1 A-3). Under ``runner.lock`` it sweeps a
+    dead runner's throwaway (A-4), runs the base's ``.fabrik/merge-tests`` once on the newest owed
+    merge against the last tested tip (``ctx.after_base``), so one leg covers every merge landed
+    since, and on a verdict marks them covered and moves the tested tip. After releasing the lock
+    it reads the owed list again and starts a successor while anything is owed — a merge owed
+    between its last read and its exit is never left waiting (A-5). Exit 0 covered, nothing owed,
+    or another runner holds the lock · 1 a leg without a verdict or a red it could not file (left
+    owed, ``status.json`` says why)."""
+    common = Path(_git("rev-parse", "--path-format=absolute", "--git-common-dir", cwd=main))
+    ctx = _Ctx(main, common, "")
+    d = _after_dir(ctx.records)
+    d.mkdir(parents=True, exist_ok=True)
+    fd = os.open(d / AFTER_LOCK, os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return 0  # the live runner re-reads the owed list after it releases the lock
+        rc = _after_merge_leg(ctx, d)
+    finally:
+        os.close(fd)
+    if rc == 0 and _after_todo(d):
+        note = _kick_after(ctx)
+        if note:
+            _after_status(d, rc=4, tail=note)
+            return 1
+    return rc
+
+
+def _after_merge_leg(ctx: _Ctx, d: Path) -> int:
+    """One leg over every merge owed now; see ``_after_merge_runner``."""
+    main = ctx.main
+    actx = _Ctx(main, ctx.common, "")
+    actx.records = d / "runs"
+    _sweep_pretests(actx)
+    todo = _after_todo(d)
+    if not todo:
+        return 0
+    try:
+        tested = (d / AFTER_TESTED).read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        tested = ""
+    top = todo[-1]["merge_sha"]
+    if not tested or not _is_ancestor(main, tested, top):
+        tested = todo[0]["old_base"]
+    script = _base_merge_tests(ctx, tested)
+    covered = [e["id"] for e in todo]
+    ids: list[str] = []
+    keep = os.environ.get("FABRIK_MERGE_TESTS_RECORDS")
+    with tempfile.TemporaryDirectory(prefix="merge-after-records-") as private:
+        os.environ["FABRIK_MERGE_TESTS_RECORDS"] = private
+        try:
+            ctx.test_deadline = time.monotonic() + MERGE_TEST_BUDGET_S
+            ctx.full_leg = _declared_leg(script)
+            ctx.leg_mem = _declared_mem(script)
+            ctx.after_base = tested
+            run_rec: dict = {"id": f"after-{top[:12]}.run-{os.getpid()}", **_claimer()}
+            with _throwaway(actx, run_rec, top, _PRETEST_PREFIX) as wt:
+                _copy_worktree_include(ctx, wt, tested)
+                run, _label = _run_owner_leg(ctx, wt, script, [])
+            (actx.records / f"{run_rec['id']}.json").unlink(missing_ok=True)
+            rec_file = Path(private) / f"merge-tests-{tested}.txt"
+            if rec_file.is_file():
+                ids = [
+                    line.split("\t")[0]
+                    for line in rec_file.read_text(encoding="utf-8").splitlines()
+                    if line.strip() and not line.startswith("#")
+                ]
+        finally:
+            if keep is None:
+                os.environ.pop("FABRIK_MERGE_TESTS_RECORDS", None)
+            else:
+                os.environ["FABRIK_MERGE_TESTS_RECORDS"] = keep
+    tail = " ".join((run.stdout + run.stderr).strip().splitlines()[-2:])[:500]
+    where = {"tested": tested, "top": top, "covers": covered, "tail": tail}
+    if run.returncode == 1 and ids:
+        cause = _after_cause(ctx, todo, ids, dict(os.environ))
+        if not (main / ".fabrik" / "work" / "config.json").is_file():  # work.py's own _has_store
+            # no work store to file into (a synced repo without one): the red is covered and
+            # said in status.json, never left owed for every later merge to re-run (r2 A2-2)
+            item = "none — this repo has no .fabrik/work store"
+        else:
+            item = _file_after_red(main, cause, ids, tested, top)
+        if not item:  # an unfiled red would read pre-existing once tested.txt moved past it
+            _after_status(d, rc=2, red=ids, cause=cause["id"], **where)
+            return 1
+        verdict = {"rc": 1, "red": ids, "cause": cause["id"], "item": item}
+    elif run.returncode == 0:
+        verdict = {"rc": 0}
+    else:
+        _after_status(d, rc=3, **where)
+        return 1
+    _write_atomic(d / AFTER_TESTED, top + "\n")
+    with open(d / AFTER_DONE, "a", encoding="utf-8") as fh:
+        fh.write("".join(i + "\n" for i in covered))
+    _after_status(d, **where, **verdict)
+    return 0
+
+
+def _drain_sync() -> None:
+    """After the verb, the merge lock released: wait for THIS process's runner and print its
+    outcome, SYNC_TIMEOUT_S in all. A runner that exited 0 while a debt is still owed (one owed
+    between its last check and its exit, or in another process) gets ONE more runner, which covers
+    it or finds another process's sync covering it. Never changes the exit code."""
+    proc = _SYNC_RUN.pop("proc", None)
+    if proc is None:
+        return
+    state, main = _SYNC_RUN.pop("state"), _SYNC_RUN.pop("main")
+    started = _SYNC_RUN.pop("started", 0.0)
+    deadline = time.monotonic() + SYNC_TIMEOUT_S
+    for rerun in (False, True):
+        try:
+            proc.wait(timeout=max(1.0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            print(
+                f"merge_request: sync: still running in the background (pid {proc.pid}) — "
+                f"{state / SYNC_STATUS} has its outcome",
+                file=sys.stderr,
+            )
+            return
+        if proc.returncode != 0:
+            break
+        if _owed_size(state) <= _done_size(state) or rerun:
+            later = (
+                ""
+                if _owed_size(state) <= _done_size(state)
+                else ("; a debt owed since is still open — the next merge run's sync covers it")
+            )
+            print(f"merge_request: sync: ran (log {state / SYNC_LOG}){later}", file=sys.stderr)
+            return
+        note = _kick_sync(main, state)
+        proc = _SYNC_RUN.pop("proc", None)
+        _SYNC_RUN.clear()
+        if proc is None:  # nothing left to start, or the start failed (its note says so)
+            if note and note.startswith("sync: FAILED"):  # the debt owed since stays open
+                print(
+                    f"merge_request: {note}; the earlier sync ran (log {state / SYNC_LOG})",
+                    file=sys.stderr,
+                )
+            else:
+                print(f"merge_request: sync: ran (log {state / SYNC_LOG})", file=sys.stderr)
+            return
+    last = _sync_status(state)
+    rc = proc.returncode  # the runner's own exit; the status file may be an older run's
+    fresh = isinstance(last.get("at"), (int, float)) and last["at"] >= started
+    if fresh and last.get("rc") == rc:
+        rc, tail = last.get("sync_rc", rc), last.get("tail", "")
+    else:
+        tail = "the runner recorded no reason"
+    print(
+        f"merge_request: sync: FAILED (exit {rc}: {tail}) — run "
+        "scripts/sync_enforcement_to_projects.py --force; the debt stays owed and the next "
+        "merge run retries it",
+        file=sys.stderr,
+    )
 
 
 def _recipients(ctx: _Ctx, rec: dict) -> list[str]:
@@ -1652,7 +2872,8 @@ def _reply_body(rec: dict) -> str:
             "push, re-review, and run merge_request.py request again with the updated receipt — "
             "never a rebase or a force-push: the branch is already pushed. When it says the base "
             "alone is red too, change nothing and send nothing: the owner fixes the base and "
-            "runs merge_request.py retry on this request."
+            "runs merge_request.py retry on this request. When it names the owner-test budget of "
+            "the run, change nothing and send nothing either: the owner runs merge_request.py retry."
         )
     body = "\n".join(lines) + "\n"
     return body.replace("acked-by:", "acked by:")  # a body never carries a verbatim ack line
@@ -1729,8 +2950,51 @@ def _find_merge(ctx: _Ctx, rec: dict) -> str:
     return ""
 
 
+def _signed(ctx: _Ctx, subject: str, context: str) -> str:
+    """``subject`` plus ONE Agent Provenance Trailer paragraph (W-e914202a): the merge is the
+    owner's act, so Agent-Role orchestrator and the owner's Agent-Name — left out, with a note,
+    when the owner is outside the agent-name grammar. A multi-line value refuses: it would end
+    the paragraph or forge a trailer. No Merged-From: scratch_sweep reads it over merge commits,
+    where a reused branch name would read "merged" for ever."""
+    name = _norm(ctx.owner) if ctx.owner.isascii() else ""
+    lines = ["Agent-Role: orchestrator"]
+    if _AGENT_NAME_RE.fullmatch(name):
+        lines.append(f"Agent-Name: {name}")
+    else:
+        note = f"owner {ctx.owner!r} is outside the agent-name grammar — merge signed without Agent-Name"
+        if note not in ctx.notes:  # once per run: a rebuild signs again
+            ctx.notes.append(note)
+    lines.append(f"Agent-Context: {context}")
+    for value in (subject, context):
+        if not value or not _one_line(value):
+            raise RefusedError(f"merge message value {value!r} is not one line — not signed")
+    return "\n".join([subject, "", *lines])
+
+
+# Only what merge itself does: it never sees the requester's gate (`--review` is a path).
+GATE_DUTY = (
+    "gate: merge does not run final_gate — gating the merged result is the caller's duty; "
+    "merge itself runs only the owner tests"
+)
+
+
+def _gate_line(rec: dict) -> str:
+    """GATE_DUTY plus the request merge's owner-test summary (W-e914202a) — recorded by whichever
+    run built it; a catch-up's summary rides its own evidence line."""
+    tests = next(
+        (e[len("tests: ") :] for e in reversed(rec.get("evidence", [])) if e.startswith("tests: ")),
+        f"none recorded (resumed an existing merge {rec.get('merge_sha')})",
+    )
+    return f"{GATE_DUTY}; owner tests of the request merge: {tests}"
+
+
 def _merge_message(ctx: _Ctx, rec: dict) -> str:
-    return f"merge({ctx.owner}): {rec['branch']} — request {rec['id']}, item {rec.get('item') or 'none'}"
+    item = rec.get("item") or "none"
+    return _signed(
+        ctx,
+        f"merge({ctx.owner}): {rec['branch']} — request {rec['id']}, item {item}",
+        f"merge_request.py merged branch {rec['branch']} for request {rec['id']}, item {item}",
+    )
 
 
 def _validate_request(rec: dict) -> None:
@@ -1771,8 +3035,10 @@ def _merge_request_steps(ctx: _Ctx, rec: dict, remote: str) -> None:
     """(a)-(d) for the request itself; on success the record holds ``merged``."""
     step = "(a) preflight"
     rec.pop("deferred", None)
+    ctx.tests_deferred = False
     try:
         _validate_request(rec)
+        _after_merge_block(ctx, rec)
         _refuse_linked_base(ctx, rec["base"])
         _ensure_head(ctx, rec, remote)
         local = _rev(ctx.main, HEADS + rec["base"])
@@ -1809,6 +3075,10 @@ def _merge_request_steps(ctx: _Ctx, rec: dict, remote: str) -> None:
         except RefusedError as exc:
             # the request leg only: a catch-up's refusal parks for `resume`, so it gets no verdict;
             # the merge throwaway is already removed here, so the base-alone one is never nested
+            if isinstance(exc, BudgetSpentError):
+                raise BudgetSpentError(
+                    f"{exc}; the owner retries with `merge_request.py retry {rec['id']}`"
+                ) from exc
             if not hasattr(exc, "base_old") or isinstance(exc, UnreachableError):
                 raise
             raise RefusedError(f"{exc}{_base_alone(ctx, rec, exc.base_old, exc)}") from exc
@@ -1830,6 +3100,10 @@ def _merge_request_steps(ctx: _Ctx, rec: dict, remote: str) -> None:
         carried_to=old,
         preflighted=on_base,
     )
+    if ctx.tests_deferred:
+        rec["tests_after_merge"] = True
+    else:
+        rec.pop("tests_after_merge", None)  # the last attempt ran its leg
     rec.pop("building", None)
     rec.setdefault("evidence", []).extend(
         [f"merge commit {new} on {rec['base']} ({old[:12]} → {new[:12]})", f"tests: {tests}"]
@@ -1870,7 +3144,11 @@ def _catch_up(ctx: _Ctx, rec: dict, remote: str) -> None:
     local = _rev(ctx.main, HEADS + rec["base"])
     if _is_ancestor(ctx.main, origin, local):
         return
-    message = f"merge({ctx.owner}): catch up {remote}/{rec['base']} after request {rec['id']}"
+    message = _signed(
+        ctx,
+        f"merge({ctx.owner}): catch up {remote}/{rec['base']} after request {rec['id']}",
+        f"merge_request.py catch-up of {remote}/{rec['base']} after request {rec['id']}",
+    )
     old, new, snap, tests, on_base = _merge_into_base(ctx, rec, origin, message, catch_up=True)
     rec.setdefault("evidence", []).append(
         f"catch-up merge {new} of {remote}/{rec['base']} (tests: {tests})"
@@ -1920,6 +3198,8 @@ def _catch_up_refused(ctx: _Ctx, rec: dict, remote: str, exc: RefusedError) -> s
             f"into {base} by hand, then {resume_cmd}"
         )
     why = " ".join(str(exc).split())
+    if isinstance(exc, BudgetSpentError):
+        return f"the catch-up merge of {remote}/{base} into {base} stopped ({why}); {resume_cmd} again (a new run, a new budget)"
     return (
         f"the catch-up merge of {remote}/{base} into {base} refused ({why}); merge "
         f"{remote}/{base} into {base} by hand, then {resume_cmd}"
@@ -1928,6 +3208,9 @@ def _catch_up_refused(ctx: _Ctx, rec: dict, remote: str, exc: RefusedError) -> s
 
 def _after_cas(ctx: _Ctx, rec: dict, remote: str, resuming: bool) -> None:
     """(e)-(h): every step after the CAS. The merge is committed; nothing here undoes it."""
+    if GATE_DUTY not in rec.get("evidence", []):  # the reply carries it (W-e914202a)
+        rec.setdefault("evidence", []).append(GATE_DUTY)
+        _save(ctx, rec)
     if rec["phase"] == "catchup-refused":
         rec["phase"] = "carried"  # only an explicit resume reaches here: retry the catch-up
     if rec["phase"] == "merged":
@@ -1965,6 +3248,10 @@ def _after_cas(ctx: _Ctx, rec: dict, remote: str, resuming: bool) -> None:
         rec["phase"] = "synced"
         _save(ctx, rec)
     if rec["phase"] == "synced":
+        if rec.get("tests_after_merge") and not rec.get("after_merge_owed"):
+            rec.setdefault("evidence", []).append(_owe_after_merge(ctx, rec))
+            rec["after_merge_owed"] = True
+            _save(ctx, rec)
         rec["outcome"] = "merged"
         _reply_and_ack(ctx, rec)
 
@@ -2013,6 +3300,7 @@ def _drive(ctx: _Ctx, rec: dict, *, resuming: bool) -> int:
         for note in ctx.notes:
             print(f"merge_request: {note}", file=sys.stderr)
     print(f"merged {rec['id']} as {rec.get('merge_sha')}")
+    print(_gate_line(rec))
     for line in rec.get("not_carried", []):
         print(f"merge_request: NOT CARRIED — {line}", file=sys.stderr)
     return EXIT_OK
@@ -2107,7 +3395,8 @@ def _sweep_throwaways(ctx: _Ctx) -> None:
             path = Path(line[len("worktree ") :])
             if path != ctx.main and _owned_throwaway(ctx, path):
                 _remove_throwaway(ctx, path)
-    _run(["git", "worktree", "prune"], GIT_TIMEOUT_S, cwd=ctx.main)
+    with _worktree_lock(ctx):
+        _run(["git", "worktree", "prune"], GIT_TIMEOUT_S, cwd=ctx.main)
 
 
 def _context(cwd: Path) -> _Ctx:
@@ -2178,6 +3467,432 @@ def _resume_stranded(ctx: _Ctx) -> int:
     return rc
 
 
+# --- merge --queue: the queue's owner tests run OUTSIDE the merge lock (W-0c8c43f1) -----------
+# A queue of N requests waited N legs one after another under the lock (hub 2026-10-24: 36-129 min,
+# ~940 s a leg). The queue builds the waiting requests as a STACKED chain in merge order — S0 the
+# local base, Sk request k merged onto S(k-1) — runs each leg in a forked child, at most --jobs at
+# once, and records each green tree as `request --pretest` does. It then lands each request through
+# the unchanged locked `merge <id>`, whose `_pretested` skips the leg on a matching tree, so the lock
+# covers the build, CAS, carry, push, sync and reply only. Sk's tree equals the tree the locked merge
+# builds on M(k-1) when requests 1..k-1 landed in order (same merge-base, deterministic `_build`; both
+# design critics executed it, ledger conflicts included). Any other order, or a base moved by code,
+# mismatches and that merge runs its leg as before: never a skip on a tree no leg passed.
+QUEUE_POLL_S = 2.0
+# One leg at a time, at the owner script's own width: each leg keeps the per-leg limit
+# (TEST_TIMEOUT_S, or the base's declared one) sized for that width, so two legs at half width
+# each ran twice as long against it — every queue leg died at 1800 s on 2026-10-27 (4-shard shards
+# 603-1643 s; one 8-shard leg's shards 253-842 s). A later leg forks only once the first request
+# lands on a record (or has no tree to test), so it overlaps that landing, never the first's own
+# leg; `--jobs N` lets N such
+# later legs run at once, each at full width — only where the box has N legs' worth of free CPUs.
+QUEUE_JOBS = 1
+QUEUE_MAX = 4  # requests per pass; each lands within the wall below or waits for the next run
+QUEUE_WAIT_S = 1800  # how long the queue waits for a merge it did not start to finish
+# One landing may first wait QUEUE_WAIT_S for a merge lock another run holds (`_land`), then run a
+# whole locked merge with its own leg (its record did not match): the D-1205 wrapper's 5400 s. The
+# queue's documented wrapper is QUEUE_WALL_S (+100 for rund), and a landing starts only while that
+# whole worst case still fits, so the wrapper never kills a merge mid-step. A merge's resume of
+# OTHER stranded records is not in it, exactly as it is not in the D-1205 wrapper.
+LANDING_WORST_S = QUEUE_WAIT_S + MERGE_TEST_BUDGET_S + PUSH_TIMEOUT_S + SYNC_TIMEOUT_S + 300
+# The wall also holds the chain build and the first wave: a leg of the longest limit any base may
+# declare (_declared_leg clamps to MERGE_TEST_BUDGET_S) still leaves a worst-case landing. A wall
+# with LANDING_WORST_S + 1800 landed nothing after a wave that used its limit (2026-10-27, elapsed
+# ~1818 s at the check). A leg forks only while it AND a landing after it fit (_leg_fits — budgeted
+# at TIMED_MARGIN x the longest green queue leg the run timed for that owner script once one is,
+# W-1fb11ec8), and every
+# leg a wall return joins (one per --jobs slot) ends inside the wall whatever it was budgeted at,
+# because LANDING_WORST_S outweighs the longest declarable leg plus LEG_OVERHEAD_S. QUEUE_BUILD_S holds the chain
+# build before the first fork plus LEG_OVERHEAD_S: a child's own setup (its throwaway worktree, the
+# script read) and the leg's outer bound (+60). The _live_merge wait before a chain build (up to
+# QUEUE_WAIT_S) is not in it: after it the first request may land through its locked leg instead.
+QUEUE_BUILD_S = 300
+LEG_OVERHEAD_S = 120
+QUEUE_WALL_S = LANDING_WORST_S + MERGE_TEST_BUDGET_S + QUEUE_BUILD_S
+# The sync runner's bounds (W-73d00b05, `_runner_scope`): it starts no sync past SOFT — one lock wait
+# plus the longest process that keeps owing debts while it lives, a queue run — and its scope's
+# RuntimeMaxSec backstop is SOFT + one whole sync + 60 s, so a runner that retires at SOFT is never
+# the one the backstop kills mid-sync.
+SYNC_RUNNER_SOFT_S = SYNC_LOCK_WAIT_S + QUEUE_WALL_S
+SYNC_RUNNER_MAX_S = SYNC_RUNNER_SOFT_S + SYNC_TIMEOUT_S + 60
+
+
+@contextlib.contextmanager
+def _queue_lock(ctx: _Ctx) -> Iterator[None]:
+    """``flock(LOCK_EX|LOCK_NB)`` on ``fabrik-merge/pretest/queue.lock``: one queue at a time. The
+    forked leg children inherit the descriptor, so a killed parent still holds the lock until its
+    children exit, and no second queue writes the same records beside them (Opus 6)."""
+    (ctx.records / PRETEST_DIR).mkdir(parents=True, exist_ok=True)
+    fd = os.open(ctx.records / PRETEST_DIR / "queue.lock", os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RefusedError("another merge --queue is running — nothing claimed") from None
+        yield
+    finally:
+        os.close(fd)
+
+
+def _pretest_ctx(ctx: _Ctx) -> _Ctx:
+    pctx = _Ctx(ctx.main, ctx.common, ctx.owner)
+    pctx.records = ctx.records / PRETEST_DIR
+    pctx.pretesting = True
+    return pctx
+
+
+def _queue_entries(ctx: _Ctx, limit: int, landed: set[str] = frozenset()) -> list[dict]:
+    """The waiting requests in the order ``merge`` takes them (``_owner_requests``), the first
+    ``limit``. Read BEFORE the base (Opus 3): a merge landing between the two reads then shows as a
+    base whose tree the chain does not hold, never as a request silently missing from it. ``ok`` is
+    False for one the chain cannot build (an invalid body, a head not in this repo — the queue never
+    fetches, which would race the locked merge's own fetch): it still lands, in order, through the
+    locked merge, which refuses it or tests it itself."""
+    out: list[dict] = []
+    for fm in [fm for fm in _owner_requests(ctx) if fm.get("id") not in landed][:limit]:
+        try:
+            text = (_mail_root() / ctx.mailbox / "inbox" / f"{fm['id']}.md").read_text(
+                encoding="utf-8", errors="replace"
+            )
+        except OSError:
+            continue  # claimed between the listing and the read
+        fields = _split_message(text)[1]
+        entry = {
+            "id": fm["id"],
+            **{k: fields.get(k, "") for k in ("branch", "head", "base", "item", "requester")},
+        }
+        entry["ok"], entry["why"] = True, ""
+        try:
+            _validate_request(entry)
+            if not _rev(ctx.main, entry["head"]):
+                raise RefusedError(f"head {entry['head'][:12]} is not in this repo")
+        except RefusedError as exc:
+            entry["ok"], entry["why"] = False, " ".join(str(exc).split())
+        out.append(entry)
+    return out
+
+
+def _build_chain(ctx: _Ctx, entries: list[dict], base_tip: str) -> list[dict]:
+    """Each entry with ``on`` (the chain tip it was built onto) and ``at`` (its stacked merge, or
+    None when it cannot be built: invalid, another base, already in the tip, or a conflict). A
+    request that will not build is SKIPPED and the chain continues from the same tip, because the
+    locked merge refuses it and the next request lands on that tip (Opus 5)."""
+    pctx = _pretest_ctx(ctx)
+    rec: dict = {"id": f"queue.run-{os.getpid()}", **_claimer()}
+    out: list[dict] = []
+    base = entries[0]["base"] if entries else ""
+    try:
+        with _throwaway(pctx, rec, base_tip, _PRETEST_PREFIX) as wt:
+            tip = base_tip
+            for e in entries:
+                el = {**e, "on": tip, "at": None}
+                if not e["ok"] or e["base"] != base:
+                    el["why"] = e["why"] or f"base {e['base']} is not the queue's {base}"
+                elif _is_ancestor(ctx.main, e["head"], tip):
+                    el["why"] = "already in the chain's tip"
+                else:
+                    try:
+                        el["at"] = _build(pctx, wt, e["head"], f"queue pretest {e['branch']}", base)
+                        tip = el["at"]
+                    except RefusedError as exc:
+                        el["why"] = " ".join(str(exc).split())
+                        _run(["git", "merge", "--abort"], GIT_TIMEOUT_S, cwd=wt)
+                        _gitc(wt, "reset", "-q", "--hard", tip)
+                out.append(el)
+    finally:
+        (pctx.records / f"{rec['id']}.json").unlink(missing_ok=True)
+    return out
+
+
+def _skip_only_diff(cwd: Path, a: str, b: str) -> list[str] | None:
+    """The paths two trees differ in OUTSIDE PRETEST_SKIP and work items — ``_pretested``'s
+    tolerance — or None when git cannot compare them."""
+    diff = _run(["git", "diff", "--name-only", "-z", "--no-renames", a, b], GIT_TIMEOUT_S, cwd=cwd)
+    if diff.returncode:
+        return None
+    paths = [p for p in diff.stdout.split("\0") if p]
+    return [p for p in paths if p not in PRETEST_SKIP and not _WORK_ITEM_RE.fullmatch(p)]
+
+
+def _record_matches(ctx: _Ctx, el: dict, script: str, runner: str) -> bool:
+    """A green record for ``el``'s head that the locked merge of ``el`` would trust already exists:
+    its leg is not run again (Opus 1). The fields ``_pretested`` reads, checked the same way."""
+    try:
+        rec = json.loads(
+            (ctx.records / PRETEST_DIR / f"{el['head']}.json").read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeDecodeError, ValueError):
+        return False
+    seconds = rec.get("seconds") if isinstance(rec, dict) else None
+    if (
+        not isinstance(rec, dict)
+        or rec.get("green") is not True
+        or rec.get("head") != el["head"]
+        or not isinstance(rec.get("tree"), str)
+        or not _TREE_RE.fullmatch(rec["tree"])
+        or rec.get("script_sha256") != _script_sha(script)
+        or rec.get("runner_sha256") != runner
+        or isinstance(seconds, bool)
+        or not isinstance(seconds, (int, float))
+        or not math.isfinite(seconds)
+        or seconds < PRETEST_FLOOR_S
+    ):
+        return False
+    return _skip_only_diff(ctx.main, rec["tree"], f"{el['at']}^{{tree}}") == []
+
+
+def _tried_key(ctx: _Ctx, el: dict) -> tuple[str, str]:
+    """``(head, stacked tree)``: a chain rebuild makes new elements and new stacked commits, but the
+    same request on the same stack keeps its tree, so a failed leg is not forked again; one re-stacked
+    onto a changed base (an earlier request refused) has a new tree and earns a fresh queue leg. An
+    unreadable tree keys on the commit — a re-fork allowed, never a leg skipped. Cached on the
+    element: the queue polls every QUEUE_POLL_S, and a rebuilt chain makes new elements."""
+    if "tried_key" not in el:
+        try:
+            tree = _gitc(ctx.main, "rev-parse", f"{el['at']}^{{tree}}").strip()
+        except RefusedError:
+            tree = el["at"]
+        el["tried_key"] = (el["head"], tree)
+    return el["tried_key"]
+
+
+def _leg_seconds(ctx: _Ctx, el: dict, script: str, runner: str) -> float:
+    """The measured seconds of the queue leg that wrote ``el``'s matching record, else 0: a record
+    the requester's own ``request --pretest`` wrote (no ``queued_as`` of this element) says nothing
+    about the queue leg that just exited, and a red, killed or timed-out leg writes none."""
+    if not _record_matches(ctx, el, script, runner):
+        return 0.0
+    try:
+        rec = json.loads(
+            (ctx.records / PRETEST_DIR / f"{el['head']}.json").read_text(encoding="utf-8")
+        )
+    except (OSError, UnicodeDecodeError, ValueError):
+        return 0.0
+    if not isinstance(rec, dict) or rec.get("queued_as") != el["id"]:
+        return 0.0
+    seconds = rec.get("seconds")  # re-validated: the file may have been rewritten since the match
+    if isinstance(seconds, bool) or not isinstance(seconds, (int, float)):
+        return 0.0
+    return float(seconds) if math.isfinite(seconds) and seconds > 0 else 0.0
+
+
+def _run_leg(ctx: _Ctx, el: dict, runner: str) -> int:
+    """One request's leg on its stacked merge ``el['at']`` (built on ``el['on']``); the body of a
+    queue child. Green writes the record (atomically, ``_save``); nothing is unlinked first, so a
+    valid record is never removed by a run that fails (Opus 1). 0 green, 1 anything else."""
+    pctx = _pretest_ctx(ctx)
+    script = _base_merge_tests(pctx, el["on"])
+    rec: dict = {"id": f"{el['head']}.run-{os.getpid()}", **_claimer()}
+    killed = (
+        f"the queue's leg for {el['id']} timed out or was killed ({{}}) — not a test verdict; its "
+        "locked merge runs the leg itself"
+    )
+    saved = os.environ.get("FABRIK_MERGE_TESTS_RECORDS")
+    try:
+        with tempfile.TemporaryDirectory(prefix="merge-pretest-records-") as private:
+            os.environ["FABRIK_MERGE_TESTS_RECORDS"] = private
+            with _throwaway(pctx, rec, el["at"], _PRETEST_PREFIX) as wt:
+                summary, seconds = _pretest_leg(pctx, wt, el["on"], el["at"], killed)
+                tree = _gitc(wt, "rev-parse", f"{el['at']}^{{tree}}").strip()
+        _save(
+            pctx,
+            _pretest_record(
+                el["head"], el["on"], tree, script, seconds, runner, queued_as=el["id"]
+            ),
+        )
+    except RefusedError as exc:
+        print(f"merge_request: queue leg {el['id']}: {' '.join(str(exc).split())}", file=sys.stderr)
+        return 1
+    finally:
+        (pctx.records / f"{rec['id']}.json").unlink(missing_ok=True)
+        if saved is None:
+            os.environ.pop("FABRIK_MERGE_TESTS_RECORDS", None)
+        else:
+            os.environ["FABRIK_MERGE_TESTS_RECORDS"] = saved
+    print(f"merge_request: queue leg {el['id']}: {summary} in {seconds}s", file=sys.stderr)
+    return 0
+
+
+def _leg_child(ctx: _Ctx, el: dict, runner: str) -> None:
+    sys.exit(_run_leg(ctx, el, runner))
+
+
+def _live_merge(ctx: _Ctx, mine: set[str]) -> str | None:
+    """The id of a merge record ANOTHER live process is driving (short of ``replied``, its pid and
+    start alive), or None. Never one this queue landed (``mine``) or one THIS process drives: a
+    landing's ``merge`` resumes OTHER stranded records under its own pid, and one it leaves short of
+    ``replied`` (a deferred remote, a failed reply) would read as live forever."""
+    for path in sorted(ctx.records.glob("*.json")) if ctx.records.is_dir() else []:
+        if path.stem in mine:
+            continue
+        try:
+            rec = _load(ctx, path.stem)
+        except RefusedError:
+            continue
+        own = rec and rec.get("pid") == os.getpid() and rec.get("start") == _proc_start(os.getpid())
+        if rec and not own and rec.get("phase") not in DONE_PHASES and not _stranded(rec):
+            return path.stem
+    return None
+
+
+def _land(msg_id: str) -> int:
+    """``merge <id>`` — the unchanged locked path — waiting out a merge another process holds."""
+    deadline = time.monotonic() + QUEUE_WAIT_S
+    while True:
+        try:
+            return merge(argparse.Namespace(id=msg_id, queue=False, landing=True))
+        except RefusedError as exc:
+            if isinstance(exc, NotWaitingError):
+                # another run took it between the queue's listing and this landing: not this
+                # queue's to report, and the rest of the queue still lands
+                print(f"merge_request: queue: {msg_id} was taken by another run", file=sys.stderr)
+                return EXIT_OK
+            if "another merge run holds" not in str(exc) or time.monotonic() > deadline:
+                raise
+            time.sleep(QUEUE_POLL_S)
+
+
+TIMED_MARGIN = 1.5  # one hub leg ran 1037 s and 1365 s on the same commit under load (D-1312)
+
+
+def _leg_fits(started: float, script: str, timed: float = 0.0) -> bool:
+    """A leg forked now, plus LEG_OVERHEAD_S — its setup (an estimate: no deadline bounds it) and
+    the leg's 60 s outer bound — can still be followed by a worst-case landing; else the leg cannot
+    lead to a landing this run, and the wall return would only wait on it. The leg is budgeted at
+    TIMED_MARGIN x ``timed``, the longest green queue leg this run already timed for this owner
+    script (W-1fb11ec8: 697 s
+    live against the hub's declared 2700 s, which closed the window at 1080 s of the 11100 s wall),
+    capped at its whole limit (``_declared_leg``), and at that limit while nothing is timed. Either
+    way the leg itself ends inside the wall: one forked at the last fit second that runs its whole
+    limit ends by ``QUEUE_WALL_S - LANDING_WORST_S + limit``, and a landing's worst case outweighs
+    any limit a base may declare plus LEG_OVERHEAD_S. A leg longer than the budget finishes after
+    the last landing start: its request lands one run later on its record, and this run's children
+    keep ``queue.lock`` until it ends."""
+    limit = _declared_leg(script)
+    leg = (min(TIMED_MARGIN * timed, limit) if timed > 0 else limit) + LEG_OVERHEAD_S
+    return time.monotonic() - started + leg + LANDING_WORST_S <= QUEUE_WALL_S
+
+
+def _past_wall(started: float, waiting: int) -> bool:
+    """True, with the line saying so, when a landing's worst case no longer fits QUEUE_WALL_S."""
+    if time.monotonic() - started + LANDING_WORST_S <= QUEUE_WALL_S:
+        return False
+    print(
+        f"merge_request: queue: {waiting} request(s) still wait, and one more landing may not fit "
+        f"the queue's {QUEUE_WALL_S}s wall — run `merge_request.py merge --queue` again",
+        file=sys.stderr,
+    )
+    return True
+
+
+def _queue(args: argparse.Namespace) -> int:
+    """``merge --queue``: see the block comment above. Exit: the worst of the landings (0 all
+    merged, 1 one refused, 4 one left partial — the queue stops there)."""
+    ctx = _context(Path.cwd())
+    jobs, limit = args.jobs, args.max
+    started = time.monotonic()
+    runner = _runner_sha()  # once, before any carry can rewrite this file (Opus 9)
+    fork = multiprocessing.get_context("fork")
+    running: dict[str, tuple] = {}  # head -> (its leg child, its element, its script)
+    # the longest green queue leg this run timed, its recorded seconds, per owner script (_leg_fits):
+    # a landing that changes `.fabrik/merge-tests` starts the next script at its declared limit
+    timed: dict[str, float] = {}
+    # every (head, stacked tree) a queue leg already ran for this run (_tried_key): a chain rebuild
+    # makes new elements, so `leg_done` alone re-forked a failed leg after every landing
+    tried: set[tuple[str, str]] = set()
+    landed: set[str] = set()
+    rc = EXIT_OK
+    with _queue_lock(ctx):
+        try:
+            while True:
+                deadline = time.monotonic() + QUEUE_WAIT_S
+                while (live := _live_merge(ctx, landed)) and time.monotonic() < deadline:
+                    time.sleep(QUEUE_POLL_S)  # a merge this queue did not start: wait it out
+                if live:
+                    raise RefusedError(f"merge {live} is still running after {QUEUE_WAIT_S}s")
+                entries = _queue_entries(ctx, limit, landed)
+                if not entries:
+                    return rc
+                base_tip = _rev(ctx.main, HEADS + entries[0]["base"])
+                script = _base_merge_tests(ctx, base_tip) if base_tip else ""
+                if _past_wall(started, len(entries)):
+                    return rc
+                if not base_tip or not script or _after_merge_due(ctx, script):
+                    # no base, no owner tests, or the leg runs after the merge (D-1186): nothing
+                    # runs outside the lock before landing; land in order
+                    landed.add(entries[0]["id"])
+                    rc = max(rc, _land(entries[0]["id"]))
+                    if rc == EXIT_PARTIAL:
+                        return rc
+                    continue
+                _sweep_pretests(_pretest_ctx(ctx), base_tip)
+                chain = _build_chain(ctx, entries, base_tip)
+                if _rev(ctx.main, HEADS + entries[0]["base"]) != base_tip:
+                    continue  # the base moved while the chain was built: build it again
+                first = chain[0]
+                while True:
+                    for head, (child, leg_el, leg_script) in list(running.items()):
+                        if not child.is_alive():
+                            child.join()
+                            del running[head]
+                            if child.exitcode == 0:
+                                seconds = _leg_seconds(ctx, leg_el, leg_script, runner)
+                                timed[leg_script] = max(timed.get(leg_script, 0.0), seconds)
+                    # a later leg forks only once the first request lands on a record (or has no
+                    # tree to test): else its locked merge runs its own leg, and a queue leg
+                    # beside it halves both
+                    first_on_record = first["at"] is None or _record_matches(
+                        ctx, first, script, runner
+                    )
+                    # one budget answer per poll, read by the fork gate AND the landing test, so
+                    # the two can never disagree about whether a leg still fits (review r1 B2)
+                    fits = _leg_fits(started, script, timed.get(script, 0.0))
+                    for el in chain:
+                        if len(running) >= jobs:
+                            break
+                        if el["at"] is None or el["head"] in running:
+                            continue
+                        if (
+                            _record_matches(ctx, el, script, runner)
+                            or el.get("leg_done")
+                            or _tried_key(ctx, el) in tried
+                        ):
+                            continue
+                        if (el is not first and not first_on_record) or not fits:
+                            break
+                        child = fork.Process(target=_leg_child, args=(ctx, el, runner))
+                        child.start()
+                        running[el["head"]] = (child, el, script)
+                        el["leg_done"] = True  # one leg per element per chain build
+                        tried.add(_tried_key(ctx, el))  # and one per request and stack per run
+                    if first["at"] is None or (
+                        first["head"] not in running
+                        and (
+                            first.get("leg_done")
+                            or _tried_key(ctx, first)
+                            in tried  # no 2nd queue leg: its locked one runs
+                            or _record_matches(ctx, first, script, runner)
+                            or not fits
+                        )
+                    ):
+                        # ready to land: its leg is over (green, red or killed), its record is
+                        # reused, it is untestable, or no leg fits any more — without a record
+                        # its locked merge runs its own leg, while a landing fits
+                        break
+                    time.sleep(QUEUE_POLL_S)
+                if _past_wall(started, len(entries)):
+                    return rc
+                landed.add(first["id"])
+                code = _land(first["id"])
+                rc = max(rc, code)
+                if code == EXIT_PARTIAL:
+                    return rc
+                # every later element was built on a tip that may not have landed: the next pass
+                # rebuilds the chain on the new base and reuses each record that still matches
+        finally:
+            for child, *_ in running.values():
+                child.join()  # a stale leg finishes; its record names a tree that never lands
+
+
 def merge(args: argparse.Namespace) -> int:
     """``merge [<id>]`` — the merge owner's ONLY merge path (spec § The delta 5).
 
@@ -2189,13 +3904,19 @@ def merge(args: argparse.Namespace) -> int:
     it before building. Steps: (a) preflight in a throwaway worktree with a snapshot of every
     merged path; (b) pure-insertion ledger conflicts only; (c) the owner's tests; (d) re-hash and
     CAS the local base, rebuilding up to MAX_REBUILDS times; (e) carry; (f) fast-forward push;
-    (g) the hub's governance sync; (h) reply to requester and coordinator, then ack.
+    (g) the hub's governance sync, OWED here and run by a background runner outside the lock
+    (W-4f4ac600; this run's end waits for it and prints its outcome); (h) reply to requester and
+    coordinator, then ack.
 
     Exit: 0 merged (or nothing waiting) · 1 refused (acked ``blocked`` with the reason), DEFERRED
     (the remote was unreachable: claimed, nothing replied, retried by the next run), or the
     lock was held · 4 committed locally but not finished — run ``resume <id>``.
     Cobra note (D-253): the cheapest way past D-B is to ack without merging; ``mail.py ack done``
     refuses a merge SHA that is not in base, does not name the request, or lacks its head."""
+    if getattr(args, "queue", False):
+        if args.id:
+            raise RefusedError("merge --queue takes no request id: it lands the queue in order")
+        return _queue(args)
     ctx = _context(Path.cwd())
     with _merge_lock(ctx.common):
         _sweep_throwaways(ctx)
@@ -2212,10 +3933,15 @@ def merge(args: argparse.Namespace) -> int:
                         remote = _remote_name(ctx.main, base) if rec.get("base") else "origin"
                     except RefusedError:
                         remote = "<push remote>"
+                    # the parked reason is _catch_up_refused's own instruction (a budget stop is a
+                    # plain resume, never a hand merge); a record parked without one keeps the default
+                    how = rec.get("reason") or (
+                        f"merge {remote}/{base} into {base} by hand, then `merge_request.py resume "
+                        f"{rec['id']}`"
+                    )
                     print(
                         f"merge_request: request {rec['id']} is parked at catchup-refused — "
-                        f"merge {remote}/{base} into {base} by hand, then `merge_request.py resume "
-                        f"{rec['id']}`; nothing claimed from the inbox until then",
+                        f"{how}; nothing claimed from the inbox until then",
                         file=sys.stderr,
                     )
                 return EXIT_PARTIAL
@@ -2223,12 +3949,18 @@ def merge(args: argparse.Namespace) -> int:
             if args.id:
                 waiting = [fm for fm in waiting if fm.get("id") == args.id]
                 if not waiting:
-                    raise RefusedError(
+                    raise NotWaitingError(
                         f"no merge-request {args.id} addressed to {ctx.owner} in the inbox"
                     )
             if not waiting:
                 print(f"no merge-request waiting for {ctx.owner} in {ctx.mailbox}")
                 return rc
+            if len(waiting) >= 2 and not args.id and not getattr(args, "landing", False):
+                print(
+                    f"merge_request: {len(waiting)} requests wait — `merge_request.py merge --queue` "
+                    "runs their owner tests outside the merge lock (W-0c8c43f1)",
+                    file=sys.stderr,
+                )
             waiting = [fm for fm in waiting if _remote_of_request(ctx, fm) not in ctx.unreachable]
             if not waiting:
                 print(
@@ -2460,6 +4192,16 @@ def _remote_tip(ctx: _Ctx, remote: str, branch: str) -> str | None:
     return None
 
 
+def _positive_int(text: str) -> int:
+    try:
+        value = int(text)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"{text!r} is not an integer") from None
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"{value} is under 1")
+    return value
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="merge_request.py", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -2467,13 +4209,61 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--review", required=True, help="the closing run record or review receipt")
     p.add_argument("--item", help="the work item (W-xxxxxxxx) this branch finishes")
     p.add_argument("--base", help="the branch to merge into (default: config, else remote HEAD)")
+    p.add_argument(
+        "--pretest",
+        action="store_true",
+        help="run the base's .fabrik/merge-tests on the merge first and send only on green "
+        "(a base without one is sent untested, with a note) (W-1fb11ec8)",
+    )
     pm = sub.add_parser("merge", help="the merge owner: merge the oldest request addressed to it")
     pm.add_argument("id", nargs="?", help="a specific request id (keeps a plan's epic order)")
+    pm.add_argument(
+        "--queue",
+        action="store_true",
+        help="land the waiting requests in order, their owner tests run first OUTSIDE the merge "
+        "lock on a stacked chain (W-0c8c43f1)",
+    )
+    pm.add_argument("--jobs", type=_positive_int, default=QUEUE_JOBS, help="--queue: legs at once")
+    pm.add_argument(
+        "--max", type=_positive_int, default=QUEUE_MAX, help="--queue: requests per pass"
+    )
     pr = sub.add_parser("resume", help="continue a request from its recorded phase")
     pr.add_argument("id")
     pt = sub.add_parser("retry", help="re-run a refused request whose branch is unchanged")
     pt.add_argument("id")
+    # internal: the background after-merge leg a deferred merge owes (D-1186, W-3237ba45)
+    pa = sub.add_parser("after-merge-runner")
+    pa.add_argument("--main", required=True, type=Path)
+    # internal: the background governance sync a hub landing kicks (W-4f4ac600)
+    ps = sub.add_parser("sync-runner")
+    ps.add_argument("--state", required=True, type=Path)
+    ps.add_argument("sync_argv", nargs=argparse.REMAINDER)
     args = ap.parse_args(argv)
+    if args.cmd == "after-merge-runner":
+        try:
+            return _after_merge_runner(args.main)
+        except Exception as exc:  # the status file is the runner's only reader
+            with contextlib.suppress(OSError):
+                common = Path(
+                    _git("rev-parse", "--path-format=absolute", "--git-common-dir", cwd=args.main)
+                )
+                _after_status(
+                    _after_dir(common / "fabrik-merge"), rc=70, tail=f"runner crashed: {exc!r}"
+                )
+            return 70
+    if args.cmd == "sync-runner":
+        sync_argv = args.sync_argv[1:] if args.sync_argv[:1] == ["--"] else args.sync_argv
+        if not sync_argv:
+            ap.error("sync-runner needs the sync argv after --")
+        try:
+            return _sync_runner(args.state, sync_argv)
+        except Exception as exc:  # recorded for the drain, whose stderr is the only reader
+            with contextlib.suppress(OSError):
+                _write_atomic(
+                    args.state / SYNC_STATUS,
+                    json.dumps({"at": time.time(), "rc": 70, "tail": f"runner crashed: {exc!r}"}),
+                )
+            return 70
     verb = {"request": request, "merge": merge, "resume": resume, "retry": retry}[args.cmd]
     try:
         return verb(args)
@@ -2483,6 +4273,17 @@ def main(argv: list[str] | None = None) -> int:
     except MergePartialError as exc:
         print(f"merge_request: PARTIAL — {exc}", file=sys.stderr)
         return EXIT_PARTIAL
+    finally:
+        # the merge lock is released by now; a PARTIAL or REFUSED run drains too, and a drain that
+        # cannot read its state never replaces the verb's exit code
+        try:
+            _drain_sync()
+        except OSError as exc:
+            print(
+                f"merge_request: sync: unknown ({exc}) — the debt stays owed; run "
+                "scripts/sync_enforcement_to_projects.py --force if no merge run follows",
+                file=sys.stderr,
+            )
 
 
 if __name__ == "__main__":

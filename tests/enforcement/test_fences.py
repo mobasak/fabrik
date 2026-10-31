@@ -367,8 +367,9 @@ def test_phase_tests_fails_soft_without_the_scanner(tmp_path: Path) -> None:
 
 
 def test_the_span_blanker_has_one_copy() -> None:
-    """W-b9af1d47: docs_updater and check_doc_links blank inline code spans with `_fences.blank_code_spans` —
-    two copies of one parser drift (Lesson 103), so neither caller keeps its own scan."""
+    """W-b9af1d47: docs_updater blanks inline code spans with `_fences.blank_code_spans`, and check_doc_links and
+    check_doc_index blank fences then spans with `_fences.blank_code_examples` (W-85bd72fa) — two copies of one
+    parser drift (Lesson 103), so no caller keeps its own scan."""
     du_src = (ROOT / "scripts" / "docs_updater.py").read_text(encoding="utf-8")
     cdl_src = (ENF / "check_doc_links.py").read_text(encoding="utf-8")
     for name in (
@@ -379,4 +380,153 @@ def test_the_span_blanker_has_one_copy() -> None:
     ):
         assert name not in du_src and name not in cdl_src, name
     assert 'getattr(_fences_module(), "blank_code_spans"' in du_src
-    assert 'getattr(_fences, "blank_code_spans"' in cdl_src
+    # W-85bd72fa: both link checks blank code examples (fences, then spans) through one function
+    cdi_src = (ENF / "check_doc_index.py").read_text(encoding="utf-8")
+    for src in (cdl_src, cdi_src):
+        assert 'getattr(_fences, "blank_code_examples"' in src
+        assert "def blank_code_spans" not in src and "in_fence ^= toggle" not in src
+
+
+def test_the_fence_toggle_has_one_live_copy() -> None:
+    """W-85bd72fa: check_doc_links skips fenced lines with `_fences.fence_toggle` when `_fences` loads; its
+    local predicate is only the no-`_fences` fallback, held equal here so the two cannot drift (Lesson 103)."""
+    import _fences
+    import check_doc_links as cdl
+
+    src = (ENF / "check_doc_links.py").read_text(encoding="utf-8")
+    assert 'getattr(_fences, "fence_toggle"' in src
+    lines = [
+        "```",
+        "```python",
+        "   ```",
+        "```text more",
+        "````",
+        "```x```",
+        "```inline``` tail",
+        "``` `x` ```",
+        "```js `x`",
+        "~~~",
+        "``",
+        "plain",
+        "",
+        "\t```",
+        "\f```",
+        " ```",
+        " ```",
+    ]
+    for line in lines:
+        assert cdl._local_fence_toggle(line) == _fences.fence_toggle(line), repr(line)
+
+
+# W-753040b8: CommonMark's backslash parity for a span OPENER — an odd run of backslashes escapes the run's first
+# backtick only (the rest still opens), an even run is escaped backslashes and leaves the backtick live; a backslash
+# before a CLOSER is span content (no escapes inside a code span). Expected values are hand-derived from CommonMark.
+_B = "\\"
+
+
+def _blanked(text: str) -> str:
+    return _fences().blank_code_spans(text)
+
+
+@pytest.mark.parametrize(
+    ("text", "span"),
+    [
+        ("x `a|b` y", "`a|b`"),
+        ("x " + _B + "`a|b` y", None),
+        ("x " + _B * 2 + "`a|b` y", "`a|b`"),
+        ("x " + _B * 3 + "`a|b` y", None),
+        ("x " + _B * 4 + "`a|b` y", "`a|b`"),
+    ],
+)
+def test_blank_code_spans_backslash_parity(text: str, span: str | None) -> None:
+    out = _blanked(text)
+    if span is None:
+        assert out == text
+    else:
+        start = text.index(span)
+        assert out == text[:start] + " " * len(span) + text[start + len(span) :]
+
+
+@pytest.mark.parametrize(
+    ("text", "start", "end"),
+    [
+        (
+            "x " + _B + "``a` y",
+            4,
+            7,
+        ),  # an escaped double opens a single-backtick span one character later
+        ("x " + _B + "```a`` y", 4, 9),  # an escaped triple opens a double
+        ("x " + _B * 3 + "``a` y", 6, 9),
+    ],
+)
+def test_blank_code_spans_escaped_run_opens_with_the_rest(text: str, start: int, end: int) -> None:
+    assert _blanked(text) == text[:start] + " " * (end - start) + text[end:]
+
+
+@pytest.mark.parametrize(
+    "text", ["x `a" + _B + "` y", "x `a" + _B * 2 + "` y", "x ``a" + _B + "`` y"]
+)
+def test_blank_code_spans_backslash_before_a_closer_is_content(text: str) -> None:
+    out = _blanked(text)
+    assert out[:2] == "x " and out[-2:] == " y" and set(out[2:-2]) == {" "}, repr(out)
+
+
+def test_blank_code_spans_agrees_with_commonmark_on_inline_fuzz() -> None:
+    """Single-line inline inputs read the same code spans as markdown-it's CommonMark preset. The alphabet has no
+    `[` (link tails) and no block starts (their rules are graded above); an input opening with an unmatched ```
+    is skipped — markdown-it reads the tail after it inconsistently with the same tail alone (W-753040b8 measure)."""
+    markdown_it = pytest.importorskip(
+        "markdown_it", reason="an independent CommonMark parser grades the span model"
+    )
+    md = markdown_it.MarkdownIt("commonmark")
+    fx = _fences()
+    real = fx._blank_span
+
+    def ours(text: str) -> list[str]:
+        fx._blank_span = lambda t: "\x00" * len(t)
+        try:
+            out = fx.blank_code_spans(text)
+        finally:
+            fx._blank_span = real
+        spans, k = [], 0
+        while k < len(out):
+            if out[k] != "\x00":
+                k += 1
+                continue
+            e = k
+            while e < len(out) and out[e] == "\x00":
+                e += 1
+            raw = text[k:e]
+            n = len(raw) - len(raw.lstrip("`"))
+            body = (
+                raw[n : len(raw) - n].replace("\r\n", " ").replace("\n", " ")
+            )  # CommonMark: a line ending is a space
+            if len(body) >= 2 and body[0] == " " and body[-1] == " " and body.strip(" "):
+                body = body[1:-1]
+            spans.append(body)
+            k = e
+        return spans
+
+    def commonmark(text: str) -> list[str]:
+        # md.parse, not parseInline: a line break inside a paragraph is read as the block parser reads it
+        return [
+            c.content
+            for t in md.parse(text)
+            if t.type == "inline"
+            for c in (t.children or [])
+            if c.type == "code_inline"
+        ]
+
+    rng = random.Random(0x753040B8)
+    tokens = ["`", "``", "```", _B, _B * 2, "a", " ", "b", "\n", "\r\n"]
+    seen = 0
+    for _ in range(6000):
+        text = "".join(rng.choice(tokens) for _ in range(rng.randint(1, 14)))
+        lines = text.replace("\r\n", "\n").split("\n")
+        # one paragraph only: no blank line, no edge whitespace, no fence-opening line (block rules are not
+        # this fuzz's subject)
+        if any(not ln.strip() or ln != ln.strip() or ln.startswith("```") for ln in lines):
+            continue
+        assert ours(text) == commonmark(text), repr(text)
+        seen += 1
+    assert seen > 1500, seen

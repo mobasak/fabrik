@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T00:02:08.729374Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-1af44851",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-09-30-payments-fulfilment-role-design.md"
+  },
+  "next": "in src/fabrik/drivers/postgres.py treat any function the scoped-roles migration installs (payments_grant_fulfilment, payments_ingest_findings, payments_lane_findings) in pg_proc as 'migration applied' → RAISE instead of the legacy block; update tests/test_payments_ingest_real_pg.py's with_fn=False fixture to drop every migration function",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet",
+    "security"
+  ],
+  "title": "payments ingest lane: a MIGRATED install can still read as pre-migration and get the legacy DROP+CREATE re-widening when fabrik-lib RENAMES its grant function (no function named payments_grant_ingest in any schema) — Opus critique of W-d8505af5; the off-path-schema case was closed in W-d8505af5 (D-1321)"
+}

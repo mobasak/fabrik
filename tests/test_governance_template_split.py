@@ -142,11 +142,11 @@ T6_CLAIMS = (
     # claimed this grader proved the two copies identical when it asserted nothing about the
     # sentence (scoped review seat C) — now it does, on a span no other clause repeats.
     "cited because the paraphrase drifted once (",
-    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:3434-3440`)",
+    "in a Tier-2 run (the default tier — only `--lean`/`--systemic` change it, `:3448-3454`)",
     "the rows that can never fail — `WARN_ONLY_CHECKS`, `:566-579` — carrying each one's own text",
     "only a leg that ran to completion is the bare `pytest`",
     "`skipped_checks` (bare NAMES — both rows reduce to `pytest` there, never the reason) AND `advisory`",
-    'a `status: "setup-error"` envelope (`:3415-3432` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
+    'a `status: "setup-error"` envelope (`:3429-3446` — the `REQUIRED_TOOLS` probe, ruff OR pytest missing, before any tier runs) carries none of these keys',
     "FROM THE REPO ROOT",
     # Round 2: the un-discriminated wording FALSE-ALARMED on a CORRECT CHANGELOG.md carry — the
     # scratch blob is built with `>>` at EOF per step 2 while step 7 places the hunk atop
@@ -897,12 +897,14 @@ _GATE_CITES = {
     ":566-579": "WARN_ONLY_CHECKS: set[str] = {",
     ":1426": "if tier == 3:",
     ":1443": "return results",
-    ":1543": "return results",
+    # The --lean tier's return; since W-d488bbbf it appends the `Tier-2 checks (NOT RUN — --lean)`
+    # row, still no pytest row, so the cite holds and only the construct's text changed.
+    ":1543": "return [*results, _lean_not_run_row()]",
     "final_gate.py:1698-1708": "if (",
     ":1311": "elif code == 5:",
     ":1408": "if code != 0 and _PYTEST_EARLY_STOP in out:",
-    ":3415-3432": "missing = _toolchain_missing(PYTHON)",
-    ":3434-3440": "# Determine tier",
+    ":3429-3446": "missing = _toolchain_missing(PYTHON)",
+    ":3448-3454": "# Determine tier",
 }
 
 
@@ -910,8 +912,8 @@ _GATE_CITES = {
 _GATE_CITE_ENDS = {
     ":566-579": "}",
     "final_gate.py:1698-1708": "):",
-    ":3415-3432": "return 2",
-    ":3434-3440": "tier = 2",
+    ":3429-3446": "return 2",
+    ":3448-3454": "tier = 2",
 }
 
 # The hub contract alone says where ruff must RESOLVE (the template's GATE row omits that sentence).
@@ -1888,6 +1890,62 @@ def test_each_hub_exit_finish_mutant_reds_its_check(old: str, new: str) -> None:
     assert re.sub(r"\s+", " ", _template_exit_item(_hub_text())).count(old) == 1, f"stale: {old!r}"
     with pytest.raises(AssertionError):
         _check_hub_exit_finish_duty(flat.replace(old, new))
+
+
+# ── W-527c1ce0 (D-1381): builders merge the base at every item boundary, in BOTH contracts ──
+
+ITEM_BOUNDARY_MERGE = (
+    "**Builders merge the base at every item boundary:** in a linked worktree, before you claim the "
+    "next item and before every request, run `git fetch <remote> refs/heads/<base>` then `git merge "
+    "FETCH_HEAD` (never a rebase — the branch is pushed) and push; `merge_request.py request` refuses "
+    "a branch more than 500 commits behind its base and prints both commands."
+)
+
+
+def _check_item_boundary_merge(hub: str, template: str) -> None:
+    """The sentence sits in § EXIT of each contract, identical word for word (whitespace
+    flattened), and its number is merge_request.py's MAX_BEHIND — a drifted copy or a stale
+    number teaches a builder a rule the script does not enforce."""
+    for name, text in (("hub", hub), ("template", template)):
+        flat = re.sub(r"\s+", " ", _template_exit_item(text))
+        assert flat.count(ITEM_BOUNDARY_MERGE) == 1, (
+            f"the {name} § EXIT lacks the item-boundary merge line"
+        )
+    spec = importlib.util.spec_from_file_location(
+        "mr_w527", FABRIK / "scripts" / "merge_request.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert f"more than {mod.MAX_BEHIND} commits" in ITEM_BOUNDARY_MERGE, "the line's limit drifted"
+    doc = (FABRIK / "docs" / "reference" / "multi-agent-operating-model.md").read_text(
+        encoding="utf-8"
+    )
+    assert f"more than {mod.MAX_BEHIND} commits" in re.sub(r"[\s#]+", " ", doc), (
+        "the operating-model doc's limit drifted from MAX_BEHIND"
+    )
+
+
+def test_both_contracts_carry_the_identical_item_boundary_merge_line() -> None:
+    _check_item_boundary_merge(_hub_text(), (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("side", ["hub", "template"])
+def test_an_item_boundary_merge_line_drifted_in_one_contract_reds(side: str) -> None:
+    hub = re.sub(r"\s+", " ", _hub_text())
+    tpl = re.sub(r"\s+", " ", (FABRIK / TEMPLATE_REL).read_text(encoding="utf-8"))
+    _check_item_boundary_merge(
+        hub, tpl
+    )  # the unmutated pair passes, so the red below is the drift's
+    drift = ITEM_BOUNDARY_MERGE.replace("never a rebase", "or a rebase")
+    if side == "hub":
+        hub = hub.replace(ITEM_BOUNDARY_MERGE, drift)
+    else:
+        tpl = tpl.replace(ITEM_BOUNDARY_MERGE, drift)
+    assert drift in (hub if side == "hub" else tpl), (
+        "stale mutant: the line was not in the contract"
+    )
+    with pytest.raises(AssertionError):
+        _check_item_boundary_merge(hub, tpl)
 
 
 PROBE_COPY_IN = (

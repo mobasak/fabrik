@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T08:53:21.510419Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-ba06ab40",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Y33SYNA029N177F0JSSYBK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: kaizen-rollout-step11"
+}

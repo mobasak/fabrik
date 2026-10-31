@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T18:03:35.554907Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-e55a5213",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M642K407BJPDQ12QED0YSSGV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: kaizen-docusaurus-serve"
+}

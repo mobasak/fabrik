@@ -1,0 +1,26 @@
+{
+  "block_digest": "f0666d0d7cd65937d4046c39eae1283fab869ab10670ef59b10dc7853d31fdae",
+  "blocked_by": [],
+  "created": "2026-10-28T23:47:10.815605Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-d0fe7f91",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "73663f9d23dc270ecccdf8adc7ac05751830b6c9caa6907ae5af766d9aa4ddb5"
+  ],
+  "next": "",
+  "note": "operator 2026-10-29 ~15:40: --diff showed only rules/alerts.yml; --verify-secrets all present; --push 'in sync'; loaded-rules check prints 2 (container_memory_working_set_bytes live); reload sent",
+  "owner": "",
+  "priority": 2,
+  "question": "Will you run the three Prometheus sync commands above from `/opt/fabrik` to deploy the corrected memory alert rules to vps1?",
+  "status": "done",
+  "title": "Will you run the three Prometheus sync commands above from `/opt/fabrik` to deploy the corrected memory alert rules to vps1?"
+}

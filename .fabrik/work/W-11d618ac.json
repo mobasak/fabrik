@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T08:42:10.302149Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-11d618ac",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68HYEZV3K6MA8C63X3AX532",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "kaizen: W-622ec42c merge tripwire MR 01M68HWZJP is in; rotate kaizen"
+}

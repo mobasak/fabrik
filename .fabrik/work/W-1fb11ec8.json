@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T19:23:26.047133Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "b486011a4a880df15daa1bfe0c2347ebb9d7e8c6",
+  "id": "W-1fb11ec8",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "URGENT: the operator says unacceptable, and every agent's throughput depends on it; infra-3 built the merge-test leg (D-1186/D-1189/D-1205); B, C and D are its machinery, and A (a lane rule) may split off",
+  "status": "done",
+  "title": "P0 operator via wef 2026-10-24: 'implementing, testing, reviewing, merging can not take 2.5 hours. what the fuck, why is that so? ... this is unacceptable.' Measured causes (wef): (1) the ~5240-test merge-tests suite (20-28 min) runs twice per change, builder + merge loop, and times out at 1800 s under load; (2) lane row 1b sends every operator-named visual tweak to a full multi-pass /fabrik-review (ocoron homepage: 7 passes, 41 fixes, reopened per tweak); (3) a single merge lock at 25-55 min per merge; (4) rotation friction; (5) the quota lane parked builders ~1 h. Proposals ranked: A a preview-first fast lane for pre-release site UI with review at feature end; B run merge tests once (trust the builder's receipt for the same base); C parallelise/split merge-tests under 10 min; D no rotate retry loops on permanent errors. Target: change-to-merged in minutes, not hours"
+}

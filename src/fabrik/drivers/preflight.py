@@ -44,6 +44,8 @@ import time
 import yaml
 
 from fabrik.drivers.ssh import (
+    _REMOTE_ENCODING,
+    _REMOTE_ERRORS,
     JumpConfigError,
     _ssh_host,
     is_alias,
@@ -495,8 +497,16 @@ def _advise_if_direct_back(host: str, var: str) -> None:
     """Log (never act) when the direct path answers again. Fail-quiet: any error is silence."""
     argv = ["ssh", "-o", "ProxyJump=none", *_batch(3), host, "true"]
     try:
+        # Only the rc is read; the driver's decode keeps a stray byte from silencing the advice (W-7ac62afc).
         r = subprocess.run(
-            argv, capture_output=True, text=True, timeout=5, stdin=subprocess.DEVNULL, check=False
+            argv,
+            capture_output=True,
+            text=True,
+            encoding=_REMOTE_ENCODING,
+            errors=_REMOTE_ERRORS,
+            timeout=5,
+            stdin=subprocess.DEVNULL,
+            check=False,
         )
     except Exception:  # noqa: BLE001 — an advisory probe must never fail the deploy
         return

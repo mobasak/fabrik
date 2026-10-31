@@ -113,10 +113,11 @@ Every `scripts/command_run.py` row additionally carries `command` + `seq` + `per
 | `phase` | `n`, `title` | `scripts/command_run.py step` |
 | `dispatch` | `seats` (accumulated within the round), `phase` | `scripts/command_run.py dispatch --seats` — stamped BEFORE a fan-out's seats go out; the reservation `dispatch_headroom.py` subtracts on sibling sessions (D-193) |
 | `round` | `n`, `findings`, `seats`, `confirmed` (absent when not stated), `classes_swept`, `classes_new`, `classes_open` | `scripts/command_run.py round` |
+| `round_refused` | `n` (the round that already landed), `age_s` (seconds since it landed; null when that round's time is unreadable) | `scripts/command_run.py round` — a blind retry of the last round, refused with no round recorded (W-fe322585) |
 | `run_close` | `verdict` (`done`\|`blocked`\|`handoff`), `resume` (handoff only — the artifact carrying the open rows), `evidence_hash`, `closed_by`, `rounds`, `resumed`, `resumed_phase`, `resumed_rounds`, `wall` (`quota` on a `blocked --wall` close, else empty) and `resumed_from_start` (the wall-blocked sitting's `started_at` on a run reopened by `start --resume-from`, else empty — scalars; the record and the ledger row carry the `resumed_from` dict; W-28f260c3), **`feedback`** (`filed`\|`none`\|`unstated`), **`feedback_to`** (subset of `infra`/`fleet`/`intel`), **`feedback_hash`** | `scripts/command_run.py done`/`blocked` |
 | `gate_run` | `tier`, `mode`, `status`, `checks: [{name, outcome}]` (every EXECUTED check, advisory rows labelled) | `scripts/final_gate.py` |
 | `rule_activation` | `kind` (`select_rules`\|`rubric_injection`), `label` (*invocation-time*), `packs` — `[{pack, globs_fired}]` from `select_rules.py`, `[{pack}]` plus `packs_missing` from `review_rubric.py` | `scripts/select_rules.py`, `scripts/review_rubric.py` (`rubric_injection`) |
-| `stop_block` | `cause` (`gate-red`\|`uncommitted`\|`unpushed`\|`promise-stall`\|`deferral`\|`run-record`\|`unreviewed-spontaneous`\|`merge-request`\|`coordinator`\|`urgent-checkpoint`), `outcome` (`blocked`\|`warned_through`\|`stood_down`); `deferral` additionally carries `shape` (`D1`-`D4`, or `block` for a DECISION block that failed its own checks); at the quota's `urgent-90` tier every event carries `tier`, and the one `urgent-checkpoint` block carries `items` (the causes it listed) | `.claude/hooks/final_gate_stop.py` |
+| `stop_block` | `cause` (`gate-red`\|`uncommitted`\|`unpushed`\|`promise-stall`\|`deferral`\|`run-record`\|`unreviewed-spontaneous`\|`merge-request`\|`coordinator`\|`urgent-checkpoint`), `outcome` (`blocked`\|`warned_through`\|`stood_down`); `deferral` additionally carries `shape` (`D1`-`D4`, or `block` for a DECISION block that failed its own checks); at the quota's `urgent-90` tier every event carries `tier`, and the one `urgent-checkpoint` block carries `items` (the causes it listed); the `coordinator` cause's `stood_down` carries `band`, `action` (the start actions it skipped) and `reason` (`amber`\|`rotation`\|`amber+rotation` — which hold skipped them: the AMBER band, or the rotation boundary of W-0fae19b7) | `.claude/hooks/final_gate_stop.py` |
 | `decision_block` | `ground` (`gate`\|`underivable`\|`owned`) | `.claude/hooks/final_gate_stop.py` — the turn ended on a well-formed `DECISION NEEDED (ground: …)` block (spec 2026-09-23-stop-and-compaction-enforcement-design § C2); emitted from the same non-blocking exit as `final_block_emitted`, for the same retry reason |
 | `anchor_harvest` | `tp` (bool — a transcript path arrived), `chars` (length of the harvested turn text), `lam` (bool — the payload carried `last_assistant_message`) | `.claude/hooks/final_gate_stop.py` — every Stop that reaches the thread-anchor harvest (`scripts/thread_anchor.py harvest`, plain — never `--decision-ok`, which runs only at an allowed exit); the trace that says whether WHERE YOU ARE had text to rebuild from |
 | `stop_allowed_quota_hold` | — | `.claude/hooks/final_gate_stop.py` — the fleet quota hold at its WALL tier (`fleet-exhausted` stamp in force, fresh tick, and a tier that is not plainly `urgent-90`) let the turn end before any cause was read; the DECISION block, if any, is stored on this exit too |
@@ -234,10 +235,9 @@ published into the kaizen log's `Filed (spec/mail)` cell as `N filed / N none / 
 All three verdicts ride the cell on purpose: `0 filed` alone reads like a quiet week, while
 `0 filed / 0 none / 9 unstated` reads like nine runs where nobody was asked.
 
-⚠️ `Filed` is an ANALYST cell. `_merge_cells` was corrected first so a real value the analyst typed
-always wins and the computed value only FILLS an empty cell — `kaizen.md:202` promises these are
-never overwritten by a re-run, and the previous rule only honoured that while nothing computed
-them.
+⚠️ `Filed` is an ANALYST cell: which value a re-run keeps is `kaizen.md`'s log-row table (the
+`Filed (spec/mail)` row) — `_merge_cells` lets the analyst's text win and refreshes only the
+collector's own bare count.
 | `terminator_spam` | `rules_compliance` | final_block_emitted / closures | T06 collector |
 | `premature_stop_rate` | `first_attempt_gate_pass` | EVENT-level stop verdicts | T06 collector |
 | `first_attempt_gate_pass` | `premature_stop_rate` | sessions, first gate_run | T06 collector |

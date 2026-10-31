@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T17:42:39.205889Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-4f452222",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1352",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "mirror redeploy's old_sha capture + reset in _deploy_git around _validate_compose, red-first test",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "deploy",
+    "fleet"
+  ],
+  "title": "deployer_ssh._deploy_git pulls before it validates the compose and never resets on a refusal (D-1352 not-closed list): a refused git apply leaves the pulled commit on disk as the next redeploy's rollback point, unlike redeploy's reset (D-937)"
+}

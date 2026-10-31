@@ -1,0 +1,17 @@
+# The hub's merge-time test leg (W-4e756979): scripts/merge_test_select.py under the main checkout's
+# .venv, found through git's common dir (the build tree is a throwaway with no .venv of its own).
+# The leg outgrew merge_request.py's 1800 s default (W-418c9d9f, D-1310): read from the BASE only, clamped
+# to MERGE_TEST_BUDGET_S (3600). Costs, per D-1275: a rebuild after a failed CAS gets what is left (as little
+# as ~900 s, after a first leg that used its full 2700 s), so one that re-tests in full may refuse as budget-spent (retry); `merge --queue` forks a leg only in
+# its first 1080 s. If a full-width leg still dies at 2700, raise it to 3000 (the coordinator's ruling).
+# merge-test-timeout: 2700
+# The leg's 8 shards share ONE capped_run scope, whose default ceiling is 4G (W-e64a7b8e): fleet-docker-cpu's
+# 244-file selection died at exit 137 twice on 2026-10-29, and the same leg measured a 6,009 MiB peak (one run,
+# slice memory.current with page cache, under a 12G probe cap). merge_request.py clamps this to 8G, the slice's
+# 12G less one default run. Keep the declaration alone on its line: a reason after it is outside the grammar.
+# merge-test-mem: 8G
+# D-1186's relief valve, ON for every hub merge (D-1384, the coordinator's ruling (B), 2026-10-30, the operator's
+# "fastest asap"; W-3237ba45): above this many merges a day over 7 days a merge lands after build, preflight and
+# CAS, and this same leg runs after it in merge_request.py's background after-merge-runner. Keep it alone on its line.
+# merge-tests-after-merge-above: 0
+exec "$(git rev-parse --path-format=absolute --git-common-dir)/../.venv/bin/python" scripts/merge_test_select.py

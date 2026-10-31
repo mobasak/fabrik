@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T15:57:29.292014Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-dda16dc5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M640D8WFBW3R1CN855GDHGHK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: infra-synced-lock"
+}

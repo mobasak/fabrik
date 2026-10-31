@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T08:30:36.751339Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-c3a21c07",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68H5XZZP70Q1SRHYY3GQQWK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "infra back after the 11:01 restart — W-fbd1d4b9 part a in build on branch infra-merge-stem-keys"
+}

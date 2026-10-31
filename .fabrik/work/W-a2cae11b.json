@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T08:55:09.142478Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "3168c00415053636ee1564be6b10d63a4935e5bc",
+  "id": "W-a2cae11b",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make both retention scripts select superseded transcripts too (archive them like their MAIN parent; prune only once vouched), or stop the supersede path from changing the suffix; regression test that any rename keeping session history stays in both tiers; measure the B2 size of the 9 files first",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: ~12 GB of chat history with no off-box copy, a data-loss risk on a disk failure, beside the operator's D-1182 archive ask; effort low: two globs plus a test",
+  "status": "done",
+  "title": "9 superseded MAIN transcripts (~12 GB, <slug>/<uuid>.jsonl.superseded-<ms> at depth 2 under ~/.claude/projects) are never archived and never pruned: archive_transcripts.py and prune_transcripts.py both glob */*.jsonl, so the rename at rotation or /clear drops them out of both tiers — no B2 copy of ~12 GB of history (infra measurement during W-62d2ce7d's design critique, 2026-10-24)"
+}

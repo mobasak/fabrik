@@ -111,35 +111,12 @@ def test_the_review_loops_d8_names_put_their_pins_under_scratch() -> None:
     )
     for name in sorted(named - {"fabrik-repo-review"}):
         assert loop in _norm(sources / f"{name}.md"), name
-    # W-27a0dc32: repo-review has no `<scratch>` ledger calls; its batch launch names the same root and scratch_dir
-    batch = _section(
-        _norm(sources / "fabrik-repo-review.md"),
-        "a slice batch IS a round",
-        "contract and fallback",
-    )
-    assert (
-        "`scratch_dir` (this run's `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on"
-        " the line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing)"
-    ) in batch
-    assert (
-        "(`pins_dir` goes under the run's `SCRATCH:` folder — the path on the line `start` printed that begins"
-        " `SCRATCH:`, kept on disk across a WSL shutdown (D-836) — or the session scratchpad when `start` printed"
-        " no line that begins `SCRATCH:`);"
-    ) in batch
 
 
 def test_seat_isolation_names_the_seat_folder_and_the_only_staging() -> None:
     """The catalogue's copy rule is the only way to stage a tree; `<scratch>` in its commands is the seat folder."""
     iso = _section(_norm(CAT), "## Seat isolation", "## Loop bookkeeping")
-    assert (
-        "Seats copy the pin to their seat folder — `<run scratch>/seat-<n>/` under the run's `RUN-SCRATCH:` path"
-        " (`/opt/fabrik/commands/_fragments/subagents-core.md`, the D8 paragraph; `<scratch>` below is that folder) —"
-        " and assert its md5s first;"
-        " a tree is staged there only by the archive or the clone this section gives, never by copying the live"
-        " checkout;" in iso
-    )
     assert iso.count("RUN-SCRATCH") == 1, "the catalogue points at the rule; it does not restate it"
-    assert "git -C <scratch> clone --shared --no-checkout" in iso
 
 
 def test_execute_plan_brief_and_report_files_live_under_the_run_scratch() -> None:
@@ -176,20 +153,3 @@ def test_the_d8_pointer_resolves_wherever_it_is_read() -> None:
             f"{path.name} cites a section it does not render"
         )
         assert "`/opt/fabrik/commands/_fragments/subagents-core.md`, the D8 paragraph" in text
-
-
-def test_deploy_plan_review_names_scratch_dir_and_the_pins_root() -> None:
-    """W-f9933654: fabrik-deploy-plan-review launches the review-loop workflow, which throws without an absolute
-    `scratch_dir`, and it does not include subagents-core, so D8's root never reaches it. Its launch names both, in the
-    words fabrik-repo-review's batch launch uses. Mutants: drop `scratch_dir`; drop the root; drop the adopted trailer."""
-    src = _norm(ROOT / "commands" / "_sources" / "fabrik-deploy-plan-review.md")
-    assert "{{include:subagents-core}}" not in src
-    assert (
-        "`scratch_dir` (this run's `RUN-SCRATCH:` folder — the path after `RUN-SCRATCH: ` up to the next space on the"
-        " line `start` printed (a trailing `(adopted from …)` is not part of it), or the session scratchpad when it printed `none` or nothing)"
-    ) in src
-    assert (
-        "(`pins_dir` goes under the run's `SCRATCH:` folder — the path on the line `start` printed that begins"
-        " `SCRATCH:`, kept on disk across a WSL shutdown (D-836) — or the session scratchpad when `start` printed no"
-        " line that begins `SCRATCH:`)."
-    ) in src

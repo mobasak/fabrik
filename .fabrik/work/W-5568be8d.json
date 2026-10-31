@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T19:59:59.550878Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "6d9938ec6dcd1fc28dbc114aee5ad27457b78743",
+  "id": "W-5568be8d",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "find the writer (git log -S / the collector cron), make it commit its own output with trailers",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 0,
+  "score_reason": "merge program (operator: fastest asap): 11 of 51 refusals were the main checkout dirty; the collector must commit its own output",
+  "status": "done",
+  "title": "Main checkout dirty files refuse merges: 11 of 51 refusals in 14 d were 'dirty in the main checkout (not a ledger)' (_preflight :1278); right now PORTS.md, docs/PROJECT_CATALOG.md, docs/reference/agents/kaizen-log-fleet.md and kaizen-log-infra.md are dirty from the daily collector. The pipeline that writes them must commit them, or write them outside the tree; coordinator housekeeping until then"
+}

@@ -1010,6 +1010,7 @@ PIPELINE_ORDER: tuple[str, ...] = (
     "fabrik-epics-review",
     # 1-design
     "fabrik-rivals",
+    "fabrik-reverse-engineer",
     "fabrik-spec",
     "fabrik-spec-review",
     # 5-certify EARLY position → 2-contract
@@ -1242,6 +1243,12 @@ _EXT_SERVICES: tuple[tuple[str, str, str, str], ...] = (
         r"\bfabrik (?:apply|redeploy|plan|destroy|status)\b|\bssh (?:vps|root@)|deployer_ssh|\bvps[1-3]\b",
     ),
     ("aic", "ai-consult", "ai-consult — the metered frontier panel (fabrik-lib)", r"ai[-_]consult"),
+    (
+        "rea",
+        "rea",
+        "REA reverse-engineering MCP — local, all repos (D-1239)",
+        r"mcp__rea__|\brea-agents\b",
+    ),
     (
         "cit",
         "citations",

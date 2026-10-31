@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T16:21:11.214187Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-2acd5b16",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "add the three graders + the code assertions to tests/test_wsl_net_heartbeat.py, prove each red, then decide the 128+ case with a probe",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "W-960d68a8 review residue (WSL heartbeat): graders for curl 126 (non-executable curl on PATH), 8 (bad Content-Length) and 56 (bad chunk); assert each outage case's curl code (not just 'curl: ('); decide whether a signal-killed curl (exit 128+) belongs in the local-fault list (today it reads as network → one possible adapter restart)"
+}

@@ -15,7 +15,7 @@
   },
   "next": "infra: small change on scripts/work.py (fleet-synced) + test; right-now + /fabrik-review-scoped; tell intel when merged",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 1,
   "score_reason": "unblocks intel's W-04238176 (D-1123 control metric); one small work.py change",
   "status": "open",

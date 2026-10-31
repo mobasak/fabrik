@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T20:06:25.643856Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-f0cbce0d",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide per shape whether this file could plausibly grow it; widen _clock_patches and its probe list only for those, red-first. Pass-4 residue too: false red on a non-module .time attribute (datetime.time, row.time); aliases the fixed point skips (a, b = time, 1; t: object = time; the walrus t := time; x = d['time'])",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "review-residue"
+  ],
+  "title": "W-1e0f4229 review residue (scope-growth stop at round 3): tests/test_rotate_session.py::_clock_patches does not see these clock-patch shapes, all outside its stated boundary and absent from the file today — from time import sleep then a patch of that name; setattr(getattr(rs, 'time'), ...); mock.patch.dict(sys.modules, {'time': fake}); mock.patch('time') with no attribute; the string target 'rotate_session.time.sleep'; monkeypatch.delattr(time, ...); monkeypatch.setitem(sys.modules, 'time', fake); mock.patch.multiple(time, ...)"
+}

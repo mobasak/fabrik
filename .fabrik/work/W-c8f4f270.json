@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T01:46:15.966816Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-c8f4f270",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5QPWHN6PC18XYDGRA9FQFQX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "Usage grammar prints `[· cost: …]` brackets — the parser now accepts them (W-256d6877); dropping them from the grammar text is yours"
+}

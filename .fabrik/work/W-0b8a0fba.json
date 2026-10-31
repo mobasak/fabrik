@@ -16,10 +16,10 @@
     "spec": ""
   },
   "next": "measure per-pane peaks over a day (systemd-cgtop or MemoryPeak), raise FABRIK_AGENT_SLICE_MAX from 16G toward the box's real headroom (47 GB total, ~22 GB in use by processes), or make the slice ceiling a function of MemTotal and live pane count; keep MemorySwapMax=0; regression test on the computed ceiling 2026-10-22 13:35:02: kaizen's pane scope (run-u44.scope, MemoryMax=3G) hit its ceiling during its full /fabrik-review gate — the kernel OOM-killed semgrep-core (pid 27924, anon-rss 1.36 GB) INSIDE the pane cgroup, systemd failed the scope with result oom-kill (3.0G memory peak) and kaizen's claude died with it ('Resume this session with: claude --resume a3816a70…' left in the pane). Same class as intel ×2, dev1 and infra on 10-21. Fact for the fix: a hub builder running the gate's semgrep leg needs more than 3G; the coordinator relaunched kaizen at 6G (scratch kaizen-run6.sh); every hub builder should launch at the 6G line until T05 sizes the caps from measurement, and the gate's static tier (semgrep ~1.4 GB) is the known spike. Operator 2026-10-22 14:05, verbatim: 'but we agreed there wont be memory cap per agent ? it will be managed according to needs?' — D-1109's durable formula (per-pane cap DROPPED, slice-only ceiling) is the agreement; the launcher default FABRIK_AGENT_MEM_MAX=3G (agents_up.sh:282) is the gap. Live 14:05: kaizen run-u11227 6G (peak 1.3G), intel run-u3462 6G (peak 4.97G), infra run-u10075 6G (peak 3.4G); slice 16G of 34G used, box 20G of 47G. Infra asked to lift the live caps (set-property --runtime … MemoryMax=infinity) now and make the launcher default uncapped as T05's first slice.",
-  "note": "",
-  "owner": "infra",
+  "note": "measured by infra-2 2026-10-27: already fixed by D-1109 (208dccd76, 2026-10-22) — slice ceiling from MemTotal, now MemoryMax 37.0G; memory.events.local shows 0 max/oom events; the kills seen were per-run capped_run scopes",
+  "owner": "infra-2",
   "priority": 1,
   "score_reason": "HIGH: builders are being OOM-killed (two tonight) — a break on agents; one launcher constant and its test, one session",
-  "status": "open",
+  "status": "dropped",
   "title": "fabrik-agents.slice sits AT its 16G ceiling (MemoryCurrent 17179811840 of MemoryMax 17179869184 at 23:15) with 10 builders up, and the OOM killer took intel's scope at 22:37 (2.6G peak) and fabrik-lib-dev1's — the slice cap, not the per-pane 3G, is what kills builders now that the box has 47 GB (operator 2026-10-21: no fixed agent limit, D-1092; 'limit management must be dynamic not static')"
 }

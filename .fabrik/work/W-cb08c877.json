@@ -22,7 +22,8 @@
   "tags": [
     "deploy",
     "fleet",
-    "queued"
+    "queued",
+    "waits-vps-gate"
   ],
   "title": "vps1 docker.service has no After=/Wants=wg-quick@wg0 (live systemctl cat docker, 2026-10-23), so after a reboot that brings wg0 up after dockerd every 10.99.0.1-bound container (postgres-main 5432, redis-main 6379, glitchtip 8000, authelia 9091, loki 3100) can fail its bind with EADDRNOTAVAIL and is NOT retried by restart: unless-stopped (moby#39559); on Docker 29.x a failed start can even leave the container up with only lo and no published ports until recreated (moby#53928). Found by W-5dcafaef grounding."
 }

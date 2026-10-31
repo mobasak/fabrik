@@ -772,6 +772,88 @@ def test_work_open_plans_reads_the_shared_done_set(tmp_path):
     assert not any("plan-a" in line for line in out), out
 
 
+def _fake_docs_updater(tmp_path, monkeypatch, source):
+    """Point work._open_plans at a stand-in docs_updater.py (it loads the file beside work.py)."""
+    import work
+
+    fake = tmp_path / "fake-scripts"
+    fake.mkdir()
+    (fake / "docs_updater.py").write_text(source)
+    monkeypatch.setattr(work, "__file__", str(fake / "work.py"))
+    plans = tmp_path / "repo" / "docs" / "development" / "plans"
+    plans.mkdir(parents=True)
+    return work, tmp_path / "repo", plans
+
+
+def test_work_open_plans_survives_one_plan_the_parser_raises_on(tmp_path, monkeypatch):
+    """W-f1412a11 (review B-S1): an error parsing ONE plan emptied the whole view through the outer
+    `except Exception`; the other open plans stay listed and the failing one is listed as open."""
+    work, repo, plans = _fake_docs_updater(
+        tmp_path,
+        monkeypatch,
+        "PLAN_DONE = {'EXECUTED'}\n"
+        "def parse_plan_status(path):\n"
+        "    if 'bad' in path.name:\n"
+        "        raise ValueError('boom')\n"
+        "    return ('APPROVED', 0, 0)\n",
+    )
+    (plans / "2026-10-01-plan-bad.md").write_text("# bad\n")
+    (plans / "2026-10-02-plan-good.md").write_text("# good\n")
+    out = work._open_plans(repo)
+    assert any("plan-good" in line and "APPROVED" in line for line in out), out
+    assert any("plan-bad" in line and "ValueError" in line for line in out), out
+
+
+def test_work_open_plans_says_so_when_the_parser_cannot_load(tmp_path, monkeypatch):
+    """W-f1412a11: a docs_updater.py that fails to import read as 'no open plans'; the view now
+    names the failure instead of returning an empty list."""
+    work, repo, plans = _fake_docs_updater(tmp_path, monkeypatch, "raise RuntimeError('broken')\n")
+    (plans / "2026-10-02-plan-good.md").write_text("# good\n")
+    out = work._open_plans(repo)
+    assert len(out) == 1 and "RuntimeError" in out[0] and "unavailable" in out[0], out
+
+
+def test_work_open_plans_says_so_when_the_plans_dir_cannot_be_read(tmp_path, monkeypatch):
+    """W-f1412a11 review: Path.glob swallows a PermissionError, so an unreadable plans dir read as
+    'no open plans'; the view now names it as unavailable."""
+    work, repo, plans = _fake_docs_updater(
+        tmp_path, monkeypatch, "PLAN_DONE = set()\ndef parse_plan_status(path):\n    return ('DRAFT', 0, 0)\n"
+    )
+    (plans / "2026-10-02-plan-good.md").write_text("# good\n")
+    # unreadable; readable but not searchable (listdir works, stat fails); searchable but not readable
+    for mode in (0, 0o444, 0o300):
+        plans.chmod(mode)
+        try:
+            out = work._open_plans(repo)
+        finally:
+            plans.chmod(0o755)
+        assert len(out) == 1 and "PermissionError" in out[0] and "unavailable" in out[0], (mode, out)
+        assert str(tmp_path) not in out[0], out  # repo-relative, as every line of the view
+
+
+def test_work_open_plans_says_so_when_an_ancestor_cannot_be_read(tmp_path, monkeypatch):
+    """W-f1412a11 review pass 3: Path.is_dir re-raises EACCES, so an unreadable docs/development
+    crashed queue and triage; it is one 'unavailable' line, since the plans cannot be known."""
+    work, repo, plans = _fake_docs_updater(
+        tmp_path, monkeypatch, "PLAN_DONE = set()\ndef parse_plan_status(path):\n    return ('DRAFT', 0, 0)\n"
+    )
+    (plans / "2026-10-02-plan-good.md").write_text("# good\n")
+    plans.parent.chmod(0)
+    try:
+        out = work._open_plans(repo)
+    finally:
+        plans.parent.chmod(0o755)
+    assert len(out) == 1 and "PermissionError" in out[0] and "unavailable" in out[0], out
+
+
+def test_work_open_plans_is_empty_without_a_plans_dir_whatever_the_parser(tmp_path, monkeypatch):
+    """W-f1412a11 review: a repo with no plans dir has no open plan, so a parser that cannot load
+    there is not reported (the old view returned [] for it too)."""
+    work, repo, plans = _fake_docs_updater(tmp_path, monkeypatch, "raise RuntimeError('broken')\n")
+    plans.rmdir()
+    assert work._open_plans(repo) == []
+
+
 class TestLinkCheckReadsCommonMarkLinks:
     """W-f11e740e: check_link_integrity read links with its own `\\[..\\]\\(([^)]+)\\)` regex, so a
     titled or <angle> link to a live doc was reported broken and an escaped or paren name was
@@ -1009,10 +1091,18 @@ def _old_blank_code_spans(content: str) -> str:
     while i < len(runs):
         opener = runs[i]
         i += 1
-        if opener.start() and content[opener.start() - 1] == "\\":
-            continue
-        t = bisect.bisect_right(tail_starts, opener.start()) - 1
-        if t >= 0 and opener.start() < tails[t][1]:
+        # W-753040b8: the opener rule moved to CommonMark's backslash parity in the linear function, and this oracle
+        # takes the SAME rule — its job is linear-vs-quadratic equivalence; the escape rule is graded in test_fences.py
+        o_start, o_len = opener.start(), len(opener.group())
+        b = o_start
+        while b and content[b - 1] == "\\":
+            b -= 1
+        if (o_start - b) % 2:
+            o_start, o_len = o_start + 1, o_len - 1
+            if not o_len:
+                continue
+        t = bisect.bisect_right(tail_starts, o_start) - 1
+        if t >= 0 and o_start < tails[t][1]:
             continue
         line_start = content.rfind("\n", 0, opener.start()) + 1
         one_line = _FX._ONE_LINE_BLOCK_RE.match(content, line_start) is not None
@@ -1025,10 +1115,10 @@ def _old_blank_code_spans(content: str) -> str:
             ):
                 break
             seen = runs[j].end()
-            if len(runs[j].group()) == len(opener.group()):
+            if len(runs[j].group()) == o_len:
                 out += [
-                    content[kept : opener.start()],
-                    du._blank(content[opener.start() : runs[j].end()]),
+                    content[kept:o_start],
+                    du._blank(content[o_start : runs[j].end()]),
                 ]
                 kept, i = runs[j].end(), j + 1
                 break
@@ -1135,3 +1225,86 @@ def test_blank_code_spans_beats_the_quadratic_original_on_unmatched_runs() -> No
     _old_blank_code_spans(text)
     old = time.perf_counter() - start
     assert _best_of_3(text) * 20 < old, (old, _best_of_3(text))
+
+
+# --- W-da101088: what the staleness gate may watch -------------------------------------------
+# A watched doc must be one the project can edit and may keep where it is: a stale-header row on a
+# hub-synced file or on a path check_structure calls misplaced is a row nobody can clear (D-1272).
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts" / "enforcement"))
+import check_structure  # noqa: E402
+import fabrik_synced_manifest  # noqa: E402
+
+
+def _not_the_projects_to_edit(entries: list[str]) -> list[str]:
+    # This tree's own synced set, never the main checkout's (the function's default root).
+    readonly = set(fabrik_synced_manifest.review_readonly_paths(Path(__file__).resolve().parents[1]))
+    return [e for e in entries if e in readonly]
+
+
+def _misplaced(entries: list[str]) -> list[str]:
+    # The fallback allowlist lacks API_REFERENCE.md, so a failed registry import would be red
+    # for a reason that has nothing to do with the list.
+    assert check_structure._doc_registry is not None, "doc registry import failed"
+    # Ask the structure gate itself, path by path: any violation it reports means misplaced.
+    root = Path(__file__).resolve().parents[1]
+    return [e for e in entries if check_structure.check_structure(root, files=[e])]
+
+
+def test_no_watched_doc_is_a_file_the_project_cannot_edit() -> None:
+    assert _not_the_projects_to_edit(du.MANUAL_DOCS) == []
+
+
+@pytest.mark.parametrize(
+    "synced",
+    [
+        "AGENTS.md",
+        "agents-fabrik.md",
+        "agents-fabrik-core.md",
+        "CLAUDE.md",
+        "docs/reference/convergence-prompts.md",
+    ],
+)
+def test_the_readonly_guard_catches_every_synced_doc(synced: str) -> None:
+    assert _not_the_projects_to_edit(["docs/QUICKSTART.md", synced]) == [synced]
+
+
+def test_no_watched_doc_is_one_governance_misplaces() -> None:
+    assert _misplaced(du.MANUAL_DOCS) == []
+
+
+@pytest.mark.parametrize(
+    "misplaced",
+    [
+        "docs/INDEX.md",
+        "docs/NOTES.md",
+        "docs/notes/setup.md",
+        "notes.md",
+        "docs/index.md",
+        "scripts/notes.md",
+        "src/x.md",
+        "proposals/x.md",
+    ],
+)
+def test_the_misplaced_guard_catches_every_spelling(misplaced: str) -> None:
+    assert _misplaced(["docs/QUICKSTART.md", misplaced]) == [misplaced]
+
+
+@pytest.mark.parametrize(
+    "placed",
+    ["README.md", "docs/QUICKSTART.md", "docs/guides/setup.md", "docs/foo/README.md", ".github/x.md"],
+)
+def test_the_misplaced_guard_passes_a_doc_governance_allows(placed: str) -> None:
+    assert placed not in _misplaced([placed])
+
+
+def test_staleness_skips_the_dropped_docs_and_still_runs(tmp_path: Path, monkeypatch) -> None:
+    (tmp_path / "docs").mkdir()
+    for rel in ("AGENTS.md", "docs/INDEX.md", "docs/FUNNEL.md", "docs/AUTOMATION.md", "docs/QUICKSTART.md"):
+        (tmp_path / rel).write_text("# no marker\n")
+    (tmp_path / "docs/CONFIGURATION.md").write_text("**Last Updated:** 2000-01-01\n")
+    monkeypatch.setattr(du, "PROJECT_ROOT", tmp_path)
+    issues = du.check_staleness()
+    assert issues[0] == "Missing 'Last Updated' date: docs/QUICKSTART.md"
+    assert re.fullmatch(r"Stale doc \(\d+ days old\): docs/CONFIGURATION\.md", issues[1])
+    assert len(issues) == 2

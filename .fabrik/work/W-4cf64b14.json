@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-25T00:05:18.496603Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-4cf64b14",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Q6FZ2MKBVDDXR4ZJGRQJCE",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "waits-lean-program"
+  ],
+  "title": "finding: /fabrik-review-scoped seat briefs have no \"never spawn the real paid service\" guard — a finder seat started the billed claude CLI"
+}

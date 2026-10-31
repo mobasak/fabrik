@@ -3,9 +3,11 @@
 Box-local subsystem (`scripts/cloud_dispatch.py`, registry `.fabrik/cloud-routines.json`), built
 2026-10-14 on the operator's ask to use each account's $250 cloud-session credit (D-857). A local
 subagent — the Agent tool, even with `isolation: "remote"` — runs on this box on the dispatching
-account's subscription; the credit pays only for sessions on Anthropic's cloud. The only scriptable
+account's subscription; the credit applies only to sessions on Anthropic's cloud, and those still draw
+the account's weekly plan usage (§ What the worker cannot do, and what it costs). The only scriptable
 way to start one is to fire a claude.ai **routine**, so every fleet account carries one,
-`fabrik-cloud-worker`, and this script fires it.
+`fabrik-cloud-worker`, and this script fires it. The three prepaid API credits are spent by a separate script,
+[api-credit.md](api-credit.md) (D-1196).
 
 ## What a dispatch is
 
@@ -16,6 +18,7 @@ python3 scripts/cloud_dispatch.py wait --slug fix-mail-tests --timeout 1800   # 
 python3 scripts/cloud_dispatch.py log --account mob --session cse_01…
 python3 scripts/cloud_dispatch.py settle --slug fix-mail-tests   # or --all: ledger the run's cost; pause on exhaustion
 python3 scripts/cloud_dispatch.py pause can --reason "…" · unpause can · calibrate can --balance 212.40
+python3 scripts/cloud_dispatch.py drain --batch batch.json [--max-open 10] [--dry-run] [--allow-plan-usage] [--max-weekly 45]   # § Draining a batch
 ```
 
 1. `dispatch` renders the payload — `TASK slug <s>.`, the task, then the fixed rules (not a hub
@@ -43,8 +46,64 @@ http_<n> | walled | chain_dead | error` — the exit code follows it: 1 unparsed
 `http_<n>`, 3 for a rejected token or no qualifying account, 4 fire limit, 5 quota wall, 6 dead
 refresh chain, 7 a paused or expired account (§ The credit guard). Shared flags `--registry`,
 `--fleet-root`, `--ledger` go before or after the verb; `list` takes `--no-status` and
-`--ledger-tail N`, `dispatch` takes `--task`/`--task-file`, `--force-new` and `--allow-plan-usage`,
+`--ledger-tail N`, `dispatch` takes `--task`/`--task-file`, `--force-new`, `--allow-plan-usage` and
+`--max-weekly` (with `--pick` only; § `--pick`),
 `wait` takes `--since`, `--timeout` and `--interval` (floored at 1 s).
+
+**A `/hibernate` pause starts nothing:** `dispatch` runs `hibernate.py paused` before any ledger write and exits 0 with one line while a pause is marked (fail-open when the check errors); a CLI-path seat carries `CLAUDE_CODE_RETRY_WATCHDOG=1` and starts at `oom_score_adj` 500.
+
+## Draining a batch
+
+`drain` (W-b00d9d72, D-row in `docs/DECISIONS.md`) spends the credits through many runs. Each run's
+lead writes a batch file, `[{"slug", "task" | "task_file", "files": [repo paths]}, …]`, choosing
+items that are independent and cloud-sized; a `task_file` is read relative to the current
+directory, not the batch file's. The script checks the whole batch before anything fires: every
+task file is read and every payload rendered, and a pre-flight failure exits 8 (`drain_refused`)
+with nothing fired and nothing ledgered:
+
+- **one drain at a time** — `flock` on `<ledger dir>/cloud-drain.lock`, so two drains given
+  ledgers in different directories do not exclude each other;
+- **origin readable** — every git read checks its exit code, so a network failure refuses and is
+  never read as "no open branches";
+- **parity** — local `master` equals origin's (the cloud clones origin). The drain does not
+  fast-forward anything: it refuses, and the main checkout's session fast-forwards master;
+- **cloud-safe paths** — each a regular file at master (mode 100644 or 100755) or a new one,
+  relative and in normal form (`.`, `..`, a directory, a symlink and a submodule refuse); not on the governance-sync filter (read from
+  `command_run._sync_filter_source`, and an unreadable or uncompilable filter refuses); not in
+  the deny set (`scripts/cloud_dispatch.py`, `.fabrik/cloud-routines.json`,
+  `.pre-commit-config.yaml`, `commands/`, `scripts/sysadmin/`, any `conftest.py`); and no
+  `tests/` file whose text at master names the home dir (`Path.home`, `expanduser`, `~/.claude`,
+  `HOME`, `getpwuid`) — a substring screen, never a proof, which the merge rule below backs;
+- **disjoint** — no path is listed twice, is in two entries, is in an unmerged `claude/*`
+  branch's three-dot diff (renames split into both paths), or is held by a run in flight. A run
+  is in flight when it fired within the last day and master does not yet carry its
+  `Cloud-Dispatch: done <session>` trailer; it holds its `kind: drain` row's files, whether or
+  not its branch is pushed yet. A plain `dispatch` run declares no files, so it holds a cap slot
+  only;
+- **cap** — open branches + in-flight runs + this batch ≤ `--max-open` (default 10, at least 1).
+
+A slug with any ledger row that may have fired — `ok`, `unparsed`, `error` and every `http_<n>`
+but 401 and 429 — is skipped as `already fired`, forever: re-running a stopped batch never fires
+an entry twice, and a task whose run failed is re-run under a new slug. Each remaining entry is
+re-checked against the ledger just before it fires (a sibling may have fired it since the
+pre-flight), gets a `kind: drain` ledger row, and fires through `dispatch` by `--pick`, with
+`Files you may change: …` appended to its task; `--allow-plan-usage` and `--max-weekly` are passed
+to every fire. The
+first failure stops the batch and exits with that fire's code, after the earlier entries have
+fired and been ledgered. A pre-flight refusal prints only its reason; once the pre-flight passes,
+stderr gets one line per entry, printed even when the batch stops: `fired`, `fired? (<status> —
+read the ledger before retrying)`, `attempted (raised before a result — …)` (its drain row was
+written, then the fire raised), `refused rcN`, `already fired`, `already fired (by another session,
+after the pre-flight)`, `not reached` or (on `--dry-run`) `would fire`. A run has landed once
+master carries its done trailer: the fire records the session as `cse_<id>` and the worker's
+trailer names it `session_<id>`, so the two are compared by the part after the prefix.
+
+**Merging a drained branch** (the lead's rule, from the panel's verdict): the branch's three-dot
+diff must stay inside its declared files. A local spot-check is mandatory for more than 5 files,
+any conftest or test-infrastructure change, or a receipt whose SHA is not the tip; other branches
+are sampled, and every branch is checked for each account's first two runs. The merge deletes the
+remote branch, because each drain fetches every listed `claude/*` branch and runs a merge-base
+check on each.
 
 ## Two fire paths
 
@@ -59,20 +118,39 @@ Edit → Add another trigger → API → Generate token (shown once); save it as
 
 ## `--pick`
 
-Spend the four credits evenly: a usable path first (token accounts before CLI ones; no account may
-be parked, paused or expired, and a CLI account's refresh chain must be neither expired nor expiring
-within a day), then the **fewest ledger dispatches in the last 7 days**, then the highest weekly %
-(the LOWEST under `--allow-plan-usage`: plan spend goes to the coolest account). A status row that
-is a cached reading older than 6 h does not qualify its account, and when no account qualifies the
-dispatch is REFUSED (exit 3, `no_account` — pass `--account`), never guessed. The weekly reading
-comes from `claude_rotate.py --status --json` — a live probe; `list --no-status` skips it.
+A run goes only where the account's weekly plan can take it, since a cloud run draws that plan and
+is refused at its wall (the billing bullet below; W-87078932, D-1300 in `docs/DECISIONS.md`). The
+pick reads `claude_rotate.py --status --json` — a live probe — and its `picture`, the rotation
+tick's own verdict per account. An account qualifies only when:
+
+- its picture `weekly_pct` is a finite number ≥ 0, read live or cached no more than 6 h ago (for
+  every account: a token fire never refreshes the reading);
+- its picture `state` is `eligible` or `active` (every walled, exhausted, unreadable,
+  over-threshold or unavailable state is out). The tick names the account the hub runs on `active`
+  before any wall test, so its own `weekly_cap` and its session trip are re-applied here;
+- that `weekly_pct` is under the ceiling: `--max-weekly <pct>` on `dispatch --pick` or `drain`,
+  else the picture's `thresholds.drain_band` (85 by default). The coordinator sets the ceiling for
+  the account the hub sessions run on (45 on ozgurbasak, 2026-10-27). `--max-weekly` with a named
+  `--account` is refused: a named account is fired as named;
+- it is not parked, paused or expired, and a CLI account's status row is live (or a cached reading
+  no older than 6 h) with a refresh chain neither expired nor expiring within a day.
+
+The rest rank token accounts before CLI ones, then the **lowest weekly %**, then the fewest ledger
+dispatches in the last 7 days — the same order with and without `--allow-plan-usage`. A status with
+no picture (or claude_rotate's error picture), or no qualifying account, REFUSES the dispatch
+(exit 3, `no_account` — pass `--account`), naming each account skipped and why; it never guesses.
+The ceiling is checked per fire against a reading that shows a run's draw only minutes later, so
+nothing reserves a batch's own draw and a batch puts every fire on the coolest account. Measured:
+six runs moved ozgurbasak 33% → 34% on 2026-10-27, so a batch of n runs can pass the ceiling by
+about 0.2 × n points.
 
 ## The credit guard
 
 Operator rulings 2026-10-14: *"we should not consume our account's quota"* · *"each has 250$
 credits. when credits consumed, it must be paused"* · *"weekly usage is different than cloud 250$
 credits"*. The guard counts DOLLARS against each account's declared credit; the weekly plan reading
-is only an advisory.
+is only an advisory, though a run on an account at its weekly wall is refused by Anthropic (the
+billing bullet under § What the worker cannot do, and what it costs).
 
 - **Cost per run.** `settle --slug <s>` (run by `wait` on success; `settle --all` by every
   `dispatch` first) reads the run's raw events — `GET /v1/code/sessions/<cse>/events` (newest
@@ -110,8 +188,10 @@ is only an advisory.
   blind). `pause <slug> --reason` / `unpause <slug>` by hand.
 - **Refusals** (exit 7): `dispatch`/`--pick` refuse a paused account and any account within 6 h of
   00:00 UTC on its `credit.expires` date (Anthropic's day, never this box's).
-  `--allow-plan-usage` bypasses both, tags the row `plan_usage: true`, picks the coolest weekly
-  reading and prints that it spends plan quota — the one sanctioned way to do so.
+  `--allow-plan-usage` bypasses both, tags the row `plan_usage: true` and prints that it spends
+  plan quota. It skips the guard's refusals for that fire only;
+  every cloud run draws plan quota either way (the billing bullet under § What the worker cannot do,
+  and what it costs).
 - `list` prints per account `credit: spent · left · N unsettled · expires (in d) · PAUSED since
   (reason)` and the ledger path it summed.
 
@@ -141,10 +221,35 @@ the local `gh` token — `/web-setup` is hidden headless; drive it through a pty
   setup script is web-only configuration).
 - The repo's own hooks load in the clone: the hub's Stop hook ran inside a probe worker and offered
   it infra's work queue (it refused correctly, and the run ended); the rules forbid claims anyway.
-- Billing: cloud sessions draw the account's plan usage, promotional credit first; the credit
-  balance is visible only at claude.ai/settings/usage (no endpoint exposes it) — the guard above
-  counts the per-run cost estimate against the declared credit and takes the web balance by
-  `calibrate` whenever the operator reads it.
+- Billing — **a cloud run draws the account's WEEKLY PLAN usage and is refused at that plan's
+  wall; the $250 cloud-session credit is not capacity on top of the plan** (measured 2026-10-26,
+  D-row in `docs/DECISIONS.md`). Of the lean runs fired 2026-10-25 ~12:20 UTC, 16 never pushed a
+  branch, and every one ended on `api_error: usage_limit_reached` (HTTP 429) with
+  `rate_limit_info` `rateLimitType: seven_day`, `status: rejected`. The worker's own result
+  reads "You've hit your weekly limit · resets Oct 27, 3am (UTC)" (lean-t11-grp,
+  cse_01KwPpiyhgbFDA8goSFgYR6N). 9 were refused before their first turn ($0, no output), and 7
+  hit the wall partway and lost their work unpushed ($0.52–$2.30 each). So a drain is sized by
+  the accounts' weekly headroom (`list` prints it), and a run on the account a hub session is
+  using draws the same weekly plan that session draws.
+  - The usage page the operator read on 2026-10-25 (one account, not recorded which) lists
+    **Cloud session credits** ("Applies automatically to cloud sessions. After it's used or
+    expires, your plan's regular usage applies." $250 of $250 left, expiring Nov 5 10:59 GMT+3)
+    apart from **Usage credits** ($0, off: metered overage past the plan limit, monthly spend
+    limit $40). The runs above contradict reading that as a separate pool that keeps cloud
+    runs going past a walled plan. Anthropic's docs say a cloud session "counts toward your
+    plan's usage limits" (code.claude.com/docs/en/claude-code-on-the-web), and that scheduled
+    tasks "draw down subscription usage the same way interactive sessions do"
+    (code.claude.com/docs/en/routines § Usage and limits, both fetched 2026-10-25), which agrees
+    with the runs.
+  - Still open: whether a run ALSO draws the credit's dollar balance. The page read "$250 of $250
+    left" while every account had settled $0.33–$0.90 of runs. Either the page rounds or lags,
+    or the credit is not drawn at all. The dollar guard counts a list-price estimate either way.
+    Reading can's balance after its $0.37 probe (cse_01JXHDM65DEJD6fBSYEJe9TF, 2026-10-25)
+    settles it if the page shows cents; otherwise a run large enough to move the display does.
+    The balance is visible only at claude.ai/settings/usage, and `calibrate` records it.
+  - Every run reads `overageStatus: rejected` (`org_level_disabled`, and `out_of_credits` on ob
+    from its first run on), the usage-credits pool being off. The fleet's 99% wall is this box's
+    `caps.json`: a probe on can at seven_day 0.98 read `allowed_warning` and ran.
 
 ## Related scripts
 

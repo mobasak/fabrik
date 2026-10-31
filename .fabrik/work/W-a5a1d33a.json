@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T12:25:43.112168Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-a5a1d33a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M66CAWKZEVCMMT73NDZC1SVS",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: infra-3-hibernate"
+}

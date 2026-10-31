@@ -13,6 +13,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
+import jinja2
 import pytest
 
 from fabrik.orchestrator.context import DeploymentContext
@@ -30,6 +31,7 @@ from fabrik.orchestrator.deployer_ssh import (
     claude_cli_mount_lines,
 )
 from fabrik.orchestrator.exceptions import DeployError
+from fabrik.version_registry import VersionRegistryError
 
 _MKTEMP_PATH = "/tmp/fabrik-Ab3dE5gH9k"
 
@@ -269,6 +271,7 @@ class TestValidateCompose:
             "      resources:\n"
             "        limits:\n"
             "          memory: 256M\n"
+            "          cpus: '0.5'\n"
             "    networks:\n"
             "      - fabrik\n"
             "networks:\n"
@@ -278,6 +281,73 @@ class TestValidateCompose:
 
     def test_valid_compose_passes(self):
         assert _validate_compose(self._valid_compose()) == []
+
+    def _with_limits(self, limits_yaml: str) -> str:
+        """The valid compose with its `limits:` block replaced by *limits_yaml* (W-43c850b1)."""
+        base = self._valid_compose()
+        block = "        limits:\n          memory: 256M\n          cpus: '0.5'\n"
+        assert base.count(block) == 1, "the fixture's limits block moved: nothing would be injected"
+        return base.replace(block, "        limits:" + limits_yaml)
+
+    def test_missing_cpus_is_refused(self):
+        """W-43c850b1: 30-ops.md:187 mandates cpus beside memory; a service without one is refused
+        by name."""
+        errors = _validate_compose(self._with_limits("\n          memory: 256M\n"))
+        assert errors == [
+            "Service 'web': missing 'deploy.resources.limits.cpus' (a quoted decimal, "
+            "e.g. cpus: '0.5'; a service-level cpus: is not read)"
+        ], errors
+
+    @pytest.mark.parametrize(
+        "limits_yaml",
+        [" [memory, cpus]\n", " 'memory cpus'\n", " 5\n", " true\n", " 0.5\n", "\n"],
+        ids=["list", "str", "int", "bool", "float", "null"],
+    )
+    def test_a_non_mapping_limits_is_refused_as_missing_both(self, limits_yaml):
+        """A limits that is not a mapping holds no limit: it is refused as missing memory AND
+        missing cpus — never a TypeError, which would escape the git redeploy's
+        (DeployError, ssh-failure) handler and skip its reset to the old commit (:572)."""
+        errors = _validate_compose(self._with_limits(limits_yaml))
+        joined = "\n".join(errors)
+        assert "Service 'web': missing 'deploy.resources.limits.memory'" in joined, errors
+        assert "Service 'web': missing 'deploy.resources.limits.cpus'" in joined, errors
+
+    @pytest.mark.parametrize(
+        "value",
+        [
+            "0.5",
+            "2",
+            "'0_5'",
+            "'0'",
+            "'-1'",
+            "'1025'",
+            "'0.123'",
+            "' 0.5'",
+            "null",
+            "''",
+            "'${CPU:-0.5}'",
+        ],
+    )
+    def test_out_of_grammar_cpus_is_refused(self, value):
+        """A YAML float or int, compose's silent misreads ('0_5' is 5 CPUs, '0' no limit) and
+        anything outside spec_loader.cpu_in_grammar are refused; the value is never echoed."""
+        errors = _validate_compose(
+            self._with_limits(f"\n          memory: 256M\n          cpus: {value}\n")
+        )
+        cpu_errors = [e for e in errors if "limits.cpus" in e]
+        assert cpu_errors == [
+            "Service 'web': deploy.resources.limits.cpus must be a quoted plain decimal CPU count "
+            "from 0.01 to 1024 with at most 2 decimals, e.g. '0.5'"
+        ], errors
+
+    @pytest.mark.parametrize("value", ["'0.5'", '"1.0"', "'4'", "'0.25'", "'0.01'", "'1024'"])
+    def test_in_grammar_cpus_passes(self, value):
+        assert (
+            _validate_compose(
+                self._with_limits(f"\n          memory: 256M\n          cpus: {value}\n")
+            )
+            == []
+        )
 
     def test_invalid_yaml(self):
         errors = _validate_compose("{{invalid yaml")
@@ -685,12 +755,16 @@ class TestSSHDeployerReadEnv:
             "OTHER": "1",
         }
 
-    def test_quote_edge_cases_keep_todays_behaviour(self):
-        # single quotes + comment; escaped quote inside; unterminated; non-comment tail
+    def test_quote_edge_cases_read_as_compose_reads_them(self):
+        # single quotes + comment; escaped quote inside; unterminated; text after the closing quote
+        # (W-2ae286e2: compose refuses an unterminated quote and ignores a quote tail, measured)
         assert _parse_env("A='x y' # c") == {"A": "x y"}
         assert _parse_env('B="say \\"hi\\"" # c') == {"B": 'say "hi"'}
-        assert _parse_env('C="unterminated # c') == {"C": '"unterminated # c'}
-        assert _parse_env('D="a" "b"') == {"D": 'a" "b'}
+        with pytest.raises(ValueError, match="unterminated"):
+            _parse_env('C="unterminated # c')
+        assert _parse_env('D="a" junk') == {"D": "a"}
+        with pytest.raises(ValueError, match="after the closing quote"):
+            _parse_env('D="a" "b"')
 
     def test_runs_inside_target_vps_env(self):
         import os
@@ -870,6 +944,24 @@ class TestSSHDeployerRedeploy:
         assert cmds[2] == f"cd /opt/my-app && sudo git reset --hard {old}", cmds
         assert not any("compose build" in c or "compose up" in c for c in cmds), cmds
         persist.assert_not_called()
+
+    def test_git_redeploy_resets_on_a_pulled_compose_without_cpus(self):
+        """W-43c850b1: a pulled compose that drops its cpus line refuses like a memory violation
+        (D-937) — reset to the old commit, nothing built or upped."""
+        old = "c" * 40
+        no_cpus = _VALID_LOCAL_COMPOSE.replace("          cpus: '0.5'\n", "")
+        assert no_cpus != _VALID_LOCAL_COMPOSE
+        with (
+            self._compose(no_cpus),
+            patch("fabrik.drivers.ssh.ssh", side_effect=[old + "\n", "", ""]) as mock_ssh,
+            pytest.raises(
+                DeployError, match=r"(?s)Compose validation failed for my-app.*limits\.cpus"
+            ),
+        ):
+            SSHDeployer().redeploy("my-app", source_type="git")
+        cmds = [c.args[0] for c in mock_ssh.call_args_list]
+        assert cmds[2] == f"cd /opt/my-app && sudo git reset --hard {old}", cmds
+        assert not any("compose build" in c or "compose up" in c for c in cmds), cmds
 
     def test_git_redeploy_resets_on_a_read_timeout_and_names_a_failed_reset(self):
         """A timed-out compose read still resets the checkout; a reset that fails is reported as
@@ -1170,6 +1262,7 @@ _VALID_GIT_COMPOSE = (
     "      resources:\n"
     "        limits:\n"
     "          memory: 256M\n"
+    "          cpus: '0.5'\n"
     "    networks:\n"
     "      - fabrik\n"
     "networks:\n"
@@ -1250,6 +1343,137 @@ class TestDeployGit:
 
 
 # ======================================================================
+# _deploy_template — a render refusal is a DeployError (W-c9dcd641)
+# ======================================================================
+
+
+class TestDeployTemplateRenderRefusal:
+    """A spec naming no template, or a value the renderer refuses with a ValueError (D-1269), is a
+    named DeployError on the template deploy path, raised before any remote call, never an
+    orchestrator 'Unexpected error' traceback; a hub defect passes through as its own exception."""
+
+    @pytest.mark.parametrize(
+        ("template", "secrets", "env", "names"),
+        [
+            pytest.param("python-api", {"API_TOKEN": "s3cr3t\x00tail"}, {}, "API_TOKEN", id="nul"),
+            pytest.param(
+                "python-api", {"API_TOKEN": "s3cr3t\udc80tail"}, {}, "API_TOKEN", id="not-utf8"
+            ),
+            pytest.param("python-api", {}, {"LOG_TAG": "s3cr3t\x00tail"}, "LOG_TAG", id="nul-env"),
+            # docusaurus emits no compose `env`, so its NUL reaches the .env.example codec instead
+            pytest.param("docusaurus", {}, {"LOG": "s3cr3t\x00tail"}, "LOG", id="nul-env-example"),
+        ],
+    )
+    def test_a_render_refusal_is_a_deploy_error(self, template, secrets, env, names):
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "template"},
+                "template": template,
+                "domain": "my-app.example.com",
+                "env": env,
+            }
+        )
+        ctx.secrets = secrets
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps") as mock_write,
+            pytest.raises(DeployError, match="Template render failed for my-app") as err,
+        ):
+            SSHDeployer()._deploy_template(ctx, "my-app", None)
+        assert err.value.step == "deploying"
+        assert names in str(err.value)
+        assert "s3cr3t" not in str(err.value)
+        mock_ssh.assert_not_called()
+        mock_write.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "template",
+        [
+            pytest.param("no-such-template-xyz", id="unknown"),
+            pytest.param("_partials", id="dir-without-compose"),
+            # these resolve to a real template, but jinja's loader refuses the path
+            pytest.param("python-api/../python-api", id="dotdot"),
+            pytest.param("../templates/python-api", id="dotdot-out-and-back"),
+            pytest.param(
+                str(Path(__file__).resolve().parents[2] / "templates" / "python-api"),
+                id="absolute",
+            ),
+            pytest.param("a" * 300, id="over-long"),
+            pytest.param("py\x00api", id="nul"),
+        ],
+    )
+    def test_a_name_that_is_not_a_template_is_refused(self, template):
+        """The spec's template must be exactly one of list_templates(); anything else, including
+        a path that only resolves to a template, is the spec's refusal, before any render."""
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "template"},
+                "template": template,
+                "domain": "my-app.example.com",
+            }
+        )
+        ctx.secrets = {}
+        with (
+            patch("fabrik.template_renderer.TemplateRenderer.render") as mock_render,
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            pytest.raises(DeployError, match="is not a template") as err,
+        ):
+            SSHDeployer()._deploy_template(ctx, "my-app", None)
+        assert err.value.step == "deploying"
+        mock_render.assert_not_called()
+        mock_ssh.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "exc",
+        [
+            pytest.param(
+                VersionRegistryError("version registry not found: /x/versions.yaml"),
+                id="version-registry",
+            ),
+            pytest.param(
+                UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid start byte"),
+                id="undecodable-template-file",
+            ),
+            pytest.param(
+                jinja2.TemplateSyntaxError("Expected an expression", 1), id="template-syntax"
+            ),
+            pytest.param(
+                jinja2.UndefinedError("'Spec object' has no attribute 'x'"),
+                id="template-undefined",
+            ),
+            # jinja raises TemplateNotFound for a missing `{% include %}` partial too: the spec's
+            # template exists, so the missing file is the hub's
+            pytest.param(
+                jinja2.TemplateNotFound("_partials/_companion_service.yaml.j2"),
+                id="missing-include",
+            ),
+        ],
+    )
+    def test_a_hub_defect_stays_its_own_exception(self, exc):
+        """A broken registry or template file is the hub's bug: it passes through unmapped, so the
+        orchestrator logs its traceback, the only report naming the broken file."""
+        ctx = _ctx(
+            {
+                "name": "my-app",
+                "source": {"type": "template"},
+                "template": "python-api",
+                "domain": "my-app.example.com",
+            }
+        )
+        ctx.secrets = {}
+        with (
+            patch("fabrik.template_renderer.TemplateRenderer.render", side_effect=exc),
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            pytest.raises(type(exc)) as err,
+        ):
+            SSHDeployer()._deploy_template(ctx, "my-app", None)
+        assert err.value is exc
+        mock_ssh.assert_not_called()
+
+
+# ======================================================================
 # _deploy_docker — SSH-level assertions
 # ======================================================================
 
@@ -1299,6 +1523,7 @@ _VALID_LOCAL_COMPOSE = (
     "      resources:\n"
     "        limits:\n"
     "          memory: 256M\n"
+    "          cpus: '0.5'\n"
     "    networks: [fabrik]\n"
     "networks:\n"
     "  fabrik:\n"
@@ -1329,6 +1554,21 @@ class TestDeployLocal:
 
         mock_write.assert_called_once()
         assert mock_write.call_args[0][0] == "/opt/my-app"
+
+    def test_local_apply_refuses_a_compose_without_cpus(self):
+        """W-43c850b1: the local apply reads the compose and refuses a service with no CPU limit
+        before any write or up (3 of the 5 known cpus-less repos are local sources)."""
+        ctx = _ctx({"name": "my-app", "source": {"type": "local", "path": "/opt/my-app"}})
+        no_cpus = _VALID_LOCAL_COMPOSE.replace("          cpus: '0.5'\n", "")
+        with (
+            patch("fabrik.drivers.ssh.ssh") as mock_ssh,
+            patch("fabrik.orchestrator.deployer_ssh._write_file_to_vps_path") as mock_write,
+            pytest.raises(DeployError, match=r"missing 'deploy\.resources\.limits\.cpus'"),
+        ):
+            mock_ssh.side_effect = ["exists", no_cpus]
+            SSHDeployer()._deploy_local(ctx, "my-app", ctx.spec["source"], None)
+        mock_write.assert_not_called()
+        assert mock_ssh.call_count == 2, mock_ssh.call_args_list
 
     def test_local_source_off_opt_keeps_registrar_injected_keys(self):
         """W-7ec31807: ``find_existing`` probes ``/opt/<name>`` only, so a local source living
@@ -2290,14 +2530,16 @@ class TestOwnerEnvSplit:
     def test_g2_read_env_merges_both_files_in_one_separated_read(self):
         answers = [
             "present\nowner\n",
-            f"DATABASE_URL={_APP_DSN}\nDATABASE_URL_OWNER=stale\n\nDATABASE_URL_OWNER={_OWNER_DSN}\n",
+            f"DATABASE_URL={_APP_DSN}\nDATABASE_URL_OWNER=stale\n\n__fabrik_env_owner_follows__\n"
+            f"DATABASE_URL_OWNER={_OWNER_DSN}\n",
         ]
         with patch("fabrik.drivers.ssh.ssh", side_effect=answers) as mock_ssh:
             env = SSHDeployer().read_env(self._ctx())
         assert env == {"DATABASE_URL": _APP_DSN, "DATABASE_URL_OWNER": _OWNER_DSN}
         assert mock_ssh.call_count == 2
         assert mock_ssh.call_args_list[1].args[0] == (
-            "sudo sh -c 'cat /opt/my-app/.env && echo && cat /opt/my-app/.env.owner'"
+            "sudo sh -c 'cat /opt/my-app/.env && echo && echo __fabrik_env_owner_follows__ && "
+            "cat /opt/my-app/.env.owner'"
         )
 
     def test_g2_a_failed_two_file_read_raises_never_returns_the_owner_half(self):
@@ -2316,7 +2558,7 @@ class TestOwnerEnvSplit:
             cmds.append(cmd)
             if len(cmds) == 1:
                 return "present\nowner\n"
-            if " && echo && " in cmd:
+            if " && echo && echo " in cmd:
                 raise RuntimeError("SSH to 'vps1' failed (rc=1): cat: .env: Permission denied")
             return f"\nDATABASE_URL_OWNER={_OWNER_DSN}\n"
 
@@ -2326,7 +2568,10 @@ class TestOwnerEnvSplit:
         ):
             SSHDeployer().read_env(self._ctx())
         assert len(cmds) == 2
-        assert cmds[1] == "sudo sh -c 'cat /opt/my-app/.env && echo && cat /opt/my-app/.env.owner'"
+        assert cmds[1] == (
+            "sudo sh -c 'cat /opt/my-app/.env && echo && echo __fabrik_env_owner_follows__ && "
+            "cat /opt/my-app/.env.owner'"
+        )
         assert "; echo;" not in cmds[1] and "&& echo &&" in cmds[1]
 
     def test_g2_bare_present_answer_issues_todays_cat_exactly(self):
@@ -2438,7 +2683,12 @@ class TestOwnerEnvSplit:
         not a different answer."""
         from fabrik.orchestrator.deployer_ssh import _read_env_file
 
-        answers = iter(["present \r\nowner \r\n", "A=1\n\nDATABASE_URL_OWNER=o\n"])
+        answers = iter(
+            [
+                "present \r\nowner \r\n",
+                "A=1\n\n__fabrik_env_owner_follows__\nDATABASE_URL_OWNER=o\n",
+            ]
+        )
         cmds: list[str] = []
 
         def ssh(cmd, timeout=10):
@@ -2450,7 +2700,7 @@ class TestOwnerEnvSplit:
 
     # G7 — every writer goes through the one writer: an existing `.env` carrying the owner key
     # ends up with the key in `.env.owner` (written first) and never in `.env`
-    _MERGED = f"A=1\nDATABASE_URL_OWNER={_OWNER_DSN}\n"
+    _MERGED = f"A=1\n\n__fabrik_env_owner_follows__\nDATABASE_URL_OWNER={_OWNER_DSN}\n"
     _MERGED_DICT = {"A": "1", "DATABASE_URL_OWNER": _OWNER_DSN}
 
     @staticmethod

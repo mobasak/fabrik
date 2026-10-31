@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T09:01:52.015416Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-60b26f3b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68K00CMYHGD8BPYDN4SYZP0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "W-df2e24ed — desktop launcher regenerated, ready to double-click"
+}

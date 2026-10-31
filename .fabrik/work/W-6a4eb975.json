@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T00:37:01.315416Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-6a4eb975",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M6535HMD2186YTKG83830K15",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: infra-queue-measured-leg"
+}

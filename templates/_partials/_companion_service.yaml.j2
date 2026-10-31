@@ -16,7 +16,7 @@
     platform: linux/amd64  # Mandatory for x86_64 VPS
     container_name: {{ c.id }}
     restart: unless-stopped
-    command: {{ c.command | tojson | safe }}
+    command: [{{ c.command | map('compose_str', 'companion command') | join(', ') }}]
     env_file:
       - .env
       {% if c.owner_env %}
@@ -34,16 +34,16 @@
       start_period: 10s
     environment:
       {% for key, value in env.items() %}
-      - {{ key }}={{ value | env_escape }}
+      - {{ key | compose_env(value) }}
       {% endfor %}
       {% if depends.postgres %}
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/{{ depends.postgres }}}
+      - {{ 'DATABASE_URL' | compose_env('${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD}@postgres-main:5432/' ~ depends.postgres ~ '}') }}
       {% endif %}
       {% if depends.redis %}
       - REDIS_URL=${REDIS_URL:-redis://redis-main:6379/0}
       {% endif %}
       {% for key, value in (c.env_overrides or {}).items() %}
-      - {{ key }}={{ value | env_escape }}
+      - {{ key | compose_env(value) }}
       {% endfor %}
     deploy:
       resources:

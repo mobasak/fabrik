@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T02:55:28.856125Z",
+  "creator": "fleet",
+  "effort": "low",
+  "evidence": "120dec1f4263eb13d46d43ca30839ff9d7efa1a9",
+  "id": "W-43c850b1",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure how many specs/services composes lack cpus, then decide refuse vs warn in _validate_compose with a red-first test",
+  "note": "",
+  "owner": "fleet",
+  "priority": 3,
+  "score_reason": "LOW: CPU-limit hardening follow-up of W-91a4a715, nobody blocked; one check or config each",
+  "status": "done",
+  "tags": [
+    "deploy"
+  ],
+  "title": "deployer_ssh._validate_compose (src/fabrik/orchestrator/deployer_ssh.py:1364-1369) requires deploy.resources.limits.memory but not cpus, while core/30-ops.md:187 mandates both — every fabrik apply project can ship with no CPU limit"
+}

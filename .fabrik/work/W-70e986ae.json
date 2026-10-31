@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T13:33:36.753695Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-70e986ae",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5X0TW6A4BKP5DP94YA9KYVV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra-2",
+  "priority": 2,
+  "status": "done",
+  "title": "Quota lane hold traps a coordinator rotated by /clear: the rebind exception refuses the new session id"
+}

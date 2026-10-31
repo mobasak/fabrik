@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "fix the ellipsis condition to compare position, make the clip test's premise independent of the temp-root length; red-prove both",
+  "next": "PAUSED 2026-10-30 by the operator's P0-only order (infra-3). Residue (1) built + red-proven on branch infra-3-suite-refused-residue (1360d182f, pushed, unreviewed). Owed on resume: residue (2) (the clip test's len(where) premise -> assert the hint ends inside clip_output's head), then the FULL /fabrik-review (final_gate.py is a governance-sync path) over 1360d182f..tip, then MR.",
   "note": "",
   "owner": "infra-3",
   "priority": 3,

@@ -3,7 +3,7 @@
   "created": "2026-10-06T14:00:46.735053Z",
   "creator": "infra",
   "effort": "low",
-  "evidence": "",
+  "evidence": "3fd002ef7f4753db21fe0a6c7e116991519c4366",
   "id": "W-b5d51490",
   "impact": "high",
   "kind": "task",
@@ -15,9 +15,9 @@
   },
   "next": "list the 26 matches, park each whose trigger has not fired with work.py assign --tag waits-<slug>, and make migrate-backlog emit the waits- tag for such rows",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 1,
   "score_reason": "D-958 re-score 2026-10-18: HIGH — queue offers blocked items as ready",
-  "status": "open",
+  "status": "done",
   "title": "migrated work items carry their trigger in prose ('Blocked by:', 'only when …') with no waits- tag, so the queue offers them as ready — 26 open items match (fleet mail 01M48PEA, W-5f272cc3 parked)"
 }

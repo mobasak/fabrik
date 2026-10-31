@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T07:22:00.946286Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-52bddf63",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "replay each alone and in file order on a clean throwaway worktree, find the shared state (/tmp per-sid files, a clock read) and pin it in the fixture",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "Two hub tests depend on the clock or the run order: tests/test_rotate_session.py::test_wb72231b8_a_late_bind_inside_the_grace_rows_ok fails on base 25500df96 too (assert 228 <= 99 — a wall-clock bound); tests/test_stop_hook_quota_hold_exemption.py::test_urgent_tier_records_stood_down_causes fails when run alone and passes in its file"
+}

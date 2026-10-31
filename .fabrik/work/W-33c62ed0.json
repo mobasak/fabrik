@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T14:21:59.374590Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-33c62ed0",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fix with W-01d5baa2's quoting; cap expires_in; raise on a 5xx delete; parse the XML; refuse an empty bucket",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "r2 driver gaps beyond the two xfails: put/get/delete sign the raw key while httpx sends it percent-encoded (src/fabrik/drivers/r2.py:284,320,342); expires_in is documented max 7 days but never capped (:166,189); delete_object returns False for a 500 as for a 404; list_objects regex can pair one object's Key with the next's Size (:390); a missing bucket builds //key"
+}

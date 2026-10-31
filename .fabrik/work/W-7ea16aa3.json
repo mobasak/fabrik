@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T16:53:31.086216Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7ea16aa3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5JZ1CD773J3BS13EC77H76B",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "# Kaizen daily collection — 2026-10-22"
+}

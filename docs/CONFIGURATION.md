@@ -287,7 +287,7 @@ Boot every payments connection — ingest and the fulfilment worker — with `ve
 
 Every project with `shape.needs_database` carries two DSNs — `DATABASE_URL` in its `.env` and `DATABASE_URL_OWNER` in its `.env.owner` (root 0600, loaded only by the services that declare it: the audit-jobs companion, a `migrate` service — the owner split, D-754) — both injected by the postgres registrar at `fabrik apply` and neither with a default in code (a missing value fails loudly at boot):
 
-- `DATABASE_URL_OWNER` — the database OWNER. Only schema work uses it: `db/schema.sql` (whose header reads `DATABASE_URL_OWNER` out of `.env.owner` with `sed`, strips the quotes, and runs `u=$(pgurl "$v") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql` — `pgurl` is the one-line shell function from the project's TROUBLESHOOTING § Debug Commands, defined inside the root shell by the header's `sed` half — under one `sudo sh -c` that never sources the env files as shell code), migrations, runtime DDL, and the scheduled audit-log retention and verification jobs. It is the rollback DSN, so it is never removed.
+- `DATABASE_URL_OWNER` — the database OWNER. Only schema work uses it: `db/schema.sql` (whose header reads `DATABASE_URL_OWNER` out of `.env.owner` with `sed`, strips the double quotes — an owner DSN holding a `$` is written single-quoted or `\$`-escaped (`src/fabrik/env_file.py`), which `pgurl` then refuses loudly — and runs `u=$(pgurl "$v") && psql -1 -v ON_ERROR_STOP=1 "$u" -f db/schema.sql` — `pgurl` is the one-line shell function from the project's TROUBLESHOOTING § Debug Commands, defined inside the root shell by the header's `sed` half — under one `sudo sh -c` that never sources the env files as shell code), migrations, runtime DDL, and the scheduled audit-log retention and verification jobs. It is the rollback DSN, so it is never removed.
 - `DATABASE_URL` — what the app connects with. On a fresh create both hold the owner DSN; once the spec's `shape.database_url_app_role: true` cuts over, `DATABASE_URL` names the non-owner `<db>_app` role (the same DSN with only user and password swapped), which cannot `CREATE`, owns no table, and holds only `INSERT, SELECT` on `audit_log`.
 
 `shape.database_url_app_role` (boolean, default `false`, requires `needs_database`) is the per-project switch and must be a YAML boolean (a string such as `"false"` or a number fails validation, as the registrar refuses it). Every scaffolded database spec (`--db`, or a type whose defaults need a database) emits it `true` together with `depends.postgres: <id with hyphens as underscores>` — the project's OWN database, the name the registrar derives — so a new project is born on the app role and never shares a database the cutover would refuse; an existing project flips it after `fabrik app-role-check` passes, and unsetting it rolls back. The runbook and the converge table are in [`docs/operations/fabrik-lifecycle.md`](operations/fabrik-lifecycle.md) § App-role cutover and rollback.
@@ -429,8 +429,16 @@ As of 2026-09-02 it carries the full AI-supplier set, each **validated live befo
 ### fabrik-scrape endpoint — `FABRIK_SCRAPE_MCP_URL`
 
 - `FABRIK_SCRAPE_MCP_URL` — the MCP endpoint `scripts/scrape_ledger.py` grades a ledger against when no `--server`
-  is given. Default `http://127.0.0.1:8034/mcp`, the loopback service `fabrik-scrape-mcp.service` runs. Set it only to
+  is given. Default `http://127.0.0.1:8034/mcp`, the loopback service `fabrik-scrape-mcp.service` runs once installed. Set it only to
   grade a server on another port, such as a scratch copy. See `docs/reference/fabrik-scrape-mcp.md`.
+
+### Loopback MCP unit directory — `FABRIK_SYSTEMD_UNIT_DIR`
+
+- `FABRIK_SYSTEMD_UNIT_DIR` — where `scripts/sysadmin/emit_mcp_project_config.py` (and `mcp_health.py` through it)
+  looks for the systemd units that serve every loopback MCP in `SERVICE_UNITS` (fabrik-scrape, fabrik-citation-verifier):
+  an entry is emitted only once its unit file is there AND a `*.wants/<unit>` link resolves. Default
+  `/etc/systemd/system`; an empty value reads as unset. Read from the process environment, never from `.env`. A test
+  seam: set it only to point a test at a tmp directory (W-07298e38).
 
 ### Subagent flywheel — `SUBAGENT_RUNS_DSN` / `SUBAGENT_PROJECT` (hub-injected; do NOT hand-set the DSN)
 
@@ -478,6 +486,15 @@ The test suite pins both dirs to empty folders (`tests/conftest.py`), so no test
 Read by `scripts/sysadmin/claude_rotate.py --tick` from the process environment; it never goes in a project `.env`. How the wake works: `docs/workstation/claude-account-rotation.md`, its **Resume wake** entry.
 
 - `CLAUDE_RESUME_GAP_MIN` — the gap, in minutes, from the last tick's end to this tick's start beyond which the tick reads a host sleep and wakes every armed self-watch (default `15`). A value under `12` falls back to `15`, because one missed `*/5` slot already makes a 10–11 minute gap; a non-finite value falls back too.
+
+### Hibernate pause — `FABRIK_HIBERNATE_PY` / `CLAUDE_HIBERNATE_PY` / `CLAUDE_HIBERNATE_PROBE_URL` / `FABRIK_STEP_SNAPSHOT_BIN` / `FABRIK_STEP_SNAPSHOT_LOCK` (WSL box, W-6e656dac)
+
+Read from the process environment; none goes in a project `.env`. How the pause works: `docs/reference/hibernate.md`; the tick's side: `docs/workstation/claude-account-rotation.md`, its **Hibernate hold** entry.
+
+- `FABRIK_HIBERNATE_PY` — the `hibernate.py` a hub launcher asks `paused` before it starts a job (default `/opt/fabrik/scripts/sysadmin/hibernate.py`). Exit 0 skips the job with its stamp untouched; exit 1 runs it; any other exit, a timeout or a missing script runs it and logs one line. Read by `weekly_catchup.sh`, `audit_all_registrars.py` (under a marked pause `FABRIK_REGISTRY_RECONCILE=apply` runs as `report`), `ci_fix_dispatcher.py`, `rivals_run.py`, `cloud_dispatch.py` and `claude_broker.py`.
+- `CLAUDE_HIBERNATE_PY` — the `hibernate.py` whose `update_marker` the rotation tick and the minute cron call by file path (default the hub's). Absent (the aro-wake ship), the tick arms and lifts nothing.
+- `CLAUDE_HIBERNATE_PROBE_URL` — the URL the tick probes once per `*/5` tick while a pause is marked, for the outage lift (default `https://api.anthropic.com`; any HTTP answer counts).
+- `FABRIK_STEP_SNAPSHOT_BIN` / `FABRIK_STEP_SNAPSHOT_LOCK` — the binary and lock `command_run.py step` uses for its detached single-repo snapshot (defaults `/opt/fabrik/scripts/wip_backup.sh` and the cron's `/tmp/wip-backup.lock`). With the binary unset, a run under `COMMAND_RUN_DIR` or pytest starts no snapshot; an empty value turns it off.
 
 ### Fabrik Deck — `FABRIK_DECK_PORT` / `FABRIK_DECK_CODE_PORT` / `FABRIK_DECK_STATE` (WSL box, D-1106)
 
@@ -1150,6 +1167,24 @@ in `docs/reference/external-services-registry.md`.
 |---|---|---|
 | `FABRIK_SCAFFOLD_OFFLINE` | unset | `1`/`true`/`yes`/`on` makes scaffold code write every file but create no venv, install nothing, create no local database, skip the hub registry sync and the `.mcp.json` emitter; the venv and database steps print the command to run instead. Those steps already run only inside an explicit opt-in — `create_project(provision=True)`, which `fabrik scaffold` passes, or `scaffold.provisioning()` — so this switch matters only there; any other caller is offline without it (W-e2f0b6e5). `tests/conftest.py` pins it for the whole test session. It scopes scaffold code only: `fabrik scaffold`'s own registry save, sync and GitHub wiring around `create_project` still run. |
 | `FABRIK_REAL_DOCKER_BUILD` | unset | `1` opts `tests/test_docusaurus_static_runtime.py::test_real_build_serves_the_static_site` into a real `docker build` and run of a scaffolded docusaurus site (needs docker and the npm registry; ~80 s); unset, the test skips with a reason naming the flag; set with no `docker` on `PATH`, it fails rather than skips. |
+
+## Prepaid API credits (D-1196)
+
+Three prepaid $200 Anthropic API credits are spent by `scripts/api_credit.py` on capped, read-only `claude -p --safe-mode`
+runs, each behind a keyless pre-flight ([workstation/api-credit.md](workstation/api-credit.md)). The script reads the keys from the main checkout's
+`.env`, never prints them, and hands one key to each run as that run's own `ANTHROPIC_API_KEY`.
+
+| Var | Default | Effect |
+|---|---|---|
+| `ANTHROPIC_API_KEY_CAN` | empty | the Can credit's key; `api_credit.py run --key can` |
+| `ANTHROPIC_API_KEY_SARP` | empty | the Sarp credit's key; `--key sarp` |
+| `ANTHROPIC_API_KEY_OZGURBASAK` | empty | the Ozgur Basak credit's key; `--key ozgurbasak` |
+| `API_CREDIT_ENV_FILE` | the main checkout's `.env` | where `api_credit.py` reads the three keys (tests point it at a fixture) |
+| `API_CREDIT_MANAGED_DIR` | `/etc/claude-code` | the managed-settings directory whose existence refuses every run (tests point it at a fixture) |
+| `API_CREDIT_PREFLIGHT_TIMEOUT` | `60` | seconds the keyless pre-flight may take before the run is refused (tests shorten it) |
+
+The plain `ANTHROPIC_API_KEY` stays empty on purpose, so no tool bills the API by accident. The ledger lives under
+`ROTATE_STATE_DIR` (default `~/.claude/state`) as `api-credit.jsonl`.
 
 <!-- BEGIN related-scripts: generated by scripts/render_doc_script_links.py — do not hand-edit -->
 ## Related scripts

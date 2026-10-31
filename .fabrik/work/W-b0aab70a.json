@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T13:37:03.274807Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b0aab70a",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide per shape whether to scan the body (unquoted delimiter: scan $(…)/backticks only; fed-to-shell: scan whole body), measure the false-deny rate on seat transcripts first",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "seat_guard.py treats a heredoc body as data even where bash runs it as code: an unquoted body's $(…)/backticks, or a heredoc fed to a shell (bash <<EOF, sh -s, source /dev/stdin, eval \"$(cat <<EOF)\") — a git write or kill there passes the seat checks"
+}

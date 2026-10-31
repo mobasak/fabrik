@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T13:40:48.113118Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-3a4c3bc5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M6683QXP4VGYTTGQQRESZG8P",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: relay to site-provisioner — URGENT, ocoron.com contact form (operator, 2026-10-30: ocoron.com is today's top priority, web-ecommerce-factory D-609). Pre-authorised Cloudflare work (D-518). Same session as the bhdtrade Turnstile request 01M6678F."
+}

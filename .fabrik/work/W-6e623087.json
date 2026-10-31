@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T19:31:49.387585Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-6e623087",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure on vps1's alertmanager (amtool alert query) which label the live container alerts carry, then group_by name (or instance,name) with an amtool config routes test",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet",
+    "monitoring"
+  ],
+  "title": "configs/alertmanager/alertmanager.yml:21 groups by ['alertname','container'] but cAdvisor's container label is `name` — every Container* alert (ContainerHighCPU/Memory/OOMKilled/CPUThrottled) collapses into ONE group per alertname, so one notification lists every container and a new one inside repeat_interval adds no fresh notice (found by the W-fc701b31 Fable critique)"
+}

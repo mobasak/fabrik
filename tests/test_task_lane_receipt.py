@@ -555,17 +555,18 @@ def test_a_command_token_with_trailing_text_is_refused(repo: Repo) -> None:
     _only(_check(repo, REL, [repo.last]), "c")
 
 
-# ── (d) the range tip resolves to the last --commit ───────────────────────────────────────
+# ── (d) the range tip resolves to one of the --commit values ──────────────────────────────
 
 
-def test_a_range_tip_that_is_not_the_last_commit_is_refused_by_check_d_alone(repo: Repo) -> None:
-    """The receipt ends at ``last``; the close's last ``--commit`` is ``first``."""
+def test_a_range_tip_absent_from_the_commits_is_refused_by_check_d_alone(repo: Repo) -> None:
+    """The receipt ends at ``last``; no ``--commit`` value is ``last``."""
     _only(_check(repo, REL, [repo.seed, repo.first]), "d")
 
 
-def test_the_last_commit_decides_not_any_commit(repo: Repo) -> None:
-    """``last`` is listed, but not LAST — the receipt does not cover the final commit."""
-    _only(_check(repo, REL, [repo.last, repo.first]), "d")
+def test_an_ancestor_listed_after_the_tip_passes(repo: Repo) -> None:
+    """``first`` is inside ``seed..last``: listing it after the tip changes nothing — coverage is
+    read from ancestry, never from the list's order (W-0b900e92)."""
+    assert _check(repo, REL, [repo.last, repo.first]) == []
 
 
 def test_a_short_sha_tip_of_the_last_commit_passes(repo: Repo) -> None:
@@ -885,3 +886,165 @@ def test_restamp_keeps_the_file_line_endings(tmp_path: Path) -> None:
     assert _restamp(r).returncode == 0
     after = rec.read_bytes()
     assert after.count(b"\r\n") == before and b"\n" not in after.replace(b"\r\n", b"")
+
+
+# ── (d) coverage is read from ancestry and touched paths, never --commit order (W-0b900e92) ──
+
+_LEDGERS = {"CHANGELOG.md", "docs/DECISIONS.md"}
+
+
+def _exempt(p: str) -> bool:
+    return p in _LEDGERS or p.startswith("docs/development/reviews/")
+
+
+def _commit_file(repo: Repo, rel: str, text: str, msg: str) -> str:
+    repo.write(text, rel)
+    _git(repo.root, "add", rel)
+    _git(repo.root, "commit", "-q", "-m", msg)
+    return _git(repo.root, "rev-parse", "HEAD")
+
+
+def _check_x(repo: Repo, commits, exempt=_exempt) -> list[str]:
+    return _module().check_review_receipt(Path(REL), list(commits), root=repo.root, exempt=exempt)
+
+
+def test_exempt_commits_after_the_tip_pass_in_the_order_made(repo: Repo) -> None:
+    """site-provisioner 01M4F5HTPS: the receipt and the ledger commits land after the reviewed
+    tip and are listed in the order they were made."""
+    rc = _commit_file(repo, REL, repo.text(), "receipt")
+    lc = _commit_file(repo, "CHANGELOG.md", "## [Unreleased]\n", "ledger")
+    assert _check_x(repo, [repo.first, repo.last, rc, lc]) == []
+
+
+def test_a_later_code_commit_refuses_in_either_order(repo: Repo) -> None:
+    """An unreviewed code commit after the tip refuses listed last AND listed before the tip —
+    the reorder that used to pass."""
+    late = _commit_file(repo, "app.py", "x = 4\n", "unreviewed fix")
+    for commits in ([repo.last, late], [late, repo.last], [repo.last, late, late[:12]]):
+        reasons = _check_x(repo, commits)
+        _only(reasons, "d")
+        assert late[:12] in reasons[0] and "app.py" in reasons[0], reasons
+
+
+def test_without_an_exempt_rule_a_later_commit_refuses(repo: Repo) -> None:
+    """No rule exempts nothing; a raising rule refuses (never escapes); one exempt path does not
+    launder a code path in the same later commit."""
+    lc = _commit_file(repo, "CHANGELOG.md", "## [Unreleased]\n", "ledger")
+    _only(_check_x(repo, [repo.last, lc], exempt=None), "d")
+
+    def boom(p: str) -> bool:
+        raise RuntimeError(p)
+
+    reasons = _check_x(repo, [repo.last, lc], exempt=boom)
+    _only(reasons, "d")
+    assert "RuntimeError" in reasons[0], reasons
+    repo.write("## [Unreleased]\n- x\n", "CHANGELOG.md")
+    repo.write("x = 5\n", "app.py")
+    _git(repo.root, "add", "CHANGELOG.md", "app.py")
+    _git(repo.root, "commit", "-q", "-m", "mixed")
+    mixed = _git(repo.root, "rev-parse", "HEAD")
+    _only(_check_x(repo, [repo.last, lc, mixed]), "d")
+
+
+def _failing(tl, verb: str, mode: str):
+    """`_git` with one verb failing: no answer (a timeout or OSError) or git's own rc 128."""
+    real = tl._git
+
+    def flaky(root, *args):
+        if not (args and args[0] == verb):
+            return real(root, *args)
+        if mode == "none":
+            return None
+        return subprocess.CompletedProcess(["git", *args], 128, b"", b"fatal: probe")
+
+    return flaky
+
+
+@pytest.mark.parametrize("mode", ["none", "rc128"])
+@pytest.mark.parametrize(
+    ("verb", "says"),
+    [
+        ("merge-base", "cannot be checked"),
+        ("diff-tree", "cannot be read"),
+        ("rev-list", "cannot be read"),
+    ],
+)
+def test_a_failing_git_probe_refuses(
+    repo: Repo, monkeypatch, verb: str, says: str, mode: str
+) -> None:
+    """Every probe failing — no answer or a nonzero rc — refuses the later commit: fail closed,
+    never an exempt pass (review C-haiku-1/-2, C-sonnet 1, 3)."""
+    tl = _module()
+    lc = _commit_file(repo, "CHANGELOG.md", "## [Unreleased]\n", "ledger")
+    monkeypatch.setattr(tl, "_git", _failing(tl, verb, mode))
+    reasons = _check_x(repo, [repo.last, lc])
+    _only(reasons, "d")
+    assert says in reasons[0], reasons
+
+
+@pytest.mark.parametrize("mode", ["none", "rc128"])
+def test_a_failing_anchor_probe_refuses(wt: Repo, monkeypatch, mode: str) -> None:
+    """The working-tree anchor's ancestry probe fails closed too (review C-sonnet 2)."""
+    tip = _commit_all(wt.root, "the reviewed change")
+    lc = _commit_file(wt, "CHANGELOG.md", "## [Unreleased]\n", "ledger")
+    tl = _module()
+    monkeypatch.setattr(tl, "_git", _failing(tl, "merge-base", mode))
+    reasons = _check_x(wt, [tip, lc])
+    _only(reasons, "d")
+    assert "cannot be checked" in reasons[0], reasons
+
+
+def test_an_unresolvable_later_commit_refuses(repo: Repo) -> None:
+    """A listed value that names no commit refuses, beside a tip that resolves; an unresolvable
+    tip never matches an unresolvable listed value (review C-sonnet 3, 7)."""
+    for commits in ([repo.last, "0" * 40], [repo.last, "0" * 40, "0" * 40]):
+        reasons = _check_x(repo, commits)
+        _only(reasons, "d")
+        assert "does not resolve" in reasons[0], reasons
+    repo.write(repo.text().replace(f"range tip {repo.last}", "range tip ?", 1))
+    reasons = _check_x(repo, ["0" * 40])
+    _only(reasons, "d")
+    assert "range tip ?" in reasons[0], reasons
+
+
+def test_a_rename_onto_a_ledger_name_and_a_root_commit_refuse(repo: Repo) -> None:
+    """Both halves of a rename are read (`--no-renames`: code renamed onto an exempt name still
+    shows the code path), and a root commit is read against the empty tree (`--root`: without it
+    a root commit prints nothing and would pass) — review C-sonnet 4."""
+    _git(repo.root, "mv", "app.py", "CHANGELOG.md")
+    _git(repo.root, "commit", "-q", "-m", "rename code onto a ledger name")
+    moved = _git(repo.root, "rev-parse", "HEAD")
+    reasons = _check_x(repo, [repo.last, moved])
+    _only(reasons, "d")
+    assert "app.py" in reasons[0], reasons
+    root = _git(repo.root, "commit-tree", f"{repo.seed}^{{tree}}", "-m", "unrelated root")
+    reasons = _check_x(repo, [repo.last, root])
+    _only(reasons, "d")
+    assert "app.py" in reasons[0], reasons
+
+
+def test_a_later_merge_is_read_against_its_first_parent(repo: Repo) -> None:
+    """A merge after the tip that brings in a code path refuses; its paths come from the first
+    parent's diff (a merge read with no `-m` prints nothing and would pass vacuously)."""
+    _git(repo.root, "checkout", "-q", "-b", "side", repo.seed)
+    _commit_file(repo, "lib.py", "y = 1\n", "side work")
+    _git(repo.root, "checkout", "-q", "-")
+    _git(repo.root, "merge", "-q", "--no-ff", "-m", "merge side", "side")
+    merge = _git(repo.root, "rev-parse", "HEAD")
+    reasons = _check_x(repo, [repo.last, merge])
+    _only(reasons, "d")
+    assert "lib.py" in reasons[0] and "app.py" not in reasons[0], reasons
+
+
+def test_working_tree_form_is_order_independent(wt: Repo) -> None:
+    """The anchor is the listed commit containing every other, never the list's last element:
+    an unreviewed edit of the reviewed path refuses in both orders; sibling commits refuse."""
+    tip = _commit_all(wt.root, "the reviewed change")
+    (wt.root / "app.py").write_text("x = 9\n", encoding="utf-8")
+    late = _commit_all(wt.root, "unreviewed edit")
+    for commits in ([tip, late], [late, tip]):
+        _only(_check_x(wt, commits), "d")
+    sib = _git(wt.root, "commit-tree", f"{wt.seed}^{{tree}}", "-p", wt.seed, "-m", "sibling")
+    reasons = _check_x(wt, [tip, sib])
+    _only(reasons, "d")
+    assert "contains every other" in reasons[0], reasons

@@ -24,6 +24,35 @@ groups:
           description: "Container {{ $labels.name }} CPU usage above 80% for 5 minutes."
           value: "{{ $value }}"
 
+      # The cost a CPU cap imposes (D-1324 capped vps1; W-fc701b31): the share of CFS periods in
+      # which the container was throttled, sustained 15 minutes (first possible fire at 16m — a 5m
+      # rate needs two samples). The floor — more than 1 CFS period per second, i.e. runnable in at
+      # least 10% of the default 100 ms periods — keeps an idle container's handful of periods from
+      # making the ratio noise: on 7 days of vps1 data (2026-10-29) the rule fires 0 times with it
+      # and once without (watchdog-test, 0.12 periods/s). By design it does NOT reach a short burst
+      # or a low-duty worker (trytond-worker's 0.96 was a 5-minute peak below 1 period/s); a
+      # throttled-volume floor or stall seconds were measured and miss it too. One alert per
+      # container id (a recreated container briefly fires twice). Both the division and the `and`
+      # match on EVERY label: `and on(instance, name)` let an idle id borrow a busy sibling id's
+      # period rate under the same name, and an `on(instance, name)` division fails the whole
+      # evaluation for a recreated container's two ids (both executed under promtool); a label
+      # mismatch between the counters drops the series (cAdvisor emits one label set per cgroup).
+      # Warning routes to aro-wake only (`amtool config routes test`: aro-wake-routed), never a
+      # human page (core/55-observability.md:520). Fix a firing one by raising the container's cap
+      # in its compose and scripts/sysadmin/vps1_cpu_limits.py, not by loosening this rule.
+      - alert: ContainerCPUThrottled
+        expr: |
+          rate(container_cpu_cfs_throttled_periods_total{name!=""}[5m])
+          / rate(container_cpu_cfs_periods_total{name!=""}[5m]) > 0.25
+          and rate(container_cpu_cfs_periods_total{name!=""}[5m]) > 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Container {{ $labels.name }} CPU-throttled in {{ $value | humanizePercentage }} of periods"
+          description: "Container {{ $labels.name }} was throttled in more than 25% of its CFS periods for 15 minutes while running at least 1 period per second — its CPU cap is too low for its load."
+          value: "{{ $value }}"
+
       # Watches containers that have an explicit `mem_limit:` / `deploy.resources.limits.memory`.
       # The `> 0` guard on the denominator skips containers with no limit, where cAdvisor
       # reports `container_spec_memory_limit_bytes = 0` and the division yields `+Inf`,

@@ -14,6 +14,8 @@ import json
 import os
 import re
 import subprocess
+import sys
+import threading
 import time
 from pathlib import Path
 
@@ -31,11 +33,17 @@ IDLE_SCREEN = (
     "some output\n────────────\n❯\u00a0\n────────────\n  Opus · ctx 41%\n  ⏵⏵ auto mode on\n"
 )
 FAKE_TMUX = """#!/usr/bin/env python3
-import json, os, sys
+import json, os, re, sys
 st = json.load(open(os.environ["FAKE_TMUX_STATE"]))
 a = sys.argv[1:]
 if a[0] == "list-panes":
     print("\\n".join(st["panes"]))
+elif a[0] == "respawn-pane":
+    # W-e38f8ee7: logged; `on_respawn` plays what the respawned pane does (the old claude exits, the new one registers)
+    with open(os.environ["FAKE_TMUX_STATE"] + ".respawn", "a") as fh:
+        fh.write(json.dumps(a[1:]) + "\\n")
+    if st.get("on_respawn"):
+        exec(st["on_respawn"], {"a": a, "os": os, "json": json, "re": re})
 elif a[0] == "capture-pane":
     # the input line, as Claude Code renders a paste (W-b92aa5cf): `stream` shows the head first, `pre_placeholder`
     # shows the fresh box's hint for two captures first; each capture showing the full text counts toward the settle
@@ -167,6 +175,9 @@ def world(tmp_path, monkeypatch):
     monkeypatch.setattr(rs.hib, "worktree_state", lambda path: (False, "clean, pushed"))
     monkeypatch.setattr(rs.hib, "live_sessions", lambda home, proc, opt="/opt": [])
     monkeypatch.setattr(rs.time, "sleep", lambda s: None)
+    # W-e38f8ee7: a --move reaps the old claude by pid; never let a test signal a real process
+    signals: list[tuple[int, int]] = []
+    monkeypatch.setattr(rs, "_signal", lambda pid, sig: signals.append((pid, sig)))
     monkeypatch.setattr(
         rs, "IDLE_S", 0
     )  # the fixture's transcript was just written; the quiet test sets 30 itself
@@ -181,6 +192,7 @@ def world(tmp_path, monkeypatch):
         "req": tmp_path / "req",
         "log": tmp_path / "rotations.jsonl",
         "tmp": tmp_path,
+        "signals": signals,
     }
 
 
@@ -223,24 +235,24 @@ def test_resolve_pane_claude_and_session(world):
             json.dumps({"session_id": NEW, "name": "dev1", "pid": 9, "toplevel": "/opt/x", "at": 2})
             + "\n"
         )
-    with pytest.raises(rs.CheckFailedError, match="stale"):
+    with pytest.raises(rs.CheckFailedError, match="bound to another window"):
         rs.resolve("dev1", "/opt/x")
 
 
 @pytest.mark.parametrize(
-    "spoil, check",
+    "spoil, check, rc",  # W-05021a03: 75 = transient (clears by itself), 1 = permanent (an act first)
     [
-        ("fresh", "status"),
-        ("midturn", "idle"),
-        ("slash", "idle"),
-        ("record", "record"),
-        ("seat", "seat"),
-        ("worktree", "worktree"),
-        ("typed", "screen"),
-        ("dialog", "screen"),
+        ("fresh", "status", 75),
+        ("midturn", "idle", 75),
+        ("slash", "idle", 1),
+        ("record", "record", 75),
+        ("seat", "seat", 75),
+        ("worktree", "worktree", 1),
+        ("typed", "screen", 1),
+        ("dialog", "screen", 1),
     ],
 )
-def test_request_aborts_on_each_check_in_order(world, monkeypatch, spoil, check):
+def test_request_aborts_on_each_check_in_order(world, monkeypatch, capsys, spoil, check, rc):
     reg = dict(world["reg"])
     rows = world["transcript"].read_text()
     if spoil == "fresh":  # the transcript changed less than IDLE_S ago (it was just written)
@@ -257,8 +269,10 @@ def test_request_aborts_on_each_check_in_order(world, monkeypatch, spoil, check)
         }
         world["transcript"].write_text(rows + json.dumps(row) + "\n")
     elif spoil == "record":
-        rec = world["home"] / ".claude" / "state" / "command-runs" / f"{SID}.json"
-        rec.parent.mkdir(parents=True)
+        rec = (
+            rs.hib._runs_dir(world["home"]) / f"{SID}.json"
+        )  # $COMMAND_RUN_DIR first, as the reader
+        rec.parent.mkdir(parents=True, exist_ok=True)
         rec.write_text(json.dumps({"command": "fabrik-task", "state": "running"}))
     elif spoil == "seat":
         launch = {
@@ -276,9 +290,10 @@ def test_request_aborts_on_each_check_in_order(world, monkeypatch, spoil, check)
     elif spoil == "dialog":
         _set(world, screen="Allow?\n❯ 1. Yes\n  2. No\n")
     (world["config"] / "sessions" / "102.json").write_text(json.dumps(reg))
-    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    assert rs.request("dev1", "/opt/x", None, "manual") == rc
     assert not list(world["req"].glob("*.json"))
     assert _rows(world)[-1]["outcome"] == f"aborted:{check}", _rows(world)
+    assert ("(transient" if rc == rs.EXIT_RETRY else "(permanent") in capsys.readouterr().err
 
 
 def test_request_writes_data_only_and_one_at_a_time(world):
@@ -291,7 +306,8 @@ def test_request_writes_data_only_and_one_at_a_time(world):
     assert not any(
         "clear" in str(v) and "/" in str(v) for v in data.values() if isinstance(v, str)
     ), data  # no keys
-    assert rs.request("dev1", "/opt/x", "finish the parser", "compact") == 1  # one at a time
+    # one at a time; the pending abort is transient
+    assert rs.request("dev1", "/opt/x", "finish the parser", "compact") == 75
     assert _rows(world)[-1]["outcome"] == "aborted:pending"
     files[0].unlink()
     assert rs.request("dev1", "/opt/x", "finish the parser", "compact") == 0
@@ -1169,7 +1185,16 @@ def _clear_hook(world, monkeypatch, bind: bool):
     _set(world, on_send=hook)
 
 
-def test_wb72231b8_registry_is_repointed(world, monkeypatch, tmp_path):
+@pytest.fixture
+def free_lock(tmp_path, monkeypatch):
+    """T07: the registry tests below predate the agents lock and write registries outside any git repo — the lock is
+    resolved to a free scratch file, so they keep grading the re-point itself (the lock has its own rows, T07 below)."""
+    lock = tmp_path / "fabrik-agents.lock"
+    monkeypatch.setattr(rs, "_agents_lock_file", lambda registry: str(lock))
+    return lock
+
+
+def test_wb72231b8_registry_is_repointed(world, monkeypatch, tmp_path, free_lock):
     """W-b72231b8: the verb re-points the repo's session registry from the old session id to the new one itself —
     key order kept, every other entry untouched — so nobody re-points it by hand."""
     other, third = "33333333-3333-4333-8333-333333333333", "44444444-4444-4444-8444-444444444444"
@@ -1189,7 +1214,7 @@ def test_wb72231b8_registry_is_repointed(world, monkeypatch, tmp_path):
     assert regf.read_text().endswith("}\n") and not list(regf.parent.glob(".session-agents.*"))
 
 
-def test_wb72231b8_an_unsent_resume_still_repoints(world, monkeypatch, tmp_path):
+def test_wb72231b8_an_unsent_resume_still_repoints(world, monkeypatch, tmp_path, free_lock):
     """Critique r1: the re-point runs as soon as the new session is seen, before the resume prompt, so a resume that
     never submits still leaves the registry naming the session the pane now runs."""
     regf = tmp_path / "repo" / ".fabrik" / "session-agents.json"
@@ -1243,7 +1268,7 @@ def test_wb72231b8_a_damaged_identity_store_never_raises(world):
     assert rs._session_registry("/x", SID) == Path("/x/.fabrik/session-agents.json")
 
 
-def test_wb72231b8_registry_os_errors_are_a_recorded_state(tmp_path):
+def test_wb72231b8_registry_os_errors_are_a_recorded_state(tmp_path, free_lock):
     """Review r2: an OSError on the write (a read-only folder) is the `error:<name>` state, never a raise."""
     d = tmp_path / "ro"
     d.mkdir()
@@ -1257,7 +1282,7 @@ def test_wb72231b8_registry_os_errors_are_a_recorded_state(tmp_path):
     assert json.loads(regf.read_text()) == {SID: "dev1"}
 
 
-def test_wb72231b8_registry_over_the_readers_cap_is_refused(tmp_path, monkeypatch):
+def test_wb72231b8_registry_over_the_readers_cap_is_refused(tmp_path, monkeypatch, free_lock):
     """Review r1: the readers stop at REGISTRY_MAX bytes, so neither an input over it nor an output that indentation
     grows past it is written."""
     regf = tmp_path / "session-agents.json"
@@ -1291,7 +1316,7 @@ def test_wb72231b8_registry_over_the_readers_cap_is_refused(tmp_path, monkeypatc
         ),
     ],
 )
-def test_wb72231b8_registry_states_never_write_a_bad_file(tmp_path, content, state):
+def test_wb72231b8_registry_states_never_write_a_bad_file(tmp_path, content, state, free_lock):
     """W-b72231b8: every registry state other than a re-pointable entry is recorded and leaves the file
     byte-identical; nothing the writer emits is a shape agents_up.sh refuses."""
     regf = tmp_path / "session-agents.json"
@@ -1302,7 +1327,7 @@ def test_wb72231b8_registry_states_never_write_a_bad_file(tmp_path, content, sta
     assert (regf.read_bytes() if regf.exists() else None) == before
 
 
-def test_wb72231b8_registry_refuses_a_symlink_and_a_bad_new_id(tmp_path):
+def test_wb72231b8_registry_refuses_a_symlink_and_a_bad_new_id(tmp_path, free_lock):
     target = tmp_path / "real.json"
     target.write_text(json.dumps({SID: "dev1"}))
     link = tmp_path / "session-agents.json"
@@ -1318,7 +1343,7 @@ def test_wb72231b8_registry_refuses_a_symlink_and_a_bad_new_id(tmp_path):
 
 
 def test_wb72231b8_repoint_keeps_the_mode_drops_a_doubled_name_and_never_overwrites_a_hand_edit(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, free_lock
 ):
     regf = tmp_path / "session-agents.json"
     regf.write_text(json.dumps({SID: "dev1"}))
@@ -1340,6 +1365,227 @@ def test_wb72231b8_repoint_keeps_the_mode_drops_a_doubled_name_and_never_overwri
     monkeypatch.setattr(rs.os, "chmod", chmod_then_hand_edit)
     assert rs._repoint_registry(regf, SID, NEW, "dev1") == "refused:changed on disk"
     assert NEW not in json.loads(regf.read_text()) and not list(tmp_path.glob(".session-agents.*"))
+
+
+# ── T07: the re-point runs under the repo's agents lock (W-14219e6f point 3; plan-review A4, A5, A14; panel PF3) ──────
+
+_AS_SPEC = importlib.util.spec_from_file_location(
+    "_t07_agents_spawn", REPO / "scripts" / "sysadmin" / "agents_spawn.py"
+)
+AS = importlib.util.module_from_spec(_AS_SPEC)
+sys.modules["_t07_agents_spawn"] = (
+    AS  # its @dataclass classes resolve their module through sys.modules
+)
+_AS_SPEC.loader.exec_module(AS)
+OTHER = "33333333-3333-4333-8333-333333333333"
+
+
+def _git(*args: str) -> None:
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    subprocess.run(["git", *args], check=True, capture_output=True, env=env)
+
+
+def _git_repo(repo: Path, registry: dict | None) -> Path:
+    """A real `git init` repo (so `lock_path` resolves its git common dir) with `.fabrik/session-agents.json`."""
+    _git("init", "-q", str(repo))
+    (repo / ".fabrik").mkdir()
+    regf = repo / ".fabrik" / "session-agents.json"
+    if registry is not None:
+        regf.write_text(json.dumps(registry, indent=2) + "\n")
+    return regf
+
+
+def test_t07_a_rotation_waits_for_an_add_holding_the_lock_and_both_changes_hold(tmp_path):
+    """W-14219e6f point 3: an `add` holds the agents lock across its registry read and write; a rotation landing
+    inside it waits, so the file afterwards holds the added row AND the re-pointed one."""
+    repo = tmp_path / "repo"
+    regf = _git_repo(repo, {SID: "dev1"})
+    held = threading.Event()
+
+    def add() -> None:
+        with AS.agents_lock(str(repo)):
+            reg = json.loads(regf.read_text())
+            held.set()
+            time.sleep(0.6)  # the add's work between its read and its write
+            reg[OTHER] = "dev2"
+            regf.write_text(json.dumps(reg, indent=2) + "\n")
+
+    t = threading.Thread(target=add)
+    t.start()
+    assert held.wait(5)
+    started = time.monotonic()
+    out = rs._repoint_registry(regf, SID, NEW, "dev1")
+    waited = time.monotonic() - started
+    t.join(5)
+    assert out == "repointed"
+    assert json.loads(regf.read_text()) == {NEW: "dev1", OTHER: "dev2"}
+    assert waited >= 0.3, waited
+
+
+def test_t07_the_lock_precedes_the_first_lstat_and_read(tmp_path, monkeypatch):
+    """A4: a writer that takes the lock and rewrites the registry after the rotation's first read WOULD have happened
+    (the rotation already waiting) loses nothing — the rotation reads only once it holds the lock."""
+    repo = tmp_path / "repo"
+    regf = _git_repo(repo, {SID: "dev1"})
+    real_sleep = time.sleep
+    waiting = threading.Event()
+
+    def sleep(s: float) -> None:
+        if threading.current_thread() is not threading.main_thread():
+            waiting.set()
+        real_sleep(s)
+
+    monkeypatch.setattr(rs.time, "sleep", sleep)
+    out: list[str] = []
+    with AS.agents_lock(str(repo)):
+        t = threading.Thread(
+            target=lambda: out.append(rs._repoint_registry(regf, SID, NEW, "dev1"))
+        )
+        t.start()
+        assert waiting.wait(5), "the rotation never waited for the agents lock"
+        reg = json.loads(regf.read_text())
+        reg[OTHER] = "dev2"
+        regf.write_text(json.dumps(reg, indent=2) + "\n")
+    t.join(5)
+    assert out == ["repointed"]
+    assert json.loads(regf.read_text()) == {NEW: "dev1", OTHER: "dev2"}
+
+
+def test_t07_a_lock_held_past_the_bound_is_refused_busy(tmp_path, monkeypatch):
+    """A14: the wait is bounded by `_wait_s(AGENTS_LOCK_WAIT_S)`; never obtained, nothing is written."""
+    monkeypatch.setenv("ROTATE_WAIT_S", "1")
+    repo = tmp_path / "repo"
+    regf = _git_repo(repo, {SID: "dev1"})
+    before = regf.read_bytes()
+    with AS.agents_lock(str(repo)):
+        started = time.monotonic()
+        out = rs._repoint_registry(regf, SID, NEW, "dev1")
+        waited = time.monotonic() - started
+    assert out == "refused:agents lock busy"
+    assert regf.read_bytes() == before and not list(regf.parent.glob(".session-agents.*"))
+    assert 0.9 <= waited < 3, waited
+
+
+def _rotate_copy(tmp_path: Path, agents_spawn: str | None) -> object:
+    """rotate_session.py loaded from a directory of its own, beside the two scripts it loads at import and, when
+    given, an `agents_spawn.py` with that text."""
+    d = tmp_path / "copy"
+    d.mkdir()
+    for name in ("rotate_session.py", "hibernate.py", "transcript_size_check.py"):
+        (d / name).write_bytes((SCRIPT.parent / name).read_bytes())
+    if agents_spawn is not None:
+        (d / "agents_spawn.py").write_text(agents_spawn)
+    sp = importlib.util.spec_from_file_location("_t07_rotate_copy", d / "rotate_session.py")
+    mod = importlib.util.module_from_spec(sp)
+    sp.loader.exec_module(mod)
+    return mod
+
+
+def _boom(root: str) -> str:
+    raise RuntimeError("git failed")
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        "agents_spawn.py missing",
+        "agents_spawn.py fails to import",
+        "agents_spawn.py exits at import",
+        "agents_spawn.py has no lock_path",
+        "lock_path raises",
+        "not a git repository",
+        "the lock file cannot be opened",
+        "registry missing and not a git repository",
+    ],
+)
+def test_t07_an_unresolvable_lock_is_refused_unavailable(tmp_path, monkeypatch, shape):
+    """A5 (and pass 2, record-only): every way the lock cannot be had is the returned state `refused:agents lock
+    unavailable` — never an exception, never a write; the lock comes first, so a missing registry in a repo whose lock
+    cannot be resolved is not `absent`."""
+    mod = rs
+    regf = _git_repo(tmp_path / "repo", {SID: "dev1"})
+    if shape == "agents_spawn.py missing":
+        mod = _rotate_copy(tmp_path, None)
+    elif shape == "agents_spawn.py fails to import":
+        mod = _rotate_copy(tmp_path, "def lock_path(root:\n")
+    elif (
+        shape == "agents_spawn.py exits at import"
+    ):  # review pass 1, F1: SystemExit is no Exception
+        mod = _rotate_copy(tmp_path, "import sys\nsys.exit(3)\n")
+    elif shape == "agents_spawn.py has no lock_path":
+        mod = _rotate_copy(tmp_path, "X = 1\n")
+    elif shape == "lock_path raises":
+        monkeypatch.setattr(rs._agents_spawn(), "lock_path", _boom)
+    elif shape == "the lock file cannot be opened":
+        monkeypatch.setattr(
+            rs._agents_spawn(), "lock_path", lambda root: str(tmp_path / "no-such-dir" / "lock")
+        )
+    else:
+        plain = tmp_path / "plain" / ".fabrik"
+        plain.mkdir(parents=True)
+        regf = plain / "session-agents.json"
+        if shape == "not a git repository":
+            regf.write_text(json.dumps({SID: "dev1"}))
+    before = regf.read_bytes() if regf.exists() else None
+    assert mod._repoint_registry(regf, SID, NEW, "dev1") == "refused:agents lock unavailable"
+    assert (regf.read_bytes() if regf.exists() else None) == before
+    assert not list(regf.parent.glob(".session-agents.*"))
+
+
+def test_t07_pf3_a_busy_refusal_is_healed_by_the_next_add(tmp_path, monkeypatch):
+    """PF3 seam with T08b: a rotation refused `agents lock busy` leaves the row on the old id while the pane's claude
+    already runs the new session (its argv still names the old one — a /clear keeps the process); the next `add`'s
+    heal, under the same lock, re-points the row from the claude's live session record."""
+    monkeypatch.setenv("ROTATE_WAIT_S", "1")
+    repo = tmp_path / "repo"
+    regf = _git_repo(repo, {SID: "dev1", OTHER: "dev2"})
+    with AS.agents_lock(str(repo)):
+        assert rs._repoint_registry(regf, SID, NEW, "dev1") == "refused:agents lock busy"
+    assert json.loads(regf.read_text()) == {SID: "dev1", OTHER: "dev2"}
+    proc, home = tmp_path / "proc", tmp_path / "home"
+    for pid, kids, argv in ((500, "501 ", ["sh"]), (501, "", ["claude", "--resume", SID])):
+        (proc / str(pid) / "task" / str(pid)).mkdir(parents=True)
+        (proc / str(pid) / "task" / str(pid) / "children").write_text(kids)
+        (proc / str(pid) / "cmdline").write_bytes(b"\0".join(a.encode() for a in argv) + b"\0")
+    fields = ["S"] + ["1"] * 18 + ["777"] + ["0"] * 6
+    (proc / "501" / "stat").write_text(f"501 (claude) {' '.join(fields)}\n")
+    (home / ".claude" / "sessions").mkdir(parents=True)
+    (home / ".claude" / "sessions" / "501.json").write_text(
+        json.dumps({"pid": 501, "procStart": "777", "sessionId": NEW})
+    )
+    monkeypatch.setenv("FABRIK_PROC_ROOT", str(proc))
+    monkeypatch.setenv("HOME", str(home))
+    with AS.agents_lock(str(repo)):
+        AS.heal_registry(str(repo), [AS._Pane("@1", "agents", "%1", 500, "dev1")])
+    assert json.loads(regf.read_text()) == {OTHER: "dev2", NEW: "dev1"}
+
+
+def test_t07_rotate_and_agents_spawn_resolve_the_same_lock(tmp_path):
+    """Spec D2 seam: the lock rotate_session resolves from `<repo>/.fabrik/session-agents.json` is the very file
+    `agents_spawn.lock_path(<repo>)` names — for the main checkout and for a linked worktree (one common dir)."""
+    repo = tmp_path / "repo"
+    regf = _git_repo(repo, {SID: "dev1"})
+    _git(
+        "-C",
+        str(repo),
+        "-c",
+        "user.email=t@t",
+        "-c",
+        "user.name=t",
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "x",
+    )
+    wt = tmp_path / "wt"
+    _git("-C", str(repo), "worktree", "add", "-q", str(wt))
+    (wt / ".fabrik").mkdir()
+    want = AS.lock_path(str(repo))
+    assert want == str(Path(want))  # an absolute path inside the common dir
+    assert rs._agents_lock_file(regf) == want
+    assert rs._agents_lock_file(wt / ".fabrik" / "session-agents.json") == want
+    assert AS.lock_path(str(wt)) == want
 
 
 def _late_bind(world, monkeypatch, bind_after: float | None) -> dict:
@@ -1437,12 +1683,14 @@ def test_wb72231b8_the_worst_request_fits_the_units_timeout():
         + rs.DISCARD_WAIT_S
         + 2 * (rs.SEND_SETTLE_S + rs.SEND_SUBMIT_S)
         + rs.CLEAR_WAIT_S
+        + rs.AGENTS_LOCK_WAIT_S  # T07: the registry re-point's wait for the agents lock
         + rs.REBIND_GRACE_S
-        + 5  # the loops' sleeps after their last check: 5 x 0.5 + 2 x 1 = 4.5, rounded up
+        + 5  # the loops' sleeps after their last check: 5 x 0.5 + 2 x 1 + 0.2 = 4.7, rounded up
         + 17 * rs.TMUX_TIMEOUT_S
     )
     assert timeout >= rs.CLAIM_CUTOFF_S + rs.REQUEST_WORST_S + 60, (rs.REQUEST_WORST_S, timeout)
     assert rs.REBIND_GRACE_S >= 98
+    assert rs.AGENTS_LOCK_POLL_S <= 0.2  # the rounded-up 5 above holds it
     src = SCRIPT.read_text()
     assert not re.findall(r"_wait_s\(\s*[-+.\d]", src), (
         "a wait passed as a literal escapes REQUEST_WORST_S"
@@ -1450,3 +1698,595 @@ def test_wb72231b8_the_worst_request_fits_the_units_timeout():
     assert "for wait in (0.0, DISCARD_RECHECK_S):" in src
     tmux_src = inspect.getsource(rs._tmux)
     assert "timeout=TMUX_TIMEOUT_S" in tmux_src and not re.findall(r"timeout=\d", tmux_src)
+
+
+# ── W-05021a03: the exit names transient (75) vs permanent (1) ────────────────────────────────────────────────────
+
+_MIDTURN = {"type": "assistant", "timestamp": "2026-10-23T00:00:02Z"}
+
+
+def test_w05021a03_tmux_timeout_is_transient(world, monkeypatch, capsys):
+    def slow(*args):
+        raise subprocess.TimeoutExpired(["tmux", *args], rs.TMUX_TIMEOUT_S)
+
+    monkeypatch.setattr(rs, "_tmux", slow)
+    assert rs.request("dev1", "/opt/x", None, "manual") == rs.EXIT_RETRY == 75
+    assert _rows(world)[-1]["outcome"] == "aborted:tmux"
+    assert "(transient" in capsys.readouterr().err
+
+
+def test_w05021a03_worktree_probe_timeout_is_transient(world, monkeypatch):
+    monkeypatch.setattr(
+        rs.hib, "worktree_state", lambda path: (True, "not a git checkout (git timed out)")
+    )
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    assert _rows(world)[-1]["outcome"] == "aborted:worktree"
+
+
+def test_w05021a03_stale_unclaimed_request_is_permanent(world, capsys):
+    rs._ensure_req_dir()
+    left = world["req"] / "x--other.json"
+    left.write_text("{}")
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75  # a live request: wait for its row
+    # past one rotation's worst case but inside the unit's timeout: a slow unit, still claiming (review r1)
+    slow = time.time() - rs.REQUEST_WORST_S - rs.STALE_S - 60
+    os.utime(left, (slow, slow))
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    old = time.time() - rs.ORPHAN_S - 1
+    os.utime(left, (old, old))
+    capsys.readouterr()
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1  # nobody is claiming: the unit is down
+    last = _rows(world)[-1]
+    assert (
+        last["outcome"] == "aborted:pending" and "install_rotate_unit.sh --check" in last["reason"]
+    )
+    assert "(permanent" in capsys.readouterr().err
+
+
+def test_w05021a03_no_binding_yet_names_the_rebind(world, capsys):
+    world["identity"].write_text("")  # the fresh session after a /clear has not re-bound yet
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    last = _rows(world)[-1]
+    assert last["outcome"] == "aborted:resolve", last
+    assert "no identity binding yet" in last["reason"]
+    assert "whoami_agent.py --as dev1 --force" in last["reason"]
+    assert "(permanent" in capsys.readouterr().err
+    with world["identity"].open("a") as fh:  # bound, then the name moved to another window
+        for sid, at in ((SID, 1), (NEW, 2)):
+            row = {"session_id": sid, "name": "dev1", "toplevel": "/opt/x", "at": at}
+            fh.write(json.dumps(row) + "\n")
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    assert "another window" in _rows(world)[-1]["reason"]
+
+
+def test_w05021a03_midturn_dialog_is_permanent(world, monkeypatch, capsys):
+    world["transcript"].write_text(world["transcript"].read_text() + json.dumps(_MIDTURN) + "\n")
+    # a permission prompt in place of the input box
+    _set(world, screen="Allow?\n❯ 1. Yes\n  2. No\n")
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    last = _rows(world)[-1]
+    assert last["outcome"] == "aborted:screen" and "dialog" in last["reason"], last
+    assert "(permanent" in capsys.readouterr().err
+    _set(world, screen=IDLE_SCREEN)  # mid-turn with the input box drawn: still working
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    assert _rows(world)[-1]["outcome"] == "aborted:idle"
+    # tmux could not capture: unknown, so transient
+    monkeypatch.setattr(rs, "_box_now", lambda pane: (None, ""))
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    assert _rows(world)[-1]["outcome"] == "aborted:idle"
+
+
+def test_w05021a03_every_request_check_is_classified():
+    import ast
+
+    reach = {
+        "request",
+        "_ensure_req_dir",
+        "_pending",
+        "resolve",
+        "_registry",
+        "_transcript",
+        "run_checks",
+        "_idle_row_check",
+        "_bound",
+    }
+    tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
+    names = set()
+    for fn in (n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name in reach):
+        for call in ast.walk(fn):
+            if (
+                isinstance(call, ast.Call)
+                and getattr(call.func, "id", None) == "CheckFailedError"
+                and call.args
+                and isinstance(call.args[0], ast.Constant)
+            ):
+                names.add(call.args[0].value)
+    assert len(names) >= 12, names  # the walk found the raises at all
+    assert not rs.TRANSIENT_CHECKS & rs.PERMANENT_CHECKS
+    unclassified = names - rs.TRANSIENT_CHECKS - rs.PERMANENT_CHECKS
+    assert not unclassified, unclassified
+    # the fail direction: an unclassified check retries, never stops
+    assert rs.CheckFailedError("never-classified", "x").transient is True
+    assert rs.CheckFailedError("args", "x").transient is False
+    assert rs.CheckFailedError("args", "x", transient=True).transient is True
+
+
+def test_w05021a03_a_restarting_pane_is_transient(world, monkeypatch):
+    (
+        world["config"] / "sessions" / "102.json"
+    ).unlink()  # a claude seconds old has not written its record yet
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    assert "no registry record" in _rows(world)[-1]["reason"]
+    monkeypatch.setattr(rs, "_tmux", lambda *a: subprocess.CompletedProcess(a, 1, "", "no server"))
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    assert _rows(world)[-1]["reason"] == "tmux is not answering"
+
+
+def test_w05021a03_an_empty_capture_and_a_pending_rotation_say_wait(world, monkeypatch, capsys):
+    with monkeypatch.context() as m:  # at a turn end, but tmux returned nothing
+        m.setattr(rs, "_box_now", lambda pane: (None, ""))
+        assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    last = _rows(world)[-1]
+    assert (last["outcome"], last["reason"]) == (
+        "aborted:screen",
+        "no input box is drawn (a redraw, a scrolled or restarting pane)",
+    )
+    capsys.readouterr()
+    assert rs.request("dev1", "/opt/x", None, "manual") == 0
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    assert "once the pending rotation's row lands" in capsys.readouterr().err
+
+
+# W-05021a03 review r1: permanent only on POSITIVE evidence that an act is needed
+
+
+@pytest.mark.parametrize(
+    "screen, rc",
+    [
+        ("\n\n\n", 75),  # a blank frame
+        ("redrawing\n", 75),  # a frame with no box drawn
+        ("scrolled history\n❯ old prompt\nmore output\n", 75),  # copy-mode: a ❯ with no rules
+        (
+            "more output\n❯ 2. fix the parser\nthe answer\n",
+            75,
+        ),  # one numbered prompt left in scrollback
+        (
+            "Do you want to proceed?\n❯ 2. Yes, and don't ask again\n  3. No\n",
+            1,
+        ),  # cursor on option 2
+    ],
+)
+def test_w05021a03_only_a_dialog_or_typed_text_is_a_permanent_screen(world, screen, rc):
+    _set(world, screen=screen)
+    assert rs.request("dev1", "/opt/x", None, "manual") == rc
+    assert _rows(world)[-1]["outcome"] == "aborted:screen"
+
+
+def test_w05021a03_a_second_claude_or_a_missing_pane_is_transient(world, monkeypatch):
+    monkeypatch.setattr(rs, "_claude_under", lambda proc, root: [102, 140])  # a pool seat's claude
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    assert "2 claude processes" in _rows(world)[-1]["reason"]
+    monkeypatch.setattr(rs, "_claude_under", lambda proc, root: [])  # claude respawning
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    _set(world, panes=["%6\tx\tother\t200"])  # the pane itself is being recreated
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+
+
+@pytest.mark.parametrize(
+    "why, rc",
+    [
+        ("detached HEAD", 75),  # what a timed-out symbolic-ref reads as
+        ("no upstream and HEAD is on no remote branch", 75),
+        ("2 uncommitted change(s)", 1),
+        ("1 commit(s) not pushed", 1),
+    ],
+)
+def test_w05021a03_only_unfinished_work_is_a_permanent_worktree(world, monkeypatch, why, rc):
+    monkeypatch.setattr(rs.hib, "worktree_state", lambda path: (True, why))
+    assert rs.request("dev1", "/opt/x", None, "manual") == rc
+
+
+def test_w05021a03_an_unreadable_identity_store_is_transient(world, monkeypatch):
+    blocker = world["tmp"] / "a-file"
+    blocker.write_text("")
+    monkeypatch.setenv(
+        "AGENT_IDENTITY_FILE", str(blocker / "agent-identity.jsonl")
+    )  # NotADirectoryError
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    assert "identity store is unreadable" in _rows(world)[-1]["reason"]
+
+
+def test_w05021a03_the_transient_line_fits_the_cause(world, monkeypatch, capsys):
+    def slow(*args):
+        raise subprocess.TimeoutExpired(["tmux", *args], rs.TMUX_TIMEOUT_S)
+
+    with monkeypatch.context() as m:
+        m.setattr(rs, "_tmux", slow)
+        rs.request("dev1", "/opt/x", None, "manual")
+    assert "ask again in a few seconds" in capsys.readouterr().err
+    world["transcript"].write_text(world["transcript"].read_text() + json.dumps(_MIDTURN) + "\n")
+    rs.request("dev1", "/opt/x", None, "manual")
+    assert "once dev1 ends its turn" in capsys.readouterr().err
+
+
+def test_w05021a03_a_dangling_request_ages_out(world):
+    rs._ensure_req_dir()
+    (world["req"] / "x--gone.json").symlink_to(world["tmp"] / "nowhere")
+    old = time.time() - rs.ORPHAN_S - 1
+    os.utime(world["req"] / "x--gone.json", (old, old), follow_symlinks=False)
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    assert "unclaimed" in _rows(world)[-1]["reason"]
+
+
+def test_w05021a03_a_tmux_timeout_keeps_the_stale_input_fields(world, monkeypatch):
+    _stuck(world)
+
+    def slow(t, seen=""):
+        raise subprocess.TimeoutExpired(["tmux"], rs.TMUX_TIMEOUT_S)
+
+    monkeypatch.setattr(rs, "run_checks", slow)
+    assert rs.request("dev1", "/opt/x", None, "manual", True, "operator: clear") == 75
+    last = _rows(world)[-1]
+    assert last["outcome"] == "aborted:tmux"
+    assert (last["stale_text"], last["operator_ok"]) == ("go on", "operator: clear")
+
+
+def test_w05021a03_no_transcript_yet_waits_two_is_permanent(world):
+    world["transcript"].unlink()  # a session that has not written its first row
+    assert rs.request("dev1", "/opt/x", None, "manual") == 75
+    assert "0 transcripts" in _rows(world)[-1]["reason"]
+    twin = world["config"] / "projects" / "-opt-y" / f"{SID}.jsonl"
+    twin.parent.mkdir(parents=True)
+    twin.write_text("{}\n")
+    (world["config"] / "projects" / "-opt-x" / f"{SID}.jsonl").write_text("{}\n")
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    assert "2 transcripts" in _rows(world)[-1]["reason"]
+
+
+def test_w05021a03_a_typed_numbered_line_is_text_and_discardable(world, capsys):
+    _stuck(world, "1. fix the parser")  # the box holds a numbered line, which is no dialog
+    assert rs._dialog(_boxed("❯ 1. fix the parser")) is False
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    assert "text is in the input box" in _rows(world)[-1]["reason"]
+    assert "(permanent" in capsys.readouterr().err
+    # its remedy works
+    assert rs.request("dev1", "/opt/x", None, "manual", True, "operator: clear") == 0
+    # a typed list: two numbered rows, still the box's
+    listed = _boxed("❯ 1. fix the parser", "  2. then the tests")
+    assert rs._dialog(listed) is False
+    for f in world["req"].glob("*.json"):
+        f.unlink()
+    _set(world, screen=listed)
+    assert rs.request("dev1", "/opt/x", None, "manual") == 1
+    assert "text is in the input box" in _rows(world)[-1]["reason"]
+
+
+@pytest.mark.parametrize("kind", ["unreadable", "directory"])
+def test_w05021a03_a_store_stat_sees_but_cannot_read_is_transient(world, monkeypatch, kind):
+    store = world["tmp"] / "identity-store"
+    if kind == "directory":
+        store.mkdir()
+    else:
+        store.write_text("")
+        store.chmod(0)
+    monkeypatch.setenv("AGENT_IDENTITY_FILE", str(store))
+    try:
+        assert rs.request("dev1", "/opt/x", None, "manual") == 75
+        assert "identity store is unreadable" in _rows(world)[-1]["reason"]
+    finally:
+        store.chmod(0o700)
+
+
+# --- W-e38f8ee7: `rotate-session <name> --move` — a fresh session in the worktree the builder works in ---------------
+
+FAKE_AGENTS_UP = """#!/bin/sh
+printf '%s\\n' "ARGV $*" "PATH=$PATH" "AGENT_IDENTITY_FILE=${AGENT_IDENTITY_FILE:-unset}" >> "$FAKE_UP_LOG"
+[ -f "$FAKE_UP_LOG.refuse" ] && { echo "agents_up: the pane changed since the request" >&2; exit 2; }
+echo "claude -n $3 --session-id $4 'You were moved'"
+"""
+
+# the respawned pane: the old claude (pid 102) exits — its stat start changes — and the new one registers its session
+RESPAWN_OK = (
+    "sid = re.search(r'--session-id (\\S+)', a[-1]).group(1)\n"
+    "p = os.environ['ROTATE_PROC_ROOT'] + '/102/stat'\n"
+    "open(p, 'w').write('102 (claude) S 101' + ' 0' * 17 + ' 999\\n')\n"
+    "if os.environ.get('MOVE_REGISTERS', '1') == '1':\n"
+    "    reg = os.environ['MOVE_SESSIONS'] + '/103.json'\n"
+    "    json.dump({'pid': 103, 'sessionId': sid, 'procStart': '5', 'cwd': a[a.index('-c') + 1]}, open(reg, 'w'))\n"
+    "if os.environ.get('MOVE_BINDS', '1') == '1':\n"
+    "    open(os.environ['AGENT_IDENTITY_FILE'], 'a').write(json.dumps({'session_id': sid, 'name': 'dev1',"
+    " 'toplevel': '/opt/x', 'at': 9}) + '\\n')\n"
+)
+
+
+def _move_world(world, monkeypatch, *, registers: bool = True, binds: bool = True):
+    """A repo `x` whose builder dev1 works in its linked worktree `dev1-work` (the session record's cwd is inside it), a
+    fake agents_up.sh logging its argv and env, and a respawn that plays the new pane. Returns (repo, worktree)."""
+    repo = (world["tmp"] / "x").resolve()
+    wt = repo / ".claude" / "worktrees" / "dev1-work"
+    (wt / "src").mkdir(parents=True)
+    (wt / ".git").write_text("gitdir: x\n")
+    reg = dict(world["reg"], cwd=str(wt / "src"))
+    (world["config"] / "sessions" / "102.json").write_text(json.dumps(reg))
+    # the pane's own environment (the env-i set agents_up gave it), which the move carries over
+    (world["proc"] / "102" / "environ").write_bytes(
+        b"\0".join(
+            [
+                f"CLAUDE_CONFIG_DIR={world['config']}".encode(),
+                b"PATH=/pane/bin:/usr/bin",
+                b"AGENT_IDENTITY_FILE=/pane/identity.jsonl",
+            ]
+        )
+    )
+    up = world["tmp"] / "agents_up_fake"
+    up.write_text(FAKE_AGENTS_UP)
+    up.chmod(0o755)
+    for k, v in {
+        "FABRIK_AGENTS_UP": up,
+        "FAKE_UP_LOG": world["tmp"] / "up.log",
+        "MOVE_SESSIONS": world["config"] / "sessions",
+        "MOVE_REGISTERS": "1" if registers else "0",
+        "MOVE_BINDS": "1" if binds else "0",
+    }.items():
+        monkeypatch.setenv(k, str(v))
+    _set(world, on_respawn=RESPAWN_OK)
+    return repo, wt
+
+
+def _respawns(world):
+    p = Path(str(world["state"]) + ".respawn")
+    return [json.loads(ln) for ln in p.read_text().splitlines()] if p.exists() else []
+
+
+def _up_log(world):
+    p = world["tmp"] / "up.log"
+    return p.read_text().splitlines() if p.exists() else []
+
+
+def test_w_e38f8ee7_request_move_derives_validates_and_writes(world, monkeypatch, capsys):
+    """B1: `request --move` derives the folder from the session record's cwd (the linked worktree in place under the
+    repo's .claude/worktrees/ that holds it) and writes a data-only `mode: move` request carrying `into`. A cwd outside
+    such a worktree, a coordinator's tree, a no-op move (the session is already filed under the target, so the grid
+    already starts it there) and --move with --compact or --stale-input are permanent `args` refusals."""
+    repo, wt = _move_world(world, monkeypatch)
+    assert rs.main(["request", "dev1", "--move", "--repo", str(repo)]) == 0
+    data = json.loads((world["req"] / "x--dev1.json").read_text())
+    assert data["mode"] == "move" and data["into"] == "dev1-work" and data["focus"] == ""
+    assert set(data) == rs.FIELDS | {"into"}, data
+    (world["req"] / "x--dev1.json").unlink()
+
+    def refused(reason: str, **kw) -> None:
+        assert (
+            rs.request(
+                "dev1", str(repo), kw.get("compact"), "manual", move=True, **kw.get("more", {})
+            )
+            == 1
+        )
+        row = _rows(world)[-1]
+        assert row["outcome"] == "aborted:args" and reason in row["reason"], row
+        assert not list(world["req"].glob("*.json"))
+        assert "(permanent" in capsys.readouterr().err
+
+    refused("--move takes neither --compact nor --stale-input", compact="focus")
+    refused(
+        "--move takes neither --compact nor --stale-input",
+        more={"stale": True, "operator_ok": "ok"},
+    )
+    reg_file = world["config"] / "sessions" / "102.json"
+    for cwd, reason in (
+        (repo, "is not inside a linked worktree of"),
+        (world["tmp"] / "elsewhere", "is not inside a linked worktree of"),
+    ):
+        reg_file.write_text(json.dumps(dict(world["reg"], cwd=str(cwd))))
+        refused(reason)
+    plain = repo / ".claude" / "worktrees" / "plain"
+    plain.mkdir()
+    reg_file.write_text(json.dumps(dict(world["reg"], cwd=str(plain))))
+    refused("plain is not a linked git worktree in place")
+    coord = repo / ".claude" / "worktrees" / "coordinator"
+    coord.mkdir()
+    (coord / ".git").write_text("gitdir: x\n")
+    reg_file.write_text(json.dumps(dict(world["reg"], cwd=str(coord))))
+    refused("coordinator is the coordinator's tree")
+    # the session is already filed under the target (a hard link, as Claude Code files it): nothing to move
+    reg_file.write_text(json.dumps(dict(world["reg"], cwd=str(wt / "src"))))
+    proj = world["config"] / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(wt))
+    proj.mkdir(parents=True)
+    os.link(world["transcript"], proj / f"{SID}.jsonl")
+    refused("already starts in .claude/worktrees/dev1-work")
+
+
+def test_w_e38f8ee7_execute_move_respawns_and_records(world, monkeypatch):
+    """B2: execute on a move request fetches the pane command FIRST (agents_up.sh `--pane-cmd … --into … --from <old
+    sid> --replacing <old pid>`, run with the pane's own PATH and AGENT_IDENTITY_FILE), THEN runs the checks, then
+    `respawn-pane -k -t <pane> -c <worktree> <cmd>`, reaps the old claude, waits for the new session record and rows
+    `ok` on the new binding — no key typed, no predecessor (a new process), mode/into/old_exit on the row."""
+    repo, wt = _move_world(world, monkeypatch)
+    order: list[str] = []
+    real_checks = rs.run_checks
+    monkeypatch.setattr(
+        rs,
+        "run_checks",
+        lambda t, stale="": order.append(f"checks after {len(_up_log(world))}")
+        or real_checks(t, stale),
+    )
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    assert rs.execute() == 0
+    row = _rows(world)[-1]
+    new = row.get("new_sid")
+    assert row["outcome"] == "ok", row
+    assert row["mode"] == "move" and row["into"] == "dev1-work" and row["old_exit"] == "gone", row
+    assert re.fullmatch(
+        r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", new
+    ), row
+    assert new != SID and row["old_sid"] == SID and row["predecessor_row"] is False, row
+    log = _up_log(world)
+    assert (
+        log[0] == f"ARGV --pane-cmd {repo} dev1 {new} --into dev1-work --from {SID} --replacing 102"
+    ), log
+    assert (
+        log[1] == "PATH=/pane/bin:/usr/bin" and log[2] == "AGENT_IDENTITY_FILE=/pane/identity.jsonl"
+    ), log
+    assert order and all(o == "checks after 3" for o in order), (
+        order
+    )  # the pane command came before every check
+    (respawn,) = _respawns(world)
+    assert respawn == [
+        "-k",
+        "-t",
+        "%5",
+        "-c",
+        str(wt),
+        f"claude -n dev1 --session-id {new} 'You were moved'",
+    ]
+    assert _keys(world) == [] and world["signals"] == []
+
+
+def test_w_e38f8ee7_move_refusals_and_partials(world, monkeypatch):
+    """B3: a pane-command refusal rows `refused:launch` and a failed check `refused:<check>`, with no respawn; a
+    transcript written between the last two reads refuses `idle` with no respawn; a session that never registers rows
+    `partial:launch`, one that never re-binds `partial:rebind`; an old claude that outlives the respawn gets SIGTERM
+    then SIGKILL, by pid, and the row says `survived`."""
+    import signal
+
+    repo, wt = _move_world(world, monkeypatch)
+    log = Path(os.environ["FAKE_UP_LOG"])
+    log.with_name(log.name + ".refuse").write_text("")
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    rs.execute()
+    row = _rows(world)[-1]
+    assert row["outcome"] == "refused:launch" and "the pane changed" in row["reason"], row
+    log.with_name(log.name + ".refuse").unlink()
+    _set(world, screen=IDLE_SCREEN.replace("❯ ", "❯ typed"))
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    rs.execute()
+    assert _rows(world)[-1]["outcome"] == "refused:screen"
+    _set(world, screen=IDLE_SCREEN)
+
+    def bump(s: float) -> None:  # the session writes during the last re-read
+        if s == rs.DISCARD_RECHECK_S:
+            st = world["transcript"].stat()
+            os.utime(
+                world["transcript"], (st.st_atime, st.st_mtime - 5)
+            )  # a change, never into the future
+
+    monkeypatch.setattr(rs.time, "sleep", bump)
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    rs.execute()
+    assert _rows(world)[-1]["outcome"] == "refused:idle", _rows(world)[-1]
+    assert _respawns(world) == [] and world["signals"] == []
+    monkeypatch.setattr(rs.time, "sleep", lambda s: None)
+    # neither case binds the new id, so dev1 stays bound to SID for the next request
+    for registers, binds, outcome in (
+        (False, False, "partial:launch"),
+        (True, False, "partial:rebind"),
+    ):
+        monkeypatch.setenv("MOVE_REGISTERS", "1" if registers else "0")
+        monkeypatch.setenv("MOVE_BINDS", "1" if binds else "0")
+        (world["proc"] / "102" / "stat").write_text("102 (claude) S 101" + " 0" * 17 + " 777\n")
+        _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+        rs.execute()
+        assert _rows(world)[-1]["outcome"] == outcome, _rows(world)[-1]
+    # the old claude never exits: TERM, then KILL, to that pid; the row says so and the move still completes
+    monkeypatch.setenv("MOVE_REGISTERS", "1")
+    monkeypatch.setenv("MOVE_BINDS", "1")
+    (world["proc"] / "102" / "stat").write_text("102 (claude) S 101" + " 0" * 17 + " 777\n")
+    _set(world, on_respawn=RESPAWN_OK.replace("open(p, 'w')", "0 and open(p, 'w')"))
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    rs.execute()
+    row = _rows(world)[-1]
+    assert row["outcome"] == "ok" and row["old_exit"] == "survived", row
+    assert world["signals"] == [(102, signal.SIGTERM), (102, signal.SIGKILL)], world["signals"]
+
+
+def test_w_e38f8ee7_review_p1_the_last_look_and_a_zombie(world, monkeypatch):
+    """Review pass 1 (A-C1, A-C5, A-C2): a turn that STARTED during run_checks' own git calls wrote its first row before
+    the last re-read, whose two reads then agree — the re-read still refuses, because the turn end is no longer the
+    transcript's last real row; a box that holds text only at the last re-read refuses `screen`; neither respawns. An
+    old claude that is a zombie (exited, not yet reaped) is gone, never signalled."""
+    import signal
+
+    repo, wt = _move_world(world, monkeypatch)
+    real_state = rs.hib.worktree_state
+
+    def turn_starts(path):  # a prompt arrives while the worktree probe runs
+        with world["transcript"].open("a") as fh:
+            fh.write(json.dumps({"type": "user", "timestamp": "2026-10-23T00:00:05Z"}) + "\n")
+        return real_state(path)
+
+    monkeypatch.setattr(rs.hib, "worktree_state", turn_starts)
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    rs.execute()
+    row = _rows(world)[-1]
+    assert row["outcome"] == "refused:idle", row
+    monkeypatch.setattr(rs.hib, "worktree_state", lambda path: (False, "clean, pushed"))
+    world["transcript"].write_text(
+        "".join(
+            json.dumps(r) + "\n"
+            for r in (
+                {"type": "assistant", "timestamp": "2026-10-23T00:00:00Z"},
+                {"type": "system", "subtype": "turn_duration", "timestamp": "2026-10-23T00:00:01Z"},
+            )
+        )
+    )
+    real_box = rs._box_now
+    reads = {"n": 0}
+
+    def typed_late(
+        pane,
+    ):  # run_checks' read sees an empty box; the last re-read's second read sees text
+        reads["n"] += 1
+        box, screen = real_box(pane)
+        return ("half typed", screen) if reads["n"] >= 3 else (box, screen)
+
+    monkeypatch.setattr(rs, "_box_now", typed_late)
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    rs.execute()
+    assert _rows(world)[-1]["outcome"] == "refused:screen", _rows(world)[-1]
+    assert _respawns(world) == [] and world["signals"] == []
+    monkeypatch.setattr(rs, "_box_now", real_box)
+    # the old claude is a zombie after the respawn: gone at once, no signal sent
+    _set(
+        world,
+        on_respawn=RESPAWN_OK.replace("(claude) S 101", "(claude) Z 101").replace("' 999", "' 777"),
+    )
+    _write_request(world, repo=str(repo), mode="move", into="dev1-work")
+    rs.execute()
+    row = _rows(world)[-1]
+    assert row["outcome"] == "ok" and row["old_exit"] == "gone", row
+    assert world["signals"] == [], world["signals"]
+    assert signal.SIGKILL not in [s for _, s in world["signals"]]
+
+
+def test_w_e38f8ee7_validate_into_only_with_move(world):
+    """B4: `into` rides only on a move request, and a move request needs a valid one; anything else is
+    `refused:request`, so an older unit reading a move file refuses it too (fail closed)."""
+    for over in (
+        {"mode": "move"},
+        {"mode": "move", "into": "Bad/x"},
+        {"mode": "move", "into": 7},
+        {"mode": "clear", "into": "dev1-work"},
+        {"mode": "compact", "focus": "f", "into": "dev1-work"},
+    ):
+        _write_request(world, **over)
+        rs.execute()
+        assert _rows(world)[-1]["outcome"] == "refused:request", (over, _rows(world)[-1])
+
+
+def test_w_e38f8ee7_the_move_worst_case_fits():
+    """B5: the move path's own waits — the pane command, the last re-read, the respawn, the reap, the launch wait, the
+    agents lock and the re-bind grace, with its tmux calls and loop sleeps — stay under REQUEST_WORST_S, so the claim
+    cutoff the unit's timeout was derived from still holds."""
+    assert rs.MOVE_WORST_S == (
+        rs.PANE_CMD_TIMEOUT_S
+        + rs.DISCARD_RECHECK_S
+        + rs.OLD_EXIT_S
+        + rs.OLD_TERM_S
+        + rs.OLD_KILL_S
+        + rs.CLEAR_WAIT_S
+        + rs.AGENTS_LOCK_WAIT_S
+        + rs.REBIND_GRACE_S
+        + 5
+        + 8 * rs.TMUX_TIMEOUT_S
+    )
+    assert rs.MOVE_WORST_S <= rs.REQUEST_WORST_S

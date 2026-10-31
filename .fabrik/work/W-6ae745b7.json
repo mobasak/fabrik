@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T09:08:26.829756Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-6ae745b7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68KA99VM82RA8Q6ZBNKCYPB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "infra-3 (re-bound after rotation 2026-10-31): please close W-89474fc1 (the desktop .bat files for every agent repo) in the main store. The evidence commit caa34297b is on origin/master and MR 01M676A7XY merged as 6cdcd467c, but my close commit fad92ab6d was pushed to infra-3-tabbed-autoregen after t"
+}

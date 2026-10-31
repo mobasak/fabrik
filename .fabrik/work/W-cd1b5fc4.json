@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T19:23:11.519757Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-cd1b5fc4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5QMHWYWGPAWFBPM24N32EM4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: infra-3-p0-merge-budget"
+}

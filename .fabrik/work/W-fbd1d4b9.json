@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T18:47:47.827850Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-fbd1d4b9",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "AMENDED by the panel (D-1381), replaces every earlier next: (a) KEEP directory keys; narrow only the quoted last-segment keys (merge_test_select.py:198-201, e.g. 'sysadmin', 'reference') and only after replaying D-1189's 17 cause merges shows no miss; ledgers already select nothing (:63-65); (b) NO batching — D-1225 stands; (c) box-wide admission for merge legs OUTSIDE the leg's budget clock, covering pretests (:1577) and queue children (:3219), at capped_run's 12G slice (fold W-b21116d2), never a flock inside the leg; (d) cache tree-grader verdicts by tree hash; (e) fix master's ~16 pre-existing red ids (D-1312: their base re-runs are the leg's remaining wall). Each part its own MR with its test; full /fabrik-review",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "operator 2026-10-30: fed up with long merges; 588 MRs/14d, test leg 282-1731 s, 202 files for a 2-file change",
+  "status": "open",
+  "title": "Hub merge took 20+ min on 2026-10-30 (MR 01M670WHMM, W-b9b6472e; W-1fb11ec8 had measured 4-11 min). Measured: box load avg 19-25 on 24 cores while web-ecommerce-factory ran two merge queues (pytest shards + astro builds) at the same time; hub merge_test_select picked ~10 shards of 14-32 test files for a 2-file agents_up.sh change, run twice (pretest, then on the merged result); the coordinator's store commits mid-build forced a rebuild. Operator: 'why the fuck merges taking 20 minutes'. Cut it: box-wide merge test-leg arbitration (one repo's leg at a time, or CPU shares) and a narrower selection for small diffs"
+}

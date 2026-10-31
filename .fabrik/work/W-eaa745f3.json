@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-24T15:08:53.505766Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "4483812da5bd8d3c6e3e5a0ba4b403da838df586",
+  "id": "W-eaa745f3",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-2",
+  "priority": 0,
+  "score_reason": "URGENT: operator ruling relayed by wef-coordinator, blocks the ocoron.com build; owner kaizen (wording) is paused, so the active builder infra-2 takes it (D-983)",
+  "status": "done",
+  "tags": [
+    "mail-01m5q737wz1yfffkhrrr4x4t5ry"
+  ],
+  "title": "URGENT mail 01M5Q737WZ (web-ecommerce-factory, operator ruling 2026-10-24): Ocoron fonts = Arya 700 headings + IBM Plex Sans 400/600 text in .windsurf/rules/core/ocoron-design-system.md (+ mirror ocoron-mobile-design-system.md, Tojlo inheritance answer); blocks ocoron.com build W-edad403e; reply landed/deferred/refuted with the sync commit"
+}

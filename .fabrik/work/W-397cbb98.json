@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T07:24:25.795816Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-397cbb98",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5X8W0M1PW7RSXJ19M25GQQ4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "kaizen",
+  "priority": 2,
+  "status": "done",
+  "title": "W-128df814 (D-1268) makes four command texts stale once merged — SCRATCH is now the worktree's own; \"fix, THEN dispatch\""
+}

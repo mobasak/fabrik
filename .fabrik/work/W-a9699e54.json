@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-26T16:12:48.412974Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-a9699e54",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5WFQQS9GN7F8GSB9T12C81V",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: please relay to the seo repo (/opt/seo): ONE metered DataForSEO run for kalitepusulasi.com's Google Ads launch (operator asked for it ASAP). Endpoint keywords_data/google_ads/keywords_for_keywords/live, location_code 2792 (Türkiye), language_code \"tr\", 2 tasks (max 20 seeds each), run once:"
+}

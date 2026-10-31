@@ -56,6 +56,7 @@ from typing import Any
 from fabrik.drivers.backrest import register_postgres_plan, unregister_postgres_plan
 from fabrik.drivers.ssh import scp_to_vps, ssh
 from fabrik.locks_local import file_lock
+from fabrik.spec_loader import POSTGRES_IDENT_RE
 
 logger = logging.getLogger(__name__)
 
@@ -78,15 +79,8 @@ Lives on the VPS at the same path as other registry-style configs
 ``pg_database`` table to surface drift (registry says X exists but DB
 doesn't, or vice-versa). T4-01 G-J4."""
 
-_IDENT_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,62}$")
-"""PostgreSQL identifier validation.
-
-Matches the conservative subset of the SQL standard: leading letter or
-underscore, followed by up to 62 letters / digits / underscores. This is
-deliberately stricter than Postgres's own rules (which allow quoted
-identifiers with arbitrary content) — we never want the driver to need
-to emit a quoted identifier that a shell might unquote.
-"""
+_IDENT_RE = POSTGRES_IDENT_RE
+"""PostgreSQL identifier validation — one rule with ``Depends.postgres`` (W-ff313a14)."""
 
 PASSWORD_ALPHABET = string.ascii_letters + string.digits
 """Alphabet for generated passwords. 62 characters = ~5.95 bits/char."""
@@ -1039,6 +1033,31 @@ def _payments_ingest_policy_block(table: str, role: str, *, write: bool) -> str:
     )
 
 
+def _payments_ingest_signature_guard(role: str) -> str:
+    """RAISE when ``payments_grant_ingest`` exists, but not as the signature the hub calls.
+
+    The legacy block reads an unresolved exact signature as a pre-migration install, so a
+    changed signature (an added parameter, a DEFAULT included) would run its DROP+CREATE and
+    re-widen the role (W-d8505af5). The name is matched in EVERY schema, not only the session's
+    search_path: a function of that name off the path is fabrik-lib's migration installed
+    elsewhere, never a pre-migration install, so the guard errs to a failed step over a
+    re-widened role. Placed before the legacy blocks, so ``ON_ERROR_STOP`` stops the batch
+    ahead of every lane grant. ``role`` is ``_validate_identifier``-gated; names are constants.
+    """
+    return (
+        "DO $$ BEGIN\n"  # nosec B608 — role is _validate_identifier-gated; function name is a constant
+        "  IF EXISTS (SELECT 1 FROM pg_catalog.pg_proc p\n"
+        "              WHERE p.proname = 'payments_grant_ingest')\n"
+        f"     AND to_regprocedure('{_PAYMENTS_GRANT_INGEST_FN}') IS NULL THEN\n"
+        f"    RAISE EXCEPTION 'payments_grant_ingest for {role}: a function of that name "
+        f"exists, but {_PAYMENTS_GRANT_INGEST_FN}, the signature the hub calls, does not "
+        "resolve on the search_path; fabrik-lib changed it or installed it in another "
+        "schema, so the hub constant or the search_path must follow';\n"
+        "  END IF;\n"
+        "END $$;"
+    )
+
+
 def _payments_grant_ingest_block(role: str) -> str:
     """Delegate to fabrik-lib's ``payments_grant_ingest`` when the install carries it.
 
@@ -1263,6 +1282,7 @@ def grant_payments_role(
         f'GRANT USAGE ON SCHEMA public TO "{role}";',
     ]
     if lane == "ingest":
+        parts.append(_payments_ingest_signature_guard(role))
         for t in _PAYMENTS_INGEST_READ_TABLES:
             parts.append(_payments_ingest_policy_block(t, role, write=False))
         parts.append(_payments_ingest_policy_block(_PAYMENTS_INGEST_WRITE_TABLE, role, write=True))

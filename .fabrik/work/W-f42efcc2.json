@@ -1,0 +1,25 @@
+{
+  "blocked_by": [
+    "W-5bfeb31e"
+  ],
+  "created": "2026-10-29T15:03:11.801563Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f42efcc2",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "HIGH: master red (mypy) on a file every gate run uses; effort low: one-line fix",
+  "status": "open",
+  "title": "MASTER RED (mypy): scripts/final_gate.py:3407 'Item \"TextIO\" of \"TextIO | Any\" has no attribute \"reconfigure\" [union-attr]' — identical on master (infra-2 + infra 2026-10-29); one-line type narrowing, right-now fix + /fabrik-review-scoped"
+}

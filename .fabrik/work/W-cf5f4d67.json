@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T18:53:12.819610Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-cf5f4d67",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M6714WYPPF4MWJES2CJ77VE0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "kaizen idle: parked under P0-only, no item held, rotation due"
+}

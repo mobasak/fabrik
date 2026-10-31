@@ -706,3 +706,148 @@ def test_sibling_commits_outside_owned_paths_are_scoped_out(tmp_path: Path) -> N
     assert rc == 0, out
     # The sibling's test file must NOT satisfy accompaniment for THIS plan's source change:
     assert "WARNING" in out and "ZERO test changes" in out, out
+
+
+# --- W-9fcb6ce4: glob `owned_paths` entries own what they match --------------------------------
+# Before, `_owned` compared entries as literal prefixes, so `src/**` owned nothing: the WARN for an
+# untested `src/` change never fired and a test under `tests/**` was never counted. Each test below
+# is red on the literal reader unless its comment says the arm guards a direction instead.
+
+
+def _set_owned(repo: Path, owned: object) -> None:
+    lock = repo / ".fabrik/plan-locks/p.json"
+    d = json.loads(lock.read_text())
+    d["owned_paths"] = owned
+    lock.write_text(json.dumps(d))
+
+
+def _commit(repo: Path, files: dict[str, str], msg: str) -> None:
+    for rel, text in files.items():
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text(text)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", msg)
+
+
+_TEST_BODY = "def test_a():\n    assert True\n"
+
+
+def _warns(out: str) -> bool:
+    return "WARNING" in out and "ZERO test changes" in out
+
+
+def test_glob_owned_entry_scopes_source_and_warns(tmp_path: Path) -> None:
+    repo, _ = _repo(tmp_path)
+    _set_owned(repo, ["src/**"])
+    _commit(repo, {"src/app.py": "A = 2\n"}, "behavior under a globbed owned dir, no tests")
+    rc, out = _run(repo)
+    assert rc == 0 and _warns(out), out
+
+
+def test_glob_owned_test_entry_counts_accompaniment(tmp_path: Path) -> None:
+    repo, _ = _repo(tmp_path)
+    _set_owned(repo, ["src/", "tests/**"])
+    _commit(
+        repo,
+        {"src/app.py": "A = 2\n", "tests/test_app.py": _TEST_BODY},
+        "behavior + a test under tests/**",
+    )
+    rc, out = _run(repo)
+    assert rc == 0 and "WARNING" not in out, out
+
+
+def test_single_star_owned_entry_stays_in_its_segment(tmp_path: Path) -> None:
+    for idx, test_entry in enumerate(("tests/test_app_*.py", "tests/*")):
+        # A matching test in the entry's own directory counts (red on the literal reader)…
+        same = tmp_path / f"same{idx}"
+        same.mkdir()
+        repo, _ = _repo(same)
+        _set_owned(repo, ["src/", test_entry])
+        _commit(
+            repo,
+            {"src/app.py": "A = 2\n", "tests/test_app_x.py": _TEST_BODY},
+            "behavior + matching test",
+        )
+        rc, out = _run(repo)
+        assert rc == 0 and "WARNING" not in out, (test_entry, out)
+        # …one a directory deeper does not, since `*` never crosses `/` (this arm guards the direction).
+        deep = tmp_path / f"deep{idx}"
+        deep.mkdir()
+        repo, _ = _repo(deep)
+        _set_owned(repo, ["src/", test_entry])
+        _commit(
+            repo,
+            {"src/app.py": "A = 2\n", "tests/sub/test_app_x.py": _TEST_BODY},
+            "behavior + deeper test",
+        )
+        rc, out = _run(repo)
+        assert rc == 0 and _warns(out), (test_entry, out)
+
+
+def test_bare_double_star_beside_another_entry_owns_everything(tmp_path: Path) -> None:
+    # `_norm_path` eats an all-star entry (`**` → empty, `**/**` → `/`), so the literal reader
+    # dropped it and the lock narrowed to `lib/`.
+    for idx, entry in enumerate(("**", "**/**")):
+        parent = tmp_path / f"case{idx}"
+        parent.mkdir()
+        repo, _ = _repo(parent)
+        _set_owned(repo, [entry, "lib/"])
+        _commit(repo, {"src/app.py": "A = 2\n"}, "behavior outside lib/, no tests")
+        rc, out = _run(repo)
+        assert rc == 0 and _warns(out), (entry, out)
+
+
+def test_glob_owned_entry_is_case_folded(tmp_path: Path) -> None:
+    repo, _ = _repo(tmp_path)
+    _set_owned(repo, ["Src/**"])
+    _commit(repo, {"src/app.py": "A = 2\n"}, "behavior under a re-cased glob, no tests")
+    rc, out = _run(repo)
+    assert rc == 0 and _warns(out), out
+
+
+def test_leading_double_star_entry_owns_any_depth(tmp_path: Path) -> None:
+    repo, _ = _repo(tmp_path)
+    _set_owned(repo, ["**/app.py"])
+    _commit(repo, {"src/deep/app.py": "A = 2\n"}, "behavior in a nested app.py, no tests")
+    rc, out = _run(repo)
+    assert rc == 0 and _warns(out), out
+
+
+def test_glob_entries_are_read_as_discovery_reads_them(tmp_path: Path) -> None:
+    # Each glob keeps every wildcard it spells: `_norm_path`'s emphasis strip ate stars (`**/deep/**`
+    # → `/deep/`, `**/*` → `*/`, `*/**` → `/*`, `*/*` → `/`, a backticked or `./` `**` → empty), so
+    # each beside `lib/` narrowed the lock and the untested `src/` change was silent; `?` owned
+    # nothing on the literal prefix compare. Every arm is red on that literal reader (f6969d61e).
+    # The debris arms (`src//**`, `src/**:12`) are red on a bare `_norm_glob` read, which keeps them
+    # verbatim. `*/*` spells exactly two segments, so its arm ships a two-segment file.
+    deep = "src/deep/app.py"
+    shapes = (
+        ("**/deep/**", deep),
+        ("**/*", deep),
+        ("*/**", deep),
+        ("*/*", "src/app.py"),
+        ("`**`", deep),
+        ("./**", deep),
+        ('"**"', deep),
+        ("src/deep/?pp.py", deep),
+        ("src//**", deep),
+        ("src/**:12", deep),
+    )
+    for idx, (entry, changed) in enumerate(shapes):
+        parent = tmp_path / f"case{idx}"
+        parent.mkdir()
+        repo, _ = _repo(parent)
+        _set_owned(repo, [entry, "lib/"])
+        _commit(repo, {changed: "A = 2\n"}, f"behavior, no tests, owned={entry}")
+        rc, out = _run(repo)
+        assert rc == 0 and _warns(out), (entry, out)
+
+
+def test_two_segment_glob_does_not_own_a_deeper_path(tmp_path: Path) -> None:
+    # `*/*` is exactly two segments: an untested three-segment change is outside the lock, so the
+    # window is silent. Red if `*/*` ever over-owns again (the deleted all-star rule read it as `**`).
+    repo, _ = _repo(tmp_path)
+    _set_owned(repo, ["*/*"])
+    _commit(repo, {"src/deep/app.py": "A = 2\n"}, "behavior three segments deep, no tests")
+    rc, out = _run(repo)
+    assert rc == 0 and "WARNING" not in out, out

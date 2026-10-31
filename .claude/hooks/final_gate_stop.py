@@ -1266,6 +1266,56 @@ def _stamp_tier(stamp: Path) -> str:
     return tier if tier in _STAMP_TIERS else _STAMP_TIER_WALLED
 
 
+def _stamp_is_hibernate(stamp: Path) -> bool:
+    """The hibernate tier's stamp (W-6e656dac, Interface S): line 2 is `hibernate`. COPIED from
+    `quota_stop.py` (this hook imports no sibling); `_stamp_tier` folds it into `walled`."""
+    try:
+        if not stamp.is_file():
+            return False
+        with stamp.open("r", encoding="utf-8", errors="replace", newline="") as fh:
+            lines = fh.read().split("\n")
+    except OSError:
+        return False
+    return len(lines) > 1 and lines[1].strip() == "hibernate"
+
+
+def _pause_marked() -> bool:
+    """True exactly when `hibernate.py paused` would exit 0 — COPIED from `quota_stop.py`
+    `_pause_marked` (Interface M: `$ROTATE_STATE_DIR/hibernate.json`, else the PASSWD home's
+    `.claude/state/hibernate.json`); every other shape, and any error, is unmarked (fail open)."""
+    try:
+        import pwd
+
+        raw = os.environ.get("ROTATE_STATE_DIR")
+        p = (
+            Path(raw) / "hibernate.json"
+            if raw
+            else Path(pwd.getpwuid(os.getuid()).pw_dir) / ".claude" / "state" / "hibernate.json"
+        )
+        if not p.is_file():
+            return False
+        m = json.loads(p.read_text(encoding="utf-8"))
+        if not isinstance(m, dict):
+            return False
+
+        def _fin(v: object) -> float | None:
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                return None
+            f = float(v)
+            return f if math.isfinite(f) else None
+
+        at = _fin(m.get("paused_at"))
+        if at is None:
+            return False
+        for key in ("lifted_at", "deadline_at"):
+            if m.get(key) is not None and _fin(m[key]) is None:
+                return False
+        lifted = _fin(m.get("lifted_at"))
+        return lifted is None or lifted < at
+    except Exception:
+        return False
+
+
 _URGENT_PREFIX = "FLEET QUOTA AT THE URGENT TIER — checkpoint, then end the turn: "
 
 
@@ -1350,6 +1400,27 @@ def _lane_continues(sid: str | None, cwd: str) -> bool:
         spec.loader.exec_module(mod)
         exempt, _why = mod.lane_exempt(sid, mod._lane_project_dir(cwd))
         return exempt is True
+    except Exception:
+        return False
+
+
+def _api_key_continues(stamp: Path) -> bool:
+    """W-effb7141: True when quota_stop.py does not hold this session at this stamp because it runs
+    on an Anthropic API key (`api_key_exempt` — a quota tier only, never the battery hold). Loaded
+    from quota_stop.py beside this hook by file path, like `_lane_continues`; any load or call
+    error is False, which keeps the wall's yield — today's behaviour. The env is read first, so a
+    plan session never pays the module load."""
+    if not (os.environ.get("ANTHROPIC_API_KEY") or "").strip():
+        return False
+    try:
+        spec = importlib.util.spec_from_file_location(
+            "_quota_stop_api_key", Path(__file__).resolve().parent / "quota_stop.py"
+        )
+        if spec is None or spec.loader is None:
+            return False
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.api_key_exempt(stamp) is True
     except Exception:
         return False
 
@@ -2579,8 +2650,93 @@ _COORD_AMBER_BANDS = frozenset({"AMBER"})
 _COORD_AMBER_STARTS = frozenset(
     {"claim", "owned", "feedback", "self", "doorbell", "merge", "triage"}
 )
-_COORD_STOOD_DOWN: list[str] = []  # the start actions this Stop skipped at AMBER, for the event
+_COORD_STOOD_DOWN: list[str] = []  # the start actions this Stop skipped, for the event
+_COORD_STOOD_WHY: list[str] = []  # which hold skipped them: "amber" and/or "rotation"
 _POSTURE_HOOK = Path("/opt/fabrik/scripts/sysadmin/quota_posture_hook.py")
+
+# W-0fae19b7 — the ROTATION BOUNDARY (D-1119, D-1123): "once a rotation is due, start no new item", and
+# the ROTATE-DUE line tells the session to end `NEXT: none — terminal; awaiting the rotation`. When a due
+# stamp AND that footer hold, the start actions of the session's OWN stand down as at AMBER (skipped,
+# attempts untouched); continue, release, commit-items and triage still block, and so does mail for a
+# coordinator or a repo's one agent (routing is its standing job) — a builder's mail claim would open a
+# new item, so `mail` is held for role=worker. The stamps are the writer's output
+# (scripts/sysadmin/transcript_size_check.py, a hub script this fleet-synced hook cannot import in a
+# project), so its constants are COPIED and pinned by test_rotation_constants_match_the_stamp_writer.
+# Fail direction: every doubt (no stamp, garbage, a sid the writer's grammar refuses, an OSError, no
+# footer) reads as NOT at the boundary, so the cause blocks as before. Two seams: a ctx stamp moves only
+# on a prompt, so after a mid-turn auto-compaction it reads due until the next prompt; the MB stamp is
+# never lowered, so a compacted session past the MB line stays due (compaction does not shrink the file).
+# COBRA (D-253): the cheapest way past is to type the footer without a due stamp — the stamp is the
+# counter; with both, the session has asked for its rotation, and every stand-down is a kaizen
+# `stood_down` event carrying `reason`.
+_ROTATION_HOLDS = frozenset({"claim", "owned", "feedback", "self", "doorbell", "merge"})
+_CTX_ROTATE_PCT = 40  # the writer's CTX_ROTATE_PCT: 85-100 are COMPACT-DUE steps past it, due too
+_ROTATE_SID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")  # the writer's `_SID_RE`
+_ROTATE_STAMP_DEFAULT = "~/.claude/state/rotate-advised"
+# The whole NEXT value, strict: `none`, an optional `terminal`, separators, then `awaiting the rotation`
+# and nothing after it but markup or a full stop — a negation (`not awaiting …`), a qualifier (`… of keys`)
+# or a successor named on the line reads as not at the boundary (review pass 1, A-1/B-2).
+_ROTATION_FOOTER_RE = re.compile(
+    r"[ \t*_`]*(?:none[ \t*_`]*[—–:;,.-]*[ \t]*(?:terminal[ \t*_`]*[—–:;,.-]*[ \t]*)?)?"
+    r"awaiting[ \t]+the[ \t]+rotation[ \t*_`.]*\r?$",
+    re.I | re.M,
+)
+
+
+def _rotation_due(sid: str) -> bool:
+    """True when the context stamp holds a step >= 40 or the MB stamp a step > 0 for this RAW sid."""
+    if not isinstance(sid, str) or not _ROTATE_SID_RE.fullmatch(sid):
+        return False
+    base = Path(os.environ.get("ROTATE_STAMP_DIR", _ROTATE_STAMP_DEFAULT)).expanduser()
+    for path, floor in ((base / ".ctx" / sid, _CTX_ROTATE_PCT), (base / sid, 1)):
+        try:
+            if not path.is_file():  # a FIFO or a directory never blocks the Stop
+                continue
+            raw = path.read_text(encoding="utf-8").strip()
+        except (OSError, ValueError):
+            continue
+        # the writer writes `f"{step}\n"`: ASCII digits only, so `+40`, `4_0` or other digits read not due,
+        # and at most 9 of them, so `int()` never meets Python's 4300-digit limit (review pass 2, A2-1)
+        if raw.isascii() and raw.isdigit() and len(raw) <= 9 and int(raw) >= floor:
+            return True
+    return False
+
+
+def _awaits_rotation(text: str | None) -> bool:
+    """True when the message's LAST `NEXT:` line outside a quoting fence awaits the rotation."""
+    if not text:
+        return False
+    fences = _fence_spans(text)
+    footer = _own_footer_fence(text, fences)
+    # stricter than `_own_footer_fence` alone: a trailing fence is this session's footer only with `NEXT:`
+    # and a second footer key, so a lone fenced example never reads as the boundary (review pass 1, A-3)
+    if footer and len({k.group(1) for k in _FOOTER_KEY_RE.finditer(text, *footer)}) < 2:
+        footer = None
+    fences = [f for f in fences if f != footer]
+    last = None
+    for m in _NEXT_LINE_RE.finditer(text):
+        if any(lo <= m.start() < hi for lo, hi in fences):
+            continue
+        # a `>` blockquote quotes a footer and a 4-space or tab indent is a markdown code block: neither
+        # makes one (review pass 1, A-2, B-4)
+        lead = text[m.start() : m.end()].split("NEXT", 1)[0]
+        quoted = ">" in lead or "\t" in lead or lead.startswith("    ")
+        last = None if quoted else m
+    return last is not None and _ROTATION_FOOTER_RE.match(text, last.end()) is not None
+
+
+def _coord_held(action: object, band: str | None, holds: frozenset[str]) -> bool:
+    """True (and recorded for the event) when AMBER or the rotation boundary holds this action."""
+    why = []
+    if band in _COORD_AMBER_BANDS and action in _COORD_AMBER_STARTS:
+        why.append("amber")
+    if action in holds:
+        why.append("rotation")
+    if not why:
+        return False
+    _COORD_STOOD_DOWN.append(str(action))
+    _COORD_STOOD_WHY.extend(why)
+    return True
 
 
 def _coord_state_path(sid: str) -> Path:
@@ -2609,7 +2765,7 @@ _COORD_LAST_ACTION: list[str] = []  # the action the last block named, for the k
 
 
 def _coordinator_ladder(
-    cands: list, state_path: Path, band: str | None = None
+    cands: list, state_path: Path, band: str | None = None, *, holds: frozenset[str] = frozenset()
 ) -> tuple[str, str] | None:
     """AUTONOMY (work.py `_autonomy_candidates`): act on the FIRST candidate whose subject has not
     used up its CAP blocks this session. One map entry per subject (`{fp: attempts}`, at most
@@ -2624,9 +2780,8 @@ def _coordinator_ladder(
     for cand in cands:
         if not isinstance(cand, dict) or not cand.get("fp"):
             continue
-        if band in _COORD_AMBER_BANDS and cand.get("action") in _COORD_AMBER_STARTS:
-            _COORD_STOOD_DOWN.append(str(cand.get("action")))  # skipped, its attempts untouched
-            continue
+        if _coord_held(cand.get("action"), band, holds):
+            continue  # skipped, its attempts untouched
         fp = str(cand["fp"])
         try:
             att = int(seen.get(fp, 0))
@@ -2652,9 +2807,14 @@ def _coordinator_ladder(
 
 
 def _coordinator_duty(
-    root: Path, sid: str, cwd: Path, band: str | None = None
+    root: Path, sid: str, cwd: Path, band: str | None = None, *, rotation: bool = False
 ) -> tuple[str, str] | None:
-    """(block reason, warn line) when this Stop must be refused or warned through; None to pass."""
+    """(block reason, warn line) when this Stop must be refused or warned through; None to pass.
+
+    `rotation`: the Stop is at a rotation boundary, so `_ROTATION_HOLDS` (plus `mail` for a worker)
+    stand down as AMBER's starts do."""
+    _COORD_STOOD_DOWN.clear()  # this call's stand-downs only, whoever the caller (review pass 1, A-6)
+    _COORD_STOOD_WHY.clear()
     argv = _COORD_ARGV or (sys.executable, str(root / "scripts" / "work.py"))
     if _COORD_ARGV is None and not Path(argv[1]).is_file():
         return None
@@ -2668,14 +2828,16 @@ def _coordinator_duty(
     except ValueError:
         result = None
     state_path = _coord_state_path(sid)
+    holds: frozenset[str] = frozenset()
+    if rotation and isinstance(result, dict):
+        holds = _ROTATION_HOLDS | ({"mail"} if result.get("role") == "worker" else frozenset())
     if isinstance(result, dict) and isinstance(result.get("candidates"), list):
-        return _coordinator_ladder(result["candidates"], state_path, band)
+        return _coordinator_ladder(result["candidates"], state_path, band, holds=holds)
     if not isinstance(result, dict) or not result.get("action"):
         state_path.unlink(missing_ok=True)
         return None
-    if band in _COORD_AMBER_BANDS and result.get("action") in _COORD_AMBER_STARTS:
-        _COORD_STOOD_DOWN.append(str(result.get("action")))  # its attempt state is left as it is
-        return None
+    if _coord_held(result.get("action"), band, holds):
+        return None  # its attempt state is left as it is
     fp = str(result.get("fp") or result.get("action"))
     try:
         state = json.loads(state_path.read_text(encoding="utf-8"))
@@ -3027,11 +3189,92 @@ _MENU_RE = re.compile(
     r"|^[ \t]*(?:1[.)]|\(1\))[ \t]+\S[^\n]*\n(?:[^\n]*\n){0,6}?[ \t]*(?:2[.)]|\(2\))[ \t]+\S",
     re.M,
 )
-_MENU_CUE_RE = re.compile(
-    r"\?|\b(?:pick|choose|prefer(?:ence|red)?|your (?:call|pick|choice)|up to you|you decide)\b"
-    r"|\bwhich (?:one|option|way|path|of (?:the|these))\b",
-    re.I,
+_MENU_WORD_CUE = (
+    r"\b(?:pick|choose|prefer(?:ence|red)?|your (?:call|pick|choice)|up to you|you decide)\b"
+    r"|\bwhich (?:one|option|way|path|of (?:the|these))\b"
 )
+_MENU_CUE_RE = re.compile(r"\?|" + _MENU_WORD_CUE, re.I)
+_MENU_WORD_CUE_RE = re.compile(_MENU_WORD_CUE, re.I)
+# A NUMBERED list's `?` is read AFTER the list (mail 01M5B996F3): a question inside a findings item
+# is that item's own text — a findings list reported while seats are out read as a menu. Only the
+# `?` is bounded; a choice WORD (pick, prefer, your call …) still hands off from anywhere, so a menu
+# whose choice sits inside an item still fires. The list keeps its in-item `?` when most items ask
+# or its LAST item asks ("3. Something else — what would you rather?"). Lettered `(a)` lists keep
+# the old rule. COBRA (D-253): a menu now passes D2 only as a numbered list whose questions sit in a
+# minority of its items, never the last, with no choice word anywhere — pinned as a known miss.
+# Not this rule's class (measured, left as before): a step list's imperative choice word ("and
+# choose **Ubuntu**", "pick it up") still fires — the choice-word vocabulary's own precision.
+_LIST_ITEM_RE = re.compile(r"[ \t]*(?:\d{1,3}[.)]|\(\d{1,3}\))[ \t]+\S")
+_LIST_BULLET_RE = re.compile(r"[ \t]*[-*•][ \t]+\S")
+_ITEM_ASKS_RE = re.compile(r"\?(?![\w=&])")  # a question's `?`, never a URL query's
+
+
+def _list_end(text: str, ls: int) -> int:
+    """Offset just past the numbered list whose first item line starts at ``ls``: its item lines,
+    their indented continuation and bullet lines, and a blank line only when another item follows."""
+    pos, n, first = ls, len(text), True
+    while pos < n:
+        le = text.find("\n", pos)
+        le = n if le == -1 else le
+        line = text[pos:le]
+        if (
+            first
+            or _LIST_ITEM_RE.match(line)
+            or _LIST_BULLET_RE.match(line)
+            or (line[:1] in (" ", "\t") and line.strip())
+        ):
+            first = False
+            pos = le + 1
+            continue
+        if not line.strip():
+            nxt = text.find("\n", le + 1)
+            if _LIST_ITEM_RE.match(text[le + 1 : n if nxt == -1 else nxt]):
+                pos = le + 1
+                continue
+        break
+    return min(pos, n)
+
+
+def _menu_question_start(text: str, start: int) -> int:
+    """Where D2 starts reading a `?` for the menu matched at ``start``: past the list when it is a
+    NUMBERED list (a `_MENU_RE` list match spans two item lines at least) whose questions sit in a
+    minority of its items and not in the last one, else ``start``."""
+    ls = text.rfind("\n", 0, start) + 1
+    if not _LIST_ITEM_RE.match(text, ls) or text[ls:start].strip():
+        return start
+    end = _list_end(text, ls)
+    items: list[str] = []
+    for line in text[ls:end].splitlines():
+        if _LIST_ITEM_RE.match(line):
+            items.append(line)
+        elif items:
+            items[-1] += "\n" + line
+    asks = [bool(_ITEM_ASKS_RE.search(it)) for it in items]
+    if sum(asks) * 2 > len(asks) or asks[-1]:
+        return start
+    return end
+
+
+_CODE_SPAN_RE = re.compile(r"`[^`\n]*`")
+
+
+def _menu_cue(text: str, start: int) -> bool:
+    """D2's hand-off cue for the menu matched at ``start``: a choice word anywhere from the match
+    on, or a `?` from where `_menu_question_start` says a question still hands off. Inline code
+    INSIDE a numbered list's items is blanked first (same length, so offsets hold): a `pick` or
+    `??` in an item names code, not a choice — while a reply syntax written after the list
+    (``Reply `pick 1` or `pick 2`.``) still hands off."""
+    ls = text.rfind("\n", 0, start) + 1
+    prose = text
+    if _LIST_ITEM_RE.match(text, ls) and not text[ls:start].strip():
+        end = _list_end(text, ls)
+        prose = text[:ls] + _CODE_SPAN_RE.sub(lambda c: " " * len(c.group(0)), text[ls:end]) + text[end:]
+    qs = _menu_question_start(prose, start)
+    if qs == start:
+        return _MENU_CUE_RE.search(prose, start) is not None
+    return _MENU_WORD_CUE_RE.search(prose, start) is not None or "?" in prose[qs:]
+
+
 # D3 — an offer to act (subsumes `_PERMISSION_RE`, which blocked ONLY mid-run; spec § C1 "the one
 # behaviour that moves").
 _OFFER_RE = re.compile(
@@ -3630,7 +3873,7 @@ def _deferral_match(text: str) -> tuple[str, str] | None:
         # The hand-off cue: a question or choice word from the menu on, or the menu sitting on
         # the NEXT: line itself — alternatives offered as the successor ARE the operator's pick.
         on_next = _NEXT_LINE_RE.match(text, text.rfind("\n", 0, m.start()) + 1) is not None
-        if on_next or _MENU_CUE_RE.search(text, m.start()):
+        if on_next or _menu_cue(text, m.start()):
             return "D2", " ".join(m.group(0).split())[:200]
     for m in _OFFER_RE.finditer(text, tail):
         if _defer_skip(text, m.start(), fences):
@@ -3980,7 +4223,8 @@ def _panel_problem(
     a brief written before a prompt queued mid-turn is not judged after that prompt cleared the verdicts.
     The position, not the uuid alone, names the row — Claude Code re-writes a queued row with the same uuid
     (across compactions, sometimes twice in a turn), and a copy before the brief must reset while the copy
-    right after it is the cut."""
+    right after it is the cut. Only a uuid's FIRST copy resets the stores: a re-written copy is not a new word,
+    so verdicts returned after the first copy survive it (W-573ddaa1)."""
     if re.match(r"\s*unavailable\b", panel, re.I):
         if (_coord_band(transcript_path) or "") in _COORD_QUIET_BANDS:
             return ""
@@ -4033,6 +4277,10 @@ def _panel_problem(
     seats: dict[str, str] = {}
     by_seat: dict[str, list[str]] = {}
     snapshots: list[tuple] = []  # the stores just before EACH queued row carrying `stop_at`'s uuid
+    # queued-row uuids already seen anywhere in the file: a copy Claude Code re-writes with the same uuid (across
+    # compactions, later in the turn or in a later turn — 0 of 4,537 real copies carried different text) is not a
+    # new word, so it never clears the verdicts after the first copy (W-573ddaa1)
+    queued_seen: set[str] = set()
     try:
         with open(transcript_path, encoding="utf-8", errors="replace") as fh:
             for line in fh:
@@ -4042,6 +4290,8 @@ def _panel_problem(
                     entry = json.loads(line)
                 except Exception:
                     continue
+                if not isinstance(entry, dict):
+                    continue  # a JSON row that is not an object (a bare list) is no entry
                 if entry.get("type") == "attachment":
                     # Claude Code 2.1.304 delivers a seat's hand-back as an `attachment` row
                     # (`attachment.type` queued_command) whose `attachment.origin` names the seat —
@@ -4061,6 +4311,11 @@ def _panel_problem(
                                     {k: list(v) for k, v in by_seat_lines.items()},
                                 )
                             )
+                        uuid = entry.get("uuid")
+                        if isinstance(uuid, str):
+                            if uuid in queued_seen:
+                                continue
+                            queued_seen.add(uuid)
                         # an operator prompt queued while the agent was busy is the operator's
                         # word too: verdicts before it never back a panel written after it
                         said, seats, by_seat = {"opus": [], "fable": []}, {}, {}
@@ -4156,17 +4411,24 @@ def _panel_problem(
     return ""
 
 
-def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
-    """ "" unless a `PANEL APPROVED (<path>)` brief written THIS turn (any assistant text since the
-    operator's last row, the final message included) lacks a transcript-verified
-    `Panel: … → both-approve` line after its heading (D-613) — the brief is often followed by
-    the next design stage, so the final message alone would miss it. Each text is judged against the
-    verdicts held before the first operator prompt QUEUED after it (W-6424f2e8): a queued prompt lands
-    mid-turn, so a brief written before it is this turn's and its seats' verdicts still back it."""
-    texts: list[tuple[str, tuple[str, int] | None]] = []
-    # the nearest queued operator prompt AFTER the text being read, as (uuid, its copy count from the
-    # end) — the positional handle `_panel_problem(stop_at=)` resolves, immune to re-written copies
-    cut: tuple[str, int] | None = None
+_Cut = tuple[str, int] | None
+
+
+def _turn_texts(
+    transcript_path: str,
+) -> tuple[list[tuple[str, _Cut]], tuple[tuple[str, ...], _Cut] | None]:
+    """This turn's assistant text blocks in the 2 MB tail (newest entry first, an entry's blocks in order), each
+    with the nearest operator prompt QUEUED after it as (uuid, its copy count from the end) — the positional handle
+    `_panel_problem(stop_at=)` resolves, immune to re-written copies — plus the newest TEXT, the one the hook's final
+    message can be (`_final_cut`): (its spellings, the newest text-bearing entry's cut). The spellings are that
+    entry's last non-empty block, the entry's blocks joined, and the whole message's — Claude Code writes one
+    message's blocks as several entries sharing `message.id`, and the payload's message may be any of them."""
+    texts: list[tuple[str, _Cut]] = []
+    newest: tuple[tuple[str, ...], _Cut] | None = None
+    newest_id: object = None
+    message_blocks: list[str] = []  # the newest message's text blocks, in order
+    spans_entries = False  # the newest message's text sits in more than one entry
+    cut: _Cut = None
     copies: dict[str, int] = {}
     for line in reversed(_tail_lines(transcript_path) or []):
         if '"type"' not in line:
@@ -4177,6 +4439,14 @@ def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
             continue
         if not isinstance(entry, dict):
             continue
+        msg = entry.get("message")
+        if newest is not None and not (
+            entry.get("type") == "assistant"
+            and isinstance(msg, dict)
+            and isinstance(msg.get("id"), str)
+            and msg.get("id") == newest_id
+        ):
+            newest_id = None  # any other row ends the newest message: it never spans a queued prompt
         if entry.get("type") == "user":
             if _operator_text(entry):
                 break
@@ -4188,19 +4458,50 @@ def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
                 copies[entry["uuid"]] = copies.get(entry["uuid"], 0) + 1
                 cut = (entry["uuid"], copies[entry["uuid"]])
             continue
-        content = (entry.get("message") or {}).get("content")
+        content = msg.get("content") if isinstance(msg, dict) else None
         if entry.get("type") == "assistant" and isinstance(content, list):
-            texts.extend(
-                (str(b.get("text") or ""), cut)
+            blocks = [
+                str(b.get("text") or "")
                 for b in content
                 if isinstance(b, dict) and b.get("type") == "text"
-            )
+            ]
+            texts.extend((t, cut) for t in blocks)
+            mid = msg.get("id") if isinstance(msg, dict) else None
+            if newest is None and "\n".join(blocks).strip():
+                last = next(t for t in reversed(blocks) if t.strip())
+                newest, newest_id, message_blocks = ((last, "\n".join(blocks)), cut), mid, blocks
+            elif newest is not None and isinstance(mid, str) and mid == newest_id:
+                # an earlier entry of the newest message: its blocks join the message's spelling
+                message_blocks = blocks + message_blocks
+                spans_entries = True
+    if newest is not None and spans_entries:
+        newest = ((*newest[0], "\n".join(message_blocks)), newest[1])
+    return texts, newest
+
+
+def _final_cut(newest: tuple[tuple[str, ...], _Cut] | None, final_text: str) -> _Cut:
+    """The hook passes the turn's last assistant text: when it IS the newest walked text — the newest entry's last
+    block, its blocks joined, or the whole newest message's, whitespace-folded (`_norm_ws`, so a join by blank lines
+    or an empty block still matches) — it keeps that entry's cut-off; otherwise a brief or block before a trailing
+    queued prompt is judged with none (W-6424f2e8 Fable critique). Equality, never containment: when the final entry
+    is not flushed yet, an earlier short block the final text contains ("Noted.") would lend a cut from before a
+    queued prompt (W-573ddaa1, both critiques). No match keeps no cut — fail-closed."""
+    want = _norm_ws(final_text)
+    if newest is None or not want or not any(_norm_ws(s) == want for s in newest[0]):
+        return None
+    return newest[1]
+
+
+def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
+    """ "" unless a `PANEL APPROVED (<path>)` brief written THIS turn (any assistant text since the
+    operator's last row, the final message included) lacks a transcript-verified
+    `Panel: … → both-approve` line after its heading (D-613) — the brief is often followed by
+    the next design stage, so the final message alone would miss it. Each text is judged against the
+    verdicts held before the first operator prompt QUEUED after it (W-6424f2e8): a queued prompt lands
+    mid-turn, so a brief written before it is this turn's and its seats' verdicts still back it."""
+    texts, newest = _turn_texts(transcript_path)
     if final_text:
-        # the hook passes the turn's last assistant text: when it is a walked text, it keeps that text's
-        # cut-off (otherwise a brief before a trailing queued prompt is judged with none — Fable critique)
-        # final_text joins the last entry's text blocks; walked texts are newest-first, one per block
-        own = next((c for t, c in texts if t.strip() and t.strip() in final_text), None)
-        texts.insert(0, (final_text, own))
+        texts.insert(0, (final_text, _final_cut(newest, final_text)))
     for text, text_cut in texts:
         fences = _fence_spans(text)
         heads = [
@@ -4223,6 +4524,12 @@ def _panel_brief_problem(transcript_path: str, final_text: str) -> str:
             if problem:
                 return problem
     return ""
+
+
+def _block_cut(transcript_path: str, text: str) -> tuple[str, int] | None:
+    """The DECISION block's own cut-off: the nearest operator prompt queued after the walked text it is, so a
+    block written before a prompt queued mid-turn reads the verdicts held up to that prompt (W-573ddaa1)."""
+    return _final_cut(_turn_texts(transcript_path)[1], text) if transcript_path else None
 
 
 def parse_decision_block(text: str, *, run_live: bool, transcript_path: str) -> tuple[bool, str]:
@@ -4273,6 +4580,7 @@ def parse_decision_block(text: str, *, run_live: bool, transcript_path: str) -> 
                 transcript_path,
                 ground="a design-approval gate (D-613: only a split panel reaches the operator)",
                 outcomes=("split",),
+                stop_at=_block_cut(transcript_path, text),
             )
             if problem:
                 return False, problem
@@ -4299,7 +4607,9 @@ def parse_decision_block(text: str, *, run_live: bool, transcript_path: str) -> 
                 "(before its searched: clause)"
             )
         if _PANEL_MODE:
-            problem = _panel_problem(fields.get("Panel", ""), transcript_path)
+            problem = _panel_problem(
+                fields.get("Panel", ""), transcript_path, stop_at=_block_cut(transcript_path, text)
+            )
             if problem:
                 return False, problem
         return True, "underivable"
@@ -4906,13 +5216,19 @@ def main(argv: list[str]) -> int:
                 _stale = 900.0
             if not math.isfinite(_stale):
                 _stale = 900.0
-            if (
-                (_state / "fleet-exhausted").exists()
-                and _tick.exists()
-                # the SAME expression shape as quota_stop.py (`age > stale` = off): under a NaN
-                # bound both sides read the hold as in force — `<=` disagreed exactly there and
-                # produced the held-and-blocked deadlock A-F1 exists to end (review P1-6)
-                and _hold_in_force(time.time() - _tick.stat().st_mtime, _stale)
+            # the hibernate tier (W-6e656dac, spec L2) with the pause unlifted holds on a stale or
+            # missing tick log too — quota_stop.py refuses its fail-open for it, so this side yields
+            # as under any hold (the minutes after a wake, before the first tick, stay held)
+            _hib = _stamp_is_hibernate(_state / "fleet-exhausted") and _pause_marked()
+            if (_state / "fleet-exhausted").exists() and (
+                _hib
+                or (
+                    _tick.exists()
+                    # the SAME expression shape as quota_stop.py (`age > stale` = off): under a
+                    # NaN bound both sides read the hold as in force — `<=` disagreed exactly there
+                    # and produced the held-and-blocked deadlock A-F1 exists to end (review P1-6)
+                    and _hold_in_force(time.time() - _tick.stat().st_mtime, _stale)
+                )
             ):
                 # D-306's two tiers. Only `walled` denies the tools that clear the causes below, so
                 # only a stamp that PLAINLY says `urgent-90` stops this yield — any doubt, an
@@ -4927,6 +5243,10 @@ def main(argv: list[str]) -> int:
                 # merge owner, or the owner of an open P0) is not parked, so it takes the NORMAL
                 # path below — gate and causes as outside the tier — never the wall's yield
                 lane_free = urgent and _lane_continues(sid, str(root))
+                # W-effb7141: an API-key session is not held by either quota tier, so it takes the
+                # NORMAL path too — its causes stay armed while it keeps editing (battery holds)
+                if not lane_free and _api_key_continues(_state / "fleet-exhausted"):
+                    lane_free = True
                 if lane_free:
                     urgent = False
                 if not urgent and not lane_free:
@@ -4945,7 +5265,12 @@ def main(argv: list[str]) -> int:
                             json.dumps(
                                 {
                                     "decision": "block",
-                                    "reason": "FLEET QUOTA AT THE WALL — before you stop: "
+                                    "reason": (
+                                        "HIBERNATE HOLD — the box is about to hibernate; before "
+                                        "you stop: "
+                                        if _hib
+                                        else "FLEET QUOTA AT THE WALL — before you stop: "
+                                    )
                                     + _warm
                                     + ". Then end the turn.",
                                 }
@@ -5288,11 +5613,13 @@ def main(argv: list[str]) -> int:
                 if not run_active and not decision_ground and not _blocked_header(lam or ""):
                     band = _coord_band(transcript_p) or ""
                     if band not in _COORD_QUIET_BANDS:
-                        _COORD_STOOD_DOWN.clear()
-                        duty = _coordinator_duty(root, sid, Path(data.get("cwd") or root), band)
+                        rotation = _awaits_rotation(lam) and _rotation_due(sid)
+                        duty = _coordinator_duty(
+                            root, sid, Path(data.get("cwd") or root), band, rotation=rotation
+                        )
                         if duty is None and _COORD_STOOD_DOWN:
                             # only when the cause neither blocked nor warned: one event per Stop,
-                            # naming every start action it stood down
+                            # naming every start action it stood down and which hold did it
                             _kaizen(
                                 "stop_block",
                                 ev_sid,
@@ -5300,6 +5627,9 @@ def main(argv: list[str]) -> int:
                                 outcome="stood_down",
                                 band=band,
                                 action=",".join(dict.fromkeys(_COORD_STOOD_DOWN)),
+                                reason="+".join(
+                                    w for w in ("amber", "rotation") if w in _COORD_STOOD_WHY
+                                ),
                             )
                         if duty and duty[0]:
                             _kaizen(

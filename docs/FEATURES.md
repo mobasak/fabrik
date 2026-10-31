@@ -1,6 +1,20 @@
 # Fabrik — Features
 
-**Last Updated:** 2026-10-17
+**Last Updated:** 2026-10-29
+
+## Dynamic builders — a coordinator spawns and retires its own builders (✅ Built, 2026-10-29; live proof at merge)
+
+Plan `docs/development/plans/2026-10-28-plan-1-dynamic-builders/` (spec `docs/superpowers/specs/2026-10-28-dynamic-builders-design.md`, W-b9ad80ae; whole-plan review `docs/development/reviews/2026-10-28-plan-1-dynamic-builders-review.md`). Box-local; the full behaviour is in `docs/reference/repo-coordinator-rollout.md` § Launching a repo's builders. The plan reaches `EXECUTED` when the coordinator's post-merge live proof passes.
+
+| Feature | Description | Endpoint / Module |
+|---|---|---|
+| Spawn | `add <repo> <name>` makes the builder's worktree from the base branch, binds a fresh session id, assigns `--item`, and places one pane in the repo's grid — under the repo's agents lock, every refusal recorded. | `agents_up.sh add` · `scripts/sysadmin/agents_spawn.py` |
+| Retire | `remove <repo> <name>` refuses while anything could be lost (a running run, a dirty or unpushed branch, an ignored file outside the let-go list, a held resume seed), then kills the pane, removes the worktree and its merged branch, and drops the registry rows. | `agents_up.sh remove` · `agents_spawn.py` |
+| Spawned binding | `whoami_agent.py --spawned` binds a NEW session id only for a caller holding the repo's agents lock. | `scripts/whoami_agent.py` |
+| Placement | Four panes per window; overflow goes to `agents-<k>` windows reached through grouped sessions `<S>+<k>`, so each Windows Terminal tab shows one window. | `scripts/sysadmin/agents_up.sh` |
+| Builder charter | A `<role>-<suffix>` name with no charter of its own gets the generic `builder.md`, which sends every question to the coordinator. | `.claude/hooks/agent_role.py` · `docs/reference/agents/builder.md` |
+| Launcher | `All Agents (tabbed).bat` is regenerated on the remembered desktop by every `add` and `remove`, with a tab per repo and per extra window. | `scripts/sysadmin/agents_bat.py --tabbed` |
+| Rotation | A rotation re-points the builder's registry row to its new session under the same lock. | `scripts/sysadmin/rotate_session.py` |
 
 ## The command centre — the box's quota and work board on one page layer (✅ Shipped, 2026-10-17)
 
@@ -948,10 +962,10 @@ fabrik-export-vps1-YYYY-MM-DD.tar.gz
 ├── secrets-redacted.json          # .env KEY NAMES (never values)
 ├── specs/services/*.yaml          # every service spec
 ├── state/*.json                   # T2-01 state files, coolify_uuid stripped
-├── monitoring/{prometheus,alertmanager,redis-assignments,postgres-allocations}*
+├── monitoring/{prometheus,alertmanager,redis-assignments,postgres-allocations}*  # SSH-pulled, secrets redacted
 ├── monitoring/grafana-dashboards/  # repo-local mirrors
 ├── authelia/configuration.yml      # SSH-pulled from /opt/authelia/config (best-effort, secrets redacted)
-└── backrest/config.json            # SSH-pulled (best-effort)
+└── backrest/config.json            # SSH-pulled (best-effort, secrets redacted)
 ```
 
 Since the Coolify retirement (plan 2026-10-14-plan-1-coolify-verb-retirement, T06) the bundle carries no `coolify/` tree. A bundle exported before then still opens: `fabrik import` counts its `coolify/*` file members as `ignored legacy members (coolify/*): <n>` and restores none of them.
@@ -959,6 +973,7 @@ Since the Coolify retirement (plan 2026-10-14-plan-1-coolify-verb-retirement, T0
 ### Security Invariants (test-enforced)
 
 1. **No plaintext secret values.** `_redact_env_keys` reads only up to the first `=` of each `.env` line. The test byte-scans the entire gzip stream for known values and asserts zero hits.
+   The SSH-pulled configs (monitoring, Authelia, Backrest) are parsed and every field under a secret-shaped key name (password, token, secret, `*_key`, headers, Authorization, webhook and API URLs, Backrest hook commands and shoutrrr URLs) becomes `REDACTED`, as does the userinfo of any URL (`scheme://REDACTED@host`); a file that does not parse into a mapping or list, or a YAML file using an alias, is left out. The bundled copies are a structural restore reference, not byte copies: comments are dropped, and every plain YAML scalar value keeps its text (`17:00`, `on`, `1.10`; a multi-line plain value is folded onto one line, and a mapping key is read as PyYAML types it, so `on:` comes back `true:`).
 2. **No legacy deploy UUIDs in state.** `_collect_state` pops `coolify_uuid` from every state file and `_strip_uuids` recurses the rest (the UUID-named keys and bare 24-alphanumeric string values), so a target cannot inherit the source host's old deploy identifiers.
 
 ### Why Import Is Shipped Untested

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T17:11:08.081915Z",
+  "creator": "coordinator",
+  "effort": "high",
+  "evidence": "",
+  "id": "W-37b51748",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "infra: correlate the first warning (journalctl -k, Oct 28 21:48) with box events; check the ExpressVPN/winnat note in memory; propose a fix",
+  "note": "",
+  "owner": "infra",
+  "priority": 2,
+  "score_reason": "recurring box outage blocks the operator opening shells; root cause unknown",
+  "status": "open",
+  "tags": [
+    "waits-builder-pause"
+  ],
+  "title": "Windows↔WSL interop wedged since 2026-10-28 21:48: every .exe call from WSL times out (UtilAcceptVsock accept4 failed 110), 583 leaked /init relays, ~30k kernel warnings/hour; new WSL windows cannot open. Operator: 'why is this happening all the time'. Find the trigger and a recovery that does not need wsl --shutdown ALSO (wef 01M674X2, 10-30 23:00): the tabbed .bat opens BLACK tabs — no client reaches tmux (attached=0), same accept4 failed 110"
+}

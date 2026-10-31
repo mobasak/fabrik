@@ -346,7 +346,11 @@ only as strong as the always-pass-`--auto` rule. A **human**-driven `--re` reply
 
 `send --auto` evaluates `should_auto_reply(parent)` — guard order, first trip wins and names why:
 
-1. **Self-guard** — never auto-reply to your own message (`parent.from == you`).
+1. **Self-guard** — never auto-reply to your own message (`parent.from == you`). In the hub's
+   shared `fabrik` mailbox, where every agent's mail is `from: fabrik`, a parent from that mailbox
+   is yours only when its `from-agent:` names your agent: it passes when the parent's `from-agent`
+   and yours are both hub agents (a beat or `<beat>-<N>`) and differ, and HOLDs when either is
+   absent or not a hub agent (W-19b57b9a). Every other mailbox keeps the repo rule.
 2. **Terminal kinds** — auto-reply only to `request`/`upstream-feedback` with `ack: required`
    (keyed on the KIND — an `--ack required` override on a `reply` is still terminal). A
    `reply`/`finding`/`relay` can never beget an auto-reply, so the trivial A→B→A loop cannot form.
@@ -356,6 +360,8 @@ only as strong as the always-pass-`--auto` rule. A **human**-driven `--re` reply
    PARENT'S SENDER (the axis measured — not the reply's `--to`, which can differ on a redirect)
    landed in YOUR inbox+archive within `FABRIK_MAIL_RATE_WINDOW_S` (default 3600 s;
    a value below 1 warns and uses the default — a 0 window would disable the breaker). The mailbox itself is the state — no store.
+   In the hub mailbox the sender is the parent's AGENT: only messages whose `from-agent` is that
+   agent count, plus every message with no usable `from-agent`, which counts in every agent's bucket.
 
 **Verdicts + exit codes:** a guard HOLD on `send --auto` exits **3** (benign — the guard did its
 job; stop quietly), distinct from a real refusal's **2** (secret, invalid recipient, topology,
@@ -387,8 +393,10 @@ an unattended auto-replier must pass a resolvable `--re` from its own mailbox. E
 
 **These guards are a circuit breaker, not authentication.** The self-guard and the rate cap both
 key on the parent's `from`, which is whatever the sender passed to `--from` (it defaults to the
-git main-checkout basename, and is only character-validated). A wrapper that varies `--from`
-per message therefore looks like a new sender each time and never trips the rate cap. That is a
+git main-checkout basename, and is only character-validated) — and in the hub mailbox also on its
+`from-agent`, which is just as self-attested (the sender's `CLAUDE_AGENT` or identity binding). A
+wrapper that varies `--from` per message — or, in the hub, `CLAUDE_AGENT` across hub agent names —
+therefore looks like a new sender each time and never trips the rate cap. That is a
 bug in the wrapper, not an attacker: the threat being managed here is a runaway agent, and a
 runaway agent does not rotate identities. Pass the repo's real identity — or just let `--from`
 default.

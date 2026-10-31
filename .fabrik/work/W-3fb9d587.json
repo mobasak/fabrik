@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-27T02:35:46.322376Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-3fb9d587",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5X92HCQ7TA8GXR7HG9NJ50A",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: fleet-env-quoting"
+}

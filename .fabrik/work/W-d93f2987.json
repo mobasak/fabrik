@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-28T13:45:01.815936Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-d93f2987",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Reproduce with pre-commit installed in a throwaway scaffold; then either emit a project pre-commit config with only project-valid hooks, or sync decisions.py; and check the Initial commit rc (found by the W-a02d1c86 review, Opus seat)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "medium"
+  ],
+  "title": "fabrik scaffold copies the HUB .pre-commit-config.yaml into a new repo (scaffold.py _install_pre_commit :840-860), so the repo inherits hub-only hooks such as decisions-ledger-check, whose entry runs python3 scripts/decisions.py (.pre-commit-config.yaml:102-107) - a script that is not in the synced manifest (0 hits in scripts/fabrik_synced_manifest.py) and not in /opt/candle or /opt/seo; where pre-commit is installed, the Initial commit (which always carries docs/DECISIONS.md) fails the hook and the scaffold never sees it (git commit runs with capture_output, rc unchecked, scaffold.py Initial commit); inert on this box today only because pre-commit is not on PATH"
+}

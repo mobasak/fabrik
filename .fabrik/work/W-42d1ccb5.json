@@ -15,11 +15,14 @@
     "plan": "",
     "spec": ""
   },
-  "next": "PROOF PASSED 2026-10-21 ~17:05 — operator: 'yes i can see youtube agents in it' at http://localhost:8443/?folder=/opt/youtube (code-server 4.141.0, auth none, 127.0.0.1:8443, WSL localhost forwarding works, Claude extension 2.1.306 from Open VSX, clean-env launcher ~/.local/bin/fabrik-deck-server). Operator add: 'i want same theme as like i use in vs code here, not white.' The operator's Windows VS Code user settings carry NO theme key (default Dark Modern) and claudeCode.preferredLocation=panel; code-server came up light. So in code-server's User settings.json: workbench.colorTheme 'Default Dark Modern', window.autoDetectColorScheme false, claudeCode.preferredLocation panel, and copy editor.fontFamily/fontSize if the Windows settings ever set them. Then the remaining steps per the brief: (2) point claudeCode.claudeProcessWrapper at the wrapper (router) in code-server's User settings; (3) the Deck shell — tabs plus splits like VS Code's editor area, hidden tabs keep running, attention badge, layout remembered, vendored layout library, one browser tab, panes ?folder=/opt/<repo> from the registries; check iframe embedding (frame headers, cookie SameSite); (4) non-coding profile (minimal activity bar, no minimap, git view kept); (5) 'Fabrik Deck.bat' launcher (starts the server if needed, opens http://localhost:8443/deck in Brave); docs/workstation/fabrik-deck.md with rollback. Access model settled: localhost, no password, no address. Spec chain for steps 3-5; full /fabrik-review per slice.",
+  "next": "build merged (03205d013); waits only for the operator's five hands-on acceptance checks (W-1c7d7e0f: yes, on condition every repo's agents are paused hibernate-style first, coordinator tells the operator when); fleet then records results in docs/workstation/fabrik-deck.md § Acceptance",
   "note": "",
   "owner": "fleet",
   "priority": 0,
   "score_reason": "URGENT: operator 2026-10-21 'are we building it now' on the Deck right after naming it the product; its one-hour certificate proof (step 1) decides the product and shapes the router, so it runs first, then the router W-ea993618, then the Deck's spec chain",
   "status": "open",
+  "tags": [
+    "waits-deck-acceptance"
+  ],
   "title": "Fabrik Deck — a non-coding VS Code for many repos (operator 2026-10-21: 'it will be like non coding version of vs code, vibe coding ide using vs code's claude extension for multiple repos.'; earlier: 'i want single vs code looking window for any repos to open any agents in it opened via claude vs code extension' and 'i want exact look and feel with vs code'): one browser tab, a grid of full VS Code web instances (code-server) each opened on a different repo with the real Claude Code extension, so every coordinator and any agent is a pane in one window; the chat panel, history and git view are the product, the editor is incidental"
 }

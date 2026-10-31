@@ -27,8 +27,7 @@ python3 scripts/command_run.py start --command fabrik-docs-review --phases 5 \
 SAME docs each pass rather than re-scoping to whichever doc looks suspicious now.
 `done --command fabrik-docs-review --evidence "<the closing round + the verbatim gate line>" --feedback "<what you filed, to whom | none — surfaces exercised>"` at the
 TERMINAL verdict; `blocked --command fabrik-docs-review --reason "…" --feedback "<what you filed, to whom | none — surfaces exercised>"` otherwise. **Always name the run
-you close** — a bare close would end the CALLER when this command runs nested inside one. **Open the
-`RUN:` line on every reply until the run closes.**
+you close** — a bare close would end the CALLER when this command runs nested inside one. **Open the `RUN:` line on every reply until the run closes.**
 
 ## Phase 0 — Establish scope
 
@@ -54,8 +53,7 @@ python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lo
 *(In the HUB, or from anywhere on this box, the canonical list is
 `python /opt/fabrik/scripts/fabrik_synced_manifest.py --review-readonly`.)*
 
-- **Never reconcile/rewrite a synced doc inside a project** — the next sync overwrites it, and editing it is a
-  Tier-1 violation. Its claims are still **binding context** for the project docs you ARE reconciling — read it
+- **Never reconcile/rewrite a synced doc inside a project** — the next sync overwrites it, and editing it is a Tier-1 violation. Its claims are still **binding context** for the project docs you ARE reconciling — read it
   and cite it, but it stays OUTSIDE Phase 1's claim-ledger denominator: the zero-skipped-lines count covers only
   the docs you are reconciling. (On the HUB, where synced docs ARE reconciled, they are in-denominator.)
 - **A synced doc in the diff is ITSELF the finding:** revert + propose upstream in `/opt/fabrik`.
@@ -69,20 +67,13 @@ python3 -c "import json;print('\n'.join(sorted(json.load(open('.fabrik/synced.lo
 them **harder**, and treat a wrong enumeration (counts, scaffold types, pack lists) as high-severity: it will
 be copied into ~46 repos on the next sync.
 
-If an argument was given, treat it as the target: `$ARGUMENTS` (a changed area, a
-specific doc, or a git range). Otherwise get the change under review with
-`git diff @{upstream}...HEAD` (fall back to `git diff main...HEAD`, then
-`git diff HEAD~1`; include `git diff HEAD` if there are uncommitted changes). Scope is
-every doc touched by the change PLUS any doc that references the changed code. Strictly
-obey all guidelines in the `.windsurf/rules` folder throughout.
+If an argument was given, treat it as the target: `$ARGUMENTS` (a changed area, a specific doc, or a git range). Otherwise get the change under review with `git diff @{upstream}...HEAD` (fall back to `git diff main...HEAD`, then `git diff HEAD~1`; include `git diff HEAD` if there are uncommitted changes). Scope is every doc touched by the change PLUS any doc that references the changed code. Strictly obey all guidelines in the `.windsurf/rules` folder throughout.
 
 ## Phase 1 — Claim extraction (zero skips)
 
 Read every line of every in-scope doc. Build a **numbered claim ledger** — one row per
-factual assertion (a path, a count, a command, an invariant, "X does Y", "N services",
-a flag, a port, an env var, a schema reference). Every non-prose line maps to ≥1 claim
-or is explicitly marked N/A (heading/formatting). At the end, reconcile line-count vs
-claims-accounted: if any line is unaccounted for, you skipped it — go back.
+factual assertion (a path, a count, a command, an invariant, "X does Y", "N services", a flag, a port, an env var, a schema reference). Every non-prose line maps to ≥1 claim
+or is explicitly marked N/A (heading/formatting). At the end, reconcile line-count vs claims-accounted: if any line is unaccounted for, you skipped it — go back.
 
 ## Phase 2 — Bidirectional reconciliation (to a fixed point)
 
@@ -90,14 +81,11 @@ In this single turn, run reconciliation passes until the Termination contract's 
 (the fragment above). Treat every claim as STALE until proven against the
 real source, and check BOTH directions:
 
-- **Doc → code:** for each claim in the ledger, OPEN the actual code/migration and
-  confirm it holds — the symbol exists, the count matches. **A runnable example/command
+- **Doc → code:** for each claim in the ledger, OPEN the actual code/migration and confirm it holds — the symbol exists, the count matches. **A runnable example/command
   is verified by RUNNING it, not eyeballing** (an example that no longer runs is WRONG,
   not VERIFIED). A column name is not its values — read the values. The doc's own wording
   is never evidence for itself.
-- **Code → doc:** scan what ACTUALLY changed (new/renamed/removed endpoints, fields,
-  flags, env vars, files, migrations, features) and confirm each is reflected in the
-  right doc. A shipped change no doc mentions is a discrepancy.
+- **Code → doc:** scan what ACTUALLY changed (new/renamed/removed endpoints, fields, flags, env vars, files, migrations, features) and confirm each is reflected in the right doc. A shipped change no doc mentions is a discrepancy.
 - **Doc → live source (EXTERNAL claims):** a claim about a 3rd-party API / SDK / endpoint,
   **pricing**, a rate limit, a library **version**, or an ISO/RFC **standard** is NOT verifiable against local code — a `fabrik-researcher` seat (web, no shell) — a unit of its own, the workflow slice's `agent` — re-verifies it **LIVE** (`WebSearch` →
   `mcp__brave-search__brave_web_search` → on a miss `mcp__exa__web_search_exa` → official-docs `WebFetch` for library detail;
@@ -127,32 +115,17 @@ number in the file, and only the fragment finds its line again. Every reconciler
 Ledger rows, receipts (the claim ledger included) and the reviewed docs themselves keep a plain `path:line`: graders parse the first two, and
 a quote written into a doc goes stale with the code.
 
-Hunt the drift classes: changed signatures/return shapes; renamed/removed symbols;
-added/removed config keys, env vars, ports, flags; outdated counts/tables; schema docs
-vs the latest migration; dead links/cross-references; stale versions/dates/"as of"; and
-features documented-but-removed or shipped-but-undocumented.
+Hunt the drift classes: changed signatures/return shapes; renamed/removed symbols; added/removed config keys, env vars, ports, flags; outdated counts/tables; schema docs
+vs the latest migration; dead links/cross-references; stale versions/dates/"as of"; and features documented-but-removed or shipped-but-undocumented.
 
 ### Parallelism — the DEFAULT for a multi-doc scope
 
-Dispatch one INDEPENDENT native seat per doc/subsystem, every run (recipe in
-§ Subagents), run them in parallel, then merge + dedupe their findings — refuting any that are provably wrong
-(quote the code/doc line that disproves the discrepancy) before acting — before the next pass. Every seat brief, and the orchestrator's own doc edits, apply the lines of `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE.
+Dispatch one INDEPENDENT native seat per doc/subsystem, every run (recipe in § Subagents), run them in parallel, then merge + dedupe their findings — refuting any that are provably wrong (quote the code/doc line that disproves the discrepancy) before acting — before the next pass. Every seat brief, and the orchestrator's own doc edits, apply the lines of `/opt/fabrik/commands/_fragments/review-probe-catalogue.md` that match the change's SHAPE.
 **Round 1 keeps the units-sized floor (D-208 — never solo, never two: a surface with fewer than three units still dispatches THREE seats on DIFFERENT angles, measured not assumed — 1 seat found 0; 3 over the same surface found 0/5/0, and the 5 held a real fail-open; D-186); every later round is sized by the fragment's D5 sentence (one seat per unit with an open claim, the round-1 `--units` count as the ceiling, D-335).**
 
-**Verify subagents:** after merging subagent ledgers, independently re-check a random
-sample (~20%) of each subagent's VERIFIED claims against the code. Subagent summaries
-are NOT proof — a claim isn't verified until it's grounded in a `path:line` you could
-re-run yourself.
-
-After each pass, show what you VERIFIED (which code/paths you actually read) and what you
-found, then fix. **Dispatch the doc author-fixes through the Tier-1 reconcile loop** —
-`scripts/doc_reconcile.py` (its pool author is OFF — D-181 — so its author leg is a native `general-purpose` seat, or you) emitting a **minimal
-structured patch, verified-before-applied** — rather than hand-editing
-each doc; keep the Opus adjudication (what's actually wrong + the routing decision) yours.
-**The loop ends ONLY at the Termination contract's closing round** (the fragment above: the closing
-pass, the round-1 seats over their own docs at `confirmed: 0`, the md5s unchanged). A pass that finds
-nothing must still enumerate its coverage (what you actually read); an empty pass with no evidence
-does not count.
+**Verify subagents:** after merging subagent ledgers, independently re-check a random sample (~20%) of each subagent's VERIFIED claims against the code. Subagent summaries
+are NOT proof — a claim isn't verified until it's grounded in a `path:line` you could re-run yourself. After each pass, show what you VERIFIED (which code/paths you actually read) and what you found, then fix. **Dispatch the doc author-fixes through the Tier-1 reconcile loop** — `scripts/doc_reconcile.py` (its pool author is OFF — D-181 — so its author leg is a native `general-purpose` seat, or you) emitting a minimal structured patch, verified-before-applied — rather than hand-editing each doc; keep the Opus adjudication (what's actually wrong + the routing decision) yours.
+**The loop ends ONLY at the Termination contract's closing round** (the fragment above: the closing pass, the round-1 seats over their own docs at `confirmed: 0`, the md5s unchanged). A pass that finds nothing must still enumerate its coverage (what you actually read); an empty pass with no evidence does not count.
 
 **Run that next pass UNPROMPTED — the moment a pass makes any doc edit you owe it, automatically.** Never wait
 to be asked *"did you reconcile to the closing round?"*; the obligation is yours and predates any challenge — reframing
@@ -167,33 +140,16 @@ Pass 1 — reconcilers: <doc types> | found: 4, new: 4, confirmed: 4, fixed: 4, 
 Pass 2 — sonnet×1 (round-1 owner) · the same seats over their own fixed docs | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | → CONVERGED (the closing round, md5 stable)
 ```
 
-**⚠️ The WHOLE loop runs inside THIS ONE invocation — you do NOT yield control between passes.** **Context is never a reason to stop:** the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; "low context" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred. When a pass
-makes any doc edit, do **not** stop, do **not** print "Pass 1 done" and hand back, do **not** wait for the
-caller to re-invoke `/fabrik-docs-review`. Go **straight into the next reconciliation pass** in the SAME turn
-and keep chaining until the closing round. **You return control EXACTLY ONCE: at the closing
-round.** (Invoked as the final step of `/fabrik-execute-plan`, the whole loop completes before the run
-finishes.) Ending the turn with an unresolved discrepancy so the operator has to re-invoke is THE failure this
-kills — run the next pass instead.
+**⚠️ The WHOLE loop runs inside THIS ONE invocation — you do NOT yield control between passes.** **Context is never a reason to stop:** the harness AUTO-COMPACTS long conversations and the run continues in the same invocation — keep durable artifacts current and keep going; "low context" filed as BLOCKED is still the named violation, and a heavy remainder is dispatched to fresh subagents, never deferred. When a pass makes any doc edit, do not stop, do not print "Pass 1 done" and hand back, do not wait for the caller to re-invoke `/fabrik-docs-review`. Go **straight into the next reconciliation pass** in the SAME turn and keep chaining until the closing round. **You return control EXACTLY ONCE: at the closing
+round.** (Invoked as the final step of `/fabrik-execute-plan`, the whole loop completes before the run finishes.) Ending the turn with an unresolved discrepancy so the operator has to re-invoke is THE failure this kills — run the next pass instead.
 
 ## Phase 3 — Fix per pass, in one batch, routed to the right doc
 
-Within each pass: complete the pass's DISCOVERY first, then apply that pass's fixes in one batch — do not interleave
-discovery and editing. Route each fact to the document type it belongs to and respect
-that type's contract — API reference, architecture, quickstart/README, runbook/ops,
-CHANGELOG — and do not cross-contaminate (an ops detail does not belong in the API
-reference, a changelog line is not architecture prose). Delete DEAD claims rather than
-polishing them — and when a DEAD sweep retires a whole documented subsystem or feature
-(not just a stale line), that deletion is a decision-shaped RETIREMENT: its
-`docs/DECISIONS.md` row lands in the SAME change, classified at mint (a doc-recorded retirement is
-normally a plain row; ONE-WAY — § Binding block — once dependents have dropped the subsystem)
-(CLAUDE.md § the decision ledger); a
-routine dead-line deletion stays doc hygiene, no row. Bump `Last Updated:` dates where present.
+Within each pass: complete the pass's DISCOVERY first, then apply that pass's fixes in one batch — do not interleave discovery and editing. Route each fact to the document type it belongs to and respect that type's contract — API reference, architecture, quickstart/README, runbook/ops, CHANGELOG — and do not cross-contaminate (an ops detail does not belong in the API reference, a changelog line is not architecture prose). Delete DEAD claims rather than polishing them — and when a DEAD sweep retires a whole documented subsystem or feature (not just a stale line), that deletion is a decision-shaped RETIREMENT: its `docs/DECISIONS.md` row lands in the SAME change, classified at mint (a doc-recorded retirement is normally a plain row; ONE-WAY — § Binding block — once dependents have dropped the subsystem) (CLAUDE.md § the decision ledger); a routine dead-line deletion stays doc hygiene, no row. Bump `Last Updated:` dates where present.
 
 ## Phase 4 — Gate + embedded proof
 
-Run the doc-sync gate (`docs_updater.py --check`, plus the project's
-Doc Sync Matrix via `python scripts/enforcement/check_doc_sync.py`) as the final step,
-but treat it as necessary, NOT sufficient — it verifies presence/format, not truth.
+Run the doc-sync gate (`docs_updater.py --check`, plus the project's Doc Sync Matrix via `python scripts/enforcement/check_doc_sync.py`) as the final step, but treat it as necessary, NOT sufficient — it verifies presence/format, not truth.
 
 Your final message MUST embed structured proof — not a summary, not "all looks good":
 
@@ -209,11 +165,8 @@ without that embedded proof + the gate green (or its out-of-surface red embedded
 
 ## Convergence & residuals
 
-Do not promise "zero discrepancies" as a claim — iterate to a fixed point, then
-explicitly list any residual risks the tooling can't catch (hard-to-verify prose,
-screenshots/diagrams, external-facing copy, examples that need a live service to run).
-Convergence = the Termination contract's closing round (the round-1 seats confirming their own docs
-at `confirmed: 0`, md5 unchanged); not your say-so, and not "I fixed what I found."
+Do not promise "zero discrepancies" as a claim — iterate to a fixed point, then explicitly list any residual risks the tooling can't catch (hard-to-verify prose, screenshots/diagrams, external-facing copy, examples that need a live service to run).
+Convergence = the Termination contract's closing round (the round-1 seats confirming their own docs at `confirmed: 0`, md5 unchanged); not your say-so, and not "I fixed what I found."
 
 
 {{include:subagents-core}}

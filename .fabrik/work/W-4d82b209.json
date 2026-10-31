@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-29T10:23:22.981812Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-4d82b209",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "decide each against a live repo (0 of 44 /opt repos carry any of these shapes, measured 2026-10-29); for the first, check only files apply() will write; add a test for the temp-dir case",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "fleet"
+  ],
+  "title": "backfill_ci.py residue from W-76d3448d's scoped review (recorded, never live on the box): _write_blocker checks the lint-baseline leaf even when no baseline would be written (no ruff count), so a dangling baseline symlink fails such a project; a directory at the temp name scripts/.ci_local.sh.backfill-tmp reaches the per-project FAILED path untested; the stale check matches SQLFLUFF_STEP inside a comment; a fabrik-managed header on line 1 reads not fabrik-managed"
+}

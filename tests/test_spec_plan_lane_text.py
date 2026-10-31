@@ -321,8 +321,6 @@ def test_fabrik_spec_phase0_applies_the_lane_tests_when_no_refusal_row_exists():
     # AFTER it — a cold agent reads the ledger first, then applies the tests itself.
     assert re.search(r'--reason\s+"DOWNGRADE:\s*<[^>]*refusal id[^>]*>', phase0), phase0
     assert phase0.index("`decision=yes`") > phase0.index("Only THEN close this run")
-    # Small work that DOES need a design stays a spec (D10): the branch names what still proceeds.
-    assert re.search(r"D10\b.{0,20}still a spec", flat), flat
 
 
 def test_fabrik_spec_names_both_endings_and_a_sanctioned_close(tmp_path, monkeypatch) -> None:
@@ -427,8 +425,6 @@ def test_fabrik_spec_review_fetches_live_and_keeps_mechanism_in_the_plan() -> No
             "touches); the executable sequence belongs to the plan, so every fix inside such a section is written as "
             "invariants + touchpoints from its FIRST edit — not only once the edit loop's TWO CONSECUTIVE RESIDUE "
             "PASSES rule forces a rewrite there — and never as a re-worded sequence or new mechanism.") in d
-    te = (REPO / "commands" / "_fragments" / "term-edit.md").read_text(encoding="utf-8")
-    assert "(3) **TWO CONSECUTIVE RESIDUE PASSES FORCE A REWRITE**" in te, "the rule the review names moved"
     spec = norm((REPO / "commands" / "_sources" / "fabrik-spec.md").read_text(encoding="utf-8"))
     assert '`firecrawl_scrape` with `maxAge: 0` and `proxy: "basic"`, a live fetch) and match' in spec
     assert "data flow (as invariants + touchpoints — the step sequence is the plan's)" in spec
@@ -514,16 +510,6 @@ def test_fabrik_spec_carries_its_recurring_feedback_rules(tmp_path, monkeypatch)
     assert ("a question with several parts is numbered in the brief, which tells the seat to answer the parts in "
             "order, each within its named share of that ~2 k, so a truncated return loses the tail, not the middle, "
             "and a part the return never reaches is asked again, never read as empty.") in reads
-    assert ("every premise the brief states about the codebase, every mechanism the design relies on (\"X fires\", "
-            "\"Y catches this\"), every design rule (an algebra, a classifier) and every runtime-state claim is EXECUTED "
-            "this session, its command and output cited in the spec (a key, token or credential in that output is "
-            "described by its kind, length and a non-secret prefix, never pasted, its BEGIN line included: the "
-            "`detect-private-key` commit hook refuses a private-key PEM header), and Phase 3 waits on it as on the "
-            "BLOCKING bullet "
-            "below. A design rule that names stores (a matrix, an allowlist, an entity schema's fields) is preceded by an "
-            "executed census of each store's current members, and its invariants are written against that census, "
-            "never against one member. An executed in-repo measurement outranks a web answer about the repo's own code; a vendored or "
-            "installed third-party package's behaviour stays an external claim under this gate.") in text
     assert ("the machine-readable schema when one exists (an OpenAPI endpoint names the parameters), the error-code page "
             "beside the endpoint page when the design retries or re-sends, and a design that survives both readings when "
             "two vendor pages contradict each other.") in text

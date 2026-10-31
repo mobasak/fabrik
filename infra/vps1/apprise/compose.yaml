@@ -34,6 +34,7 @@ services:
       resources:
         limits:
           memory: 768M
+          cpus: '0.5'
 
   apprise-mesh-gate:
     image: nginx:1.30-trixie

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T18:56:59.819964Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-fb9e72b7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M67156AN24YR3R3CNPZHJYEH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "intel idle under the P0-only pause — no P0 held"
+}

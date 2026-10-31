@@ -18,15 +18,20 @@ A small window, **"Claude — open which agent in this tab?"**, lists:
 | `Plain chat in <folder> — as today` (default) | the tab runs exactly as before the router existed |
 | `Resume <role> (<repo>) — last <date>` | the role's newest session, in that session's own folder (a builder's worktree included), with `CLAUDE_AGENT=<role>` |
 | `New session as <role> in <repo>` | a fresh chat in that repo, bound to the role |
+| `New session as coordinator in <repo> (no owner row)` | the same, for a repo whose ledger declares no merge owner yet: the default coordinator name (D-1305's plain `coordinator`); once the repo has its `MERGE OWNER:` row the picker offers that name instead. The router itself does not ask anyone to adopt; the SessionStart hook does, under its own conditions (`.claude/hooks/session_orient.py`, `_model_line` and `_sessions_line`) |
 | `New session in <repo>` | a fresh chat in that repo, no role |
 | `<role> (<repo>) — live elsewhere (pid N)` | listed, **refused**: that role already runs in another process (one process per session id — coordinator ruling 2026-10-21); the tab runs plain |
 | `<role> (<repo>) — cannot bind` | a registered name `whoami_agent.py` would not accept |
 
-Enter or double-click picks; Esc, closing the window, or the **30 s countdown** gives a plain chat. Repos are listed
-when they have a known agent: `<repo>/.fabrik/session-agents.json`, the identity store
-`~/.claude/state/agent-identity.jsonl` (last row per session wins), the router's own map
-`~/.claude/state/tab-router.jsonl`. A listed repo also offers its merge owner (`decisions.py --merge-owner`) as a
-role; a merge owner alone does not list a repo.
+Enter or double-click picks; Esc, closing the window, or the **30 s countdown** gives a plain chat. The list has no
+scrollbar: Up/Down, PageUp/PageDown and the mouse wheel move its 24-row view (about 130 rows on this box, 2026-10-29).
+Every git repo directly under `/opt` (`/opt/<name>/.git`, a folder or a file) is listed (W-5f4b0972), and so is any repo with a known agent: `<repo>/.fabrik/session-agents.json`,
+the identity store `~/.claude/state/agent-identity.jsonl` (last row per session wins), the router's own map
+`~/.claude/state/tab-router.jsonl`. Each listed repo offers its coordinator as a role: its merge owner
+(`decisions.py --merge-owner`), or `coordinator` when the ledger answers "no owner" (no `MERGE OWNER:` row, or an
+un-adoption row). A repo with no ledger, or whose lookup fails or takes longer than the picker can wait, offers no
+coordinator row — never a guessed name. The lookups run 8 at a time, 5 s each at most, and stop 3 s before the
+countdown's deadline.
 
 No window appears for: the extension's `auth status` and config-probe launches, a tab you resume from its own history
 list, and a **restored** routed tab — that one is re-rooted silently to its session's folder with its role.
@@ -53,22 +58,23 @@ binds by `CLAUDE_AGENT` only — no identity-store row until `whoami_agent.py --
 
 ## Install
 
-After the change is merged to master (the wrapper calls the main checkout's router):
+After the change is merged to master (the wrapper calls the main checkout's router), the operator's one-time setup
+script installs the wrapper and sets `claudeCode.claudeProcessWrapper` in the VS Code Machine and the code-server User
+`settings.json` (the Fabrik Deck's panes, W-42d1ccb5) of each editor installed. The same run also does its other steps
+(the user hooks and the archive timer) and refuses as a whole when one of them cannot plan, so read its dry run first —
+`operator-setup.md`:
 
 ```bash
-mkdir -p ~/.claude/bin/backups
-cp ~/.claude/bin/claude-agent-wrapper.sh ~/.claude/bin/backups/claude-agent-wrapper.sh.$(date +%Y%m%d-%H%M%S)
-cp /opt/fabrik/scripts/sysadmin/claude-agent-wrapper.sh ~/.claude/bin/claude-agent-wrapper.sh
-chmod 755 ~/.claude/bin/claude-agent-wrapper.sh
+python3 /opt/fabrik/scripts/sysadmin/operator_setup.py           # dry run
+python3 /opt/fabrik/scripts/sysadmin/operator_setup.py --apply
 ```
-
-`~/.vscode-server/data/Machine/settings.json` is unchanged — it already names the wrapper. A code-server pane (the
-Fabrik Deck, W-42d1ccb5) sets the same key in its own User `settings.json`.
 
 ## Rollback
 
 - **Fast:** add `"CLAUDE_TAB_ROUTER": "off"` to `claudeCode.environmentVariables` — every tab launches plain.
-- **Full:** copy the newest `~/.claude/bin/backups/claude-agent-wrapper.sh.*` back over `~/.claude/bin/claude-agent-wrapper.sh`.
+- **Full:** run the wrapper's undo line from the list `operator_setup.py --apply` printed (its backup is under
+  `~/.local/state/fabrik/operator-setup-<timestamp>/`); an older hand install kept its copy in
+  `~/.claude/bin/backups/claude-agent-wrapper.sh.*`.
 
 ## Acceptance (the operator)
 
@@ -88,4 +94,5 @@ means updating this page in the same change. This list is generated from those h
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
 - `scripts/sysadmin/claude_tab_router.py`
+- `scripts/sysadmin/operator_setup.py`
 <!-- END related-scripts -->

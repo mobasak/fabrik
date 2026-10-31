@@ -36,7 +36,7 @@ Small, hand-maintained, **not regenerable from any other repo**:
 | `~/.claude.json` | `claude.json` (normalized) |
 | `~/.claude/settings.json` | `claude/settings.json` |
 | `~/.claude/agents/*.md` (4) | `claude/agents/` — **exist only here**, no other copy on earth |
-| `~/.claude/bin/**` | `claude/bin/` — hand-built hook helpers (`claude-sound.sh`, `claude-stop-decider.py`), **exist only here** |
+| `~/.claude/bin/**` | `claude/bin/` — hand-built hook helpers (`claude-sound.sh`, `claude-stop-decider.py`), **exist only here** — except the three resume-mesh scripts (`claude-selfwatch.sh`, `claude-reboot-sweep.sh`, `claude-mesh-test.sh`), whose reviewed copies are tracked in the hub at `scripts/sysadmin/mesh/` and installed by `scripts/sysadmin/install_mesh.sh` (harness green on the copies, each changed live file backed up to `~/.claude/bin/backups/` first, atomic replace; the operator runs it — W-6e656dac); the backups ride this mirror with the rest of `bin/` |
 | `~/.claude/.credentials.json` | `claude/credentials.json` 🔐 |
 | `~/.claude/manager-accounts/**` (3 accounts) | `claude/manager-accounts/` 🔐 |
 | `~/.claude/.claude-manager/*.{json,js}` | `claude/.claude-manager/` (minus ephemeral `active-sessions.json`) |

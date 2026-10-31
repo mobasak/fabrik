@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T09:14:06.460308Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-45c71003",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68KN36VWSWYNYB652TBV55W",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "W-a9b3bc15 batches 1-2 merge request 01M68KB65N is in your queue; item stays open"
+}

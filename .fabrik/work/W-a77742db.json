@@ -3,7 +3,7 @@
   "created": "2026-10-23T05:56:49.494419Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "fcb51fd09a4279cb610dfda0c5431fca8156bda6",
   "id": "W-a77742db",
   "impact": "high",
   "kind": "task",
@@ -15,11 +15,12 @@
   },
   "next": "one allow-list entry in .claude/hooks/quota_stop.py plus a test that a LANE-held unbound session may run whoami_agent.py --as; infra-3's refusal text is the evidence",
   "note": "",
-  "owner": "infra",
+  "owner": "infra-2",
   "priority": 1,
   "score_reason": "every rotation that lands inside a quota lane leaves the builder nameless until the lift; one allow-list line plus its grader",
-  "status": "open",
+  "status": "done",
   "tags": [
+    "after-w-835894a6",
     "queued"
   ],
   "title": "quota_stop.py's LANE hold refuses `whoami_agent.py --as <name> --force` — a freshly rotated session (infra-3 85584cc3, 09:05) has no bound name, the hold's allow-list (self-watch arm, command_run.py, mail.py, work.py claim, git, reads) omits whoami_agent.py, so the one act that would bind the name the hold checks is held until the lift; add `whoami_agent.py --as` (and --who) to the lane allow-list with a grader"
