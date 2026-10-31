@@ -1214,7 +1214,9 @@ def test_no_registry_takes_builders_from_the_identity_store(tmp_path: Path) -> N
     ), out.stderr
     # Word-bounded: stdout embeds the checkout path, and a merge leg's mkdtemp name or a session id in it
     # can hold the letters "b9" (a bare substring check read red there, W-a9b3bc15).
-    assert "taken as the coordinator" in out.stderr and not re.search(r"\bb9\b", out.stdout), out.stderr
+    assert "taken as the coordinator" in out.stderr and not re.search(r"\bb9\b", out.stdout), (
+        out.stderr
+    )
     assert "not the registry's" not in out.stderr, out.stderr  # there is no registry to name
     # a ledger that declares NO merge owner (decisions.py exit 3) launches the same way
     (repo / "docs").mkdir()
