@@ -4,7 +4,7 @@ Status: DRAFT
 Profile: small
 **Owner:** infra-2
 **Spec:** `docs/superpowers/specs/2026-10-30-ledger-merge-driver-design.md` (CONVERGED, D-1386; review receipt `docs/development/reviews/2026-10-30-ledger-merge-driver-spec-review.md`). The spec cites code at `51716046f`. This plan cites it at `b938c583e`, after master was merged in. The resolver functions are byte-identical between the two; only their line numbers moved (§ Evidence E2).
-**Base:** `b938c583e` (branch `w-53360407-entry-files`). Code files: `scripts/merge_request.py`, `scripts/install_post_commit_hook.sh`, `.gitattributes`. New test: `tests/test_merge_ledger_driver.py`. Docs: `docs/reference/multi-agent-operating-model.md`, `docs/workstation/hooks-index.md`, `CHANGELOG.md`, `docs/LESSONS_LEARNT.md`, `INDEX.md`.
+**Base:** `b938c583e` (branch `w-53360407-entry-files`). Code files: `scripts/merge_request.py`, `scripts/install_post_commit_hook.sh`, `.gitattributes`. New test: `tests/test_merge_ledger_driver.py`; extended test: `tests/test_workitem_merge_driver.py` (the installer's driver tests, panel concern). Docs: `docs/reference/multi-agent-operating-model.md`, `docs/workstation/hooks-index.md`, `CHANGELOG.md`, `docs/LESSONS_LEARNT.md`, `INDEX.md`.
 **Prototype (executed):** `.tmp/runs/b61d3ce0-aa4e-4a4f-8800-4588107e6a30/fabrik-plan-after-chat-2026-10-31T00-45-06-0300/proto/` holds three files:
 - `verb.py`, 22 lines: the verb's body;
 - `test_merge_ledger_driver.py`: the draft tests;
@@ -27,7 +27,7 @@ About 60 code lines over 3 code files, executed inline by the orchestrator (`/fa
 | I2 | spec § Validation, each test leg: red-first with its rebase leg, DECISIONS order, refusal, duplicate-id, bootstrap, no-regression | IN | Phase A steps 3-4 |
 | I3 | spec § Validation replay grader (D5, at least 58 builder merges cleared, no duplicated line) | IN | Phase C step 2 |
 | I4 | spec § Validation tripwire (counter, threshold above 6, check date 14 days after landing, owner the coordinator) | IN | Phase C step 5 hands it to the coordinator with the landing date |
-| I5 | spec § Validation Counter B pass (lift D5's builder filter and clean skip) | OUT-OF-SCOPE | W-6614b62e (its next line names the pass) |
+| I5 | spec § Validation Counter B pass (merges clean under plain git that the driver makes conflict, builder and owner) | IN | Phase C step 2 (panel, Opus concern 1); W-6614b62e keeps only the two-base residue |
 | I6 | spec § The delta 4: the readers left unchanged (`check_convergence`, `decisions.py --reserve-id`, the changelog gate) | IN | Phase C step 4 runs the gate and the decisions check over the built tree |
 | I7 | spec § Documentation landing sites (the op-model "always conflict" sentence, the hooks-index row) | IN | Phase B step 3 |
 | I8 | spec Intake I7: `.fabrik/work` same-item conflicts | OUT-OF-SCOPE | W-7a1411b3 |
@@ -62,7 +62,7 @@ Appetite: 40
    - write through `tempfile.mkstemp(dir=<dir of ours>, prefix=".merge-ledger-")` and `os.replace`, unlinking the temp on any exception.
 2. Register the subparser beside `sync-runner`'s (`:4184`) and dispatch it before the verb table (`:4213`), as `after-merge-runner` (`:4188`) and `sync-runner` (`:4200`) are, so `main()`'s `try`/`finally` drain never runs after the rename. On any `Exception`, print `merge_request: REFUSED — <reason>` to stderr and return 1; on success return 0.
 3. Add `tests/test_merge_ledger_driver.py` from the prototype, with these changes:
-   - drop its placeholder `test_the_driver_runs_at_the_worktree_top`;
+   - drop its placeholder `test_the_driver_runs_at_the_worktree_top`, and replace it with a test that commits a copy of `scripts/merge_request.py` into the scratch repo under `scripts/`, registers the installer's `LEDGER_DRIVER` string literally, and runs the clean-insertion merge from a `git worktree add` linked worktree, the shape of `_build`'s throwaway (panel, Opus concern 4);
    - add a `git rebase` leg to the red-first test, asserting the rebase is clean;
    - rewrite the no-regression test so BOTH sides change the SAME ledger at far-apart lines: git calls a driver only for a file changed on both sides, and plain git merges such edits cleanly. Log the driver's own exit (a wrapper script that appends `$?` to a file) and assert that exit was 0, the merged blob is byte-identical to the same merge with no driver configured, and the merge exited 0;
    - rewrite the refusal test's fixture so the edit of a landed row sits next to the other side's insertion (ours edits `| D-2 |` and appends a row, theirs appends a row after `| D-2 |`). The prototype's fixture put the edit two lines from the insertion, so `git merge-file` took it cleanly and the verb exited 0; and merge the same pair through git with the driver registered, asserting the merge exits non-zero and the file holds markers with both sides;
@@ -71,9 +71,9 @@ Appetite: 40
 4. RED then GREEN, using the prototype tests against `b938c583e` with no verb (§ Evidence E1):
    - 5 tests fail on `invalid choice: 'merge-ledger'`;
    - the control and the bootstrap leg pass by design (the bootstrap leg runs its own pre-verb script and proves the driver ran by its `invalid choice` stderr);
-   - step 3's rewritten no-regression, refusal and temp-file tests are watched red against the verb-less tree too.
+   - step 3's rewritten no-regression and refusal tests are watched red against the verb-less tree. The temp-file test calls `_merge_ledger` in-process (a subprocess cannot see a patched `os.replace`) and is watched red against the verb with its unlink removed. The D-5/D-7 duplicate case is watched red against `proto/verb.py`'s looser rule (panel, Opus concern 5).
    After step 2, all pass.
-5. Gate: `/opt/fabrik/scripts/capped_run.sh -- /opt/fabrik/.venv/bin/python -m pytest tests/test_merge_ledger_driver.py tests/test_merge_request_merge.py -q`, then `/opt/fabrik/.venv/bin/python -m ruff check` and `-m mypy` on `scripts/merge_request.py`.
+5. Gate: `/opt/fabrik/scripts/capped_run.sh -- /opt/fabrik/.venv/bin/python -m pytest tests/test_merge_ledger_driver.py tests/test_merge_request_merge.py -q`; `/opt/fabrik/.venv/bin/python -m ruff check scripts/merge_request.py`; and `/opt/fabrik/.venv/bin/python -m mypy --cache-dir <scratch> scripts/merge_request.py` reports no error beyond the base's two (`:3030`, `:3489`). Those are pre-existing: `pyproject.toml:102` excludes `scripts/` from mypy, and a path named on the command line overrides that exclude (panel, Fable concern 1).
 
 **Behavior Contract (Phase A):**
 - Concurrent insertions in CHANGELOG and DECISIONS merge clean through git with the driver, by merge and by rebase (red without it).
@@ -93,7 +93,7 @@ Appetite: 30
 **Steps** (sequential):
 1. `scripts/install_post_commit_hook.sh`:
    - add `LEDGER_DRIVER='python3 scripts/merge_request.py merge-ledger %O %A %B %P || git merge-file --marker-size %L -L ours -L base -L theirs %A %O %B'` and two `set_config` calls beside `:86-87`;
-   - make the failure message at `:84` name the key it failed on instead of "the work-item merge driver";
+   - at `:84`, replace the clause "the work-item merge driver is not registered" with "that merge driver is not registered" (`$1` already names the key; panel, Opus concern 7);
    - widen the mirror regex at `:98` to `merge=(workitem|ledger)`;
    - keep `BEGIN_MARK`/`END_MARK` (`:94-95`) byte-identical.
 2. `.gitattributes`: add five root-anchored lines:
@@ -105,14 +105,16 @@ Appetite: 30
 
    Put them under a comment naming W-53360407 and the spec.
 3. Docs:
-   - `docs/reference/multi-agent-operating-model.md` § Ledgers and ids across branches (`:162-166` at the spec's base; re-anchor at build): correct the "always conflict at merge" sentence and add the driver's paragraph;
-   - `docs/workstation/hooks-index.md`, in the installer's row: add the second driver.
-4. Add an installer test beside `tests/test_merge_sync.py`'s, through the installer's own seam (`GOVERNANCE_SYNC_TEST=1` with `GOVERNANCE_SYNC_ROOT=<scratch repo>`, `scripts/install_post_commit_hook.sh:16-18`). Never run the installer against the shared config before landing: `ROOT=/opt/fabrik` (`:14`) is the main checkout. The test asserts:
-   - the scratch repo's config holds `merge.ledger.driver` with the Phase B string;
-   - its `info/attributes` mirror holds the five `merge=ledger` lines inside the unchanged work-item BEGIN/END block;
+   - `docs/reference/multi-agent-operating-model.md` § Ledgers and ids across branches (`:162-164`): replace "two branches that both prepend a row to the same table always conflict at merge" with "two branches that both prepend a row to the same table conflict at merge under plain git; in a hub worktree the installer's `merge=ledger` driver (`merge_request.py merge-ledger`, W-53360407) resolves concurrent insertions inside the merge, an edit of a landed row still conflicts, and any driver failure falls back to markers" (panel, Fable concern 4);
+   - `docs/workstation/hooks-index.md:214`, after "It also registers the work-item merge driver (W-c230cb2e)": insert "and the ledger merge driver (W-53360407: `merge.ledger.name`/`.driver`, every `merge=ledger` line mirrored in the same block)";
+   - `scripts/install_post_commit_hook.sh:2`'s `AFTER-EDIT` header gains `tests/test_workitem_merge_driver.py`, the suite that covers its driver lines (panel, Opus concern 2).
+4. Add the installer test to `tests/test_workitem_merge_driver.py`, using its `_bare_repo` seam (`:125`), which copies the BUILT `.gitattributes` into the scratch repo before the installer runs. Never run the installer against the shared config before landing: `ROOT=/opt/fabrik` (`scripts/install_post_commit_hook.sh:14`) is the main checkout. The test asserts:
+   - `merge.ledger.driver` equals the Phase B string;
+   - the mirror holds the five `merge=ledger` lines between the unchanged BEGIN/END marks, with the `merge=workitem` line still inside;
+   - `git check-attr merge` prints `ledger` for each of the five ledger paths (the positive control; on the base tree it prints `unspecified`);
    - `git check-attr merge sub/CHANGELOG.md` prints `unspecified`.
 
-   Then run that test and the installer tests named in its `AFTER-EDIT` header (`tests/enforcement/test_governance_sync_postcommit.py`, `tests/test_merge_sync.py`) under `/opt/fabrik/scripts/capped_run.sh`.
+   Gate: that file plus the two the `AFTER-EDIT` header named before this change (`tests/enforcement/test_governance_sync_postcommit.py`, `tests/test_merge_sync.py`), under `/opt/fabrik/scripts/capped_run.sh` (panel, Opus concerns 2-3 and Fable concern 2).
 
 **Behavior Contract (Phase B):**
 - The installer registers `merge.ledger.*` and mirrors the ledger lines into `info/attributes` without orphaning the work-item block.
@@ -124,12 +126,14 @@ Appetite: 45
 
 **Steps** (sequential):
 1. Run the one heavy review (`Profile: small`'s D7 floor): `/fabrik-review` over the whole-plan diff, one receipt.
-2. Run the replay grader on a fresh `git clone --shared` of the hub at the Phase C tip. In the clone:
+2. Precondition, printed into the receipt: `git -C /opt/fabrik check-attr merge CHANGELOG.md` prints `unspecified`. Run the replay BEFORE the coordinator lands this branch. The plain-git baseline is a second `git clone --shared` checked out at `b938c583e` with no `merge=ledger` line, never the shared main checkout (panel, Fable concern 3, Opus concern 6). Then run the replay on a fresh `git clone --shared` of the hub at the Phase C tip. In the clone:
    - write the five `merge=ledger` lines into `.git/info/attributes`;
    - set `merge.ledger.driver` to the Phase B string, but naming the BUILT script by absolute path (`python3 /opt/fabrik/.claude/worktrees/infra-2/scripts/merge_request.py merge-ledger …`). D5 checks out each historical parent, and those trees have no verb, so the tree-relative string would fall back everywhere;
    - register the work-item driver as the installer does.
 
-   Then run `proto/d5.py <clone> /opt/fabrik "2026-10-17 00:00" "2026-10-31 00:00"` and record its output in the receipt. Expected: `driver-clears` ≥ 58 and no `dup` line.
+   Then run `proto/d5.py <clone> <baseline clone> "2026-10-17 00:00" "2026-10-31 00:00"` and record its output in the receipt. Expected: `driver-clears` ≥ 58 and no `dup` line. If `ledger-only` is not 70 (a fresh clone sees only refs that still exist), say so and judge the clear rate (58 of 67) instead of the absolute count.
+
+   Then the Counter B pass: `d5.py` with its builder filter and its clean-merge skip removed, counting merges clean in the baseline that the driver leaves conflicted on a ledger. Expected `counter-b 0`; any other reading blocks the merge request (spec § Validation Counter B; panel, Opus concern 1).
 3. Ledgers:
    - `CHANGELOG.md`: one `### Added — ledger merge driver (2026-10-31)` entry;
    - `docs/LESSONS_LEARNT.md`: the replica-versus-real-git lesson;
@@ -140,7 +144,7 @@ Appetite: 45
 
 ## Evidence
 
-**E1. Prototype tests against `b938c583e`, no verb** (run 2026-10-31 under `capped_run.sh`, copy in `.tmp/runs/b61d3ce0-aa4e-4a4f-8800-4588107e6a30/fabrik-plan-review-2026-10-31T00-46-42-0300/red/`):
+**E1. The prototype's tests minus its placeholder, against `b938c583e`, no verb** (run 2026-10-31 under `capped_run.sh`, copy in `.tmp/runs/b61d3ce0-aa4e-4a4f-8800-4588107e6a30/fabrik-plan-review-2026-10-31T00-46-42-0300/red/`):
 
 ```text
 FAILED tests/test_merge_ledger_driver.py::test_the_driver_merges_both_insertions_clean
