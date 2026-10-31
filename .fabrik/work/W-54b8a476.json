@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:42:17.460507Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-54b8a476",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "kaizen",
+  "priority": 1,
+  "score_reason": "an operator ruling a week old; a one-pack wording edit, fleet-synced",
+  "status": "open",
+  "tags": [
+    "mail-01m5q6h9rf"
+  ],
+  "title": "Operator ruling 2026-10-24 relayed by web-ecommerce-factory (mail 01M5Q6H9RF): every font on ocoron.com becomes Arya; reword the synced .windsurf/rules/core/ocoron-design-system.md to match"
+}
