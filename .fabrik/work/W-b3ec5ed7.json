@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "fleet",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "WHAT: rcql.com loads Google Analytics (gtag) before any consent: the script is ungated and the `_ga` cookie is set in a clean browser profile, against the site's own cookie policy (rcql.com/cookie-policy, /cerez-politikasi) and KVKK."
 }
