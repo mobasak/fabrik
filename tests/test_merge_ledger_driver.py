@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -16,8 +17,13 @@ import pytest
 HUB = Path(__file__).resolve().parents[1]
 SCRIPT = HUB / "scripts" / "merge_request.py"
 FALLBACK = "git merge-file --marker-size %L -L ours -L base -L theirs %A %O %B"
-# the string scripts/install_post_commit_hook.sh registers (tree-relative, run at the worktree top)
-LEDGER_DRIVER = f"python3 scripts/merge_request.py merge-ledger %O %A %B %P || {FALLBACK}"
+# the string scripts/install_post_commit_hook.sh registers (tree-relative, run at the worktree top),
+# read from the installer so the end-to-end tests below run exactly what it installs
+LEDGER_DRIVER = re.search(
+    r"^LEDGER_DRIVER='([^']+)'$",
+    (HUB / "scripts" / "install_post_commit_hook.sh").read_text(),
+    re.M,
+).group(1)  # type: ignore[union-attr]
 CHANGELOG = "# Changelog\n\n## [Unreleased]\n\n### Fixed — old (2026-10-01)\nold\n"
 DECISIONS = "| id | what |\n|---|---|\n| D-1389 | x |\n"
 ATTRS = "/CHANGELOG.md merge=ledger\n/docs/DECISIONS.md merge=ledger\n"
@@ -363,3 +369,19 @@ def test_non_utf8_bytes_survive_a_clean_resolution(tmp_path: Path) -> None:
         and b"### Fixed \xe2\x80\x94 o" in out
         and b"### Fixed \xe2\x80\x94 t" in out
     )
+
+
+def test_a_subheading_or_separator_a_side_already_repeats_merges_clean(tmp_path: Path) -> None:
+    # structure, not a key: each new entry carries a `### Changed` line and a table the file
+    # already holds twice, so the shared lines are no evidence of a doubled entry
+    shape = "#### Changed\n| k | v |\n|---|---|\n"
+    base = CHANGELOG + f"\n### Fixed — a (2026-10-01)\n{shape}\n### Fixed — b (2026-10-02)\n{shape}"
+
+    def side(name: str) -> str:
+        entry = f"### Fixed — {name} (2026-10-31)\n{shape}{name}\n\n"
+        return base.replace("## [Unreleased]\n", f"## [Unreleased]\n\n{entry}", 1)
+
+    res, a = _run_verb(tmp_path, base, side("o"), side("t"), "CHANGELOG.md")
+    assert res.returncode == 0, res.stderr
+    out = a.read_text()
+    assert out.count("#### Changed") == 4 and "— o (" in out and "— t (" in out

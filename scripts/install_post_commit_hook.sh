@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AFTER-EDIT: docs/workstation/hooks-index.md, tests/enforcement/test_governance_sync_postcommit.py, tests/test_merge_sync.py, tests/test_workitem_merge_driver.py
+# AFTER-EDIT: docs/workstation/hooks-index.md, tests/enforcement/test_governance_sync_postcommit.py, tests/test_merge_sync.py, tests/test_workitem_merge_driver.py, tests/test_merge_ledger_driver.py
 #
 # Installs the hub's POST-COMMIT and POST-MERGE hooks as PLAIN git hooks that run
 # scripts/governance_sync_postcommit.sh directly — never pre-commit's post-commit stage. pre-commit

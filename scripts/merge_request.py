@@ -1071,8 +1071,10 @@ def _merge_ledger(base: str, ours: str, theirs: str, path: str) -> None:
     a D-id the result holds more often than ours, once it is held twice — ``_build``'s landing
     check, moved to the first merge that can see the clash. A path that is not one of ``LEDGERS``
     refuses, and so does a heading or table row (a line opening ``#`` or ``|``) the result holds
-    more often than either side: diff3 keeps lines both sides inserted inside BOTH sides, so an
-    entry cherry-picked onto two branches would otherwise land twice."""
+    twice while neither side holds it more than once — a KEY line (an entry's title, an id's
+    row): diff3 keeps lines both sides inserted inside BOTH sides, so an entry cherry-picked onto
+    two branches would otherwise land twice. A line a side already repeats (a ``### Changed``
+    subheading, a table separator) is structure, not a key, and never refuses."""
     if path not in LEDGERS:
         raise RefusedError(
             f"{path}: not a ledger this driver merges ({', '.join(sorted(LEDGERS))})"
@@ -1083,10 +1085,10 @@ def _merge_ledger(base: str, ours: str, theirs: str, path: str) -> None:
     twice = sorted(
         ln
         for ln, n in seen[0].items()
-        if ln[:1] in "#|" and ln and n > max(seen[1][ln], seen[2][ln])
+        if ln[:1] in "#|" and ln and n > 1 >= max(seen[1][ln], seen[2][ln])
     )
     if twice:
-        raise RefusedError(f"{path}: {twice[0]!r} would appear more often than on either side")
+        raise RefusedError(f"{path}: {twice[0]!r} would appear twice — a row both sides carry")
     if path == DECISIONS:
         held = collections.Counter(_D_ROW_RE.findall(ours_text))
         clash = {

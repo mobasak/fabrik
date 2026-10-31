@@ -3,7 +3,7 @@
 
 ## Measure a merge driver with real git, never a replica of it (2026-10-31, W-53360407)
 
-**What happened:** the spec's first replay ran the ledger resolver over a single-base replica of each merge and read 397 of 400 cleared. Re-measured with the driver registered and real `git merge` run, 58 of 67 builder merges cleared: git hands a driver a virtual merge base on a criss-cross history, which the replica never built. The obvious fix for those, `merge.ledger.recursive=binary`, duplicates entries. Separately, a supersede row minted on a branch behind master was refused by the DANGLING-pointer check, because the row it supersedes had landed on master only.
+**What happened:** the spec's first replay ran the ledger resolver over a single-base replica of each merge and read 67 of 70 builder ledger-only merges cleared (spec § Derivations D1). Re-measured with the driver registered and real `git merge` run, 58 of 67 builder merges cleared: git hands a driver a virtual merge base on a criss-cross history, which the replica never built. The obvious fix for those, `merge.ledger.recursive=binary`, duplicates entries. Separately, a supersede row minted on a branch behind master was refused by the DANGLING-pointer check, because the row it supersedes had landed on master only.
 
 **Lesson:** a figure about a git mechanism is taken from that mechanism run end to end (`git merge` in a clone with the attribute and driver set), never from a model of its inputs; and merge master before minting a row that points at a row master just gained.
 
