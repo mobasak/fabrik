@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:19:10.992231Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-ac3bc2a5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M691QMK9BHZ77GBTEAFGXZ0N",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "P0 W-fa19ed9a fixed — merge request 01M691Q2KH carries it (branch kaizen-coord-duties-1031)"
+}

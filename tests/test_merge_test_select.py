@@ -1097,6 +1097,9 @@ def test_an_until_the_run_cannot_honour_cuts_nothing(tmp_path, monkeypatch, cont
     """Every input the cut cannot honour runs the whole group, as before the cut, inside RAN — a
     plugin error there is INTERNALERROR, exit 3, a leg with no verdict."""
     _cut_runner(tmp_path, monkeypatch, _POLLUTED)
+    # as inside a leg shard: the child below must not append its fake files to this one
+    leg_dur = tmp_path / "leg-dur.jsonl"
+    monkeypatch.setenv("FABRIK_MERGE_TESTS_DUR", str(leg_dur))
     work = tmp_path / "work"
     (work / "_fabrik_merge_tests_rec.py").write_text(mts._PLUGIN, encoding="utf-8")
     cut = tmp_path / "until.json"
@@ -1107,6 +1110,9 @@ def test_an_until_the_run_cannot_honour_cuts_nothing(tmp_path, monkeypatch, cont
         "PYTHONPATH": str(work),
         "FABRIK_MERGE_TESTS_REC": str(tmp_path / "rec.jsonl"),
         "FABRIK_MERGE_TESTS_UNTIL": str(cut),
+        # inside a leg shard this is the shard's own duration file; the child's fake files must not
+        # append to it (W-aa8c473c review)
+        "FABRIK_MERGE_TESTS_DUR": "",
     }
     r = subprocess.run(
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
@@ -1120,6 +1126,7 @@ def test_an_until_the_run_cannot_honour_cuts_nothing(tmp_path, monkeypatch, cont
     )
     assert r.returncode == 1, r.stdout + r.stderr
     assert "1 failed, 4 passed" in r.stdout and "deselected" not in r.stdout, r.stdout
+    assert not leg_dur.exists(), leg_dur.read_text(encoding="utf-8")[:500]
 
 
 _REORDERS = {

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:19:28.034367Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-89f98423",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M691S41NRZ14FRB3S2CDW9Z3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "done — W-b9916ab1 re-requested carrying W-fa19ed9a as merge request 01M691Q2KH"
+}

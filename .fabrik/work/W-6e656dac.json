@@ -19,5 +19,8 @@
   "priority": 0,
   "score_reason": "HIGH: an operator ask on a box-wide safety tool (D-956), and its gaps can lose work or quota on every hibernate; effort LOW-ish: one script plus its command text and doc, five status rows; infra authored it (D-1079) and is idle, parked on W-01e4ae97",
   "status": "open",
+  "tags": [
+    "waits-operator"
+  ],
   "title": "Operator 2026-10-21: \"mostly is not enough it must be fully.\" — /hibernate must FULLY guarantee, from one /hibernate in the hub coordinator window: every agent in every repo reached; no data loss; no in-flight subagent or seat work lost; a proper resume (the cached context is lost by nature, so resume must be proven from disk). Close the five measured gaps of the 2026-10-21 runs."
 }
