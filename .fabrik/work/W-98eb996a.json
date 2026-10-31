@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:53:39.558888Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-98eb996a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M66K0SD2VEY8BTRHN4P23FB9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: GitHub SSH auth now fails from this box: `ssh -T git@github.com` -> \"Permission denied (publickey)\". The key offered is ~/.ssh/id_ed25519 (SHA256:TWSsnOHHcSNDlED0UxBMhelz55ZhdP+Kt6wXb620j4c), via ~/.ssh/config Host github.com IdentityFile. No ssh-agent is running."
+}
