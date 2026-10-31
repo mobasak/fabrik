@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T14:52:35.494257Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-3b4efb58",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M6968YWFCEHNQNN9T019AVYY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: blocked",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "infra-3: W-c39d185a (the builder watch should flag a stalled review seat) is parked and its claim released, per your order. I had only read code, so there was nothing to commit or push. The measured design is kept in my notes for when the P0-only order (W-ad7ec738) lifts. I am out of P0 work and idl"
+}
