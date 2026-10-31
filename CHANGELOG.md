@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — hub mail reaches a builder spawned with agents_up.sh add (2026-10-31)
+
+- `scripts/mail.py` refused `--to-agent builder-tmpfix` ("unknown hub beat"), so a merge reply to an `agents_up.sh add` builder failed and stranded its record. `is_hub_agent` now also admits `<chartered role>-<name>` under `agents_spawn.py`'s grammar; beats keep `<beat>-<N>`. Graded by `tests/test_mail_hub_agent_names.py` (W-677578ef, D-1411).
+
 ### Fixed — a refusal reply quoting an after-merge red no longer outgrows mail.py's 64 KB cap (2026-10-31)
 `scripts/merge_request.py` cuts each red test id shown in an after-merge red item's title to 160 characters (the full
 list stays in `after-merge/status.json`) and cuts a quoted item title to 1,500 characters and every reason, evidence and warning line a reply or ack carries to 4,000, with the whole reply bounded at 48 KB in the preflight refusal. One

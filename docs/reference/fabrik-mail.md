@@ -118,7 +118,8 @@ hops: <int>         # thread depth — 0 for a fresh send; a --re whose parent R
 - **Every hub message carries an ADDRESSEE — ENFORCED at send since 2026-08-26.** The hub runs five
   agents — `coordinator` · `infra` · `fleet` · `intel` · `kaizen` — sharing one `fabrik` mailbox, so a message with no `agent:`
   is work nobody owns. A hub-bound `send` now REFUSES (exit 2, with the beat guide) unless it
-  carries `--to-agent coordinator|infra|fleet|intel|kaizen`, an explicit `--broadcast` (deliberately all-agents;
+  carries `--to-agent` naming a hub agent (a beat, a numbered builder `<beat>-<N>`, or a builder `agents_up.sh add`
+  spawned under a chartered non-beat role, `<role>-<name>` such as `builder-tmpfix`), an explicit `--broadcast` (deliberately all-agents;
   refuses `ack:required` — an obligation nobody owns cannot be acked), or is a `kind=reply` thread
   (`--re` given — exempt). A reply with no `--to-agent` and a resolvable parent goes to the agent who ASKED: the parent's `from-agent:` when it names a hub beat other than the replier AND the parent came from this mailbox (its `from:` is the reply's `to:` — a role recorded under another repo or lane name is never trusted as a hub beat); else the parent's `agent:` is INHERITED when that is not the replier; else it goes out UNADDRESSED (visible to every beat), with a stderr hint when the only candidate was the replier itself — never into its own author's queue, where only the replier looks (fleet, 2026-09-29: 8 answers sat unread that way). Replies bound for a project mailbox are not addressed.
   A typo'd beat is refused at send AND at `route` (clearing with `''` stays legal). Set the
@@ -349,7 +350,7 @@ only as strong as the always-pass-`--auto` rule. A **human**-driven `--re` reply
 1. **Self-guard** — never auto-reply to your own message (`parent.from == you`). In the hub's
    shared `fabrik` mailbox, where every agent's mail is `from: fabrik`, a parent from that mailbox
    is yours only when its `from-agent:` names your agent: it passes when the parent's `from-agent`
-   and yours are both hub agents (a beat or `<beat>-<N>`) and differ, and HOLDs when either is
+   and yours are both hub agents (a beat, `<beat>-<N>` or a spawned `<role>-<name>` builder) and differ, and HOLDs when either is
    absent or not a hub agent (W-19b57b9a). Every other mailbox keeps the repo rule.
 2. **Terminal kinds** — auto-reply only to `request`/`upstream-feedback` with `ack: required`
    (keyed on the KIND — an `--ack required` override on a `reply` is still terminal). A
