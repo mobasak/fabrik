@@ -1078,14 +1078,18 @@ def test_a_row_that_never_ran_never_renders_pass(capsys):
     assert "PASS" in capsys.readouterr().out
 
 
-#: One gate run's rows, fed to BOTH renderers: two skip-marker rows, an advisory row, plain
-#: passes and a failure — every branch of the summary that can make the two modes disagree.
+#: One gate run's rows, fed to BOTH renderers: plain passes, three skip-marker rows (one of them,
+#: `pytest (NOT RUN)`, also warn-only), a pure advisory row (warn-only, no skip marker) and a
+#: failure — each way a green row can fall out of `blocking`, so a renderer that drops one of them
+#: disagrees with the other.
+_ADVISORY_ROW = "auto-fix scope (advisory)"
 _ONE_RUN_ROWS: list[tuple[str, bool, str]] = [
     ("ruff", True, ""),
     ("mypy", True, ""),
     ("bandit (NOT INSTALLED — skipped)", True, "(bandit not installed, skipping)"),
     ("static tier (diff-sensed skip)", True, ""),
     ("pytest (NOT RUN)", True, ""),
+    (_ADVISORY_ROW, True, ""),
     ("semgrep", False, "1 finding"),
 ]
 
@@ -1096,6 +1100,7 @@ def _render(
     """`final_gate.main()` in-process over `_ONE_RUN_ROWS`, with every tree read stubbed."""
     monkeypatch.setattr(fg, "_toolchain_missing", lambda _python: [])
     monkeypatch.setattr(fg, "get_changed_files", lambda: [])
+    monkeypatch.setattr(fg, "get_git_status_hash", lambda: "")  # main reads it every pass
     monkeypatch.setattr(fg, "_warn_untracked_sources", lambda emit=True: "")
     monkeypatch.setattr(fg, "get_staged_files", lambda: set())
     monkeypatch.setattr(fg, "kaizen_events", None)
@@ -1121,9 +1126,13 @@ def test_human_mode_names_its_skips_and_agrees_with_the_envelope(
     gate on a loaded box can differ by a check that timed out in one of them, which made this test
     red with both renderers correct (D-1398's census, W-a9b3bc15).
     """
+    assert _ADVISORY_ROW in fg.WARN_ONLY_CHECKS, "the fixture must exercise the advisory outcome"
     human = _render(monkeypatch, capsys)
     payload = json.loads(_render(monkeypatch, capsys, "--json"))
     assert payload["skipped"] >= 2, "the fixture must exercise the skip line"
+    assert payload["blocking"] < payload["passed"] - payload["skipped"], (
+        "an advisory row must leave blocking"
+    )
 
     # ⚠️ strip ANSI FIRST: the reset code `\033[0m` contains a DIGIT, so a `\D*` gap cannot span
     # it and the match silently fails on coloured output while passing on piped output.
@@ -1134,11 +1143,13 @@ def test_human_mode_names_its_skips_and_agrees_with_the_envelope(
     assert int(m.group(2)) == payload["blocking"], (m.group(0), payload["blocking"])
 
     if payload.get("skipped"):
-        s = re.search(r"Skipped:\D*(\d+)", human)
+        s = re.search(r"Skipped:\D*(\d+)[^\n]*", human)
         assert s, f"human mode hid {payload['skipped']} skipped check(s):\n{human[:800]}"
         assert int(s.group(1)) == payload["skipped"]
+        # on the Skipped line itself: the Advisory roll-call also prints `pytest (NOT RUN)`, so a
+        # whole-output search found a name the Skipped line had dropped
         for name in payload.get("skipped_checks") or []:
-            assert name in human, f"{name} skipped but not named in human mode"
+            assert name in s.group(0), f"{name} skipped but not named on the Skipped line"
 
 
 # ── a checker that is not in the tree is a SKIP, never a PASS ───────────────────

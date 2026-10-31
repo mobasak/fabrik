@@ -275,7 +275,10 @@ def _start_nested(run_dir: Path) -> None:
         "every phase EXECUTED",
         cwd=run_dir,
     )
-    assert _rec(run_dir)["repo_root"] == "", "the fixture must not measure the live checkout"
+    # Not `== ""`: a basetemp inside some other repo is not the cost this guards (review C1).
+    assert _rec(run_dir)["repo_root"] != str(_SCRIPT.parents[1]), (
+        "the fixture must not measure the live checkout"
+    )
     # These tests exercise the NESTED-DONE mechanism, not the phase-review rule
     # (transdoc 1.1) — so the waiver is used deliberately rather than seeding an
     # artifact this fixture has no other reason to own. It also keeps the waiver
