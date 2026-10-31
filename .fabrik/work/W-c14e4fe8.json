@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:55.341303Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-c14e4fe8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M692XSF9DYSMMNSH3A5673NX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "api_credit.py run --add-dir refuses every hub worktree (.venv symlink leaves the directory)"
+}

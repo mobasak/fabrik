@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:36.332957Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a02c5b85",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5FDXKNTE0AAH55NX14P6YRK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "command_run.py step: a --review-waived records only the lowest unreviewed phase, and nothing reads waived_reviews"
+}

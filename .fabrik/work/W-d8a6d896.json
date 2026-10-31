@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:45:04.869704Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-d8a6d896",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M692922TY0KE408SK2GYGBAT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "W-aa8c473c fixed — merge request 01M6928KGC (--item W-aa8c473c); rotate intel"
+}

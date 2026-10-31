@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:43.634020Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-25312e5c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5FP9VJQB170FWR2NW3TPAM3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "FINDING for fabrik-lib i18n/ (please relay to fabrik-lib-dev2, the i18n owner) — two defects youtube found that are present UPSTREAM too, so youtube sends them up rather than forking again (youtube D-086)."
+}

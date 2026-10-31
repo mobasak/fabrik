@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:25.252824Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-5be7ada4",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5DVSW0A421APVWSJQ1WPCD2, validate against current master, then fix or drop (proposed score: impact low, effort low — GATE-SCOPE grammar lacks a form for a red that names the surface but is caused outside it; a grammar extension)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "GATE-SCOPE grammar lacks a form for a red that names the surface but is caused outside it; a grammar extension",
+  "status": "open",
+  "title": "mail 01M5DVSW0A (youtube): GATE-SCOPE grammar has no honest form for a red that NAMES the surface but is CAUSED outside it"
+}

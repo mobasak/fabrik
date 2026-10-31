@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:53:42.264733Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d1be9414",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M66PWP7FQKYEMGT195CK32CG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Finding (web-ecommerce-factory, wef1, 2026-10-30): the Stop hook's UNREVIEWED SPONTANEOUS WORK cause cannot see a repo operator ruling that DEFERS reviews."
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:08.485497Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-230e30f0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M53CF7PTD3NSZX77SJJGCJ20",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Addendum to 01M53C17AK — row 1792034245 is now a text edit; only command_run.py's refusal message remains yours; one handle corrected"
+}

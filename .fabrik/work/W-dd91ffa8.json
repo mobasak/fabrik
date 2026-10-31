@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:45.447094Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-dd91ffa8",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5FVJ9X1N6PTC35YPGHMX28P",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "FINDING for fabrik-lib i18n/ (relay to fabrik-lib-dev2): two OpenRouter calls in i18n/scripts record no cost. youtube vendors both files (youtube D-086), so it sends this up rather than patching its copies."
+}

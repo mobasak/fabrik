@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:51:06.319980Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-677cc0a3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5JYYTX6XR5AX18VA1QM1E4J",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "request: 01M5JYXMF6Y7B5BP4494ZNYA7V"
+}

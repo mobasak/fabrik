@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:53:19.572102Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-1bb777b3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M64JSKPPHWFE8TGZ513TYQA2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: brave-search MCP rejects every call with HTTP 422 SUBSCRIPTION_TOKEN_INVALID, while `python3 /opt/fabrik/scripts/sysadmin/mcp_health.py --repo .` prints `brave-search: CONNECTED` with no key-check line, so the probe reports a dead search arm as live."
+}

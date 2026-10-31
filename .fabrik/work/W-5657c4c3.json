@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:52:48.546339Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5657c4c3",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M622RNSC2RETGQ1E4YZP0JX3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "brave-search MCP key invalid (422) while mcp_health reports it CONNECTED; fabrik-scrape not visible to research seats"
+}

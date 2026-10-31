@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:42:27.462550Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-71ffacba",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M6933HPA1AB4RQAZA00DKAWR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "infra: 214 mails addressed to infra wait in the inbox; the Stop hook walks me through them one at a time"
+}

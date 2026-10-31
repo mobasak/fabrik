@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:52:28.818063Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-56921620",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Y8F1T54FF63HG74J16QH83",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: D-1268 stale command texts — done on kaizen-d1268-texts (D-1288), merge request 01M5Y8EAV5"
+}

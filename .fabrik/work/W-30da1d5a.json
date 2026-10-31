@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:05.368700Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-30da1d5a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5QKWMKM7M8299AD0BWM00KP",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: scripts/rules_match.py reads a MIDDLE `**` in a pack glob as a single path segment, so `**/src/**/*.html` matches `src/index.html` but not `src/a/b.html`; Windsurf's own glob engine matches nested paths. select_rules (ACTIVE/AVAILABLE) and review_rubric (per changed path) therefore load a pack"
+}

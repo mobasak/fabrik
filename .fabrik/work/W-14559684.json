@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:51:55.618649Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-14559684",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5W00N9VTVZ97KYDJMS6V0CM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-scrape MCP is DEAD in web-ecommerce-factory: its systemd unit is not installed on the box"
+}

@@ -22,6 +22,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 # read at IMPORT (collection) time: proves the fleet guard is installed before collection
 _MODULE_LEVEL_POPEN = subprocess.Popen
 REPO = Path(__file__).resolve().parents[1]
@@ -771,21 +773,27 @@ def test_an_exported_ssh_jump_variable_is_scrubbed_before_any_test():
 
 
 MERGE_RECORDS_VAR = "FABRIK_MERGE_TESTS_RECORDS"
+MERGE_BASE_VAR = "FABRIK_MERGE_TESTS_BASE"
 
 
-def test_an_exported_merge_records_override_is_scrubbed_before_any_test(tmp_path):
+@pytest.mark.parametrize("var", [MERGE_RECORDS_VAR, MERGE_BASE_VAR])
+def test_an_exported_merge_records_override_is_scrubbed_before_any_test(tmp_path, var):
     """W-bce8914b: a pretest or `merge --queue` leg exports FABRIK_MERGE_TESTS_RECORDS to point its
     own records at a private dir, and its pytest shards inherited it: every selector test that
     checks a record at the shared common-dir path went red (8 measured at 6473c6e1b, 7 in
-    test_merge_test_select.py and one in test_merge_request_pretest.py). One of them runs here
-    with the variable exported, through the real conftest chain, as a leg runs its shards."""
+    test_merge_test_select.py and one in test_merge_request_pretest.py). The after-merge leg also
+    exports FABRIK_MERGE_TESTS_BASE, its last tested tip, which moved those tests' base the same way
+    (W-aa8c473c, red after merge 9aaab68ff). One of them runs here with each variable exported,
+    through the real conftest chain, as a leg runs its shards."""
     # the name the conftest pops is the one the selector reads and merge_request sets: a rename
     # there would leave this grader exporting a name nothing reads
-    for script in ("merge_test_select.py", "merge_request.py"):
-        text = (REPO / "scripts" / script).read_text(encoding="utf-8")
-        assert f'os.environ.get("{MERGE_RECORDS_VAR}")' in text, script
+    select = (REPO / "scripts" / "merge_test_select.py").read_text(encoding="utf-8")
+    assert f'os.environ.get("{var}"' in select, var
+    sets = {MERGE_RECORDS_VAR: f'os.environ["{var}"] = ', MERGE_BASE_VAR: f'env["{var}"] = '}[var]
+    assert sets in (REPO / "scripts" / "merge_request.py").read_text(encoding="utf-8"), var
     env = {k: v for k, v in os.environ.items() if k != "PYTEST_ADDOPTS"}
-    env[MERGE_RECORDS_VAR] = str(tmp_path / "private-records")
+    # a full commit id, as the leg exports (a short one fails the selector's id check instead)
+    env[var] = str(tmp_path / "private-records") if var == MERGE_RECORDS_VAR else "f" * 40
     r = subprocess.run(
         [
             sys.executable,

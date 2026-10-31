@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:42:41.068162Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-89f861fc",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Q6H9RF5RYZ62VEGTTRMSVX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "operator ruling — ocoron.com uses Arya for ALL text; the synced Ocoron design system needs the change"
+}

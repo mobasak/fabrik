@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:45.617169Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a35c0228",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5GYP5NESGS8B1AG81SSVGW2, validate against current master, then fix or drop (proposed score: impact low, effort low — a handoff-closed /fabrik-review does not cover its reviewed edits in the Stop hook; a coverage rule)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "a handoff-closed /fabrik-review does not cover its reviewed edits in the Stop hook; a coverage rule",
+  "status": "open",
+  "title": "mail 01M5GYP5NE (fabrik): Stop hook: a handoff-closed /fabrik-review does not cover the edits it reviewed (UNREVIEWED SPONTANEOUS WORK fires on reviewed, unmerged files)"
+}

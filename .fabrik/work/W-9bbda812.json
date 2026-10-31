@@ -5,7 +5,7 @@
   "created": "2026-10-31T11:21:57.683461Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "fa55adeb32b057650c43d25617260012aa72e49d",
   "id": "W-9bbda812",
   "impact": "high",
   "kind": "task",
@@ -19,8 +19,9 @@
   "note": "",
   "owner": "infra-2",
   "priority": 0,
+  "resolved_by": "W-aa8c473c",
   "score_reason": "after-merge red from infra-2's own merge 6a4ea967c (ledger driver); its next request is blocked until fixed",
-  "status": "open",
+  "status": "done",
   "tags": [
     "after-merge-red",
     "by-infra-2"

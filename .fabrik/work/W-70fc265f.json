@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:11.360049Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-70fc265f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M586AZ2ZYMN2493D249ZV846",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "command_run.py: adopt a running record across /clear (same window, agent and cwd), so the Stop hook, seat counts and work-item claims follow the window (/fabrik-task feedback row 1792346713)"
+}

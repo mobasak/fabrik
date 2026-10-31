@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:41:07.360614Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-d7eee298",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M6931JDT8C3GBK6C166V3J2P",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "infra: W-f4ce5c6b closed on branch infra-reply-id-cap (e477e8274)"
+}

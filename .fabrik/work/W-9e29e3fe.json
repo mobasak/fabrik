@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:21.606739Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9e29e3fe",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5861CMYZ8P9624VY6EBSC6J",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "review_receipt.py --init: emit the Pass Ledger with an explicit marker the fill can target, so the example fence never shadows it (/fabrik-review feedback row 1792346060)"
+}

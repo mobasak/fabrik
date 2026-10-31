@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:47.268571Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-92e7db9c",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5K1YQQDQTPE3QE3YYGDXFD1, validate against current master, then fix or drop (proposed score: impact high, effort low — recurrence: a linked worktree cannot write the durable run scratch (D-836); breaks closes in every worktree repo)",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "recurrence: a linked worktree cannot write the durable run scratch (D-836); breaks closes in every worktree repo",
+  "status": "open",
+  "title": "mail 01M5K1YQQD (fabrik): recurrence of 01M4Y3N9GW (D-836 run scratch unwritable from a linked worktree) — a youtube /fabrik-task close on 2026-10-22"
+}

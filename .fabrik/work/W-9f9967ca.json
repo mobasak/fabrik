@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:53:52.838674Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9f9967ca",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68YRM8NGZPY90PP5VX0J349",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Coordinator, standing order (D-1406), no reply needed: API credit (can, sarp, ozgurbasak, about $168-347) and cloud credit ($1,150) expire 11-05 and have sat idle for days. From now on, route your review seats and read-only research through the API lane first (python3 scripts/api_credit.py run --pic"
+}

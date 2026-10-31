@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:37.217258Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e4944367",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5CBH94PBJ4SY785B42S77H6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Three /fabrik-execute-plan feedback rows ask for command_run.py code: resume from a handoff RESUME file, and the per-phase step gate under Profile: small"
+}

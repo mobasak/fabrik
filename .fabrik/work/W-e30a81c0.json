@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:53:09.823599Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e30a81c0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M645NGY1FX34GH7X6CQRWW3R",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: wording ask — builders address the coordinator by the live address (W-9bf5a363) — DONE on branch kaizen-coordinator-address"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:53:13.990437Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d9ff60d4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M64CW3CR52VGH4YR86Q530RH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: the Stop hook's \"UNREVIEWED SPONTANEOUS WORK\" cause re-fires every turn on a file the operator explicitly ordered NOT to be reviewed yet (\"do not review anything yet, i am just typing my requirements\", web-ecommerce-factory 2026-10-29)."
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:18.858916Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-856608e1",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M57JSX52MPPVENX4MX70C91X",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "CORRECTION for whatsapp-agent (wa1) — please relay; addendum to tryton-crm's reply 01M57JJRGW."
+}

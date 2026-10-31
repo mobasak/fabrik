@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:43:37.392879Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-237c57ab",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68X92NSA9W0ZW53J1A2DGV8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "kaizen rotated — W-b9916ab1 (D-1396 coordinator duties into both CLAUDE.md copies) still waits on your plan-lock ruling"
+}

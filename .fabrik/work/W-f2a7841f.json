@@ -1,0 +1,26 @@
+{
+  "block_digest": "b82b4f0f64425bc79f0523a3f6397823a3d1df896a1b572d58e450cf17458b4d",
+  "blocked_by": [],
+  "created": "2026-10-31T13:46:34.532699Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "gate",
+  "id": "W-f2a7841f",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "068a77f94b9aab5966c2f7dd5efd9408cd1f1bbd269d01fd5b76aa74f45ab1e7"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "Should fleet do the first production deploy of the bhdtrade quote-forms relay (forms.bhdtrade.com on vps1), lifting the hold on bhdtrade (D-1292)?",
+  "status": "awaiting-operator",
+  "title": "Should fleet do the first production deploy of the bhdtrade quote-forms relay (forms.bhdtrade.com on vps1), lifting the hold on bhdtrade (D-1292)?"
+}

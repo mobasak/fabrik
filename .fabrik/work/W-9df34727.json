@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:35:12.662403Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-9df34727",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "seats run pytest bare today; the D-935 memory cap must cover them",
+  "status": "open",
+  "tags": [
+    "mail-01m68ka2ec"
+  ],
+  "title": "seat_guard.py: unwrap capped_run.sh so a review seat may run pytest under it (mail 01M68KA2EC; origin/master seat_guard.py has 0 capped_run matches per intel 2026-10-31); unblocks W-77483298 and kaizen MR 01M68QC4KC's rule"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:20.598074Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-cc2f931a",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5RCQZDET9BVKK8H8X6H5VVE, validate against current master, then fix or drop (proposed score: impact low, effort low — the WORK WAITING doorbell never counts the SendMessage it asks for and fires 3/3)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "the WORK WAITING doorbell never counts the SendMessage it asks for and fires 3/3",
+  "status": "open",
+  "title": "mail 01M5RCQZDE (fabrik): Stop hook WORK WAITING doorbell never counts the SendMessage it asks for — it fires 3/3 even after the exact text is sent"
+}

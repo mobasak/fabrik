@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:53.113361Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-2b17b03e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5GBDR016PF7HGB21DCQXV5N",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: retraction — message 01M5GBDH1EC3FVP5A5SNBA9SBG was sent empty by mistake from youtube/yt3."
+}

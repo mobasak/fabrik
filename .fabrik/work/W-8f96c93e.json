@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:53:41.426567Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-8f96c93e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M66PTAGVG8821R9YH9PC5E0P",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "correction to finding 01M66P3KKPYFZWR7KCK28BJVJQ (selfwatch wakes, wef4)"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:53:43.126242Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-49e95399",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M66R6TPD32BK19CWTFECER2W",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "brave-search MCP: mcp_health.py reports CONNECTED with no key check, but every brave_web_search call returns 422 SUBSCRIPTION_TOKEN_INVALID"
+}
