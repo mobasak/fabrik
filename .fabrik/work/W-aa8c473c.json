@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-31T10:27:51.048728Z",
   "creator": "coordinator",
+  "effort": "low",
   "evidence": "",
   "id": "W-aa8c473c",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "fix the red after merge 9aaab68ff3f9, then request with --item",
   "note": "",
-  "owner": "",
+  "owner": "intel",
   "priority": 0,
+  "score_reason": "the post-merge leg caught a red from intel's own merge 9aaab68ff; its next request is blocked until fixed",
   "status": "open",
   "tags": [
     "after-merge-red",

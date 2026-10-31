@@ -16,8 +16,8 @@
   "next": "",
   "note": "",
   "owner": "infra-2",
-  "priority": 1,
-  "score_reason": "HIGH: disk on the box (119 GB unreclaimable); effort low: one script, one /fabrik-task",
+  "priority": 0,
+  "score_reason": "since D-1389 /tmp is no longer wiped at boot, so the janitor gap (119 GB) is now the only bound on /tmp growth",
   "status": "open",
   "title": "Scratch janitor cannot reach 119 GB of /tmp/claude-1000 (infra-2 2026-10-29): nightly scratch_sweep.py --dead --apply keeps (a) 329 unclassified folders with no live or death signal, (b) resumable markers kept after the run resumed and closed, (c) folders pinned by seats' registered throwaway worktrees; needs a design choice (when a no-signal session counts as dead, an age bound for resumable markers) — /fabrik-task or spec"
 }
