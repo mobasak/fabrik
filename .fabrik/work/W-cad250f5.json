@@ -12,10 +12,10 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "time sink: landings no longer wait on the after-merge leg (valve D-1384); only red-detection latency, up to ~45 min",
   "owner": "",
   "priority": 2,
-  "status": "open",
+  "status": "dropped",
   "tags": [
     "mail-01m692zzd5"
   ],
