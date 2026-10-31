@@ -184,8 +184,9 @@ in both files. The plan's Phase B hook (D5) reads the same five label tokens; no
 - **R1 (I13, I14) — the residual default (approach A).** In the twin paragraph, "The operator alone decides the rest, and
   such a block's Why line …" becomes "The operator alone decides the rest — every gate act not handed to the panel above, a
   panel class whose condition fails included — and such a block's Why line …", and the last token's gloss "`unbacked`
-  (deleting data with no backup)" becomes "`unbacked` (an act missing the verified backup, the dump or the rollback its
-  panel class needs — a deploy without a rollback, a window that does not dump first, deleting data with no backup)". Hub
+  (deleting data with no backup)" becomes "`unbacked` (an act the panel's class list above does not cover — a deploy without a
+  rollback, a window that does not dump first or does not keep the old volume, a host, target or class no panel sentence
+  names, deleting data with no backup)". Hub
   § Autonomy "and so do the gate classes § FINAL OUTPUT keeps for the operator" becomes "and so does every gate § FINAL
   OUTPUT does not hand to the panel". A failed condition then has a token, and a gate class added later with no panel
   sentence is the operator's by default.
@@ -203,14 +204,15 @@ in both files. The plan's Phase B hook (D5) reads the same five label tokens; no
   § Autonomy keeps its own copy of the dispatch (it also stamps `dispatch --seats 2`); the template had none (A-C3).
 - **R3 (I16) — customer-facing is about users, not the flag.** "A target is customer-facing when its service spec says
   `is_public: true` and its users are not us" becomes "A target is customer-facing when people who are not us use it or
-  receive what it sends: `is_public: true` marks one, and so does a worker, a token-gated API or a signed-in app that
-  reaches them, whatever its `is_public:` says". Census (executed 2026-10-31): 69 service specs, 60 carry `is_public:`,
-  12 files say `false` — among them `specs/services/whatsapp-agent.yaml` and `specs/services/evolution-api.yaml`, which
-  message real people.
-- **R4 (I17) — own surface vs `public`.** Phase A's "(our own public docs site is our own surface)" stays the ruling; the
-  `public` token's gloss narrows to match it: "`public` (a product release, store listing, message or post that reaches
-  customers or the public — a customer-facing production deploy included — never content on a surface we host and can roll
-  back, such as our own docs site)".
+  receive what it sends, whatever its `is_public:` says — a worker, a token-gated API or a signed-in app that reaches them
+  included"; Phase A's parenthetical after it, "(our own public docs site is our own surface)", stays and is the one
+  exception. Census (executed 2026-10-31, `command grep -l "is_public:" specs/services/*.yaml`): 69 service specs, 59
+  carry an `is_public:` key, 12 say `false` — among them `specs/services/whatsapp-agent.yaml` and
+  `specs/services/evolution-api.yaml`, which message real people.
+- **R4 (I17) — own surface vs `public`.** The `public` token's gloss takes the same one exception, so the docs site
+  matches only "our own surfaces": "`public` (publishing to customers or the public, a customer-facing production deploy
+  included)" becomes "`public` (publishing to customers or the public, a customer-facing production deploy included, our
+  own public docs site excepted)". A customer-facing app on our own VPS stays `public` — rollback or not.
 - **R5 (I18) — `operator-minted` narrowed.** "`operator-minted` (credentials, or an act at a third-party dashboard, email
   verification or payment provider, only the operator can perform)" becomes "`operator-minted` (a credential or act only
   the operator can perform — at a third-party dashboard, an email verification or a payment provider; never a credential
@@ -226,8 +228,11 @@ in both files. The plan's Phase B hook (D5) reads the same five label tokens; no
   steps before it stay; a prune is still never offered.
 - **R8 (I21) — the panel unavailable.** Add to the twin paragraph after R2's sentence: "While `Agent` is held (band RED or
   the wall) no panel sits: a gate it would decide waits for the band to lift, and only a P0 act that cannot wait goes to
-  the operator through a coordinator, its block carrying `Panel: unavailable (band RED)`." Waiting, not escalating, is
-  the default because RED already means start nothing new (`CLAUDE.md` § Pointers, the quota bands).
+  the operator through a coordinator, its block carrying `Panel: unavailable (band RED)`; a RED on this account's own
+  Fable window alone is lifted by pinning another account, never waited out." Waiting, not escalating, is the default
+  because RED already means start nothing new (`CLAUDE.md` § Pointers, the quota bands); the Fable case follows that
+  section's pin rule (D-295). The hook already accepts `Panel: unavailable` on any panel-checked block at RED/WALL only
+  (`.claude/hooks/final_gate_stop.py:4228-4231`, ahead of its outcomes check), so the P0 route needs no Phase B change.
 - **R9 (I22) — the ceiling's home.** "spend inside a ceiling the operator sets (none while it is 0)" becomes "spend inside
   a ceiling the operator sets (written into this sentence when they rule it; none while it is 0)" — the paragraph is the
   one place both the agents and the hook's test cases read, and § Lifecycle's growth step already writes the value there.
@@ -237,18 +242,21 @@ in both files. The plan's Phase B hook (D5) reads the same five label tokens; no
 - **R11 (I24) — the cross-repo row's gates.** Both contracts' cross-repo HARD STOP row (`CLAUDE.md:336`,
   `templates/governance/CLAUDE.md:311`) ends "carries the operator's authority (D-441)." → "carries the operator's
   authority (D-441); a gate the change needs still follows § FINAL OUTPUT's gate ground."
-- **R12 (I25-I28) — the four Phase A wording fixes, verbatim from W-92389a31's note.** Both stage tables `6-release`
-  "hands to the human gate;" → "hands to Gate 2;" (`CLAUDE.md:75`, `templates/governance/CLAUDE.md:65`); hub § EXIT
-  "PRESENT only the genuine choices — keep the branch as-is ·" → "PRESENT only the genuine choices, to the panel (the
-  operator when § FINAL OUTPUT keeps the act) — keep the branch as-is ·" (`CLAUDE.md:308`); template hub-request bullet
+- **R12 (I25-I28) — the four Phase A wording fixes from W-92389a31's note** (two differ from the note, by this review's
+  pass 1: A-C12 deletes the clause instead of renaming it, and A-C14 reaches the template's § EXIT too). Both stage tables `6-release`
+  ", hands to the human gate;" → ";" (`CLAUDE.md:75`, `templates/governance/CLAUDE.md:65` — deleted, not renamed: the
+  same row already names Gate 2 where it is answered, before `/fabrik-deploy`, and the VPS path's release has no approval
+  of its own, D4); both contracts' § EXIT "PRESENT only the genuine choices — keep the branch as-is ·" → "PRESENT only
+  the genuine choices, to the panel (the operator when § FINAL OUTPUT keeps the act) — keep the branch as-is ·"
+  (`CLAUDE.md:308`; `templates/governance/CLAUDE.md:283-284`, where the sentence wraps after "only the"); template hub-request bullet
   "and it never answers a permission prompt" → "and that authority never answers a permission prompt"
   (`templates/governance/CLAUDE.md:433`); hub § Autonomy "leaves an `underivable` DECISION block," → "leaves an
   `underivable` DECISION block (a split on a gate class leaves a `gate` block instead, § FINAL OUTPUT),"
   (`CLAUDE.md:695`).
 - **R13 (I29) — the Gate 2 panel's brief.** `commands/_sources/fabrik-deploy-plan-review.md:117` "the brief states the
   target's `is_public:` value" → "the brief states the target's `is_public:` value, who uses it or receives what it
-  sends (R3), and the open P2/P3 rows of the newest certification handoff report — the one `/fabrik-release` reads
-  (`commands/_sources/fabrik-release.md:26-28`) — or `none`". The release's console WARN list is not durable; the report
+  sends, and the open P2/P3 rows of the newest certification handoff report `/fabrik-release` reads, or `none`" (the
+  report `commands/_sources/fabrik-release.md:26-28` reads; no spec R-id or line cite enters the command text). The release's console WARN list is not durable; the report
   it was printed from is.
 
 Grounding (1c, fetched 2026-10-31; every seat fact filed in `docs/reference/research/2026-10-31-gate-residuals-ledger.md`):
@@ -366,8 +374,9 @@ Gate 2 brief's P2/P3 rows (R13). Its approval row is minted at the plan's approv
   that cannot wait goes to the operator through a coordinator with `Panel: unavailable (band RED)` (Amendment 1 R8); the
   classifier refusing a panel-approved act → D2's once-per-class route.
 - **Amendment 1 build:** an agent's edit to either CLAUDE.md copy is refused by Claude Code's classifier (Phase A needed the
-  operator's kit `ep-phaseA.py`), so R1-R12 ship as a second guarded operator kit the plan names, R13 and the graders as
-  ordinary commits; all land before Phase B, which consumes R1's tokens.
+  operator's kit `ep-phaseA.py`), so R1-R12 ship as a second guarded operator kit the plan names; R13 is an ordinary
+  commit, and the graders are committed with the kit's two files in one commit after the apply; all land before Phase B,
+  which consumes R1's tokens.
 - **Ordering constraint:** the build writes both CLAUDE.md files only after intel's lock release (40a2ac5d7) is on master — it is,
   via 16b8494b8 (coordinator, 2026-10-22); the build merges master first.
 - **Retired by:** an operator ruling superseding D-1110.

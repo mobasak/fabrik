@@ -286,24 +286,31 @@ stays true under R6 and R9.
 0. `git fetch` and merge `origin/master` into the branch if it moved (`git merge --no-commit`, then a trailered
    commit), and read `.fabrik/plan-locks/` for any lock other than this plan's own listing either CLAUDE.md copy or
    `commands/_sources/fabrik-deploy-plan-review.md` (`python3 -c` over the JSON files; expected: none).
-1. **Grader first.** Extend `tests/test_least_operator_approval.py` with A8–A13 below and move the five pins Phase A
-   wrote on phrases Amendment 1 replaces — "deleting data with no backup", "and its users are not us", "only the
-   operator can perform", "every irreversible act always", "keeps for the operator (D-1110" (`command grep -n` in that
-   file finds each) — to the new phrases. Run it under the Global Constraints' pytest line: A8–A13 red on today's text,
-   each for the reason it names; A1–A7 still green except where a moved pin now names the new phrase (red, by design).
+1. **Grader first.** Extend `tests/test_least_operator_approval.py` with A8–A13 below and move the six pins Phase A
+   wrote on phrases Amendment 1 replaces to the new phrases — in `test_a2_the_gate_ground_names_the_operator_kept_label`
+   the `public` gloss "`public` (publishing to customers or the public, a customer-facing production deploy included)"
+   (R4), `" only the operator can perform)"` (R5 — quoted with its leading space and closing parenthesis, because the
+   bare phrase also matches A6's `fabrik-deploy.md` pin, which R5 leaves alone), "deleting data with no backup" (R1),
+   "every irreversible act always" (R6) and "and its users are not us" (R3); in
+   `test_a3_autonomy_and_the_coordinator_escalation_name_the_panel` "keeps for the operator (D-1110" (R1, R10). Run it under the Global Constraints' pytest line: A8–A13 red on today's text,
+   each for the reason it names; A2 and A3 red where a moved pin now names the new phrase (by design), A1 and A4–A7 green.
 2. **R13** — edit `commands/_sources/fabrik-deploy-plan-review.md:117` as `spec § Amendment 1` R13 words it. Then
    run `tests/test_command_rules.py` (it calls `command_rules.losses()` over the tree's sources against the lean
    ledger `commands/_rules/fabrik-deploy-plan-review.yaml`; a loss is a reworded ban clause, fixed by keeping it
-   verbatim, and its word ceiling for this command is checked there too), then render to a scratch destination
+   verbatim) and `tests/test_command_measure.py::test_live_corpus_within_ceiling` (the command's L1 word ceiling in
+   `commands/_size_ceiling.json`; a breach is trimmed, never met by raising the ceiling), then render to a scratch destination
    (`python3 commands/assemble_commands.py --dest <RUN-SCRATCH>/render`, exit 0). Commit by pathspec with trailers.
 3. **The operator kit for R1–R12** (an agent's edit to either CLAUDE.md copy is refused by the classifier — Phase A's
    `ep-phaseA.py` precedent). Write `<RUN-SCRATCH>/ep-phaseA2.py`: stdlib only; dry-run by default, `--apply` to write;
-   refuses unless the cwd is `/opt/fabrik/.claude/worktrees/kaizen`, the branch is `kaizen-d1-amend-1031` and both
+   takes `--root <dir>` (default `/opt/fabrik/.claude/worktrees/kaizen`) and refuses unless that root's branch is
+   `kaizen-d1-amend-1031` — or, with `--probe`, its detached HEAD equals that branch's tip (`--probe` relaxes only this
+   branch check, never the clean-tree or exactly-once checks) — and both
    CLAUDE.md copies are clean against HEAD (`git diff --quiet HEAD -- <file>`); it applies the Rs in order on the evolving text,
    finding each old string exactly once per file it names at its turn (else refuses the whole kit, writing nothing;
    R2's insertion goes before R1, whose anchor "The operator alone" it shares — Evidence § Phase A2 pass 1 probe); writes `<file>.bak` before the first
    write; prints a unified diff. Prove it in a throwaway worktree first (`git worktree add <RUN-SCRATCH>/probe HEAD`,
-   run `--apply` there, then step 4's tests inside the probe — all green, the twin test included). Send the kit path
+   copy the step-1 grader `tests/test_least_operator_approval.py` into it — HEAD does not carry it until step 4's
+   commit — run the same file there with `--root <RUN-SCRATCH>/probe --probe --apply`, then step 4's tests inside the probe — all green, the twin test included). Send the kit path
    and the probe's test output to the coordinator by `SendMessage` (CLAUDE.md § Escalation route) for the operator to
    run, park the run (`command_run.py handoff`, its `## RESUME` naming step 4), and take no other step on these files
    until the coordinator says it was applied.
@@ -319,11 +326,11 @@ stays true under R6 and R9.
 
 **Behavior Contract (Phase A2):**
 
-- **Given** both contracts, **When** the grader reads the gate paragraph, **Then** each holds R1's "a panel class whose condition fails included" and `unbacked`'s new gloss naming a deploy without a rollback and a window that does not dump first, and neither holds "`unbacked` (deleting data with no backup)" (A8)
-- **Given** both contracts, **When** the grader reads the gate paragraph, **Then** each holds R2's dispatch sentence (one `model: "opus"` and one `model: "fable"` seat, "takes no part in the verdict", a coordinator validates both reports), R8's "no panel sits" sentence with "only a P0 act that cannot wait", and R9's "written into this sentence" (A9)
-- **Given** both contracts, **When** the grader reads the gate paragraph, **Then** each holds R3's "people who are not us use it or receive what it sends", R4's "never content on a surface we host and can roll back", R5's "never a credential the fleet mints itself" and R6's "one no verified backup, dump or rollback undoes", and neither holds "and its users are not us" or "every irreversible act always" (A10)
+- **Given** both contracts, **When** the grader reads the gate paragraph, **Then** each holds R1's "a panel class whose condition fails included" and `unbacked`'s new gloss naming a deploy without a rollback, a window that "does not dump first or does not keep the old volume" and "a host, target or class no panel sentence names", and neither holds "`unbacked` (deleting data with no backup)" (A8)
+- **Given** both contracts, **When** the grader reads the gate paragraph, **Then** each holds R2's dispatch sentence (one `model: "opus"` and one `model: "fable"` seat, "takes no part in the verdict", a coordinator validates both reports), R8's "no panel sits" sentence with "only a P0 act that cannot wait" and "lifted by pinning another account", and R9's "written into this sentence" (A9)
+- **Given** both contracts, **When** the grader reads the gate paragraph, **Then** each holds R3's "people who are not us use it or receive what it sends", R4's "our own public docs site excepted", R5's "never a credential the fleet mints itself" and R6's "one no verified backup, dump or rollback undoes", and neither holds "and its users are not us" or "every irreversible act always" (A10)
 - **Given** the hub contract, **When** the grader reads § Autonomy, **Then** it holds "every gate § FINAL OUTPUT does not hand to the panel", "superseding D-558's" and "a split on a gate class leaves a `gate` block instead", and no longer holds "keeps for the operator (D-1110, superseding this paragraph's" (A11)
-- **Given** both contracts, **When** the grader reads the volume and cross-repo HARD STOP rows and the stage table, **Then** each volume row names the panel route with "every listed volume backed up and the backup verified first", each cross-repo row ends "a gate the change needs still follows § FINAL OUTPUT's gate ground", each `6-release` row says "hands to Gate 2;"; the hub § EXIT names "to the panel (the operator when § FINAL OUTPUT keeps the act)"; the template's hub-request bullet says "that authority never answers a permission prompt" (A12)
+- **Given** both contracts, **When** the grader reads the volume and cross-repo HARD STOP rows and the stage table, **Then** each volume row names the panel route with "every listed volume backed up and the backup verified first", each cross-repo row ends "a gate the change needs still follows § FINAL OUTPUT's gate ground", neither `6-release` row holds "hands to the human gate"; both § EXIT sentences name "to the panel (the operator when § FINAL OUTPUT keeps the act)" (the template's read with whitespace collapsed, since it wraps); the template's hub-request bullet says "that authority never answers a permission prompt" (A12)
 - **Given** `fabrik-deploy-plan-review.md`, **When** the grader reads its Gate 2 panel sentence, **Then** the brief names who uses the target or receives what it sends and the open P2/P3 rows of the newest certification handoff report (A13)
 - A4 (the twin paragraphs identical apart from "hub D-054") stays and is re-run after the apply.
 - **Mocked:** nothing — the grader reads the real files from the tree it sits in.
@@ -762,7 +769,8 @@ $ /opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest -q -p no:cache
 ### Phase A2 — pass 1 probe: every kit old string occurs exactly once (2026-10-31)
 
 The probe script (kaizen's run scratch `probes/kit_old_strings.py`) lists each `spec § Amendment 1` R's old string
-and the files it names, and counts it in the working tree at 430e9b1f9:
+and the files it names, and counts it in the working tree (re-run after pass 1's fixes; R12a's old string now carries its leading comma, R12bt is
+the template's wrapped § EXIT):
 
 ```text
 $ python3 probes/kit_old_strings.py
@@ -791,9 +799,10 @@ R11   templates/governance/CLAUDE.md   1
 R12a  CLAUDE.md                        1
 R12a  templates/governance/CLAUDE.md   1
 R12b  CLAUDE.md                        1
+R12bt templates/governance/CLAUDE.md   1
 R12c  templates/governance/CLAUDE.md   1
 R12d  CLAUDE.md                        1
-rows: 27 not-exactly-once: 0
+rows: 28 not-exactly-once: 0
 ```
 
 R1 and R2 share the anchor "The operator alone": the kit applies R2's insertion first, then R1 on the edited text
@@ -840,3 +849,7 @@ R1 and R2 share the anchor "The operator alone": the kit applies R2's insertion 
 | Pass 6 | opus×1 + sonnet×1 (the round-1 slice owners) · the panel fold + one hop — the critique step's delta round; the opus seat probed v6 with 56 cases, autonomy on and off | found: 3, new: 3, confirmed: 3, fixed: 3, unexecuted: 0, edits: 3 | method: re-derivation — the unknown-token refusal fired with autonomy off (B5 broken), the prototype's comment lagged the plan, D5 over-stated the refusal; sonnet slice confirmed 0; v7 rebuilt and probed (45 cases right) | 4e7c8ff9… → b86a3afe… |
 | Pass 7 | opus×1 + sonnet×1 (the round-1 slice owners) · the pass-6 fixes + one hop; the opus seat probed v7 with 56 cases autonomy on and off and compared the prototype's comment block with the plan's line for line (16 = 16) | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 1 | method: re-derivation — opus slice confirmed 0; the sonnet slice found the Self-audit mapping missing step 2b (panel-fold residue), fixed | b86a3afe… → 9ef5a325… |
 | Pass 8 | sonnet×1 (the only slice a pass-7 hunk reaches; the opus slice confirmed 0 at pass 7 and no hunk touched it since) · the one Self-audit clause + one hop · shape: agent-tool | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the step-2b mapping re-derived against A2 (the example's label) and A3 (the Escalation phrase), each red on today's text; standing clean: every other class | 9ef5a325… → 9ef5a325… ✓ → **CONVERGED** |
+| Pass 9 | opus×1 (spec § Amendment 1 and its additions) + sonnet×1 (plan Phase A2, I5, File Scope rows, Evidence probe) · Amendment 1 (W-92389a31) round 1, the full pass over its new text · shape: api-lane (D-1406) | found: 17, new: 17, confirmed: 12, fixed: 12, unexecuted: 0, edits: 12 | method: citation — full pass over Amendment 1 (the run record's round-1 stamp undercounted as 13 found / 10 confirmed; this row is the recount); confirmed R4 handing customer-facing deploys to the panel, R1 gaps (other host, kept old volume, later class), the R3/R4 docs-site clash, the template § EXIT, R8 vs the Fable pin (D-295), the stage row's double Gate 2, R13's spec cite in command text, the census (59, not 60), § Lifecycle saying the graders land as ordinary commits (they land with the kit), a sixth Phase A pin, an ambiguous pin grep, the ceiling test (`test_command_measure.py`); refuted the "keeps" readings (R1's residual sentence defines them), the R8 hook route (`.claude/hooks/final_gate_stop.py:4228-4231` accepts `Panel: unavailable` at RED ahead of the outcomes check), one ceiling per fleet (D-1110 names one); kit probe re-run, 28 rows exactly once | a35c32d2 / c16b8686 (plan / spec) → b8bbde76 / aebe98bf |
+| Pass 10 | opus×1 + sonnet×1 (the round-1 slice owners, fresh API-lane runs handed their own round-1 return) · their own claims over the pass-9 fix diffs + one hop · shape: api-lane (D-1406) | found: 4, new: 4, confirmed: 3, fixed: 3, unexecuted: 0, edits: 3 | method: re-derivation — sonnet slice 0 candidates (every hunk re-read, A8–A13 phrases matched against the spec's new R text); opus: confirmed (own-fix: round 9) step 3's probe worktree lacking the step-1 grader (site: plan Phase A2 step 3), A8's phrase not a substring of R1's gloss (site: A8), "the panel's sentence above" ambiguous after R2/R8 (site: spec R1 gloss); RECORDED — measured: the hook cannot tell an account-own Fable RED from a fleet RED (`_coord_band`), so R8's pin rule stands on the text — destination Phase B's infra mail | b07ba6e0 / aebe98bf → 775bc8d9 / 6efef7ca |
+| Pass 11 | opus×1 + sonnet×1 (the round-1 slice owners) · their own claims over the pass-10 fix diffs + one hop · shape: api-lane (D-1406) | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 1 | method: re-derivation — sonnet slice 0 candidates; spec slice 0 in-hop defects; confirmed (Phase A2's own text, not a review hunk) the kit's cwd and branch guards refusing in the detached probe worktree (site: plan Phase A2 step 3) — fixed with `--root <dir>` and `--probe` (relaxes the branch check only); RECORDED, standing: the hook cannot tell an account-own Fable RED (Phase B) | 775bc8d9 / 6efef7ca → 4e5f7849 / 6efef7ca |
+| Pass 12 | sonnet×1 (round-1 owner of slice P, the only slice with an open claim; slice S restated 22/22 from pass 11) · the pass-11 fix hunk + one hop · shape: api-lane (D-1406) | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the `--root`/`--probe` hunk against the probe sentence, step 4 and the Evidence note; RECORDED — measured (wording; changes no behaviour): `--probe` on an attached root is a harmless no-op; standing clean since pass 9: every other class | 426e15bf / 6efef7ca → 426e15bf / 6efef7ca ✓ |
