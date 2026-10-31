@@ -347,7 +347,7 @@ entries:
   class: behavioural
   section: '## Phase 1 — Independent finders (recall)'
   baseline: 'Its § Seat isolation applies whole, whatever the shape, in every brief that runs tests or imports pinned code: the tests run from an archive of the pin''s base SHA, never the live tree or HEAD, and the archive roots are derived from what the tests import, read or run, every path expression in the test files, the scripts they run by subprocess and what those scripts read included, never a hand-listed path set — the recipe is the seat prompt''s `PIN_IMPORT`/`PYTEST_PINS`, which that section names and which live in this repo''s `.claude/workflows/fabrik-review-loop.js` (fleet-synced into every repo; they take the root conftest and the pytest config with the roots)'
-  current: 'Its § Seat isolation applies whole, whatever the shape, in every brief that runs tests or imports pinned code: the tests run from an archive of the pin''s base SHA, never the live tree or HEAD, and the archive roots are derived from what the tests import, read or run, every path expression in the test files, the scripts they run by subprocess and what those scripts read included, never a hand-listed path set — the recipe is the seat prompt''s `PIN_IMPORT`/`PYTEST_PINS`, which that section names and which live in this repo''s `.claude/workflows/fabrik-review-loop.js` (fleet-synced into every repo; they take the root conftest and the pytest config with the roots)'
+  current: 'Its § Seat isolation applies whole, whatever the shape, in every brief that runs tests or imports pinned code: the tests run from an archive of the pin''s base SHA, never the live tree or HEAD, and the archive roots are derived from what the tests import, read or run, every path expression in the test files, the scripts they run by subprocess and what those scripts read included, never a hand-listed path set — each test run goes under `capped_run.sh --timeout <s>`, the brief naming `<s>` (3× the lead''s own run, whole seconds ≤540) when that run took over 40 s — the recipe is the seat prompt''s `PIN_IMPORT`/`PYTEST_PINS`, which that section names and which live in this repo''s `.claude/workflows/fabrik-review-loop.js` (fleet-synced into every repo; they take the root conftest and the pytest config with the roots)'
   text:
   - 'applies whole, whatever the shape, in every brief that runs tests or imports pinned code: the tests run from an archive of the pin''s base SHA, never the live tree or HEAD, and the archive roots are derived from what the tests import, read or run, every path expression in the test files, the scripts they run by subprocess and what those scripts read included, never a hand-listed path set'
   - seat prompt's `PIN_IMPORT`/`PYTEST_PINS`, which that section names and which live in this repo's `.claude/workflows/fabrik-review-loop.js`
@@ -2262,6 +2262,9 @@ vanished:
     rule:
     - fr-you-hand-finder-sha-materialise
   L60: narrative
+  L64:
+    rule:
+    - fr-seat-isolation-applies-whole-whatever
   L65:
     rule:
     - fr-run-review-hygiene-check-surface

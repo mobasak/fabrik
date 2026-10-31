@@ -62,7 +62,8 @@
     },
     "total": 90623
    },
-   "render": 23256
+   "render": 23304,
+   "raised_by": "D-1399"
   },
   "fabrik-catchup": {
    "agents": [
@@ -472,8 +473,8 @@
     },
     "total": 76048
    },
-   "render": 21732,
-   "raised_by": "D-1371"
+   "render": 21824,
+   "raised_by": "D-1399"
   },
   "fabrik-deploy-verify": {
    "agents": [
@@ -1441,7 +1442,8 @@
     },
     "total": 38370
    },
-   "render": 34650
+   "render": 34674,
+   "raised_by": "D-1399"
   },
   "fabrik-rivals": {
    "agents": [
@@ -1779,7 +1781,8 @@
     },
     "total": 52484
    },
-   "render": 11045
+   "render": 11137,
+   "raised_by": "D-1399"
   },
   "fabrik-ui-design": {
    "agents": [

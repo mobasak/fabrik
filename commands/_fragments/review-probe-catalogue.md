@@ -152,9 +152,10 @@ brief. Each is a step, not a check box: execute it, or name in the brief why the
   test gap; counter or guard is gutted in same round to show it can fail; regression test fails when caller is reverted;
   each slice's seats write and run one mutant of their own per guard change adds in their slice, written afresh rather
   than re-run from lead's pre-pin list, on a copy made from the pin, under the explicit `timeout` its brief names
-  (`/fabrik-review`'s D8 mutation-seat lesson); one reader mutates guarded behaviour; tests slice's seats also write and
-  run mutants of their own against each behaviour its tests claim, beside lead's, and report each survivor that changes
-  observable behaviour, as above; graders are written, and named, before next round goes out.
+  (`/fabrik-review`'s D8 mutation-seat lesson), that `timeout` being the House rules' `capped_run.sh --timeout`;
+  one reader mutates guarded behaviour; tests slice's seats also write and run mutants of their own against each
+  behaviour its tests claim, beside lead's, and report each survivor that changes observable behaviour, as above;
+  graders are written, and named, before next round goes out.
 - Test hygiene: a test stub records what it RECEIVED; timing test is repeated 10× under its mutation; isolation is
   proven by reversed-order run and by removing fixture; state-mutating grader leaves nothing on teardown; non-ASCII
   literals are checked by bytes; whole suite directory of changed test runs; golden value is pinned after printing its
@@ -354,6 +355,9 @@ name UNPINNED.
   repo's `.worktreeinclude` list, `.env` excepted) and any sibling-repo symlink they follow. Each later pass's brief
   names its own pin dir and digest, cut after the last fix, never the round-1 pin, and seat scratch dirs from earlier
   rounds are kept until the close, so a seat re-runs its saved probes.
+- A test run, and a probe that executes pinned code, follows the fabrik-reviewer House rules' `capped_run.sh` clause
+  (D-935; the recipe's pytest launch is its `<command>`), since the Bash tool's `timeout` only backgrounds a command (a
+  seat's FIFO-blocked mutant ran 2 days 13 hours, mail 01M65ZP80Q); a brief to a seat of another type quotes it whole.
 
 ## Loop bookkeeping
 
