@@ -1001,23 +1001,7 @@ def waiting(repo: str, exclude: str = "", budget: float = 1.0) -> list[dict]:
     working directory is not `repo` itself (the coordinator's own pane); each pane once, by id. [] when no grid exists;
     RuntimeError when tmux fails otherwise or the shared `budget` (seconds) runs out."""
     deadline = time.monotonic() + budget
-    fmt = "#{pane_id}\t#{session_name}\t#{session_group}\t#{@agent}\t#{pane_current_path}"
-    out = _grid_tmux(deadline, "list-panes", "-a", "-F", fmt)
-    if out is None:
-        return []
-    home, grid = Path(repo).resolve(), slug(repo)
-    panes: dict[str, str] = {}
-    for line in out.splitlines():
-        parts = line.split("\t")
-        if len(parts) != 5:
-            continue
-        pane, session, group, agent, path = parts
-        if (group or session) != grid or not agent or agent == exclude:
-            continue
-        with contextlib.suppress(OSError):
-            if path and Path(path).resolve() == home:
-                continue
-        panes[pane] = agent
+    panes = _builder_panes(deadline, repo, exclude)
     found = []
     for pane, agent in panes.items():
         screen = _grid_tmux(deadline, "capture-pane", "-p", "-e", "-t", pane)
@@ -1039,6 +1023,94 @@ def waiting(repo: str, exclude: str = "", budget: float = 1.0) -> list[dict]:
             }
         )
     return found
+
+
+def _builder_panes(deadline: float, repo: str, exclude: str) -> dict[str, str]:
+    """{pane id: agent} of `repo`'s agents_up grid inside the caller's `deadline` — `waiting()`'s filter, shared with
+    the builder watch (W-c814836f): its session or session group is `slug(repo)`, it carries an `@agent` other than
+    `exclude`, its working directory is not `repo` itself; each pane once, by id. {} when no grid exists; RuntimeError
+    as `_grid_tmux` raises it."""
+    fmt = "#{pane_id}\t#{session_name}\t#{session_group}\t#{@agent}\t#{pane_current_path}"
+    out = _grid_tmux(deadline, "list-panes", "-a", "-F", fmt)
+    if out is None:
+        return {}
+    home, grid = Path(repo).resolve(), slug(repo)
+    panes: dict[str, str] = {}
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) != 5:
+            continue
+        pane, session, group, agent, path = parts
+        if (group or session) != grid or not agent or agent == exclude:
+            continue
+        with contextlib.suppress(OSError):
+            if path and Path(path).resolve() == home:
+                continue
+        panes[pane] = agent
+    return panes
+
+
+def builder_panes(repo: str, exclude: str = "", budget: float = 1.0) -> dict[str, str]:
+    """`_builder_panes` with its own deadline `budget` seconds away (the builder watch, the per-prompt arm check)."""
+    return _builder_panes(time.monotonic() + budget, repo, exclude)
+
+
+# The builder watch's busy reading (W-c814836f), over a `capture-pane -p` screen (no `-e`: a dim cell would be text the
+# watch must still see). Measured on 23 live panes 2026-10-31: a running turn draws a spinner row — one glyph, a label
+# of a word or a few, `…`, then ` (<time> · …)` (or nothing yet) — and a finished one a `· done` row, whatever note
+# follows it; leftover background shells are IDLE (counting them hid an idle builder 2 h). The `…` alone is no signal:
+# every idle pane's status hint is truncated with one. Seat rows (`◯ <name>  …`) and a monitor count are read only in
+# the footer below the input box, so a transcript that quotes one never pins a pane busy. Fail direction: a spinner
+# shape nobody drew yet reads IDLE — a false wake, never a pane hidden as busy.
+# the spinner glyph is one of Claude Code's own frames (measured: · ✢ ✳ ✶ ✻ ✽, and `*`), never any glyph: a notice
+# truncated with `…` (`✘ Auto-update fail…`, `⚠ Context low · Run /compact…`) or a reply bullet (`- Checking files…`)
+# alone on a row would otherwise hide an idle builder as busy (review C-1/C-2)
+_SPIN_ROW = re.compile(r"^\s*[·✢✳✶✻✽*]\s+[^\s…()][^…()]{0,40}…(?:\s*\(|\s*$)")
+_WAIT_ROW = re.compile(
+    r"^\s*[·✢✳✶✻✽*]\s+Waiting for \d+ background"
+)  # a spinner row, never quoted text (review Ch-5)
+_SEAT_ROW = re.compile(r"^\s*◯\s+\S+\s{2,}")
+_MONITORS = re.compile(r"\b\d+ monitors?\b")
+
+
+def pane_state(screen: str) -> tuple[bool, str]:
+    """(busy, turn id) of one pane screen. The screen splits at its LAST framed input box (a `❯` row under a `─` rule,
+    closed by the next `─` rule): above it, scanning up, the first spinner or `Waiting for N background` row is BUSY and
+    the first `_TURN_END` row met first is IDLE; below the closing rule a seat row or a monitor count is BUSY. With no
+    box drawn the whole screen is "above" and the footer rules do not apply. The turn id is the last turn-end row cut at
+    its `done <time>` (`_TURN_ID`), "" when none is on screen — a new id is a turn that ended since the last look."""
+    rows = [r.rstrip() for r in screen.splitlines()]
+    starts = [
+        i
+        for i, r in enumerate(rows)
+        if i > 0 and r.lstrip().startswith("❯") and rows[i - 1].strip().startswith("─")
+    ]
+    above, below = rows, []
+    if starts:
+        top = starts[-1] - 1
+        end = next(
+            (i for i in range(starts[-1] + 1, len(rows)) if rows[i].strip().startswith("─")),
+            len(rows) - 1,
+        )
+        above, below = rows[:top], rows[end + 1 :]
+    # a turn end wrapped on a narrow pane leaves `· 1` on its row and `shell still running` on the next: the row
+    # matches on its own, and the cut at `done <time>` drops the note either way
+    turn = ""
+    for row in reversed(above):
+        if _TURN_END.match(row.strip()):
+            m = _TURN_ID.match(row.strip())
+            turn = (m.group(0) if m else row.strip()).strip()
+            break
+    busy = False
+    for row in reversed(above):
+        if _SPIN_ROW.match(row) or _WAIT_ROW.search(row):
+            busy = True
+            break
+        if _TURN_END.match(row.strip()):
+            break
+    if any(_SEAT_ROW.match(r) or _MONITORS.search(r) for r in below):
+        busy = True
+    return busy, turn
 
 
 # ── request ───────────────────────────────────────────────────────────────────────────────────────────────────────

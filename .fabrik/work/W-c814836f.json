@@ -3,7 +3,7 @@
   "created": "2026-10-31T08:27:17.410981Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "f7294d4fb1fb2173bd7f6f8b501153d36e35c9ff",
   "id": "W-c814836f",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra-3",
   "priority": 0,
   "score_reason": "operator asks for every coordinator, existing and future; infra-3 owns agents_up/hooks; right after W-df2e24ed",
-  "status": "open",
+  "status": "done",
   "title": "Ship the builder-pane watcher fleet-wide (operator 2026-10-31: 'will all existing and future coordinators in any repo watch their tmux sessions now'; D-1377; the watcher part of W-8209a305 never landed — its MR predates the widening). Deliver: scripts/sysadmin/watch_builders.sh (from /opt/fabrik/.tmp/coordinator/watch-builders.sh: read-only, exits on any builder pane busy→idle or new coordinator mail; panes resolved from the repo's agents_up grid, not hard-coded ids); a coordinator session arms it in the background at SessionStart (like selfwatch_arm.sh, same ONE-wake-per-arm shape, the wake line carries the re-arm order) and the per-prompt check orders a re-arm whenever no watcher holds the lock; docs/reference/tmux-agents.md § Coordinator gets the mechanism; fleet-synced so every repo's coordinator has it BUSY DEFINITION (measured 2026-10-31 by the hub and fabrik-lib coordinators): a pane is busy when it shows a spinner/'esc to interrupt', OR '[0-9]+ monitor' in its status line, OR 'Waiting for [0-9]+ background', OR a ' ◯ ' agent-status line (review seats running); otherwise the watcher wakes the coordinator every 30 s while a builder waits on its own monitor or seats; also '[0-9]+ shells? still running' (a turn that ended with background shells resumes on their results); NOT '[0-9]+ shells still running' — measured 2026-10-31: treating it as busy hid infra-3 idle 2 h and intel 1 h 20 min (a builder at an empty prompt with leftover shells is idle)"
 }

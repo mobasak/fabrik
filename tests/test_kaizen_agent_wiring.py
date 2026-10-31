@@ -421,15 +421,19 @@ def _check(tmp_path: Path, agent: str | None, feedback_held: bool, cwd: str = "/
         "AGENT_IDENTITY_FILE": str(tmp_path / "identity.jsonl"),
     }
     (tmp_path / "identity.jsonl").write_text("")
-    for k in ("CLAUDE_MESH_HEADLESS", "FABRIK_HEADLESS", "CLAUDE_AGENT"):
+    # CLAUDE_PROJECT_DIR too: the runner's own launch folder must not decide the builder-watch gate (W-c814836f)
+    for k in ("CLAUDE_MESH_HEADLESS", "FABRIK_HEADLESS", "CLAUDE_AGENT", "CLAUDE_PROJECT_DIR"):
         e.pop(k, None)
     if agent:
         e["CLAUDE_AGENT"] = agent
     # the self-watch itself is ARMED in every case (the normal state of a live window), so the
     # only line that can print is the feedback-watch order — Opus #6: the branch must run before
-    # the self-watch's early return
-    fds = [os.open(str(locks / f"{SID}.selfwatch.lock"), os.O_WRONLY | os.O_CREAT, 0o644)]
-    fcntl.flock(fds[0], fcntl.LOCK_EX | fcntl.LOCK_NB)
+    # the self-watch's early return. The builder watch is armed too: a window in /opt/fabrik is the
+    # hub's main checkout, a coordinator's place, which is ordered to arm it (W-c814836f)
+    fds = []
+    for watch in ("selfwatch", "builderwatch"):
+        fds.append(os.open(str(locks / f"{SID}.{watch}.lock"), os.O_WRONLY | os.O_CREAT, 0o644))
+        fcntl.flock(fds[-1], fcntl.LOCK_EX | fcntl.LOCK_NB)
     if feedback_held:
         fds.append(
             os.open(str(locks / f"{SID}.feedbackwatch.lock"), os.O_WRONLY | os.O_CREAT, 0o644)
