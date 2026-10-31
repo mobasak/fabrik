@@ -71,3 +71,19 @@ def test_a_reply_body_stays_under_the_mail_cap_whatever_the_reason():
     assert len(body.encode()) < 64 * 1024 // 4, len(body)
     assert body.count("the merge record holds it whole") == 2
     assert len(rec["reason"]) > 100_000  # the record itself is untouched
+
+
+def test_evidence_and_warning_lines_are_cut_and_the_whole_body_is_bounded():
+    # closing pass NEW-1/NEW-2: evidence and not-carried lines were uncapped, and nothing bounded the sum
+    rec = {
+        "id": "01MX",
+        "branch": "b",
+        "outcome": "merged",
+        "merge_sha": "a" * 40,
+        "base": "master",
+        "evidence": ["sync: " + LONG] + [f"tests: {'x' * 3000}" for _ in range(40)],
+        "not_carried": [LONG],
+    }
+    body = mr._reply_body(rec)
+    assert len(body.encode()) <= mr.REPLY_BODY_MAX_BYTES + 200, len(body.encode())
+    assert "the merge record holds" in body
