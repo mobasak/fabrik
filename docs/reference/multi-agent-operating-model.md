@@ -161,7 +161,7 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
   `templates/governance/CLAUDE.md` § The coordinator role.
 - **Ledgers and ids across branches** (D-448) — each agent writes its own ledger rows
   (`CHANGELOG.md`, `docs/DECISIONS.md`, `docs/STRATEGIC_BACKLOG.md`) on its own branch; two
-  branches that both prepend a row to the same table always conflict at merge — `rerere` only
+  branches that both prepend a row to the same table conflict at merge under plain git; in a hub worktree the installer's `merge=ledger` driver (`merge_request.py merge-ledger`, W-53360407) resolves concurrent insertions inside the merge, an edit of a landed row still conflicts, and any driver failure falls back to markers — `rerere` only
   replays a resolution it has already recorded, so it helps with nothing new here — and
   `merge_request.py merge` keeps both sides when the conflict is a pure insertion, refusing any
   other (§ Merge protocol, below). Decision ids: mint
