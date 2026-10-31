@@ -3,7 +3,7 @@
   "created": "2026-10-27T10:54:26.771519Z",
   "creator": "infra-2",
   "effort": "low",
-  "evidence": "",
+  "evidence": "65494689b0c2851845c961ede13ee01f75329188",
   "id": "W-d077095a",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra-2",
   "priority": 1,
   "score_reason": "a window reload silently killed 6 paid API jobs (queue5) and orphaned their children; a signal handler plus settle-on-exit",
-  "status": "open",
+  "status": "done",
   "tags": [
     "waits-merge"
   ],
