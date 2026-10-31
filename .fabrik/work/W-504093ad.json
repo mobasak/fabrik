@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T08:47:11.068495Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-504093ad",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68J6ZJS5576KEVJPMGY171Y",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: kaizen withdraws the question in mail 01M68J5V2V. The ledger settles it: kaizen stays paused."
+}
