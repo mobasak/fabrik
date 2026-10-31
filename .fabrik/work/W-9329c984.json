@@ -11,7 +11,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "decide whether an ast pass over os.environ/getenv call arguments is worth it, or keep the documented limit (test_every_merge_env_name_the_selector_names_is_classified docstring); measure first: the module spells every name as one literal today",
+  "next": "measure first, then decide one ast pass for both halves of test_every_merge_env_name_the_selector_names_is_classified: (1) names: a name assembled from pieces is unseen; (2) reads: the read regex counts a comment quoting os.environ.get(\"X\") and a write os.environ[\"X\"] = v as a read, and misses setdefault / 'X' in os.environ (a false red) — W-f13496d8 closing pass 3, A-H-X3; or keep the documented text-scan limit",
   "note": "",
   "owner": "",
   "priority": 3,
