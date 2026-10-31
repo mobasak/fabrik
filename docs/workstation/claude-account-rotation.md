@@ -298,8 +298,9 @@ already takes for the stamp; a dead tick never freezes a session. The bands are 
 
 **A retired 5-hour window (D-1400).** The plan the five accounts moved to on 2026-10-31 (named Ultra) drops
 the 5-hour session limit, and the usage payload says so per account: `five_hour` is `null` and `limits[]`
-carries a `weekly_all` entry and no session entry. `_five_hour_retired` reads exactly that shape — an absent
-key, an empty or missing `limits`, no `weekly_all`, or a session-like entry under any name stays fail-closed —
+carries a `weekly_all` entry and only weekly kinds. `_five_hour_retired` reads exactly that shape — an absent
+key, an empty or missing `limits`, no `weekly_all`, or any kind outside `weekly_all`/`weekly_scoped` (a session
+limit under any name, an unseen kind) stays fail-closed —
 and both parsers (`_usage_windows`, `_account_status`) then record the window as
 `{"utilization": 0.0, "resets_at_epoch": null, "retired": true}`. The 0.0 is deliberate: every band, picker,
 flip and governor reader already treats it as "no constraint", so those accounts band on weekly and Fable

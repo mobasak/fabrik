@@ -4671,9 +4671,10 @@ def _pin_pending_identities(dirs: list[Path]) -> dict:
 def _five_hour_retired(usage: dict) -> bool:
     """Has this account's payload RETIRED the 5-hour window (D-1400, W-992979e1)? True only on the
     live Ultra shape (sarp, 2026-10-31): the ``five_hour`` key PRESENT with null, and a ``limits``
-    list that carries a ``weekly_all`` entry (positive evidence the array is whole) and no entry
-    whose kind names a session. An absent key, an empty/missing/non-list ``limits``, no
-    ``weekly_all``, or a session-like entry under any name stays fail-closed, as before.
+    list that carries a ``weekly_all`` entry (positive evidence the array is whole) and NO kind
+    outside the two weekly kinds (``weekly_all``, ``weekly_scoped``) — an allowlist, so a session
+    limit under any name, a renamed 5h limit or a kind this code has never seen stays fail-closed,
+    as does an absent key, an empty/missing/non-list ``limits`` or no ``weekly_all``.
 
     ⚠️ Fail direction: OPEN on a payload that keeps both signals while a 5h limit is still
     enforced — the window then reads 0% and the hit wall surfaces as the CLI's usage-limit error
@@ -4685,9 +4686,11 @@ def _five_hour_retired(usage: dict) -> bool:
     limits = usage.get("limits")
     if not isinstance(limits, list):
         return False
-    kinds = [str(lim.get("kind", "")).lower() for lim in limits if isinstance(lim, dict)]
-    return "weekly_all" in kinds and not any("session" in k for k in kinds)
+    kinds = [lim.get("kind") if isinstance(lim, dict) else None for lim in limits]
+    return "weekly_all" in kinds and all(k in _WEEKLY_LIMIT_KINDS for k in kinds)
 
+
+_WEEKLY_LIMIT_KINDS: Final = frozenset({"weekly_all", "weekly_scoped"})
 
 # The reading a retired 5h window stands in with: 0.0 is "no constraint" to every band, picker,
 # flip and governor reader (None would wall the account at the picker and RED the fleet band);
@@ -5732,7 +5735,9 @@ def _fleet_picture(accounts: list[dict], active_slug: str | None, now: float) ->
                 "slugs": list(row.get("slugs") or []),
                 "state": state,
                 "why": reason,
-                "session_pct": fv,
+                # a RETIRED 5h window publishes no session figure (its 0.0 is a stand-in, D-1400)
+                "session_pct": None if _is_retired(row.get("five_hour")) else fv,
+                **({"session_retired": True} if _is_retired(row.get("five_hour")) else {}),
                 "weekly_pct": wv,
                 "session_resets_at": fr,  # already a float or None (the validator above)
                 "weekly_resets_at": wr,
@@ -6366,7 +6371,10 @@ def _quota_posture(
             if isinstance(k, str) and mu is not None:
                 windows["models"][k] = _forecast(mu, mr, 100.0, None, now)
 
-    readings = [(k, u) for k, u in (("five_hour", fh_u), ("seven_day", wk_u)) if u is not None]
+    # a RETIRED 5h window's 0.0 is a stand-in (D-1400): it is never the `hottest` window a reader
+    # names or prices (dispatch_headroom `_posture_hot`, the hook's deny reason) — review pass 1
+    fh_hot = None if _is_retired((row or {}).get("five_hour")) else fh_u
+    readings = [(k, u) for k, u in (("five_hour", fh_hot), ("seven_day", wk_u)) if u is not None]
     hottest = max(readings, key=lambda kv: kv[1])[0] if readings else None
     hot = max((u for _, u in readings), default=None)
     readings_f = readings + ([("fable", fb_u)] if fb_u is not None else [])
@@ -6622,7 +6630,10 @@ def _print_picture(pic: dict) -> None:
     for i, email in enumerate(pic["queue"], 1):
         r = by.get(email) or {}
         s, w = r.get("session_pct"), r.get("weekly_pct")
-        pct = f"{s:.0f}%/{w:.0f}%" if s is not None and w is not None else "?"
+        if r.get("session_retired") is True and w is not None:
+            pct = f"5h retired/{w:.0f}%"
+        else:
+            pct = f"{s:.0f}%/{w:.0f}%" if s is not None and w is not None else "?"
         tail = f" returns {_fmt_when(r['returns_at'])}" if r.get("returns_at") else ""
         why = f": {r['why']}" if r.get("state") == "unavailable" and r.get("why") else ""
         parts.append(f"#{i} {email} ({r.get('state')}{why} {pct}{tail})")
@@ -7191,8 +7202,9 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
         u = w.get("utilization") if isinstance(w, dict) else None
         # through the ONE validator, like _flip_candidate_verdict: `_tick_burn` below was made
         # non-raising on a giant JSON int and this bare read raised one line later on the same
-        # row — the flip never happened, the posture was never written (round 2 seat A, F1)
-        utils[key] = _usable_ts(u)
+        # row — the flip never happened, the posture was never written (round 2 seat A, F1).
+        # A RETIRED 5h window is no reading here either (`_row_utils`, D-1400)
+        utils[key] = None if _is_retired(w) else _usable_ts(u)
     present = [u for u in utils.values() if u is not None]
     if not present:
         print(f"tick: active {row['email']} — no quota reading, no flip decision possible")
@@ -9938,6 +9950,8 @@ def _cmd_probe_current(as_json: bool) -> int:
         return 0
 
     def _p(w: object) -> str:
+        if _is_retired(w):
+            return "retired"  # D-1400
         u = _usable_ts(w.get("utilization")) if isinstance(w, dict) else None
         return f"{u:.0f}%" if u is not None else "-"
 

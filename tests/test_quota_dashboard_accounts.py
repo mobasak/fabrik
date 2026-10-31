@@ -708,3 +708,18 @@ def test_meter_five_hour_retired():
         out = text(row(root, slug))
         assert "retired" in out and "no 5-hour limit" in out, out
         assert "older than the 5h window" not in out and "since this window rolled" not in out
+
+
+def test_the_governor_card_never_counts_a_retired_window_as_headroom():
+    """Review pass 1 (W-992979e1): a retired 5h window's 0.0 is no reading for the governor card."""
+    retired = {"utilization": 0.0, "resets_at_epoch": None, "retired": True}
+    d = make()
+    pl = d["status"]["payload"]
+    active = next(a for a in pl["accounts"] if pl["active"] in a["slugs"])
+    active["five_hour"] = dict(retired)
+    active["seven_day"] = {"utilization": None}
+    active.pop("model_windows", None)
+    d["queue"][0] = entry(1, active, "active")
+    t = text(dom(render(d)))
+    # no readable window → headroom unknown → never routed to ob@ on a 0% stand-in
+    assert "routine → ob@" not in t, t

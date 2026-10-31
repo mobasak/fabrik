@@ -10585,6 +10585,10 @@ def test_five_hour_retired_payload_parses(tmp_path, monkeypatch):
         # a session limit, by its name or a new one, means the window is still enforced
         _retired_usage(limits=[{"kind": "weekly_all", "percent": 9}, {"kind": "session"}]),
         _retired_usage(limits=[{"kind": "weekly_all", "percent": 9}, {"kind": "Session_5h"}]),
+        # a renamed 5h limit or any kind never seen: only the two weekly kinds are evidence
+        _retired_usage(limits=[{"kind": "weekly_all", "percent": 9}, {"kind": "rolling_5h"}]),
+        _retired_usage(limits=[{"kind": "weekly_all", "percent": 9}, {"kind": "five_hour"}]),
+        _retired_usage(limits=[{"kind": "weekly_all", "percent": 9}, "session"]),
         # a malformed (non-dict, non-null) window
         {**_retired_usage(), "five_hour": "retired"},
     ],
@@ -10670,3 +10674,38 @@ def test_status_text_five_hour_retired():
     line = cr._posture_status_line(posture, FLEET_NOW)
     assert " · 5h retired · weekly 91%" in line and "burn 5h" not in line, line
     assert "5h retired (sarp)" in line, line
+
+
+def test_retired_five_hour_is_never_hottest_nor_a_published_session_figure(capsys):
+    """Review pass 1 (W-992979e1): the posture's `hottest` (read by dispatch_headroom and the hook's
+    deny reason) never names the retired stand-in, even at a weekly tie of 0.0; the picture publishes
+    no session figure for it; and the queue line and `probe-current` say retired."""
+    now = FLEET_NOW
+    act = _retired_row("sarp@ocoron.com", 0.0, "sarp")
+    pic = _serving_picture([act], "sarp", now)
+    got = cr._quota_posture([act], pic, now, None, hold=False)
+    assert got["active"]["hottest"] == "seven_day", got["active"]["hottest"]
+    row = cr._fleet_picture([act], "sarp", now)["accounts"][0]
+    assert row["session_pct"] is None and row["session_retired"] is True, row
+    act["seven_day"] = None
+    got = cr._quota_posture([act], _serving_picture([act], "sarp", now), now, None, hold=False)
+    assert got["active"]["hottest"] is None and got["active"]["band_account"] is None
+
+
+def test_legacy_status_prints_a_retired_session_cell(tmp_path, monkeypatch, capsys):
+    """Review pass 1 (W-992979e1): the legacy (no-fleet) `--status` view prints `retired`, never
+    `0% (resets ?)`, for a retired 5h window."""
+    monkeypatch.setattr(cr, "_fleet_dirs", lambda: [])
+    row = {
+        "name": "sarp",
+        "valid": True,
+        "email": "sarp@ocoron.com",
+        "five_hour": {"utilization": 0.0, "resets_at_epoch": None, "retired": True},
+        "seven_day": {"utilization": 91.0, "resets_at_epoch": None},
+    }
+    monkeypatch.setattr(
+        cr, "_status_payload", lambda: {"pause": None, "live": "sarp", "accounts": [row]}
+    )
+    cr._cmd_status(False)
+    out = capsys.readouterr().out
+    assert "session retired" in out and "session 0%" not in out, out

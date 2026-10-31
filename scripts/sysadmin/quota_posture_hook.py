@@ -110,7 +110,8 @@ _RUN_RECORD_STALE_H_DEFAULT = 12.0
 _TAIL_BYTES = 64 * 1024
 _ROTATE = "/opt/fabrik/scripts/sysadmin/claude_rotate.py"
 _REMEDY = f"run python3 {_ROTATE} --status"
-_READ_ERRORS = (OSError, ValueError)
+# RecursionError: `json.loads` of deeply nested brackets raises it, and this hook must never raise
+_READ_ERRORS = (OSError, ValueError, RecursionError)
 
 # ── local copies (NEVER an import of scripts/command_run.py) ────────────────────────
 # This runs on EVERY tool call in EVERY window on this box. Importing a 1,000-line CLI
@@ -639,7 +640,7 @@ def _session_model(transcript_path: object) -> str | None:
     for line in reversed(lines):
         try:
             entry = json.loads(line)
-        except ValueError:
+        except (ValueError, RecursionError):  # a deeply nested line must not crash the hook
             continue
         if isinstance(entry, dict) and entry.get("type") == "assistant":
             msg = entry.get("message")

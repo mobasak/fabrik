@@ -1748,3 +1748,34 @@ def test_quota_line_five_hour_retired(tmp_path):
     assert "(fleet-wide: 5h retired sarp · weekly 96% mob)" in line, line
     assert "band AMBER on weekly" in line, "a retired 0.0 never names the binding window"
     assert "5h 0%" not in line and "no burn" not in line.split(" · weekly")[0], line
+
+
+def test_a_retired_window_never_binds_at_a_tie_nor_in_the_deny_reason(tmp_path):
+    """Review pass 1 (W-992979e1): at a weekly 0.0 tie the fleet clause names weekly, never the
+    retired 5h visited first; and the deny reason never picks the retired stand-in as the coolest."""
+    state = tmp_path / "state"
+    fw = {
+        "five_hour": {"utilization": 0.0, "slug": "sarp", "wall": 100.0, "retired": True},
+        "seven_day": {"utilization": 0.0, "slug": "mob", "wall": 100.0},
+    }
+    doc = _posture(state, slug="sarp", band="AMBER", fleet_windows=fw, fleet_measured=2)
+    p = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"}, state=state)
+    assert "band AMBER on weekly" in p.stdout, p.stdout
+    mod = _load()
+    doc["fleet"]["windows"] = {
+        "five_hour": {"utilization": 0.0, "slug": "sarp", "wall": 100.0, "retired": True},
+        "seven_day": {"utilization": 0.0, "slug": "mob", "wall": 100.0},
+    }
+    # a tie at 0.0: `max` keeps the first key it meets, which is the retired 5h without the filter
+    reason = mod._deny_reason(doc, "RED", "Agent")
+    assert "coolest account that can still serve seven_day is mob at 0%" in reason, reason
+    assert "sarp at retired" not in reason
+
+
+def test_a_deeply_nested_transcript_or_record_line_never_raises(tmp_path):
+    """Review pass 1 (W-992979e1): `json.loads` raises RecursionError on deeply nested brackets —
+    neither the transcript reader nor the run-record reader may let it out of the hook."""
+    mod = _load()
+    t = tmp_path / "t.jsonl"
+    t.write_text("[" * 30000 + "]" * 30000 + "\n")  # under the 64 KiB tail window
+    assert mod._session_model(str(t)) is None
