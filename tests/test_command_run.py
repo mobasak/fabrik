@@ -276,8 +276,9 @@ def _start_nested(run_dir: Path) -> None:
         "every phase EXECUTED",
         cwd=run_dir,
     )
-    # The cost is the scan of a root holding `docs/development/reviews/` (every hub checkout, the
-    # main one included); a basetemp in another repo without one costs nothing (review C1, C2).
+    # The cost guarded is the scan of a root holding `docs/development/reviews/` (every hub
+    # checkout, the main one included); a basetemp in a repo without one is not read as that cost,
+    # though the scan would still walk any sibling worktree of it that has one (review C1-C3).
     root = _rec(run_dir)["repo_root"]
     assert not (root and (Path(root) / "docs" / "development" / "reviews").is_dir()), (
         f"the fixture must not measure a reviewed checkout: {root}"
