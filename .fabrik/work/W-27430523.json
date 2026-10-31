@@ -12,9 +12,9 @@
     "spec": ""
   },
   "next": "add trap 'rollback \"interrupted\"' INT TERM HUP beside the ERR trap and clear both together; word the remove=0 branch from is-enabled/is-active; tests: SIGINT to the process group while a stubbed start sleeps, and enable-fails with no cron line",
-  "note": "",
+  "note": "void: the design panel kept the 04:20 cron line as the fallback, so the installer has no first sweep and no crontab write — the signal and message defects it named no longer exist",
   "owner": "",
   "priority": 1,
-  "status": "open",
+  "status": "dropped",
   "title": "install_scratch_sweep_timer.sh (W-d1a4a8f5 plan-2): a SIGINT/SIGHUP/SIGTERM during the first sweep skips the ERR-only rollback and leaves the timer beside cron (two schedulers); and on the no-04:20-line path the rollback message claims 'the timer stays enabled' even when enable failed (no scheduler) — post-scope-growth residue of the plan review, fold into Phase A's build"
 }

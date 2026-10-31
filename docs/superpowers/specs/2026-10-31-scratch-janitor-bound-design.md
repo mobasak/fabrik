@@ -1,22 +1,22 @@
 # Scratch janitor bound after the boot wipe — design (W-d1a4a8f5)
 
-Status: DRAFT
-Size: small (≈160 lines, 3 code files)
+Status: CONVERGED
+Size: small (≈92 lines, 3 code files)
 Profile: delta
 
 ## Personas
 
 - **PRIMARY — the operator**, in the coordinator's relay of their order: "the scratch janitor that cannot reach 119 GB of /tmp/claude-1000 — since this morning's D-1389 /tmp is no longer wiped at boot, so the janitor is the only bound on its growth." The operator's own words on the boot that caused it (D-1389): "i cant reach coordinators in vivaldi … fix all these asap without breaking. i dont want to see them in the next restart".
-- **The janitor** (automated): `scripts/scratch_sweep.py --dead --apply`, today a user-crontab line at 04:20; after this change a systemd user timer holds the duty of running it hourly.
+- **The janitor** (automated): `scripts/scratch_sweep.py --dead --apply`. Two schedulers hold the duty of running it: a systemd user timer, hourly (primary), and the existing user-crontab line at 04:20 (fallback — system cron needs no user session, so it keeps sweeping on a day the user manager fails to start, the failure D-1389's boot showed).
 - **Every agent session** (automated, ~40 live): writes scratch under `/tmp/claude-1000/<slug>/<sid>/`, including `/fabrik-review` run folders of 1.0–4.5 GB; each one's own `command_run.py start` already sweeps that session's consumed run folders.
 - **The coordinator** (automated): relays the operator's one-time run of `install_scratch_sweep_timer.sh` and checks the timer's first runs.
 - **tmpfiles** (automated, systemd): the daily `--clean` of /tmp entries untouched for 30 days — the last-resort bound, unchanged.
 
-Primary loop — step budget **2**: (1) the operator runs `bash /opt/fabrik/scripts/sysadmin/install_scratch_sweep_timer.sh` from the main checkout and reads the undo line it prints; (2) nothing further — the timer sweeps every hour and the operator never touches scratch again. Every duty above names its holder; the new duty (the hourly run) is the timer's.
+Primary loop — step budget **2**: (1) the operator runs `bash /opt/fabrik/scripts/sysadmin/install_scratch_sweep_timer.sh` from the main checkout and reads the undo line it prints; (2) nothing further — the timer sweeps every hour, cron still sweeps at 04:20, and the operator never touches scratch again. Every duty above names its holder; the new duty (the hourly run) is the timer's.
 
 ## Goal
 
-Bound `/tmp/claude-1000` without a boot wipe: disposable run folders are removed within ~1.5 h of their run closing instead of waiting up to ~24 h for the 04:20 janitor, with no change to what the janitor is allowed to remove.
+Bound `/tmp/claude-1000` without a boot wipe: a run folder with no seat write after its close is removed within ~1.5 h of its run closing (30-min grace + the hourly tick) instead of waiting up to ~24 h for the 04:20 janitor; one where a seat wrote after the close, or where that cannot be told, waits out the 36 h grace (`scripts/scratch_sweep.py:392`) and goes within 36 h + 1 h; no change to what the janitor is allowed to remove.
 
 ## Why this exists
 
@@ -42,15 +42,15 @@ The bytes are run folders the janitor may already remove; what is missing is cad
 
 Invariants:
 1. The janitor's removal rules do not change: every class it keeps today it keeps after (live, held, running, resumable, backup-holding, no-signal sessions, the 7-day bar of D-187).
-2. Exactly one scheduler runs the janitor: the crontab is read and classified BEFORE anything is installed, and any janitor line other than exactly one byte-identical 04:20 line refuses the install; the 04:20 line is removed only after the timer is `active` and one sweep's `start` exited 0 with `Result=success`, and every failure from `enable` until the crontab is committed rolls back: while the 04:20 line is still in the crontab the timer is disabled again so cron stays the one scheduler, and with no such line (a re-run after cron was retired) the timer is the one scheduler and stays enabled; a crontab write that does not land is reported as two schedulers (the lock keeps them from overlapping); the printed undo disables the timer and restores the crontab together.
+2. Two schedulers run the janitor by design: the timer (primary, hourly) and the 04:20 crontab line (fallback). The janitor's own lock keeps them from overlapping — a run that finds the other holding it exits 0 having done nothing. The installer never reads or writes the crontab; a timer that is not `active` after install is disabled again; the printed undo disables the timer.
 3. The timer never runs two sweeps at once (systemd: "in case the unit to activate is already active at the time the timer elapses it is not restarted, but simply left running", row sched-2), and the janitor's own lock stays the guard; no `flock -n` wrapper is added.
 4. A missed hour (the WSL VM shut down) is caught up once (`Persistent=true`, row sched-1).
 
 Touchpoints:
 - New `scripts/sysadmin/systemd/scratch-sweep.service` — `Type=oneshot`, `ExecStart=/usr/bin/python3 /opt/fabrik/scripts/scratch_sweep.py --dead --apply`, stdout to the journal (row sched-6).
 - New `scripts/sysadmin/systemd/scratch-sweep.timer` — `OnCalendar=*-*-* *:20:00` (hourly, at :20), `Persistent=true`, `WantedBy=timers.target`.
-- New `scripts/sysadmin/install_scratch_sweep_timer.sh`, modelled on `scripts/sysadmin/install_wsl_net_heartbeat_timer.sh` (linger, the janitor exists, a silent `systemd-analyze verify`, install, enable, restart). It reads the crontab FIRST and refuses, with nothing installed, a failing `crontab -l` or any janitor line other than exactly one byte-identical 04:20 line; after install it requires the timer `active` and one sweep whose `systemctl --user start` exits 0 with `Result=success`, and any failure from `enable` until the crontab is committed rolls back — disabling the timer while the 04:20 line remains, keeping it when the timer is already the one scheduler; only then does it remove the 04:20 line (whole crontab backed up 0600 in a 0700 dir) and print the undo `systemctl --user disable --now scratch-sweep.timer && crontab <backup>`. With no crontab or no janitor line it installs the timer and writes no crontab. (Amended at planning: a step inside `scripts/sysadmin/operator_setup.py` was measured to need its single-timer machinery generalised — `Plan`, `_link_undo`, `_restore_lines`, `apply`, `verify`, and the tests pinning its exact undo lines — and that script writes no crontab; the standalone installer is the box's second precedent.)
-- New `tests/test_scratch_sweep_timer.py`: the units verify; the installer runs in a throwaway HOME with stub `loginctl`/`systemctl`/`systemd-analyze`/`crontab` and is shown to read and classify the crontab before anything is installed, refuse every ambiguous janitor line and a failing `crontab -l`, remove only the 04:20 line after one successful sweep, write the backup 0600 in a 0700 dir, print an undo that disables the timer and restores the crontab, roll the timer back on every failed install (an `enable`, `restart`, `is-active`, first-sweep or backup-step failure) while cron still holds the line, keep it when cron does not, and report a crontab write that does not land as two schedulers.
+- New `scripts/sysadmin/install_scratch_sweep_timer.sh`, modelled on `scripts/sysadmin/install_wsl_net_heartbeat_timer.sh`: linger, the janitor exists, a silent `systemd-analyze verify`, install, daemon-reload, enable, restart, then require the timer `active` (else disable it again); it prints the undo `systemctl --user disable --now scratch-sweep.timer` and never touches the crontab. (Amended at planning: a step inside `scripts/sysadmin/operator_setup.py` was measured to need its single-timer machinery generalised — `Plan`, `_link_undo`, `_restore_lines`, `apply`, `verify`, and the tests pinning its exact undo lines; the standalone installer is the box's second precedent. Amended at the design panel: an earlier draft retired the 04:20 line; the panel kept it as the fallback — see § Rejected alternatives.)
+- New `tests/test_scratch_sweep_timer.py`: the units verify (hourly at :20, `Persistent=true`, `TimeoutStartSec=55min`, no flock wrapper); the installer runs in a throwaway HOME with stub `loginctl`/`systemctl`/`systemd-analyze`/`crontab` and is shown to enable and restart the timer in order, never call `crontab`, refuse before any `systemctl` call on linger off, a noisy verify or a missing janitor, disable a timer that is not active, survive a failing `list-timers`, and print the undo.
 - Docs: `docs/workstation/cleanup-automation.md` (§ F schedule row and the cron block at :291), `docs/workstation/wsl-startup-inventory.md` (the janitor's cron entry), `docs/workstation/hooks-index.md` (the size report is hourly).
 
 ## Contract deltas
@@ -59,17 +59,17 @@ None: no data contract, UI contract or service spec is touched.
 
 ## Cost
 
-One sweep per hour. A `--dead` dry run measured 58 s wall and 110 MB RSS; the `--apply` run adds the removals and the size report, whose walk is bounded at 600 s (`SCRATCH_SWEEP_REPORT_BUDGET_S`, `scripts/scratch_sweep.py:1507`) — not measured here, so the unit caps a run at `TimeoutStartSec=30min` and runs at `Nice=10`, `IOSchedulingClass=idle`. Dev cost: two unit files, one installer and its test. The operator spends the 2-step loop once.
+One sweep per hour. A `--dead` dry run measured 58 s wall and 110 MB RSS; the `--apply` run adds the removals and the size report, whose walk is bounded at 600 s (`SCRATCH_SWEEP_REPORT_BUDGET_S`, `scripts/scratch_sweep.py:1507`) — not measured here, so the unit caps a run at `TimeoutStartSec=55min`, inside the hourly period (the timer never starts a second instance), and runs at `Nice=10`. Dev cost: two unit files, one installer and its test. The operator spends the 2-step loop once.
 
 ## Validation
 
-- The installer's tests (above), red-first, in a throwaway HOME with stub `systemctl` and `crontab`, every guard shown red by a mutant.
-- After the operator's apply: `systemctl --user list-timers scratch-sweep.timer` shows the next run within the hour; `journalctl --user -u scratch-sweep.service` shows a completed sweep; `crontab -l` no longer lists the 04:20 line.
-- The bound, measured: 24 h after the apply, a `--dead` dry run reports no `consumed` run folder older than ~1.5 h, and `/tmp/claude-1000` stays below 30 GB through a working day (today's peak ≈ 19 GB at 5.5 h with ≈ 9 GB of that consumed). Tripwire: a 04:20-equivalent reading above 60 GB re-opens the bound question (Lifecycle).
+- The installer's tests (above), red-first, in a throwaway HOME with stub commands, every guard shown red by a mutant.
+- After the operator's run: `systemctl --user list-timers scratch-sweep.timer` shows the next run within the hour; `journalctl --user -u scratch-sweep.service` shows a completed sweep; `crontab -l` still lists the 04:20 fallback line.
+- The bound, measured at 24 h AND at 8 days after the install (the 36 h grace and the 7-day session bar only reach steady state by then), as bytes by class: consumed run folders, run folders inside the 30-min grace, inside the 36 h after-write grace, fd-gap/held, and session scratch outside run folders. Prediction, not a guarantee: consumed folders older than ~1.5 h are gone at both readings; the 36 h class has no measured size yet (§ Why this exists counts ≈ 7.7 GB of run folders inside EITHER grace after 5.5 h, unsplit). Tripwire: a reading above 60 GB in all, or above 40 GB in the 36 h class, re-opens the bound question (Lifecycle).
 
 ## Decisions taken
 
-- **D-a (this spec):** the janitor runs hourly from a systemd user timer installed by `scripts/sysadmin/install_scratch_sweep_timer.sh`; the removal rules are untouched. Panel: three Sonnet judges, briefed without a recommendation, ranked this approach (A) first, unanimously.
+- **D-a (this spec):** the janitor runs hourly from a systemd user timer installed by `scripts/sysadmin/install_scratch_sweep_timer.sh`, and the 04:20 crontab line stays as the fallback; the removal rules are untouched. Panel: three Sonnet judges, briefed without a recommendation, ranked this approach (A) first, unanimously; the design-approval panel (Opus + Fable) kept the cron line.
 - **Rejected:** a disk-pressure watermark that evicts no-signal sessions idle ≥ 24 h (B), a shorter fixed bar of 48 h (C), and both A and B (D) — see Rejected alternatives.
 - The archive-manifest death signal from the upgraded `/fabrik-task` is not built here: it moves 0 sessions today because the pruner prunes main transcripts at ≥ 8.9 d (0 of 1,800 under 7 d over 8 nights); it is latent until that backlog drains (OUT-OF-SCOPE row I5).
 
@@ -86,14 +86,15 @@ Sources (fetched 2026-10-31): https://kubernetes.io/docs/concepts/architecture/g
 - **D — A plus B**: pays B's cost and resume risk for a gain A already delivers.
 - **A ccache-style size cap enforced on write** (row evict-4): would need every agent's run start to measure the whole tree; the hourly sweep is cheaper.
 - **Keep cron, change `20 4` to `20 *`**: cron documents no catch-up of missed runs (row sched-4) and an agent cannot write the crontab; the operator script would still be needed.
-- **Raise the prune age or shorten the grace**: the 30-minute grace is already the fast path, and the 36 h after-write grace protects seats still writing; neither is the bottleneck.
+- **Retire the 04:20 crontab line** (an earlier draft of this spec): a user timer stops with the user manager, the failure D-1389's boot showed, and with cron gone that leaves no scheduler — silently, since the stale-report alarm waits 48 h (`REPORT_FRESH_S`, `scripts/scratch_sweep.py:1496`). Keeping cron costs nothing: the janitor's lock makes the pair safe.
+- **Shorten the 36 h after-write grace now**: it protects seats still writing after their run closed; whether it is the next bottleneck is the 8-day measurement's question (§ Open/blocking unknowns), not a design argument.
 
 ## Lifecycle
 
 - Adoption: the operator's one-time `bash scripts/sysadmin/install_scratch_sweep_timer.sh`; the coordinator confirms the first journal entry.
 - Growth: measured by the janitor's own nightly-equivalent size report (`~/.claude/state/scratch-size-report.json`, now hourly). Trigger to revisit: a reading above 60 GB, or more than 10 % of `/` used by `/tmp/claude-1000`, opens the watermark question again with the data this cadence produces.
-- Degradation: a failed sweep is a failed oneshot unit in the journal, and the next hour retries; if the timer is gone, the existing SessionStart SCRATCH ALARM reports the size report stale only after 48 h (`REPORT_FRESH_S`, `scripts/scratch_sweep.py:1496`) and disk use over 85 % — a slow alarm at the measured growth, so tightening it to the hourly cadence is the follow-up W-f6003ecb. tmpfiles' 30-day clean stays the last bound (it skips locked entries and non-empty directories, rows tmp-8, tmp-9).
-- Retirement: the installer's printed undo — `systemctl --user disable --now scratch-sweep.timer && crontab <backup>` — retires the timer and restores the 04:20 crontab line in one step.
+- Degradation: a failed sweep is a failed oneshot unit in the journal, and the next hour retries; if the user manager is down (the timer with it), cron's 04:20 line still sweeps once a day; the SessionStart SCRATCH ALARM reports the size report stale only after 48 h (`REPORT_FRESH_S`, `scripts/scratch_sweep.py:1496`) and disk use over 85 % — tightening it to the hourly cadence is the follow-up W-f6003ecb. tmpfiles' 30-day clean stays the last bound (it skips locked entries and non-empty directories, rows tmp-8, tmp-9).
+- Retirement: the installer's printed undo, `systemctl --user disable --now scratch-sweep.timer`, leaves cron's 04:20 line as the only scheduler — the state before this change.
 
 ## Constraints Digest
 
@@ -110,7 +111,7 @@ Every selection above is either a digest row (red-first tests in a throwaway HOM
 | Capability | Verdict | Why |
 |---|---|---|
 | periodic run of the janitor | BUILD (two unit files) | no fabrik-lib module schedules host jobs; the hub's own units in `scripts/sysadmin/systemd/` are the pattern |
-| one-time install with backup and undo | VENDOR + ENHANCE (hub) | `scripts/sysadmin/install_wsl_net_heartbeat_timer.sh` is the installer pattern; the crontab removal is the enhancement |
+| one-time install with an undo line | VENDOR + ENHANCE (hub) | `scripts/sysadmin/install_wsl_net_heartbeat_timer.sh` is the installer pattern; the `active` check with its disable-on-failure is the enhancement |
 
 ## Shape/infra implications
 
@@ -122,7 +123,7 @@ None: a box-local systemd user timer on the WSL workstation; no service spec, no
 
 ## Constraints
 
-- An agent cannot write the crontab (classifier); the operator runs the setup script.
+- The installer never reads or writes the crontab; the operator runs it once from the main checkout (an agent's `systemctl --user` on the live manager is the operator's act here, not a seat's).
 - systemd 255 lacks `DeferReactivation=` and `RandomizedOffsetSec=` (row sched-3); the unit uses neither.
 - No `flock -n` wrapper around the janitor (its own lock; row sched-8 for flock's semantics).
 
@@ -130,7 +131,7 @@ None: a box-local systemd user timer on the WSL workstation; no service spec, no
 
 - Resolved: what bounds /tmp now (tmpfiles rows), where the bytes are (measure.md), why the archive-manifest signal is latent (pruner age).
 - Open: whether `Persistent=true`'s stamp survives a WSL VM shutdown — resolution: after the first `wsl --shutdown`, read `systemctl --user list-timers` for a catch-up run (Validation).
-- Open: the steady-state size under hourly sweeping — resolution: the 24 h measurement in Validation, with the 60 GB tripwire.
+- Open: the steady-state size under hourly sweeping, and the 36 h after-write grace class within it — resolution: the 24 h and 8-day class readings (§ Validation); trigger: more than 40 GB in that class opens the grace question (`SCRATCH_RUN_GRACE_S`, `scripts/scratch_sweep.py:392`).
 
 ## Intake Inventory
 

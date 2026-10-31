@@ -1,6 +1,6 @@
 # Plan — hourly scratch-sweep timer (W-d1a4a8f5)
 
-Status: DRAFT
+Status: CONVERGED
 Profile: small
 
 **Owner:** infra-2
@@ -10,37 +10,33 @@ Spec: `docs/superpowers/specs/2026-10-31-scratch-janitor-bound-design.md` (Size:
 ## What we already agreed
 
 - Goal and why: spec § Goal, spec § Why this exists.
-- Approach A — run the unchanged janitor hourly from a systemd user timer and retire the 04:20 crontab line: spec § Chosen approach, spec § Decisions taken (three blind judges, A first unanimously).
+- Approach A — run the unchanged janitor hourly from a systemd user timer, the 04:20 crontab line kept as the fallback (design panel): spec § Chosen approach, spec § Decisions taken (three blind judges, A first unanimously).
 - Rejected B, C, D and the cron-only edit: spec § Rejected alternatives.
-- Invariants 1–4 (no removal-rule change; one scheduler; no overlap; catch-up): spec § The delta.
+- Invariants 1–4 (no removal-rule change; timer primary + cron fallback, safe by the janitor's lock; no overlap; catch-up): spec § The delta.
 - **Planning deviation (measured, Phase 1):** the installer is a standalone script modelled on `scripts/sysadmin/install_wsl_net_heartbeat_timer.sh`, not a new `operator_setup.py` step. The archive step's machinery is single-timer-specific — `Plan` holds one `archive_run`/`timer_was` (`scripts/sysadmin/operator_setup.py:115`), `_link_undo` hard-codes the archive timer (`scripts/sysadmin/operator_setup.py:394`), and its tests pin its exact undo lines (`tests/test_operator_setup.py:354`, `tests/test_operator_setup.py:367`, `tests/test_operator_setup.py:447`, `tests/test_operator_setup.py:476`) — and nothing in that script writes a crontab. The spec's § The delta touchpoints already carry this amendment (commit 3ae28bc72).
 
 ## Phase A — units, installer, tests
 
-Appetite: 40
+Appetite: 30
 
-Scope: spec § The delta touchpoints, as built in the prototype diff `.tmp/runs/bb0be1d2-e172-4e18-b42d-21d1e5b3b774/fabrik-plan-after-chat-2026-10-31T16-38-35-0300/proto.diff` (gitignored durable folder in this worktree; md5 0ab20a52bbefe9d23fad2adc38c931db; 486 added lines from its four `@@ -0,0 +1,N` hunks — 166 code lines in 3 files, 320 test lines; its file list and modes are in Evidence).
+Scope: spec § The delta touchpoints, as built in the prototype diff `.tmp/runs/bb0be1d2-e172-4e18-b42d-21d1e5b3b774/fabrik-plan-after-chat-2026-10-31T16-38-35-0300/proto.diff` (gitignored durable folder in this worktree; md5 133a539fd35e2f4625a2f0b3c79e3fe5; 281 added lines from its four `@@ -0,0 +1,N` hunks — 92 code lines in 3 files, 189 test lines; its file list and modes are in Evidence).
 Complexity: inline
 
 Steps:
 1. `git apply` the prototype diff (it carries the installer's 100755 mode and a trailing newline on every file): `scripts/sysadmin/systemd/scratch-sweep.service`, `scripts/sysadmin/systemd/scratch-sweep.timer`, `scripts/sysadmin/install_scratch_sweep_timer.sh`, `tests/test_scratch_sweep_timer.py`.
-2. Prove every guard red: run the mutation battery in Evidence (seventeen mutants, each one guard of the installer neutered in a copy; an eighteenth — the backup write's own `|| rollback` — survived as equivalent to the ERR trap, so that guard was removed) — each must turn at least one test red; restore, all green. The test file is new, so there is no red-on-base to show beyond that.
-3. Gate: `/opt/fabrik/scripts/capped_run.sh --timeout 300 -- /opt/fabrik/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_scratch_sweep_timer.py` → 28 passed; `systemd-analyze --user verify` both units silent; `crontab -l | md5sum` equal before and after the run.
+2. Prove every guard red: run the mutation battery in Evidence (nine mutants, each one guard of the installer neutered in a copy) — each must turn at least one test red; restore, all green.
+3. Gate: `/opt/fabrik/scripts/capped_run.sh --timeout 300 -- /opt/fabrik/.venv/bin/python -m pytest -q -p no:cacheprovider tests/test_scratch_sweep_timer.py` → 8 passed; `systemd-analyze --user verify` both units silent; `crontab -l | md5sum` equal before and after the run.
 4. Review: `/fabrik-review-scoped` over Phase A's commit.
 
 Behavior Contract (each row its test in `tests/test_scratch_sweep_timer.py`):
 | # | Behaviour | Test |
 |---|---|---|
-| A1 | the units run the janitor hourly at :20 with catch-up, no flock wrapper, and verify silently | `test_the_units_run_the_janitor_hourly_and_verify` |
-| A2 | the crontab is read before anything is installed; the 04:20 line is removed only after the timer is active and one sweep succeeded; the backup is 0600 in a 0700 dir; the undo disables the timer and restores the crontab | `test_the_installer_sweeps_once_then_removes_only_the_0420_line` |
-| A3 | the 04:20 line as the only line leaves an empty crontab (no pipefail abort) | `test_the_0420_line_alone_leaves_an_empty_crontab` |
-| A4 | no crontab, no janitor line, or only a commented-out one: the timer is installed and the crontab is never written | `test_a_crontab_without_the_janitor_line_installs_and_writes_nothing` |
-| A5 | a duplicated, edited, extended, CRLF, reordered-flag, double-spaced or tab-separated janitor line (any non-comment line naming `scratch_sweep.py` that is not exactly one byte-identical 04:20 line), or a failing `crontab -l`, refuses before any systemctl call — cron stays the one scheduler | `test_an_ambiguous_janitor_line_refuses_before_anything_is_installed`, `test_a_failing_crontab_read_is_not_no_crontab` |
-| A6 | a failed install (linger off, verify warning, `enable` or `restart` failing, timer not active, a first sweep whose `start` exits non-zero or whose `Result` is not `success`, a backup step failing) keeps the crontab line, and a timer it had enabled is disabled again | `test_a_failed_install_keeps_the_crontab_line`, `test_a_failing_backup_step_rolls_the_timer_back` |
-| A10 | a failed re-run with no 04:20 line left keeps the timer enabled, since it is the one scheduler | `test_a_failed_rerun_with_no_cron_line_keeps_the_timer` |
-| A9 | a failing information step (`list-timers`) after the sweep does not end the script before the crontab write | `test_a_failing_information_step_does_not_strand_the_install` |
-| A7 | a crontab write that fails or does not land is reported as both schedulers running, with the undo | `test_a_crontab_write_that_does_not_land_says_both_schedulers_run` |
-| A8 | a missing janitor refuses before any systemctl call | `test_a_missing_janitor_refuses_before_any_systemctl_call` |
+| A1 | the units run the janitor hourly at :20 with catch-up, capped at 55 min, no flock wrapper, and verify silently | `test_the_units_run_the_janitor_hourly_and_verify` |
+| A2 | the installer reloads, enables, restarts and checks the timer in that order, never calls `crontab` (the 04:20 line stays the fallback), and prints the undo | `test_the_installer_enables_the_timer_and_never_touches_the_crontab` |
+| A3 | linger off, a noisy verify or a verify that exits non-zero refuses before any `systemctl` call | `test_a_refused_install_makes_no_systemctl_call` |
+| A4 | a missing janitor refuses before any `systemctl` call | `test_a_missing_janitor_refuses_before_any_systemctl_call` |
+| A5 | a timer that is not `active` after install is disabled again, and cron is left as it was | `test_a_timer_that_is_not_active_is_disabled_again` |
+| A6 | a failing information step (`list-timers`) does not fail the install | `test_a_failing_information_step_does_not_fail_the_install` |
 
 ## Phase B — docs, spec amendment, ledgers
 
@@ -50,8 +46,8 @@ Scope: spec § Documentation landing sites.
 Complexity: inline
 
 Steps:
-1. `docs/workstation/cleanup-automation.md`: the schedule row (`docs/workstation/cleanup-automation.md:20`), the "what the cron line runs" line (`docs/workstation/cleanup-automation.md:161`), the nightly wording (`docs/workstation/cleanup-automation.md:244`) and the cron block (`docs/workstation/cleanup-automation.md:285`) now name the hourly timer, the installer, `journalctl --user -u scratch-sweep.service`, and the operator's one-time run.
-2. `docs/workstation/wsl-startup-inventory.md:58` — the janitor entry names the timer instead of the 04:20 cron line.
+1. `docs/workstation/cleanup-automation.md`: the schedule row (`docs/workstation/cleanup-automation.md:20`), the "what the cron line runs" line (`docs/workstation/cleanup-automation.md:161`), the nightly wording (`docs/workstation/cleanup-automation.md:244`) and the cron block (`docs/workstation/cleanup-automation.md:285`) now name the hourly timer as primary, the 04:20 cron line as the kept fallback (and why: the user manager), the installer, `journalctl --user -u scratch-sweep.service`, and the operator's one-time run.
+2. `docs/workstation/wsl-startup-inventory.md:58` — the janitor entry names the hourly timer beside the 04:20 cron fallback, and drops its stale "NOT YET PLACED" note.
 3. `docs/workstation/hooks-index.md:98` — "nightly" size report → hourly.
 4. The research ledger's two mis-tagged rows (evict-2, evict-5) are corrected (done in review round 1).
 5. Ledgers: CHANGELOG entry, the D-row (approval and the deviation, minted by `/fabrik-plan-review`'s approval; the build's own row if the review adds one), LESSONS entry (measure the configured threshold's real distribution — the prune age), INDEX rows for the new script, units and test.
@@ -91,8 +87,8 @@ The governance files Phase B step 5 appends to (CHANGELOG, DECISIONS, LESSONS, I
 | python-pack floor (no new Python runtime code; test-only module) | rubric FLOOR core/10-python.md | CLEAN — no runtime Python added; the test module uses the venv runner |
 | 12-factor axes (box-local unit; config in the unit file; logs to the journal) | rubric FLOOR 12-FACTOR | CLEAN — box-local unit; logs to the journal (XI); no config in code |
 | docs: link it, fenced blocks, heading levels | rubric MATCHED core/40-documentation.md | CLEAN — Phase B links the installer from cleanup-automation.md and INDEX |
-| testing: behaviour contract, watched-fail-first, no cosmetic assertions | rubric MATCHED core/45-testing-strategy.md | FIXED — rounds 1–4 added the missing guard tests; seventeen mutants red |
-| recurrence: a guard that never fires (the active-timer check) | standing class | FIXED — every guard has a red mutant; one equivalent guard removed |
+| testing: behaviour contract, watched-fail-first, no cosmetic assertions | rubric MATCHED core/45-testing-strategy.md | FIXED — every guard has a test seen red: nine mutants against the panel's timer-only installer |
+| recurrence: a guard that never fires (the active-timer check) | standing class | FIXED — every guard has a red mutant (nine, Evidence) |
 | recurrence: a test that reaches live state (the live crontab) | standing class | CLEAN — live crontab md5 unchanged across every battery |
 | recurrence: doc claim drift (04:20 / nightly wording) | standing class | FIXED — Phase B steps 1–3 own it; the alarm wording routed to W-f6003ecb |
 | recurrence: shared-append ledger collisions | standing class | CLEAN — Phase B step 5 commits ledgers through the private-index recipe |
@@ -199,31 +195,23 @@ The governance files Phase B step 5 appends to (CHANGELOG, DECISIONS, LESSONS, I
 
 ## Evidence
 
-Phase A — `scripts/sysadmin/install_wsl_net_heartbeat_timer.sh:26` (the linger check copied), `tests/test_wsl_net_heartbeat.py:270` (the stub world copied), `scripts/scratch_sweep.py:2205` (the janitor's own non-blocking lock — no wrapper), `docs/workstation/cleanup-automation.md:291` (the exact cron line the installer removes).
+Phase A — `scripts/sysadmin/install_wsl_net_heartbeat_timer.sh:26` (the linger check copied), `tests/test_wsl_net_heartbeat.py:270` (the stub world copied), `scripts/scratch_sweep.py:2205` (the janitor's own non-blocking lock — no wrapper), `docs/workstation/cleanup-automation.md:291` (the 04:20 cron line, kept as the fallback).
 
 ```
 $ systemd-analyze --user verify scratch-sweep.service scratch-sweep.timer; echo "verify rc=$?"
 verify rc=0
-$ crontab -l | md5sum > before; (eighteen mutants, one installer guard each, in the copy; M18, the backup write's own guard, survived as equivalent to the ERR trap and that guard was removed) pytest -q tests/test_scratch_sweep_timer.py
-base: 28 passed in 1.88s
-M1 exact-count -x dropped: 3 failed, 25 passed in 1.99s
-M2 near-match refusal dropped: 6 failed, 22 passed in 2.53s
-M3 list-failure read as no-crontab: 1 failed, 27 passed in 1.81s
-M4 Result check dropped: 1 failed, 27 passed in 1.80s
-M5 state chmod dropped: 1 failed, 27 passed in 1.72s
-M6 backup umask loosened: 1 failed, 27 passed in 2.30s
-M7 post-write check dropped: 2 failed, 26 passed in 2.21s
-M8 undo without disable: 1 failed, 27 passed in 1.80s
-M9 active check dropped: 2 failed, 26 passed in 1.88s
-M10 start exit code ignored: 2 failed, 26 passed in 1.88s
-M11 rollback dropped: 6 failed, 22 passed in 1.90s
-M12 detector narrowed to one spelling: 3 failed, 25 passed in 1.89s
-M13 enable failure not rolled back: 1 failed, 27 passed in 1.77s
-M14 restart failure not rolled back: 1 failed, 27 passed in 1.68s
-M15 information step made fatal: 1 failed, 27 passed in 1.80s
-M16 ERR trap removed: 1 failed, 27 passed in 1.69s
-M17 rollback ignores the cron fallback: 2 failed, 26 passed in 1.65s
-restored: 28 passed in 1.56s
+$ crontab -l | md5sum > before; (nine mutants, one installer guard each, in the copy) pytest -q tests/test_scratch_sweep_timer.py
+base: 8 passed in 0.47s
+M1 linger check dropped: 1 failed, 7 passed in 0.48s
+M2 janitor-exists check dropped: 1 failed, 7 passed in 0.50s
+M3 verify warnings allowed: 1 failed, 7 passed in 0.64s
+M9 verify exit code ignored: 1 failed, 7 passed in 0.48s
+M4 active check dropped: 1 failed, 7 passed in 0.44s
+M5 disable on inactive dropped: 1 failed, 7 passed in 0.47s
+M6 information step made fatal: 1 failed, 7 passed in 0.49s
+M7 installer reads the crontab: 2 failed, 6 passed in 0.58s
+M8 undo line dropped: 1 failed, 7 passed in 0.60s
+restored: 8 passed in 0.49s
 live crontab unchanged
 ```
 
@@ -239,20 +227,20 @@ new file mode 100644
 +++ b/scripts/sysadmin/systemd/scratch-sweep.timer
 new file mode 100644
 +++ b/tests/test_scratch_sweep_timer.py
-436
-0ab20a52bbefe9d23fad2adc38c931db  proto.diff
-@@ -0,0 +1,138 @@
+245
+133a539fd35e2f4625a2f0b3c79e3fe5  proto.diff
+@@ -0,0 +1,64 @@
 @@ -0,0 +1,15 @@
 @@ -0,0 +1,13 @@
-@@ -0,0 +1,320 @@
+@@ -0,0 +1,189 @@
 ```
 
 External facts: the spec's research ledger `docs/reference/research/2026-10-31-scratch-janitor-bound-ledger.md` (rows sched-1, sched-2: `Persistent=true` catch-up and no second instance, https://www.freedesktop.org/software/systemd/man/latest/systemd.timer.html, fetched 2026-10-31).
 
 ## Self-audit
 
-Grounding: three seats — the archive step's pattern (Opus: single-timer machinery, no crontab writer, ten traps), the test harness (Sonnet: stubs keyed on the archive timer, exact undo assertions), the janitor under systemd (Sonnet: no verdict changes under the user-service environment; nothing reads the old log; the docs to update). Their traps folded: the crontab line is removed only after the timer is `active` and one sweep succeeded (trap 1); linger is required (trap 2); the installer itself never runs `systemctl disable` — the printed undo disables only the timer it just installed, so D-1317's alias concern (an operator's own link to the archive timer) does not arise (trap 5); no flock wrapper. The janitor-exists check only proves the unit's path exists — `/opt/fabrik/scripts/scratch_sweep.py` exists before merge too — so running from the main checkout after merge is an instruction in the doc, not a guard (trap 9).
-(a) Coverage: Goal → Phase A; invariants 1–4 → A (units + installer + A1–A10, seventeen mutants); docs/landing sites → B; the ledger tag fix → B step 4.
+Grounding: three seats — the archive step's pattern (Opus: single-timer machinery, no crontab writer, ten traps), the test harness (Sonnet: stubs keyed on the archive timer, exact undo assertions), the janitor under systemd (Sonnet: no verdict changes under the user-service environment; nothing reads the old log; the docs to update). Their traps folded: linger is required (trap 2); the installer runs `systemctl disable` only on the timer it just installed and never touches the crontab, so D-1317's alias concern and every crontab trap (trap 1) fall away with the panel's cron-fallback design; no flock wrapper. The janitor-exists check only proves the unit's path exists — `/opt/fabrik/scripts/scratch_sweep.py` exists before merge too — so running from the main checkout after merge is an instruction in the doc, not a guard (trap 9).
+(a) Coverage: Goal → Phase A; invariants 1–4 → A (units + installer + A1–A6, nine mutants); docs/landing sites → B; the ledger tag fix → B step 4.
 (b) Cross-phase names: the unit names `scratch-sweep.service`/`.timer` and the installer path are the same in Phase A's files, Phase B's docs and the spec amendment.
 Fixed point: see the Pass Ledger.
 
@@ -261,7 +249,20 @@ Fixed point: see the Pass Ledger.
 - Resolved: where the bytes are; why cadence; whether systemd changes any verdict (no); how the crontab is edited safely.
 - Open: whether `Persistent=true`'s stamp survives a WSL VM shutdown — resolution: after the operator's install and the next `wsl --shutdown`, `systemctl --user list-timers scratch-sweep.timer` shows a catch-up run (spec § Validation).
 - Open: the steady-state size under hourly sweeping — resolution: the 24 h measurement and the 60 GB tripwire (spec § Lifecycle).
-- Recorded, routed: the 48 h stale-report alarm and its "nightly" wording, and CLAUDE.md's "daily janitor" wording — W-f6003ecb; the archive-manifest death signal — W-8ec43ae4.
+- Recorded, routed: the 48 h stale-report alarm and its "nightly" wording, and CLAUDE.md's "daily janitor" wording — W-f6003ecb; the archive-manifest death signal — W-8ec43ae4. W-27430523 (signals during the installer's first sweep) is void: the panel's design has no first sweep and no crontab write. Recorded for Phase A's review: an `enable` or `restart` failure ends the installer through `set -e` with no message of its own (cron stays the fallback either way).
+
+## Ask ↔ spec comparison
+
+| Operator's words (relayed) | What the spec says | Anchor | Disposition |
+|---|---|---|---|
+| "the scratch janitor that cannot reach 119 GB of /tmp/claude-1000" | the bytes are run folders the janitor already removes, reached only at 04:20; the 119 GB was the 10-29 figure | spec § Why this exists | CHANGED — measured as cadence, not reach |
+| "since this morning's D-1389 /tmp is no longer wiped at boot, so the janitor is the only bound on its growth" | an hourly timer bounds run folders to ~1.5 h (or 36 h + 1 h under the after-write grace); tmpfiles' 30-day clean stays the last bound | spec § Goal, § Lifecycle | IN |
+| "i dont want to see them in the next restart" (D-1389) | no boot wipe is reintroduced | spec § Goal | IN |
+| item ask (a): "unclassified folders with no live or death signal" | 0.21 GB today; taking them would reverse D-187 | spec § Rejected alternatives | DROPPED — measured too small; reverses D-187 |
+| item ask (b): "resumable markers kept after the run resumed and closed" | D-1341 measured 0.0 GB | spec § Intake Inventory I4 | DROPPED — measured |
+| item ask (c): "folders pinned by seats' registered throwaway worktrees" | the worktree pass's own classes, unchanged | spec § Intake Inventory I6 | DROPPED — out of scope, listed in the size report |
+| (not asked) the 04:20 cron line kept as the fallback | a user timer dies with the user manager (D-1389) | spec § The delta invariant 2 | ADDED — design panel |
+| (not asked) the 24 h + 8-day class measurement | the 36 h grace and 7-day bar reach steady state only by then | spec § Validation | ADDED — design panel |
 
 ## Pass Ledger
 
@@ -272,4 +273,7 @@ Fixed point: see the Pass Ledger.
 | Pass 3 | opus×1 + sonnet×1 (round-1 slice owners) · delta over the round-2 hunks + one hop | found: 3, new: 2, confirmed: 2, fixed: 2, unexecuted: 0, edits: 6 | method: re-derivation — delta over the installer rollback, Phase A, Evidence, spec § The delta; confirmed (own-fix: round 2): a failing `restart` or `list-timers` after `enable` ended the script through `set -e` with the timer beside cron (probe), spec § The delta's test bullet still described the pre-redesign installer; recorded: a held janitor lock lets the first sweep exit 0 without sweeping (by design — the unit still proved it runs; W-f6003ecb); class swept: every systemctl step after `enable` now rolls back or is non-fatal (fifteen-mutant battery); SCOPE GROWTH stop fired (rounds 2, 3 all own-fix) — hunting ends, the next pass re-verifies this fixed set only; class rewrite — spec § The delta test bullet (rounds 2, 3) | 6912cb34… → b5419d6a… (pin4) |
 | Pass 4 | opus×1 + sonnet×1 (round-1 slice owners) · the round-3 fixed set only (scope-growth stop) | found: 2, new: 2, confirmed: 2, fixed: 2, unexecuted: 0, edits: 7 | method: re-derivation — the rollback class and the spec test bullet, re-run in probe worlds; confirmed (own-fix: round 3): a backup step (`mkdir`/`chmod`/write) failing after `enable` ended the script with the timer beside cron, and a failed re-run with no cron line left disabled the only scheduler; class rewrite — the installer's rollback (rounds 3, 4): one ERR trap from `enable` to the crontab commit, keyed on whether cron still holds the line; counts re-derived true (proto.diff md5, 450 lines, 25 tests, M13–M15) | b5419d6a… → c6e9c9a6… (pin5) |
 | Pass 5 | opus×1 + sonnet×1 (round-1 slice owners) · the round-4 fixed set only (scope-growth stop) | found: 2, new: 2, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the rollback rewrite probed step by step in stub worlds (date, mkdir, chmod, backup write: one scheduler each), the spec's invariant 2 / touchpoint / test bullet re-read against the code, the round-4 counts re-derived (md5, 486 lines, 28 tests, M16, M17); recorded — measured (post-stop own-fix residue, W-27430523): a signal during the first sweep skips the ERR-only rollback, and the no-line rollback message can be false when `enable` failed; standing clean since the last full pass: every other class | c6e9c9a6… → c6e9c9a6… ✓ |
+| Panel | opus×1 + fable×1 (design-approval seats) · the whole design | found: 7, new: 7, confirmed: 7, fixed: 7, unexecuted: 0, edits: 2 | method: citation — design critique; both `sound-with-changes`; ACCEPTED (Fable 1): keep the 04:20 cron line as the fallback (a user timer dies with the user manager, D-1389) — the installer is now timer-only and never touches the crontab, which voids Opus 2 and 3 (signals, crontab overwrite) and W-27430523; ACCEPTED (Opus 1, Fable 2): the 36 h after-write grace class, read at 24 h and 8 days with a class split and a 20 GB trigger; ACCEPTED (Fable 3): `TimeoutStartSec=55min`; re-proven: 7 tests, eight killing mutants | c6e9c9a6… → 48c3925f… (pin6) |
+| Pass 6 | opus×1 + sonnet×1 (round-1 slice owners) · delta over the panel's changes | found: 6, new: 6, confirmed: 4, fixed: 4, unexecuted: 0, edits: 6 | method: re-derivation — the timer-only installer probed in stub worlds, the panel's spec sentences re-read against the code; confirmed (own-fix: panel): the tripwire (20 GB) below its own prediction (≈ 50 GB, itself scaled from an unsplit figure), the Goal stating the 36 h class backwards and citing an undefined "M1", the Evidence calling the kept cron line "removed", and the verify step's exit-code half deletable at green; fixed: tripwire 40 GB with no invented prediction, Goal from `scripts/scratch_sweep.py:392`, a `verify_rc` test and a ninth mutant; recorded: `IOSchedulingClass` omitted from the spec's Cost (cosmetic), the daily 04:20 timer/cron lock collision (benign by invariant 2), the enable/restart message gap (Phase A review) | 48c3925f… → af2b4fee… (pin7) |
+| Pass 7 | opus×1 + sonnet×1 (round-1 slice owners) + sonnet×1 (a fresh closing seat, W-128df814) · the round-6 fixed set only | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the Goal's 36 h sentence against `scripts/scratch_sweep.py:391`, `:481`; the 40 GB tripwire at both sites; the suite (8 passed) and M9 re-run red; proto.diff md5 and 281 lines re-derived; recorded: the Panel row's "eight mutants" is a dated history row (measured — Pass 6 records nine) | af2b4fee… → af2b4fee… ✓ |
 
