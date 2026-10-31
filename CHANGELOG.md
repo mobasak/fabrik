@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — no pytest child of the merge-test selector inherits the selector's own inputs (2026-10-31)
+`scripts/merge_test_select.py` starts every shard and its `--collect-only` run without FABRIK_MERGE_TESTS_BASE, FABRIK_MERGE_TESTS_RECORDS and FABRIK_MERGE_SHARDS, which the leg sets for the selector alone. A test that ran the selector inside an after-merge shard had taken the leg's base (W-aa8c473c). W-f13496d8, D-1412.
+
 ### Fixed — a refusal reply quoting an after-merge red no longer outgrows mail.py's 64 KB cap (2026-10-31)
 `scripts/merge_request.py` cuts each red test id shown in an after-merge red item's title to 160 characters (the full
 list stays in `after-merge/status.json`) and cuts a quoted item title to 1,500 characters and every reason, evidence and warning line a reply or ack carries to 4,000, with the whole reply bounded at 48 KB in the preflight refusal. One
