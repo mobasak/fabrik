@@ -258,7 +258,12 @@ def test_blocked_clears_the_pinned_line(run_dir: Path) -> None:
 
 
 def _start_nested(run_dir: Path) -> None:
-    """A plan execution at phase 2/5 with a /fabrik-probe nested inside it."""
+    """A plan execution at phase 2/5 with a /fabrik-probe nested inside it.
+
+    Started from `run_dir`, which is no git repo, so the record's `repo_root` is empty: from the
+    hub's own checkout, `step --phase 2` ran the phase-review scan over the live tree (~12,500
+    blob hashes, 6-14 s under load) and these tests broke the `_cr` 30 s timeout on a busy box
+    (W-a9b3bc15). They test the nested-done mechanism, never the scan."""
     _cr(
         run_dir,
         "start",
@@ -268,7 +273,9 @@ def _start_nested(run_dir: Path) -> None:
         "5",
         "--terminal",
         "every phase EXECUTED",
+        cwd=run_dir,
     )
+    assert _rec(run_dir)["repo_root"] == "", "the fixture must not measure the live checkout"
     # These tests exercise the NESTED-DONE mechanism, not the phase-review rule
     # (transdoc 1.1) — so the waiver is used deliberately rather than seeding an
     # artifact this fixture has no other reason to own. It also keeps the waiver
@@ -282,6 +289,7 @@ def _start_nested(run_dir: Path) -> None:
         "Phase B",
         "--review-waived",
         "nested-run fixture; not a phase-review test",
+        cwd=run_dir,
     )
     _cr(
         run_dir,
@@ -292,6 +300,7 @@ def _start_nested(run_dir: Path) -> None:
         "5",
         "--terminal",
         "found:0 no-op round",
+        cwd=run_dir,
     )
 
 
