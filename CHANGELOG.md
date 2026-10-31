@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the worktree-guard test's probe repo carries the decision ledger (2026-10-31)
+`tests/test_assemble_worktree_guard.py`'s fixture copies `docs/DECISIONS.md` beside `commands/`, so a size ceiling
+raised past baseline+3% with a `raised_by` row (D-1399's `fabrik-deploy-plan-review`) validates as it does in the hub;
+without it the after-merge leg went red on kaizen's merge c5d6257e1 (W-fa19ed9a).
+
 ### Changed — every coordinator's duties toward its tmux builders, in the common paragraph (2026-10-31)
 Both CLAUDE.md copies' coordinator paragraph now carries D-1396's four duties as one **Builders** sentence: the
 coordinator decides when a builder is dispatched and commits its charter (and the role charter `add` needs) on the base
