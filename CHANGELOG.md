@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — the test conftest scrubs the after-merge leg's base override too (2026-10-31)
+The after-merge leg exports `FABRIK_MERGE_TESTS_BASE` (D-1382); its pytest shards inherited it and the selector tests in `tests/test_merge_test_select.py` ran against the leg's base, so every after-merge leg that selected them read red (W-aa8c473c, filed against merge 9aaab68ff). `tests/conftest.py` now pops it beside `FABRIK_MERGE_TESTS_RECORDS`, and `tests/test_conftest_isolation.py` exports each variable in turn.
+
 ### Changed — the hub merge leg stops selecting tests by a file name's substring (2026-10-31)
 `scripts/merge_test_select.py` matches a changed file's stem as a whole word, so a CLAUDE.md change no longer runs every
 test naming `CLAUDE_AGENT` and a compose.yaml one every `docker compose` test; a test importing a test the change selected
