@@ -1897,10 +1897,8 @@ def test_each_hub_exit_finish_mutant_reds_its_check(old: str, new: str) -> None:
 ITEM_BOUNDARY_MERGE = (
     "**Builders merge the base at every item boundary:** in a linked worktree, before you claim the "
     "next item and before every request, run `git fetch <remote> refs/heads/<base>` then `git merge "
-    "FETCH_HEAD` (never a rebase — the branch is pushed) and push — a request already sent still "
-    "lands the head it recorded; "
-    "`merge_request.py request` refuses a branch more than 500 commits behind its base and prints "
-    "both commands."
+    "FETCH_HEAD` (never a rebase — the branch is pushed) and push; `merge_request.py request` refuses "
+    "a branch more than 500 commits behind its base and prints both commands."
 )
 
 

@@ -301,8 +301,8 @@ Every "fix X" / "handle Y" request runs this sequence — each verb CHECKABLE, n
    merges it, and on exit 4 (a partial send) never re-run it.
    **Builders merge the base at every item boundary:** in a linked worktree, before you claim the next item and
    before every request, run `git fetch <remote> refs/heads/<base>` then `git merge FETCH_HEAD` (never a rebase —
-   the branch is pushed) and push — a request already sent still lands the head it recorded; `merge_request.py
-   request` refuses a branch more than 500 commits behind its base and prints both commands.
+   the branch is pushed) and push; `merge_request.py request` refuses a branch more than 500 commits behind its
+   base and prints both commands.
    **Ad-hoc branch/worktree work** (non-plan, in the
    MAIN checkout only — a worktree agent never merges, it requests): unless the operator named the disposition this turn, the DEFAULT
    is merge to base locally **then push base**; PRESENT only the genuine choices — keep the branch as-is ·
