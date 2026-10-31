@@ -1212,13 +1212,15 @@ def test_no_registry_takes_builders_from_the_identity_store(tmp_path: Path) -> N
     assert (
         "b1: .claude/worktrees/b1 is not a linked git worktree in place — no pane" in out.stderr
     ), out.stderr
-    # The foreign b9 binding must surface nowhere: a leak with no worktree here is reported on STDERR like b1,
-    # so both streams are searched. The `run` lines embed the checkout path, which can hold the letters "b9"
-    # (a bare substring check read red under a path holding "bab6e599-b940", W-a9b3bc15), so those lines
-    # are left out and the rest is matched as a word.
-    said = out.stderr + "".join(
-        ln for ln in out.stdout.splitlines(True) if not ln.startswith("run ")
-    )
+    # The foreign b9 binding must surface nowhere, on either stream (a leak with no worktree here is reported on
+    # STDERR, like b1). Every path in the output is under tmp_path or the scripts' checkout, and either can hold
+    # the letters "b9" (a bare substring check read red under a path holding "bab6e599-b940", W-a9b3bc15), so
+    # those roots are blanked first and the rest is matched as a word.
+    said = out.stderr + out.stdout
+    for root in sorted(
+        {str(tmp_path), str(ROOT), str(UP.resolve().parents[2])}, key=len, reverse=True
+    ):
+        said = said.replace(root, "<root>")
     assert "taken as the coordinator" in out.stderr and not re.search(r"\bb9\b", said), said
     assert "not the registry's" not in out.stderr, out.stderr  # there is no registry to name
     # a ledger that declares NO merge owner (decisions.py exit 3) launches the same way
