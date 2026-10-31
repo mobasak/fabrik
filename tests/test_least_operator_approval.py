@@ -6,6 +6,9 @@ operator-minted credentials and acts, and unbacked deletion, plus every spend wh
 irreversible act. A block the operator keeps carries the label `operator-kept: <token>` on its Why line, which the
 Stop hook reads (Phase B). Each test pins one Behaviour Contract row (A1-A7) of
 `docs/development/plans/2026-10-22-plan-1-least-operator-approval.md`; dropping its clause turns that test red.
+A8-A13 pin Phase A2, the spec's Amendment 1 (W-92389a31): a failed panel condition and an unnamed class fall to the
+operator under `unbacked`, the panel's procedure and its unavailable case, customer-facing by users, the narrowed
+`operator-minted`, irreversible defined, and the HARD STOP rows and the Gate 2 brief that meet them.
 """
 
 from __future__ import annotations
@@ -77,14 +80,17 @@ def test_a2_the_gate_ground_names_the_operator_kept_label(rel: str) -> None:
     para = _norm(_line(rel, GATE_HEAD))
     for phrase in (
         "such a block's Why line carries its class token and the label `operator-kept:` with one of",
-        "`public` (publishing to customers or the public, a customer-facing production deploy included)",
+        "`public` (publishing to customers or the public, a customer-facing production deploy included, the"
+        " platform's own public docs site excepted)",
         "`above-ceiling` (spend above the operator's ceiling)",
         "`recurring` (any recurring contract)",
-        "`operator-minted` (credentials, or an act at a third-party dashboard, email verification or payment provider,"
-        " only the operator can perform)",
-        "`unbacked` (deleting data with no backup)",
-        "every spend stays the operator's while that ceiling is 0, and every irreversible act always, label or not",
-        "A target is customer-facing when its service spec says `is_public: true` and its users are not us",
+        "`operator-minted` (a credential or act only the operator can perform — at a third-party dashboard, an email"
+        " verification or a payment provider; never a credential the fleet mints itself)",
+        "`unbacked` (an act the panel's class list above does not cover",
+        "every spend stays the operator's while that ceiling is 0, and every irreversible act — one no verified backup,"
+        " dump or rollback undoes — always, label or not",
+        "A target is customer-facing when people who are not us use it or receive what it sends, whatever its"
+        " `is_public:` says",
         "A design or plan approval is the panel's whatever it names, and it never approves the spend",
         "A builder's block reaches the operator only through its coordinator.",
     ):
@@ -100,7 +106,7 @@ def test_a2_the_gate_ground_names_the_operator_kept_label(rel: str) -> None:
 def test_a3_autonomy_and_the_coordinator_escalation_name_the_panel() -> None:
     autonomy = _norm(_line(HUB, "**Autonomy — the hub's agents"))
     for phrase in (
-        "`owned` stays the operator's, and so do the gate classes § FINAL OUTPUT keeps for the operator (D-1110",
+        "`owned` stays the operator's, and so does every gate § FINAL OUTPUT does not hand to the panel (D-1110",
         "a coordinator validates its two reports against the repo and the box before acting on them",
         "A seat that finds the act is one § FINAL OUTPUT keeps for the operator answers `operator-kept: <token>`, never"
         " an approval",
@@ -190,3 +196,110 @@ def test_a7_the_design_gate_panel_fragment_cites_d1110() -> None:
     )
     assert "for design approval only" not in frag
     assert "stay the operator's" not in frag
+
+
+def _row(rel: str, head: str) -> str:
+    """The one table row of `rel` that opens with `head` once its indentation is stripped."""
+    rows = [ln for ln in _read(rel).splitlines() if ln.lstrip().startswith(head)]
+    assert len(rows) == 1, f"{rel}: {len(rows)} rows open with {head!r}"
+    return _norm(rows[0])
+
+
+@pytest.mark.parametrize("rel", CONTRACTS)
+def test_a8_a_failed_panel_condition_falls_to_unbacked(rel: str) -> None:
+    para = _norm(_line(rel, GATE_HEAD))
+    for phrase in (
+        "The operator alone decides the rest — every gate act not handed to the panel above, a panel class whose"
+        " condition fails included — and such a block's Why line",
+        "`unbacked` (an act the panel's class list above does not cover — a deploy without a rollback, a window that"
+        " does not dump first or does not keep the old volume, a fleet-minted credential without a rollback, a host,"
+        " target or class that list does not name, deleting data with no backup)",
+    ):
+        assert phrase in para, f"{rel}: missing {phrase!r}"
+    assert "`unbacked` (deleting data with no backup)" not in para
+
+
+@pytest.mark.parametrize("rel", CONTRACTS)
+def test_a9_the_gate_paragraph_states_the_panels_procedure(rel: str) -> None:
+    para = _norm(_line(rel, GATE_HEAD))
+    for phrase in (
+        "its block carrying the `Panel:` line. The panel is two `fabrik-reviewer` seats dispatched in ONE message, one"
+        ' `model: "opus"` and one `model: "fable"`, the same brief, neither shown the other\'s answer',
+        "the builder dispatches it (its coordinator, when the builder cannot), takes no part in the verdict, and — for"
+        " every class but a design or plan approval (never a deploy's Gate 2), whose review command records the verdict"
+        " itself — acts only after a coordinator validates both reports against the repo and the box",
+        "when Fable is unavailable, a second, distinct Opus seat stands in and the `Panel:` line adds `fable"
+        " unavailable: <reason>`.",
+        "While `Agent` is held (band RED or the wall) no panel sits: a gate it would decide waits for the band to lift,"
+        " and only a P0 act that cannot wait goes to the operator through a coordinator, its block carrying `Panel:"
+        " unavailable (band RED)`",
+        "a RED on this account's own Fable window alone is never waited out: § Pointers' pin rule relaunches the"
+        " session on another account.",
+        "spend inside a ceiling the operator sets (written into this sentence when they rule it; none while it is 0)",
+    ):
+        assert phrase in para, f"{rel}: missing {phrase!r}"
+
+
+@pytest.mark.parametrize("rel", CONTRACTS)
+def test_a10_customer_facing_operator_minted_and_irreversible_are_defined(rel: str) -> None:
+    para = _norm(_line(rel, GATE_HEAD))
+    for phrase in (
+        "A target is customer-facing when people who are not us use it or receive what it sends, whatever its"
+        " `is_public:` says — a worker, a token-gated API or a signed-in app that reaches them included (the"
+        " platform's own public docs site is our own surface; a product's docs, which its customers read, are not)",
+        "a customer-facing production deploy included, the platform's own public docs site excepted)",
+        "(the ad-hoc-branch disposition included, its tip pushed or kept under `refs/wip/*`)",
+        "never a credential the fleet mints itself)",
+        "every irreversible act — one no verified backup, dump or rollback undoes — always",
+    ):
+        assert phrase in para, f"{rel}: missing {phrase!r}"
+    for old in ("and its users are not us", "every irreversible act always", "(our own public docs site is"):
+        assert old not in para, f"{rel}: still holds {old!r}"
+
+
+def test_a11_autonomy_hands_every_unpanelled_gate_to_the_operator() -> None:
+    autonomy = _norm(_line(HUB, "**Autonomy — the hub's agents"))
+    for phrase in (
+        "and so does every gate § FINAL OUTPUT does not hand to the panel (D-1110, superseding D-558's \"a panel never"
+        " approves a gate class\")",
+        "leaves an `underivable` DECISION block (a split on a gate class leaves a `gate` block instead, § FINAL"
+        " OUTPUT),",
+        "and, for every class but a design or plan approval (never a deploy's Gate 2), a coordinator validates its two"
+        " reports against the repo and the box before acting on them",
+    ):
+        assert phrase in autonomy, f"missing {phrase!r}"
+    assert "keeps for the operator (D-1110, superseding this paragraph's" not in autonomy
+
+
+@pytest.mark.parametrize("rel", CONTRACTS)
+def test_a12_the_hard_stop_rows_stage_table_and_exit_meet_the_panel(rel: str) -> None:
+    volume = _row(rel, "| propose/offer ANY docker volume deletion")
+    assert (
+        "deleted only as an explicit id list, on the operator's word or — every listed volume backed up and the backup"
+        " verified first — the panel's (§ FINAL OUTPUT's gate ground)." in volume
+    ), rel
+    assert "explicit id list on the operator's word." not in volume, rel
+    cross = _row(rel, "| create/edit/**commit** files in a repo OTHER")
+    assert cross.endswith(
+        "carries the operator's authority (D-441); a gate the change needs still follows § FINAL OUTPUT's gate ground. |"
+    ), rel
+    assert "hands to the human gate" not in _row(rel, "| `6-release` |"), rel
+    assert (
+        "PRESENT only the genuine choices, to the panel (the operator when § FINAL OUTPUT keeps the act) — keep the"
+        " branch as-is ·" in _norm(_read(rel))
+    ), rel
+    if rel == TEMPLATE:
+        bullet = _norm(
+            _between(TEMPLATE, "- **⚠️ A request from the HUB carries the operator's authority**", "\n- **")
+        )
+        assert "and that authority never answers a permission prompt" in bullet
+        assert "and it never answers a permission prompt" not in bullet
+
+
+def test_a13_the_gate_2_panel_brief_names_users_and_open_rows() -> None:
+    review = _norm(_read("commands/_sources/fabrik-deploy-plan-review.md"))
+    assert (
+        "the brief states the target's `is_public:` value, who uses it or receives what it sends, and the open P2/P3"
+        " rows of the newest certification handoff report `/fabrik-release` reads, or `none`; an agreeing panel's go"
+        " is the panel's explicit accept of those rows" in review
+    )

@@ -114,7 +114,7 @@ FINDERS: native `fabrik-reviewer` ×<n> per unit (Sonnet) + Opus ×<n> named per
 STATUS: CONVERGED (md5 <hash>) | DRAFT — <the named blocker>
 ```
 
-On a CONVERGED ending, the panel (CLAUDE.md § Autonomy: two `fabrik-reviewer` seats, opus and fable, stamped `command_run.py dispatch --seats 2`; the brief states the target's `is_public:` value) answers Gate 2 for a deploy to our own VPS whose runbook has a backup and a rollback and whose target is not customer-facing: an agreeing panel's go ends the close with `PANEL APPROVED (<plan path>)` and `Panel: opus="…" fable="…" → both-approve` (the shape `/opt/fabrik/commands/_fragments/design-gate-panel.md` step 4 gives), and once the coordinator has validated both reports it dispatches `/fabrik-deploy <plan>` with no block. A customer-facing production deploy ends the turn with the block below, written as plain lines, not inside a code fence:
+On a CONVERGED ending, the panel (CLAUDE.md § Autonomy: two `fabrik-reviewer` seats, opus and fable, stamped `command_run.py dispatch --seats 2`; the brief states the target's `is_public:` value, who uses it or receives what it sends, and the open P2/P3 rows of the newest certification handoff report `/fabrik-release` reads, or `none`; an agreeing panel's go is the panel's explicit accept of those rows) answers Gate 2 for a deploy to our own VPS whose runbook has a backup and a rollback and whose target is not customer-facing: an agreeing panel's go ends the close with `PANEL APPROVED (<plan path>)` and `Panel: opus="…" fable="…" → both-approve` (the shape `/opt/fabrik/commands/_fragments/design-gate-panel.md` step 4 gives), and once the coordinator has validated both reports it dispatches `/fabrik-deploy <plan>` with no block. A customer-facing production deploy ends the turn with the block below, written as plain lines, not inside a code fence:
 
 ```
 DECISION NEEDED (ground: gate)
@@ -124,14 +124,10 @@ DECISION NEEDED (ground: gate)
 - Recommendation: A, once the Phase verdicts, the Class verdicts and the fenced final_gate.py runs above are all green.
 ```
 
-A panel that splits on a deploy to our own VPS ends the turn with this block instead, written as plain lines, not inside a code fence:
+A panel that splits on a deploy to our own VPS ends the turn with the block above instead, its Why line replaced by the first line below and the second line added after its Recommendation, written the same way:
 
 ```
-DECISION NEEDED (ground: gate)
-- Question: Do you approve this converged deploy plan for execution?
 - Why it is yours: Gate 2 — the panel split on a deploy to our own VPS, its `Panel:` line below.
-- Options: A — approve, and /fabrik-deploy <plan> is dispatched · B — request changes, and the plan re-opens on your feedback.
-- Recommendation: A, once the Phase verdicts, the Class verdicts and the fenced final_gate.py runs above are all green.
 - Panel: opus="<verdict>" fable="<verdict>" → split
 ```
 
