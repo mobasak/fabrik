@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-31T13:48:13.877590Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-9dc52605",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "read archived mail 01M5B9FJ7QK9DX8GQ9PGCYJG8P, validate against current master, then fix or drop (proposed score: impact low, effort low — the hub's fabrik.orchestrator.gpu_rent fork lacks fabrik-lib's utilization_rate validation; a small guard)",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "the hub's fabrik.orchestrator.gpu_rent fork lacks fabrik-lib's utilization_rate validation; a small guard",
   "status": "open",
   "title": "mail 01M5B9FJ7Q (fabrik-lib): fabrik-lib gpu-rent SB-131 shipped (branch worktree-fabrik-lib-sentinel, merge request pending; fix commits b27a89c4 + 26d073d6; fabrik-lib D-483, D-485, D-490). Two thin"
 }

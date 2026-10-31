@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-31T13:48:54.570058Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-df52043e",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "read archived mail 01M5PHWQ56XYMHP49BQZXAPNDC, validate against current master, then fix or drop (proposed score: impact low, effort low — two /fabrik-review-scoped feedback rows ask for infra code kaizen rejected from the command queue)",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "two /fabrik-review-scoped feedback rows ask for infra code kaizen rejected from the command queue",
   "status": "open",
   "title": "mail 01M5PHWQ56 (fabrik): WHAT: two /fabrik-review-scoped feedback rows ask for CODE in infra's beat; kaizen rejected them from the command's queue as misfiled and routes them here."
 }

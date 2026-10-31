@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-31T13:49:02.447619Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-4b6db2b4",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "read archived mail 01M5Q71ZM6JKTZQXQKH7BJK6XY, validate against current master, then fix or drop (proposed score: impact low, effort low — test_every_declared_spawner_actually_sets_the_flag passes vacuously; a grader fix)",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "test_every_declared_spawner_actually_sets_the_flag passes vacuously; a grader fix",
   "status": "open",
   "title": "mail 01M5Q71ZM6 (fabrik): tests/test_hooks_headless_guard.py::test_every_declared_spawner_actually_sets_the_flag passes when the FABRIK_HEADLESS dict is not the env the spawn receives"
 }

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-31T13:49:43.519903Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-353c4288",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "read archived mail 01M64RW33B9DJD089AFZSNTECS, validate against current master, then fix or drop (proposed score: impact low, effort low — review_receipt.py: a read-only --restamp --check and an anchor for a committed receipt)",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "review_receipt.py: a read-only --restamp --check and an anchor for a committed receipt",
   "status": "open",
   "title": "mail 01M64RW33B (fabrik): review_receipt.py — a read-only anchor check (`--restamp --check`) and an anchor for a committed working-tree receipt (follow-up of W-e9588939, D-1366)"
 }

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-31T13:49:09.387202Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-7b4f4baf",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "read archived mail 01M5QRQGSYES10S1K84JQCWHJ1, validate against current master, then fix or drop (proposed score: impact low, effort low — rotate_session.py refuses on phantom background seats; a seat-count fix)",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "rotate_session.py refuses on phantom background seats; a seat-count fix",
   "status": "open",
   "title": "mail 01M5QRQGSY (web-ecommerce-factory): WHAT: rotate_session.py refuses a rotation with \"aborted:seat — 2 background seat(s) still running\" when no seat is running. A session relaunch delivers ONE task-notifica"
 }

@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-31T13:48:43.479838Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-a65515cc",
+  "impact": "low",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "read archived mail 01M5GC0R2W5WFVD526FFXWTKRB, validate against current master, then fix or drop (proposed score: impact low, effort low — two corpus tests treat a mere mention of fabrik-review-loop.js as a launcher; tighten the match)",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "two corpus tests treat a mere mention of fabrik-review-loop.js as a launcher; tighten the match",
   "status": "open",
   "title": "mail 01M5GC0R2W (fabrik): WHAT: two corpus tests treat any command source that merely NAMES `fabrik-review-loop.js` as a review-loop workflow launcher — tests/test_review_queue_pass.py::test_every"
 }

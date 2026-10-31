@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-31T13:48:52.245796Z",
   "creator": "infra",
+  "effort": "low",
   "evidence": "",
   "id": "W-fb7aae3c",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "read archived mail 01M5PF41GWDWCW1GV0GYGV415W, validate against current master, then fix or drop (proposed score: impact high, effort low — three code copies still advise `git pull --rebase=merges`, which drops pushed commits after a force-rewrite; data-loss class, text fix in code)",
   "note": "",
-  "owner": "",
-  "priority": 2,
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "three code copies still advise `git pull --rebase=merges`, which drops pushed commits after a force-rewrite; data-loss class, text fix in code",
   "status": "open",
   "title": "mail 01M5PF41GW (fabrik): Three code copies still recommend `git pull --rebase=merges`, which drops already-pushed commits after a remote force-rewrite (W-a312d48c, D-1178)"
 }
