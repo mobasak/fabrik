@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — merge test legs wait for room in the box's test slice instead of all running at once (2026-10-31)
+Every repo's merge legs (merge, pretest, queue child, after-merge) now take a box-wide lease and start only while
+the declared memory of the legs already running plus their own fits capped_run's 12G slice. Two to six legs had run
+together for 189 of 242 leg-minutes over two days. The wait is outside the leg's budget, at most 900 s per merge run, and
+the queue's wall grows to 12000 s to cover it (D-1405, W-fbd1d4b9).
+
 ### Changed — the hub merge leg stops selecting tests by a file name's substring (2026-10-31)
 `scripts/merge_test_select.py` matches a changed file's stem as a whole word, so a CLAUDE.md change no longer runs every
 test naming `CLAUDE_AGENT` and a compose.yaml one every `docker compose` test; a test importing a test the change selected

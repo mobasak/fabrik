@@ -8291,3 +8291,11 @@ merge_request.py only through `from test_merge_request_merge import World`. None
 **Why:** a replay can only show a miss on a cause it holds; the measurement scripts compared counts, not who left.
 **How to apply:** before narrowing a selector, list every (changed path, test) pair the new rule DROPS over recent
 merges' own trees and read the drops that are not noise; ship the rule for the reader class you find with it.
+
+## A wait added inside a step moves every wall above it (2026-10-31, W-fbd1d4b9)
+Box-wide admission let a merge leg wait for room before it ran, and moved the leg's own deadline by the wait. Both
+design critiques found the walls ABOVE the leg had not moved: the landing worst case, the queue wall and the documented
+wrappers would have killed a landing mid-push.
+**Why:** a deadline extension is local; every bound computed from the old worst case is not.
+**How to apply:** when a change adds time inside a bounded step, grep every constant and wrapper derived from that
+step's worst case and move them in the same change, with one allowance per invocation so the growth is counted once.
