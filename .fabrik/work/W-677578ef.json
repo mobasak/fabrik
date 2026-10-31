@@ -13,7 +13,7 @@
     "plan": "",
     "spec": ""
   },
-  "next": "",
+  "next": "code merged 39c7ac78a; ONLY step left is the merge owner's: python3 scripts/merge_request.py resume 01M693KZZJ (resume refuses non-owners, merge_request.py:3660), then work.py done W-677578ef",
   "note": "",
   "owner": "infra",
   "priority": 0,
