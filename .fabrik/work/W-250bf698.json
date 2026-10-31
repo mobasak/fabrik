@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T14:36:08.589929Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-250bf698",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M6964XW36G8VDJGS2BZE6K5J",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "W-92389a31 — operator kit for plan-1 Phase A2 (gate wording in both CLAUDE.md copies), ready to run"
+}

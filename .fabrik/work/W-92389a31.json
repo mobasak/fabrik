@@ -18,7 +18,8 @@
   "status": "open",
   "tags": [
     "kaizen",
-    "part-of-w-4a03df79"
+    "part-of-w-4a03df79",
+    "waits-operator-kit"
   ],
   "title": "plan-1 D1 wording gaps from the Phase A review (before Phase B's hook): an act failing a panel condition (own-VPS deploy w/o rollback, backed-up prod-data delete, window w/o dump, fleet credential w/o rollback) has no operator-kept token (A-C1), and Autonomy 'keeps' read as the five labels hands it to the panel (A-C2); template has no gate-panel procedure (A-C3); is_public misses non-public customer-facing targets (A-C5); own public docs site matches both own-surface and public (A-C6); operator-minted reads as every credential (A-C7); irreversible vs backed-up deletes/branch discards (A-C8); no rule while the panel is unavailable (A-C10); spend ceiling home unnamed (A-C11)"
 }

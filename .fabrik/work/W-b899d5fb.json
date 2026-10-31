@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T14:19:55.635251Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-b899d5fb",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M6958QPADNNG3PQ6TZK8X025",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "rotate kaizen — W-92389a31 design half done (D-1413); live message was held undelivered"
+}

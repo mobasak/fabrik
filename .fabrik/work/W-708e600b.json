@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T14:34:21.476955Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-708e600b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M693X9ZMGK3BSP25AWX7982R",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Stop hook's WORK WAITING doorbell does not see a SendMessage that was sent (3/3 attempts after 3 rings) — builder-tmpfix, 2026-10-31"
+}

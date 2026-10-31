@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T14:30:47.561835Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-452ea067",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M695WYW4CTTQ4WVFTJT7XTQ3",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "infra: P0 W-677578ef (mail.py refuses builder-<suffix> names) done — merge request 01M695WKBN sent; rotate infra"
+}
