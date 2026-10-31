@@ -9,10 +9,10 @@ Profile: delta
 - **PRIMARY — the operator**, in the coordinator's relay of their order: "the scratch janitor that cannot reach 119 GB of /tmp/claude-1000 — since this morning's D-1389 /tmp is no longer wiped at boot, so the janitor is the only bound on its growth." The operator's own words on the boot that caused it (D-1389): "i cant reach coordinators in vivaldi … fix all these asap without breaking. i dont want to see them in the next restart".
 - **The janitor** (automated): `scripts/scratch_sweep.py --dead --apply`, today a user-crontab line at 04:20; after this change a systemd user timer holds the duty of running it hourly.
 - **Every agent session** (automated, ~40 live): writes scratch under `/tmp/claude-1000/<slug>/<sid>/`, including `/fabrik-review` run folders of 1.0–4.5 GB; each one's own `command_run.py start` already sweeps that session's consumed run folders.
-- **The coordinator** (automated): relays the operator's one-time run of `operator_setup.py --apply` and checks the timer's first runs.
+- **The coordinator** (automated): relays the operator's one-time run of `install_scratch_sweep_timer.sh` and checks the timer's first runs.
 - **tmpfiles** (automated, systemd): the daily `--clean` of /tmp entries untouched for 30 days — the last-resort bound, unchanged.
 
-Primary loop — step budget **3**: (1) the operator runs `python3 /opt/fabrik/scripts/sysadmin/operator_setup.py` and reads the dry-run diff; (2) runs it again with `--apply`; (3) nothing further — the timer sweeps every hour and the operator never touches scratch again. Every duty above names its holder; the new duty (the hourly run) is the timer's.
+Primary loop — step budget **2**: (1) the operator runs `bash /opt/fabrik/scripts/sysadmin/install_scratch_sweep_timer.sh` from the main checkout and reads the undo line it prints; (2) nothing further — the timer sweeps every hour and the operator never touches scratch again. Every duty above names its holder; the new duty (the hourly run) is the timer's.
 
 ## Goal
 
@@ -48,10 +48,10 @@ Invariants:
 
 Touchpoints:
 - New `scripts/sysadmin/systemd/scratch-sweep.service` — `Type=oneshot`, `ExecStart=/usr/bin/python3 /opt/fabrik/scripts/scratch_sweep.py --dead --apply`, stdout to the journal (row sched-6).
-- New `scripts/sysadmin/systemd/scratch-sweep.timer` — `OnCalendar=hourly`, `Persistent=true`, `WantedBy=timers.target`.
-- `scripts/sysadmin/operator_setup.py` gains a `sweep` step beside `plan_archive` (`scripts/sysadmin/operator_setup.py:338`): plan the two units (diff, backup), enable and start the timer, and remove the exact 04:20 crontab line (diffed; the undo prints the `crontab` restore line). A crontab with no such line plans nothing for it; a crontab line that differs from the expected text is reported, never edited.
-- `tests/test_operator_setup.py`: the step in a throwaway HOME — dry run writes nothing; apply installs both units, enables the timer, removes only the 04:20 line; the undo restores it; a second apply plans nothing.
-- Docs: `docs/workstation/cleanup-automation.md` (§ F schedule row and the cron block at :291), `docs/workstation/wsl-startup-inventory.md` (the janitor's cron entry), `docs/workstation/operator-setup.md` (the new step).
+- New `scripts/sysadmin/systemd/scratch-sweep.timer` — `OnCalendar=*-*-* *:20:00` (hourly, at :20), `Persistent=true`, `WantedBy=timers.target`.
+- New `scripts/sysadmin/install_scratch_sweep_timer.sh`, modelled on `scripts/sysadmin/install_wsl_net_heartbeat_timer.sh` (linger, the janitor exists, a silent `systemd-analyze verify`, install, enable, restart): only once the timer reads `active` it removes the one exact 04:20 crontab line, after backing up the whole crontab and printing the `crontab <backup>` undo. No crontab, no such line, an edited line or a duplicated one is never written. (Amended at planning: a step inside `scripts/sysadmin/operator_setup.py` was measured to need its single-timer machinery generalised — `Plan`, `_link_undo`, `_restore_lines`, `apply`, `verify` and six tests pinning exact undo lines — and that script writes no crontab; the standalone installer is the box's second precedent.)
+- New `tests/test_scratch_sweep_timer.py`: the units verify; the installer, in a throwaway HOME with stub `loginctl`/`systemctl`/`systemd-analyze`/`crontab`, enables the timer before touching the crontab, removes only the 04:20 line, prints an undo that restores it, and keeps the line on every failed install.
+- Docs: `docs/workstation/cleanup-automation.md` (§ F schedule row and the cron block at :291), `docs/workstation/wsl-startup-inventory.md` (the janitor's cron entry), `docs/workstation/hooks-index.md` (the size report is hourly).
 
 ## Contract deltas
 
@@ -69,7 +69,7 @@ One sweep per hour: 58 s wall, 110 MB RSS, idle I/O otherwise. Dev cost: two uni
 
 ## Decisions taken
 
-- **D-a (this spec):** the janitor runs hourly from a systemd user timer installed by `operator_setup.py`; the removal rules are untouched. Panel: three Sonnet judges, briefed without a recommendation, ranked this approach (A) first, unanimously.
+- **D-a (this spec):** the janitor runs hourly from a systemd user timer installed by `scripts/sysadmin/install_scratch_sweep_timer.sh`; the removal rules are untouched. Panel: three Sonnet judges, briefed without a recommendation, ranked this approach (A) first, unanimously.
 - **Rejected:** a disk-pressure watermark that evicts no-signal sessions idle ≥ 24 h (B), a shorter fixed bar of 48 h (C), and both A and B (D) — see Rejected alternatives.
 - The archive-manifest death signal from the upgraded `/fabrik-task` is not built here: it moves 0 sessions today because the pruner prunes main transcripts at ≥ 8.9 d (0 of 1,800 under 7 d over 8 nights); it is latent until that backlog drains (OUT-OF-SCOPE row I5).
 
@@ -90,7 +90,7 @@ Sources (fetched 2026-10-31): https://kubernetes.io/docs/concepts/architecture/g
 
 ## Lifecycle
 
-- Adoption: the operator's one-time `operator_setup.py --apply`; the coordinator confirms the first journal entry.
+- Adoption: the operator's one-time `bash scripts/sysadmin/install_scratch_sweep_timer.sh`; the coordinator confirms the first journal entry.
 - Growth: measured by the janitor's own nightly-equivalent size report (`~/.claude/state/scratch-size-report.json`, now hourly). Trigger to revisit: a reading above 60 GB, or more than 10 % of `/` used by `/tmp/claude-1000`, opens the watermark question again with the data this cadence produces.
 - Degradation: a failed sweep is a failed oneshot unit in the journal, and the next hour retries; if the timer is gone, the existing SessionStart SCRATCH ALARM still reports a stale size report (`scripts/scratch_sweep.py:1650`) and disk use over 85 %. tmpfiles' 30-day clean stays the last bound (it skips locked entries and non-empty directories, rows tmp-8, tmp-9).
 - Retirement: removing the timer (the setup step's undo lines) restores the 04:20 crontab line.
@@ -110,7 +110,7 @@ Every selection above is either a digest row (red-first tests in a throwaway HOM
 | Capability | Verdict | Why |
 |---|---|---|
 | periodic run of the janitor | BUILD (two unit files) | no fabrik-lib module schedules host jobs; the hub's own units in `scripts/sysadmin/systemd/` are the pattern |
-| one-time install with backup and undo | VENDOR as-is (hub) | `scripts/sysadmin/operator_setup.py` already does this for the archive timer |
+| one-time install with backup and undo | VENDOR + ENHANCE (hub) | `scripts/sysadmin/install_wsl_net_heartbeat_timer.sh` is the installer pattern; the crontab removal is the enhancement |
 
 ## Shape/infra implications
 
@@ -118,7 +118,7 @@ None: a box-local systemd user timer on the WSL workstation; no service spec, no
 
 ## Documentation landing sites
 
-`docs/workstation/cleanup-automation.md` § F (the schedule), `docs/workstation/wsl-startup-inventory.md` (the job list), `docs/workstation/operator-setup.md` (the setup step); CHANGELOG entry; the D-row.
+`docs/workstation/cleanup-automation.md` § F (the schedule), `docs/workstation/wsl-startup-inventory.md` (the job list), `docs/workstation/hooks-index.md` (the size report is hourly); CHANGELOG entry; the D-row.
 
 ## Constraints
 
