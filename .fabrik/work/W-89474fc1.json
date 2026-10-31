@@ -3,7 +3,7 @@
   "created": "2026-10-20T09:17:09.058052Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "d0c1ebea952a9864e567f7319e51504dbd839d96",
   "id": "W-89474fc1",
   "impact": "high",
   "kind": "task",
@@ -18,7 +18,7 @@
   "owner": "infra-3",
   "priority": 0,
   "score_reason": "operator says asap (URGENT); launcher generator plus registry seeding per repo; one session",
-  "status": "open",
+  "status": "done",
   "tags": [
     "fold-w-b9ad80ae"
   ],
