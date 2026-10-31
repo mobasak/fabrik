@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:37:47.305739Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-8ec43ae4",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-31-scratch-janitor-bound-design.md"
+  },
+  "next": "measure prune age per night (pruned.jsonl joined to manifest.jsonl); when any night prunes under 7 d, build from the W-d1a4a8f5 seed (graders-draft.patch + impl-draft.py, with the critiques' positive-mtime, absent-manifest token and set-aside notes folded)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "tags": [
+    "waits-prune-backlog"
+  ],
+  "title": "scratch_sweep: read the transcript archive manifest as the transcript death signal once the pruner's backlog drains (today it prunes main transcripts at >= 8.9 d, so the 7 d signal still fires on the live file; once prune age falls under 7 d a pruned session would stay unclassified for ever)"
+}
