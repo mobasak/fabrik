@@ -104,9 +104,9 @@ def test_print_mode_writes_nothing(tmp_path: Path) -> None:
     before = sorted(p for p in tmp_path.rglob("*"))
     out = _run("--opt", str(opt))
     assert out.returncode == 0, out.stderr
-    assert "Fabrik-lib Agents.bat" in out.stdout and "agents_up.sh --tab /opt/fabrik-lib" in out.stdout, (
-        out.stdout
-    )
+    assert (
+        "Fabrik-lib Agents.bat" in out.stdout and "agents_up.sh --tab /opt/fabrik-lib" in out.stdout
+    ), out.stdout
     assert sorted(p for p in tmp_path.rglob("*")) == before
     # a --desktop that does not exist is refused, never created
     gone = tmp_path / "no-such-desk"
