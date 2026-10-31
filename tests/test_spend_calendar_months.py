@@ -81,10 +81,22 @@ def test_a_quiet_day_inside_a_live_month_keeps_its_cell(store):
     # than 28 days. An earlier version used today-3 and today and skipped when that pair straddled a
     # boundary, which silently deleted this test on the first three days of every month; a finder
     # priced that at ~3 days in 30, and a test that is absent 10% of the time is absent on exactly
-    # the days when boundary behaviour is most likely to break.
-    first = datetime.date.today().replace(day=1)
+    # the days when boundary behaviour is most likely to break. Before the 4th the axis (which stops at
+    # today) cannot reach the 4th, so those three days take the PREVIOUS month's 1st and 4th; a token
+    # on today keeps the 30-day spend window `per_model_spend` needs non-empty, since the previous
+    # month's 4th can sit 30 days back (on 3 August). It red-failed on every 1st and 2nd (W-a9b3bc15).
+    today = datetime.date.today()
+    first = today.replace(day=1)
+    if today.day < 4:
+        first = (first - datetime.timedelta(days=1)).replace(day=1)
     a, b = first.isoformat(), (first + datetime.timedelta(days=3)).isoformat()
-    store({a: {"claude-opus-5": 1_000_000}, b: {"claude-opus-5": 1_000_000}})
+    store(
+        {
+            a: {"claude-opus-5": 1_000_000},
+            b: {"claude-opus-5": 1_000_000},
+            today.isoformat(): {"claude-opus-5": 1_000_000},
+        }
+    )
     dates = [r["date"] for r in cpc.per_model_spend()["daily"]]
     between = [(first + datetime.timedelta(days=n)).isoformat() for n in (1, 2)]
     # The two silent days between them are still emitted: a quiet day must stay distinguishable from
@@ -93,8 +105,8 @@ def test_a_quiet_day_inside_a_live_month_keeps_its_cell(store):
 
 
 def test_the_calendar_still_runs_to_today(store):
-    # Seeded on the 1st so the current month is always the live one, whatever today's date is: the
-    # axis must fill forward to today even when nothing has been recorded since. On the 31st the 1st
+    # Seeded in the current month (the 1st, or the 2nd on the 31st — below), whatever today's date is:
+    # the axis must fill forward to today even when nothing has been recorded since. On the 31st the 1st
     # is 30 days back, outside the 30-day spend window `per_model_spend` needs a token in (it returns
     # no calendar without one), so the seed is clamped to that window's first day (W-a9b3bc15).
     today = datetime.date.today()
