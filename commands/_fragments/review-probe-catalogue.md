@@ -152,7 +152,7 @@ brief. Each is a step, not a check box: execute it, or name in the brief why the
   test gap; counter or guard is gutted in same round to show it can fail; regression test fails when caller is reverted;
   each slice's seats write and run one mutant of their own per guard change adds in their slice, written afresh rather
   than re-run from lead's pre-pin list, on a copy made from the pin, under the explicit `timeout` its brief names
-  (`/fabrik-review`'s D8 mutation-seat lesson), that `timeout` being § Seat isolation's `capped_run.sh --timeout`;
+  (`/fabrik-review`'s D8 mutation-seat lesson), that `timeout` being the House rules' `capped_run.sh --timeout`;
   one reader mutates guarded behaviour; tests slice's seats also write and run mutants of their own against each
   behaviour its tests claim, beside lead's, and report each survivor that changes observable behaviour, as above;
   graders are written, and named, before next round goes out.

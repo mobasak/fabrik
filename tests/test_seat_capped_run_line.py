@@ -29,13 +29,13 @@ CLAUSE = (
     "executes the pinned code, as one plain `/opt/fabrik/scripts/capped_run.sh --timeout <s> -- <command>` (D-935; "
     "`<s>` your brief's number, else 120, at most 540; its `systemctl --user` call is that cap, not a barred write), "
     "the Bash `timeout` set to (`<s>` + 60) × 1000 ms and no outer `timeout 120`: the Bash timeout only backgrounds a "
-    "command, which runs on unseen; exit 124 or 137, or 2 with a `capped_run:` line, is no result (the test "
-    "`unverified`, its mutant not caught), that line going in MACHINERY;"
+    "command; exit 124 or 137, or 2 with a `capped_run:` line, is no result (the test and its mutant "
+    "`unverified`), that line, like a `capped_run: WARNING`, going in MACHINERY;"
 )
 
 SUMMARY_CAP = (
     "never a hand-listed path set — each test run goes under `capped_run.sh --timeout <s>`, the brief naming `<s>` "
-    "(3× the lead's own run, at most 540) when that run took over 40 s — the recipe is the seat prompt's"
+    "(3× the lead's own run, whole seconds ≤540) when that run took over 40 s — the recipe is the seat prompt's"
 )
 
 
@@ -66,7 +66,7 @@ def test_the_catalogue_seat_isolation_section_ends_with_the_capped_run_bullet() 
 def test_the_mutation_bullet_names_the_capped_run_timeout_not_a_bare_timeout() -> None:
     assert (
         "under the explicit `timeout` its brief names (`/fabrik-review`'s D8 mutation-seat lesson), that `timeout` "
-        "being § Seat isolation's `capped_run.sh --timeout`;"
+        "being the House rules' `capped_run.sh --timeout`;"
     ) in _flat(CAT)
 
 
