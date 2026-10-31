@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T08:29:56.247060Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-9dcba2c0",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1390",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "catch ValueError beside the other git failures in valve_day (or read the blob as bytes) and add a grader committing b'\\xff\\xfe…' to .fabrik/merge-tests",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "kaizen"
+  ],
+  "title": "merge_tripwire.valve_day lets a non-UTF-8 .fabrik/merge-tests escape as UnicodeDecodeError (subprocess text=True decode in _git), so compute()/publish crash instead of printing 'unmeasured' — residue of the W-622ec42c review round 4 (scope-growth stop), pre-existing since the build"
+}

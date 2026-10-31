@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T21:38:11.344668Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-3938ed43",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read the mail's two rows; fix in command_run.py with tests; /fabrik-review-scoped; MR",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "command_run.py code is infra's beat; P2, after the merge program",
+  "status": "open",
+  "tags": [
+    "mail-01m5mptmjhnwb94ha4mw4251kk"
+  ],
+  "title": "mail 01M5MPTMJH (kaizen, 7 d old): two /fabrik-task close verdicts ask for command_run.py CODE, routed to infra: (1) the --design-amend path shape; (2) --resume-from re-claims the seed's work item. Not the merge program; after the P0 pause lifts"
+}

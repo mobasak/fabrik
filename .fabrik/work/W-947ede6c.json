@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T21:40:14.998069Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-947ede6c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M67BZYEJ0CST9PV5PVN28Z5B",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: W-53360407 (P0, ledger merge driver for tonight's \"perfect merge\" push) — status, and a CORRECTION to the figure I gave you."
+}

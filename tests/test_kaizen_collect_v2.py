@@ -608,6 +608,39 @@ def test_daily_green_path_publishes(tmp_path: Path) -> None:
     assert f"| {dt.date.today().isoformat()} |" in text, "the kaizen-log row landed"
 
 
+def test_daily_runs_the_merge_tripwire_with_its_repo_and_no_mail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # W-622ec42c: the daily pass is the tripwire's only scheduler; its own --repo-root and --no-mail
+    # must reach the tripwire — a distinct repo and BOTH mail settings, so a hard-coded call fails
+    calls: list[tuple] = []
+    monkeypatch.setattr(kc, "_publish_merge_tripwire", lambda *a: calls.append(a))
+    monkeypatch.setattr(
+        kc, "send_mail", lambda root, body: True
+    )  # the collector's own mail: never sent
+    ev = tmp_path / "events"
+    ev.mkdir()
+    for f in GOLDEN.glob("*.jsonl"):
+        shutil.copy(f, ev / f.name)
+    log = tmp_path / "log.md"
+    log.write_text(LOG_STUB, encoding="utf-8")
+    root, day = tmp_path / "repo", dt.date.today()
+    for no_mail in (False, True):
+        rc = kc.daily(
+            day,
+            repo_root=root,
+            events=ev,
+            state=tmp_path / "state",
+            golden=GOLDEN,
+            log_paths=[log],
+            no_mail=no_mail,
+            holes_fn=lambda d: 2,
+        )
+        assert rc == 0
+    st = tmp_path / "state"
+    assert calls == [(day.isoformat(), st, root, False), (day.isoformat(), st, root, True)]
+
+
 def test_daily_rerun_never_reparses(tmp_path: Path) -> None:
     day = dt.date.today()
     rc, _, st, _ = _green_daily(tmp_path, day)

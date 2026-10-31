@@ -75,6 +75,8 @@ _HERE = Path(__file__).resolve().parent
 for _p in (str(_HERE),):
     if _p not in sys.path:
         sys.path.insert(0, _p)
+if str(_HERE.parent) not in sys.path:  # scripts/ LAST (commit_generated) — never shadows sysadmin/
+    sys.path.append(str(_HERE.parent))
 
 try:
     import kaizen_events  # T01 emitter — same directory; used only for the alarm event
@@ -2114,6 +2116,31 @@ def upsert_log_row(path: Path, cells: list[str], force_dash: bool = False) -> bo
         return False
 
 
+def upsert_logs_and_commit(paths: list[Path], cells: list[str], force_dash: bool = False) -> None:
+    """Upsert one row into each role log, then COMMIT the rows this run wrote (W-5568be8d).
+
+    The cron runs this script from the hub's MAIN checkout, so an uncommitted row there made
+    merge_request.py refuse every merge touching the logs ("dirty in the main checkout (not a
+    ledger)") and builders carried the rows by hand. ``commit_generated`` lands ONE commit holding
+    only the logs that were clean before this write (or still hold this collector's own unlanded
+    row); a sibling's edit, a linked worktree or a tmp test log is left exactly as before."""
+    try:
+        import commit_generated  # noqa: PLC0415 - scripts/, put on sys.path below
+    except Exception as exc:  # pragma: no cover - a box mid-sync
+        _warn(f"commit_generated unavailable ({exc!r}) — log rows written, not committed")
+        commit_generated = None  # type: ignore[assignment]
+    before = commit_generated.snapshot(paths) if commit_generated else {}
+    for lp in paths:
+        upsert_log_row(lp, cells, force_dash=force_dash)
+    if commit_generated:
+        commit_generated.commit_own(
+            paths,
+            before,
+            writer="kaizen-collector",
+            context="kaizen_collect_v2.py daily upsert of the role-log week rows",
+        )
+
+
 def _upsert_log_row_locked(path: Path, cells: list[str], force_dash: bool) -> bool:
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -2816,6 +2843,19 @@ def _publish_waste_series(day_stamp: str, st: Path) -> list[Path]:
         return []
 
 
+def _publish_merge_tripwire(day_stamp: str, st: Path, root: Path, no_mail: bool) -> None:
+    """The merge program's tripwire (W-622ec42c, D-1384): merge wall time, refusal classes and the
+    red-master series before/after the post-merge valve (``merge_tripwire.py``) for the day and the
+    two before it, after the waste tier so the day's red-master point is already published; the
+    daily pass's repo and ``--no-mail`` reach it. Lazy, fail-open like the tiers above."""
+    try:
+        import merge_tripwire  # noqa: PLC0415 - lazy; it imports this module
+
+        merge_tripwire.publish_recent(day_stamp, state=st, repo=root, mail=not no_mail)
+    except Exception as exc:
+        _warn(f"merge tripwire failed open: {exc!r}")
+
+
 def daily(
     day: dt.date,
     *,
@@ -2936,8 +2976,7 @@ def daily(
         _warn(f"{GOLDEN_MISMATCH_REASON} — publication refused, nothing written")
         _emit_alarm(GOLDEN_MISMATCH_REASON, mismatches)
         refusal = [day.isoformat()] + [DASH] * (len(COLUMNS) - 1)
-        for lp in logs:
-            upsert_log_row(lp, refusal, force_dash=True)
+        upsert_logs_and_commit(logs, refusal, force_dash=True)
         if not no_mail:
             body = f"# KAIZEN INSTRUMENT ALARM — {GOLDEN_MISMATCH_REASON}\n\n" + "\n".join(
                 f"- {m}" for m in mismatches
@@ -3011,6 +3050,7 @@ def daily(
     # guarded, fail-open (a warn, never a lost T06 publish).
     written += _publish_outcome_series(day_stamp, st)
     written += _publish_waste_series(day_stamp, st)
+    _publish_merge_tripwire(day_stamp, st, root, no_mail)
 
     # W6-1 (supersedes W5-5's week recompute): the weekly log cells aggregate THE
     # PUBLISHED DAY SERIES just written above — the single-source law (see
@@ -3024,8 +3064,7 @@ def daily(
         _warn(f"outcome registry unavailable ({exc!r}) — weekly cells use the T06 set only")
         full_reg = reg
     cells = log_cells(day, full_reg, state=st)
-    for lp in logs:
-        upsert_log_row(lp, cells)
+    upsert_logs_and_commit(logs, cells)
 
     print(
         f"kaizen_collect_v2: {day_stamp} — {len(todays)} session file(s), "

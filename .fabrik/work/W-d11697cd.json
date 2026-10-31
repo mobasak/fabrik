@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T21:38:10.767763Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-d11697cd",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5MPTMJHNWB94HA4MW4251KK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-task feedback asking for command_run.py code: two rows routed to infra (--design-amend path shape; --resume-from re-claims the seed's work item)"
+}

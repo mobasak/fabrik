@@ -2,7 +2,7 @@
   "blocked_by": [],
   "created": "2026-10-30T19:10:36.208029Z",
   "creator": "coordinator",
-  "evidence": "",
+  "evidence": "eeb9e84b08e6aac6075e7690656099200466aee7",
   "id": "W-9be33657",
   "kind": "task",
   "legacy": false,
@@ -15,6 +15,6 @@
   "note": "",
   "owner": "",
   "priority": 3,
-  "status": "open",
+  "status": "done",
   "title": "Release the stale plan lock .fabrik/plan-locks/2026-10-28-plan-1-dynamic-builders.json: the plan merged (ca53c906f) but its spine is still IN-PROGRESS; set Status EXECUTED and archive once its builder confirms no run resumes it (coordinator records job)"
 }

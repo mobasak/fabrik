@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T08:55:49.220259Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-f1d63722",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68JPFHX4633EMV1GJ49E4J8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: kaizen-merge-tripwire-1031"
+}

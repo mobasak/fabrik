@@ -67,12 +67,26 @@ complete). In order:
    never 0-baselined, and every metric excludes such a row from numerator AND denominator,
    counting it as a stated **bump-day gap** (the bump day goes honestly quiet per-field). A row
    claiming `runs_noncheck > runs` violates non-check ⊆ all and is warned + unmeasured.
+   After the waste tier, the **merge tripwire** (`merge_tripwire.py`, W-622ec42c, D-1384) runs for the
+   day and the two before it, fail-open: merge wall time, refusal events by class, and the red-master
+   series before and after the post-merge valve. It rewrites `.git/fabrik-merge/tripwire.jsonl` and
+   `tripwire-line.txt` (the coordinator's prompt line) and mails the coordinator once per tripped
+   episode, unless the pass ran with `--no-mail`; what each reading measures and when the tripwire
+   fires is the module docstring's.
 4. **Log row + mail** — the ISO-week row is upserted into both role logs (the write is
    flock-serialized against concurrent writers — the lock is keyed on the log's ABSOLUTE
    path and lives at the fixed, unreaped `~/.claude/state/kaizen-log-locks/` (independent of
    `KAIZEN_STATE_DIR`; tempdir siting sat under systemd-tmpfiles' 30-day reaper), so a debug
    run and the cron meet on the same flock and no tracked dir grows a `.lock`; tmp+atomic-replace with the log's own mode; transient `tmp*.tmp`
-   files beside the logs are reaped after 1h — W19–W24) and the metrics mail
+   files beside the logs are reaped after 1h — W19–W24), then **committed** (W-5568be8d): the
+   cron runs from the hub's MAIN checkout, where an uncommitted row made `merge_request.py`
+   refuse every merge touching the logs, so `scripts/commit_generated.py` lands ONE pathspec
+   commit (`Agent-Name: kaizen-collector`, never pushed — the merge owner's next push carries
+   it) holding only the logs that were clean at HEAD before this write, or still hold this
+   collector's own unlanded row on the same HEAD blob. A sibling's edit, a staged log, a
+   linked worktree or a mid-operation repo is left dirty with a `[commit_generated]` reason
+   line on stderr (one per refused path, one per failed commit) (→ `~/.claude/kaizen.log`); a held `index.lock` is retried and, if it
+   persists, recorded in `~/.claude/state/generated-output.json` so the next run lands it. The metrics mail
    goes to the shared `fabrik` mailbox (fail-soft: a dead mail store costs the notification,
    never the row). **The single-source law (W6-1):** every mechanical weekly cell AGGREGATES
    THE PUBLISHED DAY SERIES — the one already-delta-honest source — never a store-row
@@ -269,6 +283,7 @@ re-opens on M1 activation data.
 | `scripts/sysadmin/kaizen_outcomes.py` | outcome tier: rework miner, fleet-health sweep, premature-stop reader |
 | `scripts/sysadmin/kaizen_backfill.py` | one-time transcript-era backfill + the noise-floor report |
 | `scripts/sysadmin/kaizen_waste.py` | the token-waste tier (D-1118): six daily waste series + breakdown, `--backfill`, `--rebaseline`; categories and control rules in `docs/reference/kaizen-waste-define.md` |
+| `scripts/sysadmin/merge_tripwire.py` | the merge program's daily tripwire (W-622ec42c, D-1384): merge wall time, refusal classes, red-master before/after the post-merge valve; `--day D [--publish [--no-mail]] [--json]` |
 | `scripts/sysadmin/weekly_catchup.sh` | wake-proof stamp-check runner (daily kaizen jobs + weekly audits) |
 | `scripts/sysadmin/archived/kaizen_metrics.py` | the RETIRED weekly v1 meter (M0 operator ruling) |
 | `scripts/sysadmin/kaizen_shrink_audit.py` / `kaizen_immune_list.py` | the M0 census engine + immune registry |
@@ -417,6 +432,7 @@ Scripts that declare this document in their `# AFTER-EDIT:` header — editing o
 means updating this page in the same change. This list is generated from those headers
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
+- `scripts/commit_generated.py`
 - `scripts/sysadmin/archived/kaizen_metrics.py`
 - `scripts/sysadmin/feedback_relay.py`
 - `scripts/sysadmin/kaizen_collect.py`
@@ -424,5 +440,6 @@ means updating this page in the same change. This list is generated from those h
 - `scripts/sysadmin/kaizen_digest.py`
 - `scripts/sysadmin/kaizen_waste.py`
 - `scripts/sysadmin/lessons_relay.py`
+- `scripts/sysadmin/merge_tripwire.py`
 - `scripts/sysadmin/vps_script_drift.py`
 <!-- END related-scripts -->
