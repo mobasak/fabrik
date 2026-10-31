@@ -12,6 +12,7 @@ import os
 import pty
 import re
 import shutil
+import signal
 import subprocess
 import time
 from pathlib import Path
@@ -1637,9 +1638,84 @@ def test_tab_refuses_the_no_attach_modes(tmp_path: Path) -> None:
             out = _run(*argv, str(repo), home=home)
             assert out.returncode == 2, (argv, out.stderr)
             assert "--tab is the launcher's attach form" in out.stderr, (argv, out.stderr)
+            assert f"stopped (exit 2) {STOPPED}" in out.stderr, (argv, out.stderr)
         assert not (home / "tmux.log").exists() or not any(
             ln.startswith("new-session") for ln in _log(home)
         ), _log(home)
+
+
+def test_tab_usage_errors_and_no_room_print_the_stopped_line(tmp_path: Path) -> None:
+    """Review W-df2e24ed: an argument error is a non-zero exit before the attach too, so under --tab it prints the
+    stopped line (the handler is installed before the flags are read); without --tab it does not. A no-terminal
+    --tab run whose grid left a builder without a pane exits 4, not 1, with the stopped line."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home = _tmux_home(tmp_path / "usage", repo, has=False, owner=None)
+    for argv in (
+        ("--tab", "--window", "x"),
+        ("--tab", "--window", "2", "--window", "3"),
+        ("--tab", "--window", "2", "--print"),
+    ):
+        out = _run(*argv, str(repo), home=home)
+        assert out.returncode == 2, (argv, out.stderr)
+        assert f"stopped (exit 2) {STOPPED}" in out.stderr, (argv, out.stderr)
+    out = _run("--window", "x", str(repo), home=home)
+    assert out.returncode == 2 and STOPPED not in out.stderr, out.stderr
+    split = _tmux_home(tmp_path / "split", repo, has=False, owner=None)
+    (split / "tmux-splitfail").write_text("", encoding="utf-8")
+    out = _run("--tab", str(repo), home=split)
+    assert out.returncode == 4, out.stderr
+    assert "--tab but no terminal" in out.stderr and f"stopped (exit 4) {STOPPED}" in out.stderr, (
+        out.stderr
+    )
+
+
+def test_tab_no_terminal_check_comes_before_switch_client(tmp_path: Path) -> None:
+    """Review W-df2e24ed: a --tab run with no terminal and a TMUX variable set (a leaked one) exits 1 with the reason —
+    it never takes the switch-client exec, whose exit 0 would close the tab silently."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home = _tmux_home(tmp_path, repo, has=True, owner=str(repo))
+    out = _run("--tab", str(repo), home=home, TMUX="/tmp/tmux-1000/default,1,0")
+    assert out.returncode == 1, out.stderr
+    assert not any(ln.startswith("switch-client") for ln in _log(home)), _log(home)
+    assert "--tab but no terminal" in out.stderr, out.stderr
+
+
+def test_tab_killed_by_a_signal_reports_the_signal_code(tmp_path: Path) -> None:
+    """Review W-df2e24ed: a --tab run killed while it waits (a closed tab's HUP, Ctrl-C, a TERM) reports 128+signal in
+    its stopped line, never the last command's status; without --tab the signal is left to bash as before."""
+    repo = _repo(tmp_path, {DEV1: "dev1", DEV2: "dev2"})
+    home = _tmux_home(tmp_path, repo, has=False, owner=None)
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": str(home),
+        "FABRIK_PROC_ROOT": str(home / "proc"),
+        "FABRIK_AGENTS_WINDOW_WAIT_S": "60",
+    }
+    for flags, line in ((["--tab"], True), ([], False)):
+        proc = subprocess.Popen(
+            ["bash", str(UP), *flags, "--window", "2", str(repo)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+        )
+        try:
+            assert _until(
+                lambda: (home / "tmux.log").exists()
+                and "has-session" in (home / "tmux.log").read_text()
+            ), "never waited"
+            proc.send_signal(signal.SIGTERM)
+            _, err = proc.communicate(timeout=20)
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+        if line:
+            assert proc.returncode == 143, err
+            assert f"stopped (exit 143) {STOPPED}" in err, err
+        else:
+            assert proc.returncode in (-signal.SIGTERM, 143), (proc.returncode, err)
+            assert STOPPED not in err, err
 
 
 def test_tab_window_says_it_is_waiting(tmp_path: Path) -> None:

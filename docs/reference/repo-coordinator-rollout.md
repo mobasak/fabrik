@@ -479,11 +479,13 @@ at font size 9, and then starts `wt.exe -M -w new new-tab -p "<Repo> Agents grid
 --exec bash -l /opt/fabrik/scripts/sysadmin/agents_up.sh --tab /opt/<repo>`. The command line is given in full, so the
 grid opens even before Windows Terminal has loaded the fragment, at the default font.
 
-**A tab never vanishes or stays black without a reason (W-df2e24ed).** `--tab` is the launcher's form: where a plain
+**A tab that fails stays open with its reason (W-df2e24ed).** `--tab` is the launcher's form: where a plain
 `agents_up.sh` with no terminal on stdin/stdout detaches and exits 0 (right for a coordinator's Bash tool, but Windows
-Terminal closes a tab whose command exits 0), `--tab` exits 1 and says so; any non-zero exit before the attach adds
+Terminal closes a tab whose command exits 0), `--tab` exits 1 (4 when a builder got no pane) and says so; any other
+non-zero exit before the attach — an argument error, or a signal as 128+signal — adds
 `agents_up: stopped (exit <n>) before attaching — the reason is above; this tab stays open`; a `--window` tab waiting
-for its grid says it is waiting. The fragment profile sets `"closeOnExit": "never"`, so a `wsl.exe` that fails before
+for its grid says it is waiting. The attach itself is an exec: a failing attach shows tmux's own error. A first tab is
+still blank while its grid builds, and a `wsl.exe` that hangs rather than fails stays black until it returns. The fragment profile sets `"closeOnExit": "never"`, so a `wsl.exe` that fails before
 WSL starts (a `UtilAcceptVsock … accept4 failed 110` on a degraded Windows-WSL link, W-37b51748) stays readable too.
 The cost: a clean tmux detach (`C-b d`) leaves a `[process exited with code 0]` tab to close by hand. Like the font,
 `closeOnExit` applies once Windows Terminal has loaded the fragment. After this change, regenerate the desktop file

@@ -20,8 +20,9 @@
 # <command>`. --detach builds the grid (or finds it up) and never attaches (the boot sweep and cron have no terminal);
 # a caller with no terminal on stdin/stdout detaches the same way and says so (W-1961cc42). --tab is the desktop
 # launcher's form (W-df2e24ed): a Windows Terminal tab closes when its command exits 0, so under --tab a missing terminal
-# is exit 1 with the reason, never the silent detach, and any non-zero exit before the attach prints one "stopped" line;
-# it takes none of --print, --detach and --pane-cmd.
+# is exit 1 (4 when a builder got no pane) with the reason, never the silent detach, and any non-zero exit before the
+# attach — an argument error or a signal (128+signal) included — prints one "stopped" line; the attach itself is an exec,
+# so a failing attach shows tmux's own error instead; it takes none of --print, --detach and --pane-cmd.
 #
 # Window layout (W-b9ad80ae D4): four panes per window — `agents` holds the first four builders, `agents-2` the next four,
 # `agents-3` the next, and so on (a pane that cannot be created is said and the next builder takes its slot). Each
@@ -121,6 +122,20 @@ print=0
 detach=0
 tab=0
 panecmd=0
+# ONE exit handler (bash keeps a single EXIT trap), installed before the flags are read so an argument error counts too:
+# start_grid's building-flag cleanup while BUILDING=1, and under --tab the line that keeps a failed tab readable. The
+# attach and switch-client are execs, so the handler never runs for them, whether they succeed or fail (tmux then
+# prints its own error).
+BUILDING=0
+on_exit() {
+  local rc=$?
+  [ "$BUILDING" = 1 ] && tmux set-option -t "=$S:" -u @agents_up_building >/dev/null 2>&1
+  if [ "$tab" = 1 ] && [ "$rc" != 0 ]; then
+    echo "agents_up: stopped (exit $rc) before attaching — the reason is above; this tab stays open" >&2
+  fi
+  return 0
+}
+trap on_exit EXIT
 winn=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -147,18 +162,13 @@ if [ "$tab" = 1 ] && { [ "$print" = 1 ] || [ "$detach" = 1 ] || [ "$panecmd" = 1
   echo "agents_up: --tab is the launcher's attach form: it takes none of --print, --detach and --pane-cmd" >&2
   exit 2
 fi
-# ONE exit handler (bash keeps a single EXIT trap): start_grid's building-flag cleanup while BUILDING=1, and under --tab
-# the line that keeps a failed tab readable. A successful attach is an exec, so it never runs.
-BUILDING=0
-on_exit() {
-  local rc=$?
-  [ "$BUILDING" = 1 ] && tmux set-option -t "=$S:" -u @agents_up_building >/dev/null 2>&1
-  if [ "$tab" = 1 ] && [ "$rc" != 0 ]; then
-    echo "agents_up: stopped (exit $rc) before attaching — the reason is above; this tab stays open" >&2
-  fi
-  return 0
-}
-trap on_exit EXIT
+# under --tab a signal ends the run with 128+signal, so the stopped line names it (bash would hand the EXIT trap the
+# last command's status); without --tab a signal is left to bash, as before
+if [ "$tab" = 1 ]; then
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+fi
 # the name a pane may carry, and the ids a first prompt may name (all reach a shell command string)
 NAME_RE='^[a-z0-9][a-z0-9-]{0,31}$'
 SID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
@@ -1178,13 +1188,15 @@ if [ "$detach" = 1 ]; then
   [ "$NO_ROOM" = 1 ] && exit 4
   exit 0
 fi
-# run from inside tmux (a hub pane), attaching would nest; switch the client instead
-[ -n "${TMUX:-}" ] && exec tmux switch-client -t "=$ATT"
+# under --tab a missing terminal is said before anything else: never the switch-client exec (a leaked TMUX), whose
+# exit 0 would close the tab with no reason
 if { [ ! -t 0 ] || [ ! -t 1 ]; } && [ "$tab" = 1 ]; then
   echo "agents_up: --tab but no terminal on stdin/stdout — the $S grid is up, nothing to attach here (attach with: tmux attach -t =$ATT)" >&2
   [ "$NO_ROOM" = 1 ] && exit 4
   exit 1
 fi
+# run from inside tmux (a hub pane), attaching would nest; switch the client instead
+[ -n "${TMUX:-}" ] && exec tmux switch-client -t "=$ATT"
 if [ ! -t 0 ] || [ ! -t 1 ]; then
   echo "agents_up: no terminal on stdin/stdout, so there is nothing to attach — the $S grid is up and left detached (attach with: tmux attach -t =$ATT)" >&2
   [ "$NO_ROOM" = 1 ] && exit 4
