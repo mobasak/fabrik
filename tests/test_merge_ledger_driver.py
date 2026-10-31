@@ -365,9 +365,8 @@ def test_non_utf8_bytes_survive_a_clean_resolution(tmp_path: Path) -> None:
 
 
 def test_shared_structure_a_side_already_repeats_merges_clean(tmp_path: Path) -> None:
-    # guards against a refusal rule that cannot tell shared structure from a doubled entry
-    # (the review deleted one, W-f6ede574): two entries each carry a subheading and a table
-    # the file already holds twice
+    # two entries that each carry a subheading and a table the file already holds twice merge
+    # clean, every copy kept
     shape = "#### Changed\n| k | v |\n|---|---|\n"
     base = CHANGELOG + f"\n### Fixed — a (2026-10-01)\n{shape}\n### Fixed — b (2026-10-02)\n{shape}"
 
