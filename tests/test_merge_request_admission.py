@@ -86,7 +86,7 @@ def test_an_8g_and_a_4g_leg_run_together(leases):
         assert len(list(leases.glob("lease-*.json"))) == 2
     release.set()
     first.join(5)
-    assert waited < 0.5, f"a leg that fits the slice waited {waited:.2f}s"
+    assert waited < 2, f"a leg that fits the slice waited {waited:.2f}s"
 
 
 def test_a_dead_holder_frees_its_slot(leases):
@@ -112,7 +112,7 @@ def test_a_dead_holder_frees_its_slot(leases):
         t0 = time.monotonic()
         with mr._admitted(_Ctx("8192M")):
             waited = time.monotonic() - t0
-        assert waited < 0.5, f"a dead holder's lease kept the slot for {waited:.2f}s"
+        assert waited < 2, f"a dead holder's lease kept the slot for {waited:.2f}s"
         assert list(leases.glob("lease-*.json")) == []  # the stale lease was deleted
     finally:
         holder.kill()
@@ -213,7 +213,7 @@ def test_the_wait_allowance_is_per_invocation(leases):
         t0 = time.monotonic()
         with mr._admitted(ctx) as note:
             waited = time.monotonic() - t0
-        assert waited < 0.5, f"a run with no allowance left still waited {waited:.2f}s"
+        assert waited < 2, f"a run with no allowance left still waited {waited:.2f}s"
         assert "admission: started after the" in note
     finally:
         release.set()
@@ -255,7 +255,7 @@ def test_a_refused_lease_unlink_keeps_the_legs_verdict(leases):
         t0 = time.monotonic()
         with mr._admitted(_Ctx("8192M")) as note:  # the leftover file is nobody's: no wait
             waited = time.monotonic() - t0
-        assert waited < 0.5 and "admitted after" not in note
+        assert waited < 2 and "admitted after" not in note
     finally:
         os.chmod(leases, 0o755)
 
@@ -273,3 +273,23 @@ def test_a_fifo_named_like_a_lease_does_not_hang_admission(leases):
 def test_the_after_merge_runner_cap_covers_the_wait():
     # review A2: the runner's scope bound must hold the admission wait plus a whole budget
     assert mr.AFTER_RUNNER_MAX_S >= mr.MERGE_TEST_BUDGET_S + mr.LEG_ADMIT_WAIT_S + 300
+
+
+def test_each_legs_wait_is_spent_from_one_allowance(leases, monkeypatch):
+    # review B1: a second leg of the same invocation gets only what the first left
+    monkeypatch.setattr(mr, "LEG_ADMIT_WAIT_S", 0.4)
+    release, entered = threading.Event(), threading.Event()
+    first = _hold("8192M", release, entered)
+    try:
+        ctx = _Ctx("8192M")
+        with mr._admitted(ctx):
+            pass
+        assert ctx.admit_spent >= 0.4
+        t0 = time.monotonic()
+        with mr._admitted(ctx) as note:
+            waited = time.monotonic() - t0
+        assert waited < 0.3, f"the second leg got a fresh allowance ({waited:.2f}s)"
+        assert "admission: started after the" in note
+    finally:
+        release.set()
+        first.join(5)

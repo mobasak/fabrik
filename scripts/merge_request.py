@@ -1600,6 +1600,7 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
         f"the owner-test budget of this run ({MERGE_TEST_BUDGET_S}s) ran out during the leg "
         f"(stopped at {{}}s) — not a test verdict"
     )
+    called = time.monotonic()
     try:
         run, label = _run_owner_leg(ctx, wt, script, touched)
     except TimedOutError as exc:
@@ -1611,7 +1612,11 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
     # a 124 is the budget's only when the leg ran its whole shortened limit: the owner's own
     # `timeout` (or a plain `exit 124`) inside the leg exits sooner and stays a red
     shortened = ctx.leg_limit < ctx.full_leg
-    if run.returncode == 124 and shortened and time.monotonic() - ctx.leg_t0 >= ctx.leg_limit:
+    if (
+        run.returncode == 124
+        and shortened
+        and time.monotonic() - max(ctx.leg_t0, called) >= ctx.leg_limit
+    ):
         raise BudgetSpentError(spent.format(ctx.leg_limit))  # no base_old: no base-alone run
     if run.returncode != 0:
         verdict = _capped_verdict(run.returncode, run.stderr)
