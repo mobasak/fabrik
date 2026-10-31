@@ -331,6 +331,8 @@ def _governor(payload: dict, data: dict):
         return None
     utils: list[float] = []
     for k in ("five_hour", "seven_day"):
+        if (row.get(k) or {}).get("retired") is True:
+            continue  # a retired 5h window's 0.0 is a stand-in, never headroom (D-1400)
         u = _num((row.get(k) or {}).get("utilization"))
         if u is not None:
             utils.append(u)
