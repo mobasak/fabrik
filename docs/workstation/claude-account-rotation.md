@@ -296,6 +296,25 @@ file as ABSENT and fails open (`posture: none written yet` / `posture: STALE …
 already takes for the stamp; a dead tick never freezes a session. The bands are the contract in `CLAUDE.md`
 (D-265); this file computes them from the same thresholds, it does not redefine them.
 
+**A retired 5-hour window (D-1400).** The plan the five accounts moved to on 2026-10-31 (named Ultra) drops
+the 5-hour session limit, and the usage payload says so per account: `five_hour` is `null` and `limits[]`
+carries a `weekly_all` entry and no session entry. `_five_hour_retired` reads exactly that shape — an absent
+key, an empty or missing `limits`, no `weekly_all`, or a session-like entry under any name stays fail-closed —
+and both parsers (`_usage_windows`, `_account_status`) then record the window as
+`{"utilization": 0.0, "resets_at_epoch": null, "retired": true}`. The 0.0 is deliberate: every band, picker,
+flip and governor reader already treats it as "no constraint", so those accounts band on weekly and Fable
+alone, while `null` would wall the account at the picker and turn the fleet band RED. The flag is derived per
+account from its own payload, so an account still reporting a 5h window keeps today's behaviour (on
+2026-10-31 only sarp's payload had dropped it; ob, ozgurbasak, can and mob still reported 0% with a `session`
+entry). The marker travels: the cache row keeps it; `active.windows.five_hour.retired` and, when a retired
+account is the strictly coolest provider, `fleet.windows.five_hour.retired` carry it (a real reading wins a
+tie); `_row_utils` reads it as no reading, so it is never heat or relief evidence; the tick's ledger row writes
+`"session": "retired"` instead of a `pct` sample. Renderers print `5h retired` for the whole clause — the
+`QUOTA:` line, `posture:`, the `--status` account cells, the :5051 Accounts meter and Overview line. Fail
+direction: a payload that hides a still-enforced 5h limit while keeping both signals reads as retired; the hit
+wall then surfaces as the CLI's usage-limit error. Revert: delete the predicate AND each retired account's row
+from `fleet-usage-cache.json`.
+
 ### `dispatch_headroom.py` — the seat budget a fan-out is allowed (D-189)
 
 `python3 /opt/fabrik/scripts/sysadmin/dispatch_headroom.py [--units <N> | --slices opus=<n>,sonnet=<n>,haiku=<n>] [--heavy] [--risky <R>] [--mechanical <M>] [--json]`

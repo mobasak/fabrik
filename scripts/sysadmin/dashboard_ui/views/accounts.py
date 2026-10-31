@@ -58,6 +58,12 @@ def _wrap(data: dict, body: object) -> ui.Safe:
 def _meter(acct: dict, key: str, window_s: float | None, now: float, extra: str, is_active: bool):
     win = acct.get(key) if key != "fable" else (acct.get("model_windows") or {}).get("Fable")
     win = win if isinstance(win, dict) else {}
+    if win.get("retired") is True:
+        # BEFORE the cache-age branch: a retired 5h window (D-1400) never rolls over, so "old
+        # reading" or "idle since this window rolled" would both be false about it
+        return ui.fragment(
+            ui.badge("neutral", t("accounts.cell.retired")), " ", t("accounts.cell.retired_note")
+        )
     used = _num(win.get("utilization"))
     if used is None:
         return ui.fragment(t("accounts.cell.none"))

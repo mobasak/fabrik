@@ -689,3 +689,22 @@ def test_a_missing_reserve_is_unknown_not_zero():  # C-r2-4
     card = _gov(render(d))
     assert "reserve unknown" in text(card) and "reserve 0%" not in text(card)
     assert "routine → unknown" in text(card)
+
+
+def test_meter_five_hour_retired():
+    """D-1400 (W-992979e1) — a retired 5h window says `retired` in its cell, ahead of the cache-age
+    branch: an active row read 6 h ago would otherwise say "unknown — last read … older than the 5h
+    window", and a standby "idle — … since this window rolled", both false about a window with no
+    5-hour roll."""
+    retired = {"utilization": 0.0, "resets_at_epoch": None, "retired": True}
+    d = make()
+    pl = d["status"]["payload"]
+    for i in (0, 1):
+        pl["accounts"][i]["five_hour"] = dict(retired)
+        pl["accounts"][i].update(source="cache", age_s=6 * 3600)
+    d["queue"][1] = entry(2, pl["accounts"][1], "eligible")
+    root = dom(render(d))
+    for slug in ("alpha", "bravo"):
+        out = text(row(root, slug))
+        assert "retired" in out and "no 5-hour limit" in out, out
+        assert "older than the 5h window" not in out and "since this window rolled" not in out

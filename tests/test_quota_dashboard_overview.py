@@ -1098,3 +1098,20 @@ def test_the_start_up_no_reading_yet_is_no_health_fault(tmp_path):  # wave r3
     health = {"stale": [], "failed": [{"key": "status", "error": "OSError: x"}]}
     _res, root, _ = _render(tmp_path, status={"error": "OSError: x"}, health=health)
     assert "OSError: x" in words(by_id(root, "ov-health"))
+
+
+def test_overview_five_hour_retired(tmp_path):
+    """D-1400 (W-992979e1) — a retired fleet 5h reading prints `retired`, not `0% used`, and never
+    becomes the window the band is named on."""
+    st = _status(band="AMBER")
+    st["payload"]["posture"]["fleet"]["windows"]["five_hour"] = {
+        "utilization": 0.0,
+        "slug": "sarp",
+        "retired": True,
+    }
+    st["payload"]["posture"]["fleet"]["windows"]["seven_day"] = {"utilization": 0.0, "slug": "can"}
+    _res, root, _html = _render(tmp_path, status=st)
+    quota = words(by_id(root, "ov-quota"))
+    assert "5 h: retired (sarp)" in quota, quota
+    assert "5 h: 0% used" not in quota
+    assert "Band AMBER on Weekly" in quota, "a retired 0.0 ties the weekly 0.0 and must not win it"
