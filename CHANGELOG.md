@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — master's pre-existing reds, batch 2: three tests coupled to their checkout, date or path (2026-10-31)
+`tests/test_install_pre_push_hook.py` takes the running venv's pre-commit (a merge worktree has no `.venv`), `tests/test_spend_calendar_months.py`'s two calendar tests no longer fail on the 31st or on the 1st and 2nd, and `tests/test_agents_up.py` checks both streams for the foreign name as a word, not a substring of the path (D-1393, W-a9b3bc15).
+
+### Fixed — master's pre-existing reds, batch 1: an orphaned test removed (2026-10-31)
+`tests/test_pipeline_runner.py` imported a module archived in February and failed at collection whenever a run named it; it and its `addopts` ignore in `pyproject.toml` are removed. (D-1387, W-a9b3bc15).
+
 ### Added — the merge program's daily tripwire: merge wall time, refusal classes, red-master before/after the valve (2026-10-31)
 `scripts/sysadmin/merge_tripwire.py` reads the hub's merge records (`.git/fabrik-merge/*.json`) once a day from the
 kaizen collector's daily pass: wall time per merged request (request ULID to reply), every refusal event by class
@@ -14,6 +20,7 @@ valve. A rise sustained for 7 days past 2 sigma mails the coordinator once per e
 
 ### Fixed — a desktop agent tab that fails stays open with its reason (2026-10-31)
 Every tab of `All Agents (tabbed).bat` and `<Repo> Agents.bat` now runs `agents_up.sh --tab`, and the Windows Terminal fragment profile sets `"closeOnExit": "never"` (W-df2e24ed, D-1388). Under `--tab` a launch with no terminal exits 1 (4 when a builder got no pane) with the reason instead of detaching silently (which let the tab close), any other failure before the attach (an argument error or a signal included) prints a `stopped (exit <n>)` line from one shared exit handler, and a `--window` tab says it is waiting. A `wsl.exe` that fails before WSL starts (the vsock fault, W-37b51748) stays readable. Regenerate once: `python3 /opt/fabrik/scripts/sysadmin/agents_bat.py --tabbed`.
+
 
 ### Added — every new agent grid refreshes "All Agents (tabbed).bat" itself; the tmux how-to (2026-10-30)
 `scripts/sysadmin/agents_up.sh` now starts `agents_bat.py --tabbed` in the background after every grid it builds

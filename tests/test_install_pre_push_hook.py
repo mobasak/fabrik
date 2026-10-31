@@ -13,12 +13,15 @@ from __future__ import annotations
 import fcntl
 import os
 import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 HUB = Path(__file__).resolve().parents[1]
 INSTALLER = HUB / "scripts" / "install_pre_push_hook.sh"
-PRE_COMMIT = HUB / ".venv" / "bin" / "pre-commit"
+# The venv running this suite, never `HUB / ".venv"`: a merge or probe worktree has no `.venv` of its
+# own, the installer then exits 0 at "no pre-commit" and 11 of the 14 tests here read red (W-a9b3bc15).
+PRE_COMMIT = Path(sys.prefix) / "bin" / "pre-commit"
 ID_LINE = "# ID: 138fd403232d2ddd5efb44317e38bf03"
 
 
