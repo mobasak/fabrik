@@ -1066,7 +1066,12 @@ class TestExportCli:
         reads was absent there on both sides (W-a9b3bc15). ``_redact_env_keys`` itself is covered
         by the library tests above.
         """
-        monkeypatch.setattr(portability, "_redact_env_keys", lambda _p: {"DEMO_KEY": "REDACTED"})
+
+        def _one_key(path):
+            assert path == portability.FABRIK_ROOT / ".env", path  # still read from the root's .env
+            return {"DEMO_KEY": "REDACTED"}
+
+        monkeypatch.setattr(portability, "_redact_env_keys", _one_key)
         bundle = tmp_path / "out.tar.gz"
         runner = CliRunner()
         result = runner.invoke(
