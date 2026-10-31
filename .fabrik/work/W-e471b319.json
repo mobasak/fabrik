@@ -13,9 +13,9 @@
     "spec": ""
   },
   "next": "",
-  "note": "",
+  "note": "mail ack: done",
   "owner": "kaizen",
   "priority": 2,
-  "status": "open",
+  "status": "done",
   "title": "finding (web-ecommerce-factory, wef2): review-seat test runs escape D-935. Seat briefs never require capped_run.sh, and the Bash tool's timeout does not kill."
 }
