@@ -23,7 +23,7 @@ Three readings per LOCAL day, from records that already exist:
 **The tripwire (D-1384, "7 days running" in W-622ec42c's words):** the 14 pre-valve days are all
 published, and on EACH of the last 7 days the trailing week (all post-valve, all published) carries more
 red-master fixes than the pre-valve rate predicts for its arrivals by over 2 sigma (Poisson; the
-margin's measured effect is in the D-row). Then the series has risen for a week — one mail to the repo's
+margin's measured effect is in D-1390). Then the series has risen for a week — one mail to the repo's
 coordinator per episode (an episode is a run of consecutive tripped days; a day whose row is missing
 starts a new one, since a duplicate mail is cheaper than a silent one), saying the threshold goes back
 to 40.
@@ -75,7 +75,7 @@ WEEK = 7  # D-1384: a rise "for a week"
 REFUSAL_WINDOW = 14  # D-1385: "under 5 refusals per 14 days"
 RETRY_DAYS = 3  # publish_recent: the day and the two before it (a late-settling request)
 RED_METRIC = "waste_red_master_rework"
-# merge_request._AFTER_DECL_RE verbatim, first match read like _after_threshold: a line the merge does not
+# merge_request._AFTER_DECL_RE verbatim, first match read like _after_merge_due: a line the merge does not
 # honour is never "valve on" here (tests/test_merge_tripwire.py pins the two patterns equal)
 VALVE_RE = re.compile(r"(?m)^#[ \t]*merge-tests-after-merge-above:[ \t]*([0-9]{1,4})[ \t\r]*$")
 LEDGERS = (
@@ -86,8 +86,6 @@ LEDGERS = (
     "docs/LESSONS_LEARNT.md",
 )  # merge_request.LEDGERS, plus the work-item files below
 _ULID = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
-# git show's two wordings for a path absent at a commit; any other failure is an unknown, never "off"
-_ABSENT_RE = re.compile(r"does not exist in|exists on disk, but not in")
 
 
 class ValveUnknownError(RuntimeError):
@@ -217,13 +215,12 @@ def valve_day(ref: str, repo: Path | None = None) -> str | None:
     since: str | None = None  # the day the current on-run began
     for entry in log.splitlines():
         sha, ct = entry.split()
+        # read the tree, never git's error text: an unknown commit and a deleted path print the same
+        # message (in the caller's locale); ls-tree fails for the first and lists nothing for the second
         try:
-            text = _git(["show", f"{sha}:.fabrik/merge-tests"], repo)
-        except RuntimeError as exc:
-            if not _ABSENT_RE.search(str(exc)):
-                raise ValveUnknownError(str(exc)) from exc
-            text = ""  # the file is absent at this commit (a deletion): the valve is off
-        except (OSError, subprocess.SubprocessError) as exc:
+            listing = _git(["ls-tree", sha, "--", ".fabrik/merge-tests"], repo).split()
+            text = _git(["cat-file", "blob", listing[2]], repo) if listing else ""
+        except (OSError, RuntimeError, IndexError, subprocess.SubprocessError) as exc:
             raise ValveUnknownError(str(exc)) from exc
         decl = VALVE_RE.search(text)
         on = bool(decl) and int(decl.group(1)) == 0

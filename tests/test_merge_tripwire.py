@@ -265,12 +265,13 @@ def test_the_valve_grammar_is_merge_requests_own():
     assert mt.VALVE_RE.pattern == merge_request._AFTER_DECL_RE.pattern
 
 
-def test_a_git_show_failure_that_is_not_a_deletion_is_unknown(repo, monkeypatch):
+def test_an_unknown_commit_is_unknown_never_a_deletion(repo, monkeypatch):
     real = mt._git
 
     def git(args, repo=None):
-        if args[0] == "show":
-            raise RuntimeError("git show rc=128: fatal: bad object deadbeef")
+        if args[0] == "log":  # a listed commit whose object is gone: git prints the same text as a
+            sha = "deadbeef" * 5  # deleted path, so only the tree read can tell them apart
+            return f"{sha} {int(_ts('2026-10-31'))}\n"
         return real(args, repo)
 
     _valve(repo, "# merge-tests-after-merge-above: 0", _ts("2026-10-31"))
