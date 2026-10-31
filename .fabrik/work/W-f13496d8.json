@@ -15,7 +15,7 @@
   },
   "next": "read archived mail 01M6929A9Z8BZZ7D2VMQPBJMT7, validate against current master, then fix or drop (proposed score: impact high, effort low — FABRIK_MERGE_TESTS_BASE leaks into the after-merge leg's pytest shards; every such leg mis-selects)",
   "note": "",
-  "owner": "infra",
+  "owner": "intel",
   "priority": 0,
   "score_reason": "FABRIK_MERGE_TESTS_BASE leaks into the after-merge leg's pytest shards; every such leg mis-selects",
   "status": "open",
