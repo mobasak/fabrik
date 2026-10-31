@@ -261,3 +261,56 @@ def test_the_installer_string_runs_from_a_linked_worktree(repo: Path, tmp_path: 
     )
     assert res.returncode == 0, res.stderr
     assert "<<<<<<<" not in (wt / "CHANGELOG.md").read_text()
+
+
+def test_a_duplicate_ours_already_holds_is_not_refused(tmp_path: Path) -> None:
+    # the spec's exemption: a D-id ours ALREADY holds twice is not this merge's doing
+    base = "| D-5 | a |\n| D-5 | b |\n"
+    theirs = base + "| D-7 | t |\n"
+    res, a = _run_verb(tmp_path, base, base, theirs, "docs/DECISIONS.md")
+    assert res.returncode == 0, res.stderr
+    assert a.read_text() == theirs
+
+
+def test_an_interrupted_write_leaves_no_temp_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    spec = importlib.util.spec_from_file_location("merge_request_interrupt", SCRIPT)
+    assert spec and spec.loader
+    mr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mr)
+    o, a, b = tmp_path / "o", tmp_path / "a", tmp_path / "b"
+    o.write_text(CHANGELOG)
+    a.write_text(
+        CHANGELOG.replace("## [Unreleased]\n", "## [Unreleased]\n\n### Fixed — o (2026-10-31)\no\n")
+    )
+    b.write_text(
+        CHANGELOG.replace("## [Unreleased]\n", "## [Unreleased]\n\n### Fixed — t (2026-10-31)\nt\n")
+    )
+
+    def interrupt(*_args, **_kw):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(mr.os, "replace", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        mr._merge_ledger(str(o), str(a), str(b), "CHANGELOG.md")
+    assert not [p for p in tmp_path.iterdir() if p.name.startswith(".merge-ledger-")]
+
+
+def test_the_cli_exits_1_with_a_reason_on_any_error(tmp_path: Path) -> None:
+    missing = tmp_path / "missing"
+    res = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT),
+            "merge-ledger",
+            str(missing),
+            str(missing),
+            str(missing),
+            "CHANGELOG.md",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert res.returncode == 1
+    assert "REFUSED" in res.stderr
