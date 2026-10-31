@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T14:14:15.037642Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-27430523",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "docs/development/plans/2026-10-31-plan-2-scratch-sweep-hourly-timer.md",
+    "spec": ""
+  },
+  "next": "add trap 'rollback \"interrupted\"' INT TERM HUP beside the ERR trap and clear both together; word the remove=0 branch from is-enabled/is-active; tests: SIGINT to the process group while a stubbed start sleeps, and enable-fails with no cron line",
+  "note": "",
+  "owner": "",
+  "priority": 1,
+  "status": "open",
+  "title": "install_scratch_sweep_timer.sh (W-d1a4a8f5 plan-2): a SIGINT/SIGHUP/SIGTERM during the first sweep skips the ERR-only rollback and leaves the timer beside cron (two schedulers); and on the no-04:20-line path the rollback message claims 'the timer stays enabled' even when enable failed (no scheduler) — post-scope-growth residue of the plan review, fold into Phase A's build"
+}

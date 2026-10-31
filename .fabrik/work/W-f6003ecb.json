@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:55:51.609923Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-f6003ecb",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-31-scratch-janitor-bound-design.md"
+  },
+  "next": "after the timer is live: measure the report's age distribution for a day, then set REPORT_FRESH_S and the alarm text; red-first test on the alarm line",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "scratch_sweep: once the janitor runs hourly (W-d1a4a8f5), tighten the SessionStart stale-size-report alarm from 48 h (REPORT_FRESH_S, scripts/scratch_sweep.py:1496) to a few hours and drop its 'nightly' wording (:1650); also CLAUDE.md § EXIT's 'the daily janitor' wording"
+}
