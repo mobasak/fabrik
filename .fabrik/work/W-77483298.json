@@ -1,0 +1,28 @@
+{
+  "blocked_by": [
+    "W-9df34727"
+  ],
+  "created": "2026-10-31T13:34:57.770567Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-77483298",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "intel",
+  "priority": 3,
+  "score_reason": "one-line seat brief fix once seat_guard runs pytest capped",
+  "status": "open",
+  "tags": [
+    "mail-01m68khk0h"
+  ],
+  "title": "review-loop.js seat pytest must run under capped_run.sh and be exempt from 'timeout 120' (kaizen mail 01M68KHK0H, lines :271/:295/:309); waits on infra's seat_guard capped_run change W-50610743"
+}
