@@ -10,6 +10,19 @@ the declared memory of the legs already running plus their own fits capped_run's
 together for 189 of 242 leg-minutes over two days. The wait is outside the leg's budget, at most 900 s per merge run, and
 the queue's wall grows to 12000 s to cover it (D-1405, W-fbd1d4b9).
 
+### Fixed — the worktree-guard test's probe repo carries the decision ledger (2026-10-31)
+`tests/test_assemble_worktree_guard.py`'s fixture copies `docs/DECISIONS.md` beside `commands/`, so a size ceiling
+raised past baseline+3% with a `raised_by` row (D-1399's `fabrik-deploy-plan-review`) validates as it does in the hub;
+without it the after-merge leg went red on kaizen's merge c5d6257e1 (W-fa19ed9a).
+
+### Changed — every coordinator's duties toward its tmux builders, in the common paragraph (2026-10-31)
+Both CLAUDE.md copies' coordinator paragraph now carries D-1396's four duties as one **Builders** sentence: the
+coordinator decides when a builder is dispatched and commits its charter (and the role charter `add` needs) on the base
+branch first, checks the tabbed launcher lists its grids, watches every builder pane at every turn and hook nudge, and
+rebuilds every builder's NOW, DONE and NEXT from records with the hub's `agent_status.py --repo .`. The Never clause
+allows the builders' charters; the hub coordinator charter and `docs/reference/tmux-agents.md` follow (D-1404,
+W-b9916ab1). Grader: `tests/test_coordinator_duties_d1396.py`.
+
 ### Changed — an account whose plan dropped the 5-hour limit reads `5h retired`, not a stale percentage (2026-10-31)
 The usage payload of an account on the plan now named Ultra can drop its `five_hour` window (sarp's did on 2026-10-31; ob, ozgurbasak, can and mob still report one). Both payload parsers in `claude_rotate.py` failed the whole reading closed on it, so the tick served sarp from a 12-hour-old cache. A payload with `five_hour: null` whose limits are a `weekly_all` entry plus only weekly kinds now reads as a retired window (0.0 plus `retired: true`): bands come from weekly and Fable, the tick's ledger row writes `session: retired` instead of a fake 0% sample, and the `QUOTA:` line prints `5h retired`, `--status` `session retired` and the :5051 dashboard `retired`. Every other null shape still fails closed; an account still reporting a 5h window behaves as before (D-1400, D-1401, W-992979e1).
 

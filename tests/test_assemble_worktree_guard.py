@@ -40,8 +40,11 @@ def repo(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]:
     shutil.copy2(HUB_COMMANDS / "_size_ceiling.json", main / "commands")  # which --check reads
     for sub in ("_fragments", "_sources", "_agents"):
         shutil.copytree(HUB_COMMANDS / sub, main / "commands" / sub)
+    # and the ledger a ceiling's `raised_by` must name: without it every licensed raise past +3% reads unlicensed
+    (main / "docs").mkdir()
+    shutil.copy2(HUB_COMMANDS.parent / "docs" / "DECISIONS.md", main / "docs")
     _git(main, "init", "-q", "-b", "master")
-    _git(main, "add", "commands")
+    _git(main, "add", "commands", "docs")
     _git(
         main,
         "-c",
