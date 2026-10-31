@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T21:37:59.582317Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-2e5dcedb",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M67BV44VDFX3GZSQ0FCHBR89",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "W-fbd1d4b9 measured: the tree-grader cache never hits; dropping quoted keys misses 1 of 17"
+}
