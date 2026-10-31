@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-31T11:21:57.683461Z",
   "creator": "coordinator",
+  "effort": "low",
   "evidence": "",
   "id": "W-9bbda812",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "fix the red after merge 6a4ea967c0d4, then request with --item",
   "note": "",
-  "owner": "",
+  "owner": "infra-2",
   "priority": 0,
+  "score_reason": "after-merge red from infra-2's own merge 6a4ea967c (ledger driver); its next request is blocked until fixed",
   "status": "open",
   "tags": [
     "after-merge-red",

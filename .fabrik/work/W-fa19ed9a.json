@@ -2,8 +2,10 @@
   "blocked_by": [],
   "created": "2026-10-31T11:56:22.491548Z",
   "creator": "coordinator",
+  "effort": "low",
   "evidence": "",
   "id": "W-fa19ed9a",
+  "impact": "high",
   "kind": "task",
   "legacy": false,
   "links": {
@@ -13,8 +15,9 @@
   },
   "next": "fix the red after merge c5d6257e1295, then request with --item",
   "note": "",
-  "owner": "",
+  "owner": "kaizen",
   "priority": 0,
+  "score_reason": "after-merge red from kaizen's own merge c5d6257e1; its next request is blocked until fixed",
   "status": "open",
   "tags": [
     "after-merge-red",

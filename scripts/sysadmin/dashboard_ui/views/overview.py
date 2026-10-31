@@ -612,6 +612,7 @@ def _quota(data: dict, ctx: ViewContext) -> ui.Safe:
                 (u, w)
                 for w in _BAND_WINDOWS
                 if (u := _num(_d(windows.get(w)).get("utilization"))) is not None
+                and _d(windows.get(w)).get("retired") is not True  # a stand-in never binds
             ]
         )
         text = (
@@ -651,6 +652,12 @@ def _quota(data: dict, ctx: ViewContext) -> ui.Safe:
         u = _num(reading.get("utilization"))
         label = t(f"ov.q.w.{w}")
         reset = fmt.fmt_reset(_num(reset_of(w, reading.get("slug"))))
+        if reading.get("retired") is True:
+            # a RETIRED 5h window (D-1400) has no percentage and no reset to print
+            lines.append(
+                _line(t("ov.q.window_retired", window=label, slug=reading.get("slug") or "?"))
+            )
+            continue
         lines.append(
             _line(
                 t(

@@ -406,3 +406,15 @@ def test_capped_false_below_wall_and_on_status_failure(tmp_path):
         raise RuntimeError("status down")
 
     assert _gov(tmp_path, boom).capped() is False  # fail-safe: no row → not capped (bot runs)
+
+
+def test_a_retired_five_hour_window_is_never_headroom():
+    """D-1400 (W-992979e1, review pass 1): a retired 5h window's 0.0 is a stand-in — with no other
+    readable window the headroom is UNKNOWN (None → shed), never 0% (full headroom)."""
+    p = _payload(five_hour=0.0)
+    row = p["accounts"][0]
+    row["five_hour"] = {"utilization": 0.0, "resets_at_epoch": None, "retired": True}
+    row["seven_day"] = None
+    assert QuotaGovernor._max_util(None, row) is None
+    row["seven_day"] = {"utilization": 91.0, "resets_at_epoch": 1.0}
+    assert QuotaGovernor._max_util(None, row) == 91.0
