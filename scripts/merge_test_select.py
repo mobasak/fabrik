@@ -178,9 +178,10 @@ def import_patterns(path: str) -> set[str]:
     pkg = r"\.".join(re.escape(m) for m in mod[:-1])
     return {
         rf"(?<![\w.]){pkg}\.{name}(?![\w])",
-        # inside parentheses anything up to the `)` (names, line breaks, comments); without them
+        # inside parentheses anything up to the `)` (names, line breaks, comments — possessive, or k
+        # comment lines cost ~40^k: 0.8 s at k=4); without them
         # one logical line: names, commas, blanks and backslash continuations, never a next statement
-        rf"\bfrom\s+{pkg}\s+import\s*(?:\((?:[^)#]|#[^\n]*)*?|(?:[ \t\w,]|\\\r?\n)*?)(?<![\w.]){name}(?![\w])",
+        rf"\bfrom\s+{pkg}\s+import\s*(?:\((?:[^)#]|#[^\n]*+)*?|(?:[ \t\w,]|\\\r?\n)*?)(?<![\w.]){name}(?![\w])",
     }
 
 
@@ -217,6 +218,7 @@ def select(changed: list[str], tests: dict[str, str]) -> list[str]:
     """``tests`` maps each test file to its text; returns the files to run, sorted."""
     keys: set[str] = set()
     mods: set[str] = set()
+    stems: dict[str, re.Pattern[str]] = {}
     picked = {p for p in changed if p in tests}
     for p in changed:
         if RECEIPT.fullmatch(p):
@@ -226,12 +228,18 @@ def select(changed: list[str], tests: dict[str, str]) -> list[str]:
             mods |= import_patterns(p)
             stem = stem_pattern(p)
             if stem:
-                mods.add(stem)
+                stems[Path(p).stem] = re.compile(stem)
     bounded = re.compile("|".join(sorted(mods))) if mods else None
     graders: set[str] = set()
     if keys:
         for name, text in tests.items():
-            if any(k in text for k in keys) or (bounded is not None and bounded.search(text)):
+            if (
+                any(k in text for k in keys)
+                # the substring test first: the lookbehind regex alone doubled select()'s time over
+                # the 693 hub tests (3.4 -> 6.4 s for 5 changed paths)
+                or any(s in text and rx.search(text) for s, rx in stems.items())
+                or (bounded is not None and bounded.search(text))
+            ):
                 picked.add(name)
             elif TREE_GRADER in text:
                 graders.add(name)
@@ -243,18 +251,26 @@ def select(changed: list[str], tests: dict[str, str]) -> list[str]:
 def _with_test_importers(picked: set[str], tests: dict[str, str]) -> set[str]:
     """``picked`` plus every test that imports a picked test module, to a fixed point: a test reaching
     the changed code through another test's helpers (test_merge_request_pretest.py imports World from
-    test_merge_request_merge.py) names neither the file nor a whole-word stem of it — the substring stem
-    rule caught it only by accident (`merge_request` inside `test_merge_request_merge`)."""
+    test_merge_request_merge.py, test_quota_dashboard_browser.py does `from tests import
+    test_quota_dashboard as base`) names neither the file nor a whole-word stem of it — the substring
+    stem rule caught it only by accident. An import statement on one line, its first word at the line
+    start: `from [pkg.]test_x import`, `import [pkg.]test_x[, …]`, `from <pkg> import [a, ]test_x`
+    (`.` and `tests` included). A parenthesised multi-line `from tests import (` is not followed."""
     out = set(picked)
     todo = set(picked)
     while todo:
-        alt = "|".join(sorted(re.escape(Path(n).stem) for n in todo))
-        # `from test_x import`, `from tests.test_x import`, `import tests.enforcement.test_x`
+        stems = sorted(Path(n).stem for n in todo)
+        alt = "|".join(re.escape(s) for s in stems)
         importer = re.compile(
-            rf"^[ \t]*(?:from[ \t]+(?:[\w.]*\.)?(?:{alt})[ \t]+import\b|import[ \t]+(?:[\w.]*\.)?(?:{alt})\b)",
+            rf"^[ \t]*(?:from[ \t]+(?:[\w.]*\.)?(?:{alt})[ \t]+import\b"
+            rf"|(?:from[ \t]+[\w.]+[ \t]+)?import[ \t]+[^\n#]*(?<!\w)(?:{alt})(?!\w))",
             re.M,
         )
-        todo = {n for n, text in tests.items() if n not in out and importer.search(text)}
+        todo = {
+            n
+            for n, text in tests.items()
+            if n not in out and any(s in text for s in stems) and importer.search(text)
+        }
         out |= todo
     return out
 

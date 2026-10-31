@@ -84,6 +84,8 @@ def test_stem_key_matches_a_whole_word_only():
     }
     assert mts.select(["CLAUDE.md"], tests) == ["tests/test_name.py", "tests/test_word.py"]
     assert mts.select(["infra/x/compose.yaml"], tests) == []
+    # a word char glued BEFORE the stem is another name too (review B-haiku: the leading boundary)
+    assert mts.select(["CLAUDE.md"], {"tests/test_pre.py": "the MY_CLAUDE contract"}) == []
     # a `-` glued to a word before it is part of that name; a `--<stem>` flag is not (Fable critique)
     assert mts.select(["infra/x/compose.yaml"], {"tests/test_dc.py": "docker-compose up"}) == []
     assert mts.select(["infra/x/compose.yaml"], {"tests/test_flag.py": "run --compose x"}) == [
@@ -103,6 +105,25 @@ def test_stem_key_matches_a_whole_word_only():
         "tests/test_merge_request_pretest.py",
         "tests/test_third.py",
     ]
+    # every one-line import spelling of a picked test is followed (review A1/B1: `from tests import
+    # test_quota_dashboard as base` dropped six readers of quota_dashboard.py); a comment is not one
+    spellings = {
+        "tests/test_merge_request_merge.py": 'SCRIPT = SCRIPTS / "merge_request.py"',
+        "tests/test_pkg.py": "from tests import test_merge_request_merge as base",
+        "tests/test_dot.py": "from . import test_merge_request_merge",
+        "tests/test_list.py": "import os, test_merge_request_merge",
+        "tests/test_dotted.py": "import tests.enforcement.test_merge_request_merge",
+        "tests/test_commented.py": "# from test_merge_request_merge import World",
+        "tests/test_trailing.py": "import os  # test_merge_request_merge",
+        "tests/test_longer.py": "from tests import test_merge_request_merge_extra",
+    }
+    assert mts.select(["scripts/merge_request.py"], spellings) == [
+        "tests/test_dot.py",
+        "tests/test_dotted.py",
+        "tests/test_list.py",
+        "tests/test_merge_request_merge.py",
+        "tests/test_pkg.py",
+    ]
     # a tree grader runs for any change, but its importers do not ride along (+143 s per merge measured)
     graders = {
         "tests/test_tree.py": "git ls-files",
@@ -113,6 +134,22 @@ def test_stem_key_matches_a_whole_word_only():
     assert mts.select(
         ["docs/a+b-notes.md"], {"tests/test_m.py": "a+b-notes", "tests/test_n.py": "aab-notes"}
     ) == ["tests/test_m.py"]
+
+
+def test_import_pattern_comments_do_not_backtrack():
+    # review A2: `#[^\n]*` inside the lazy paren loop cost ~40x per comment line (0.8 s at 4 lines);
+    # 30 comment lines with the name absent must still fail fast
+    import re
+    import time
+
+    text = (
+        "from pkg.sub import (\n"
+        + "".join(f"    a{i},  # a comment of some length {i}\n" for i in range(30))
+        + ")\n"
+    )
+    t0 = time.monotonic()
+    assert not any(re.search(p, text) for p in mts.import_patterns("pkg/sub/zzz.py"))
+    assert time.monotonic() - t0 < 2.0
 
 
 def _imports_state(text: str) -> bool:
