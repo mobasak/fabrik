@@ -31,6 +31,15 @@ once over every merge landed since the last tested tip (`FABRIK_MERGE_TESTS_BASE
 the cause merge and its author, and that author's next request is refused until it carries the item. The hub
 declares 0: on for every hub merge (D-1384; built as D-1382, W-3237ba45).
 
+### Fixed — The kaizen collector commits its own log rows; PORTS.md stops churning (2026-10-30)
+The daily `kaizen_collect_v2.py` cron runs from the hub's main checkout and left its week rows uncommitted there,
+so `merge_request.py` refused every merge touching `docs/reference/agents/kaizen-log-{infra,fleet}.md` ("dirty in the
+main checkout (not a ledger)") and builders carried the rows by hand (W-5568be8d). New `scripts/commit_generated.py`
+lands ONE pathspec commit (`Agent-Name: kaizen-collector`, not pushed) of only the files that were clean at HEAD
+before the write, or still hold its own unlanded bytes on the same HEAD blob; anything else stays dirty with a
+reason. `sync_projects.py` no longer writes a `Last synced` line into PORTS.md and rewrites neither PORTS.md nor the
+catalog when nothing changed; who commits its real changes is W-7999e0ea. Tests: `tests/test_commit_generated.py`.
+
 ### Fixed — agents_up launches every pane with --permission-mode bypassPermissions (2026-10-30)
 Every claude command `scripts/sysadmin/agents_up.sh` builds (grid start, `--pane-cmd`, the spawn and rotate `--move`
 `--session-id` launches, and the "already running" and "exited — run:" hint lines) now passes

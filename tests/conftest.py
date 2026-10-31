@@ -370,6 +370,9 @@ def _isolated_command_run_dir(tmp_path, _private_monkeypatch):
     # passes or fails on the box's state, not the code. A missing repo is the tier's fail-open path.
     monkeypatch.setenv("KAIZEN_TRANSCRIPT_ROOTS", str(tmp_path / "transcripts"))
     monkeypatch.setenv("KAIZEN_WASTE_GIT_REPO", str(tmp_path / "no-git-repo"))
+    # The generated-output state of scripts/commit_generated.py (W-5568be8d): every daily() a grader
+    # drives commits through it, and a write there would land in the operator's real ~/.claude/state.
+    monkeypatch.setenv("FABRIK_GENERATED_STATE", str(tmp_path / "generated-output.json"))
     # The merge tripwire (W-622ec42c) runs in the same daily() pass and WRITES beside the repo's merge
     # records (`.git/fabrik-merge/tripwire*`) and can mail: without this a grader's daily() wrote the
     # live hub's coordinator line. A missing repo is the tripwire's fail-open path.

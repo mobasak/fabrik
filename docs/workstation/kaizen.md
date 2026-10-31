@@ -78,7 +78,15 @@ complete). In order:
    path and lives at the fixed, unreaped `~/.claude/state/kaizen-log-locks/` (independent of
    `KAIZEN_STATE_DIR`; tempdir siting sat under systemd-tmpfiles' 30-day reaper), so a debug
    run and the cron meet on the same flock and no tracked dir grows a `.lock`; tmp+atomic-replace with the log's own mode; transient `tmp*.tmp`
-   files beside the logs are reaped after 1h — W19–W24) and the metrics mail
+   files beside the logs are reaped after 1h — W19–W24), then **committed** (W-5568be8d): the
+   cron runs from the hub's MAIN checkout, where an uncommitted row made `merge_request.py`
+   refuse every merge touching the logs, so `scripts/commit_generated.py` lands ONE pathspec
+   commit (`Agent-Name: kaizen-collector`, never pushed — the merge owner's next push carries
+   it) holding only the logs that were clean at HEAD before this write, or still hold this
+   collector's own unlanded row on the same HEAD blob. A sibling's edit, a staged log, a
+   linked worktree or a mid-operation repo is left dirty with a `[commit_generated]` reason
+   line on stderr (one per refused path, one per failed commit) (→ `~/.claude/kaizen.log`); a held `index.lock` is retried and, if it
+   persists, recorded in `~/.claude/state/generated-output.json` so the next run lands it. The metrics mail
    goes to the shared `fabrik` mailbox (fail-soft: a dead mail store costs the notification,
    never the row). **The single-source law (W6-1):** every mechanical weekly cell AGGREGATES
    THE PUBLISHED DAY SERIES — the one already-delta-honest source — never a store-row
@@ -424,6 +432,7 @@ Scripts that declare this document in their `# AFTER-EDIT:` header — editing o
 means updating this page in the same change. This list is generated from those headers
 (`python3 scripts/render_doc_script_links.py`); add the doc to a script's header, not here.
 
+- `scripts/commit_generated.py`
 - `scripts/sysadmin/archived/kaizen_metrics.py`
 - `scripts/sysadmin/feedback_relay.py`
 - `scripts/sysadmin/kaizen_collect.py`
