@@ -281,6 +281,9 @@ def test_the_hub_maps_the_root_ledgers_to_the_ledger_driver(tmp_path):
 def test_the_installer_registers_and_mirrors_the_ledger_driver(tmp_path):
     repo = _bare_repo(tmp_path)
     assert _install(repo).returncode == 0
+    assert _git(repo, "config", "--get-all", "merge.ledger.name").stdout.strip() == (
+        "merge_request.py merge-ledger (ledger insertions)"
+    )
     driver = _git(repo, "config", "--get-all", "merge.ledger.driver").stdout.strip()
     assert driver == (
         "python3 scripts/merge_request.py merge-ledger %O %A %B %P || "
@@ -298,3 +301,21 @@ def test_the_installer_registers_and_mirrors_the_ledger_driver(tmp_path):
     (repo / ".gitattributes").unlink()
     assert _ledger_attr(repo, "CHANGELOG.md") == "ledger"
     assert _ledger_attr(repo, "sub/CHANGELOG.md") == "unspecified"
+
+
+def test_the_ledger_mappings_are_exactly_merge_requests_ledgers():
+    """The `.gitattributes` ledger set and the verb's `LEDGERS` (scripts/merge_request.py) cannot drift
+    apart: a ledger added on one side only would merge by hand again, or a non-ledger by the driver."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "mr_ledgers", HUB / "scripts" / "merge_request.py"
+    )
+    mr = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mr)
+    mapped = {
+        ln.split()[0].lstrip("/")
+        for ln in (HUB / ".gitattributes").read_text(encoding="utf-8").splitlines()
+        if ln.strip() and not ln.lstrip().startswith("#") and "merge=ledger" in ln.split()
+    }
+    assert mapped == set(mr.LEDGERS) == set(LEDGERS)

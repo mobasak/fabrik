@@ -93,7 +93,7 @@ set_config merge.ledger.name "merge_request.py merge-ledger (ledger insertions)"
 set_config merge.ledger.driver "$LEDGER_DRIVER"
 # git reads .gitattributes from the tree as it was BEFORE the merge, so a branch cut before the file
 # existed would get no driver on the merge that brings it in; <common>/info/attributes applies to
-# every worktree at once. Its merge=workitem lines are a block this installer OWNS, rebuilt from
+# every worktree at once. Its merge=workitem and merge=ledger lines are a block this installer OWNS, rebuilt from
 # .gitattributes (the mapping's one hand-written home) on every run — so a line removed there leaves
 # here too — and replaced atomically only when it changed; every other line is kept.
 info="$common/info/attributes"
