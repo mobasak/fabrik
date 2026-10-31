@@ -192,6 +192,10 @@ python3 scripts/merge_request.py request --review <closing run record or review 
 #    A branch cut before the script existed runs the main checkout's copy by absolute path
 #    (`python3 <main checkout>/scripts/merge_request.py request …`): it finds mail.py, work.py and
 #    whoami_agent.py beside itself, never in the branch. `--item` releases your claim on that item.
+#    A branch more than 500 commits behind the base's REMOTE tip is refused before anything is sent,
+#    with the `git fetch <remote> refs/heads/<base>` + `git merge FETCH_HEAD` to run first (W-527c1ce0, D-1381);
+#    merging the base at every item boundary keeps a branch under it. A branch that runs a copy from
+#    before the check (the main checkout's copy above excepted) is not checked (W-731a7652).
 #    `--pretest` first runs the base's `.fabrik/merge-tests` on the merge the owner would build (a
 #    throwaway at the local base) and sends only on green (a base with none is sent untested, with a
 #    note), recording the merged tree in `<git common dir>/fabrik-merge/pretest/<head>.json`; the

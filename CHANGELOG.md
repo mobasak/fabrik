@@ -22,6 +22,14 @@ valve. A rise sustained for 7 days past 2 sigma mails the coordinator once per e
 Every tab of `All Agents (tabbed).bat` and `<Repo> Agents.bat` now runs `agents_up.sh --tab`, and the Windows Terminal fragment profile sets `"closeOnExit": "never"` (W-df2e24ed, D-1388). Under `--tab` a launch with no terminal exits 1 (4 when a builder got no pane) with the reason instead of detaching silently (which let the tab close), any other failure before the attach (an argument error or a signal included) prints a `stopped (exit <n>)` line from one shared exit handler, and a `--window` tab says it is waiting. A `wsl.exe` that fails before WSL starts (the vsock fault, W-37b51748) stays readable. Regenerate once: `python3 /opt/fabrik/scripts/sysadmin/agents_bat.py --tabbed`.
 
 
+### Added — a merge request from a branch more than 500 commits behind its base is refused, with the merge to run (2026-10-31)
+`scripts/merge_request.py request` now counts the commits on the base's remote tip that the branch lacks, fetching the
+tip once when the clone lacks it, and refuses past 500 before anything is sent, printing `git fetch <remote>
+refs/heads/<base>` then `git merge FETCH_HEAD` (never a rebase; the full ref never picks a same-named tag). A fetch
+failure or timeout refuses too. Both `CLAUDE.md` copies say builders merge the base at every item boundary and before
+every request, graded word for word against the script's limit, and the operating-model doc states the refusal. A branch
+that still runs a copy from before this check is not covered (W-731a7652). W-527c1ce0, D-1381, D-1391.
+
 ### Added — every new agent grid refreshes "All Agents (tabbed).bat" itself; the tmux how-to (2026-10-30)
 `scripts/sysadmin/agents_up.sh` now starts `agents_bat.py --tabbed` in the background after every grid it builds
 (interactive, `--detach` boot sweep, `add` cold start), when a desktop is remembered. Refreshes are coalesced (one runs,
