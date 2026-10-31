@@ -1072,6 +1072,7 @@ class TestExportCli:
             return {"DEMO_KEY": "REDACTED"}
 
         monkeypatch.setattr(portability, "_redact_env_keys", _one_key)
+        monkeypatch.chdir(tmp_path)  # so a cwd-relative .env read cannot pass for FABRIK_ROOT's
         bundle = tmp_path / "out.tar.gz"
         runner = CliRunner()
         result = runner.invoke(
