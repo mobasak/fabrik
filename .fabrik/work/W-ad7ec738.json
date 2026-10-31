@@ -1,0 +1,26 @@
+{
+  "block_digest": "1c7e82970aa6ab7487f5ffbb6297c83ac9754462f6ef900ac4ee8c67d771cb34",
+  "blocked_by": [],
+  "created": "2026-10-31T12:34:55.553499Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "ground": "owned",
+  "id": "W-ad7ec738",
+  "kind": "decision",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "msg_digests": [
+    "7fd286275da1d81cef9592cb22bbda0f3abf5e311ef6c7986d5191677dcccc15"
+  ],
+  "next": "",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "question": "Once the remaining P0 items run dry, may idle builders move on to the P1 queue, lifting your \"complete P0 first only and asap and pause rest\" order?",
+  "status": "awaiting-operator",
+  "title": "Once the remaining P0 items run dry, may idle builders move on to the P1 queue, lifting your \"complete P0 first only and asap and pause rest\" order?"
+}

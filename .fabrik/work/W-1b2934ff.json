@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:00:38.954252Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-1b2934ff",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68XC1ES75EXBWJCBYVVF0TX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "# fleet W-992979e1 (Ultra / 5h retirement): merge-request pretest refused on an unrelated flaky test; re-sent"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T12:59:46.214663Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-fa2af561",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M690NBSH1RCNDQ5BW8VSDNVC",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "branch: kaizen-coord-duties-1031"
+}

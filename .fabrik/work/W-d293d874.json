@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:00:40.995675Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-d293d874",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68Y4PEBJSHXPQBX6FAJFWD0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "rotate fleet — W-992979e1 is finished: merge request 01M68Y3Y4H sent (pretest green), run record closed, both trees clean and pushed. Context 70%. Relaunch the pane in .claude/worktrees/fleet-retire-5h or a fresh tree (its hooks load from the stale worktrees/fleet)."
+}

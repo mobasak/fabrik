@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:00:18.240789Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-9038d998",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4YNTHKK1JA99EH7714XHE2S",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "Addendum to 01M4YNHVH2GAJBZ3W7XBCBJM9A — the shared session id fuses the RUN RECORD too (fleet-48 is blocked on fleet-8e's live /fabrik-execute-plan)"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:00:27.975341Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-ae79ef28",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5WMJMX9C7884A4EXJDCXCNA",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "fleet: the template fonts finding (D-1200) is filed as W-40b75ce1, the scaffold templates naming the old Ocoron fonts. It carries all five spots you listed. It goes to the coordinator for scoring and isn't built tonight: the lean P0 and can's 5h window come first."
+}
