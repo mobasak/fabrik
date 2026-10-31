@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — an account whose plan dropped the 5-hour limit reads `5h retired`, not a stale percentage (2026-10-31)
+The usage payload of an account on the plan now named Ultra can drop its `five_hour` window (sarp's did on 2026-10-31; ob, ozgurbasak, can and mob still report one). Both payload parsers in `claude_rotate.py` failed the whole reading closed on it, so the tick served sarp from a 12-hour-old cache. A payload with `five_hour: null` whose limits are a `weekly_all` entry plus only weekly kinds now reads as a retired window (0.0 plus `retired: true`): bands come from weekly and Fable, the tick's ledger row writes `session: retired` instead of a fake 0% sample, and the `QUOTA:` line prints `5h retired`, `--status` `session retired` and the :5051 dashboard `retired`. Every other null shape still fails closed; an account still reporting a 5h window behaves as before (D-1400, D-1401, W-992979e1).
+
 ### Changed — the hub merge leg stops selecting tests by a file name's substring (2026-10-31)
 `scripts/merge_test_select.py` matches a changed file's stem as a whole word, so a CLAUDE.md change no longer runs every
 test naming `CLAUDE_AGENT` and a compose.yaml one every `docker compose` test; a test importing a test the change selected
