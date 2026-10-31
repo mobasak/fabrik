@@ -65,7 +65,7 @@ Appetite: 40
    - drop its placeholder `test_the_driver_runs_at_the_worktree_top`;
    - add a `git rebase` leg to the red-first test, asserting the rebase is clean;
    - rewrite the no-regression test so BOTH sides change the SAME ledger at far-apart lines: git calls a driver only for a file changed on both sides, and plain git merges such edits cleanly. Log the driver's own exit (a wrapper script that appends `$?` to a file) and assert that exit was 0, the merged blob is byte-identical to the same merge with no driver configured, and the merge exited 0;
-   - rewrite the refusal test's fixture so the edit of a landed row sits next to the other side's insertion (ours edits `| D-2 |` and appends a row, theirs appends a row after `| D-2 |`). The prototype's fixture put the edit two lines from the insertion, so `git merge-file` took it cleanly and the verb exited 0;
+   - rewrite the refusal test's fixture so the edit of a landed row sits next to the other side's insertion (ours edits `| D-2 |` and appends a row, theirs appends a row after `| D-2 |`). The prototype's fixture put the edit two lines from the insertion, so `git merge-file` took it cleanly and the verb exited 0; and merge the same pair through git with the driver registered, asserting the merge exits non-zero and the file holds markers with both sides;
    - add to the duplicate-id test the verb's own exit 1 with `%A` byte-identical, run directly as the refusal test does;
    - add a test that patches `os.replace` to raise, then asserts `%A` is untouched and no `.merge-ledger-` temp file is left (the only path that unlinks one).
 4. RED then GREEN, using the prototype tests against `b938c583e` with no verb (§ Evidence E1):
@@ -78,7 +78,7 @@ Appetite: 40
 **Behavior Contract (Phase A):**
 - Concurrent insertions in CHANGELOG and DECISIONS merge clean through git with the driver, by merge and by rebase (red without it).
 - DECISIONS puts the higher D-id first whichever side is ours.
-- An edit of a landed row next to the other side's insertion returns rc 1, with ours byte-identical.
+- An edit of a landed row next to the other side's insertion returns rc 1 with ours byte-identical, and through git the merge leaves markers.
 - A failure after the temp file is made leaves ours untouched and no temp file behind.
 - A duplicate D-id refuses, and git leaves markers with both rows when the rows conflict as text.
 - A tree whose `merge_request.py` predates the verb falls back to markers, with `invalid choice` on stderr.
@@ -169,4 +169,4 @@ The current anchors at `b938c583e`: `_decode` `scripts/merge_request.py:778`, `_
 ## Self-audit
 
 - 3 code files and about 60 code lines, so `Profile: small` holds. The test-line budget runs over the ~1.5× target (about 130 lines), accepted because each test is one spec § Validation leg.
-- Every spec § Validation leg maps to a test: Phase A's for the verb, the rebase leg included, and Phase B's for the installer. The exceptions are `_build` raising no `ConflictError`, which the D5 replay covers end to end, and the Counter B pass (I5, W-6614b62e).
+- Every spec § Validation leg maps to a test: Phase A's for the verb, the rebase leg included, and Phase B's for the installer. Two legs have no test of their own. One is `_build` raising no `ConflictError` on a merge that is clean without the driver: it follows from the no-regression test, because `_build` enters its conflict path only when its `git merge` exits non-zero (`scripts/merge_request.py:1223`), and that test asserts the merge exits 0 with the driver registered. The other is the Counter B pass (I5, W-6614b62e).
