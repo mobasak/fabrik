@@ -3,7 +3,7 @@
   "created": "2026-10-30T18:47:47.827850Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "60bb74c1e66caabbf1c2b6ab87672878044bc245",
   "id": "W-fbd1d4b9",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra",
   "priority": 0,
   "score_reason": "operator 2026-10-30: fed up with long merges; 588 MRs/14d, test leg 282-1731 s, 202 files for a 2-file change",
-  "status": "open",
+  "status": "done",
   "title": "Hub merge took 20+ min on 2026-10-30 (MR 01M670WHMM, W-b9b6472e; W-1fb11ec8 had measured 4-11 min). Measured: box load avg 19-25 on 24 cores while web-ecommerce-factory ran two merge queues (pytest shards + astro builds) at the same time; hub merge_test_select picked ~10 shards of 14-32 test files for a 2-file agents_up.sh change, run twice (pretest, then on the merged result); the coordinator's store commits mid-build forced a rebuild. Operator: 'why the fuck merges taking 20 minutes'. Cut it: box-wide merge test-leg arbitration (one repo's leg at a time, or CPU shares) and a narrower selection for small diffs"
 }
