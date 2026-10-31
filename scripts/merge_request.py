@@ -1070,8 +1070,9 @@ def _merge_ledger(base: str, ours: str, theirs: str, path: str) -> None:
     fallback (``git merge-file``) re-merges it into ordinary markers. For DECISIONS it also refuses
     a D-id the result holds more often than ours, once it is held twice — ``_build``'s landing
     check, moved to the first merge that can see the clash. A path that is not one of ``LEDGERS``
-    refuses. An entry both sides carry (a cherry-pick onto two branches) lands twice, as it does
-    at landing: the resolver's class, W-f6ede574 — line-count rules here refused shared structure."""
+    refuses. An entry both sides carry beside different insertions (a cherry-pick onto two branches
+    that each add their own entry) lands twice, as it does at landing: the resolver's class,
+    W-f6ede574 — line-count rules here refused shared structure."""
     if path not in LEDGERS:
         raise RefusedError(
             f"{path}: not a ledger this driver merges ({', '.join(sorted(LEDGERS))})"

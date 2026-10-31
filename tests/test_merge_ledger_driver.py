@@ -364,9 +364,10 @@ def test_non_utf8_bytes_survive_a_clean_resolution(tmp_path: Path) -> None:
     )
 
 
-def test_a_subheading_or_separator_a_side_already_repeats_merges_clean(tmp_path: Path) -> None:
-    # structure, not a key: each new entry carries a `### Changed` line and a table the file
-    # already holds twice, so the shared lines are no evidence of a doubled entry
+def test_shared_structure_a_side_already_repeats_merges_clean(tmp_path: Path) -> None:
+    # guards against a refusal rule that cannot tell shared structure from a doubled entry
+    # (the review deleted one, W-f6ede574): two entries each carry a subheading and a table
+    # the file already holds twice
     shape = "#### Changed\n| k | v |\n|---|---|\n"
     base = CHANGELOG + f"\n### Fixed — a (2026-10-01)\n{shape}\n### Fixed — b (2026-10-02)\n{shape}"
 
@@ -381,7 +382,7 @@ def test_a_subheading_or_separator_a_side_already_repeats_merges_clean(tmp_path:
 
 
 def test_two_new_tables_sharing_only_a_separator_merge_clean(tmp_path: Path) -> None:
-    # a separator row is structure even the first time both sides bring one
+    # the same guard for structure new to the file: only the separator is shared
     ours, theirs = (
         "# H\n| a | b |\n|---|---|\n| 1 | 2 |\n",
         "# H\n| c | d |\n|---|---|\n| 3 | 4 |\n",
