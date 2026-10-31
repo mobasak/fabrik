@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — the hub merge leg stops selecting tests by a file name's substring (2026-10-31)
+`scripts/merge_test_select.py` matches a changed file's stem as a whole word, so a CLAUDE.md change no longer runs every
+test naming `CLAUDE_AGENT` and a compose.yaml one every `docker compose` test; a test importing a test the change selected
+by name is selected with it, so 16 readers the old rule missed now run (net -57 s serial per merge on master's last 60 merges). The D-1189 replay stays 17 of 17 (D-1394, W-fbd1d4b9).
+
+
 ### Fixed — master's pre-existing reds, batch 3: the portability CLI smoke test no longer reads the host .env (2026-10-31)
 `tests/test_portability.py`'s export/import dry run stubs the `.env` read and asserts the exact secrets line, so it no longer reads red in a merge worktree. The full-suite census also found the scaffold's silently failing initial commit (filed to fleet) and three load-only flakes (D-1398, W-a9b3bc15).
 

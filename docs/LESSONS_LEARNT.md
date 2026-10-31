@@ -8283,3 +8283,11 @@ prevents, a write landing in the milliseconds before the commit.
 ## A script that installs an EXIT trap owns the only one — compose, never add a second (2026-10-31, W-df2e24ed)
 
 bash keeps ONE EXIT trap: a flag-scoped `trap … EXIT` set at parse time is silently replaced by any function's own trap and removed by its `trap - EXIT`, exactly on the failure paths it was meant to report (agents_up.sh start_grid :1055/:1108). Make one handler and let callers flip state variables. And `script -qfec` as a fake pty is not free: with stdin at EOF it forwards ^D into the attached pane and pins the client at 80x24 — both critique seats executed it before any code existed.
+
+## A replay of past red causes measures recall on those causes only: diff a narrowing against real readers (2026-10-31, W-fbd1d4b9)
+The merge leg's stem keys were narrowed to whole words, and the D-1189 replay of 17 red-causing merges stayed 17/17.
+Both design critiques still found a real reader the rule dropped: tests/test_merge_request_pretest.py reaches
+merge_request.py only through `from test_merge_request_merge import World`. None of the 17 causes touched that script.
+**Why:** a replay can only show a miss on a cause it holds; the measurement scripts compared counts, not who left.
+**How to apply:** before narrowing a selector, list every (changed path, test) pair the new rule DROPS over recent
+merges' own trees and read the drops that are not noise; ship the rule for the reader class you find with it.
