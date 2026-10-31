@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:42:41.855885Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-5f29cfe9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Q6T0EQ5K0FHVJ3QG36BHA4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "Correction to 01M5Q6H9RF5RYZ62VEGTTRMSVX, from the operator (2026-10-24, verbatim): \"Arya is the header font, suggest a pair font for text\". So Arya is the HEADING font only (it replaces Space Grotesk in --font-heading). The text and body font is not decided yet: the operator is choosing between Int"
+}
