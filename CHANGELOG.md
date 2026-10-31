@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — master's pre-existing reds, batch 3: the portability CLI smoke test no longer reads the host .env (2026-10-31)
+`tests/test_portability.py`'s export/import dry run stubs the `.env` read and asserts the exact secrets line, so it no longer reads red in a merge worktree. The full-suite census also found the scaffold's silently failing initial commit (filed to fleet) and three load-only flakes (D-1398, W-a9b3bc15).
+
 ### Fixed — master's pre-existing reds, batch 2: three tests coupled to their checkout, date or path (2026-10-31)
 `tests/test_install_pre_push_hook.py` takes the running venv's pre-commit (a merge worktree has no `.venv`), `tests/test_spend_calendar_months.py`'s two calendar tests no longer fail on the 31st or on the 1st and 2nd, and `tests/test_agents_up.py` checks both streams for the foreign name as a word, not a substring of the path (D-1393, W-a9b3bc15).
 
