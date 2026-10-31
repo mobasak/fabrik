@@ -84,7 +84,7 @@ Appetite: 40
 - A tree whose `merge_request.py` predates the verb falls back to markers, with `invalid choice` on stderr.
 - A merge clean without the driver stays clean and byte-identical, and the driver itself exited 0.
 
-## Phase B — registration, attributes, docs
+## Phase B — registration, attributes, docs — ✅ EXECUTED 2026-10-31 (cf8599c57)
 
 Appetite: 30
 
