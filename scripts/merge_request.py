@@ -1062,6 +1062,33 @@ def _merge3(path: str, ours: str, orig: str, theirs: str) -> str:
     return merged if res.returncode == 0 else _resolve_insertions(path, merged)
 
 
+def _merge_ledger(base: str, ours: str, theirs: str, path: str) -> None:
+    """``merge-ledger %O %A %B %P``: git's merge driver for the ledgers (W-53360407, D-1386).
+    Resolves the three files with ``_merge3`` and writes the result over ``ours`` atomically; any
+    refusal or error leaves ``ours`` untouched and no temp file behind, so the installer's ``||``
+    fallback (``git merge-file``) re-merges it into ordinary markers. For DECISIONS it also refuses
+    a D-id the result holds twice that ours did not already hold twice — ``_build``'s landing
+    check, moved to the first merge that can see the clash."""
+    ours_text = _decode(Path(ours).read_bytes())
+    result = _merge3(
+        path, ours_text, _decode(Path(base).read_bytes()), _decode(Path(theirs).read_bytes())
+    )
+    if path == DECISIONS:
+        clash = _dup_ids(result) - _dup_ids(ours_text)
+        if clash:
+            ids = ", ".join(f"D-{n}" for n in sorted(clash, key=int))
+            raise RefusedError(f"{ids} would appear twice in {DECISIONS} — re-mint one side")
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(ours)), prefix=".merge-ledger-")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(_encode(result))
+        os.replace(tmp, ours)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
 # --- (a)-(d): build, preflight, tests, CAS --------------------------------------------------
 @contextlib.contextmanager
 def _throwaway(ctx: _Ctx, rec: dict, commit: str, prefix: str | None = None) -> Iterator[Path]:
@@ -4184,7 +4211,18 @@ def main(argv: list[str] | None = None) -> int:
     ps = sub.add_parser("sync-runner")
     ps.add_argument("--state", required=True, type=Path)
     ps.add_argument("sync_argv", nargs=argparse.REMAINDER)
+    # internal: git's merge driver for the ledgers, registered by install_post_commit_hook.sh
+    pl = sub.add_parser("merge-ledger")
+    for name in ("base", "ours", "theirs", "path"):
+        pl.add_argument(name)
     args = ap.parse_args(argv)
+    if args.cmd == "merge-ledger":  # before the verb table: main()'s sync drain never follows it
+        try:
+            _merge_ledger(args.base, args.ours, args.theirs, args.path)
+        except Exception as exc:  # the || fallback turns this into git's ordinary markers
+            print(f"merge_request: REFUSED — {exc}", file=sys.stderr)
+            return EXIT_REFUSED
+        return 0
     if args.cmd == "after-merge-runner":
         try:
             return _after_merge_runner(args.main)
