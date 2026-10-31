@@ -2,11 +2,15 @@
 
 How a coordinator reaches, wakes, relaunches and rotates the builder agents that run in tmux, and how a builder
 reports back. It binds every repo's coordinator and builders, existing and future (operator rulings 2026-10-30:
-D-1374 bypass mode, D-1376 the tabbed launcher, D-1377 this how-to). It exists because a task once sat ~30 min
+D-1374 bypass mode, D-1376 the tabbed launcher, D-1377 this how-to; 2026-10-31: D-1396 the coordinator's builder
+duties). It exists because a task once sat ~30 min
 unseen by an idle builder in another repo: an idle builder reads no mail.
 
 ## Coordinator to builder
 
+- **Watch every turn.** Read every builder pane at every turn and every hook nudge, not only after an assignment,
+  and never by a foreground poll loop (coordinator job 5, D-1296): a prompt waiting, an idle pane with open work, a
+  rotation due (D-1396).
 - **Find the panes.** `tmux list-panes -a -F '#{session_name} #{pane_id} #{@agent} #{pane_current_path}'`. The
   `@agent` tag is the builder's name.
 - **Check it is idle.** `tmux capture-pane -p -t <pane>`, and read the last lines. Idle means an empty `❯` prompt
@@ -34,6 +38,11 @@ invisible to the launcher generator.
 - `--tab` before either form is the desktop launcher's: with no terminal it exits 1 (4 when a builder got no pane) with
   the reason instead of detaching, so the Windows Terminal tab stays open and readable (W-df2e24ed).
 - `bash /opt/fabrik/scripts/sysadmin/agents_up.sh add <repo> <name>` spawns a builder.
+- **Dispatching a builder.** It is the coordinator's decision (D-1396). Before `add`, commit on the base branch the
+  builder's own charter `docs/reference/agents/<name>.md` (first line `# Agent charter`) and, where the repo has none,
+  the role charter `docs/reference/agents/<role>.md` that `add` refuses without: the builder's worktree is cut from
+  the base branch, so an uncommitted charter is never injected. The name reads `<role>-<n>` (`--role`, default
+  `builder`). Then check the new pane appears in the launcher.
 
 Each of them keeps the desktop's `All Agents (tabbed).bat` current by itself (D-1376):
 

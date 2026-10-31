@@ -1,6 +1,12 @@
 <!-- markdownlint-disable MD032 MD031 MD040 MD022 MD024 -->
 # Lessons Learnt
 
+## A sentence for the fleet's contract is censused across the fleet before it names a file (2026-10-31, W-b9916ab1)
+
+**What happened:** the parked design for D-1396 named `python3 scripts/agent_status.py` and `builder.md` for every coordinator, because MEASURE found the script in one project besides the hub. Both critique seats ran `find /opt`: the script is in 3 of 51 repos and not in the sync manifest, `builder.md` only in the hub, and `add` refuses in every project without a role charter. As written, the sentence would have been false in 48 repos the day the sync shipped it.
+
+**Lesson:** before a template sentence names a path or a command, list it across every `/opt` repo the sync reaches (`find /opt -path '/opt/*/<path>'`) and read whether `scripts/fabrik_synced_manifest.py` carries it; a hub tool is named hub-absolute with `--repo .`, which is the template's own pattern.
+
 ## Measure a merge driver with real git, never a replica of it (2026-10-31, W-53360407)
 
 **What happened:** the spec's first replay ran the ledger resolver over a single-base replica of each merge and read 67 of 70 builder ledger-only merges cleared (spec § Derivations D1). Re-measured with the driver registered and real `git merge` run, 58 of 67 builder merges cleared: git hands a driver a virtual merge base on a criss-cross history, which the replica never built. The obvious fix for those, `merge.ledger.recursive=binary`, duplicates entries. Separately, a supersede row minted on a branch behind master was refused by the DANGLING-pointer check, because the row it supersedes had landed on master only.

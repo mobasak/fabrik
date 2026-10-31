@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed — every coordinator's duties toward its tmux builders, in the common paragraph (2026-10-31)
+Both CLAUDE.md copies' coordinator paragraph now carries D-1396's four duties as one **Builders** sentence: the
+coordinator decides when a builder is dispatched and commits its charter (and the role charter `add` needs) on the base
+branch first, checks the tabbed launcher lists its grids, watches every builder pane at every turn and hook nudge, and
+rebuilds every builder's NOW, DONE and NEXT from records with the hub's `agent_status.py --repo .`. The Never clause
+allows the builders' charters; the hub coordinator charter and `docs/reference/tmux-agents.md` follow (D-1404,
+W-b9916ab1). Grader: `tests/test_coordinator_duties_d1396.py`.
+
 ### Changed — the hub merge leg stops selecting tests by a file name's substring (2026-10-31)
 `scripts/merge_test_select.py` matches a changed file's stem as a whole word, so a CLAUDE.md change no longer runs every
 test naming `CLAUDE_AGENT` and a compose.yaml one every `docker compose` test; a test importing a test the change selected
