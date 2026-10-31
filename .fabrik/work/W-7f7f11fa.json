@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:43:08.242195Z",
+  "creator": "builder-tmpfix",
+  "evidence": "",
+  "id": "W-7f7f11fa",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1407",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "when a real drop-in of either shape appears on a box, widen the rule by measurement (fnmatch over sample child names, or a header basename-order check) and re-run tests/test_fabrik_deck.py::test_the_override_shadows_the_stock_line_under_the_real_systemd_tmpfiles",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "deck"
+  ],
+  "title": "fabrik_deck.py install's /tmp boot-wipe parser (D-1407) leaves two measured residues by design: (1) a comment naming a tmpfiles.d .conf path after a blank line inside a drop-in is read as a file header, so a refusal can name the wrong file (message only, the verdict is right); (2) the whole-contents rule reads no narrower glob as a wipe, so a drop-in such as R /tmp/[!.]* or R /tmp/claude-* that would delete the agent scratch at boot is not refused — the stock x11/snapd/systemd lines under /tmp force that line. Residue of the W-0c208792 review (round-5 seats); destination scripts/sysadmin/fabrik_deck.py::_tmp_lines (header rule) and ::_tmp_wipe_lines (glob rule), each change proven with systemd-tmpfiles --remove --boot --root= over a staged tree as the review did"
+}

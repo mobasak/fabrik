@@ -60,10 +60,23 @@ and a line would change, after a copy to `~/.local/share/code-server/User/backup
 suffix when that name is taken) — `bind-addr: 127.0.0.1:<FABRIK_DECK_CODE_PORT>`,
 `auth: none`, `cert: false`, every other line (a `password:` line included) kept, a new file mode 0600 and an existing
 one's mode kept; the profile (§ Profile; a file that already holds the Deck's values is left as it is, with no new
-backup); both units; then `daemon-reload` and `enable`, `start` with `--start`, and
-with `--desktop` the launcher (§ Launcher).
+backup); both units; then `daemon-reload` and `enable`, `start` with `--start`; with `--desktop` the launcher (§ Launcher) and
+the `is-enabled` lines; and LAST, the one root-level step, the box's `/tmp` boot-wipe override (§ Troubleshooting):
+`/etc/tmpfiles.d/tmp.conf` = `d /tmp 1777 root root 30d`, written with `sudo -n install -D -m 0644` only while
+`systemd-tmpfiles --cat-config` still carries a line that wipes `/tmp`'s contents as a whole at boot — `D` or `R` on
+`/tmp` or on `/`, `r`/`R` on a glob every direct child matches such as `/tmp/*` (read as systemd reads it — quotes, C
+escapes, `%T`, `/tmp/`, `..`); the stock lines clearing one named entry under `/tmp` are not wipes — then re-read to
+prove no such line is left. A refused `sudo` (no passwordless sudo, no tty — `-n` never
+prompts, since a headless pane would hang on it) exits 1 with the Deck fully installed and the one line to run by
+hand; a wipe line another drop-in still carries after the write exits 1 the same way, naming that file and its line
+(with our file already in effect beside such a line, the refusal comes before any write instead — next paragraph).
 
-Every check runs before the first write, so a refusal (exit 1) changes nothing: `systemd-analyze` not installed;
+Every check runs before the first write, so a refusal (exit 1) changes nothing — the root-level `/tmp` step above is
+the one exception, last and with the Deck installed: `systemd-analyze` or
+`systemd-tmpfiles` not installed; `systemd-tmpfiles --cat-config` failing, or showing a wipe line (`D`/`R` on `/tmp` or
+`/`, `r`/`R` on `/tmp/*`) in effect while a file at `/etc/tmpfiles.d/tmp.conf` is in effect (anyone's, or this
+script's hand-edited — the refusal names the files carrying those lines); `sudo` not installed while such a line is in
+effect;
 linger off; a `--hub` path (resolved first) that holds anything but letters, digits and `/ . _ -` (the units and the `.bat` carry it unquoted); the
 hub script or `~/.local/bin/code-server` missing; a foreign unit file at either path; `systemd-analyze --user verify`
 printing anything for either unit; a port in the env file that does not parse, or the two ports equal; an env file
@@ -221,8 +234,41 @@ says when: step 0 comes first, because `wsl --shutdown` and a Windows reboot end
 | 4 | Double-click the `.bat` with Vivaldi open; close the board tab and press Home | whether a new window opened (expected: none) and whether Home brings the board back |
 | 5 | Open 6 repo tabs | code-server's RSS (`ps -o rss= -C node` summed) and Vivaldi's memory (Task Manager), per tab |
 
+## Troubleshooting
+
+**After a WSL restart: "Failed to start the systemd user session for 'ozgur'", no code-server on 8443, no docker,
+`systemctl` says "Failed to connect to bus".** Measured 2026-10-31 11:01-11:10 (D-1389, W-0c208792). Ubuntu's stock
+`/usr/lib/tmpfiles.d/tmp.conf` says `D /tmp 1777 root root 30d`, and `D` means "delete the contents at boot". With
+~119 GB of agent scratch under `/tmp/claude-1000` (the janitor could not reach it, W-d1a4a8f5), `systemd-tmpfiles
+--create --remove --boot` (a sysinit dependency) deleted at ~2.4 GB/min and held the whole boot for 9 minutes: PID 1 was
+systemd, but logind, the user manager, docker and the two Deck units never started, so WSL reported no user session
+and Vivaldi found no code-server. The daily 30-day age cleanup is a separate timer and was never the problem.
+
+- **Diagnose:** `ps --ppid 1` shows `systemd-tmpfiles … --remove --boot` in state R for minutes; `df` used falls while
+  it runs; `sudo systemctl list-jobs` works (the private socket) when the user bus does not.
+- **Unblock now:** `sudo kill <that pid>`, then `sudo systemd-tmpfiles --create --boot --exclude-prefix=/dev`; the boot
+  continues (the setup unit shows failed/signal, harmless), and `systemctl --user is-active fabrik-deck-code
+  fabrik-deck` reads `active` twice within a minute.
+- **Permanent:** `/etc/tmpfiles.d/tmp.conf` = `d /tmp 1777 root root 30d` shadows the stock line by file name, so
+  `systemd-tmpfiles --cat-config | grep -v '^#' | grep ' /tmp '` shows ONE line, lowercase `d`: the age cleanup
+  stays, only the boot-time wipe goes. Measured on this box (systemd 255, `--remove --boot` over a staged `--root`): a
+  `D /tmp` line in ANY drop-in wipes, whatever other `/tmp` lines exist, so a differently named file cannot turn it
+  off — only the same-named shadow, an empty or `/dev/null` file at that name, or deleting the stock line does. The
+  stock lines that clear one named entry under `/tmp` at boot (`D! /tmp/.X11-unix`, `D! /tmp/snap-private-tmp`,
+  `R! /tmp/systemd-private-*`) are not the wipe and stay. `fabrik_deck.py install` writes the shadow (§ Install) so a
+  fresh box inherits it, and refuses while another file still carries a wipe line; the cost is that `/tmp` grows until
+  the janitor or the 30-day rule takes it.
+- **Also found then, unrelated to the wipe:** `C:\Users\user\.wslconfig` carried three keys WSL 2.7.10 does not know
+  (`natNetwork`, `natGatewayIpAddress`, `natIpAddress`, the 2026-09-23 NAT pin that never took) and printed "Unknown
+  key" for each at every start. They were removed (backup `.wslconfig.backup.20261031-111031`); networking is unchanged
+  because WSL had ignored them all along.
+
 ## Rollback
 
+`sudo rm /etc/tmpfiles.d/tmp.conf` restores the stock boot-time `/tmp` wipe (only if you want it back; the Deck's
+survival of a restart depends on the wipe staying off while `/tmp/claude-1000` is large — and the next `install`
+writes the shadow again; to keep the wipe off without the age rule, `sudo ln -s /dev/null /etc/tmpfiles.d/tmp.conf`
+masks the stock line and `install` leaves it alone).
 `systemctl --user disable --now fabrik-deck-code fabrik-deck`, delete both unit files from
 `~/.config/systemd/user/`, `systemctl --user daemon-reload`; delete `Fabrik Deck.bat` and `Fabrik Deck.first-run` from
 the desktop; restore `config.yaml` and `settings.json` from `~/.local/share/code-server/User/backups/` (or delete
