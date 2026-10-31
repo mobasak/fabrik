@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T09:29:00.681887Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-b3ec5ed7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M64RH67W5PZVFE0X5QG70ABY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "fleet",
+  "priority": 2,
+  "status": "open",
+  "title": "WHAT: rcql.com loads Google Analytics (gtag) before any consent: the script is ungated and the `_ga` cookie is set in a clean browser profile, against the site's own cookie policy (rcql.com/cookie-policy, /cerez-politikasi) and KVKK."
+}

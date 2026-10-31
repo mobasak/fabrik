@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T09:29:20.948428Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-992979e1",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "fleet: first fast-forward your stale worktrees/fleet to master; validate the 5 payloads; /fabrik-task with full /fabrik-review; MR",
+  "note": "",
+  "owner": "fleet",
+  "priority": 0,
+  "score_reason": "operator ruling today; fleet idle with fresh context; monitoring/dashboards are fleet's beat, claude_rotate.py shared with infra",
+  "status": "open",
+  "title": "Operator ruling D-1400 (2026-10-31): all 5 accounts were Claude Max 20x, now named Ultra with the 5-hour session limit removed. (1) VALIDATE per account (ob, ozgurbasak, can, mob, sarp) from the live usage payload the tick reads: plan name and whether a five_hour window is still reported; record the five readings. (2) If confirmed, RETIRE (never remove) the 5h tracking behind a per-account flag: bands from weekly (+Fable) only; QUOTA: line prints 5h as retired; quota_dashboard.py + dashboard_ui show it retired, not a percentage; quota_stop.py/quota_governor.py stop acting on 5h; rotation thresholds that keyed on the session window move to weekly; ledger rows, caps.json and history untouched; an account still reporting a 5h window keeps today's behaviour. Hooks surface: full /fabrik-review; tests red→green on both flag states"
+}
