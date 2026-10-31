@@ -8,7 +8,8 @@ One neutral-path file mailbox per repo at ``$FABRIK_MAIL_ROOT/<repo>/{inbox,arch
 
     send  --to <repo> --kind <k> [--ack required|no] [--re <id>] [--from <repo>] [--auto]
           [--to-agent <role>] [--broadcast] < body
-          (hub-bound sends REQUIRE --to-agent coordinator|infra|fleet|intel|kaizen (or <beat>-<N>), --broadcast, or a
+          (hub-bound sends REQUIRE --to-agent coordinator|infra|fleet|intel|kaizen (or <beat>-<N>, or a spawned
+          <chartered role>-<name> builder), --broadcast, or a
           kind=reply thread — the addressing guard; see the refusal text)
     list  [--repo <repo>] [--agent <role>]
     read  <id> [--repo <repo>]
@@ -34,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import functools
 import importlib.util
 import io
 import json
@@ -546,15 +548,60 @@ def _frontmatter(
 # guards key on membership here. Project mailboxes keep free-form roles (_safe_agent is
 # shape-only). Adding a future beat = extend this tuple (plus the charter file).
 HUB_BEATS = ("coordinator", "infra", "fleet", "intel", "kaizen")
-# A hub AGENT is a beat or a numbered builder of one, `<beat>-<N>` (D-1128: coordinators create builders on
-# demand — infra-2, infra-3). Agent names address mail and replies; the ownership map's tokens stay BEATS, so mail
+# A hub AGENT is a beat, a numbered builder of one, `<beat>-<N>` (D-1128: coordinators create builders on
+# demand — infra-2, infra-3), or a builder spawned under a chartered non-beat role (`_spawned_builder` below). Agent names address mail and replies; the ownership map's tokens stay BEATS, so mail
 # a map routes goes to the beat and a reply goes to the requester's own name (W-fa004224).
 _HUB_AGENT_RE = _re.compile(rf"(?:{'|'.join(HUB_BEATS)})(?:-[1-9][0-9]{{0,2}})?")
 
 
+# A builder `agents_up.sh add` spawns is `<role>-<suffix>` under scripts/sysadmin/agents_spawn.py preflight's grammar:
+# the role has a charter in docs/reference/agents/ and the suffix is free (W-677578ef). Beats keep `<beat>-<N>` above.
+_SPAWN_NAME_RE = _re.compile(r"[a-z0-9][a-z0-9-]{0,31}")  # agents_spawn.py NAME_RE
+_CHARTER_MARKER = "# Agent charter"  # agents_spawn.py CHARTER_MARKER
+
+
+def _coordinator_name(name: str) -> bool:
+    return name == "coordinator" or name.endswith(
+        "-coordinator"
+    )  # agents_spawn.py _coordinator_name
+
+
+@functools.lru_cache(maxsize=256)
+def _charter_marked(path: str) -> bool:
+    """agents_spawn.py `_has_charter`'s test: the first line is the marker, then end of line or whitespace.
+    Cached per path for the process (the CLI is one-shot; `_fm_agent` runs per message in the rate count).
+    Unreadable reads False — the name is refused, the pre-W-677578ef behaviour."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            first = fh.readline().rstrip("\r\n")
+    except OSError:
+        return False
+    rest = first[len(_CHARTER_MARKER) :]
+    return first.startswith(_CHARTER_MARKER) and (rest == "" or rest[:1].isspace())
+
+
+def _spawned_builder(name: str) -> bool:
+    """`<role>-<suffix>` for a chartered NON-beat role, tried at every dash (`builder-tmp-fix`). The charters
+    are the HUB's (`_hub_root()`), where preflight reads the target repo's: they coincide because the guard
+    runs for the hub mailbox only."""
+    if not _SPAWN_NAME_RE.fullmatch(name) or not name[-1].isalnum() or _coordinator_name(name):
+        return False
+    agents = _hub_root() / "docs" / "reference" / "agents"
+    for i, ch in enumerate(name):
+        if ch != "-" or i == 0 or i == len(name) - 1:
+            continue
+        role = name[:i]
+        if _HUB_AGENT_RE.fullmatch(role) or _coordinator_name(role):
+            continue
+        if _charter_marked(str(agents / f"{role}.md")):
+            return True
+    return False
+
+
 def is_hub_agent(name: str) -> bool:
-    """True for a hub beat or a numbered builder of one (`infra`, `infra-2`; never `infra-0`, `infra-x`)."""
-    return bool(name) and _HUB_AGENT_RE.fullmatch(name) is not None
+    """True for a hub beat, a numbered builder of one (`infra`, `infra-2`; never `infra-0`, `infra-x`), or a
+    builder spawned under a chartered non-beat role (`builder-tmpfix`)."""
+    return bool(name) and (_HUB_AGENT_RE.fullmatch(name) is not None or _spawned_builder(name))
 
 
 def _safe_agent(name: str) -> str:
@@ -960,7 +1007,7 @@ def _fm_hops(fm: dict) -> int:
 
 
 def _fm_agent(fm: dict) -> str:
-    """A message's `from-agent`, or "" unless it is a hub agent (a beat or `<beat>-<N>`).
+    """A message's `from-agent`, or "" unless it is a hub agent (`is_hub_agent`: a beat, `<beat>-<N>`, a spawned builder).
 
     The one rule the hub mailbox's guards trust an agent by — the reply addressing in `send`
     trusts a parent's from-agent by the same `is_hub_agent` test (W-19b57b9a). Everything else
@@ -1045,7 +1092,8 @@ def should_auto_reply(
 
     ⚠️ COBRA (D-253), stated: `from-agent` is self-attested like `--from` (the circuit-breaker
     note in docs/reference/fabrik-mail.md), so a wrapper that rotates CLAUDE_AGENT across hub
-    names splits its bucket — bounded by the hub agent grammar, and a loop is still broken by the
+    names splits its bucket — bounded only by the chartered roles, a spawned builder's suffix being free
+    (W-677578ef), and a loop is still broken by the
     terminal-kind guard (an auto-reply is a `reply`) and the hop cap."""
     _safe_name(self_repo, "repo")  # L9: keep the traversal guard on this public entry
     sender = str(parent_fm.get("from", "") or "").strip()
@@ -1498,7 +1546,7 @@ def send(
         if to_agent and not is_hub_agent(to_agent):
             raise MailRefusedError(
                 f"unknown hub beat {to_agent!r} — a typo'd name hides mail from every "
-                f"`list --agent` view; hub agents: {', '.join(HUB_BEATS)} or <beat>-<N>"
+                f"`list --agent` view; hub agents: {', '.join(HUB_BEATS)}, <beat>-<N> or <chartered role>-<name>"
             )
         # Threaded replies are exempt BY KIND (kind=="reply" with a --re), never by
         # parent resolvability: keying on resolvability broke the sanctioned --auto
@@ -2306,7 +2354,7 @@ def route(
         # from all three `list --agent` views. Clearing ('') stays legal — reversibility
         # is the point of route-as-filter.
         raise MailRefusedError(
-            f"unknown hub beat {agent!r} — hub agents: {', '.join(HUB_BEATS)} or <beat>-<N> (or '' to clear)"
+            f"unknown hub beat {agent!r} — hub agents: {', '.join(HUB_BEATS)}, <beat>-<N> or <chartered role>-<name> (or '' to clear)"
         )
     path = _mail_root() / repo / "inbox" / f"{msg_id}.md"
     try:
@@ -3048,7 +3096,8 @@ def main(argv: list[str] | None = None) -> int:
     p_send.add_argument(
         "--to-agent",
         dest="to_agent",
-        help="intra-mailbox addressee ROLE (coordinator/infra/fleet/intel/kaizen, or a numbered builder <beat>-<N>) — a filter, "
+        help="intra-mailbox addressee ROLE (coordinator/infra/fleet/intel/kaizen, a numbered builder <beat>-<N>, or a spawned "
+        "<chartered role>-<name> builder) — a filter, "
         "never a lock; "
         "`map` addresses a hub send to the ownership map's owner of its cited paths",
     )
@@ -3108,7 +3157,8 @@ def main(argv: list[str] | None = None) -> int:
         "--to-agent",
         dest="to_agent",
         default="",
-        help="role (coordinator/infra/fleet/intel/kaizen, or <beat>-<N>); omit or pass '' to CLEAR the addressee",
+        help="role (coordinator/infra/fleet/intel/kaizen, <beat>-<N>, or a spawned <chartered role>-<name> "
+        "builder); omit or pass '' to CLEAR the addressee",
     )
     p_route.add_argument("--repo")
     p_route.add_argument(

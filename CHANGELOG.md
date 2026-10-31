@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — hub mail reaches a builder spawned with agents_up.sh add (2026-10-31)
+
+- `scripts/mail.py` refused `--to-agent builder-tmpfix` ("unknown hub beat"), so a merge reply to an `agents_up.sh add` builder failed and stranded its record. `is_hub_agent` now also admits `<chartered role>-<name>` under `agents_spawn.py`'s grammar; beats keep `<beat>-<N>`. Graded by `tests/test_mail_hub_agent_names.py` (W-677578ef, D-1411).
+
 ### Fixed — master's three load-flaky tests read red no more in a busy merge leg (2026-10-31)
 The prune in-flight test aged its files from a clock captured at import, so a test run 20+ minutes into a suite
 lost its in-flight sidechain; it reads the clock at call time now. The nested-done command_run tests scanned the live
