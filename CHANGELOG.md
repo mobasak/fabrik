@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added — merge test legs wait for room in the box's test slice instead of all running at once (2026-10-31)
+Every repo's merge legs (merge, pretest, queue child, after-merge) now take a box-wide lease and start only while
+the declared memory of the legs already running plus their own fits capped_run's 12G slice. Two to six legs had run
+together for 189 of 242 leg-minutes over two days. The wait is outside the leg's budget, at most 900 s per merge run, and
+the queue's wall grows to 12000 s to cover it (D-1405, W-fbd1d4b9).
+
 ### Changed — an account whose plan dropped the 5-hour limit reads `5h retired`, not a stale percentage (2026-10-31)
 The usage payload of an account on the plan now named Ultra can drop its `five_hour` window (sarp's did on 2026-10-31; ob, ozgurbasak, can and mob still report one). Both payload parsers in `claude_rotate.py` failed the whole reading closed on it, so the tick served sarp from a 12-hour-old cache. A payload with `five_hour: null` whose limits are a `weekly_all` entry plus only weekly kinds now reads as a retired window (0.0 plus `retired: true`): bands come from weekly and Fable, the tick's ledger row writes `session: retired` instead of a fake 0% sample, and the `QUOTA:` line prints `5h retired`, `--status` `session retired` and the :5051 dashboard `retired`. Every other null shape still fails closed; an account still reporting a 5h window behaves as before (D-1400, D-1401, W-992979e1).
 

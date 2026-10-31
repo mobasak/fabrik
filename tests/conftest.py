@@ -213,6 +213,17 @@ def _reset_oauth_transport_latch():
 
 
 @pytest.fixture(autouse=True)
+def _isolated_merge_leg_dir(tmp_path, _private_monkeypatch):
+    """merge_request.py's box-wide leg admission (W-fbd1d4b9 part c) keeps its leases under
+    `~/.claude/state/merge-legs`: a test running a fake leg would queue behind the box's real merge
+    legs (up to LEG_ADMIT_WAIT_S) and hold a real slot from them. Every test gets its own dir."""
+    monkeypatch = _private_monkeypatch
+    legs = tmp_path / "merge-legs"
+    monkeypatch.setenv("FABRIK_MERGE_LEG_DIR", str(legs))
+    yield legs
+
+
+@pytest.fixture(autouse=True)
 def _isolated_sound_lock_dir(tmp_path, _private_monkeypatch):
     monkeypatch = _private_monkeypatch
     locks = tmp_path / "sound-locks"

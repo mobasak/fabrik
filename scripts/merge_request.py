@@ -82,6 +82,7 @@ import os
 import re
 import secrets
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -152,6 +153,9 @@ def _run(
     try:
         return subprocess.run(  # noqa: S603 — fixed argv, no shell
             argv,
+            pass_fds=tuple(
+                _LEASE_FDS
+            ),  # a leg's lease lives as long as its tests, not just this process
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -602,8 +606,9 @@ MAX_REBUILDS = 3  # (d): the build is redone in full at most this many times, th
 TEST_TIMEOUT_S = 1800
 # One owner-test budget per INVOCATION (W-347cd0c3): every rebuild after a failed CAS (up to
 # MAX_REBUILDS + 1 builds) and the catch-up re-run the whole leg, so a per-leg limit alone bounds no
-# merge. Two full legs: a build and one rebuild. The documented wrapper (capped_run --timeout 5400)
-# covers it plus PUSH_TIMEOUT_S, SYNC_TIMEOUT_S and 300 s for the builds, preflights, carry and reply.
+# merge. Two full legs: a build and one rebuild. The documented wrapper (capped_run --timeout 6300)
+# covers it plus LEG_ADMIT_WAIT_S, PUSH_TIMEOUT_S, SYNC_TIMEOUT_S and 300 s for the builds, preflights,
+# carry and reply.
 MERGE_TEST_BUDGET_S = 2 * TEST_TIMEOUT_S
 LEG_FLOOR_S = 60  # under a minute left, no leg starts: a stub run tells nothing and holds the lock
 # A repo whose one leg outgrows TEST_TIMEOUT_S declares its own in the BASE's .fabrik/merge-tests (a
@@ -694,6 +699,8 @@ class _Ctx:
         # every owner-test leg of this invocation draws on one budget (_leg_timeout)
         self.test_deadline = time.monotonic() + MERGE_TEST_BUDGET_S
         self.leg_limit = TEST_TIMEOUT_S
+        self.leg_t0 = 0.0  # when the current leg started, after its admission wait
+        self.admit_spent = 0.0  # seconds this invocation waited for box-wide admission
         self.full_leg = TEST_TIMEOUT_S  # a full leg: TEST_TIMEOUT_S, or the base's declared one
         self.leg_mem: str | None = (
             None  # the base's declared memory ceiling, or capped_run's default
@@ -1593,7 +1600,6 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
         f"the owner-test budget of this run ({MERGE_TEST_BUDGET_S}s) ran out during the leg "
         f"(stopped at {{}}s) — not a test verdict"
     )
-    t0 = time.monotonic()
     try:
         run, label = _run_owner_leg(ctx, wt, script, touched)
     except TimedOutError as exc:
@@ -1605,7 +1611,7 @@ def _owner_tests(ctx: _Ctx, wt: Path, old: str, merged: list[tuple[str, str]]) -
     # a 124 is the budget's only when the leg ran its whole shortened limit: the owner's own
     # `timeout` (or a plain `exit 124`) inside the leg exits sooner and stays a red
     shortened = ctx.leg_limit < ctx.full_leg
-    if run.returncode == 124 and shortened and time.monotonic() - t0 >= ctx.leg_limit:
+    if run.returncode == 124 and shortened and time.monotonic() - ctx.leg_t0 >= ctx.leg_limit:
         raise BudgetSpentError(spent.format(ctx.leg_limit))  # no base_old: no base-alone run
     if run.returncode != 0:
         verdict = _capped_verdict(run.returncode, run.stderr)
@@ -1873,13 +1879,166 @@ def _leg_env(ctx: _Ctx, env: dict) -> dict:
     return env
 
 
+# --- box-wide leg admission (W-fbd1d4b9 part c, D-1381) -----------------------------------------
+# Every repo's merge legs share capped_run.sh's ONE test slice (FABRIK_TEST_SLICE_MAX, 12G) and the box's
+# cores. Measured 2026-10-29..31 from the user journal: of the 242 minutes any of 53 legs ran, two or more
+# ran together for 189 (up to six — hub pretests, queue children and web-ecommerce-factory's legs); hub
+# legs beside 1.5+ others took a median 10.9 min, against 1.05 alone. So a leg starts only when the
+# DECLARED memory of the legs already running plus its own fits the slice: an 8G hub leg runs beside one
+# 4G leg, never beside another 8G one. Each running leg holds a flock on its own lease file under
+# LEG_ADMIT_DIR (box-wide, every repo); a holder that dies drops its lock with its process, so a lease
+# nobody holds is stale by construction and is deleted. The wait sits OUTSIDE the leg's budget clock
+# (`ctx.test_deadline` moves by the seconds waited) and is bounded by LEG_ADMIT_WAIT_S, after which the
+# leg starts anyway and says so — a stuck holder must not stall every merge on the box (fail-open, said).
+# The allowance is per INVOCATION, so one merge run's rebuilds, catch-up and base-alone legs wait at most
+# LEG_ADMIT_WAIT_S together, which LANDING_WORST_S and the documented wrappers count once.
+# Cobra (D-253): the cheapest way past admission is a smaller declared `# merge-test-mem:`; capped_run
+# kills a leg past its own declaration at that ceiling, so under-declaring trades the wait for a red.
+LEG_ADMIT_WAIT_S = 900  # per INVOCATION (ctx.admit_spent): every leg of one merge run shares it
+LEG_ADMIT_POLL_S = 5.0
+_LEASE_FDS: dict[int, Path] = {}  # this process's held lease fds; a forked child closes them
+
+
+def _drop_inherited_leases() -> None:
+    """In a forked child: close the inherited lease fds, so the lease ends with the PARENT's leg."""
+    for fd in list(_LEASE_FDS):
+        with contextlib.suppress(OSError):
+            os.close(fd)
+    _LEASE_FDS.clear()
+
+
+os.register_at_fork(after_in_child=_drop_inherited_leases)
+
+
+def _admit_dir() -> Path:
+    return Path(os.environ.get("FABRIK_MERGE_LEG_DIR") or Path.home() / ".claude/state/merge-legs")
+
+
+def _size_mib(value: str | None, default: int) -> int:
+    """capped_run.sh's size grammar (`<n>K|M|G`) in MiB; ``default`` for anything else."""
+    m = re.fullmatch(r"([1-9][0-9]{0,8})([KMG])", (value or "").strip())
+    if not m:
+        return default
+    n = int(m.group(1))
+    return max(1, n // 1024) if m.group(2) == "K" else n * (1024 if m.group(2) == "G" else 1)
+
+
+def _held_leases(adir: Path) -> list[dict]:
+    """The leases a live leg holds; a lease file nobody holds (its leg died) is deleted. Called
+    under the admission lock, so no lease is half-written while it reads."""
+    held = []
+    for path in sorted(adir.glob("lease-*.json")):
+        try:
+            if not stat.S_ISREG(os.lstat(path).st_mode):
+                continue  # a FIFO would block the open with the admission lock held
+            fd = os.open(path, os.O_RDONLY)
+        except OSError:
+            continue
+        try:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError:
+                try:
+                    rec = json.loads(path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    rec = {}
+                mib = rec.get("mib") if isinstance(rec, dict) else None
+                held.append(rec if isinstance(mib, int) and mib > 0 else {"mib": LEG_MEM_MAX_MIB})
+                continue
+            with contextlib.suppress(OSError):  # one undeletable entry must not disable admission
+                path.unlink(missing_ok=True)  # nobody holds it: its leg is gone
+        finally:
+            os.close(fd)
+    return held
+
+
+@contextlib.contextmanager
+def _admitted(ctx: _Ctx):
+    """Hold a box-wide lease for one leg; yields the note the leg's label carries ("" when no wait)."""
+    mine = _size_mib(ctx.leg_mem, _size_mib(os.environ.get("FABRIK_TEST_MEM_MAX"), 4096))
+    cap = _size_mib(os.environ.get("FABRIK_TEST_SLICE_MAX"), 12288)
+    adir = _admit_dir()
+    t0 = time.monotonic()
+    note = ""
+    lease_fd = -1
+    lease = adir / f"lease-{os.getpid()}-{secrets.token_hex(4)}.json"
+    try:
+        adir.mkdir(parents=True, exist_ok=True)
+        while lease_fd < 0:
+            over = ctx.admit_spent + time.monotonic() - t0 >= LEG_ADMIT_WAIT_S
+            lock_fd = os.open(adir / "admission.lock", os.O_RDWR | os.O_CREAT, 0o644)
+            try:
+                try:  # never blocking: a hung lock holder must not outlast the bounded wait
+                    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    if over:
+                        note = (
+                            f"; admission: its lock was held past the {LEG_ADMIT_WAIT_S}s wait, "
+                            "started anyway"
+                        )
+                        break
+                else:
+                    held = _held_leases(adir)
+                    used = sum(int(r["mib"]) for r in held)
+                    if not held or used + mine <= cap or over:
+                        lease_fd = os.open(lease, os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o644)
+                        _LEASE_FDS[lease_fd] = lease
+                        fcntl.flock(lease_fd, fcntl.LOCK_EX)
+                        rec = {"mib": mine, "pid": os.getpid(), "repo": str(ctx.main)}
+                        os.write(lease_fd, json.dumps(rec).encode())
+                        if over and held and used + mine > cap:
+                            note = (
+                                f"; admission: started after the {LEG_ADMIT_WAIT_S}s wait with "
+                                f"{len(held)} leg(s) holding {used} MiB of the {cap} MiB test slice"
+                            )
+                        break
+            finally:
+                os.close(lock_fd)
+            time.sleep(LEG_ADMIT_POLL_S)
+    except OSError as exc:  # no admission is not a red: the leg runs, and says it ran unadmitted
+        _release_lease(lease_fd, lease)
+        lease_fd = -1
+        note = f"; admission: not checked ({exc.strerror or exc})"
+    except BaseException:  # an interrupt before the leg starts must not keep the slot
+        _release_lease(lease_fd, lease)
+        raise
+    try:  # from here to the leg's end, any exit releases the lease
+        waited = time.monotonic() - t0
+        ctx.admit_spent += waited
+        ctx.test_deadline += waited  # the wait is outside the leg's budget clock
+        if waited >= 1 and not note:
+            note = f"; admitted after a {int(waited)}s wait for the box's test slice"
+        yield note
+    finally:
+        _release_lease(lease_fd, lease)
+
+
+def _release_lease(lease_fd: int, lease: Path) -> None:
+    """Drop a lease: the fd first (closing it ends the lock), then the file; a refused unlink
+    leaves a file nobody holds, which the next admission deletes as stale."""
+    if lease_fd >= 0 and _LEASE_FDS.pop(lease_fd, None) is not None:
+        os.close(lease_fd)
+        with contextlib.suppress(OSError):
+            lease.unlink(missing_ok=True)
+
+
 def _run_owner_leg(
     ctx: _Ctx, wt: Path, script: str, touched: list[str]
 ) -> tuple[subprocess.CompletedProcess, str]:
-    """One run of the owner's tests in ``wt``: ``script`` (the base's merge-tests) when given,
-    else pytest over ``touched``. Returns the finished process and its label. Its limit is
-    ``_leg_timeout``'s, kept on ``ctx.leg_limit`` so the caller can tell a spent budget from a red."""
+    """One run of the owner's tests in ``wt``, admitted box-wide first (``_admitted``): ``script``
+    (the base's merge-tests) when given, else pytest over ``touched``. Returns the finished process and
+    its label. Its limit is ``_leg_timeout``'s, kept on ``ctx.leg_limit`` so the caller can tell a spent
+    budget from a red."""
+    with _admitted(ctx) as note:
+        run, label = _run_owner_leg_admitted(ctx, wt, script, touched)
+    return run, label + note
+
+
+def _run_owner_leg_admitted(
+    ctx: _Ctx, wt: Path, script: str, touched: list[str]
+) -> tuple[subprocess.CompletedProcess, str]:
     limit = ctx.leg_limit = _leg_timeout(ctx)
+    ctx.leg_t0 = time.monotonic()  # after admission: a 124 is measured from the leg's own start
     if script:
         pythonpath = os.pathsep.join(
             p for p in (str(wt / "src"), os.environ.get("PYTHONPATH", "")) if p
@@ -2486,7 +2645,7 @@ AFTER_DONE = "done.txt"  # one request id per line the runner covered
 AFTER_TESTED = "tested.txt"  # the last tip a runner leg ran on: the next leg's base
 AFTER_STATUS = "status.json"
 AFTER_LOCK = "runner.lock"
-AFTER_RUNNER_MAX_S = MERGE_TEST_BUDGET_S + 900
+AFTER_RUNNER_MAX_S = MERGE_TEST_BUDGET_S + LEG_ADMIT_WAIT_S + 900
 
 
 def _after_dir(records: Path) -> Path:
@@ -3529,11 +3688,14 @@ QUEUE_JOBS = 1
 QUEUE_MAX = 4  # requests per pass; each lands within the wall below or waits for the next run
 QUEUE_WAIT_S = 1800  # how long the queue waits for a merge it did not start to finish
 # One landing may first wait QUEUE_WAIT_S for a merge lock another run holds (`_land`), then run a
-# whole locked merge with its own leg (its record did not match): the D-1205 wrapper's 5400 s. The
+# whole locked merge with its own leg (its record did not match): the D-1205 wrapper's 6300 s, its
+# box-wide admission allowance (LEG_ADMIT_WAIT_S) included. The
 # queue's documented wrapper is QUEUE_WALL_S (+100 for rund), and a landing starts only while that
 # whole worst case still fits, so the wrapper never kills a merge mid-step. A merge's resume of
 # OTHER stranded records is not in it, exactly as it is not in the D-1205 wrapper.
-LANDING_WORST_S = QUEUE_WAIT_S + MERGE_TEST_BUDGET_S + PUSH_TIMEOUT_S + SYNC_TIMEOUT_S + 300
+LANDING_WORST_S = (
+    QUEUE_WAIT_S + MERGE_TEST_BUDGET_S + LEG_ADMIT_WAIT_S + PUSH_TIMEOUT_S + SYNC_TIMEOUT_S + 300
+)
 # The wall also holds the chain build and the first wave: a leg of the longest limit any base may
 # declare (_declared_leg clamps to MERGE_TEST_BUDGET_S) still leaves a worst-case landing. A wall
 # with LANDING_WORST_S + 1800 landed nothing after a wave that used its limit (2026-10-27, elapsed
@@ -3800,11 +3962,14 @@ def _leg_fits(started: float, script: str, timed: float = 0.0) -> bool:
     lead to a landing this run, and the wall return would only wait on it. The leg is budgeted at
     TIMED_MARGIN x ``timed``, the longest green queue leg this run already timed for this owner
     script (W-1fb11ec8: 697 s
-    live against the hub's declared 2700 s, which closed the window at 1080 s of the 11100 s wall),
+    live against the hub's declared 2700 s, which closed the window at 1080 s of the then 11100 s wall),
     capped at its whole limit (``_declared_leg``), and at that limit while nothing is timed. Either
     way the leg itself ends inside the wall: one forked at the last fit second that runs its whole
-    limit ends by ``QUEUE_WALL_S - LANDING_WORST_S + limit``, and a landing's worst case outweighs
-    any limit a base may declare plus LEG_OVERHEAD_S. A leg longer than the budget finishes after
+    limit ends by ``QUEUE_WALL_S - LANDING_WORST_S + limit`` (+ LEG_ADMIT_WAIT_S when the child waits
+    for box-wide admission, which this estimate does not count: such a leg ends later than estimated and
+    the landing after it may then not fit, so ``_past_wall`` stops the run with "run it again" — a
+    wasted child run, never a landing killed mid-step), and a landing's worst case outweighs any limit a
+    base may declare plus LEG_OVERHEAD_S and LEG_ADMIT_WAIT_S. A leg longer than the budget finishes after
     the last landing start: its request lands one run later on its record, and this run's children
     keep ``queue.lock`` until it ends."""
     limit = _declared_leg(script)
