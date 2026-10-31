@@ -1,0 +1,18 @@
+{
+  "plan": "docs/development/plans/2026-10-31-plan-2-scratch-sweep-hourly-timer.md",
+  "owned_paths": [
+    "scripts/sysadmin/systemd/scratch-sweep.service",
+    "scripts/sysadmin/systemd/scratch-sweep.timer",
+    "scripts/sysadmin/install_scratch_sweep_timer.sh",
+    "tests/test_scratch_sweep_timer.py",
+    "docs/workstation/cleanup-automation.md",
+    "docs/workstation/wsl-startup-inventory.md",
+    "docs/superpowers/specs/2026-10-31-scratch-janitor-bound-design.md",
+    "docs/reference/research/2026-10-31-scratch-janitor-bound-ledger.md",
+    "docs/development/plans/2026-10-31-plan-2-scratch-sweep-hourly-timer.md"
+  ],
+  "branch": "w-d1a4a8f5-close",
+  "started_at": "2026-10-31T17:35:53+03:00",
+  "status": "active",
+  "baseline_commit": "8a5ca8d329f9923e95ffd71b0ad416ff62569116"
+}

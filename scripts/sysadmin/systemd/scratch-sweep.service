@@ -1,0 +1,15 @@
+# scratch-sweep.service — the scratch janitor, run hourly by scratch-sweep.timer (W-d1a4a8f5).
+# Installed by scripts/sysadmin/install_scratch_sweep_timer.sh; the 04:20 crontab line stays as the fallback.
+# No `flock -n` wrapper: the sweep takes its own lock and a wrapper holding it makes the sweep do
+# nothing (docs/workstation/cleanup-automation.md § F). Output goes to the journal:
+#   journalctl --user -u scratch-sweep.service
+[Unit]
+Description=Fabrik scratch janitor (scratch_sweep.py --dead --apply)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/fabrik/scripts/scratch_sweep.py --dead --apply
+TimeoutStartSec=55min
+TimeoutStopSec=30s
+Nice=10
+IOSchedulingClass=idle

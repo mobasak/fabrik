@@ -1,0 +1,13 @@
+# scratch-sweep.timer — run the scratch janitor every hour at :20 (W-d1a4a8f5).
+# Persistent=true runs one catch-up sweep when the timer starts after a missed hour (WSL shut down).
+[Unit]
+Description=Hourly Fabrik scratch janitor
+
+[Timer]
+OnCalendar=*-*-* *:20:00
+Persistent=true
+AccuracySec=1min
+Unit=scratch-sweep.service
+
+[Install]
+WantedBy=timers.target

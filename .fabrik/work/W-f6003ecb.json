@@ -11,7 +11,7 @@
     "plan": "",
     "spec": "docs/superpowers/specs/2026-10-31-scratch-janitor-bound-design.md"
   },
-  "next": "after the timer is live: measure the report's age distribution for a day, then set REPORT_FRESH_S and the alarm text; red-first test on the alarm line",
+  "next": "after the timer is live: measure the report's age distribution for a day, then set REPORT_FRESH_S and the alarm text; red-first test on the alarm line; also docs/workstation/hooks-index.md:98 'nightly' size report → hourly (moved from plan-2 at execution: that path is in the active fabrik-deck plan lock)",
   "note": "",
   "owner": "",
   "priority": 3,

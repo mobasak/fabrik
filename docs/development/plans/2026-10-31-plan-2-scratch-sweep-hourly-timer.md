@@ -48,7 +48,7 @@ Complexity: inline
 Steps:
 1. `docs/workstation/cleanup-automation.md`: the schedule row (`docs/workstation/cleanup-automation.md:20`), the "what the cron line runs" line (`docs/workstation/cleanup-automation.md:161`), the nightly wording (`docs/workstation/cleanup-automation.md:244`) and the cron block (`docs/workstation/cleanup-automation.md:285`) now name the hourly timer as primary, the 04:20 cron line as the kept fallback (and why: the user manager), the installer, `journalctl --user -u scratch-sweep.service`, and the operator's one-time run.
 2. `docs/workstation/wsl-startup-inventory.md:58` — the janitor entry names the hourly timer beside the 04:20 cron fallback, and drops its stale "NOT YET PLACED" note.
-3. `docs/workstation/hooks-index.md:98` — "nightly" size report → hourly.
+3. (Moved at execution to W-f6003ecb: `docs/workstation/hooks-index.md:98`'s "nightly" size report wording — that path is owned by the active plan lock `2026-10-22-plan-1-fabrik-deck`, and W-f6003ecb already owns the size-report wording.)
 4. The research ledger's two mis-tagged rows (evict-2, evict-5) are corrected (done in review round 1).
 5. Ledgers: CHANGELOG entry, the D-row (approval and the deviation, minted by `/fabrik-plan-review`'s approval; the build's own row if the review adds one), LESSONS entry (measure the configured threshold's real distribution — the prune age), INDEX rows for the new script, units and test.
 6. Gate: `python3 scripts/final_gate.py --json` → `status: success`; `render_doc_script_links.py --check`; then the whole-plan review at Finish (`/fabrik-execute-plan` D7, one heavy round).
@@ -73,7 +73,6 @@ Every selection cites a row (red-first tests; INDEX rows link the new files) or 
 - `tests/test_scratch_sweep_timer.py`
 - `docs/workstation/cleanup-automation.md`
 - `docs/workstation/wsl-startup-inventory.md`
-- `docs/workstation/hooks-index.md`
 - `docs/superpowers/specs/2026-10-31-scratch-janitor-bound-design.md`
 - `docs/reference/research/2026-10-31-scratch-janitor-bound-ledger.md`
 - `docs/development/plans/2026-10-31-plan-2-scratch-sweep-hourly-timer.md`
