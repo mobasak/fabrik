@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T14:13:39.733607Z",
+  "creator": "kaizen",
+  "evidence": "",
+  "id": "W-8f64fd3f",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "/fabrik-command-improve fabrik-deploy-plan-review: give the split block (:127-135) the open P2/P3 rows of the newest certification handoff report; it is a lean-ledgered block (commands/_rules/fabrik-deploy-plan-review.yaml:583-586), so re-cut it",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "from-w-92389a31",
+    "kaizen"
+  ],
+  "title": "fabrik-deploy-plan-review: a split Gate 2 block never carries the release's open P2/P3 rows to the operator, so they pass unaccepted (fabrik-release.md:28 'never silently passed')"
+}

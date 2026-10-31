@@ -1,6 +1,6 @@
 # Plan — least operator approval: the gate model rewritten to D-1110 (W-4a03df79)
 
-Status: DRAFT
+Status: CONVERGED
 Profile: small
 **Owner:** kaizen (Phase B: infra)
 **Surface:** `git rev-parse HEAD` = bcf74f6e1 at authoring; `CLAUDE.md:614`, `:639`; `templates/governance/CLAUDE.md:616`;
@@ -326,12 +326,12 @@ stays true under R6 and R9.
 
 **Behavior Contract (Phase A2):**
 
-- **Given** both contracts, **When** the grader reads the gate paragraph, **Then** each holds R1's "a panel class whose condition fails included" and `unbacked`'s new gloss naming a deploy without a rollback, a window that "does not dump first or does not keep the old volume" and "a host, target or class no panel sentence names", and neither holds "`unbacked` (deleting data with no backup)" (A8)
-- **Given** both contracts, **When** the grader reads the gate paragraph, **Then** each holds R2's dispatch sentence (one `model: "opus"` and one `model: "fable"` seat, "takes no part in the verdict", a coordinator validates both reports), R8's "no panel sits" sentence with "only a P0 act that cannot wait" and "lifted by pinning another account", and R9's "written into this sentence" (A9)
-- **Given** both contracts, **When** the grader reads the gate paragraph, **Then** each holds R3's "people who are not us use it or receive what it sends", R4's "our own public docs site excepted", R5's "never a credential the fleet mints itself" and R6's "one no verified backup, dump or rollback undoes", and neither holds "and its users are not us" or "every irreversible act always" (A10)
-- **Given** the hub contract, **When** the grader reads § Autonomy, **Then** it holds "every gate § FINAL OUTPUT does not hand to the panel", "superseding D-558's" and "a split on a gate class leaves a `gate` block instead", and no longer holds "keeps for the operator (D-1110, superseding this paragraph's" (A11)
+- **Given** both contracts, **When** the grader reads the gate paragraph, **Then** each holds R1's "a panel class whose condition fails included" and `unbacked`'s new gloss naming a deploy without a rollback, a window that "does not dump first or does not keep the old volume" "a fleet-minted credential without a rollback" and "a host, target or class that list does not name", and neither holds "`unbacked` (deleting data with no backup)" (A8)
+- **Given** both contracts, **When** the grader reads the gate paragraph, **Then** each holds R2's dispatch sentence (one `model: "opus"` and one `model: "fable"` seat, "takes no part in the verdict", "(never a deploy's Gate 2), whose review command records the verdict itself", a coordinator validates both reports, "fable unavailable"), R8's "no panel sits" sentence with "only a P0 act that cannot wait" and "§ Pointers' pin rule relaunches the session", and R9's "written into this sentence" (A9)
+- **Given** both contracts, **When** the grader reads the gate paragraph, **Then** each holds R3's "people who are not us use it or receive what it sends", R4's "the platform's own public docs site excepted", R3's "a product's docs, which its customers read, are not", R6's "its tip pushed or kept under `refs/wip/*`", R5's "never a credential the fleet mints itself" and R6's "one no verified backup, dump or rollback undoes", and neither holds "and its users are not us" or "every irreversible act always" (A10)
+- **Given** the hub contract, **When** the grader reads § Autonomy, **Then** it holds "every gate § FINAL OUTPUT does not hand to the panel", "superseding D-558's" "a split on a gate class leaves a `gate` block instead" and "for every class but a design or plan approval (never a deploy's Gate 2), a coordinator validates", and no longer holds "keeps for the operator (D-1110, superseding this paragraph's" (A11)
 - **Given** both contracts, **When** the grader reads the volume and cross-repo HARD STOP rows and the stage table, **Then** each volume row names the panel route with "every listed volume backed up and the backup verified first", each cross-repo row ends "a gate the change needs still follows § FINAL OUTPUT's gate ground", neither `6-release` row holds "hands to the human gate"; both § EXIT sentences name "to the panel (the operator when § FINAL OUTPUT keeps the act)" (the template's read with whitespace collapsed, since it wraps); the template's hub-request bullet says "that authority never answers a permission prompt" (A12)
-- **Given** `fabrik-deploy-plan-review.md`, **When** the grader reads its Gate 2 panel sentence, **Then** the brief names who uses the target or receives what it sends and the open P2/P3 rows of the newest certification handoff report (A13)
+- **Given** `fabrik-deploy-plan-review.md`, **When** the grader reads its Gate 2 panel sentence, **Then** the brief names who uses the target or receives what it sends and the open P2/P3 rows of the newest certification handoff report, and says an agreeing panel's go "is the panel's explicit accept of those rows" (A13)
 - A4 (the twin paragraphs identical apart from "hub D-054") stays and is re-run after the apply.
 - **Mocked:** nothing — the grader reads the real files from the tree it sits in.
 
@@ -770,7 +770,7 @@ $ /opt/fabrik/scripts/capped_run.sh -- .venv/bin/python -m pytest -q -p no:cache
 
 The probe script (kaizen's run scratch `probes/kit_old_strings.py`) lists each `spec § Amendment 1` R's old string
 and the files it names, and counts it in the working tree (re-run after pass 1's fixes; R12a's old string now carries its leading comma, R12bt is
-the template's wrapped § EXIT):
+the template's wrapped § EXIT; R3b and R6b added by the design panel's fold, R2a by its delta round):
 
 ```text
 $ python3 probes/kit_old_strings.py
@@ -783,6 +783,10 @@ R2    CLAUDE.md                        1
 R2    templates/governance/CLAUDE.md   1
 R3    CLAUDE.md                        1
 R3    templates/governance/CLAUDE.md   1
+R3b   CLAUDE.md                        1
+R3b   templates/governance/CLAUDE.md   1
+R6b   CLAUDE.md                        1
+R6b   templates/governance/CLAUDE.md   1
 R4    CLAUDE.md                        1
 R4    templates/governance/CLAUDE.md   1
 R5    CLAUDE.md                        1
@@ -793,6 +797,7 @@ R7    CLAUDE.md                        1
 R7    templates/governance/CLAUDE.md   1
 R9    CLAUDE.md                        1
 R9    templates/governance/CLAUDE.md   1
+R2a   CLAUDE.md                        1
 R10   CLAUDE.md                        1
 R11   CLAUDE.md                        1
 R11   templates/governance/CLAUDE.md   1
@@ -802,7 +807,7 @@ R12b  CLAUDE.md                        1
 R12bt templates/governance/CLAUDE.md   1
 R12c  templates/governance/CLAUDE.md   1
 R12d  CLAUDE.md                        1
-rows: 28 not-exactly-once: 0
+rows: 33 not-exactly-once: 0
 ```
 
 R1 and R2 share the anchor "The operator alone": the kit applies R2's insertion first, then R1 on the edited text
@@ -853,3 +858,6 @@ R1 and R2 share the anchor "The operator alone": the kit applies R2's insertion 
 | Pass 10 | opus×1 + sonnet×1 (the round-1 slice owners, fresh API-lane runs handed their own round-1 return) · their own claims over the pass-9 fix diffs + one hop · shape: api-lane (D-1406) | found: 4, new: 4, confirmed: 3, fixed: 3, unexecuted: 0, edits: 3 | method: re-derivation — sonnet slice 0 candidates (every hunk re-read, A8–A13 phrases matched against the spec's new R text); opus: confirmed (own-fix: round 9) step 3's probe worktree lacking the step-1 grader (site: plan Phase A2 step 3), A8's phrase not a substring of R1's gloss (site: A8), "the panel's sentence above" ambiguous after R2/R8 (site: spec R1 gloss); RECORDED — measured: the hook cannot tell an account-own Fable RED from a fleet RED (`_coord_band`), so R8's pin rule stands on the text — destination Phase B's infra mail | b07ba6e0 / aebe98bf → 775bc8d9 / 6efef7ca |
 | Pass 11 | opus×1 + sonnet×1 (the round-1 slice owners) · their own claims over the pass-10 fix diffs + one hop · shape: api-lane (D-1406) | found: 1, new: 1, confirmed: 1, fixed: 1, unexecuted: 0, edits: 1 | method: re-derivation — sonnet slice 0 candidates; spec slice 0 in-hop defects; confirmed (Phase A2's own text, not a review hunk) the kit's cwd and branch guards refusing in the detached probe worktree (site: plan Phase A2 step 3) — fixed with `--root <dir>` and `--probe` (relaxes the branch check only); RECORDED, standing: the hook cannot tell an account-own Fable RED (Phase B) | 775bc8d9 / 6efef7ca → 4e5f7849 / 6efef7ca |
 | Pass 12 | sonnet×1 (round-1 owner of slice P, the only slice with an open claim; slice S restated 22/22 from pass 11) · the pass-11 fix hunk + one hop · shape: api-lane (D-1406) | found: 1, new: 1, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the `--root`/`--probe` hunk against the probe sentence, step 4 and the Evidence note; RECORDED — measured (wording; changes no behaviour): `--probe` on an attached root is a harmless no-op; standing clean since pass 9: every other class | 426e15bf / 6efef7ca → 426e15bf / 6efef7ca ✓ |
+| Panel (A1) | opus×1 + fable×1, the operator's stand-ins (D-613, D-1110), one brief, neither shown the other · shape: agent-tool | 4 + 5 concerns, 8 distinct after overlap; all ACCEPTED and folded, fable 1's evidence refuted (`CLAUDE.md:469`) and its change point taken as revised (the receipt's Amendment 1 panel table) | panel — both VERDICT lines `sound-with-changes` | — |
+| Pass 13 | opus×1 + sonnet×1 (the round-1 slice owners) · the panel fold + one hop — the critique step's delta round · shape: api-lane (D-1406) | found: 5, new: 5, confirmed: 4, fixed: 4, unexecuted: 0, edits: 4 | method: re-derivation — confirmed (own-fix: the panel fold) hub § Autonomy's coordinator clause lacking R2's design/plan exception (site: `CLAUDE.md:695`, kit row R2a), R1's stale "three" (site: spec R1 rationale), "plan approval" readable as a deploy plan's Gate 2 (site: R2 exception), R13's ambiguous "their" (site: R13); RECORDED → W-8f64fd3f: a split Gate 2 block never carried the P2/P3 rows (predates R13); kit probe 33 rows exactly once | 2f8bb26b / 4c7d57e6 → 8c739a29 / 0846664e |
+| Pass 14 | opus×1 + sonnet×1 (the round-1 slice owners) · the pass-13 fix hunks + one hop · shape: api-lane (D-1406) | found: 0, new: 0, confirmed: 0, fixed: 0, unexecuted: 0, edits: 0 | method: re-derivation — the four pass-13 hunks (R2 exception, R2a, R1 rationale, R13 pronoun) against their sentences, A9/A11/A13 phrases against the spec's R text verbatim; RECORDED: spec D2 (Phase A design text) keeps the pre-R2a clause as history; standing clean since pass 9: every other class | b5ea8bfb / 0846664e → b5ea8bfb / 0846664e ✓ |
