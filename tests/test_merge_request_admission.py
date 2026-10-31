@@ -282,10 +282,15 @@ def test_a_fifo_named_like_a_lease_does_not_hang_admission(leases):
     # review A-haiku 4: opening a FIFO blocks with the admission lock held
     leases.mkdir(parents=True)
     os.mkfifo(leases / "lease-0-fifo.json")
-    t0 = time.monotonic()
-    with mr._admitted(_Ctx("8192M")):
-        pass
-    assert time.monotonic() - t0 < 2
+
+    def leg() -> None:
+        with mr._admitted(_Ctx("8192M")):
+            pass
+
+    t = threading.Thread(target=leg, daemon=True)
+    t.start()
+    t.join(5)  # an open() on the FIFO never returns: fail here instead of hanging the suite
+    assert not t.is_alive(), "a FIFO named like a lease hung admission"
 
 
 def test_the_after_merge_runner_cap_covers_the_wait():
