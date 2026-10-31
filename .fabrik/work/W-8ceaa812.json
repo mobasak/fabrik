@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:14:32.153858Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-8ceaa812",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M691HCH7XV4XPQ82BTG7TWJV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "W-aa8c473c — stalled seats stopped and re-dispatched; MR follows the closing pass"
+}

@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:14:59.468586Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-c39d185a",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra-3",
+  "priority": 1,
+  "score_reason": "a stalled seat idles a builder silently for hours; small watcher extension",
+  "status": "open",
+  "tags": [
+    "mail-01m691hch7xv4xpq82btg7twjv"
+  ],
+  "title": "watch_builders.py: flag a builder's review seat with no token progress for 20+ min (intel mail 01M691HCH7: three W-aa8c473c seats and two W-d1a4a8f5 seats sat 1h45m after the 2026-10-31 internet drop, builders idle waiting; nothing woke the coordinator)"
+}
