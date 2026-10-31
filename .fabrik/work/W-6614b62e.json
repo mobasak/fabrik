@@ -11,7 +11,7 @@
     "plan": "",
     "spec": "docs/superpowers/specs/2026-10-30-ledger-merge-driver-design.md"
   },
-  "next": "after W-53360407 lands: probe the virtual base git hands the driver on 29c6d1da4 and design a resolver rule; ALSO (spec review round 8, recorded): the Counter B pass added to D5 must lift both its :355 builder filter and :359 clean skip, and D3's non-edit refusals must be reported beside the tripwire counter",
+  "next": "after W-53360407 lands: probe the virtual base git hands the driver on 29c6d1da4 and design a resolver rule for the two-base residue; ALSO (spec review round 8, recorded): report D3's non-edit refusals beside the tripwire counter. The Counter B pass moved into W-53360407's plan (Phase C step 2).",
   "note": "",
   "owner": "",
   "priority": 2,
