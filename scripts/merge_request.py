@@ -2734,6 +2734,14 @@ def _author_tag(requester: str | None) -> str:
     return tag if re.fullmatch(r"[a-z0-9][a-z0-9-]{0,31}", tag) and requester else ""
 
 
+def _quoted_title(item: dict) -> str:
+    """An item title as a refusal quotes it: an item filed before the id cap can carry a title of ~100 KB."""
+    title = str(item.get("title") or "")
+    if len(title) <= TITLE_QUOTED_CHARS:
+        return title
+    return f"{title[:TITLE_QUOTED_CHARS]}…(+{len(title) - TITLE_QUOTED_CHARS} chars; the item holds it whole)"
+
+
 def _after_merge_block(ctx: _Ctx, rec: dict) -> None:
     """Refuse a request whose requester authored an open after-merge red (read from the item's
     title), unless it carries that item (the fix). The refusal names the merge and the tests."""
@@ -2743,7 +2751,7 @@ def _after_merge_block(ctx: _Ctx, rec: dict) -> None:
         if who and m and _norm(m.group(1)) == who and rec.get("item") != item.get("id"):
             raise RefusedError(
                 f"{rec.get('requester')} authored the open after-merge red {item.get('id')} "
-                f"({item.get('title')}) — fix it first and request with `--item {item.get('id')}`"
+                f"({_quoted_title(item)}) — fix it first and request with `--item {item.get('id')}`"
             )
 
 
@@ -2798,9 +2806,25 @@ def _after_cause_search(ctx: _Ctx, todo: list[dict], ids: list[str], script_env:
         shutil.rmtree(parent, ignore_errors=True)
 
 
+# a red test id can be tens of KB (a parametrize id; 01M690NBSH's was ~100 KB), and the item title is
+# quoted in every refusal reply, which mail.py caps at 64 KB (W-f4ce5c6b): each id shown is cut to this,
+# the full list stays in after-merge/status.json's "red"
+ID_SHOWN_CHARS = 160
+TITLE_QUOTED_CHARS = 600
+
+
+def _short_id(nid: str) -> str:
+    if len(nid) <= ID_SHOWN_CHARS:
+        return nid
+    return f"{nid[:ID_SHOWN_CHARS]}…(+{len(nid) - ID_SHOWN_CHARS} chars)"
+
+
 def _file_after_red(main: Path, cause: dict, ids: list[str], base: str, top: str) -> str:
     """File the P0 on the cause merge's author; returns the item id, or "" with the failure said."""
-    shown = ", ".join(ids[:6]) + (f" (+{len(ids) - 6} more)" if len(ids) > 6 else "")
+    shown = ", ".join(_short_id(i) for i in ids[:6]) + (
+        f" (+{len(ids) - 6} more)" if len(ids) > 6 else ""
+    )
+    shown += f" (full ids: <git common dir>/fabrik-merge/after-merge/{AFTER_STATUS})"
     title = (
         f"after-merge red: merge {cause['merge_sha'][:12]} by {_norm(cause.get('requester') or '')} (request "
         f"{cause['id']}, branch {cause.get('branch')}) turned {shown} red, tested "
