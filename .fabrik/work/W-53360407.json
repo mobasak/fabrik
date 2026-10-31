@@ -3,7 +3,7 @@
   "created": "2026-10-30T19:34:44.706010Z",
   "creator": "coordinator",
   "effort": "high",
-  "evidence": "",
+  "evidence": "f9c815ba8fe70a8bbe274fb74c744ab5d170c752",
   "id": "W-53360407",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "infra-2",
   "priority": 0,
   "score_reason": "conflict class is 43% of refusals; structural, needs a spec; infra-2 is idle",
-  "status": "open",
+  "status": "done",
   "title": "Stop appending to shared files (operator 2026-10-30: 'fed up with merge issues'): one entry file per CHANGELOG entry and per DECISIONS row (e.g. changelog.d/<id>.md, decisions.d/<D-id>.md), rendered into CHANGELOG.md and docs/DECISIONS.md at merge by merge_request.py, so two branches never touch the same line. Measured: 22 of 51 refusals in 14 d were conflicts; CHANGELOG.md + DECISIONS.md took 1475 commits in 14 d; CHANGELOG.md is 31458 lines. New mechanism on a sync path: /fabrik-spec (Size: small) first, then the plan"
 }
