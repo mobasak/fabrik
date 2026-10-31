@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:45:03.677793Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-c268fd54",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M690SA4EDGCAWWR7XCHH49S6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "rotate kaizen — item boundary after W-b9916ab1 (D-1396 coordinator duties); merge request 01M690NBSH waiting"
+}

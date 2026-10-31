@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:24.616177Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d19bec2d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5DVSW0A421APVWSJQ1WPCD2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "GATE-SCOPE grammar has no honest form for a red that NAMES the surface but is CAUSED outside it"
+}

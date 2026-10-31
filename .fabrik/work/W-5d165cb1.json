@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:37:09.957145Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-5d165cb1",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "a wrong remedy in a refusal sends closing runs back to phase 2; one string fix plus a grader",
+  "status": "open",
+  "tags": [
+    "mail-01m5mr4c8w"
+  ],
+  "title": "task_lane.py's undeclared-path refusal prescribes `step --phase 2 --design-amend`, which moves a closing /fabrik-task run back to phase 2 (kaizen mail 01M5MR4C8W)"
+}

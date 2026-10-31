@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:00.541614Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6fa9fa22",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4YTXV0F7G8Z6G9RWVM4WGK1",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "tests/test_final_gate_stop_hook.py::test_a_coroner_reaped_nested_session_still_blocks_end_to_end went red once under a concurrent 30-file run, green alone (flake, not a defect of the hook text)"
+}

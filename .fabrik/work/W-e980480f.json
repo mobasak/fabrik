@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:05.176233Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e980480f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4ZK45CD4EZ4XJ1RCSTN5RWK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "command_run.py round: the --own-fix refusal text should say RECORDED observations folded into a diff are not own-fix"
+}

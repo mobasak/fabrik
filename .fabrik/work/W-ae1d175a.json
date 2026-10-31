@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:11.375042Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-ae1d175a",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5QSTH2D53A26524XGP2307N, validate against current master, then fix or drop (proposed score: impact low, effort low — review_receipt.py --restamp keeps the original --changed list and cannot add a pulled-in file)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "review_receipt.py --restamp keeps the original --changed list and cannot add a pulled-in file",
+  "status": "open",
+  "title": "mail 01M5QSTH2D (web-ecommerce-factory): finding (web-ecommerce-factory, wef1, /fabrik-review on W-b39748f6, 2026-10-24)"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:22.106674Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d485b3e5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5X4AQPEKV0GZQX7TBVYZFDE",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "command_rules loader: ** inside a code fence can never be pinned by a carrier phrase"
+}

@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed — master's three load-flaky tests read red no more in a busy merge leg (2026-10-31)
+The prune in-flight test aged its files from a clock captured at import, so a test run 20+ minutes into a suite
+lost its in-flight sidechain; it reads the clock at call time now. The nested-done command_run tests scanned the live
+hub on every `step` (6-14 s against a 30 s timeout); they start from their own run folder. The gate's human-vs-JSON
+test compared two live gate runs (205 s) that differ when a check times out; it renders one run's rows through both
+modes in-process (0.05 s). A merge leg no longer re-runs these on the base (D-1410, W-a9b3bc15).
+
+### Fixed — a refusal reply quoting an after-merge red no longer outgrows mail.py's 64 KB cap (2026-10-31)
+`scripts/merge_request.py` cuts each red test id shown in an after-merge red item's title to 160 characters (the full
+list stays in `after-merge/status.json`) and cuts a quoted item title to 1,500 characters and every reason, evidence and warning line a reply or ack carries to 4,000, with the whole reply bounded at 48 KB in the preflight refusal. One
+~100 KB parametrize id had made MR 01M690NBSH's reply 102 KB, so mail.py refused it and every resume retried it (W-f4ce5c6b).
+
 ### Added — merge test legs wait for room in the box's test slice instead of all running at once (2026-10-31)
 Every repo's merge legs (merge, pretest, queue child, after-merge) now take a box-wide lease and start only while
 the declared memory of the legs already running plus their own fits capped_run's 12G slice. Two to six legs had run
@@ -22,6 +34,9 @@ branch first, checks the tabbed launcher lists its grids, watches every builder 
 rebuilds every builder's NOW, DONE and NEXT from records with the hub's `agent_status.py --repo .`. The Never clause
 allows the builders' charters; the hub coordinator charter and `docs/reference/tmux-agents.md` follow (D-1404,
 W-b9916ab1). Grader: `tests/test_coordinator_duties_d1396.py`.
+
+### Fixed — `fabrik_deck.py install` turns Ubuntu's boot-time `/tmp` wipe off, so a WSL restart brings the Deck back (2026-10-31)
+Ubuntu's stock `/usr/lib/tmpfiles.d/tmp.conf` says `D /tmp 1777 root root 30d`; `D` deletes `/tmp`'s contents at boot, and with ~119 GB of agent scratch there the wipe held sysinit 9 minutes on 2026-10-31 — no user session, code-server or docker (D-1389). `install` now reads `systemd-tmpfiles --cat-config` (plain, no colours or pager), parses every line naming `/tmp` the way systemd does (quotes, `%T`, `/tmp/`), and — unless no line wiping `/tmp`'s contents as a whole at boot (`D`/`R` on `/tmp` or `/`, `r`/`R` on `/tmp/*`; the stock lines clearing one named entry under `/tmp` are not wipes) is in effect, which owes nothing — writes `/etc/tmpfiles.d/tmp.conf` = `d /tmp 1777 root root 30d` through `sudo -n install` as its LAST step and re-reads the merged config, exiting 1 with the Deck installed and the by-hand line when sudo refuses or another drop-in still carries a wipe line (measured: a wipe line in any file wipes). Before any write it refuses when a file at that path is in effect yet a wipe line remains (naming the files), and when `sudo` or `systemd-tmpfiles` is missing. `docs/workstation/fabrik-deck.md` gains § Troubleshooting (symptom, diagnose, unblock, permanent, the `.wslconfig` unknown-key cleanup). Tests: the fake-driven install paths and a real `systemd-tmpfiles --cat-config --root=` run over the stock line, the same-named shadow, a differently named drop-in, the mask and six spellings of `/tmp` (W-0c208792, D-1407).
 
 ### Changed — an account whose plan dropped the 5-hour limit reads `5h retired`, not a stale percentage (2026-10-31)
 The usage payload of an account on the plan now named Ultra can drop its `five_hour` window (sarp's did on 2026-10-31; ob, ozgurbasak, can and mob still report one). Both payload parsers in `claude_rotate.py` failed the whole reading closed on it, so the tick served sarp from a 12-hour-old cache. A payload with `five_hour: null` whose limits are a `weekly_all` entry plus only weekly kinds now reads as a retired window (0.0 plus `retired: true`): bands come from weekly and Fable, the tick's ledger row writes `session: retired` instead of a fake 0% sample, and the `QUOTA:` line prints `5h retired`, `--status` `session retired` and the :5051 dashboard `retired`. Every other null shape still fails closed; an account still reporting a 5h window behaves as before (D-1400, D-1401, W-992979e1).

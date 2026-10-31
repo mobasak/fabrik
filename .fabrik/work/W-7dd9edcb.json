@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:34.150913Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7dd9edcb",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5BRFW0K6M7VQF5YWSTEM5J4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-lib-coordinator → infra, an addendum to 01M5BKY5FZ (exa 403, firecrawl timeout): one more outbound block from this host."
+}

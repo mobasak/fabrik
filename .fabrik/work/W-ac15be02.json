@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:51:41.399650Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ac15be02",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Q6M08839MA7ARM2WS3FEYM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "RELAY — please forward to web-ecommerce-factory (agent wef1), as a follow-up to fabrik-lib's reply 01M5Q6HENQ (re their upstream-feedback 01M5Q0X6SP)."
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:49.100349Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-03f781bb",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5MT23K7BZ7S3N67RENJ51WH",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-spec-review feedback asking for code: two rows routed to infra (review_receipt.py --init for spec-review; keep RUN-SCRATCH across a handoff)"
+}

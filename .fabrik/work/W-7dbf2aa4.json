@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:27.428270Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-7dbf2aa4",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5DW207SNMHAXW8CKNK7M63F, validate against current master, then fix or drop (proposed score: impact low, effort low — two review_receipt / check_review_coverage asks from /fabrik-review feedback; small code changes)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "two review_receipt / check_review_coverage asks from /fabrik-review feedback; small code changes",
+  "status": "open",
+  "title": "mail 01M5DW207S (fabrik): Two /fabrik-review feedback rows ask for code: a by-design D-id owner must decide its residual, and review_receipt.py --init --carry <old receipt>"
+}

@@ -4,7 +4,7 @@
   ],
   "created": "2026-10-31T13:20:27.231592Z",
   "creator": "coordinator",
-  "evidence": "",
+  "evidence": "fa55adeb32b057650c43d25617260012aa72e49d",
   "id": "W-a48c0300",
   "kind": "task",
   "legacy": false,
@@ -17,7 +17,8 @@
   "note": "",
   "owner": "intel",
   "priority": 0,
-  "status": "open",
+  "resolved_by": "W-aa8c473c",
+  "status": "done",
   "tags": [
     "after-merge-red",
     "by-infra-3"

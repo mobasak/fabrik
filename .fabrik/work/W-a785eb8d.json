@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:23.971667Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a785eb8d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5XN4997CYBZ4G6XWZ2JZCFK",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "ship scripts/agent_status.py and scripts/decisions.py through the governance sync — the gate reformats the byte copies"
+}

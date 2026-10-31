@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:47:37.207421Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-a5acef37",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M59ZY4A9WEN6EZNXRSV9EKQT, validate against current master, then fix or drop",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "a stale cache re-spawns a probe per prompt; a small in-flight guard in mcp_watch.py",
+  "status": "open",
+  "title": "mail 01M59ZY4A9 (fabrik): mcp_watch.py re-spawns a full mcp_health probe on EVERY prompt while its cache is stale — no in-flight guard"
+}

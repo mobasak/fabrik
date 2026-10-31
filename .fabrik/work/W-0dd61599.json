@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:13.327218Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0dd61599",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5B9FJ7QK9DX8GQ9PGCYJG8P",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-lib gpu-rent SB-131 shipped (branch worktree-fabrik-lib-sentinel, merge request pending; fix commits b27a89c4 + 26d073d6; fabrik-lib D-483, D-485, D-490). Two things for infra."
+}

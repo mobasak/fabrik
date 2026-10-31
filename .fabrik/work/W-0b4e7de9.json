@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:53.709773Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0b4e7de9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5PHWQ56XYMHP49BQZXAPNDC",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: two /fabrik-review-scoped feedback rows ask for CODE in infra's beat; kaizen rejected them from the command's queue as misfiled and routes them here."
+}

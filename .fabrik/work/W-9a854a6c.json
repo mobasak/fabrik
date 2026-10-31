@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:39.694055Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-9a854a6c",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M64CY08Y32Y1Z84KTR1FTR64, validate against current master, then fix or drop (proposed score: impact low, effort low — fabrik-scrape's stdlib robots parser blocks pages robots.txt allows)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "fabrik-scrape's stdlib robots parser blocks pages robots.txt allows",
+  "status": "open",
+  "title": "mail 01M64CY08Y (web-ecommerce-factory): fabrik-scrape: false robots block from the stdlib parser (finding)"
+}

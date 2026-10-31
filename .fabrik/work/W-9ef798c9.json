@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:51:04.327680Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9ef798c9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5JWEH7CBCXY8NSAGABVATYB",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-lib copied the QUOTA spans (W-a784a444) — 4d65ee51"
+}

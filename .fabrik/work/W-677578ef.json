@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:53:18.732877Z",
+  "creator": "coordinator",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-677578ef",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "infra",
+  "priority": 0,
+  "score_reason": "strands every dynamic builder's merge record; the hub's merge pipeline",
+  "status": "open",
+  "tags": [
+    "merge-program"
+  ],
+  "title": "mail.py refuses a builder-<suffix> addressee ('unknown hub beat builder-tmpfix'): merge_request.py's reply to MR 01M693KZZJ (W-0c208792, merged 8dd8ca642) failed and the record is STRANDED at synced; every agents_up.sh add builder (D-1396) strands its merge the same way. Accept agents_up-registered builder names, with a grader, then resume 01M693KZZJ"
+}

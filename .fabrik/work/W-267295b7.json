@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:47.118349Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-267295b7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5FX673V3VT97KXSQNCD0VE4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: /fabrik-task feedback row 1792540709.5116584 (axis rules) asks that lane row 1b of CLAUDE.md § Orient step 0 name \"an in-process lock or cache shared across threads\" as concurrency, so `heavy=yes` is declared at `start` rather than discovered at phase 4. It is the recurrence of kaizen's held s"
+}

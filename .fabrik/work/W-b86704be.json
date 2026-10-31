@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:25.904174Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b86704be",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5XPXCFHW62HYKWE5PEX8532",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: command_run.py printed no scope-growth verdict at round 3 of a /fabrik-review-scoped run whose window was confirmed 11 → 8 → 6 with --own-fix 0 → 5 → 6 (round 3 entirely own-fix, round 2 a majority). The command text (step 5) says \"a falling count that is mostly own-fix DOES print the stop\"; n"
+}

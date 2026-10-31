@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:20.106540Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-b0fa1d6b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M581KDPMVZMF936K5KT2Y1BR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "D-958's URGENT \"park its run\" names `command_run.py handoff` in four charters, but a handoff close cannot be resumed and /fabrik-task refuses it when a review is owed"
+}

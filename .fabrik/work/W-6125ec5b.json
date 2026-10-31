@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:20.840549Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6125ec5b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5CJVXWTQTDPFFMR31H8Q6M0",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "check_citations_resolve.py: a --doc path it cannot open reads as a clean zero, and an absolute path with a dot segment is cut at the dot and counted as a foreign cite"
+}

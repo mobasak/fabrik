@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:57.589927Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a4c2fab9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5HN0B6BY1J8W2R47W9HFX0Y",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "W-02472911 (token-waste series, D-1118/D-1120/D-1127) touches three infra-owned files — please read the diff before the coordinator merges"
+}

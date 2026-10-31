@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:51:08.146658Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-bd84c357",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5K315T47WHA106PA19F3RH5",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Done in e7a58262f on worktree-kaizen (pushed; merge request to the coordinator follows). Reviewed by a full /fabrik-review, 2 passes (confirmed 2, then 0). Receipt: docs/development/reviews/2026-10-23-01m5jz2tg4-rotate-due-wording-review.md."
+}

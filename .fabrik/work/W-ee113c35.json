@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:36.816661Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-ee113c35",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5FDXKNTE0AAH55NX14P6YRK, validate against current master, then fix or drop (proposed score: impact low, effort low — --review-waived records only the lowest phase and nothing reads waived_reviews; small)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "--review-waived records only the lowest phase and nothing reads waived_reviews; small",
+  "status": "open",
+  "title": "mail 01M5FDXKNT (fabrik): command_run.py step: a --review-waived records only the lowest unreviewed phase, and nothing reads waived_reviews"
+}

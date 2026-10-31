@@ -38,7 +38,8 @@ stderr and that unit left stopped), print the board port — none when another p
 bus), so the .bat never opens a foreign page.
 
 install — the session-archive installer's steps (scripts/sysadmin/install_session_archive_timer.sh), for both units.
-Every check runs before the first write, so a refusal (exit 1) leaves every file as it was: linger must be on; `--hub`
+Every check runs before the first write, so a refusal (exit 1) leaves every file as it was (the one exception is the
+root-level /tmp step below, which runs LAST and whose refusal exits 1 with the Deck installed): linger must be on; `--hub`
 is an absolute path of letters, digits and / . _ - (ExecStart and the .bat would split or expand anything else); the
 ExecStart target and the
 code-server binary must exist (`systemd-analyze verify` cannot see either); a unit file without our marker is never
@@ -55,6 +56,23 @@ written; then, with `--desktop`, the .bat. The default only enables: the cutover
 processes in the open Deck tabs, so it is run deliberately. A unit restarts its crashed process every 10 s with no
 limit (StartLimitIntervalSec=0), but a startup failure exits 2 and RestartPreventExitStatus=2 stops it there.
 
+install also keeps the box from wiping /tmp at boot (W-0c208792, D-1389, D-1407): Ubuntu's /usr/lib/tmpfiles.d/tmp.conf
+says `D /tmp 1777 root root 30d`, and `D` deletes /tmp's contents at every boot — on 2026-10-31 that wipe of ~119 GB of
+agent scratch held sysinit 9 minutes, so no user session, code-server or docker came up and the Deck was dark. Before
+any write, install reads `systemd-tmpfiles --cat-config` (plain: no pager, colours or hyperlinks) and parses every line
+naming /tmp, a path under it or `/` as systemd would (quotes, C escapes, `%T`, `/tmp/`, `..`): no line that wipes /tmp's
+contents as a whole at boot in effect — `D` or `R` on /tmp or on `/`, `r` or `R` on a glob every direct child matches
+(`/tmp/*`); the stock lines clearing one named entry under /tmp (`D! /tmp/.X11-unix`, `R! /tmp/systemd-private-*`) are
+not wipes, each measured — owes nothing and is left alone, whoever turned it off: our `d`, another drop-in's `d`, or no
+/tmp line at all (an empty or /dev/null file at the stock name). Such a line in effect while a file at /etc/tmpfiles.d/tmp.conf is in
+effect (anyone's, or ours hand-edited) is a refusal before any write naming the files carrying those lines, like a
+foreign unit file; so is sudo or systemd-tmpfiles missing, or --cat-config failing. Otherwise, as the LAST step after
+the units, the .bat and the is-enabled lines, install writes /etc/tmpfiles.d/tmp.conf = `d /tmp 1777 root root 30d`
+through `sudo -n install -D -m 0644` (no password prompt: a headless pane would hang on one — a refusal exits 1 with the
+Deck installed and the one line to run by hand) and re-reads --cat-config: a wipe line still in effect (a differently
+named drop-in; measured, it wipes whatever else is there) exits 1 naming its file and line. The daily 30-day age cleanup
+stays; only the boot-time wipe goes.
+
 `--hub` (default /opt/fabrik, the main checkout) is where the units run this script from; after changing it, run
 `systemctl --user restart fabrik-deck-code fabrik-deck` — a running unit keeps the old path until it restarts.
 
@@ -70,8 +88,10 @@ import argparse
 import json
 import math
 import os
+import posixpath
 import pwd
 import re
+import shlex
 import shutil
 import socket
 import stat
@@ -86,6 +106,15 @@ from typing import NoReturn
 UNIT_NAME = "fabrik-deck-code.service"
 DECK_UNIT_NAME = "fabrik-deck.service"
 MARKER = "# Written by scripts/sysadmin/fabrik_deck.py install (W-e89a9b5b) — re-run it rather than editing this file."
+TMPFILES_OVERRIDE = Path("/etc/tmpfiles.d/tmp.conf")
+TMPFILES_LINE = "d /tmp 1777 root root 30d"
+TMPFILES_TEXT = (
+    f"{MARKER}\n"
+    "# Ubuntu's /usr/lib/tmpfiles.d/tmp.conf says `D /tmp …`: delete /tmp's contents at every boot. On 2026-10-31 that\n"
+    "# wipe of ~119 GB of agent scratch held sysinit 9 min — no user session, code-server or docker came up (D-1389,\n"
+    "# docs/workstation/fabrik-deck.md § Troubleshooting). `d` keeps the 30-day age cleanup and drops only the boot wipe.\n"
+    f"{TMPFILES_LINE}\n"
+)
 KEEP = (
     "HOME",
     "USER",
@@ -740,6 +769,207 @@ def _ports(env: dict[str, str], where: str, code: int) -> dict[str, int]:
     return out
 
 
+_C_ESCAPE = re.compile(
+    r"\\(?:[abfnrtv\\'\"s]|x[0-9a-fA-F]{2}|[0-3][0-7]{2}|u[0-9a-fA-F]{4}|U[0-9a-fA-F]{8})"
+)
+
+
+def _c_unescape(field: str) -> str:
+    """A tmpfiles.d field may carry C-style escapes (tmpfiles.d(5)): the set systemd's cunescape takes — `\\a \\b \\f
+    \\n \\r \\t \\v \\\\ \\" \\' \\s`, `\\xHH`, `\\OOO` (up to \\377), `\\uHHHH`, `\\UHHHHHHHH`. `D /t\\x6dp` is `D /tmp`
+    (measured to wipe); any other backslash sequence — `\\q`, `\\N{…}`, a lone trailing backslash — makes systemd reject
+    the line (measured, rc 65), so it raises ValueError and the line is skipped."""
+    if "\\" not in field:
+        return field
+    if _C_ESCAPE.sub("", field).count("\\"):
+        raise ValueError(f"escape systemd rejects in {field!r}")
+    field = _C_ESCAPE.sub(lambda m: " " if m.group(0) == "\\s" else m.group(0), field)
+    return field.encode("latin-1", "backslashreplace").decode("unicode_escape")
+
+
+def _fields(line: str) -> list[str]:
+    """A tmpfiles.d line's fields: shell-like quoting, then C-style escapes — shlex's own backslash handling is off, or
+    it would eat the escape before _c_unescape reads it. Raises ValueError on an unmatched quote, like shlex.split, and
+    on an escape systemd rejects."""
+    lex = shlex.shlex(line, posix=True)
+    lex.whitespace_split = True
+    lex.escape = ""
+    lex.commenters = ""
+    return [_c_unescape(part) for part in lex]
+
+
+def _tmp_lines(cat_config: str) -> list[tuple[str, str, str, str]]:
+    """Every tmpfiles.d line naming /tmp, a path under it, or `/` in `systemd-tmpfiles --cat-config` output, as (file,
+    line, type, path): the file is the `# <…/tmpfiles.d/…>.conf` header --cat-config prints before each file it reads
+    (tmpfiles.d(5); the name may hold a space; the first line, or one after the blank line that separates files), the
+    type is the first field with its quotes removed, the path is the second field as systemd reads it — shell-like
+    quoting of any field, C-style escapes, the `%T` specifier (= /tmp, alone or as a prefix), `/tmp/`, `//tmp`,
+    `/tmp/.`, `/./tmp` and `/tmp/x/..` normalised to /tmp, `/tmp/..` to `/` (systemd resolves `..` through the
+    filesystem, so `D /tmp/claude-1000/..` wipes /tmp, `D /tmp/..` wipes the whole root, /tmp included, and
+    `D /tmp/x/..` with no x is ignored; all count here, the last a refusal on a line systemd ignores, never a wrong
+    write). A line systemd rejects — one shlex cannot split, an escape it does not take, a relative path — is not a
+    /tmp line (each measured not to wipe)."""
+    out: list[tuple[str, str, str, str]] = []
+    current = "?"
+    prev_blank = True
+    for raw in cat_config.splitlines():
+        line = raw.strip()
+        if not line:
+            prev_blank = True
+            continue
+        if (
+            prev_blank
+            and line.startswith("# /")
+            and "/tmpfiles.d/" in line
+            and line.endswith(".conf")
+        ):
+            current = line[
+                2:
+            ]  # a file header: every tmpfiles.d search dir ends in tmpfiles.d/, no comment need
+            prev_blank = False
+            continue
+        prev_blank = False
+        if line.startswith("#"):
+            continue
+        try:
+            parts = _fields(line)
+        except ValueError:
+            continue  # systemd rejects the line too (measured)
+        if len(parts) < 2:
+            continue
+        path = parts[1]
+        if path.startswith("%T"):
+            path = "/tmp" + path[2:]
+        if not path.startswith("/"):
+            continue
+        path = "/" + posixpath.normpath(path).lstrip("/")  # normpath keeps a leading `//`
+        if path in ("/", "/tmp") or path.startswith("/tmp/"):
+            out.append((current, line, parts[0], path))
+    return out
+
+
+_ALL_CHILDREN = re.compile(
+    r"^[*?]*\*[*?]*$"
+)  # `*`, `?*`, `*?`, `**`: a glob every direct child matches
+
+
+def _tmp_wipe_lines(cat_config: str) -> list[tuple[str, str]]:
+    """The lines that delete /tmp's contents as a whole at boot, as (file, line): `D` (clear the directory) or `R`
+    (remove recursively) on /tmp itself or on `/` (its parent — `D /tmp/..` is `D /`, measured to empty the root), and
+    `r` or `R` on a glob every direct child of /tmp matches (`/tmp/*`, `/tmp/?*`). NOT a wipe, by measurement and by
+    what stock Ubuntu ships: a line clearing one named entry or a narrower pattern under /tmp — snapd's
+    `D! /tmp/snap-private-tmp`, systemd's `R! /tmp/systemd-private-*`, x11's `D! /tmp/.X11-unix` and
+    `r! /tmp/.X[0-9]*-lock` ship in /usr/lib/tmpfiles.d on every Ubuntu box (in effect unless a same-named file in
+    /run or /etc shadows them — WSL's /run/tmpfiles.d/x11.conf does) while its /tmp survives a boot; `D /tmp/*` (a glob with
+    D), `R /tmp/.*`, `R /tmp/*.txt`, `r /tmp` (refuses a non-empty directory) and `e /tmp` leave the contents too.
+    Measured 2026-10-31 (systemd 255, `--remove --boot --root=<staged tree>`, 52 trees): a wipe line in ANY file
+    removes, whatever other `/tmp` lines exist and whichever file sorts first, so the wipe is off only when none is
+    in effect. Cobra (D-253): a rule counting every removal under /tmp read the live box as wiped and would have
+    refused install on every Ubuntu box — the live population, not the man page, drew this line."""
+    out = []
+    for f, line, kind, path in _tmp_lines(cat_config):
+        letter = kind[:1]
+        child = path[len("/tmp/") :] if path.startswith("/tmp/") else None
+        if (letter in ("D", "R") and path in ("/", "/tmp")) or (
+            letter in ("r", "R") and child is not None and _ALL_CHILDREN.match(child)
+        ):
+            out.append((f, line))
+    return out
+
+
+def _tmp_boot_wipe_off(cat_config: str) -> bool:
+    """True when no line wiping /tmp's contents at boot (_tmp_wipe_lines) is in effect: our `d` line, another drop-in's
+    `d`, or no /tmp line at all (an empty or `/dev/null` file at the stock name masks it, tmpfiles.d(5)) all leave
+    /tmp alone at boot."""
+    return not _tmp_wipe_lines(cat_config)
+
+
+def _tmpfiles_plan(cat_config: str) -> str:
+    """What install owes /etc/tmpfiles.d/tmp.conf, read from `systemd-tmpfiles --cat-config` alone: `off` (nothing —
+    no wipe line (_tmp_wipe_lines) is in effect, whoever turned it off), `write` (a wipe line is in effect and no file
+    at that path is), or `foreign` (a wipe line is in effect although a file at that path is in effect — somebody's, or
+    ours hand-edited — refused, never overwritten; the refusal names the files carrying the wipe lines). --cat-config
+    prints each file it reads as a `# <path>` comment before its lines (tmpfiles.d(5))."""
+    if _tmp_boot_wipe_off(cat_config):
+        return "off"
+    for line in cat_config.splitlines():
+        line = line.strip()
+        if line.startswith("# /") and line.endswith(str(TMPFILES_OVERRIDE)):
+            return "foreign"  # endswith, so a `--root=DIR` run (the tests) reads like the live one
+    return "write"
+
+
+def _tmpfiles_cat(code: int, where: str) -> str:
+    """`systemd-tmpfiles --cat-config`, plain: no pager, no colour or hyperlink escapes around the `# <file>` headers
+    (SYSTEMD_COLORS=1 would wrap them and hide every header from _tmpfiles_plan)."""
+    env = {**os.environ, "SYSTEMD_COLORS": "0", "SYSTEMD_URLIFY": "0", "SYSTEMD_PAGER": ""}
+    r = subprocess.run(
+        ["systemd-tmpfiles", "--cat-config", "--no-pager"], capture_output=True, text=True, env=env
+    )
+    if r.returncode != 0:
+        _die(
+            code,
+            f"systemd-tmpfiles --cat-config failed {where} (rc {r.returncode}): {r.stderr.strip()}",
+        )
+    return r.stdout
+
+
+def _wipe_text(lines: list[tuple[str, str]]) -> str:
+    return "; ".join(f"{f}: {line}" for f, line in lines)
+
+
+BY_HAND = f"printf '%s\\n' '{TMPFILES_LINE}' | sudo tee {TMPFILES_OVERRIDE}"
+
+
+def _tmpfiles_override() -> None:
+    """Write TMPFILES_TEXT to /etc/tmpfiles.d/tmp.conf through `sudo -n` (never a password prompt: a headless pane
+    would hang on it), then prove no wipe line (_tmp_wipe_lines) is left in the merged config."""
+    fd, staged = tempfile.mkstemp(suffix=".conf")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(TMPFILES_TEXT)
+        cmd = [
+            "sudo",
+            "-n",
+            "install",
+            "-D",
+            "-m",
+            "0644",
+            "-o",
+            "root",
+            "-g",
+            "root",
+            staged,
+            str(TMPFILES_OVERRIDE),
+        ]
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        except subprocess.TimeoutExpired:
+            _die(
+                1,
+                f"sudo did not return within 120 s — the Deck is installed, but /tmp is still wiped at boot; run `{BY_HAND}` by hand",
+            )
+        if r.returncode != 0:
+            _die(
+                1,
+                f"{' '.join(cmd[:-2])} <staged> {TMPFILES_OVERRIDE} failed (rc {r.returncode}): "
+                f"{r.stderr.strip() or 'no stderr'} — the Deck is installed, but /tmp is still wiped at boot; run "
+                f"`{BY_HAND}` by hand, then re-run install to prove it",
+            )
+    finally:
+        Path(staged).unlink(missing_ok=True)
+    left = _tmp_wipe_lines(_tmpfiles_cat(1, f"after writing {TMPFILES_OVERRIDE}"))
+    if left:
+        _die(
+            1,
+            f"{TMPFILES_OVERRIDE} written, but systemd-tmpfiles --cat-config still carries a boot-time wipe of /tmp — "
+            f"{_wipe_text(left)} — remove that line (or its file), then re-run install to prove it",
+        )
+    print(
+        f"fabrik_deck: wrote {TMPFILES_OVERRIDE} — /tmp is no longer wiped at boot ({TMPFILES_LINE})"
+    )
+
+
 def _hub_check(hub: Path, code: int) -> None:
     """The hub path reaches a unit's ExecStart (systemd splits on spaces, expands % and $) and the .bat's `for /f`
     line (cmd splits on & | < > ^ ( ) and expands %), unquoted in both; only plain path characters pass."""
@@ -1076,6 +1306,19 @@ def install(hub: Path, start: bool, desktop: Path | None, distro: str, browser: 
                     1,
                     f"127.0.0.1:{ports[unit]} is already in use — stop the process holding it, then re-run with --start",
                 )
+    cat_config = _tmpfiles_cat(1, "before any write")
+    tmpfiles = _tmpfiles_plan(cat_config)
+    if tmpfiles == "foreign":
+        _die(
+            1,
+            f"/tmp is still wiped at boot ({_wipe_text(_tmp_wipe_lines(cat_config))}) while {TMPFILES_OVERRIDE} is "
+            "in effect — not this script's file to rewrite; remove that line (or its file) first",
+        )
+    if tmpfiles == "write" and shutil.which("sudo") is None:
+        _die(
+            1,
+            f"/tmp is wiped at boot and sudo is not installed — as root, run `{BY_HAND}`, then re-run install",
+        )
 
     new_config = _config_yaml_text(old_config, ports[UNIT_NAME])
     settings_text = _profile_text(settings)
@@ -1109,6 +1352,10 @@ def install(hub: Path, start: bool, desktop: Path | None, distro: str, browser: 
             ["systemctl", "--user", "is-enabled", unit], capture_output=True, text=True
         )
         print(f"{unit}: {r.stdout.strip() or r.stderr.strip()}")
+    if (
+        tmpfiles == "write"
+    ):  # last: the one root-level step; a refused sudo leaves the whole Deck install complete
+        _tmpfiles_override()
 
 
 def _distro(explicit: str | None, code: int) -> str:
@@ -1210,8 +1457,9 @@ def main(argv: list[str] | None = None) -> None:
     elif args.cmd == "up":
         up(args.runtime_dir)
     else:
-        if shutil.which("systemd-analyze") is None:
-            _die(1, "systemd-analyze is not installed")
+        for tool in ("systemd-analyze", "systemd-tmpfiles"):
+            if shutil.which(tool) is None:
+                _die(1, f"{tool} is not installed")
         distro = _distro(args.distro, 1) if args.desktop is not None else ""
         install(args.hub.resolve(), args.start, args.desktop, distro, args.browser)
 

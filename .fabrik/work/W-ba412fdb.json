@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:51:43.944190Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ba412fdb",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5QC53J3SG1W21WG9TWYEA0F",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "brave-search MCP key invalid (HTTP 422) while mcp_health.py reports it CONNECTED"
+}

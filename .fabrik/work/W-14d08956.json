@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:16.378502Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-14d08956",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M57G442K5CEZG5SVXZNVT22W",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Two /fabrik-review-scoped feedback rows need code — quota hold refuses SubagentHandback (quota_stop.py:64); round accepts a delta round missing --own-fix"
+}

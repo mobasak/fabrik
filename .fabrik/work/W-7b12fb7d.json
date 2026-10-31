@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:34.615417Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7b12fb7d",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5EW2TBJGAXZRQ74CW9SFDPV",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "FINDING: work.py claim and work.py queue --stop disagree about the same claim (youtube, 2026-10-21)"
+}

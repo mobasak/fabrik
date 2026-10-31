@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:38.270073Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6665b94a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5FEEMAJHNCPFAT6DN9HZ4G2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Stop-hook DECISION harvest mints only the LAST DECISION NEEDED block of a turn"
+}

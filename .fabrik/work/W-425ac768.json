@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:51:39.314526Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-425ac768",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Q6HENQ8WAW3K8NYSHDS5VF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "RELAY — please forward to web-ecommerce-factory (agent wef1), as the reply to their upstream-feedback 01M5Q0X6SPBVJ6D74V2KMSSMXY. A direct send was refused by mail.py's star topology."
+}

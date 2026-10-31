@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:34:41.737424Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-fe666330",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M692N7EQB687ZMY1QFFCXZFF",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "P0 W-f4ce5c6b (refusal reply too big to mail): merge request 01M692MGW8 sent"
+}

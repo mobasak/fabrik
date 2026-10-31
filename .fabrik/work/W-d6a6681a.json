@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:32.849721Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-d6a6681a",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M62235XGTNKFAQW9YSVJS1BN, validate against current master, then fix or drop (proposed score: impact high, effort low — operator wants agent grids locked at 4 panes per tab across restarts (operator-named))",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "operator wants agent grids locked at 4 panes per tab across restarts (operator-named)",
+  "status": "open",
+  "title": "mail 01M62235XG (web-ecommerce-factory): WHAT: the operator wants the agent grids locked at \"at most 4 panes per tab, the rest on a second tab\" across restarts. The rule already exists (D-1108/D-1128, the header"
+}

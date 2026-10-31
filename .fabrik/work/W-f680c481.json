@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:37.137803Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f680c481",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M64599DPHTB8ZBGXCT9ZH2FG, validate against current master, then fix or drop (proposed score: impact low, effort low — the feedback owner never gets the work: coordinator → SendMessage line)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "the feedback owner never gets the work: coordinator → SendMessage line",
+  "status": "open",
+  "title": "mail 01M64599DP (fabrik): The feedback owner never gets the `work: coordinator (…) → SendMessage to=` line (W-9bf5a363 follow-up)"
+}

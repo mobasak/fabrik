@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:35.206937Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-da287788",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5EW2TBJGAXZRQ74CW9SFDPV, validate against current master, then fix or drop (proposed score: impact low, effort low — work.py claim and queue --stop disagree about one claim; a reader alignment)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "work.py claim and queue --stop disagree about one claim; a reader alignment",
+  "status": "open",
+  "title": "mail 01M5EW2TBJ (youtube): FINDING: work.py claim and work.py queue --stop disagree about the same claim (youtube, 2026-10-21)"
+}

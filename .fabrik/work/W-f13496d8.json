@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:53.811822Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-f13496d8",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M6929A9Z8BZZ7D2VMQPBJMT7, validate against current master, then fix or drop (proposed score: impact high, effort low — FABRIK_MERGE_TESTS_BASE leaks into the after-merge leg's pytest shards; every such leg mis-selects)",
+  "note": "",
+  "owner": "intel",
+  "priority": 0,
+  "score_reason": "FABRIK_MERGE_TESTS_BASE leaks into the after-merge leg's pytest shards; every such leg mis-selects",
+  "status": "open",
+  "tags": [
+    "merge-program"
+  ],
+  "title": "mail 01M6929A9Z (fabrik): the after-merge leg's FABRIK_MERGE_TESTS_BASE leaked into its pytest shards — every after-merge leg selecting the selector tests read red (W-aa8c473c)"
+}

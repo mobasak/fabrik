@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:47:36.783436Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-ec68cb6c",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M59ZY4A9WEN6EZNXRSV9EKQT",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "mcp_watch.py re-spawns a full mcp_health probe on EVERY prompt while its cache is stale — no in-flight guard"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:19.458676Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-846523cb",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5CGHB14NE3P6RRV4THM61B7, validate against current master, then fix or drop (proposed score: impact high, effort low — same-day same-number plans satisfy each other's phase receipts, so an unreviewed phase can pass; a key fix in _phase_review_exists)",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "same-day same-number plans satisfy each other's phase receipts, so an unreviewed phase can pass; a key fix in _phase_review_exists",
+  "status": "open",
+  "title": "mail 01M5CGHB14 (fabrik): command_run.py _phase_review_exists: same-day, same-number plans satisfy each other's phase receipts; the \"0 collisions among those 110\" comment is stale"
+}

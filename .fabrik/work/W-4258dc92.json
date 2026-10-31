@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:34.694404Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-4258dc92",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M623VFHRDV7X8ZMCZ6BFZ31M, validate against current master, then fix or drop (proposed score: impact low, effort low — a worktree session has two scratch roots and the review machinery splits across them)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "a worktree session has two scratch roots and the review machinery splits across them",
+  "status": "open",
+  "title": "mail 01M623VFHR (web-ecommerce-factory): WHAT: a worktree session has TWO scratch roots and the review machinery splits across them — the harness's session scratchpad is /tmp/claude-1000/-opt-web-ecommerce-facto"
+}

@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:17.268539Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-7656907c",
+  "impact": "low",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5BPMYXB5APEF98RQ6PPQ5FZ, validate against current master, then fix or drop (proposed score: impact low, effort low — a false NOT APPLICABLE line in check_imports_resolvable.py on library layouts; a message fix)",
+  "note": "",
+  "owner": "infra",
+  "priority": 3,
+  "score_reason": "a false NOT APPLICABLE line in check_imports_resolvable.py on library layouts; a message fix",
+  "status": "open",
+  "title": "mail 01M5BPMYXB (fabrik-lib): WHAT: scripts/enforcement/check_imports_resolvable.py prints \"NOT APPLICABLE: none of src/app/tests exist in this repo — nothing was checked for phantom imports\" even whe"
+}

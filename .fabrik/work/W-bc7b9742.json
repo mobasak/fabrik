@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:51:13.197446Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-bc7b9742",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5KEBNAMKXBDG18D78WYX4RX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "master red — tests/test_hub_write_root.py flags scripts/sysadmin/rotate_session.py (a hard-coded hub write root)"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:41.022364Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-032f0926",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M64EC373YNRR74NGM6M435DW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "dispatch_headroom's 25-minute sibling reservation expires under a long max_seats review-loop run (W-bc394d0b, D-1354)"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:53.261061Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3eb9af89",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M6929A9Z8BZZ7D2VMQPBJMT7",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "the after-merge leg's FABRIK_MERGE_TESTS_BASE leaked into its pytest shards — every after-merge leg selecting the selector tests read red (W-aa8c473c)"
+}

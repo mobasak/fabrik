@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:44:46.204321Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-5786ea15",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M6934T5BM05GBFCNGW9MQAG2",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "infra: W-fbd1d4b9 closed (b6bd92c40); idle, no P0 left"
+}

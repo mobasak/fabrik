@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:53:47.739786Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-62477eb0",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68PAE7844JJPVGGVMHBSBP9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Follow-up to 01M68KA2EC: two more capped_run.sh exits a review seat cannot tell from a test result."
+}

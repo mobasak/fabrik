@@ -1,0 +1,23 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:33.368601Z",
+  "creator": "infra",
+  "effort": "low",
+  "evidence": "",
+  "id": "W-0f30913e",
+  "impact": "high",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5DXADV4396Q8ZP4A5BH6MD8, validate against current master, then fix or drop (proposed score: impact high, effort low — a synced checker reads the wrong path and reports clean fleet-wide; a path fix with a grader)",
+  "note": "",
+  "owner": "infra",
+  "priority": 1,
+  "score_reason": "a synced checker reads the wrong path and reports clean fleet-wide; a path fix with a grader",
+  "status": "open",
+  "title": "mail 01M5DXADV4 (youtube): Synced checker false-clean: scripts/enforcement/check_data_contract_legend.py takes a REPO ROOT and reads <root>/docs/data-contract.md. Given a FILE path (python3 scripts"
+}

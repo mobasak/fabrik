@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:36:44.640898Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-b8df5d41",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M692Q0TT9ZEDGYNFXCEMQEVC",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "infra: mail 01M5MR4C8W held unclaimed under the P0-only pause (D-1367)"
+}
