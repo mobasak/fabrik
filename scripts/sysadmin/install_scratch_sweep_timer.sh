@@ -13,7 +13,7 @@
 #   2. the janitor the unit's ExecStart= names must exist;
 #   3. systemd-analyze --user verify both units, refusing ANY output (a misplaced key is only a warning at rc 0);
 #   4. copy them to ~/.config/systemd/user/, daemon-reload, enable, restart, and require the timer `active` —
-#      a timer that is not is disabled again, leaving cron as it was.
+#      any of those failing disables the timer again, leaving cron as it was.
 # Deletes nothing; never reads or writes the crontab.
 set -euo pipefail
 
@@ -50,14 +50,19 @@ fi
 mkdir -p "$dest"
 install -m 0644 "$units/scratch-sweep.service" "$dest/scratch-sweep.service"
 install -m 0644 "$units/scratch-sweep.timer" "$dest/scratch-sweep.timer"
-systemctl --user daemon-reload
-systemctl --user enable scratch-sweep.timer
-systemctl --user restart scratch-sweep.timer
-active="$(systemctl --user is-active scratch-sweep.timer 2>/dev/null || true)"
-if [ "$active" != "active" ]; then
-  echo "$me: scratch-sweep.timer is '${active:-no answer}', not active — disabling it again; cron's 04:20 line still runs the janitor." >&2
+# From here a failing step never ends the script through `set -e` with the timer enabled: each one
+# disables it again, so cron's 04:20 line stays the one scheduler, and says so.
+rollback() {
+  echo "$me: $1 — disabling the timer again; cron's 04:20 line still runs the janitor." >&2
   $undo || echo "$me: the disable failed too — run by hand: $undo" >&2
   exit 1
+}
+systemctl --user daemon-reload || rollback "daemon-reload failed"
+systemctl --user enable scratch-sweep.timer || rollback "enable failed"
+systemctl --user restart scratch-sweep.timer || rollback "restart failed"
+active="$(systemctl --user is-active scratch-sweep.timer 2>/dev/null || true)"
+if [ "$active" != "active" ]; then
+  rollback "scratch-sweep.timer is '${active:-no answer}', not active"
 fi
 systemctl --user list-timers scratch-sweep.timer --no-pager || true  # information only
 echo "$me: the janitor now runs hourly at :20 (journalctl --user -u scratch-sweep.service); cron's 04:20 line stays as the fallback."

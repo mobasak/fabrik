@@ -73,6 +73,7 @@ def _world(
     tmp_path: Path,
     *,
     linger: str = "Linger=yes",
+    loginctl_rc: int = 0,
     verify_says: str = "",
     verify_rc: int = 0,
     active: str = "active",
@@ -93,11 +94,11 @@ def _world(
     bin_ = tmp_path / "ibin"
     bin_.mkdir()
     stubs = {
-        "loginctl": f"echo {linger}",
+        "loginctl": f"echo {linger}\nexit {loginctl_rc}",
         "systemctl": (
             f'echo "systemctl $*" >> "{log}"\n'
             + (f'case "$*" in *"{fails}"*) exit 1;; esac\n' if fails else "")
-            + f'case "$*" in *is-active*) echo {active};; esac'
+            + f'case "$*" in *is-active*) echo {active}; [ "{active}" = active ] || exit 3;; esac'
         ),
         "systemd-analyze": f'echo "verify $*" >> "{log}"\nprintf "%s" "{verify_says}"\nexit {verify_rc}',
         "crontab": f'echo "crontab $*" >> "{log}"\nexit 99',
@@ -180,6 +181,32 @@ def test_a_missing_janitor_refuses_before_any_systemctl_call(tmp_path: Path) -> 
     assert r.returncode == 1 and "does not exist" in r.stderr, r.stderr
     assert not _installed(tmp_path)
     assert not any(c.startswith("systemctl") for c in _calls(log))
+
+
+@pytest.mark.parametrize(
+    "step", ["daemon-reload", "enable scratch-sweep.timer", "restart scratch-sweep.timer"]
+)
+def test_a_failing_manager_step_disables_the_timer_again(tmp_path: Path, step: str) -> None:
+    """`set -e` must never end the installer with the timer enabled and nothing said."""
+    root, env, log = _world(tmp_path, fails=step)
+    r = _install(root, env)
+    assert r.returncode == 1
+    assert "failed" in r.stderr and "cron's 04:20 line still runs" in r.stderr, r.stderr
+    assert UNDO in _calls(log)
+
+
+def test_a_failing_loginctl_refuses_with_the_linger_hint(tmp_path: Path) -> None:
+    root, env, log = _world(tmp_path, linger="", loginctl_rc=1)
+    r = _install(root, env)
+    assert r.returncode == 1 and "linger" in r.stderr, r.stderr
+    assert not any(c.startswith("systemctl") for c in _calls(log))
+
+
+def test_the_installer_names_crontab_only_in_comments() -> None:
+    """The fallback holds only if no line runs `crontab` — by bare name or by absolute path,
+    which the PATH stubs would not catch."""
+    code = [ln for ln in INSTALLER.read_text().splitlines() if not ln.lstrip().startswith("#")]
+    assert not [ln for ln in code if "crontab" in ln], code
 
 
 def test_a_timer_that_is_not_active_is_disabled_again(tmp_path: Path) -> None:
