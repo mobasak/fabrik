@@ -3,7 +3,7 @@
   "created": "2026-10-30T19:34:44.465229Z",
   "creator": "coordinator",
   "effort": "low",
-  "evidence": "",
+  "evidence": "4c761ead44192f430b86ad6c2fa3a50f59b77609",
   "id": "W-527c1ce0",
   "impact": "high",
   "kind": "task",
@@ -18,6 +18,6 @@
   "owner": "fleet",
   "priority": 1,
   "score_reason": "merge program tonight; infra is on the valve, fleet is idle",
-  "status": "open",
+  "status": "done",
   "title": "Short-lived branches, enforced (operator 2026-10-30: 'fed up with merge issues'): merge_request.py request refuses a branch more than ~50 commits behind master until the builder merges master in (never rebase, pushed branch), with the exact command in the refusal; builders merge master at every item boundary (template + hub CLAUDE.md § EXIT line). Measured: infra's branch 2770 behind, fleet 649, intel 302, infra-2 246; 25 of 51 refusals in 14 d were red tests on a stale base"
 }
