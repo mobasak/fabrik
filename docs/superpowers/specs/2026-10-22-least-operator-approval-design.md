@@ -185,8 +185,8 @@ in both files. The plan's Phase B hook (D5) reads the same five label tokens; no
   such a block's Why line …" becomes "The operator alone decides the rest — every gate act not handed to the panel above, a
   panel class whose condition fails included — and such a block's Why line …", and the last token's gloss "`unbacked`
   (deleting data with no backup)" becomes "`unbacked` (an act the panel's class list above does not cover — a deploy without a
-  rollback, a window that does not dump first or does not keep the old volume, a host, target or class no panel sentence
-  names, deleting data with no backup)". Hub
+  rollback, a window that does not dump first or does not keep the old volume, a fleet-minted credential without a rollback,
+  a host, target or class that list does not name, deleting data with no backup)". Hub
   § Autonomy "and so do the gate classes § FINAL OUTPUT keeps for the operator" becomes "and so does every gate § FINAL
   OUTPUT does not hand to the panel". A failed condition then has a token, and a gate class added later with no panel
   sentence is the operator's by default.
@@ -194,32 +194,43 @@ in both files. The plan's Phase B hook (D5) reads the same five label tokens; no
   recommendation; briefs and returns in kaizen's run scratch): A — one residual rule and a widened `unbacked` (no new
   token); B — a sixth token `unconditioned`; C — one failure sentence per panel class, no general rule. Two judges ranked
   A > B > C ("closes both gaps with one generic sentence and no hook or test work"; "its residual rule routes any future
-  class"); one ranked B > A > C ("A overloads `unbacked`"). The dissent's gap is folded: the gloss names the three
+  class"); one ranked B > A > C ("A overloads `unbacked`"). The dissent's gap is folded: the gloss names the
   failure kinds it now covers, so a reader of the label is not left with "deletion" alone. C fails both: § Autonomy stays
   open and a new class is unrouted.
 - **R2 (I15) — the panel's procedure, in the twin paragraph.** After "… its block carrying the `Panel:` line." add: "The
   panel is two `fabrik-reviewer` seats dispatched in ONE message, one `model: "opus"` and one `model: "fable"`, the same
   brief, neither shown the other's answer; the builder dispatches it (its coordinator, when the builder cannot), takes no
-  part in the verdict, and acts only after a coordinator validates both reports against the repo and the box." The hub's
+  part in the verdict, and — for every class but a design or plan approval (never a deploy's Gate 2), whose review command
+  records the verdict itself — acts only after a coordinator validates both reports against the repo and the box; when Fable is unavailable,
+  a second, distinct Opus seat stands in and the `Panel:` line adds `fable unavailable: <reason>`." The design and plan
+  exception matches `commands/_fragments/design-gate-panel.md` steps 1-5, which carry no coordinator step; the stand-in
+  is that fragment's step 1 (D-613), which the hook already accepts on any panel line
+  (`.claude/hooks/final_gate_stop.py:4220-4221`). No D-id enters the twin paragraph (the twin test allows only D-054). The hub § Autonomy's Phase A clause "and a
+  coordinator validates its two reports against the repo and the box before acting on them" (`CLAUDE.md:695`) takes the
+  same exception: "and, for every class but a design or plan approval (never a deploy's Gate 2), a coordinator validates
+  its two reports against the repo and the box before acting on them". The hub's
   § Autonomy keeps its own copy of the dispatch (it also stamps `dispatch --seats 2`); the template had none (A-C3).
 - **R3 (I16) — customer-facing is about users, not the flag.** "A target is customer-facing when its service spec says
   `is_public: true` and its users are not us" becomes "A target is customer-facing when people who are not us use it or
   receive what it sends, whatever its `is_public:` says — a worker, a token-gated API or a signed-in app that reaches them
-  included"; Phase A's parenthetical after it, "(our own public docs site is our own surface)", stays and is the one
-  exception. Census (executed 2026-10-31, `command grep -l "is_public:" specs/services/*.yaml`): 69 service specs, 59
+  included"; Phase A's parenthetical after it, "(our own public docs site is our own surface)", becomes "(the
+  platform's own public docs site is our own surface; a product's docs, which its customers read, are not)" — the template
+  is every project's contract, where "our own public docs site" would otherwise read as the product's customer docs. Census (executed 2026-10-31, `command grep -l "is_public:" specs/services/*.yaml`): 69 service specs, 59
   carry an `is_public:` key, 12 say `false` — among them `specs/services/whatsapp-agent.yaml` and
   `specs/services/evolution-api.yaml`, which message real people.
 - **R4 (I17) — own surface vs `public`.** The `public` token's gloss takes the same one exception, so the docs site
   matches only "our own surfaces": "`public` (publishing to customers or the public, a customer-facing production deploy
-  included)" becomes "`public` (publishing to customers or the public, a customer-facing production deploy included, our
-  own public docs site excepted)". A customer-facing app on our own VPS stays `public` — rollback or not.
+  included)" becomes "`public` (publishing to customers or the public, a customer-facing production deploy included, the
+  platform's own public docs site excepted)". A customer-facing app on our own VPS stays `public` — rollback or not.
 - **R5 (I18) — `operator-minted` narrowed.** "`operator-minted` (credentials, or an act at a third-party dashboard, email
   verification or payment provider, only the operator can perform)" becomes "`operator-minted` (a credential or act only
   the operator can perform — at a third-party dashboard, an email verification or a payment provider; never a credential
   the fleet mints itself)".
 - **R6 (I19) — irreversible defined.** "and every irreversible act always, label or not" becomes "and every irreversible
   act — one no verified backup, dump or rollback undoes — always, label or not". A backed-up volume delete or a branch
-  discard whose tip is pushed or kept in a `refs/wip/*` ref is reversible and stays on the panel list; its Why line names
+  discard whose tip is pushed or kept in a `refs/wip/*` ref is reversible and stays on the panel list, so the twin's
+  "(the ad-hoc-branch disposition included)" becomes "(the ad-hoc-branch disposition included, its tip pushed or kept
+  under `refs/wip/*`)"; its Why line names
   no irreversible act (the hook matches the word anywhere on that line, D5).
 - **R7 (I20) — the volume HARD STOP meets D1.** Both contracts' row (`CLAUDE.md:347`, `templates/governance/CLAUDE.md:322`)
   "→ even a provably-throwaway set is deleted only as an explicit id list on the operator's word." becomes "→ even a
@@ -229,9 +240,11 @@ in both files. The plan's Phase B hook (D5) reads the same five label tokens; no
 - **R8 (I21) — the panel unavailable.** Add to the twin paragraph after R2's sentence: "While `Agent` is held (band RED or
   the wall) no panel sits: a gate it would decide waits for the band to lift, and only a P0 act that cannot wait goes to
   the operator through a coordinator, its block carrying `Panel: unavailable (band RED)`; a RED on this account's own
-  Fable window alone is lifted by pinning another account, never waited out." Waiting, not escalating, is the default
-  because RED already means start nothing new (`CLAUDE.md` § Pointers, the quota bands); the Fable case follows that
-  section's pin rule (D-295). The hook already accepts `Panel: unavailable` on any panel-checked block at RED/WALL only
+  Fable window alone is never waited out: § Pointers' pin rule relaunches the session on another account." Waiting, not
+  escalating, is the default because RED already means start nothing new (`CLAUDE.md` § Pointers, the quota bands); the
+  Fable case points at that section's own sentence, "the remedy is a pin, never a wait (D-295)" (`CLAUDE.md:469`,
+  `templates/governance/CLAUDE.md:485`), rather than restating it. A session not on a Fable model is never held by a
+  Fable reading, so its panel takes R2's Opus stand-in instead. The hook already accepts `Panel: unavailable` on any panel-checked block at RED/WALL only
   (`.claude/hooks/final_gate_stop.py:4228-4231`, ahead of its outcomes check), so the P0 route needs no Phase B change.
 - **R9 (I22) — the ceiling's home.** "spend inside a ceiling the operator sets (none while it is 0)" becomes "spend inside
   a ceiling the operator sets (written into this sentence when they rule it; none while it is 0)" — the paragraph is the
@@ -255,7 +268,8 @@ in both files. The plan's Phase B hook (D5) reads the same five label tokens; no
   (`CLAUDE.md:695`).
 - **R13 (I29) — the Gate 2 panel's brief.** `commands/_sources/fabrik-deploy-plan-review.md:117` "the brief states the
   target's `is_public:` value" → "the brief states the target's `is_public:` value, who uses it or receives what it
-  sends, and the open P2/P3 rows of the newest certification handoff report `/fabrik-release` reads, or `none`" (the
+  sends, and the open P2/P3 rows of the newest certification handoff report `/fabrik-release` reads, or `none`; an agreeing panel's go is
+  the panel's explicit accept of those rows" (the
   report `commands/_sources/fabrik-release.md:26-28` reads; no spec R-id or line cite enters the command text). The release's console WARN list is not durable; the report
   it was printed from is.
 
