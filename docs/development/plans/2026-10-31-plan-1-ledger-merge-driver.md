@@ -48,7 +48,7 @@ About 60 code lines over 3 code files, executed inline by the orchestrator (`/fa
 | Every code-shipping ticket must produce exactly one entry. | `.windsurf/rules/core/40-documentation.md:134` |
 | Format: Entry under ## [Unreleased] | `.windsurf/rules/core/40-documentation.md:132` |
 
-## Phase A — the `merge-ledger` verb
+## Phase A — the `merge-ledger` verb — ✅ EXECUTED 2026-10-31 (705576389)
 
 Appetite: 40
 

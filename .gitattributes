@@ -1,3 +1,9 @@
 # Work-item files merge key-wise on a hand merge (W-c230cb2e): the driver is `work.py merge-item`,
 # registered by scripts/install_post_commit_hook.sh; any non-zero exit falls back to the text merge.
 .fabrik/work/W-*.json merge=workitem
+# The ledgers merge through merge_request.py merge-ledger (W-53360407, spec docs/superpowers/specs/2026-10-30-ledger-merge-driver-design.md): concurrent insertions resolve inside the merge; an edit of a landed line or any driver failure falls back to git's markers. Root-anchored: a nested file of the same name keeps the plain text merge.
+/CHANGELOG.md merge=ledger
+/docs/DECISIONS.md merge=ledger
+/INDEX.md merge=ledger
+/docs/STRATEGIC_BACKLOG.md merge=ledger
+/docs/LESSONS_LEARNT.md merge=ledger
