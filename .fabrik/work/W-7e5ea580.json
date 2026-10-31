@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T11:57:40.499761Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-7e5ea580",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68PYEWP8G58EKK01CDE1EEE",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "rotate infra — W-fbd1d4b9 part a merge request 01M68PWNHV is in; part c next after the rotation"
+}

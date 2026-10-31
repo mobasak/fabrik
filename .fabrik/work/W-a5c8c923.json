@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T11:57:52.792545Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-a5c8c923",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68T9567SYVCTFYKMBTWHS53",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: plan-lock grant ask for P0 W-c814836f (builder-pane watcher fleet-wide): may infra-3 add ONE row-paragraph to docs/workstation/hooks-index.md, which the active lock of plan 2026-10-22-plan-1-fabrik-deck (fleet, branch worktree-fleet, IN-PROGRESS) owns?"
+}

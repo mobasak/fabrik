@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T11:57:51.170842Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-2789e93a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68T345BGH7M1GYXYJSMQCDX",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "refused MR 01M68PWNHV fixed — re-requested as 01M68T2MYT (W-fbd1d4b9 part a)"
+}

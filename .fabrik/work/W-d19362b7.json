@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T11:57:54.420392Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-d19362b7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68TA23ME0GHNFCR8K255XFY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "infra-2: hand-merge w-d1a4a8f5-close (3 item closes), then my next item"
+}
