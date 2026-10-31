@@ -633,6 +633,9 @@ def test_the_builder_order_never_prints_a_command_it_cannot_carry(tmp_path):
     out = _run(tmp_path, cwd=str(link), CLAUDE_PROJECT_DIR=str(link), **_grid(tmp_path))
     assert BUILDER_ORDER in out and f"watch_builders.py {SID} {real}" in out, out
     # B-3: an unwritable lock directory: the watcher would die at once, so the order would loop — say what is wrong
+    # (root ignores the mode bits, so the leg proves nothing there)
+    if os.geteuid() == 0:
+        return
     locks = tmp_path / "locks"
     locks.mkdir(exist_ok=True)
     locks.chmod(0o555)
@@ -640,6 +643,24 @@ def test_the_builder_order_never_prints_a_command_it_cannot_carry(tmp_path):
         out = _run(tmp_path, cwd=str(real), CLAUDE_PROJECT_DIR=str(real), **_grid(tmp_path))
     finally:
         locks.chmod(0o755)
+    assert (
+        BUILDER_ORDER not in out and "BUILDER WATCH CANNOT ARM" in out and "not writable" in out
+    ), out
+    # a lock folder not created yet, under a parent this user cannot write: the watcher's own mkdir would fail every
+    # prompt, so this too is CANNOT ARM (review pass 2, D-haiku #1)
+    ro = tmp_path / "ro-parent"
+    ro.mkdir()
+    ro.chmod(0o555)
+    try:
+        out = _run(
+            tmp_path,
+            cwd=str(real),
+            CLAUDE_PROJECT_DIR=str(real),
+            CLAUDE_SOUND_LOCKDIR=str(ro / "locks"),
+            **_grid(tmp_path),
+        )
+    finally:
+        ro.chmod(0o755)
     assert (
         BUILDER_ORDER not in out and "BUILDER WATCH CANNOT ARM" in out and "not writable" in out
     ), out
@@ -659,3 +680,10 @@ def test_a_gone_launch_folder_or_a_fifo_config_never_misorders_or_hangs(tmp_path
     out = _run(tmp_path, cwd=str(main), CLAUDE_PROJECT_DIR=str(main), **_grid(tmp_path))
     assert time.monotonic() - t0 < 8, "a FIFO config must never hang the prompt hook"
     assert BUILDER_ORDER not in out, out  # no config read and no grid: nothing to watch
+    # a work config that is a SYMLINK to a regular file is still read (review B2-R2: no O_NOFOLLOW)
+    cfg.unlink()
+    real_cfg = tmp_path / "shared-config.json"
+    real_cfg.write_text(json.dumps({"distributor": "coord", "coordinator_mode": True}))
+    cfg.symlink_to(real_cfg)
+    out = _run(tmp_path, cwd=str(main), CLAUDE_PROJECT_DIR=str(main), **_grid(tmp_path))
+    assert BUILDER_ORDER in out, out

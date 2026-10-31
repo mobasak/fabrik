@@ -50,7 +50,7 @@ watch holds its lock:
   BLIND: …`) or anything else failed (`BUILDER WATCH FAILED: …`). Each says to re-arm. A second arm while one runs
   exits at once ("already armed").
 - **When the order cannot be given.** A repo path holding characters the order's quoted command cannot carry, or an
-  unwritable lock folder or file, prints `BUILDER WATCH CANNOT ARM` with the reason instead of an order that would
+  unwritable lock folder, or a lock file that is unwritable, a symlink or not a regular file, prints `BUILDER WATCH CANNOT ARM` with the reason instead of an order that would
   fail and come back on every prompt.
 
 ## New grids and windows

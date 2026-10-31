@@ -163,10 +163,11 @@ def _main_checkout(start: str) -> Path | None:
 
 def _read_config(path: Path) -> dict:
     """The work config as a dict; {} when it is absent, unreadable, not a regular file or not a JSON object. One
-    non-blocking, no-follow open decides the type: a FIFO there must never hang a hook every prompt runs (review Bh-2,
-    the `_armed` rule)."""
+    non-blocking open decides the type by fstat: a FIFO there must never hang a hook every prompt runs (review Bh-2). It
+    follows a symlink on purpose — a config linked to a regular file is read (review B2-R2) — and a link to a FIFO
+    still opens without blocking and is refused by the regular-file check."""
     try:
-        fd = os.open(str(path), os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
+        fd = os.open(str(path), os.O_RDONLY | os.O_NONBLOCK)
     except OSError:
         return {}
     try:
@@ -206,7 +207,12 @@ def _builder_order(sid: str, cwd: str) -> str:
         else:
             locks = _lock_dir()
             lock = locks / f"{_safe(sid)}.builderwatch.lock"
-            if locks.exists() and not os.access(locks, os.W_OK):
+            # a lock folder not created yet is made by the watcher's own mkdir: its nearest existing ancestor must then
+            # be writable, or the watch dies on every arm (review pass 2, D-haiku #1)
+            probe = locks
+            while not probe.exists() and probe != probe.parent:
+                probe = probe.parent
+            if not os.access(probe, os.W_OK):
                 why = f"the lock DIR `{locks}` is not writable"
             elif lock.is_symlink() or (lock.exists() and not lock.is_file()):
                 why = f"the lock FILE `{lock}` is not a regular file"

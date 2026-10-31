@@ -272,12 +272,13 @@ def _watch(
                     f"MAIL: {name[:-3]} from {head.get('from', '?')}/{head.get('from-agent') or '?'} · {head.get('kind', '?')}"
                 )
         if hits:
-            print("BUILDER WAKE: " + " · ".join(hits))
+            print("BUILDER WAKE: " + " · ".join(hits), flush=True)
             print(
-                f"This wake ENDED the watch (one wake per arm) — read those panes or that mail, then re-arm it: {rearm}"
+                f"This wake ENDED the watch (one wake per arm) — read those panes or that mail, then re-arm it: {rearm}",
+                flush=True,
             )
-            # printed BEFORE the state is saved: a kill between the two repeats this wake on the next arm, never
-            # loses it (review D-5)
+            # printed and FLUSHED before the state is saved (stdout is a pipe, block-buffered): a kill between the two
+            # repeats this wake on the next arm, never loses it (review D-5, A-X1)
             _save(state_path, state)
             return 0
         _save(state_path, state)

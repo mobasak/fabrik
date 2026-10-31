@@ -116,12 +116,19 @@ def test_pane_state_reads_live_screens():
     assert rs.pane_state(IDLE_TYPED) == (False, "✻ Baked for 9s · done 2:01 PM")
     # a dialog: no box, no spinner, no turn end — not busy, so a busy→dialog edge wakes the coordinator
     # a notice or a reply bullet truncated with `…` is not a spinner — only the spinner's own glyphs are (review C-1/C-2)
-    for row in ("      ✘ Auto-update fail…", "  ✔ Update installed · Restart to…", "  ⚠ Context low · Run /compact…",
-                "  - Checking files…", "  • Reading the log…"):
+    for row in (
+        "      ✘ Auto-update fail…",
+        "  ✔ Update installed · Restart to…",
+        "  ⚠ Context low · Run /compact…",
+        "  - Checking files…",
+        "  • Reading the log…",
+    ):
         screen = _screen(["✻ Worked for 20s · done 1:59 PM", row])
         assert rs.pane_state(screen) == (False, "✻ Worked for 20s · done 1:59 PM"), row
     # the waiting-for row counts only as a spinner row, never as text quoted in a reply (review Ch-5)
-    quoted = _screen(["✻ Baked for 9s · done 2:01 PM", "● It said: Waiting for 2 background agents to finish"])
+    quoted = _screen(
+        ["✻ Baked for 9s · done 2:01 PM", "● It said: Waiting for 2 background agents to finish"]
+    )
     assert rs.pane_state(quoted) == (False, "✻ Baked for 9s · done 2:01 PM")
     # every spinner frame measured on live panes reads busy
     for glyph in "·✢✳✶✻✽*":
@@ -147,6 +154,9 @@ elif a[0] == "capture-pane":
     if "-e" in a:
         sys.stderr.write("watch must capture without -e\\n")
         sys.exit(9)
+    if a[-1] in st.get("gone", []):  # listed, but closed before its capture
+        sys.stderr.write("can't find pane: " + a[-1] + "\\n")
+        sys.exit(1)
     sys.stdout.write(st["screens"].get(a[-1], ""))
 """
 
@@ -407,3 +417,85 @@ def test_any_failure_after_the_lock_still_prints_a_rearm_line(tmux, tmp_path):
     )
     assert proc.returncode == 1, proc
     assert "BUILDER WATCH FAILED" in proc.stdout and "re-arm" in proc.stdout, proc.stdout
+
+
+def test_the_wake_reaches_the_pipe_before_the_state_is_saved(tmux, tmp_path):
+    """Review A-X1: the wake is FLUSHED before the state is saved — a background task's stdout is a pipe, which Python
+    block-buffers, so a kill between the save and the interpreter's exit would lose a wake the saved state no longer
+    repeats. The stub dies, without flushing, inside the save that follows the wake."""
+    main = _repo(tmp_path)
+    tmux(panes=PANES, screens={"%1": BUSY, "%2": IDLE_SHELLS})
+    prog = (
+        "import os, sys, runpy\n"
+        f"sys.argv = ['watch_builders.py', {SID!r}, {str(main)!r}]\n"
+        f"mod = runpy.run_path({str(WATCH)!r}, run_name='watch_builders_under_test')\n"
+        "calls = []\n"
+        "real = mod['_save']\n"
+        "def dying_save(path, state):\n"
+        "    calls.append(1)\n"
+        "    if len(calls) > 1 and state['panes'].get('%1', {}).get('busy') is False:\n"
+        "        os._exit(0)  # the save that follows dev1's wake: no exit flush\n"
+        "    real(path, state)\n"
+        "mod['_save'] = dying_save\n"
+        "mod['_watch'].__globals__['_save'] = dying_save\n"
+        "sys.exit(mod['main'](sys.argv[1:]))\n"
+    )
+    t0 = time.time()
+    proc = subprocess.Popen(
+        [sys.executable, "-c", prog],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=_env(tmp_path),
+    )
+    try:
+        _wait_for(lambda: _ticked(tmp_path, t0), "the baseline tick")
+        tmux(panes=PANES, screens={"%1": IDLE_SHELLS, "%2": IDLE_SHELLS})
+        rc, out, _ = _finish(proc)
+    finally:
+        proc.kill()
+    assert "BUILDER WAKE: IDLE: dev1 (%1)" in out, out
+
+
+def test_a_failed_capture_keeps_the_panes_last_look(tmux, tmp_path):
+    """A pane listed but whose capture fails keeps its last state, so its finish on the next look still wakes — the
+    retention clause of review A-1 (without it the pane reads first-seen and its finish is lost)."""
+    main = _repo(tmp_path)
+    tmux(panes=PANES, screens={"%1": BUSY, "%2": IDLE_SHELLS})
+    t0 = time.time()
+    proc = _start(tmp_path, main)
+    try:
+        _wait_for(lambda: _ticked(tmp_path, t0), "the baseline tick")
+        t1 = time.time()
+        tmux(panes=PANES, screens={"%2": IDLE_SHELLS}, gone=["%1"])
+        _wait_for(lambda: _ticked(tmp_path, t1), "a look whose capture of %1 fails")
+        assert proc.poll() is None, "a failed capture of a listed pane is no wake"
+        tmux(panes=PANES, screens={"%1": IDLE_SHELLS, "%2": IDLE_SHELLS})
+        rc, out, _ = _finish(proc)
+    finally:
+        proc.kill()
+    assert rc == 0 and "IDLE: dev1 (%1)" in out, out
+
+
+def test_a_transient_shared_probe_never_turns_an_arm_away(tmux, tmp_path):
+    """The per-prompt check probes the lock with a SHARED lock for an instant; a watch starting inside that instant
+    retries and arms, never prints "already armed" — review Bh-4."""
+    import threading
+
+    main = _repo(tmp_path)
+    tmux(panes=PANES, screens={"%1": BUSY, "%2": BUSY})
+    locks = tmp_path / "locks"
+    locks.mkdir()
+    fd = os.open(str(locks / f"{SID}.builderwatch.lock"), os.O_RDONLY | os.O_CREAT, 0o644)
+    fcntl.flock(fd, fcntl.LOCK_SH)
+    timer = threading.Timer(0.12, lambda: fcntl.flock(fd, fcntl.LOCK_UN))
+    timer.start()
+    t0 = time.time()
+    proc = _start(tmp_path, main)
+    try:
+        _wait_for(lambda: _ticked(tmp_path, t0) or proc.poll() is not None, "the arm")
+        assert proc.poll() is None, proc.communicate()[0]
+    finally:
+        proc.kill()
+        timer.cancel()
+        os.close(fd)
