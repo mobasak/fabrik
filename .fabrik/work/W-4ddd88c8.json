@@ -1,0 +1,24 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T12:28:05.473576Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-4ddd88c8",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "D-1406",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make settle re-evaluate a dollar-counter pause and write an unpause when spent < claimed − margin (overage pauses stay sticky); grader: pause at N×margin, settle small, assert unpaused",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "tags": [
+    "fleet",
+    "money-guard"
+  ],
+  "title": "cloud_dispatch credit guard: a pause written while unsettled runs are provisioned at the $25 margin never lifts once they settle — ob paused at 233.69 with 9 unsettled (real 19.39 after settling), can at 247.80 with 5 unsettled (real 164.46); unpaused by hand 2026-10-31 (W-b00d9d72)"
+}
