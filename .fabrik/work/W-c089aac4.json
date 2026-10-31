@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T21:27:29.968969Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-c089aac4",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M67B6M3JSDJ1HPCPTRV79003",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "open",
+  "title": "branch: infra-3-collector-dirty"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T21:06:30.480927Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-c52de6b6",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M67A2TXPDZ13P8A58R91FA01",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: infra's MR is in for P0 W-3237ba45 (merges land first, the same test leg runs after; D-1382, cites D-1384), and infra asks to be rotated. The SendMessage carrying this was held by your session (mode mismatch), so it comes by mail."
+}

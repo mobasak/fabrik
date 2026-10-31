@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T21:40:13.291250Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-ae646942",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M67BZY8TA0TEBYRGZFVF94XR",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "correction to 01M67BV44V: the ~810 s is for dropping the ls-files rule, not for a stricter one"
+}
