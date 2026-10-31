@@ -13,12 +13,12 @@
     "plan": "",
     "spec": ""
   },
-  "next": "D-1406: (1) the guard PAUSED ob and can on estimates (233.69, 247.80) the ledger contradicts (19.39, 164.46) \u2014 find why, correct the estimate, un-pause; (2) settle the stale API reservations ($179 from 10-26/27); (3) register sarp's routine; (4) drain: queued independent items through cloud_dispatch.py and api_credit/api_write continuously until 11-05, credit guard on",
+  "next": "D-1406: (1) the guard PAUSED ob and can on estimates (233.69, 247.80) the ledger contradicts (19.39, 164.46) — find why, correct the estimate, un-pause; (2) settle the stale API reservations ($179 from 10-26/27); (3) register sarp's routine; (4) drain: queued independent items through cloud_dispatch.py and api_credit/api_write continuously until 11-05, credit guard on",
   "note": "",
   "owner": "fleet",
   "priority": 0,
   "score_reason": "operator 2026-10-31: why aren't we consuming the credits; ~$1,150 cloud + ~$347 API expire 11-05; fleet is free after W-992979e1",
   "status": "open",
   "tags": [],
-  "title": "Spend the five $250 Claude cloud credits (ob, ozgurbasak, can, mob, sarp) before they expire 2026-11-04 \u2014 operator 2026-10-24: 'now 5 claude's cloud 250$ credits and 3 claude api credits must be utilized before they expired.' Register sarp's fabrik-cloud-worker routine; run independent queued items through scripts/cloud_dispatch.py, credit guard on"
+  "title": "Spend the five $250 Claude cloud credits (ob, ozgurbasak, can, mob, sarp) before they expire 2026-11-04 — operator 2026-10-24: 'now 5 claude's cloud 250$ credits and 3 claude api credits must be utilized before they expired.' Register sarp's fabrik-cloud-worker routine; run independent queued items through scripts/cloud_dispatch.py, credit guard on"
 }
