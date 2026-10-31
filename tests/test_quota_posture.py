@@ -1714,3 +1714,37 @@ def test_amber_says_nothing_to_an_api_key_session_and_green_adds_no_clause(tmp_p
     red = tmp_path / "red"
     _posture(red, band="RED", successor=None)
     assert "Anthropic API key" in _hook(ups, state=red, extra_env=key).stdout
+
+
+def test_quota_line_five_hour_retired(tmp_path):
+    """D-1400 (W-992979e1) — an account whose usage payload retired the 5-hour window prints
+    `5h retired` for the whole clause (no percentage, no forecast), and a retired fleet reading
+    says so too without becoming the window that binds."""
+    state = tmp_path / "state"
+    retired = {
+        "utilization": 0.0,
+        "resets_at": None,
+        "wall_pct": 100.0,
+        "burn_per_min": None,
+        "minutes_to_wall": None,
+        "minutes_to_reset": None,
+        "verdict": "unknown",
+        "retired": True,
+    }
+    _posture(
+        state,
+        slug="sarp",
+        band="AMBER",
+        five_hour=retired,
+        fleet_windows={
+            "five_hour": {"utilization": 0.0, "slug": "sarp", "wall": 100.0, "retired": True},
+            "seven_day": {"utilization": 96.0, "slug": "mob", "wall": 100.0},
+        },
+        fleet_measured=2,
+    )
+    p = _hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"}, state=state)
+    line = p.stdout.strip()
+    assert line.startswith("QUOTA: sarp · 5h retired · weekly 44% (reset in 2:10) · "), line
+    assert "(fleet-wide: 5h retired sarp · weekly 96% mob)" in line, line
+    assert "band AMBER on weekly" in line, "a retired 0.0 never names the binding window"
+    assert "5h 0%" not in line and "no burn" not in line.split(" · weekly")[0], line

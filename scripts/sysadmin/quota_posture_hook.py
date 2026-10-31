@@ -7,7 +7,9 @@ Reads the posture file the rotation tick writes (`_quota_posture` in
 
 * **`UserPromptSubmit`** — prints ONE line to stdout, which the CLI lands as context:
   ``QUOTA: <slug> · 5h <n>% (<forecast>) · weekly <n>% (<forecast>) · Fable <n>% ·
-  band <GREEN|AMBER|RED|WALL> · successor <slug or none>[[ · band LANE on 5h — builders park, coordinators continue] · ⚠️ CHECKPOINT NOW …]``.
+  band <GREEN|AMBER|RED|WALL> · successor <slug or none>[[ · band LANE on 5h — builders park, coordinators continue] · ⚠️ CHECKPOINT NOW …]``,
+  where ``5h <n>% (<forecast>)`` reads ``5h retired`` for an account whose usage payload has
+  retired the 5-hour window (D-1400).
 * **`PreToolUse`** — at RED, HOLDS the two things that START new work: the ``Agent``
   tool outside a live run record, and a fresh ``command_run.py start`` outside the
   review family. Everything a checkpoint needs — edits, tests, git, ``done``,
@@ -413,7 +415,15 @@ def _tick_fresh(now: float) -> bool:
 # ── the line ───────────────────────────────────────────────────────────────────────
 
 
+def _retired(w: object) -> bool:
+    """A 5h window the account's usage payload has RETIRED (D-1400, `claude_rotate._is_retired`):
+    it has no percentage, forecast or burn, so every renderer prints `retired` instead."""
+    return isinstance(w, dict) and w.get("retired") is True
+
+
 def _pct(w: object) -> str:
+    if _retired(w):
+        return "retired"
     u = w.get("utilization") if isinstance(w, dict) else None
     ok = isinstance(u, (int, float)) and not isinstance(u, bool) and math.isfinite(u)
     return f"{u:.0f}%" if ok else "—"
@@ -492,7 +502,8 @@ def _fleet_clause(posture: dict, band: str | None, *, is_fable: bool) -> str:
         u = _util(w)
         if u is not None:
             parts.append(f"{label} {_pct(w)} {w.get('slug') or '?'}")
-            if hottest is None or u > hottest[0]:
+            # a retired window's 0.0 is a stand-in: it never names the window that binds
+            if not _retired(w) and (hottest is None or u > hottest[0]):
                 hottest = (u, label)
         elif scarce and key != "fable" and key not in fw:
             # an unserved REQUIRED window (key ABSENT: no account can serve it) is why the band is
@@ -577,8 +588,10 @@ def _format_line(
     succ = fleet.get("successor")
     succ_slug = succ.get("slug") if isinstance(succ, dict) else None
     fh, wk = wins.get("five_hour"), wins.get("seven_day")
+    # a RETIRED 5h window (D-1400) has no forecast: the whole clause is `5h retired`
+    fh_s = "5h retired" if _retired(fh) else f"5h {_pct(fh)} ({_forecast(fh)})"
     return (
-        f"QUOTA: {act.get('slug') or '—'} · 5h {_pct(fh)} ({_forecast(fh)}) · "
+        f"QUOTA: {act.get('slug') or '—'} · {fh_s} · "
         f"weekly {_pct(wk)} ({_forecast(wk)}) · Fable {_pct(wins.get('fable'))} · "
         f"band {band or '?'}{_fleet_clause(posture, band, is_fable=is_fable)} · "
         f"successor {succ_slug or 'none'}" + clause
@@ -995,7 +1008,7 @@ def _deny_reason(posture: dict, band: str, what: str, *, is_fable: bool = False)
         )
     elif fw:
         best = max(
-            ((k, fw[k]) for k in keys if _util(fw.get(k)) is not None),
+            ((k, fw[k]) for k in keys if _util(fw.get(k)) is not None and not _retired(fw.get(k))),
             key=lambda kv: _util(kv[1]),
             default=None,
         )

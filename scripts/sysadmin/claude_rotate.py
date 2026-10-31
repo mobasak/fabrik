@@ -1409,6 +1409,9 @@ def _account_status(store: Path) -> dict:
     # successor and stops the live account from ever rotating.
     windows_ok = True
     for key in ("five_hour", "seven_day"):
+        if key == "five_hour" and isinstance(usage, dict) and _five_hour_retired(usage):
+            row[key] = dict(_RETIRED_WINDOW)  # the one shared rule (`_usage_windows`)
+            continue
         w = usage.get(key)
         # through the ONE validator (round zero of the routed-up review): `float()` of a giant
         # JSON int raised out of the probe parser itself — the row never reached the cache
@@ -1481,6 +1484,8 @@ def _cmd_status(as_json: bool) -> int:
 
     def fmt(w):
         # the legacy view keeps its SHAPE; both guards are shared with _fmt_quota_window
+        if _is_retired(w):
+            return "retired"  # D-1400: the payload has no 5h window, so no percentage to print
         u = _usable_ts(w.get("utilization")) if isinstance(w, dict) else None
         if u is None:
             return "-"
@@ -4663,14 +4668,49 @@ def _pin_pending_identities(dirs: list[Path]) -> dict:
                 os.close(lock_fd)
 
 
+def _five_hour_retired(usage: dict) -> bool:
+    """Has this account's payload RETIRED the 5-hour window (D-1400, W-992979e1)? True only on the
+    live Ultra shape (sarp, 2026-10-31): the ``five_hour`` key PRESENT with null, and a ``limits``
+    list that carries a ``weekly_all`` entry (positive evidence the array is whole) and no entry
+    whose kind names a session. An absent key, an empty/missing/non-list ``limits``, no
+    ``weekly_all``, or a session-like entry under any name stays fail-closed, as before.
+
+    ⚠️ Fail direction: OPEN on a payload that keeps both signals while a 5h limit is still
+    enforced — the window then reads 0% and the hit wall surfaces as the CLI's usage-limit error
+    (``run_claude`` rotates on it; an interactive session gets no 5h warning). The weekly and
+    Fable bands are untouched. Revert: delete this predicate AND each retired account's row from
+    ``fleet-usage-cache.json``, or the cached 0.0 is served while the parser fails closed again."""
+    if "five_hour" not in usage or usage["five_hour"] is not None:
+        return False
+    limits = usage.get("limits")
+    if not isinstance(limits, list):
+        return False
+    kinds = [str(lim.get("kind", "")).lower() for lim in limits if isinstance(lim, dict)]
+    return "weekly_all" in kinds and not any("session" in k for k in kinds)
+
+
+# The reading a retired 5h window stands in with: 0.0 is "no constraint" to every band, picker,
+# flip and governor reader (None would wall the account at the picker and RED the fleet band);
+# `retired` is what the renderers, `_row_utils` and `_tick_row` key on.
+_RETIRED_WINDOW: Final = {"utilization": 0.0, "resets_at_epoch": None, "retired": True}
+
+
+def _is_retired(w: object) -> bool:
+    return isinstance(w, dict) and w.get("retired") is True
+
+
 def _usage_windows(usage: dict | None) -> dict | None:
     """Both quota windows from a usage payload, or None on ANY malformed part. FAIL-CLOSED like
     _account_status: a changed/partial shape must read as "no reading" (→ the cached row), never
-    as 0% — a false 0% would silence the advisory exactly when an account nears its wall."""
+    as 0% — a false 0% would silence the advisory exactly when an account nears its wall. The one
+    exception is a 5h window the payload has RETIRED (:func:`_five_hour_retired`)."""
     if not isinstance(usage, dict):
         return None
     out: dict = {}
     for key in ("five_hour", "seven_day"):
+        if key == "five_hour" and _five_hour_retired(usage):
+            out[key] = dict(_RETIRED_WINDOW)
+            continue
         w = usage.get(key)
         u = _usable_ts(w.get("utilization")) if isinstance(w, dict) else None  # `true` is not 1%
         if u is None:
@@ -5357,6 +5397,8 @@ def _fmt_reset_clock(epoch: object, absent: str = "?") -> str:
 def _fmt_quota_window(w: dict | None) -> str:
     """Fleet-view window formatter (the legacy _cmd_status keeps its own — that view must stay
     byte-identical while the fleet exists nowhere)."""
+    if _is_retired(w):
+        return "retired"  # D-1400: the payload has no 5h window, so no percentage to print
     # the utilization half through the validator too — a giant int on the SAME corrupt row
     # raised out of the f-string one token after the reset was guarded (round 2 seat A, F2)
     u = _usable_ts(w.get("utilization")) if isinstance(w, dict) else None
@@ -5988,6 +6030,7 @@ def _fleet_readings(accounts: list[dict], picture: dict) -> dict:
         if isinstance(r, dict)
     }
     best: dict[str, tuple[float, str | None]] = {}
+    five_hour_retired = False  # whether best["five_hour"] came from a retired window
     for row in accounts:
         if not isinstance(row, dict):
             continue
@@ -6027,8 +6070,16 @@ def _fleet_readings(accounts: list[dict], picture: dict) -> dict:
         if state == "session-exhausted":
             continue
         fh_u, _ = _window_reading(row.get("five_hour"))
-        if fh_u is not None and (("five_hour" not in best) or fh_u < best["five_hour"][0]):
+        # a REAL reading outranks a RETIRED one at the same value (D-1400), so the fleet 5h names a
+        # retired provider only when it is strictly the coolest, whatever the account order
+        fh_ret = _is_retired(row.get("five_hour"))
+        if fh_u is not None and (
+            ("five_hour" not in best)
+            or fh_u < best["five_hour"][0]
+            or (fh_u == best["five_hour"][0] and five_hour_retired and not fh_ret)
+        ):
             best["five_hour"] = (fh_u, slug)
+            five_hour_retired = fh_ret
     # the WALL each reading is measured against travels WITH it: the band is drawn from headroom,
     # and only the account that PROVIDED a window's reading knows its own cap (weekly); 5h and
     # Fable are uncapped and wall at 100
@@ -6046,6 +6097,8 @@ def _fleet_readings(accounts: list[dict], picture: dict) -> dict:
     for k, (u, sl) in best.items():
         wall = by_slug.get(sl) if k == "seven_day" else None
         out[k] = {"utilization": u, "slug": sl, "wall": _band_lines(wall)[1] + _BAND_RED_RUNWAY}
+        if k == "five_hour" and five_hour_retired:
+            out[k]["retired"] = True
     return out
 
 
@@ -6304,6 +6357,8 @@ def _quota_posture(
         ),
         "models": {},
     }
+    if _is_retired((row or {}).get("five_hour")) and isinstance(windows["five_hour"], dict):
+        windows["five_hour"]["retired"] = True  # the renderers print `5h retired` (D-1400)
     mw = (row or {}).get("model_windows")
     if isinstance(mw, dict):
         for k, v in mw.items():
@@ -6490,7 +6545,9 @@ def _posture_status_line(posture: dict | None, now: float, stale_s: float = 900.
         for key, label in (("five_hour", "5h"), ("seven_day", "weekly"), ("fable", "Fable")):
             w = fw.get(key)
             u = _usable_ts(w.get("utilization")) if isinstance(w, dict) else None
-            if u is not None:
+            if u is not None and _is_retired(w):
+                parts.append(f"{label} retired ({w.get('slug') or '?'})")
+            elif u is not None:
                 parts.append(f"{label} {pct(w)} ({w.get('slug') or '?'})")
             elif scarce and key != "fable" and key not in fw:
                 # ABSENCE is load-bearing since the required-window rule: say it, do not omit it
@@ -6500,9 +6557,12 @@ def _posture_status_line(posture: dict | None, now: float, stale_s: float = 900.
             # (Delta 9 seat A, F5)
         fleet_s = " · fleet " + " ".join(parts) if parts else ""
     burn_s = f"{burn:.2f}%/m" if isinstance(burn, (int, float)) else "—"
+    # a RETIRED 5h window (D-1400) has no percentage, forecast or burn to print
+    fh_s = "5h retired" if _is_retired(fh) else f"5h {pct(fh)} {_fmt_forecast(fh)}"
+    burn_tail = "" if _is_retired(fh) else f" · burn 5h {burn_s}"
     return (
-        f"posture: {band_s} · 5h {pct(fh)} {_fmt_forecast(fh)} · weekly {pct(wins.get('seven_day'))} "
-        f"{_fmt_forecast(wins.get('seven_day'))} · Fable {pct(wins.get('fable'))} · burn 5h {burn_s}{fleet_s}"
+        f"posture: {band_s} · {fh_s} · weekly {pct(wins.get('seven_day'))} "
+        f"{_fmt_forecast(wins.get('seven_day'))} · Fable {pct(wins.get('fable'))}{burn_tail}{fleet_s}"
     ) + f" · written {age / 60:.0f}m ago"
 
 
@@ -7270,8 +7330,12 @@ def _fleet_flip_leg(dirs: list[Path], accounts: list[dict], threshold: float) ->
 
 
 def _row_utils(row: dict) -> dict[str, float | None]:
+    # a RETIRED window's 0.0 is a stand-in, never evidence: read as None, it can neither be the
+    # "reading" `_row_has_reading` counts nor heat (D-1400; design critique, Opus concern 4)
     return {
-        key: (_usable_ts(w.get("utilization")) if isinstance(w, dict) else None)
+        key: (
+            _usable_ts(w.get("utilization")) if isinstance(w, dict) and not _is_retired(w) else None
+        )
         for key, w in (("five_hour", row.get("five_hour")), ("seven_day", row.get("seven_day")))
     }
 
@@ -9264,13 +9328,18 @@ def _tick_row(accounts, threshold, now) -> None:
     raise here is printed and the advisory and the posture still run (W-21b4c0e5)."""
     _active_walled, _active_row = _active_account_walled(accounts, threshold, now)
     if _active_row is not None and isinstance(_active_row.get("five_hour"), dict):
-        _sess = _usable_ts(_active_row["five_hour"].get("utilization"))
-        if _sess is not None:
+        # a RETIRED 5h window writes `session: retired` and NO `pct`: its 0.0 is a stand-in, and
+        # `pct` is the session sample the flip line's evidence is read from (D-1400)
+        _retired = _is_retired(_active_row["five_hour"])
+        _sess = None if _retired else _usable_ts(_active_row["five_hour"].get("utilization"))
+        _wk_window = _active_row.get("seven_day")
+        _wk = _usable_ts(_wk_window.get("utilization")) if isinstance(_wk_window, dict) else None
+        if _sess is not None or (_retired and _wk is not None):
             _row = {
                 "event": "tick",
                 "ts": now,
                 "verdict": "walled" if _active_walled else "ok",
-                "pct": _sess,
+                **({"session": "retired"} if _retired else {"pct": _sess}),
                 "account": _active_row.get("email"),
                 "source": _active_row.get("source"),
             }
@@ -9278,10 +9347,6 @@ def _tick_row(accounts, threshold, now) -> None:
             # `not isinstance(_wk, bool)` matches `dispatch_headroom.quota()`'s guard on this same
             # field name, which earned that clause in its own review; unreachable today (both
             # producers coerce with float()), adopted so the convention travels with the name.
-            _wk_window = _active_row.get("seven_day")
-            _wk = (
-                _usable_ts(_wk_window.get("utilization")) if isinstance(_wk_window, dict) else None
-            )
             if _wk is not None:
                 _row["weekly_pct"] = _wk
             # the Fable weekly-scoped window rides the row too (D-269) — same guard, same write
