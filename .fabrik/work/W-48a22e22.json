@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T14:34:57.668637Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-48a22e22",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "Make the doorbell one-shot per fingerprint once this turn's transcript holds a SendMessage tool call to a named session (held or delivered), in .claude/hooks/final_gate_stop.py (fleet-synced hook, full /fabrik-review); grader: a ring in the turn clears the block",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Stop hook doorbell blocks an empty-queue builder 3x per item boundary even after its SendMessage ring went out (mail 01M693X9ZM from builder-tmpfix): work.py queue --stop's doorbell rung (scripts/work.py:6208-6240) has no ring detection, final_gate_stop.py:2632 blocks CAP times per fingerprint then warns through"
+}
