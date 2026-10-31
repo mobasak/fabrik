@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T20:34:20.269472Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-7a1411b3",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1381",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure the refused records' item conflicts (_merge_work_item, scripts/merge_request.py:1126) and size the fix",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Same-item .fabrik/work conflicts refuse merges (6-7 in 14 d per D-1381): the separate fix D-1381 Part 4 names, split out of W-53360407"
+}

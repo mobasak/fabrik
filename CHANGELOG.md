@@ -9,6 +9,50 @@ All notable changes to this project will be documented in this file.
 test naming `CLAUDE_AGENT` and a compose.yaml one every `docker compose` test; a test importing a test the change selected
 by name is selected with it, so 16 readers the old rule missed now run (net -57 s serial per merge on master's last 60 merges). The D-1189 replay stays 17 of 17 (D-1394, W-fbd1d4b9).
 
+
+### Fixed — master's pre-existing reds, batch 3: the portability CLI smoke test no longer reads the host .env (2026-10-31)
+`tests/test_portability.py`'s export/import dry run stubs the `.env` read and asserts the exact secrets line, so it no longer reads red in a merge worktree. The full-suite census also found the scaffold's silently failing initial commit (filed to fleet) and three load-only flakes (D-1398, W-a9b3bc15).
+
+### Added — ledger merge driver: git resolves the five root ledgers at merge time (2026-10-31)
+`scripts/merge_request.py merge-ledger %O %A %B %P` runs the existing insertion resolver as a git merge driver: a clean resolution rewrites ours marker-free at exit 0, an edit of a landed row, a path outside the five ledgers or a new duplicate D-id in `docs/DECISIONS.md` refuses at exit 1 with ours untouched, and the `|| git merge-file` fallback then writes ordinary markers. `scripts/install_post_commit_hook.sh` registers `merge.ledger.*` and mirrors the `.gitattributes` `merge=ledger` lines; `.gitattributes` maps CHANGELOG.md, docs/DECISIONS.md, INDEX.md, docs/STRATEGIC_BACKLOG.md and docs/LESSONS_LEARNT.md. Replayed over 2026-10-17..31 the driver clears 58 of the 67 builder merges that conflicted only on ledgers, with no duplicated line (spec `docs/superpowers/specs/2026-10-30-ledger-merge-driver-design.md` § Derivations D5; residue W-6614b62e). W-53360407, D-1386.
+
+### Fixed — master's pre-existing reds, batch 2: three tests coupled to their checkout, date or path (2026-10-31)
+`tests/test_install_pre_push_hook.py` takes the running venv's pre-commit (a merge worktree has no `.venv`), `tests/test_spend_calendar_months.py`'s two calendar tests no longer fail on the 31st or on the 1st and 2nd, and `tests/test_agents_up.py` checks both streams for the foreign name as a word, not a substring of the path (D-1393, W-a9b3bc15).
+
+### Fixed — master's pre-existing reds, batch 1: an orphaned test removed (2026-10-31)
+`tests/test_pipeline_runner.py` imported a module archived in February and failed at collection whenever a run named it; it and its `addopts` ignore in `pyproject.toml` are removed. (D-1387, W-a9b3bc15).
+
+### Added — the merge program's daily tripwire: merge wall time, refusal classes, red-master before/after the valve (2026-10-31)
+`scripts/sysadmin/merge_tripwire.py` reads the hub's merge records (`.git/fabrik-merge/*.json`) once a day from the
+kaizen collector's daily pass: wall time per merged request (request ULID to reply), every refusal event by class
+(retried ones included) for the day and 14 days, and `waste_red_master_rework` pooled before and after the post-merge
+valve. A rise sustained for 7 days past 2 sigma mails the coordinator once per episode that the threshold goes back to
+40 (D-1384). The coordinator's prompt block shows its one line, or `STALE` when the collector stopped
+(W-622ec42c, D-1390). The collector's tests no longer reach the live repo's merge records (`tests/conftest.py`).
+
+### Fixed — a desktop agent tab that fails stays open with its reason (2026-10-31)
+Every tab of `All Agents (tabbed).bat` and `<Repo> Agents.bat` now runs `agents_up.sh --tab`, and the Windows Terminal fragment profile sets `"closeOnExit": "never"` (W-df2e24ed, D-1388). Under `--tab` a launch with no terminal exits 1 (4 when a builder got no pane) with the reason instead of detaching silently (which let the tab close), any other failure before the attach (an argument error or a signal included) prints a `stopped (exit <n>)` line from one shared exit handler, and a `--window` tab says it is waiting. A `wsl.exe` that fails before WSL starts (the vsock fault, W-37b51748) stays readable. Regenerate once: `python3 /opt/fabrik/scripts/sysadmin/agents_bat.py --tabbed`.
+
+
+### Added — a merge request from a branch more than 500 commits behind its base is refused, with the merge to run (2026-10-31)
+`scripts/merge_request.py request` now counts the commits on the base's remote tip that the branch lacks, fetching the
+tip once when the clone lacks it, and refuses past 500 before anything is sent, printing `git fetch <remote>
+refs/heads/<base>` then `git merge FETCH_HEAD` (never a rebase; the full ref never picks a same-named tag). A fetch
+failure or timeout refuses too. Both `CLAUDE.md` copies say builders merge the base at every item boundary and before
+every request, graded word for word against the script's limit, and the operating-model doc states the refusal. A branch
+that still runs a copy from before this check is not covered (W-731a7652). W-527c1ce0, D-1381, D-1391.
+
+### Fixed — review seats run their tests under capped_run.sh, never under the Bash tool's timeout alone (2026-10-31)
+A wef review seat's mutant blocked on a FIFO under plain pytest and ran 2 days 13 hours: the Bash tool's `timeout`
+only moves a command to the background, and no seat-facing text carried D-935's capped_run rule (mail 01M65ZP80Q).
+The fabrik-reviewer House rules now say: run every test, and every probe that executes pinned code, as one plain
+`capped_run.sh --timeout <s> -- <command>` (`<s>` defaults to 120, at most 540), with the Bash parameter at `<s>` + 60 s
+and no outer `timeout 120`. Exit 124, 137, or 2 with a `capped_run:` line, is no result: the test and its mutant are
+`unverified`, and a no-manager `capped_run: WARNING` goes to MACHINERY. The probe catalogue's § Seat isolation points at that clause, and its mutation bullet
+names the same timeout. /fabrik-review and /fabrik-review-scoped name the cap in their summary of the section. Four
+L1 ceilings are raised to the measured growth (D-1399). Grader: `tests/test_seat_capped_run_line.py`. Infra's
+seat_guard.py unwrap of `capped_run.sh` (mail 01M68KA2EC) lands first; intel's workflow prompt follows (01M68KHK0H).
+
 ### Added — every new agent grid refreshes "All Agents (tabbed).bat" itself; the tmux how-to (2026-10-30)
 `scripts/sysadmin/agents_up.sh` now starts `agents_bat.py --tabbed` in the background after every grid it builds
 (interactive, `--detach` boot sweep, `add` cold start), when a desktop is remembered. Refreshes are coalesced (one runs,

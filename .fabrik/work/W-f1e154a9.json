@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T10:59:33.071083Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-f1e154a9",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68Q8H4E6BVW51H59MJBFC9R",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "branch: w-53360407-entry-files"
+}

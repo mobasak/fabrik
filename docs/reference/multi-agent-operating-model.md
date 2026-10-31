@@ -161,7 +161,7 @@ mid-epic loop below land with it). Nothing is hand-edited in a project.
   `templates/governance/CLAUDE.md` § The coordinator role.
 - **Ledgers and ids across branches** (D-448) — each agent writes its own ledger rows
   (`CHANGELOG.md`, `docs/DECISIONS.md`, `docs/STRATEGIC_BACKLOG.md`) on its own branch; two
-  branches that both prepend a row to the same table always conflict at merge — `rerere` only
+  branches that both prepend a row to the same table conflict at merge under plain git; in a hub worktree the installer's `merge=ledger` driver (`merge_request.py merge-ledger`, W-53360407) resolves concurrent insertions inside the merge, an edit of a landed row still conflicts, and any driver failure falls back to markers — `rerere` only
   replays a resolution it has already recorded, so it helps with nothing new here — and
   `merge_request.py merge` keeps both sides when the conflict is a pure insertion, refusing any
   other (§ Merge protocol, below). Decision ids: mint
@@ -192,6 +192,10 @@ python3 scripts/merge_request.py request --review <closing run record or review 
 #    A branch cut before the script existed runs the main checkout's copy by absolute path
 #    (`python3 <main checkout>/scripts/merge_request.py request …`): it finds mail.py, work.py and
 #    whoami_agent.py beside itself, never in the branch. `--item` releases your claim on that item.
+#    A branch more than 500 commits behind the base's REMOTE tip is refused before anything is sent,
+#    with the `git fetch <remote> refs/heads/<base>` + `git merge FETCH_HEAD` to run first (W-527c1ce0, D-1381);
+#    merging the base at every item boundary keeps a branch under it. A branch that runs a copy from
+#    before the check (the main checkout's copy above excepted) is not checked (W-731a7652).
 #    `--pretest` first runs the base's `.fabrik/merge-tests` on the merge the owner would build (a
 #    throwaway at the local base) and sends only on green (a base with none is sent untested, with a
 #    note), recording the merged tree in `<git common dir>/fabrik-merge/pretest/<head>.json`; the

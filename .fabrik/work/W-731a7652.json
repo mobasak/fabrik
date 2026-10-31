@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T21:25:26.474222Z",
+  "creator": "fleet",
+  "evidence": "",
+  "id": "W-731a7652",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "D-1381",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "after W-3237ba45 lands: in merge, after _fetch_base and before the build/pretest, count head..base tip and refuse with the same FETCH_HEAD remedy; or close as unneeded once every builder branch has merged master once (opus critique 1, run fabrik-task 2026-10-31T00:05)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "Owner-side stale-branch check: merge_request.py merge refuses a request more than MAX_BEHIND commits behind the fetched base (W-527c1ce0's request-side gate misses branches that still run their pre-change copy of merge_request.py)"
+}

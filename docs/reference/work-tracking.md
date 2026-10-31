@@ -350,7 +350,12 @@ D4, D6):
   one answers, no line when none answers within the cap or the store's distributor is not an agent
   name, and none in a headless session, which keeps only its own claim lines (W-9bf5a363: an
   extension coordinator's peer name changes at each rotation, and a name kept in notes goes dead);
-  and the ready count.
+  and the ready count. The coordinator (`_scans_panes`) also sees, after its pane lines, the merge
+  program's tripwire line (W-622ec42c, D-1384) — the first line of
+  `<main checkout>/.git/fabrik-merge/tripwire-line.txt`, which `merge_tripwire.py` rewrites daily (it
+  opens `TRIPPED, …` when the tripwire fired, else `merge tripwire <day>: …`); a file more than 3 days
+  old shows as `merge tripwire STALE — last written <day>; …`, and a repo that never wrote one, or a
+  file that cannot be read, shows nothing.
 - **`status`'s distributor lines (D4).** `UNOWNED` — open items with no owner (a `next` item is never
   counted; it is nobody's to own); `CLAIMS` — one line per session holding a live claim, flagged `— over
   5`; `STALE NEXT` — an open `next` item whose `next_at` PARSES and is more than 6 days old (a day

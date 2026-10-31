@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T09:14:21.137073Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-f6ede574",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "measure each over the live ledgers fleet-wide, then fix in _resolve_insertions/_dup_ids with one test per shape (seat 3 of W-53360407's Phase A scoped review, probes in its RUN-SCRATCH)",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "Ledger resolver hardening (pre-existing, shared by _build and the merge-ledger driver): _D_ROW_RE misses spacing/zero-pad/bold variants of a D-row; CRLF ledgers never auto-resolve (rstrip('\\n') leaves \\r); a literal ======= line forces markers; add/add DECISIONS gives a misleading 'duplicate id' refusal; :1990's duplicate rule differs from :1203's; the landing checks (_build, :1990) compare duplicate-id SETS, so a third copy of an id already held twice lands (the driver counts since the plan-1 Phase C review); _resolve_insertions keeps an entry both sides carry twice on both paths (diff3 keeps shared leading lines inside both sides; the plan-1 Phase C review tried three line-count refusals in the driver and each refused legitimate shared structure — a fix needs entry keys, not lines)"
+}

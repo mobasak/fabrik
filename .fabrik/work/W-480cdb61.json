@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-30T20:34:22.123986Z",
+  "creator": "infra-2",
+  "evidence": "",
+  "id": "W-480cdb61",
+  "kind": "backlog",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": "docs/superpowers/specs/2026-10-30-ledger-merge-driver-design.md"
+  },
+  "next": "after W-53360407 lands: list repos with coordinator_mode, measure their builder-side ledger conflicts, then register the driver there",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "Roll the ledger merge driver (W-53360407) out to coordinator-mode project repos: installer-only, the merge-ledger verb ships with the sync"
+}

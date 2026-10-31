@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T08:39:42.889767Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-6c561acd",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68HRFE3AV2RXPGP7Q1TMRBY",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "seven D-rows on master are malformed by the decision-shape check (D-1374, D-1376, D-1377, D-1378, D-1381, D-1384, D-1385)"
+}
