@@ -8267,3 +8267,11 @@ failure between moving the ref and moving the index.
 `--only`), which updates the index entry and the branch ref under one `index.lock` and lands nothing on failure; it
 judges eligibility (the file was clean at HEAD before its write) against HEAD at commit time, and names, rather than
 prevents, a write landing in the milliseconds before the commit.
+
+## A replay of past red causes measures recall on those causes only: diff a narrowing against real readers (2026-10-31, W-fbd1d4b9)
+The merge leg's stem keys were narrowed to whole words, and the D-1189 replay of 17 red-causing merges stayed 17/17.
+Both design critiques still found a real reader the rule dropped: tests/test_merge_request_pretest.py reaches
+merge_request.py only through `from test_merge_request_merge import World`. None of the 17 causes touched that script.
+**Why:** a replay can only show a miss on a cause it holds; the measurement scripts compared counts, not who left.
+**How to apply:** before narrowing a selector, list every (changed path, test) pair the new rule DROPS over recent
+merges' own trees and read the drops that are not noise; ship the rule for the reader class you find with it.
