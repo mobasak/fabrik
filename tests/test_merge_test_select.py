@@ -71,6 +71,87 @@ def test_name_and_stem_select():
     assert mts.import_patterns("library_x.py") == set()
 
 
+def test_stem_key_matches_a_whole_word_only():
+    # W-fbd1d4b9: a stem matched as a substring selected every test naming CLAUDE_AGENT for a
+    # CLAUDE.md change and every `docker compose` test for a compose.yaml one (357 s serial per merge)
+    tests = {
+        "tests/test_env.py": 'os.environ["CLAUDE_AGENT"]',
+        "tests/test_hyphen.py": "compose-v2 plugin",
+        "tests/test_word.py": 'the "CLAUDE" contract',
+        "tests/test_name.py": "ROOT / 'CLAUDE.md'",
+        "tests/test_import.py": "import merge_request\nmerge_request.main()",
+        "tests/test_longer.py": "merge_request_pretest",
+    }
+    assert mts.select(["CLAUDE.md"], tests) == ["tests/test_name.py", "tests/test_word.py"]
+    assert mts.select(["infra/x/compose.yaml"], tests) == []
+    # a word char glued BEFORE the stem is another name too (review B-haiku: the leading boundary)
+    assert mts.select(["CLAUDE.md"], {"tests/test_pre.py": "the MY_CLAUDE contract"}) == []
+    # a `-` glued to a word before it is part of that name; a `--<stem>` flag is not (Fable critique)
+    assert mts.select(["infra/x/compose.yaml"], {"tests/test_dc.py": "docker-compose up"}) == []
+    assert mts.select(["infra/x/compose.yaml"], {"tests/test_flag.py": "run --compose x"}) == [
+        "tests/test_flag.py"
+    ]
+    assert mts.select(["scripts/merge_request.py"], tests) == ["tests/test_import.py"]
+    # a test reaching the code through another selected test's helpers is selected with it, to a
+    # fixed point (Opus critique: test_merge_request_pretest.py imports World from the merge tests)
+    chain = {
+        "tests/test_merge_request_merge.py": 'SCRIPT = SCRIPTS / "merge_request.py"',
+        "tests/test_merge_request_pretest.py": "from test_merge_request_merge import World",
+        "tests/test_third.py": "from tests.test_merge_request_pretest import x",
+        "tests/test_mention.py": "# see test_merge_request_merge for the World",
+    }
+    assert mts.select(["scripts/merge_request.py"], chain) == [
+        "tests/test_merge_request_merge.py",
+        "tests/test_merge_request_pretest.py",
+        "tests/test_third.py",
+    ]
+    # every one-line import spelling of a picked test is followed (review A1/B1: `from tests import
+    # test_quota_dashboard as base` dropped six readers of quota_dashboard.py); a comment is not one
+    spellings = {
+        "tests/test_merge_request_merge.py": 'SCRIPT = SCRIPTS / "merge_request.py"',
+        "tests/test_pkg.py": "from tests import test_merge_request_merge as base",
+        "tests/test_dot.py": "from . import test_merge_request_merge",
+        "tests/test_list.py": "import os, test_merge_request_merge",
+        "tests/test_dotted.py": "import tests.enforcement.test_merge_request_merge",
+        "tests/test_commented.py": "# from test_merge_request_merge import World",
+        "tests/test_trailing.py": "import os  # test_merge_request_merge",
+        "tests/test_longer.py": "from tests import test_merge_request_merge_extra",
+    }
+    assert mts.select(["scripts/merge_request.py"], spellings) == [
+        "tests/test_dot.py",
+        "tests/test_dotted.py",
+        "tests/test_list.py",
+        "tests/test_merge_request_merge.py",
+        "tests/test_pkg.py",
+    ]
+    # a tree grader runs for any change, but its importers do not ride along (+143 s per merge measured)
+    graders = {
+        "tests/test_tree.py": "git ls-files",
+        "tests/test_uses_tree.py": "from test_tree import helper",
+    }
+    assert mts.select(["scripts/merge_request.py"], graders) == ["tests/test_tree.py"]
+    # a stem with a regex metacharacter is matched literally
+    assert mts.select(
+        ["docs/a+b-notes.md"], {"tests/test_m.py": "a+b-notes", "tests/test_n.py": "aab-notes"}
+    ) == ["tests/test_m.py"]
+
+
+def test_import_pattern_comments_do_not_backtrack():
+    # review A2: `#[^\n]*` inside the lazy paren loop cost ~40x per comment line (0.8 s at 4 lines);
+    # 30 comment lines with the name absent must still fail fast
+    import re
+    import time
+
+    text = (
+        "from pkg.sub import (\n"
+        + "".join(f"    a{i},  # a comment of some length {i}\n" for i in range(30))
+        + ")\n"
+    )
+    t0 = time.monotonic()
+    assert not any(re.search(p, text) for p in mts.import_patterns("pkg/sub/zzz.py"))
+    assert time.monotonic() - t0 < 2.0
+
+
 def _imports_state(text: str) -> bool:
     import re
 
@@ -1026,6 +1107,9 @@ def test_an_until_the_run_cannot_honour_cuts_nothing(tmp_path, monkeypatch, cont
         "PYTHONPATH": str(work),
         "FABRIK_MERGE_TESTS_REC": str(tmp_path / "rec.jsonl"),
         "FABRIK_MERGE_TESTS_UNTIL": str(cut),
+        # inside a leg shard this is the shard's own duration file; the child's fake files must not
+        # append to it (W-aa8c473c review)
+        "FABRIK_MERGE_TESTS_DUR": "",
     }
     r = subprocess.run(
         [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider"]
