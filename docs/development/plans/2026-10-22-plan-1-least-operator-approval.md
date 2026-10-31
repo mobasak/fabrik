@@ -1,6 +1,6 @@
 # Plan — least operator approval: the gate model rewritten to D-1110 (W-4a03df79)
 
-Status: CONVERGED
+Status: IN-PROGRESS
 Profile: small
 **Owner:** kaizen (Phase B: infra)
 **Surface:** `git rev-parse HEAD` = bcf74f6e1 at authoring; `CLAUDE.md:614`, `:639`; `templates/governance/CLAUDE.md:616`;
@@ -102,7 +102,7 @@ Intake: 5 items — 5 IN, 0 OUT-OF-SCOPE, 0 ASK.
 | Gate-checked, no exceptions. Every code-shipping ticket must produce exactly one entry. | `.windsurf/rules/core/40-documentation.md:134` |
 | Name exactly ONE ground in the heading. | `CLAUDE.md:614` |
 
-## Phase A — the contracts and commands
+## Phase A — the contracts and commands ✅ EXECUTED 2026-10-30 (7a8821678)
 
 Appetite: 120
 
@@ -265,7 +265,7 @@ never take it.
 - **Given** `design-gate-panel.md`, **When** the grader reads it, **Then** it cites D-1110 and no longer says "for design approval only" or that the other gate classes "stay the operator's" (A7)
 - **Mocked:** nothing — the grader reads the real files from the tree it sits in.
 
-## Phase A2 — Amendment 1: D1's residuals (W-92389a31)
+## Phase A2 — Amendment 1: D1's residuals (W-92389a31) — steps 0-3 done 2026-10-31 (fb5198787); step 4 waits on the operator's kit
 
 Appetite: 120
 
@@ -812,6 +812,30 @@ rows: 33 not-exactly-once: 0
 
 R1 and R2 share the anchor "The operator alone": the kit applies R2's insertion first, then R1 on the edited text
 (Phase A2 step 3).
+
+### Phase A2 — execution, steps 0-3 (2026-10-31)
+
+- Step 0: `origin/master` (39 commits, none on the A2 surface) merged in; no other active lock lists either CLAUDE.md
+  copy or `commands/_sources/fabrik-deploy-plan-review.md`.
+- Step 1: A8–A13 added and six pins moved; on today's text A2, A3 and A8–A13 red (13), A1 and A4–A7 green (6).
+- Step 2: R13 put the command 34 words over its L1 ceiling (21858 > 21824). Trimmed, not raised: the split-panel
+  block, which no ledger entry pins and which repeated the customer-facing block's Question, Options and
+  Recommendation lines word for word, now names that block and spells out only its two differing lines (the A6 pin on
+  its Why line holds). `tests/test_command_rules.py`, the ceiling test, and the five test files reading the command
+  green; scratch render rc 0.
+- Deviation 1: the grader is committed with R13 (fb5198787), not with the contracts at step 4 — an uncommitted grader
+  would hold the Stop hook through the wait for the operator. Phase A committed its grader ahead of its kit the same
+  way.
+- Deviation 2: the kit lives in the run's durable SCRATCH,
+  `.tmp/runs/56af049c-8973-47c6-97c5-14d3743368cc/fabrik-execute-plan-2026-10-31T17-22-16-0300/ep-phaseA2.py`, not the
+  scratchpad, which a reboot clears. It joins R1's and R10's § Autonomy edits into one replacement (R10's old string
+  sits inside R1's), so it makes 30 replacements against the probe's 33 rows.
+- Step 3 probe (throwaway detached worktree at fb5198787, `--probe --apply`, then step 4's five files inside it):
+
+```text
+$ pytest tests/test_least_operator_approval.py tests/test_governance_template_split.py tests/test_gate_decision_blocks.py tests/test_final_gate_stop_deferral.py tests/test_stop_hook_deferral_exemption.py
+379 passed, 2 skipped in 15.71s
+```
 
 ## Self-audit
 
