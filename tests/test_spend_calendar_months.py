@@ -94,9 +94,11 @@ def test_a_quiet_day_inside_a_live_month_keeps_its_cell(store):
 
 def test_the_calendar_still_runs_to_today(store):
     # Seeded on the 1st so the current month is always the live one, whatever today's date is: the
-    # axis must fill forward to today even when nothing has been recorded since.
+    # axis must fill forward to today even when nothing has been recorded since. On the 31st the 1st
+    # is 30 days back, outside the 30-day spend window `per_model_spend` needs a token in (it returns
+    # no calendar without one), so the seed is clamped to that window's first day (W-a9b3bc15).
     today = datetime.date.today()
-    first = today.replace(day=1)
+    first = max(today.replace(day=1), today - datetime.timedelta(days=cpc._MONTHLY_DAYS - 1))
     store({first.isoformat(): {"claude-opus-5": 1_000_000}})
     dates = [r["date"] for r in cpc.per_model_spend()["daily"]]
     # Bounds and CONTIGUITY, not a length arithmetic on today's date. `len(daily) == today.day` was
