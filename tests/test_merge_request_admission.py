@@ -244,3 +244,32 @@ def test_the_legs_runner_inherits_the_lease(leases):
             [sys.executable, "-c", "import os,sys; os.fstat(int(sys.argv[1]))", str(fd)], 30
         )
     assert run.returncode == 0, run.stderr
+
+
+def test_a_refused_lease_unlink_keeps_the_legs_verdict(leases):
+    # review A1: a lease dir that refuses the unlink must not raise out of the leg or keep the lock
+    with mr._admitted(_Ctx("8192M")):
+        os.chmod(leases, 0o555)
+    try:
+        assert mr._LEASE_FDS == {}
+        t0 = time.monotonic()
+        with mr._admitted(_Ctx("8192M")) as note:  # the leftover file is nobody's: no wait
+            waited = time.monotonic() - t0
+        assert waited < 0.5 and "admitted after" not in note
+    finally:
+        os.chmod(leases, 0o755)
+
+
+def test_a_fifo_named_like_a_lease_does_not_hang_admission(leases):
+    # review A-haiku 4: opening a FIFO blocks with the admission lock held
+    leases.mkdir(parents=True)
+    os.mkfifo(leases / "lease-0-fifo.json")
+    t0 = time.monotonic()
+    with mr._admitted(_Ctx("8192M")):
+        pass
+    assert time.monotonic() - t0 < 2
+
+
+def test_the_after_merge_runner_cap_covers_the_wait():
+    # review A2: the runner's scope bound must hold the admission wait plus a whole budget
+    assert mr.AFTER_RUNNER_MAX_S >= mr.MERGE_TEST_BUDGET_S + mr.LEG_ADMIT_WAIT_S + 300

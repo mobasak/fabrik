@@ -82,6 +82,7 @@ import os
 import re
 import secrets
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -1928,6 +1929,8 @@ def _held_leases(adir: Path) -> list[dict]:
     held = []
     for path in sorted(adir.glob("lease-*.json")):
         try:
+            if not stat.S_ISREG(os.lstat(path).st_mode):
+                continue  # a FIFO would block the open with the admission lock held
             fd = os.open(path, os.O_RDONLY)
         except OSError:
             continue
@@ -1993,25 +1996,30 @@ def _admitted(ctx: _Ctx):
                 os.close(lock_fd)
             time.sleep(LEG_ADMIT_POLL_S)
     except OSError as exc:  # no admission is not a red: the leg runs, and says it ran unadmitted
+        _release_lease(lease_fd, lease)
+        lease_fd = -1
         note = f"; admission: not checked ({exc.strerror or exc})"
     except BaseException:  # an interrupt before the leg starts must not keep the slot
         _release_lease(lease_fd, lease)
         raise
-    waited = time.monotonic() - t0
-    ctx.admit_spent += waited
-    ctx.test_deadline += waited  # the wait is outside the leg's budget clock
-    if waited >= 1 and not note:
-        note = f"; admitted after a {int(waited)}s wait for the box's test slice"
-    try:
+    try:  # from here to the leg's end, any exit releases the lease
+        waited = time.monotonic() - t0
+        ctx.admit_spent += waited
+        ctx.test_deadline += waited  # the wait is outside the leg's budget clock
+        if waited >= 1 and not note:
+            note = f"; admitted after a {int(waited)}s wait for the box's test slice"
         yield note
     finally:
         _release_lease(lease_fd, lease)
 
 
 def _release_lease(lease_fd: int, lease: Path) -> None:
+    """Drop a lease: the fd first (closing it ends the lock), then the file; a refused unlink
+    leaves a file nobody holds, which the next admission deletes as stale."""
     if lease_fd >= 0 and _LEASE_FDS.pop(lease_fd, None) is not None:
-        lease.unlink(missing_ok=True)
         os.close(lease_fd)
+        with contextlib.suppress(OSError):
+            lease.unlink(missing_ok=True)
 
 
 def _run_owner_leg(
@@ -2637,7 +2645,7 @@ AFTER_DONE = "done.txt"  # one request id per line the runner covered
 AFTER_TESTED = "tested.txt"  # the last tip a runner leg ran on: the next leg's base
 AFTER_STATUS = "status.json"
 AFTER_LOCK = "runner.lock"
-AFTER_RUNNER_MAX_S = MERGE_TEST_BUDGET_S + 900
+AFTER_RUNNER_MAX_S = MERGE_TEST_BUDGET_S + LEG_ADMIT_WAIT_S + 900
 
 
 def _after_dir(records: Path) -> Path:
@@ -3954,11 +3962,14 @@ def _leg_fits(started: float, script: str, timed: float = 0.0) -> bool:
     lead to a landing this run, and the wall return would only wait on it. The leg is budgeted at
     TIMED_MARGIN x ``timed``, the longest green queue leg this run already timed for this owner
     script (W-1fb11ec8: 697 s
-    live against the hub's declared 2700 s, which closed the window at 1080 s of the 11100 s wall),
+    live against the hub's declared 2700 s, which closed the window at 1080 s of the then 11100 s wall),
     capped at its whole limit (``_declared_leg``), and at that limit while nothing is timed. Either
     way the leg itself ends inside the wall: one forked at the last fit second that runs its whole
-    limit ends by ``QUEUE_WALL_S - LANDING_WORST_S + limit``, and a landing's worst case outweighs
-    any limit a base may declare plus LEG_OVERHEAD_S. A leg longer than the budget finishes after
+    limit ends by ``QUEUE_WALL_S - LANDING_WORST_S + limit`` (+ LEG_ADMIT_WAIT_S when the child waits
+    for box-wide admission, which this estimate does not count: such a leg ends later than estimated and
+    the landing after it may then not fit, so ``_past_wall`` stops the run with "run it again" — a
+    wasted child run, never a landing killed mid-step), and a landing's worst case outweighs any limit a
+    base may declare plus LEG_OVERHEAD_S and LEG_ADMIT_WAIT_S. A leg longer than the budget finishes after
     the last landing start: its request lands one run later on its record, and this run's children
     keep ``queue.lock`` until it ends."""
     limit = _declared_leg(script)
