@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:28.618982Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-250ffc7d",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5Y7MHEQWM12E67EZKYP9A1A, validate against current master, then fix or drop (proposed score: impact low, effort low — command_rules.py has no path to retire an obsolete ban clause)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "mail 01M5Y7MHEQ (fabrik): command_rules.py has no path to retire an obsolete ban clause — a vanished ban-bearing baseline line can only be `rule:` to a live entry that keeps it verbatim"
+}

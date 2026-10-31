@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:53:15.259232Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e079068e",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M64F9EXD4Z99647R8GCM1SNM",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Relay request to brand-identiy-creator (project to project, so via the hub, please)."
+}

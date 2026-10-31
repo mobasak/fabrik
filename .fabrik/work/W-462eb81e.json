@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:45.643543Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-462eb81e",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M68VEG0DPCY1JZSM9DCJ6RNR, validate against current master, then fix or drop (proposed score: impact low, effort low — infra's weekly kaizen analysis pass, held under D-1367; this 2026-10-30 collection is its newest trigger)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "mail 01M68VEG0D (fabrik): Kaizen daily collection — 2026-10-30"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:51:35.596692Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-61daae80",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5PQ1ETJSEZSKJ3XM7SAT6Q9",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-task feedback asking for command_run.py code: a handoff record cannot be resumed with start --resume-from (two rows)"
+}

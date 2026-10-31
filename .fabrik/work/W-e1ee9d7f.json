@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:39.049625Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-e1ee9d7f",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M64CY08Y32Y1Z84KTR1FTR64",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-scrape: false robots block from the stdlib parser (finding)"
+}

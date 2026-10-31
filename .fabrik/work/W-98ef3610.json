@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:13.596518Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-98ef3610",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5QV62DR171E33TGPHN927AT, validate against current master, then fix or drop (proposed score: impact low, effort low — check_citations_resolve.py splitlines shifts line numbers on U+2028 and friends; use split on newline)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "mail 01M5QV62DR (fabrik-lib): check_citations_resolve.py: str.splitlines() shifts line numbers in files holding U+2028/U+2029/\\x0b/\\x0c, so correct cites report BLANK-TARGET"
+}

@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:03.694583Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-aaed06f7",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M4YZAVNR7JTT4GJE346JNM8G",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "/fabrik-review feedback row 1792034184 names the lane gate's printed line — \"declared surface\" should say the run's --file list, not a seat's slice (scripts/command_run.py)"
+}

@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:56.456018Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-af18502a",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5PJS29Z2JFN3JM72J4T9Q4J, validate against current master, then fix or drop (proposed score: impact high, effort low — the Stop hook autonomy ladder blocks three times on held work every turn end; wasted turns box-wide)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "mail 01M5PJS29Z (fabrik): WHAT: the Stop hook's autonomy ladder (the feedback rung, and the mail rung before it) blocks a turn end three times to send the window into a NEW item while that window'"
+}

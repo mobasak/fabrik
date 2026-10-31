@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:30.909581Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-f91b19e0",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M61ND9JACR9ZVVSN8C3JPBFQ, validate against current master, then fix or drop (proposed score: impact high, effort low — git pushes over ssh hung box-wide on 2026-10-28; re-measure first, pushes work 2026-10-31)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "mail 01M61ND9JA (web-ecommerce-factory): WHAT: git pushes over ssh hang in git-receive-pack for minutes, box-wide, while `git ls-remote` answers at once."
+}

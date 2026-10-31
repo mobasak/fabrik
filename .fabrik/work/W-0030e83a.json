@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:22.654602Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0030e83a",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5X4AQPEKV0GZQX7TBVYZFDE, validate against current master, then fix or drop (proposed score: impact low, effort low — command_rules loader: ** inside a code fence cannot be pinned by a carrier phrase)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "mail 01M5X4AQPE (fabrik): command_rules loader: ** inside a code fence can never be pinned by a carrier phrase"
+}

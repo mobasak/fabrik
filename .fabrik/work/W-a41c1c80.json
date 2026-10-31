@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:52:25.885150Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-a41c1c80",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Y3YT3HQTZKRZ8Y78SE1S1J",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Re: D-1268 stale command texts — accepted, sequenced after the lean merge (W-397cbb98)"
+}

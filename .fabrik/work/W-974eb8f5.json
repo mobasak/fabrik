@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:52:19.689405Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-974eb8f5",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5XSY4BK38QKD4QATKKY2WC6",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: please relay to the seo repo (/opt/seo): its page store for site bhdtrade holds 7 orphan rows no longer on the site — the placeholder posts \"one\" and \"two\" and the retired paraffin post, each in EN and TR, plus a stray https://x.example/p. They should be removed (or marked retired) by seo's ow"
+}

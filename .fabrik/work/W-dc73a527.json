@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:36.135662Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-dc73a527",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M64599DPHTB8ZBGXCT9ZH2FG",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "The feedback owner never gets the `work: coordinator (…) → SendMessage to=` line (W-9bf5a363 follow-up)"
+}

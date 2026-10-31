@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:26.696088Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-3061132a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5AE0YV7Z726385H27V833AW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "fabrik-lib decision-gate: provider-answer hardening merged — re-vendor; one behaviour change can cost you auto-decisions"
+}

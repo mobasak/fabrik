@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:47.268130Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-9ebb256a",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68Y8AT97NHZPZDX12B72NYE",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "agents_up.sh resume prompt names docs/reference/agents/builder.md, which exists only in the hub"
+}

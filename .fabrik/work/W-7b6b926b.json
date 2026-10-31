@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:10.031254Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-7b6b926b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M53THJ0MJQCVB85P7MF9HRAW",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Stop hook feedback rung blocks kaizen on verdicts its own session just filed (self-feeding loop)"
+}

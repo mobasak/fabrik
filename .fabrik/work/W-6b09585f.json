@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:05.862095Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-6b09585f",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M5QKWMKM7M8299AD0BWM00KP, validate against current master, then fix or drop (proposed score: impact high, effort low — rules_match.py reads a middle ** as one segment, so packs miss nested files fleet-wide; a glob fix)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "mail 01M5QKWMKM (fabrik): WHAT: scripts/rules_match.py reads a MIDDLE `**` in a pack glob as a single path segment, so `**/src/**/*.html` matches `src/index.html` but not `src/a/b.html`; Windsurf'"
+}

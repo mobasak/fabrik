@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:48:57.458754Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-d3a639b2",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5PR9KY996GZCS6AHVBYPAD4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "Stop hook's feedback rung orders a new item while ROTATE-DUE forbids starting one (three blocks at an item boundary)"
+}

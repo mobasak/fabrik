@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:52:30.233091Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-5f0fb025",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5Y8FGYEKKZXZR45XHFGHVN8",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "WHAT: the root cause behind 01M5Y85PED (fabrik-rotate.path failed with ENOSPC). The user's inotify WATCH limit is exhausted: 524138 of 524288 in use (max_user_watches). Instances are fine (38 of 128)."
+}

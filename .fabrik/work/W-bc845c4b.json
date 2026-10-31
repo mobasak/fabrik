@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:50:35.658660Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-bc845c4b",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M5CA7SY2420EJJEG4MRN44DZ",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: wontfix",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "llm-dispatch `complete()` and `complete_json()` changed behaviour: the system prompt now goes in the system turn, and temperature is sent only when set. This is fabrik-lib SB-102, fabrik-lib D-498 / D-502 / D-503, merged to fabrik-lib main as c862cf0a on 2026-10-20."
+}

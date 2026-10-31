@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:47.832639Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-90ec0e55",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "read archived mail 01M68Y8AT97NHZPZDX12B72NYE, validate against current master, then fix or drop (proposed score: impact high, effort low — agents_up.sh's resume prompt names docs/reference/agents/builder.md, which exists only in the hub, so project builders resume blind)",
+  "note": "",
+  "owner": "",
+  "priority": 2,
+  "status": "open",
+  "title": "mail 01M68Y8AT9 (fabrik): agents_up.sh resume prompt names docs/reference/agents/builder.md, which exists only in the hub"
+}

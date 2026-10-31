@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T13:49:49.255435Z",
+  "creator": "infra",
+  "evidence": "",
+  "id": "W-0cd9db99",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M68ZBCKWM10G2HT99AHCMPY4",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "infra",
+  "priority": 2,
+  "status": "done",
+  "title": "agents_up.sh add: role charter checked on disk, not on the base branch; an unmarked own charter silently blocks the fallback"
+}
