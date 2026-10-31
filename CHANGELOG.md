@@ -9,8 +9,8 @@ A wef review seat's mutant blocked on a FIFO under plain pytest and ran 2 days 1
 only moves a command to the background, and no seat-facing text carried D-935's capped_run rule (mail 01M65ZP80Q).
 The fabrik-reviewer House rules now say: run every test, and every probe that executes pinned code, as one plain
 `capped_run.sh --timeout <s> -- <command>` (`<s>` defaults to 120, at most 540), with the Bash parameter at `<s>` + 60 s
-and no outer `timeout 120`. Exit 124, 137, or 2 with a `capped_run:` line, is no result: the test is `unverified`, and a
-hung mutant counts as not caught. The probe catalogue's § Seat isolation points at that clause, and its mutation bullet
+and no outer `timeout 120`. Exit 124, 137, or 2 with a `capped_run:` line, is no result: the test and its mutant are
+`unverified`, and a no-manager `capped_run: WARNING` goes to MACHINERY. The probe catalogue's § Seat isolation points at that clause, and its mutation bullet
 names the same timeout. /fabrik-review and /fabrik-review-scoped name the cap in their summary of the section. Four
 L1 ceilings are raised to the measured growth (D-1399). Grader: `tests/test_seat_capped_run_line.py`. Infra's
 seat_guard.py unwrap of `capped_run.sh` (mail 01M68KA2EC) lands first; intel's workflow prompt follows (01M68KHK0H).
