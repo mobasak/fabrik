@@ -184,12 +184,23 @@ def import_patterns(path: str) -> set[str]:
     }
 
 
+def stem_pattern(path: str) -> str | None:
+    """The regex for ``path``'s stem as a key: whole word only, so `CLAUDE` (from CLAUDE.md) no longer
+    selects every test naming `CLAUDE_AGENT` and `compose` every one naming `docker compose` — measured
+    on master's last 60 merges, the substring form ran 9 more files (357 s serial) per merge, and the
+    D-1189 replay keeps 17 of 17 either way. A letter, digit or `_` on either side, a `-` after it, or a
+    `-` glued to a word before it (`docker-compose`) is part of another name; a `--<stem>` flag still is one."""
+    p = Path(path)
+    if len(p.stem) < MIN_STEM or p.stem == p.name:
+        return None
+    return rf"(?<!\w)(?<!\w-){re.escape(p.stem)}(?![\w-])"
+
+
 def keys_for(path: str) -> set[str]:
-    """The strings whose presence in a test's text selects it for a change to ``path``."""
+    """The strings whose presence in a test's text selects it for a change to ``path`` (its stem is
+    ``stem_pattern``'s, matched as a whole word)."""
     p = Path(path)
     keys = {p.name}
-    if len(p.stem) >= MIN_STEM:
-        keys.add(p.stem)
     parent = p.parent.as_posix()
     if parent not in (".", "tests") and parent not in GENERIC_DIRS:
         keys.add(parent + "/")
@@ -213,6 +224,9 @@ def select(changed: list[str], tests: dict[str, str]) -> list[str]:
         elif not SKIP.fullmatch(p):
             keys |= keys_for(p)
             mods |= import_patterns(p)
+            stem = stem_pattern(p)
+            if stem:
+                mods.add(stem)
     bounded = re.compile("|".join(sorted(mods))) if mods else None
     if keys:
         for name, text in tests.items():
@@ -222,7 +236,26 @@ def select(changed: list[str], tests: dict[str, str]) -> list[str]:
                 or (bounded is not None and bounded.search(text))
             ):
                 picked.add(name)
-    return sorted(picked)
+    return sorted(_with_test_importers(picked, tests))
+
+
+def _with_test_importers(picked: set[str], tests: dict[str, str]) -> set[str]:
+    """``picked`` plus every test that imports a picked test module, to a fixed point: a test reaching
+    the changed code through another test's helpers (test_merge_request_pretest.py imports World from
+    test_merge_request_merge.py) names neither the file nor a whole-word stem of it — the substring stem
+    rule caught it only by accident (`merge_request` inside `test_merge_request_merge`)."""
+    out = set(picked)
+    todo = set(picked)
+    while todo:
+        alt = "|".join(sorted(re.escape(Path(n).stem) for n in todo))
+        # `from test_x import`, `from tests.test_x import`, `import tests.enforcement.test_x`
+        importer = re.compile(
+            rf"^[ \t]*(?:from[ \t]+(?:[\w.]*\.)?(?:{alt})[ \t]+import\b|import[ \t]+(?:[\w.]*\.)?(?:{alt})\b)",
+            re.M,
+        )
+        todo = {n for n, text in tests.items() if n not in out and importer.search(text)}
+        out |= todo
+    return out
 
 
 def normalise(msg: str) -> str:
