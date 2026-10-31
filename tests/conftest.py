@@ -156,7 +156,11 @@ def pytest_configure(config):
         os.environ.pop(key, None)
     # A pretest or `merge --queue` leg exports FABRIK_MERGE_TESTS_RECORDS to redirect its OWN
     # records; inherited by the shards, it redirected the selector tests' records too (W-bce8914b).
-    os.environ.pop("FABRIK_MERGE_TESTS_RECORDS", None)
+    # The after-merge leg also exports FABRIK_MERGE_TESTS_BASE (its last tested tip, D-1382), which
+    # moved every selector test's base the same way (W-aa8c473c). FABRIK_MERGE_TESTS_DUR / _UNTIL
+    # stay: the leg's own recording plugin reads them inside the shard.
+    for key in ("FABRIK_MERGE_TESTS_RECORDS", "FABRIK_MERGE_TESTS_BASE"):
+        os.environ.pop(key, None)
     _install_fleet_guard()
     # A runaway test is killed past FABRIK_TEST_RSS_MAX, never the host: two WSL crashes on
     # 2026-10-17 came from one test process at ~32 GB (W-162398ef; tests/memguard.py).

@@ -26,6 +26,9 @@ W-b9916ab1). Grader: `tests/test_coordinator_duties_d1396.py`.
 ### Changed — an account whose plan dropped the 5-hour limit reads `5h retired`, not a stale percentage (2026-10-31)
 The usage payload of an account on the plan now named Ultra can drop its `five_hour` window (sarp's did on 2026-10-31; ob, ozgurbasak, can and mob still report one). Both payload parsers in `claude_rotate.py` failed the whole reading closed on it, so the tick served sarp from a 12-hour-old cache. A payload with `five_hour: null` whose limits are a `weekly_all` entry plus only weekly kinds now reads as a retired window (0.0 plus `retired: true`): bands come from weekly and Fable, the tick's ledger row writes `session: retired` instead of a fake 0% sample, and the `QUOTA:` line prints `5h retired`, `--status` `session retired` and the :5051 dashboard `retired`. Every other null shape still fails closed; an account still reporting a 5h window behaves as before (D-1400, D-1401, W-992979e1).
 
+### Fixed — the test conftest scrubs the after-merge leg's base override too (2026-10-31)
+The after-merge leg exports `FABRIK_MERGE_TESTS_BASE` (D-1382); its pytest shards inherited it and the selector tests in `tests/test_merge_test_select.py` ran against the leg's base, so every after-merge leg that selected them read red (W-aa8c473c, filed against merge 9aaab68ff). `tests/conftest.py` now pops it beside `FABRIK_MERGE_TESTS_RECORDS`, and `tests/test_conftest_isolation.py` exports each variable in turn.
+
 ### Changed — the hub merge leg stops selecting tests by a file name's substring (2026-10-31)
 `scripts/merge_test_select.py` matches a changed file's stem as a whole word, so a CLAUDE.md change no longer runs every
 test naming `CLAUDE_AGENT` and a compose.yaml one every `docker compose` test; a test importing a test the change selected
