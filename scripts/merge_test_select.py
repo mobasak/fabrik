@@ -78,7 +78,7 @@ TREE_GRADER = "ls-files"
 RAN = (0, 1, 5)
 # this process's own inputs, set by the leg for the selector alone: a pytest child that inherited one
 # moved a nested selector run's base or record directory (W-aa8c473c, W-f13496d8), so no child gets
-# them. A drop-list fails open for a name added later; the test pins every FABRIK_MERGE_ name here
+# them. A drop-list fails open for a name added later, so a test classifies every such name here
 SELECTOR_ONLY = ("FABRIK_MERGE_TESTS_BASE", "FABRIK_MERGE_TESTS_RECORDS", "FABRIK_MERGE_SHARDS")
 
 

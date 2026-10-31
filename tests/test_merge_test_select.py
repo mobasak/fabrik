@@ -1301,9 +1301,10 @@ def test_a_collect_run_never_inherits_the_selectors_own_inputs(tmp_path, monkeyp
     assert "FABRIK_MERGE_CHECK" in seen, seen
 
 
-# A name every child must still read: the per-shard plugin's inputs, which _Runner.start sets for
-# each shard, and FABRIK_MERGE_CHECK (tests/conftest.py's live_box skip). Add a name here only when
-# a CHILD reads it; a name only the selector process reads belongs in mts.SELECTOR_ONLY.
+# A name a pytest child reads, so it must reach the children: the recording plugin's inputs
+# (mts._PLUGIN, run in each shard) and FABRIK_MERGE_CHECK (tests/conftest.py's live_box skip). The
+# test below holds each to one of those two readers; a name only the selector process reads belongs
+# in mts.SELECTOR_ONLY.
 _CHILD_READS = {
     "FABRIK_MERGE_TESTS_REC",
     "FABRIK_MERGE_TESTS_DUR",
@@ -1313,12 +1314,22 @@ _CHILD_READS = {
 
 
 def test_every_merge_env_name_the_selector_names_is_classified():
-    """The drop-list fails open for a selector input added later; this pins every name instead."""
-    named = set(re.findall(r"FABRIK_MERGE_[A-Z_]*[A-Z]", SCRIPT.read_text(encoding="utf-8")))
+    """The drop-list fails open for a selector input added later; this pins every name instead.
+    Every token starting FABRIK_MERGE counts whole, so a name spelled by concatenation or an
+    f-string (a bare ``FABRIK_MERGE_``), with a digit or in lower case is an unclassified name."""
+
+    def tokens(text: str) -> set[str]:
+        return set(re.findall(r"FABRIK_MERGE\w*", text))
+
+    named = tokens(SCRIPT.read_text(encoding="utf-8"))
     selector_only = set(getattr(mts, "SELECTOR_ONLY", ()))
     assert selector_only == set(_SELECTOR_INPUTS), selector_only
     assert not selector_only & _CHILD_READS
     assert named - selector_only - _CHILD_READS == set(), named
+    readers = tokens(mts._PLUGIN) | tokens(
+        (ROOT / "tests" / "conftest.py").read_text(encoding="utf-8")
+    )
+    assert _CHILD_READS - readers == set(), _CHILD_READS - readers
 
 
 # ── W-c832e59f: shards balanced by recorded per-file duration ──────────────────────────────
