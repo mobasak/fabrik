@@ -35,6 +35,8 @@ class _Ctx:
         self.leg_mem = mem
         self.main = Path("/nonexistent-repo")
         self.test_deadline = time.monotonic() + 100
+        self.admit_spent = 0.0
+        self.leg_t0 = 0.0
 
 
 @pytest.fixture
@@ -95,7 +97,7 @@ def test_a_dead_holder_frees_its_slot(leases):
             "-c",
             "import importlib.util,sys,time,pathlib;"
             f"s=importlib.util.spec_from_file_location('m',{str(SCRIPT)!r});m=importlib.util.module_from_spec(s);s.loader.exec_module(m)\n"
-            "class C:\n leg_mem='8192M'; main=pathlib.Path('/x'); test_deadline=0\n"
+            "class C:\n leg_mem='8192M'; main=pathlib.Path('/x'); test_deadline=0; admit_spent=0.0\n"
             "cm=m._admitted(C()); cm.__enter__(); print('held',flush=True); time.sleep(60)",
         ],
         env={**os.environ},
@@ -166,3 +168,46 @@ class _Note:
 
     def __exit__(self, *exc) -> None:
         return None
+
+
+def test_the_wait_allowance_is_per_invocation(leases):
+    # Opus critique 1: every leg of one merge run shares LEG_ADMIT_WAIT_S, so the walls count it once
+    release, entered = threading.Event(), threading.Event()
+    first = _hold("8192M", release, entered)
+    try:
+        ctx = _Ctx("8192M")
+        ctx.admit_spent = mr.LEG_ADMIT_WAIT_S  # an earlier leg of this run used it all
+        t0 = time.monotonic()
+        with mr._admitted(ctx) as note:
+            waited = time.monotonic() - t0
+        assert waited < 0.5, f"a run with no allowance left still waited {waited:.2f}s"
+        assert "admission: started after the" in note
+    finally:
+        release.set()
+        first.join(5)
+
+
+def test_an_interrupt_while_taking_the_lease_frees_it(leases, monkeypatch):
+    # Opus critique 2: a KeyboardInterrupt between creating the lease and the leg must not keep the slot
+    real = mr.json.dumps
+
+    def boom(*a, **k):
+        monkeypatch.setattr(mr.json, "dumps", real)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(mr.json, "dumps", boom)
+    with pytest.raises(KeyboardInterrupt):
+        with mr._admitted(_Ctx("8192M")):
+            pass
+    assert mr._LEASE_FDS == {}
+    assert list(leases.glob("lease-*.json")) == []
+
+
+def test_the_legs_runner_inherits_the_lease(leases):
+    # Opus critique 3: the lease must live as long as the leg's tests, so the runner holds it too
+    with mr._admitted(_Ctx("8192M")):
+        (fd,) = list(mr._LEASE_FDS)
+        run = mr._run(
+            [sys.executable, "-c", "import os,sys; os.fstat(int(sys.argv[1]))", str(fd)], 30
+        )
+    assert run.returncode == 0, run.stderr
