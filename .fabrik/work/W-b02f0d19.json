@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T14:43:22.725154Z",
+  "creator": "coordinator",
+  "evidence": "",
+  "id": "W-b02f0d19",
+  "kind": "mail",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "mail": "01M693R2B5472RSCE1822WA797",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "",
+  "note": "mail ack: done",
+  "owner": "coordinator",
+  "priority": 2,
+  "status": "done",
+  "title": "builder-tmpfix — W-0c208792 done (MR 01M693KZZJX6RRVQ8Z4T4BE4NW); please rotate builder-tmpfix; my SendMessage to fabrik-8a was HELD undelivered"
+}
