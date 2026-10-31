@@ -134,18 +134,51 @@ def test_the_wait_is_bounded_and_said(leases, monkeypatch):
 
 
 def test_a_forked_child_does_not_keep_the_parents_lease(leases):
-    with mr._admitted(_Ctx("8192M")):
-        pid = os.fork()
-        if pid == 0:  # the child sleeps while holding nothing of the parent's
-            time.sleep(1.5)
-            os._exit(0)
+    # Fable critique 4: the parent exits while its forked child lives on; the child must not hold the
+    # lease (with the fork hook removed it does, and _held_leases still reports it)
+    leases.mkdir(parents=True)
+    code = (
+        "import importlib.util,os,sys,time,pathlib;"
+        f"s=importlib.util.spec_from_file_location('m',{str(SCRIPT)!r});m=importlib.util.module_from_spec(s);s.loader.exec_module(m)\n"
+        "class C:\n leg_mem='8192M'; main=pathlib.Path('/x'); test_deadline=0; admit_spent=0.0\n"
+        "cm=m._admitted(C()); cm.__enter__()\n"
+        "if os.fork()==0:\n print('child',flush=True); time.sleep(20); os._exit(0)\n"
+        "time.sleep(0.3); os._exit(0)\n"
+    )
+    proc = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True)
+    try:
+        assert proc.stdout.readline().strip() == "child"
+        proc.wait(5)  # the parent is gone; its child sleeps on
+        time.sleep(0.2)
+        assert mr._held_leases(leases) == []
+    finally:
+        proc.kill()
+
+
+def test_a_hung_admission_lock_holder_cannot_outlast_the_bound(leases, monkeypatch):
+    # Fable critique 2: the admission lock itself is taken without blocking
+    import fcntl
+
+    monkeypatch.setattr(mr, "LEG_ADMIT_WAIT_S", 0.3)
+    leases.mkdir(parents=True)
+    fd = os.open(leases / "admission.lock", os.O_RDWR | os.O_CREAT)
+    fcntl.flock(fd, fcntl.LOCK_EX)
     try:
         t0 = time.monotonic()
-        with mr._admitted(_Ctx("8192M")):
+        with mr._admitted(_Ctx("8192M")) as note:
             waited = time.monotonic() - t0
-        assert waited < 0.5, f"the forked child held the parent's lease for {waited:.2f}s"
+        assert waited < 2, f"a held admission lock blocked the leg for {waited:.2f}s"
+        assert "its lock was held past" in note
     finally:
-        os.waitpid(pid, 0)
+        os.close(fd)
+
+
+def test_an_undeletable_lease_entry_does_not_disable_admission(leases):
+    # Fable critique 5: a directory named like a lease cannot be unlinked; admission still works
+    (leases / "lease-0-dead.json").mkdir(parents=True)
+    with mr._admitted(_Ctx("8192M")) as note:
+        pass
+    assert "not checked" not in note
 
 
 def test_the_leg_label_carries_the_admission_note(leases, monkeypatch, tmp_path):

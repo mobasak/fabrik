@@ -1942,7 +1942,8 @@ def _held_leases(adir: Path) -> list[dict]:
                 mib = rec.get("mib") if isinstance(rec, dict) else None
                 held.append(rec if isinstance(mib, int) and mib > 0 else {"mib": LEG_MEM_MAX_MIB})
                 continue
-            path.unlink(missing_ok=True)  # nobody holds it: its leg is gone
+            with contextlib.suppress(OSError):  # one undeletable entry must not disable admission
+                path.unlink(missing_ok=True)  # nobody holds it: its leg is gone
         finally:
             os.close(fd)
     return held
@@ -1960,29 +1961,34 @@ def _admitted(ctx: _Ctx):
     lease = adir / f"lease-{os.getpid()}-{secrets.token_hex(4)}.json"
     try:
         adir.mkdir(parents=True, exist_ok=True)
-        while True:
+        while lease_fd < 0:
+            over = ctx.admit_spent + time.monotonic() - t0 >= LEG_ADMIT_WAIT_S
             lock_fd = os.open(adir / "admission.lock", os.O_RDWR | os.O_CREAT, 0o644)
             try:
-                fcntl.flock(lock_fd, fcntl.LOCK_EX)
-                held = _held_leases(adir)
-                used = sum(int(r["mib"]) for r in held)
-                over = ctx.admit_spent + time.monotonic() - t0 >= LEG_ADMIT_WAIT_S
-                if not held or used + mine <= cap or over:
-                    lease_fd = os.open(lease, os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o644)
-                    _LEASE_FDS[lease_fd] = lease
-                    fcntl.flock(lease_fd, fcntl.LOCK_EX)
-                    os.write(
-                        lease_fd,
-                        json.dumps(
-                            {"mib": mine, "pid": os.getpid(), "repo": str(ctx.main)}
-                        ).encode(),
-                    )
-                    if over and held and used + mine > cap:
+                try:  # never blocking: a hung lock holder must not outlast the bounded wait
+                    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                except BlockingIOError:
+                    if over:
                         note = (
-                            f"; admission: started after the {LEG_ADMIT_WAIT_S}s wait with {len(held)} leg(s) "
-                            f"holding {used} MiB of the {cap} MiB test slice"
+                            f"; admission: its lock was held past the {LEG_ADMIT_WAIT_S}s wait, "
+                            "started anyway"
                         )
-                    break
+                        break
+                else:
+                    held = _held_leases(adir)
+                    used = sum(int(r["mib"]) for r in held)
+                    if not held or used + mine <= cap or over:
+                        lease_fd = os.open(lease, os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o644)
+                        _LEASE_FDS[lease_fd] = lease
+                        fcntl.flock(lease_fd, fcntl.LOCK_EX)
+                        rec = {"mib": mine, "pid": os.getpid(), "repo": str(ctx.main)}
+                        os.write(lease_fd, json.dumps(rec).encode())
+                        if over and held and used + mine > cap:
+                            note = (
+                                f"; admission: started after the {LEG_ADMIT_WAIT_S}s wait with "
+                                f"{len(held)} leg(s) holding {used} MiB of the {cap} MiB test slice"
+                            )
+                        break
             finally:
                 os.close(lock_fd)
             time.sleep(LEG_ADMIT_POLL_S)
