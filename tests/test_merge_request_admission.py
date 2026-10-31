@@ -179,12 +179,23 @@ def test_a_hung_admission_lock_holder_cannot_outlast_the_bound(leases, monkeypat
         os.close(fd)
 
 
-def test_an_undeletable_lease_entry_does_not_disable_admission(leases):
-    # Fable critique 5: a directory named like a lease cannot be unlinked; admission still works
-    (leases / "lease-0-dead.json").mkdir(parents=True)
+def test_an_undeletable_lease_entry_does_not_disable_admission(leases, monkeypatch):
+    # Fable critique 5: a stale lease whose unlink is refused must not turn admission off box-wide
+    # (a regular file, so the S_ISREG skip does not hide the unlink path this guards)
+    leases.mkdir(parents=True)
+    stale = leases / "lease-0-dead.json"
+    stale.write_text('{"mib": 8192}')
+    real = Path.unlink
+
+    def refuse(self, *a, **k):
+        if self.name == stale.name:
+            raise PermissionError(13, "Permission denied")
+        return real(self, *a, **k)
+
+    monkeypatch.setattr(Path, "unlink", refuse)
     with mr._admitted(_Ctx("8192M")) as note:
         pass
-    assert "not checked" not in note
+    assert "not checked" not in note, note
 
 
 def test_the_leg_label_carries_the_admission_note(leases, monkeypatch, tmp_path):
