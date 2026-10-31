@@ -12,6 +12,9 @@ valve. A rise sustained for 7 days past 2 sigma mails the coordinator once per e
 40 (D-1384). The coordinator's prompt block shows its one line, or `STALE` when the collector stopped
 (W-622ec42c, D-1390). The collector's tests no longer reach the live repo's merge records (`tests/conftest.py`).
 
+### Fixed — a desktop agent tab that fails stays open with its reason (2026-10-31)
+Every tab of `All Agents (tabbed).bat` and `<Repo> Agents.bat` now runs `agents_up.sh --tab`, and the Windows Terminal fragment profile sets `"closeOnExit": "never"` (W-df2e24ed, D-1388). Under `--tab` a launch with no terminal exits 1 (4 when a builder got no pane) with the reason instead of detaching silently (which let the tab close), any other failure before the attach (an argument error or a signal included) prints a `stopped (exit <n>)` line from one shared exit handler, and a `--window` tab says it is waiting. A `wsl.exe` that fails before WSL starts (the vsock fault, W-37b51748) stays readable. Regenerate once: `python3 /opt/fabrik/scripts/sysadmin/agents_bat.py --tabbed`.
+
 ### Added — every new agent grid refreshes "All Agents (tabbed).bat" itself; the tmux how-to (2026-10-30)
 `scripts/sysadmin/agents_up.sh` now starts `agents_bat.py --tabbed` in the background after every grid it builds
 (interactive, `--detach` boot sweep, `add` cold start), when a desktop is remembered. Refreshes are coalesced (one runs,

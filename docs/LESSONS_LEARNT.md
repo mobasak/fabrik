@@ -8267,3 +8267,7 @@ failure between moving the ref and moving the index.
 `--only`), which updates the index entry and the branch ref under one `index.lock` and lands nothing on failure; it
 judges eligibility (the file was clean at HEAD before its write) against HEAD at commit time, and names, rather than
 prevents, a write landing in the milliseconds before the commit.
+
+## A script that installs an EXIT trap owns the only one — compose, never add a second (2026-10-31, W-df2e24ed)
+
+bash keeps ONE EXIT trap: a flag-scoped `trap … EXIT` set at parse time is silently replaced by any function's own trap and removed by its `trap - EXIT`, exactly on the failure paths it was meant to report (agents_up.sh start_grid :1055/:1108). Make one handler and let callers flip state variables. And `script -qfec` as a fake pty is not free: with stdin at EOF it forwards ^D into the attached pane and pins the client at 80x24 — both critique seats executed it before any code existed.

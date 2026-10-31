@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AFTER-EDIT: docs/reference/repo-coordinator-rollout.md | tests/test_agents_up.py
-# agents_up.sh [--print] [--detach] <repo> — open a repo's builder agents side by side, four per tmux window (D-1031). Also: agents_up.sh --window <n> <repo>. Also: agents_up.sh rotate-session <name> [--compact FOCUS | --move] [--trigger T] (W-f975fee0, W-e38f8ee7).
+# agents_up.sh [--print] [--detach] [--tab] <repo> — open a repo's builder agents side by side, four per tmux window (D-1031). Also: agents_up.sh [--tab] --window <n> <repo>. Also: agents_up.sh rotate-session <name> [--compact FOCUS | --move] [--trigger T] (W-f975fee0, W-e38f8ee7).
 #
 # Every repo's launcher (W-66e2f6a7 retired ~/bin/hub-up). The builders come from the repo's own registry,
 # <repo>/.fabrik/session-agents.json ({"<session id>": "<agent name>"}), when it has one, and otherwise from the identity
@@ -18,7 +18,11 @@
 # the grid and launches nothing: a `session <name>` line, a `slice <name> MemoryHigh=<v> MemoryMax=<v>` line, then per
 # builder `pane <name> <sid> <folder> <status>`, `cap <name> <TasksMax>` (or `cap <name> uncapped`) and `run <name>
 # <command>`. --detach builds the grid (or finds it up) and never attaches (the boot sweep and cron have no terminal);
-# a caller with no terminal on stdin/stdout detaches the same way and says so (W-1961cc42).
+# a caller with no terminal on stdin/stdout detaches the same way and says so (W-1961cc42). --tab is the desktop
+# launcher's form (W-df2e24ed): a Windows Terminal tab closes when its command exits 0, so under --tab a missing terminal
+# is exit 1 (4 when a builder got no pane) with the reason, never the silent detach, and any non-zero exit before the
+# attach — an argument error or a signal (128+signal) included — prints one "stopped" line; the attach itself is an exec,
+# so a failing attach shows tmux's (or bash's) own error instead; it takes none of --print, --detach and --pane-cmd.
 #
 # Window layout (W-b9ad80ae D4): four panes per window — `agents` holds the first four builders, `agents-2` the next four,
 # `agents-3` the next, and so on (a pane that cannot be created is said and the next builder takes its slot). Each
@@ -116,12 +120,30 @@ fi
 
 print=0
 detach=0
+tab=0
 panecmd=0
+# ONE exit handler (bash keeps a single EXIT trap), installed before the flags are read so an argument error counts too:
+# start_grid's building-flag cleanup while BUILDING=1, and under --tab the line that keeps a failed tab readable. The
+# attach and switch-client are execs, so the handler never runs for them, whether they succeed or fail (tmux, or bash
+# when tmux cannot be run, then prints its own error).
+BUILDING=0
+on_exit() {
+  local rc=$?
+  [ "$BUILDING" = 1 ] && tmux set-option -t "=$S:" -u @agents_up_building >/dev/null 2>&1
+  if [ "$tab" = 1 ] && [ "$rc" != 0 ]; then
+    echo "agents_up: stopped (exit $rc) before attaching — the reason is above; this tab stays open" >&2
+  fi
+  return 0
+}
+trap on_exit EXIT
 winn=""
+# --tab is seen wherever it stands, so an argument error before it (or a --tab after the repo) still prints the line
+for a in "$@"; do [ "$a" = --tab ] && tab=1; done
 while [ $# -gt 0 ]; do
   case "$1" in
     --print) print=1; shift ;;
     --detach) detach=1; shift ;;
+    --tab) tab=1; shift ;;
     --pane-cmd) panecmd=1; shift ;;
     --window)
       if [ -n "$winn" ]; then echo "usage: agents_up.sh --window <n> <repo>   (--window is given once)" >&2; exit 2; fi
@@ -137,6 +159,17 @@ done
 if [ -n "$winn" ] && { [ "$print" = 1 ] || [ "$detach" = 1 ] || [ "$panecmd" = 1 ]; }; then
   echo "agents_up: --window is its own mode: it takes none of --print, --detach and --pane-cmd" >&2
   exit 2
+fi
+if [ "$tab" = 1 ] && { [ "$print" = 1 ] || [ "$detach" = 1 ] || [ "$panecmd" = 1 ]; }; then
+  echo "agents_up: --tab is the launcher's attach form: it takes none of --print, --detach and --pane-cmd" >&2
+  exit 2
+fi
+# under --tab a signal ends the run with 128+signal, so the stopped line names it (bash would hand the EXIT trap the
+# last command's status); without --tab a signal is left to bash, as before
+if [ "$tab" = 1 ]; then
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
 fi
 # the name a pane may carry, and the ids a first prompt may name (all reach a shell command string)
 NAME_RE='^[a-z0-9][a-z0-9-]{0,31}$'
@@ -201,7 +234,7 @@ if [ "$panecmd" = 1 ]; then
   set -- "$pane_repo"
 fi
 if [ $# -ne 1 ] || [ -z "$1" ]; then
-  echo "usage: agents_up.sh [--print] [--detach] <repo>   |   agents_up.sh --window <n> <repo>" >&2
+  echo "usage: agents_up.sh [--print] [--detach] [--tab] <repo>   |   agents_up.sh [--tab] --window <n> <repo>" >&2
   exit 2
 fi
 if [ ! -d "$1" ]; then
@@ -1052,7 +1085,7 @@ start_grid() {
         fi
         exit 1
       fi
-      trap 'tmux set-option -t "=$S:" -u @agents_up_building >/dev/null 2>&1' EXIT
+      BUILDING=1  # on_exit unsets @agents_up_building on any exit from here on
       read -r wid pid <<< "$out"
       if ! [[ "$wid" =~ ^@[0-9]+$ && "$pid" =~ ^%[0-9]+$ ]]; then
         echo "agents_up: tmux gave no window and pane id for $S's first pane ('$out') — not continuing" >&2
@@ -1105,7 +1138,7 @@ start_grid() {
   tmux select-window -t "=$S:${wins[0]}" >/dev/null
   tmux select-pane -t "$pane0"
   tmux set-option -t "=$S:" -u @agents_up_building >/dev/null 2>&1
-  trap - EXIT
+  BUILDING=0
   refresh_bat
 }
 
@@ -1124,6 +1157,8 @@ window_mode() {
       echo "agents_up: the $S grid was not ready within $wait_s s" >&2
       exit 2
     fi
+    # a --tab is black while it waits: say so once, before the first sleep
+    [ "$tab" = 1 ] && [ "$waited" = 0 ] && echo "agents_up: waiting up to $wait_s s for the $S grid to be built" >&2
     sleep 2
     waited=$((waited + 2))
   done
@@ -1154,6 +1189,13 @@ if [ "$detach" = 1 ]; then
   echo "agents_up: --detach — the $S grid is up, not attaching (attach with: tmux attach -t =$ATT)" >&2
   [ "$NO_ROOM" = 1 ] && exit 4
   exit 0
+fi
+# under --tab a missing terminal is said before anything else: never the switch-client exec (a leaked TMUX), whose
+# exit 0 would close the tab with no reason
+if { [ ! -t 0 ] || [ ! -t 1 ]; } && [ "$tab" = 1 ]; then
+  echo "agents_up: --tab but no terminal on stdin/stdout — the $S grid is up, nothing to attach here (attach with: tmux attach -t =$ATT)" >&2
+  [ "$NO_ROOM" = 1 ] && exit 4
+  exit 1
 fi
 # run from inside tmux (a hub pane), attaching would nest; switch the client instead
 [ -n "${TMUX:-}" ] && exec tmux switch-client -t "=$ATT"

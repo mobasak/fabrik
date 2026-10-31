@@ -1,0 +1,20 @@
+{
+  "blocked_by": [],
+  "created": "2026-10-31T08:34:54.839657Z",
+  "creator": "infra-3",
+  "evidence": "",
+  "id": "W-af688eb1",
+  "kind": "task",
+  "legacy": false,
+  "links": {
+    "decision": "",
+    "plan": "",
+    "spec": ""
+  },
+  "next": "make the bound measure the poll count (or a fake clock), not monotonic wall time, as W-1e0f4229 did for rotate_session",
+  "note": "",
+  "owner": "",
+  "priority": 3,
+  "status": "open",
+  "title": "Flaky under load: tests/test_agents_spawn.py::test_f5_a_slow_print_never_overruns_the_bound_by_more_than_a_poll — a 1+SETTLE_POLL_S+1.0 s wall-clock bound failed once in a 440-test 8-min run (2026-10-31, infra-3 on W-df2e24ed), passed 3/3 alone; the subject is a stub agents_up, so it is load, not code"
+}
