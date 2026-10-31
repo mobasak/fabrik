@@ -44,7 +44,9 @@ receipt.
 | I3 | *"Intel's lock release is on master as of 16b8494b8 … merge master into your worktree first"* (coordinator, 2026-10-22) | IN | Phase A step 0 |
 | I4 | *"the hook regex and its printed list are an infra ticket inside the plan, mailed with the exact diff"* (coordinator routing) | IN | Phase B |
 
-Intake: 4 items — 4 IN, 0 OUT-OF-SCOPE, 0 ASK.
+| I5 | spec § Amendment 1 (I13–I30), W-92389a31: *"design amendment to spec D1 … before Phase B consumes the labels"* (item `next` field) | IN | Phase A2 |
+
+Intake: 5 items — 5 IN, 0 OUT-OF-SCOPE, 0 ASK.
 
 ## What we already agreed (citations, not restatement)
 
@@ -263,6 +265,68 @@ never take it.
 - **Given** `design-gate-panel.md`, **When** the grader reads it, **Then** it cites D-1110 and no longer says "for design approval only" or that the other gate classes "stay the operator's" (A7)
 - **Mocked:** nothing — the grader reads the real files from the tree it sits in.
 
+## Phase A2 — Amendment 1: D1's residuals (W-92389a31)
+
+Appetite: 120
+
+Added 2026-10-31 for `spec § Amendment 1` (R1–R13), after Phase A merged (receipt
+`docs/development/reviews/2026-10-30-plan-1-phase-a-review.md`) and before Phase B, which reads the same five label tokens
+(R1 keeps the set; only `unbacked`'s gloss widens). Branch `kaizen-d1-amend-1031`, cut from `origin/master` at fa55adeb3 on
+2026-10-31 (the spec commit c6e544534 sits on it).
+
+**Interfaces — Produces:** the twin gate paragraph's R1–R6, R8, R9 text and the hub § Autonomy's R1, R10, R12 text,
+exactly as `spec § Amendment 1` words them; Phase B's hook comment block quotes D1, so its prototype's wording
+"(every real-money spend stays the operator's while the operator's ceiling is 0; an irreversible act has no rollback)"
+stays true under R6 and R9.
+
+**Consumes:** Phase A's landed text (master).
+
+**Steps** (sequential):
+
+0. `git fetch` and merge `origin/master` into the branch if it moved (`git merge --no-commit`, then a trailered
+   commit), and read `.fabrik/plan-locks/` for any lock other than this plan's own listing either CLAUDE.md copy or
+   `commands/_sources/fabrik-deploy-plan-review.md` (`python3 -c` over the JSON files; expected: none).
+1. **Grader first.** Extend `tests/test_least_operator_approval.py` with A8–A13 below and move the five pins Phase A
+   wrote on phrases Amendment 1 replaces — "deleting data with no backup", "and its users are not us", "only the
+   operator can perform", "every irreversible act always", "keeps for the operator (D-1110" (`command grep -n` in that
+   file finds each) — to the new phrases. Run it under the Global Constraints' pytest line: A8–A13 red on today's text,
+   each for the reason it names; A1–A7 still green except where a moved pin now names the new phrase (red, by design).
+2. **R13** — edit `commands/_sources/fabrik-deploy-plan-review.md:117` as `spec § Amendment 1` R13 words it. Then
+   run `tests/test_command_rules.py` (it calls `command_rules.losses()` over the tree's sources against the lean
+   ledger `commands/_rules/fabrik-deploy-plan-review.yaml`; a loss is a reworded ban clause, fixed by keeping it
+   verbatim, and its word ceiling for this command is checked there too), then render to a scratch destination
+   (`python3 commands/assemble_commands.py --dest <RUN-SCRATCH>/render`, exit 0). Commit by pathspec with trailers.
+3. **The operator kit for R1–R12** (an agent's edit to either CLAUDE.md copy is refused by the classifier — Phase A's
+   `ep-phaseA.py` precedent). Write `<RUN-SCRATCH>/ep-phaseA2.py`: stdlib only; dry-run by default, `--apply` to write;
+   refuses unless the cwd is `/opt/fabrik/.claude/worktrees/kaizen`, the branch is `kaizen-d1-amend-1031` and both
+   CLAUDE.md copies are clean against HEAD (`git diff --quiet HEAD -- <file>`); for every R it finds the old string
+   exactly once per file it names (else refuses the whole kit, writing nothing); writes `<file>.bak` before the first
+   write; prints a unified diff. Prove it in a throwaway worktree first (`git worktree add <RUN-SCRATCH>/probe HEAD`,
+   run `--apply` there, then step 4's tests inside the probe — all green, the twin test included). Send the kit path
+   and the probe's test output to the coordinator by `SendMessage` (CLAUDE.md § Escalation route) for the operator to
+   run, park the run (`command_run.py handoff`, its `## RESUME` naming step 4), and take no other step on these files
+   until the coordinator says it was applied.
+4. After the apply: `tests/test_least_operator_approval.py`, `tests/test_governance_template_split.py`,
+   `tests/test_gate_decision_blocks.py`, `tests/test_final_gate_stop_deferral.py`,
+   `tests/test_stop_hook_deferral_exemption.py` green; commit both CLAUDE.md copies and the grader by pathspec with
+   trailers (`Agent-Context` names the operator's kit).
+5. The full `/fabrik-review` over the A2 diff (both contracts are governance-sync paths), receipt
+   `docs/development/reviews/2026-10-31-plan-1-phase-a2-review.md`; a fix to a CLAUDE.md copy goes back through a kit,
+   never an agent edit. Then CHANGELOG (`### Changed — least operator approval: D1's residuals (2026-10-31)`), the
+   approval row's id in the receipt, push, and `merge_request.py request --review <receipt> --item W-92389a31`. Like
+   Phase A, A2 merges on its own: the hook does not read anything A2 changes.
+
+**Behavior Contract (Phase A2):**
+
+- **Given** both contracts, **When** the grader reads the gate paragraph, **Then** each holds R1's "a panel class whose condition fails included" and `unbacked`'s new gloss naming a deploy without a rollback and a window that does not dump first, and neither holds "`unbacked` (deleting data with no backup)" (A8)
+- **Given** both contracts, **When** the grader reads the gate paragraph, **Then** each holds R2's dispatch sentence (one `model: "opus"` and one `model: "fable"` seat, "takes no part in the verdict", a coordinator validates both reports), R8's "no panel sits" sentence with "only a P0 act that cannot wait", and R9's "written into this sentence" (A9)
+- **Given** both contracts, **When** the grader reads the gate paragraph, **Then** each holds R3's "people who are not us use it or receive what it sends", R4's "never content on a surface we host and can roll back", R5's "never a credential the fleet mints itself" and R6's "one no verified backup, dump or rollback undoes", and neither holds "and its users are not us" or "every irreversible act always" (A10)
+- **Given** the hub contract, **When** the grader reads § Autonomy, **Then** it holds "every gate § FINAL OUTPUT does not hand to the panel", "superseding D-558's" and "a split on a gate class leaves a `gate` block instead", and no longer holds "keeps for the operator (D-1110, superseding this paragraph's" (A11)
+- **Given** both contracts, **When** the grader reads the volume and cross-repo HARD STOP rows and the stage table, **Then** each volume row names the panel route with "every listed volume backed up and the backup verified first", each cross-repo row ends "a gate the change needs still follows § FINAL OUTPUT's gate ground", each `6-release` row says "hands to Gate 2;"; the hub § EXIT names "to the panel (the operator when § FINAL OUTPUT keeps the act)"; the template's hub-request bullet says "that authority never answers a permission prompt" (A12)
+- **Given** `fabrik-deploy-plan-review.md`, **When** the grader reads its Gate 2 panel sentence, **Then** the brief names who uses the target or receives what it sends and the open P2/P3 rows of the newest certification handoff report (A13)
+- A4 (the twin paragraphs identical apart from "hub D-054") stays and is re-run after the apply.
+- **Mocked:** nothing — the grader reads the real files from the tree it sits in.
+
 ## Phase B — the hook (infra)
 
 Appetite: 60
@@ -414,6 +478,8 @@ Appetite: 60
 - `docs/development/plans/2026-10-22-plan-1-least-operator-approval.md`
 - `docs/development/reviews/2026-10-22-plan-1-least-operator-approval-review.md`
 - `docs/development/reviews/2026-10-22-plan-1-least-operator-approval-plan-review.md`
+- `docs/development/reviews/2026-10-31-plan-1-phase-a2-review.md` (Phase A2)
+- `docs/reference/research/2026-10-31-gate-residuals-ledger.md` (Amendment 1's research ledger)
 
 ## Coverage Checklist
 
