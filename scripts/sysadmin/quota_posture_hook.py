@@ -207,7 +207,7 @@ def _load_posture(now: float) -> tuple[dict | None, str]:
             raw,
             parse_constant=lambda c: (_ for _ in ()).throw(ValueError(f"non-finite: {c}")),
         )
-    except ValueError:
+    except (ValueError, RecursionError):  # deeply nested JSON must read as unreadable, never raise
         return None, "unreadable"
     ts = data.get("ts") if isinstance(data, dict) else None
     if not (isinstance(ts, (int, float)) and not isinstance(ts, bool) and math.isfinite(ts)):
@@ -1232,7 +1232,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         payload = json.load(sys.stdin)
-    except (ValueError, OSError):
+    except (ValueError, OSError, RecursionError):
         return 0  # unreadable payload — never block on our own defect
     if not isinstance(payload, dict):
         return 0  # a non-object payload is not ours to judge

@@ -10589,6 +10589,9 @@ def test_five_hour_retired_payload_parses(tmp_path, monkeypatch):
         _retired_usage(limits=[{"kind": "weekly_all", "percent": 9}, {"kind": "rolling_5h"}]),
         _retired_usage(limits=[{"kind": "weekly_all", "percent": 9}, {"kind": "five_hour"}]),
         _retired_usage(limits=[{"kind": "weekly_all", "percent": 9}, "session"]),
+        # an unhashable kind must read as not retired, never raise out of the parser
+        _retired_usage(limits=[{"kind": "weekly_all", "percent": 9}, {"kind": ["a"]}]),
+        _retired_usage(limits=[{"kind": "weekly_all", "percent": 9}, {"kind": {"a": 1}}]),
         # a malformed (non-dict, non-null) window
         {**_retired_usage(), "five_hour": "retired"},
     ],
@@ -10707,5 +10710,24 @@ def test_legacy_status_prints_a_retired_session_cell(tmp_path, monkeypatch, caps
         cr, "_status_payload", lambda: {"pause": None, "live": "sarp", "accounts": [row]}
     )
     cr._cmd_status(False)
+    out = capsys.readouterr().out
+    assert "session retired" in out and "session 0%" not in out, out
+
+
+def test_queue_line_and_probe_current_print_a_retired_session(monkeypatch, capsys):
+    """Closing pass (W-992979e1): the `--status` queue line and `probe-current` say retired,
+    never a 0% session figure, for a retired 5h window."""
+    act = _retired_row("sarp@ocoron.com", 91.0, "sarp")
+    pic = _serving_picture([act], "sarp", FLEET_NOW)
+    cr._print_picture(pic)
+    out = capsys.readouterr().out
+    queue = next(line for line in out.splitlines() if line.startswith("queue:"))
+    assert "5h retired/91%" in queue, queue
+    monkeypatch.setattr(
+        cr,
+        "_capture_current_usage",
+        lambda: {"five_hour": dict(act["five_hour"]), "seven_day": dict(act["seven_day"])},
+    )
+    cr._cmd_probe_current(False)
     out = capsys.readouterr().out
     assert "session retired" in out and "session 0%" not in out, out
